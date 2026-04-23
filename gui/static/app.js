@@ -807,11 +807,42 @@ async function pollSlow() {
   } catch (_) {}
 }
 
+// ── Speech ────────────────────────────────────────────────────────────────────
+
+async function pollSpeech() {
+  try {
+    const data = await apiFetch("/api/speech/status");
+    const ind   = document.getElementById("speech-indicator");
+    const icon  = document.getElementById("speech-icon");
+    const depth = document.getElementById("speech-depth");
+    if (!ind || !icon) return;
+    if (data.enabled) {
+      ind.classList.remove("paused");
+      icon.textContent = "🔊";
+    } else {
+      ind.classList.add("paused");
+      icon.textContent = "🔇";
+    }
+    if (depth) depth.textContent = data.queue_depth > 0 ? `[${data.queue_depth}]` : "";
+  } catch (_) {}
+}
+
+document.getElementById("speech-indicator")?.addEventListener("click", async (e) => {
+  e.stopPropagation();
+  try {
+    const data = await apiFetch("/api/speech/status");
+    const path = data.enabled ? "/api/speech/pause" : "/api/speech/resume";
+    await apiFetch(path, { method: "POST" });
+    pollSpeech();
+  } catch (_) {}
+});
+
 // Initial load
 pollFast();
 pollMedium();
 pollSlow();
 pollAgi();
+pollSpeech();
 refreshProblems();
 
 // Intervals
@@ -819,4 +850,5 @@ setInterval(pollFast,        2000);
 setInterval(pollMedium,      5000);
 setInterval(pollSlow,       10000);
 setInterval(pollAgi,        30000);
+setInterval(pollSpeech,      5000);
 setInterval(refreshProblems, 30000);

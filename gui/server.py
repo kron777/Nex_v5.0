@@ -41,6 +41,12 @@ Phase 7 endpoints (fountain):
     GET  /api/fountain/crystallizations — last 30 fountain_crystallizations joined to beliefs
     GET  /api/beliefs/insights          — last 200 fountain_insight + synergized beliefs
 
+Phase 7b endpoints (speech):
+    GET  /api/speech/status  — {enabled, voice, queue_depth, last_spoken_at}
+    POST /api/speech/pause   — pause TTS
+    POST /api/speech/resume  — resume TTS
+    POST /api/speech/flush   — skip all pending entries
+
 Phase 8 endpoints (strikes):
     POST /api/strikes/fire         — {strike_type, custom_input?} → fires strike, returns record
     GET  /api/strikes/recent       — last 20 strike records from catalogue
@@ -112,6 +118,7 @@ class AppState:
     problem_memory: Optional["ProblemMemory"] = None    # type: ignore[type-arg]
     tool_registry: Optional["ToolRegistry"] = None      # type: ignore[type-arg]
     tool_caller: Optional["ToolCaller"] = None          # type: ignore[type-arg]
+    speech_consumer: Optional["SpeechQueueConsumer"] = None  # type: ignore[type-arg]
     # Optional hook a test can inject to short-circuit chat persistence.
     now_fn: Callable[[], int] = field(default_factory=lambda: (lambda: int(time.time())))
 
@@ -695,6 +702,53 @@ def create_app(state: AppState) -> Flask:
             "self_location_committed": committed,
             "alpha": ALPHA.lines[0],
         })
+
+    # -- speech (Phase 7b) ---------------------------------------------------
+
+    @app.get("/api/speech/status")
+    def api_speech_status():
+        consumer = state.speech_consumer
+        if consumer is None:
+            return jsonify({"enabled": False, "reason": "not started"})
+        reader = state.readers.get("beliefs")
+        depth = 0
+        last_spoken_at = None
+        if reader is not None:
+            try:
+                r = reader.read(
+                    "SELECT COUNT(*) AS n FROM speech_queue WHERE status='pending'"
+                )
+                depth = r[0]["n"] if r else 0
+                r2 = reader.read(
+                    "SELECT MAX(spoken_at) AS t FROM speech_queue WHERE status='spoken'"
+                )
+                last_spoken_at = r2[0]["t"] if r2 else None
+            except Exception:
+                pass
+        return jsonify({
+            "enabled": not consumer.paused,
+            "voice": consumer.config.voice,
+            "queue_depth": depth,
+            "last_spoken_at": last_spoken_at,
+        })
+
+    @app.post("/api/speech/pause")
+    def api_speech_pause():
+        if state.speech_consumer:
+            state.speech_consumer.pause()
+        return jsonify({"paused": True})
+
+    @app.post("/api/speech/resume")
+    def api_speech_resume():
+        if state.speech_consumer:
+            state.speech_consumer.resume()
+        return jsonify({"paused": False})
+
+    @app.post("/api/speech/flush")
+    def api_speech_flush():
+        if state.speech_consumer is None:
+            return jsonify({"flushed": 0})
+        return jsonify({"flushed": state.speech_consumer.flush()})
 
     # -- strikes (Phase 8) ---------------------------------------------------
 

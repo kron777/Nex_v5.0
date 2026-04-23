@@ -59,6 +59,26 @@ class FountainCrystallizer:
             (fountain_event_id, belief_id, ts, thought),
         )
 
+        # Enqueue for speech (dedup: skip if already queued for this belief)
+        try:
+            from speech.config import SpeechConfig
+            cfg = SpeechConfig.from_env()
+            if cfg.enabled and cfg.min_chars <= len(thought) <= cfg.max_chars:
+                existing = self._reader.read(
+                    "SELECT id FROM speech_queue WHERE belief_id=? LIMIT 1",
+                    (belief_id,),
+                )
+                if not existing:
+                    self._writer.write(
+                        "INSERT INTO speech_queue "
+                        "(belief_id, content, voice, queued_at) VALUES (?, ?, ?, ?)",
+                        (belief_id, thought, cfg.voice, ts),
+                    )
+        except Exception as exc:
+            errors.record(
+                f"speech enqueue failed: {exc}", source=_LOG_SOURCE, exc=exc
+            )
+
         errors.record(
             f"Fountain crystallized: {thought[:80]}",
             source=_LOG_SOURCE,

@@ -120,6 +120,25 @@ def main() -> None:
     tool_caller = ToolCaller(tool_registry)
     log.info("Problem memory + tools ready (Stage B)")
 
+    # 11. Speech consumer
+    speech_consumer = None
+    try:
+        from speech.queue_consumer import SpeechQueueConsumer
+        from speech.config import SpeechConfig
+        speech_cfg = SpeechConfig.from_env()
+        if speech_cfg.enabled:
+            speech_consumer = SpeechQueueConsumer(
+                writer=writers["beliefs"],
+                reader=readers["beliefs"],
+                config=speech_cfg,
+            )
+            speech_consumer.start()
+            log.info("Speech consumer started (voice=%s)", speech_cfg.voice)
+        else:
+            log.info("Speech disabled via NEX5_SPEECH_ENABLED=false")
+    except Exception as e:
+        log.warning("Speech consumer failed to start: %s", e)
+
     # 12. Wire AppState and start GUI
     state = AppState(
         writers=writers,
@@ -135,6 +154,7 @@ def main() -> None:
         problem_memory=problem_memory,
         tool_registry=tool_registry,
         tool_caller=tool_caller,
+        speech_consumer=speech_consumer,
     )
     atexit.register(state.close)
 

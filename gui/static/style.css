@@ -595,9 +595,19 @@ body {
 #agi-log, #agi-insights-log {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   scrollbar-width: thin;
+  scrollbar-color: #555 #1a1a1a;
   padding: 0.2rem 0.6rem;
 }
+#agi-log::-webkit-scrollbar,
+#agi-insights-log::-webkit-scrollbar { width: 10px; }
+#agi-log::-webkit-scrollbar-track,
+#agi-insights-log::-webkit-scrollbar-track { background: #1a1a1a; }
+#agi-log::-webkit-scrollbar-thumb,
+#agi-insights-log::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+#agi-log::-webkit-scrollbar-thumb:hover,
+#agi-insights-log::-webkit-scrollbar-thumb:hover { background: #777; }
 .agi-log-row, .insights-row {
   display: flex;
   align-items: baseline;
@@ -621,3 +631,14 @@ body {
 .insights-row-ts   { color: var(--fg3); flex-shrink: 0; min-width: 6rem; }
 .insights-row-meta { color: #38bdf8; flex-shrink: 0; min-width: 10rem; }
 .insights-row-txt  { color: var(--fg); flex: 1; }
+
+/* Speech indicator */
+.speech-indicator {
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--fg2);
+  user-select: none;
+  margin-left: 8px;
+}
+.speech-indicator.paused #speech-icon { opacity: 0.35; }
+#speech-depth { margin-left: 3px; font-size: 10px; color: var(--fg3); }

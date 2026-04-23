@@ -103,6 +103,20 @@ _MIGRATIONS: dict[str, list[str]] = {
         "content TEXT NOT NULL)",
         "CREATE INDEX IF NOT EXISTS idx_crystal_event ON fountain_crystallizations(fountain_event_id)",
         "CREATE INDEX IF NOT EXISTS idx_crystal_belief ON fountain_crystallizations(belief_id)",
+        "CREATE TABLE IF NOT EXISTS speech_queue ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "belief_id INTEGER NOT NULL, "
+        "content TEXT NOT NULL, "
+        "voice TEXT DEFAULT 'af_bella', "
+        "queued_at REAL NOT NULL, "
+        "spoken_at REAL, "
+        "status TEXT DEFAULT 'pending', "
+        "error TEXT, "
+        "FOREIGN KEY (belief_id) REFERENCES beliefs(id))",
+        "CREATE INDEX IF NOT EXISTS idx_speech_queue_status "
+        "ON speech_queue(status, queued_at)",
+        "UPDATE speech_queue SET voice='af_sarah' "
+        "WHERE voice='af_bella' AND status='pending'",
     ],
     "dynamic": [
         "CREATE TABLE IF NOT EXISTS harmonizer_events ("

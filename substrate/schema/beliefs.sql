@@ -92,3 +92,18 @@ CREATE TABLE IF NOT EXISTS fountain_crystallizations (
 );
 CREATE INDEX IF NOT EXISTS idx_crystal_event  ON fountain_crystallizations(fountain_event_id);
 CREATE INDEX IF NOT EXISTS idx_crystal_belief ON fountain_crystallizations(belief_id);
+
+-- Speech queue — fountain insights awaiting TTS playback.
+CREATE TABLE IF NOT EXISTS speech_queue (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    belief_id  INTEGER NOT NULL,
+    content    TEXT NOT NULL,
+    voice      TEXT DEFAULT 'af_sarah',
+    queued_at  REAL NOT NULL,
+    spoken_at  REAL,
+    status     TEXT DEFAULT 'pending',
+    error      TEXT,
+    FOREIGN KEY (belief_id) REFERENCES beliefs(id)
+);
+CREATE INDEX IF NOT EXISTS idx_speech_queue_status
+    ON speech_queue(status, queued_at);
