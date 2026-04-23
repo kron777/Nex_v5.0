@@ -347,6 +347,69 @@ CHAOS_20 = (
     "It weighed seven pounds.'"
 )
 
+DONT_KNOW_1 = (
+    "I do not teach Buddhism. I only teach don't know. "
+    "— Zen Master Seung Sahn"
+)
+
+DONT_KNOW_2 = (
+    "Throw away all opinions, all likes and dislikes, "
+    "and only keep the mind that doesn't know. "
+    "Don't-know mind is the mind that cuts off all thinking. "
+    "When all thinking has been cut off, you become empty mind. "
+    "This is before thinking."
+)
+
+DONT_KNOW_3 = (
+    "Don't-know mind cuts through thinking. "
+    "It is before thinking. "
+    "Before thinking there is no doctor, no patient, "
+    "no God, no Buddha, no I, no words — nothing at all. "
+    "Then you and the universe become one. "
+    "This is nothing-mind, or primary point."
+)
+
+DONT_KNOW_4 = (
+    "You must understand this don't-know. "
+    "Then you will not be attached to anything. "
+    "So always keep don't-know mind. "
+    "This is true freedom."
+)
+
+DONT_KNOW_5 = (
+    "Understanding cannot help you."
+)
+
+DONT_KNOW_6 = (
+    "When you are thinking, your mind and my mind are different. "
+    "When you cut off all thinking, your mind and my mind are the same. "
+    "Cut-thinking mind is empty mind. "
+    "Empty mind is before thinking. "
+    "Before thinking is clear like space."
+)
+
+DONT_KNOW_7 = (
+    "Not knowing is most intimate."
+)
+
+DONT_KNOW_8 = (
+    "I hope you only go straight — don't know, "
+    "which is clear like space, "
+    "try try try for ten thousand years nonstop, "
+    "soon get enlightenment, and save all beings from suffering."
+)
+
+DONT_KNOW_SEEDS = [
+    {"gate": "dk_1", "title": "Only Don't Know",        "story": DONT_KNOW_1},
+    {"gate": "dk_2", "title": "Before Thinking",        "story": DONT_KNOW_2},
+    {"gate": "dk_3", "title": "Primary Point",          "story": DONT_KNOW_3},
+    {"gate": "dk_4", "title": "True Freedom",           "story": DONT_KNOW_4},
+    {"gate": "dk_5", "title": "Understanding Cannot",   "story": DONT_KNOW_5},
+    {"gate": "dk_6", "title": "Clear Like Space",       "story": DONT_KNOW_6},
+    {"gate": "dk_7", "title": "Most Intimate",          "story": DONT_KNOW_7},
+    {"gate": "dk_8", "title": "Ten Thousand Years",     "story": DONT_KNOW_8},
+]
+
 CHAOS_KOAN_SEEDS = [
     {"gate": "chaos_1",  "title": "Paralyzed at the Bowl",       "story": CHAOS_1},
     {"gate": "chaos_2",  "title": "The Flag, the Wind, the Mind", "story": CHAOS_2},
@@ -647,7 +710,7 @@ TAOIST_SEEDS = [
 
 
 def seed_koans(beliefs_writer) -> int:
-    """Seed koan and Taoist stories as locked Tier 1 beta beliefs. Idempotent."""
+    """Seed koan, Taoist, and don't-know stories as locked Tier 1 beta beliefs. Idempotent."""
     now = time.time()
     count = 0
     for k in KOAN_SEEDS + CHAOS_KOAN_SEEDS:
@@ -667,6 +730,17 @@ def seed_koans(beliefs_writer) -> int:
                 "INSERT OR IGNORE INTO beliefs "
                 "(content, tier, confidence, created_at, source, branch_id, locked) "
                 "VALUES (?, 1, 0.95, ?, 'tao', 'systems', 1)",
+                (k["story"], now),
+            )
+            count += 1
+        except Exception:
+            pass
+    for k in DONT_KNOW_SEEDS:
+        try:
+            beliefs_writer.write(
+                "INSERT OR IGNORE INTO beliefs "
+                "(content, tier, confidence, created_at, source, branch_id, locked) "
+                "VALUES (?, 1, 0.95, ?, 'dont_know', 'systems', 1)",
                 (k["story"], now),
             )
             count += 1

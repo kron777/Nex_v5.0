@@ -36,7 +36,9 @@ theory_x/
     activation.py   ActivationEngine — activate(seed_ids, hops, decay), epistemic_temperature(), typed_roles()
     erosion.py      ProvenanceErosion — record_use(), record_reinforce(), erosion_check(), erosion_pass(); external→nex_core over 10/30/80 reinforcements
     pipeline_hooks.py   PipelineHooks — high-magnitude events corroborate matching beliefs
-    __init__.py     build_world_model() factory — decay_loop, harmonizer_loop, cross_domain_loop, erosion_loop; WorldModelState with get_disturbance()/set_disturbance()
+    synergizer.py   BeliefSynergizer — _select_pair() (cross-branch, diversity-scored), synthesize() via LLM (PHILOSOPHICAL), _quality_check(); source='synergized', tier=6, confidence=0.65
+    crystallizer.py  (stage6) FountainCrystallizer — _quality_check() (self-ref required, 20-300 chars, blacklist, Jaccard ≤0.6), crystallize() → T6 belief source='fountain_insight', confidence=0.70; links via fountain_crystallizations table
+    __init__.py     build_world_model() factory — decay_loop, harmonizer_loop, cross_domain_loop, erosion_loop, synergizer_loop (25min + quiet trigger); WorldModelState with get_disturbance()/set_disturbance()
   stage4_membrane/
     classifier.py   MembraneClassifier — classify_stream(), classify_belief(), classify_query(); CLASSIFIER singleton (THEORY_X_STAGE=4)
     self_model.py   SelfModel — snapshot() assembles proprioception/temporal/interoception/attention; format_self_state() (THEORY_X_STAGE=4)
@@ -48,8 +50,9 @@ theory_x/
     __init__.py     re-exports SelfLocationCommitment, COMMITMENT_CONTENT
   stage6_fountain/
     readiness.py    ReadinessEvaluator — score() (0.0–1.0), is_ready(); FOUNTAIN_THRESHOLD/MIN_INTERVAL/CHECK_INTERVAL constants (THEORY_X_STAGE=6)
-    generator.py    FountainGenerator — generate(), _build_prompt(disturbance=); includes tension when disturbance present
-    __init__.py     build_fountain() factory — FountainState, fountain_loop daemon thread
+    generator.py    FountainGenerator — generate(), _build_prompt(disturbance=); captures fountain_event_id; calls FountainCrystallizer after each fire
+    crystallizer.py FountainCrystallizer — quality gate (self-ref, 20-300 chars, blacklist, Jaccard), writes T6 belief source='fountain_insight', logs to fountain_crystallizations
+    __init__.py     build_fountain() factory — FountainState, FountainCrystallizer wired in, fountain_loop daemon thread
   stage7_sustained/
     problem_memory.py  ProblemMemory — open(), observe(), update_plan(), close(), resume(), list_open(), find_matching(), format_for_prompt(); persists across conversations (THEORY_X_STAGE=7)
     __init__.py        minimal init
@@ -63,7 +66,7 @@ strikes/
   protocols.py    StrikeProtocol — fire(StrikeType); SILENCE strike correctly counts fountain_events before/after 60s window; dynamic_reader wired in
 substrate/
   blacklist_seeds.py  BLACKLIST_SEEDS (20 patterns), seed_blacklist() — seeded at init_all()
-  init_db.py          migrations for: belief_edges, belief_blacklist, erosion columns, drive_proposals
+  init_db.py          migrations for: belief_edges, belief_blacklist, erosion columns, drive_proposals, koan_reads, synergizer_log
   schema/beliefs.sql  + belief_blacklist table, reinforce_count/use_count/erosion_stage columns
   schema/dynamic.sql  + drive_proposals table
   (reader, writer, paths — unchanged)

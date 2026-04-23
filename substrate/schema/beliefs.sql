@@ -70,3 +70,25 @@ CREATE TABLE IF NOT EXISTS koan_reads (
     read_at  REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_koan_reads_gate ON koan_reads(gate_id);
+
+-- Synergizer log — records every synthesis attempt and its outcome.
+CREATE TABLE IF NOT EXISTS synergizer_log (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts               REAL NOT NULL,
+    belief_id_a      INTEGER NOT NULL,
+    belief_id_b      INTEGER NOT NULL,
+    result_content   TEXT,
+    result_belief_id INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_synergizer_ts ON synergizer_log(ts);
+
+-- Fountain crystallizations — links fountain_events rows to the beliefs they became.
+CREATE TABLE IF NOT EXISTS fountain_crystallizations (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    fountain_event_id INTEGER NOT NULL,
+    belief_id         INTEGER NOT NULL,
+    ts                REAL NOT NULL,
+    content           TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_crystal_event  ON fountain_crystallizations(fountain_event_id);
+CREATE INDEX IF NOT EXISTS idx_crystal_belief ON fountain_crystallizations(belief_id);

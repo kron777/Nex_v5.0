@@ -12,6 +12,7 @@ from substrate import Reader, Writer
 from voice.llm import VoiceClient
 
 from theory_x.stage6_fountain.generator import FountainGenerator
+from theory_x.stage6_fountain.crystallizer import FountainCrystallizer
 from theory_x.stage6_fountain.readiness import (
     FOUNTAIN_CHECK_INTERVAL_SECONDS,
     ReadinessEvaluator,
@@ -56,12 +57,20 @@ def build_fountain(
     voice_client: VoiceClient,
     dynamic_state=None,
 ) -> FountainState:
+    crystallizer = None
+    if writers.get("beliefs") and readers.get("beliefs"):
+        crystallizer = FountainCrystallizer(
+            beliefs_writer=writers["beliefs"],
+            beliefs_reader=readers["beliefs"],
+        )
+
     generator = FountainGenerator(
         sense_writer=writers["sense"],
         dynamic_writer=writers["dynamic"],
         voice_client=voice_client,
         dynamic_reader=readers["dynamic"],
         beliefs_writer=writers.get("beliefs"),
+        crystallizer=crystallizer,
     )
 
     state = FountainState(

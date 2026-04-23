@@ -233,6 +233,9 @@ async function refreshBeliefStats() {
     const bar = "█".repeat(Math.round(t * 10)).padEnd(10, "░");
     tempEl.textContent = `temp: ${bar} ${t.toFixed(2)}`;
   }
+
+  const synthEl = document.getElementById("sb-synth");
+  if (synthEl) synthEl.textContent = data.synergized_count ?? 0;
 }
 
 // ── System status + metric strip ──────────────────────────────────────────────

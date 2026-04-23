@@ -600,6 +600,29 @@ def create_app(state: AppState) -> Flask:
             except Exception:
                 pass
 
+            # Fountain insight count
+            fountain_insight_count = 0
+            try:
+                fi_row = reader.read_one(
+                    "SELECT COUNT(*) as cnt FROM beliefs WHERE source = 'fountain_insight'"
+                )
+                fountain_insight_count = fi_row["cnt"] if fi_row else 0
+            except Exception:
+                pass
+
+            # Synergizer stats
+            synergizer_runs = 0
+            synergized_count = 0
+            try:
+                if hasattr(state, "world_model") and state.world_model is not None:
+                    synergizer_runs = state.world_model._synergizer_runs
+                sc_row = reader.read_one(
+                    "SELECT COUNT(*) as cnt FROM beliefs WHERE source = 'synergized'"
+                )
+                synergized_count = sc_row["cnt"] if sc_row else 0
+            except Exception:
+                pass
+
             return jsonify({
                 "tier_distribution": {str(r["tier"]): r["cnt"] for r in tier_rows},
                 "total": total,
@@ -607,6 +630,9 @@ def create_app(state: AppState) -> Flask:
                 "edge_count": edge_count,
                 "edge_type_distribution": edge_type_dist,
                 "epistemic_temperature": round(epistemic_temp, 3),
+                "synergizer_runs": synergizer_runs,
+                "synergized_count": synergized_count,
+                "fountain_insight_count": fountain_insight_count,
             })
         except Exception as e:
             error_channel.record(f"beliefs stats failed: {e}", source="gui.server", exc=e)
@@ -778,6 +804,23 @@ def create_app(state: AppState) -> Flask:
             })
         except Exception as e:
             error_channel.record(f"fountain recent read failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.get("/api/fountain/crystallizations")
+    def api_fountain_crystallizations():
+        reader = state.readers.get("beliefs")
+        if reader is None:
+            return jsonify({"crystallizations": []})
+        try:
+            rows = reader.read(
+                "SELECT fc.id, fc.ts, fc.content, fc.belief_id, b.confidence "
+                "FROM fountain_crystallizations fc "
+                "LEFT JOIN beliefs b ON b.id = fc.belief_id "
+                "ORDER BY fc.ts DESC LIMIT 30"
+            )
+            return jsonify({"crystallizations": [dict(r) for r in rows]})
+        except Exception as e:
+            error_channel.record(f"crystallizations read failed: {e}", source="gui.server", exc=e)
             return jsonify({"error": str(e)}), 500
 
     # -- dynamic formation (Phase 3) ----------------------------------------

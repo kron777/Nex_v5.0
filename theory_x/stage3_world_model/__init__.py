@@ -21,10 +21,16 @@ from .harmonizer import Harmonizer
 from .activation import ActivationEngine
 from .erosion import ProvenanceErosion
 from .pipeline_hooks import PipelineHooks
+from .synergizer import BeliefSynergizer
 
 THEORY_X_STAGE = 3
 
 _LOG_SOURCE = "world_model"
+
+
+SYNERGIZER_INTERVAL = 25 * 60
+SYNERGIZER_QUIET_THRESHOLD = 15 * 60
+SYNERGIZER_QUIET_EVENTS = 5
 
 
 @dataclass
@@ -37,10 +43,12 @@ class WorldModelState:
     hooks: PipelineHooks
     writers: dict
     readers: dict
+    synergizer: Optional[BeliefSynergizer] = None
     _decay_runs: int = field(default=0, init=False)
     _harmonizer_runs: int = field(default=0, init=False)
     _cross_domain_runs: int = field(default=0, init=False)
     _erosion_runs: int = field(default=0, init=False)
+    _synergizer_runs: int = field(default=0, init=False)
     _started_at: float = field(default_factory=time.time, init=False)
     _disturbance: Optional[dict] = field(default=None, init=False)
 
@@ -69,6 +77,7 @@ class WorldModelState:
             "harmonizer_runs": self._harmonizer_runs,
             "cross_domain_runs": self._cross_domain_runs,
             "erosion_runs": self._erosion_runs,
+            "synergizer_runs": self._synergizer_runs,
             "disturbance_active": self._disturbance is not None,
             "uptime_seconds": int(time.time() - self._started_at),
         }
@@ -142,8 +151,62 @@ def _cross_domain_loop(state: WorldModelState, stop: threading.Event) -> None:
             errors.record(f"cross_domain_loop error: {exc}", source=_LOG_SOURCE, exc=exc)
 
 
+def _synergizer_loop(state: WorldModelState, stop: threading.Event) -> None:
+    last_fire = 0.0
+    last_timer_fire = 0.0
+
+    while not stop.is_set():
+        stop.wait(60.0)
+        if stop.is_set():
+            break
+
+        now = time.time()
+        cooldown_ok = (now - last_fire) >= 5 * 60
+
+        if not cooldown_ok:
+            continue
+
+        fire = False
+
+        # Quiet trigger: < SYNERGIZER_QUIET_EVENTS sense events in last 15 min
+        try:
+            sense_reader = state.readers.get("sense")
+            if sense_reader is not None:
+                rows = sense_reader.read(
+                    "SELECT COUNT(*) as cnt FROM sense_events WHERE ts > ?",
+                    (now - SYNERGIZER_QUIET_THRESHOLD,),
+                )
+                if rows and rows[0]["cnt"] < SYNERGIZER_QUIET_EVENTS:
+                    fire = True
+        except Exception:
+            pass
+
+        # Timer trigger: every 25 minutes
+        if (now - last_timer_fire) >= SYNERGIZER_INTERVAL:
+            fire = True
+            last_timer_fire = now
+
+        if not fire:
+            continue
+
+        last_fire = now
+        try:
+            result = state.synergizer.synthesize()
+            state._synergizer_runs += 1
+            if result:
+                errors.record(
+                    f"synergizer_loop: new belief from "
+                    f"({result['belief_id_a']}, {result['belief_id_b']}): "
+                    f"{result['content'][:60]}",
+                    source=_LOG_SOURCE, level="INFO",
+                )
+        except Exception as exc:
+            errors.record(f"synergizer_loop error: {exc}", source=_LOG_SOURCE, exc=exc)
+
+
 def build_world_model(writers: dict, readers: dict,
-                      dynamic_state=None) -> WorldModelState:
+                      dynamic_state=None,
+                      voice_client=None) -> WorldModelState:
     """Factory: wire belief retrieval, promotion, harmonization, and pipeline hooks."""
     erosion = ProvenanceErosion(writers["beliefs"], readers["beliefs"])
     retriever = BeliefRetriever(readers["beliefs"], erosion=erosion)
@@ -160,6 +223,12 @@ def build_world_model(writers: dict, readers: dict,
     if dynamic_state is not None:
         hooks.register(dynamic_state)
 
+    synergizer = BeliefSynergizer(
+        beliefs_writer=writers["beliefs"],
+        beliefs_reader=readers["beliefs"],
+        voice_client=voice_client,
+    )
+
     state = WorldModelState(
         retriever=retriever,
         promoter=promoter,
@@ -167,6 +236,7 @@ def build_world_model(writers: dict, readers: dict,
         activation=activation,
         erosion=erosion,
         hooks=hooks,
+        synergizer=synergizer,
         writers=writers,
         readers=readers,
     )
@@ -179,6 +249,7 @@ def build_world_model(writers: dict, readers: dict,
         (_harmonizer_loop,   "world_model.harmonizer"),
         (_cross_domain_loop, "world_model.cross_domain"),
         (_erosion_loop,      "world_model.erosion"),
+        (_synergizer_loop,   "world_model.synergizer"),
     ]:
         t = threading.Thread(target=fn, args=(state, stop), name=name, daemon=True)
         t.start()

@@ -1,9 +1,9 @@
 """Koan beta belief tests.
 
 Covers:
-- All 19 koans seeded to beliefs.db at init
-- source='koan', tier=1, locked=1 for all
-- seed_koans() is idempotent (running twice yields 19 beliefs, not 38)
+- All 67 beta beliefs seeded to beliefs.db at init (koan + tao + dont_know)
+- source='koan', tier=1, locked=1 for all koan beliefs
+- seed_koans() is idempotent (running twice yields 67 beliefs, not 134)
 - koan_reads table exists after init
 - _select_koan() returns a koan when koans are present
 - _select_koan() returns None when no koans present
@@ -45,13 +45,13 @@ def _cleanup(writers, tmp):
 
 class TestKoanSeeds(unittest.TestCase):
 
-    def test_all_59_beliefs_seeded(self):
+    def test_all_67_beliefs_seeded(self):
         writers, readers, tmp = _make_env()
         try:
             rows = readers["beliefs"].read(
-                "SELECT COUNT(*) as cnt FROM beliefs WHERE source IN ('koan', 'tao')"
+                "SELECT COUNT(*) as cnt FROM beliefs WHERE source IN ('koan', 'tao', 'dont_know')"
             )
-            self.assertEqual(rows[0]["cnt"], 59)
+            self.assertEqual(rows[0]["cnt"], 67)
         finally:
             _cleanup(writers, tmp)
 
@@ -75,14 +75,24 @@ class TestKoanSeeds(unittest.TestCase):
         finally:
             _cleanup(writers, tmp)
 
+    def test_dont_know_count(self):
+        writers, readers, tmp = _make_env()
+        try:
+            rows = readers["beliefs"].read(
+                "SELECT COUNT(*) as cnt FROM beliefs WHERE source = 'dont_know'"
+            )
+            self.assertEqual(rows[0]["cnt"], 8)
+        finally:
+            _cleanup(writers, tmp)
+
     def test_all_tier1_locked(self):
         writers, readers, tmp = _make_env()
         try:
             rows = readers["beliefs"].read(
                 "SELECT COUNT(*) as cnt FROM beliefs "
-                "WHERE source IN ('koan', 'tao') AND tier = 1 AND locked = 1"
+                "WHERE source IN ('koan', 'tao', 'dont_know') AND tier = 1 AND locked = 1"
             )
-            self.assertEqual(rows[0]["cnt"], 59)
+            self.assertEqual(rows[0]["cnt"], 67)
         finally:
             _cleanup(writers, tmp)
 
@@ -92,9 +102,9 @@ class TestKoanSeeds(unittest.TestCase):
             from substrate.koan_seeds import seed_koans
             seed_koans(writers["beliefs"])  # second call
             rows = readers["beliefs"].read(
-                "SELECT COUNT(*) as cnt FROM beliefs WHERE source IN ('koan', 'tao')"
+                "SELECT COUNT(*) as cnt FROM beliefs WHERE source IN ('koan', 'tao', 'dont_know')"
             )
-            self.assertEqual(rows[0]["cnt"], 59)
+            self.assertEqual(rows[0]["cnt"], 67)
         finally:
             _cleanup(writers, tmp)
 

@@ -16,6 +16,7 @@ from voice.llm import VoiceClient, VoiceRequest
 from voice.registers import PHILOSOPHICAL
 
 from theory_x.stage6_fountain.readiness import ReadinessEvaluator
+from theory_x.stage6_fountain.crystallizer import FountainCrystallizer
 
 THEORY_X_STAGE = 6
 
@@ -28,12 +29,14 @@ class FountainGenerator:
         voice_client: VoiceClient,
         dynamic_reader: Reader,
         beliefs_writer: Optional[Writer] = None,
+        crystallizer: Optional[FountainCrystallizer] = None,
     ) -> None:
         self._sense_writer = sense_writer
         self._dynamic_writer = dynamic_writer
         self._voice = voice_client
         self._dynamic_reader = dynamic_reader
         self._beliefs_writer = beliefs_writer
+        self._crystallizer = crystallizer
         self._evaluator = ReadinessEvaluator()
         self._last_fountain_output: Optional[str] = None
         self._last_fire_ts: float = 0.0
@@ -113,7 +116,7 @@ class FountainGenerator:
         )
 
         word_count = len(thought.split())
-        self._dynamic_writer.write(
+        fountain_event_id = self._dynamic_writer.write(
             "INSERT INTO fountain_events (ts, thought, readiness, hot_branch, word_count) "
             "VALUES (?, ?, ?, ?, ?)",
             (ts_now, thought, readiness, hot_branch, word_count),
@@ -132,6 +135,25 @@ class FountainGenerator:
             except Exception as e:
                 error_channel.record(
                     f"Fountain: koan_reads write failed: {e}",
+                    source="stage6_fountain", exc=e,
+                )
+
+        if self._crystallizer is not None and thought and fountain_event_id:
+            try:
+                crystallized_id = self._crystallizer.crystallize(
+                    thought=thought,
+                    fountain_event_id=fountain_event_id,
+                    ts=ts_now,
+                )
+                if crystallized_id:
+                    error_channel.record(
+                        f"Fountain insight crystallized as belief {crystallized_id}",
+                        source="stage6_fountain",
+                        level="INFO",
+                    )
+            except Exception as e:
+                error_channel.record(
+                    f"Fountain crystallization error: {e}",
                     source="stage6_fountain", exc=e,
                 )
 
