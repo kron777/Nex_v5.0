@@ -1,0 +1,22 @@
+__pycache__/
+*.pyc
+*.pyo
+
+# Local data & runtime
+data/
+logs/
+.env
+
+# Admin secrets
+admin_password.argon2
+.flask_secret
+
+# Virtualenvs
+.venv/
+venv/
+
+# Editor cruft
+.vscode/
+.idea/
+*.swp
+.DS_Store
