@@ -36,8 +36,10 @@ Phase 6 endpoints (self-location):
     GET  /api/system/status        — all subsystem flags + self_location_committed + alpha
 
 Phase 7 endpoints (fountain):
-    GET  /api/fountain/status      — last_thought, last_fire_ts, total_fires, readiness_score
-    GET  /api/fountain/recent      — last 10 fountain_events from dynamic.db
+    GET  /api/fountain/status           — last_thought, last_fire_ts, total_fires, readiness_score
+    GET  /api/fountain/recent           — last 10 fountain_events from dynamic.db
+    GET  /api/fountain/crystallizations — last 30 fountain_crystallizations joined to beliefs
+    GET  /api/beliefs/insights          — last 200 fountain_insight + synergized beliefs
 
 Phase 8 endpoints (strikes):
     POST /api/strikes/fire         — {strike_type, custom_input?} → fires strike, returns record
@@ -821,6 +823,23 @@ def create_app(state: AppState) -> Flask:
             return jsonify({"crystallizations": [dict(r) for r in rows]})
         except Exception as e:
             error_channel.record(f"crystallizations read failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.get("/api/beliefs/insights")
+    def api_beliefs_insights():
+        reader = state.readers.get("beliefs")
+        if reader is None:
+            return jsonify({"insights": []})
+        try:
+            rows = reader.read(
+                "SELECT id, content, tier, confidence, source, created_at "
+                "FROM beliefs "
+                "WHERE source IN ('fountain_insight', 'synergized') "
+                "ORDER BY created_at DESC LIMIT 200"
+            )
+            return jsonify({"insights": [dict(r) for r in rows]})
+        except Exception as e:
+            error_channel.record(f"beliefs insights read failed: {e}", source="gui.server", exc=e)
             return jsonify({"error": str(e)}), 500
 
     # -- dynamic formation (Phase 3) ----------------------------------------

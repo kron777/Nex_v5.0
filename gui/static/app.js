@@ -518,13 +518,14 @@ document.getElementById("strike-fire-btn").addEventListener("click", async () =>
 const _AGI_SELF_RE = /\b(i want|i am|i notice|i feel|i think|i wonder|i realize|i find|i see|i know|i have|i need|my )\b/i;
 
 let agiSignals       = [];      // { type, ts, excerpt }
-let agiLastFtnTs     = 0;       // last fountain event ts checked
-let agiLastBeliefTs  = 0;       // last belief ts checked
-let agiLastStrikeId  = 0;       // last strike id checked
-let agiFtnTimestamps = [];      // all fountain fire timestamps (for ignition pattern)
-let agiIgnitionFired = false;   // prevent re-firing ignition until reset
+let agiLastFtnTs     = 0;
+let agiLastBeliefTs  = 0;
+let agiLastStrikeId  = 0;
+let agiFtnTimestamps = [];
+let agiIgnitionFired = false;
 let agiCollapseTimer = null;
-let agiUserExpanded  = false;   // manual toggle state
+let agiUserExpanded  = false;
+let agiActiveTab     = "signals";
 
 function _agiTypeClass(type) {
   return `agi-type-${type.replace(/[^A-Z_]/g, "")}`;
@@ -533,52 +534,128 @@ function _agiTypeClass(type) {
 function _agiRenderLog() {
   const log = document.getElementById("agi-log");
   if (!log) return;
-  log.innerHTML = agiSignals.slice(0, 60).map(s =>
+  log.innerHTML = agiSignals.slice(0, 200).map(s =>
     `<div class="agi-log-row">`
-    + `<span class="agi-log-type ${_agiTypeClass(s.type)}">${s.type}</span>`
     + `<span class="agi-log-ts">${fmtTs(s.ts)}</span>`
-    + `<span class="agi-log-txt">"${esc(s.excerpt.slice(0, 90))}"</span>`
+    + `<span class="agi-log-type ${_agiTypeClass(s.type)}">${s.type}</span>`
+    + `<span class="agi-log-txt">${esc(s.excerpt)}</span>`
     + `</div>`
   ).join("");
-  log.scrollTop = 0;
+}
+
+function _agiToggleExpand(force) {
+  const panel = document.getElementById("agi-watch");
+  if (!panel) return;
+  agiUserExpanded = force !== undefined ? force : !agiUserExpanded;
+  if (agiUserExpanded) {
+    panel.classList.add("expanded");
+    if (agiCollapseTimer) { clearTimeout(agiCollapseTimer); agiCollapseTimer = null; }
+    if (agiActiveTab === "insights") refreshInsights();
+  } else {
+    panel.classList.remove("expanded");
+  }
+}
+
+function _agiSetTab(tab) {
+  agiActiveTab = tab;
+  document.querySelectorAll(".agi-tab").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.tab === tab);
+  });
+  document.getElementById("agi-tab-signals")?.classList.toggle("active", tab === "signals");
+  document.getElementById("agi-tab-insights")?.classList.toggle("active", tab === "insights");
+  if (tab === "insights") refreshInsights();
 }
 
 function _agiShowSignal(type, ts, excerpt) {
-  const panel  = document.getElementById("agi-watch");
   const msg    = document.getElementById("agi-strip-msg");
   const count  = document.getElementById("agi-sig-count");
   const status = document.getElementById("agi-status");
-  if (!panel || !msg) return;
+  if (!msg) return;
 
   agiSignals.unshift({ type, ts, excerpt });
   _agiRenderLog();
 
   count.textContent = `signals: ${agiSignals.length}`;
-  status.textContent = "⚡";
+  if (status) status.textContent = "⚡";
   msg.innerHTML = `<span class="${_agiTypeClass(type)}">${type}</span>`
     + `<span class="agi-strip-ts">${fmtTs(ts)}</span>`
     + `<span class="agi-strip-txt">"${esc(excerpt.slice(0, 60))}"</span>`;
 
   if (!agiUserExpanded) {
-    panel.classList.add("expanded");
+    const panel = document.getElementById("agi-watch");
+    if (panel) panel.classList.add("expanded");
     if (agiCollapseTimer) clearTimeout(agiCollapseTimer);
     agiCollapseTimer = setTimeout(() => {
-      if (!agiUserExpanded) panel.classList.remove("expanded");
+      if (!agiUserExpanded) {
+        const p = document.getElementById("agi-watch");
+        if (p) p.classList.remove("expanded");
+      }
       agiCollapseTimer = null;
     }, 9000);
   }
 }
 
-document.getElementById("agi-watch")?.addEventListener("click", () => {
-  const panel = document.getElementById("agi-watch");
-  agiUserExpanded = !agiUserExpanded;
-  if (agiUserExpanded) {
-    panel.classList.add("expanded");
-    if (agiCollapseTimer) { clearTimeout(agiCollapseTimer); agiCollapseTimer = null; }
+// Strip click → toggle expand
+document.getElementById("agi-strip")?.addEventListener("click", () => _agiToggleExpand());
+
+// Tab buttons
+document.querySelectorAll(".agi-tab").forEach(btn => {
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    _agiSetTab(btn.dataset.tab);
+  });
+});
+
+// Close button
+document.getElementById("agi-close-btn")?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  _agiToggleExpand(false);
+});
+
+// Copy all button
+document.getElementById("agi-copy-btn")?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (agiActiveTab === "signals") {
+    const text = agiSignals.map(s =>
+      `${fmtTs(s.ts)}  ${s.type.padEnd(18)}  ${s.excerpt}`
+    ).join("\n");
+    navigator.clipboard.writeText(text).catch(() => {});
   } else {
-    panel.classList.remove("expanded");
+    const rows = document.querySelectorAll("#agi-insights-log .insights-row");
+    const lines = [];
+    rows.forEach(r => lines.push(r.innerText.replace(/\s+/g, " ").trim()));
+    navigator.clipboard.writeText(lines.join("\n")).catch(() => {});
   }
 });
+
+// Ctrl+Shift+L keyboard shortcut
+document.addEventListener("keydown", (e) => {
+  if (e.ctrlKey && e.shiftKey && e.key === "L") {
+    e.preventDefault();
+    _agiToggleExpand();
+  }
+});
+
+async function refreshInsights() {
+  const log = document.getElementById("agi-insights-log");
+  if (!log) return;
+  const data = await apiFetch("/api/beliefs/insights").catch(() => null);
+  if (!data || data.error) return;
+  const items = data.insights || [];
+  if (!items.length) {
+    log.innerHTML = `<div style="color:var(--fg3);padding:0.5rem;font-size:11px;">No insights yet.</div>`;
+    return;
+  }
+  log.innerHTML = items.map(b => {
+    const ts = fmtTs(b.created_at || 0);
+    const meta = `T${b.tier} · ${b.source} · conf=${(b.confidence||0).toFixed(2)}`;
+    return `<div class="insights-row">`
+      + `<span class="insights-row-ts">${esc(ts)}</span>`
+      + `<span class="insights-row-meta">[${esc(meta)}]</span>`
+      + `<span class="insights-row-txt">${esc(b.content || "")}</span>`
+      + `</div>`;
+  }).join("");
+}
 
 async function pollAgi() {
   const now = Date.now() / 1000;

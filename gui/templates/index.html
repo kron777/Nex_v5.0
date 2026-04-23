@@ -123,16 +123,31 @@
 </div><!-- /main -->
 
 <!-- AGI Watch -->
-<div id="agi-watch" title="click to toggle log">
-  <div id="agi-strip">
+<div id="agi-watch">
+  <div id="agi-strip" title="click to expand">
     <span class="agi-label">AGI WATCH</span>
     <span style="color:var(--fg3)">·</span>
     <span id="agi-status">watching</span>
     <span style="color:var(--fg3)">·</span>
     <span id="agi-sig-count">signals: 0</span>
     <span id="agi-strip-msg"></span>
+    <span class="agi-expand-hint" id="agi-expand-hint">[expand]</span>
   </div>
-  <div id="agi-log"></div>
+  <div id="agi-panel">
+    <div id="agi-panel-toolbar">
+      <button class="agi-tab active" data-tab="signals">AGI WATCH</button>
+      <button class="agi-tab" data-tab="insights">INSIGHTS</button>
+      <span style="flex:1"></span>
+      <button class="agi-ctrl-btn" id="agi-copy-btn">copy all</button>
+      <button class="agi-ctrl-btn" id="agi-close-btn">close  ✕</button>
+    </div>
+    <div id="agi-tab-signals" class="agi-tab-content active">
+      <div id="agi-log"></div>
+    </div>
+    <div id="agi-tab-insights" class="agi-tab-content">
+      <div id="agi-insights-log"></div>
+    </div>
+  </div>
 </div>
 
 <!-- Status bar -->
