@@ -46,8 +46,9 @@ def format_beliefs_for_prompt(beliefs: list[dict]) -> str:
 
 
 class BeliefRetriever:
-    def __init__(self, beliefs_reader: Reader) -> None:
+    def __init__(self, beliefs_reader: Reader, erosion=None) -> None:
         self._reader = beliefs_reader
+        self._erosion = erosion  # Optional ProvenanceErosion instance
 
     def retrieve(self, query: str, branch_hints: Optional[list[str]] = None,
                  limit: int = 10, side_filter: Optional[str] = None) -> list[dict]:
@@ -83,6 +84,22 @@ class BeliefRetriever:
 
         if not rows:
             return []
+
+        # Always include reification_recognition belief on INSIDE self-inquiry queries
+        _reification_id: Optional[int] = None
+        if side_filter == "INSIDE":
+            try:
+                rr_row = self._reader.read_one(
+                    "SELECT id, content, tier, confidence, branch_id, source, locked "
+                    "FROM beliefs WHERE source = 'reification_recognition' LIMIT 1"
+                )
+                if rr_row:
+                    _reification_id = rr_row["id"]
+                    existing_ids = {r["id"] for r in rows}
+                    if _reification_id not in existing_ids:
+                        rows = list(rows) + [rr_row]
+            except Exception:
+                pass
 
         query_tokens = _tokenize(query)
         if not query_tokens:
@@ -169,4 +186,14 @@ class BeliefRetriever:
             final_scores.append((score, b))
 
         final_scores.sort(key=lambda x: x[0], reverse=True)
-        return [b for _, b in final_scores[:limit]]
+        results = [b for _, b in final_scores[:limit]]
+
+        # Record use for provenance erosion
+        if self._erosion is not None:
+            for b in results:
+                try:
+                    self._erosion.record_use(b["id"])
+                except Exception:
+                    pass
+
+        return results

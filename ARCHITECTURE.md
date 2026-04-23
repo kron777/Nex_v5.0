@@ -30,30 +30,41 @@ theory_x/
     consolidation.py    consolidation_pass(), _external_quiet()
     __init__.py     build_dynamic() factory — 7 daemon loops, DynamicState
   stage3_world_model/
-    retrieval.py    BeliefRetriever — keyword-overlap scoring + spreading activation blend (60/40), role badges (BRIDGE/SUPPORT/TENSION/REFINE)
-    promotion.py    BeliefPromoter — corroborate(), survive_challenge(), decay_pass(), decisive_contradiction(), write_edge()
-    harmonizer.py   Harmonizer — conflict detection (Tier 4+), synthesis/retirement, detect_cross_domain() (6h interval)
+    retrieval.py    BeliefRetriever — activation-blend retrieval; always includes reification_recognition on INSIDE queries
+    promotion.py    BeliefPromoter — corroborate(), survive_challenge(), decay_pass(), decisive_contradiction(), write_edge(), is_blacklisted(), add_to_blacklist()
+    harmonizer.py   Harmonizer — conflict detection (Tier 4+), synthesis/retirement, detect_cross_domain() (6h); records disturbance on WorldModelState
     activation.py   ActivationEngine — activate(seed_ids, hops, decay), epistemic_temperature(), typed_roles()
+    erosion.py      ProvenanceErosion — record_use(), record_reinforce(), erosion_check(), erosion_pass(); external→nex_core over 10/30/80 reinforcements
     pipeline_hooks.py   PipelineHooks — high-magnitude events corroborate matching beliefs
-    __init__.py     build_world_model() factory — decay_loop, harmonizer_loop, cross_domain_loop, WorldModelState
+    __init__.py     build_world_model() factory — decay_loop, harmonizer_loop, cross_domain_loop, erosion_loop; WorldModelState with get_disturbance()/set_disturbance()
   stage4_membrane/
     classifier.py   MembraneClassifier — classify_stream(), classify_belief(), classify_query(); CLASSIFIER singleton (THEORY_X_STAGE=4)
     self_model.py   SelfModel — snapshot() assembles proprioception/temporal/interoception/attention; format_self_state() (THEORY_X_STAGE=4)
     router.py       QueryRouter — INSIDE path (philosophical hint + self-state), OUTSIDE path (world beliefs) (THEORY_X_STAGE=4)
-    __init__.py     build_membrane() factory — MembraneState dataclass, snapshot/classify/route methods
+    behavioural_self_model.py  BehaviouralSelfModel — observe() tracks hedge_rate/position_rate/belief_usage_rate; compare_to_seeds(); write_behavioural_beliefs()
+    __init__.py     build_membrane() factory — MembraneState with behavioural daemon (4h); GET /api/membrane/behaviour
   stage5_self_location/
     commitment.py   SelfLocationCommitment — commit() (locked Tier 1 belief), is_committed(); COMMITMENT_CONTENT constant (THEORY_X_STAGE=5)
     __init__.py     re-exports SelfLocationCommitment, COMMITMENT_CONTENT
   stage6_fountain/
     readiness.py    ReadinessEvaluator — score() (0.0–1.0), is_ready(); FOUNTAIN_THRESHOLD/MIN_INTERVAL/CHECK_INTERVAL constants (THEORY_X_STAGE=6)
-    generator.py    FountainGenerator — generate(), _build_prompt(), last_thought(), last_fire_ts() (THEORY_X_STAGE=6)
+    generator.py    FountainGenerator — generate(), _build_prompt(disturbance=); includes tension when disturbance present
     __init__.py     build_fountain() factory — FountainState, fountain_loop daemon thread
 run.py              unified boot — init_db → self-location → scheduler → dynamic → world_model → membrane → fountain → strikes → GUI
 strikes/
   catalogue.py    StrikeCatalogue — direct sqlite3, Jon's observation notebook; intentional architectural exception to one-pen rule
-  protocols.py    StrikeProtocol — fire(StrikeType) executes each of the 5 instruments; StrikeType enum; StrikeRecord dataclass
-substrate/          one-pen plumbing (writer, reader, paths, init, schemas)
+  protocols.py    StrikeProtocol — fire(StrikeType); SILENCE strike correctly counts fountain_events before/after 60s window; dynamic_reader wired in
+substrate/
+  blacklist_seeds.py  BLACKLIST_SEEDS (20 patterns), seed_blacklist() — seeded at init_all()
+  init_db.py          migrations for: belief_edges, belief_blacklist, erosion columns, drive_proposals
+  schema/beliefs.sql  + belief_blacklist table, reinforce_count/use_count/erosion_stage columns
+  schema/dynamic.sql  + drive_proposals table
+  (reader, writer, paths — unchanged)
 admin/              argon2id single-password auth
+keystone.py         KEYSTONE_EXTENDED now includes heart_sutra + reification_recognition locked Tier 1 beliefs
+theory_x/stage2_dynamic/
+  emergent_drives.py  EmergentDriveDetector — scan_for_pressure(), log_proposals(), apply_approved(); 12h daemon
+  bonsai.py           + add_branch() method
 voice/              register-aware llama-server client
 gui/                Flask observability cockpit + chat column
 strikes/            Phase 8 scaffolding, empty

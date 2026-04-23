@@ -185,11 +185,39 @@ class Harmonizer:
             )
             return "both_deleted"
 
-    def run_scan_and_resolve(self) -> int:
-        """Full scan pass. Returns count of conflicts resolved."""
+    def run_scan_and_resolve(self, world_model_state=None) -> int:
+        """Full scan pass. Returns count of conflicts resolved.
+
+        If world_model_state is provided, records the first conflict as a
+        disturbance on WorldModelState before resolving.
+        """
         conflicts = self.scan_for_conflicts()
         resolved = 0
-        for a_id, b_id in conflicts:
+
+        for idx, (a_id, b_id) in enumerate(conflicts):
+            # Record the first unresolved conflict as a disturbance
+            if idx == 0 and world_model_state is not None:
+                try:
+                    row_a = self._beliefs_reader.read_one(
+                        "SELECT content FROM beliefs WHERE id = ?", (a_id,)
+                    )
+                    row_b = self._beliefs_reader.read_one(
+                        "SELECT content FROM beliefs WHERE id = ?", (b_id,)
+                    )
+                    if row_a and row_b:
+                        # Compute overlap score for intensity
+                        ta = _tokenize(row_a["content"])
+                        tb = _tokenize(row_b["content"])
+                        union = len(ta | tb)
+                        intensity = len(ta & tb) / union if union else 0.0
+                        world_model_state.set_disturbance(
+                            a_id, b_id,
+                            row_a["content"], row_b["content"],
+                            intensity,
+                        )
+                except Exception as exc:
+                    errors.record(f"disturbance record error: {exc}", source=_LOG_SOURCE, exc=exc)
+
             result = self.resolve(a_id, b_id)
             if result != "error":
                 resolved += 1

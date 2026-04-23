@@ -636,6 +636,49 @@ async function pollAgi() {
   }
 }
 
+// ── Drive proposals ───────────────────────────────────────────────────────────
+
+async function refreshDriveProposals() {
+  const data = await apiFetch("/api/dynamic/drive_proposals").catch(() => null);
+  if (!data || data.error) return;
+  const feed = document.getElementById("drives-feed");
+  const meta = document.getElementById("drives-meta");
+  if (!feed || !meta) return;
+  const pending = (data.proposals || []).filter(p => p.status === "pending");
+  meta.textContent = pending.length ? `${pending.length} pending` : "none";
+  feed.innerHTML = "";
+  for (const p of data.proposals.slice(0, 8)) {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;align-items:center;gap:4px;margin-bottom:2px;";
+    const badge = document.createElement("span");
+    badge.style.cssText = "font-size:9px;padding:1px 3px;border-radius:2px;background:#222;";
+    badge.textContent = p.status.toUpperCase();
+    const label = document.createElement("span");
+    label.textContent = `${p.branch_id} p=${p.pressure.toFixed(2)}`;
+    row.appendChild(badge);
+    row.appendChild(label);
+    if (p.status === "pending") {
+      const approve = document.createElement("button");
+      approve.textContent = "✓";
+      approve.style.cssText = "font-size:9px;padding:0 3px;cursor:pointer;margin-left:4px;";
+      approve.onclick = async () => {
+        await apiFetch(`/api/dynamic/drive_proposals/${p.id}/approve`, {method:"POST"}).catch(()=>null);
+        refreshDriveProposals();
+      };
+      const reject = document.createElement("button");
+      reject.textContent = "✗";
+      reject.style.cssText = "font-size:9px;padding:0 3px;cursor:pointer;";
+      reject.onclick = async () => {
+        await apiFetch(`/api/dynamic/drive_proposals/${p.id}/reject`, {method:"POST"}).catch(()=>null);
+        refreshDriveProposals();
+      };
+      row.appendChild(approve);
+      row.appendChild(reject);
+    }
+    feed.appendChild(row);
+  }
+}
+
 // ── Polling ───────────────────────────────────────────────────────────────────
 
 async function pollFast() {
@@ -652,6 +695,7 @@ async function pollMedium() {
       refreshFeedsStatus(),
       refreshBeliefStats(),
       refreshMembraneSnapshot(),
+      refreshDriveProposals(),
     ]);
   } catch (_) {}
 }

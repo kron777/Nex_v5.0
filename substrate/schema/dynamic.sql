@@ -81,3 +81,14 @@ CREATE TABLE IF NOT EXISTS harmonizer_events (
     resolution          TEXT,
     synthesis_belief_id INTEGER
 );
+
+-- Emergent drive proposals (Build 6)
+CREATE TABLE IF NOT EXISTS drive_proposals (
+    id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts                     REAL NOT NULL,
+    branch_id              TEXT NOT NULL,
+    pressure               REAL NOT NULL,
+    representative_beliefs TEXT NOT NULL,
+    proposed_curiosity     REAL NOT NULL,
+    status                 TEXT NOT NULL DEFAULT 'pending'
+);

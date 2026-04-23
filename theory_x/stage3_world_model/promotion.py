@@ -30,9 +30,35 @@ _CORROBORATION_THRESHOLDS: dict[int, int] = {
 
 
 class BeliefPromoter:
-    def __init__(self, beliefs_writer: Writer, beliefs_reader: Reader) -> None:
+    def __init__(self, beliefs_writer: Writer, beliefs_reader: Reader,
+                 erosion=None) -> None:
         self._writer = beliefs_writer
         self._reader = beliefs_reader
+        self._erosion = erosion  # Optional ProvenanceErosion instance
+
+    def is_blacklisted(self, content: str) -> bool:
+        """Return True if any blacklist pattern appears in content (case-insensitive)."""
+        try:
+            patterns = self._reader.read("SELECT pattern FROM belief_blacklist")
+        except Exception:
+            return False
+        content_lower = content.lower()
+        for row in patterns:
+            if row["pattern"].lower() in content_lower:
+                return True
+        return False
+
+    def add_to_blacklist(self, pattern: str, reason: str = "") -> None:
+        """Add a pattern to the blacklist at runtime."""
+        import time as _time
+        try:
+            self._writer.write(
+                "INSERT OR IGNORE INTO belief_blacklist (pattern, reason, added_at) "
+                "VALUES (?, ?, ?)",
+                (pattern, reason, _time.time()),
+            )
+        except Exception as exc:
+            errors.record(f"add_to_blacklist error: {exc}", source=_LOG_SOURCE, exc=exc)
 
     def write_edge(self, source_id: int, target_id: int, edge_type: str,
                    weight: float = 0.5) -> None:
@@ -113,6 +139,12 @@ class BeliefPromoter:
             )
             # Find recent high-magnitude corroborating belief and write edge
             self._write_corroboration_edge(belief_id, row["content"] or "")
+            # Record reinforcement for provenance erosion
+            if self._erosion is not None:
+                try:
+                    self._erosion.record_reinforce(belief_id)
+                except Exception:
+                    pass
             errors.record(
                 f"belief {belief_id} promoted Tier {row['tier']} → {new_tier} via corroboration",
                 source=_LOG_SOURCE, level="INFO",

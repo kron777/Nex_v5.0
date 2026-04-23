@@ -130,6 +130,14 @@ class BonsaiTree:
     def get(self, branch_id: str) -> Optional[BonsaiNode]:
         return self._nodes.get(branch_id)
 
+    def add_branch(self, branch_id: str, curiosity_weight: float = 0.5) -> BonsaiNode:
+        """Add a non-seed branch (idempotent — returns existing if already present)."""
+        if branch_id in self._nodes:
+            return self._nodes[branch_id]
+        node = _new_node(branch_id, curiosity_weight, is_seed=False)
+        self._nodes[branch_id] = node
+        return node
+
     def all_nodes(self) -> list[BonsaiNode]:
         return list(self._nodes.values())
 

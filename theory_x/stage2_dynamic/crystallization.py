@@ -26,11 +26,13 @@ _DEDUP_WINDOW_SECONDS = 86400  # 24 hours
 
 class Crystallizer:
     def __init__(self, tree: BonsaiTree, beliefs_writer: Writer,
-                 dynamic_writer: Writer, dynamic_reader: Reader) -> None:
+                 dynamic_writer: Writer, dynamic_reader: Reader,
+                 beliefs_reader: Optional[Reader] = None) -> None:
         self._tree = tree
         self._beliefs_writer = beliefs_writer
         self._dynamic_writer = dynamic_writer
         self._dynamic_reader = dynamic_reader
+        self._beliefs_reader = beliefs_reader
         # per-branch: deque of (timestamp, focus_level) records
         self._focus_history: dict[str, deque] = {}
         # per-branch: last crystallization timestamp (to enforce window dedup)
@@ -90,6 +92,14 @@ class Crystallizer:
 
         belief_content = f"[{branch_id}] {content}"
 
+        # Blacklist guard
+        if self._is_blacklisted(belief_content):
+            errors.record(
+                f"crystallization blocked by blacklist: {belief_content[:80]}",
+                source=_LOG_SOURCE, level="INFO",
+            )
+            return False
+
         # Dedup guard
         if self._is_duplicate(belief_content):
             return False
@@ -136,6 +146,16 @@ class Crystallizer:
             except (json.JSONDecodeError, TypeError):
                 pass
         return best_row["sensation_source"] or f"sustained attention on {branch_id}"
+
+    def _is_blacklisted(self, content: str) -> bool:
+        if self._beliefs_reader is None:
+            return False
+        try:
+            patterns = self._beliefs_reader.read("SELECT pattern FROM belief_blacklist")
+        except Exception:
+            return False
+        content_lower = content.lower()
+        return any(row["pattern"].lower() in content_lower for row in patterns)
 
     def _is_duplicate(self, content: str) -> bool:
         try:

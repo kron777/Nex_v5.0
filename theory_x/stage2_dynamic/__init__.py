@@ -26,6 +26,7 @@ from .membrane import Membrane
 from .pipeline import run_pipeline
 from .crystallization import Crystallizer
 from .consolidation import consolidation_pass
+from .emergent_drives import EmergentDriveDetector
 
 THEORY_X_STAGE = 2
 
@@ -40,6 +41,7 @@ class DynamicState:
     tree: BonsaiTree
     membrane: Membrane
     crystallizer: Crystallizer
+    drive_detector: EmergentDriveDetector
     writers: dict
     readers: dict
     _pipeline_runs: int = field(default=0, init=False)
@@ -194,6 +196,25 @@ def _snapshot_loop(state: DynamicState, stop: threading.Event) -> None:
         stop.wait(60.0)
 
 
+def _emergent_drives_loop(state: DynamicState, stop: threading.Event) -> None:
+    while not stop.is_set():
+        stop.wait(12 * 3600.0)
+        if stop.is_set():
+            break
+        try:
+            proposals = state.drive_detector.scan_for_pressure(
+                state.readers["beliefs"], state
+            )
+            if proposals:
+                state.drive_detector.log_proposals(proposals)
+            # Apply any previously approved proposals
+            state.drive_detector.apply_approved(
+                state, state.writers["beliefs"], state.readers["dynamic"]
+            )
+        except Exception as exc:
+            errors.record(f"emergent_drives_loop error: {exc}", source=_LOG_SOURCE, exc=exc)
+
+
 def _health_loop(state: DynamicState, stop: threading.Event) -> None:
     while not stop.is_set():
         try:
@@ -222,12 +243,16 @@ def build_dynamic(writers: dict, readers: dict) -> DynamicState:
         beliefs_writer=writers["beliefs"],
         dynamic_writer=writers["dynamic"],
         dynamic_reader=readers["dynamic"],
+        beliefs_reader=readers["beliefs"],
     )
+
+    drive_detector = EmergentDriveDetector(dynamic_writer=writers["dynamic"])
 
     state = DynamicState(
         tree=tree,
         membrane=membrane,
         crystallizer=crystallizer,
+        drive_detector=drive_detector,
         writers=writers,
         readers=readers,
     )
@@ -235,13 +260,14 @@ def build_dynamic(writers: dict, readers: dict) -> DynamicState:
     stop = threading.Event()
 
     loops = [
-        (_sense_poll_loop,      "dynamic.sense_poll"),
-        (_aperture_loop,        "dynamic.aperture"),
-        (_accumulator_loop,     "dynamic.accumulator"),
-        (_crystallization_loop, "dynamic.crystallization"),
-        (_consolidation_loop,   "dynamic.consolidation"),
-        (_snapshot_loop,        "dynamic.snapshot"),
-        (_health_loop,          "dynamic.health"),
+        (_sense_poll_loop,       "dynamic.sense_poll"),
+        (_aperture_loop,         "dynamic.aperture"),
+        (_accumulator_loop,      "dynamic.accumulator"),
+        (_crystallization_loop,  "dynamic.crystallization"),
+        (_consolidation_loop,    "dynamic.consolidation"),
+        (_snapshot_loop,         "dynamic.snapshot"),
+        (_health_loop,           "dynamic.health"),
+        (_emergent_drives_loop,  "dynamic.emergent_drives"),
     ]
 
     for fn, name in loops:

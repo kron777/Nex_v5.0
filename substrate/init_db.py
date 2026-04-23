@@ -67,6 +67,15 @@ _MIGRATIONS: dict[str, list[str]] = {
         "CREATE INDEX IF NOT EXISTS idx_edges_target ON belief_edges(target_id)",
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_edges_pair "
         "ON belief_edges(source_id, target_id, edge_type)",
+        "CREATE TABLE IF NOT EXISTS belief_blacklist ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "pattern TEXT NOT NULL UNIQUE, "
+        "reason TEXT NOT NULL DEFAULT '', "
+        "added_at REAL NOT NULL)",
+        "CREATE INDEX IF NOT EXISTS idx_blacklist_pattern ON belief_blacklist(pattern)",
+        "ALTER TABLE beliefs ADD COLUMN reinforce_count INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE beliefs ADD COLUMN use_count INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE beliefs ADD COLUMN erosion_stage TEXT NOT NULL DEFAULT 'external'",
     ],
     "dynamic": [
         "CREATE TABLE IF NOT EXISTS harmonizer_events ("
@@ -78,6 +87,14 @@ _MIGRATIONS: dict[str, list[str]] = {
         "thought TEXT NOT NULL, readiness REAL NOT NULL, "
         "hot_branch TEXT, word_count INTEGER)",
         "CREATE INDEX IF NOT EXISTS idx_fountain_ts ON fountain_events(ts)",
+        "CREATE TABLE IF NOT EXISTS drive_proposals ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "ts REAL NOT NULL, "
+        "branch_id TEXT NOT NULL, "
+        "pressure REAL NOT NULL, "
+        "representative_beliefs TEXT NOT NULL, "
+        "proposed_curiosity REAL NOT NULL, "
+        "status TEXT NOT NULL DEFAULT 'pending')",
     ],
 }
 
@@ -114,6 +131,11 @@ def init_all() -> None:
         from keystone import reseed as keystone_reseed
         keystone_reseed(writers["beliefs"])
         logger.info("Keystone seeds applied to beliefs.db")
+
+        # Seed contamination blacklist.
+        from substrate.blacklist_seeds import seed_blacklist
+        seed_blacklist(writers["beliefs"])
+        logger.info("Blacklist seeds applied to beliefs.db")
     finally:
         for w in writers.values():
             w.close()

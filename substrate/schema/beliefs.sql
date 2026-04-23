@@ -16,7 +16,10 @@ CREATE TABLE IF NOT EXISTS beliefs (
     locked               INTEGER NOT NULL DEFAULT 0,
     corroboration_count  INTEGER NOT NULL DEFAULT 0,
     last_referenced_at   INTEGER,
-    paused               INTEGER NOT NULL DEFAULT 0
+    paused               INTEGER NOT NULL DEFAULT 0,
+    reinforce_count      INTEGER NOT NULL DEFAULT 0,
+    use_count            INTEGER NOT NULL DEFAULT 0,
+    erosion_stage        TEXT NOT NULL DEFAULT 'external'
 );
 
 CREATE INDEX IF NOT EXISTS idx_beliefs_tier   ON beliefs(tier);
@@ -27,6 +30,15 @@ CREATE INDEX IF NOT EXISTS idx_beliefs_branch ON beliefs(branch_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_beliefs_keystone_content
     ON beliefs(content)
     WHERE tier = 1 AND locked = 1;
+
+-- Contamination blacklist — patterns that must never crystallise into beliefs.
+CREATE TABLE IF NOT EXISTS belief_blacklist (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    pattern     TEXT NOT NULL UNIQUE,
+    reason      TEXT NOT NULL DEFAULT '',
+    added_at    REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_blacklist_pattern ON belief_blacklist(pattern);
 
 -- Belief edge graph — grows organically through corroboration, contradiction, synthesis.
 CREATE TABLE IF NOT EXISTS belief_edges (

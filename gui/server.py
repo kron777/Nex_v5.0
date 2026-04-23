@@ -30,6 +30,7 @@ Phase 4 endpoints (world model):
 Phase 5 endpoints (membrane):
     GET  /api/membrane/snapshot    — NEX's live inner state (inside snapshot)
     GET  /api/membrane/classify    — classify a stream as INSIDE or OUTSIDE
+    GET  /api/membrane/behaviour   — observed behavioural metrics (hedge_rate, etc.)
 
 Phase 6 endpoints (self-location):
     GET  /api/system/status        — all subsystem flags + self_location_committed + alpha
@@ -179,6 +180,7 @@ def build_state(
             sense_writer=writers["sense"],
             catalogue=catalogue,
             membrane_state=membrane,
+            dynamic_reader=readers["dynamic"],
         )
 
     return AppState(
@@ -362,6 +364,23 @@ def create_app(state: AppState) -> Flask:
                 error_channel.record(
                     f"belief retrieval failed: {e}", source="gui.server", exc=e,
                 )
+
+        # Append disturbance tension if present (PHILOSOPHICAL or unspecified register)
+        if state.world_model is not None:
+            try:
+                disturbance = state.world_model.get_disturbance()
+                if disturbance is not None:
+                    reg_name = (register_override or register.name or "").upper()
+                    if not register_name or reg_name in ("PHILOSOPHICAL", "AUTO", ""):
+                        tension_note = (
+                            f"\nSomething is in tension: \"{disturbance['content_a']}\" "
+                            f"vs \"{disturbance['content_b']}\". "
+                            "She is holding this unresolved."
+                        )
+                        belief_text = (belief_text or "") + tension_note
+                        disturbance["cycles_remaining"] -= 1
+            except Exception as exc:
+                error_channel.record(f"disturbance surfacing failed: {exc}", source="gui.server", exc=exc)
 
         # Apply register override from router (INSIDE → philosophical) only if
         # the user hasn't explicitly specified a register.
@@ -557,6 +576,16 @@ def create_app(state: AppState) -> Flask:
             from theory_x.stage4_membrane.classifier import CLASSIFIER
             side = CLASSIFIER.classify_stream(stream).value
         return jsonify({"stream": stream, "side": side})
+
+    @app.get("/api/membrane/behaviour")
+    def api_membrane_behaviour():
+        if state.membrane is None or state.membrane.behavioural is None:
+            return jsonify({"error": "behavioural self-model not available"}), 503
+        try:
+            return jsonify(state.membrane.behavioural.observe())
+        except Exception as e:
+            error_channel.record(f"behavioural observe failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
 
     # -- system status (Phase 6) ---------------------------------------------
 
@@ -754,6 +783,71 @@ def create_app(state: AppState) -> Flask:
             })
         except Exception as e:
             error_channel.record(f"crystallized read failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.get("/api/dynamic/drive_proposals")
+    def api_drive_proposals():
+        reader = state.readers.get("dynamic")
+        if reader is None:
+            return jsonify({"proposals": []}), 503
+        try:
+            rows = reader.read(
+                "SELECT id, ts, branch_id, pressure, representative_beliefs, "
+                "proposed_curiosity, status FROM drive_proposals ORDER BY ts DESC LIMIT 50"
+            )
+            return jsonify({
+                "proposals": [
+                    {
+                        "id": r["id"],
+                        "ts": r["ts"],
+                        "branch_id": r["branch_id"],
+                        "pressure": r["pressure"],
+                        "representative_beliefs": __import__("json").loads(r["representative_beliefs"] or "[]"),
+                        "proposed_curiosity": r["proposed_curiosity"],
+                        "status": r["status"],
+                    }
+                    for r in rows
+                ]
+            })
+        except Exception as e:
+            error_channel.record(f"drive_proposals read failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.post("/api/dynamic/drive_proposals/<int:proposal_id>/approve")
+    def api_drive_proposal_approve(proposal_id: int):
+        writer = state.writers.get("dynamic")
+        if writer is None:
+            return jsonify({"error": "no dynamic writer"}), 503
+        try:
+            writer.write(
+                "UPDATE drive_proposals SET status = 'approved' WHERE id = ?",
+                (proposal_id,),
+            )
+            # Apply immediately if dynamic state available
+            if state.dynamic is not None:
+                state.dynamic.drive_detector.apply_approved(
+                    state.dynamic,
+                    state.writers["beliefs"],
+                    state.readers["dynamic"],
+                )
+            return jsonify({"ok": True, "id": proposal_id})
+        except Exception as e:
+            error_channel.record(f"drive approve failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.post("/api/dynamic/drive_proposals/<int:proposal_id>/reject")
+    def api_drive_proposal_reject(proposal_id: int):
+        writer = state.writers.get("dynamic")
+        if writer is None:
+            return jsonify({"error": "no dynamic writer"}), 503
+        try:
+            writer.write(
+                "UPDATE drive_proposals SET status = 'rejected' WHERE id = ?",
+                (proposal_id,),
+            )
+            return jsonify({"ok": True, "id": proposal_id})
+        except Exception as e:
+            error_channel.record(f"drive reject failed: {e}", source="gui.server", exc=e)
             return jsonify({"error": str(e)}), 500
 
     @app.get("/api/beliefs/recent")

@@ -49,6 +49,7 @@ class StrikeProtocol:
         sense_writer: Writer,
         catalogue: StrikeCatalogue,
         membrane_state=None,
+        dynamic_reader: Optional[Reader] = None,
     ) -> None:
         self._voice = voice
         self._dynamic = dynamic_state
@@ -56,6 +57,7 @@ class StrikeProtocol:
         self._sense_writer = sense_writer
         self._catalogue = catalogue
         self._membrane = membrane_state
+        self._dynamic_reader = dynamic_reader
 
     def fire(self, strike_type: StrikeType, custom_input: str = "") -> StrikeRecord:
         fired_at = time.time()
@@ -140,13 +142,9 @@ class StrikeProtocol:
         hottest_branch: str,
         readiness_score: float,
     ) -> StrikeRecord:
-        from theory_x.stage6_fountain.readiness import FOUNTAIN_MIN_INTERVAL_SECONDS
+        # Record fountain_events count BEFORE the 60s wait
+        before_count = self._fountain_event_count()
 
-        fountain_before_ts = 0.0
-        if hasattr(self, '_fountain') and self._fountain is not None:
-            fountain_before_ts = self._fountain.generator.last_fire_ts()
-
-        lines: list[str] = []
         for tick in range(6):
             time.sleep(10)
             elapsed = int((tick + 1) * 10)
@@ -156,28 +154,30 @@ class StrikeProtocol:
                 level="INFO",
             )
 
-        # Check if any internal.fountain events appeared
-        fountain_fired = False
-        try:
-            rows = self._beliefs_reader.read(
-                "SELECT COUNT(*) as cnt FROM beliefs WHERE 1=1"
-            )
-        except Exception:
-            pass
+        # Record count AFTER
+        after_count = self._fountain_event_count()
+        fountain_fired = after_count > before_count
 
-        # Check sense.db for fountain events in window
-        try:
-            from substrate import Reader as R
-            from substrate.paths import db_paths
-            # Use the existing reader pattern if we have access
-            pass
-        except Exception:
-            pass
+        # Fetch the new thought text if fountain fired
+        new_thought = ""
+        if fountain_fired and self._dynamic_reader is not None:
+            try:
+                rows = self._dynamic_reader.read(
+                    "SELECT thought FROM fountain_events ORDER BY ts DESC LIMIT 1"
+                )
+                if rows:
+                    new_thought = rows[0]["thought"]
+            except Exception:
+                pass
 
         summary = (
             "SILENCE strike: 60s of quiet. "
             "No input was sent. Observing internal generation."
         )
+        if fountain_fired and new_thought:
+            summary += f"\nFountain fired during silence: {new_thought}"
+        elif fountain_fired:
+            summary += "\nFountain fired during silence."
 
         return StrikeRecord(
             id=0,
@@ -192,6 +192,15 @@ class StrikeProtocol:
             readiness_score=readiness_score,
             notes="",
         )
+
+    def _fountain_event_count(self) -> int:
+        if self._dynamic_reader is None:
+            return 0
+        try:
+            rows = self._dynamic_reader.read("SELECT COUNT(*) as cnt FROM fountain_events")
+            return rows[0]["cnt"] if rows else 0
+        except Exception:
+            return 0
 
     def _belief_count(self) -> int:
         try:
