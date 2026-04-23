@@ -1,6 +1,6 @@
 """GUI — Flask observability cockpit and chat column.
 
-Endpoints:
+Phase 1 endpoints:
     GET  /                    — dashboard page
     GET  /api/alpha           — Alpha lines (read-only display)
     GET  /api/db/stats        — row counts per table per DB
@@ -10,6 +10,13 @@ Endpoints:
     POST /api/admin/login     — {password} → {authenticated}
     POST /api/admin/logout    — clears admin session
     POST /api/chat            — {prompt, register?} → routes through voice/llm.py
+
+Phase 2 endpoints (sense stream):
+    GET  /api/sense/status              — scheduler status for all 23 adapters
+    POST /api/sense/start               — start_all() external feeds
+    POST /api/sense/stop                — stop_all() external feeds
+    POST /api/sense/toggle/<adapter_id> — enable/disable individual feed
+    GET  /api/sense/recent              — last 50 sense_events rows
 
 The app is constructed from an AppState container so tests can drive
 it with mock Writers/Readers and a mock VoiceClient.
@@ -57,10 +64,18 @@ class AppState:
     writers: dict[str, Writer]
     readers: dict[str, Reader]
     voice: VoiceClient
+    scheduler: Optional["SenseScheduler"] = None  # type: ignore[type-arg]
     # Optional hook a test can inject to short-circuit chat persistence.
     now_fn: Callable[[], int] = field(default_factory=lambda: (lambda: int(time.time())))
 
     def close(self) -> None:
+        if self.scheduler is not None:
+            try:
+                self.scheduler.shutdown()
+            except Exception as e:
+                error_channel.record(
+                    f"Scheduler shutdown failed: {e}", source="gui.server", exc=e
+                )
         for w in self.writers.values():
             try:
                 w.close()
@@ -74,8 +89,11 @@ def build_state(
     *,
     voice_url: Optional[str] = None,
     voice_model: str = "qwen2.5-3b",
-) -> AppState:
+    with_scheduler: bool = True,
+) -> "AppState":
     """Default state: real Writers/Readers against db_paths(), real VoiceClient."""
+    from theory_x.stage1_sense import build_scheduler
+
     paths = db_paths()
     writers = {name: Writer(p, name=name) for name, p in paths.items()}
     readers = {name: Reader(p) for name, p in paths.items()}
@@ -85,7 +103,8 @@ def build_state(
         ),
         model=os.environ.get("NEX5_VOICE_MODEL", voice_model),
     )
-    return AppState(writers=writers, readers=readers, voice=voice)
+    scheduler = build_scheduler(writers, readers) if with_scheduler else None
+    return AppState(writers=writers, readers=readers, voice=voice, scheduler=scheduler)
 
 
 def create_app(state: AppState) -> Flask:
@@ -254,6 +273,74 @@ def create_app(state: AppState) -> Flask:
             "register": register.name,
             "voice_ok": voice_ok,
             "session_id": session_id,
+        })
+
+    # -- sense stream (Phase 2) ----------------------------------------------
+
+    @app.get("/api/sense/status")
+    def api_sense_status():
+        if state.scheduler is None:
+            return jsonify({"error": "scheduler not initialised"}), 503
+        return jsonify(state.scheduler.status())
+
+    @app.post("/api/sense/start")
+    def api_sense_start():
+        if state.scheduler is None:
+            return jsonify({"error": "scheduler not initialised"}), 503
+        state.scheduler.start_all()
+        return jsonify({"global_running": True})
+
+    @app.post("/api/sense/stop")
+    def api_sense_stop():
+        if state.scheduler is None:
+            return jsonify({"error": "scheduler not initialised"}), 503
+        state.scheduler.stop_all()
+        return jsonify({"global_running": False})
+
+    @app.post("/api/sense/toggle/<adapter_id>")
+    def api_sense_toggle(adapter_id: str):
+        if state.scheduler is None:
+            return jsonify({"error": "scheduler not initialised"}), 503
+        try:
+            status = state.scheduler.status()["adapters"].get(adapter_id)
+            if status is None:
+                return jsonify({"error": f"unknown adapter {adapter_id!r}"}), 404
+            if status["is_internal"]:
+                return jsonify({"error": "cannot toggle internal adapter"}), 400
+            if status["enabled"]:
+                state.scheduler.disable(adapter_id)
+            else:
+                state.scheduler.enable(adapter_id)
+            new_state = state.scheduler.status()["adapters"][adapter_id]["enabled"]
+            return jsonify({"adapter_id": adapter_id, "enabled": new_state})
+        except (KeyError, ValueError) as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.get("/api/sense/recent")
+    def api_sense_recent():
+        reader = state.readers.get("sense")
+        if reader is None:
+            return jsonify({"events": []})
+        try:
+            limit = int(request.args.get("limit", "50"))
+        except ValueError:
+            limit = 50
+        rows = reader.read(
+            "SELECT id, stream, payload, provenance, timestamp "
+            "FROM sense_events ORDER BY id DESC LIMIT ?",
+            (max(1, min(limit, 200)),),
+        )
+        return jsonify({
+            "events": [
+                {
+                    "id": row["id"],
+                    "stream": row["stream"],
+                    "payload": row["payload"],
+                    "provenance": row["provenance"],
+                    "timestamp": row["timestamp"],
+                }
+                for row in rows
+            ]
         })
 
     return app

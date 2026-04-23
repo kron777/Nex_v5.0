@@ -8,7 +8,7 @@
 <body>
   <header>
     <h1>NEX 5.0</h1>
-    <div class="phase">Phase 1 — Bones</div>
+    <div class="phase">Phase 2 — Sense Stream</div>
     <div id="admin-status" class="admin-status">admin: …</div>
   </header>
 
@@ -41,6 +41,36 @@
   </div>
 
   <section class="card">
+    <h2>
+      Sense Stream
+      <span id="sense-global-badge" class="badge badge-off">PAUSED</span>
+    </h2>
+    <div class="sense-controls">
+      <button id="sense-start-btn">Start Feeds</button>
+      <button id="sense-stop-btn">Stop Feeds</button>
+      <span class="muted">Internal sensors (20–23) run continuously regardless of this switch.</span>
+    </div>
+    <table id="sense-table">
+      <thead>
+        <tr>
+          <th>Adapter</th>
+          <th>Stream</th>
+          <th>Type</th>
+          <th>State</th>
+          <th>Last Poll</th>
+          <th>Events</th>
+          <th>Last Error</th>
+          <th>Toggle</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <h3>Recent Events <span class="muted" id="sense-event-count"></span></h3>
+    <div id="sense-events" class="sense-events"></div>
+  </section>
+
+  <section class="card">
     <h2>Errors <span class="muted" id="error-count"></span></h2>
     <div id="error-list" class="error-list"></div>
   </section>
@@ -69,7 +99,7 @@
       <input type="text" id="chat-input" placeholder="say something…" autocomplete="off">
       <button type="submit">Send</button>
     </form>
-    <div class="muted">Routes through <code>voice/llm.py</code> → llama-server. If the server isn't running, Phase 1 still reports cleanly.</div>
+    <div class="muted">Routes through <code>voice/llm.py</code> → llama-server.</div>
   </section>
 
   <script src="{{ url_for('static', filename='app.js') }}"></script>

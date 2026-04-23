@@ -92,6 +92,21 @@ button {
 }
 button:hover { border-color: var(--accent); color: var(--accent); }
 
+/* sense stream panel */
+.sense-controls { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
+.badge { font-family: var(--mono); font-size: 0.75rem; padding: 0.15rem 0.45rem; border-radius: 3px; vertical-align: middle; margin-left: 0.5rem; }
+.badge-off  { background: #3d2a00; color: var(--warn); border: 1px solid #6b4a00; }
+.badge-on   { background: #0d2a0d; color: var(--ok);   border: 1px solid #1a5c1a; }
+.sense-events { font-family: var(--mono); font-size: 0.78rem; max-height: 200px; overflow-y: auto; background: var(--panel-b); border: 1px solid var(--border); border-radius: 4px; padding: 0.4rem; margin-top: 0.4rem; }
+.sense-events .ev { padding: 0.2rem 0; border-bottom: 1px solid var(--border); }
+.sense-events .ev .stream { color: var(--accent); margin-right: 0.5rem; }
+.sense-events .ev .ts     { color: var(--fg-muted); margin-right: 0.5rem; }
+#sense-table td.err       { color: var(--err); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#sense-table td.ok        { color: var(--ok); }
+.state-on  { color: var(--ok); }
+.state-off { color: var(--fg-muted); }
+h3 { font-size: 0.88rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--fg-muted); margin: 0.9rem 0 0.4rem; }
+
 .chat-log {
   font-family: var(--mono);
   font-size: 0.85rem;
