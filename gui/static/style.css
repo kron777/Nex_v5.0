@@ -107,6 +107,10 @@ button:hover { border-color: var(--accent); color: var(--accent); }
 .state-off { color: var(--fg-muted); }
 h3 { font-size: 0.88rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--fg-muted); margin: 0.9rem 0 0.4rem; }
 
+/* Phase 6 — boot status */
+.boot-status { font-family: var(--mono); font-size: 0.78rem; margin-left: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.boot-status span { white-space: nowrap; }
+
 /* Phase 5 — membrane inside/outside */
 .membrane-col { font-family: var(--mono); font-size: 0.82rem; }
 .membrane-row { display: flex; gap: 0.6rem; padding: 0.2rem 0; border-bottom: 1px solid var(--border); }

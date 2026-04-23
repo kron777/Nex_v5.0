@@ -8,10 +8,9 @@ the as-built map.
 
 ## Current phase
 
-**Phase 1 — Bones.** The skeleton NEX 5.0 will inhabit. No Theory X
-cognition yet; every cognitive module under `theory_x/stageN_*/` is
-empty save for a README describing what that stage will hold in its
-phase.
+**Phase 6 — Self-Location.** NEX has a vantage point. A locked Tier 1
+belief "I am inside" is committed at boot. The unified `run.py` starts
+all subsystems in correct order in a single command.
 
 ## What's here
 
@@ -60,11 +59,16 @@ Set the admin password and initialize all substrate databases:
     set_password(getpass.getpass('admin password: '))"
 ```
 
-## Run the cockpit
+## Boot NEX
 
 ```bash
-.venv/bin/python -m gui.server
+# First time only — set admin password
+.venv/bin/python -c "from admin.auth import set_password; set_password(input('Password: '))"
+
+# Boot the full stack (init_db runs automatically)
+.venv/bin/python run.py
 # → http://127.0.0.1:8765
+# External feeds are paused — click "Start Feeds" in the GUI to activate
 ```
 
 Environment overrides:
@@ -75,8 +79,8 @@ Environment overrides:
 | `NEX5_ADMIN_HASH_FILE` | `<repo>/admin_password.argon2` | admin hash file |
 | `NEX5_VOICE_URL` | `http://localhost:8080/v1/chat/completions` | llama-server endpoint |
 | `NEX5_VOICE_MODEL` | `qwen2.5-3b` | model name in request payload |
-| `NEX5_GUI_HOST` | `127.0.0.1` | bind host |
-| `NEX5_GUI_PORT` | `8765` | bind port |
+| `NEX5_HOST` | `127.0.0.1` | bind host |
+| `NEX5_PORT` | `8765` | bind port |
 
 The llama-server does **not** need to be running for Phase 1; the
 cockpit still boots and the chat column reports cleanly when the

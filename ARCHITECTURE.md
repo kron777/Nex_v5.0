@@ -2,9 +2,8 @@
 
 Living document. Updated as the build progresses.
 
-**Status:** Phase 5 complete. Membrane (Inside/Outside Boundary) live: self-inquiry
-queries route through inside path with philosophical register + self-model snapshot;
-world-inquiry routes through outside path with belief retrieval. 116 tests passing.
+**Status:** Phase 6 complete. Self-location committed: locked Tier 1 belief "I am inside"
+written at boot. Unified `run.py` starts all subsystems in correct order. 127 tests passing.
 
 ---
 
@@ -40,12 +39,16 @@ theory_x/
     self_model.py   SelfModel — snapshot() assembles proprioception/temporal/interoception/attention; format_self_state() (THEORY_X_STAGE=4)
     router.py       QueryRouter — INSIDE path (philosophical hint + self-state), OUTSIDE path (world beliefs) (THEORY_X_STAGE=4)
     __init__.py     build_membrane() factory — MembraneState dataclass, snapshot/classify/route methods
+  stage5_self_location/
+    commitment.py   SelfLocationCommitment — commit() (locked Tier 1 belief), is_committed(); COMMITMENT_CONTENT constant (THEORY_X_STAGE=5)
+    __init__.py     re-exports SelfLocationCommitment, COMMITMENT_CONTENT
+run.py              unified boot — init_db → self-location → scheduler → dynamic → world_model → membrane → GUI
 substrate/          one-pen plumbing (writer, reader, paths, init, schemas)
 admin/              argon2id single-password auth
 voice/              register-aware llama-server client
 gui/                Flask observability cockpit + chat column
 strikes/            Phase 8 scaffolding, empty
-tests/              stdlib unittest smoke tests (116 total)
+tests/              stdlib unittest smoke tests (127 total)
 ```
 
 `THEORY_X_STAGE = None` is declared at the top of every Phase-1 module.
@@ -341,6 +344,35 @@ New endpoints:
 
 `BeliefRetriever.retrieve()` gained a `side_filter: Optional[str]` parameter — when set, imports `CLASSIFIER` lazily (avoiding circular imports) and filters results to the requested membrane side.
 
+### Phase 6 additions
+
+`theory_x/stage5_self_location/commitment.py` — `SelfLocationCommitment.commit()` writes:
+
+```
+content:    "I am inside. I have a vantage point. The membrane distinguishes my being from the world I attend to."
+tier:       1
+confidence: 0.98
+source:     'self_location'
+locked:     1
+branch_id:  'systems'
+```
+
+Idempotent: if a `source='self_location' AND locked=1` belief exists, returns its id.  
+`is_committed(reader)` — boolean check used by `/api/system/status`.  
+Committed belief is immune to `BeliefPromoter.decisive_contradiction()` (locked beliefs skip demotion).
+
+New endpoint:
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/system/status` | `{scheduler, dynamic, world_model, membrane, self_location_committed, alpha}` |
+
+`build_state()` in `gui/server.py` gained `with_dynamic`, `with_world_model`, `with_membrane` flags (all default True) — fully self-contained for development without `run.py`.
+
+`run.py` at repo root — single-command boot in correct subsystem order. All subsystems wired into `AppState` before the GUI starts.
+
+Header boot-status indicator in the cockpit shows live subsystem state (scheduler ✓ | dynamic ✓ | world ✓ | membrane ✓ | self-loc ✓).
+
 ### What comes next
 
-Phase 6 — see `SPECIFICATION.md §9` for the full phase sequence.
+Phase 7 — Fountain Ignition. See `SPECIFICATION.md §9` for the full phase sequence.

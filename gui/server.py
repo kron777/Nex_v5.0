@@ -31,6 +31,9 @@ Phase 5 endpoints (membrane):
     GET  /api/membrane/snapshot    — NEX's live inner state (inside snapshot)
     GET  /api/membrane/classify    — classify a stream as INSIDE or OUTSIDE
 
+Phase 6 endpoints (self-location):
+    GET  /api/system/status        — all subsystem flags + self_location_committed + alpha
+
 The app is constructed from an AppState container so tests can drive
 it with mock Writers/Readers and a mock VoiceClient.
 
@@ -107,6 +110,9 @@ def build_state(
     voice_url: Optional[str] = None,
     voice_model: str = "qwen2.5-3b",
     with_scheduler: bool = True,
+    with_dynamic: bool = True,
+    with_world_model: bool = True,
+    with_membrane: bool = True,
 ) -> "AppState":
     """Default state: real Writers/Readers against db_paths(), real VoiceClient."""
     from theory_x.stage1_sense import build_scheduler
@@ -121,7 +127,35 @@ def build_state(
         model=os.environ.get("NEX5_VOICE_MODEL", voice_model),
     )
     scheduler = build_scheduler(writers, readers) if with_scheduler else None
-    return AppState(writers=writers, readers=readers, voice=voice, scheduler=scheduler)
+
+    dynamic = None
+    if with_dynamic:
+        from theory_x.stage2_dynamic import build_dynamic
+        dynamic = build_dynamic(writers, readers)
+
+    world_model = None
+    if with_world_model and dynamic is not None:
+        from theory_x.stage3_world_model import build_world_model
+        world_model = build_world_model(writers, readers, dynamic_state=dynamic)
+
+    membrane = None
+    if with_membrane and dynamic is not None:
+        from theory_x.stage4_membrane import build_membrane
+        membrane = build_membrane(
+            writers, readers,
+            dynamic_state=dynamic,
+            world_model_state=world_model,
+        )
+
+    return AppState(
+        writers=writers,
+        readers=readers,
+        voice=voice,
+        scheduler=scheduler,
+        dynamic=dynamic,
+        world_model=world_model,
+        membrane=membrane,
+    )
 
 
 def create_app(state: AppState) -> Flask:
@@ -453,6 +487,27 @@ def create_app(state: AppState) -> Flask:
             from theory_x.stage4_membrane.classifier import CLASSIFIER
             side = CLASSIFIER.classify_stream(stream).value
         return jsonify({"stream": stream, "side": side})
+
+    # -- system status (Phase 6) ---------------------------------------------
+
+    @app.get("/api/system/status")
+    def api_system_status():
+        from theory_x.stage5_self_location.commitment import SelfLocationCommitment
+        committed = False
+        reader = state.readers.get("beliefs")
+        if reader is not None:
+            try:
+                committed = SelfLocationCommitment().is_committed(reader)
+            except Exception:
+                pass
+        return jsonify({
+            "scheduler": state.scheduler is not None,
+            "dynamic": state.dynamic is not None,
+            "world_model": state.world_model is not None,
+            "membrane": state.membrane is not None,
+            "self_location_committed": committed,
+            "alpha": ALPHA.lines[0],
+        })
 
     # -- dynamic formation (Phase 3) ----------------------------------------
 

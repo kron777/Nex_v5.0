@@ -195,6 +195,25 @@ document.getElementById("chat-form").addEventListener("submit", async ev => {
   }
 });
 
+// ---- Phase 6 — system status / self-location -------------------------------
+
+async function refreshSystemStatus() {
+  const data = await j("/api/system/status").catch(() => null);
+  if (!data) return;
+  const el = document.getElementById("boot-status");
+  if (!el) return;
+  const parts = [
+    ["scheduler",  data.scheduler],
+    ["dynamic",    data.dynamic],
+    ["world",      data.world_model],
+    ["membrane",   data.membrane],
+    ["self-loc",   data.self_location_committed],
+  ];
+  el.innerHTML = parts
+    .map(([k, v]) => `<span class="${v ? "state-on" : "state-off"}">${k} ${v ? "✓" : "✗"}</span>`)
+    .join(" | ");
+}
+
 // ---- Phase 5 — membrane / inside-outside -----------------------------------
 
 async function refreshMembrane() {
@@ -339,6 +358,8 @@ async function pollDynamic() {
 poll();
 pollSenseEvents();
 pollDynamic();
-setInterval(poll,             POLL_MS);
-setInterval(pollSenseEvents,  SENSE_MS);
-setInterval(pollDynamic,      SENSE_MS);
+refreshSystemStatus();
+setInterval(poll,                POLL_MS);
+setInterval(pollSenseEvents,     SENSE_MS);
+setInterval(pollDynamic,         SENSE_MS);
+setInterval(refreshSystemStatus, SENSE_MS);
