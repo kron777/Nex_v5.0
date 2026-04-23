@@ -8,7 +8,8 @@ Starts the full stack in order:
   4. dynamic formation (A-F pipeline, bonsai, crystallization)
   5. world model (belief retrieval, promotion, harmonizer)
   6. membrane (inside/outside classifier, self-model, router)
-  7. GUI server (Flask cockpit on port 8765)
+  7. fountain ignition (spontaneous thought loop)
+  8. GUI server (Flask cockpit on port 8765)
 
 All subsystems are wired into AppState before the GUI starts.
 """
@@ -28,6 +29,8 @@ from theory_x.stage1_sense import build_scheduler
 from theory_x.stage2_dynamic import build_dynamic
 from theory_x.stage3_world_model import build_world_model
 from theory_x.stage4_membrane import build_membrane
+from theory_x.stage6_fountain import build_fountain
+from theory_x.stage6_fountain.readiness import FOUNTAIN_CHECK_INTERVAL_SECONDS
 from gui.server import AppState, create_app
 from voice.llm import VoiceClient
 
@@ -82,12 +85,16 @@ def main() -> None:
     )
     log.info("Membrane drawn — inside/outside boundary active")
 
-    # 8. Wire AppState and start GUI
+    # 8. Fountain ignition
     voice = VoiceClient(
         url=os.environ.get("NEX5_VOICE_URL", "http://localhost:8080/v1/chat/completions"),
         model=os.environ.get("NEX5_VOICE_MODEL", "qwen2.5-3b"),
     )
+    log.info("Igniting fountain...")
+    fountain = build_fountain(writers, readers, voice, dynamic_state=dynamic)
+    log.info("Fountain lit — loop running at %ds interval", FOUNTAIN_CHECK_INTERVAL_SECONDS)
 
+    # 9. Wire AppState and start GUI
     state = AppState(
         writers=writers,
         readers=readers,
@@ -96,6 +103,7 @@ def main() -> None:
         dynamic=dynamic,
         world_model=world_model,
         membrane=membrane,
+        fountain=fountain,
     )
     atexit.register(state.close)
 

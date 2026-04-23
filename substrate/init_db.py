@@ -63,6 +63,11 @@ _MIGRATIONS: dict[str, list[str]] = {
         "id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL NOT NULL, "
         "belief_id_a INTEGER, belief_id_b INTEGER, resolution TEXT, "
         "synthesis_belief_id INTEGER)",
+        "CREATE TABLE IF NOT EXISTS fountain_events ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL NOT NULL, "
+        "thought TEXT NOT NULL, readiness REAL NOT NULL, "
+        "hot_branch TEXT, word_count INTEGER)",
+        "CREATE INDEX IF NOT EXISTS idx_fountain_ts ON fountain_events(ts)",
     ],
 }
 

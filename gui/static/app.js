@@ -195,6 +195,26 @@ document.getElementById("chat-form").addEventListener("submit", async ev => {
   }
 });
 
+// ---- Phase 7 — fountain ----------------------------------------------------
+
+async function refreshFountain() {
+  const data = await j("/api/fountain/status").catch(() => null);
+  if (!data || data.error) return;
+
+  const el = document.getElementById("fountain-last-thought");
+  if (data.last_thought) {
+    el.textContent = data.last_thought;
+    el.classList.remove("muted");
+  }
+
+  document.getElementById("fountain-fire-count").textContent =
+    data.total_fires ? `(${data.total_fires} fires)` : "";
+  document.getElementById("fountain-last-fire").textContent =
+    data.last_fire_ts ? fmtTs(data.last_fire_ts) : "never";
+  document.getElementById("fountain-readiness").textContent =
+    data.readiness_score != null ? data.readiness_score.toFixed(2) : "—";
+}
+
 // ---- Phase 6 — system status / self-location -------------------------------
 
 async function refreshSystemStatus() {
@@ -359,7 +379,9 @@ poll();
 pollSenseEvents();
 pollDynamic();
 refreshSystemStatus();
+refreshFountain();
 setInterval(poll,                POLL_MS);
 setInterval(pollSenseEvents,     SENSE_MS);
 setInterval(pollDynamic,         SENSE_MS);
 setInterval(refreshSystemStatus, SENSE_MS);
+setInterval(refreshFountain,     10000);

@@ -2,8 +2,9 @@
 
 Living document. Updated as the build progresses.
 
-**Status:** Phase 6 complete. Self-location committed: locked Tier 1 belief "I am inside"
-written at boot. Unified `run.py` starts all subsystems in correct order. 127 tests passing.
+**Status:** Phase 7 complete. Fountain ignited: spontaneous thought loop fires when readiness
+≥ 0.7, writing `internal.fountain` sense events that re-enter the A-F pipeline. Loop closes.
+143 tests passing.
 
 ---
 
@@ -42,13 +43,17 @@ theory_x/
   stage5_self_location/
     commitment.py   SelfLocationCommitment — commit() (locked Tier 1 belief), is_committed(); COMMITMENT_CONTENT constant (THEORY_X_STAGE=5)
     __init__.py     re-exports SelfLocationCommitment, COMMITMENT_CONTENT
-run.py              unified boot — init_db → self-location → scheduler → dynamic → world_model → membrane → GUI
+  stage6_fountain/
+    readiness.py    ReadinessEvaluator — score() (0.0–1.0), is_ready(); FOUNTAIN_THRESHOLD/MIN_INTERVAL/CHECK_INTERVAL constants (THEORY_X_STAGE=6)
+    generator.py    FountainGenerator — generate(), _build_prompt(), last_thought(), last_fire_ts() (THEORY_X_STAGE=6)
+    __init__.py     build_fountain() factory — FountainState, fountain_loop daemon thread
+run.py              unified boot — init_db → self-location → scheduler → dynamic → world_model → membrane → fountain → GUI
 substrate/          one-pen plumbing (writer, reader, paths, init, schemas)
 admin/              argon2id single-password auth
 voice/              register-aware llama-server client
 gui/                Flask observability cockpit + chat column
 strikes/            Phase 8 scaffolding, empty
-tests/              stdlib unittest smoke tests (127 total)
+tests/              stdlib unittest smoke tests (143 total)
 ```
 
 `THEORY_X_STAGE = None` is declared at the top of every Phase-1 module.
@@ -373,6 +378,37 @@ New endpoint:
 
 Header boot-status indicator in the cockpit shows live subsystem state (scheduler ✓ | dynamic ✓ | world ✓ | membrane ✓ | self-loc ✓).
 
+### Phase 7 additions
+
+`theory_x/stage6_fountain/` — Fountain Ignition (Theory X Stage 6).
+
+**Readiness scoring** (0.0–1.0):
+- Hot branch (focus e/f/g): +0.3 per branch, capped at +0.6
+- Consolidation active: +0.2
+- Belief count > 20: +0.1
+- Interval since last fire ≥ 600s (or never fired): +0.2
+- Fires when score ≥ 0.7 (`FOUNTAIN_THRESHOLD`)
+
+**Self-directed prompt** — assembled from Alpha, hottest branch, belief count/distribution, time, last thought. Sent to `VoiceClient` using Philosophical register, `beliefs=None` (purely self-directed, no injection).
+
+**Outputs per fire:**
+1. `sense.db` `sense_events` row: `stream='internal.fountain'`, payload `{thought, readiness, hot_branch}`
+2. `dynamic.db` `fountain_events` row: ts, thought, readiness, hot_branch, word_count
+3. `_last_fountain_output` updated (used in next prompt)
+
+The `internal.fountain` sense event re-enters the A-F pipeline like any other internal stream — can engage the `systems` branch and eventually crystallize.
+
+**Schema addition:** `fountain_events` table in `dynamic.db` with `idx_fountain_ts` index.
+
+New endpoints:
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/fountain/status` | `{last_thought, last_fire_ts, total_fires, readiness_score, loop_running}`; 503 if not wired |
+| `GET` | `/api/fountain/recent` | Last 10 `fountain_events` from dynamic.db |
+
+`AppState` gained `fountain: Optional[FountainState]`. `build_state()` gained `with_fountain` flag. Fountain panel in the cockpit shows last thought, fire time, readiness score; auto-refreshes every 10s.
+
 ### What comes next
 
-Phase 7 — Fountain Ignition. See `SPECIFICATION.md §9` for the full phase sequence.
+Phase 8 — Strike Protocols. See `SPECIFICATION.md §9` for the full phase sequence.

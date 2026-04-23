@@ -34,6 +34,10 @@ Phase 5 endpoints (membrane):
 Phase 6 endpoints (self-location):
     GET  /api/system/status        — all subsystem flags + self_location_committed + alpha
 
+Phase 7 endpoints (fountain):
+    GET  /api/fountain/status      — last_thought, last_fire_ts, total_fires, readiness_score
+    GET  /api/fountain/recent      — last 10 fountain_events from dynamic.db
+
 The app is constructed from an AppState container so tests can drive
 it with mock Writers/Readers and a mock VoiceClient.
 
@@ -85,6 +89,7 @@ class AppState:
     dynamic: Optional["DynamicState"] = None        # type: ignore[type-arg]
     world_model: Optional["WorldModelState"] = None # type: ignore[type-arg]
     membrane: Optional["MembraneState"] = None      # type: ignore[type-arg]
+    fountain: Optional["FountainState"] = None      # type: ignore[type-arg]
     # Optional hook a test can inject to short-circuit chat persistence.
     now_fn: Callable[[], int] = field(default_factory=lambda: (lambda: int(time.time())))
 
@@ -113,6 +118,7 @@ def build_state(
     with_dynamic: bool = True,
     with_world_model: bool = True,
     with_membrane: bool = True,
+    with_fountain: bool = True,
 ) -> "AppState":
     """Default state: real Writers/Readers against db_paths(), real VoiceClient."""
     from theory_x.stage1_sense import build_scheduler
@@ -147,6 +153,11 @@ def build_state(
             world_model_state=world_model,
         )
 
+    fountain = None
+    if with_fountain and dynamic is not None:
+        from theory_x.stage6_fountain import build_fountain
+        fountain = build_fountain(writers, readers, voice, dynamic_state=dynamic)
+
     return AppState(
         writers=writers,
         readers=readers,
@@ -155,6 +166,7 @@ def build_state(
         dynamic=dynamic,
         world_model=world_model,
         membrane=membrane,
+        fountain=fountain,
     )
 
 
@@ -505,9 +517,45 @@ def create_app(state: AppState) -> Flask:
             "dynamic": state.dynamic is not None,
             "world_model": state.world_model is not None,
             "membrane": state.membrane is not None,
+            "fountain": state.fountain is not None,
             "self_location_committed": committed,
             "alpha": ALPHA.lines[0],
         })
+
+    # -- fountain (Phase 7) --------------------------------------------------
+
+    @app.get("/api/fountain/status")
+    def api_fountain_status():
+        if state.fountain is None:
+            return jsonify({"error": "fountain not initialised"}), 503
+        return jsonify(state.fountain.status())
+
+    @app.get("/api/fountain/recent")
+    def api_fountain_recent():
+        reader = state.readers.get("dynamic")
+        if reader is None:
+            return jsonify({"events": []}), 503
+        try:
+            rows = reader.read(
+                "SELECT id, ts, thought, readiness, hot_branch, word_count "
+                "FROM fountain_events ORDER BY id DESC LIMIT 10"
+            )
+            return jsonify({
+                "events": [
+                    {
+                        "id": r["id"],
+                        "ts": r["ts"],
+                        "thought": r["thought"],
+                        "readiness": r["readiness"],
+                        "hot_branch": r["hot_branch"],
+                        "word_count": r["word_count"],
+                    }
+                    for r in rows
+                ]
+            })
+        except Exception as e:
+            error_channel.record(f"fountain recent read failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
 
     # -- dynamic formation (Phase 3) ----------------------------------------
 

@@ -61,6 +61,17 @@ CREATE TABLE IF NOT EXISTS accumulator (
     timestamp INTEGER NOT NULL
 );
 
+-- Fountain events (Phase 7)
+CREATE TABLE IF NOT EXISTS fountain_events (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts          REAL NOT NULL,
+    thought     TEXT NOT NULL,
+    readiness   REAL NOT NULL,
+    hot_branch  TEXT,
+    word_count  INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_fountain_ts ON fountain_events(ts);
+
 -- Harmonizer events (Phase 4)
 CREATE TABLE IF NOT EXISTS harmonizer_events (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
