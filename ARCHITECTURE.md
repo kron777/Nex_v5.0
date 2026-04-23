@@ -2,9 +2,9 @@
 
 Living document. Updated as the build progresses.
 
-**Status:** Phase 4 complete. World model live: beliefs shape voice responses,
-tier promotion/demotion/harmonization running, crystallization uses cumulative
-window model (300s of high-focus within 30 minutes).
+**Status:** Phase 5 complete. Membrane (Inside/Outside Boundary) live: self-inquiry
+queries route through inside path with philosophical register + self-model snapshot;
+world-inquiry routes through outside path with belief retrieval. 116 tests passing.
 
 ---
 
@@ -30,17 +30,22 @@ theory_x/
     consolidation.py    consolidation_pass(), _external_quiet()
     __init__.py     build_dynamic() factory — 7 daemon loops, DynamicState
   stage3_world_model/
-    retrieval.py    BeliefRetriever — keyword-overlap scoring, branch hint boost
+    retrieval.py    BeliefRetriever — keyword-overlap scoring, branch hint boost, side_filter support
     promotion.py    BeliefPromoter — corroborate(), survive_challenge(), decay_pass(), decisive_contradiction()
     harmonizer.py   Harmonizer — conflict detection (Tier 4+), synthesis or retirement
     pipeline_hooks.py   PipelineHooks — high-magnitude events corroborate matching beliefs
     __init__.py     build_world_model() factory — decay_loop, harmonizer_loop, WorldModelState
+  stage4_membrane/
+    classifier.py   MembraneClassifier — classify_stream(), classify_belief(), classify_query(); CLASSIFIER singleton (THEORY_X_STAGE=4)
+    self_model.py   SelfModel — snapshot() assembles proprioception/temporal/interoception/attention; format_self_state() (THEORY_X_STAGE=4)
+    router.py       QueryRouter — INSIDE path (philosophical hint + self-state), OUTSIDE path (world beliefs) (THEORY_X_STAGE=4)
+    __init__.py     build_membrane() factory — MembraneState dataclass, snapshot/classify/route methods
 substrate/          one-pen plumbing (writer, reader, paths, init, schemas)
 admin/              argon2id single-password auth
 voice/              register-aware llama-server client
 gui/                Flask observability cockpit + chat column
 strikes/            Phase 8 scaffolding, empty
-tests/              stdlib unittest smoke tests (91 total)
+tests/              stdlib unittest smoke tests (116 total)
 ```
 
 `THEORY_X_STAGE = None` is declared at the top of every Phase-1 module.
@@ -318,8 +323,24 @@ New endpoints:
 
 **Belief schema additions:** `corroboration_count`, `last_referenced_at`, `paused` columns. `harmonizer_events` table in `dynamic.db`.
 
+### Phase 5 additions
+
+New endpoints:
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/membrane/snapshot` | Full self-model snapshot (proprioception, temporal, interoception, attention, inside_beliefs); 503 if membrane not wired |
+| `GET` | `/api/membrane/classify?stream=` | Classify a stream name → `{"side": "INSIDE"\|"OUTSIDE"}`; works without membrane via module-level `CLASSIFIER` |
+
+`AppState` gained `membrane: Optional[MembraneState]`. Chat column now calls `membrane.route()` when wired — INSIDE queries receive a `register_hint="philosophical"` override (unless user has selected a register) and `belief_text` containing the self-model snapshot in natural language. OUTSIDE queries receive standard belief retrieval.
+
+**Inside/Outside classification rules:**
+- Stream `internal.*` → INSIDE; all 19 external feed streams → OUTSIDE
+- Belief sources `precipitated_from_dynamic`, `nex_seed`, `manual`, `identity`, `injector`, `keystone` → INSIDE; all others → OUTSIDE
+- Self-inquiry queries (keywords: you, your, feel, believe, inside, who/how/what are you, etc.) → INSIDE; world queries → OUTSIDE
+
+`BeliefRetriever.retrieve()` gained a `side_filter: Optional[str]` parameter — when set, imports `CLASSIFIER` lazily (avoiding circular imports) and filters results to the requested membrane side.
+
 ### What comes next
 
-Phase 5 — Inside/Outside Boundary (Theory X Stage 4). The phenomenal membrane is drawn. Self/world distinction becomes explicit in her representation.
-
-See `SPECIFICATION.md §9` for the full phase sequence.
+Phase 6 — see `SPECIFICATION.md §9` for the full phase sequence.

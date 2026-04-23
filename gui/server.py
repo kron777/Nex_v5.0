@@ -27,6 +27,10 @@ Phase 3 endpoints (dynamic formation):
 Phase 4 endpoints (world model):
     GET  /api/beliefs/stats        — tier distribution, total, recent additions
 
+Phase 5 endpoints (membrane):
+    GET  /api/membrane/snapshot    — NEX's live inner state (inside snapshot)
+    GET  /api/membrane/classify    — classify a stream as INSIDE or OUTSIDE
+
 The app is constructed from an AppState container so tests can drive
 it with mock Writers/Readers and a mock VoiceClient.
 
@@ -77,6 +81,7 @@ class AppState:
     scheduler: Optional["SenseScheduler"] = None   # type: ignore[type-arg]
     dynamic: Optional["DynamicState"] = None        # type: ignore[type-arg]
     world_model: Optional["WorldModelState"] = None # type: ignore[type-arg]
+    membrane: Optional["MembraneState"] = None      # type: ignore[type-arg]
     # Optional hook a test can inject to short-circuit chat persistence.
     now_fn: Callable[[], int] = field(default_factory=lambda: (lambda: int(time.time())))
 
@@ -252,9 +257,23 @@ def create_app(state: AppState) -> Flask:
                     source="gui.server", exc=e,
                 )
 
-        # Retrieve relevant beliefs for prompt injection.
+        # Route query through membrane (self-inquiry vs world-inquiry).
         belief_text = None
-        if state.world_model is not None:
+        register_override = None
+        if state.membrane is not None and state.world_model is not None:
+            try:
+                route_result = state.membrane.route(
+                    query=prompt,
+                    belief_retriever=state.world_model.retriever,
+                    dynamic_state=state.dynamic,
+                )
+                belief_text = route_result.get("belief_text")
+                register_override = route_result.get("register_hint")
+            except Exception as e:
+                error_channel.record(
+                    f"membrane routing failed: {e}", source="gui.server", exc=e,
+                )
+        elif state.world_model is not None:
             try:
                 from theory_x.stage3_world_model.retrieval import format_beliefs_for_prompt
                 active_branches: list[str] = []
@@ -272,6 +291,11 @@ def create_app(state: AppState) -> Flask:
                 error_channel.record(
                     f"belief retrieval failed: {e}", source="gui.server", exc=e,
                 )
+
+        # Apply register override from router (INSIDE → philosophical) only if
+        # the user hasn't explicitly specified a register.
+        if register_override and not register_name:
+            register = by_name(register_override) or register
 
         # Route through voice.
         try:
@@ -405,6 +429,30 @@ def create_app(state: AppState) -> Flask:
         except Exception as e:
             error_channel.record(f"beliefs stats failed: {e}", source="gui.server", exc=e)
             return jsonify({"error": str(e)}), 500
+
+    # -- membrane (Phase 5) -------------------------------------------------
+
+    @app.get("/api/membrane/snapshot")
+    def api_membrane_snapshot():
+        if state.membrane is None:
+            return jsonify({"error": "membrane not initialised"}), 503
+        try:
+            return jsonify(state.membrane.snapshot())
+        except Exception as e:
+            error_channel.record(f"membrane snapshot failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.get("/api/membrane/classify")
+    def api_membrane_classify():
+        stream = request.args.get("stream", "")
+        if not stream:
+            return jsonify({"error": "stream parameter required"}), 400
+        if state.membrane is not None:
+            side = state.membrane.classify_stream(stream)
+        else:
+            from theory_x.stage4_membrane.classifier import CLASSIFIER
+            side = CLASSIFIER.classify_stream(stream).value
+        return jsonify({"stream": stream, "side": side})
 
     # -- dynamic formation (Phase 3) ----------------------------------------
 

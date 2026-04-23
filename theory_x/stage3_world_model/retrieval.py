@@ -44,12 +44,14 @@ class BeliefRetriever:
         self._reader = beliefs_reader
 
     def retrieve(self, query: str, branch_hints: Optional[list[str]] = None,
-                 limit: int = 10) -> list[dict]:
+                 limit: int = 10, side_filter: Optional[str] = None) -> list[dict]:
         """Retrieve top beliefs relevant to query.
 
         Filters: tier <= 6, (locked=1 OR confidence >= 0.15), paused=0.
         Scores by keyword overlap * confidence, boosted by branch match.
         Returns top limit results sorted descending.
+
+        side_filter: 'INSIDE', 'OUTSIDE', or None (no filter).
         """
         try:
             rows = self._reader.read(
@@ -62,6 +64,15 @@ class BeliefRetriever:
         except Exception as exc:
             errors.record(f"belief retrieval error: {exc}", source=_LOG_SOURCE, exc=exc)
             return []
+
+        if not rows:
+            return []
+
+        # Apply membrane side filter if requested
+        if side_filter is not None:
+            from theory_x.stage4_membrane.classifier import CLASSIFIER, MembraneSide
+            target = MembraneSide(side_filter)
+            rows = [r for r in rows if CLASSIFIER.classify_belief(dict(r)) == target]
 
         if not rows:
             return []

@@ -195,6 +195,55 @@ document.getElementById("chat-form").addEventListener("submit", async ev => {
   }
 });
 
+// ---- Phase 5 — membrane / inside-outside -----------------------------------
+
+async function refreshMembrane() {
+  const [snapData, recentData] = await Promise.all([
+    j("/api/membrane/snapshot").catch(() => null),
+    j("/api/sense/recent?limit=20").catch(() => ({ events: [] })),
+  ]);
+
+  // Inside column
+  const inside = document.getElementById("membrane-inside");
+  if (snapData && !snapData.error) {
+    const prop = snapData.proprioception || {};
+    const temp = snapData.temporal || {};
+    const intro = snapData.interoception || {};
+    const attn = snapData.attention || {};
+    const cpu = prop.cpu_percent != null ? `CPU ${prop.cpu_percent.toFixed(0)}%` : "—";
+    const mem = prop.mem_percent != null ? `mem ${prop.mem_percent.toFixed(0)}%` : "—";
+    const iso = temp.iso_local ? temp.iso_local.split("T")[1]?.slice(0,5) : "—";
+    const hot = attn.hottest_branch ? `${attn.hottest_branch} (${(attn.hottest_focus||0).toFixed(2)})` : "—";
+    inside.innerHTML = `
+      <div class="membrane-row"><span class="membrane-label">Body</span>${escapeHtml(cpu)}, ${escapeHtml(mem)}</div>
+      <div class="membrane-row"><span class="membrane-label">Time</span>${escapeHtml(iso)}</div>
+      <div class="membrane-row"><span class="membrane-label">Beliefs</span>${intro.belief_count ?? 0} (${intro.locked_count ?? 0} locked)</div>
+      <div class="membrane-row"><span class="membrane-label">Hot branch</span>${escapeHtml(hot)}</div>
+      <div class="membrane-row"><span class="membrane-label">Active</span>${attn.active_branch_count ?? 0} branches</div>
+    `;
+  } else {
+    inside.innerHTML = '<div class="muted">membrane not initialised</div>';
+  }
+
+  // Outside column — last 3 external events
+  const outside = document.getElementById("membrane-outside");
+  const externals = (recentData.events || [])
+    .filter(ev => !ev.stream.startsWith("internal."))
+    .slice(0, 3);
+  if (externals.length === 0) {
+    outside.innerHTML = '<div class="ev muted">no external events yet</div>';
+  } else {
+    outside.innerHTML = externals.map(ev => {
+      let preview = "";
+      try {
+        const p = JSON.parse(ev.payload);
+        preview = p.title || p.symbol || "";
+      } catch (_) {}
+      return `<div class="ev"><span class="ts">${fmtTs(ev.timestamp)}</span><span class="stream">${escapeHtml(ev.stream)}</span>${escapeHtml(String(preview).slice(0, 60))}</div>`;
+    }).join("");
+  }
+}
+
 // ---- Phase 4 — world model / belief stats ----------------------------------
 
 async function refreshBeliefStats() {
@@ -281,7 +330,8 @@ async function pollSenseEvents() {
 async function pollDynamic() {
   try {
     await Promise.all([
-      refreshDynamic(), refreshCrystallized(), refreshBeliefs(), refreshBeliefStats(),
+      refreshDynamic(), refreshCrystallized(), refreshBeliefs(),
+      refreshBeliefStats(), refreshMembrane(),
     ]);
   } catch (e) { console.warn(e); }
 }

@@ -107,6 +107,11 @@ button:hover { border-color: var(--accent); color: var(--accent); }
 .state-off { color: var(--fg-muted); }
 h3 { font-size: 0.88rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--fg-muted); margin: 0.9rem 0 0.4rem; }
 
+/* Phase 5 — membrane inside/outside */
+.membrane-col { font-family: var(--mono); font-size: 0.82rem; }
+.membrane-row { display: flex; gap: 0.6rem; padding: 0.2rem 0; border-bottom: 1px solid var(--border); }
+.membrane-label { color: var(--fg-muted); min-width: 6rem; flex-shrink: 0; }
+
 /* Phase 4 — belief stats tier bars */
 .tier-bars { display: flex; flex-direction: column; gap: 4px; margin: 0.4rem 0; }
 .tier-bar-row { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; }
