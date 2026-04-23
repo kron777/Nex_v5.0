@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/home/rr/Desktop/nex5/.venv/bin/python3
 """NEX 5.0 — unified boot.
 
 Starts the full stack in order:
