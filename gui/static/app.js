@@ -1,4 +1,4 @@
-// NEX 5.0 cockpit — vanilla JS. Phase 2: sense stream panel added.
+// NEX 5.0 cockpit — vanilla JS. Phase 3: dynamic + bonsai + crystallization panels.
 
 const POLL_MS     = 2000;
 const SENSE_MS    = 5000;   // sense events refresh is slightly slower
@@ -195,6 +195,56 @@ document.getElementById("chat-form").addEventListener("submit", async ev => {
   }
 });
 
+// ---- Phase 3 — dynamic / bonsai / crystallization --------------------------
+
+const HIGH_FOCUS = new Set(["e", "f", "g"]);
+
+async function refreshDynamic() {
+  const data = await j("/api/dynamic/status");
+  if (data.error) return;
+
+  document.getElementById("bonsai-aperture").textContent = data.aperture != null ? data.aperture.toFixed(3) : "—";
+  document.getElementById("bonsai-consolidation").textContent = data.consolidation_active ? "active" : "idle";
+  document.getElementById("bonsai-pipeline-runs").textContent = data.pipeline_runs ?? "—";
+  document.getElementById("bonsai-summary").textContent =
+    `(${data.active_branch_count}/${data.total_branches} active, focus: ${data.aggregate_focus}, texture: ${data.aggregate_texture})`;
+
+  const tbody = document.querySelector("#bonsai-table tbody");
+  const branches = (data.branches || []).slice().sort((a, b) => b.focus_num - a.focus_num);
+  tbody.innerHTML = branches.map(b => {
+    const highFocus = HIGH_FOCUS.has(b.focus_increment);
+    const cls = highFocus ? ' class="focus-high"' : '';
+    const lastAtt = b.last_attended_at ? fmtTs(b.last_attended_at) : "—";
+    return `<tr${cls}>
+      <td>${escapeHtml(b.branch_id)}${b.is_seed ? " <span class='muted'>seed</span>" : ""}</td>
+      <td>${escapeHtml(b.focus_increment)} <span class="muted">(${b.focus_num.toFixed(3)})</span></td>
+      <td>${escapeHtml(b.texture_increment)}</td>
+      <td>${b.curiosity_weight}</td>
+      <td class="muted">${lastAtt}</td>
+    </tr>`;
+  }).join("");
+}
+
+async function refreshCrystallized() {
+  const data = await j("/api/dynamic/crystallized");
+  const events = (data.events || []).slice(0, 10);
+  const el = document.getElementById("crystallization-list");
+  if (!events.length) { el.innerHTML = '<div class="ev muted">no crystallizations yet</div>'; return; }
+  el.innerHTML = events.map(ev =>
+    `<div class="ev"><span class="ts">${fmtTs(ev.ts)}</span><span class="stream">${escapeHtml(ev.branch_id)}</span>${escapeHtml((ev.content || "").slice(0, 80))}</div>`
+  ).join("");
+}
+
+async function refreshBeliefs() {
+  const data = await j("/api/beliefs/recent");
+  const beliefs = (data.beliefs || []).slice(0, 10);
+  const el = document.getElementById("beliefs-list");
+  if (!beliefs.length) { el.innerHTML = '<div class="ev muted">no beliefs yet</div>'; return; }
+  el.innerHTML = beliefs.map(b =>
+    `<div class="ev"><span class="tier-badge tier-${b.tier}">T${b.tier}</span><span class="ts">${fmtTs(b.created_at)}</span>${escapeHtml((b.content || "").slice(0, 100))}<span class="muted"> [${escapeHtml(b.source || "")}]</span></div>`
+  ).join("");
+}
+
 // ---- Polling loops ---------------------------------------------------------
 
 async function poll() {
@@ -209,7 +259,15 @@ async function pollSenseEvents() {
   try { await refreshSenseEvents(); } catch (e) { console.warn(e); }
 }
 
+async function pollDynamic() {
+  try {
+    await Promise.all([refreshDynamic(), refreshCrystallized(), refreshBeliefs()]);
+  } catch (e) { console.warn(e); }
+}
+
 poll();
 pollSenseEvents();
+pollDynamic();
 setInterval(poll,             POLL_MS);
 setInterval(pollSenseEvents,  SENSE_MS);
+setInterval(pollDynamic,      SENSE_MS);

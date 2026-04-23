@@ -8,7 +8,7 @@
 <body>
   <header>
     <h1>NEX 5.0</h1>
-    <div class="phase">Phase 2 — Sense Stream</div>
+    <div class="phase">Phase 3 — Dynamic Formation</div>
     <div id="admin-status" class="admin-status">admin: …</div>
   </header>
 
@@ -69,6 +69,38 @@
     <h3>Recent Events <span class="muted" id="sense-event-count"></span></h3>
     <div id="sense-events" class="sense-events"></div>
   </section>
+
+  <!-- Phase 3: Bonsai panel -->
+  <section class="card">
+    <h2>Bonsai Tree
+      <span class="muted" id="bonsai-summary"></span>
+    </h2>
+    <table id="bonsai-table">
+      <thead>
+        <tr>
+          <th>Branch</th><th>Focus</th><th>Texture</th><th>Curiosity</th><th>Last Attended</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <div class="muted">Aperture: <span id="bonsai-aperture">—</span> |
+      Consolidation: <span id="bonsai-consolidation">—</span> |
+      Pipeline runs: <span id="bonsai-pipeline-runs">—</span>
+    </div>
+  </section>
+
+  <!-- Phase 3: Crystallization feed -->
+  <div class="grid">
+    <section class="card">
+      <h2>Crystallization Feed</h2>
+      <div id="crystallization-list" class="sense-events"></div>
+    </section>
+
+    <section class="card">
+      <h2>Recent Beliefs</h2>
+      <div id="beliefs-list" class="sense-events"></div>
+    </section>
+  </div>
 
   <section class="card">
     <h2>Errors <span class="muted" id="error-count"></span></h2>

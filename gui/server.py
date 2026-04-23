@@ -18,6 +18,12 @@ Phase 2 endpoints (sense stream):
     POST /api/sense/toggle/<adapter_id> — enable/disable individual feed
     GET  /api/sense/recent              — last 50 sense_events rows
 
+Phase 3 endpoints (dynamic formation):
+    GET  /api/dynamic/status      — tree summary: branches, aperture, pipeline runs
+    GET  /api/dynamic/pipeline    — last 50 pipeline events from dynamic.db
+    GET  /api/dynamic/crystallized — last 20 crystallization events
+    GET  /api/beliefs/recent       — last 20 beliefs from beliefs.db
+
 The app is constructed from an AppState container so tests can drive
 it with mock Writers/Readers and a mock VoiceClient.
 
@@ -53,7 +59,8 @@ logger = logging.getLogger("gui.server")
 TABLES_PER_DB: dict[str, tuple[str, ...]] = {
     "beliefs":       ("beliefs",),
     "sense":         ("sense_events",),
-    "dynamic":       ("bonsai_branches", "pipeline_events", "accumulator"),
+    "dynamic":       ("bonsai_branches", "pipeline_events", "tree_snapshots",
+                      "crystallization_events", "accumulator"),
     "intel":         ("market_data", "news_events", "analysis_snapshots"),
     "conversations": ("sessions", "messages"),
 }
@@ -65,6 +72,7 @@ class AppState:
     readers: dict[str, Reader]
     voice: VoiceClient
     scheduler: Optional["SenseScheduler"] = None  # type: ignore[type-arg]
+    dynamic: Optional["DynamicState"] = None       # type: ignore[type-arg]
     # Optional hook a test can inject to short-circuit chat persistence.
     now_fn: Callable[[], int] = field(default_factory=lambda: (lambda: int(time.time())))
 
@@ -342,6 +350,99 @@ def create_app(state: AppState) -> Flask:
                 for row in rows
             ]
         })
+
+    # -- dynamic formation (Phase 3) ----------------------------------------
+
+    @app.get("/api/dynamic/status")
+    def api_dynamic_status():
+        if state.dynamic is None:
+            return jsonify({"error": "dynamic not initialised"}), 503
+        return jsonify(state.dynamic.status())
+
+    @app.get("/api/dynamic/pipeline")
+    def api_dynamic_pipeline():
+        reader = state.readers.get("dynamic")
+        if reader is None:
+            return jsonify({"events": []}), 503
+        try:
+            rows = reader.read(
+                "SELECT id, ts, step, sensation_source, branch_id, magnitude, valence, meta "
+                "FROM pipeline_events ORDER BY id DESC LIMIT 50",
+            )
+            return jsonify({
+                "events": [
+                    {
+                        "id": r["id"],
+                        "ts": r["ts"],
+                        "step": r["step"],
+                        "sensation_source": r["sensation_source"],
+                        "branch_id": r["branch_id"],
+                        "magnitude": r["magnitude"],
+                        "valence": r["valence"],
+                        "meta": r["meta"],
+                    }
+                    for r in rows
+                ]
+            })
+        except Exception as e:
+            error_channel.record(f"dynamic pipeline read failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.get("/api/dynamic/crystallized")
+    def api_dynamic_crystallized():
+        reader = state.readers.get("dynamic")
+        if reader is None:
+            return jsonify({"events": []}), 503
+        try:
+            rows = reader.read(
+                "SELECT id, ts, branch_id, belief_id, content, magnitude "
+                "FROM crystallization_events ORDER BY id DESC LIMIT 20",
+            )
+            return jsonify({
+                "events": [
+                    {
+                        "id": r["id"],
+                        "ts": r["ts"],
+                        "branch_id": r["branch_id"],
+                        "belief_id": r["belief_id"],
+                        "content": r["content"],
+                        "magnitude": r["magnitude"],
+                    }
+                    for r in rows
+                ]
+            })
+        except Exception as e:
+            error_channel.record(f"crystallized read failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.get("/api/beliefs/recent")
+    def api_beliefs_recent():
+        reader = state.readers.get("beliefs")
+        if reader is None:
+            return jsonify({"beliefs": []}), 503
+        try:
+            rows = reader.read(
+                "SELECT id, content, tier, confidence, created_at, branch_id, source, locked "
+                "FROM beliefs ORDER BY created_at DESC LIMIT 20",
+            )
+            return jsonify({
+                "beliefs": [
+                    {
+                        "id": r["id"],
+                        "content": r["content"],
+                        "tier": r["tier"],
+                        "confidence": r["confidence"],
+                        "created_at": r["created_at"],
+                        "branch_id": r["branch_id"],
+                        "source": r["source"],
+                        "locked": r["locked"],
+                    }
+                    for r in rows
+                ]
+            })
+        except Exception as e:
+            error_channel.record(f"beliefs recent read failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
 
     return app
 

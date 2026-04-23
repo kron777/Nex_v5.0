@@ -2,8 +2,9 @@
 
 Living document. Updated as the build progresses.
 
-**Status:** Phase 2 complete. Sense stream live; all 23 adapters wired.
-External feeds start paused; flip the GUI switch to start them.
+**Status:** Phase 3 complete. Sense stream live; A-F pipeline running; bonsai tree
+active with 10 seed branches; crystallization operational — sustained high focus
+precipitates Tier 7 Impressions into beliefs.db.
 
 ---
 
@@ -20,17 +21,25 @@ theory_x/
     internal/       feeds 20–23: proprioception, temporal, interoception, meta_awareness
     feeds/          feeds 1–19: all external adapters, one file each
     __init__.py     build_scheduler() factory — wires all 23 adapters
+  stage2_dynamic/
+    bonsai.py       BonsaiTree — 10 seed branches, decay/prune (THEORY_X_STAGE=2)
+    membrane.py     Membrane — aperture + accumulator
+    attention.py    _match_branches(), _magnitude_for(), _CHANNEL_HINTS (23 streams)
+    pipeline.py     A-F pipeline — steps A through F, logs to dynamic.db
+    crystallization.py  Crystallizer — sustained focus → Tier 7 belief in beliefs.db
+    consolidation.py    consolidation_pass(), _external_quiet()
+    __init__.py     build_dynamic() factory — 7 daemon loops, DynamicState
 substrate/          one-pen plumbing (writer, reader, paths, init, schemas)
 admin/              argon2id single-password auth
 voice/              register-aware llama-server client
 gui/                Flask observability cockpit + chat column
-theory_x/stageN_*/  Phase 2+ scaffolding, empty in Phase 1
-strikes/            Phase 8 scaffolding, empty in Phase 1
-tests/              stdlib unittest smoke tests
+strikes/            Phase 8 scaffolding, empty
+tests/              stdlib unittest smoke tests (69 total)
 ```
 
 `THEORY_X_STAGE = None` is declared at the top of every Phase-1 module.
-Stages 1–7 will appear as `theory_x/` is populated in later phases.
+`THEORY_X_STAGE = 1` for sense stream (Phase 2).
+`THEORY_X_STAGE = 2` for dynamic formation (Phase 3).
 
 ---
 
@@ -274,8 +283,23 @@ Dashboard: sense stream panel with per-adapter table, global ON/OFF button, rece
 
 RSS and Atom feeds use `feedparser.parse(raw_xml_string)`. `_helpers.parse_rss()` normalises all feed types into `SenseEvent` objects via feedparser's unified interface.
 
+### Phase 3 additions
+
+New endpoints:
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/dynamic/status` | Bonsai tree summary: branches, focus, texture, aperture, pipeline runs |
+| `GET` | `/api/dynamic/pipeline` | Last 50 pipeline events from dynamic.db |
+| `GET` | `/api/dynamic/crystallized` | Last 20 crystallization events |
+| `GET` | `/api/beliefs/recent` | Last 20 beliefs from beliefs.db ordered by created_at DESC |
+
+Dashboard additions: Bonsai panel (all branches with focus/texture/curiosity, high-focus branches highlighted green), Crystallization feed, Recent Beliefs feed with tier badges. Auto-refreshes every 5s.
+
+`AppState` gained a `dynamic: Optional[DynamicState]` field. `build_dynamic(writers, readers)` starts 7 daemon threads.
+
 ### What comes next
 
-Phase 3 — Dynamic Formation (Theory X Stage 2). Populate `theory_x/stage2_dynamic/`. The A–F pipeline runs, seed branches activate, NEX forms patterns of engagement with the sense stream. Belief precipitation begins in Phase 4.
+Phase 4 — World-Model Firing (Theory X Stage 3). Belief tiers precipitate from sustained dynamic. Beliefs emerge from attention, not installation. The belief graph becomes her manufactured world.
 
 See `SPECIFICATION.md §9` for the full phase sequence.

@@ -1,6 +1,4 @@
--- dynamic.db — scaffold only. Populated in Phase 3 (A-F pipeline,
--- bonsai growth, accumulator). Tables exist so Phase 1 smoke tests
--- can verify the DB is initialized; rows are not written until Phase 3.
+-- dynamic.db — bonsai tree, A-F pipeline, accumulator, crystallization.
 
 CREATE TABLE IF NOT EXISTS bonsai_branches (
     id               TEXT PRIMARY KEY,
@@ -12,21 +10,53 @@ CREATE TABLE IF NOT EXISTS bonsai_branches (
     last_attended_at INTEGER
 );
 
+-- Pipeline events (written by A-F pipeline)
 CREATE TABLE IF NOT EXISTS pipeline_events (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    stage      TEXT NOT NULL,
-    branch_id  TEXT,
-    payload    TEXT,
-    timestamp  INTEGER NOT NULL
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts               REAL NOT NULL,
+    step             TEXT NOT NULL,
+    sensation_source TEXT,
+    branch_id        TEXT,
+    magnitude        REAL,
+    valence          TEXT,
+    meta             TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_pipeline_ts     ON pipeline_events(ts);
+CREATE INDEX IF NOT EXISTS idx_pipeline_branch ON pipeline_events(branch_id, ts);
+
+-- Tree snapshots (written every 60s)
+CREATE TABLE IF NOT EXISTS tree_snapshots (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts                  REAL NOT NULL,
+    tree_json           TEXT NOT NULL,
+    total_branches      INTEGER,
+    active_branch_count INTEGER,
+    aggregate_texture   TEXT,
+    membrane_aperture   REAL
+);
+CREATE INDEX IF NOT EXISTS idx_tree_ts ON tree_snapshots(ts);
+
+-- Crystallization events (Phase 3)
+CREATE TABLE IF NOT EXISTS crystallization_events (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts        REAL NOT NULL,
+    branch_id TEXT NOT NULL,
+    belief_id INTEGER,
+    content   TEXT,
+    magnitude REAL
 );
 
-CREATE INDEX IF NOT EXISTS idx_pipeline_stage ON pipeline_events(stage);
-CREATE INDEX IF NOT EXISTS idx_pipeline_ts    ON pipeline_events(timestamp);
+-- Cursor: tracks last processed sense_event id across restarts
+CREATE TABLE IF NOT EXISTS dynamic_cursor (
+    key   TEXT PRIMARY KEY,
+    value INTEGER NOT NULL DEFAULT 0
+);
+INSERT OR IGNORE INTO dynamic_cursor (key, value) VALUES ('last_sense_id', 0);
 
 CREATE TABLE IF NOT EXISTS accumulator (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    branch_id  TEXT,
-    content    TEXT,
-    weight     REAL NOT NULL DEFAULT 0.0,
-    timestamp  INTEGER NOT NULL
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    branch_id TEXT,
+    content   TEXT,
+    weight    REAL NOT NULL DEFAULT 0.0,
+    timestamp INTEGER NOT NULL
 );
