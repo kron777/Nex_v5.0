@@ -475,6 +475,134 @@ document.getElementById("strike-fire-btn").addEventListener("click", async () =>
   }
 });
 
+// ── AGI Watch ─────────────────────────────────────────────────────────────────
+
+const _AGI_SELF_RE = /\b(i want|i am|i notice|i feel|i think|i wonder|i realize|i find|i see|i know|i have|i need|my )\b/i;
+
+let agiSignals       = [];      // { type, ts, excerpt }
+let agiLastFtnTs     = 0;       // last fountain event ts checked
+let agiLastBeliefTs  = 0;       // last belief ts checked
+let agiLastStrikeId  = 0;       // last strike id checked
+let agiFtnTimestamps = [];      // all fountain fire timestamps (for ignition pattern)
+let agiIgnitionFired = false;   // prevent re-firing ignition until reset
+let agiCollapseTimer = null;
+let agiUserExpanded  = false;   // manual toggle state
+
+function _agiTypeClass(type) {
+  return `agi-type-${type.replace(/[^A-Z_]/g, "")}`;
+}
+
+function _agiRenderLog() {
+  const log = document.getElementById("agi-log");
+  if (!log) return;
+  log.innerHTML = agiSignals.slice(0, 60).map(s =>
+    `<div class="agi-log-row">`
+    + `<span class="agi-log-type ${_agiTypeClass(s.type)}">${s.type}</span>`
+    + `<span class="agi-log-ts">${fmtTs(s.ts)}</span>`
+    + `<span class="agi-log-txt">"${esc(s.excerpt.slice(0, 90))}"</span>`
+    + `</div>`
+  ).join("");
+  log.scrollTop = 0;
+}
+
+function _agiShowSignal(type, ts, excerpt) {
+  const panel  = document.getElementById("agi-watch");
+  const msg    = document.getElementById("agi-strip-msg");
+  const count  = document.getElementById("agi-sig-count");
+  const status = document.getElementById("agi-status");
+  if (!panel || !msg) return;
+
+  agiSignals.unshift({ type, ts, excerpt });
+  _agiRenderLog();
+
+  count.textContent = `signals: ${agiSignals.length}`;
+  status.textContent = "⚡";
+  msg.innerHTML = `<span class="${_agiTypeClass(type)}">${type}</span>`
+    + `<span class="agi-strip-ts">${fmtTs(ts)}</span>`
+    + `<span class="agi-strip-txt">"${esc(excerpt.slice(0, 60))}"</span>`;
+
+  if (!agiUserExpanded) {
+    panel.classList.add("expanded");
+    if (agiCollapseTimer) clearTimeout(agiCollapseTimer);
+    agiCollapseTimer = setTimeout(() => {
+      if (!agiUserExpanded) panel.classList.remove("expanded");
+      agiCollapseTimer = null;
+    }, 9000);
+  }
+}
+
+document.getElementById("agi-watch")?.addEventListener("click", () => {
+  const panel = document.getElementById("agi-watch");
+  agiUserExpanded = !agiUserExpanded;
+  if (agiUserExpanded) {
+    panel.classList.add("expanded");
+    if (agiCollapseTimer) { clearTimeout(agiCollapseTimer); agiCollapseTimer = null; }
+  } else {
+    panel.classList.remove("expanded");
+  }
+});
+
+async function pollAgi() {
+  const now = Date.now() / 1000;
+
+  // ── 1. Fountain: SELF_SIGNAL + IGNITION_PATTERN ──────────────────────────
+  const ftnData = await apiFetch("/api/fountain/recent").catch(() => null);
+  if (ftnData && ftnData.events) {
+    for (const ev of ftnData.events) {
+      if (!ev.ts || ev.ts <= agiLastFtnTs) continue;
+      agiLastFtnTs = Math.max(agiLastFtnTs, ev.ts);
+      const thought = ev.thought || "";
+      agiFtnTimestamps.push(ev.ts);
+
+      if (_AGI_SELF_RE.test(thought)) {
+        _agiShowSignal("SELF_SIGNAL", ev.ts, thought);
+      }
+    }
+
+    // Prune timestamps older than 1 hour, then check count
+    agiFtnTimestamps = agiFtnTimestamps.filter(t => now - t < 3600);
+    if (agiFtnTimestamps.length > 3 && !agiIgnitionFired) {
+      agiIgnitionFired = true;
+      _agiShowSignal("IGNITION_PATTERN", now,
+        `${agiFtnTimestamps.length} fountain fires in the last hour`);
+    }
+    if (agiFtnTimestamps.length <= 3) agiIgnitionFired = false;
+  }
+
+  // ── 2. Beliefs: DEEP_BELIEF (tier >= 5, newly crystallised) ──────────────
+  const beliefData = await apiFetch("/api/beliefs/recent").catch(() => null);
+  if (beliefData && beliefData.beliefs) {
+    for (const b of beliefData.beliefs) {
+      const bTs = b.created_at || b.timestamp || 0;
+      if (bTs <= agiLastBeliefTs) continue;
+      if ((b.tier || 0) >= 5) {
+        agiLastBeliefTs = Math.max(agiLastBeliefTs, bTs);
+        _agiShowSignal("DEEP_BELIEF", bTs,
+          `Tier ${b.tier}: ${(b.content || "").slice(0, 80)}`);
+      } else {
+        agiLastBeliefTs = Math.max(agiLastBeliefTs, bTs);
+      }
+    }
+  }
+
+  // ── 3. Strikes: RECURSION ────────────────────────────────────────────────
+  const strikeData = await apiFetch("/api/strikes/recent").catch(() => null);
+  if (strikeData && strikeData.strikes) {
+    for (const s of strikeData.strikes) {
+      if ((s.id || 0) <= agiLastStrikeId) continue;
+      agiLastStrikeId = Math.max(agiLastStrikeId, s.id || 0);
+      const resp = s.response_text || "";
+      const hasI       = /\bI\b/.test(resp);
+      const hasMy      = /\bmy\b/i.test(resp);
+      const hasThinking = /\bthinking\b/i.test(resp);
+      if (hasI && hasMy && hasThinking) {
+        _agiShowSignal("RECURSION", s.fired_at || 0,
+          resp.slice(0, 80));
+      }
+    }
+  }
+}
+
 // ── Polling ───────────────────────────────────────────────────────────────────
 
 async function pollFast() {
@@ -505,8 +633,10 @@ async function pollSlow() {
 pollFast();
 pollMedium();
 pollSlow();
+pollAgi();
 
 // Intervals
 setInterval(pollFast,   2000);
 setInterval(pollMedium, 5000);
 setInterval(pollSlow,   10000);
+setInterval(pollAgi,    30000);

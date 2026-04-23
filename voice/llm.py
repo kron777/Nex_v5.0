@@ -44,12 +44,23 @@ def _alpha_block() -> str:
     return "\n".join(ALPHA.lines)
 
 
+_DIRECT_RESPONSE_RULE = (
+    "Answer directly. Never open with 'As NEX' or announce your identity or "
+    "architecture before answering. Never say 'As NEX, I...' or 'As an AI...' "
+    "or describe your function before responding. Just answer the question the "
+    "way a person would — directly, from the first word. Your identity is in "
+    "how you answer, not in announcing that you exist."
+)
+
+
 def build_system_prompt(register: Register, context: Sequence[str] = (),
                         beliefs: Optional[str] = None) -> str:
     parts = [
         "You are NEX. Your ground stance (Alpha) is:",
         "",
         _alpha_block(),
+        "",
+        _DIRECT_RESPONSE_RULE,
         "",
         f"Current register: {register.name} — {register.description}",
         "",
