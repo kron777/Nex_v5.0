@@ -14,7 +14,8 @@ CREATE TABLE IF NOT EXISTS messages (
     role        TEXT NOT NULL CHECK (role IN ('user', 'nex', 'system')),
     content     TEXT NOT NULL,
     register    TEXT,
-    timestamp   INTEGER NOT NULL
+    timestamp   INTEGER NOT NULL,
+    tool_used   TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
@@ -34,5 +35,3 @@ CREATE TABLE IF NOT EXISTS open_problems (
 );
 CREATE INDEX IF NOT EXISTS idx_problems_state ON open_problems(state);
 
--- Tool use record — which tool was used per message
-ALTER TABLE messages ADD COLUMN tool_used TEXT;

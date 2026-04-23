@@ -48,6 +48,11 @@ def _apply_schema(writer: Writer, schema_path: Path) -> int:
     statements = _split_sql(sql_text)
     applied = 0
     for stmt in statements:
+        if re.match(r"ALTER\s+TABLE\b", stmt, re.I):
+            # ALTER TABLE belongs in _apply_migrations(), not schema files.
+            # Skipping here prevents duplicate-column crashes on re-init.
+            logger.warning("Skipping ALTER TABLE in schema file %s — use _MIGRATIONS instead", schema_path.name)
+            continue
         writer.write(stmt, ())
         applied += 1
     return applied
