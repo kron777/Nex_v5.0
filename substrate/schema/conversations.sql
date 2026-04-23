@@ -19,3 +19,20 @@ CREATE TABLE IF NOT EXISTS messages (
 
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_messages_ts      ON messages(timestamp);
+
+-- Working memory — open problems persist across conversations.
+CREATE TABLE IF NOT EXISTS open_problems (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    title           TEXT NOT NULL,
+    description     TEXT NOT NULL,
+    state           TEXT NOT NULL DEFAULT 'open',
+    created_at      REAL NOT NULL,
+    last_touched_at REAL NOT NULL,
+    plan            TEXT NOT NULL DEFAULT '',
+    observations    TEXT NOT NULL DEFAULT '[]',
+    resolved_at     REAL
+);
+CREATE INDEX IF NOT EXISTS idx_problems_state ON open_problems(state);
+
+-- Tool use record — which tool was used per message
+ALTER TABLE messages ADD COLUMN tool_used TEXT;

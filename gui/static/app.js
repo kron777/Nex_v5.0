@@ -414,7 +414,9 @@ async function sendChat() {
     streamIntoDiv(textEl, d.text, () => {
       const metaEl = document.createElement("div");
       metaEl.className = "chat-meta";
-      metaEl.textContent = `[${d.register}${d.voice_ok ? "" : " · voice offline"}]`;
+      let metaStr = `[${d.register}${d.voice_ok ? "" : " · voice offline"}]`;
+      if (d.tool_used) metaStr += ` [${d.tool_used}]`;
+      metaEl.textContent = metaStr;
       div.appendChild(metaEl);
     });
   } catch (e) {
@@ -636,6 +638,25 @@ async function pollAgi() {
   }
 }
 
+// ── Open Problems ─────────────────────────────────────────────────────────────
+
+async function refreshProblems() {
+  const data = await apiFetch("/api/problems").catch(() => null);
+  if (!data) return;
+  const feed = document.getElementById("problems-feed");
+  const meta = document.getElementById("problems-meta");
+  if (!feed || !meta) return;
+  const problems = data.problems || [];
+  meta.textContent = problems.length ? `${problems.length} open` : "none";
+  feed.innerHTML = problems.slice(0, 5).map(p =>
+    `<div class="problem-row" title="${esc(p.description || '')}">`
+    + `<span style="color:var(--accent2);margin-right:4px;">▸</span>`
+    + `<span>${esc(p.title)}</span>`
+    + `<span style="color:var(--fg3);margin-left:4px;font-size:9px;">${fmtTs(p.last_touched_at)}</span>`
+    + `</div>`
+  ).join("");
+}
+
 // ── Drive proposals ───────────────────────────────────────────────────────────
 
 async function refreshDriveProposals() {
@@ -711,9 +732,11 @@ pollFast();
 pollMedium();
 pollSlow();
 pollAgi();
+refreshProblems();
 
 // Intervals
-setInterval(pollFast,   2000);
-setInterval(pollMedium, 5000);
-setInterval(pollSlow,   10000);
-setInterval(pollAgi,    30000);
+setInterval(pollFast,        2000);
+setInterval(pollMedium,      5000);
+setInterval(pollSlow,       10000);
+setInterval(pollAgi,        30000);
+setInterval(refreshProblems, 30000);

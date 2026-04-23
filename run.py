@@ -106,10 +106,21 @@ def main() -> None:
         sense_writer=writers["sense"],
         catalogue=catalogue,
         membrane_state=membrane,
+        dynamic_reader=readers["dynamic"],
     )
     log.info("Strike protocols armed — 5 strikes available")
 
-    # 10. Wire AppState and start GUI
+    # 10. Problem memory + tool use
+    log.info("Wiring problem memory and tool use...")
+    from theory_x.stage7_sustained.problem_memory import ProblemMemory
+    from theory_x.stage_capability.tools import ToolRegistry
+    from theory_x.stage_capability.tool_caller import ToolCaller
+    problem_memory = ProblemMemory(writers["conversations"], readers["conversations"])
+    tool_registry = ToolRegistry(beliefs_reader=readers["beliefs"])
+    tool_caller = ToolCaller(tool_registry)
+    log.info("Problem memory + tools ready (Stage B)")
+
+    # 12. Wire AppState and start GUI
     state = AppState(
         writers=writers,
         readers=readers,
@@ -121,6 +132,9 @@ def main() -> None:
         fountain=fountain,
         strike_protocol=strike_protocol,
         catalogue=catalogue,
+        problem_memory=problem_memory,
+        tool_registry=tool_registry,
+        tool_caller=tool_caller,
     )
     atexit.register(state.close)
 

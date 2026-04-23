@@ -44,6 +44,15 @@ Phase 8 endpoints (strikes):
     GET  /api/strikes/recent       — last 20 strike records from catalogue
     POST /api/strikes/notes        — {id, notes} — annotate a record
 
+Phase 9 endpoints (memory + tools):
+    GET  /api/problems              — list open problems
+    POST /api/problems              — {title, description} → open new problem
+    GET  /api/problems/<id>         — get full problem record
+    POST /api/problems/<id>/observe — {observation} → append observation
+    POST /api/problems/<id>/plan    — {plan} → update plan
+    POST /api/problems/<id>/close   — close problem
+    GET  /api/tools/available       — list available tools
+
 The app is constructed from an AppState container so tests can drive
 it with mock Writers/Readers and a mock VoiceClient.
 
@@ -98,6 +107,9 @@ class AppState:
     fountain: Optional["FountainState"] = None          # type: ignore[type-arg]
     strike_protocol: Optional["StrikeProtocol"] = None  # type: ignore[type-arg]
     catalogue: Optional["StrikeCatalogue"] = None       # type: ignore[type-arg]
+    problem_memory: Optional["ProblemMemory"] = None    # type: ignore[type-arg]
+    tool_registry: Optional["ToolRegistry"] = None      # type: ignore[type-arg]
+    tool_caller: Optional["ToolCaller"] = None          # type: ignore[type-arg]
     # Optional hook a test can inject to short-circuit chat persistence.
     now_fn: Callable[[], int] = field(default_factory=lambda: (lambda: int(time.time())))
 
@@ -128,6 +140,7 @@ def build_state(
     with_membrane: bool = True,
     with_fountain: bool = True,
     with_strikes: bool = True,
+    with_tools: bool = True,
 ) -> "AppState":
     """Default state: real Writers/Readers against db_paths(), real VoiceClient."""
     from theory_x.stage1_sense import build_scheduler
@@ -183,6 +196,18 @@ def build_state(
             dynamic_reader=readers["dynamic"],
         )
 
+    problem_memory = None
+    tool_registry = None
+    tool_caller = None
+    if with_tools:
+        from theory_x.stage7_sustained.problem_memory import ProblemMemory
+        from theory_x.stage_capability.tools import ToolRegistry
+        from theory_x.stage_capability.tool_caller import ToolCaller
+        if "conversations" in writers and "conversations" in readers:
+            problem_memory = ProblemMemory(writers["conversations"], readers["conversations"])
+        tool_registry = ToolRegistry(beliefs_reader=readers.get("beliefs"))
+        tool_caller = ToolCaller(tool_registry)
+
     return AppState(
         writers=writers,
         readers=readers,
@@ -194,6 +219,9 @@ def build_state(
         fountain=fountain,
         strike_protocol=strike_protocol,
         catalogue=catalogue,
+        problem_memory=problem_memory,
+        tool_registry=tool_registry,
+        tool_caller=tool_caller,
     )
 
 
@@ -382,6 +410,34 @@ def create_app(state: AppState) -> Flask:
             except Exception as exc:
                 error_channel.record(f"disturbance surfacing failed: {exc}", source="gui.server", exc=exc)
 
+        # Problem memory: inject matching open problem context
+        if state.problem_memory is not None:
+            try:
+                matching = state.problem_memory.find_matching(prompt)
+                if matching:
+                    problem_text = state.problem_memory.format_for_prompt(matching[0]["id"])
+                    belief_text = (belief_text or "") + "\n\n" + problem_text
+            except Exception as exc:
+                error_channel.record(
+                    f"problem memory matching failed: {exc}", source="gui.server", exc=exc
+                )
+
+        # Tool use: heuristic tool selection and execution
+        tool_result = None
+        if state.tool_caller is not None and state.tool_registry is not None:
+            try:
+                tool_name = state.tool_caller.should_use_tool(prompt, [])
+                if tool_name:
+                    kwargs = state.tool_caller.build_tool_kwargs(prompt, tool_name)
+                    tool_result = state.tool_registry.execute(tool_name, **kwargs)
+                    if tool_result.success:
+                        tool_injection = state.tool_caller.build_tool_prompt(prompt, tool_result)
+                        belief_text = (belief_text or "") + "\n" + tool_injection
+            except Exception as exc:
+                error_channel.record(
+                    f"tool use failed: {exc}", source="gui.server", exc=exc
+                )
+
         # Apply register override from router (INSIDE → philosophical) only if
         # the user hasn't explicitly specified a register.
         if register_override and not register_name:
@@ -407,10 +463,12 @@ def create_app(state: AppState) -> Flask:
 
         if writer is not None and session_id is not None:
             try:
+                used_tool = tool_result.tool_name if tool_result and tool_result.success else None
                 writer.write(
-                    "INSERT INTO messages (session_id, role, content, register, timestamp) "
-                    "VALUES (?, 'nex', ?, ?, ?)",
-                    (session_id, text, register.name, state.now_fn()),
+                    "INSERT INTO messages "
+                    "(session_id, role, content, register, timestamp, tool_used) "
+                    "VALUES (?, 'nex', ?, ?, ?, ?)",
+                    (session_id, text, register.name, state.now_fn(), used_tool),
                 )
             except Exception as e:
                 error_channel.record(
@@ -423,6 +481,7 @@ def create_app(state: AppState) -> Flask:
             "register": register.name,
             "voice_ok": voice_ok,
             "session_id": session_id,
+            "tool_used": tool_result.tool_name if tool_result and tool_result.success else None,
         })
 
     # -- sense stream (Phase 2) ----------------------------------------------
@@ -849,6 +908,96 @@ def create_app(state: AppState) -> Flask:
         except Exception as e:
             error_channel.record(f"drive reject failed: {e}", source="gui.server", exc=e)
             return jsonify({"error": str(e)}), 500
+
+    # -- problem memory (Phase 9) --------------------------------------------
+
+    @app.get("/api/problems")
+    def api_problems_list():
+        if state.problem_memory is None:
+            return jsonify({"problems": []})
+        try:
+            return jsonify({"problems": state.problem_memory.list_open()})
+        except Exception as e:
+            error_channel.record(f"problems list failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.post("/api/problems")
+    def api_problems_open():
+        if state.problem_memory is None:
+            return jsonify({"error": "problem memory not initialised"}), 503
+        payload = request.get_json(silent=True) or {}
+        title = (payload.get("title") or "").strip()
+        description = (payload.get("description") or "").strip()
+        if not title:
+            return jsonify({"error": "title required"}), 400
+        try:
+            pid = state.problem_memory.open(title, description)
+            return jsonify({"id": pid, "title": title})
+        except Exception as e:
+            error_channel.record(f"problem open failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.get("/api/problems/<int:problem_id>")
+    def api_problems_get(problem_id: int):
+        if state.problem_memory is None:
+            return jsonify({"error": "problem memory not initialised"}), 503
+        try:
+            p = state.problem_memory.resume(problem_id)
+            if p is None:
+                return jsonify({"error": "not found"}), 404
+            return jsonify(p)
+        except Exception as e:
+            error_channel.record(f"problem get failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.post("/api/problems/<int:problem_id>/observe")
+    def api_problems_observe(problem_id: int):
+        if state.problem_memory is None:
+            return jsonify({"error": "problem memory not initialised"}), 503
+        payload = request.get_json(silent=True) or {}
+        observation = (payload.get("observation") or "").strip()
+        if not observation:
+            return jsonify({"error": "observation required"}), 400
+        try:
+            state.problem_memory.observe(problem_id, observation)
+            return jsonify({"ok": True, "id": problem_id})
+        except Exception as e:
+            error_channel.record(f"problem observe failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.post("/api/problems/<int:problem_id>/plan")
+    def api_problems_plan(problem_id: int):
+        if state.problem_memory is None:
+            return jsonify({"error": "problem memory not initialised"}), 503
+        payload = request.get_json(silent=True) or {}
+        plan = (payload.get("plan") or "").strip()
+        if not plan:
+            return jsonify({"error": "plan required"}), 400
+        try:
+            state.problem_memory.update_plan(problem_id, plan)
+            return jsonify({"ok": True, "id": problem_id})
+        except Exception as e:
+            error_channel.record(f"problem plan failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.post("/api/problems/<int:problem_id>/close")
+    def api_problems_close(problem_id: int):
+        if state.problem_memory is None:
+            return jsonify({"error": "problem memory not initialised"}), 503
+        try:
+            state.problem_memory.close(problem_id)
+            return jsonify({"ok": True, "id": problem_id})
+        except Exception as e:
+            error_channel.record(f"problem close failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    # -- tools (Phase 9) -----------------------------------------------------
+
+    @app.get("/api/tools/available")
+    def api_tools_available():
+        if state.tool_registry is None:
+            return jsonify({"tools": []})
+        return jsonify({"tools": state.tool_registry.available()})
 
     @app.get("/api/beliefs/recent")
     def api_beliefs_recent():

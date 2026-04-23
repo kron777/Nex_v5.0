@@ -2,9 +2,9 @@
 
 Living document. Updated as the build progresses.
 
-**Status:** Phase 8 complete. Strike protocols armed: five manual instruments for observation
-(SILENCE, CONTRADICTION, NOVEL, SELF_PROBE, RECURSIVE), each firing from the GUI and logging
-to a separate catalogue. 159 tests passing.
+**Status:** Phase 9 complete. Problem memory + tool use wired. Open problems persist across
+conversations; tools (web_fetch, python_exec, beliefs_query) selected heuristically by ToolCaller.
+189 tests passing.
 
 ---
 
@@ -50,7 +50,14 @@ theory_x/
     readiness.py    ReadinessEvaluator — score() (0.0–1.0), is_ready(); FOUNTAIN_THRESHOLD/MIN_INTERVAL/CHECK_INTERVAL constants (THEORY_X_STAGE=6)
     generator.py    FountainGenerator — generate(), _build_prompt(disturbance=); includes tension when disturbance present
     __init__.py     build_fountain() factory — FountainState, fountain_loop daemon thread
-run.py              unified boot — init_db → self-location → scheduler → dynamic → world_model → membrane → fountain → strikes → GUI
+  stage7_sustained/
+    problem_memory.py  ProblemMemory — open(), observe(), update_plan(), close(), resume(), list_open(), find_matching(), format_for_prompt(); persists across conversations (THEORY_X_STAGE=7)
+    __init__.py        minimal init
+  stage_capability/
+    tools.py       ToolRegistry — web_fetch (allowlisted domains), python_exec (safe sandbox), beliefs_query; CAPABILITY_STAGE="B"
+    tool_caller.py ToolCaller — should_use_tool() heuristic (price→web_fetch, math→python_exec, belief→beliefs_query, current→web_fetch); build_tool_prompt() injects result into belief_text
+    __init__.py    empty init
+run.py              unified boot — init_db → self-location → scheduler → dynamic → world_model → membrane → fountain → strikes → problem_memory + tools → GUI
 strikes/
   catalogue.py    StrikeCatalogue — direct sqlite3, Jon's observation notebook; intentional architectural exception to one-pen rule
   protocols.py    StrikeProtocol — fire(StrikeType); SILENCE strike correctly counts fountain_events before/after 60s window; dynamic_reader wired in
@@ -462,6 +469,39 @@ New endpoints:
 
 Strike Console panel in the cockpit: dropdown selector, custom input textarea, Fire button, scrollable log of recent strikes with type-coloured badges. Auto-refreshes every 15s.
 
+### Phase 9 additions
+
+`theory_x/stage7_sustained/problem_memory.py` — ProblemMemory (Theory X Stage 7).
+
+Open problems persist in `conversations.db` (`open_problems` table). NEX can hold a problem across sessions, accumulate observations, and resume it in any future conversation where keywords match. On each chat turn, `find_matching(query)` returns overlapping problems and `format_for_prompt()` injects the problem context into the belief_text block passed to VoiceClient.
+
+`theory_x/stage_capability/tools.py` — ToolRegistry (Capability Stage B).
+
+Three tools:
+| Tool | Trigger | What it does |
+|---|---|---|
+| `web_fetch` | price/crypto query or "latest/current/today" | HTTP GET an allowlisted domain; strips HTML |
+| `python_exec` | "calculate/compute/math" | Runs Python in subprocess with safe-import sandbox; blocks os, sys, subprocess, socket, etc. |
+| `beliefs_query` | "what do I believe / what does NEX think" | Queries belief graph via `BeliefRetriever` |
+
+`ToolCaller.should_use_tool(query, beliefs)` returns the tool name (or None) via heuristic regex matching. If `beliefs` list is empty and query is factual (`what is / who is / when did`), falls back to `web_fetch`. Result is injected into `belief_text` before VoiceClient call. `tool_used` column written to `conversations.messages` for each NEX response that used a tool.
+
+New endpoints:
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/problems` | List open problems |
+| `POST` | `/api/problems` | `{title, description}` → open new problem |
+| `GET` | `/api/problems/<id>` | Full problem record with parsed observations |
+| `POST` | `/api/problems/<id>/observe` | `{observation}` → append observation |
+| `POST` | `/api/problems/<id>/plan` | `{plan}` → update plan |
+| `POST` | `/api/problems/<id>/close` | Close problem |
+| `GET` | `/api/tools/available` | List available tools with descriptions |
+
+`AppState` gained `problem_memory`, `tool_registry`, `tool_caller` fields. `build_state()` gained `with_tools` flag. Open Problems panel in fountain column shows up to 5 open problems with last-touched timestamp; refreshes every 30s. Chat meta shows `[web_fetch]` / `[python_exec]` / `[beliefs_query]` badge when a tool was used.
+
+**Schema addition (conversations.db):** `open_problems` table (title, description, state, created_at, last_touched_at, plan, observations JSON, resolved_at). `ALTER TABLE messages ADD COLUMN tool_used TEXT`.
+
 ### What comes next
 
-Phase 9 — Iterative Tuning. See `SPECIFICATION.md §9` for the full phase sequence.
+Phase 10 — Iterative Tuning. See `SPECIFICATION.md §10` for the full phase sequence.

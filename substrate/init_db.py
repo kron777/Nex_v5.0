@@ -96,6 +96,20 @@ _MIGRATIONS: dict[str, list[str]] = {
         "proposed_curiosity REAL NOT NULL, "
         "status TEXT NOT NULL DEFAULT 'pending')",
     ],
+    "conversations": [
+        "CREATE TABLE IF NOT EXISTS open_problems ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "title TEXT NOT NULL, "
+        "description TEXT NOT NULL, "
+        "state TEXT NOT NULL DEFAULT 'open', "
+        "created_at REAL NOT NULL, "
+        "last_touched_at REAL NOT NULL, "
+        "plan TEXT NOT NULL DEFAULT '', "
+        "observations TEXT NOT NULL DEFAULT '[]', "
+        "resolved_at REAL)",
+        "CREATE INDEX IF NOT EXISTS idx_problems_state ON open_problems(state)",
+        "ALTER TABLE messages ADD COLUMN tool_used TEXT",
+    ],
 }
 
 
