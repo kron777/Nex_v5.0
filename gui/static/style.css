@@ -357,6 +357,22 @@ html, body {
 .sb-btn:hover { border-color: var(--accent); color: var(--accent); }
 .sb-btn.danger:hover { border-color: var(--red); color: var(--red); }
 
+.sense-feeds-btn {
+  background: none;
+  border: 1px solid var(--fg3);
+  color: var(--fg3);
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 2px;
+  cursor: pointer;
+  margin-left: 0.4rem;
+  letter-spacing: 0.04em;
+}
+.sense-feeds-btn.running { border-color: var(--green); color: var(--green); }
+.sense-feeds-btn.paused  { border-color: var(--fg3);   color: var(--fg3); }
+.sense-feeds-btn:hover   { border-color: var(--accent); color: var(--accent); }
+
 #strike-select {
   background: var(--bg2);
   color: var(--fg2);

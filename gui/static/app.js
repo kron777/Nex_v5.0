@@ -70,7 +70,8 @@ function parsePreview(payload, stream) {
     if (p.belief_count !== undefined) return `beliefs:${p.belief_count}`;
     if (p.thought) return p.thought.slice(0, 55);
     const first = Object.values(p)[0];
-    return String(first ?? "").slice(0, 55);
+    return (typeof first === "object" && first !== null
+      ? JSON.stringify(first) : String(first ?? "")).slice(0, 55);
   } catch (_) { return ""; }
 }
 
@@ -276,24 +277,30 @@ async function refreshFeedsStatus() {
   const data = await apiFetch("/api/sense/status").catch(() => null);
   if (!data || data.error) return;
   feedsRunning = data.global_running;
-  const el = document.getElementById("sb-feeds-status");
+  const el  = document.getElementById("sb-feeds-status");
   const btn = document.getElementById("sb-feeds-toggle");
+  const hdrBtn = document.getElementById("sense-feeds-btn");
   if (feedsRunning) {
     el.textContent = "feeds: RUNNING";
     el.className = "feeds-running";
     btn.textContent = "STOP";
+    if (hdrBtn) { hdrBtn.textContent = "STOP"; hdrBtn.className = "sense-feeds-btn running"; }
   } else {
     el.textContent = "feeds: PAUSED";
     el.className = "feeds-paused";
     btn.textContent = "START";
+    if (hdrBtn) { hdrBtn.textContent = "START"; hdrBtn.className = "sense-feeds-btn paused"; }
   }
 }
 
-document.getElementById("sb-feeds-toggle").addEventListener("click", async () => {
+async function toggleFeeds() {
   const url = feedsRunning ? "/api/sense/stop" : "/api/sense/start";
   await fetch(url, { method: "POST" }).catch(() => {});
   refreshFeedsStatus();
-});
+}
+
+document.getElementById("sb-feeds-toggle").addEventListener("click", toggleFeeds);
+document.getElementById("sense-feeds-btn")?.addEventListener("click", toggleFeeds);
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
 
@@ -345,6 +352,21 @@ function appendChat(role, text, meta) {
   log.scrollTop = log.scrollHeight;
 }
 
+function streamIntoDiv(textEl, fullText, onDone) {
+  const chars = fullText.split("");
+  let i = 0;
+  const iv = setInterval(() => {
+    if (i >= chars.length) {
+      clearInterval(iv);
+      if (onDone) onDone();
+      return;
+    }
+    textEl.textContent += chars[i++];
+    const log = document.getElementById("chat-log");
+    log.scrollTop = log.scrollHeight;
+  }, 14);
+}
+
 async function sendChat() {
   const input = document.getElementById("chat-input");
   const reg   = document.getElementById("chat-register").value;
@@ -361,6 +383,15 @@ async function sendChat() {
     memEl.className = isSelf ? "mem-inside" : "mem-outside";
   }
 
+  // Create nex div immediately with streaming placeholder
+  const log = document.getElementById("chat-log");
+  const div = document.createElement("div");
+  div.className = "chat-msg nex-msg";
+  div.innerHTML = `<div class="who">nex</div><div class="text"></div>`;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+  const textEl = div.querySelector(".text");
+
   try {
     const r = await fetch("/api/chat", {
       method: "POST",
@@ -368,9 +399,14 @@ async function sendChat() {
       body: JSON.stringify({ prompt, register: reg || undefined }),
     });
     const d = await r.json();
-    appendChat("nex", d.text, `[${d.register}${d.voice_ok ? "" : " · voice offline"}]`);
+    streamIntoDiv(textEl, d.text, () => {
+      const metaEl = document.createElement("div");
+      metaEl.className = "chat-meta";
+      metaEl.textContent = `[${d.register}${d.voice_ok ? "" : " · voice offline"}]`;
+      div.appendChild(metaEl);
+    });
   } catch (e) {
-    appendChat("nex", `error: ${e}`, null);
+    textEl.textContent = `error: ${e}`;
   }
 }
 
