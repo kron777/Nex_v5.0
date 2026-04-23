@@ -461,17 +461,40 @@ document.getElementById("strike-fire-btn").addEventListener("click", async () =>
   const type = document.getElementById("strike-select").value;
   const status = document.getElementById("strike-status");
   status.textContent = `firing ${type}…`;
+
+  let record;
   try {
     const r = await fetch("/api/strikes/fire", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ strike_type: type }),
     });
-    const record = await r.json();
-    status.textContent = `done (id=${record.id})`;
-    openModal(record);
+    const body = await r.text();
+    try {
+      record = JSON.parse(body);
+    } catch (_) {
+      status.textContent = `failed: server returned non-JSON (${r.status})`;
+      console.error("Strike: non-JSON response:", body.slice(0, 200));
+      return;
+    }
+    if (!r.ok || record.error) {
+      status.textContent = `failed: ${record.error || r.status}`;
+      console.error("Strike: error response:", record);
+      return;
+    }
   } catch (e) {
     status.textContent = `failed: ${e}`;
+    console.error("Strike: fetch error:", e);
+    return;
+  }
+
+  console.log("Strike record:", record);
+  status.textContent = `done (id=${record.id})`;
+  try {
+    openModal(record);
+  } catch (e) {
+    console.error("Strike: openModal threw:", e);
+    status.textContent = `fired (id=${record.id}) — modal error: ${e}`;
   }
 });
 
