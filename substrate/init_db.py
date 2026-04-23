@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import re
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -113,17 +114,43 @@ _MIGRATIONS: dict[str, list[str]] = {
 }
 
 
+_ALTER_COL_RE = re.compile(
+    r"ALTER\s+TABLE\s+(\w+)\s+ADD\s+COLUMN\s+(\w+)", re.I
+)
+
+
+def _column_exists(db_path: str, table: str, column: str) -> bool:
+    """Read-only PRAGMA check via direct sqlite3 — safe alongside WAL Writer."""
+    try:
+        with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
+            rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+            return any(row[1] == column for row in rows)
+    except Exception:
+        return False  # DB not yet created or unreadable — let the write proceed
+
+
 def _apply_migrations(writers: dict[str, Writer]) -> None:
-    """Apply additive migrations for existing databases. Each is try/except idempotent."""
+    """Apply additive migrations for existing databases.
+
+    ALTER TABLE ADD COLUMN statements are pre-checked via PRAGMA table_info
+    so the column-already-exists case is skipped before touching the Writer.
+    This prevents the Writer's worker thread from logging a spurious ERROR for
+    an expected, harmless condition on existing databases.
+    """
     for db_name, stmts in _MIGRATIONS.items():
         w = writers.get(db_name)
         if w is None:
             continue
         for stmt in stmts:
+            m = _ALTER_COL_RE.match(stmt.strip())
+            if m:
+                table, col = m.group(1), m.group(2)
+                if _column_exists(w.db_path, table, col):
+                    continue  # column already exists — skip silently
             try:
                 w.write(stmt, ())
             except Exception:
-                pass  # column/table already exists
+                pass  # CREATE IF NOT EXISTS etc. are idempotent; swallow any remainder
 
 
 def init_all() -> None:
