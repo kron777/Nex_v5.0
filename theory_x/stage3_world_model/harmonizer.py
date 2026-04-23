@@ -154,6 +154,9 @@ class Harmonizer:
                 "AND resolution = 'pending'",
                 (synthesis_id, belief_id_a, belief_id_b),
             )
+            # Write synthesises edges from both retired beliefs to the synthesis belief
+            self._promoter.write_edge(belief_id_a, synthesis_id, "synthesises", 0.7)
+            self._promoter.write_edge(belief_id_b, synthesis_id, "synthesises", 0.7)
             self._promoter.decisive_contradiction(belief_id_b)
             errors.record(
                 f"harmonizer synthesized conflict ({belief_id_a}, {belief_id_b}) "
@@ -191,3 +194,68 @@ class Harmonizer:
             if result != "error":
                 resolved += 1
         return resolved
+
+    def detect_cross_domain(self) -> int:
+        """Scan Tier 1-4 beliefs for cross-domain pattern matches.
+
+        For each pair in different branch_ids with keyword overlap >= 0.4
+        and no existing edge, write a 'cross_domain' edge.
+        Returns count of new edges written.
+        """
+        try:
+            rows = self._beliefs_reader.read(
+                "SELECT id, content, branch_id FROM beliefs "
+                "WHERE tier <= 4 AND locked = 0 AND paused = 0 "
+                "AND branch_id IS NOT NULL LIMIT 200",
+            )
+        except Exception as exc:
+            errors.record(f"detect_cross_domain read error: {exc}", source=_LOG_SOURCE, exc=exc)
+            return 0
+
+        beliefs = [dict(r) for r in rows]
+        if len(beliefs) < 2:
+            return 0
+
+        token_cache = {b["id"]: _tokenize(b["content"]) for b in beliefs}
+
+        # Fetch existing edges to avoid duplicates
+        ids = [b["id"] for b in beliefs]
+        placeholders = ",".join("?" * len(ids))
+        existing: set[tuple[int, int]] = set()
+        try:
+            edge_rows = self._beliefs_reader.read(
+                f"SELECT source_id, target_id FROM belief_edges "
+                f"WHERE source_id IN ({placeholders}) OR target_id IN ({placeholders})",
+                tuple(ids) * 2,
+            )
+            for e in edge_rows:
+                existing.add((e["source_id"], e["target_id"]))
+                existing.add((e["target_id"], e["source_id"]))
+        except Exception:
+            pass
+
+        written = 0
+        for i, a in enumerate(beliefs):
+            for b in beliefs[i + 1:]:
+                if a["branch_id"] == b["branch_id"]:
+                    continue
+                if (a["id"], b["id"]) in existing:
+                    continue
+                ta = token_cache[a["id"]]
+                tb = token_cache[b["id"]]
+                union = len(ta | tb)
+                if union == 0:
+                    continue
+                overlap = len(ta & tb) / union
+                if overlap >= 0.4:
+                    self._promoter.write_edge(a["id"], b["id"], "cross_domain", round(overlap, 3))
+                    existing.add((a["id"], b["id"]))
+                    existing.add((b["id"], a["id"]))
+                    written += 1
+                    errors.record(
+                        f"cross_domain edge: belief {a['id']} ({a['branch_id']}) "
+                        f"↔ {b['id']} ({b['branch_id']}) overlap={overlap:.2f}",
+                        source=_LOG_SOURCE, level="INFO",
+                    )
+
+        return written

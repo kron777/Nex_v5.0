@@ -223,6 +223,16 @@ async function refreshBeliefStats() {
     .map(([t, n]) => `T${t}:${n}`)
     .join(" ");
   document.getElementById("sb-tiers").textContent = tierStr || "—";
+
+  const edgeEl = document.getElementById("sb-edges");
+  if (edgeEl) edgeEl.textContent = `edges: ${data.edge_count ?? 0}`;
+
+  const tempEl = document.getElementById("sb-epistemic-temp");
+  if (tempEl) {
+    const t = data.epistemic_temperature ?? 0;
+    const bar = "█".repeat(Math.round(t * 10)).padEnd(10, "░");
+    tempEl.textContent = `temp: ${bar} ${t.toFixed(2)}`;
+  }
 }
 
 // ── System status + metric strip ──────────────────────────────────────────────

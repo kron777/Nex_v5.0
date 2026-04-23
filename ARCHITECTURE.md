@@ -30,11 +30,12 @@ theory_x/
     consolidation.py    consolidation_pass(), _external_quiet()
     __init__.py     build_dynamic() factory — 7 daemon loops, DynamicState
   stage3_world_model/
-    retrieval.py    BeliefRetriever — keyword-overlap scoring, branch hint boost, side_filter support
-    promotion.py    BeliefPromoter — corroborate(), survive_challenge(), decay_pass(), decisive_contradiction()
-    harmonizer.py   Harmonizer — conflict detection (Tier 4+), synthesis or retirement
+    retrieval.py    BeliefRetriever — keyword-overlap scoring + spreading activation blend (60/40), role badges (BRIDGE/SUPPORT/TENSION/REFINE)
+    promotion.py    BeliefPromoter — corroborate(), survive_challenge(), decay_pass(), decisive_contradiction(), write_edge()
+    harmonizer.py   Harmonizer — conflict detection (Tier 4+), synthesis/retirement, detect_cross_domain() (6h interval)
+    activation.py   ActivationEngine — activate(seed_ids, hops, decay), epistemic_temperature(), typed_roles()
     pipeline_hooks.py   PipelineHooks — high-magnitude events corroborate matching beliefs
-    __init__.py     build_world_model() factory — decay_loop, harmonizer_loop, WorldModelState
+    __init__.py     build_world_model() factory — decay_loop, harmonizer_loop, cross_domain_loop, WorldModelState
   stage4_membrane/
     classifier.py   MembraneClassifier — classify_stream(), classify_belief(), classify_query(); CLASSIFIER singleton (THEORY_X_STAGE=4)
     self_model.py   SelfModel — snapshot() assembles proprioception/temporal/interoception/attention; format_self_state() (THEORY_X_STAGE=4)
@@ -326,7 +327,15 @@ New endpoints:
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/beliefs/stats` | Tier distribution, total count, beliefs added last 24h |
+| `GET` | `/api/beliefs/stats` | Tier distribution, total count, beliefs added last 24h, edge_count, edge_type_distribution, epistemic_temperature |
+
+**Belief edge graph (added in belief-edges build):** `belief_edges` table in `beliefs.db`. Five typed edges: `supports`, `opposes`, `synthesises`, `cross_domain`, `refines`. Edges grow organically:
+- `corroborate()` promotion → writes `supports` edge from best-overlap peer to promoted belief
+- `decisive_contradiction()` → writes `opposes` edges to high-overlap peers (≥3 token overlap)
+- `Harmonizer.resolve()` synthesis → writes `synthesises` edges from both retired beliefs to synthesis belief
+- `Harmonizer.detect_cross_domain()` (every 6h) → scans Tier 1-4 beliefs in different branches; Jaccard overlap ≥ 0.4 → `cross_domain` edge
+
+`ActivationEngine.activate(seed_ids, hops=3, decay=0.55)` spreads scores through edge graph with per-type multipliers (supports/refines: ×1.0; cross_domain: ×0.8; synthesises: ×1.2; opposes: −0.5 inhibitory). `BeliefRetriever.retrieve()` blends keyword score (40%) with activation score (60%) when edges exist; falls back to keyword-only when edge table is empty. `epistemic_temperature()` measures belief graph tension: 0.0 (cold/settled) → 1.0 (hot/uncertain). Status bar shows `edges: N` and temperature bar.
 
 `AppState` gained `world_model: Optional[WorldModelState]`. Chat column now retrieves relevant beliefs and injects them into the system prompt before each response. `build_system_prompt()` accepts `beliefs: Optional[str]` parameter.
 

@@ -17,6 +17,7 @@ from substrate import Writer, Reader
 from .retrieval import BeliefRetriever, format_beliefs_for_prompt
 from .promotion import BeliefPromoter
 from .harmonizer import Harmonizer
+from .activation import ActivationEngine
 from .pipeline_hooks import PipelineHooks
 
 THEORY_X_STAGE = 3
@@ -29,17 +30,20 @@ class WorldModelState:
     retriever: BeliefRetriever
     promoter: BeliefPromoter
     harmonizer: Harmonizer
+    activation: ActivationEngine
     hooks: PipelineHooks
     writers: dict
     readers: dict
     _decay_runs: int = field(default=0, init=False)
     _harmonizer_runs: int = field(default=0, init=False)
+    _cross_domain_runs: int = field(default=0, init=False)
     _started_at: float = field(default_factory=time.time, init=False)
 
     def status(self) -> dict:
         return {
             "decay_runs": self._decay_runs,
             "harmonizer_runs": self._harmonizer_runs,
+            "cross_domain_runs": self._cross_domain_runs,
             "uptime_seconds": int(time.time() - self._started_at),
         }
 
@@ -78,6 +82,23 @@ def _harmonizer_loop(state: WorldModelState, stop: threading.Event) -> None:
             errors.record(f"harmonizer_loop error: {exc}", source=_LOG_SOURCE, exc=exc)
 
 
+def _cross_domain_loop(state: WorldModelState, stop: threading.Event) -> None:
+    while not stop.is_set():
+        stop.wait(6 * 3600.0)
+        if stop.is_set():
+            break
+        try:
+            written = state.harmonizer.detect_cross_domain()
+            state._cross_domain_runs += 1
+            if written:
+                errors.record(
+                    f"cross_domain_loop wrote {written} new edges",
+                    source=_LOG_SOURCE, level="INFO",
+                )
+        except Exception as exc:
+            errors.record(f"cross_domain_loop error: {exc}", source=_LOG_SOURCE, exc=exc)
+
+
 def build_world_model(writers: dict, readers: dict,
                       dynamic_state=None) -> WorldModelState:
     """Factory: wire belief retrieval, promotion, harmonization, and pipeline hooks."""
@@ -89,6 +110,7 @@ def build_world_model(writers: dict, readers: dict,
         dynamic_writer=writers["dynamic"],
         promoter=promoter,
     )
+    activation = ActivationEngine(readers["beliefs"])
     hooks = PipelineHooks(promoter=promoter, beliefs_reader=readers["beliefs"])
 
     if dynamic_state is not None:
@@ -98,6 +120,7 @@ def build_world_model(writers: dict, readers: dict,
         retriever=retriever,
         promoter=promoter,
         harmonizer=harmonizer,
+        activation=activation,
         hooks=hooks,
         writers=writers,
         readers=readers,
@@ -107,8 +130,9 @@ def build_world_model(writers: dict, readers: dict,
     state._stop = stop  # type: ignore[attr-defined]
 
     for fn, name in [
-        (_decay_loop,      "world_model.decay"),
-        (_harmonizer_loop, "world_model.harmonizer"),
+        (_decay_loop,        "world_model.decay"),
+        (_harmonizer_loop,   "world_model.harmonizer"),
+        (_cross_domain_loop, "world_model.cross_domain"),
     ]:
         t = threading.Thread(target=fn, args=(state, stop), name=name, daemon=True)
         t.start()

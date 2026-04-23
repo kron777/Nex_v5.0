@@ -34,6 +34,49 @@ class BeliefPromoter:
         self._writer = beliefs_writer
         self._reader = beliefs_reader
 
+    def write_edge(self, source_id: int, target_id: int, edge_type: str,
+                   weight: float = 0.5) -> None:
+        """Write or update a belief edge (one-pen rule: uses self._writer)."""
+        now = time.time()
+        try:
+            self._writer.write(
+                "INSERT INTO belief_edges (source_id, target_id, edge_type, weight, created_at) "
+                "VALUES (?, ?, ?, ?, ?) "
+                "ON CONFLICT(source_id, target_id, edge_type) DO UPDATE SET "
+                "weight=excluded.weight, last_traversed_at=excluded.created_at",
+                (source_id, target_id, edge_type, weight, now),
+            )
+        except Exception as exc:
+            errors.record(f"write_edge error: {exc}", source=_LOG_SOURCE, exc=exc)
+
+    def _write_corroboration_edge(self, belief_id: int, content: str) -> None:
+        """Find highest-confidence peer belief with content overlap and write a supports edge."""
+        if not content:
+            return
+        from .retrieval import _tokenize
+        tokens = _tokenize(content)
+        if not tokens:
+            return
+        try:
+            candidates = self._reader.read(
+                "SELECT id, content, confidence FROM beliefs "
+                "WHERE id != ? AND tier <= 6 AND paused = 0 ORDER BY confidence DESC LIMIT 50",
+                (belief_id,),
+            )
+        except Exception:
+            return
+        best_id: Optional[int] = None
+        best_overlap = 0
+        for c in candidates:
+            c_tokens = _tokenize(c["content"] or "")
+            overlap = len(tokens & c_tokens)
+            if overlap > best_overlap:
+                best_overlap = overlap
+                best_id = c["id"]
+        if best_id is not None and best_overlap >= 2:
+            weight = min(1.0, best_overlap * 0.1 + 0.3)
+            self.write_edge(best_id, belief_id, "supports", weight)
+
     def corroborate(self, belief_id: int) -> bool:
         """Increment corroboration_count; promote if threshold reached.
 
@@ -41,7 +84,7 @@ class BeliefPromoter:
         """
         try:
             row = self._reader.read_one(
-                "SELECT id, tier, corroboration_count, locked FROM beliefs WHERE id = ?",
+                "SELECT id, content, tier, corroboration_count, locked FROM beliefs WHERE id = ?",
                 (belief_id,),
             )
         except Exception as exc:
@@ -68,6 +111,8 @@ class BeliefPromoter:
                  json.dumps({"event": "corroboration", "from": row["tier"], "to": new_tier, "ts": now}),
                  belief_id),
             )
+            # Find recent high-magnitude corroborating belief and write edge
+            self._write_corroboration_edge(belief_id, row["content"] or "")
             errors.record(
                 f"belief {belief_id} promoted Tier {row['tier']} → {new_tier} via corroboration",
                 source=_LOG_SOURCE, level="INFO",
@@ -157,7 +202,7 @@ class BeliefPromoter:
         """
         try:
             row = self._reader.read_one(
-                "SELECT id, tier, locked FROM beliefs WHERE id = ?",
+                "SELECT id, content, tier, locked FROM beliefs WHERE id = ?",
                 (belief_id,),
             )
         except Exception as exc:
@@ -179,8 +224,32 @@ class BeliefPromoter:
              json.dumps({"event": "decisive_contradiction", "from": current, "to": new_tier, "ts": now}),
              belief_id),
         )
+        # Write opposes edges to high-overlap beliefs
+        self._write_contradiction_edges(belief_id, row["content"] or "")
         errors.record(
             f"belief {belief_id} demoted Tier {current} → {new_tier} via decisive contradiction",
             source=_LOG_SOURCE, level="INFO",
         )
         return True
+
+    def _write_contradiction_edges(self, belief_id: int, content: str) -> None:
+        """Write opposes edges between the contradicted belief and high-overlap peers."""
+        if not content:
+            return
+        from .retrieval import _tokenize
+        tokens = _tokenize(content)
+        if not tokens:
+            return
+        try:
+            candidates = self._reader.read(
+                "SELECT id, content FROM beliefs "
+                "WHERE id != ? AND tier <= 6 AND locked = 0 LIMIT 50",
+                (belief_id,),
+            )
+        except Exception:
+            return
+        for c in candidates:
+            c_tokens = _tokenize(c["content"] or "")
+            overlap = len(tokens & c_tokens)
+            if overlap >= 3:
+                self.write_edge(belief_id, c["id"], "opposes", 0.8)

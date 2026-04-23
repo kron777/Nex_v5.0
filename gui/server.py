@@ -492,10 +492,43 @@ def create_app(state: AppState) -> Flask:
                 (cutoff_24h,),
             )
             recent_count = recent_rows[0]["cnt"] if recent_rows else 0
+
+            # Edge stats
+            edge_count = 0
+            edge_type_dist: dict[str, int] = {}
+            try:
+                ec_row = reader.read_one("SELECT COUNT(*) as cnt FROM belief_edges")
+                edge_count = ec_row["cnt"] if ec_row else 0
+                et_rows = reader.read(
+                    "SELECT edge_type, COUNT(*) as cnt FROM belief_edges GROUP BY edge_type"
+                )
+                edge_type_dist = {r["edge_type"]: r["cnt"] for r in et_rows}
+            except Exception:
+                pass
+
+            # Epistemic temperature (0 edges → 0.0)
+            epistemic_temp = 0.0
+            try:
+                if edge_count > 0:
+                    from theory_x.stage3_world_model.activation import ActivationEngine
+                    engine = ActivationEngine(reader)
+                    seed_rows = reader.read(
+                        "SELECT id FROM beliefs WHERE tier <= 4 ORDER BY confidence DESC LIMIT 5"
+                    )
+                    seed_ids = [r["id"] for r in seed_rows]
+                    if seed_ids:
+                        act = engine.activate(seed_ids)
+                        epistemic_temp = engine.epistemic_temperature(act)
+            except Exception:
+                pass
+
             return jsonify({
                 "tier_distribution": {str(r["tier"]): r["cnt"] for r in tier_rows},
                 "total": total,
                 "added_last_24h": recent_count,
+                "edge_count": edge_count,
+                "edge_type_distribution": edge_type_dist,
+                "epistemic_temperature": round(epistemic_temp, 3),
             })
         except Exception as e:
             error_channel.record(f"beliefs stats failed: {e}", source="gui.server", exc=e)

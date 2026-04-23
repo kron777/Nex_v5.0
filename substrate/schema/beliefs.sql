@@ -27,3 +27,25 @@ CREATE INDEX IF NOT EXISTS idx_beliefs_branch ON beliefs(branch_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_beliefs_keystone_content
     ON beliefs(content)
     WHERE tier = 1 AND locked = 1;
+
+-- Belief edge graph — grows organically through corroboration, contradiction, synthesis.
+CREATE TABLE IF NOT EXISTS belief_edges (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_id        INTEGER NOT NULL REFERENCES beliefs(id),
+    target_id        INTEGER NOT NULL REFERENCES beliefs(id),
+    edge_type        TEXT NOT NULL CHECK (edge_type IN (
+                         'supports',     -- source strengthens target
+                         'opposes',      -- source contradicts target
+                         'synthesises',  -- source combines with target into something new
+                         'cross_domain', -- source and target from different branches, pattern-match
+                         'refines'       -- source adds precision to target
+                     )),
+    weight           REAL NOT NULL DEFAULT 0.5,
+    created_at       REAL NOT NULL,
+    last_traversed_at REAL
+);
+
+CREATE INDEX IF NOT EXISTS idx_edges_source ON belief_edges(source_id);
+CREATE INDEX IF NOT EXISTS idx_edges_target ON belief_edges(target_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_edges_pair
+    ON belief_edges(source_id, target_id, edge_type);

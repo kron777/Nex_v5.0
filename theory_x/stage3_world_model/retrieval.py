@@ -2,7 +2,8 @@
 
 BeliefRetriever scores beliefs by keyword overlap with the query,
 boosts matches on active branches, and returns the top N by
-(overlap_score * confidence).
+(overlap_score * confidence). When belief_edges exist, spreading
+activation is blended in: final = keyword*0.4 + activation*0.6.
 """
 from __future__ import annotations
 
@@ -27,7 +28,10 @@ def _tokenize(text: str) -> set[str]:
 
 
 def format_beliefs_for_prompt(beliefs: list[dict]) -> str:
-    """Format a list of belief dicts as a compact block for system prompt injection."""
+    """Format belief dicts as a compact block for system prompt injection.
+
+    Includes role badge when present: BRIDGE, SUPPORT, TENSION, REFINE.
+    """
     if not beliefs:
         return ""
     lines = ["Her current beliefs relevant to this topic:"]
@@ -35,7 +39,9 @@ def format_beliefs_for_prompt(beliefs: list[dict]) -> str:
         tier = b.get("tier", "?")
         conf = b.get("confidence", 0.0)
         content = b.get("content", "")
-        lines.append(f"- [Tier {tier} | {conf:.2f}] {content}")
+        role = b.get("_role", "")
+        role_str = f" | {role}" if role else ""
+        lines.append(f"- [Tier {tier} | {conf:.2f}{role_str}] {content}")
     return "\n".join(lines)
 
 
@@ -49,6 +55,7 @@ class BeliefRetriever:
 
         Filters: tier <= 6, (locked=1 OR confidence >= 0.15), paused=0.
         Scores by keyword overlap * confidence, boosted by branch match.
+        When belief_edges exist, blends in spreading activation (60/40).
         Returns top limit results sorted descending.
 
         side_filter: 'INSIDE', 'OUTSIDE', or None (no filter).
@@ -79,11 +86,12 @@ class BeliefRetriever:
 
         query_tokens = _tokenize(query)
         if not query_tokens:
-            # No meaningful query tokens — return top by confidence
             return [dict(r) for r in rows[:limit]]
 
         hints = set(branch_hints or [])
-        scored = []
+        keyword_scores: dict[int, float] = {}
+        row_map: dict[int, dict] = {}
+
         for row in rows:
             content_tokens = _tokenize(row["content"])
             overlap = len(query_tokens & content_tokens)
@@ -91,8 +99,74 @@ class BeliefRetriever:
                 continue
             score = (overlap / max(1, len(query_tokens))) * row["confidence"]
             if row["branch_id"] in hints:
-                score *= 1.5  # branch boost
-            scored.append((score, dict(row)))
+                score *= 1.5
+            keyword_scores[row["id"]] = score
+            row_map[row["id"]] = dict(row)
 
-        scored.sort(key=lambda x: x[0], reverse=True)
-        return [b for _, b in scored[:limit]]
+        if not keyword_scores:
+            return []
+
+        # Spreading activation blend if edges exist
+        activation_scores: dict[int, float] = {}
+        epistemic_temp = 0.0
+        try:
+            from .activation import ActivationEngine
+            engine = ActivationEngine(self._reader)
+            # Use top-5 keyword seeds
+            top_seeds = sorted(keyword_scores, key=keyword_scores.__getitem__, reverse=True)[:5]
+            activation_scores = engine.activate(top_seeds)
+            epistemic_temp = engine.epistemic_temperature(activation_scores)
+        except Exception as exc:
+            errors.record(f"activation error: {exc}", source=_LOG_SOURCE, exc=exc)
+
+        # Assign roles via typed_roles when activation data is present
+        role_map: dict[int, str] = {}
+        if activation_scores:
+            try:
+                from .activation import ActivationEngine
+                engine2 = ActivationEngine(self._reader)
+                top_seeds = sorted(keyword_scores, key=keyword_scores.__getitem__, reverse=True)[:5]
+                roles = engine2.typed_roles(activation_scores, top_seeds)
+                for role_name, entries in roles.items():
+                    if role_name == "seed":
+                        continue
+                    for entry in entries:
+                        role_map[entry["id"]] = role_name.upper()
+            except Exception:
+                pass
+
+        has_activation = bool(activation_scores)
+
+        # Normalise activation scores to [0,1]
+        if has_activation:
+            max_act = max(abs(v) for v in activation_scores.values()) or 1.0
+            norm_act = {k: v / max_act for k, v in activation_scores.items()}
+        else:
+            norm_act = {}
+
+        # Normalise keyword scores
+        max_kw = max(keyword_scores.values()) or 1.0
+        norm_kw = {k: v / max_kw for k, v in keyword_scores.items()}
+
+        # Merge scores: keyword*0.4 + activation*0.6 (or keyword-only)
+        all_ids = set(norm_kw) | (set(norm_act) if has_activation else set())
+        final_scores: list[tuple[float, dict]] = []
+        for bid in all_ids:
+            kw = norm_kw.get(bid, 0.0)
+            act = norm_act.get(bid, 0.0)
+            if has_activation:
+                score = kw * 0.4 + act * 0.6
+            else:
+                score = kw
+            b = row_map.get(bid)
+            if b is None:
+                continue
+            b = dict(b)
+            role = role_map.get(bid, "")
+            if role:
+                b["_role"] = role
+            b["_epistemic_temperature"] = round(epistemic_temp, 3)
+            final_scores.append((score, b))
+
+        final_scores.sort(key=lambda x: x[0], reverse=True)
+        return [b for _, b in final_scores[:limit]]

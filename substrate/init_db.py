@@ -53,7 +53,21 @@ def _apply_schema(writer: Writer, schema_path: Path) -> int:
 
 
 _MIGRATIONS: dict[str, list[str]] = {
-    "beliefs": [],
+    "beliefs": [
+        "CREATE TABLE IF NOT EXISTS belief_edges ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "source_id INTEGER NOT NULL REFERENCES beliefs(id), "
+        "target_id INTEGER NOT NULL REFERENCES beliefs(id), "
+        "edge_type TEXT NOT NULL CHECK (edge_type IN ("
+        "'supports','opposes','synthesises','cross_domain','refines')), "
+        "weight REAL NOT NULL DEFAULT 0.5, "
+        "created_at REAL NOT NULL, "
+        "last_traversed_at REAL)",
+        "CREATE INDEX IF NOT EXISTS idx_edges_source ON belief_edges(source_id)",
+        "CREATE INDEX IF NOT EXISTS idx_edges_target ON belief_edges(target_id)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_edges_pair "
+        "ON belief_edges(source_id, target_id, edge_type)",
+    ],
     "dynamic": [
         "CREATE TABLE IF NOT EXISTS harmonizer_events ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL NOT NULL, "
