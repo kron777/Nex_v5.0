@@ -61,3 +61,12 @@ CREATE INDEX IF NOT EXISTS idx_edges_source ON belief_edges(source_id);
 CREATE INDEX IF NOT EXISTS idx_edges_target ON belief_edges(target_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_edges_pair
     ON belief_edges(source_id, target_id, edge_type);
+
+-- Koan reading tracker — records which koan was last presented to the fountain.
+-- gate_id is the belief.id (as text) of the koan belief that was read.
+CREATE TABLE IF NOT EXISTS koan_reads (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    gate_id  TEXT NOT NULL,
+    read_at  REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_koan_reads_gate ON koan_reads(gate_id);

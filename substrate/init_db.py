@@ -77,6 +77,11 @@ _MIGRATIONS: dict[str, list[str]] = {
         "ALTER TABLE beliefs ADD COLUMN reinforce_count INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE beliefs ADD COLUMN use_count INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE beliefs ADD COLUMN erosion_stage TEXT NOT NULL DEFAULT 'external'",
+        "CREATE TABLE IF NOT EXISTS koan_reads ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "gate_id TEXT NOT NULL, "
+        "read_at REAL NOT NULL)",
+        "CREATE INDEX IF NOT EXISTS idx_koan_reads_gate ON koan_reads(gate_id)",
     ],
     "dynamic": [
         "CREATE TABLE IF NOT EXISTS harmonizer_events ("
@@ -177,6 +182,11 @@ def init_all() -> None:
         from substrate.blacklist_seeds import seed_blacklist
         seed_blacklist(writers["beliefs"])
         logger.info("Blacklist seeds applied to beliefs.db")
+
+        # Seed koan beta beliefs.
+        from substrate.koan_seeds import seed_koans
+        seed_koans(writers["beliefs"])
+        logger.info("Koan beta beliefs seeded to beliefs.db")
     finally:
         for w in writers.values():
             w.close()

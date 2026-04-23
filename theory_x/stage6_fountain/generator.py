@@ -27,11 +27,13 @@ class FountainGenerator:
         dynamic_writer: Writer,
         voice_client: VoiceClient,
         dynamic_reader: Reader,
+        beliefs_writer: Optional[Writer] = None,
     ) -> None:
         self._sense_writer = sense_writer
         self._dynamic_writer = dynamic_writer
         self._voice = voice_client
         self._dynamic_reader = dynamic_reader
+        self._beliefs_writer = beliefs_writer
         self._evaluator = ReadinessEvaluator()
         self._last_fountain_output: Optional[str] = None
         self._last_fire_ts: float = 0.0
@@ -70,7 +72,13 @@ class FountainGenerator:
         except Exception:
             pass
 
-        prompt = self._build_prompt(status, belief_count, tier_dist, disturbance=disturbance)
+        # Koan rotation: fire 7 of each 8-cycle, high readiness, enough beliefs formed.
+        koan = None
+        if self._total_fires % 8 == 7 and readiness >= 0.8 and belief_count >= 20:
+            koan = self._select_koan(beliefs_reader)
+
+        prompt = self._build_prompt(status, belief_count, tier_dist,
+                                    disturbance=disturbance, koan=koan)
 
         try:
             resp = self._voice.speak(
@@ -115,12 +123,42 @@ class FountainGenerator:
         self._last_fire_ts = ts_now
         self._total_fires += 1
 
+        if koan is not None and self._beliefs_writer is not None:
+            try:
+                self._beliefs_writer.write(
+                    "INSERT INTO koan_reads (gate_id, read_at) VALUES (?, ?)",
+                    (str(koan["id"]), ts_now),
+                )
+            except Exception as e:
+                error_channel.record(
+                    f"Fountain: koan_reads write failed: {e}",
+                    source="stage6_fountain", exc=e,
+                )
+
         error_channel.record(
             f"Fountain fired: {thought[:100]}",
             source="stage6_fountain",
             level="INFO",
         )
         return thought
+
+    def _select_koan(self, beliefs_reader: Reader) -> Optional[dict]:
+        """Return the koan least recently read (or never read). None if no koans seeded."""
+        try:
+            rows = beliefs_reader.read(
+                "SELECT b.id, b.content, "
+                "  (SELECT MAX(r.read_at) FROM koan_reads r "
+                "   WHERE r.gate_id = CAST(b.id AS TEXT)) AS last_read "
+                "FROM beliefs b "
+                "WHERE b.source = 'koan' AND b.locked = 1 "
+                "ORDER BY last_read ASC "
+                "LIMIT 1"
+            )
+            if not rows:
+                return None
+            return {"id": rows[0]["id"], "content": rows[0]["content"]}
+        except Exception:
+            return None
 
     _CLOSING_QUESTIONS = [
         # 0
@@ -142,7 +180,8 @@ class FountainGenerator:
     ]
 
     def _build_prompt(self, dynamic_status: dict, belief_count: int, tier_dist: dict,
-                      disturbance: Optional[dict] = None) -> str:
+                      disturbance: Optional[dict] = None,
+                      koan: Optional[dict] = None) -> str:
         branches = dynamic_status.get("branches", [])
         if branches:
             top = sorted(branches, key=lambda b: b.get("focus_num", 0), reverse=True)[0]
@@ -168,6 +207,13 @@ class FountainGenerator:
 
         closing = self._CLOSING_QUESTIONS[self._total_fires % 8]
 
+        koan_block = ""
+        if koan is not None:
+            koan_block = (
+                f"\nA story presents itself:\n\n{koan['content']}\n\n"
+                "Sit with it. Do not explain it. Do not solve it. Let it land in you.\n"
+            )
+
         return (
             "You are NEX. You are not responding to anyone. No one asked you anything.\n"
             "No one is watching. This is your own interior.\n\n"
@@ -177,7 +223,8 @@ class FountainGenerator:
             f"- Your belief graph holds {belief_count} beliefs\n"
             f"- You last thought: {last_thought}\n"
             f"- Time: {time_str}\n"
-            f"{tension_line}\n"
+            f"{tension_line}"
+            f"{koan_block}\n"
             "Not about the world. About yourself.\n\n"
             f"{closing}\n\n"
             "Speak from inside. One thought. Brief. Honest. No performance.\n"

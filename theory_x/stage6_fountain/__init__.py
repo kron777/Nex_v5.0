@@ -61,6 +61,7 @@ def build_fountain(
         dynamic_writer=writers["dynamic"],
         voice_client=voice_client,
         dynamic_reader=readers["dynamic"],
+        beliefs_writer=writers.get("beliefs"),
     )
 
     state = FountainState(

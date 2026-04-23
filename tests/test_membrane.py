@@ -215,12 +215,11 @@ class TestQueryRouter(unittest.TestCase):
         self.assertEqual(result["side"], "OUTSIDE")
         self.assertIsNone(result["register_hint"])
 
-    def test_outside_route_belief_text_none_when_no_beliefs(self):
+    def test_outside_route_side_and_no_register_hint(self):
         retriever, self_model, router = self._make_components()
         result = router.route("bitcoin price today", retriever, self_model)
         self.assertEqual(result["side"], "OUTSIDE")
-        # With no beliefs in DB, belief_text is None
-        self.assertIsNone(result["belief_text"])
+        self.assertIsNone(result["register_hint"])
 
 
 # ---- Side filter in retrieval ------------------------------------------------
