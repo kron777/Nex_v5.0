@@ -38,6 +38,11 @@ Phase 7 endpoints (fountain):
     GET  /api/fountain/status      — last_thought, last_fire_ts, total_fires, readiness_score
     GET  /api/fountain/recent      — last 10 fountain_events from dynamic.db
 
+Phase 8 endpoints (strikes):
+    POST /api/strikes/fire         — {strike_type, custom_input?} → fires strike, returns record
+    GET  /api/strikes/recent       — last 20 strike records from catalogue
+    POST /api/strikes/notes        — {id, notes} — annotate a record
+
 The app is constructed from an AppState container so tests can drive
 it with mock Writers/Readers and a mock VoiceClient.
 
@@ -89,7 +94,9 @@ class AppState:
     dynamic: Optional["DynamicState"] = None        # type: ignore[type-arg]
     world_model: Optional["WorldModelState"] = None # type: ignore[type-arg]
     membrane: Optional["MembraneState"] = None      # type: ignore[type-arg]
-    fountain: Optional["FountainState"] = None      # type: ignore[type-arg]
+    fountain: Optional["FountainState"] = None          # type: ignore[type-arg]
+    strike_protocol: Optional["StrikeProtocol"] = None  # type: ignore[type-arg]
+    catalogue: Optional["StrikeCatalogue"] = None       # type: ignore[type-arg]
     # Optional hook a test can inject to short-circuit chat persistence.
     now_fn: Callable[[], int] = field(default_factory=lambda: (lambda: int(time.time())))
 
@@ -119,6 +126,7 @@ def build_state(
     with_world_model: bool = True,
     with_membrane: bool = True,
     with_fountain: bool = True,
+    with_strikes: bool = True,
 ) -> "AppState":
     """Default state: real Writers/Readers against db_paths(), real VoiceClient."""
     from theory_x.stage1_sense import build_scheduler
@@ -158,6 +166,21 @@ def build_state(
         from theory_x.stage6_fountain import build_fountain
         fountain = build_fountain(writers, readers, voice, dynamic_state=dynamic)
 
+    strike_protocol = None
+    catalogue = None
+    if with_strikes and dynamic is not None:
+        from strikes.catalogue import StrikeCatalogue
+        from strikes.protocols import StrikeProtocol
+        catalogue = StrikeCatalogue()
+        strike_protocol = StrikeProtocol(
+            voice=voice,
+            dynamic_state=dynamic,
+            beliefs_reader=readers["beliefs"],
+            sense_writer=writers["sense"],
+            catalogue=catalogue,
+            membrane_state=membrane,
+        )
+
     return AppState(
         writers=writers,
         readers=readers,
@@ -167,6 +190,8 @@ def build_state(
         world_model=world_model,
         membrane=membrane,
         fountain=fountain,
+        strike_protocol=strike_protocol,
+        catalogue=catalogue,
     )
 
 
@@ -521,6 +546,83 @@ def create_app(state: AppState) -> Flask:
             "self_location_committed": committed,
             "alpha": ALPHA.lines[0],
         })
+
+    # -- strikes (Phase 8) ---------------------------------------------------
+
+    @app.post("/api/strikes/fire")
+    def api_strikes_fire():
+        if state.strike_protocol is None:
+            return jsonify({"error": "strike protocol not initialised"}), 503
+        payload = request.get_json(silent=True) or {}
+        type_str = (payload.get("strike_type") or "").upper()
+        custom_input = payload.get("custom_input") or ""
+        from strikes.protocols import StrikeType
+        try:
+            stype = StrikeType(type_str)
+        except ValueError:
+            return jsonify({"error": f"unknown strike type: {type_str!r}"}), 400
+        try:
+            record = state.strike_protocol.fire(stype, custom_input=custom_input)
+            return jsonify({
+                "id": record.id,
+                "strike_type": record.strike_type,
+                "fired_at": record.fired_at,
+                "input_text": record.input_text,
+                "response_text": record.response_text,
+                "fountain_fired": record.fountain_fired,
+                "beliefs_before": record.beliefs_before,
+                "beliefs_after": record.beliefs_after,
+                "hottest_branch": record.hottest_branch,
+                "readiness_score": record.readiness_score,
+                "notes": record.notes,
+            })
+        except Exception as e:
+            error_channel.record(f"strike fire failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.get("/api/strikes/recent")
+    def api_strikes_recent():
+        if state.catalogue is None:
+            return jsonify({"records": []})
+        try:
+            records = state.catalogue.recent(limit=20)
+            return jsonify({
+                "records": [
+                    {
+                        "id": r.id,
+                        "strike_type": r.strike_type,
+                        "fired_at": r.fired_at,
+                        "input_text": r.input_text,
+                        "response_text": r.response_text,
+                        "fountain_fired": r.fountain_fired,
+                        "beliefs_before": r.beliefs_before,
+                        "beliefs_after": r.beliefs_after,
+                        "hottest_branch": r.hottest_branch,
+                        "readiness_score": r.readiness_score,
+                        "notes": r.notes,
+                    }
+                    for r in records
+                ]
+            })
+        except Exception as e:
+            error_channel.record(f"strikes recent failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.post("/api/strikes/notes")
+    def api_strikes_notes():
+        if state.catalogue is None:
+            return jsonify({"error": "catalogue not initialised"}), 503
+        payload = request.get_json(silent=True) or {}
+        record_id = payload.get("id")
+        notes = payload.get("notes", "")
+        if not isinstance(record_id, int):
+            return jsonify({"error": "id required"}), 400
+        try:
+            state.catalogue.update_notes(record_id, notes)
+            return jsonify({"ok": True, "id": record_id})
+        except Exception as e:
+            error_channel.record(f"strikes notes update failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
 
     # -- fountain (Phase 7) --------------------------------------------------
 

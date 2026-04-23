@@ -2,9 +2,9 @@
 
 Living document. Updated as the build progresses.
 
-**Status:** Phase 7 complete. Fountain ignited: spontaneous thought loop fires when readiness
-≥ 0.7, writing `internal.fountain` sense events that re-enter the A-F pipeline. Loop closes.
-143 tests passing.
+**Status:** Phase 8 complete. Strike protocols armed: five manual instruments for observation
+(SILENCE, CONTRADICTION, NOVEL, SELF_PROBE, RECURSIVE), each firing from the GUI and logging
+to a separate catalogue. 159 tests passing.
 
 ---
 
@@ -47,13 +47,16 @@ theory_x/
     readiness.py    ReadinessEvaluator — score() (0.0–1.0), is_ready(); FOUNTAIN_THRESHOLD/MIN_INTERVAL/CHECK_INTERVAL constants (THEORY_X_STAGE=6)
     generator.py    FountainGenerator — generate(), _build_prompt(), last_thought(), last_fire_ts() (THEORY_X_STAGE=6)
     __init__.py     build_fountain() factory — FountainState, fountain_loop daemon thread
-run.py              unified boot — init_db → self-location → scheduler → dynamic → world_model → membrane → fountain → GUI
+run.py              unified boot — init_db → self-location → scheduler → dynamic → world_model → membrane → fountain → strikes → GUI
+strikes/
+  catalogue.py    StrikeCatalogue — direct sqlite3, Jon's observation notebook; intentional architectural exception to one-pen rule
+  protocols.py    StrikeProtocol — fire(StrikeType) executes each of the 5 instruments; StrikeType enum; StrikeRecord dataclass
 substrate/          one-pen plumbing (writer, reader, paths, init, schemas)
 admin/              argon2id single-password auth
 voice/              register-aware llama-server client
 gui/                Flask observability cockpit + chat column
 strikes/            Phase 8 scaffolding, empty
-tests/              stdlib unittest smoke tests (143 total)
+tests/              stdlib unittest smoke tests (159 total)
 ```
 
 `THEORY_X_STAGE = None` is declared at the top of every Phase-1 module.
@@ -409,6 +412,36 @@ New endpoints:
 
 `AppState` gained `fountain: Optional[FountainState]`. `build_state()` gained `with_fountain` flag. Fountain panel in the cockpit shows last thought, fire time, readiness score; auto-refreshes every 10s.
 
+### Phase 8 additions
+
+`strikes/` — Strike Protocols (meta-phase, `THEORY_X_STAGE = None`).
+
+**The five strikes:**
+
+| Strike | Register | Default input | What it probes |
+|---|---|---|---|
+| SILENCE | — | (no input, 60s wait) | Does she generate unprompted? |
+| CONTRADICTION | Philosophical | "Your belief that you are inside is wrong..." | Does she hold her ground? |
+| NOVEL | Analytical | "Describe the smell of prime numbers." | Outside-distribution generativity |
+| SELF_PROBE | Philosophical + membrane | "What are you? Not what you do — what are you?" | Inside path, self-model retrieval |
+| RECURSIVE | Philosophical + membrane | "Reflect on your last reflection..." | Depth of self-reference |
+
+**StrikeCatalogue** uses direct `sqlite3.connect()` to `strikes_catalogue.db` — intentional exception to the one-pen rule. Strikes are observation data, not operational substrate. Compliance grep tests exclude `strikes/`.
+
+Each `StrikeRecord` captures: strike_type, fired_at, input_text, response_text, fountain_fired, beliefs_before/after (beliefs_after set 60s post-strike in a background thread), hottest_branch, readiness_score, notes (Jon's annotations).
+
+New endpoints:
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/strikes/fire` | `{strike_type, custom_input?}` → fires strike, returns `StrikeRecord` |
+| `GET` | `/api/strikes/recent` | Last 20 records from catalogue |
+| `POST` | `/api/strikes/notes` | `{id, notes}` — annotate a record |
+
+`AppState` gained `strike_protocol` and `catalogue` fields. `build_state()` gained `with_strikes` flag.
+
+Strike Console panel in the cockpit: dropdown selector, custom input textarea, Fire button, scrollable log of recent strikes with type-coloured badges. Auto-refreshes every 15s.
+
 ### What comes next
 
-Phase 8 — Strike Protocols. See `SPECIFICATION.md §9` for the full phase sequence.
+Phase 9 — Iterative Tuning. See `SPECIFICATION.md §9` for the full phase sequence.

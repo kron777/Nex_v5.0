@@ -130,6 +130,26 @@
     </section>
   </div>
 
+  <!-- Phase 8: Strike Console -->
+  <section class="card">
+    <h2>Strike Console</h2>
+    <div class="strike-controls">
+      <select id="strike-type">
+        <option value="SILENCE">Silence — observe unprompted generation</option>
+        <option value="CONTRADICTION">Contradiction — challenge a core belief</option>
+        <option value="NOVEL">Novel — outside-distribution input</option>
+        <option value="SELF_PROBE">Self-probe — what are you?</option>
+        <option value="RECURSIVE">Recursive — reflect on reflection</option>
+      </select>
+      <textarea id="strike-input" placeholder="Custom input (leave blank for default)" rows="2"></textarea>
+      <div style="display:flex;gap:0.5rem;align-items:center;">
+        <button id="strike-fire-btn">Fire Strike</button>
+        <span id="strike-status" class="muted"></span>
+      </div>
+    </div>
+    <div id="strike-log" class="strike-log"></div>
+  </section>
+
   <section class="card">
     <h2>Errors <span class="muted" id="error-count"></span></h2>
     <div id="error-list" class="error-list"></div>

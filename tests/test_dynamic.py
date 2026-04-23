@@ -452,6 +452,7 @@ class TestArchitectureCompliance(unittest.TestCase):
                 "--exclude-dir=.venv",
                 "--exclude-dir=substrate",
                 "--exclude-dir=tests",
+                "--exclude-dir=strikes",
                 "--exclude-dir=__pycache__",
             ],
             capture_output=True,

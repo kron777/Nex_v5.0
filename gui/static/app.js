@@ -195,6 +195,54 @@ document.getElementById("chat-form").addEventListener("submit", async ev => {
   }
 });
 
+// ---- Phase 8 — strike console ----------------------------------------------
+
+async function fireStrike() {
+  const type = document.getElementById("strike-type").value;
+  const input = document.getElementById("strike-input").value.trim();
+  const status = document.getElementById("strike-status");
+
+  status.textContent = `Firing ${type}...`;
+  try {
+    const result = await fetch("/api/strikes/fire", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({strike_type: type, custom_input: input || undefined}),
+    });
+    const data = await result.json();
+    status.textContent = `Strike complete (id=${data.id})`;
+    refreshStrikeLog();
+  } catch (e) {
+    status.textContent = `Strike failed: ${e}`;
+  }
+}
+
+async function refreshStrikeLog() {
+  const data = await j("/api/strikes/recent").catch(() => ({records: []}));
+  const log = document.getElementById("strike-log");
+  const records = data.records || [];
+  if (!records.length) {
+    log.innerHTML = '<div class="muted">No strikes yet.</div>';
+    return;
+  }
+  log.innerHTML = records.map(r => `
+    <div class="strike-record">
+      <div class="strike-header">
+        <span class="strike-type-badge strike-${r.strike_type.toLowerCase()}">${r.strike_type}</span>
+        <span class="muted">${fmtTs(r.fired_at)}</span>
+        <span class="muted">${r.hottest_branch || "—"} | readiness ${(r.readiness_score || 0).toFixed(2)}</span>
+      </div>
+      ${r.input_text ? `<div class="strike-input muted">&gt; ${escapeHtml(r.input_text.slice(0, 100))}</div>` : ""}
+      <div class="strike-response">${escapeHtml(r.response_text.slice(0, 300))}</div>
+      ${r.notes ? `<div class="strike-notes">📝 ${escapeHtml(r.notes)}</div>` : ""}
+    </div>
+  `).join("");
+}
+
+document.getElementById("strike-fire-btn").addEventListener("click", fireStrike);
+refreshStrikeLog();
+setInterval(refreshStrikeLog, 15000);
+
 // ---- Phase 7 — fountain ----------------------------------------------------
 
 async function refreshFountain() {

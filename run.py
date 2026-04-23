@@ -94,7 +94,22 @@ def main() -> None:
     fountain = build_fountain(writers, readers, voice, dynamic_state=dynamic)
     log.info("Fountain lit — loop running at %ds interval", FOUNTAIN_CHECK_INTERVAL_SECONDS)
 
-    # 9. Wire AppState and start GUI
+    # 9. Strike protocols
+    log.info("Arming strike protocols...")
+    from strikes.catalogue import StrikeCatalogue
+    from strikes.protocols import StrikeProtocol
+    catalogue = StrikeCatalogue()
+    strike_protocol = StrikeProtocol(
+        voice=voice,
+        dynamic_state=dynamic,
+        beliefs_reader=readers["beliefs"],
+        sense_writer=writers["sense"],
+        catalogue=catalogue,
+        membrane_state=membrane,
+    )
+    log.info("Strike protocols armed — 5 strikes available")
+
+    # 10. Wire AppState and start GUI
     state = AppState(
         writers=writers,
         readers=readers,
@@ -104,6 +119,8 @@ def main() -> None:
         world_model=world_model,
         membrane=membrane,
         fountain=fountain,
+        strike_protocol=strike_protocol,
+        catalogue=catalogue,
     )
     atexit.register(state.close)
 
