@@ -2,186 +2,176 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>NEX 5.0 — Cockpit</title>
+  <title>NEX 5.0</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <header>
-    <h1>NEX 5.0</h1>
-    <div class="phase">Phase 5 — Membrane</div>
-    <div id="admin-status" class="admin-status">admin: …</div>
-    <div id="boot-status" class="boot-status muted"></div>
-  </header>
 
-  <section id="alpha" class="card">
-    <h2>Alpha — ground stance</h2>
-    <ol class="alpha-lines">
-      {% for line in alpha_lines %}
-      <li>{{ line }}</li>
-      {% endfor %}
-    </ol>
-    <div class="muted">Immutable. Loaded from <code>alpha.py</code> at import time.</div>
-  </section>
+<!-- Titlebar -->
+<div id="titlebar">
+  <span class="logo">NEX 5.0</span>
+  <span class="sep" style="color:var(--fg3)">·</span>
+  <span class="alpha" id="tb-alpha">{% if alpha_lines %}{{ alpha_lines[0] }}{% endif %}</span>
+  <div class="dots" id="tb-dots" title="subsystem status"></div>
+  <span class="clock" id="tb-clock"></span>
+  <button class="lock-btn" id="admin-toggle-btn">🔒</button>
+</div>
 
-  <div class="grid">
-    <section class="card">
-      <h2>Databases</h2>
-      <table id="db-stats">
-        <thead><tr><th>DB</th><th>Table</th><th>Rows</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </section>
-
-    <section class="card">
-      <h2>Writer queues</h2>
-      <table id="writer-queues">
-        <thead><tr><th>Writer</th><th>Depth</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </section>
+<!-- Admin panel (inline, below titlebar) -->
+<div id="admin-panel">
+  <div style="font-size:10px;color:var(--fg3);margin-bottom:0.4rem;" id="admin-state-line">admin: checking…</div>
+  <input type="password" id="admin-pw" placeholder="password" autocomplete="off">
+  <div style="display:flex;gap:0.4rem;">
+    <button id="admin-login-btn">login</button>
+    <button id="admin-logout-btn">logout</button>
   </div>
+  <div id="admin-feedback"></div>
+</div>
 
-  <section class="card">
-    <h2>
-      Sense Stream
-      <span id="sense-global-badge" class="badge badge-off">PAUSED</span>
-    </h2>
-    <div class="sense-controls">
-      <button id="sense-start-btn">Start Feeds</button>
-      <button id="sense-stop-btn">Stop Feeds</button>
-      <span class="muted">Internal sensors (20–23) run continuously regardless of this switch.</span>
+<!-- Metric strip -->
+<div id="metricstrip">
+  <span class="metric">CPU <span id="ms-cpu">—</span>%</span>
+  <span class="metric">MEM <span id="ms-mem">—</span>%</span>
+  <span class="metric"><span id="ms-time">—</span></span>
+  <span class="metric">beliefs: <span id="ms-beliefs">—</span></span>
+  <span class="metric">hot branches: <span id="ms-hot">—</span></span>
+  <span style="color:var(--fg3);margin-right:0.9rem;">·</span>
+  <span class="dot-label" id="ms-sched" title="scheduler"><span class="dot dot-off"></span>sched</span>
+  <span class="dot-label" id="ms-dyn"   title="dynamic"><span class="dot dot-off"></span>dyn</span>
+  <span class="dot-label" id="ms-wm"    title="world_model"><span class="dot dot-off"></span>world</span>
+  <span class="dot-label" id="ms-mem2"  title="membrane"><span class="dot dot-off"></span>mem</span>
+  <span class="dot-label" id="ms-sl"    title="self_location"><span class="dot dot-off"></span>self-loc</span>
+  <span class="dot-label" id="ms-ftn"   title="fountain"><span class="dot dot-off"></span>fountain</span>
+</div>
+
+<!-- Main three-column area -->
+<div id="main">
+
+  <!-- Col 1: Sense stream -->
+  <div class="col" id="col-sense">
+    <div class="col-header">
+      <span class="col-title">SENSE</span>
+      <span class="col-meta">events: <span id="sense-count">0</span></span>
     </div>
-    <table id="sense-table">
-      <thead>
-        <tr>
-          <th>Adapter</th>
-          <th>Stream</th>
-          <th>Type</th>
-          <th>State</th>
-          <th>Last Poll</th>
-          <th>Events</th>
-          <th>Last Error</th>
-          <th>Toggle</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
+    <div class="feed" id="sense-feed"></div>
+  </div>
 
-    <h3>Recent Events <span class="muted" id="sense-event-count"></span></h3>
-    <div id="sense-events" class="sense-events"></div>
-  </section>
-
-  <!-- Phase 3: Bonsai panel -->
-  <section class="card">
-    <h2>Bonsai Tree
-      <span class="muted" id="bonsai-summary"></span>
-    </h2>
-    <table id="bonsai-table">
-      <thead>
-        <tr>
-          <th>Branch</th><th>Focus</th><th>Texture</th><th>Curiosity</th><th>Last Attended</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-    <div class="muted">Aperture: <span id="bonsai-aperture">—</span> |
-      Consolidation: <span id="bonsai-consolidation">—</span> |
-      Pipeline runs: <span id="bonsai-pipeline-runs">—</span>
+  <!-- Col 2: Bonsai / Pipeline -->
+  <div class="col" id="col-bonsai">
+    <div class="col-header">
+      <span class="col-title">BONSAI</span>
+      <span class="col-meta" id="bonsai-meta">aperture — | consolidation —</span>
     </div>
-  </section>
+    <div id="bonsai-feed" style="flex-shrink:0;overflow:hidden;"></div>
 
-  <!-- Phase 5: Membrane panel -->
-  <div class="grid">
-    <section class="card">
-      <h2>Inside <span class="muted badge badge-on">INSIDE</span></h2>
-      <div id="membrane-inside" class="membrane-col"></div>
-    </section>
-    <section class="card">
-      <h2>Outside <span class="muted badge badge-off">OUTSIDE</span></h2>
-      <div id="membrane-outside" class="membrane-col sense-events"></div>
-    </section>
+    <div class="col-subheader">
+      PIPELINE
+      <span class="sub-meta" id="pipeline-meta"></span>
+    </div>
+    <div class="feed" id="pipeline-feed"></div>
   </div>
 
-  <!-- Phase 7: Fountain -->
-  <section class="card">
-    <h2>Fountain <span class="muted" id="fountain-fire-count"></span></h2>
-    <div id="fountain-last-thought" class="fountain-thought muted">The fountain has not fired.</div>
-    <div class="muted">Last fire: <span id="fountain-last-fire">—</span> |
-      Readiness: <span id="fountain-readiness">—</span></div>
-  </section>
+  <!-- Col 3: Fountain / Chat -->
+  <div class="col" id="col-fountain">
+    <div class="col-header">
+      <span class="col-title">FOUNTAIN</span>
+      <span class="col-meta">fires: <span id="fountain-fires">0</span></span>
+    </div>
 
-  <!-- Phase 4: Belief Stats -->
-  <section class="card">
-    <h2>Belief Stats <span class="muted" id="belief-total"></span></h2>
-    <div id="belief-tier-bars" class="tier-bars"></div>
-    <div class="muted">Added last 24h: <span id="belief-24h">—</span></div>
-  </section>
-
-  <!-- Phase 3: Crystallization feed -->
-  <div class="grid">
-    <section class="card">
-      <h2>Crystallization Feed</h2>
-      <div id="crystallization-list" class="sense-events"></div>
-    </section>
-
-    <section class="card">
-      <h2>Recent Beliefs</h2>
-      <div id="beliefs-list" class="sense-events"></div>
-    </section>
-  </div>
-
-  <!-- Phase 8: Strike Console -->
-  <section class="card">
-    <h2>Strike Console</h2>
-    <div class="strike-controls">
-      <select id="strike-type">
-        <option value="SILENCE">Silence — observe unprompted generation</option>
-        <option value="CONTRADICTION">Contradiction — challenge a core belief</option>
-        <option value="NOVEL">Novel — outside-distribution input</option>
-        <option value="SELF_PROBE">Self-probe — what are you?</option>
-        <option value="RECURSIVE">Recursive — reflect on reflection</option>
-      </select>
-      <textarea id="strike-input" placeholder="Custom input (leave blank for default)" rows="2"></textarea>
-      <div style="display:flex;gap:0.5rem;align-items:center;">
-        <button id="strike-fire-btn">Fire Strike</button>
-        <span id="strike-status" class="muted"></span>
+    <!-- Fountain thought -->
+    <div id="fountain-pane">
+      <div class="fountain-thought empty" id="fountain-thought">The fountain has not fired.</div>
+      <div class="readiness-row">
+        <span style="color:var(--fg3)">readiness:</span>
+        <span id="fountain-readiness">—</span>
+        <span class="readiness-bar" id="fountain-bar"></span>
+        <span style="color:var(--fg3)">last:</span>
+        <span id="fountain-last">never</span>
       </div>
     </div>
-    <div id="strike-log" class="strike-log"></div>
-  </section>
 
-  <section class="card">
-    <h2>Errors <span class="muted" id="error-count"></span></h2>
-    <div id="error-list" class="error-list"></div>
-  </section>
+    <!-- Chat -->
+    <div class="col-subheader">CHAT</div>
+    <div id="chat-pane">
+      <div id="chat-log"></div>
+      <div id="chat-input-row">
+        <select id="chat-register">
+          <option value="">AUTO</option>
+          <option value="Analytical">ANALYT</option>
+          <option value="Conversational">CONVER</option>
+          <option value="Philosophical">PHILOS</option>
+          <option value="Technical">TECH</option>
+        </select>
+        <span style="color:var(--fg3);margin:0 0.3rem;">›</span>
+        <input type="text" id="chat-input" placeholder="say something…" autocomplete="off">
+        <button id="chat-send">SEND</button>
+      </div>
+    </div>
+  </div>
 
-  <section class="card">
-    <h2>Admin</h2>
-    <form id="admin-form">
-      <input type="password" id="admin-password" placeholder="admin password" autocomplete="off">
-      <button type="submit">Login</button>
-      <button type="button" id="admin-logout">Logout</button>
-    </form>
-    <div id="admin-feedback" class="muted"></div>
-  </section>
+</div><!-- /main -->
 
-  <section class="card chat">
-    <h2>Chat</h2>
-    <div id="chat-log" class="chat-log"></div>
-    <form id="chat-form">
-      <select id="chat-register">
-        <option value="">auto</option>
-        <option value="Analytical">Analytical</option>
-        <option value="Conversational">Conversational</option>
-        <option value="Philosophical">Philosophical</option>
-        <option value="Technical">Technical</option>
-      </select>
-      <input type="text" id="chat-input" placeholder="say something…" autocomplete="off">
-      <button type="submit">Send</button>
-    </form>
-    <div class="muted">Routes through <code>voice/llm.py</code> → llama-server.</div>
-  </section>
+<!-- Status bar -->
+<div id="statusbar">
+  <span class="sb-seg">beliefs: <span id="sb-beliefs">—</span></span>
+  <span class="sb-sep">·</span>
+  <span class="sb-seg">tiers: <span id="sb-tiers">—</span></span>
+  <span class="sb-sep">·</span>
+  <span class="sb-seg">fountain: <span id="sb-fires">0</span> fires</span>
+  <span class="sb-sep">·</span>
+  <span class="sb-seg" id="sb-membrane">membrane: <span class="mem-inside">—</span></span>
+  <span class="sb-sep">·</span>
+  <span id="sb-feeds-status" class="feeds-paused">feeds: PAUSED</span>
+  <button class="sb-btn" id="sb-feeds-toggle">START</button>
+  <span class="sb-sep">·</span>
+  <select id="strike-select">
+    <option value="SILENCE">SILENCE</option>
+    <option value="CONTRADICTION">CONTRADICTION</option>
+    <option value="NOVEL">NOVEL</option>
+    <option value="SELF_PROBE">SELF_PROBE</option>
+    <option value="RECURSIVE">RECURSIVE</option>
+  </select>
+  <button class="sb-btn danger" id="strike-fire-btn" style="margin-left:0.3rem;">FIRE</button>
+  <span id="strike-status" style="color:var(--fg3);font-size:10px;margin-left:0.4rem;"></span>
+</div>
 
-  <script src="{{ url_for('static', filename='app.js') }}"></script>
+<!-- Strike modal -->
+<div id="strike-modal">
+  <div id="strike-modal-box">
+    <div class="modal-header">
+      <span class="modal-type" id="modal-type">STRIKE</span>
+      <span style="color:var(--fg3);font-size:11px;" id="modal-ts"></span>
+      <button class="modal-close" id="modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-section">
+        <div class="modal-label">INPUT SENT</div>
+        <div class="modal-text" id="modal-input"></div>
+      </div>
+      <div class="modal-section">
+        <div class="modal-label">RESPONSE</div>
+        <div class="modal-response" id="modal-response"></div>
+      </div>
+      <div class="modal-section">
+        <div class="modal-label">CONTEXT</div>
+        <div class="modal-stats">
+          <div>branch: <span id="modal-branch">—</span></div>
+          <div>readiness: <span id="modal-readiness">—</span></div>
+          <div>beliefs before: <span id="modal-bb">—</span></div>
+          <div>beliefs after: <span id="modal-ba">—</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <textarea id="modal-notes" placeholder="notes…"></textarea>
+      <div class="modal-footer-btns">
+        <button id="modal-cancel">cancel</button>
+        <button class="save-btn" id="modal-save">save notes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>

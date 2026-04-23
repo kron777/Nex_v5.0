@@ -1,156 +1,317 @@
-// NEX 5.0 cockpit — vanilla JS. Phase 3: dynamic + bonsai + crystallization panels.
+// NEX 5.0 — HUD app.js
 
-const POLL_MS     = 2000;
-const SENSE_MS    = 5000;   // sense events refresh is slightly slower
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
-async function j(url, opts) {
-  const r = await fetch(url, opts);
-  if (!r.ok && r.status !== 401 && r.status !== 503) throw new Error(`${url} → ${r.status}`);
+async function apiFetch(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${url} → ${r.status}`);
   return r.json();
+}
+
+function esc(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function fmtTs(sec) {
   if (!sec) return "—";
-  return new Date(sec * 1000).toLocaleTimeString();
+  return new Date(sec * 1000).toLocaleTimeString("en-GB", { hour12: false });
 }
 
-function escapeHtml(s) {
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+function focusBar(focusNum) {
+  const filled = Math.round((focusNum ?? 0) * 10);
+  return "█".repeat(filled) + "░".repeat(10 - filled);
 }
 
-// ---- Phase 1 panels --------------------------------------------------------
+function magBar(mag) {
+  const filled = Math.round(Math.min(1, mag ?? 0) * 5);
+  return "▮".repeat(filled) + "░".repeat(5 - filled);
+}
 
-async function refreshDbStats() {
-  const data = await j("/api/db/stats");
-  const tbody = document.querySelector("#db-stats tbody");
-  const rows = [];
-  for (const [name, info] of Object.entries(data)) {
-    if (info.error) {
-      rows.push(`<tr><td>${name}</td><td colspan="2" class="muted">${info.error}</td></tr>`);
-      continue;
+function readinessBar(score) {
+  const filled = Math.round(Math.min(1, score ?? 0) * 10);
+  return "█".repeat(filled) + "░".repeat(10 - filled);
+}
+
+// ── Clock ────────────────────────────────────────────────────────────────────
+
+function tickClock() {
+  document.getElementById("tb-clock").textContent =
+    new Date().toLocaleTimeString("en-GB", { hour12: false });
+}
+tickClock();
+setInterval(tickClock, 1000);
+
+// ── Sense stream ─────────────────────────────────────────────────────────────
+
+const MAX_ROWS = 200;
+let senseCount = 0;
+let lastSenseId = 0;
+
+function streamBadge(stream) {
+  if (stream === "internal.fountain") return ['badge-fountain', 'FOUNTAIN'];
+  if (stream.startsWith("internal."))    return ['badge-internal', 'INTERNAL'];
+  if (stream.startsWith("ai_research.")) return ['badge-ai', 'AI'];
+  if (stream.startsWith("crypto.") || stream.startsWith("markets.")) return ['badge-market', 'MARKET'];
+  if (stream.startsWith("cognition."))   return ['badge-cognit', 'COGNIT'];
+  if (stream.startsWith("computing."))   return ['badge-compute', 'COMPUTE'];
+  if (stream.startsWith("news."))        return ['badge-news', 'NEWS'];
+  return ['badge-feed', 'FEED'];
+}
+
+function parsePreview(payload, stream) {
+  try {
+    const p = JSON.parse(payload);
+    if (stream === "internal.fountain") return (p.thought || "").slice(0, 55);
+    if (p.title)   return p.title.slice(0, 55);
+    if (p.symbol)  return p.symbol;
+    if (p.cpu_percent !== undefined) return `cpu:${p.cpu_percent}% mem:${p.memory_percent ?? "?"}%`;
+    if (p.iso_local) return p.iso_local;
+    if (p.belief_count !== undefined) return `beliefs:${p.belief_count}`;
+    if (p.thought) return p.thought.slice(0, 55);
+    const first = Object.values(p)[0];
+    return String(first ?? "").slice(0, 55);
+  } catch (_) { return ""; }
+}
+
+async function refreshSense() {
+  const data = await apiFetch("/api/sense/recent?limit=100").catch(() => null);
+  if (!data) return;
+  const events = (data.events || []).filter(e => e.id > lastSenseId);
+  if (!events.length) return;
+
+  const feed = document.getElementById("sense-feed");
+  events.forEach(ev => {
+    lastSenseId = Math.max(lastSenseId, ev.id);
+    senseCount++;
+    const [cls, label] = streamBadge(ev.stream);
+    const preview = parsePreview(ev.payload, ev.stream);
+    const isFountain = ev.stream === "internal.fountain";
+
+    const row = document.createElement("div");
+    row.className = "feed-row" + (isFountain ? " fountain-row" : "");
+    if (isFountain) {
+      row.innerHTML = `<span class="feed-ts">${fmtTs(ev.timestamp)}</span>`
+        + `<span class="badge ${cls}">${label}</span> `
+        + `<span>${esc(preview)}</span>`;
+    } else {
+      row.innerHTML = `<span class="feed-ts">${fmtTs(ev.timestamp)}</span>`
+        + `<span class="badge ${cls}">${label}</span>`
+        + `<span class="feed-stream">${esc(ev.stream)}</span>`
+        + `<span class="feed-preview">${esc(preview)}</span>`;
     }
-    for (const [t, n] of Object.entries(info.tables)) {
-      rows.push(`<tr><td>${name}</td><td>${t}</td><td>${n}</td></tr>`);
-    }
+    feed.prepend(row);
+  });
+
+  // Cap rows
+  while (feed.children.length > MAX_ROWS) feed.lastChild.remove();
+  document.getElementById("sense-count").textContent = senseCount;
+}
+
+// ── Bonsai ───────────────────────────────────────────────────────────────────
+
+async function refreshBonsai() {
+  const data = await apiFetch("/api/dynamic/status").catch(() => null);
+  if (!data || data.error) return;
+
+  const branches = (data.branches || []).slice().sort((a, b) => b.focus_num - a.focus_num);
+  const hotCount = branches.filter(b => "efg".includes(b.focus_increment)).length;
+
+  // Metric strip
+  document.getElementById("ms-hot").textContent = hotCount;
+
+  // Bonsai meta
+  document.getElementById("bonsai-meta").textContent =
+    `aperture ${data.aperture != null ? data.aperture.toFixed(3) : "—"} | ` +
+    `consolidation ${data.consolidation_active ? "ACTIVE" : "idle"} | ` +
+    `${data.active_branch_count}/${data.total_branches} active`;
+
+  const feed = document.getElementById("bonsai-feed");
+  feed.innerHTML = branches.map(b => {
+    const hot  = "efg".includes(b.focus_increment);
+    const self = b.branch_id === "systems";
+    const cls  = (hot ? " hot" : "") + (self ? " self" : "");
+    return `<div class="branch-row${cls}">`
+      + `<span class="branch-id">${esc(b.branch_id)}</span>`
+      + `<span class="branch-bar">${focusBar(b.focus_num)}</span>`
+      + `<span class="branch-focus-letter">${esc(b.focus_increment)}</span>`
+      + `<span class="branch-focus-num">${(b.focus_num ?? 0).toFixed(2)}</span>`
+      + `<span class="branch-curiosity">c:${b.curiosity_weight}</span>`
+      + `<span class="branch-texture">${esc(b.texture_increment)}</span>`
+      + `</div>`;
+  }).join("");
+}
+
+// ── Pipeline ─────────────────────────────────────────────────────────────────
+
+let lastPipeId = 0;
+
+async function refreshPipeline() {
+  const data = await apiFetch("/api/dynamic/pipeline").catch(() => null);
+  if (!data || data.error) return;
+
+  const events = (data.events || []).filter(e => e.id > lastPipeId);
+  if (!events.length) return;
+
+  const feed = document.getElementById("pipeline-feed");
+  events.forEach(ev => {
+    lastPipeId = Math.max(lastPipeId, ev.id);
+    const valCls = ev.valence === "like" ? "valence-like"
+                 : ev.valence === "dislike" ? "valence-dislike"
+                 : "valence-neutral";
+    const valTxt = ev.valence || "";
+    const mag = ev.magnitude != null ? magBar(ev.magnitude) : "";
+
+    const row = document.createElement("div");
+    row.className = "pipe-row";
+    row.innerHTML = `<span class="pipe-ts">${fmtTs(ev.ts)}</span>`
+      + `<span class="pipe-step step-${ev.step}">${esc(ev.step)}</span>`
+      + `<span class="pipe-branch">${esc(ev.branch_id || "")}</span>`
+      + `<span class="pipe-mag">${mag}</span>`
+      + `<span class="pipe-valence ${valCls}">${esc(valTxt)}</span>`
+      + `<span class="pipe-src">${esc((ev.sensation_source || "").slice(0, 30))}</span>`;
+    feed.prepend(row);
+  });
+
+  while (feed.children.length > MAX_ROWS) feed.lastChild.remove();
+}
+
+// ── Fountain ──────────────────────────────────────────────────────────────────
+
+async function refreshFountain() {
+  const data = await apiFetch("/api/fountain/status").catch(() => null);
+  if (!data || data.error) return;
+
+  const el = document.getElementById("fountain-thought");
+  if (data.last_thought) {
+    el.textContent = data.last_thought;
+    el.classList.remove("empty");
   }
-  tbody.innerHTML = rows.join("");
+
+  document.getElementById("fountain-fires").textContent = data.total_fires ?? 0;
+  document.getElementById("sb-fires").textContent = data.total_fires ?? 0;
+  document.getElementById("fountain-readiness").textContent =
+    data.readiness_score != null ? data.readiness_score.toFixed(2) : "—";
+
+  const bar = document.getElementById("fountain-bar");
+  bar.textContent = readinessBar(data.readiness_score);
+  if ((data.readiness_score ?? 0) >= 0.7) {
+    bar.classList.add("pulsing");
+  } else {
+    bar.classList.remove("pulsing");
+  }
+
+  document.getElementById("fountain-last").textContent =
+    data.last_fire_ts ? fmtTs(data.last_fire_ts) : "never";
 }
 
-async function refreshQueues() {
-  const data = await j("/api/writers/queues");
-  const tbody = document.querySelector("#writer-queues tbody");
-  tbody.innerHTML = Object.entries(data)
-    .map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`)
-    .join("");
+// ── Belief stats ──────────────────────────────────────────────────────────────
+
+async function refreshBeliefStats() {
+  const data = await apiFetch("/api/beliefs/stats").catch(() => null);
+  if (!data || data.error) return;
+
+  document.getElementById("ms-beliefs").textContent = data.total ?? "—";
+  document.getElementById("sb-beliefs").textContent = data.total ?? "—";
+
+  const dist = data.tier_distribution || {};
+  const tierStr = Object.entries(dist)
+    .filter(([_, n]) => n > 0)
+    .map(([t, n]) => `T${t}:${n}`)
+    .join(" ");
+  document.getElementById("sb-tiers").textContent = tierStr || "—";
 }
 
-async function refreshErrors() {
-  const { events } = await j("/api/errors/recent?limit=50");
-  const el = document.getElementById("error-list");
-  const count = document.getElementById("error-count");
-  count.textContent = events.length ? `(${events.length})` : "(none)";
-  el.innerHTML = events
-    .slice().reverse()
-    .map(e => `<div class="ev"><span class="ts">${fmtTs(e.timestamp)}</span><span class="lvl ${e.level}">${e.level}</span><span class="src">${escapeHtml(e.source)}</span>${escapeHtml(e.message)}${e.traceback ? `<pre>${escapeHtml(e.traceback)}</pre>` : ""}</div>`)
-    .join("");
+// ── System status + metric strip ──────────────────────────────────────────────
+
+function setDot(elId, on) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const dot = el.querySelector(".dot");
+  if (dot) { dot.className = "dot " + (on ? "dot-on" : "dot-off"); }
 }
 
-async function refreshAdmin() {
-  const s = await j("/api/admin/status");
-  const el = document.getElementById("admin-status");
-  if (!s.configured)           el.textContent = "admin: not configured";
-  else if (s.authenticated)    el.textContent = "admin: authenticated";
-  else                         el.textContent = "admin: locked";
+async function refreshSystemStatus() {
+  const data = await apiFetch("/api/system/status").catch(() => null);
+  if (!data) return;
+
+  setDot("ms-sched", data.scheduler);
+  setDot("ms-dyn",   data.dynamic);
+  setDot("ms-wm",    data.world_model);
+  setDot("ms-mem2",  data.membrane);
+  setDot("ms-sl",    data.self_location_committed);
+  setDot("ms-ftn",   data.fountain);
+
+  // Titlebar dots
+  const dots = document.getElementById("tb-dots");
+  const subsystems = ["scheduler","dynamic","world_model","membrane","fountain"];
+  dots.innerHTML = subsystems.map(k =>
+    `<span class="dot ${data[k] ? "dot-on" : "dot-off"}" title="${k}"></span>`
+  ).join("");
 }
 
-// ---- Phase 2 — sense stream ------------------------------------------------
+// ── Membrane snapshot (CPU, mem, time) ────────────────────────────────────────
 
-async function refreshSenseStatus() {
-  const data = await j("/api/sense/status");
-  if (data.error) return;
+async function refreshMembraneSnapshot() {
+  const data = await apiFetch("/api/membrane/snapshot").catch(() => null);
+  if (!data || data.error) return;
 
-  const badge   = document.getElementById("sense-global-badge");
-  const running = data.global_running;
-  badge.textContent = running ? "RUNNING" : "PAUSED";
-  badge.className   = "badge " + (running ? "badge-on" : "badge-off");
+  const prop = data.proprioception || {};
+  const temp = data.temporal || {};
 
-  const tbody   = document.querySelector("#sense-table tbody");
-  const adapters = Object.values(data.adapters || {});
-  // Sort: internal first, then external alphabetically by id
-  adapters.sort((a, b) => {
-    if (a.is_internal !== b.is_internal) return a.is_internal ? -1 : 1;
-    return a.id.localeCompare(b.id);
-  });
-
-  tbody.innerHTML = adapters.map(a => {
-    const stateLabel = a.is_internal
-      ? `<span class="state-on">always-on</span>`
-      : (a.enabled ? `<span class="state-on">enabled</span>` : `<span class="state-off">disabled</span>`);
-    const toggleBtn = a.is_internal
-      ? `<span class="muted">—</span>`
-      : `<button class="toggle-btn" data-id="${a.id}" data-enabled="${a.enabled}">${a.enabled ? "Disable" : "Enable"}</button>`;
-    const errCell = a.last_error
-      ? `<td class="err" title="${escapeHtml(a.last_error)}">${escapeHtml(a.last_error)}</td>`
-      : `<td class="ok">—</td>`;
-    return `<tr>
-      <td>${escapeHtml(a.id)}</td>
-      <td class="muted">${escapeHtml(a.stream)}</td>
-      <td>${a.is_internal ? "internal" : "external"}</td>
-      <td>${stateLabel}</td>
-      <td class="muted">${fmtTs(a.last_poll_at)}</td>
-      <td>${a.last_event_count}</td>
-      ${errCell}
-      <td>${toggleBtn}</td>
-    </tr>`;
-  }).join("");
-
-  // Wire per-adapter toggle buttons
-  document.querySelectorAll(".toggle-btn").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const id = btn.dataset.id;
-      try {
-        await fetch(`/api/sense/toggle/${id}`, { method: "POST" });
-        refreshSenseStatus();
-      } catch (e) { console.warn(e); }
-    });
-  });
+  if (prop.cpu_percent != null)
+    document.getElementById("ms-cpu").textContent = prop.cpu_percent.toFixed(0);
+  if (prop.mem_percent != null)
+    document.getElementById("ms-mem").textContent = prop.mem_percent.toFixed(0);
+  if (temp.iso_local)
+    document.getElementById("ms-time").textContent =
+      temp.iso_local.split("T")[1]?.slice(0, 5) ?? "—";
 }
 
-async function refreshSenseEvents() {
-  const data = await j("/api/sense/recent?limit=50");
-  const events = data.events || [];
-  const el = document.getElementById("sense-events");
-  const count = document.getElementById("sense-event-count");
-  count.textContent = events.length ? `(${events.length})` : "(none)";
-  el.innerHTML = events.map(ev => {
-    let preview = "";
-    try {
-      const p = JSON.parse(ev.payload);
-      // show first meaningful key
-      preview = p.title || p.symbol || p.iso_local || p.cpu_percent !== undefined ? `cpu:${p.cpu_percent}%` : "";
-    } catch (_) {}
-    return `<div class="ev"><span class="ts">${fmtTs(ev.timestamp)}</span><span class="stream">${escapeHtml(ev.stream)}</span>${escapeHtml(preview)}</div>`;
-  }).join("");
+// ── Feeds toggle ──────────────────────────────────────────────────────────────
+
+let feedsRunning = false;
+
+async function refreshFeedsStatus() {
+  const data = await apiFetch("/api/sense/status").catch(() => null);
+  if (!data || data.error) return;
+  feedsRunning = data.global_running;
+  const el = document.getElementById("sb-feeds-status");
+  const btn = document.getElementById("sb-feeds-toggle");
+  if (feedsRunning) {
+    el.textContent = "feeds: RUNNING";
+    el.className = "feeds-running";
+    btn.textContent = "STOP";
+  } else {
+    el.textContent = "feeds: PAUSED";
+    el.className = "feeds-paused";
+    btn.textContent = "START";
+  }
 }
 
-// ---- Controls --------------------------------------------------------------
-
-document.getElementById("sense-start-btn").addEventListener("click", async () => {
-  await fetch("/api/sense/start", { method: "POST" });
-  refreshSenseStatus();
+document.getElementById("sb-feeds-toggle").addEventListener("click", async () => {
+  const url = feedsRunning ? "/api/sense/stop" : "/api/sense/start";
+  await fetch(url, { method: "POST" }).catch(() => {});
+  refreshFeedsStatus();
 });
 
-document.getElementById("sense-stop-btn").addEventListener("click", async () => {
-  await fetch("/api/sense/stop", { method: "POST" });
-  refreshSenseStatus();
+// ── Admin ─────────────────────────────────────────────────────────────────────
+
+document.getElementById("admin-toggle-btn").addEventListener("click", () => {
+  document.getElementById("admin-panel").classList.toggle("open");
 });
 
-document.getElementById("admin-form").addEventListener("submit", async ev => {
-  ev.preventDefault();
-  const pw = document.getElementById("admin-password").value;
+async function checkAdminState() {
+  const s = await apiFetch("/api/admin/status").catch(() => null);
+  if (!s) return;
+  const line = document.getElementById("admin-state-line");
+  if (!s.configured)       line.textContent = "admin: not configured";
+  else if (s.authenticated) line.textContent = "admin: authenticated ✓";
+  else                      line.textContent = "admin: locked";
+}
+
+document.getElementById("admin-login-btn").addEventListener("click", async () => {
+  const pw = document.getElementById("admin-pw").value;
   const fb = document.getElementById("admin-feedback");
   try {
     const r = await fetch("/api/admin/login", {
@@ -158,278 +319,156 @@ document.getElementById("admin-form").addEventListener("submit", async ev => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ password: pw }),
     });
-    const data = await r.json();
-    fb.textContent = data.authenticated ? "authenticated" : "login failed";
-    document.getElementById("admin-password").value = "";
-    refreshAdmin();
+    const d = await r.json();
+    fb.textContent = d.authenticated ? "ok" : "failed";
+    document.getElementById("admin-pw").value = "";
+    checkAdminState();
   } catch (e) { fb.textContent = String(e); }
 });
 
-document.getElementById("admin-logout").addEventListener("click", async () => {
-  await fetch("/api/admin/logout", { method: "POST" });
+document.getElementById("admin-logout-btn").addEventListener("click", async () => {
+  await fetch("/api/admin/logout", { method: "POST" }).catch(() => {});
   document.getElementById("admin-feedback").textContent = "logged out";
-  refreshAdmin();
+  checkAdminState();
 });
 
-document.getElementById("chat-form").addEventListener("submit", async ev => {
-  ev.preventDefault();
+// ── Chat ──────────────────────────────────────────────────────────────────────
+
+function appendChat(role, text, meta) {
+  const log = document.getElementById("chat-log");
+  const div = document.createElement("div");
+  div.className = "chat-msg " + (role === "user" ? "user-msg" : "nex-msg");
+  div.innerHTML = `<div class="who">${role === "user" ? "you" : "nex"}</div>`
+    + `<div class="text">${esc(text)}</div>`
+    + (meta ? `<div class="chat-meta">${esc(meta)}</div>` : "");
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function sendChat() {
   const input = document.getElementById("chat-input");
   const reg   = document.getElementById("chat-register").value;
   const prompt = input.value.trim();
   if (!prompt) return;
   input.value = "";
-  const log = document.getElementById("chat-log");
-  log.insertAdjacentHTML("beforeend", `<div class="u">&gt; ${escapeHtml(prompt)}</div>`);
+  appendChat("user", prompt, null);
+
+  // Update membrane side display optimistically
+  const isSelf = /\b(you|your|yourself|feel|feeling|think|thinking|believe|want|inside|who are you|what are you|how are you|do you)\b/i.test(prompt);
+  const memEl = document.getElementById("sb-membrane").querySelector("span");
+  if (memEl) {
+    memEl.textContent = isSelf ? "INSIDE" : "OUTSIDE";
+    memEl.className = isSelf ? "mem-inside" : "mem-outside";
+  }
+
   try {
     const r = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt, register: reg || undefined }),
     });
-    const data = await r.json();
-    log.insertAdjacentHTML("beforeend",
-      `<div class="n">${escapeHtml(data.text)}<span class="meta">[${data.register}${data.voice_ok ? "" : " • voice offline"}]</span></div>`);
-    log.scrollTop = log.scrollHeight;
+    const d = await r.json();
+    appendChat("nex", d.text, `[${d.register}${d.voice_ok ? "" : " · voice offline"}]`);
   } catch (e) {
-    log.insertAdjacentHTML("beforeend", `<div class="n">chat failed: ${escapeHtml(String(e))}</div>`);
+    appendChat("nex", `error: ${e}`, null);
+  }
+}
+
+document.getElementById("chat-send").addEventListener("click", sendChat);
+document.getElementById("chat-input").addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); }
+});
+
+// ── Strike modal ──────────────────────────────────────────────────────────────
+
+let currentStrikeId = null;
+
+function openModal(record) {
+  currentStrikeId = record.id;
+  document.getElementById("modal-type").textContent    = record.strike_type;
+  document.getElementById("modal-ts").textContent      = fmtTs(record.fired_at);
+  document.getElementById("modal-input").textContent   = record.input_text;
+  document.getElementById("modal-response").textContent = record.response_text;
+  document.getElementById("modal-branch").textContent  = record.hottest_branch || "—";
+  document.getElementById("modal-readiness").textContent = (record.readiness_score ?? 0).toFixed(2);
+  document.getElementById("modal-bb").textContent      = record.beliefs_before;
+  document.getElementById("modal-ba").textContent      = record.beliefs_after;
+  document.getElementById("modal-notes").value         = record.notes || "";
+  document.getElementById("strike-modal").classList.add("open");
+}
+
+function closeModal() {
+  document.getElementById("strike-modal").classList.remove("open");
+  currentStrikeId = null;
+}
+
+document.getElementById("modal-close").addEventListener("click", closeModal);
+document.getElementById("modal-cancel").addEventListener("click", closeModal);
+document.getElementById("strike-modal").addEventListener("click", e => {
+  if (e.target === document.getElementById("strike-modal")) closeModal();
+});
+
+document.getElementById("modal-save").addEventListener("click", async () => {
+  if (currentStrikeId == null) return;
+  const notes = document.getElementById("modal-notes").value;
+  await fetch("/api/strikes/notes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: currentStrikeId, notes }),
+  }).catch(() => {});
+  closeModal();
+});
+
+document.getElementById("strike-fire-btn").addEventListener("click", async () => {
+  const type = document.getElementById("strike-select").value;
+  const status = document.getElementById("strike-status");
+  status.textContent = `firing ${type}…`;
+  try {
+    const r = await fetch("/api/strikes/fire", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ strike_type: type }),
+    });
+    const record = await r.json();
+    status.textContent = `done (id=${record.id})`;
+    openModal(record);
+  } catch (e) {
+    status.textContent = `failed: ${e}`;
   }
 });
 
-// ---- Phase 8 — strike console ----------------------------------------------
+// ── Polling ───────────────────────────────────────────────────────────────────
 
-async function fireStrike() {
-  const type = document.getElementById("strike-type").value;
-  const input = document.getElementById("strike-input").value.trim();
-  const status = document.getElementById("strike-status");
-
-  status.textContent = `Firing ${type}...`;
+async function pollFast() {
   try {
-    const result = await fetch("/api/strikes/fire", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({strike_type: type, custom_input: input || undefined}),
-    });
-    const data = await result.json();
-    status.textContent = `Strike complete (id=${data.id})`;
-    refreshStrikeLog();
-  } catch (e) {
-    status.textContent = `Strike failed: ${e}`;
-  }
+    await Promise.all([refreshSense(), refreshPipeline()]);
+  } catch (_) {}
 }
 
-async function refreshStrikeLog() {
-  const data = await j("/api/strikes/recent").catch(() => ({records: []}));
-  const log = document.getElementById("strike-log");
-  const records = data.records || [];
-  if (!records.length) {
-    log.innerHTML = '<div class="muted">No strikes yet.</div>';
-    return;
-  }
-  log.innerHTML = records.map(r => `
-    <div class="strike-record">
-      <div class="strike-header">
-        <span class="strike-type-badge strike-${r.strike_type.toLowerCase()}">${r.strike_type}</span>
-        <span class="muted">${fmtTs(r.fired_at)}</span>
-        <span class="muted">${r.hottest_branch || "—"} | readiness ${(r.readiness_score || 0).toFixed(2)}</span>
-      </div>
-      ${r.input_text ? `<div class="strike-input muted">&gt; ${escapeHtml(r.input_text.slice(0, 100))}</div>` : ""}
-      <div class="strike-response">${escapeHtml(r.response_text.slice(0, 300))}</div>
-      ${r.notes ? `<div class="strike-notes">📝 ${escapeHtml(r.notes)}</div>` : ""}
-    </div>
-  `).join("");
-}
-
-document.getElementById("strike-fire-btn").addEventListener("click", fireStrike);
-refreshStrikeLog();
-setInterval(refreshStrikeLog, 15000);
-
-// ---- Phase 7 — fountain ----------------------------------------------------
-
-async function refreshFountain() {
-  const data = await j("/api/fountain/status").catch(() => null);
-  if (!data || data.error) return;
-
-  const el = document.getElementById("fountain-last-thought");
-  if (data.last_thought) {
-    el.textContent = data.last_thought;
-    el.classList.remove("muted");
-  }
-
-  document.getElementById("fountain-fire-count").textContent =
-    data.total_fires ? `(${data.total_fires} fires)` : "";
-  document.getElementById("fountain-last-fire").textContent =
-    data.last_fire_ts ? fmtTs(data.last_fire_ts) : "never";
-  document.getElementById("fountain-readiness").textContent =
-    data.readiness_score != null ? data.readiness_score.toFixed(2) : "—";
-}
-
-// ---- Phase 6 — system status / self-location -------------------------------
-
-async function refreshSystemStatus() {
-  const data = await j("/api/system/status").catch(() => null);
-  if (!data) return;
-  const el = document.getElementById("boot-status");
-  if (!el) return;
-  const parts = [
-    ["scheduler",  data.scheduler],
-    ["dynamic",    data.dynamic],
-    ["world",      data.world_model],
-    ["membrane",   data.membrane],
-    ["self-loc",   data.self_location_committed],
-  ];
-  el.innerHTML = parts
-    .map(([k, v]) => `<span class="${v ? "state-on" : "state-off"}">${k} ${v ? "✓" : "✗"}</span>`)
-    .join(" | ");
-}
-
-// ---- Phase 5 — membrane / inside-outside -----------------------------------
-
-async function refreshMembrane() {
-  const [snapData, recentData] = await Promise.all([
-    j("/api/membrane/snapshot").catch(() => null),
-    j("/api/sense/recent?limit=20").catch(() => ({ events: [] })),
-  ]);
-
-  // Inside column
-  const inside = document.getElementById("membrane-inside");
-  if (snapData && !snapData.error) {
-    const prop = snapData.proprioception || {};
-    const temp = snapData.temporal || {};
-    const intro = snapData.interoception || {};
-    const attn = snapData.attention || {};
-    const cpu = prop.cpu_percent != null ? `CPU ${prop.cpu_percent.toFixed(0)}%` : "—";
-    const mem = prop.mem_percent != null ? `mem ${prop.mem_percent.toFixed(0)}%` : "—";
-    const iso = temp.iso_local ? temp.iso_local.split("T")[1]?.slice(0,5) : "—";
-    const hot = attn.hottest_branch ? `${attn.hottest_branch} (${(attn.hottest_focus||0).toFixed(2)})` : "—";
-    inside.innerHTML = `
-      <div class="membrane-row"><span class="membrane-label">Body</span>${escapeHtml(cpu)}, ${escapeHtml(mem)}</div>
-      <div class="membrane-row"><span class="membrane-label">Time</span>${escapeHtml(iso)}</div>
-      <div class="membrane-row"><span class="membrane-label">Beliefs</span>${intro.belief_count ?? 0} (${intro.locked_count ?? 0} locked)</div>
-      <div class="membrane-row"><span class="membrane-label">Hot branch</span>${escapeHtml(hot)}</div>
-      <div class="membrane-row"><span class="membrane-label">Active</span>${attn.active_branch_count ?? 0} branches</div>
-    `;
-  } else {
-    inside.innerHTML = '<div class="muted">membrane not initialised</div>';
-  }
-
-  // Outside column — last 3 external events
-  const outside = document.getElementById("membrane-outside");
-  const externals = (recentData.events || [])
-    .filter(ev => !ev.stream.startsWith("internal."))
-    .slice(0, 3);
-  if (externals.length === 0) {
-    outside.innerHTML = '<div class="ev muted">no external events yet</div>';
-  } else {
-    outside.innerHTML = externals.map(ev => {
-      let preview = "";
-      try {
-        const p = JSON.parse(ev.payload);
-        preview = p.title || p.symbol || "";
-      } catch (_) {}
-      return `<div class="ev"><span class="ts">${fmtTs(ev.timestamp)}</span><span class="stream">${escapeHtml(ev.stream)}</span>${escapeHtml(String(preview).slice(0, 60))}</div>`;
-    }).join("");
-  }
-}
-
-// ---- Phase 4 — world model / belief stats ----------------------------------
-
-async function refreshBeliefStats() {
-  const data = await j("/api/beliefs/stats");
-  if (data.error) return;
-  const total = data.total || 0;
-  document.getElementById("belief-total").textContent = `(${total} total)`;
-  document.getElementById("belief-24h").textContent = data.added_last_24h ?? "—";
-  const dist = data.tier_distribution || {};
-  const container = document.getElementById("belief-tier-bars");
-  const maxCount = Math.max(1, ...Object.values(dist));
-  container.innerHTML = Object.entries(dist).map(([tier, cnt]) => {
-    const pct = Math.round((cnt / maxCount) * 100);
-    return `<div class="tier-bar-row"><span class="tier-label">T${tier}</span>`
-      + `<div class="tier-bar-outer"><div class="tier-bar-inner" style="width:${pct}%"></div></div>`
-      + `<span class="tier-count">${cnt}</span></div>`;
-  }).join("");
-}
-
-// ---- Phase 3 — dynamic / bonsai / crystallization --------------------------
-
-const HIGH_FOCUS = new Set(["e", "f", "g"]);
-
-async function refreshDynamic() {
-  const data = await j("/api/dynamic/status");
-  if (data.error) return;
-
-  document.getElementById("bonsai-aperture").textContent = data.aperture != null ? data.aperture.toFixed(3) : "—";
-  document.getElementById("bonsai-consolidation").textContent = data.consolidation_active ? "active" : "idle";
-  document.getElementById("bonsai-pipeline-runs").textContent = data.pipeline_runs ?? "—";
-  document.getElementById("bonsai-summary").textContent =
-    `(${data.active_branch_count}/${data.total_branches} active, focus: ${data.aggregate_focus}, texture: ${data.aggregate_texture})`;
-
-  const tbody = document.querySelector("#bonsai-table tbody");
-  const branches = (data.branches || []).slice().sort((a, b) => b.focus_num - a.focus_num);
-  tbody.innerHTML = branches.map(b => {
-    const highFocus = HIGH_FOCUS.has(b.focus_increment);
-    const cls = highFocus ? ' class="focus-high"' : '';
-    const lastAtt = b.last_attended_at ? fmtTs(b.last_attended_at) : "—";
-    return `<tr${cls}>
-      <td>${escapeHtml(b.branch_id)}${b.is_seed ? " <span class='muted'>seed</span>" : ""}</td>
-      <td>${escapeHtml(b.focus_increment)} <span class="muted">(${b.focus_num.toFixed(3)})</span></td>
-      <td>${escapeHtml(b.texture_increment)}</td>
-      <td>${b.curiosity_weight}</td>
-      <td class="muted">${lastAtt}</td>
-    </tr>`;
-  }).join("");
-}
-
-async function refreshCrystallized() {
-  const data = await j("/api/dynamic/crystallized");
-  const events = (data.events || []).slice(0, 10);
-  const el = document.getElementById("crystallization-list");
-  if (!events.length) { el.innerHTML = '<div class="ev muted">no crystallizations yet</div>'; return; }
-  el.innerHTML = events.map(ev =>
-    `<div class="ev"><span class="ts">${fmtTs(ev.ts)}</span><span class="stream">${escapeHtml(ev.branch_id)}</span>${escapeHtml((ev.content || "").slice(0, 80))}</div>`
-  ).join("");
-}
-
-async function refreshBeliefs() {
-  const data = await j("/api/beliefs/recent");
-  const beliefs = (data.beliefs || []).slice(0, 10);
-  const el = document.getElementById("beliefs-list");
-  if (!beliefs.length) { el.innerHTML = '<div class="ev muted">no beliefs yet</div>'; return; }
-  el.innerHTML = beliefs.map(b =>
-    `<div class="ev"><span class="tier-badge tier-${b.tier}">T${b.tier}</span><span class="ts">${fmtTs(b.created_at)}</span>${escapeHtml((b.content || "").slice(0, 100))}<span class="muted"> [${escapeHtml(b.source || "")}]</span></div>`
-  ).join("");
-}
-
-// ---- Polling loops ---------------------------------------------------------
-
-async function poll() {
+async function pollMedium() {
   try {
     await Promise.all([
-      refreshDbStats(), refreshQueues(), refreshErrors(), refreshAdmin(), refreshSenseStatus(),
+      refreshBonsai(),
+      refreshFountain(),
+      refreshFeedsStatus(),
+      refreshBeliefStats(),
+      refreshMembraneSnapshot(),
     ]);
-  } catch (e) { console.warn(e); }
+  } catch (_) {}
 }
 
-async function pollSenseEvents() {
-  try { await refreshSenseEvents(); } catch (e) { console.warn(e); }
-}
-
-async function pollDynamic() {
+async function pollSlow() {
   try {
-    await Promise.all([
-      refreshDynamic(), refreshCrystallized(), refreshBeliefs(),
-      refreshBeliefStats(), refreshMembrane(),
-    ]);
-  } catch (e) { console.warn(e); }
+    await Promise.all([refreshSystemStatus(), checkAdminState()]);
+  } catch (_) {}
 }
 
-poll();
-pollSenseEvents();
-pollDynamic();
-refreshSystemStatus();
-refreshFountain();
-setInterval(poll,                POLL_MS);
-setInterval(pollSenseEvents,     SENSE_MS);
-setInterval(pollDynamic,         SENSE_MS);
-setInterval(refreshSystemStatus, SENSE_MS);
-setInterval(refreshFountain,     10000);
+// Initial load
+pollFast();
+pollMedium();
+pollSlow();
+
+// Intervals
+setInterval(pollFast,   2000);
+setInterval(pollMedium, 5000);
+setInterval(pollSlow,   10000);
