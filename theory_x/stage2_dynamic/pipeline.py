@@ -126,9 +126,15 @@ def run_pipeline(row: dict, tree: BonsaiTree, membrane: Membrane,
         matches = step_B(stream, value)
         if not matches:
             return 0
+        for branch_id, _ in matches:
+            _log_event(writer, "B", stream, branch_id, 0.0, None, None)
         magnitudes = step_C(stream, value, matches)
         gated = step_D(magnitudes, membrane.aperture)
+        for branch_id, mag in gated:
+            _log_event(writer, "D", provenance or stream, branch_id, mag, None, None)
         valenced = step_E(tree, gated, value)
+        for branch_id, mag, valence in valenced:
+            _log_event(writer, "E", provenance or stream, branch_id, mag, valence, None)
         hits = step_F(tree, membrane, writer, stream, provenance, valenced)
         if hook is not None and hits > 0:
             for branch_id, mag, valence in valenced:

@@ -24,8 +24,9 @@ function focusBar(focusNum) {
 }
 
 function magBar(mag) {
-  const filled = Math.round(Math.min(1, mag ?? 0) * 5);
-  return "▮".repeat(filled) + "░".repeat(5 - filled);
+  if (!mag || mag <= 0) return "░░░░░";
+  const bars = Math.min(5, Math.max(1, Math.ceil(Math.log10(mag * 1000))));
+  return "▮".repeat(bars) + "░".repeat(5 - bars);
 }
 
 function readinessBar(score) {
@@ -63,6 +64,7 @@ function parsePreview(payload, stream) {
   try {
     const p = JSON.parse(payload);
     if (stream === "internal.fountain") return (p.thought || "").slice(0, 55);
+    if (stream === "internal.meta_awareness") return `beliefs:${p.beliefs ?? "?"} pipeline:${p.pipeline_runs ?? "?"}`;
     if (p.title)   return p.title.slice(0, 55);
     if (p.symbol)  return p.symbol;
     if (p.cpu_percent !== undefined) return `cpu:${p.cpu_percent}% mem:${p.memory_percent ?? "?"}%`;
