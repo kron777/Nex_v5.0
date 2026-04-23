@@ -3,17 +3,20 @@
 -- Tier 1 (Keystone) is seeded by keystone.reseed() with locked=1.
 
 CREATE TABLE IF NOT EXISTS beliefs (
-    id                INTEGER PRIMARY KEY AUTOINCREMENT,
-    content           TEXT NOT NULL,
-    tier              INTEGER NOT NULL CHECK (tier BETWEEN 0 AND 8),
-    confidence        REAL NOT NULL,
-    created_at        INTEGER NOT NULL,
-    last_promoted_at  INTEGER,
-    last_demoted_at   INTEGER,
-    promotion_log     TEXT NOT NULL DEFAULT '[]',
-    branch_id         TEXT,
-    source            TEXT,
-    locked            INTEGER NOT NULL DEFAULT 0
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    content              TEXT NOT NULL,
+    tier                 INTEGER NOT NULL CHECK (tier BETWEEN 0 AND 8),
+    confidence           REAL NOT NULL,
+    created_at           INTEGER NOT NULL,
+    last_promoted_at     INTEGER,
+    last_demoted_at      INTEGER,
+    promotion_log        TEXT NOT NULL DEFAULT '[]',
+    branch_id            TEXT,
+    source               TEXT,
+    locked               INTEGER NOT NULL DEFAULT 0,
+    corroboration_count  INTEGER NOT NULL DEFAULT 0,
+    last_referenced_at   INTEGER,
+    paused               INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_beliefs_tier   ON beliefs(tier);

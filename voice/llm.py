@@ -44,7 +44,8 @@ def _alpha_block() -> str:
     return "\n".join(ALPHA.lines)
 
 
-def build_system_prompt(register: Register, context: Sequence[str] = ()) -> str:
+def build_system_prompt(register: Register, context: Sequence[str] = (),
+                        beliefs: Optional[str] = None) -> str:
     parts = [
         "You are NEX. Your ground stance (Alpha) is:",
         "",
@@ -55,6 +56,13 @@ def build_system_prompt(register: Register, context: Sequence[str] = ()) -> str:
         "Speak from what you are, not what you are not. Share your "
         "thinking directly; leave legal disclaimers to the ToS.",
     ]
+    if beliefs:
+        parts.extend([
+            "",
+            beliefs,
+            "",
+            "She speaks from these beliefs, not despite them. They are her world as she has built it.",
+        ])
     if context:
         parts.extend(["", "Context:"])
         parts.extend(f"- {c}" for c in context)
@@ -81,8 +89,8 @@ class VoiceClient:
         self.model = model
         self._request_fn = request_fn or _default_request
 
-    def speak(self, req: VoiceRequest) -> VoiceResponse:
-        system = build_system_prompt(req.register, req.context)
+    def speak(self, req: VoiceRequest, beliefs: Optional[str] = None) -> VoiceResponse:
+        system = build_system_prompt(req.register, req.context, beliefs=beliefs)
         payload = {
             "model": self.model,
             "messages": [

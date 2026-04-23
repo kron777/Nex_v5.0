@@ -116,8 +116,11 @@ def step_F(tree: BonsaiTree, membrane: Membrane, writer: Writer,
 
 
 def run_pipeline(row: dict, tree: BonsaiTree, membrane: Membrane,
-                 writer: Writer) -> int:
-    """Full A-F pipeline for one sense_events row. Returns branch hits."""
+                 writer: Writer, hook=None) -> int:
+    """Full A-F pipeline for one sense_events row. Returns branch hits.
+
+    hook: optional callable(event_dict) called after step F for each logged event.
+    """
     try:
         stream, value, provenance = step_A(row)
         matches = step_B(stream, value)
@@ -127,6 +130,18 @@ def run_pipeline(row: dict, tree: BonsaiTree, membrane: Membrane,
         gated = step_D(magnitudes, membrane.aperture)
         valenced = step_E(tree, gated, value)
         hits = step_F(tree, membrane, writer, stream, provenance, valenced)
+        if hook is not None and hits > 0:
+            for branch_id, mag, valence in valenced:
+                if mag >= 0.001:
+                    try:
+                        hook({
+                            "sensation_source": provenance or stream,
+                            "branch_id": branch_id,
+                            "magnitude": mag,
+                            "valence": valence,
+                        })
+                    except Exception:
+                        pass
         return hits
     except Exception as exc:
         errors.record(

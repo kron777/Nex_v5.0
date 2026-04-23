@@ -195,6 +195,25 @@ document.getElementById("chat-form").addEventListener("submit", async ev => {
   }
 });
 
+// ---- Phase 4 — world model / belief stats ----------------------------------
+
+async function refreshBeliefStats() {
+  const data = await j("/api/beliefs/stats");
+  if (data.error) return;
+  const total = data.total || 0;
+  document.getElementById("belief-total").textContent = `(${total} total)`;
+  document.getElementById("belief-24h").textContent = data.added_last_24h ?? "—";
+  const dist = data.tier_distribution || {};
+  const container = document.getElementById("belief-tier-bars");
+  const maxCount = Math.max(1, ...Object.values(dist));
+  container.innerHTML = Object.entries(dist).map(([tier, cnt]) => {
+    const pct = Math.round((cnt / maxCount) * 100);
+    return `<div class="tier-bar-row"><span class="tier-label">T${tier}</span>`
+      + `<div class="tier-bar-outer"><div class="tier-bar-inner" style="width:${pct}%"></div></div>`
+      + `<span class="tier-count">${cnt}</span></div>`;
+  }).join("");
+}
+
 // ---- Phase 3 — dynamic / bonsai / crystallization --------------------------
 
 const HIGH_FOCUS = new Set(["e", "f", "g"]);
@@ -261,7 +280,9 @@ async function pollSenseEvents() {
 
 async function pollDynamic() {
   try {
-    await Promise.all([refreshDynamic(), refreshCrystallized(), refreshBeliefs()]);
+    await Promise.all([
+      refreshDynamic(), refreshCrystallized(), refreshBeliefs(), refreshBeliefStats(),
+    ]);
   } catch (e) { console.warn(e); }
 }
 

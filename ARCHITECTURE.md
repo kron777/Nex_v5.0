@@ -2,9 +2,9 @@
 
 Living document. Updated as the build progresses.
 
-**Status:** Phase 3 complete. Sense stream live; A-F pipeline running; bonsai tree
-active with 10 seed branches; crystallization operational — sustained high focus
-precipitates Tier 7 Impressions into beliefs.db.
+**Status:** Phase 4 complete. World model live: beliefs shape voice responses,
+tier promotion/demotion/harmonization running, crystallization uses cumulative
+window model (300s of high-focus within 30 minutes).
 
 ---
 
@@ -25,16 +25,22 @@ theory_x/
     bonsai.py       BonsaiTree — 10 seed branches, decay/prune (THEORY_X_STAGE=2)
     membrane.py     Membrane — aperture + accumulator
     attention.py    _match_branches(), _magnitude_for(), _CHANNEL_HINTS (23 streams)
-    pipeline.py     A-F pipeline — steps A through F, logs to dynamic.db
-    crystallization.py  Crystallizer — sustained focus → Tier 7 belief in beliefs.db
+    pipeline.py     A-F pipeline — steps A through F, logs to dynamic.db; hook support
+    crystallization.py  Crystallizer — 300s cumulative high-focus within 30min → Tier 7 belief
     consolidation.py    consolidation_pass(), _external_quiet()
     __init__.py     build_dynamic() factory — 7 daemon loops, DynamicState
+  stage3_world_model/
+    retrieval.py    BeliefRetriever — keyword-overlap scoring, branch hint boost
+    promotion.py    BeliefPromoter — corroborate(), survive_challenge(), decay_pass(), decisive_contradiction()
+    harmonizer.py   Harmonizer — conflict detection (Tier 4+), synthesis or retirement
+    pipeline_hooks.py   PipelineHooks — high-magnitude events corroborate matching beliefs
+    __init__.py     build_world_model() factory — decay_loop, harmonizer_loop, WorldModelState
 substrate/          one-pen plumbing (writer, reader, paths, init, schemas)
 admin/              argon2id single-password auth
 voice/              register-aware llama-server client
 gui/                Flask observability cockpit + chat column
 strikes/            Phase 8 scaffolding, empty
-tests/              stdlib unittest smoke tests (69 total)
+tests/              stdlib unittest smoke tests (91 total)
 ```
 
 `THEORY_X_STAGE = None` is declared at the top of every Phase-1 module.
@@ -298,8 +304,22 @@ Dashboard additions: Bonsai panel (all branches with focus/texture/curiosity, hi
 
 `AppState` gained a `dynamic: Optional[DynamicState]` field. `build_dynamic(writers, readers)` starts 7 daemon threads.
 
+### Phase 4 additions
+
+New endpoints:
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/beliefs/stats` | Tier distribution, total count, beliefs added last 24h |
+
+`AppState` gained `world_model: Optional[WorldModelState]`. Chat column now retrieves relevant beliefs and injects them into the system prompt before each response. `build_system_prompt()` accepts `beliefs: Optional[str]` parameter.
+
+**Crystallization fix:** replaced continuous-hold timer with cumulative window model — a branch must accumulate 300 seconds of high-focus time (focus e/f/g) within a rolling 1800-second (30-minute) window. Each crystallization_loop tick (60s) records one observation. History trimmed at window boundary. Branch can re-crystallize after one full window passes.
+
+**Belief schema additions:** `corroboration_count`, `last_referenced_at`, `paused` columns. `harmonizer_events` table in `dynamic.db`.
+
 ### What comes next
 
-Phase 4 — World-Model Firing (Theory X Stage 3). Belief tiers precipitate from sustained dynamic. Beliefs emerge from attention, not installation. The belief graph becomes her manufactured world.
+Phase 5 — Inside/Outside Boundary (Theory X Stage 4). The phenomenal membrane is drawn. Self/world distinction becomes explicit in her representation.
 
 See `SPECIFICATION.md §9` for the full phase sequence.

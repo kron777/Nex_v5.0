@@ -100,8 +100,9 @@ def _sense_poll_loop(state: DynamicState, stop: threading.Event) -> None:
                 "FROM sense_events WHERE id > ? ORDER BY id ASC LIMIT 100",
                 (last_id,),
             )
+            hook = getattr(state, "_pipeline_hook", None)
             for row in rows:
-                run_pipeline(dict(row), tree, membrane, dynamic_writer)
+                run_pipeline(dict(row), tree, membrane, dynamic_writer, hook=hook)
                 last_id = row["id"]
                 state._pipeline_runs += 1
                 reads_since_save += 1

@@ -24,6 +24,9 @@ Phase 3 endpoints (dynamic formation):
     GET  /api/dynamic/crystallized — last 20 crystallization events
     GET  /api/beliefs/recent       — last 20 beliefs from beliefs.db
 
+Phase 4 endpoints (world model):
+    GET  /api/beliefs/stats        — tier distribution, total, recent additions
+
 The app is constructed from an AppState container so tests can drive
 it with mock Writers/Readers and a mock VoiceClient.
 
@@ -71,8 +74,9 @@ class AppState:
     writers: dict[str, Writer]
     readers: dict[str, Reader]
     voice: VoiceClient
-    scheduler: Optional["SenseScheduler"] = None  # type: ignore[type-arg]
-    dynamic: Optional["DynamicState"] = None       # type: ignore[type-arg]
+    scheduler: Optional["SenseScheduler"] = None   # type: ignore[type-arg]
+    dynamic: Optional["DynamicState"] = None        # type: ignore[type-arg]
+    world_model: Optional["WorldModelState"] = None # type: ignore[type-arg]
     # Optional hook a test can inject to short-circuit chat persistence.
     now_fn: Callable[[], int] = field(default_factory=lambda: (lambda: int(time.time())))
 
@@ -248,9 +252,33 @@ def create_app(state: AppState) -> Flask:
                     source="gui.server", exc=e,
                 )
 
+        # Retrieve relevant beliefs for prompt injection.
+        belief_text = None
+        if state.world_model is not None:
+            try:
+                from theory_x.stage3_world_model.retrieval import format_beliefs_for_prompt
+                active_branches: list[str] = []
+                if state.dynamic is not None:
+                    snap = state.dynamic.status()
+                    active_branches = [
+                        b["branch_id"] for b in snap.get("branches", [])
+                        if b.get("focus_num", 0) > 0.1
+                    ]
+                beliefs = state.world_model.retriever.retrieve(
+                    query=prompt, branch_hints=active_branches, limit=8
+                )
+                belief_text = format_beliefs_for_prompt(beliefs) if beliefs else None
+            except Exception as e:
+                error_channel.record(
+                    f"belief retrieval failed: {e}", source="gui.server", exc=e,
+                )
+
         # Route through voice.
         try:
-            resp = state.voice.speak(VoiceRequest(prompt=prompt, register=register))
+            resp = state.voice.speak(
+                VoiceRequest(prompt=prompt, register=register),
+                beliefs=belief_text,
+            )
             text = resp.text
             voice_ok = True
         except Exception as e:
@@ -350,6 +378,33 @@ def create_app(state: AppState) -> Flask:
                 for row in rows
             ]
         })
+
+    # -- world model (Phase 4) -----------------------------------------------
+
+    @app.get("/api/beliefs/stats")
+    def api_beliefs_stats():
+        reader = state.readers.get("beliefs")
+        if reader is None:
+            return jsonify({"error": "no beliefs reader"}), 503
+        try:
+            tier_rows = reader.read(
+                "SELECT tier, COUNT(*) as cnt FROM beliefs GROUP BY tier ORDER BY tier"
+            )
+            total = sum(r["cnt"] for r in tier_rows)
+            cutoff_24h = int(__import__("time").time()) - 86400
+            recent_rows = reader.read(
+                "SELECT COUNT(*) as cnt FROM beliefs WHERE created_at >= ?",
+                (cutoff_24h,),
+            )
+            recent_count = recent_rows[0]["cnt"] if recent_rows else 0
+            return jsonify({
+                "tier_distribution": {str(r["tier"]): r["cnt"] for r in tier_rows},
+                "total": total,
+                "added_last_24h": recent_count,
+            })
+        except Exception as e:
+            error_channel.record(f"beliefs stats failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
 
     # -- dynamic formation (Phase 3) ----------------------------------------
 

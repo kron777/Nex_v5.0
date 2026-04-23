@@ -212,15 +212,22 @@ class TestCrystallization(unittest.TestCase):
 
     def test_high_focus_crystallizes_after_hold(self):
         from theory_x.stage2_dynamic.crystallization import (
-            Crystallizer, CRYSTALLIZATION_HOLD_SECONDS
+            Crystallizer, CRYSTALLIZATION_THRESHOLD_SECONDS, CRYSTALLIZATION_WINDOW_SECONDS
         )
+        from collections import deque
         tree, c = self._make_crystallizer()
-        # Force ai_research to high focus
         node = tree.get("ai_research")
         node.focus_num = 0.9  # focus level 'g'
 
-        # Simulate that the branch entered high focus long enough ago
-        c._focus_high_since["ai_research"] = time.time() - CRYSTALLIZATION_HOLD_SECONDS - 1
+        # Pre-populate with enough high-focus ticks to cross threshold
+        # 5 pre-existing + 1 from check_all() = 6 * 60 = 360s >= 300s threshold
+        now = time.time()
+        c._focus_history["ai_research"] = deque()
+        for i in range(5):
+            c._focus_history["ai_research"].append(
+                (now - (CRYSTALLIZATION_WINDOW_SECONDS - 10 - i * 60), "g")
+            )
+        c._last_crystallized["ai_research"] = 0.0
 
         crystallized = c.check_all()
         time.sleep(0.2)  # let writers settle
@@ -239,40 +246,39 @@ class TestCrystallization(unittest.TestCase):
 
     def test_dedup_guard_prevents_double_write(self):
         from theory_x.stage2_dynamic.crystallization import (
-            Crystallizer, CRYSTALLIZATION_HOLD_SECONDS
+            Crystallizer, CRYSTALLIZATION_WINDOW_SECONDS
         )
+        from collections import deque
         tree, c = self._make_crystallizer()
         node = tree.get("ai_research")
         node.focus_num = 0.9
 
+        now = time.time()
+
+        def _set_high_focus():
+            c._focus_history["ai_research"] = deque()
+            for i in range(5):
+                c._focus_history["ai_research"].append(
+                    (now - (CRYSTALLIZATION_WINDOW_SECONDS - 10 - i * 60), "g")
+                )
+
         # First crystallization
-        c._focus_high_since["ai_research"] = time.time() - CRYSTALLIZATION_HOLD_SECONDS - 1
+        _set_high_focus()
+        c._last_crystallized["ai_research"] = 0.0
         c.check_all()
         time.sleep(0.2)
 
-        # Second crystallization — same content should be deduped
-        c._focus_high_since["ai_research"] = time.time() - CRYSTALLIZATION_HOLD_SECONDS - 1
+        # Second crystallization — should be blocked by window dedup on _last_crystallized
+        _set_high_focus()
+        # _last_crystallized is now set to now, so window check blocks this
         c.check_all()
         time.sleep(0.2)
 
-        # Count beliefs from crystallization
-        beliefs = self.readers["beliefs"].read(
-            "SELECT * FROM beliefs WHERE source = 'precipitated_from_dynamic' "
-            "AND branch_id = 'ai_research'"
-        )
-        # Dedup should prevent a second identical write; we allow 1 or 2 depending
-        # on whether content differs (since no pipeline events, fallback message
-        # is identical — so dedup should block the second)
-        # crystallization_events dedup check uses content match
         cryst_events = self.readers["dynamic"].read(
             "SELECT content FROM crystallization_events WHERE branch_id = 'ai_research'"
         )
-        if len(cryst_events) > 1:
-            # Verify content is different (meaning dedup allowed it)
-            contents = [r["content"] for r in cryst_events]
-            self.assertEqual(len(set(contents)), len(contents))
-        else:
-            self.assertLessEqual(len(beliefs), 2)
+        # Window guard should allow at most 1 crystallization per CRYSTALLIZATION_WINDOW_SECONDS
+        self.assertLessEqual(len(cryst_events), 1)
 
     def test_low_focus_does_not_crystallize(self):
         from theory_x.stage2_dynamic.crystallization import Crystallizer

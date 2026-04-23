@@ -60,3 +60,13 @@ CREATE TABLE IF NOT EXISTS accumulator (
     weight    REAL NOT NULL DEFAULT 0.0,
     timestamp INTEGER NOT NULL
 );
+
+-- Harmonizer events (Phase 4)
+CREATE TABLE IF NOT EXISTS harmonizer_events (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts                  REAL NOT NULL,
+    belief_id_a         INTEGER,
+    belief_id_b         INTEGER,
+    resolution          TEXT,
+    synthesis_belief_id INTEGER
+);

@@ -52,6 +52,34 @@ def _apply_schema(writer: Writer, schema_path: Path) -> int:
     return applied
 
 
+_MIGRATIONS: dict[str, list[str]] = {
+    "beliefs": [
+        "ALTER TABLE beliefs ADD COLUMN corroboration_count INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE beliefs ADD COLUMN last_referenced_at INTEGER",
+        "ALTER TABLE beliefs ADD COLUMN paused INTEGER NOT NULL DEFAULT 0",
+    ],
+    "dynamic": [
+        "CREATE TABLE IF NOT EXISTS harmonizer_events ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL NOT NULL, "
+        "belief_id_a INTEGER, belief_id_b INTEGER, resolution TEXT, "
+        "synthesis_belief_id INTEGER)",
+    ],
+}
+
+
+def _apply_migrations(writers: dict[str, Writer]) -> None:
+    """Apply additive migrations for existing databases. Each is try/except idempotent."""
+    for db_name, stmts in _MIGRATIONS.items():
+        w = writers.get(db_name)
+        if w is None:
+            continue
+        for stmt in stmts:
+            try:
+                w.write(stmt, ())
+            except Exception:
+                pass  # column/table already exists
+
+
 def init_all() -> None:
     data_dir().mkdir(parents=True, exist_ok=True)
     paths = db_paths()
@@ -63,6 +91,9 @@ def init_all() -> None:
             writers[name] = w
             applied = _apply_schema(w, schema_file)
             logger.info("Initialized %s (%d statements)", path, applied)
+
+        # Apply additive column migrations for existing DBs (idempotent)
+        _apply_migrations(writers)
 
         # Seed Tier 1 keystones into beliefs.db.
         from keystone import reseed as keystone_reseed

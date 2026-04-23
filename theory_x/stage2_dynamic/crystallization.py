@@ -1,22 +1,25 @@
-"""Crystallization — sustained high branch focus precipitates a Tier 7 belief.
+"""Crystallization — cumulative high-focus time precipitates a Tier 7 belief.
 
-When a branch holds focus at level e/f/g for CRYSTALLIZATION_HOLD_SECONDS
-continuously, a new Impression (Tier 7) is written to beliefs.db.
+A branch crystallizes when it accumulates CRYSTALLIZATION_THRESHOLD_SECONDS of
+high-focus time (focus at e/f/g) within a rolling CRYSTALLIZATION_WINDOW_SECONDS
+window (default: 300s cumulative within 30 minutes).
 """
 from __future__ import annotations
 
 import json
 import time
+from collections import deque
 from typing import Optional
 
 import errors
 from substrate import Writer, Reader
-from .bonsai import BonsaiTree, _num_to_focus
+from .bonsai import BonsaiTree
 
 THEORY_X_STAGE = 2
 
-CRYSTALLIZATION_HOLD_SECONDS = 300  # 5 minutes
-_HIGH_FOCUS_LEVELS = {"e", "f", "g"}
+CRYSTALLIZATION_WINDOW_SECONDS = 1800    # 30-minute rolling window
+CRYSTALLIZATION_THRESHOLD_SECONDS = 300  # 300s cumulative high-focus within window
+HIGH_FOCUS_LEVELS = {"e", "f", "g"}
 _LOG_SOURCE = "crystallization"
 _DEDUP_WINDOW_SECONDS = 86400  # 24 hours
 
@@ -28,30 +31,54 @@ class Crystallizer:
         self._beliefs_writer = beliefs_writer
         self._dynamic_writer = dynamic_writer
         self._dynamic_reader = dynamic_reader
-        # per-branch: timestamp when this branch entered high focus (or None)
-        self._focus_high_since: dict[str, Optional[float]] = {}
+        # per-branch: deque of (timestamp, focus_level) records
+        self._focus_history: dict[str, deque] = {}
+        # per-branch: last crystallization timestamp (to enforce window dedup)
+        self._last_crystallized: dict[str, float] = {}
 
     def check_all(self) -> list[str]:
-        """Check all branches; crystallize those at sustained high focus.
+        """Check all branches; crystallize those with enough cumulative high focus.
 
         Returns list of branch_ids that crystallized this pass.
         """
         crystallized = []
         now = time.time()
+        cutoff = now - CRYSTALLIZATION_WINDOW_SECONDS
+
         for node in self._tree.all_nodes():
             bid = node.branch_id
             focus = node.focus_increment
-            if focus in _HIGH_FOCUS_LEVELS:
-                if self._focus_high_since.get(bid) is None:
-                    self._focus_high_since[bid] = now
-                elif now - self._focus_high_since[bid] >= CRYSTALLIZATION_HOLD_SECONDS:
-                    did_crystallize = self._crystallize(node, now)
-                    if did_crystallize:
-                        crystallized.append(bid)
-                    # reset regardless so branch can crystallize again
-                    self._focus_high_since[bid] = None
-            else:
-                self._focus_high_since[bid] = None
+
+            # Append current observation
+            if bid not in self._focus_history:
+                self._focus_history[bid] = deque()
+            self._focus_history[bid].append((now, focus))
+
+            # Trim entries older than window
+            hist = self._focus_history[bid]
+            while hist and hist[0][0] < cutoff:
+                hist.popleft()
+
+            # Count cumulative high-focus seconds (each entry = 60s loop tick)
+            high_ticks = sum(1 for _, f in hist if f in HIGH_FOCUS_LEVELS)
+            # Each loop tick represents ~60 seconds of observation
+            cumulative_seconds = high_ticks * 60
+
+            if cumulative_seconds < CRYSTALLIZATION_THRESHOLD_SECONDS:
+                continue
+
+            # No crystallization in last window
+            last = self._last_crystallized.get(bid, 0.0)
+            if now - last < CRYSTALLIZATION_WINDOW_SECONDS:
+                continue
+
+            did_crystallize = self._crystallize(node, now)
+            if did_crystallize:
+                crystallized.append(bid)
+                self._last_crystallized[bid] = now
+                # Clear history so branch must re-accumulate
+                self._focus_history[bid].clear()
+
         return crystallized
 
     def _crystallize(self, node, ts: float) -> bool:
@@ -118,11 +145,7 @@ class Crystallizer:
                 "WHERE content = ? AND ts >= ?",
                 (content, cutoff),
             )
-            if row:
-                return True
-            # Also check beliefs.db via writer read (use beliefs reader if wired in)
-            # We check dynamic crystallization_events as the dedup source
-            return False
+            return bool(row)
         except Exception as exc:
             errors.record(f"crystallization dedup error: {exc}", source=_LOG_SOURCE, exc=exc)
             return False
