@@ -53,11 +53,7 @@ def _apply_schema(writer: Writer, schema_path: Path) -> int:
 
 
 _MIGRATIONS: dict[str, list[str]] = {
-    "beliefs": [
-        "ALTER TABLE beliefs ADD COLUMN corroboration_count INTEGER NOT NULL DEFAULT 0",
-        "ALTER TABLE beliefs ADD COLUMN last_referenced_at INTEGER",
-        "ALTER TABLE beliefs ADD COLUMN paused INTEGER NOT NULL DEFAULT 0",
-    ],
+    "beliefs": [],
     "dynamic": [
         "CREATE TABLE IF NOT EXISTS harmonizer_events ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL NOT NULL, "

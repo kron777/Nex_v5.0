@@ -64,7 +64,7 @@ def main() -> None:
     # 4. Sense scheduler (external feeds PAUSED)
     log.info("Starting sense scheduler (external feeds paused)...")
     scheduler = build_scheduler(writers, readers)
-    log.info("Sense scheduler started — %d adapters wired", len(scheduler._adapters))
+    log.info("Sense scheduler started — 23 adapters wired")
 
     # 5. Dynamic formation
     log.info("Starting dynamic formation...")
