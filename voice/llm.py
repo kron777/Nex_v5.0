@@ -81,7 +81,7 @@ def build_system_prompt(register: Register, context: Sequence[str] = (),
 
 
 def _default_request(url: str, payload: dict) -> dict:
-    r = requests.post(url, json=payload, timeout=120)
+    r = requests.post(url, json={**payload, "temperature": 0.85, "repeat_penalty": 1.15}, timeout=120)
     r.raise_for_status()
     return r.json()
 
