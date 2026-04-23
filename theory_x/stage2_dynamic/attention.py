@@ -97,12 +97,19 @@ def _match_branches(stream: str, value: Any) -> list[tuple[str, float]]:
         p = _proximity(tokens, branch_id)
         if p > 0:
             results.append((branch_id, p))
-    # Also try stream-prefix lookup for internal streams
-    for prefix, branch_id in _STREAM_BRANCH.items():
-        if stream.startswith(prefix) and branch_id not in {b for b, _ in results}:
-            results.append((branch_id, 0.3))
+    # Direct stream→branch mappings always get proximity 1.0 — these are not
+    # coincidental correlations, the stream IS the branch.
+    direct: dict[str, float] = {}
+    for prefix, bid in _STREAM_BRANCH.items():
+        if stream.startswith(prefix):
+            direct[bid] = 1.0
+    if direct:
+        results = [(b, direct.get(b, p)) for b, p in results]
+        for bid, prox in direct.items():
+            if bid not in {b for b, _ in results}:
+                results.append((bid, prox))
     if not results:
-        # fallback: match to best channel via stream name tokens
+        # fallback: match via stream name tokens only
         stream_tokens = set(stream.replace(".", " ").split())
         for branch_id in _CHANNEL_HINTS:
             p = _proximity(stream_tokens, branch_id)
@@ -137,33 +144,35 @@ def _extract_tokens(stream: str, value: Any) -> set[str]:
 
 
 def _magnitude_for(stream: str, value: Any, branch_id: str) -> float:
-    """Compute magnitude of a sense event for a given branch."""
+    """Compute magnitude of a sense event for a given branch.
+
+    Base of 0.35 for direct stream→branch mappings (stream prefix is definitive).
+    Keyword bonus adds up to 0.65 more for each matching hint word.
+    Stream name tokens are included in the token set so 'ai_research.arxiv'
+    always contributes 'ai' and 'research' even when the title has no overlap.
+    """
     if value is None:
         return 0.0
 
-    # Text payload: keyword-overlap magnitude
-    if isinstance(value, str):
-        try:
-            parsed = json.loads(value)
-        except (json.JSONDecodeError, TypeError):
-            parsed = None
+    # Guaranteed base for direct stream→branch mappings
+    stream_prefix = stream.split(".")[0]
+    direct_branch = (
+        _STREAM_BRANCH.get(stream_prefix)
+        or _STREAM_BRANCH.get(stream)
+    )
+    base = 0.35 if direct_branch == branch_id else 0.0
 
-        if parsed is not None and isinstance(parsed, dict) and "title" in parsed:
-            title = str(parsed.get("title", ""))
-            title_tokens = set(t.lower().strip(".,;:!?\"'()[]") for t in title.split())
-            hints = _CHANNEL_HINTS.get(branch_id, set())
-            overlap = len(title_tokens & hints)
-            return min(1.0, overlap / max(1, len(hints)))
-        else:
-            # raw text — token overlap vs hints
-            hints = _CHANNEL_HINTS.get(branch_id, set())
-            tokens = _extract_tokens(stream, value)
-            overlap = len(tokens & hints)
-            return min(1.0, overlap / max(1, len(hints)))
+    # Text payload: combined stream + content token overlap against branch hints
+    if isinstance(value, str):
+        tokens = _extract_tokens(stream, value)
+        hints = _CHANNEL_HINTS.get(branch_id, set())
+        overlap = len(tokens & hints)
+        keyword_bonus = min(0.65, overlap * 0.1)
+        return min(1.0, base + keyword_bonus)
 
     # Numeric payload: delta-vs-scale logic
     if isinstance(value, (int, float)):
         scale = _DEFAULT_SCALE.get(stream, 1.0)
-        return min(1.0, abs(float(value)) / max(1e-9, scale))
+        return min(1.0, base + abs(float(value)) / max(1e-9, scale))
 
-    return 0.0
+    return base

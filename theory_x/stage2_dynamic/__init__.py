@@ -130,6 +130,7 @@ def _aperture_loop(state: DynamicState, stop: threading.Event) -> None:
 def _accumulator_loop(state: DynamicState, stop: threading.Event) -> None:
     while not stop.is_set():
         try:
+            state.tree.decay_pass()
             state.membrane.decay_accumulator()
             flushed = state.membrane.flush_accumulator()
             if flushed:

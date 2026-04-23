@@ -70,7 +70,7 @@ def build_system_prompt(register: Register, context: Sequence[str] = (),
 
 
 def _default_request(url: str, payload: dict) -> dict:
-    r = requests.post(url, json=payload, timeout=60)
+    r = requests.post(url, json=payload, timeout=120)
     r.raise_for_status()
     return r.json()
 
