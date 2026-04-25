@@ -31,6 +31,8 @@ from theory_x.stage3_world_model import build_world_model
 from theory_x.stage4_membrane import build_membrane
 from theory_x.stage6_fountain import build_fountain
 from theory_x.stage6_fountain.readiness import FOUNTAIN_CHECK_INTERVAL_SECONDS
+from theory_x.modes import build_mode_state
+from speech.voices import build_voice_state
 from gui.server import AppState, create_app
 from voice.llm import VoiceClient
 
@@ -61,9 +63,17 @@ def main() -> None:
     belief_id = commitment.commit(writers["beliefs"], readers["beliefs"])
     log.info("Self-location committed (belief id=%d)", belief_id)
 
-    # 4. Sense scheduler (external feeds PAUSED)
+    # 4. Mode state (must be before scheduler + fountain)
+    log.info("Initialising mode state...")
+    mode_state = build_mode_state(writers, readers)
+    log.info("Mode state ready — current mode: %s", mode_state.current_name())
+
+    voice_state = build_voice_state(writers, readers)
+    log.info("Voice state ready — current voice: %s", voice_state.current_name())
+
+    # 5. Sense scheduler (external feeds PAUSED)
     log.info("Starting sense scheduler (external feeds paused)...")
-    scheduler = build_scheduler(writers, readers)
+    scheduler = build_scheduler(writers, readers, mode_state=mode_state)
     log.info("Sense scheduler started — 23 adapters wired")
 
     # 5. Dynamic formation
@@ -71,12 +81,24 @@ def main() -> None:
     dynamic = build_dynamic(writers, readers)
     log.info("Dynamic started — bonsai tree active")
 
-    # 6. World model
+    # 6. Voice client (shared by world model, fountain, strikes)
+    voice = VoiceClient(
+        url=os.environ.get("NEX5_VOICE_URL", "http://localhost:8080/v1/chat/completions"),
+        model=os.environ.get("NEX5_VOICE_MODEL", "qwen2.5-3b"),
+    )
+
+    # Voice health check
+    if voice.health_check():
+        log.info("Voice endpoint reachable: %s", voice.url)
+    else:
+        log.warning("Voice endpoint NOT reachable at %s — chat will return fallback message", voice.url)
+
+    # 7. World model
     log.info("Starting world model...")
-    world_model = build_world_model(writers, readers, dynamic_state=dynamic)
+    world_model = build_world_model(writers, readers, dynamic_state=dynamic, voice_client=voice)
     log.info("World model started")
 
-    # 7. Membrane
+    # 8. Membrane
     log.info("Drawing membrane...")
     membrane = build_membrane(
         writers, readers,
@@ -85,16 +107,22 @@ def main() -> None:
     )
     log.info("Membrane drawn — inside/outside boundary active")
 
-    # 8. Fountain ignition
-    voice = VoiceClient(
-        url=os.environ.get("NEX5_VOICE_URL", "http://localhost:8080/v1/chat/completions"),
-        model=os.environ.get("NEX5_VOICE_MODEL", "qwen2.5-3b"),
-    )
+    # 9. Problem memory (needed by fountain for task-bearing override)
+    from theory_x.stage7_sustained.problem_memory import ProblemMemory
+    problem_memory = ProblemMemory(writers["conversations"], readers["conversations"])
+
+    # 10. Fountain ignition
     log.info("Igniting fountain...")
-    fountain = build_fountain(writers, readers, voice, dynamic_state=dynamic)
+    log.info(
+        "Speech governor: min_gap=%ss, base_prob=%.2f",
+        os.environ.get("NEX5_SPEECH_MIN_GAP", "180"),
+        float(os.environ.get("NEX5_SPEECH_PROB", "1.0")),
+    )
+    fountain = build_fountain(writers, readers, voice, dynamic_state=dynamic,
+                              problem_memory=problem_memory, mode_state=mode_state)
     log.info("Fountain lit — loop running at %ds interval", FOUNTAIN_CHECK_INTERVAL_SECONDS)
 
-    # 9. Strike protocols
+    # 11. Strike protocols
     log.info("Arming strike protocols...")
     from strikes.catalogue import StrikeCatalogue
     from strikes.protocols import StrikeProtocol
@@ -107,20 +135,19 @@ def main() -> None:
         catalogue=catalogue,
         membrane_state=membrane,
         dynamic_reader=readers["dynamic"],
+        sense_reader=readers["sense"],
     )
     log.info("Strike protocols armed — 5 strikes available")
 
-    # 10. Problem memory + tool use
-    log.info("Wiring problem memory and tool use...")
-    from theory_x.stage7_sustained.problem_memory import ProblemMemory
+    # 12. Tool use
+    log.info("Wiring tool use...")
     from theory_x.stage_capability.tools import ToolRegistry
     from theory_x.stage_capability.tool_caller import ToolCaller
-    problem_memory = ProblemMemory(writers["conversations"], readers["conversations"])
     tool_registry = ToolRegistry(beliefs_reader=readers["beliefs"])
     tool_caller = ToolCaller(tool_registry)
     log.info("Problem memory + tools ready (Stage B)")
 
-    # 11. Speech consumer
+    # 12. Speech consumer
     speech_consumer = None
     try:
         from speech.queue_consumer import SpeechQueueConsumer
@@ -131,15 +158,76 @@ def main() -> None:
                 writer=writers["beliefs"],
                 reader=readers["beliefs"],
                 config=speech_cfg,
+                voice_state=voice_state,
             )
             speech_consumer.start()
             log.info("Speech consumer started (voice=%s)", speech_cfg.voice)
+
+            # Backfill: enqueue any fountain_insight beliefs not yet in speech_queue
+            try:
+                import time as _time
+                unqueued = readers["beliefs"].read(
+                    "SELECT id, content FROM beliefs "
+                    "WHERE source='fountain_insight' AND locked=0 "
+                    "AND id NOT IN (SELECT belief_id FROM speech_queue) "
+                    "ORDER BY created_at DESC LIMIT 20"
+                )
+                for row in unqueued:
+                    content = (row["content"] or "").strip()
+                    if speech_cfg.min_chars <= len(content) <= speech_cfg.max_chars:
+                        writers["beliefs"].write(
+                            "INSERT INTO speech_queue "
+                            "(belief_id, content, voice, queued_at) VALUES (?, ?, ?, ?)",
+                            (row["id"], content, speech_cfg.voice, _time.time()),
+                        )
+                if unqueued:
+                    log.info("Speech: backfilled %d existing fountain_insight beliefs",
+                             len(unqueued))
+            except Exception as _e:
+                log.warning("Speech backfill failed (non-fatal): %s", _e)
         else:
             log.info("Speech disabled via NEX5_SPEECH_ENABLED=false")
     except Exception as e:
-        log.warning("Speech consumer failed to start: %s", e)
+        import traceback
+        log.error("Speech consumer failed to start: %s\n%s",
+                  e, traceback.format_exc())
 
-    # 12. Wire AppState and start GUI
+    # 13. Signal detection layer (LLM-free)
+    log.info("Starting signal detection loop...")
+    from theory_x.signals import build_signal_loop
+    signal_loop = build_signal_loop(writers, readers)
+    log.info("Signal loop ready — detectors running every 60s")
+
+    # 14. Diversity ecology (LLM-free, sentence-transformers)
+    log.info("Starting diversity ecology loop...")
+    from theory_x.diversity import build_diversity_loop
+    diversity_loop = build_diversity_loop(writers, readers)
+    diversity_loop.start()
+    log.info("Diversity loop ready")
+
+    # 15. Arc reader (LLM-free, retrospective arc detection)
+    log.info("Starting arc reader loop...")
+    from theory_x.arcs.loop import build_arc_loop
+    arc_loop = build_arc_loop(writers, readers)
+    arc_loop.start()
+    log.info("Arc loop ready — scanning every 5 min")
+
+    # 16. Probe archaeology (Lens Theory)
+    probe_runner = None
+    probes_reader = readers.get("probes")
+    try:
+        from theory_x.probes.probe_runner import ProbeRunner
+        probe_runner = ProbeRunner(
+            probes_writer=writers["probes"],
+            beliefs_reader=readers["beliefs"],
+            dynamic_reader=readers["dynamic"],
+            sense_reader=readers["sense"],
+        )
+        log.info("Probe runner ready — Lens Theory archaeology online")
+    except Exception as _probe_err:
+        log.warning("Probe runner failed to start (non-fatal): %s", _probe_err)
+
+    # 17. Wire AppState and start GUI
     state = AppState(
         writers=writers,
         readers=readers,
@@ -155,6 +243,13 @@ def main() -> None:
         tool_registry=tool_registry,
         tool_caller=tool_caller,
         speech_consumer=speech_consumer,
+        mode_state=mode_state,
+        voice_state=voice_state,
+        signal_loop=signal_loop,
+        diversity_loop=diversity_loop,
+        arc_loop=arc_loop,
+        probe_runner=probe_runner,
+        probes_reader=probes_reader,
     )
     atexit.register(state.close)
 
