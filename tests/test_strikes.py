@@ -229,7 +229,7 @@ class TestStrikeProtocol(unittest.TestCase):
         from strikes.protocols import StrikeProtocol
 
         class FastSilenceProtocol(StrikeProtocol):
-            def _fire_silence(self, fired_at, beliefs_before, hottest_branch, readiness_score):
+            def _fire_silence(self, fired_at, beliefs_before, hottest_branch, readiness_score, context_snapshot=None):
                 # Override to skip the 60s wait in tests
                 from strikes.catalogue import StrikeRecord
                 return StrikeRecord(
@@ -263,6 +263,85 @@ class TestStrikeProtocol(unittest.TestCase):
         proto, cat = _make_protocol(self.writers, self.readers, self.tmp)
         record = proto.fire(StrikeType.NOVEL)
         self.assertEqual(record.hottest_branch, "systems")
+
+
+# ---- context_snapshot in fire() ---------------------------------------------
+
+class TestStrikeContextSnapshot(unittest.TestCase):
+    """snapshot_context() wired into fire(): populated, None, and error paths."""
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def _make_proto(self, sense_reader):
+        from strikes.catalogue import StrikeCatalogue
+        from strikes.protocols import StrikeProtocol
+        cat = StrikeCatalogue(db_path=str(Path(self.tmp) / "strikes_catalogue.db"))
+        return StrikeProtocol(
+            voice=_mock_voice("test response"),
+            dynamic_state=_mock_dynamic(),
+            beliefs_reader=self.readers["beliefs"],
+            sense_writer=self.writers["sense"],
+            catalogue=cat,
+            dynamic_reader=self.readers["dynamic"],
+            sense_reader=sense_reader,
+        ), cat
+
+    def test_fire_with_sense_reader_captures_snapshot(self):
+        """Wired sense_reader: context_snapshot is JSON with all 9 required keys."""
+        import json
+        from strikes.protocols import StrikeType
+        proto, cat = self._make_proto(self.readers["sense"])
+        record = proto.fire(StrikeType.NOVEL)
+        self.assertIsNotNone(record.context_snapshot)
+        snap = json.loads(record.context_snapshot)
+        self.assertIsInstance(snap, dict)
+        for key in ("active_arcs", "dormant_top5", "open_signals", "recent_fires",
+                    "groove_alerts", "cooldowns", "feed_activity",
+                    "branch_activations", "current_mode"):
+            self.assertIn(key, snap, f"Missing snapshot key: {key}")
+
+    def test_fire_without_sense_reader_context_snapshot_is_none(self):
+        """No sense_reader: fire() succeeds and context_snapshot is NULL."""
+        from strikes.protocols import StrikeType
+        proto, cat = self._make_proto(None)
+        record = proto.fire(StrikeType.NOVEL)
+        self.assertIsNone(record.context_snapshot)
+
+    def test_fire_with_exploding_sense_reader_stores_error(self):
+        """Raising sense_reader: fire() succeeds, context_snapshot is error sentinel."""
+        from strikes.protocols import StrikeType
+        boom = MagicMock()
+        boom.read.side_effect = RuntimeError("sense db gone")
+        # snapshot_context catches per-field errors internally — override at module import level
+        # by giving a beliefs_reader that explodes too, so the outer try/except in
+        # _capture_snapshot is triggered instead
+        exploding_beliefs = MagicMock()
+        exploding_beliefs.read.side_effect = RuntimeError("beliefs db gone")
+        from strikes.catalogue import StrikeCatalogue
+        from strikes.protocols import StrikeProtocol
+        cat = StrikeCatalogue(db_path=str(Path(self.tmp) / "strikes_catalogue2.db"))
+        # Patch snapshot_context itself to raise so _capture_snapshot's except branch fires
+        from unittest.mock import patch
+        with patch("theory_x.probes.context_snapshot.snapshot_context", side_effect=RuntimeError("total snap failure")):
+            proto = StrikeProtocol(
+                voice=_mock_voice("test"),
+                dynamic_state=_mock_dynamic(),
+                beliefs_reader=self.readers["beliefs"],
+                sense_writer=self.writers["sense"],
+                catalogue=cat,
+                dynamic_reader=self.readers["dynamic"],
+                sense_reader=boom,
+            )
+            record = proto.fire(StrikeType.NOVEL)
+        self.assertIsNotNone(record.context_snapshot)
+        self.assertTrue(
+            record.context_snapshot.startswith("[ERROR:"),
+            f"Expected error sentinel, got: {record.context_snapshot!r}",
+        )
 
 
 # ---- _read_last_fire_ts ------------------------------------------------------

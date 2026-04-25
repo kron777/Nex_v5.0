@@ -10,8 +10,9 @@ from __future__ import annotations
 
 import sqlite3
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Optional
 
 from substrate.paths import data_dir
 
@@ -19,17 +20,18 @@ THEORY_X_STAGE = None
 
 _CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS strike_records (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    strike_type     TEXT NOT NULL,
-    fired_at        REAL NOT NULL,
-    input_text      TEXT NOT NULL DEFAULT '',
-    response_text   TEXT NOT NULL DEFAULT '',
-    fountain_fired  INTEGER NOT NULL DEFAULT 0,
-    beliefs_before  INTEGER NOT NULL DEFAULT 0,
-    beliefs_after   INTEGER NOT NULL DEFAULT 0,
-    hottest_branch  TEXT,
-    readiness_score REAL,
-    notes           TEXT NOT NULL DEFAULT ''
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    strike_type       TEXT NOT NULL,
+    fired_at          REAL NOT NULL,
+    input_text        TEXT NOT NULL DEFAULT '',
+    response_text     TEXT NOT NULL DEFAULT '',
+    fountain_fired    INTEGER NOT NULL DEFAULT 0,
+    beliefs_before    INTEGER NOT NULL DEFAULT 0,
+    beliefs_after     INTEGER NOT NULL DEFAULT 0,
+    hottest_branch    TEXT,
+    readiness_score   REAL,
+    notes             TEXT NOT NULL DEFAULT '',
+    context_snapshot  TEXT
 );
 """
 _CREATE_INDEX = "CREATE INDEX IF NOT EXISTS idx_strike_ts ON strike_records(fired_at);"
@@ -48,6 +50,7 @@ class StrikeRecord:
     hottest_branch: str
     readiness_score: float
     notes: str
+    context_snapshot: Optional[str] = None
 
 
 def _catalogue_path() -> Path:
@@ -68,14 +71,19 @@ class StrikeCatalogue:
         with self._connect() as conn:
             conn.execute(_CREATE_TABLE)
             conn.execute(_CREATE_INDEX)
+            # Migration: add context_snapshot column to existing DBs
+            existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(strike_records)")}
+            if "context_snapshot" not in existing_cols:
+                conn.execute("ALTER TABLE strike_records ADD COLUMN context_snapshot TEXT")
 
     def save(self, record: StrikeRecord) -> int:
         with self._connect() as conn:
             cur = conn.execute(
                 "INSERT INTO strike_records "
                 "(strike_type, fired_at, input_text, response_text, fountain_fired, "
-                "beliefs_before, beliefs_after, hottest_branch, readiness_score, notes) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "beliefs_before, beliefs_after, hottest_branch, readiness_score, notes, "
+                "context_snapshot) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     record.strike_type,
                     record.fired_at,
@@ -87,6 +95,7 @@ class StrikeCatalogue:
                     record.hottest_branch,
                     record.readiness_score,
                     record.notes,
+                    record.context_snapshot,
                 ),
             )
             return cur.lastrowid
@@ -123,6 +132,7 @@ class StrikeCatalogue:
                 hottest_branch=r["hottest_branch"] or "",
                 readiness_score=r["readiness_score"] or 0.0,
                 notes=r["notes"],
+                context_snapshot=r["context_snapshot"],
             )
             for r in rows
         ]

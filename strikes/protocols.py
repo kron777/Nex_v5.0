@@ -50,6 +50,7 @@ class StrikeProtocol:
         catalogue: StrikeCatalogue,
         membrane_state=None,
         dynamic_reader: Optional[Reader] = None,
+        sense_reader: Optional[Reader] = None,
     ) -> None:
         self._voice = voice
         self._dynamic = dynamic_state
@@ -58,6 +59,23 @@ class StrikeProtocol:
         self._catalogue = catalogue
         self._membrane = membrane_state
         self._dynamic_reader = dynamic_reader
+        self._sense_reader = sense_reader
+
+    def _capture_snapshot(self) -> Optional[str]:
+        """Call snapshot_context() and return JSON string, or error sentinel, or None."""
+        if self._sense_reader is None:
+            return None
+        try:
+            from theory_x.probes.context_snapshot import snapshot_context
+            import json
+            snap = snapshot_context(
+                beliefs_reader=self._beliefs_reader,
+                dynamic_reader=self._dynamic_reader,
+                sense_reader=self._sense_reader,
+            )
+            return json.dumps(snap)
+        except Exception as e:
+            return f"[ERROR: {e}]"
 
     def fire(self, strike_type: StrikeType, custom_input: str = "") -> StrikeRecord:
         fired_at = time.time()
@@ -65,9 +83,10 @@ class StrikeProtocol:
 
         beliefs_before = self._belief_count()
         hottest_branch, readiness_score = self._dynamic_snapshot()
+        context_snapshot = self._capture_snapshot()
 
         if strike_type == StrikeType.SILENCE:
-            record = self._fire_silence(fired_at, beliefs_before, hottest_branch, readiness_score)
+            record = self._fire_silence(fired_at, beliefs_before, hottest_branch, readiness_score, context_snapshot)
         else:
             input_text = custom_input.strip() or _DEFAULT_INPUTS[type_str]
             response_text = self._send(strike_type, input_text)
@@ -83,6 +102,7 @@ class StrikeProtocol:
                 hottest_branch=hottest_branch,
                 readiness_score=readiness_score,
                 notes="",
+                context_snapshot=context_snapshot,
             )
 
         record_id = self._catalogue.save(record)
@@ -141,6 +161,7 @@ class StrikeProtocol:
         beliefs_before: int,
         hottest_branch: str,
         readiness_score: float,
+        context_snapshot: Optional[str] = None,
     ) -> StrikeRecord:
         # Record fountain_events count BEFORE the 60s wait
         before_count = self._fountain_event_count()
@@ -191,6 +212,7 @@ class StrikeProtocol:
             hottest_branch=hottest_branch,
             readiness_score=readiness_score,
             notes="",
+            context_snapshot=context_snapshot,
         )
 
     def _fountain_event_count(self) -> int:
