@@ -22,6 +22,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from tests import _bootstrap  # noqa: F401
 
@@ -262,6 +263,76 @@ class TestStrikeProtocol(unittest.TestCase):
         proto, cat = _make_protocol(self.writers, self.readers, self.tmp)
         record = proto.fire(StrikeType.NOVEL)
         self.assertEqual(record.hottest_branch, "systems")
+
+
+# ---- _read_last_fire_ts ------------------------------------------------------
+
+class TestReadLastFireTs(unittest.TestCase):
+    """_read_last_fire_ts: live query, fallback, and error resilience."""
+
+    def _make_protocol_with_reader(self, dynamic_reader, tmp):
+        from strikes.catalogue import StrikeCatalogue
+        from strikes.protocols import StrikeProtocol
+        cat = StrikeCatalogue(db_path=str(Path(tmp) / "strikes_catalogue.db"))
+        return StrikeProtocol(
+            voice=_mock_voice(),
+            dynamic_state=_mock_dynamic(),
+            beliefs_reader=MagicMock(**{"read.return_value": []}),
+            sense_writer=MagicMock(),
+            catalogue=cat,
+            dynamic_reader=dynamic_reader,
+        )
+
+    def test_recent_ts_reduces_readiness(self):
+        """Reader returns a ts from 5s ago — elapsed < 600s, no +0.2 time bonus."""
+        tmp = tempfile.mkdtemp(prefix="nex5_lft_")
+        try:
+            reader = MagicMock()
+            reader.read.return_value = [{"last_ts": time.time() - 5}]
+            proto = self._make_protocol_with_reader(reader, tmp)
+            _, readiness = proto._dynamic_snapshot()
+            # hot branch "f" → +0.3; beliefs=0 → +0; elapsed<600 → +0; total=0.3
+            self.assertAlmostEqual(readiness, 0.3, places=5)
+        finally:
+            import shutil; shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_zero_ts_gives_full_time_bonus(self):
+        """Reader returns no rows (empty table) — falls back to 0.0, time bonus applies."""
+        tmp = tempfile.mkdtemp(prefix="nex5_lft_")
+        try:
+            reader = MagicMock()
+            reader.read.return_value = [{"last_ts": None}]
+            proto = self._make_protocol_with_reader(reader, tmp)
+            _, readiness = proto._dynamic_snapshot()
+            # hot branch → +0.3; last_fire_ts==0.0 → +0.2; total=0.5
+            self.assertAlmostEqual(readiness, 0.5, places=5)
+        finally:
+            import shutil; shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_reader_raises_falls_back_to_zero(self):
+        """Reader raises RuntimeError — falls back to 0.0, time bonus applies, no abort."""
+        tmp = tempfile.mkdtemp(prefix="nex5_lft_")
+        try:
+            reader = MagicMock()
+            reader.read.side_effect = RuntimeError("db gone")
+            proto = self._make_protocol_with_reader(reader, tmp)
+            last_ts = proto._read_last_fire_ts()
+            self.assertEqual(last_ts, 0.0)
+            # _dynamic_snapshot itself must not raise
+            hottest, readiness = proto._dynamic_snapshot()
+            self.assertIsInstance(readiness, float)
+            self.assertAlmostEqual(readiness, 0.5, places=5)
+        finally:
+            import shutil; shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_none_dynamic_reader_returns_zero(self):
+        """No dynamic_reader wired → returns 0.0 without error."""
+        tmp = tempfile.mkdtemp(prefix="nex5_lft_")
+        try:
+            proto = self._make_protocol_with_reader(None, tmp)
+            self.assertEqual(proto._read_last_fire_ts(), 0.0)
+        finally:
+            import shutil; shutil.rmtree(tmp, ignore_errors=True)
 
 
 # ---- GUI endpoints ------------------------------------------------------------

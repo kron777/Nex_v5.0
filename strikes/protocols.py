@@ -209,6 +209,24 @@ class StrikeProtocol:
         except Exception:
             return 0
 
+    def _read_last_fire_ts(self) -> float:
+        if self._dynamic_reader is None:
+            return 0.0
+        try:
+            rows = self._dynamic_reader.read(
+                "SELECT MAX(ts) AS last_ts FROM fountain_events"
+            )
+            if rows and rows[0]["last_ts"] is not None:
+                return float(rows[0]["last_ts"])
+            return 0.0
+        except Exception as e:
+            error_channel.record(
+                f"Strike: failed to read last_fire_ts from fountain_events: {e}",
+                source="strikes",
+                level="WARNING",
+            )
+            return 0.0
+
     def _dynamic_snapshot(self) -> tuple[str, float]:
         hottest_branch = ""
         readiness_score = 0.0
@@ -218,9 +236,10 @@ class StrikeProtocol:
             if branches:
                 top = max(branches, key=lambda b: b.get("focus_num", 0))
                 hottest_branch = top.get("branch_id", "")
+            last_fire_ts = self._read_last_fire_ts()
             from theory_x.stage6_fountain.readiness import ReadinessEvaluator
             readiness_score = ReadinessEvaluator().score(
-                self._dynamic, self._beliefs_reader, last_fire_ts=0.0
+                self._dynamic, self._beliefs_reader, last_fire_ts=last_fire_ts
             )
         except Exception:
             pass
