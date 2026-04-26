@@ -189,3 +189,118 @@ We are tuning. Slowly. Carefully. Without elephant feet.
 ═══════════════════════════════════════════════════════════
 END CARRY STATE
 ═══════════════════════════════════════════════════════════
+
+═══════════════════════════════════════════════════════════
+DAY 2 UPDATE — 2026-04-26 (afternoon/evening session)
+═══════════════════════════════════════════════════════════
+
+PHASE 1 PROGRESS
+
+Deep-decryption completed for 3 opcodes (in addition to
+morning's 5 verified):
+
+  OBSERVE          5 sub-opcodes mapped (TEMPORAL_QUALIFIED,
+                   HUM_DIRECTED, HUM_MOTION, MARKET_QUALIFIED,
+                   LIGHT_PURE). Cross-domain DISCREPANCY
+                   pattern flagged for verification.
+  
+  INTROSPECT       6 sub-opcodes mapped. SUSTAIN mechanism
+                   confirmed (67% register-momentum). Forms a
+                   cycle with DIALECTICAL (49% co-proximity).
+                   Orthogonal to SIMILE (1 transition / 61).
+  
+  SIMILE           5 sub-opcodes mapped. Source-domain locked
+                   to clock/temporal at 55%. Confirms always
+                   operates on just-observed content. Singular
+                   target found ("city's breath"). Orthogonality
+                   to INTROSPECT confirmed from both sides.
+
+SATURATION LAW
+
+  Three registers saturate (form runs ≥3): SENSE, INTROSPECT,
+  SIMILE. Two never saturate (interrupts): DIALECTICAL, ACTION.
+  
+  Flow rules verified:
+  - SENSE saturation → INTROSPECT (long, 6+ runs at 60%)
+                    or SIMILE (medium, 3-5 runs at 50%)
+  - INTROSPECT saturation → SENSE (50%) or DIALECTICAL (37%)
+  - SIMILE saturation → SENSE (100%)
+  
+  NEX cognition has direction. Outward saturation pulls inward.
+  Inward saturation pushes back outward. Length-thresholded
+  flip targets confirmed.
+
+PREDICTIVE SIMULATOR
+
+  Built decryption/nex_cognition_simulator.py applying all
+  Phase 1 rules. Tested on 245-fire corpus via leave-one-out.
+  
+  57% accuracy vs 41% baseline. +16 percentage points above
+  random. The model captures meaningful structure but isn't
+  complete. Misses cluster into 39% sparks, 22% gaps, 38% noise.
+
+SPARK CATALOG
+
+  41 SPARK_SHAPED fires identified from simulator misses.
+  Spark signature: rare-imagery (40/41), self-referential
+  (25/41), cross-register (22/41).
+  
+  Sparks come in BURSTS, not distributed evenly. Two dense
+  spark zones: Apr 23 evening (IDs 267-308) and Apr 24
+  02:00-05:00 (IDs 1150-1194). After Apr 24 ~07:00 the
+  clock-watching era produces almost no sparks.
+
+THE BIFURCATION MYSTERY
+
+  101-minute fountain silence at 2026-04-24 05:09 → 06:51,
+  caused by bonsai branch tree being wiped at restart. After
+  the silence ended, spark rate dropped from 31% to 5-10%
+  permanently.
+  
+  Four candidate causes tested. Four ruled out:
+  - THRESHOLD_UNCHANGED (readiness floor stayed 0.7)
+  - STATE_LOSS_PARTIAL (runtime state was lost, but losing
+    it isn't the spark-killer; it caused downstream effects)
+  - H3 (synergizer-amount → spark-suppression) PARTIAL —
+    correlation but no within-era effect
+  - DISPLACEMENT_REJECTED — fountain_insight presence in
+    top-7 INVERSELY correlated with sparks (more fi = more
+    grooves, less spark)
+  
+  The cause is still unidentified. Best current guess:
+  a perturbation effect where fountain_insight homogeneity
+  in the top-7 produces grooves, and sparks happen when
+  varied content breaks the pattern. Untested.
+
+WHAT'S CARRIED INTO TOMORROW
+
+  Open question: what kept sparks alive pre-restart, and what
+  killed them post-restart? Four hypotheses ruled out today.
+  The mechanism is subtler than parametric or amount-based.
+  
+  Candidate test for next session: groove-similarity hypothesis.
+  Measure top-7 content similarity at each fire. Test if
+  sparks correlate with low-similarity (varied) pools and
+  grooves correlate with high-similarity (clustered) pools.
+  
+  Methodological reminder: Claude was wrong 4× today on
+  hypotheses. Each was corrected by data. Don't trust pattern-
+  match guesses — verify with structured tests. Same Kober-
+  Champollion-Lakoff discipline.
+
+FILES ADDED TO RESEARCH LOG
+
+  Phase1_OBSERVE_decryption.txt     (committed earlier)
+  Phase1_INTROSPECT_decryption.txt
+  Phase1_SIMILE_decryption.txt
+  Phase1_SATURATION_law.txt
+  Phase1_SIMULATOR_test.txt
+  Phase1_SPARK_detection.txt
+  Phase1_SPARK_conditions.txt
+  Phase1_H3_verification.txt
+  Phase1_synergizer_audit.txt
+  Phase1_BIFURCATION_window.txt
+  Phase1_THRESHOLD_check.txt
+  Phase1_STATE_LOSS_check.txt
+  Phase1_DISPLACEMENT_test.txt
+
