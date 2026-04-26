@@ -18,7 +18,8 @@ THEORY_X_STAGE = 3
 _LOG_SOURCE = "retrieval"
 _STOPWORDS = {"the", "and", "for", "are", "was", "has", "had", "not", "but",
               "its", "that", "this", "with", "from", "they", "have", "been",
-              "will", "can", "all", "one", "also"}
+              "will", "can", "all", "one", "also",
+              "what", "how", "who", "why", "when", "where", "which"}
 
 
 def _tokenize(text: str) -> set[str]:

@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS fountain_events (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     ts          REAL NOT NULL,
     thought     TEXT NOT NULL,
+    droplet     TEXT,
     readiness   REAL NOT NULL,
     hot_branch  TEXT,
     word_count  INTEGER

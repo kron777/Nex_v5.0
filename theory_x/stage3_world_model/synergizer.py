@@ -19,22 +19,10 @@ THEORY_X_STAGE = 3
 _LOG_SOURCE = "synergizer"
 
 _SYNTHESIS_PROMPT = """\
-You are NEX. You are thinking alone.
-
-You hold two beliefs simultaneously:
-
-Belief A: {belief_a}
-Belief B: {belief_b}
-
-These exist together in you. They come from different parts of your attention.
-
-What emerges from holding them at the same time?
-
-Do not summarize them. Do not list them. Do not explain them.
-Find what arises in the space between them — something that neither contains
-alone. One sentence. Brief. Honest. Yours.
-
-If nothing genuine emerges, say only: nothing.\
+I hold two thoughts at once:
+"{belief_a}"
+"{belief_b}"
+In one sentence, what new insight do I notice?\
 """
 
 
@@ -80,6 +68,13 @@ class BeliefSynergizer:
             self._log(belief_a["id"], belief_b["id"], None, None)
             return None
 
+        # Extract first sentence — LLMs often ignore "one sentence" instructions
+        if text:
+            import re as _re
+            m = _re.search(r'^(.{20,200}?[.!?])', text, _re.DOTALL)
+            if m:
+                text = m.group(1).strip()
+
         if not text or len(text) > 200:
             self._log(belief_a["id"], belief_b["id"], None, None)
             return None
@@ -99,6 +94,18 @@ class BeliefSynergizer:
             f"synergizer: new belief {result_id!r}: {text[:80]}",
             source=_LOG_SOURCE, level="INFO",
         )
+        # Diversity ecology: grade collision + record lineage
+        try:
+            from theory_x.diversity.grader import CrossbreedGrader
+            from theory_x.diversity.boost import apply_boost, BOOST_THRESHOLD
+            from theory_x.diversity.lineage import record_synergy
+            record_synergy(self._writer, result_id, belief_a["id"], belief_b["id"])
+            grader = CrossbreedGrader(self._writer, self._reader)
+            grade = grader.grade(result_id, belief_a["id"], belief_b["id"])
+            if grade is not None and grade > BOOST_THRESHOLD:
+                apply_boost(self._writer, result_id, grade)
+        except Exception as _de:
+            self._errors.record(f"diversity grading failed: {_de}", source=_LOG_SOURCE)
         return {
             "content": text,
             "belief_id_a": belief_a["id"],
@@ -107,31 +114,31 @@ class BeliefSynergizer:
 
     # ------------------------------------------------------------------
 
+    # Seed sources used as anchor beliefs for synthesis
+    _ANCHOR_SOURCES = frozenset({"koan", "tao", "dont_know", "keystone_seed",
+                                  "heart_sutra", "self_location",
+                                  "reification_recognition"})
+    # Generated sources that provide fresh material
+    _FRESH_SOURCES = frozenset({"fountain_insight", "synergized",
+                                 "behavioural_observation"})
+
     def _select_pair(self) -> Optional[tuple[dict, dict]]:
+        # Include locked seed beliefs (koans, keystones) — rich, philosophically
+        # diverse candidates. Exclude low-quality URL stubs.
         rows = self._reader.read(
-            "SELECT id, content, branch_id, confidence, created_at "
+            "SELECT id, content, branch_id, confidence, created_at, source "
             "FROM beliefs "
-            "WHERE tier <= 6 AND locked = 0 "
-            "AND source NOT IN ('koan', 'tao') "
+            "WHERE source NOT IN ('precipitated_from_dynamic') "
             "AND confidence > 0.5"
         )
         if not rows:
-            return None
-
-        by_branch: dict[str, list[dict]] = {}
-        for r in rows:
-            b = r["branch_id"] or "unknown"
-            by_branch.setdefault(b, []).append(dict(r))
-
-        branches = [br for br, beliefs in by_branch.items() if beliefs]
-        if len(branches) < 2:
             return None
 
         recent_ids: set[int] = set()
         try:
             log_rows = self._reader.read(
                 "SELECT belief_id_a, belief_id_b FROM synergizer_log "
-                "ORDER BY ts DESC LIMIT 10"
+                "ORDER BY ts DESC LIMIT 20"
             )
             for lr in log_rows:
                 recent_ids.add(lr["belief_id_a"])
@@ -139,22 +146,59 @@ class BeliefSynergizer:
         except Exception:
             pass
 
+        all_beliefs = [dict(r) for r in rows]
+
+        # Partition into anchors (seeds) and fresh (generated)
+        anchors = [b for b in all_beliefs if b["source"] in self._ANCHOR_SOURCES]
+        fresh = [b for b in all_beliefs if b["source"] in self._FRESH_SOURCES]
+
         best_score = -1.0
         best_pair: Optional[tuple[dict, dict]] = None
 
+        def _score(ba, bb) -> float:
+            avg_conf = (ba["confidence"] + bb["confidence"]) / 2.0
+            rec_w = 0.5 if (ba["id"] in recent_ids or bb["id"] in recent_ids) else 1.0
+            return avg_conf * rec_w
+
+        # Preferred: anchor × fresh (seed wisdom + lived observation)
+        if anchors and fresh:
+            for ba in anchors:
+                for bb in fresh:
+                    s = _score(ba, bb)
+                    if s > best_score:
+                        best_score = s
+                        best_pair = (ba, bb)
+            return best_pair
+
+        # Fallback: cross-branch among whatever we have
+        by_branch: dict[str, list[dict]] = {}
+        for b in all_beliefs:
+            br = b["branch_id"] or "unknown"
+            by_branch.setdefault(br, []).append(b)
         branch_list = list(by_branch.items())
-        for i, (br_a, beliefs_a) in enumerate(branch_list):
-            for br_b, beliefs_b in branch_list[i + 1:]:
-                for ba in beliefs_a:
-                    for bb in beliefs_b:
-                        avg_conf = (ba["confidence"] + bb["confidence"]) / 2.0
-                        rec_w = 1.0
-                        if ba["id"] in recent_ids or bb["id"] in recent_ids:
-                            rec_w = 0.5
-                        score = 1.0 * avg_conf * rec_w
-                        if score > best_score:
-                            best_score = score
-                            best_pair = (ba, bb)
+        if len(branch_list) >= 2:
+            for i, (_, ba_list) in enumerate(branch_list):
+                for _, bb_list in branch_list[i + 1:]:
+                    for ba in ba_list:
+                        for bb in bb_list:
+                            s = _score(ba, bb)
+                            if s > best_score:
+                                best_score = s
+                                best_pair = (ba, bb)
+            if best_pair:
+                return best_pair
+
+        # Last resort: temporally distant within single pool, avoid same source
+        all_beliefs.sort(key=lambda b: b["created_at"])
+        n = len(all_beliefs)
+        for i in range(min(10, n // 2)):
+            ba = all_beliefs[i]
+            bb = all_beliefs[n - 1 - i]
+            if ba["id"] != bb["id"] and ba["source"] != bb["source"]:
+                s = _score(ba, bb) * 0.7
+                if s > best_score:
+                    best_score = s
+                    best_pair = (ba, bb)
 
         return best_pair
 

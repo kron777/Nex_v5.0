@@ -81,11 +81,15 @@ class TestSelectPair(unittest.TestCase):
     def tearDown(self):
         _cleanup(self.writers, self.tmp)
 
-    def test_returns_none_fewer_than_2_branches(self):
+    def test_within_branch_fallback_when_single_branch(self):
+        # With only one branch, synergizer falls back to within-branch pairs
         _seed_belief(self.writers, "Attention is selective.", "crypto")
         _seed_belief(self.writers, "Entropy is everywhere.", "crypto")
         s = _make_synergizer(self.writers, self.readers)
-        self.assertIsNone(s._select_pair())
+        pair = s._select_pair()
+        self.assertIsNotNone(pair)
+        ba, bb = pair
+        self.assertNotEqual(ba["id"], bb["id"])
 
     def test_returns_cross_branch_pair(self):
         _seed_belief(self.writers, "Attention is selective.", "crypto")
@@ -205,11 +209,14 @@ class TestSynthesize(unittest.TestCase):
         result = s.synthesize()
         self.assertIsNone(result)
 
-    def test_returns_none_when_not_enough_branches(self):
+    def test_within_branch_fallback_synthesizes(self):
+        # Single branch with 2 beliefs: falls back to within-branch pairing
         _seed_belief(self.writers, "Attention is selective.", "crypto")
         _seed_belief(self.writers, "Entropy is everywhere.", "crypto")
         s = _make_synergizer(self.writers, self.readers)
-        self.assertIsNone(s.synthesize())
+        # synthesize() should attempt the LLM call; with mock it succeeds
+        result = s.synthesize()
+        self.assertIsNotNone(result)
 
 
 class TestSynergizerLogTable(unittest.TestCase):

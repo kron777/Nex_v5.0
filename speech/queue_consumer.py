@@ -14,13 +14,34 @@ from .player import Player
 log = logging.getLogger("nex5.speech.consumer")
 
 
+def _is_speakable(content: str) -> bool:
+    """Return False if content looks like raw JSON or machine-generated data."""
+    if not content:
+        return False
+    stripped = content.strip()
+    # Raw JSON object or array
+    if stripped.startswith(("{", "[")) and stripped.endswith(("}", "]")):
+        return False
+    # Source-prefixed JSON: "[stream.name] {...}" or "[stream.name] [...]"
+    if stripped.startswith("[") and "]" in stripped[:40]:
+        after_bracket = stripped[stripped.index("]") + 1:].strip()
+        if after_bracket.startswith(("{", "[")):
+            return False
+    # Absurdly long strings are probably data, not speech
+    if len(stripped) > 400:
+        return False
+    return True
+
+
 class SpeechQueueConsumer(threading.Thread):
-    def __init__(self, writer, reader, config: Optional[SpeechConfig] = None) -> None:
+    def __init__(self, writer, reader, config: Optional[SpeechConfig] = None,
+                 voice_state=None, backend=None) -> None:
         super().__init__(name="nex5.speech.consumer", daemon=True)
         self.writer = writer
         self.reader = reader
         self.config = config or SpeechConfig.from_env()
-        self.backend = KokoroBackend(
+        self._voice_state = voice_state
+        self.backend = backend if backend is not None else KokoroBackend(
             voice=self.config.voice,
             speed=self.config.speed,
         )
@@ -60,10 +81,17 @@ class SpeechQueueConsumer(threading.Thread):
         )
 
     def run(self) -> None:
+        if self.backend.is_loaded:
+            log.info("SpeechQueueConsumer thread starting (Kokoro pre-loaded, voice=%s)",
+                     self.config.voice)
+        else:
+            log.info("SpeechQueueConsumer thread starting, loading Kokoro (voice=%s)...",
+                     self.config.voice)
         try:
-            self.backend.load()
+            self.backend.load()  # no-op if already pre-loaded on main thread
+            log.info("SpeechQueueConsumer: Kokoro ready, entering poll loop")
         except Exception as e:
-            log.error("Kokoro did not load, speech disabled: %s", e)
+            log.error("SpeechQueueConsumer: Kokoro load failed, speech disabled: %s", e)
             return
 
         while not self._stop.is_set():
@@ -91,11 +119,28 @@ class SpeechQueueConsumer(threading.Thread):
     def _speak_one(self, row) -> None:
         qid = row["id"]
         content = row["content"]
+        # Use voice from VoiceState if available, else fall back to row voice or config
+        voice = None
+        if self._voice_state is not None:
+            try:
+                voice = self._voice_state.current_name()
+            except Exception:
+                pass
+        if not voice:
+            voice = row.get("voice") or self.config.voice
+        if not _is_speakable(content):
+            self.writer.write(
+                "UPDATE speech_queue SET status='suppressed' WHERE id=?", (qid,)
+            )
+            log.info("speech suppressed (non-speakable content) id=%s chars=%d",
+                     qid, len(content))
+            return
+
         self.writer.write(
             "UPDATE speech_queue SET status='speaking' WHERE id=?", (qid,)
         )
         try:
-            audio, sr = self.backend.synth(content)
+            audio, sr = self.backend.synth(content, voice=voice)
             self.player.play(audio, sr)
             self.writer.write(
                 "UPDATE speech_queue SET status='spoken', spoken_at=? WHERE id=?",

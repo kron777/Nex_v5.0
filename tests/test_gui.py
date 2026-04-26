@@ -64,7 +64,7 @@ class TestGuiEndpoints(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(
             set(r.get_json().keys()),
-            {"beliefs", "sense", "dynamic", "intel", "conversations"},
+            {"beliefs", "sense", "dynamic", "intel", "conversations", "probes"},
         )
 
     def test_admin_flow(self):

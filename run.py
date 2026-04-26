@@ -63,7 +63,29 @@ def main() -> None:
     belief_id = commitment.commit(writers["beliefs"], readers["beliefs"])
     log.info("Self-location committed (belief id=%d)", belief_id)
 
-    # 4. Mode state (must be before scheduler + fountain)
+    # 4. Pre-load Kokoro on main thread BEFORE any worker threads spawn.
+    #    Loading inside a background thread races against other torch-importing
+    #    threads and causes Python's _ModuleLock to deadlock every boot.
+    from speech.config import SpeechConfig as _SpeechCfg
+    from speech.kokoro_backend import KokoroBackend as _KokoroBackend
+    _speech_cfg_pre = _SpeechCfg.from_env()
+    _kokoro_backend: "_KokoroBackend | None" = None
+    if _speech_cfg_pre.enabled:
+        log.info("Pre-loading Kokoro on main thread...")
+        try:
+            _kokoro_backend = _KokoroBackend(
+                voice=_speech_cfg_pre.voice,
+                speed=_speech_cfg_pre.speed,
+            )
+            _kokoro_backend.load()
+            log.info("Kokoro pre-loaded successfully")
+        except Exception as _ke:
+            log.error("Kokoro pre-load failed (speech will be disabled): %s", _ke)
+            _kokoro_backend = None
+    else:
+        log.info("Speech disabled — skipping Kokoro pre-load")
+
+    # 5. Mode state (must be before scheduler + fountain)
     log.info("Initialising mode state...")
     mode_state = build_mode_state(writers, readers)
     log.info("Mode state ready — current mode: %s", mode_state.current_name())
@@ -159,32 +181,10 @@ def main() -> None:
                 reader=readers["beliefs"],
                 config=speech_cfg,
                 voice_state=voice_state,
+                backend=_kokoro_backend,
             )
             speech_consumer.start()
             log.info("Speech consumer started (voice=%s)", speech_cfg.voice)
-
-            # Backfill: enqueue any fountain_insight beliefs not yet in speech_queue
-            try:
-                import time as _time
-                unqueued = readers["beliefs"].read(
-                    "SELECT id, content FROM beliefs "
-                    "WHERE source='fountain_insight' AND locked=0 "
-                    "AND id NOT IN (SELECT belief_id FROM speech_queue) "
-                    "ORDER BY created_at DESC LIMIT 20"
-                )
-                for row in unqueued:
-                    content = (row["content"] or "").strip()
-                    if speech_cfg.min_chars <= len(content) <= speech_cfg.max_chars:
-                        writers["beliefs"].write(
-                            "INSERT INTO speech_queue "
-                            "(belief_id, content, voice, queued_at) VALUES (?, ?, ?, ?)",
-                            (row["id"], content, speech_cfg.voice, _time.time()),
-                        )
-                if unqueued:
-                    log.info("Speech: backfilled %d existing fountain_insight beliefs",
-                             len(unqueued))
-            except Exception as _e:
-                log.warning("Speech backfill failed (non-fatal): %s", _e)
         else:
             log.info("Speech disabled via NEX5_SPEECH_ENABLED=false")
     except Exception as e:
@@ -212,7 +212,14 @@ def main() -> None:
     arc_loop.start()
     log.info("Arc loop ready — scanning every 5 min")
 
-    # 16. Probe archaeology (Lens Theory)
+    # 16. Belief edge generator (Tropic Gradient Phase 1)
+    log.info("Starting edge generator loop...")
+    from theory_x.stage3_world_model.edge_generator import build_edge_generator_loop
+    edge_generator_loop = build_edge_generator_loop(writers, readers)
+    edge_generator_loop.start()
+    log.info("EdgeGeneratorLoop started (tick=30min)")
+
+    # 17. Probe archaeology (Lens Theory)
     probe_runner = None
     probes_reader = readers.get("probes")
     try:
@@ -227,7 +234,7 @@ def main() -> None:
     except Exception as _probe_err:
         log.warning("Probe runner failed to start (non-fatal): %s", _probe_err)
 
-    # 17. Wire AppState and start GUI
+    # 18. Wire AppState and start GUI
     state = AppState(
         writers=writers,
         readers=readers,

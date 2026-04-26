@@ -38,11 +38,14 @@ logger = logging.getLogger("stage1_sense.scheduler")
 class _AdapterThread:
     """Manages one adapter: one background thread, status tracking."""
 
-    def __init__(self, adapter: Adapter, global_run: threading.Event) -> None:
+    def __init__(self, adapter: Adapter, global_run: threading.Event, mode_state=None) -> None:
         self.adapter = adapter
         self._global_run = global_run
         self._local_run = threading.Event()
         self._stop = threading.Event()
+        self._mode_state = mode_state
+        # First segment of stream name is the feed-weight key (e.g. "crypto" from "crypto.btc")
+        self._weight_key = adapter.stream.split(".")[0] if adapter.stream else ""
 
         self.last_poll_at: int | None = None
         self.last_event_count: int = 0
@@ -64,11 +67,24 @@ class _AdapterThread:
             return self._local_run.is_set()
         return self._global_run.is_set() and self._local_run.is_set()
 
+    def _feed_weight(self) -> float:
+        if self._mode_state is None or self.adapter.is_internal:
+            return 1.0
+        try:
+            weights = self._mode_state.current().feed_weights
+            return weights.get(self._weight_key, 1.0)
+        except Exception:
+            return 1.0
+
     def _run(self) -> None:
         while not self._stop.is_set():
             if not self._should_run():
                 # Sleep in 1s slices so stop() and enable() wake us quickly.
                 self._stop.wait(timeout=1.0)
+                continue
+
+            if self._feed_weight() == 0.0:
+                self._stop.wait(timeout=self.adapter.poll_interval_seconds)
                 continue
 
             try:
@@ -116,11 +132,11 @@ class _AdapterThread:
 class SenseScheduler:
     """Owns all adapter threads; exposes control and status surface."""
 
-    def __init__(self, adapters: list[Adapter]) -> None:
+    def __init__(self, adapters: list[Adapter], mode_state=None) -> None:
         self._global_run = threading.Event()
         self._threads: dict[str, _AdapterThread] = {}
         for adapter in adapters:
-            self._threads[adapter.id] = _AdapterThread(adapter, self._global_run)
+            self._threads[adapter.id] = _AdapterThread(adapter, self._global_run, mode_state=mode_state)
         logger.info(
             "SenseScheduler started with %d adapters (%d internal, %d external)",
             len(adapters),

@@ -4,6 +4,10 @@
   <meta charset="utf-8">
   <title>NEX 5.0</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script>
+    /* Apply saved theme before first paint — prevents flash of wrong theme */
+    (function(){var t=localStorage.getItem('nex5_theme');if(t==='light')document.documentElement.classList.add('light-mode');})();
+  </script>
 </head>
 <body>
 
@@ -104,6 +108,40 @@
     <div class="col-subheader">OPEN PROBLEMS <span class="sub-meta" id="problems-meta">—</span></div>
     <div id="problems-feed" style="flex-shrink:0;overflow-y:auto;max-height:90px;font-size:10px;padding:2px 4px;"></div>
 
+    <!-- Signals -->
+    <div class="col-subheader">SIGNALS <span class="sub-meta" id="signals-meta">—</span></div>
+    <div id="signals-feed" style="flex-shrink:0;overflow-y:auto;max-height:100px;font-size:10px;padding:2px 4px;color:var(--fg2);"></div>
+
+    <!-- Diversity -->
+    <div class="col-subheader">DIVERSITY <span class="sub-meta" id="diversity-meta">—</span></div>
+    <div id="diversity-feed" style="flex-shrink:0;overflow-y:auto;max-height:120px;font-size:10px;padding:2px 4px;color:var(--fg2);"></div>
+
+    <!-- Arcs -->
+    <div class="col-subheader">ARCS <span class="sub-meta" id="arcs-meta">—</span></div>
+    <div id="arcs-feed" style="flex-shrink:0;overflow-y:auto;max-height:100px;font-size:10px;padding:2px 4px;color:var(--fg2);"></div>
+
+    <!-- Probes -->
+    <div class="col-subheader">PROBES <span class="sub-meta" id="probes-meta">—</span></div>
+    <div id="probes-panel" style="flex-shrink:0;padding:2px 4px;">
+      <div style="display:flex;gap:4px;margin-bottom:4px;">
+        <select id="probe-category" style="font-size:10px;background:var(--bg2);color:var(--fg);border:1px solid var(--border);padding:2px 4px;">
+          <option value="direct_phenomenology">DIRECT</option>
+          <option value="substitution">SUBST</option>
+          <option value="translation">TRANSL</option>
+        </select>
+        <select id="probe-library-select" style="font-size:10px;background:var(--bg2);color:var(--fg);border:1px solid var(--border);padding:2px 4px;flex:1;">
+          <option value="">— starter probes —</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:4px;margin-bottom:4px;">
+        <input type="text" id="probe-input" placeholder="type probe or pick from library…"
+               style="flex:1;font-size:10px;background:var(--bg2);color:var(--fg);border:1px solid var(--border);padding:2px 4px;">
+        <button id="probe-send-btn" style="font-size:10px;padding:2px 6px;background:var(--accent);color:#fff;border:none;cursor:pointer;">SEND</button>
+      </div>
+      <div id="probe-response" style="font-size:10px;color:var(--fg2);min-height:28px;padding:2px;white-space:pre-wrap;word-break:break-word;"></div>
+      <div id="probes-history" style="overflow-y:auto;max-height:100px;font-size:10px;color:var(--fg3);margin-top:4px;"></div>
+    </div>
+
     <!-- Chat -->
     <div class="col-subheader">CHAT</div>
     <div id="chat-pane">
@@ -181,6 +219,13 @@
   </select>
   <button class="sb-btn danger" id="strike-fire-btn" style="margin-left:0.3rem;">FIRE</button>
   <span id="strike-status" style="color:var(--fg3);font-size:10px;margin-left:0.4rem;"></span>
+  <span class="sb-sep">·</span>
+  <span class="sb-seg">mode: <select id="mode-select" class="status-dropdown"></select></span>
+  <span class="sb-sep">·</span>
+  <span class="sb-seg">voice: <select id="voice-select" class="status-dropdown"></select></span>
+  <span id="theme-toggle-wrap" title="Toggle light/dark mode">
+    <span id="theme-toggle-icon">☾</span>
+  </span>
 </div>
 
 <!-- Strike modal -->
@@ -221,5 +266,95 @@
 </div>
 
 <script src="{{ url_for('static', filename='app.js') }}"></script>
+<script>
+(function() {
+  var _probeLibrary = {};
+
+  function loadProbeLibrary() {
+    fetch('/api/probes/library').then(function(r){return r.json();}).then(function(data){
+      _probeLibrary = data;
+      populateLibrarySelect(document.getElementById('probe-category').value);
+    }).catch(function(){});
+  }
+
+  function populateLibrarySelect(category) {
+    var sel = document.getElementById('probe-library-select');
+    if (!sel) return;
+    while (sel.options.length > 1) sel.remove(1);
+    var probes = _probeLibrary[category] || [];
+    probes.forEach(function(p) {
+      var opt = document.createElement('option');
+      opt.value = p;
+      opt.textContent = p.length > 60 ? p.slice(0, 57) + '…' : p;
+      sel.appendChild(opt);
+    });
+  }
+
+  function renderProbeHistory(probes) {
+    var el = document.getElementById('probes-history');
+    if (!el) return;
+    el.innerHTML = probes.slice(0, 5).map(function(p) {
+      var cat = p.category.replace('_', ' ');
+      var q = (p.probe_text || '').slice(0, 50);
+      var a = (p.response_text || '').slice(0, 60);
+      return '<div style="border-top:1px solid var(--border);padding:2px 0;">' +
+        '<span style="color:var(--fg3)">[' + cat + ']</span> ' + q +
+        '<br><span style="color:var(--fg2)">' + a + '</span></div>';
+    }).join('');
+    var meta = document.getElementById('probes-meta');
+    if (meta) meta.textContent = probes.length + ' probes';
+  }
+
+  function loadProbeHistory() {
+    fetch('/api/probes/list').then(function(r){return r.json();}).then(function(data){
+      renderProbeHistory(data.probes || []);
+    }).catch(function(){});
+  }
+
+  function sendProbe() {
+    var category = document.getElementById('probe-category').value;
+    var probe_text = (document.getElementById('probe-input').value || '').trim();
+    if (!probe_text) return;
+    var responseEl = document.getElementById('probe-response');
+    responseEl.textContent = '…sending…';
+    fetch('/api/probes/run', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({category: category, probe_text: probe_text})
+    }).then(function(r){return r.json();}).then(function(data){
+      if (data.error) {
+        responseEl.textContent = '[error] ' + data.error;
+      } else {
+        responseEl.textContent = data.response_text || '(no response)';
+        document.getElementById('probe-input').value = '';
+        loadProbeHistory();
+      }
+    }).catch(function(e){
+      responseEl.textContent = '[network error] ' + e;
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    var catSel = document.getElementById('probe-category');
+    var libSel = document.getElementById('probe-library-select');
+    var sendBtn = document.getElementById('probe-send-btn');
+    var inp = document.getElementById('probe-input');
+
+    if (catSel) catSel.addEventListener('change', function() {
+      populateLibrarySelect(catSel.value);
+    });
+    if (libSel) libSel.addEventListener('change', function() {
+      if (libSel.value && inp) inp.value = libSel.value;
+    });
+    if (sendBtn) sendBtn.addEventListener('click', sendProbe);
+    if (inp) inp.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') sendProbe();
+    });
+
+    loadProbeLibrary();
+    loadProbeHistory();
+  });
+})();
+</script>
 </body>
 </html>

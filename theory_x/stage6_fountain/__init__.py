@@ -13,6 +13,7 @@ from voice.llm import VoiceClient
 
 from theory_x.stage6_fountain.generator import FountainGenerator
 from theory_x.stage6_fountain.crystallizer import FountainCrystallizer
+from theory_x.stage6_fountain.condenser import Condenser
 from theory_x.stage6_fountain.readiness import (
     FOUNTAIN_CHECK_INTERVAL_SECONDS,
     ReadinessEvaluator,
@@ -56,13 +57,21 @@ def build_fountain(
     readers: dict[str, Reader],
     voice_client: VoiceClient,
     dynamic_state=None,
+    problem_memory=None,
+    mode_state=None,
 ) -> FountainState:
     crystallizer = None
     if writers.get("beliefs") and readers.get("beliefs"):
         crystallizer = FountainCrystallizer(
             beliefs_writer=writers["beliefs"],
             beliefs_reader=readers["beliefs"],
+            conversations_reader=readers.get("conversations"),
+            problem_memory=problem_memory,
+            dynamic_reader=readers.get("dynamic"),
+            mode_state=mode_state,
         )
+
+    condenser = Condenser(voice_client=voice_client)
 
     generator = FountainGenerator(
         sense_writer=writers["sense"],
@@ -70,7 +79,12 @@ def build_fountain(
         voice_client=voice_client,
         dynamic_reader=readers["dynamic"],
         beliefs_writer=writers.get("beliefs"),
+        beliefs_reader=readers.get("beliefs"),
         crystallizer=crystallizer,
+        problem_memory=problem_memory,
+        sense_reader=readers.get("sense"),
+        condenser=condenser,
+        mode_state=mode_state,
     )
 
     state = FountainState(
@@ -82,13 +96,44 @@ def build_fountain(
     def fountain_loop() -> None:
         state._loop_running = True
         while True:
-            time.sleep(FOUNTAIN_CHECK_INTERVAL_SECONDS)
+            interval = FOUNTAIN_CHECK_INTERVAL_SECONDS
+            if mode_state is not None:
+                try:
+                    interval = mode_state.current().fountain_interval_seconds
+                except Exception:
+                    pass
+            time.sleep(interval)
             try:
                 if dynamic_state is None:
                     continue
+                if mode_state is not None:
+                    try:
+                        if not mode_state.current().fountain_enabled:
+                            logger.debug("Fountain suppressed by mode=%s", mode_state.current_name())
+                            continue
+                    except Exception:
+                        pass
+
+                # Diagnostic: log what the loop is deciding this tick
+                try:
+                    _readiness = generator._evaluator.score(
+                        dynamic_state, readers["beliefs"],
+                        last_fire_ts=generator.last_fire_ts(),
+                    )
+                    _elapsed = time.time() - generator.last_fire_ts()
+                    _will_fire = generator._evaluator.is_ready(_readiness)
+                    _mode_name = mode_state.current_name() if mode_state else "default"
+                    logger.info(
+                        "Fountain tick: readiness=%.2f interval=%ds elapsed=%.1fs "
+                        "will_fire=%s mode=%s",
+                        _readiness, interval, _elapsed, _will_fire, _mode_name,
+                    )
+                except Exception:
+                    pass
+
                 thought = generator.generate(dynamic_state, readers["beliefs"])
                 if thought:
-                    logger.info("Fountain: %s", thought[:100])
+                    logger.info("Fountain fired: %s", thought[:100])
             except Exception as e:
                 error_channel.record(
                     f"Fountain loop error: {e}", source="stage6_fountain", exc=e

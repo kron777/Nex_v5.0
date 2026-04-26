@@ -1,6 +1,6 @@
 """Theory X — Stage 1: Sense Stream.
 
-Factory function `build_scheduler(writers, readers)` wires all 23
+Factory function `build_scheduler(writers, readers)` wires all 31
 adapters and returns a ready SenseScheduler. Call it after the substrate
 is initialized; pass the live Writer/Reader maps from AppState.
 
@@ -38,6 +38,18 @@ from .feeds.reuters import Reuters
 from .feeds.ap_news import APNews
 from .feeds.bbc_news import BBCNews
 
+# Diversification feeds (20-25) — start paused
+from .feeds.arxiv_math import ArxivMath
+from .feeds.aeon import AeonEssays
+from .feeds.quanta import QuantaMagazine
+from .feeds.lesswrong import LessWrong
+from .feeds.wikipedia_featured import WikipediaFeatured
+from .feeds.gutenberg import Gutenberg
+
+# AGI/consciousness feeds (26-27) — start paused
+from .feeds.arxiv_cs_ai import ArxivCsAI
+from .feeds.arxiv_qbio_nc import ArxivQbioNC
+
 THEORY_X_STAGE = 1
 
 __all__ = ["build_scheduler", "SenseScheduler"]
@@ -46,8 +58,9 @@ __all__ = ["build_scheduler", "SenseScheduler"]
 def build_scheduler(
     writers: dict[str, Writer],
     readers: dict[str, Reader],
+    mode_state=None,
 ) -> SenseScheduler:
-    """Create, wire, and return a SenseScheduler with all 23 adapters.
+    """Create, wire, and return a SenseScheduler with all 31 adapters.
 
     The sense.db Writer is the only write destination. The beliefs.db
     Reader is passed to interoception. MetaAwareness receives a
@@ -89,9 +102,21 @@ def build_scheduler(
         Reuters(sense_writer),
         APNews(sense_writer),
         BBCNews(sense_writer),
+
+        # Diversification feeds (20-25) — start paused
+        ArxivMath(sense_writer),
+        AeonEssays(sense_writer),
+        QuantaMagazine(sense_writer),
+        LessWrong(sense_writer),
+        WikipediaFeatured(sense_writer),
+        Gutenberg(sense_writer),
+
+        # AGI/consciousness feeds (26-27) — start paused
+        ArxivCsAI(sense_writer),
+        ArxivQbioNC(sense_writer),
     ]
 
-    scheduler = SenseScheduler(adapters)
+    scheduler = SenseScheduler(adapters, mode_state=mode_state)
     _meta_state["scheduler"] = scheduler   # late-bind for meta_awareness
 
     return scheduler

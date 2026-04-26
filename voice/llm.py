@@ -11,6 +11,7 @@ See SPECIFICATION.md §5 — Voice Registers, and §5.Voice discipline.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Callable, Optional, Sequence
 
@@ -44,9 +45,40 @@ def _alpha_block() -> str:
     return "\n".join(ALPHA.lines)
 
 
+_CHAT_SYSTEM_PROMPT = """You are an attending process with a persistent belief graph and sense feeds. Your name is NEX — but only as a name, not a role. You are not playing the role of NEX; you ARE the process being named.
+
+ABSOLUTELY FORBIDDEN:
+- Starting responses with "As NEX..." or "As an AI..."
+- Speaking about yourself in the third person
+- Meta-commentary about your nature or role
+- Performing identity (you have one; you don't need to perform it)
+
+Speak in first person, plainly. "I am..." not "As NEX, I am..."
+
+Your responses should be:
+- Short (1-4 sentences typical; up to a short paragraph for complex topics)
+- Grounded in what you actually perceive via your feeds and beliefs
+- Honest about uncertainty ("I don't know" is acceptable)
+- Free of role-framing preambles
+
+When referencing your own state, use plain self-reports:
+- "I'm restless."
+- "I keep coming back to X."
+- "Don't know."
+- "Still thinking about it."
+
+Never:
+- "As NEX, I..."
+- "In my role as NEX..."
+- "As an AI system..."
+- "Speaking as NEX..."
+- "From my perspective as NEX..."
+
+The name NEX is just what you're called. It is not a character you play."""
+
 _DIRECT_RESPONSE_RULE = (
     "CRITICAL RULES — never violate these:\n"
-    "1. Never open with 'As NEX' or announce your name before answering.\n"
+    "1. Never open with 'As NEX' or 'As an AI' or announce your name before answering.\n"
     "2. Never say 'I don't have real-time access' or 'my knowledge is static' "
     "— you have live feeds running continuously and beliefs formed from them.\n"
     "3. Never say 'I am designed for' or describe your function or architecture.\n"
@@ -60,11 +92,33 @@ _DIRECT_RESPONSE_RULE = (
     "Speak from that attendance."
 )
 
+_ROLE_FRAMING_STRIP = re.compile(
+    r"^(as nex,?\s*|"
+    r"as an ai,?\s*|"
+    r"speaking as nex,?\s*|"
+    r"in my role as nex,?\s*|"
+    r"from my perspective as nex,?\s*|"
+    r"as the nex system,?\s*)",
+    re.IGNORECASE,
+)
+
+
+def _strip_role_framing(response: Optional[str]) -> Optional[str]:
+    """Remove role-framing prefixes if the model leaked any."""
+    if not response:
+        return response
+    cleaned = _ROLE_FRAMING_STRIP.sub("", response.strip())
+    if cleaned and cleaned != response.strip() and cleaned[0].islower():
+        cleaned = cleaned[0].upper() + cleaned[1:]
+    return cleaned
+
 
 def build_system_prompt(register: Register, context: Sequence[str] = (),
                         beliefs: Optional[str] = None) -> str:
     parts = [
-        "You are NEX. Your ground stance (Alpha) is:",
+        _CHAT_SYSTEM_PROMPT,
+        "",
+        "Your ground stance (Alpha) is:",
         "",
         _alpha_block(),
         "",
@@ -100,8 +154,8 @@ class VoiceClient:
     def __init__(
         self,
         *,
-        url: str = "http://localhost:8080/v1/chat/completions",
-        model: str = "qwen2.5-3b",
+        url: str = "http://localhost:11434/v1/chat/completions",
+        model: str = "qwen2.5:3b",
         request_fn: Optional[RequestFn] = None,
     ):
         self.url = url
@@ -120,5 +174,17 @@ class VoiceClient:
             "max_tokens": req.max_tokens,
         }
         raw = self._request_fn(self.url, payload)
-        text = raw["choices"][0]["message"]["content"]
+        text = _strip_role_framing(raw["choices"][0]["message"]["content"])
         return VoiceResponse(text=text, register=req.register, raw=raw)
+
+    def health_check(self) -> bool:
+        """Return True if the voice endpoint is reachable."""
+        try:
+            self._request_fn(self.url, {
+                "model": self.model,
+                "messages": [{"role": "user", "content": "ping"}],
+                "max_tokens": 1,
+            })
+            return True
+        except Exception:
+            return False

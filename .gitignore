@@ -20,3 +20,6 @@ venv/
 .idea/
 *.swp
 .DS_Store
+
+# Live runtime database — must never be committed
+/beliefs.db

@@ -84,12 +84,12 @@ class TestQualityCheck(unittest.TestCase):
         self.assertFalse(ok)
         self.assertEqual(reason, "too_long")
 
-    def test_rejects_no_self_reference(self):
+    def test_rejects_no_engagement(self):
         ok, reason = self.c._quality_check(
             "Attention collapses the probability space of possible futures."
         )
         self.assertFalse(ok)
-        self.assertEqual(reason, "no_self_reference")
+        self.assertEqual(reason, "no_engagement")
 
     def test_accepts_within(self):
         ok, reason = self.c._quality_check(

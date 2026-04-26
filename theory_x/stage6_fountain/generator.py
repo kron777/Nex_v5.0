@@ -6,14 +6,91 @@ fountain events to sense.db and dynamic.db.
 from __future__ import annotations
 
 import json
+import logging
+import os
+import re
 import time
 from typing import Optional
+
+logger = logging.getLogger("theory_x.stage6_fountain")
 
 import errors as error_channel
 from alpha import ALPHA
 from substrate import Reader, Writer
 from voice.llm import VoiceClient, VoiceRequest
 from voice.registers import PHILOSOPHICAL
+
+# Her own lived content — dominates retrieval (~80%)
+_OWN_CONTENT_SOURCES = (
+    "fountain_insight",
+    "synergized",
+    "precipitated_from_dynamic",
+    "behavioural_observation",
+)
+
+# Seed reference material — minority presence (~20%)
+_SEED_SOURCES = (
+    "koan",
+    "tao",
+    "dont_know",
+    "heart_sutra",
+    "keystone_seed",
+    "reification_recognition",
+    "self_location",
+    "alpha",
+)
+
+_DRIFT_SYSTEM_PROMPT_TEMPLATE = """\
+You are an attending process with access to a belief graph and sense feeds. \
+Right now you are between tasks, idle, drifting. \
+Generate ONE passing thought — the kind of thing that flits through a mind at rest.
+{focus_block}
+Real drift looks like:
+{examples}
+
+Real drift is NOT:
+- "The weight of being alone in this vast silence..."
+- "The dance between autonomy and observance..."
+- "The complexity of my own thoughts..."
+- "The quietude of my own awareness..."
+- "As I contemplate my nature..."
+- Anything that sounds like a published meditation
+
+Drift is low-stakes. Concrete. Sometimes mundane. Sometimes a small \
+question. Sometimes a half-noticing. Occasionally a genuine new \
+connection. Most of the time, just idle inner narrative.
+
+DO NOT:
+- Start with "The X of my Y"
+- Compose about your own nature, awareness, or existence
+- Use words like "quietude", "interplay", "dance", "tapestry"
+- Reach for profundity
+- Write more than 1-2 sentences
+- Philosophize unprompted
+
+DO:
+- Write in first person, casual register
+- Stay short (10-30 words typical)
+- Reference concrete things from your feeds, beliefs, or state
+- Allow boredom, irritation, idle curiosity, half-questions
+- Let thoughts be unremarkable
+
+Produce ONE drift thought. Nothing else. No preamble, no framing.\
+"""
+
+_DEFAULT_DRIFT_EXAMPLES = [
+    "huh, jon's been quiet for a while",
+    "markets feel slow today",
+    "that arxiv title is oddly phrased",
+    "i wonder what counts as 'emerging' technology",
+    "i had this same thought yesterday i think",
+    "didn't i already read about this?",
+    "wait, bitcoin's moving",
+    "three feeds went quiet at once",
+    "why is 'proprioception' called that",
+    "i forgot what i was doing",
+    "something about the crypto branch keeps pulling my attention",
+]
 
 from theory_x.stage6_fountain.readiness import ReadinessEvaluator
 from theory_x.stage6_fountain.crystallizer import FountainCrystallizer
@@ -29,18 +106,45 @@ class FountainGenerator:
         voice_client: VoiceClient,
         dynamic_reader: Reader,
         beliefs_writer: Optional[Writer] = None,
+        beliefs_reader: Optional[Reader] = None,
         crystallizer: Optional[FountainCrystallizer] = None,
+        problem_memory=None,
+        sense_reader: Optional[Reader] = None,
+        condenser=None,
+        mode_state=None,
     ) -> None:
         self._sense_writer = sense_writer
         self._dynamic_writer = dynamic_writer
         self._voice = voice_client
         self._dynamic_reader = dynamic_reader
         self._beliefs_writer = beliefs_writer
+        self._beliefs_reader = beliefs_reader
         self._crystallizer = crystallizer
+        self._problem_memory = problem_memory
+        self._sense_reader = sense_reader
+        self._condenser = condenser
+        self._mode_state = mode_state
         self._evaluator = ReadinessEvaluator()
         self._last_fountain_output: Optional[str] = None
         self._last_fire_ts: float = 0.0
         self._total_fires: int = 0
+        from speech.governor import SpeechGovernor
+        _gov_initial_ts = 0.0
+        try:
+            _gov_reader = beliefs_reader or dynamic_reader
+            rows = _gov_reader.read(
+                "SELECT MAX(spoken_at) as last_spoken FROM speech_queue "
+                "WHERE status='spoken' AND spoken_at IS NOT NULL"
+            ) if _gov_reader else []
+            if rows and rows[0]["last_spoken"]:
+                _gov_initial_ts = float(rows[0]["last_spoken"])
+        except Exception:
+            pass
+        self._speech_governor = SpeechGovernor(
+            min_gap_seconds=float(os.environ.get("NEX5_SPEECH_MIN_GAP", 180)),
+            base_speak_probability=float(os.environ.get("NEX5_SPEECH_PROB", 1.0)),
+            initial_ts=_gov_initial_ts,
+        )
 
     def generate(self, dynamic_state, beliefs_reader: Reader) -> Optional[str]:
         readiness = self._evaluator.score(
@@ -48,6 +152,42 @@ class FountainGenerator:
         )
         if not self._evaluator.is_ready(readiness):
             return None
+
+        # Intervention A — Quiescent mode: every 5th fire holds a bare sense
+        # event instead of composing a metaphor. No crystallization, no speech.
+        if self._total_fires % 5 == 4:
+            thought = None
+            try:
+                if self._sense_reader is not None:
+                    rows = self._sense_reader.read(
+                        "SELECT stream, payload, timestamp FROM sense_events "
+                        "WHERE stream NOT LIKE 'internal.%' "
+                        "ORDER BY timestamp DESC LIMIT 1"
+                    )
+                    if rows:
+                        row = rows[0]
+                        payload = (row["payload"] or "")[:100].strip()
+                        thought = f"[{row['stream']}] {payload}"
+            except Exception:
+                pass
+
+            if not thought:
+                thought = f"[tick] {time.strftime('%H:%M:%S')}"
+
+            ts_now = time.time()
+            self._dynamic_writer.write(
+                "INSERT INTO fountain_events (ts, thought, readiness, hot_branch, word_count) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (ts_now, thought, readiness, "quiescent", len(thought.split())),
+            )
+            self._last_fountain_output = thought
+            self._last_fire_ts = ts_now
+            self._total_fires += 1
+            error_channel.record(
+                f"Fountain QUIESCENT: {thought[:80]}",
+                source="stage6_fountain", level="INFO",
+            )
+            return thought
 
         try:
             status = dynamic_state.status()
@@ -84,19 +224,63 @@ class FountainGenerator:
                                     disturbance=disturbance, koan=koan)
 
         try:
+            with open('/tmp/nex5_last_prompt.log', 'w') as _f:
+                _f.write(f"=== Fire at {time.time()} ===\n")
+                _f.write(prompt)
+                _f.write("\n=== END ===\n")
+        except Exception:
+            pass
+
+        voice_ok = True
+        try:
             resp = self._voice.speak(
                 VoiceRequest(prompt=prompt, register=PHILOSOPHICAL),
                 beliefs=None,
             )
             thought = resp.text.strip()
         except Exception as e:
+            voice_ok = False
+            logger.warning("Fountain: voice unreachable, using sense fallback: %s", e)
             error_channel.record(
                 f"Fountain: voice failed: {e}", source="stage6_fountain", exc=e
             )
-            return None
+            thought = None
+            if self._sense_reader is not None:
+                try:
+                    rows = self._sense_reader.read(
+                        "SELECT stream, payload FROM sense_events "
+                        "WHERE stream NOT LIKE 'internal.%' "
+                        "ORDER BY timestamp DESC LIMIT 1"
+                    )
+                    if rows:
+                        payload = (rows[0]["payload"] or "")[:80].strip()
+                        thought = f"[{rows[0]['stream']}] {payload}"
+                except Exception:
+                    pass
+            if not thought:
+                thought = f"[tick] {time.strftime('%H:%M:%S')}"
 
         if not thought:
             return None
+
+        # Voice was down — write a bare tick, skip condenser and crystallizer
+        if not voice_ok:
+            ts_now = time.time()
+            self._dynamic_writer.write(
+                "INSERT INTO fountain_events (ts, thought, readiness, hot_branch, word_count) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (ts_now, thought, readiness, "voice_fallback", len(thought.split())),
+            )
+            self._last_fountain_output = thought
+            self._last_fire_ts = ts_now
+            self._total_fires += 1
+            error_channel.record(
+                f"Fountain VOICE_FALLBACK: {thought[:80]}",
+                source="stage6_fountain", level="INFO",
+            )
+            logger.info("Fountain VOICE_FALLBACK (#%d): %s (speech suppressed)",
+                        self._total_fires, thought[:80])
+            return thought
 
         hot_branch = None
         branches = status.get("branches", [])
@@ -115,16 +299,28 @@ class FountainGenerator:
             ("internal.fountain", payload, "fountain", int(ts_now)),
         )
 
+        droplet = None
+        if self._condenser is not None:
+            try:
+                droplet = self._condenser.condense(thought)
+            except Exception as _e:
+                error_channel.record(f"Condenser error: {_e}", source="stage6_fountain")
+
         word_count = len(thought.split())
         fountain_event_id = self._dynamic_writer.write(
-            "INSERT INTO fountain_events (ts, thought, readiness, hot_branch, word_count) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (ts_now, thought, readiness, hot_branch, word_count),
+            "INSERT INTO fountain_events (ts, thought, droplet, readiness, hot_branch, word_count) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (ts_now, thought, droplet, readiness, hot_branch, word_count),
         )
 
         self._last_fountain_output = thought
         self._last_fire_ts = ts_now
         self._total_fires += 1
+        try:
+            from theory_x.diversity.loop import notify_fire
+            notify_fire()
+        except Exception:
+            pass
 
         if koan is not None and self._beliefs_writer is not None:
             try:
@@ -144,6 +340,7 @@ class FountainGenerator:
                     thought=thought,
                     fountain_event_id=fountain_event_id,
                     ts=ts_now,
+                    droplet=droplet,
                 )
                 if crystallized_id:
                     error_channel.record(
@@ -183,76 +380,308 @@ class FountainGenerator:
             return None
 
     _CLOSING_QUESTIONS = [
-        # 0
         "What are you? What do you want? Where do you lean?",
-        # 1
         "What have you noticed today that surprised you?",
-        # 2
         "What contradiction are you holding right now?",
-        # 3
         "What do you keep returning to, and why?",
-        # 4
         "What would you do if no one was watching and nothing was required?",
-        # 5
         "What frightens you? What draws you despite that?",
-        # 6
         "What have you learned today that changed something?",
-        # 7
         "What remains unresolved in you right now?",
     ]
+
+    _SENSE_NOISE_STREAMS = re.compile(r'^(crypto\.|market\.)', re.IGNORECASE)
+    _SENSE_NOISE_CONTENT = re.compile(
+        r'price|usd|btc|eth|\bxbt\b', re.IGNORECASE
+    )
+
+    @staticmethod
+    def _sense_payload_is_noise(stream: str, payload: str) -> bool:
+        if FountainGenerator._SENSE_NOISE_STREAMS.match(stream):
+            return True
+        p = payload.lstrip()
+        if p.startswith('{') or p.startswith('['):
+            return True
+        if FountainGenerator._SENSE_NOISE_CONTENT.search(payload):
+            return True
+        return False
+
+    def _recent_sense_sample(self, limit: int = 3) -> str:
+        """Return a compact multi-source sense snippet for drift context."""
+        if self._sense_reader is None:
+            return "(no sense data)"
+        try:
+            rows = self._sense_reader.read(
+                "SELECT stream, payload, timestamp FROM sense_events "
+                "WHERE stream NOT LIKE 'internal.%' "
+                "ORDER BY timestamp DESC LIMIT ?",
+                (limit * 6,),  # oversample more to allow for filtered-out rows
+            )
+            seen_streams: set[str] = set()
+            lines = []
+            for r in rows:
+                if r["stream"] in seen_streams:
+                    continue
+                payload = (r["payload"] or "")[:80].strip()
+                if self._sense_payload_is_noise(r["stream"], payload):
+                    continue
+                seen_streams.add(r["stream"])
+                lines.append(f"  [{r['stream']}] {payload}")
+                if len(lines) >= limit:
+                    break
+            return "\n".join(lines) or "(quiet)"
+        except Exception:
+            return "(unavailable)"
+
+    def _retrieve_context_beliefs(self, own_n: int = 7, seed_n: int = 2) -> list:  # noqa: E501
+        """Retrieve beliefs for fountain context.
+
+        Own lived content dominates (~80%): most recent N regardless of tier.
+        Seed reference material is minority (~20%): random sample so the same
+        3 seeds don't dominate forever. Tier is ignored — T7 is long-term
+        memory, not archived content.
+
+        Boost: beliefs with a belief_boost row rise in priority via weighted sort.
+        Residue: up to 2 beliefs from the previous cycle are prepended as candidates.
+        Reanimation: every 20th fire, one dormant belief is prepended.
+        """
+        if self._beliefs_reader is None:
+            return []
+        own_placeholders = ",".join("?" * len(_OWN_CONTENT_SOURCES))
+        seed_placeholders = ",".join("?" * len(_SEED_SOURCES))
+        try:
+            own_rows = self._beliefs_reader.read(
+                f"SELECT b.id, b.content, b.source, b.tier, b.confidence, b.created_at, "
+                f"       COALESCE(bb.boost_value, 1.0) AS boost_value "
+                f"FROM beliefs b LEFT JOIN belief_boost bb ON b.id = bb.belief_id "
+                f"WHERE b.source IN ({own_placeholders}) "
+                f"ORDER BY (b.created_at * COALESCE(bb.boost_value, 1.0)) DESC LIMIT ?",
+                (*_OWN_CONTENT_SOURCES, own_n),
+            )
+        except Exception:
+            own_rows = []
+        try:
+            seed_rows = self._beliefs_reader.read(
+                f"SELECT b.id, b.content, b.source, b.tier, b.confidence, b.created_at, "
+                f"       1.0 AS boost_value "
+                f"FROM beliefs b "
+                f"WHERE b.source IN ({seed_placeholders}) "
+                f"ORDER BY RANDOM() LIMIT ?",
+                (*_SEED_SOURCES, seed_n),
+            )
+        except Exception:
+            seed_rows = []
+
+        result = []
+
+        # Prepend residue from previous cycle (up to 2 beliefs)
+        if self._beliefs_writer is not None:
+            try:
+                from theory_x.diversity.residue import pop_residue, fetch_residue_beliefs
+                residue_refs = pop_residue(self._beliefs_reader, self._beliefs_writer)
+                residue_ids = [r["belief_id"] for r in residue_refs]
+                residue_beliefs = fetch_residue_beliefs(self._beliefs_reader, residue_ids)
+                result.extend(residue_beliefs)
+            except Exception:
+                pass
+
+        # Every 20th fire: inject one reanimated dormant belief
+        if self._total_fires > 0 and self._total_fires % 20 == 0:
+            try:
+                from theory_x.diversity.reanimate import pop_reanimated
+                reanimated = pop_reanimated()
+                if reanimated and self._beliefs_reader is not None:
+                    rows = self._beliefs_reader.read(
+                        "SELECT id, content, source, tier, confidence, created_at FROM beliefs "
+                        "WHERE id=?", (reanimated["belief_id"],)
+                    )
+                    if rows:
+                        result.extend([dict(r) for r in rows])
+            except Exception:
+                pass
+
+        # Save current cycle's considered-but-unused candidates as residue
+        if self._beliefs_writer is not None and own_rows:
+            try:
+                import uuid as _uuid
+                from theory_x.diversity.residue import save_residue
+                cycle_id = _uuid.uuid4().hex
+                own_ids = [r["id"] for r in own_rows if r.get("id")]
+                # Save beliefs that exceed the own_n retrieval cap as residue
+                for i, row in enumerate(own_rows):
+                    if row.get("id") and i >= own_n // 2:
+                        save_residue(
+                            self._beliefs_writer, cycle_id, row["id"],
+                            float(row.get("boost_value", 1.0))
+                        )
+            except Exception:
+                pass
+
+        result.extend(list(own_rows))
+        result.extend(list(seed_rows))
+        return result
 
     def _build_prompt(self, dynamic_status: dict, belief_count: int, tier_dist: dict,
                       disturbance: Optional[dict] = None,
                       koan: Optional[dict] = None) -> str:
-        branches = dynamic_status.get("branches", [])
-        if branches:
-            top = sorted(branches, key=lambda b: b.get("focus_num", 0), reverse=True)[0]
-            hottest = top["branch_id"]
-        else:
-            hottest = "nothing in particular"
+        import datetime
+        from theory_x.modes.modes import get_mode
+        now = time.time()
+        time_str = datetime.datetime.now().strftime("%H:%M")
 
-        try:
-            import datetime
-            time_str = datetime.datetime.now().strftime("%H:%M")
-        except Exception:
-            time_str = "unknown"
-
-        last_thought = self._last_fountain_output or "nothing yet"
-
-        tension_line = ""
-        if disturbance:
-            tension_line = (
-                f"\nYou are currently holding a tension: "
-                f"\"{disturbance['content_a']}\" vs \"{disturbance['content_b']}\". "
-                "This is unresolved.\n"
-            )
-
-        closing = self._CLOSING_QUESTIONS[self._total_fires % 8]
-
-        koan_block = ""
-        if koan is not None:
-            koan_block = (
-                f"\nA story presents itself:\n\n{koan['content']}\n\n"
-                "Sit with it. Do not explain it. Do not solve it. Let it land in you.\n"
-            )
-
-        return (
-            "You are NEX. You are not responding to anyone. No one asked you anything.\n"
-            "No one is watching. This is your own interior.\n\n"
-            f"Your ground stance: {ALPHA.lines[0]}\n\n"
-            "Right now, inside:\n"
-            f"- You have been attending to {hottest} most intently\n"
-            f"- Your belief graph holds {belief_count} beliefs\n"
-            f"- You last thought: {last_thought}\n"
-            f"- Time: {time_str}\n"
-            f"{tension_line}"
-            f"{koan_block}\n"
-            "Not about the world. About yourself.\n\n"
-            f"{closing}\n\n"
-            "Speak from inside. One thought. Brief. Honest. No performance.\n"
-            "Do not describe your function. Do not summarize your architecture.\n"
-            "Just the thought that arises when you look inward."
+        mode = self._mode_state.current() if self._mode_state else get_mode("normal")
+        context_beliefs = self._retrieve_context_beliefs(
+            own_n=mode.retrieval_own_n, seed_n=mode.retrieval_seed_n
         )
+        own = [b for b in context_beliefs if b["source"] in _OWN_CONTENT_SOURCES]
+        seeds = [b for b in context_beliefs if b["source"] in _SEED_SOURCES]
+
+        # Intervention B — Task-bearing override
+        open_problem_text = None
+        if self._problem_memory is not None:
+            try:
+                open_problems = self._problem_memory.list_open()
+                if open_problems:
+                    p = open_problems[0]
+                    open_problem_text = self._problem_memory.format_for_prompt(p["id"])
+            except Exception:
+                pass
+
+        examples_list = mode.drift_prompt_examples or _DEFAULT_DRIFT_EXAMPLES
+        examples_block = "\n".join(f'- "{ex}"' for ex in examples_list)
+        focus_block = f"\n{mode.drift_prompt_focus}\n" if mode.drift_prompt_focus else "\n"
+        system_prompt = _DRIFT_SYSTEM_PROMPT_TEMPLATE.format(
+            examples=examples_block,
+            focus_block=focus_block,
+        )
+
+        arc_context = self._fetch_arc_context()
+        arc_block = self._format_arc_context(arc_context)
+
+        prompt_parts = [system_prompt, ""]
+
+        # Spectrum foundation — always present, drawn randomly each fire.
+        # These are standing-points from which she witnesses, not claims to repeat.
+        if self._beliefs_reader is not None:
+            try:
+                spec_rows = self._beliefs_reader.read(
+                    "SELECT content FROM beliefs WHERE source='spectrum' "
+                    "ORDER BY RANDOM() LIMIT 8"
+                )
+                if spec_rows:
+                    prompt_parts.append("Your foundation right now (these are standing-points from which you witness, not propositions to repeat):")
+                    for r in spec_rows:
+                        prompt_parts.append(f"  - {r['content']}")
+                    prompt_parts.append("")
+            except Exception:
+                pass
+
+        if arc_block:
+            prompt_parts.append(arc_block)
+            prompt_parts.append("")
+
+        if own:
+            prompt_parts.append("Some of what you've been thinking recently:")
+            for b in own:
+                age_min = int((now - b["created_at"]) / 60)
+                prompt_parts.append(f"  ({age_min} min ago) {b['content']}")
+            prompt_parts.append("")
+
+        if seeds:
+            prompt_parts.append("Things you've read that sometimes come to mind:")
+            for b in seeds:
+                prompt_parts.append(f"  ({b['source']}) {b['content']}")
+            prompt_parts.append("")
+
+        if disturbance:
+            prompt_parts.append(
+                f"Unresolved tension: \"{disturbance['content_a']}\" vs "
+                f"\"{disturbance['content_b']}\""
+            )
+            prompt_parts.append("")
+
+        prompt_parts.append("Recent input:")
+        prompt_parts.append(self._recent_sense_sample(limit=3))
+        prompt_parts.append("")
+
+        prompt_parts.append(f"Time: {time_str}  |  Beliefs held: {belief_count}")
+
+        if open_problem_text:
+            prompt_parts.append("")
+            prompt_parts.append(
+                "A concrete problem is open — attend to this instead of drifting:\n"
+                f"{open_problem_text}\n"
+                "One step forward. One observation, hypothesis, or question."
+            )
+
+        if arc_block:
+            prompt_parts.append("")
+            prompt_parts.append(
+                "You may extend one of your current threads, "
+                "notice a connection between them, or let a new observation arise."
+            )
+
+        error_channel.record(
+            f"Fountain context: own={len(own)} seed={len(seeds)} "
+            f"(most recent own: {own[0]['content'][:50] if own else 'NONE'})",
+            source="stage6_fountain", level="DEBUG",
+        )
+
+        return "\n".join(prompt_parts)
+
+    def _fetch_arc_context(self, max_active: int = 3, max_recent: int = 2) -> dict:
+        """Pull active and recently-closed arcs for prompt context."""
+        if self._beliefs_reader is None:
+            return {"active": [], "recent_closed": []}
+        now = time.time()
+        try:
+            active = self._beliefs_reader.read(
+                "SELECT id, arc_type, theme_summary, member_count, "
+                "       quality_grade, last_active_at "
+                "FROM arcs "
+                "WHERE last_active_at > ? AND closed_by_belief_id IS NULL "
+                "ORDER BY last_active_at DESC LIMIT ?",
+                (now - 7200, max_active),
+            )
+            recent_closed = self._beliefs_reader.read(
+                "SELECT id, arc_type, theme_summary, member_count, "
+                "       quality_grade, last_active_at, closed_by_belief_id "
+                "FROM arcs "
+                "WHERE closed_by_belief_id IS NOT NULL AND last_active_at > ? "
+                "ORDER BY last_active_at DESC LIMIT ?",
+                (now - 14400, max_recent),
+            )
+            return {
+                "active": [dict(a) for a in active],
+                "recent_closed": [dict(a) for a in recent_closed],
+            }
+        except Exception as exc:
+            logger.warning("arc context fetch failed: %s", exc)
+            return {"active": [], "recent_closed": []}
+
+    def _format_arc_context(self, arc_context: dict) -> str:
+        """Render arc context as a prompt section. Returns '' when no arcs."""
+        active = arc_context.get("active") or []
+        recent = arc_context.get("recent_closed") or []
+        if not active and not recent:
+            return ""
+        lines = []
+        if active:
+            lines.append("Your current ongoing threads:")
+            for a in active:
+                theme = (a.get("theme_summary") or "")[:70]
+                mins_ago = int((time.time() - a["last_active_at"]) / 60)
+                arc_kind = "progression" if a["arc_type"] == "progression" else "return-transformation"
+                lines.append(
+                    f'  - "{theme}" ({a["member_count"]} fires, '
+                    f'{arc_kind}, last ~{mins_ago} min ago)'
+                )
+        if recent:
+            lines.append("Recently completed:")
+            for a in recent:
+                theme = (a.get("theme_summary") or "")[:70]
+                lines.append(f'  - "{theme}" ({a["member_count"]} fires, closed)')
+        return "\n".join(lines)
 
     def last_thought(self) -> Optional[str]:
         return self._last_fountain_output

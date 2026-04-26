@@ -33,6 +33,7 @@ _SCHEMA_FOR_DB = {
     "dynamic":       "dynamic.sql",
     "intel":         "intel.sql",
     "conversations": "conversations.sql",
+    "probes":        "probes.sql",
 }
 
 
@@ -117,6 +118,10 @@ _MIGRATIONS: dict[str, list[str]] = {
         "ON speech_queue(status, queued_at)",
         "UPDATE speech_queue SET voice='af_sarah' "
         "WHERE voice='af_bella' AND status='pending'",
+        "CREATE TABLE IF NOT EXISTS config ("
+        "key TEXT PRIMARY KEY, "
+        "value TEXT NOT NULL, "
+        "updated_at REAL NOT NULL)",
     ],
     "dynamic": [
         "CREATE TABLE IF NOT EXISTS harmonizer_events ("
@@ -125,9 +130,11 @@ _MIGRATIONS: dict[str, list[str]] = {
         "synthesis_belief_id INTEGER)",
         "CREATE TABLE IF NOT EXISTS fountain_events ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL NOT NULL, "
-        "thought TEXT NOT NULL, readiness REAL NOT NULL, "
+        "thought TEXT NOT NULL, droplet TEXT, readiness REAL NOT NULL, "
         "hot_branch TEXT, word_count INTEGER)",
         "CREATE INDEX IF NOT EXISTS idx_fountain_ts ON fountain_events(ts)",
+        "CREATE INDEX IF NOT EXISTS idx_fountain_droplet ON fountain_events(droplet)",
+        "ALTER TABLE fountain_events ADD COLUMN droplet TEXT",
         "CREATE TABLE IF NOT EXISTS drive_proposals ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, "
         "ts REAL NOT NULL, "

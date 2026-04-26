@@ -16,6 +16,10 @@ class KokoroBackend:
         self.speed = speed
         self._pipeline: Optional[object] = None
 
+    @property
+    def is_loaded(self) -> bool:
+        return self._pipeline is not None
+
     def load(self) -> None:
         if self._pipeline is not None:
             return
@@ -37,11 +41,11 @@ class KokoroBackend:
             )
             raise
 
-    def synth(self, text: str) -> tuple[np.ndarray, int]:
+    def synth(self, text: str, voice: Optional[str] = None) -> tuple[np.ndarray, int]:
         """Returns (audio_float32_mono, sample_rate=24000)."""
         if self._pipeline is None:
             self.load()
-        generator = self._pipeline(text, voice=self.voice, speed=self.speed)
+        generator = self._pipeline(text, voice=voice or self.voice, speed=self.speed)
         chunks = []
         for _, _, audio in generator:
             chunks.append(audio)

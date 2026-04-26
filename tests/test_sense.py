@@ -295,7 +295,7 @@ class TestSenseGUIEndpoints(unittest.TestCase):
         data = r.get_json()
         self.assertIn("global_running", data)
         self.assertIn("adapters", data)
-        self.assertEqual(len(data["adapters"]), 23)
+        self.assertEqual(len(data["adapters"]), 31)
 
     def test_sense_start(self):
         r = self.client.post("/api/sense/start")

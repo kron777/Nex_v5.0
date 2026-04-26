@@ -28,4 +28,5 @@ def db_paths() -> dict[str, Path]:
         "dynamic":       root / "dynamic.db",
         "intel":         root / "intel.db",
         "conversations": root / "conversations.db",
+        "probes":        root / "probes.db",
     }

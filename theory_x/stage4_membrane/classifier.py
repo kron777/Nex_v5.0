@@ -17,8 +17,16 @@ _SELF_INQUIRY_KEYWORDS = {
 }
 
 _INSIDE_SOURCES = {
-    "precipitated_from_dynamic", "nex_seed", "manual", "identity",
-    "injector", "keystone",
+    "fountain_insight",
+    "synergized",
+    "keystone_seed",
+    "practice",
+    "self_location",
+    "reification_recognition",
+    "behavioural_observation",
+    "keystone",
+    "manual",
+    "identity",
 }
 
 

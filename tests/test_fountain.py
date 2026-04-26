@@ -205,14 +205,13 @@ class TestFountainGenerator(unittest.TestCase):
         gen.generate(ds, self.readers["beliefs"])
         self.assertEqual(gen.last_thought(), "the loop is closed")
 
-    def test_build_prompt_contains_alpha_and_branch(self):
-        from alpha import ALPHA
+    def test_build_prompt_contains_drift_anchors(self):
         gen = self._make_generator()
         ds = _mock_dynamic_state(hot_branch="curiosity")
         status = ds.status()
         prompt = gen._build_prompt(status, 5, {"5": 5})
-        self.assertIn(ALPHA.lines[0][:20], prompt)
-        self.assertIn("curiosity", prompt)
+        self.assertIn("idle, drifting", prompt)
+        self.assertIn("Beliefs held: 5", prompt)
 
 
 # ---- FountainState ------------------------------------------------------------

@@ -11,7 +11,7 @@ class SpeechConfig:
     voice: str = "af_sarah"
     quiet_start_hour: int = 23
     quiet_end_hour: int = 7
-    quiet_hours_enabled: bool = True
+    quiet_hours_enabled: bool = False
     speed: float = 1.0
     min_chars: int = 10
     max_chars: int = 500
@@ -24,7 +24,7 @@ class SpeechConfig:
         c.enabled = os.getenv("NEX5_SPEECH_ENABLED", "true").lower() == "true"
         c.voice = os.getenv("NEX5_SPEECH_VOICE", c.voice)
         c.quiet_hours_enabled = (
-            os.getenv("NEX5_QUIET_HOURS", "true").lower() == "true"
+            os.getenv("NEX5_QUIET_HOURS", str(c.quiet_hours_enabled)).lower() == "true"
         )
         return c
 

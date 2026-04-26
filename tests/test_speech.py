@@ -116,12 +116,18 @@ class TestSpeechQueueTable(unittest.TestCase):
 class TestSpeechEnqueue(unittest.TestCase):
 
     def setUp(self):
-        # Ensure speech enabled during tests
+        # Ensure speech enabled and governor always speaks during tests
         os.environ["NEX5_SPEECH_ENABLED"] = "true"
+        os.environ["NEX5_SPEECH_PROB"] = "1.0"
+        os.environ["NEX5_SPEECH_MIN_GAP"] = "0"
+        os.environ["NEX5_SPEECH_QUIET_DAMPING"] = "1.0"  # disable time-of-day damping
         self.writers, self.readers, self.tmp = _make_env()
 
     def tearDown(self):
         os.environ.pop("NEX5_SPEECH_ENABLED", None)
+        os.environ.pop("NEX5_SPEECH_PROB", None)
+        os.environ.pop("NEX5_SPEECH_MIN_GAP", None)
+        os.environ.pop("NEX5_SPEECH_QUIET_DAMPING", None)
         _cleanup(self.writers, self.tmp)
 
     def _make_crystallizer(self):

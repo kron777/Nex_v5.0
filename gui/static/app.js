@@ -1,9 +1,42 @@
 // NEX 5.0 — HUD app.js
 
+// ── Theme toggle ──────────────────────────────────────────────────────────────
+
+function applyTheme(mode) {
+  const html = document.documentElement;
+  if (mode === "light") {
+    html.classList.add("light-mode");
+  } else {
+    html.classList.remove("light-mode");
+  }
+  const icon = document.getElementById("theme-toggle-icon");
+  if (icon) icon.textContent = (mode === "light") ? "☀" : "☾";
+}
+
+function initTheme() {
+  const saved = localStorage.getItem("nex5_theme") || "dark";
+  applyTheme(saved);
+  const wrap = document.getElementById("theme-toggle-wrap");
+  if (wrap) {
+    wrap.addEventListener("click", () => {
+      const current = localStorage.getItem("nex5_theme") || "dark";
+      const next = current === "dark" ? "light" : "dark";
+      localStorage.setItem("nex5_theme", next);
+      applyTheme(next);
+    });
+  }
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initTheme);
+} else {
+  initTheme();
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-async function apiFetch(url) {
-  const r = await fetch(url);
+async function apiFetch(url, options = {}) {
+  const r = await fetch(url, options);
   if (!r.ok) throw new Error(`${url} → ${r.status}`);
   return r.json();
 }
@@ -752,7 +785,7 @@ async function refreshDriveProposals() {
     const row = document.createElement("div");
     row.style.cssText = "display:flex;align-items:center;gap:4px;margin-bottom:2px;";
     const badge = document.createElement("span");
-    badge.style.cssText = "font-size:9px;padding:1px 3px;border-radius:2px;background:#222;";
+    badge.style.cssText = "font-size:9px;padding:1px 3px;border-radius:2px;background:var(--bg2);";
     badge.textContent = p.status.toUpperCase();
     const label = document.createElement("span");
     label.textContent = `${p.branch_id} p=${p.pressure.toFixed(2)}`;
@@ -827,14 +860,19 @@ async function pollSpeech() {
   } catch (_) {}
 }
 
-document.getElementById("speech-indicator")?.addEventListener("click", async (e) => {
+document.addEventListener("click", async (e) => {
+  const indicator = e.target.closest("#speech-indicator");
+  if (!indicator) return;
   e.stopPropagation();
+  e.preventDefault();
   try {
     const data = await apiFetch("/api/speech/status");
     const path = data.enabled ? "/api/speech/pause" : "/api/speech/resume";
     await apiFetch(path, { method: "POST" });
     pollSpeech();
-  } catch (_) {}
+  } catch (err) {
+    console.error("Speech toggle failed:", err);
+  }
 });
 
 // Initial load
@@ -852,3 +890,201 @@ setInterval(pollSlow,       10000);
 setInterval(pollAgi,        30000);
 setInterval(pollSpeech,      5000);
 setInterval(refreshProblems, 30000);
+
+// --- Mode selector ---
+async function loadModes() {
+  try {
+    const [listData, currentData] = await Promise.all([
+      apiFetch("/api/mode/list"),
+      apiFetch("/api/mode/current"),
+    ]);
+    const sel = document.getElementById("mode-select");
+    sel.innerHTML = "";
+    (listData.modes || []).forEach(m => {
+      const opt = document.createElement("option");
+      opt.value = m.name;
+      opt.textContent = m.display_name;
+      opt.title = m.description;
+      if (m.name === currentData.name) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  } catch (err) {
+    console.warn("Mode load failed:", err);
+  }
+}
+
+document.getElementById("mode-select").addEventListener("change", async (e) => {
+  try {
+    await apiFetch("/api/mode/set", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: e.target.value }) });
+  } catch (err) {
+    console.error("Mode set failed:", err);
+    loadModes(); // revert
+  }
+});
+
+loadModes();
+
+// --- Voice selector ---
+async function loadVoices() {
+  try {
+    const [listData, currentData] = await Promise.all([
+      apiFetch("/api/voice/list"),
+      apiFetch("/api/voice/current"),
+    ]);
+    const sel = document.getElementById("voice-select");
+    sel.innerHTML = "";
+    (listData.voices || []).forEach(v => {
+      const opt = document.createElement("option");
+      opt.value = v.id;
+      opt.textContent = v.display_name;
+      opt.title = v.description || "";
+      if (v.id === currentData.id) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  } catch (err) {
+    console.warn("Voice load failed:", err);
+  }
+}
+
+document.getElementById("voice-select").addEventListener("change", async (e) => {
+  try {
+    await apiFetch("/api/voice/set", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: e.target.value }) });
+  } catch (err) {
+    console.error("Voice set failed:", err);
+    loadVoices(); // revert
+  }
+});
+
+loadVoices();
+
+// --- Signals panel ---
+async function loadSignals() {
+  try {
+    const data = await apiFetch("/api/signals/recent?limit=10");
+    const el = document.getElementById("signals-feed");
+    const meta = document.getElementById("signals-meta");
+    if (!el) return;
+
+    const patterns = data.patterns || [];
+    const signals = data.signals || [];
+
+    if (meta) meta.textContent = `${patterns.length} patterns · ${signals.length} signals`;
+
+    if (patterns.length === 0) {
+      el.innerHTML = '<span style="color:var(--fg3)">No patterns matched yet.</span>';
+      return;
+    }
+
+    let html = "";
+    for (const p of patterns.slice(0, 5)) {
+      const t = new Date(p.matched_at * 1000).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
+      const validated = p.validated_at
+        ? ` · score: ${p.outcome_score != null ? p.outcome_score.toFixed(2) : "?"}`
+        : " · pending";
+      html += `<div style="margin-bottom:3px;border-left:2px solid var(--accent);padding-left:4px;">` +
+        `<span style="color:var(--fg3)">${t}</span> ` +
+        `<span style="color:var(--accent)">${p.template_name}</span>` +
+        `<span style="color:var(--fg3)">${validated}</span>` +
+        `<div style="color:var(--fg2);margin-top:1px;">${p.prediction}</div>` +
+        `</div>`;
+    }
+    el.innerHTML = html;
+  } catch (err) {
+    console.warn("Load signals failed:", err);
+  }
+}
+
+setInterval(loadSignals, 30000);
+loadSignals();
+
+// --- Diversity panel ---
+async function loadDiversity() {
+  try {
+    const data = await apiFetch("/api/diversity/overview");
+    const el = document.getElementById("diversity-feed");
+    const meta = document.getElementById("diversity-meta");
+    if (!el) return;
+    const lines = [];
+
+    if (data.top_collisions && data.top_collisions.length > 0) {
+      lines.push('<span style="color:var(--accent)">crossbreeds</span>');
+      data.top_collisions.slice(0, 3).forEach(c => {
+        const grade = c.grade != null ? c.grade.toFixed(2) : "?";
+        const snippet = (c.content || "").substring(0, 70);
+        lines.push(`<span style="color:var(--fg)">${grade}</span> — ${snippet}`);
+      });
+    }
+
+    if (data.groove_alerts && data.groove_alerts.length > 0) {
+      lines.push('<span style="color:var(--warn,#e5a)">groove alerts</span>');
+      data.groove_alerts.slice(0, 2).forEach(g => {
+        lines.push(`${g.alert_type} (sev ${(g.severity||0).toFixed(2)}): ${g.pattern||""}`);
+      });
+    }
+
+    if (data.dormant && data.dormant.length > 0) {
+      lines.push('<span style="color:var(--fg2)">dormant territory</span>');
+      data.dormant.slice(0, 3).forEach(d => {
+        const score = d.dormancy_score != null ? d.dormancy_score.toFixed(2) : "?";
+        const snippet = (d.content || "").substring(0, 60);
+        lines.push(`${score} — ${snippet}`);
+      });
+    }
+
+    if (data.grader_versions && data.grader_versions.length > 0) {
+      const w = data.grader_versions[0];
+      const v = w.version != null ? `v${w.version}` : "";
+      lines.push(
+        `<span style="color:var(--fg2)">grader weights ${v}:</span> ` +
+        `in=${(w.w_input_distance||0).toFixed(2)} ` +
+        `out=${(w.w_output_distance||0).toFixed(2)} ` +
+        `rare=${(w.w_rarity||0).toFixed(2)}`
+      );
+    }
+
+    el.innerHTML = lines.join("<br>");
+    if (meta) meta.textContent = data.top_collisions && data.top_collisions.length > 0
+      ? `${data.top_collisions.length} collisions`
+      : "—";
+  } catch (err) {
+    console.warn("Load diversity failed:", err);
+  }
+}
+
+setInterval(loadDiversity, 30000);
+loadDiversity();
+
+// --- Arcs panel ---
+async function loadArcs() {
+  try {
+    const data = await apiFetch("/api/arcs/recent");
+    const el = document.getElementById("arcs-feed");
+    const meta = document.getElementById("arcs-meta");
+    if (!el) return;
+
+    const arcs = data.arcs || [];
+    if (arcs.length === 0) {
+      el.innerHTML = '<span style="color:var(--fg2)">no arcs yet</span>';
+      if (meta) meta.textContent = "—";
+      return;
+    }
+
+    const lines = arcs.slice(0, 8).map(a => {
+      const ts = a.last_active_at
+        ? new Date(a.last_active_at * 1000).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})
+        : "—";
+      const type = a.arc_type === "progression" ? "prog" : "rtrn";
+      const closed = a.closed_by_belief_id ? " ✓" : "";
+      const theme = (a.theme_summary || "").substring(0, 55);
+      const grade = a.quality_grade != null ? a.quality_grade.toFixed(2) : "?";
+      return `<span style="color:var(--fg2)">${ts}</span> · <span style="color:var(--accent)">${type}</span> · ${a.member_count}f · ${grade} · ${theme}${closed}`;
+    });
+    el.innerHTML = lines.join("<br>");
+    if (meta) meta.textContent = `${arcs.length} arc${arcs.length !== 1 ? "s" : ""}`;
+  } catch (err) {
+    console.warn("Load arcs failed:", err);
+  }
+}
+
+setInterval(loadArcs, 60000);
+loadArcs();

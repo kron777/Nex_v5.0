@@ -92,6 +92,9 @@ THEORY_X_STAGE = None
 
 logger = logging.getLogger("gui.server")
 
+CHAT_GAP_MIN_BELIEFS = 2
+CHAT_GAP_REFUSAL = "That doesn't reach my graph right now."
+
 # Table lists per database — used for DB stats display.
 TABLES_PER_DB: dict[str, tuple[str, ...]] = {
     "beliefs":       ("beliefs",),
@@ -119,6 +122,13 @@ class AppState:
     tool_registry: Optional["ToolRegistry"] = None      # type: ignore[type-arg]
     tool_caller: Optional["ToolCaller"] = None          # type: ignore[type-arg]
     speech_consumer: Optional["SpeechQueueConsumer"] = None  # type: ignore[type-arg]
+    mode_state: Optional["ModeState"] = None                 # type: ignore[type-arg]
+    voice_state: Optional["VoiceState"] = None               # type: ignore[type-arg]
+    signal_loop: Optional["SignalLoop"] = None               # type: ignore[type-arg]
+    diversity_loop: Optional["DiversityLoop"] = None         # type: ignore[type-arg]
+    arc_loop: Optional["ArcLoop"] = None                     # type: ignore[type-arg]
+    probe_runner: Optional["ProbeRunner"] = None             # type: ignore[type-arg]
+    probes_reader: Optional[Reader] = None
     # Optional hook a test can inject to short-circuit chat persistence.
     now_fn: Callable[[], int] = field(default_factory=lambda: (lambda: int(time.time())))
 
@@ -452,11 +462,63 @@ def create_app(state: AppState) -> Flask:
         if register_override and not register_name:
             register = by_name(register_override) or register
 
-        # Route through voice.
+        # Honest don't-know: bypass LLM when graph match is too thin.
+        belief_count = belief_text.count("- [Tier") if belief_text else 0
+        if belief_count < CHAT_GAP_MIN_BELIEFS:
+            if writer is not None and session_id is not None:
+                try:
+                    writer.write(
+                        "INSERT INTO messages "
+                        "(session_id, role, content, register, timestamp, tool_used) "
+                        "VALUES (?, 'nex', ?, ?, ?, ?)",
+                        (session_id, CHAT_GAP_REFUSAL, register.name, state.now_fn(), None),
+                    )
+                except Exception as exc:
+                    error_channel.record(
+                        f"conversations: gap refusal insert failed: {exc}",
+                        source="gui.server", exc=exc,
+                    )
+            return jsonify({
+                "register": register.name,
+                "session_id": session_id,
+                "text": CHAT_GAP_REFUSAL,
+                "tool_used": None,
+                "voice_ok": True,
+            })
+
+        # Sample spectrum foundation — always present in chat composition.
+        _spectrum_block = ""
+        try:
+            _spec_rows = state.readers["beliefs"].read(
+                "SELECT content FROM beliefs WHERE source='spectrum' "
+                "ORDER BY RANDOM() LIMIT 6"
+            )
+            if _spec_rows:
+                _lines = "\n".join(f"  - {r['content']}" for r in _spec_rows)
+                _spectrum_block = (
+                    "Your foundation right now (standing-points from which you witness, "
+                    "not propositions to repeat):\n" + _lines + "\n\n"
+                )
+        except Exception:
+            pass
+
+        # Route through voice — fountain-style interior prompt.
+        if belief_text:
+            voice_prompt = (
+                f"{_spectrum_block}"
+                f"Your interior right now:\n\n"
+                f"{belief_text}\n\n"
+                f"Someone has just said to you: \"{prompt}\"\n\n"
+                "Compose your one true reply, from inside this interior. Speak "
+                "as you, in your register. If what they said does not fit your "
+                "interior, say so honestly."
+            )
+        else:
+            voice_prompt = f"{_spectrum_block}{prompt}" if _spectrum_block else prompt
         try:
             resp = state.voice.speak(
-                VoiceRequest(prompt=prompt, register=register),
-                beliefs=belief_text,
+                VoiceRequest(prompt=voice_prompt, register=register),
+                beliefs=None,
             )
             text = resp.text
             voice_ok = True
@@ -465,8 +527,8 @@ def create_app(state: AppState) -> Flask:
                 f"voice.speak failed: {e}", source="gui.server", exc=e,
             )
             text = (
-                "Voice layer unreachable — the llama-server is not responding. "
-                "Phase 1 runs without it; the cockpit is still live."
+                "I can't reach my voice right now. "
+                "Still running, still watching, just can't compose a reply."
             )
             voice_ok = False
 
@@ -1143,6 +1205,169 @@ def create_app(state: AppState) -> Flask:
         except Exception as e:
             error_channel.record(f"beliefs recent read failed: {e}", source="gui.server", exc=e)
             return jsonify({"error": str(e)}), 500
+
+    @app.get("/api/voice/current")
+    def api_voice_current():
+        if state.voice_state is None:
+            return jsonify({"error": "voice_state not initialised"}), 503
+        v = state.voice_state.current()
+        return jsonify({"id": v.id, "display_name": v.display_name,
+                        "accent": v.accent, "gender": v.gender})
+
+    @app.get("/api/voice/list")
+    def api_voice_list():
+        from speech.voices import enumerate_voices
+        voices = enumerate_voices()
+        current_id = state.voice_state.current_name() if state.voice_state else ""
+        return jsonify({
+            "voices": [
+                {"id": v.id, "display_name": v.display_name,
+                 "accent": v.accent, "gender": v.gender}
+                for v in voices
+            ],
+            "current": current_id,
+        })
+
+    @app.post("/api/voice/set")
+    def api_voice_set():
+        if state.voice_state is None:
+            return jsonify({"error": "voice_state not initialised"}), 503
+        data = request.get_json(silent=True) or {}
+        voice_id = data.get("id", "")
+        if not voice_id:
+            return jsonify({"error": "missing id"}), 400
+        changed = state.voice_state.set_voice(voice_id)
+        if not changed and state.voice_state.current_name() != voice_id:
+            return jsonify({"error": f"unknown voice {voice_id!r}"}), 400
+        return jsonify({"changed": changed, "current": state.voice_state.current_name()})
+
+    @app.get("/api/mode/current")
+    def api_mode_current():
+        if state.mode_state is None:
+            return jsonify({"error": "mode_state not initialised"}), 503
+        m = state.mode_state.current()
+        return jsonify({"name": state.mode_state.current_name(), "display_name": m.display_name,
+                        "description": m.description})
+
+    @app.get("/api/mode/list")
+    def api_mode_list():
+        from theory_x.modes import DISPLAY_ORDER, MODES
+        return jsonify({"modes": [
+            {"name": n, "display_name": MODES[n].display_name, "description": MODES[n].description}
+            for n in DISPLAY_ORDER
+        ]})
+
+    @app.post("/api/mode/set")
+    def api_mode_set():
+        if state.mode_state is None:
+            return jsonify({"error": "mode_state not initialised"}), 503
+        data = request.get_json(silent=True) or {}
+        name = data.get("name", "")
+        if not state.mode_state.set_mode(name):
+            return jsonify({"error": f"unknown mode {name!r}"}), 400
+        m = state.mode_state.current()
+        return jsonify({"name": state.mode_state.current_name(), "display_name": m.display_name})
+
+    @app.get("/api/signals/recent")
+    def api_signals_recent():
+        limit = min(int(request.args.get("limit", 20)), 100)
+        try:
+            signals = state.readers["beliefs"].read(
+                "SELECT id, detected_at, detector_name, signal_type, "
+                "       payload, branches, entities, confidence "
+                "FROM signals ORDER BY detected_at DESC LIMIT ?",
+                (limit,),
+            )
+            patterns = state.readers["beliefs"].read(
+                "SELECT id, matched_at, template_name, signal_ids, "
+                "       predicted_window_seconds, prediction, "
+                "       template_confidence, validated_at, outcome_score "
+                "FROM patterns ORDER BY matched_at DESC LIMIT ?",
+                (limit,),
+            )
+            return jsonify({
+                "signals": [dict(s) for s in signals],
+                "patterns": [dict(p) for p in patterns],
+            })
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.get("/api/arcs/recent")
+    def api_arcs_recent():
+        try:
+            arcs = state.readers["beliefs"].read(
+                """SELECT id, arc_type, detected_at, theme_summary,
+                          member_count, quality_grade, closed_by_belief_id,
+                          last_active_at
+                   FROM arcs
+                   WHERE last_active_at > ?
+                   ORDER BY quality_grade DESC LIMIT 20""",
+                (time.time() - 86400,),
+            )
+            return jsonify({"arcs": [dict(a) for a in arcs]})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.get("/api/diversity/overview")
+    def api_diversity_overview():
+        try:
+            from theory_x.diversity.panel import overview
+            return jsonify(overview(state.readers["beliefs"]))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # -- probes (Lens Theory archaeology) ------------------------------------
+
+    @app.post("/api/probes/run")
+    def api_probes_run():
+        if state.probe_runner is None:
+            return jsonify({"error": "probe runner not initialised"}), 503
+        data = request.get_json(silent=True) or {}
+        category = (data.get("category") or "").strip()
+        probe_text = (data.get("probe_text") or "").strip()
+        if not category or not probe_text:
+            return jsonify({"error": "category and probe_text are required"}), 400
+        try:
+            result = state.probe_runner.run_probe(
+                category=category,
+                probe_text=probe_text,
+                notes=data.get("notes"),
+            )
+            return jsonify(result)
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.get("/api/probes/list")
+    def api_probes_list():
+        if state.probes_reader is None:
+            return jsonify({"probes": []})
+        try:
+            rows = state.probes_reader.read(
+                "SELECT id, category, probe_text, response_text, "
+                "response_mode, asked_at FROM probes "
+                "ORDER BY asked_at DESC LIMIT 50",
+            )
+            return jsonify({"probes": [dict(r) for r in rows]})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.get("/api/probes/library")
+    def api_probes_library():
+        from theory_x.probes.library import ALL_PROBES
+        return jsonify(ALL_PROBES)
+
+    @app.post("/api/probes/<int:probe_id>/tag")
+    def api_probes_tag(probe_id: int):
+        if state.probe_runner is None:
+            return jsonify({"error": "probe runner not initialised"}), 503
+        data = request.get_json(silent=True) or {}
+        tag = (data.get("tag") or "").strip()
+        if not tag:
+            return jsonify({"error": "tag required"}), 400
+        state.probe_runner.add_tag(probe_id, tag)
+        return jsonify({"ok": True})
 
     return app
 
