@@ -64,12 +64,16 @@ class WorldBridgeSelector:
         self._beliefs_db = beliefs_db_path
 
     def select_and_log(
-        self, fountain_event_id: Optional[int] = None
+        self,
+        fountain_event_id: Optional[int] = None,
+        mark_injected: bool = False,
     ) -> Optional[List[Dict[str, Any]]]:
         """
         Run full pipeline: identify streams, pick events, format, log.
         Returns the selected event list, or None on failure.
         Failures do NOT raise — auxiliary subsystem.
+        mark_injected=True records that these events were actually
+        inserted into the composition prompt (Phase B+).
         """
         if not ENABLED:
             return None
@@ -80,6 +84,7 @@ class WorldBridgeSelector:
                     fountain_event_id=fountain_event_id,
                     selections=[],
                     streams_seen=[],
+                    injected=False,
                     notes="no_active_streams",
                 )
                 return []
@@ -90,6 +95,7 @@ class WorldBridgeSelector:
                 fountain_event_id=fountain_event_id,
                 selections=formatted,
                 streams_seen=[s["stream"] for s in active_streams],
+                injected=mark_injected,
                 notes="ok",
             )
             return formatted
@@ -324,6 +330,7 @@ class WorldBridgeSelector:
         fountain_event_id: Optional[int],
         selections: List[Dict[str, Any]],
         streams_seen: List[str],
+        injected: bool,
         notes: str,
     ) -> None:
         try:
@@ -333,7 +340,7 @@ class WorldBridgeSelector:
                     INSERT INTO world_bridge_log
                       (ts, fountain_event_id, selected_events_json,
                        selection_count, streams_seen, injected, notes)
-                    VALUES (?, ?, ?, ?, ?, 0, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         time.time(),
@@ -341,6 +348,7 @@ class WorldBridgeSelector:
                         json.dumps(selections, default=str),
                         len(selections),
                         ",".join(streams_seen),
+                        int(injected),
                         notes,
                     ),
                 )

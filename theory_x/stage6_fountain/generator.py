@@ -113,6 +113,7 @@ class FountainGenerator:
         sense_reader: Optional[Reader] = None,
         condenser=None,
         mode_state=None,
+        world_bridge_selector=None,
     ) -> None:
         self._sense_writer = sense_writer
         self._dynamic_writer = dynamic_writer
@@ -125,6 +126,7 @@ class FountainGenerator:
         self._sense_reader = sense_reader
         self._condenser = condenser
         self._mode_state = mode_state
+        self._world_bridge_selector = world_bridge_selector
         self._evaluator = ReadinessEvaluator()
         self._last_fountain_output: Optional[str] = None
         self._last_fire_ts: float = 0.0
@@ -601,9 +603,24 @@ class FountainGenerator:
             )
             prompt_parts.append("")
 
-        prompt_parts.append("Recent input:")
-        prompt_parts.append(self._recent_sense_sample(limit=3))
-        prompt_parts.append("")
+        if self._world_bridge_selector is not None:
+            try:
+                _wb_events = self._world_bridge_selector.select_and_log(mark_injected=True)
+            except Exception:
+                _wb_events = None
+            if _wb_events:
+                prompt_parts.append("What's happening in the world right now:")
+                for _ev in _wb_events:
+                    prompt_parts.append(f"  - {_ev['formatted_text']}")
+                prompt_parts.append("")
+            else:
+                prompt_parts.append("Recent input:")
+                prompt_parts.append(self._recent_sense_sample(limit=3))
+                prompt_parts.append("")
+        else:
+            prompt_parts.append("Recent input:")
+            prompt_parts.append(self._recent_sense_sample(limit=3))
+            prompt_parts.append("")
 
         prompt_parts.append(f"Time: {time_str}  |  Beliefs held: {belief_count}")
 

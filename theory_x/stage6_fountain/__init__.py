@@ -91,6 +91,7 @@ def build_fountain(
         sense_reader=readers.get("sense"),
         condenser=condenser,
         mode_state=mode_state,
+        world_bridge_selector=world_bridge_selector,
     )
 
     state = FountainState(
@@ -152,12 +153,6 @@ def build_fountain(
                         snapshot_writer.write_snapshot()
                     except Exception as _swe:
                         logger.warning("SnapshotWriter error: %s", _swe)
-                # Phase A: world bridge selection logger
-                if world_bridge_selector is not None:
-                    try:
-                        world_bridge_selector.select_and_log()
-                    except Exception as _wbe:
-                        logger.warning("WorldBridge error: %s", _wbe)
             except Exception as e:
                 error_channel.record(
                     f"Fountain loop error: {e}", source="stage6_fountain", exc=e
