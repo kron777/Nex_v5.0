@@ -105,8 +105,8 @@ def main() -> None:
 
     # 6. Voice client (shared by world model, fountain, strikes)
     voice = VoiceClient(
-        url=os.environ.get("NEX5_VOICE_URL", "http://localhost:8080/v1/chat/completions"),
-        model=os.environ.get("NEX5_VOICE_MODEL", "qwen2.5-3b"),
+        url=os.environ.get("NEX5_VOICE_URL", "http://localhost:11434/v1/chat/completions"),
+        model=os.environ.get("NEX5_VOICE_MODEL", "qwen2.5:3b"),
     )
 
     # Voice health check
