@@ -60,12 +60,13 @@ class ProbeRunner:
         try:
             resp = requests.post(
                 self._voice_endpoint,
-                json={"prompt": probe_text, "register": "Philosophical"},
+                json={"prompt": probe_text, "register": "Philosophical",
+                      "is_probe": True},
                 timeout=60,
             )
             resp.raise_for_status()
             data = resp.json()
-            response_text = data.get("response", "")
+            response_text = data.get("text", "")
             response_mode = data.get("register", "unknown")
         except Exception as e:
             response_text = f"[ERROR: {e}]"

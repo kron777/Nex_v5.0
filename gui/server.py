@@ -342,6 +342,7 @@ def create_app(state: AppState) -> Flask:
         if not prompt:
             return jsonify({"error": "empty prompt"}), 400
 
+        is_probe = bool(payload.get("is_probe", False))
         register_name = payload.get("register")
         register = (
             by_name(register_name) if register_name else classify(prompt)
@@ -463,8 +464,9 @@ def create_app(state: AppState) -> Flask:
             register = by_name(register_override) or register
 
         # Honest don't-know: bypass LLM when graph match is too thin.
+        # Probe calls always proceed to the LLM regardless of belief count.
         belief_count = belief_text.count("- [Tier") if belief_text else 0
-        if belief_count < CHAT_GAP_MIN_BELIEFS:
+        if not is_probe and belief_count < CHAT_GAP_MIN_BELIEFS:
             if writer is not None and session_id is not None:
                 try:
                     writer.write(
