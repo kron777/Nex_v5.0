@@ -26,6 +26,7 @@ _OWN_CONTENT_SOURCES = (
     "synergized",
     "precipitated_from_dynamic",
     "behavioural_observation",
+    "auto_probe",
 )
 
 # Seed reference material — minority presence (~20%)
