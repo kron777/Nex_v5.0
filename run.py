@@ -32,6 +32,7 @@ from theory_x.stage4_membrane import build_membrane
 from theory_x.stage6_fountain import build_fountain
 from theory_x.auto_probe.groove_breaker import GrooveBreaker
 from theory_x.memory.snapshot_writer import StateSnapshotWriter
+from theory_x.memory.resumption import ResumptionSeeder
 from theory_x.world_bridge.selector import WorldBridgeSelector
 from theory_x.stage6_fountain.readiness import FOUNTAIN_CHECK_INTERVAL_SECONDS
 from theory_x.modes import build_mode_state
@@ -148,6 +149,19 @@ def main() -> None:
         beliefs_db_path=str(paths["beliefs"]),
         dynamic_db_path=str(paths["dynamic"]),
     )
+    # Phase B: resumption seeder (Memory Layers v0.2)
+    # Runs once on boot, promotes prior beliefs if snapshot is recent
+    try:
+        seeder = ResumptionSeeder(
+            beliefs_db_path=str(paths["beliefs"]),
+            probes_db_path=str(paths["probes"]),
+            snapshot_path=str(paths["beliefs"].parent / "state_snapshot.json"),
+        )
+        resume_result = seeder.run()
+        log.info("Resumption: %s", resume_result)
+    except Exception as e:
+        log.warning("Resumption boot failed: %s", e)
+
     # Phase A: state snapshot writer (Memory Layers v0.2)
     snapshot_writer = StateSnapshotWriter(
         beliefs_db_path=str(paths["beliefs"]),
