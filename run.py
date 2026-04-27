@@ -30,6 +30,7 @@ from theory_x.stage2_dynamic import build_dynamic
 from theory_x.stage3_world_model import build_world_model
 from theory_x.stage4_membrane import build_membrane
 from theory_x.stage6_fountain import build_fountain
+from theory_x.auto_probe.groove_breaker import GrooveBreaker
 from theory_x.stage6_fountain.readiness import FOUNTAIN_CHECK_INTERVAL_SECONDS
 from theory_x.modes import build_mode_state
 from speech.voices import build_voice_state
@@ -140,8 +141,14 @@ def main() -> None:
         os.environ.get("NEX5_SPEECH_MIN_GAP", "180"),
         float(os.environ.get("NEX5_SPEECH_PROB", "1.0")),
     )
+    # Phase A: groove observer (Design v0.3)
+    groove_breaker = GrooveBreaker(
+        beliefs_db_path=str(paths["beliefs"]),
+        dynamic_db_path=str(paths["dynamic"]),
+    )
     fountain = build_fountain(writers, readers, voice, dynamic_state=dynamic,
-                              problem_memory=problem_memory, mode_state=mode_state)
+                              problem_memory=problem_memory, mode_state=mode_state,
+                              groove_breaker=groove_breaker)
     log.info("Fountain lit — loop running at %ds interval", FOUNTAIN_CHECK_INTERVAL_SECONDS)
 
     # 11. Strike protocols

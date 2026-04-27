@@ -18,6 +18,7 @@ from theory_x.stage6_fountain.readiness import (
     FOUNTAIN_CHECK_INTERVAL_SECONDS,
     ReadinessEvaluator,
 )
+from theory_x.auto_probe.groove_breaker import GrooveBreaker
 
 THEORY_X_STAGE = 6
 
@@ -59,6 +60,7 @@ def build_fountain(
     dynamic_state=None,
     problem_memory=None,
     mode_state=None,
+    groove_breaker: "GrooveBreaker | None" = None,
 ) -> FountainState:
     crystallizer = None
     if writers.get("beliefs") and readers.get("beliefs"):
@@ -134,6 +136,12 @@ def build_fountain(
                 thought = generator.generate(dynamic_state, readers["beliefs"])
                 if thought:
                     logger.info("Fountain fired: %s", thought[:100])
+                # Phase A: passive groove observation
+                if groove_breaker is not None:
+                    try:
+                        groove_breaker.check_and_maybe_log()
+                    except Exception as _gbe:
+                        logger.warning("GrooveBreaker error: %s", _gbe)
             except Exception as e:
                 error_channel.record(
                     f"Fountain loop error: {e}", source="stage6_fountain", exc=e
