@@ -19,6 +19,7 @@ from theory_x.stage6_fountain.readiness import (
     ReadinessEvaluator,
 )
 from theory_x.auto_probe.groove_breaker import GrooveBreaker
+from theory_x.memory.snapshot_writer import StateSnapshotWriter
 
 THEORY_X_STAGE = 6
 
@@ -61,6 +62,7 @@ def build_fountain(
     problem_memory=None,
     mode_state=None,
     groove_breaker: "GrooveBreaker | None" = None,
+    snapshot_writer: "StateSnapshotWriter | None" = None,
 ) -> FountainState:
     crystallizer = None
     if writers.get("beliefs") and readers.get("beliefs"):
@@ -142,6 +144,12 @@ def build_fountain(
                         groove_breaker.check_and_maybe_log()
                     except Exception as _gbe:
                         logger.warning("GrooveBreaker error: %s", _gbe)
+                # Phase A: state snapshot (Memory Layers)
+                if snapshot_writer is not None:
+                    try:
+                        snapshot_writer.write_snapshot()
+                    except Exception as _swe:
+                        logger.warning("SnapshotWriter error: %s", _swe)
             except Exception as e:
                 error_channel.record(
                     f"Fountain loop error: {e}", source="stage6_fountain", exc=e
