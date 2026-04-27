@@ -20,6 +20,7 @@ from theory_x.stage6_fountain.readiness import (
 )
 from theory_x.auto_probe.groove_breaker import GrooveBreaker
 from theory_x.memory.snapshot_writer import StateSnapshotWriter
+from theory_x.world_bridge.selector import WorldBridgeSelector
 
 THEORY_X_STAGE = 6
 
@@ -63,6 +64,7 @@ def build_fountain(
     mode_state=None,
     groove_breaker: "GrooveBreaker | None" = None,
     snapshot_writer: "StateSnapshotWriter | None" = None,
+    world_bridge_selector: "WorldBridgeSelector | None" = None,
 ) -> FountainState:
     crystallizer = None
     if writers.get("beliefs") and readers.get("beliefs"):
@@ -150,6 +152,12 @@ def build_fountain(
                         snapshot_writer.write_snapshot()
                     except Exception as _swe:
                         logger.warning("SnapshotWriter error: %s", _swe)
+                # Phase A: world bridge selection logger
+                if world_bridge_selector is not None:
+                    try:
+                        world_bridge_selector.select_and_log()
+                    except Exception as _wbe:
+                        logger.warning("WorldBridge error: %s", _wbe)
             except Exception as e:
                 error_channel.record(
                     f"Fountain loop error: {e}", source="stage6_fountain", exc=e

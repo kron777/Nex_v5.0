@@ -32,6 +32,7 @@ from theory_x.stage4_membrane import build_membrane
 from theory_x.stage6_fountain import build_fountain
 from theory_x.auto_probe.groove_breaker import GrooveBreaker
 from theory_x.memory.snapshot_writer import StateSnapshotWriter
+from theory_x.world_bridge.selector import WorldBridgeSelector
 from theory_x.stage6_fountain.readiness import FOUNTAIN_CHECK_INTERVAL_SECONDS
 from theory_x.modes import build_mode_state
 from speech.voices import build_voice_state
@@ -155,10 +156,16 @@ def main() -> None:
         snapshot_dir=str(paths["beliefs"].parent),
     )
     snapshot_writer.attach_mode_state(mode_state)
+    # Phase A: world bridge selection logger (Design v0.2)
+    world_bridge_selector = WorldBridgeSelector(
+        sense_db_path=str(paths["sense"]),
+        beliefs_db_path=str(paths["beliefs"]),
+    )
     fountain = build_fountain(writers, readers, voice, dynamic_state=dynamic,
                               problem_memory=problem_memory, mode_state=mode_state,
                               groove_breaker=groove_breaker,
-                              snapshot_writer=snapshot_writer)
+                              snapshot_writer=snapshot_writer,
+                              world_bridge_selector=world_bridge_selector)
     log.info("Fountain lit — loop running at %ds interval", FOUNTAIN_CHECK_INTERVAL_SECONDS)
 
     # 11. Strike protocols
