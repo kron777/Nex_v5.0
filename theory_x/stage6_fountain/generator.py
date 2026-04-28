@@ -150,8 +150,20 @@ class FountainGenerator:
             base_speak_probability=float(os.environ.get("NEX5_SPEECH_PROB", 1.0)),
             initial_ts=_gov_initial_ts,
         )
-        # Schema migration: fountain_retrieval_log in dynamic.db
+        # Schema migration: fountain_retrieval_log in dynamic.db.
+        # belief_id is stored as a bare integer (no cross-DB FK — beliefs live in
+        # beliefs.db, not dynamic.db; SQLite does not support cross-file FKs).
         try:
+            # Drop the table if it was created with the old (broken) cross-DB FK schema.
+            self._dynamic_writer.write(
+                "DROP TABLE IF EXISTS fountain_retrieval_log"
+            )
+            self._dynamic_writer.write(
+                "DROP INDEX IF EXISTS idx_fountain_retrieval_log_fire"
+            )
+            self._dynamic_writer.write(
+                "DROP INDEX IF EXISTS idx_fountain_retrieval_log_ts"
+            )
             self._dynamic_writer.write(
                 "CREATE TABLE IF NOT EXISTS fountain_retrieval_log ("
                 "    id INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -161,8 +173,7 @@ class FountainGenerator:
                 "    rank INTEGER,"
                 "    boost_value REAL,"
                 "    ts REAL NOT NULL,"
-                "    FOREIGN KEY (fire_id) REFERENCES fountain_events(id),"
-                "    FOREIGN KEY (belief_id) REFERENCES beliefs(id)"
+                "    FOREIGN KEY (fire_id) REFERENCES fountain_events(id)"
                 ")"
             )
             self._dynamic_writer.write(
