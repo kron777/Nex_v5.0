@@ -569,17 +569,14 @@ class FountainGenerator:
             try:
                 import uuid as _uuid
                 from theory_x.diversity.residue import save_residue
+                own_rows_dicts = [dict(r) for r in own_rows]
                 cycle_id = _uuid.uuid4().hex
-                own_ids = [r["id"] for r in own_rows if r.get("id")]
-                # Save beliefs that exceed the own_n retrieval cap as residue
-                for i, row in enumerate(own_rows):
+                for i, row in enumerate(own_rows_dicts):
                     if row.get("id") and i >= own_n // 2:
-                        save_residue(
-                            self._beliefs_writer, cycle_id, row["id"],
-                            float(row.get("boost_value", 1.0))
-                        )
-            except Exception:
-                pass
+                        save_residue(self._beliefs_writer, cycle_id, row["id"],
+                                     float(row.get("boost_value", 1.0)))
+            except Exception as e:
+                logger.error("residue_save_failed: %s", e)
 
         result.extend(list(own_rows))
         result.extend(list(seed_rows))
