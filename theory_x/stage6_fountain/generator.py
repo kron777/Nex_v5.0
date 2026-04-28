@@ -604,6 +604,17 @@ class FountainGenerator:
         own = [b for b in context_beliefs if b["source"] in _OWN_CONTENT_SOURCES]
         seeds = [b for b in context_beliefs if b["source"] in _SEED_SOURCES]
 
+        # Bump activation for every belief drawn into this prompt context.
+        if self._beliefs_writer is not None:
+            try:
+                from theory_x.substrate.activation import bump_activation
+                for belief in context_beliefs:
+                    bid = belief["id"] if hasattr(belief, "__getitem__") else None
+                    if bid:
+                        bump_activation(self._beliefs_writer, bid)
+            except Exception as e:
+                logger.error("activation_bump_failed: %s", e)
+
         # Intervention B — Task-bearing override
         open_problem_text = None
         if self._problem_memory is not None:

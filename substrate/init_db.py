@@ -122,6 +122,13 @@ _MIGRATIONS: dict[str, list[str]] = {
         "key TEXT PRIMARY KEY, "
         "value TEXT NOT NULL, "
         "updated_at REAL NOT NULL)",
+        "CREATE TABLE IF NOT EXISTS belief_activation ("
+        "belief_id INTEGER PRIMARY KEY, "
+        "activation REAL NOT NULL DEFAULT 0.0, "
+        "last_touched_at REAL NOT NULL, "
+        "FOREIGN KEY (belief_id) REFERENCES beliefs(id))",
+        "CREATE INDEX IF NOT EXISTS idx_belief_activation_at "
+        "ON belief_activation(last_touched_at)",
     ],
     "dynamic": [
         "CREATE TABLE IF NOT EXISTS harmonizer_events ("
@@ -143,6 +150,14 @@ _MIGRATIONS: dict[str, list[str]] = {
         "representative_beliefs TEXT NOT NULL, "
         "proposed_curiosity REAL NOT NULL, "
         "status TEXT NOT NULL DEFAULT 'pending')",
+        "CREATE TABLE IF NOT EXISTS substrate_fires ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "ts REAL NOT NULL, "
+        "parallel_fire_id INTEGER, "
+        "output TEXT NOT NULL, "
+        "activated_belief_id INTEGER, "
+        "activation_value REAL)",
+        "CREATE INDEX IF NOT EXISTS idx_substrate_fires_ts ON substrate_fires(ts)",
     ],
     "conversations": [
         "CREATE TABLE IF NOT EXISTS open_problems ("
