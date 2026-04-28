@@ -302,6 +302,44 @@ class GrooveBreaker:
             logger.warning("GrooveBreaker: probe select failed: %s", e)
             return None
 
+    def get_pending_probe_text(self) -> Optional[str]:
+        """
+        Return the most recent undelivered probe text, if any, and mark
+        it as delivered. Returns None when nothing is pending (common).
+        Failures do NOT raise — auxiliary subsystem.
+        Phase B: called by FountainGenerator to inject into the prompt.
+        """
+        try:
+            conn = sqlite3.connect(self._beliefs_db, timeout=2)
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                """
+                SELECT id, selected_probe_text
+                FROM auto_probe_log
+                WHERE delivered_at IS NULL
+                  AND selected_probe_text IS NOT NULL
+                  AND selected_probe_text != '(no probe available)'
+                ORDER BY ts DESC
+                LIMIT 1
+                """
+            ).fetchone()
+            if row is None:
+                conn.close()
+                return None
+            probe_id = row["id"]
+            probe_text = row["selected_probe_text"]
+            conn.execute(
+                "UPDATE auto_probe_log SET delivered_at = ? WHERE id = ?",
+                (time.time(), probe_id),
+            )
+            conn.commit()
+            conn.close()
+            logger.debug("GrooveBreaker: delivering probe id=%d: %r", probe_id, probe_text[:60])
+            return probe_text
+        except Exception as e:
+            logger.warning("GrooveBreaker: probe retrieval failed: %s", e)
+            return None
+
     def _write_observation_log(self, ctx: GrooveContext, ts: float) -> None:
         try:
             conn = sqlite3.connect(self._beliefs_db, timeout=5)

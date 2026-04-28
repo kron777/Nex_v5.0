@@ -114,6 +114,7 @@ class FountainGenerator:
         condenser=None,
         mode_state=None,
         world_bridge_selector=None,
+        groove_breaker=None,
     ) -> None:
         self._sense_writer = sense_writer
         self._dynamic_writer = dynamic_writer
@@ -127,6 +128,7 @@ class FountainGenerator:
         self._condenser = condenser
         self._mode_state = mode_state
         self._world_bridge_selector = world_bridge_selector
+        self._groove_breaker = groove_breaker
         self._evaluator = ReadinessEvaluator()
         self._last_fountain_output: Optional[str] = None
         self._last_fire_ts: float = 0.0
@@ -582,6 +584,16 @@ class FountainGenerator:
         if arc_block:
             prompt_parts.append(arc_block)
             prompt_parts.append("")
+
+        if self._groove_breaker is not None:
+            try:
+                _probe = self._groove_breaker.get_pending_probe_text()
+            except Exception:
+                _probe = None
+            if _probe:
+                prompt_parts.append("A question arising from your recent pattern:")
+                prompt_parts.append(f"  {_probe}")
+                prompt_parts.append("")
 
         if own:
             prompt_parts.append("Some of what you've been thinking recently:")

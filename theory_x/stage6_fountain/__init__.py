@@ -92,6 +92,7 @@ def build_fountain(
         condenser=condenser,
         mode_state=mode_state,
         world_bridge_selector=world_bridge_selector,
+        groove_breaker=groove_breaker,
     )
 
     state = FountainState(
