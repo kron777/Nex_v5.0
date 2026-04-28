@@ -139,8 +139,13 @@ class GrooveBreaker:
         if self._has_pending_approval():
             return None
 
-        # Trigger 2: sustained fires since alert detected
-        sustained = self._count_sustained_fires(alert["detected_at"])
+        # Trigger 2: sustained fires in the freshness window.
+        # Uses now - GROOVE_FRESHNESS_WINDOW rather than alert["detected_at"]
+        # because _fetch_active_alert returns the MOST RECENT alert row
+        # (~60s old). Counting fires since 60s ago always returns 0-1,
+        # never reaching SUSTAIN_THRESHOLD. The window start is the right
+        # measure of how long the groove has been active.
+        sustained = self._count_sustained_fires(now - GROOVE_FRESHNESS_WINDOW)
         if sustained < SUSTAIN_THRESHOLD:
             return None
 

@@ -36,7 +36,15 @@ MAX_SELECTIONS = 5
 DEFAULT_FRESHNESS_WINDOW_SECONDS = 600
 CADENCE_MULTIPLIER = 5
 CADENCE_LOOKBACK_SECONDS = 3600
-DEDUP_HISTORY_SIZE = 40  # ~8 injections × 5 slots; evicts oldest on overflow
+DEDUP_HISTORY_SIZE = 15  # ~3 injections × 5 external slots; evicts oldest on overflow
+
+# Streams exempt from dedup tracking. temporal changes every minute (always fresh),
+# meta_awareness changes only when adapter count shifts. Neither wastes a history
+# slot usefully — excluding them leaves room for slow-cadence external content.
+DEDUP_EXCLUDED_STREAMS = {
+    "internal.temporal",
+    "internal.meta_awareness",
+}
 
 QUALITATIVE_INTERNAL_STREAMS = {
     "internal.temporal",
@@ -338,15 +346,19 @@ class WorldBridgeSelector:
     def _dedup(self, formatted: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Drop events whose fingerprint was already injected recently.
-        Updates _recent_fingerprints with kept events only.
+        Streams in DEDUP_EXCLUDED_STREAMS always pass through and are
+        never tracked — they either change on every fire (temporal) or
+        their repetition is harmless (meta_awareness).
         """
         kept = []
         for ev in formatted:
+            if ev.get("stream") in DEDUP_EXCLUDED_STREAMS:
+                kept.append(ev)
+                continue
             fp = self._event_fingerprint(ev)
             if fp and fp not in self._recent_fingerprints:
                 kept.append(ev)
-        for ev in kept:
-            self._recent_fingerprints.append(self._event_fingerprint(ev))
+                self._recent_fingerprints.append(fp)
         return kept
 
     # ------------------------------------------------------------------ #
