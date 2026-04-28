@@ -269,35 +269,40 @@ class GrooveBreaker:
     def _select_probe_text(self, category: str) -> Optional[str]:
         """
         Select LRU probe text for the given category from probes.db.
-        LRU = least recently asked_at, or never asked (NULL) first.
-        Phase A: selection only for logging, no actual firing.
+        Stamps asked_at=now on the selected row so the next call picks
+        a different probe (true rotation, not fixed repetition).
         """
         try:
-            conn = sqlite3.connect(self._probes_db, timeout=5)
-            # Pick the probe text in this category that was asked least recently
-            # (NULL asked_at sorts first — never-used probes get priority)
-            cursor = conn.execute(
-                """
-                SELECT probe_text
-                FROM probes
-                WHERE category = ?
-                ORDER BY COALESCE(asked_at, 0) ASC
-                LIMIT 1
-                """,
-                (category,),
-            )
-            row = cursor.fetchone()
-            conn.close()
-            if row:
-                return row[0]
+            now = time.time()
+            with sqlite3.connect(self._probes_db, timeout=5) as conn:
+                row = conn.execute(
+                    """
+                    SELECT id, probe_text
+                    FROM probes
+                    WHERE category = ?
+                    ORDER BY COALESCE(asked_at, 0) ASC
+                    LIMIT 1
+                    """,
+                    (category,),
+                ).fetchone()
+                if row:
+                    conn.execute(
+                        "UPDATE probes SET asked_at = ? WHERE id = ?",
+                        (now, row[0]),
+                    )
+                    return row[1]
             # Category not found — fall back to any available probe
-            conn = sqlite3.connect(self._probes_db, timeout=5)
-            cursor = conn.execute(
-                "SELECT probe_text FROM probes ORDER BY COALESCE(asked_at, 0) ASC LIMIT 1"
-            )
-            row = cursor.fetchone()
-            conn.close()
-            return row[0] if row else None
+            with sqlite3.connect(self._probes_db, timeout=5) as conn:
+                row = conn.execute(
+                    "SELECT id, probe_text FROM probes ORDER BY COALESCE(asked_at, 0) ASC LIMIT 1"
+                ).fetchone()
+                if row:
+                    conn.execute(
+                        "UPDATE probes SET asked_at = ? WHERE id = ?",
+                        (now, row[0]),
+                    )
+                    return row[1]
+            return None
         except Exception as e:
             logger.warning("GrooveBreaker: probe select failed: %s", e)
             return None

@@ -44,6 +44,11 @@ DEDUP_HISTORY_SIZE = 15  # ~3 injections × 5 external slots; evicts oldest on o
 DEDUP_EXCLUDED_STREAMS = {
     "internal.temporal",
     "internal.meta_awareness",
+    # HN re-inserts the same top-stories on every poll cycle. Dedup
+    # correctly blocks them as repeats; net effect is HN content rarely
+    # reaches prompts despite being the freshest external stream.
+    # Treat like internal.temporal — pass through, never tracked.
+    "emerging_tech.hn",
 }
 
 # Phase C: payload body extraction
