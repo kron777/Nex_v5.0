@@ -26,7 +26,7 @@ import logging
 import re
 import sqlite3
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -36,6 +36,7 @@ MAX_SELECTIONS = 5
 DEFAULT_FRESHNESS_WINDOW_SECONDS = 600
 CADENCE_MULTIPLIER = 5
 CADENCE_LOOKBACK_SECONDS = 3600
+DEDUP_HISTORY_SIZE = 40  # ~8 injections × 5 slots; evicts oldest on overflow
 
 QUALITATIVE_INTERNAL_STREAMS = {
     "internal.temporal",
@@ -62,6 +63,7 @@ class WorldBridgeSelector:
     ) -> None:
         self._sense_db = sense_db_path
         self._beliefs_db = beliefs_db_path
+        self._recent_fingerprints: deque = deque(maxlen=DEDUP_HISTORY_SIZE)
 
     def select_and_log(
         self,
@@ -91,12 +93,16 @@ class WorldBridgeSelector:
 
             raw_events = self._pick_events(active_streams)
             formatted = self._format_selections(raw_events)
+            pre_dedup = len(formatted)
+            formatted = self._dedup(formatted)
+            skipped = pre_dedup - len(formatted)
+            notes = f"ok_deduped_{skipped}" if skipped else "ok"
             self._log_selection(
                 fountain_event_id=fountain_event_id,
                 selections=formatted,
                 streams_seen=[s["stream"] for s in active_streams],
                 injected=mark_injected,
-                notes="ok",
+                notes=notes,
             )
             return formatted
         except Exception as e:
@@ -320,6 +326,28 @@ class WorldBridgeSelector:
         if stream == "internal.meta_awareness":
             return "awareness"
         return stream.split(".")[0]
+
+    # ------------------------------------------------------------------ #
+    # Dedup                                                               #
+    # ------------------------------------------------------------------ #
+
+    def _event_fingerprint(self, event: Dict[str, Any]) -> str:
+        """Fingerprint is the formatted_text — same title = same fingerprint."""
+        return event.get("formatted_text", "")
+
+    def _dedup(self, formatted: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Drop events whose fingerprint was already injected recently.
+        Updates _recent_fingerprints with kept events only.
+        """
+        kept = []
+        for ev in formatted:
+            fp = self._event_fingerprint(ev)
+            if fp and fp not in self._recent_fingerprints:
+                kept.append(ev)
+        for ev in kept:
+            self._recent_fingerprints.append(self._event_fingerprint(ev))
+        return kept
 
     # ------------------------------------------------------------------ #
     # Logging                                                              #
