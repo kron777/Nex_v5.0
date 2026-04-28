@@ -150,6 +150,34 @@ class FountainGenerator:
             base_speak_probability=float(os.environ.get("NEX5_SPEECH_PROB", 1.0)),
             initial_ts=_gov_initial_ts,
         )
+        # Schema migration: fountain_retrieval_log in dynamic.db
+        try:
+            self._dynamic_writer.write(
+                "CREATE TABLE IF NOT EXISTS fountain_retrieval_log ("
+                "    id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                "    fire_id INTEGER NOT NULL,"
+                "    belief_id INTEGER NOT NULL,"
+                "    slot TEXT NOT NULL,"
+                "    rank INTEGER,"
+                "    boost_value REAL,"
+                "    ts REAL NOT NULL,"
+                "    FOREIGN KEY (fire_id) REFERENCES fountain_events(id),"
+                "    FOREIGN KEY (belief_id) REFERENCES beliefs(id)"
+                ")"
+            )
+            self._dynamic_writer.write(
+                "CREATE INDEX IF NOT EXISTS idx_fountain_retrieval_log_fire "
+                "ON fountain_retrieval_log(fire_id)"
+            )
+            self._dynamic_writer.write(
+                "CREATE INDEX IF NOT EXISTS idx_fountain_retrieval_log_ts "
+                "ON fountain_retrieval_log(ts)"
+            )
+        except Exception as e:
+            error_channel.record(
+                f"fountain_retrieval_log schema init failed: {e}",
+                source="stage6_fountain", exc=e,
+            )
 
     def generate(self, dynamic_state, beliefs_reader: Reader) -> Optional[str]:
         readiness = self._evaluator.score(
@@ -225,8 +253,8 @@ class FountainGenerator:
         if self._total_fires % 8 == 7 and readiness >= 0.8 and belief_count >= 20:
             koan = self._select_koan(beliefs_reader)
 
-        prompt = self._build_prompt(status, belief_count, tier_dist,
-                                    disturbance=disturbance, koan=koan)
+        prompt, retrieval_manifest = self._build_prompt(status, belief_count, tier_dist,
+                                                         disturbance=disturbance, koan=koan)
 
         try:
             with open('/tmp/nex5_last_prompt.log', 'w') as _f:
@@ -326,6 +354,26 @@ class FountainGenerator:
             notify_fire()
         except Exception:
             pass
+
+        # Write retrieval manifest for this fire (never blocks cognition)
+        try:
+            if retrieval_manifest and fountain_event_id:
+                self._dynamic_writer.write_many(
+                    [
+                        (
+                            "INSERT INTO fountain_retrieval_log "
+                            "(fire_id, belief_id, slot, rank, boost_value, ts) "
+                            "VALUES (?,?,?,?,?,?)",
+                            (fountain_event_id, bel_id, slot, rank, boost, ts_now),
+                        )
+                        for bel_id, slot, rank, boost in retrieval_manifest
+                    ]
+                )
+        except Exception as e:
+            error_channel.record(
+                f"retrieval_log write failed: {e}",
+                source="stage6_fountain", exc=e,
+            )
 
         if koan is not None and self._beliefs_writer is not None:
             try:
@@ -528,11 +576,18 @@ class FountainGenerator:
 
     def _build_prompt(self, dynamic_status: dict, belief_count: int, tier_dist: dict,
                       disturbance: Optional[dict] = None,
-                      koan: Optional[dict] = None) -> str:
+                      koan: Optional[dict] = None):
+        """Build the fountain prompt. Returns (prompt_str, retrieval_manifest).
+
+        retrieval_manifest is a list of (belief_id, slot, rank, boost_value) tuples
+        recording every belief drawn into the context for this fire.
+        """
         import datetime
         from theory_x.modes.modes import get_mode
         now = time.time()
         time_str = datetime.datetime.now().strftime("%H:%M")
+
+        retrieval_manifest = []
 
         mode = self._mode_state.current() if self._mode_state else get_mode("normal")
         context_beliefs = self._retrieve_context_beliefs(
@@ -570,13 +625,17 @@ class FountainGenerator:
         if self._beliefs_reader is not None:
             try:
                 spec_rows = self._beliefs_reader.read(
-                    "SELECT content FROM beliefs WHERE source='spectrum' "
+                    "SELECT id, content FROM beliefs WHERE source='spectrum' "
                     "ORDER BY RANDOM() LIMIT 8"
                 )
                 if spec_rows:
                     prompt_parts.append("Your foundation right now (these are standing-points from which you witness, not propositions to repeat):")
-                    for r in spec_rows:
+                    for _spec_rank, r in enumerate(spec_rows, start=1):
                         prompt_parts.append(f"  - {r['content']}")
+                        try:
+                            retrieval_manifest.append((r["id"], "spectrum", _spec_rank, None))
+                        except Exception:
+                            pass
                     prompt_parts.append("")
             except Exception:
                 pass
@@ -597,15 +656,24 @@ class FountainGenerator:
 
         if own:
             prompt_parts.append("Some of what you've been thinking recently:")
-            for b in own:
+            for _own_rank, b in enumerate(own, start=1):
                 age_min = int((now - b["created_at"]) / 60)
                 prompt_parts.append(f"  ({age_min} min ago) {b['content']}")
+                try:
+                    _boost = b["boost_value"] if "boost_value" in b.keys() else None
+                    retrieval_manifest.append((b["id"], "own", _own_rank, _boost))
+                except Exception:
+                    pass
             prompt_parts.append("")
 
         if seeds:
             prompt_parts.append("Things you've read that sometimes come to mind:")
-            for b in seeds:
+            for _seed_rank, b in enumerate(seeds, start=1):
                 prompt_parts.append(f"  ({b['source']}) {b['content']}")
+                try:
+                    retrieval_manifest.append((b["id"], "seed", _seed_rank, None))
+                except Exception:
+                    pass
             prompt_parts.append("")
 
         if disturbance:
@@ -614,6 +682,13 @@ class FountainGenerator:
                 f"\"{disturbance['content_b']}\""
             )
             prompt_parts.append("")
+            try:
+                if disturbance.get("belief_id_a"):
+                    retrieval_manifest.append((disturbance["belief_id_a"], "disturbance_a", 1, None))
+                if disturbance.get("belief_id_b"):
+                    retrieval_manifest.append((disturbance["belief_id_b"], "disturbance_b", 1, None))
+            except Exception:
+                pass
 
         if self._world_bridge_selector is not None:
             try:
@@ -657,7 +732,7 @@ class FountainGenerator:
             source="stage6_fountain", level="DEBUG",
         )
 
-        return "\n".join(prompt_parts)
+        return "\n".join(prompt_parts), retrieval_manifest
 
     def _fetch_arc_context(self, max_active: int = 3, max_recent: int = 2) -> dict:
         """Pull active and recently-closed arcs for prompt context."""
