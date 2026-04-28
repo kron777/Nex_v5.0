@@ -46,6 +46,18 @@ DEDUP_EXCLUDED_STREAMS = {
     "internal.meta_awareness",
 }
 
+# Phase C: payload body extraction
+INCLUDE_BODIES = True               # flip False to revert to title-only
+BODY_MAX_CHARS = 150                # per-event body truncation limit
+TOTAL_INJECTION_CHAR_BUDGET = 1500  # cap on total chars injected per fountain fire
+BODY_FIELDS = ("summary", "description", "abstract", "content", "snippet", "excerpt")
+
+# Compiled once — used in _parse_payload
+_ARXIV_BOILERPLATE = re.compile(
+    r"^arXiv:\S+\s+Announce Type:\s+\w+\s*\n?Abstract:\s*", re.IGNORECASE
+)
+_HTML_TAG = re.compile(r"<[^>]+>")
+
 QUALITATIVE_INTERNAL_STREAMS = {
     "internal.temporal",
     "internal.meta_awareness",
@@ -259,50 +271,90 @@ class WorldBridgeSelector:
     def _format_selections(
         self, events: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """Returns list of {stream, formatted_text, timestamp}."""
+        """Returns list of {stream, formatted_text, timestamp}, within char budget."""
         formatted = []
+        budget = TOTAL_INJECTION_CHAR_BUDGET
         for ev in events:
             text = self._parse_payload(ev["stream"], ev.get("payload") or "")
-            if text:
-                formatted.append({
-                    "stream": ev["stream"],
-                    "formatted_text": text,
-                    "timestamp": ev["timestamp"],
-                })
+            if not text:
+                continue
+            if len(text) > budget:
+                break
+            formatted.append({
+                "stream": ev["stream"],
+                "formatted_text": text,
+                "timestamp": ev["timestamp"],
+            })
+            budget -= len(text)
         return formatted
 
     def _parse_payload(self, stream: str, payload: str) -> str:
         """
-        Minimal generic parser per Design v0.2 Section 4 step 5.
-        Returns formatted text, or empty string to skip.
+        Parse a sense event payload into a formatted injection line.
+        Phase C: extracts title + truncated body when INCLUDE_BODIES is on.
+        Returns empty string to skip the event.
         """
         prefix = self._stream_prefix(stream)
+
+        if stream == "internal.temporal":
+            try:
+                data = json.loads(payload) if payload else {}
+                iso = data.get("iso_local") or data.get("iso") or ""
+                return f"[{prefix}] {iso}" if iso else ""
+            except (json.JSONDecodeError, TypeError):
+                return ""
+
+        if stream == "internal.meta_awareness":
+            try:
+                data = json.loads(payload) if payload else {}
+                count = data.get("sense_adapter_count")
+                running = data.get("sense_global_running")
+                if count is not None:
+                    state = "running" if running else "idle"
+                    return f"[{prefix}] {count} adapters {state}"
+            except (json.JSONDecodeError, TypeError):
+                pass
+            return ""
+
         try:
             data = json.loads(payload) if payload else {}
         except (json.JSONDecodeError, TypeError):
             data = {}
 
-        # Stream-specific overrides for known internal structures
-        if stream == "internal.temporal":
-            iso = data.get("iso_local") or data.get("iso") or ""
-            return f"[{prefix}] {iso}" if iso else ""
+        if not isinstance(data, dict):
+            snippet = str(payload)[:80].replace("\n", " ").strip()
+            return f"[{prefix}] {snippet}" if snippet else ""
 
-        if stream == "internal.meta_awareness":
-            count = data.get("sense_adapter_count")
-            running = data.get("sense_global_running")
-            if count is not None:
-                state = "running" if running else "idle"
-                return f"[{prefix}] {count} adapters {state}"
-            return ""
+        title = str(data.get("title") or data.get("name") or "").strip()
 
-        # Generic: title > url/link > truncated raw
-        if isinstance(data, dict):
-            title = data.get("title") or data.get("name")
-            url = data.get("url") or data.get("link")
-            if title:
-                return f"[{prefix}] {str(title)[:150]}"
-            if url:
-                return f"[{prefix}] {str(url)[:150]}"
+        body = ""
+        if INCLUDE_BODIES:
+            for field in BODY_FIELDS:
+                val = data.get(field)
+                if val:
+                    body = str(val).strip()
+                    if body:
+                        break
+            if body:
+                body = _ARXIV_BOILERPLATE.sub("", body)
+                body = _HTML_TAG.sub("", body)
+                body = re.sub(r"\s+", " ", body).strip()
+                if len(body) > BODY_MAX_CHARS:
+                    body = body[:BODY_MAX_CHARS].rstrip() + "..."
+                # Drop body if it's too short to add value or just echoes the title
+                if len(body) < 15 or body.lower().startswith(title.lower()[:40]):
+                    body = ""
+
+        if title and body:
+            return f"[{prefix}] {title} — {body}"
+        if title:
+            return f"[{prefix}] {title}"
+        if body:
+            return f"[{prefix}] {body}"
+
+        url = str(data.get("url") or data.get("link") or "").strip()
+        if url:
+            return f"[{prefix}] {url[:150]}"
 
         snippet = str(payload)[:80].replace("\n", " ").strip()
         return f"[{prefix}] {snippet}" if snippet else ""
@@ -340,7 +392,10 @@ class WorldBridgeSelector:
     # ------------------------------------------------------------------ #
 
     def _event_fingerprint(self, event: Dict[str, Any]) -> str:
-        """Fingerprint is the formatted_text — same title = same fingerprint."""
+        """
+        Fingerprint is the full formatted_text (title + body under Phase C).
+        Two events with same title but different summaries get distinct fingerprints.
+        """
         return event.get("formatted_text", "")
 
     def _dedup(self, formatted: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
