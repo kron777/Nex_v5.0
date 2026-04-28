@@ -386,6 +386,45 @@ class FountainGenerator:
                 source="stage6_fountain", exc=e,
             )
 
+        # Substrate parallel fire (every 5th successful fire, never blocks cognition)
+        if self._total_fires % 5 == 0 and self._beliefs_writer is not None:
+            try:
+                import sqlite3 as _sqlite3
+                from theory_x.substrate.renderer import render_substrate_fire
+                from theory_x.substrate.activation import get_top_activated
+                _bel_conn = _sqlite3.connect(
+                    f"file:{self._beliefs_writer.db_path}?mode=ro",
+                    uri=True,
+                    isolation_level=None,
+                    check_same_thread=False,
+                )
+                _dyn_conn = _sqlite3.connect(
+                    f"file:{self._dynamic_writer.db_path}?mode=ro",
+                    uri=True,
+                    isolation_level=None,
+                    check_same_thread=False,
+                )
+                try:
+                    substrate_out = render_substrate_fire(_bel_conn, _dyn_conn)
+                    top = get_top_activated(self._beliefs_reader, n=1)
+                    top_id  = top[0]["belief_id"]       if top else None
+                    top_act = top[0]["eff_activation"]  if top else None
+                    self._dynamic_writer.write(
+                        "INSERT INTO substrate_fires "
+                        "(ts, parallel_fire_id, output, activated_belief_id, activation_value) "
+                        "VALUES (?,?,?,?,?)",
+                        (ts_now, fountain_event_id, substrate_out, top_id, top_act),
+                    )
+                    logger.info(
+                        "Substrate fire #%d alongside fountain fire %s",
+                        self._total_fires, fountain_event_id,
+                    )
+                finally:
+                    _bel_conn.close()
+                    _dyn_conn.close()
+            except Exception as e:
+                logger.error("substrate_fire_failed: %s", e)
+
         if koan is not None and self._beliefs_writer is not None:
             try:
                 self._beliefs_writer.write(
