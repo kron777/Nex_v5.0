@@ -753,6 +753,28 @@ class FountainGenerator:
             except Exception:
                 pass
 
+        # Recent fountain outputs — continuity with her last N generative fires
+        _RECENT_THOUGHTS_N = 5
+        try:
+            _recent_rows = list(self._dynamic_reader.read(
+                "SELECT thought, ts FROM fountain_events "
+                "WHERE thought IS NOT NULL AND thought != '' "
+                "ORDER BY id DESC LIMIT ?",
+                (_RECENT_THOUGHTS_N,)
+            ))
+            if _recent_rows:
+                prompt_parts.append("Your recent thoughts (most recent first):")
+                for _r in _recent_rows:
+                    _mins_ago = max(0, int((now - _r["ts"]) / 60))
+                    prompt_parts.append(f"  ({_mins_ago} min ago) {_r['thought']}")
+                prompt_parts.append("")
+        except Exception as _rte:
+            errors.record(
+                f"recent_thoughts_block_failed: {_rte}",
+                source="stage6_fountain",
+                exc=_rte,
+            )
+
         if self._world_bridge_selector is not None:
             try:
                 _wb_events = self._world_bridge_selector.select_and_log(mark_injected=True)
