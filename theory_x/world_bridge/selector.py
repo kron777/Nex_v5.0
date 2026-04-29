@@ -66,10 +66,10 @@ _HTML_TAG = re.compile(r"<[^>]+>")
 QUALITATIVE_INTERNAL_STREAMS = {
     "internal.temporal",
     "internal.meta_awareness",
-}
-NOISY_INTERNAL_STREAMS = {
     "internal.proprioception",
     "internal.interoception",
+}
+NOISY_INTERNAL_STREAMS = {
     "internal.fountain",
 }
 NOISE_PREFIX_PATTERN = re.compile(r"^(crypto\.|market\.)", re.IGNORECASE)
