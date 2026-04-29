@@ -386,8 +386,13 @@ class FountainGenerator:
                 source="stage6_fountain", exc=e,
             )
 
-        # Substrate parallel fire (every 5th successful fire, never blocks cognition)
-        if self._total_fires % 5 == 0 and self._beliefs_writer is not None:
+        # Substrate parallel fire — every 5th main-path fire, never blocks cognition.
+        # Condition is % 5 == 1 (not 0) because the quiescent path (line 202, % 5 == 4
+        # before increment) always consumes every multiple-of-5 value of _total_fires via
+        # its own early-return increment (line 229).  Main-path line-362 increments land
+        # on 1,2,3,4, 6,7,8,9, 11,... so % 5 == 1 gives fires 1,6,11,16,... — first fire
+        # after each quiescent cycle.  Never collides with quiescent, fires ~20% of the time.
+        if self._total_fires % 5 == 1 and self._beliefs_writer is not None:
             try:
                 import sqlite3 as _sqlite3
                 from theory_x.substrate.renderer import render_substrate_fire
