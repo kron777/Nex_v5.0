@@ -775,6 +775,27 @@ class FountainGenerator:
                 exc=_rte,
             )
 
+        # Substrate self-observations — structured self-reports fed back to cognition
+        try:
+            _sub_rows = list(self._dynamic_reader.read(
+                "SELECT output, ts FROM substrate_fires "
+                "ORDER BY id DESC LIMIT 2"
+            ))
+            if _sub_rows:
+                prompt_parts.append("Your recent self-observations:")
+                for _sr in _sub_rows:
+                    _sub_mins = max(0, int((now - _sr["ts"]) / 60))
+                    prompt_parts.append(f"  ({_sub_mins} min ago)")
+                    for _line in _sr["output"].splitlines():
+                        prompt_parts.append(f"    {_line}")
+                prompt_parts.append("")
+        except Exception as _ste:
+            errors.record(
+                f"substrate_observations_block_failed: {_ste}",
+                source="stage6_fountain",
+                exc=_ste,
+            )
+
         if self._world_bridge_selector is not None:
             try:
                 _wb_events = self._world_bridge_selector.select_and_log(mark_injected=True)
