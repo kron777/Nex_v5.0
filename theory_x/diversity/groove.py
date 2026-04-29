@@ -133,7 +133,7 @@ class GrooveSpotter:
         """Detect when 3+ fires share 3+ content bigrams (template-style repetition)."""
         bigram_fires: dict[str, set] = {}
         for row in window:
-            tokens = re.findall(r"[a-z']+", (row.get("content") or "").lower())
+            tokens = re.findall(r"[a-z']+", (row["content"] or "").lower())
             bigrams = {f"{tokens[i]} {tokens[i+1]}" for i in range(len(tokens) - 1)}
             for bg in bigrams:
                 bigram_fires.setdefault(bg, set()).add(row["id"])

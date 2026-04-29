@@ -5,6 +5,8 @@ import logging
 import threading
 import time
 
+import errors as error_channel
+
 log = logging.getLogger("theory_x.diversity.loop")
 
 _fire_count_ref: list[int] = [0]
@@ -52,7 +54,12 @@ class DiversityLoop:
                 self.dormancy.scan_incremental()
                 self.clock.tick(current_fire_count())
             except Exception as e:
-                log.warning("Diversity loop tick failed: %s", e)
+                log.error("diversity_loop_tick_failed: %s", e)
+                error_channel.record(
+                    f"diversity_loop_tick_failed: {e}",
+                    source="theory_x.diversity.loop",
+                    exc=e,
+                )
             self._stop.wait(60)
 
     def grade_synergy(self, child_id: int, parent_a_id: int, parent_b_id: int) -> None:
