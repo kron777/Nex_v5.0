@@ -104,6 +104,11 @@ class BeliefSynergizer:
             grade = grader.grade(result_id, belief_a["id"], belief_b["id"])
             if grade is not None and grade > BOOST_THRESHOLD:
                 apply_boost(self._writer, result_id, grade)
+                self._errors.record(
+                    f"boost_applied: belief_id={result_id} grade={grade:.3f} "
+                    f"boost_value={1.0 + grade:.2f}",
+                    source=_LOG_SOURCE, level="INFO",
+                )
         except Exception as _de:
             self._errors.record(f"diversity grading failed: {_de}", source=_LOG_SOURCE)
         return {

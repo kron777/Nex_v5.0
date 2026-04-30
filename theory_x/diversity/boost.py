@@ -6,7 +6,7 @@ import time
 
 log = logging.getLogger("theory_x.diversity.boost")
 
-BOOST_THRESHOLD = 0.7
+BOOST_THRESHOLD = 0.35
 DECAY_RATE_PER_DAY = 0.02
 NEUTRAL_THRESHOLD = 1.05
 
