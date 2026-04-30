@@ -98,6 +98,12 @@ from theory_x.stage6_fountain.crystallizer import FountainCrystallizer
 
 THEORY_X_STAGE = 6
 
+# Brief specifies readiness < 0.5 for stillness, but firing requires >= 0.7
+# (FOUNTAIN_THRESHOLD in readiness.py).  We use 0.85 — the lower third of the
+# firing range — so low-but-firing readiness combined with duplicate retrieval
+# triggers stillness, while high readiness fires regardless of retrieval overlap.
+_STILLNESS_READINESS_CAP = 0.85
+
 
 class FountainGenerator:
     def __init__(
@@ -133,6 +139,7 @@ class FountainGenerator:
         self._last_fountain_output: Optional[str] = None
         self._last_fire_ts: float = 0.0
         self._total_fires: int = 0
+        self._consecutive_stillness: int = 0
         from speech.governor import SpeechGovernor
         _gov_initial_ts = 0.0
         try:
@@ -275,6 +282,79 @@ class FountainGenerator:
         except Exception:
             pass
 
+        # ── Stillness detection (Phase 1) ─────────────────────────────────────
+        # Skip firing when retrieval duplicates recent fires AND readiness is not
+        # high.  Brief says readiness < 0.5 but firing requires >= 0.7, so we use
+        # _STILLNESS_READINESS_CAP = 0.85 (lower third of the firing range).
+        _fountain_stillness_reason: Optional[str] = None
+        _went_still = False
+        _current_belief_ids = frozenset(
+            bel_id for bel_id, *_ in retrieval_manifest if bel_id
+        )
+        if _current_belief_ids and readiness < _STILLNESS_READINESS_CAP:
+            if self._check_retrieval_duplicate(_current_belief_ids):
+                _sig = ",".join(str(x) for x in sorted(_current_belief_ids))
+                if self._consecutive_stillness >= 3:
+                    # Force-fire: three consecutive stillness events — break silence.
+                    _fountain_stillness_reason = "force_fire"
+                    prompt = (
+                        f"You have been quiet for the last "
+                        f"{self._consecutive_stillness} cycles.\n\n{prompt}"
+                    )
+                    try:
+                        self._dynamic_writer.write(
+                            "INSERT INTO stillness_log "
+                            "(ts, reason, retrieval_signature, "
+                            " consecutive_stillness_count) "
+                            "VALUES (?, ?, ?, ?)",
+                            (time.time(), "force_fire", _sig,
+                             self._consecutive_stillness),
+                        )
+                    except Exception:
+                        pass
+                    self._consecutive_stillness = 0
+                else:
+                    _went_still = True
+                    self._consecutive_stillness += 1
+                    _ts_still = time.time()
+                    try:
+                        self._dynamic_writer.write(
+                            "INSERT INTO fountain_events "
+                            "(ts, thought, readiness, hot_branch, "
+                            " word_count, stillness_reason) "
+                            "VALUES (?, ?, ?, ?, ?, ?)",
+                            (_ts_still, "", readiness, None, 0,
+                             "duplicate_retrieval"),
+                        )
+                        self._dynamic_writer.write(
+                            "INSERT INTO stillness_log "
+                            "(ts, reason, retrieval_signature, "
+                            " consecutive_stillness_count) "
+                            "VALUES (?, ?, ?, ?)",
+                            (_ts_still, "duplicate_retrieval", _sig,
+                             self._consecutive_stillness),
+                        )
+                    except Exception as _se:
+                        error_channel.record(
+                            f"stillness write failed: {_se}",
+                            source="stage6_fountain",
+                        )
+                    error_channel.record(
+                        f"Fountain STILL duplicate_retrieval "
+                        f"consecutive={self._consecutive_stillness}",
+                        source="stage6_fountain", level="INFO",
+                    )
+        if _went_still:
+            return None
+        if self._consecutive_stillness > 0 and _fountain_stillness_reason is None:
+            # Coming out of a stillness streak — prepend quiet notice.
+            prompt = (
+                f"You have been quiet for the last "
+                f"{self._consecutive_stillness} cycles.\n\n{prompt}"
+            )
+            self._consecutive_stillness = 0
+        # ── end stillness ─────────────────────────────────────────────────────
+
         voice_ok = True
         try:
             resp = self._voice.speak(
@@ -352,9 +432,11 @@ class FountainGenerator:
 
         word_count = len(thought.split())
         fountain_event_id = self._dynamic_writer.write(
-            "INSERT INTO fountain_events (ts, thought, droplet, readiness, hot_branch, word_count) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (ts_now, thought, droplet, readiness, hot_branch, word_count),
+            "INSERT INTO fountain_events "
+            "(ts, thought, droplet, readiness, hot_branch, word_count, stillness_reason) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (ts_now, thought, droplet, readiness, hot_branch, word_count,
+             _fountain_stillness_reason),
         )
 
         self._last_fountain_output = thought
@@ -540,6 +622,33 @@ class FountainGenerator:
             return "\n".join(lines) or "(quiet)"
         except Exception:
             return "(unavailable)"
+
+    def _check_retrieval_duplicate(self, current_ids: frozenset) -> bool:
+        """Return True if current belief_ids overlap > 80% with any of last 3 real fires."""
+        if self._dynamic_reader is None:
+            return False
+        try:
+            prev_fires = self._dynamic_reader.read(
+                "SELECT DISTINCT frl.fire_id "
+                "FROM fountain_retrieval_log frl "
+                "JOIN fountain_events fe ON frl.fire_id = fe.id "
+                "WHERE fe.thought != '' "
+                "ORDER BY frl.fire_id DESC LIMIT 3"
+            )
+            for pf in prev_fires:
+                prev_rows = self._dynamic_reader.read(
+                    "SELECT DISTINCT belief_id FROM fountain_retrieval_log "
+                    "WHERE fire_id = ?",
+                    (pf["fire_id"],),
+                )
+                prev_ids = frozenset(r["belief_id"] for r in prev_rows)
+                if prev_ids:
+                    union = current_ids | prev_ids
+                    if len(current_ids & prev_ids) / len(union) > 0.8:
+                        return True
+        except Exception:
+            pass
+        return False
 
     def _retrieve_context_beliefs(self, own_n: int = 7, seed_n: int = 2) -> list:  # noqa: E501
         """Retrieve beliefs for fountain context.

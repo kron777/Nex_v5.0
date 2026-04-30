@@ -158,6 +158,15 @@ _MIGRATIONS: dict[str, list[str]] = {
         "activated_belief_id INTEGER, "
         "activation_value REAL)",
         "CREATE INDEX IF NOT EXISTS idx_substrate_fires_ts ON substrate_fires(ts)",
+        # Phase 1 — stillness instrumentation
+        "ALTER TABLE fountain_events ADD COLUMN stillness_reason TEXT",
+        "CREATE TABLE IF NOT EXISTS stillness_log ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "ts REAL NOT NULL, "
+        "reason TEXT NOT NULL, "
+        "retrieval_signature TEXT, "
+        "consecutive_stillness_count INTEGER)",
+        "CREATE INDEX IF NOT EXISTS idx_stillness_ts ON stillness_log(ts)",
     ],
     "conversations": [
         "CREATE TABLE IF NOT EXISTS open_problems ("
