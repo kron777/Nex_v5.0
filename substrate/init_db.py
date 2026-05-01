@@ -165,8 +165,10 @@ _MIGRATIONS: dict[str, list[str]] = {
         "ts REAL NOT NULL, "
         "reason TEXT NOT NULL, "
         "retrieval_signature TEXT, "
-        "consecutive_stillness_count INTEGER)",
+        "consecutive_stillness_count INTEGER, "
+        "jaccard REAL)",
         "CREATE INDEX IF NOT EXISTS idx_stillness_ts ON stillness_log(ts)",
+        "ALTER TABLE stillness_log ADD COLUMN jaccard REAL",
     ],
     "conversations": [
         "CREATE TABLE IF NOT EXISTS open_problems ("

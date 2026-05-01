@@ -103,6 +103,10 @@ THEORY_X_STAGE = 6
 # firing range — so low-but-firing readiness combined with duplicate retrieval
 # triggers stillness, while high readiness fires regardless of retrieval overlap.
 _STILLNESS_READINESS_CAP = 0.85
+# Jaccard threshold for own-slot belief_ids only.  Spectrum and seed are drawn
+# randomly each fire, diluting all-slot Jaccard to ~0.2 even when own content
+# repeats.  Checking own-slot only gives a meaningful repetition signal.
+_STILLNESS_JACCARD_THRESHOLD = 0.7
 
 
 class FountainGenerator:
@@ -288,12 +292,15 @@ class FountainGenerator:
         # _STILLNESS_READINESS_CAP = 0.85 (lower third of the firing range).
         _fountain_stillness_reason: Optional[str] = None
         _went_still = False
-        _current_belief_ids = frozenset(
-            bel_id for bel_id, *_ in retrieval_manifest if bel_id
+        # Own-slot only: spectrum/seed are random each fire and dilute Jaccard.
+        _own_belief_ids = frozenset(
+            bel_id for bel_id, slot, *_ in retrieval_manifest
+            if bel_id and slot == "own"
         )
-        if _current_belief_ids and readiness < _STILLNESS_READINESS_CAP:
-            if self._check_retrieval_duplicate(_current_belief_ids):
-                _sig = ",".join(str(x) for x in sorted(_current_belief_ids))
+        if _own_belief_ids and readiness < _STILLNESS_READINESS_CAP:
+            _jaccard = self._check_retrieval_duplicate(_own_belief_ids)
+            if _jaccard >= _STILLNESS_JACCARD_THRESHOLD:
+                _sig = ",".join(str(x) for x in sorted(_own_belief_ids))
                 if self._consecutive_stillness >= 3:
                     # Force-fire: three consecutive stillness events — break silence.
                     _fountain_stillness_reason = "force_fire"
@@ -305,10 +312,10 @@ class FountainGenerator:
                         self._dynamic_writer.write(
                             "INSERT INTO stillness_log "
                             "(ts, reason, retrieval_signature, "
-                            " consecutive_stillness_count) "
-                            "VALUES (?, ?, ?, ?)",
+                            " consecutive_stillness_count, jaccard) "
+                            "VALUES (?, ?, ?, ?, ?)",
                             (time.time(), "force_fire", _sig,
-                             self._consecutive_stillness),
+                             self._consecutive_stillness, _jaccard),
                         )
                     except Exception:
                         pass
@@ -329,10 +336,10 @@ class FountainGenerator:
                         self._dynamic_writer.write(
                             "INSERT INTO stillness_log "
                             "(ts, reason, retrieval_signature, "
-                            " consecutive_stillness_count) "
-                            "VALUES (?, ?, ?, ?)",
+                            " consecutive_stillness_count, jaccard) "
+                            "VALUES (?, ?, ?, ?, ?)",
                             (_ts_still, "duplicate_retrieval", _sig,
-                             self._consecutive_stillness),
+                             self._consecutive_stillness, _jaccard),
                         )
                     except Exception as _se:
                         error_channel.record(
@@ -341,6 +348,7 @@ class FountainGenerator:
                         )
                     error_channel.record(
                         f"Fountain STILL duplicate_retrieval "
+                        f"jaccard={_jaccard:.3f} "
                         f"consecutive={self._consecutive_stillness}",
                         source="stage6_fountain", level="INFO",
                     )
@@ -623,10 +631,11 @@ class FountainGenerator:
         except Exception:
             return "(unavailable)"
 
-    def _check_retrieval_duplicate(self, current_ids: frozenset) -> bool:
-        """Return True if current belief_ids overlap > 80% with any of last 3 real fires."""
+    def _check_retrieval_duplicate(self, current_ids: frozenset) -> float:
+        """Return max Jaccard of own-slot belief_ids vs last 3 real fires (0.0 if no data)."""
         if self._dynamic_reader is None:
-            return False
+            return 0.0
+        max_jaccard = 0.0
         try:
             prev_fires = self._dynamic_reader.read(
                 "SELECT DISTINCT frl.fire_id "
@@ -638,17 +647,19 @@ class FountainGenerator:
             for pf in prev_fires:
                 prev_rows = self._dynamic_reader.read(
                     "SELECT DISTINCT belief_id FROM fountain_retrieval_log "
-                    "WHERE fire_id = ?",
+                    "WHERE fire_id = ? AND slot = 'own'",
                     (pf["fire_id"],),
                 )
                 prev_ids = frozenset(r["belief_id"] for r in prev_rows)
                 if prev_ids:
                     union = current_ids | prev_ids
-                    if len(current_ids & prev_ids) / len(union) > 0.8:
-                        return True
+                    if union:
+                        j = len(current_ids & prev_ids) / len(union)
+                        if j > max_jaccard:
+                            max_jaccard = j
         except Exception:
             pass
-        return False
+        return max_jaccard
 
     def _retrieve_context_beliefs(self, own_n: int = 7, seed_n: int = 2) -> list:  # noqa: E501
         """Retrieve beliefs for fountain context.
