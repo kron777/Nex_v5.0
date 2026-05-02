@@ -726,7 +726,7 @@ async function pollAgi() {
       if ((b.tier || 0) >= 5) {
         agiLastBeliefTs = Math.max(agiLastBeliefTs, bTs);
         _agiShowSignal("DEEP_BELIEF", bTs,
-          `Tier ${b.tier}: ${(b.content || "").slice(0, 80)}`);
+          `Tier ${b.tier}: ${(b.content || "").slice(0, 200)}`);
       } else {
         agiLastBeliefTs = Math.max(agiLastBeliefTs, bTs);
       }
@@ -745,7 +745,7 @@ async function pollAgi() {
       const hasThinking = /\bthinking\b/i.test(resp);
       if (hasI && hasMy && hasThinking) {
         _agiShowSignal("RECURSION", s.fired_at || 0,
-          resp.slice(0, 80));
+          resp.slice(0, 200));
       }
     }
   }
