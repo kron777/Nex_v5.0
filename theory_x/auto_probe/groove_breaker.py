@@ -1,18 +1,18 @@
 """
-Auto-probe groove breaker — Phase A (observation mode only).
+Auto-probe groove breaker — Phase B (delivery active, currently disabled).
 
 Per Design v0.3:
   - Section 5: Trigger conditions
   - Section 6: Probe selection by operation-type inversion
-  - Section 11 Phase A: observation only, no firing
+  - Section 11 Phase B: probes delivered into fountain prompt via get_pending_probe_text()
 
-This module is a passive observer in Phase A. It checks
-trigger conditions every fountain tick. When triggered, it
-logs to auto_probe_log with status='observation' and does
-nothing else.
+When ENABLED=True, this module checks trigger conditions every fountain tick.
+When triggered, it logs to auto_probe_log (status='observation') and queues the
+probe for delivery. FountainGenerator calls get_pending_probe_text() each tick
+to inject the pending probe into the fountain prompt.
 
-Phase B (later) adds operator approval flow.
-Phase C (later) adds autonomous firing.
+Disabled 2026-05-02 pending grounded_observation probe set and probe category
+audit. Re-enable by setting ENABLED=True and restarting NEX.
 """
 
 import logging
@@ -30,7 +30,7 @@ GROOVE_SEVERITY_THRESHOLD = 0.80
 GROOVE_FRESHNESS_WINDOW = 1800  # 30 min in seconds
 SUSTAIN_THRESHOLD = 8           # min fires since alert detected
 COOLDOWN_SECONDS = 1800         # 30 min between auto_probe events
-ENABLED = True                   # master enable/disable
+ENABLED = False  # disabled 2026-05-02 — see catalogue d9ce4b7 + auto-probe audit
 
 # Operation-type inversion mapping (Design v0.3 Section 6)
 OPCODE_TO_PROBE_CATEGORY = {
