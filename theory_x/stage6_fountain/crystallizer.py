@@ -54,6 +54,12 @@ _PERFORMANCE_PATTERNS = [
 ]
 _COMPILED_PERF_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _PERFORMANCE_PATTERNS]
 
+# Strip arc-context metadata that the LLM echoes from prompts back into
+# output. Catches "(N fires)", "(N fires, return-transformation)",
+# "(N fires, return-transformation, last ~M min ago)", and cascade doubles.
+# See observations/metadata_contamination_audit_2026-05-02.md.
+_METADATA_PATTERN = re.compile(r'\s*\(\d+\s+fires(?:[^)]*)?\)')
+
 
 class FountainCrystallizer:
 
@@ -97,6 +103,7 @@ class FountainCrystallizer:
         ts: float,
         droplet: Optional[str] = None,
     ) -> Optional[int]:
+        thought = _METADATA_PATTERN.sub('', thought).strip()
         ok, reason = self._quality_check(thought, droplet=droplet)
         if not ok:
             errors.record(
