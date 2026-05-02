@@ -23,3 +23,12 @@ venv/
 
 # Live runtime database — must never be committed
 /beliefs.db
+
+# Operator backup snapshots — keep on disk, exclude from git status
+*.bak
+*.bak_*
+*.bak.*
+*.bak[0-9]*
+
+# Session-specific observation notes
+observations/
