@@ -12,9 +12,10 @@ fountain tick post-restart.
 Also re-issues pending probes from the previous session.
 
 No synthesized beliefs. No ventriloquism. Real prior thoughts,
-just promoted to recent. Verified: retrieval query in
-generator.py orders by (created_at * boost_value) DESC,
-so created_at is the only field that needs updating.
+just promoted to recent. Retrieval query in generator.py orders
+by created_at (with bounded boost time-bonus added), so updating
+created_at to now-1 puts the belief at top of own-slot regardless
+of any boost it carries.
 """
 
 from __future__ import annotations
@@ -126,8 +127,9 @@ class ResumptionSeeder:
     def _promote_beliefs(self, belief_ids: List[int]) -> int:
         """
         Update created_at = now-1 for these belief IDs.
-        Retrieval query orders by (created_at * boost_value) DESC,
-        so this makes them win the recent-context slot first tick.
+        Retrieval query orders by created_at + bounded boost bonus, so
+        setting created_at = now-1 makes the belief the most recent in
+        the pool and wins the recent-context slot first tick.
         """
         if not belief_ids:
             return 0

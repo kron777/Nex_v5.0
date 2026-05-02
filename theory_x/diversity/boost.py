@@ -10,6 +10,21 @@ BOOST_THRESHOLD = 0.35
 DECAY_RATE_PER_DAY = 0.02
 NEUTRAL_THRESHOLD = 1.05
 
+# Boost-as-time-bonus: when fountain own-slot retrieval sorts beliefs, a
+# boosted belief is treated as if it were created BOOST_TIME_BONUS_SECONDS
+# × (boost_value - 1.0) more recently than its actual created_at.
+#
+# Empirical boost_value range is 1.35-1.42, so (boost_value - 1.0) ranges
+# 0.35-0.42. With BOOST_TIME_BONUS_SECONDS = 7 days:
+#   max-boosted belief looks ~2.9 days newer than it actually is
+# This is the intended bias: boost helps a belief surface for a window,
+# then fresh content displaces it. Boost has to be re-earned.
+#
+# This replaces the previous multiplicative formula (created_at × boost_value)
+# which produced a ~22-year time-shift per boost — a permanent retrieval lock
+# rather than a learning gradient.
+BOOST_TIME_BONUS_SECONDS = 7 * 86400  # 7 days
+
 
 def apply_boost(writer, belief_id: int, grade: float) -> None:
     boost_value = 1.0 + grade

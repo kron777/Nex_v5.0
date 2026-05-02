@@ -669,12 +669,18 @@ class FountainGenerator:
         3 seeds don't dominate forever. Tier is ignored — T7 is long-term
         memory, not archived content.
 
-        Boost: beliefs with a belief_boost row rise in priority via weighted sort.
+        Boost: beliefs with a belief_boost row rise in priority via additive
+        time-bonus. A boost of B treats the belief as if created
+        BOOST_TIME_BONUS_SECONDS × (B - 1.0) seconds more recently than its
+        actual created_at. Bounded — boost yields a window of relevance,
+        then fresh content displaces it.
+
         Residue: up to 2 beliefs from the previous cycle are prepended as candidates.
         Reanimation: every 20th fire, one dormant belief is prepended.
         """
         if self._beliefs_reader is None:
             return []
+        from theory_x.diversity.boost import BOOST_TIME_BONUS_SECONDS
         own_placeholders = ",".join("?" * len(_OWN_CONTENT_SOURCES))
         seed_placeholders = ",".join("?" * len(_SEED_SOURCES))
         try:
@@ -683,8 +689,8 @@ class FountainGenerator:
                 f"       COALESCE(bb.boost_value, 1.0) AS boost_value "
                 f"FROM beliefs b LEFT JOIN belief_boost bb ON b.id = bb.belief_id "
                 f"WHERE b.source IN ({own_placeholders}) "
-                f"ORDER BY (b.created_at * COALESCE(bb.boost_value, 1.0)) DESC LIMIT ?",
-                (*_OWN_CONTENT_SOURCES, own_n),
+                f"ORDER BY (b.created_at + (COALESCE(bb.boost_value, 1.0) - 1.0) * ?) DESC LIMIT ?",
+                (*_OWN_CONTENT_SOURCES, BOOST_TIME_BONUS_SECONDS, own_n),
             )
         except Exception:
             own_rows = []
