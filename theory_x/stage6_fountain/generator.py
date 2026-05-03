@@ -94,7 +94,12 @@ _DEFAULT_DRIFT_EXAMPLES = [
 ]
 
 from theory_x.stage6_fountain.readiness import ReadinessEvaluator
-from theory_x.stage6_fountain.crystallizer import FountainCrystallizer
+from theory_x.stage6_fountain.crystallizer import FountainCrystallizer, _METADATA_PATTERN
+
+
+def _strip_metadata(text: str) -> str:
+    return _METADATA_PATTERN.sub('', text).strip()
+
 
 THEORY_X_STAGE = 6
 
@@ -235,7 +240,7 @@ class FountainGenerator:
                 "VALUES (?, ?, ?, ?, ?)",
                 (ts_now, thought, readiness, "quiescent", len(thought.split())),
             )
-            self._last_fountain_output = thought
+            self._last_fountain_output = _strip_metadata(thought)
             self._last_fire_ts = ts_now
             self._total_fires += 1
             error_channel.record(
@@ -403,7 +408,7 @@ class FountainGenerator:
                 "VALUES (?, ?, ?, ?, ?)",
                 (ts_now, thought, readiness, "voice_fallback", len(thought.split())),
             )
-            self._last_fountain_output = thought
+            self._last_fountain_output = _strip_metadata(thought)
             self._last_fire_ts = ts_now
             self._total_fires += 1
             error_channel.record(
@@ -447,7 +452,7 @@ class FountainGenerator:
              _fountain_stillness_reason),
         )
 
-        self._last_fountain_output = thought
+        self._last_fountain_output = _strip_metadata(thought)
         self._last_fire_ts = ts_now
         self._total_fires += 1
         try:
