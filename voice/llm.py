@@ -98,7 +98,8 @@ _ROLE_FRAMING_STRIP = re.compile(
     r"speaking as nex,?\s*|"
     r"in my role as nex,?\s*|"
     r"from my perspective as nex,?\s*|"
-    r"as the nex system,?\s*)",
+    r"as the nex system,?\s*|"
+    r"that doesn'?t reach my graph right now\.?\s*)",
     re.IGNORECASE,
 )
 

@@ -532,6 +532,25 @@ def create_app(state: AppState) -> Flask:
         except Exception:
             pass
 
+        # When Philosophical and no topical beliefs matched, inject spectrum
+        # standing-points into belief_text so the LLM's "interior" has
+        # standing-point content rather than just system metrics.
+        if register.name in _ALLOW_THIN_REGISTERS and belief_count < CHAT_GAP_MIN_BELIEFS:
+            try:
+                _philo_rows = state.readers["beliefs"].read(
+                    "SELECT content FROM beliefs WHERE source='spectrum' "
+                    "ORDER BY RANDOM() LIMIT 4"
+                )
+                if _philo_rows:
+                    _philo_lines = "\n".join(
+                        f"- [Tier 1] {r['content']}" for r in _philo_rows
+                    )
+                    belief_text = (belief_text or "") + (
+                        "\n\nYour standing-points (always present):\n" + _philo_lines
+                    )
+            except Exception:
+                pass
+
         # Route through voice — fountain-style interior prompt.
         if belief_text:
             voice_prompt = (
