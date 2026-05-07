@@ -71,6 +71,7 @@ from __future__ import annotations
 import atexit
 import logging
 import os
+import re
 import secrets
 import time
 import uuid
@@ -94,6 +95,29 @@ logger = logging.getLogger("gui.server")
 
 CHAT_GAP_MIN_BELIEFS = 2
 CHAT_GAP_REFUSAL = "That doesn't reach my graph right now."
+# Registers where thin belief retrieval should not block a response.
+# Philosophical = self-inquiry; NEX speaks from her standing-points even
+# when no specific belief matches the query.
+_ALLOW_THIN_REGISTERS = {"Philosophical"}
+
+_SOCIAL_REGEX = re.compile(
+    r"^\s*(hi|hello|hey|yo|sup|howdy|"
+    r"how(\s+(are|do|is|s|'?s))|"
+    r"what(\s+(s|'?s))?\s+up|"
+    r"good\s+(morning|afternoon|evening|night|day)|"
+    r"thanks|thank\s+you|nice|cool|ok|okay|right|"
+    r"see\s+ya|bye|goodbye)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_social(prompt: str, register=None) -> bool:
+    try:
+        if register and str(register.name).upper() in ("WARMTH", "SOCIAL", "CASUAL"):
+            return True
+    except Exception:
+        pass
+    return bool(_SOCIAL_REGEX.search(prompt or ""))
 
 # Table lists per database — used for DB stats display.
 TABLES_PER_DB: dict[str, tuple[str, ...]] = {
@@ -464,9 +488,13 @@ def create_app(state: AppState) -> Flask:
             register = by_name(register_override) or register
 
         # Honest don't-know: bypass LLM when graph match is too thin.
-        # Probe calls always proceed to the LLM regardless of belief count.
+        # Probe calls and social queries always proceed to the LLM regardless of belief count.
         belief_count = belief_text.count("- [Tier") if belief_text else 0
-        if not is_probe and belief_count < CHAT_GAP_MIN_BELIEFS:
+        _is_social_q = _is_social(prompt, register=register)
+        if (not is_probe
+                and not _is_social_q
+                and register.name not in _ALLOW_THIN_REGISTERS
+                and belief_count < CHAT_GAP_MIN_BELIEFS):
             if writer is not None and session_id is not None:
                 try:
                     writer.write(
