@@ -8,6 +8,7 @@ Starts background loops:
 """
 from __future__ import annotations
 
+import json
 import threading
 import time
 from dataclasses import dataclass, field
@@ -26,6 +27,7 @@ from .synergizer import BeliefSynergizer
 THEORY_X_STAGE = 3
 
 _LOG_SOURCE = "world_model"
+_HARMONIZER_LOG = "/tmp/nex5_harmonizer.log"
 
 
 SYNERGIZER_INTERVAL = 25 * 60
@@ -113,6 +115,24 @@ def _harmonizer_loop(state: WorldModelState, stop: threading.Event) -> None:
                     f"harmonizer_loop resolved {resolved} conflicts",
                     source=_LOG_SOURCE, level="INFO",
                 )
+            try:
+                _dist = state._disturbance
+                _harm_st = state.harmonizer.tick()
+                with open(_HARMONIZER_LOG, "a") as _hf:
+                    _hf.write(json.dumps({
+                        "event": "harmonizer_cycle",
+                        "ts": time.time(),
+                        "actions_taken": resolved,
+                        "total_runs": state._harmonizer_runs,
+                        "active_paradox": _harm_st.get("active_paradox", 0),
+                        "total_events": _harm_st.get("total_events", 0),
+                        "disturbance_active": _dist is not None,
+                        "disturbance_cycles_remaining": (
+                            _dist.get("cycles_remaining", 0) if _dist else 0
+                        ),
+                    }) + "\n")
+            except Exception:
+                pass
         except Exception as exc:
             errors.record(f"harmonizer_loop error: {exc}", source=_LOG_SOURCE, exc=exc)
 
