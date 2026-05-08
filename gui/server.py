@@ -93,6 +93,15 @@ THEORY_X_STAGE = None
 
 logger = logging.getLogger("gui.server")
 
+# FocalSet — Layer 1 attention (log-only; no behavior change yet)
+try:
+    from theory_x.focal_set import FocalSet as _FocalSet
+    _focal_set = _FocalSet(K=4)
+except Exception:
+    _focal_set = None  # type: ignore[assignment]
+
+_FOCAL_LOG = "/tmp/nex5_focal.log"
+
 CHAT_GAP_MIN_BELIEFS = 2
 CHAT_GAP_REFUSAL = "That doesn't reach my graph right now."
 # Registers where thin belief retrieval should not block a response.
@@ -486,6 +495,37 @@ def create_app(state: AppState) -> Flask:
         # the user hasn't explicitly specified a register.
         if register_override and not register_name:
             register = by_name(register_override) or register
+
+        # FocalSet — log-only attention tracking (no behavior change).
+        if _focal_set is not None and state.world_model is not None:
+            try:
+                _raw_beliefs = state.world_model.retriever.retrieve(
+                    query=prompt, limit=10
+                )
+                if _raw_beliefs:
+                    tick = _focal_set.next_tick()
+                    _candidates = {str(b["id"]): b for b in _raw_beliefs}
+                    _event = _focal_set.update(_candidates, current_tick=tick)
+                    _focal_ids = _focal_set.get_focal_ids()
+                    _focal_contents = [
+                        b["content"][:60]
+                        for b in _raw_beliefs
+                        if str(b["id"]) in _focal_ids
+                    ]
+                    import datetime as _dt
+                    _ts = _dt.datetime.now().strftime("%H:%M:%S")
+                    _line = (
+                        f"[{_ts}] tick={tick} register={register.name} "
+                        f"query={prompt[:50]!r} "
+                        f"focal={len(_focal_ids)} "
+                        f"added={len(_event.added)} removed={len(_event.removed)} "
+                        f"blocked={len(_event.blocked)}\n"
+                        + "".join(f"  · {c}\n" for c in _focal_contents)
+                    )
+                    with open(_FOCAL_LOG, "a") as _fh:
+                        _fh.write(_line)
+            except Exception:
+                pass
 
         # Honest don't-know: bypass LLM when graph match is too thin.
         # Probe calls and social queries always proceed to the LLM regardless of belief count.
