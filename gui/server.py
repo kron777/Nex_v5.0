@@ -102,6 +102,24 @@ except Exception:
 
 _FOCAL_LOG = "/tmp/nex5_focal.log"
 
+# Working Memory — Layer 2 (log-only; behavior injection in Phase 2.4)
+try:
+    from theory_x.working_memory import WorkingMemory as _WorkingMemory
+    _working_memory_by_session: dict[str, "_WorkingMemory"] = {}
+except Exception:
+    _WorkingMemory = None  # type: ignore[assignment,misc]
+    _working_memory_by_session = {}
+
+_WM_LOG = "/tmp/nex5_working_memory.log"
+
+
+def _get_or_create_wm(session_id: str) -> "Optional[_WorkingMemory]":
+    if _WorkingMemory is None:
+        return None
+    if session_id not in _working_memory_by_session:
+        _working_memory_by_session[session_id] = _WorkingMemory()
+    return _working_memory_by_session[session_id]
+
 CHAT_GAP_MIN_BELIEFS = 2
 CHAT_GAP_REFUSAL = "That doesn't reach my graph right now."
 # Registers where thin belief retrieval should not block a response.
@@ -524,6 +542,37 @@ def create_app(state: AppState) -> Flask:
                     )
                     with open(_FOCAL_LOG, "a") as _fh:
                         _fh.write(_line)
+
+                    # Working Memory — feed focal items into session buffer (log-only)
+                    if session_id is not None:
+                        _wm = _get_or_create_wm(session_id)
+                        if _wm is not None:
+                            _wm_now = time.time()
+                            _wm.decay(_wm_now)
+                            for _bid in _focal_ids:
+                                _bdata = _candidates.get(_bid, {})
+                                if _bdata:
+                                    _wm.add(
+                                        _bid,
+                                        _bdata.get("content", "")[:200],
+                                        now=_wm_now,
+                                    )
+                            _wm_active = _wm.get_active(_wm_now)
+                            _wm_state = _wm.state(_wm_now)
+                            _wm_line = (
+                                f"[{_ts}] session={session_id[:8]} "
+                                f"size={_wm_state['size']} "
+                                f"active={len(_wm_active)} "
+                                f"query={prompt[:50]!r}\n"
+                                + "".join(
+                                    f"  wm · [{i['activation']:.3f}] "
+                                    f"(refresh={i['refresh_count']}) "
+                                    f"{i['content'][:60]}\n"
+                                    for i in _wm_active
+                                )
+                            )
+                            with open(_WM_LOG, "a") as _wfh:
+                                _wfh.write(_wm_line)
             except Exception:
                 pass
 
@@ -591,6 +640,17 @@ def create_app(state: AppState) -> Flask:
             except Exception:
                 pass
 
+        # Working Memory injection — cross-turn context for Conversational register.
+        if session_id is not None and _WorkingMemory is not None:
+            _wm_inj = _get_or_create_wm(session_id)
+            if _wm_inj is not None:
+                _wm_active = _wm_inj.get_active(time.time())
+                if _wm_active and register.name == "Conversational" and belief_count >= CHAT_GAP_MIN_BELIEFS:
+                    _wm_lines = "\n".join(f"- {i['content']}" for i in _wm_active[:5])
+                    belief_text = (belief_text or "") + (
+                        "\n\nRecently attended (cross-turn):\n" + _wm_lines
+                    )
+
         # Route through voice — fountain-style interior prompt.
         if belief_text:
             voice_prompt = (
@@ -604,6 +664,7 @@ def create_app(state: AppState) -> Flask:
             )
         else:
             voice_prompt = f"{_spectrum_block}{prompt}" if _spectrum_block else prompt
+
         try:
             resp = state.voice.speak(
                 VoiceRequest(prompt=voice_prompt, register=register),
