@@ -136,10 +136,11 @@ try:
 except Exception:
     _executive = None  # type: ignore[assignment]
 
-_EC_LOG  = "/tmp/nex5_executive_control.log"
-_BSM_LOG = "/tmp/nex5_behavioural_self_model.log"
-_SM_LOG  = "/tmp/nex5_self_model.log"
-_PM_LOG  = "/tmp/nex5_problem_memory.log"
+_EC_LOG          = "/tmp/nex5_executive_control.log"
+_BSM_LOG         = "/tmp/nex5_behavioural_self_model.log"
+_SM_LOG          = "/tmp/nex5_self_model.log"
+_PM_LOG          = "/tmp/nex5_problem_memory.log"
+_HARMONIZER_LOG  = "/tmp/nex5_harmonizer.log"
 
 
 def _get_or_create_wm(session_id: str) -> "Optional[_WorkingMemory]":
@@ -571,6 +572,40 @@ def create_app(state: AppState) -> Flask:
                     f"self-model log write failed: {_sm_exc}",
                     source="gui.server", exc=_sm_exc,
                 )
+
+        # Harmonizer cumulative-tension surfacing — INSIDE routes only (B3').
+        # Disturbance block covers acute named tensions for 8 turns post-scan;
+        # format_for_prompt() covers persistent graph-tension state until
+        # paradox events age out. Per RE_AUDIT B3' wire-decision.
+        if (route_result is not None
+                and route_result.get("side") == "INSIDE"
+                and state.world_model is not None):
+            _harm_text = ""
+            _harm_active = 0
+            try:
+                _harm_st = state.world_model.harmonizer.tick()
+                _harm_active = _harm_st.get("active_paradox", 0)
+                if _harm_active > 0:
+                    _harm_text = state.world_model.harmonizer.format_for_prompt()
+                    if _harm_text:
+                        belief_text = (belief_text or "") + "\n\n" + _harm_text
+            except Exception as _harm_exc:
+                error_channel.record(
+                    f"harmonizer format_for_prompt failed: {_harm_exc}",
+                    source="gui.server", exc=_harm_exc,
+                )
+            try:
+                with open(_HARMONIZER_LOG, "a") as _hf:
+                    _hf.write(json.dumps({
+                        "event": "harmonizer_inject",
+                        "ts": time.time(),
+                        "session": session_id,
+                        "active_paradox": _harm_active,
+                        "injected": bool(_harm_text),
+                        "text_len": len(_harm_text),
+                    }) + "\n")
+            except Exception:
+                pass
 
         # Append disturbance tension if present (PHILOSOPHICAL or unspecified register)
         if state.world_model is not None:
