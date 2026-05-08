@@ -139,6 +139,7 @@ except Exception:
 _EC_LOG  = "/tmp/nex5_executive_control.log"
 _BSM_LOG = "/tmp/nex5_behavioural_self_model.log"
 _SM_LOG  = "/tmp/nex5_self_model.log"
+_PM_LOG  = "/tmp/nex5_problem_memory.log"
 
 
 def _get_or_create_wm(session_id: str) -> "Optional[_WorkingMemory]":
@@ -595,6 +596,17 @@ def create_app(state: AppState) -> Flask:
                 if matching:
                     problem_text = state.problem_memory.format_for_prompt(matching[0]["id"])
                     belief_text = (belief_text or "") + "\n\n" + problem_text
+                try:
+                    with open(_PM_LOG, "a") as _pmf:
+                        _pmf.write(json.dumps({
+                            "event": "problem_memory_check",
+                            "ts": time.time(),
+                            "session": session_id,
+                            "matched": len(matching),
+                            "prompt": prompt[:200],
+                        }) + "\n")
+                except Exception:
+                    pass
             except Exception as exc:
                 error_channel.record(
                     f"problem memory matching failed: {exc}", source="gui.server", exc=exc
