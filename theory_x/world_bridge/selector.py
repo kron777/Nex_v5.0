@@ -321,6 +321,26 @@ class WorldBridgeSelector:
                 pass
             return ""
 
+        if stream == "internal.interoception":
+            if not payload:
+                return ""
+            try:
+                data = json.loads(payload)
+                total = data.get("total_beliefs", 0)
+                locked = data.get("locked_beliefs", 0)
+                tier_counts = data.get("tier_counts") or {}
+                parts = [f"{total} beliefs held, {locked} locked"]
+                if tier_counts:
+                    dominant = max(tier_counts, key=lambda k: tier_counts[k])
+                    parts.append(f"dominant tier: {dominant}")
+                delta = data.get("beliefs_since_last_poll")
+                if delta is not None and delta != 0:
+                    sign = "+" if delta > 0 else ""
+                    parts.append(f"{sign}{delta} since last check")
+                return f"[substrate] {', '.join(parts)}"
+            except (json.JSONDecodeError, TypeError):
+                return ""
+
         try:
             data = json.loads(payload) if payload else {}
         except (json.JSONDecodeError, TypeError):

@@ -33,6 +33,7 @@ class Interoception(Adapter):
     ) -> None:
         super().__init__(writer, request_fn=request_fn)
         self._beliefs_reader = beliefs_reader
+        self._last_total: Optional[int] = None
 
     def poll(self) -> list[SenseEvent]:
         try:
@@ -58,11 +59,15 @@ class Interoception(Adapter):
             )
             last_created = last_row["t"] if last_row else None
 
+            delta = None if self._last_total is None else (total - self._last_total)
+            self._last_total = total
+
             payload = self.pack(
                 total_beliefs=total,
                 locked_beliefs=locked_count,
                 tier_counts=tier_counts,
                 last_created_at=last_created,
+                beliefs_since_last_poll=delta,
             )
             return [SenseEvent(
                 stream=self.stream,

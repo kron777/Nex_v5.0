@@ -7,6 +7,7 @@ self-inquiry query is detected.
 from __future__ import annotations
 
 import json
+import threading
 import time
 from typing import Optional
 
@@ -37,12 +38,20 @@ def _last_payload(reader: Reader, stream: str) -> Optional[dict]:
         return None
 
 
+_SNAPSHOT_TTL = 30.0  # seconds between snapshot() refreshes in tick()
+
+
 class SelfModel:
+    name: str = "self_model"
+
     def __init__(self, sense_reader: Reader, beliefs_reader: Reader,
                  dynamic_state=None) -> None:
         self._sense = sense_reader
         self._beliefs = beliefs_reader
         self._dynamic = dynamic_state
+        self._lock = threading.Lock()
+        self._snapshot_cache: Optional[dict] = None
+        self._snapshot_ts: float = 0.0
 
     def snapshot(self) -> dict:
         """Assemble current inside state. Falls back gracefully on missing data."""
@@ -77,11 +86,11 @@ class SelfModel:
 
         # -- Interoception --
         intro_p = _last_payload(self._sense, "internal.interoception") or {}
-        tier_dist_raw = intro_p.get("tier_distribution") or {}
+        tier_dist_raw = intro_p.get("tier_counts") or {}
         interoception = {
             "belief_count": intro_p.get("total_beliefs", 0),
             "tier_distribution": {str(k): v for k, v in tier_dist_raw.items()},
-            "locked_count": intro_p.get("locked_count", 0),
+            "locked_count": intro_p.get("locked_beliefs", 0),
         }
 
         # -- Meta awareness --
@@ -156,6 +165,31 @@ class SelfModel:
 
         inside.sort(key=lambda b: b["_score"], reverse=True)
         return inside[:5]
+
+    # ── SentienceNode protocol ────────────────────────────────────────────────
+
+    def tick(self, context: Optional[dict] = None) -> dict:
+        """Refresh snapshot cache if stale; return state summary."""
+        now = time.time()
+        with self._lock:
+            if self._snapshot_cache is None or (now - self._snapshot_ts) > _SNAPSHOT_TTL:
+                self._snapshot_cache = self.snapshot()
+                self._snapshot_ts = now
+        return self.state()
+
+    def decay(self, now: float) -> None:
+        pass  # each snapshot is a live read; no clock-based degradation
+
+    def state(self, now: Optional[float] = None) -> dict:
+        with self._lock:
+            snap = self._snapshot_cache or {}
+            return {
+                "name": self.name,
+                "belief_count": snap.get("interoception", {}).get("belief_count", 0),
+                "inside_belief_count": len(snap.get("inside_beliefs", [])),
+                "hottest_branch": snap.get("attention", {}).get("hottest_branch"),
+                "snapshot_age_s": round(time.time() - self._snapshot_ts, 1),
+            }
 
 
 def format_self_state(snapshot: dict) -> str:
