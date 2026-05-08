@@ -138,6 +138,7 @@ except Exception:
 
 _EC_LOG  = "/tmp/nex5_executive_control.log"
 _BSM_LOG = "/tmp/nex5_behavioural_self_model.log"
+_SM_LOG  = "/tmp/nex5_self_model.log"
 
 
 def _get_or_create_wm(session_id: str) -> "Optional[_WorkingMemory]":
@@ -543,6 +544,31 @@ def create_app(state: AppState) -> Flask:
                 error_channel.record(
                     f"behavioural self-model injection failed: {_bsm_exc}",
                     source="gui.server", exc=_bsm_exc,
+                )
+
+        # SelfModel observability log — INSIDE routes only (B1).
+        # Content already injects via router._inside_route() lines 44-48.
+        # This block adds §6 #5 observability per Lens Theory §2.
+        _sm_snap = route_result.get("self_model_snap") if route_result is not None else None
+        if _sm_snap is not None:
+            try:
+                from theory_x.stage4_membrane.self_model import format_self_state as _fmt_self
+                _sm_intro = _sm_snap.get("interoception", {})
+                _sm_text = _fmt_self(_sm_snap)
+                with open(_SM_LOG, "a") as _smf:
+                    _smf.write(json.dumps({
+                        "event": "self_model_inject",
+                        "ts": time.time(),
+                        "session": session_id,
+                        "belief_count": _sm_intro.get("belief_count", 0),
+                        "locked_count": _sm_intro.get("locked_count", 0),
+                        "inside_beliefs": len(_sm_snap.get("inside_beliefs", [])),
+                        "text_len": len(_sm_text),
+                    }) + "\n")
+            except Exception as _sm_exc:
+                error_channel.record(
+                    f"self-model log write failed: {_sm_exc}",
+                    source="gui.server", exc=_sm_exc,
                 )
 
         # Append disturbance tension if present (PHILOSOPHICAL or unspecified register)

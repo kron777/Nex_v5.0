@@ -41,6 +41,7 @@ class QueryRouter:
     def _inside_route(self, query: str, belief_retriever, self_model: SelfModel) -> dict:
         from theory_x.stage3_world_model.retrieval import format_beliefs_for_prompt
         parts = []
+        snap = None  # passed through for observability log (Option C, B1)
         try:
             snap = self_model.snapshot()
             parts.append(format_self_state(snap))
@@ -61,6 +62,7 @@ class QueryRouter:
             "side": "INSIDE",
             "belief_text": "\n\n".join(parts) if parts else None,
             "register_hint": "philosophical",
+            "self_model_snap": snap,
         }
 
     def _outside_route(self, query: str, belief_retriever, dynamic_state) -> dict:
