@@ -178,6 +178,8 @@ Searching `gui/server.py` for direct node imports and call sites misses indirect
 **Spectrum-block preamble bleed**
 INSIDE-routed self-inquiry queries consistently open with the Alpha spectrum line — "By pure chance, I am born, and I accept this as the beautiful mystery of creation." — prepended as a block rather than woven into the response. Visible in `/tmp/nex5_self_model.log`: `text_len` is 306–307 chars on every INSIDE query regardless of topic, confirming the same block reaches the LLM every time. Prior structural spectrum-injection work addressed the OUTSIDE/gap-gate side; preamble bleed on INSIDE responses is a separate fix path. Do not amplify it in subsequent node ports. Fix path: `_inside_route()` or voice template — not a doctrine change. Track separately.
 
+*Addressed by Experiment A (2026-05-09, commit see LLM_INDEPENDENCE_DOCTRINE.md). Feynmanian falsifiable test confirmed the 'Inner conviction' line in `belief_text` (self_model.py:250, Site 3) was the load-bearing injection point — not LLM training priors or the system prompt Alpha framing (Site 1). Site 3 disabled; 0/5 self-inquiry responses contained preamble post-fix (pre: 4–5/5). Anti-pattern entry retained as historical record per §8 protocol.*
+
 ---
 
 ## 9. Living Document Protocol
@@ -199,3 +201,5 @@ The doctrine is the stable foundation; the translation map (`sentience_translati
 *B1-pass amendments — §6 #3a: wiring verified by output trace, not call-site grep; indirect injection paths via router/membrane/sense substrate are valid §3 surfaces (B1 case: SelfModel wired via router._inside_route(); RE_AUDIT found 8 of 8 nodes wired by output-trace method). §6 #5 smoke set split into OUTSIDE-route checks (blocker, consciousness, gibberish, greeting) and INSIDE-route checks (love, feeling) — B1 found two of five queries route INSIDE. §8 new anti-patterns: Audit-by-call-site-grep and Spectrum-block preamble bleed.*
 
 *Phase 10 amendment — §5 #4 Self-Model: substrate gap closed; 12 first-person metaphor claims authored by Jon, seeded via scripts/seed_identity_beliefs.py (source='identity', tier=1, locked=1, conf=1.0). Voice-quality outcome C: identity reaches voice on multi-sentence self-inquiry, spectrum preamble dominant on short queries per §8 anti-pattern. Voice-template work queued. The data gap is structurally closed; voice-quality is a separate concern.*
+
+*Experiment A amendment (2026-05-09) — §8 Spectrum-block preamble bleed addressed. Site 3 (self_model.py:250) disabled per Feynmanian test. Falsification criterion: 0–1 of 5 self-inquiry responses still preamble. Result: 0/5. §5 #4 Self-Model status row updated to reflect preamble bleed resolved; §8 entry updated with resolution note.*
