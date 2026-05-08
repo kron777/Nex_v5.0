@@ -100,7 +100,7 @@ def test_implements_sentience_node_protocol(self):
 |---|------|----------|--------|-----------|
 | 1 | **Attention** (FocalSet) | Selective resource allocation | ✓ DONE | Foundation for all downstream nodes |
 | 2 | **Working Memory** | Intra-session cross-turn coherence | ✓ DONE | Exp-decay buffer, 5-min half-life, capacity 7; feeds belief_text for Conversational |
-| 3 | **Executive Control** | Query routing, register assignment | IN PROGRESS | Heuristic+continuity classifier; EXEC_CONTROL_DESIGN.md approved 2026-05-08 |
+| 3 | **Executive Control** | Query routing, register assignment | ✓ DONE | Heuristic+continuity classifier (Option D); 30/30 regression baseline; wired gui/server.py:426 |
 | 4 | **Self-Model** | Behavioral self-representation | PARTIAL | `behavioural_self_model.py` exists but output not fed to fountain or belief_text |
 | 5 | **Sustained Attention** | Open problem persistence | ABSENT | `open_problems` table wired but always empty; `stage7_sustained/problem_memory.py` unused |
 | 6 | **Interoception** | Body-state awareness in cognition | PARTIAL | Collected (interoception.py) but classified NOISY_INTERNAL_STREAMS and excluded |
@@ -173,4 +173,4 @@ The doctrine is the stable foundation; the translation map (`sentience_translati
 
 ---
 
-*Last amended: 2026-05-08 — §4 SentienceNode Protocol formalized (Model A registry); §5 nodes 1–2 marked done.*
+*Last amended: 2026-05-08 — §4 SentienceNode Protocol formalized (Model A registry); §5 nodes 1–3 marked done. EC threshold set to 0.28 (2 keywords = 0.30 clears it); _TECHNICAL_STRONG fixed for multi-word subjects.*
