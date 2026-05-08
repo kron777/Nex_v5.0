@@ -103,7 +103,7 @@ def test_implements_sentience_node_protocol(self):
 | 3 | **Executive Control** | Query routing, register assignment | ✓ DONE | Heuristic+continuity classifier (Option D); 30/30 regression baseline; wired gui/server.py:426 |
 | 4 | **Self-Model** | Behavioral self-representation | PARTIAL | `behavioural_self_model.py` exists but output not fed to fountain or belief_text |
 | 5 | **Sustained Attention** | Open problem persistence | ABSENT | `open_problems` table wired but always empty; `stage7_sustained/problem_memory.py` unused |
-| 6 | **Interoception** | Body-state awareness in cognition | PARTIAL | Collected (interoception.py) but classified NOISY_INTERNAL_STREAMS and excluded |
+| 6 | **Interoception** | Body-state awareness in cognition | ✓ DONE | Field-name bugs fixed (locked_beliefs, tier_counts); fountain receives natural language via selector; delta metric added. Was never NOISY — NOISY_INTERNAL_STREAMS premise in prior doctrine was wrong |
 | 7 | **Harmonizer** | Contradiction resolution | PARTIAL | Loop runs but `harmonizer_events` always 0; no conflicts yet resolved |
 
 Ordering 3–7 is provisional. The full translation map (Phase 1 of the port project) determines final sequence. Jon confirms order before each port begins.
@@ -173,4 +173,4 @@ The doctrine is the stable foundation; the translation map (`sentience_translati
 
 ---
 
-*Last amended: 2026-05-08 — §4 SentienceNode Protocol formalized (Model A registry); §5 nodes 1–3 marked done. EC threshold set to 0.28 (2 keywords = 0.30 clears it); _TECHNICAL_STRONG fixed for multi-word subjects.*
+*Last amended: 2026-05-08 — §4 SentienceNode Protocol formalized (Model A registry); §5 nodes 1–3 marked done. EC threshold set to 0.28 (2 keywords = 0.30 clears it); _TECHNICAL_STRONG fixed for multi-word subjects. §5 #6 Interoception: field-name bugs fixed, fountain parser added, delta metric added — marked DONE; NOISY_INTERNAL_STREAMS premise in prior doctrine corrected.*
