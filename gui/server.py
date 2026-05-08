@@ -121,6 +121,22 @@ except Exception:
 
 _WM_LOG = "/tmp/nex5_working_memory.log"
 
+# Executive Control — register classifier (replaces classify() stub)
+try:
+    from voice.registers import REGISTERS as _BUILTIN_REGISTERS
+    from theory_x.executive_control import ExecutiveControl as _ExecControl
+    _executive = _ExecControl(_BUILTIN_REGISTERS)
+    # Register as process-lifetime SentienceNode (Model A)
+    try:
+        from theory_x import register as _tx_register_ec
+        _tx_register_ec(_executive)
+    except Exception:
+        pass
+except Exception:
+    _executive = None  # type: ignore[assignment]
+
+_EC_LOG = "/tmp/nex5_executive_control.log"
+
 
 def _get_or_create_wm(session_id: str) -> "Optional[_WorkingMemory]":
     if _WorkingMemory is None:
@@ -405,7 +421,11 @@ def create_app(state: AppState) -> Flask:
         is_probe = bool(payload.get("is_probe", False))
         register_name = payload.get("register")
         register = (
-            by_name(register_name) if register_name else classify(prompt)
+            by_name(register_name) if register_name
+            else (
+                _executive.select(prompt, session_id=session.get("chat_session_id"))
+                if _executive is not None else None
+            )
         ) or default_register()
 
         # Ensure a session row exists in conversations.db.
