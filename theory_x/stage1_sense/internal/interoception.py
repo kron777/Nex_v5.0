@@ -8,6 +8,8 @@ Always enabled. Poll interval: 30s.
 """
 from __future__ import annotations
 
+import json
+import time
 from typing import Optional
 
 import errors as error_channel
@@ -15,6 +17,8 @@ from substrate import Reader, Writer
 from theory_x.stage1_sense.base import Adapter, RequestFn, SenseEvent
 
 THEORY_X_STAGE = 1
+
+_INTEROCEPTION_LOG = "/tmp/nex5_interoception.log"
 
 
 class Interoception(Adapter):
@@ -61,6 +65,19 @@ class Interoception(Adapter):
 
             delta = None if self._last_total is None else (total - self._last_total)
             self._last_total = total
+
+            try:
+                with open(_INTEROCEPTION_LOG, "a") as _itf:
+                    _itf.write(json.dumps({
+                        "event": "interoception_poll",
+                        "ts": time.time(),
+                        "total_beliefs": total,
+                        "locked_beliefs": locked_count,
+                        "beliefs_since_last_poll": delta,
+                        "tier_counts": tier_counts,
+                    }) + "\n")
+            except Exception:
+                pass
 
             payload = self.pack(
                 total_beliefs=total,
