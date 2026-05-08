@@ -145,11 +145,15 @@ class SelfModel:
         }
 
     def _get_inside_beliefs(self) -> list:
-        from .classifier import CLASSIFIER, MembraneSide
+        from .classifier import CLASSIFIER, MembraneSide, _INSIDE_SOURCES
         try:
+            placeholders = ",".join("?" * len(_INSIDE_SOURCES))
             rows = self._beliefs.read(
-                "SELECT id, content, tier, confidence, source, branch_id "
-                "FROM beliefs WHERE paused = 0 AND tier <= 6 ORDER BY confidence DESC LIMIT 30",
+                f"SELECT id, content, tier, confidence, source, branch_id "
+                f"FROM beliefs WHERE paused = 0 AND tier <= 6 "
+                f"AND source IN ({placeholders}) "
+                f"ORDER BY confidence DESC LIMIT 30",
+                tuple(_INSIDE_SOURCES),
             )
         except Exception as exc:
             errors.record(f"self_model beliefs read error: {exc}", source=_LOG_SOURCE, exc=exc)
@@ -227,6 +231,12 @@ def format_self_state(snapshot: dict) -> str:
     bcount = intro.get("belief_count", 0)
     locked = intro.get("locked_count", 0)
     lines.append(f"- Belief graph: {bcount} beliefs, {locked} locked")
+
+    inner = snapshot.get("inside_beliefs", [])
+    if inner:
+        lines.append("- Standing-points:")
+        for b in inner[:3]:
+            lines.append(f"  - {b['content']}")
 
     attn = snapshot.get("attention", {})
     hot = attn.get("hottest_branch")
