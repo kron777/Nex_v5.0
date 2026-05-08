@@ -100,6 +100,15 @@ try:
 except Exception:
     _focal_set = None  # type: ignore[assignment]
 
+# Register FocalSet with process-lifetime SentienceNode registry (Model A).
+# WorkingMemory is per-session and is NOT registered here.
+try:
+    if _focal_set is not None:
+        from theory_x import register as _tx_register
+        _tx_register(_focal_set)
+except Exception:
+    pass
+
 _FOCAL_LOG = "/tmp/nex5_focal.log"
 
 # Working Memory — Layer 2 (log-only; behavior injection in Phase 2.4)

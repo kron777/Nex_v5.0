@@ -61,7 +61,13 @@ class FocalSet:
     - Anti-thrashing (smooth priority shifts + hold-time gate)
     - Hooks for higher layers: introspection, mode, replaceable
       salience, shift event log.
+
+    Implements SentienceNode protocol (DOCTRINE §4):
+      name, tick(context), decay(now), state(now=None)
+    FocalSet uses tick-based recency, not wall-clock, so decay() is a no-op.
     """
+
+    name: str = "focal_set"
 
     def __init__(
         self,
@@ -212,3 +218,29 @@ class FocalSet:
 
     def get_shift_log(self) -> list[ShiftEvent]:
         return list(self.shift_log)
+
+    # ── SentienceNode protocol (DOCTRINE §4) ──────────────────────────────────
+
+    def tick(self, context: Optional[dict] = None) -> dict:
+        """SentienceNode lifecycle tick — returns state snapshot.
+
+        FocalSet salience is tick-based (via update()), not wall-clock.
+        tick() here is purely the monitoring/lifecycle entry point;
+        actual focal-set updates happen via update() called from server.py.
+        """
+        return self.state()
+
+    def decay(self, now: float) -> None:
+        """No-op: FocalSet uses internal tick-based recency, not wall-clock decay."""
+
+    def state(self, now: Optional[float] = None) -> dict:
+        """Return current focal-set state for logging/inspection."""
+        return {
+            "name": self.name,
+            "mode": self.mode,
+            "k": self.K,
+            "focal_size": len(self.focal_belief_ids),
+            "focal_ids": list(self.focal_belief_ids),
+            "last_shift_tick": self.last_shift_tick,
+            "tick": self._tick,
+        }

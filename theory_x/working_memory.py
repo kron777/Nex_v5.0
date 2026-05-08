@@ -52,7 +52,13 @@ class WorkingMemory:
     Eviction: when at capacity, the item with lowest current activation
               is ejected.
     Pruning: items below _MIN_ACTIVATION (0.05) are removed on decay().
+
+    Implements SentienceNode protocol (DOCTRINE §4):
+      name, tick(context), decay(now), state(now=None)
+    WorkingMemory is per-session; not registered in process-lifetime registry.
     """
+
+    name: str = "working_memory"
 
     CAPACITY = _CAPACITY
     HALF_LIFE = _HALF_LIFE

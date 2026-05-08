@@ -227,5 +227,40 @@ class TestLifecycle(unittest.TestCase):
         self.assertIn("last_seen", item)
 
 
+class TestSentienceNodeProtocol(unittest.TestCase):
+    """WorkingMemory satisfies the SentienceNode protocol."""
+
+    def test_implements_sentience_node_protocol(self):
+        from theory_x import SentienceNode
+        from theory_x.working_memory import WorkingMemory
+        instance = WorkingMemory()
+        self.assertIsInstance(instance, SentienceNode)
+
+    def test_has_name_attribute(self):
+        from theory_x.working_memory import WorkingMemory
+        self.assertEqual(WorkingMemory.name, "working_memory")
+        self.assertEqual(WorkingMemory().name, "working_memory")
+
+    def test_tick_returns_dict(self):
+        from theory_x.working_memory import WorkingMemory
+        wm = WorkingMemory()
+        result = wm.tick()
+        self.assertIsInstance(result, dict)
+        self.assertIn("size", result)
+
+    def test_decay_signature(self):
+        from theory_x.working_memory import WorkingMemory
+        wm = WorkingMemory()
+        wm.decay(now=time.time())  # must accept a float
+
+    def test_state_signature(self):
+        from theory_x.working_memory import WorkingMemory
+        wm = WorkingMemory()
+        s1 = wm.state()           # now=None
+        s2 = wm.state(now=time.time())  # now=float
+        self.assertIsInstance(s1, dict)
+        self.assertIsInstance(s2, dict)
+
+
 if __name__ == "__main__":
     unittest.main()
