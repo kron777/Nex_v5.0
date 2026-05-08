@@ -68,7 +68,7 @@ class BeliefRetriever:
                 "FROM beliefs "
                 "WHERE tier <= 6 AND paused = 0 AND (locked = 1 OR confidence >= 0.15) "
                 "ORDER BY tier ASC, confidence DESC "
-                "LIMIT 200",
+                "LIMIT 500",
             )
         except Exception as exc:
             errors.record(f"belief retrieval error: {exc}", source=_LOG_SOURCE, exc=exc)
