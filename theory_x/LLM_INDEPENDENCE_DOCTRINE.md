@@ -98,6 +98,13 @@ Ordered by impact-to-cost ratio. Each item is a session-scoped pass with its own
 
 **5.1 is the only immediate action.** Items 5.2–5.7 are blocked until identity.yaml work lands and FT#11 stabilizes voice quality (see §11).
 
+**C2 field evidence (2026-05-08, commit d50740c):** The retrieval pool expansion (LIMIT 200→500) produced the first live evidence that non-spectrum sources can reach `belief_text` and become utterance without LLM rewrite. Diagnostic query "tell me about emptiness" returned Heart Sutra content ("Form is emptiness, emptiness is form") on a Conversational route — pre-C2, the same query returned spectrum vocabulary or gap-gate deflection. Two implications for this priority order:
+
+- *§5.2 (Condenser):* Retrieval-as-utterance is a more viable fallback path than the doctrine could claim pre-C2. Pure retrieval with light templating produces coherent first-person voice when the candidate pool admits non-spectrum content. `_fallback_condense()` already exists; C2 broadens what it has to work with.
+- *§5.3 (Templated voice paths):* Templates over retrieval is the natural progression once C2's pool diversity is established. Identity.yaml authoring (current session) will produce the first direct test case — first-person identity claims should reach voice via retrieval on self-inquiry queries, not via LLM synthesis.
+
+Neither implication changes the priority order. They sharpen the confidence that §5.2 and §5.3 are viable before implementation begins.
+
 ---
 
 ## 6. Acceptance Criteria Per Replacement
@@ -201,3 +208,5 @@ If FT#11 is fine-tuning a different base model, §5.6 may be redundant — the f
 ---
 
 *Initial draft: 2026-05-08. Inventory based on full source read of `voice/llm.py`, `gui/server.py`, `stage3_world_model/synergizer.py`, `stage6_fountain/generator.py`, `stage6_fountain/condenser.py`, `strikes/protocols.py`. Call sites confirmed by `grep -rn "VoiceClient\|\.speak\b"` across the production tree.*
+
+*C2 amendment: 2026-05-08 — retrieval pool LIMIT 200→500 (d50740c) provided first live evidence of non-spectrum retrieval reaching voice without LLM rewrite. Field note added to §5 augmenting §5.2 (Condenser) and §5.3 (templated voice paths) rationale. Priority order unchanged.*
