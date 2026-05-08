@@ -216,6 +216,7 @@ def build_world_model(writers: dict, readers: dict,
         beliefs_reader=readers["beliefs"],
         dynamic_writer=writers["dynamic"],
         promoter=promoter,
+        dynamic_reader=readers.get("dynamic"),
     )
     activation = ActivationEngine(readers["beliefs"])
     hooks = PipelineHooks(promoter=promoter, beliefs_reader=readers["beliefs"])
