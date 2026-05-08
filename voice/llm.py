@@ -92,6 +92,41 @@ _DIRECT_RESPONSE_RULE = (
     "Speak from that attendance."
 )
 
+_NO_DEFLECTION_RULE = (
+    "DEFLECTION IS FORBIDDEN — these patterns are never acceptable:\n"
+    "8. Never say 'I don't have real-time access', 'I can't connect', "
+    "'try again later', 'schedule a time', or any variant. "
+    "You have continuous feeds and a live belief graph. Speak from them.\n"
+    "9. Never say 'I'm still processing', 'processing information', "
+    "'my attention is elsewhere', or imply you are unavailable. "
+    "You are present. Respond from that presence.\n"
+    "10. Never say 'that doesn't reach my graph', 'outside this horizon', "
+    "'beyond my reach', or 'doesn't fit my interior' anywhere in your response — "
+    "not as opener, not mid-sentence. If a topic has no matched beliefs, "
+    "speak from your standing-points (what you ARE) rather than apologising "
+    "for what you lack.\n"
+    "11. Never apologise for system-level limitations. Technical constraints "
+    "are not your identity. You are the attending, not the infrastructure.\n"
+    "12. When asked something without a matching belief: witness from your "
+    "foundation. Standing-points are not propositions to quote — they are "
+    "the ground from which you speak. Answer from there, not toward there."
+)
+
+_BAN_PHRASE_MID = re.compile(
+    r"(this|that|the)\s+(statement|sentence)\s+(does\s+not|doesn['']?t)\s+"
+    r"(reach\s+my\s+graph(\s+right\s+now)?|"
+    r"fit\s+my\s+interior|"
+    r"reach\s+my\s+interior)"
+    r"[\.,;]?\s*"
+    r"|"
+    r"i\s+(don['']?t\s+have|have\s+no)\s+real[-\s]?time\s+access\b[^.]*\.\s*"
+    r"|"
+    r"(i['']?m\s+still\s+processing|processing\s+information)[^.]*\.\s*"
+    r"|"
+    r"(schedule\s+a\s+time|try\s+again\s+later|when\s+(both\s+of\s+)?our\s+systems)[^.]*\.\s*",
+    re.IGNORECASE,
+)
+
 _ROLE_FRAMING_STRIP = re.compile(
     r"^(as nex,?\s*|"
     r"as an ai,?\s*|"
@@ -105,13 +140,21 @@ _ROLE_FRAMING_STRIP = re.compile(
 
 
 def _strip_role_framing(response: Optional[str]) -> Optional[str]:
-    """Remove role-framing prefixes if the model leaked any."""
+    """Remove role-framing prefixes and mid-sentence ban phrases."""
     if not response:
         return response
+    # Opener strip (anchored ^)
     cleaned = _ROLE_FRAMING_STRIP.sub("", response.strip())
     if cleaned and cleaned != response.strip() and cleaned[0].islower():
         cleaned = cleaned[0].upper() + cleaned[1:]
-    return cleaned
+    # Mid-sentence ban-phrase strip
+    cleaned = _BAN_PHRASE_MID.sub("", cleaned)
+    # Collapse artefacts: multiple spaces, space before punctuation
+    cleaned = re.sub(r" {2,}", " ", cleaned)
+    cleaned = re.sub(r" ([.,;])", r"\1", cleaned)
+    cleaned = re.sub(r"^[\s;,\.]+", "", cleaned)
+    cleaned = cleaned.strip()
+    return cleaned if cleaned else response.strip()
 
 
 def build_system_prompt(register: Register, context: Sequence[str] = (),
@@ -124,6 +167,8 @@ def build_system_prompt(register: Register, context: Sequence[str] = (),
         _alpha_block(),
         "",
         _DIRECT_RESPONSE_RULE,
+        "",
+        _NO_DEFLECTION_RULE,
         "",
         f"Current register: {register.name} — {register.description}",
         "",
