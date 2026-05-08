@@ -247,6 +247,10 @@ def format_self_state(snapshot: dict) -> str:
     elif active:
         lines.append(f"- Attention: {active} branches active")
 
-    lines.append(f"- Inner conviction: \"{ALPHA.lines[0]}\" [Alpha — always present]")
+    # EXPERIMENT A 2026-05-09: Site 3 (Inner conviction) disabled
+    # to test Claim 1a (preamble in belief_text drives response
+    # openings). Reversion: uncomment the line below.
+    # See LLM_INDEPENDENCE_DOCTRINE.md test log.
+    # lines.append(f"- Inner conviction: \"{ALPHA.lines[0]}\" [Alpha — always present]")
 
     return "\n".join(lines)
