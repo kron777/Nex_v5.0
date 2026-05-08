@@ -69,6 +69,7 @@ See SPECIFICATION.md §8 — Full Observability.
 from __future__ import annotations
 
 import atexit
+import json
 import logging
 import os
 import re
@@ -135,7 +136,8 @@ try:
 except Exception:
     _executive = None  # type: ignore[assignment]
 
-_EC_LOG = "/tmp/nex5_executive_control.log"
+_EC_LOG  = "/tmp/nex5_executive_control.log"
+_BSM_LOG = "/tmp/nex5_behavioural_self_model.log"
 
 
 def _get_or_create_wm(session_id: str) -> "Optional[_WorkingMemory]":
@@ -330,6 +332,19 @@ def create_app(state: AppState) -> Flask:
     # server restarts during development without requiring re-auth every process.
     app.secret_key = _ensure_secret()
 
+    # Register membrane-owned SentienceNodes (Model A — process-lifetime).
+    # Must run here (not module level) because both nodes require DB readers
+    # that are only available after build_state().
+    if state.membrane is not None:
+        try:
+            from theory_x import register as _tx_register_membrane
+            if state.membrane.self_model is not None:
+                _tx_register_membrane(state.membrane.self_model)
+            if state.membrane.behavioural is not None:
+                _tx_register_membrane(state.membrane.behavioural)
+        except Exception:
+            pass
+
     # -- pages ---------------------------------------------------------------
 
     @app.get("/")
@@ -458,9 +473,23 @@ def create_app(state: AppState) -> Flask:
                     source="gui.server", exc=e,
                 )
 
+        try:
+            with open(_EC_LOG, "a") as _ecf:
+                _ecf.write(json.dumps({
+                    "event": "ec_decision",
+                    "ts": time.time(),
+                    "session": session_id,
+                    "query": prompt[:200],
+                    "register": register.name,
+                    "caller_override": bool(register_name),
+                }) + "\n")
+        except Exception:
+            pass
+
         # Route query through membrane (self-inquiry vs world-inquiry).
         belief_text = None
         register_override = None
+        route_result = None
         if state.membrane is not None and state.world_model is not None:
             try:
                 route_result = state.membrane.route(
@@ -491,6 +520,29 @@ def create_app(state: AppState) -> Flask:
             except Exception as e:
                 error_channel.record(
                     f"belief retrieval failed: {e}", source="gui.server", exc=e,
+                )
+
+        # BehaviouralSelfModel injection — INSIDE routes only (Phase 5.3).
+        # Adds observed behavioural metrics (hedge rate, register pattern, avg length)
+        # to belief_text so the LLM has grounded self-knowledge for self-inquiry queries.
+        if (route_result is not None
+                and route_result.get("side") == "INSIDE"
+                and state.membrane is not None
+                and state.membrane.behavioural is not None):
+            try:
+                state.membrane.behavioural.tick()
+                _bsm_text = state.membrane.behavioural.format_for_prompt()
+                if _bsm_text:
+                    belief_text = (belief_text or "") + "\n\n" + _bsm_text
+                    with open(_BSM_LOG, "a") as _bfh:
+                        _bfh.write(
+                            f"[{time.strftime('%H:%M:%S')}] INSIDE inject: "
+                            f"{_bsm_text[:120].replace(chr(10), ' ')}\n"
+                        )
+            except Exception as _bsm_exc:
+                error_channel.record(
+                    f"behavioural self-model injection failed: {_bsm_exc}",
+                    source="gui.server", exc=_bsm_exc,
                 )
 
         # Append disturbance tension if present (PHILOSOPHICAL or unspecified register)
@@ -540,8 +592,21 @@ def create_app(state: AppState) -> Flask:
 
         # Apply register override from router (INSIDE → philosophical) only if
         # the user hasn't explicitly specified a register.
+        _ec_register = register.name
         if register_override and not register_name:
             register = by_name(register_override) or register
+        try:
+            with open(_EC_LOG, "a") as _ecf:
+                _ecf.write(json.dumps({
+                    "event": "register_finalised",
+                    "ts": time.time(),
+                    "session": session_id,
+                    "ec_register": _ec_register,
+                    "final_register": register.name,
+                    "membrane_overrode": _ec_register != register.name,
+                }) + "\n")
+        except Exception:
+            pass
 
         # FocalSet — log-only attention tracking (no behavior change).
         if _focal_set is not None and state.world_model is not None:
