@@ -117,8 +117,23 @@ A node port is complete when all of the following are true:
 1. **Module exists** at `theory_x/<node_name>.py` with `__all__`, docstring, and lifecycle interface
 2. **Unit tests pass** in `tests/test_<node_name>.py` against mock belief data
 3. **Wired in `gui/server.py`** at the correct pipeline stage; log-only mode verified first
+
+   *#3a — Wiring verified by output trace, not call-site grep.* A node is wired if its output reaches a §3 integration surface (`belief_text`, retrieval ranking, `voice_prompt`) on a real `/api/chat` request. Indirect injection paths through routers, membranes, and belief-field reads are valid per §3. The audit question is "does this node's output reach `belief_text` or another §3 surface on live traffic?" — not "is there a direct `import` in `api_chat()`?" (B1 finding: SelfModel injected via `router._inside_route()` lines 44–48; call-site grep reported it as unwired. The node was wired all along.)
+
 4. **Real-traffic validation**: minimum 5 HUD queries exercising the node's specific function; log shows node activating correctly
-5. **No regression** on the five-query baseline: social greeting, philosophical self-inquiry, casual question, self-state probe, world event question
+5. **No regression** on the baseline smoke set, split by route class:
+
+   *OUTSIDE-route smoke (should remain Conversational/Technical; self_model log must not fire):*
+   - Jon's blocker ("I'd love to chat but it seems every time we talk you say that doesn't reach my graph…")
+   - "tell me about consciousness" (knowledge query → Conversational)
+   - "asdfqwerty zzzz" (gibberish → gap gate must fire)
+   - "hi nex" (social greeting → social bypass must fire)
+
+   *INSIDE-route smoke (should route Philosophical; self_model log must fire):*
+   - "what do you think about love" (philosophical inquiry → INSIDE)
+   - "how are you feeling right now?" (self-inquiry → INSIDE)
+
+   A change touching the chat path validates against both groups. A smoke set that checks only OUTSIDE behavior does not satisfy this criterion. (B1 finding: original five-query set conflated OUTSIDE and INSIDE checks — "love" and "how are you feeling" route INSIDE, not OUTSIDE.)
 6. **No regression** on existing mechanisms: social bypass, deflection-rule strip, FocalSet, gap gate
 7. **Jon's quality greenlight**: response samples surfaced and approved before commit
 
@@ -157,6 +172,12 @@ Committing a change that affects LLM output without running a representative sam
 **Proceeding to Phase N+1 without Jon's explicit greenlight**
 Phase gates are real checkpoints. "I think it looks good" is not a greenlight. Surface the deliverable; wait for the explicit go or redirect.
 
+**Audit-by-call-site-grep**
+Searching `gui/server.py` for direct node imports and call sites misses indirect injection paths through routers, membranes, and belief-field reads. The 2026-05-08 audit reported SelfModel as "never called per request"; B1 revealed it was injecting via `router._inside_route()` lines 44–48 on every INSIDE route. Output-trace re-audit found 8 of 8 nodes wired — the audit table was an artifact of the wrong method. Audit method: trace from node output forward to a §3 integration surface, not backward from import lines in `gui/server.py`. See `RE_AUDIT_2026-05-08.md` for the corrected node table.
+
+**Spectrum-block preamble bleed**
+INSIDE-routed self-inquiry queries consistently open with the Alpha spectrum line — "By pure chance, I am born, and I accept this as the beautiful mystery of creation." — prepended as a block rather than woven into the response. Visible in `/tmp/nex5_self_model.log`: `text_len` is 306–307 chars on every INSIDE query regardless of topic, confirming the same block reaches the LLM every time. Prior structural spectrum-injection work addressed the OUTSIDE/gap-gate side; preamble bleed on INSIDE responses is a separate fix path. Do not amplify it in subsequent node ports. Fix path: `_inside_route()` or voice template — not a doctrine change. Track separately.
+
 ---
 
 ## 9. Living Document Protocol
@@ -174,3 +195,5 @@ The doctrine is the stable foundation; the translation map (`sentience_translati
 ---
 
 *Last amended: 2026-05-08 — §4 SentienceNode Protocol formalized (Model A registry); §5 nodes 1–3 marked done. EC threshold set to 0.28 (2 keywords = 0.30 clears it); _TECHNICAL_STRONG fixed for multi-word subjects. §5 #6 Interoception: field-name bugs fixed, fountain parser added, delta metric added — marked DONE; NOISY_INTERNAL_STREAMS premise in prior doctrine corrected. §5 #4 Self-Model: catch-up amendment — SentienceNode protocol wired (164b510); BSM feeds belief_text for INSIDE routes; identity.yaml data gap pending. §5 #7 Harmonizer: tier filter fixed (BETWEEN 3 AND 7); polar detection + dialectic guard + mark_paradox/escalation path + SentienceNode protocol — marked DONE; 17 live conflict pairs detected on first scan.*
+
+*B1-pass amendments — §6 #3a: wiring verified by output trace, not call-site grep; indirect injection paths via router/membrane/sense substrate are valid §3 surfaces (B1 case: SelfModel wired via router._inside_route(); RE_AUDIT found 8 of 8 nodes wired by output-trace method). §6 #5 smoke set split into OUTSIDE-route checks (blocker, consciousness, gibberish, greeting) and INSIDE-route checks (love, feeling) — B1 found two of five queries route INSIDE. §8 new anti-patterns: Audit-by-call-site-grep and Spectrum-block preamble bleed.*
