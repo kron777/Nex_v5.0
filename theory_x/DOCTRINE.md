@@ -104,7 +104,7 @@ def test_implements_sentience_node_protocol(self):
 | 4 | **Self-Model** | Behavioral self-representation | ✓ DONE | SentienceNode protocol on both SelfModel + BehaviouralSelfModel; BSM injects metrics into belief_text for INSIDE routes; data gap on inside_beliefs pending seeds/identity.yaml authoring (loader scaffold in 12f50e5) |
 | 5 | **Sustained Attention** | Open problem persistence | ABSENT | `open_problems` table wired but always empty; `stage7_sustained/problem_memory.py` unused |
 | 6 | **Interoception** | Body-state awareness in cognition | ✓ DONE | Field-name bugs fixed (locked_beliefs, tier_counts); fountain receives natural language via selector; delta metric added. Was never NOISY — NOISY_INTERNAL_STREAMS premise in prior doctrine was wrong |
-| 7 | **Harmonizer** | Contradiction resolution | PARTIAL | Loop runs but `harmonizer_events` always 0; no conflicts yet resolved |
+| 7 | **Harmonizer** | Contradiction resolution | ✓ DONE | Root cause was tier filter (`<= 4`) excluding all 1334 epistemic beliefs (tier 7); fixed to `BETWEEN 3 AND 7`. Polar vocabulary detection (4 pairs, constancy/flux expanded with stability/transformation/adaptability vocabulary) + dialectic guard (beliefs holding both poles skipped). mark_paradox first-pass (non-destructive); escalate to synthesize/delete after 16h incubation. SentienceNode protocol + `format_for_prompt()`. 17 live conflict pairs detected. |
 
 Ordering 3–7 is provisional. The full translation map (Phase 1 of the port project) determines final sequence. Jon confirms order before each port begins.
 
@@ -173,4 +173,4 @@ The doctrine is the stable foundation; the translation map (`sentience_translati
 
 ---
 
-*Last amended: 2026-05-08 — §4 SentienceNode Protocol formalized (Model A registry); §5 nodes 1–3 marked done. EC threshold set to 0.28 (2 keywords = 0.30 clears it); _TECHNICAL_STRONG fixed for multi-word subjects. §5 #6 Interoception: field-name bugs fixed, fountain parser added, delta metric added — marked DONE; NOISY_INTERNAL_STREAMS premise in prior doctrine corrected. §5 #4 Self-Model: catch-up amendment — SentienceNode protocol wired (164b510); BSM feeds belief_text for INSIDE routes; identity.yaml data gap pending.*
+*Last amended: 2026-05-08 — §4 SentienceNode Protocol formalized (Model A registry); §5 nodes 1–3 marked done. EC threshold set to 0.28 (2 keywords = 0.30 clears it); _TECHNICAL_STRONG fixed for multi-word subjects. §5 #6 Interoception: field-name bugs fixed, fountain parser added, delta metric added — marked DONE; NOISY_INTERNAL_STREAMS premise in prior doctrine corrected. §5 #4 Self-Model: catch-up amendment — SentienceNode protocol wired (164b510); BSM feeds belief_text for INSIDE routes; identity.yaml data gap pending. §5 #7 Harmonizer: tier filter fixed (BETWEEN 3 AND 7); polar detection + dialectic guard + mark_paradox/escalation path + SentienceNode protocol — marked DONE; 17 live conflict pairs detected on first scan.*
