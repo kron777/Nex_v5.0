@@ -143,6 +143,10 @@ class SenseScheduler:
             sum(1 for a in adapters if a.is_internal),
             sum(1 for a in adapters if not a.is_internal),
         )
+        # 2026-05-09: feeds auto-start on boot per Jon's request.
+        # Was: paused-by-default per original design. Reversion:
+        # remove this line.
+        self.start_all()
 
     # -- global controls ---------------------------------------------------
 

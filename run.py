@@ -98,7 +98,7 @@ def main() -> None:
     log.info("Voice state ready — current voice: %s", voice_state.current_name())
 
     # 5. Sense scheduler (external feeds PAUSED)
-    log.info("Starting sense scheduler (external feeds paused)...")
+    log.info("Starting sense scheduler (external feeds auto-start)...")
     scheduler = build_scheduler(writers, readers, mode_state=mode_state)
     log.info("Sense scheduler started — 23 adapters wired")
 
@@ -313,7 +313,7 @@ def main() -> None:
     host = os.environ.get("NEX5_HOST", "127.0.0.1")
     port = int(os.environ.get("NEX5_PORT", "8765"))
     log.info("NEX 5.0 ready — GUI at http://%s:%d", host, port)
-    log.info("External feeds PAUSED — flip the GUI switch to start")
+    log.info("External feeds started — STOP button in GUI pauses them")
 
     app.run(host=host, port=port, debug=False, use_reloader=False)
 
