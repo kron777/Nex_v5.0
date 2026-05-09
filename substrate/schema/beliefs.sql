@@ -304,3 +304,20 @@ CREATE TABLE IF NOT EXISTS signal_cooldown (
     created_at      REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_signal_cooldown_until ON signal_cooldown(cooldown_until);
+
+-- Novel Association log — cross-branch synthesises edge detection (Phase 17).
+-- REVERSION: drop this table. synthesises edges in belief_edges are permanent.
+CREATE TABLE IF NOT EXISTS novel_association_log (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    detected_at     REAL NOT NULL,
+    belief_id_a     INTEGER NOT NULL REFERENCES beliefs(id),
+    belief_id_b     INTEGER NOT NULL REFERENCES beliefs(id),
+    branch_id_a     TEXT NOT NULL,
+    branch_id_b     TEXT NOT NULL,
+    similarity      REAL NOT NULL,
+    annotated_at    REAL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_nassoc_pair
+    ON novel_association_log(belief_id_a, belief_id_b);
+CREATE INDEX IF NOT EXISTS idx_nassoc_detected
+    ON novel_association_log(detected_at DESC);

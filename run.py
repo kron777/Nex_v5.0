@@ -159,6 +159,21 @@ def main() -> None:
     except Exception:
         pass
 
+    # 9d. Novel Association — cross-branch synthesises edge generation (Phase 17)
+    novel_association = None
+    try:
+        from theory_x.stage10_imagination.novel_association import NovelAssociation as _NovelAssoc
+        novel_association = _NovelAssoc(writers["beliefs"], readers["beliefs"])
+        novel_association.start_loop()
+        try:
+            from theory_x import register as _tx_register_na
+            _tx_register_na(novel_association)
+        except Exception:
+            pass
+        log.info("Novel association loop started")
+    except Exception as _na_err:
+        log.warning("Novel association failed to start (non-fatal): %s", _na_err)
+
     # 10. Fountain ignition
     log.info("Igniting fountain...")
     log.info(
@@ -309,6 +324,7 @@ def main() -> None:
         problem_memory=problem_memory,
         goal_manager=goal_manager,
         metacognition=metacognition,
+        novel_association=novel_association,
         tool_registry=tool_registry,
         tool_caller=tool_caller,
         speech_consumer=speech_consumer,

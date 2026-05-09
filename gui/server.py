@@ -155,6 +155,7 @@ _PM_LOG          = "/tmp/nex5_problem_memory.log"
 _HARMONIZER_LOG  = "/tmp/nex5_harmonizer.log"
 _GM_LOG          = "/tmp/nex5_goal_manager.log"
 _MCOG_LOG        = "/tmp/nex5_metacognition.log"
+_NASSOC_LOG      = "/tmp/nex5_novel_association.log"
 
 
 def _get_or_create_wm(session_id: str) -> "Optional[_WorkingMemory]":
@@ -215,7 +216,8 @@ class AppState:
     catalogue: Optional["StrikeCatalogue"] = None       # type: ignore[type-arg]
     problem_memory: Optional["ProblemMemory"] = None    # type: ignore[type-arg]
     goal_manager: Optional["GoalManager"] = None        # type: ignore[type-arg]
-    metacognition: Optional["Metacognition"] = None     # type: ignore[type-arg]
+    metacognition: Optional["Metacognition"] = None      # type: ignore[type-arg]
+    novel_association: Optional["NovelAssociation"] = None  # type: ignore[type-arg]
     tool_registry: Optional["ToolRegistry"] = None      # type: ignore[type-arg]
     tool_caller: Optional["ToolCaller"] = None          # type: ignore[type-arg]
     speech_consumer: Optional["SpeechQueueConsumer"] = None  # type: ignore[type-arg]
@@ -315,6 +317,7 @@ def build_state(
     problem_memory = None
     goal_manager = None
     metacognition = None
+    novel_association = None
     tool_registry = None
     tool_caller = None
     if with_tools:
@@ -347,6 +350,12 @@ def build_state(
                     _tx_register_mc(metacognition)
                 except Exception:
                     pass
+            if "beliefs" in writers and "beliefs" in readers:
+                from theory_x.stage10_imagination.novel_association import NovelAssociation
+                novel_association = NovelAssociation(
+                    writers["beliefs"],
+                    readers["beliefs"],
+                )
         tool_registry = ToolRegistry(beliefs_reader=readers.get("beliefs"))
         tool_caller = ToolCaller(tool_registry)
 
@@ -364,6 +373,7 @@ def build_state(
         problem_memory=problem_memory,
         goal_manager=goal_manager,
         metacognition=metacognition,
+        novel_association=novel_association,
         tool_registry=tool_registry,
         tool_caller=tool_caller,
     )
@@ -744,6 +754,32 @@ def create_app(state: AppState) -> Flask:
                 error_channel.record(
                     f"metacognition injection failed: {_mcog_exc}",
                     source="gui.server", exc=_mcog_exc,
+                )
+
+        # Novel Association: cross-branch synthesises annotation (Phase 17).
+        # Surfaces the most recent unannotated cross-domain association once per
+        # turn; marks it annotated so it is not injected again.
+        if state.novel_association is not None:
+            try:
+                _nassoc_text = state.novel_association.format_for_prompt()
+                if _nassoc_text:
+                    belief_text = (belief_text or "") + "\n\n" + _nassoc_text
+                try:
+                    with open(_NASSOC_LOG, "a") as _nf:
+                        import json as _json3
+                        _nf.write(_json3.dumps({
+                            "event": "novel_association_check",
+                            "ts": time.time(),
+                            "session": session_id,
+                            "injected": bool(_nassoc_text),
+                            "text": _nassoc_text,
+                        }) + "\n")
+                except Exception:
+                    pass
+            except Exception as _nassoc_exc:
+                error_channel.record(
+                    f"novel association injection failed: {_nassoc_exc}",
+                    source="gui.server", exc=_nassoc_exc,
                 )
 
         # Tool use: heuristic tool selection and execution

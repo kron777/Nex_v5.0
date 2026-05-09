@@ -129,6 +129,20 @@ _MIGRATIONS: dict[str, list[str]] = {
         "FOREIGN KEY (belief_id) REFERENCES beliefs(id))",
         "CREATE INDEX IF NOT EXISTS idx_belief_activation_at "
         "ON belief_activation(last_touched_at)",
+        # Phase 17 — Novel Association log
+        "CREATE TABLE IF NOT EXISTS novel_association_log ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "detected_at REAL NOT NULL, "
+        "belief_id_a INTEGER NOT NULL, "
+        "belief_id_b INTEGER NOT NULL, "
+        "branch_id_a TEXT NOT NULL, "
+        "branch_id_b TEXT NOT NULL, "
+        "similarity REAL NOT NULL, "
+        "annotated_at REAL)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_nassoc_pair "
+        "ON novel_association_log(belief_id_a, belief_id_b)",
+        "CREATE INDEX IF NOT EXISTS idx_nassoc_detected "
+        "ON novel_association_log(detected_at DESC)",
     ],
     "dynamic": [
         "CREATE TABLE IF NOT EXISTS harmonizer_events ("
