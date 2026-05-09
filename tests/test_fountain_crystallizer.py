@@ -176,6 +176,55 @@ class TestCrystallize(unittest.TestCase):
         )
         self.assertIsNone(result)
 
+    # --- Phase 19 branch propagation tests ---
+
+    def test_hot_branch_propagated_to_belief(self):
+        thought = "I sense something pulling me toward that domain I cannot name."
+        result_id = self.c.crystallize(
+            thought=thought,
+            fountain_event_id=1,
+            ts=time.time(),
+            hot_branch="ai_research",
+        )
+        self.assertIsNotNone(result_id)
+        time.sleep(0.05)
+        rows = self.readers["beliefs"].read(
+            "SELECT branch_id FROM beliefs WHERE id = ?", (result_id,)
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["branch_id"], "ai_research")
+
+    def test_null_hot_branch_yields_null_branch_id(self):
+        thought = "Something hums inside me that I cannot locate or name."
+        result_id = self.c.crystallize(
+            thought=thought,
+            fountain_event_id=2,
+            ts=time.time(),
+            hot_branch=None,
+        )
+        self.assertIsNotNone(result_id)
+        time.sleep(0.05)
+        rows = self.readers["beliefs"].read(
+            "SELECT branch_id FROM beliefs WHERE id = ?", (result_id,)
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertIsNone(rows[0]["branch_id"])
+
+    def test_omitted_hot_branch_yields_null_branch_id(self):
+        thought = "I notice a quiet weight settling inside me without a name."
+        result_id = self.c.crystallize(
+            thought=thought,
+            fountain_event_id=3,
+            ts=time.time(),
+        )
+        self.assertIsNotNone(result_id)
+        time.sleep(0.05)
+        rows = self.readers["beliefs"].read(
+            "SELECT branch_id FROM beliefs WHERE id = ?", (result_id,)
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertIsNone(rows[0]["branch_id"])
+
 
 class TestSchemaInit(unittest.TestCase):
 

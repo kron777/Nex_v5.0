@@ -83,11 +83,14 @@ class BeliefSynergizer:
             self._log(belief_a["id"], belief_b["id"], None, None)
             return None
 
+        # PHASE 19 fix 2026-05-09: branch_id propagated from belief_b (the fresh belief
+        # in primary anchor×fresh path; the second belief in cross-branch fallback).
+        # Was: bug where T6 syntheses all attributed to systems regardless of input branches.
         result_id = self._writer.write(
             "INSERT INTO beliefs "
             "(content, tier, confidence, created_at, source, branch_id, locked) "
-            "VALUES (?, 6, 0.65, ?, 'synergized', 'systems', 0)",
-            (text, time.time()),
+            "VALUES (?, 6, 0.65, ?, 'synergized', ?, 0)",
+            (text, time.time(), belief_b.get("branch_id")),
         )
         self._log(belief_a["id"], belief_b["id"], text, result_id)
         self._errors.record(

@@ -102,6 +102,7 @@ class FountainCrystallizer:
         fountain_event_id: int,
         ts: float,
         droplet: Optional[str] = None,
+        hot_branch: Optional[str] = None,
     ) -> Optional[int]:
         thought = _METADATA_PATTERN.sub('', thought).strip()
         ok, reason = self._quality_check(thought, droplet=droplet)
@@ -116,11 +117,15 @@ class FountainCrystallizer:
         mode = self._mode_state.current() if self._mode_state else None
         category = mode.crystallization_category if mode else "fountain_insight"
 
+        # PHASE 19 fix 2026-05-09: branch_id propagated from hot_branch instead of
+        # hardcoded 'systems'. Was: bug where T6 fountain insights all attributed to
+        # systems regardless of input branch. NULL fallback when hot_branch unavailable
+        # (~37% of fires per live data).
         belief_id = self._writer.write(
             "INSERT INTO beliefs "
             "(content, tier, confidence, created_at, source, branch_id, locked) "
-            "VALUES (?, 6, 0.70, ?, ?, 'systems', 0)",
-            (thought, ts, category),
+            "VALUES (?, 6, 0.70, ?, ?, ?, 0)",
+            (thought, ts, category, hot_branch),
         )
 
         self._writer.write(

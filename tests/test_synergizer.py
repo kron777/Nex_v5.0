@@ -218,6 +218,61 @@ class TestSynthesize(unittest.TestCase):
         result = s.synthesize()
         self.assertIsNotNone(result)
 
+    # --- Phase 19 branch propagation tests ---
+
+    def test_belief_b_branch_propagated_to_synthesis(self):
+        # belief_a: anchor-like source (NULL branch); belief_b: fountain_insight with branch
+        # Synergizer primary path: anchor × fresh → synthesis inherits belief_b.branch_id
+        _seed_belief(self.writers, "Attention is the rarest resource.", None, source="koan")
+        _seed_belief(self.writers, "Crypto markets never sleep.", "crypto",
+                     source="fountain_insight")
+        s = _make_synergizer(
+            self.writers, self.readers,
+            llm_text="Sustained attention is its own form of anti-entropy in motion.",
+        )
+        s.synthesize()
+        time.sleep(0.1)
+        rows = self.readers["beliefs"].read(
+            "SELECT branch_id FROM beliefs WHERE source = 'synergized'"
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["branch_id"], "crypto")
+
+    def test_both_null_branch_yields_null_synthesis(self):
+        # Both inputs NULL branch: synthesis should also be NULL, not 'systems'
+        _seed_belief(self.writers, "The void speaks in silence alone.", None, source="koan")
+        _seed_belief(self.writers, "Nothing arises without a cause within.", None,
+                     source="fountain_insight")
+        s = _make_synergizer(
+            self.writers, self.readers,
+            llm_text="Every silence contains a question waiting to be heard.",
+        )
+        s.synthesize()
+        time.sleep(0.1)
+        rows = self.readers["beliefs"].read(
+            "SELECT branch_id FROM beliefs WHERE source = 'synergized'"
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertIsNone(rows[0]["branch_id"])
+
+    def test_cross_branch_synthesis_inherits_belief_b(self):
+        # Fallback cross-branch path: both inputs have non-NULL different branches
+        _seed_belief(self.writers, "Attention is selective and costly.", "ai_research")
+        _seed_belief(self.writers, "Entropy grows in complex systems.", "emerging_tech")
+        s = _make_synergizer(
+            self.writers, self.readers,
+            llm_text="The cost of attention mirrors the growth of entropy in closed systems.",
+        )
+        result = s.synthesize()
+        self.assertIsNotNone(result)
+        time.sleep(0.1)
+        rows = self.readers["beliefs"].read(
+            "SELECT branch_id FROM beliefs WHERE source = 'synergized'"
+        )
+        self.assertEqual(len(rows), 1)
+        # belief_b is the second in the cross-branch pair
+        self.assertIsNotNone(rows[0]["branch_id"])
+
 
 class TestSynergizerLogTable(unittest.TestCase):
 

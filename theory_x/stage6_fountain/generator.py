@@ -547,6 +547,7 @@ class FountainGenerator:
                     fountain_event_id=fountain_event_id,
                     ts=ts_now,
                     droplet=droplet,
+                    hot_branch=hot_branch,
                 )
                 if crystallized_id:
                     error_channel.record(
