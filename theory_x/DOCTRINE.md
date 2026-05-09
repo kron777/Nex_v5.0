@@ -100,7 +100,7 @@ def test_implements_sentience_node_protocol(self):
 |---|------|----------|--------|-----------|
 | 1 | **Attention** (FocalSet) | Selective resource allocation | ✓ DONE | Foundation for all downstream nodes |
 | 2 | **Working Memory** | Intra-session cross-turn coherence | ✓ DONE | Exp-decay buffer, 5-min half-life, capacity 7; feeds belief_text for Conversational |
-| 3 | **Executive Control** | Query routing, register assignment | ✓ DONE | Heuristic+continuity classifier (Option D); 30/30 regression baseline; wired gui/server.py:426 |
+| 3 | **Executive Control** | Query routing, register assignment | ✓ DONE | Heuristic+continuity classifier (Option D); 30/30 regression baseline; wired gui/server.py:426. EC-A (Phase 12): Philosophical scoring added — 17 keywords, 4 patterns, threshold 0.12, pattern weight 0.25; strict tie-breaking (p > a AND p > t). 5/5 HUD philosophical queries route Philosophical with membrane_overrode=False (EC contributing independently). |
 | 4 | **Self-Model** | Behavioral self-representation | ✓ DONE | SentienceNode protocol on both SelfModel + BehaviouralSelfModel; BSM injects metrics into belief_text for INSIDE routes; substrate filled — 12 metaphor claims seeded (Phase 10); voice-quality outcome C: identity reaches voice on multi-sentence queries, spectrum preamble still dominant on short queries per §8 anti-pattern; voice-template work queued separately |
 | 5 | **Sustained Attention** | Open problem persistence | ABSENT | `open_problems` table wired but always empty; `stage7_sustained/problem_memory.py` unused |
 | 6 | **Interoception** | Body-state awareness in cognition | ✓ DONE | Field-name bugs fixed (locked_beliefs, tier_counts); fountain receives natural language via selector; delta metric added. Was never NOISY — NOISY_INTERNAL_STREAMS premise in prior doctrine was wrong |
@@ -125,7 +125,7 @@ A node port is complete when all of the following are true:
 
    *OUTSIDE-route smoke (should remain Conversational/Technical; self_model log must not fire):*
    - Jon's blocker ("I'd love to chat but it seems every time we talk you say that doesn't reach my graph…")
-   - "tell me about consciousness" (knowledge query → Conversational)
+   - "tell me about consciousness" (→ Philosophical post EC-A — EC-driven, membrane_overrode=False; pre-EC-A annotation 'Conversational' was descriptive of broken behavior)
    - "asdfqwerty zzzz" (gibberish → gap gate must fire)
    - "hi nex" (social greeting → social bypass must fire)
 
@@ -203,3 +203,5 @@ The doctrine is the stable foundation; the translation map (`sentience_translati
 *Phase 10 amendment — §5 #4 Self-Model: substrate gap closed; 12 first-person metaphor claims authored by Jon, seeded via scripts/seed_identity_beliefs.py (source='identity', tier=1, locked=1, conf=1.0). Voice-quality outcome C: identity reaches voice on multi-sentence self-inquiry, spectrum preamble dominant on short queries per §8 anti-pattern. Voice-template work queued. The data gap is structurally closed; voice-quality is a separate concern.*
 
 *Experiment A amendment (2026-05-09) — §8 Spectrum-block preamble bleed addressed. Site 3 (self_model.py:250) disabled per Feynmanian test. Falsification criterion: 0–1 of 5 self-inquiry responses still preamble. Result: 0/5. §5 #4 Self-Model status row updated to reflect preamble bleed resolved; §8 entry updated with resolution note.*
+
+*Phase 12 amendment (2026-05-09) — EC-A: §5 row 3 Executive Control gains Philosophical scoring. 17 keywords + 4 patterns, threshold 0.12, pattern weight 0.25, strict tie-breaking. SURVIVES: 30-query regression clean; 10/10 new philosophical queries; 5/5 HUD with membrane_overrode=False. §6 #5 smoke annotation updated: 'tell me about consciousness' now correctly routes Philosophical (EC-driven). Option B (CM-informed continuity for zero-keyword follow-ups) queued as separate experiment.*
