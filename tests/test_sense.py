@@ -149,13 +149,14 @@ class TestScheduler(unittest.TestCase):
         self.scheduler = SenseScheduler(adapters)
         return self.scheduler
 
-    def test_starts_paused_for_external(self):
+    def test_starts_running_for_external(self):
+        # 2026-05-09: auto-start on boot (commit 6815330). Was: assertFalse(global_running).
         from theory_x.stage1_sense.feeds.reuters import Reuters
         adapter = Reuters(self.writers["sense"], request_fn=_noop_fetch)
         sched = self._build([adapter])
         status = sched.status()
-        self.assertFalse(status["global_running"])
-        self.assertFalse(status["adapters"]["reuters"]["enabled"])
+        self.assertTrue(status["global_running"])
+        self.assertTrue(status["adapters"]["reuters"]["enabled"])
 
     def test_internal_sensors_always_enabled(self):
         from theory_x.stage1_sense.internal.temporal import Temporal
