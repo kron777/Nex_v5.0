@@ -39,6 +39,9 @@ _SEED_SOURCES = (
     "reification_recognition",
     "self_location",
     "alpha",
+    # G5 2026-05-09: 'identity' added per IDENTITY_PLUMBING_AUDIT.md.
+    # Reversion: remove 'identity' from this tuple.
+    "identity",
 )
 
 _DRIFT_SYSTEM_PROMPT_TEMPLATE = """\
