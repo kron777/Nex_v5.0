@@ -122,6 +122,18 @@ except Exception:
 
 _WM_LOG = "/tmp/nex5_working_memory.log"
 
+# Conversation Memory — Phase 11: dialogue history node (DOCTRINE §5)
+try:
+    from theory_x.conversation_memory import ConversationMemory as _ConversationMemory
+    _conversation_memory = _ConversationMemory(
+        db_path="/home/rr/Desktop/nex5/data/conversations.db",
+        n_turns=8,
+    )
+except Exception:
+    _conversation_memory = None  # type: ignore[assignment]
+
+_CM_LOG = "/tmp/nex5_conversation_memory.log"
+
 # Executive Control — register classifier (replaces classify() stub)
 try:
     from voice.registers import REGISTERS as _BUILTIN_REGISTERS
@@ -817,6 +829,32 @@ def create_app(state: AppState) -> Flask:
                     belief_text = (belief_text or "") + (
                         "\n\nRecently attended (cross-turn):\n" + _wm_lines
                     )
+
+        # Conversation Memory injection — dialogue history for Conversational and Philosophical.
+        if session_id is not None and _conversation_memory is not None:
+            try:
+                _conv_state = _conversation_memory.state(session_id=session_id)
+                _conv_turns = _conv_state.get("turns", [])
+                # messages write is at line ~877 (after prompt construction);
+                # in practice the current prompt is not yet in the table.
+                # Defensive: skip if last entry matches current prompt exactly.
+                if (_conv_turns
+                        and _conv_turns[-1]["role"] == "user"
+                        and _conv_turns[-1]["content"].strip() == prompt.strip()):
+                    _conv_turns = _conv_turns[:-1]
+                if _conv_turns and register.name in ("Conversational", "Philosophical"):
+                    _conv_lines = "\n".join(
+                        f"[{t['role']}] {t['content']}"
+                        for t in _conv_turns
+                    )
+                    belief_text = (belief_text or "") + (
+                        "\n\nRecent conversation:\n" + _conv_lines
+                    )
+            except Exception as _conv_exc:
+                error_channel.record(
+                    f"conversation_memory_failed: {_conv_exc}",
+                    source="gui.server", exc=_conv_exc,
+                )
 
         # Route through voice — fountain-style interior prompt.
         if belief_text:
