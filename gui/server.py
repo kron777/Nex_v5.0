@@ -836,9 +836,30 @@ def create_app(state: AppState) -> Flask:
             resp = state.voice.speak(
                 VoiceRequest(prompt=voice_prompt, register=register),
                 beliefs=None,
+                belief_count=belief_count,
             )
             text = resp.text
             voice_ok = True
+            # C3 2026-05-09: log deflection events for distribution measurement.
+            # No user-facing behavior change — same text surfaces as before.
+            if resp.deflection_fired:
+                try:
+                    _entry = json.dumps({
+                        "ts": time.time(),
+                        "session": session_id,
+                        "query": prompt[:200],
+                        "user_mirror": resp.deflection_user_mirror,
+                        "belief_count": resp.deflection_belief_count,
+                        "raw_llm_output": resp.raw_llm_output,
+                        "final_text": text[:500],
+                    })
+                    with open("/tmp/nex5_deflection.log", "a") as _f:
+                        _f.write(_entry + "\n")
+                except Exception as _log_exc:
+                    error_channel.record(
+                        f"deflection log write failed: {_log_exc}",
+                        source="gui.server", exc=_log_exc,
+                    )
         except Exception as e:
             error_channel.record(
                 f"voice.speak failed: {e}", source="gui.server", exc=e,

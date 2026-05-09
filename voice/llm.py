@@ -39,6 +39,11 @@ class VoiceResponse:
     text: str
     register: Register
     raw: dict
+    # C3 2026-05-09: deflection observability — set when strip fallback fired
+    deflection_fired: bool = False
+    deflection_user_mirror: bool = False  # prompt contained the deflection phrase
+    deflection_belief_count: int = 0      # belief_count passed by upstream
+    raw_llm_output: str = ""              # raw content before strip (500-char cap)
 
 
 def _alpha_block() -> str:
@@ -138,11 +143,26 @@ _ROLE_FRAMING_STRIP = re.compile(
     re.IGNORECASE,
 )
 
+# C3 2026-05-09: subset of ban phrases users embed in meta-queries.
+# Presence in the user prompt indicates lexical mirroring, not substrate failure.
+_MIRROR_PHRASES = re.compile(
+    r"doesn'?t reach my graph|doesn'?t fit my interior|"
+    r"outside this horizon|doesn'?t reach my interior",
+    re.IGNORECASE,
+)
 
-def _strip_role_framing(response: Optional[str]) -> Optional[str]:
-    """Remove role-framing prefixes and mid-sentence ban phrases."""
+
+def _strip_role_framing_with_status(
+    response: Optional[str],
+) -> tuple[Optional[str], bool]:
+    """Remove role-framing prefixes and mid-sentence ban phrases.
+
+    Returns (cleaned_text, fallback_fired).
+    fallback_fired=True when cleaned was empty after stripping and the
+    original response.strip() was returned instead.
+    """
     if not response:
-        return response
+        return response, False
     # Opener strip (anchored ^)
     cleaned = _ROLE_FRAMING_STRIP.sub("", response.strip())
     if cleaned and cleaned != response.strip() and cleaned[0].islower():
@@ -154,7 +174,15 @@ def _strip_role_framing(response: Optional[str]) -> Optional[str]:
     cleaned = re.sub(r" ([.,;])", r"\1", cleaned)
     cleaned = re.sub(r"^[\s;,\.]+", "", cleaned)
     cleaned = cleaned.strip()
-    return cleaned if cleaned else response.strip()
+    if cleaned:
+        return cleaned, False
+    return response.strip(), True
+
+
+def _strip_role_framing(response: Optional[str]) -> Optional[str]:
+    """Remove role-framing prefixes and mid-sentence ban phrases."""
+    cleaned, _ = _strip_role_framing_with_status(response)
+    return cleaned
 
 
 def build_system_prompt(register: Register, context: Sequence[str] = (),
@@ -208,7 +236,8 @@ class VoiceClient:
         self.model = model
         self._request_fn = request_fn or _default_request
 
-    def speak(self, req: VoiceRequest, beliefs: Optional[str] = None) -> VoiceResponse:
+    def speak(self, req: VoiceRequest, beliefs: Optional[str] = None,
+              belief_count: int = 0) -> VoiceResponse:
         system = build_system_prompt(req.register, req.context, beliefs=beliefs)
         payload = {
             "model": self.model,
@@ -220,8 +249,21 @@ class VoiceClient:
             "max_tokens": req.max_tokens,
         }
         raw = self._request_fn(self.url, payload)
-        text = _strip_role_framing(raw["choices"][0]["message"]["content"])
-        return VoiceResponse(text=text, register=req.register, raw=raw)
+        raw_content = raw["choices"][0]["message"]["content"]
+        # C3 2026-05-09: single-source strip; fallback_fired=True when cleaned
+        # was empty and original deflection text was returned.
+        text, deflection_fired = _strip_role_framing_with_status(raw_content)
+        return VoiceResponse(
+            text=text,
+            register=req.register,
+            raw=raw,
+            deflection_fired=deflection_fired,
+            deflection_user_mirror=(
+                bool(_MIRROR_PHRASES.search(req.prompt)) if deflection_fired else False
+            ),
+            deflection_belief_count=belief_count,
+            raw_llm_output=raw_content[:500] if deflection_fired else "",
+        )
 
     def health_check(self) -> bool:
         """Return True if the voice endpoint is reachable."""
