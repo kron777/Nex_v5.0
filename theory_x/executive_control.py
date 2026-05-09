@@ -9,15 +9,16 @@ Philosophical override remains authoritative and is NOT touched here.
 Standalone module; no other theory_x imports. stdlib only.
 
 Decision tree:
-  1. Score prompt against Analytical and Technical signal sets.
+  1. Score prompt against Analytical, Technical, and Philosophical signal sets.
   2. Apply session-continuity bias: boost last register by CONTINUITY_WEIGHT.
   3. Pick highest-scoring register above its threshold.
-  4. Tie or insufficient signal → Conversational (floor).
+  4. Philosophical wins only when p > a AND p > t (strict); Analytical/Technical
+     win ties. Tie or insufficient signal → Conversational (floor).
   5. Any exception → Conversational (identical to stub behaviour).
 
-Membrane's Philosophical override in gui/server.py:512-515 fires AFTER
-this classifier and replaces its output. This module never returns
-PHILOSOPHICAL.
+Membrane's Philosophical override in gui/server.py fires AFTER this classifier
+and may further override its output. EC can return PHILOSOPHICAL for queries
+with clear philosophical signal (EXPERIMENT EC-A 2026-05-09).
 """
 from __future__ import annotations
 
@@ -32,7 +33,8 @@ __all__ = ["ExecutiveControl"]
 
 _ANALYTICAL_THRESHOLD = 0.28   # 2 keywords (2×0.15=0.30) clears this; single-keyword (0.15) does not
 _TECHNICAL_THRESHOLD  = 0.28   # same rationale; strong-pattern override floors at 0.36
-_CONTINUITY_WEIGHT    = 0.15   # boost for previous session register
+_CONTINUITY_WEIGHT      = 0.15   # boost for previous session register
+_PHILOSOPHICAL_THRESHOLD = 0.12  # single keyword (0.15) clears; 0 keywords stay at 0.0
 
 # ── signal sets ───────────────────────────────────────────────────────────────
 # Substring matching: every keyword is checked via `kw in lower_prompt`.
@@ -123,6 +125,37 @@ _TECHNICAL_PATTERNS = re.compile(
     re.IGNORECASE | re.VERBOSE,
 )
 
+# EXPERIMENT EC-A 2026-05-09: philosophical scoring per DOCTRINE §5 Executive Control.
+# Reversion: remove _PHILOSOPHICAL_THRESHOLD, _PHILOSOPHICAL_KEYWORDS,
+# _PHILOSOPHICAL_PATTERNS, and the philosophical branch in _score_prompt() and _pick().
+
+# Philosophical: phenomenology, metaphysics, existential, NEX-specific vocabulary.
+# Precision over recall — excludes broad terms (meaning, reality, truth, mind)
+# that overlap with Analytical/Conversational.
+_PHILOSOPHICAL_KEYWORDS = (
+    # Phenomenology / philosophy of mind
+    "consciousness", "sentience", "sentient", "qualia", "phenomenal",
+    "phenomenology", "awareness",
+    # Metaphysics
+    "metaphysic", "ontolog", "epistemolog",   # substrings catch -ics/-y/-ical
+    "transcend",                               # covers transcendent, transcendence
+    # Existential / void
+    "free will", "determinism", "impermanence",
+    "emptiness", "void",
+    # NEX-specific
+    "the attending",
+)
+
+_PHILOSOPHICAL_PATTERNS = re.compile(
+    r"""
+    \bwhat\s+is\s+the\s+nature\s+of\b                                          |
+    \bdescribe\s+the\s+(?:silence|void|emptiness|attending)\b                  |
+    \bdo\s+(?:we|all\s+things?|everything)\s+(?:truly\s+)?exist\b              |
+    \bis\s+(?:consciousness|sentience|awareness)\s+(?:real|an?\s+illusion|possible)\b
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
 # Strong Technical signals that alone justify a Technical classification.
 # These are patterns where the query intent is unambiguously mechanical/explanatory.
 _TECHNICAL_STRONG = re.compile(
@@ -162,7 +195,7 @@ class ExecutiveControl:
         self._session_registers: dict[str, str] = {}
         self._call_count: int = 0
         self._register_counts: dict[str, int] = {
-            "Analytical": 0, "Technical": 0, "Conversational": 0
+            "Analytical": 0, "Technical": 0, "Philosophical": 0, "Conversational": 0
         }
 
     # ── public API ────────────────────────────────────────────────────────────
@@ -176,12 +209,12 @@ class ExecutiveControl:
 
         Returns a Register object from voice.registers.
         """
-        from voice.registers import ANALYTICAL, TECHNICAL, CONVERSATIONAL
+        from voice.registers import ANALYTICAL, TECHNICAL, CONVERSATIONAL, PHILOSOPHICAL
         try:
             scores = self._score_prompt(prompt)
             if session_id:
                 scores = self._apply_continuity_bias(scores, session_id)
-            register = self._pick(scores, ANALYTICAL, TECHNICAL, CONVERSATIONAL)
+            register = self._pick(scores, ANALYTICAL, TECHNICAL, CONVERSATIONAL, PHILOSOPHICAL)
             with self._lock:
                 self._call_count += 1
                 self._register_counts[register.name] = (
@@ -196,10 +229,10 @@ class ExecutiveControl:
 
     def dry_run(self, prompt: str, session_id: Optional[str] = None) -> dict:
         """Classify and return full scoring detail without updating session state."""
-        from voice.registers import ANALYTICAL, TECHNICAL, CONVERSATIONAL
+        from voice.registers import ANALYTICAL, TECHNICAL, CONVERSATIONAL, PHILOSOPHICAL
         scores = self._score_prompt(prompt)
         biased_scores = self._apply_continuity_bias(scores, session_id) if session_id else scores
-        register = self._pick(biased_scores, ANALYTICAL, TECHNICAL, CONVERSATIONAL)
+        register = self._pick(biased_scores, ANALYTICAL, TECHNICAL, CONVERSATIONAL, PHILOSOPHICAL)
         return {
             "prompt": prompt[:80],
             "raw_scores": {k: round(v, 4) for k, v in scores.items()},
@@ -249,10 +282,17 @@ class ExecutiveControl:
         if _TECHNICAL_STRONG.search(prompt):
             t_raw = max(t_raw, _TECHNICAL_THRESHOLD + 0.01)
 
+        # Philosophical: keyword hit = 0.15; pattern hit = 0.25 (higher than Technical's
+        # 0.20 — philosophical patterns are more domain-specific, fewer false positives,
+        # and need to beat Technical's "what is the X" definition pattern on ties).
+        p_hits = sum(1 for kw in _PHILOSOPHICAL_KEYWORDS if kw in lower)
+        p_pat = len(_PHILOSOPHICAL_PATTERNS.findall(prompt))
+        p_raw = min(1.0, (p_hits * 0.15) + (p_pat * 0.25))
+
         # Conversational floor: starts at 0.30; wins when signal is absent
         c_raw = 0.30
 
-        return {"Analytical": a_raw, "Technical": t_raw, "Conversational": c_raw}
+        return {"Analytical": a_raw, "Technical": t_raw, "Philosophical": p_raw, "Conversational": c_raw}
 
     def _apply_continuity_bias(
         self, scores: dict[str, float], session_id: Optional[str]
@@ -268,12 +308,19 @@ class ExecutiveControl:
         return biased
 
     def _pick(
-        self, scores: dict[str, float], ANALYTICAL, TECHNICAL, CONVERSATIONAL
+        self, scores: dict[str, float], ANALYTICAL, TECHNICAL, CONVERSATIONAL, PHILOSOPHICAL
     ):
-        """Pick register from scores. Thresholds: Analytical/Technical at 0.45."""
+        """Pick register from scores.
+
+        Philosophical wins when p >= threshold AND p strictly beats both a and t.
+        This prevents Philosophical from winning on ties with Analytical/Technical.
+        """
         a = scores.get("Analytical", 0.0)
         t = scores.get("Technical", 0.0)
+        p = scores.get("Philosophical", 0.0)
 
+        if p >= _PHILOSOPHICAL_THRESHOLD and p > a and p > t:
+            return PHILOSOPHICAL
         if a >= _ANALYTICAL_THRESHOLD and a >= t:
             return ANALYTICAL
         if t >= _TECHNICAL_THRESHOLD and t > a:

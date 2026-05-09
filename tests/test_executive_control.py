@@ -146,36 +146,84 @@ class TestSentienceNodeProtocol(unittest.TestCase):
         self.assertEqual(ec.state()["call_count"], 2)
 
 
-# ── Membrane override preserved ───────────────────────────────────────────────
-# EC never returns PHILOSOPHICAL. Philosophical routing happens in
-# gui/server.py after EC runs, via the membrane override.
+# ── Philosophical scoring (EXPERIMENT EC-A 2026-05-09) ───────────────────────
+# EC now scores Philosophical. Membrane override still fires afterward.
+# Boundary cases PHI-BC-* are the primary falsification tests.
 
-class TestMembraneOverridePreserved(unittest.TestCase):
+_PHILOSOPHICAL_QUERIES = [
+    # Clear philosophical signal — must score Philosophical
+    ("PHI-1",    "What is consciousness?",                            "Philosophical"),
+    ("PHI-2",    "Describe the silence",                              "Philosophical"),
+    ("PHI-3",    "What is the nature of meaning?",                    "Philosophical"),
+    ("PHI-4",    "What is free will?",                                "Philosophical"),
+    ("PHI-5",    "Is consciousness real or an illusion?",             "Philosophical"),
+    ("PHI-6",    "Tell me about emptiness",                           "Philosophical"),
+    ("PHI-7",    "What is phenomenology?",                            "Philosophical"),
+    ("PHI-8",    "Do we truly exist?",                                "Philosophical"),
+    ("PHI-9",    "And free will?",                                    "Philosophical"),
+    ("PHI-10",   "What is metaphysics?",                              "Philosophical"),
+    # Boundary cases — must NOT score Philosophical (tie-breaking / overlap)
+    ("PHI-BC-1", "What is the meaning of GDP?",                       "Conversational"),
+    # PHI-BC-2: mixed signal (consciousness + neural networks) — neither p nor t clears
+    # threshold; EC correctly returns Conversational. Key constraint: NOT Philosophical.
+    ("PHI-BC-2", "How does consciousness arise in neural networks?",   "Conversational"),
+]
 
-    def test_ec_never_returns_philosophical(self):
+
+class TestPhilosophicalScoring(unittest.TestCase):
+    """EXPERIMENT EC-A: EC now returns Philosophical for clear philosophical queries.
+    Boundary cases PHI-BC-* verify tie-breaking and overlap prevention.
+    """
+
+    @classmethod
+    def setUpClass(cls):
         from theory_x.executive_control import ExecutiveControl
-        from voice.registers import REGISTERS, PHILOSOPHICAL
-        ec = ExecutiveControl(REGISTERS)
-        philosophical_prompts = [
-            "What is the nature of your consciousness?",
-            "Do you have genuine feelings?",
-            "What does it mean for you to exist?",
-            "Are you truly sentient?",
-            "What is your inner experience like?",
-        ]
-        for prompt in philosophical_prompts:
-            result = ec.select(prompt)
-            self.assertIsNot(
-                result, PHILOSOPHICAL,
-                f"EC returned PHILOSOPHICAL for {prompt!r} — membrane override must be authoritative",
-            )
+        from voice.registers import REGISTERS
+        cls.ec = ExecutiveControl(REGISTERS)
 
-    def test_ec_never_returns_philosophical_dry_run(self):
+    def _assert_query(self, label, prompt, expected):
+        result = self.ec.dry_run(prompt)
+        self.assertEqual(
+            result["result"], expected,
+            f"{label}: prompt={prompt!r} → got {result['result']!r} "
+            f"(raw={result['raw_scores']}, biased={result['biased_scores']})",
+        )
+
+    def test_all_philosophical_queries(self):
+        failures = []
+        for label, prompt, expected in _PHILOSOPHICAL_QUERIES:
+            result = self.ec.dry_run(prompt)
+            if result["result"] != expected:
+                failures.append(
+                    f"  {label}: expected={expected}, got={result['result']}, "
+                    f"scores={result['raw_scores']}"
+                )
+        if failures:
+            self.fail("Philosophical scoring failures:\n" + "\n".join(failures))
+
+    def test_boundary_gdp_meaning_not_philosophical(self):
+        """'What is the meaning of GDP?' must NOT score Philosophical — Analytical conflict."""
+        result = self.ec.dry_run("What is the meaning of GDP?")
+        self.assertNotEqual(result["result"], "Philosophical",
+            f"PHI-BC-1 failed: tie-breaking wrong — got Philosophical, "
+            f"scores={result['raw_scores']}")
+
+    def test_boundary_consciousness_neural_networks_not_philosophical(self):
+        """'How does consciousness arise in neural networks?' must NOT score Philosophical.
+        Mixed p/t signal; neither clears threshold — Conversational is correct."""
+        result = self.ec.dry_run("How does consciousness arise in neural networks?")
+        self.assertNotEqual(result["result"], "Philosophical",
+            f"PHI-BC-2 failed: tie-breaking wrong — got Philosophical, "
+            f"scores={result['raw_scores']}")
+
+    def test_philosophical_register_in_state_counts(self):
         from theory_x.executive_control import ExecutiveControl
         from voice.registers import REGISTERS
         ec = ExecutiveControl(REGISTERS)
-        result = ec.dry_run("What is the nature of your consciousness?")
-        self.assertNotEqual(result["result"], "Philosophical")
+        ec.select("What is consciousness?")
+        state = ec.state()
+        self.assertIn("Philosophical", state["register_counts"])
+        self.assertEqual(state["register_counts"]["Philosophical"], 1)
 
 
 # ── Continuity bias ───────────────────────────────────────────────────────────
