@@ -174,5 +174,150 @@ class TestProblemMemory(unittest.TestCase):
             _cleanup(writers, tmp)
 
 
+# ── SentienceNode protocol (PHASE 13 additions) ──────────────────────────────
+
+class TestSentienceNodeProtocol(unittest.TestCase):
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+        from theory_x.stage7_sustained.problem_memory import ProblemMemory
+        self.pm = ProblemMemory(self.writers["conversations"], self.readers["conversations"])
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_implements_sentience_node_protocol(self):
+        from theory_x import SentienceNode
+        self.assertIsInstance(self.pm, SentienceNode)
+
+    def test_has_name_attribute(self):
+        from theory_x.stage7_sustained.problem_memory import ProblemMemory
+        self.assertEqual(ProblemMemory.name, "problem_memory")
+        self.assertEqual(self.pm.name, "problem_memory")
+
+    def test_tick_returns_dict_with_name(self):
+        result = self.pm.tick()
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result["name"], "problem_memory")
+
+    def test_tick_accepts_context(self):
+        result = self.pm.tick(context={"session_id": "test"})
+        self.assertIsInstance(result, dict)
+        self.assertIn("open_count", result)
+
+    def test_state_returns_expected_fields(self):
+        s = self.pm.state()
+        self.assertIn("name", s)
+        self.assertIn("open_count", s)
+        self.assertIn("oldest_age_days", s)
+        self.assertIn("cache_age_s", s)
+
+    def test_state_open_count_zero_on_empty_db(self):
+        s = self.pm.tick()
+        self.assertEqual(s["open_count"], 0)
+
+    def test_decay_accepts_float(self):
+        import time
+        self.pm.decay(time.time())  # must not raise
+
+    def test_state_open_count_updates_after_open(self):
+        import time
+        self.pm.open("Protocol Test Problem", "Testing the sentience node count")
+        self.pm._cached_open = None  # force refresh
+        s = self.pm.tick()
+        self.assertEqual(s["open_count"], 1)
+
+
+# ── find_matching — stopwords + ≥2 content-word overlap (PHASE 13) ───────────
+
+class TestFindMatchingV2(unittest.TestCase):
+    """Phase 13 tests for the improved find_matching (stopwords + ≥2 overlap)."""
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+        from theory_x.stage7_sustained.problem_memory import ProblemMemory
+        self.pm = ProblemMemory(self.writers["conversations"], self.readers["conversations"])
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_two_content_word_overlap_matches(self):
+        self.pm.open(
+            "Consciousness Emergence",
+            "How does consciousness emerge in neural systems",
+        )
+        results = self.pm.find_matching("what does consciousness emergence look like")
+        self.assertEqual(len(results), 1)
+
+    def test_single_content_word_does_not_match(self):
+        self.pm.open(
+            "Consciousness Emergence",
+            "How does consciousness emerge in neural systems",
+        )
+        # Only "consciousness" overlaps — 1 word, below ≥2 threshold
+        results = self.pm.find_matching("tell me about consciousness")
+        self.assertEqual(results, [],
+            "Single content-word overlap must not match — ≥2 required")
+
+    def test_stopwords_only_query_returns_empty(self):
+        self.pm.open("Any Problem", "Description about something important")
+        results = self.pm.find_matching("what do you think")
+        self.assertEqual(results, [],
+            "All-stopword query must return [] regardless of open problems")
+
+    def test_closed_problems_not_matched(self):
+        pid = self.pm.open(
+            "Consciousness Emergence",
+            "How does consciousness emerge in neural systems",
+        )
+        self.pm.close(pid)
+        results = self.pm.find_matching("consciousness emergence neural systems")
+        self.assertEqual(results, [],
+            "Closed problems must not appear in find_matching results")
+
+
+# ── Decay — auto-close stale problems (PHASE 13) ─────────────────────────────
+
+class TestDecay(unittest.TestCase):
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+        from theory_x.stage7_sustained.problem_memory import ProblemMemory
+        self.pm = ProblemMemory(self.writers["conversations"], self.readers["conversations"])
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_decay_closes_stale_problems(self):
+        import time
+        now = time.time()
+        stale_ts = now - 40 * 86400  # 40 days ago
+        self.writers["conversations"].write(
+            "INSERT INTO open_problems "
+            "(title, description, state, created_at, last_touched_at) "
+            "VALUES (?, ?, 'open', ?, ?)",
+            ("Stale Problem", "Very old unresolved problem", stale_ts, stale_ts),
+        )
+        self.assertEqual(len(self.pm.list_open()), 1)
+        self.pm.decay(now)
+        self.assertEqual(len(self.pm.list_open()), 0,
+            "Problem stale > 30 days must be auto-closed by decay()")
+
+    def test_decay_leaves_fresh_problems_open(self):
+        import time
+        self.pm.open("Fresh Problem", "Created just now and should survive")
+        self.pm.decay(time.time())
+        self.assertEqual(len(self.pm.list_open()), 1,
+            "Fresh problem must survive decay()")
+
+    def test_decay_invalidates_cache(self):
+        import time
+        self.pm.tick()  # populate cache
+        self.assertIsNotNone(self.pm._cached_open)
+        self.pm.decay(time.time())
+        self.assertIsNone(self.pm._cached_open,
+            "decay() must invalidate the open-problem cache")
+
+
 if __name__ == "__main__":
     unittest.main()

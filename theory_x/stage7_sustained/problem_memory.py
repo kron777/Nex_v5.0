@@ -2,15 +2,35 @@
 
 NEX can hold a problem, accumulate observations over days, and resume it
 in any future conversation where the topic matches.
+
+Implements SentienceNode protocol (DOCTRINE §4):
+  name, tick(context), decay(now), state(now=None)
+
+PHASE 13 SUSTAINED ATTENTION 2026-05-09: SentienceNode protocol added per
+SUSTAINED_ATTENTION_DESIGN.md §7 (Option A). find_matching() replaced with
+stopwords + ≥2 content-word overlap version. Reversion: restore CRUD-only
+class and word-overlap find_matching from commit 950e388 parent.
 """
 from __future__ import annotations
 
 import json
+import threading
 import time
 from typing import Optional
 
 import errors
 from substrate import Writer, Reader
+
+_STOPWORDS = {
+    "a", "an", "the", "is", "are", "was", "were", "be", "been",
+    "do", "does", "did", "have", "has", "had", "will", "would",
+    "can", "could", "should", "may", "might", "shall",
+    "i", "you", "he", "she", "it", "we", "they",
+    "what", "how", "why", "when", "where", "which", "who",
+    "this", "that", "these", "those", "and", "or", "but",
+    "of", "in", "on", "at", "to", "for", "with", "about",
+    "not", "no", "so", "if", "as",
+}
 
 THEORY_X_STAGE = 7
 
@@ -18,10 +38,54 @@ _LOG_SOURCE = "problem_memory"
 
 
 class ProblemMemory:
+    name: str = "problem_memory"
+    _STALE_DAYS: int = 30
+    _CACHE_TTL: float = 120.0  # seconds
+
     def __init__(self, conversations_writer: Writer,
                  conversations_reader: Reader) -> None:
         self._writer = conversations_writer
         self._reader = conversations_reader
+        self._lock = threading.Lock()
+        self._cached_open: Optional[list] = None
+        self._cache_ts: float = 0.0
+
+    # ── SentienceNode protocol ────────────────────────────────────────────────
+
+    def tick(self, context=None) -> dict:
+        """Refresh open-problem cache; return state."""
+        now = time.time()
+        with self._lock:
+            if self._cached_open is None or (now - self._cache_ts) > self._CACHE_TTL:
+                self._cached_open = self.list_open()
+                self._cache_ts = now
+        return self.state()
+
+    def decay(self, now: float) -> None:
+        """Auto-close problems stale > _STALE_DAYS."""
+        cutoff = now - self._STALE_DAYS * 86400
+        self._writer.write(
+            "UPDATE open_problems SET state='closed', resolved_at=?, last_touched_at=? "
+            "WHERE state='open' AND last_touched_at < ?",
+            (now, now, cutoff),
+        )
+        with self._lock:
+            self._cached_open = None  # invalidate cache after decay
+
+    def state(self, now: Optional[float] = None) -> dict:
+        now = now or time.time()
+        with self._lock:
+            problems = self._cached_open or []
+            oldest_age = None
+            if problems:
+                oldest_ts = min(p["last_touched_at"] for p in problems)
+                oldest_age = round((now - oldest_ts) / 86400, 1)
+            return {
+                "name": self.name,
+                "open_count": len(problems),
+                "oldest_age_days": oldest_age,
+                "cache_age_s": round(now - self._cache_ts, 1),
+            }
 
     def open(self, title: str, description: str) -> int:
         """Write a new open problem. Returns its id."""
@@ -129,15 +193,26 @@ class ProblemMemory:
         return "\n".join(lines)
 
     def find_matching(self, query: str) -> list[dict]:
-        """Return open problems whose title or description share keywords with query."""
+        """Return open problems with ≥2 content-word overlap with query.
+
+        Strips stopwords and short tokens before overlap comparison.
+        Prevents spurious matches on common function words.
+        """
         open_problems = self.list_open()
         if not query or not open_problems:
             return []
-        query_words = set(query.lower().split())
+        query_words = {
+            w for w in query.lower().split()
+            if w not in _STOPWORDS and len(w) > 2
+        }
+        if not query_words:
+            return []
         matches = []
         for p in open_problems:
-            candidate = (p["title"] + " " + p["description"]).lower()
-            candidate_words = set(candidate.split())
-            if query_words & candidate_words:
+            candidate_words = {
+                w for w in (p["title"] + " " + p["description"]).lower().split()
+                if w not in _STOPWORDS and len(w) > 2
+            }
+            if len(query_words & candidate_words) >= 2:
                 matches.append(p)
         return matches

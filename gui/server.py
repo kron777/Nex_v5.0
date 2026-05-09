@@ -317,6 +317,11 @@ def build_state(
         from theory_x.stage_capability.tool_caller import ToolCaller
         if "conversations" in writers and "conversations" in readers:
             problem_memory = ProblemMemory(writers["conversations"], readers["conversations"])
+            try:
+                from theory_x import register as _tx_register_pm
+                _tx_register_pm(problem_memory)
+            except Exception:
+                pass
         tool_registry = ToolRegistry(beliefs_reader=readers.get("beliefs"))
         tool_caller = ToolCaller(tool_registry)
 
