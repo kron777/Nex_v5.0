@@ -35,3 +35,18 @@ CREATE TABLE IF NOT EXISTS open_problems (
 );
 CREATE INDEX IF NOT EXISTS idx_problems_state ON open_problems(state);
 
+-- PHASE 16 METACOGNITION 2026-05-09: self-observations persist across restart.
+-- Reversion: drop this table + the metacognition module.
+CREATE TABLE IF NOT EXISTS meta_cognition_events (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type  TEXT NOT NULL,
+    description TEXT NOT NULL,
+    severity    REAL NOT NULL DEFAULT 0.5,
+    source      TEXT NOT NULL,
+    created_at  REAL NOT NULL,
+    resolved_at REAL,
+    session_id  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_mcog_type ON meta_cognition_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_mcog_ts   ON meta_cognition_events(created_at DESC);
+

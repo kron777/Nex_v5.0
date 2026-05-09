@@ -154,6 +154,7 @@ _SM_LOG          = "/tmp/nex5_self_model.log"
 _PM_LOG          = "/tmp/nex5_problem_memory.log"
 _HARMONIZER_LOG  = "/tmp/nex5_harmonizer.log"
 _GM_LOG          = "/tmp/nex5_goal_manager.log"
+_MCOG_LOG        = "/tmp/nex5_metacognition.log"
 
 
 def _get_or_create_wm(session_id: str) -> "Optional[_WorkingMemory]":
@@ -214,6 +215,7 @@ class AppState:
     catalogue: Optional["StrikeCatalogue"] = None       # type: ignore[type-arg]
     problem_memory: Optional["ProblemMemory"] = None    # type: ignore[type-arg]
     goal_manager: Optional["GoalManager"] = None        # type: ignore[type-arg]
+    metacognition: Optional["Metacognition"] = None     # type: ignore[type-arg]
     tool_registry: Optional["ToolRegistry"] = None      # type: ignore[type-arg]
     tool_caller: Optional["ToolCaller"] = None          # type: ignore[type-arg]
     speech_consumer: Optional["SpeechQueueConsumer"] = None  # type: ignore[type-arg]
@@ -312,11 +314,13 @@ def build_state(
 
     problem_memory = None
     goal_manager = None
+    metacognition = None
     tool_registry = None
     tool_caller = None
     if with_tools:
         from theory_x.stage7_sustained.problem_memory import ProblemMemory
         from theory_x.stage8_goal_manager.goal_manager import GoalManager
+        from theory_x.stage9_metacognition.metacognition import Metacognition
         from theory_x.stage_capability.tools import ToolRegistry
         from theory_x.stage_capability.tool_caller import ToolCaller
         if "conversations" in writers and "conversations" in readers:
@@ -332,6 +336,17 @@ def build_state(
                 _tx_register_gm(goal_manager)
             except Exception:
                 pass
+            if "beliefs" in readers:
+                metacognition = Metacognition(
+                    writers["conversations"],
+                    readers["conversations"],
+                    readers["beliefs"],
+                )
+                try:
+                    from theory_x import register as _tx_register_mc
+                    _tx_register_mc(metacognition)
+                except Exception:
+                    pass
         tool_registry = ToolRegistry(beliefs_reader=readers.get("beliefs"))
         tool_caller = ToolCaller(tool_registry)
 
@@ -348,6 +363,7 @@ def build_state(
         catalogue=catalogue,
         problem_memory=problem_memory,
         goal_manager=goal_manager,
+        metacognition=metacognition,
         tool_registry=tool_registry,
         tool_caller=tool_caller,
     )
@@ -701,6 +717,33 @@ def create_app(state: AppState) -> Flask:
             except Exception as exc:
                 error_channel.record(
                     f"goal manager injection failed: {exc}", source="gui.server", exc=exc
+                )
+
+        # Metacognition: self-pattern observation injection (Phase 16).
+        # Always-on; detects groove repetition + goal-drift; under 100 chars typical.
+        if state.metacognition is not None:
+            try:
+                state.metacognition.tick()
+                _mcog_text = state.metacognition.format_for_prompt()
+                if _mcog_text:
+                    belief_text = (belief_text or "") + "\n\n" + _mcog_text
+                try:
+                    with open(_MCOG_LOG, "a") as _mf:
+                        import json as _json2
+                        _mf.write(_json2.dumps({
+                            "event": "metacognition_check",
+                            "ts": time.time(),
+                            "session": session_id,
+                            "injected": bool(_mcog_text),
+                            "text": _mcog_text,
+                            "prompt": prompt[:200],
+                        }) + "\n")
+                except Exception:
+                    pass
+            except Exception as _mcog_exc:
+                error_channel.record(
+                    f"metacognition injection failed: {_mcog_exc}",
+                    source="gui.server", exc=_mcog_exc,
                 )
 
         # Tool use: heuristic tool selection and execution

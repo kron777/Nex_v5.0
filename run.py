@@ -146,6 +146,19 @@ def main() -> None:
     except Exception:
         pass
 
+    # 9c. Metacognition — self-pattern observation (Phase 16)
+    from theory_x.stage9_metacognition.metacognition import Metacognition
+    metacognition = Metacognition(
+        writers["conversations"],
+        readers["conversations"],
+        readers["beliefs"],
+    )
+    try:
+        from theory_x import register as _tx_register_mc
+        _tx_register_mc(metacognition)
+    except Exception:
+        pass
+
     # 10. Fountain ignition
     log.info("Igniting fountain...")
     log.info(
@@ -295,6 +308,7 @@ def main() -> None:
         catalogue=catalogue,
         problem_memory=problem_memory,
         goal_manager=goal_manager,
+        metacognition=metacognition,
         tool_registry=tool_registry,
         tool_caller=tool_caller,
         speech_consumer=speech_consumer,
