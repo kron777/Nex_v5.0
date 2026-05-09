@@ -275,6 +275,17 @@ class TestFindMatchingV2(unittest.TestCase):
         self.assertEqual(results, [],
             "Closed problems must not appear in find_matching results")
 
+    def test_punctuation_in_title_does_not_block_match(self):
+        # Regression: "recursion?" in title must not prevent matching clean "recursion".
+        # Surfaced Q4 seeding 2026-05-09 — P1 title "...recursion?" vs query "recursion".
+        self.pm.open(
+            "What causes the X recursion?",
+            "The recursion pattern persists across substrate changes.",
+        )
+        results = self.pm.find_matching("what causes recursion")
+        self.assertEqual(len(results), 1,
+            "Trailing '?' on title token must not block ≥2 overlap match")
+
 
 # ── Decay — auto-close stale problems (PHASE 13) ─────────────────────────────
 

@@ -36,6 +36,17 @@ THEORY_X_STAGE = 7
 
 _LOG_SOURCE = "problem_memory"
 
+# PHASE 13 punctuation fix 2026-05-09: find_matching tokenization stripped via
+# _clean_tokens helper. Surfaced by Q4 seeding — P1 title "...recursion?"
+# didn't match clean query "recursion". Reversion: inline the set comprehension
+# back into find_matching and remove this function.
+_PUNCT = '.,?!;:\'"'
+
+def _clean_tokens(text: str) -> set[str]:
+    """Lowercase-split text, strip punctuation, filter stopwords and short tokens."""
+    tokens = (w.strip(_PUNCT) for w in text.lower().split())
+    return {w for w in tokens if w not in _STOPWORDS and len(w) > 2}
+
 
 class ProblemMemory:
     name: str = "problem_memory"
@@ -201,18 +212,12 @@ class ProblemMemory:
         open_problems = self.list_open()
         if not query or not open_problems:
             return []
-        query_words = {
-            w for w in query.lower().split()
-            if w not in _STOPWORDS and len(w) > 2
-        }
+        query_words = _clean_tokens(query)
         if not query_words:
             return []
         matches = []
         for p in open_problems:
-            candidate_words = {
-                w for w in (p["title"] + " " + p["description"]).lower().split()
-                if w not in _STOPWORDS and len(w) > 2
-            }
+            candidate_words = _clean_tokens(p["title"] + " " + p["description"])
             if len(query_words & candidate_words) >= 2:
                 matches.append(p)
         return matches
