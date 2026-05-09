@@ -153,6 +153,7 @@ _BSM_LOG         = "/tmp/nex5_behavioural_self_model.log"
 _SM_LOG          = "/tmp/nex5_self_model.log"
 _PM_LOG          = "/tmp/nex5_problem_memory.log"
 _HARMONIZER_LOG  = "/tmp/nex5_harmonizer.log"
+_GM_LOG          = "/tmp/nex5_goal_manager.log"
 
 
 def _get_or_create_wm(session_id: str) -> "Optional[_WorkingMemory]":
@@ -212,6 +213,7 @@ class AppState:
     strike_protocol: Optional["StrikeProtocol"] = None  # type: ignore[type-arg]
     catalogue: Optional["StrikeCatalogue"] = None       # type: ignore[type-arg]
     problem_memory: Optional["ProblemMemory"] = None    # type: ignore[type-arg]
+    goal_manager: Optional["GoalManager"] = None        # type: ignore[type-arg]
     tool_registry: Optional["ToolRegistry"] = None      # type: ignore[type-arg]
     tool_caller: Optional["ToolCaller"] = None          # type: ignore[type-arg]
     speech_consumer: Optional["SpeechQueueConsumer"] = None  # type: ignore[type-arg]
@@ -309,10 +311,12 @@ def build_state(
         )
 
     problem_memory = None
+    goal_manager = None
     tool_registry = None
     tool_caller = None
     if with_tools:
         from theory_x.stage7_sustained.problem_memory import ProblemMemory
+        from theory_x.stage8_goal_manager.goal_manager import GoalManager
         from theory_x.stage_capability.tools import ToolRegistry
         from theory_x.stage_capability.tool_caller import ToolCaller
         if "conversations" in writers and "conversations" in readers:
@@ -320,6 +324,12 @@ def build_state(
             try:
                 from theory_x import register as _tx_register_pm
                 _tx_register_pm(problem_memory)
+            except Exception:
+                pass
+            goal_manager = GoalManager(writers["conversations"], readers["conversations"])
+            try:
+                from theory_x import register as _tx_register_gm
+                _tx_register_gm(goal_manager)
             except Exception:
                 pass
         tool_registry = ToolRegistry(beliefs_reader=readers.get("beliefs"))
@@ -337,6 +347,7 @@ def build_state(
         strike_protocol=strike_protocol,
         catalogue=catalogue,
         problem_memory=problem_memory,
+        goal_manager=goal_manager,
         tool_registry=tool_registry,
         tool_caller=tool_caller,
     )
@@ -662,6 +673,34 @@ def create_app(state: AppState) -> Flask:
             except Exception as exc:
                 error_channel.record(
                     f"problem memory matching failed: {exc}", source="gui.server", exc=exc
+                )
+
+        # Goal manager: inject top-priority open goal into belief_text (Phase 15).
+        # Always-on; no register gating; no semantic match requirement.
+        # Goal is the organizing target — should be in awareness each turn.
+        if state.goal_manager is not None:
+            try:
+                active_goal = state.goal_manager.get_active()
+                if active_goal:
+                    goal_text = state.goal_manager.format_for_prompt(active_goal["id"])
+                    if goal_text:
+                        belief_text = (belief_text or "") + "\n\n" + goal_text
+                try:
+                    with open(_GM_LOG, "a") as _gmf:
+                        import json as _json
+                        _gmf.write(_json.dumps({
+                            "event": "goal_manager_check",
+                            "ts": time.time(),
+                            "session": session_id,
+                            "active_goal": active_goal["id"] if active_goal else None,
+                            "title": active_goal["title"] if active_goal else None,
+                            "prompt": prompt[:200],
+                        }) + "\n")
+                except Exception:
+                    pass
+            except Exception as exc:
+                error_channel.record(
+                    f"goal manager injection failed: {exc}", source="gui.server", exc=exc
                 )
 
         # Tool use: heuristic tool selection and execution
@@ -1548,6 +1587,88 @@ def create_app(state: AppState) -> Flask:
             return jsonify({"ok": True, "id": problem_id})
         except Exception as e:
             error_channel.record(f"problem close failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    # -- goal manager (Phase 15) ---------------------------------------------
+
+    @app.get("/api/goals")
+    def api_goals_list():
+        if state.goal_manager is None:
+            return jsonify({"goals": []})
+        try:
+            return jsonify({"goals": state.goal_manager.list_open()})
+        except Exception as e:
+            error_channel.record(f"goals list failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.post("/api/goals")
+    def api_goals_open():
+        if state.goal_manager is None:
+            return jsonify({"error": "goal manager not initialised"}), 503
+        payload = request.get_json(silent=True) or {}
+        title = (payload.get("title") or "").strip()
+        description = (payload.get("description") or "").strip()
+        priority = float(payload.get("priority", 0.5))
+        source = (payload.get("source") or "user").strip()
+        problem_id = payload.get("problem_id")
+        if not title:
+            return jsonify({"error": "title required"}), 400
+        try:
+            gid = state.goal_manager.open(title, description, priority, source, problem_id)
+            return jsonify({"id": gid, "title": title})
+        except Exception as e:
+            error_channel.record(f"goal open failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.get("/api/goals/<int:goal_id>")
+    def api_goals_get(goal_id: int):
+        if state.goal_manager is None:
+            return jsonify({"error": "goal manager not initialised"}), 503
+        try:
+            g = state.goal_manager.resume(goal_id)
+            if g is None:
+                return jsonify({"error": "not found"}), 404
+            return jsonify(g)
+        except Exception as e:
+            error_channel.record(f"goal get failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.patch("/api/goals/<int:goal_id>/priority")
+    def api_goals_priority(goal_id: int):
+        if state.goal_manager is None:
+            return jsonify({"error": "goal manager not initialised"}), 503
+        payload = request.get_json(silent=True) or {}
+        try:
+            priority = float(payload.get("priority", 0.5))
+        except (TypeError, ValueError):
+            return jsonify({"error": "priority must be a float"}), 400
+        try:
+            state.goal_manager.update_priority(goal_id, priority)
+            return jsonify({"ok": True, "id": goal_id})
+        except Exception as e:
+            error_channel.record(f"goal priority update failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.post("/api/goals/<int:goal_id>/complete")
+    def api_goals_complete(goal_id: int):
+        if state.goal_manager is None:
+            return jsonify({"error": "goal manager not initialised"}), 503
+        try:
+            state.goal_manager.complete(goal_id)
+            return jsonify({"ok": True, "id": goal_id})
+        except Exception as e:
+            error_channel.record(f"goal complete failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.post("/api/goals/<int:goal_id>/cancel")
+    def api_goals_cancel(goal_id: int):
+        if state.goal_manager is None:
+            return jsonify({"error": "goal manager not initialised"}), 503
+        try:
+            state.goal_manager.cancel(goal_id)
+            return jsonify({"ok": True, "id": goal_id})
+        except Exception as e:
+            error_channel.record(f"goal cancel failed: {e}", source="gui.server", exc=e)
             return jsonify({"error": str(e)}), 500
 
     # -- tools (Phase 9) -----------------------------------------------------

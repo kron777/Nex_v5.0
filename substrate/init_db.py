@@ -183,6 +183,19 @@ _MIGRATIONS: dict[str, list[str]] = {
         "resolved_at REAL)",
         "CREATE INDEX IF NOT EXISTS idx_problems_state ON open_problems(state)",
         "ALTER TABLE messages ADD COLUMN tool_used TEXT",
+        "CREATE TABLE IF NOT EXISTS goals ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "title TEXT NOT NULL, "
+        "description TEXT NOT NULL DEFAULT '', "
+        "priority REAL NOT NULL DEFAULT 0.5, "
+        "state TEXT NOT NULL DEFAULT 'open', "
+        "source TEXT NOT NULL DEFAULT 'user', "
+        "created_at REAL NOT NULL, "
+        "last_touched_at REAL NOT NULL, "
+        "completed_at REAL, "
+        "problem_id INTEGER REFERENCES open_problems(id))",
+        "CREATE INDEX IF NOT EXISTS idx_goals_state ON goals(state)",
+        "CREATE INDEX IF NOT EXISTS idx_goals_priority ON goals(priority DESC)",
     ],
 }
 

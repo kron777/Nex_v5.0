@@ -137,6 +137,15 @@ def main() -> None:
     from theory_x.stage7_sustained.problem_memory import ProblemMemory
     problem_memory = ProblemMemory(writers["conversations"], readers["conversations"])
 
+    # 9b. Goal manager — explicit goal stack with priority arbitration (Phase 15)
+    from theory_x.stage8_goal_manager.goal_manager import GoalManager
+    goal_manager = GoalManager(writers["conversations"], readers["conversations"])
+    try:
+        from theory_x import register as _tx_register_gm
+        _tx_register_gm(goal_manager)
+    except Exception:
+        pass
+
     # 10. Fountain ignition
     log.info("Igniting fountain...")
     log.info(
@@ -285,6 +294,7 @@ def main() -> None:
         strike_protocol=strike_protocol,
         catalogue=catalogue,
         problem_memory=problem_memory,
+        goal_manager=goal_manager,
         tool_registry=tool_registry,
         tool_caller=tool_caller,
         speech_consumer=speech_consumer,
