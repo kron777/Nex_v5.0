@@ -307,6 +307,45 @@ class TestDecay(unittest.TestCase):
         self.assertIsNone(self.mc._cached_recent, "decay() must invalidate cache")
 
 
+# ── Same-turn injection regression ───────────────────────────────────────────
+
+class TestSameTurnInjection(unittest.TestCase):
+    """Regression: detected events must surface in format_for_prompt() on the
+    same tick() call, not the following one.
+
+    Without the fix (_cached_recent not invalidated after write), tick() writes
+    the event but the TTL gate skips the cache refresh — format_for_prompt()
+    reads stale [] and returns empty. This test fails without the fix.
+    """
+
+    def test_drift_injects_on_same_tick(self):
+        writers, readers, tmp = _make_env()
+        try:
+            _seed_goal(
+                writers,
+                "Consciousness Emergence Research",
+                "Investigating how consciousness emerges in neural systems",
+            )
+            _seed_nex_messages(writers, [
+                "The weather forecast shows rain tomorrow morning.",
+                "Pasta cooking time depends on the thickness of noodles.",
+                "Soccer match results from last weekend were surprising.",
+                "Stock market indices closed flat on Friday afternoon.",
+                "The recipe calls for two cups of flour and one egg.",
+            ])
+            mc = _build_mc(writers, readers)
+            mc.tick()
+            text = mc.format_for_prompt()
+            self.assertNotEqual(
+                text, "",
+                "format_for_prompt() must return non-empty on the same tick() "
+                "that detected and wrote the goal_drift event — not the next tick.",
+            )
+            self.assertIn("drifting", text)
+        finally:
+            _cleanup(writers, tmp)
+
+
 # ── Cross-restart persistence ─────────────────────────────────────────────────
 
 class TestCrossRestartPersistence(unittest.TestCase):

@@ -238,5 +238,11 @@ class Metacognition:
                 f"metacognition event: {ev['event_type']} — {ev['description'][:60]}",
                 source=_LOG_SOURCE, level="INFO",
             )
+            # PHASE 16 fix 2026-05-09: invalidate cache after write so events fire
+            # same-turn (not next-turn). Surfaced by cognitive-proof validation.
+            # Writer is synchronous (req.future.result()), so cache refresh on the
+            # next tick() cache block finds the committed event.
+            with self._lock:
+                self._cached_recent = None
         except Exception as exc:
             errors.record(f"event write failed: {exc}", source=_LOG_SOURCE, exc=exc)
