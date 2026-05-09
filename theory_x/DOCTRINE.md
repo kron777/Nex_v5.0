@@ -105,8 +105,13 @@ def test_implements_sentience_node_protocol(self):
 | 5 | **Sustained Attention** | Open problem persistence | ✓ DONE | Phase 13: SentienceNode protocol on ProblemMemory; find_matching ≥2 content-word overlap; auto-close stale >30d; registered in theory_x registry. Manual seeding via POST /api/problems. |
 | 6 | **Interoception** | Body-state awareness in cognition | ✓ DONE | Field-name bugs fixed (locked_beliefs, tier_counts); fountain receives natural language via selector; delta metric added. Was never NOISY — NOISY_INTERNAL_STREAMS premise in prior doctrine was wrong |
 | 7 | **Harmonizer** | Contradiction resolution | ✓ DONE | Root cause was tier filter (`<= 4`) excluding all 1334 epistemic beliefs (tier 7); fixed to `BETWEEN 3 AND 7`. Polar vocabulary detection (4 pairs, constancy/flux expanded with stability/transformation/adaptability vocabulary) + dialectic guard (beliefs holding both poles skipped). mark_paradox first-pass (non-destructive); escalate to synthesize/delete after 16h incubation. SentienceNode protocol + `format_for_prompt()`. 17 live conflict pairs detected. |
+| 8 | **Goal Manager** | Explicit goal stack; priority arbitration; state tracking | ABSENT | NEX has no goal representation today. ProblemMemory holds open questions; Drives carry pressure without explicit targets. Maps to S5.5 Goal_Manager_Node. Prerequisite for any future goal-driven cognition (e.g., Simulated Thinking, Insight). |
+| 9 | **Metacognition** | Self-pattern observation; anomaly detection over cognitive state | ABSENT | Partial scaffolds exist: `arcs/meta_reflective.py` (self-referential pattern detection), `stage1_sense/internal/meta_awareness.py` (substrate health). Maps to S5.5 Meta_Cognition_Node + Meta_Awareness_Node. |
+| 10 | **Generative Imagination** | Counterfactual generation; novel association | ABSENT | Substrate currently retrieval-only; would require new belief-generation primitives. Maps to S5.5 Simulated_Thinking_Node + Insight_Node functions. |
 
-Ordering 3–7 is provisional. The full translation map (Phase 1 of the port project) determines final sequence. Jon confirms order before each port begins.
+Ordering 3–10 is provisional. The full translation map (Phase 1 of the port project) determines final sequence. Jon confirms order before each port begins.
+
+Rows 1–7 close §1's framing of seven named cognitive functions. Row 8 (Goal Manager) is sourced from the Sentience 5.5 architectural audit; it represents NEX's missing goal-representation function, not a named §1 cognitive function.
 
 ---
 
@@ -207,3 +212,5 @@ The doctrine is the stable foundation; the translation map (`sentience_translati
 *Phase 12 amendment (2026-05-09) — EC-A: §5 row 3 Executive Control gains Philosophical scoring. 17 keywords + 4 patterns, threshold 0.12, pattern weight 0.25, strict tie-breaking. SURVIVES: 30-query regression clean; 10/10 new philosophical queries; 5/5 HUD with membrane_overrode=False. §6 #5 smoke annotation updated: 'tell me about consciousness' now correctly routes Philosophical (EC-driven). Option B (CM-informed continuity for zero-keyword follow-ups) queued as separate experiment.*
 
 *Phase 13 amendment (2026-05-09) — §5 row 5 Sustained Attention: Option A protocol port landed. ProblemMemory now SentienceNode-conformant. find_matching upgraded to stopwords + ≥2 content-word overlap. SURVIVES: 25/25 tests, cross-restart persistence confirmed, smoke set clean. Initial seeding deferred to Jon (Q4): real open threads authored via REST API immediately post-commit.*
+
+*Phase 14 amendment (2026-05-09) — §5 expanded from 7 to 10 rows. Goal Manager (row 8), Metacognition (row 9), Generative Imagination (row 10) formally added. Goal Manager sourced from Sentience 5.5 audit — not a §1 named cognitive function; represents NEX's missing goal-representation. Metacognition + Generative Imagination close §1's original framing. Ordering follows dependency: Goals provide targets; Metacognition observes progress toward targets; Generative Imagination generates departures when metacognition flags stagnation.*
