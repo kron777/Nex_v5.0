@@ -300,7 +300,7 @@ Two S5.5 nodes ported as one nex5 node:
 Issues surfaced by this mapping that require a doctrine call before they can be resolved.
 
 **Q1 — §7 amendment for CounterfactualSimulation (row 10b)**
-The §5 row 10b DEFERRED status depends on a §7 amendment establishing the permitted generation surface for nodes that need to create belief content. Until this conversation happens, `SimulatedThinkingNode` and `InsightNode` remain blocked. This is the highest-priority open doctrine question.
+RESOLVED (2026-05-10, Phase 21 — FACULTY_MODEL.md, commit 112f186). §7 amended: generative nodes write thoughts through the CoherenceGate; gate applies four outcomes (accept, reject, hold, reshape). `SimulatedThinkingNode` and `InsightNode` unblocked. §5 row 10b implementation begins Phase 25b: nex5-native CounterfactualNode (Option γ — problem-directed candidate generation via ProblemMemory + GoalManager + CoherenceGate).
 
 **Q2 — Motivation system: one port or three?**
 `DriveSystemNode`, `ExperienceMotivationNode`, and `MotivationNode` cover overlapping territory. A doctrine decision is needed: are motivational drives in scope as a single "Drive/Motivation" §5 node, or are they subsumed by GoalManager (row 8)? The key distinction: goals are explicit, named targets; drives are subpersonal pressure states. GoalManager does not cover drives.
