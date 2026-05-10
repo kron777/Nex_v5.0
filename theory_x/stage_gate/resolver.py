@@ -35,12 +35,27 @@ class HoldingZoneResolver:
 
     name: str = "holding_zone_resolver"
 
-    def __init__(self, holding_zone, beliefs_writer=None) -> None:
+    def __init__(
+        self,
+        holding_zone,
+        beliefs_writer=None,
+        transformer=None,
+        gate=None,
+    ) -> None:
         self._zone = holding_zone
         self._beliefs_writer = beliefs_writer
+        self._transformer = transformer
+        self._gate = gate
         self._resolution_count: int = 0
+        self._reshape_count: int = 0
         self._stop: Optional[threading.Event] = None
         self._thread: Optional[threading.Thread] = None
+
+    def set_gate(self, gate) -> None:
+        self._gate = gate
+
+    def set_transformer(self, transformer) -> None:
+        self._transformer = transformer
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -127,14 +142,71 @@ class HoldingZoneResolver:
     # ── SentienceNode protocol ────────────────────────────────────────────────
 
     def tick(self, context: dict[str, Any] = None) -> dict[str, Any]:
-        """Background step: fade stale held thoughts."""
+        """Background step: fade stale held thoughts + process reshape pending."""
         try:
             faded = self._zone.fade_stale(time.time())
             if faded:
                 self._resolution_count += faded
         except Exception as exc:
-            errors.record(f"resolver tick error: {exc}", source=_LOG_SOURCE, exc=exc)
+            errors.record(f"resolver tick fade error: {exc}", source=_LOG_SOURCE, exc=exc)
+
+        if self._transformer is not None and self._gate is not None:
+            try:
+                self._process_reshape_pending()
+            except Exception as exc:
+                errors.record(
+                    f"resolver tick reshape error: {exc}", source=_LOG_SOURCE, exc=exc
+                )
+
         return self.state()
+
+    def _process_reshape_pending(self) -> None:
+        """Transform up to 10 reshape_pending rows and re-submit through gate."""
+        from theory_x.stage_gate.coherence_gate import ThoughtPacket
+        pending = self._zone.find_reshape_pending(limit=10)
+        for row in pending:
+            packet = ThoughtPacket(
+                content=row["content"],
+                source_node=row["source_node"],
+                confidence=row["confidence"],
+                branch_id=row.get("branch_id"),
+                metadata={
+                    "reshape_hint": True,
+                    "reshape_depth": row["reshape_depth"],
+                    "original_thought_id": row["id"],
+                },
+            )
+            new_packet = self._transformer.transform(
+                packet, row["id"], row["reshape_depth"]
+            )
+            if new_packet is not None:
+                try:
+                    self._gate.check(new_packet)
+                except Exception as exc:
+                    errors.record(
+                        f"reshape gate re-submit error: {exc}",
+                        source=_LOG_SOURCE, exc=exc,
+                    )
+                self._zone.mark_reshape_complete(
+                    row["id"],
+                    "reshaped",
+                    f"transformer_depth_{row['reshape_depth'] + 1}",
+                    reshaped_preview=new_packet.content[:80],
+                )
+                self._reshape_count += 1
+            else:
+                self._zone.mark_reshape_complete(
+                    row["id"],
+                    "reshape_failed",
+                    "transformer_returned_none",
+                    None,
+                )
+            errors.record(
+                f"reshape: held_id={row['id']} → "
+                f"{'reshaped' if new_packet else 'reshape_failed'}: "
+                f"{row['content'][:50]}",
+                source=_LOG_SOURCE, level="INFO",
+            )
 
     def decay(self, now: float) -> None:
         pass  # fade_stale handles time-based decay via tick()
@@ -150,5 +222,6 @@ class HoldingZoneResolver:
         return {
             "name": self.name,
             "resolutions_this_session": self._resolution_count,
+            "reshapes_this_session": self._reshape_count,
             "held_counts": counts,
         }

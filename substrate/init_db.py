@@ -170,6 +170,7 @@ _MIGRATIONS: dict[str, list[str]] = {
         "last_seen_at REAL NOT NULL, "
         "corroboration_count INTEGER NOT NULL DEFAULT 0, "
         "status TEXT NOT NULL DEFAULT 'holding', "
+        "reshape_depth INTEGER NOT NULL DEFAULT 0, "
         "metadata TEXT)",
         "CREATE INDEX IF NOT EXISTS idx_held_status_created "
         "ON held_thoughts(status, created_at)",
@@ -186,6 +187,8 @@ _MIGRATIONS: dict[str, list[str]] = {
         "ON held_resolutions(held_id)",
         "CREATE INDEX IF NOT EXISTS idx_held_resolutions_ts "
         "ON held_resolutions(ts)",
+        # Phase 24 — Reshape depth column (existing installs)
+        "ALTER TABLE held_thoughts ADD COLUMN reshape_depth INTEGER NOT NULL DEFAULT 0",
     ],
     "dynamic": [
         "CREATE TABLE IF NOT EXISTS harmonizer_events ("

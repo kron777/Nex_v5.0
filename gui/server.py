@@ -275,12 +275,13 @@ def build_state(
     )
     scheduler = build_scheduler(writers, readers) if with_scheduler else None
 
-    # Phase 22 + 23 — Coherence Gate + Holding Zone
+    # Phase 22 + 23 + 24 — Coherence Gate + Holding Zone + Reshape Path
     coherence_gate = None
     if "beliefs" in writers and "beliefs" in readers:
         from theory_x.stage_gate.coherence_gate import CoherenceGate
         from theory_x.stage_gate.holding_zone import HoldingZone
         from theory_x.stage_gate.resolver import HoldingZoneResolver
+        from theory_x.stage_gate.transformer import ReshapeTransformer
         _holding_zone = HoldingZone(writers["beliefs"], readers["beliefs"])
         _resolver = HoldingZoneResolver(_holding_zone, beliefs_writer=writers["beliefs"])
         coherence_gate = CoherenceGate(
@@ -290,6 +291,9 @@ def build_state(
             holding_zone=_holding_zone,
             resolver=_resolver,
         )
+        _resolver.set_gate(coherence_gate)
+        _transformer = ReshapeTransformer(voice)
+        _resolver.set_transformer(_transformer)
         _resolver.start_loop()
 
     dynamic = None

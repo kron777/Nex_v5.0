@@ -173,12 +173,22 @@ class CoherenceGate:
         self._decision_count += 1
 
         # Phase 23 — Holding Zone: persist HOLD; check held zone on ACCEPT
+        # Phase 24 — RESHAPE: enqueue to reshape_pending for resolver processing
         if decision.outcome == GateOutcome.HOLD and self._holding_zone is not None:
             try:
                 self._holding_zone.hold(packet, decision.reason)
             except Exception as exc:
                 errors.record(
                     f"holding_zone.hold error: {exc}", source=_LOG_SOURCE, exc=exc
+                )
+        elif decision.outcome == GateOutcome.RESHAPE and self._holding_zone is not None:
+            try:
+                reshape_depth = packet.metadata.get("reshape_depth", 0)
+                self._holding_zone.put_reshape_pending(packet, reshape_depth)
+            except Exception as exc:
+                errors.record(
+                    f"holding_zone.put_reshape_pending error: {exc}",
+                    source=_LOG_SOURCE, exc=exc,
                 )
         elif decision.outcome == GateOutcome.ACCEPT and self._resolver is not None:
             try:
@@ -273,6 +283,17 @@ class CoherenceGate:
                     outcome=GateOutcome.ACCEPT,
                     reason=f"accept:novel_connects_problem_{p['id']}",
                 )
+
+        # Phase 24 — RESHAPE check (opt-in via packet metadata, D1=δ)
+        # Existing five generative paths never set reshape_hint; zero organic RESHAPE.
+        reshape_hint = packet.metadata.get("reshape_hint", False)
+        reshape_depth = packet.metadata.get("reshape_depth", 0)
+        if reshape_hint and reshape_depth < 2:
+            return GateDecision(
+                outcome=GateOutcome.RESHAPE,
+                reason=f"reshape:hinted_depth_{reshape_depth}",
+            )
+        # depth >= cap: fall through to ACCEPT (cognitive-effort cap reached)
 
         # Default — novel, no conflict
         return GateDecision(

@@ -199,6 +199,85 @@ class HoldingZone:
             errors.record(f"promote_to_belief error: {exc}", source=_LOG_SOURCE, exc=exc)
             return None
 
+    def put_reshape_pending(self, packet: Any, depth: int) -> Optional[int]:
+        """Persist a thought as reshape_pending. Returns held_id or None on error."""
+        now = time.time()
+        try:
+            held_id = self._writer.write(
+                "INSERT INTO held_thoughts "
+                "(content, source_node, confidence, branch_id, hold_reason, "
+                "created_at, last_seen_at, corroboration_count, status, reshape_depth) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'reshape_pending', ?)",
+                (
+                    packet.content,
+                    packet.source_node,
+                    packet.confidence,
+                    packet.branch_id,
+                    f"reshape:hinted_depth_{depth}",
+                    now,
+                    now,
+                    depth,
+                ),
+            )
+            errors.record(
+                f"reshape_pending id={held_id} depth={depth}: {packet.content[:60]}",
+                source=_LOG_SOURCE, level="INFO",
+            )
+            return held_id
+        except Exception as exc:
+            errors.record(
+                f"put_reshape_pending error: {exc}", source=_LOG_SOURCE, exc=exc
+            )
+            return None
+
+    def find_reshape_pending(self, limit: int = 10) -> list[dict]:
+        """Return up to limit reshape_pending rows, oldest first."""
+        try:
+            rows = self._reader.read(
+                "SELECT id, content, source_node, confidence, branch_id, reshape_depth "
+                "FROM held_thoughts "
+                "WHERE status='reshape_pending' "
+                "ORDER BY created_at ASC LIMIT ?",
+                (limit,),
+            )
+            return [dict(r) for r in rows]
+        except Exception as exc:
+            errors.record(
+                f"find_reshape_pending error: {exc}", source=_LOG_SOURCE, exc=exc
+            )
+            return []
+
+    def mark_reshape_complete(
+        self,
+        held_id: int,
+        action: str,
+        reason: str,
+        reshaped_preview: Optional[str] = None,
+    ) -> None:
+        """Write terminal status and audit row for a reshape_pending thought."""
+        try:
+            self._writer.write(
+                "UPDATE held_thoughts SET status = ? "
+                "WHERE id = ? AND status = 'reshape_pending'",
+                (action, held_id),
+            )
+            self._writer.write(
+                "INSERT INTO held_resolutions "
+                "(held_id, ts, action, reason, trigger_packet_preview) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (
+                    held_id,
+                    time.time(),
+                    action,
+                    reason,
+                    (reshaped_preview or "")[:80],
+                ),
+            )
+        except Exception as exc:
+            errors.record(
+                f"mark_reshape_complete error: {exc}", source=_LOG_SOURCE, exc=exc
+            )
+
     def fade_stale(self, now_ts: float,
                    max_age_seconds: float = _FADE_SECONDS) -> int:
         """Mark held thoughts older than max_age_seconds as 'faded'. Returns count."""

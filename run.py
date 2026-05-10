@@ -115,13 +115,13 @@ def main() -> None:
         holding_zone=_holding_zone,
         resolver=_resolver,
     )
-    _resolver.start_loop()
+    _resolver.set_gate(coherence_gate)
     try:
         from theory_x import register as _tx_register_resolver
         _tx_register_resolver(_resolver)
     except Exception:
         pass
-    log.info("Coherence gate ready — holding zone resolver started")
+    log.info("Coherence gate ready — holding zone active")
 
     # 5. Dynamic formation
     log.info("Starting dynamic formation...")
@@ -139,6 +139,13 @@ def main() -> None:
         log.info("Voice endpoint reachable: %s", voice.url)
     else:
         log.warning("Voice endpoint NOT reachable at %s — chat will return fallback message", voice.url)
+
+    # 5b. Reshape Transformer (Phase 24) — wired after voice is available
+    from theory_x.stage_gate.transformer import ReshapeTransformer
+    _transformer = ReshapeTransformer(voice)
+    _resolver.set_transformer(_transformer)
+    _resolver.start_loop()
+    log.info("Reshape transformer ready — reshape path active, resolver loop started")
 
     # 7. World model
     log.info("Starting world model...")
