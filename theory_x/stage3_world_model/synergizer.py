@@ -34,11 +34,13 @@ class BeliefSynergizer:
         beliefs_reader: Reader,
         voice_client: VoiceClient,
         errors_channel=None,
+        coherence_gate=None,
     ) -> None:
         self._writer = beliefs_writer
         self._reader = beliefs_reader
         self._voice = voice_client
         self._errors = errors_channel or errors
+        self._gate = coherence_gate
 
     def synthesize(self) -> Optional[dict]:
         pair = self._select_pair()
@@ -82,6 +84,24 @@ class BeliefSynergizer:
         if not self._quality_check(text):
             self._log(belief_a["id"], belief_b["id"], None, None)
             return None
+
+        # Phase 22 — Coherence Gate (runs after quality gate, before INSERT)
+        if self._gate is not None:
+            from theory_x.stage_gate.coherence_gate import ThoughtPacket, GateOutcome
+            packet = ThoughtPacket(
+                content=text,
+                source_node="synergizer",
+                confidence=0.65,
+                branch_id=belief_b.get("branch_id"),
+            )
+            decision = self._gate.check(packet)
+            if decision.outcome != GateOutcome.ACCEPT:
+                self._errors.record(
+                    f"Synergizer gate {decision.outcome.value} ({decision.reason}): {text[:60]}",
+                    source=_LOG_SOURCE, level="INFO",
+                )
+                self._log(belief_a["id"], belief_b["id"], None, None)
+                return None
 
         # PHASE 19 fix 2026-05-09: branch_id propagated from belief_b (the fresh belief
         # in primary anchor×fresh path; the second belief in cross-branch fallback).

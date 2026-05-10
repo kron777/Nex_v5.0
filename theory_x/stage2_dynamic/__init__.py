@@ -44,6 +44,7 @@ class DynamicState:
     drive_detector: EmergentDriveDetector
     writers: dict
     readers: dict
+    coherence_gate: Optional[object] = None
     _pipeline_runs: int = field(default=0, init=False)
     _consolidation_active: bool = field(default=False, init=False)
     _started_at: float = field(default_factory=time.time, init=False)
@@ -209,7 +210,8 @@ def _emergent_drives_loop(state: DynamicState, stop: threading.Event) -> None:
                 state.drive_detector.log_proposals(proposals)
             # Apply any previously approved proposals
             state.drive_detector.apply_approved(
-                state, state.writers["beliefs"], state.readers["dynamic"]
+                state, state.writers["beliefs"], state.readers["dynamic"],
+                coherence_gate=state.coherence_gate,
             )
         except Exception as exc:
             errors.record(f"emergent_drives_loop error: {exc}", source=_LOG_SOURCE, exc=exc)
@@ -231,7 +233,7 @@ def _health_loop(state: DynamicState, stop: threading.Event) -> None:
         stop.wait(30.0)
 
 
-def build_dynamic(writers: dict, readers: dict) -> DynamicState:
+def build_dynamic(writers: dict, readers: dict, coherence_gate=None) -> DynamicState:
     """Factory: initialise tree, wire everything, start daemon loops."""
     tree = BonsaiTree()
     tree.init_tree()
@@ -244,6 +246,7 @@ def build_dynamic(writers: dict, readers: dict) -> DynamicState:
         dynamic_writer=writers["dynamic"],
         dynamic_reader=readers["dynamic"],
         beliefs_reader=readers["beliefs"],
+        coherence_gate=coherence_gate,
     )
 
     drive_detector = EmergentDriveDetector(dynamic_writer=writers["dynamic"])
@@ -255,6 +258,7 @@ def build_dynamic(writers: dict, readers: dict) -> DynamicState:
         drive_detector=drive_detector,
         writers=writers,
         readers=readers,
+        coherence_gate=coherence_gate,
     )
 
     stop = threading.Event()

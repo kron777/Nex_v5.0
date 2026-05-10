@@ -102,9 +102,18 @@ def main() -> None:
     scheduler = build_scheduler(writers, readers, mode_state=mode_state)
     log.info("Sense scheduler started — 23 adapters wired")
 
+    # 5a. Coherence Gate (Phase 22 — universal thought filter)
+    from theory_x.stage_gate.coherence_gate import CoherenceGate
+    coherence_gate = CoherenceGate(
+        beliefs_reader=readers["beliefs"],
+        beliefs_writer=writers["beliefs"],
+        conversations_reader=readers["conversations"],
+    )
+    log.info("Coherence gate ready")
+
     # 5. Dynamic formation
     log.info("Starting dynamic formation...")
-    dynamic = build_dynamic(writers, readers)
+    dynamic = build_dynamic(writers, readers, coherence_gate=coherence_gate)
     log.info("Dynamic started — bonsai tree active")
 
     # 6. Voice client (shared by world model, fountain, strikes)
@@ -121,7 +130,7 @@ def main() -> None:
 
     # 7. World model
     log.info("Starting world model...")
-    world_model = build_world_model(writers, readers, dynamic_state=dynamic, voice_client=voice)
+    world_model = build_world_model(writers, readers, dynamic_state=dynamic, voice_client=voice, coherence_gate=coherence_gate)
     log.info("World model started")
 
     # 8. Membrane
@@ -130,6 +139,7 @@ def main() -> None:
         writers, readers,
         dynamic_state=dynamic,
         world_model_state=world_model,
+        coherence_gate=coherence_gate,
     )
     log.info("Membrane drawn — inside/outside boundary active")
 
@@ -216,7 +226,8 @@ def main() -> None:
                               problem_memory=problem_memory, mode_state=mode_state,
                               groove_breaker=groove_breaker,
                               snapshot_writer=snapshot_writer,
-                              world_bridge_selector=world_bridge_selector)
+                              world_bridge_selector=world_bridge_selector,
+                              coherence_gate=coherence_gate)
     log.info("Fountain lit — loop running at %ds interval", FOUNTAIN_CHECK_INTERVAL_SECONDS)
 
     # 11. Strike protocols
@@ -335,6 +346,7 @@ def main() -> None:
         arc_loop=arc_loop,
         probe_runner=probe_runner,
         probes_reader=probes_reader,
+        coherence_gate=coherence_gate,
     )
     atexit.register(state.close)
 

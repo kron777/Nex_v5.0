@@ -226,7 +226,8 @@ def _synergizer_loop(state: WorldModelState, stop: threading.Event) -> None:
 
 def build_world_model(writers: dict, readers: dict,
                       dynamic_state=None,
-                      voice_client=None) -> WorldModelState:
+                      voice_client=None,
+                      coherence_gate=None) -> WorldModelState:
     """Factory: wire belief retrieval, promotion, harmonization, and pipeline hooks."""
     erosion = ProvenanceErosion(writers["beliefs"], readers["beliefs"])
     retriever = BeliefRetriever(readers["beliefs"], erosion=erosion)
@@ -248,6 +249,7 @@ def build_world_model(writers: dict, readers: dict,
         beliefs_writer=writers["beliefs"],
         beliefs_reader=readers["beliefs"],
         voice_client=voice_client,
+        coherence_gate=coherence_gate,
     )
 
     state = WorldModelState(

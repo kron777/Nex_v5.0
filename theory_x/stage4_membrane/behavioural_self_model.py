@@ -7,6 +7,7 @@ keystone seed assertions and writes divergence beliefs to beliefs.db.
 from __future__ import annotations
 
 import re
+import threading
 import time
 from typing import Optional
 
@@ -16,6 +17,8 @@ from substrate import Writer, Reader
 THEORY_X_STAGE = 4
 
 _LOG_SOURCE = "behavioural_self_model"
+
+_CACHE_TTL = 60.0  # seconds between observe() refreshes
 
 _HEDGE_WORDS = {
     "probably", "perhaps", "might", "could be", "i think", "i believe",
@@ -52,8 +55,13 @@ _KEYSTONE_EXPECTATIONS = [
 
 
 class BehaviouralSelfModel:
+    name: str = "behavioural_self_model"
+
     def __init__(self, conversations_reader: Reader) -> None:
         self._reader = conversations_reader
+        self._lock = threading.Lock()
+        self._cached_metrics: Optional[dict] = None
+        self._cache_ts: float = 0.0
 
     def observe(self) -> dict:
         """Compute behavioural metrics from the last 100 NEX messages."""
@@ -137,7 +145,8 @@ class BehaviouralSelfModel:
         return divergences
 
     def write_behavioural_beliefs(self, beliefs_writer: Writer,
-                                  beliefs_reader: Reader) -> int:
+                                  beliefs_reader: Reader,
+                                  coherence_gate=None) -> int:
         """Write beliefs for significant divergences. Returns count written."""
         divergences = self.compare_to_seeds()
         if not divergences:
@@ -158,6 +167,26 @@ class BehaviouralSelfModel:
             except Exception:
                 pass
 
+            # Phase 22 — Coherence Gate (before INSERT)
+            if coherence_gate is not None:
+                try:
+                    from theory_x.stage_gate.coherence_gate import ThoughtPacket, GateOutcome
+                    packet = ThoughtPacket(
+                        content=content,
+                        source_node="bsm",
+                        confidence=0.35,
+                        branch_id="systems",
+                    )
+                    decision = coherence_gate.check(packet)
+                    if decision.outcome != GateOutcome.ACCEPT:
+                        errors.record(
+                            f"BSM gate {decision.outcome.value} ({decision.reason}): {content[:60]}",
+                            source=_LOG_SOURCE, level="INFO",
+                        )
+                        continue
+                except Exception as exc:
+                    errors.record(f"bsm gate check error: {exc}", source=_LOG_SOURCE, exc=exc)
+
             try:
                 beliefs_writer.write(
                     "INSERT INTO beliefs "
@@ -174,6 +203,60 @@ class BehaviouralSelfModel:
                 errors.record(f"write_behavioural_beliefs error: {exc}", source=_LOG_SOURCE, exc=exc)
 
         return written
+
+    # ── SentienceNode protocol ────────────────────────────────────────────────
+
+    def tick(self, context: Optional[dict] = None) -> dict:
+        """Refresh observe() cache if stale; return state snapshot."""
+        now = time.time()
+        with self._lock:
+            if self._cached_metrics is None or (now - self._cache_ts) > _CACHE_TTL:
+                self._cached_metrics = self.observe()
+                self._cache_ts = now
+        return self.state()
+
+    def decay(self, now: float) -> None:
+        pass  # event-driven; cache refreshes on tick, not on a decay clock
+
+    def state(self, now: Optional[float] = None) -> dict:
+        with self._lock:
+            m = self._cached_metrics or self._empty_metrics()
+            return {
+                "name": self.name,
+                "hedge_rate": m.get("hedge_rate", 0.0),
+                "position_rate": m.get("position_rate", 0.0),
+                "belief_usage_rate": m.get("belief_usage_rate", 0.0),
+                "dominant_register": m.get("dominant_register", "unknown"),
+                "avg_response_length": m.get("avg_response_length", 0.0),
+                "sample_size": m.get("sample_size", 0),
+                "cache_age_s": round(time.time() - self._cache_ts, 1),
+            }
+
+    def format_for_prompt(self) -> str:
+        """Format cached metrics as natural-language lines for INSIDE route injection.
+
+        Called after tick() so cache is fresh. Returns empty string when no data.
+        """
+        with self._lock:
+            m = dict(self._cached_metrics or self._empty_metrics())
+        if not m.get("sample_size"):
+            return ""
+        reg = m.get("dominant_register", "unknown")
+        avg_len = m.get("avg_response_length", 0.0)
+        hedge = m.get("hedge_rate", 0.0)
+        bu = m.get("belief_usage_rate", 0.0)
+        lines = [
+            "Behavioural self-knowledge (from recent responses):",
+            f"- Typical response: ~{avg_len:.0f} words, mostly {reg} register",
+            f"- Hedging language in ~{hedge:.0%} of responses",
+        ]
+        if bu < 0.05:
+            lines.append("- Belief graph rarely surfaces in responses")
+        elif bu > 0.5:
+            lines.append(f"- Belief graph actively engaged in {bu:.0%} of responses")
+        return "\n".join(lines)
+
+    # ── internals ─────────────────────────────────────────────────────────────
 
     def _empty_metrics(self) -> dict:
         return {

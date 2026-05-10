@@ -228,6 +228,7 @@ class AppState:
     arc_loop: Optional["ArcLoop"] = None                     # type: ignore[type-arg]
     probe_runner: Optional["ProbeRunner"] = None             # type: ignore[type-arg]
     probes_reader: Optional[Reader] = None
+    coherence_gate: Optional[object] = None  # Phase 22
     # Optional hook a test can inject to short-circuit chat persistence.
     now_fn: Callable[[], int] = field(default_factory=lambda: (lambda: int(time.time())))
 
@@ -274,15 +275,26 @@ def build_state(
     )
     scheduler = build_scheduler(writers, readers) if with_scheduler else None
 
+    # Phase 22 — Coherence Gate (constructed once, shared across all generative paths)
+    coherence_gate = None
+    if "beliefs" in writers and "beliefs" in readers:
+        from theory_x.stage_gate.coherence_gate import CoherenceGate
+        coherence_gate = CoherenceGate(
+            beliefs_reader=readers["beliefs"],
+            beliefs_writer=writers["beliefs"],
+            conversations_reader=readers.get("conversations"),
+        )
+
     dynamic = None
     if with_dynamic:
         from theory_x.stage2_dynamic import build_dynamic
-        dynamic = build_dynamic(writers, readers)
+        dynamic = build_dynamic(writers, readers, coherence_gate=coherence_gate)
 
     world_model = None
     if with_world_model and dynamic is not None:
         from theory_x.stage3_world_model import build_world_model
-        world_model = build_world_model(writers, readers, dynamic_state=dynamic)
+        world_model = build_world_model(writers, readers, dynamic_state=dynamic,
+                                        coherence_gate=coherence_gate)
 
     membrane = None
     if with_membrane and dynamic is not None:
@@ -291,12 +303,14 @@ def build_state(
             writers, readers,
             dynamic_state=dynamic,
             world_model_state=world_model,
+            coherence_gate=coherence_gate,
         )
 
     fountain = None
     if with_fountain and dynamic is not None:
         from theory_x.stage6_fountain import build_fountain
-        fountain = build_fountain(writers, readers, voice, dynamic_state=dynamic)
+        fountain = build_fountain(writers, readers, voice, dynamic_state=dynamic,
+                                  coherence_gate=coherence_gate)
 
     strike_protocol = None
     catalogue = None
@@ -376,6 +390,7 @@ def build_state(
         novel_association=novel_association,
         tool_registry=tool_registry,
         tool_caller=tool_caller,
+        coherence_gate=coherence_gate,
     )
 
 
@@ -1565,6 +1580,7 @@ def create_app(state: AppState) -> Flask:
                     state.dynamic,
                     state.writers["beliefs"],
                     state.readers["dynamic"],
+                    coherence_gate=state.coherence_gate,
                 )
             return jsonify({"ok": True, "id": proposal_id})
         except Exception as e:

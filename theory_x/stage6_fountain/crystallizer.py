@@ -72,6 +72,7 @@ class FountainCrystallizer:
         problem_memory=None,
         dynamic_reader: Optional[Reader] = None,
         mode_state=None,
+        coherence_gate=None,
     ) -> None:
         self._writer = beliefs_writer
         self._reader = beliefs_reader
@@ -80,6 +81,7 @@ class FountainCrystallizer:
         self._problem_memory = problem_memory
         self._dynamic_reader = dynamic_reader
         self._mode_state = mode_state
+        self._gate = coherence_gate
         _gov_initial_ts = 0.0
         try:
             rows = beliefs_reader.read(
@@ -113,6 +115,24 @@ class FountainCrystallizer:
                 level="INFO",
             )
             return None
+
+        # Phase 22 — Coherence Gate (runs after quality gate, before INSERT)
+        if self._gate is not None:
+            from theory_x.stage_gate.coherence_gate import ThoughtPacket, GateOutcome
+            packet = ThoughtPacket(
+                content=thought,
+                source_node="fountain",
+                confidence=0.70,
+                branch_id=hot_branch,
+            )
+            decision = self._gate.check(packet)
+            if decision.outcome != GateOutcome.ACCEPT:
+                errors.record(
+                    f"Fountain gate {decision.outcome.value} ({decision.reason}): {thought[:60]}",
+                    source=_LOG_SOURCE,
+                    level="INFO",
+                )
+                return None
 
         mode = self._mode_state.current() if self._mode_state else None
         category = mode.crystallization_category if mode else "fountain_insight"

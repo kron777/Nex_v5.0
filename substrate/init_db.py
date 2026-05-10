@@ -143,6 +143,21 @@ _MIGRATIONS: dict[str, list[str]] = {
         "ON novel_association_log(belief_id_a, belief_id_b)",
         "CREATE INDEX IF NOT EXISTS idx_nassoc_detected "
         "ON novel_association_log(detected_at DESC)",
+        # Phase 22 — Coherence Gate decisions log
+        "CREATE TABLE IF NOT EXISTS gate_decisions ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "ts REAL NOT NULL, "
+        "source_node TEXT NOT NULL, "
+        "outcome TEXT NOT NULL, "
+        "reason TEXT NOT NULL, "
+        "latency_ms REAL NOT NULL, "
+        "content_preview TEXT NOT NULL, "
+        "branch_id TEXT, "
+        "confidence REAL)",
+        "CREATE INDEX IF NOT EXISTS idx_gate_decisions_ts "
+        "ON gate_decisions(ts)",
+        "CREATE INDEX IF NOT EXISTS idx_gate_decisions_outcome "
+        "ON gate_decisions(outcome)",
     ],
     "dynamic": [
         "CREATE TABLE IF NOT EXISTS harmonizer_events ("

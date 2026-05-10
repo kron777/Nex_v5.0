@@ -33,6 +33,7 @@ class MembraneState:
     behavioural: Optional[BehaviouralSelfModel]
     _writers: dict = None
     _readers: dict = None
+    coherence_gate: Optional[object] = None
 
     def snapshot(self) -> dict:
         return self.self_model.snapshot()
@@ -63,6 +64,7 @@ def _behavioural_loop(state: MembraneState, stop: threading.Event) -> None:
             written = state.behavioural.write_behavioural_beliefs(
                 state._writers["beliefs"],
                 state._readers["beliefs"],
+                coherence_gate=state.coherence_gate,
             )
             if written:
                 errors.record(
@@ -75,7 +77,8 @@ def _behavioural_loop(state: MembraneState, stop: threading.Event) -> None:
 
 def build_membrane(writers: dict, readers: dict,
                    dynamic_state=None,
-                   world_model_state=None) -> MembraneState:
+                   world_model_state=None,
+                   coherence_gate=None) -> MembraneState:
     """Factory: create the membrane layer."""
     classifier = MembraneClassifier()
     self_model = SelfModel(
@@ -94,6 +97,7 @@ def build_membrane(writers: dict, readers: dict,
         self_model=self_model,
         router=router,
         behavioural=behavioural,
+        coherence_gate=coherence_gate,
     )
     state._writers = writers
     state._readers = readers

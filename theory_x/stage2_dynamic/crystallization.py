@@ -27,12 +27,14 @@ _DEDUP_WINDOW_SECONDS = 86400  # 24 hours
 class Crystallizer:
     def __init__(self, tree: BonsaiTree, beliefs_writer: Writer,
                  dynamic_writer: Writer, dynamic_reader: Reader,
-                 beliefs_reader: Optional[Reader] = None) -> None:
+                 beliefs_reader: Optional[Reader] = None,
+                 coherence_gate=None) -> None:
         self._tree = tree
         self._beliefs_writer = beliefs_writer
         self._dynamic_writer = dynamic_writer
         self._dynamic_reader = dynamic_reader
         self._beliefs_reader = beliefs_reader
+        self._gate = coherence_gate
         # per-branch: deque of (timestamp, focus_level) records
         self._focus_history: dict[str, deque] = {}
         # per-branch: last crystallization timestamp (to enforce window dedup)
@@ -172,6 +174,26 @@ class Crystallizer:
 
     def _write_belief(self, content: str, branch_id: str, ts: float) -> Optional[int]:
         """Write Tier 7 Impression to beliefs.db. Returns rowid or None."""
+        # Phase 22 — Coherence Gate (before INSERT)
+        if self._gate is not None:
+            try:
+                from theory_x.stage_gate.coherence_gate import ThoughtPacket, GateOutcome
+                packet = ThoughtPacket(
+                    content=content,
+                    source_node="stage2_crystallization",
+                    confidence=0.15,
+                    branch_id=branch_id,
+                )
+                decision = self._gate.check(packet)
+                if decision.outcome != GateOutcome.ACCEPT:
+                    errors.record(
+                        f"Stage2 gate {decision.outcome.value} ({decision.reason}): {content[:60]}",
+                        source=_LOG_SOURCE, level="INFO",
+                    )
+                    return None
+            except Exception as exc:
+                errors.record(f"stage2 gate check error: {exc}", source=_LOG_SOURCE, exc=exc)
+
         try:
             rowid = self._beliefs_writer.write(
                 "INSERT INTO beliefs "

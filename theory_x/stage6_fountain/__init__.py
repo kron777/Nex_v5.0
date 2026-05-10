@@ -65,6 +65,7 @@ def build_fountain(
     groove_breaker: "GrooveBreaker | None" = None,
     snapshot_writer: "StateSnapshotWriter | None" = None,
     world_bridge_selector: "WorldBridgeSelector | None" = None,
+    coherence_gate=None,
 ) -> FountainState:
     crystallizer = None
     if writers.get("beliefs") and readers.get("beliefs"):
@@ -75,6 +76,7 @@ def build_fountain(
             problem_memory=problem_memory,
             dynamic_reader=readers.get("dynamic"),
             mode_state=mode_state,
+            coherence_gate=coherence_gate,
         )
 
     condenser = Condenser(voice_client=voice_client)

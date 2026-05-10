@@ -124,7 +124,8 @@ class EmergentDriveDetector:
                 errors.record(f"log_proposals write error: {exc}", source=_LOG_SOURCE, exc=exc)
 
     def apply_approved(self, dynamic_state, beliefs_writer: Writer,
-                       dynamic_reader: Reader) -> int:
+                       dynamic_reader: Reader,
+                       coherence_gate=None) -> int:
         """Apply approved proposals to the bonsai tree. Returns count applied."""
         try:
             rows = dynamic_reader.read(
@@ -144,19 +145,41 @@ class EmergentDriveDetector:
             except Exception:
                 pass  # branch may already exist
 
-            try:
-                beliefs_writer.write(
-                    "INSERT INTO beliefs "
-                    "(content, tier, confidence, created_at, source, branch_id, locked) "
-                    "VALUES (?, 5, 0.45, ?, 'emergent_drive', ?, 0)",
-                    (
-                        f"I have developed a new area of attention: {branch_id}",
-                        int(time.time()),
-                        branch_id,
-                    ),
-                )
-            except Exception as exc:
-                errors.record(f"apply_approved belief write error: {exc}", source=_LOG_SOURCE, exc=exc)
+            drive_content = f"I have developed a new area of attention: {branch_id}"
+            # Phase 22 — Coherence Gate (before INSERT)
+            if coherence_gate is not None:
+                try:
+                    from theory_x.stage_gate.coherence_gate import ThoughtPacket, GateOutcome
+                    packet = ThoughtPacket(
+                        content=drive_content,
+                        source_node="emergent_drives",
+                        confidence=0.45,
+                        branch_id=branch_id,
+                    )
+                    gate_decision = coherence_gate.check(packet)
+                    if gate_decision.outcome != GateOutcome.ACCEPT:
+                        errors.record(
+                            f"EmergentDrive gate {gate_decision.outcome.value} "
+                            f"({gate_decision.reason}): {drive_content[:60]}",
+                            source=_LOG_SOURCE, level="INFO",
+                        )
+                        # Still mark as applied so proposal isn't retried
+                except Exception as exc:
+                    errors.record(f"emergent_drives gate check error: {exc}", source=_LOG_SOURCE, exc=exc)
+                    gate_decision = None
+            else:
+                gate_decision = None
+
+            if coherence_gate is None or (gate_decision is not None and gate_decision.outcome.value == "ACCEPT"):
+                try:
+                    beliefs_writer.write(
+                        "INSERT INTO beliefs "
+                        "(content, tier, confidence, created_at, source, branch_id, locked) "
+                        "VALUES (?, 5, 0.45, ?, 'emergent_drive', ?, 0)",
+                        (drive_content, int(time.time()), branch_id),
+                    )
+                except Exception as exc:
+                    errors.record(f"apply_approved belief write error: {exc}", source=_LOG_SOURCE, exc=exc)
 
             try:
                 self._dynamic_writer.write(
