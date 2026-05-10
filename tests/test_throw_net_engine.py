@@ -75,6 +75,27 @@ def _default_scored(n=5, score=6):
 
 # ── run_session ───────────────────────────────────────────────────────────────
 
+class TestRunSessionSqliteRow(unittest.TestCase):
+
+    def test_run_session_accepts_sqlite_row_like_object(self):
+        """sqlite3.Row has no .get() — must be normalized to dict first."""
+        import sqlite3
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        conn.execute(
+            "CREATE TABLE t (id INTEGER, trigger_type TEXT, topic TEXT, "
+            "threshold_state TEXT, ts REAL)"
+        )
+        conn.execute("INSERT INTO t VALUES (7, 'gate_reject', 'hum', '{}', 0.0)")
+        row = conn.execute("SELECT * FROM t").fetchone()
+
+        eng, *_ = _make_engine()
+        result = eng.run_session(row)
+        self.assertIn("session_id", result)
+        self.assertEqual(result["topic"], "hum")
+        conn.close()
+
+
 class TestRunSessionSessionRow(unittest.TestCase):
 
     def test_run_session_creates_session_row(self):

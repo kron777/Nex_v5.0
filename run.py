@@ -207,6 +207,30 @@ def main() -> None:
     except Exception as _na_err:
         log.warning("Novel association failed to start (non-fatal): %s", _na_err)
 
+    # 9e. Throw-net monitor — autonomous throw-net cycle (Phase 25a TN-5)
+    log.info("Wiring throw-net monitor...")
+    _throw_net_monitor = None
+    try:
+        from theory_x.stage_throw_net.time_fetch import TimeFetch as _TimeFetch
+        from theory_x.stage_throw_net.refinement_engine import RefinementEngine as _RefinementEngine
+        from theory_x.stage_throw_net.throw_net_engine import ThrowNetEngine as _ThrowNetEngine
+        from theory_x.stage_throw_net.monitor import ThrowNetMonitor as _ThrowNetMonitor
+        _time_fetch = _TimeFetch(readers["beliefs"], problem_memory)
+        _refinement_engine = _RefinementEngine(readers["beliefs"])
+        _throw_net_engine = _ThrowNetEngine(
+            beliefs_writer=writers["beliefs"],
+            beliefs_reader=readers["beliefs"],
+            trigger_detector=_trigger_detector,
+            time_fetch=_time_fetch,
+            refinement_engine=_refinement_engine,
+            coherence_gate=coherence_gate,
+        )
+        _throw_net_monitor = _ThrowNetMonitor(_throw_net_engine)
+        _throw_net_monitor.start_loop()
+        log.info("Throw-net monitor ready — autonomous cycle every 300s when triggers pending")
+    except Exception as _tn_err:
+        log.warning("Throw-net monitor failed to start (non-fatal): %s", _tn_err)
+
     # 10. Fountain ignition
     log.info("Igniting fountain...")
     log.info(
@@ -371,6 +395,7 @@ def main() -> None:
         probes_reader=probes_reader,
         coherence_gate=coherence_gate,
         trigger_detector=_trigger_detector,
+        throw_net_monitor=_throw_net_monitor,
     )
     atexit.register(state.close)
 

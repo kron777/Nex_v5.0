@@ -228,8 +228,9 @@ class AppState:
     arc_loop: Optional["ArcLoop"] = None                     # type: ignore[type-arg]
     probe_runner: Optional["ProbeRunner"] = None             # type: ignore[type-arg]
     probes_reader: Optional[Reader] = None
-    coherence_gate: Optional[object] = None   # Phase 22
-    trigger_detector: Optional[object] = None  # Phase 25a TN-1
+    coherence_gate: Optional[object] = None        # Phase 22
+    trigger_detector: Optional[object] = None      # Phase 25a TN-1
+    throw_net_monitor: Optional[object] = None     # Phase 25a TN-5
     # Optional hook a test can inject to short-circuit chat persistence.
     now_fn: Callable[[], int] = field(default_factory=lambda: (lambda: int(time.time())))
 
@@ -389,6 +390,29 @@ def build_state(
         tool_registry = ToolRegistry(beliefs_reader=readers.get("beliefs"))
         tool_caller = ToolCaller(tool_registry)
 
+    # Phase 25a TN-5 — ThrowNetMonitor (needs coherence_gate + problem_memory)
+    throw_net_monitor = None
+    if (coherence_gate is not None
+            and problem_memory is not None
+            and trigger_detector is not None
+            and "beliefs" in writers and "beliefs" in readers):
+        from theory_x.stage_throw_net.time_fetch import TimeFetch
+        from theory_x.stage_throw_net.refinement_engine import RefinementEngine
+        from theory_x.stage_throw_net.throw_net_engine import ThrowNetEngine
+        from theory_x.stage_throw_net.monitor import ThrowNetMonitor
+        _time_fetch = TimeFetch(readers["beliefs"], problem_memory)
+        _refinement = RefinementEngine(readers["beliefs"])
+        _throw_net_engine = ThrowNetEngine(
+            beliefs_writer=writers["beliefs"],
+            beliefs_reader=readers["beliefs"],
+            trigger_detector=trigger_detector,
+            time_fetch=_time_fetch,
+            refinement_engine=_refinement,
+            coherence_gate=coherence_gate,
+        )
+        throw_net_monitor = ThrowNetMonitor(_throw_net_engine)
+        throw_net_monitor.start_loop()
+
     return AppState(
         writers=writers,
         readers=readers,
@@ -408,6 +432,7 @@ def build_state(
         tool_caller=tool_caller,
         coherence_gate=coherence_gate,
         trigger_detector=trigger_detector,
+        throw_net_monitor=throw_net_monitor,
     )
 
 

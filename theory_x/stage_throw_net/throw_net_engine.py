@@ -73,6 +73,8 @@ class ThrowNetEngine:
         Returns session dict with status and outcome counts.
         Never raises — all errors are caught and recorded.
         """
+        if not isinstance(trigger_row, dict):
+            trigger_row = dict(trigger_row)
         session_id = uuid.uuid4().hex
         started_at = time.time()
         topic = trigger_row.get("topic") or ""
