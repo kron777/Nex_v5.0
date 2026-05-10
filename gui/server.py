@@ -275,15 +275,22 @@ def build_state(
     )
     scheduler = build_scheduler(writers, readers) if with_scheduler else None
 
-    # Phase 22 — Coherence Gate (constructed once, shared across all generative paths)
+    # Phase 22 + 23 — Coherence Gate + Holding Zone
     coherence_gate = None
     if "beliefs" in writers and "beliefs" in readers:
         from theory_x.stage_gate.coherence_gate import CoherenceGate
+        from theory_x.stage_gate.holding_zone import HoldingZone
+        from theory_x.stage_gate.resolver import HoldingZoneResolver
+        _holding_zone = HoldingZone(writers["beliefs"], readers["beliefs"])
+        _resolver = HoldingZoneResolver(_holding_zone, beliefs_writer=writers["beliefs"])
         coherence_gate = CoherenceGate(
             beliefs_reader=readers["beliefs"],
             beliefs_writer=writers["beliefs"],
             conversations_reader=readers.get("conversations"),
+            holding_zone=_holding_zone,
+            resolver=_resolver,
         )
+        _resolver.start_loop()
 
     dynamic = None
     if with_dynamic:

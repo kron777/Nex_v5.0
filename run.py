@@ -102,14 +102,26 @@ def main() -> None:
     scheduler = build_scheduler(writers, readers, mode_state=mode_state)
     log.info("Sense scheduler started — 23 adapters wired")
 
-    # 5a. Coherence Gate (Phase 22 — universal thought filter)
+    # 5a. Coherence Gate + Holding Zone (Phase 22 + Phase 23)
     from theory_x.stage_gate.coherence_gate import CoherenceGate
+    from theory_x.stage_gate.holding_zone import HoldingZone
+    from theory_x.stage_gate.resolver import HoldingZoneResolver
+    _holding_zone = HoldingZone(writers["beliefs"], readers["beliefs"])
+    _resolver = HoldingZoneResolver(_holding_zone, beliefs_writer=writers["beliefs"])
     coherence_gate = CoherenceGate(
         beliefs_reader=readers["beliefs"],
         beliefs_writer=writers["beliefs"],
         conversations_reader=readers["conversations"],
+        holding_zone=_holding_zone,
+        resolver=_resolver,
     )
-    log.info("Coherence gate ready")
+    _resolver.start_loop()
+    try:
+        from theory_x import register as _tx_register_resolver
+        _tx_register_resolver(_resolver)
+    except Exception:
+        pass
+    log.info("Coherence gate ready — holding zone resolver started")
 
     # 5. Dynamic formation
     log.info("Starting dynamic formation...")

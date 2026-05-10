@@ -140,10 +140,14 @@ class CoherenceGate:
         beliefs_reader: Reader,
         beliefs_writer: Writer,
         conversations_reader: Optional[Reader] = None,
+        holding_zone=None,   # Phase 23: HoldingZone instance
+        resolver=None,        # Phase 23: HoldingZoneResolver instance
     ) -> None:
         self._beliefs_reader = beliefs_reader
         self._beliefs_writer = beliefs_writer
         self._conversations_reader = conversations_reader
+        self._holding_zone = holding_zone
+        self._resolver = resolver
         self._decision_count: int = 0
 
     # ── Public API ────────────────────────────────────────────────────────────
@@ -167,6 +171,23 @@ class CoherenceGate:
         decision.latency_ms = (time.perf_counter() - t0) * 1000.0
         self._log_decision(packet, decision)
         self._decision_count += 1
+
+        # Phase 23 — Holding Zone: persist HOLD; check held zone on ACCEPT
+        if decision.outcome == GateOutcome.HOLD and self._holding_zone is not None:
+            try:
+                self._holding_zone.hold(packet, decision.reason)
+            except Exception as exc:
+                errors.record(
+                    f"holding_zone.hold error: {exc}", source=_LOG_SOURCE, exc=exc
+                )
+        elif decision.outcome == GateOutcome.ACCEPT and self._resolver is not None:
+            try:
+                self._resolver.on_gate_accept(packet)
+            except Exception as exc:
+                errors.record(
+                    f"resolver.on_gate_accept error: {exc}", source=_LOG_SOURCE, exc=exc
+                )
+
         return decision
 
     # ── SentienceNode protocol ────────────────────────────────────────────────

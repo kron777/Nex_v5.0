@@ -158,6 +158,34 @@ _MIGRATIONS: dict[str, list[str]] = {
         "ON gate_decisions(ts)",
         "CREATE INDEX IF NOT EXISTS idx_gate_decisions_outcome "
         "ON gate_decisions(outcome)",
+        # Phase 23 — Holding Zone
+        "CREATE TABLE IF NOT EXISTS held_thoughts ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "content TEXT NOT NULL, "
+        "source_node TEXT NOT NULL, "
+        "confidence REAL NOT NULL, "
+        "branch_id TEXT, "
+        "hold_reason TEXT NOT NULL, "
+        "created_at REAL NOT NULL, "
+        "last_seen_at REAL NOT NULL, "
+        "corroboration_count INTEGER NOT NULL DEFAULT 0, "
+        "status TEXT NOT NULL DEFAULT 'holding', "
+        "metadata TEXT)",
+        "CREATE INDEX IF NOT EXISTS idx_held_status_created "
+        "ON held_thoughts(status, created_at)",
+        "CREATE INDEX IF NOT EXISTS idx_held_source "
+        "ON held_thoughts(source_node)",
+        "CREATE TABLE IF NOT EXISTS held_resolutions ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "held_id INTEGER NOT NULL, "
+        "ts REAL NOT NULL, "
+        "action TEXT NOT NULL, "
+        "reason TEXT NOT NULL, "
+        "trigger_packet_preview TEXT)",
+        "CREATE INDEX IF NOT EXISTS idx_held_resolutions_held_id "
+        "ON held_resolutions(held_id)",
+        "CREATE INDEX IF NOT EXISTS idx_held_resolutions_ts "
+        "ON held_resolutions(ts)",
     ],
     "dynamic": [
         "CREATE TABLE IF NOT EXISTS harmonizer_events ("
