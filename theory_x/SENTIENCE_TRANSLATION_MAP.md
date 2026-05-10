@@ -303,16 +303,16 @@ Issues surfaced by this mapping that require a doctrine call before they can be 
 RESOLVED (2026-05-10, Phase 21 — FACULTY_MODEL.md, commit 112f186). §7 amended: generative nodes write thoughts through the CoherenceGate; gate applies four outcomes (accept, reject, hold, reshape). `SimulatedThinkingNode` and `InsightNode` unblocked. §5 row 10b implementation begins Phase 25b: nex5-native CounterfactualNode (Option γ — problem-directed candidate generation via ProblemMemory + GoalManager + CoherenceGate).
 
 **Q2 — Motivation system: one port or three?**
-`DriveSystemNode`, `ExperienceMotivationNode`, and `MotivationNode` cover overlapping territory. A doctrine decision is needed: are motivational drives in scope as a single "Drive/Motivation" §5 node, or are they subsumed by GoalManager (row 8)? The key distinction: goals are explicit, named targets; drives are subpersonal pressure states. GoalManager does not cover drives.
+RESOLVED (2026-05-10, SYNTHESIS_PLAN.md commit a29086d). Drives are emergent from accumulated self-same belief patterns over time, not ported from S5.5's hardcoded DriveSystemNode. Nex5-native design required: §5 row 13 DriveEmergence (design-required status; needs design session before implementation).
 
 **Q3 — Affect node: standalone or extension of Interoception?**
-`EmotionMoodNode` (affect synthesis: valence, arousal, stability) has no nex5 realization. The question is whether this ports as a standalone §5 node or as an extension of Interoception (row 6). The two are functionally adjacent — interoception provides body state, emotion synthesizes affect from body state + belief field energy. A doctrine call is needed before scoping the port.
+RESOLVED (2026-05-10, SYNTHESIS_PLAN.md commit a29086d). AffectState added as standalone synthesis layer (§5 row 12), distinct from Interoception (row 6). S5.5 EmotionMoodNode shape partially useful; nex5 inputs redesigned: Arousal ← Interoception system metrics, Valence ← belief-field polarity, Stability ← belief turnover rate.
 
 **Q4 — Narrative identity: in or out of scope?**
-`InternalNarrativeNode` + `TemporalNarrativeNode` (temporal self-story, autobiographical coherence) have no nex5 realization. These map to real psychological functions. The question is whether nex5's fountain + belief graph already constitute a narrative system implicitly, or whether an explicit NarrativeNode is warranted. §7's "named, understood psychological function" criterion is clearly met; the implementation surface (injecting coherent narrative into `belief_text`) is feasible.
+RESOLVED (2026-05-10, SYNTHESIS_PLAN.md commit a29086d). SelfNarrative added (§5 row 11). S5.5 InternalNarrativeNode + TemporalNarrativeNode not directly ported — buffer-and-generate violates §0 (substrate solves the reply). Narrative beliefs continuously written to substrate by background events; format_for_prompt() reads existing state. Write-triggers: gate ACCEPTs on problem-relevant topics, problem state transitions, goal completions, groove alerts, novel association crossings.
 
 **Q5 — Theory of Mind: scope and data**
-`TheoryOfMindNode` requires models of external agents. In nex5, the "external agent" is primarily Jon. A ToM node would model Jon's beliefs, desires, and intentions from conversation history. This is a high-value function. The doctrine question: is modeling a single external agent (Jon) sufficient scope, or does §1's framework require a more general multi-agent model?
+RESOLVED (2026-05-10, SYNTHESIS_PLAN.md commit a29086d). Theory of Mind OUT OF SCOPE. Modeling external agents (Jon) is not the desired direction. Instead: row 4 Self-Model scope extension queued — nurturing what arises in NEX into her own growing self-model. Future doctrine work, not a new node.
 
 **Q6 — §5 ordering update**
 §5 footer says ordering 3–10 is provisional, pending this map. Now that the map exists, §5 can be updated to reflect that the remaining unmapped ports should be prioritized in dependency order. Proposed update: a §5 footer amendment pointing at this file. Separate commit, after Jon reviews.

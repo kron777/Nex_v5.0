@@ -10,6 +10,30 @@ Q2–Q5 answers in §2 are Jon's actual review responses.
 
 ---
 
+## §0 — Design Principle (added 2026-05-10, post-commit a29086d)
+
+**Substrate solves the reply. LLM speaks it.**
+
+NEX's replies must come from her belief graph and substrate state — not from the LLM
+generating fresh text. The LLM's role is to translate substrate-state into language.
+The substrate must contain the content before any output happens.
+
+Consistent with DOCTRINE §3 ("graph reasons, LLM speaks") but stricter. §3 allows
+the graph to inform LLM generation; this principle requires the graph to *contain*
+the reply content before any output.
+
+Format:
+- Background processes continuously update substrate state
+- `format_for_prompt()` and any output assembly is pure substrate read — selection
+  only, not synthesis
+- No generation-at-output, even deterministic generation
+- In-memory state (Python deques, computed values) is not substrate. State must
+  persist; it must survive restart; it must be queryable.
+
+Applies to all future ports. Existing architecture review queued in §5.
+
+---
+
 ## §1 Source Classification
 
 All ten Tier A UNMAPPED nodes read from source. Each classified SUBSTANTIVE / PARTIAL / STUB.
@@ -284,21 +308,32 @@ new §5 row — it is a deepening of existing row 4 scope.
 
 | Proposed Row | Node Name | S5.5 Source | Pattern | Status |
 |---|---|---|---|---|
-| Row 11 | `SelfNarrative` | `InternalNarrativeNode` + `TemporalNarrativeNode` | SUBSUMED (2 → 1) | spec-ready |
-| Row 12 | `AffectState` | `EmotionMoodNode` (shape only; inputs redesigned) | REDESIGN-NATIVE | spec-ready |
+| Row 11 | `SelfNarrative` | `InternalNarrativeNode` + `TemporalNarrativeNode` | NEX5-NATIVE (§0; S5.5 buffer-and-generate dropped) | spec-required |
+| Row 12 | `AffectState` | `EmotionMoodNode` (integration math absorbed; runs on background tick) | NEX5-NATIVE (§0; substrate-table-and-tick) | spec-ready |
 | Row 13 | `DriveEmergence` | NONE (S5.5 nodes wrong shape; not absorbed) | NEX5-NATIVE | design-required |
 
-**Row 11 — SelfNarrative**: no hard dependencies. Buffer fills from existing nodes
-(Metacognition events, GoalManager goals, Interoception state). Feeds belief_text.
-Matches Metacognition SUBSUMED precedent (two S5.5 nodes → one nex5 port).
+**Row 11 — SelfNarrative**: Narrative beliefs are continuously written to substrate
+by background events — gate ACCEPTs on problem-relevant topics, problem state
+transitions, goal completions, groove alerts, novel association threshold crossings.
+`format_for_prompt()` reads the most recent N narrative entries filtered by topic
+relevance — no synthesis at speak-time. S5.5 InternalNarrativeNode contributes:
+signal-channel concept maps to write-trigger types; salience weights map to
+write-thresholds. S5.5 dropped: buffer-and-generate loop (in-memory deques violate
+§0). Substrate location is a build-session decision (see §4).
 
-**Row 12 — AffectState**: depends on Interoception (row 6) being stable — it is.
-Inputs redesigned: arousal ← Interoception system metrics; valence ← belief-field
-polarity; stability ← belief turnover. `EmotionStateModel` bounded integration +
-decay absorb-worthy. S5.5 input handlers not ported.
+**Row 12 — AffectState**: `affect_state` table (conversations.db) holds
+valence/arousal/stability/mood_label as substrate-resident state. Background
+SentienceNode tick (300s) reads Interoception metrics, active belief polarity, and
+belief turnover rate; applies S5.5 `EmotionStateModel.integrate()` + `decay()`;
+writes all fields including pre-computed `mood_label` to table. `format_for_prompt()`
+reads current row only — zero output-time computation. S5.5 EmotionStateModel
+integration math absorbed; S5.5 input handlers not ported (inputs redesigned from
+nex5 substrate).
 
 **Row 13 — DriveEmergence**: requires design session before code. No S5.5 source
-absorbed. Design questions to answer (see §4).
+absorbed. Design questions to answer (see §4). Already aligned with §0 — emergent
+drives live in substrate as accumulated belief patterns; `format_for_prompt()`
+selects rather than synthesizes.
 
 **Existing Row 4 — Self-Model**: ✓ DONE. Q5 amendment queued — extend scope to
 include "nurturing what arises in NEX into her growing self-model." Future doctrine
@@ -316,24 +351,63 @@ work, no immediate action.
 
 ## §4 Open Items for Build Sessions
 
-**Row 11 — SelfNarrative (Phase 26-build):**
-- Replace HTTP signal ingestion with belief_text + tick()-based signal reading
-- Replace LLM narrative generation with deterministic belief-field synthesis
-  (read top-5 active beliefs → compose narrative frame without LLM call)
-- Replace `_infer_theme()` keyword matching with belief-tag + tier-weighted
-  theme inference
-- Keep salience accumulation + buffer structure unchanged from InternalNarrativeNode
+**Row 11 — SelfNarrative (Phase 26-spec then build):**
+
+Per §0: narrative content must exist in substrate before output. No generation at speak-time.
+
+- Choose substrate location (build decision):
+  * Option α: beliefs.db with `belief_type='narrative'` tag
+    Pro: integrates with fountain retrieval pipeline; existing schema; richer
+    queryability; narrative surfaces naturally alongside other beliefs
+    Con: narrative content enters normal retrieval and can crowd out other thinking
+  * Option β: dedicated `narrative_log` table in conversations.db
+    Pro: bounded; simpler; isolated from belief retrieval
+    Con: not connected to existing belief retrieval infrastructure; needs own
+    access patterns
+- Define write-triggers (background events that fire a narrative write):
+  * Gate ACCEPT of belief whose topic matches an open problem (confidence ≥ threshold)
+  * Problem state transition (open → has_candidates, has_candidates → closed)
+  * Goal completion (GoalManager state → closed)
+  * Metacognition groove alert (pattern observed)
+  * Novel Association crossing above a higher cosine threshold than normal noticing
+- Define write-thresholds (when event is significant enough): e.g. confidence ≥ 0.7,
+  topic repetition ≥ 5 beliefs — build-tunable constants
+- `SelfNarrative.format_for_prompt()` reads most recent N narrative entries filtered
+  by topic relevance to current turn. Returns as-is. No synthesis. No LLM.
 
 **Row 12 — AffectState (Phase 27-build):**
-- Arousal input: Interoception system metrics (CPU%, memory_mb normalized)
-- Valence input: belief-field polarity (high positive beliefs → positive valence)
-- Stability input: belief turnover rate / coherence metric
-- `EmotionStateModel` bounded integration + decay absorbed directly
-- Fix: add `import random` before absorbing (minor S5.5 bug)
-- mood_label() output → belief_text injection: "Affective state: {mood}"
-- Decay rate configurable; default 0.02 per tick
+
+Per §0: affect values are substrate-resident, updated by background tick, read at output.
+
+- Schema: `affect_state` table in conversations.db
+  ```sql
+  CREATE TABLE IF NOT EXISTS affect_state (
+      id         INTEGER PRIMARY KEY,
+      valence    REAL,       -- [-1, 1]
+      arousal    REAL,       -- [0, 1]
+      stability  REAL,       -- [0, 1]
+      mood_label TEXT,       -- 'positive' | 'neutral' | 'negative'
+      updated_at REAL
+  );
+  ```
+- Background SentienceNode tick (300s):
+  * Read Interoception latest output → derive arousal delta
+  * Read top-N high-tier active beliefs → score polarity → derive valence delta
+    (open item: polarity scoring method is build-decision — sentiment library,
+    keyword lexicon, or NEX's own belief tag system if present)
+  * Read belief turnover rate (recent INSERTs in beliefs.db) → derive stability
+  * Apply S5.5 `EmotionStateModel.integrate()` + `decay()` → new values
+  * Compute `mood_label` from new valence; write all five fields to table
+- `AffectState.format_for_prompt()` reads current row; returns
+  `"Affective state: {mood_label} (valence {valence:.2f})"`. Zero output-time
+  computation.
+- Fix before absorbing S5.5 source: add `import random` (`_tick()` uses it; not imported)
 
 **Row 13 — DriveEmergence (Phase 28-design then Phase 29-build):**
+
+Already aligned with §0 by emergence framing — drives live in substrate as
+accumulated belief patterns; `format_for_prompt()` selects rather than synthesizes.
+
 Design session required before any code. Questions to resolve:
 - What is "self-same" in belief space? (embedding similarity? topic match? both?)
 - What is the longitudinal window? (rolling N days? all-time?)
@@ -345,11 +419,37 @@ After design session lands answers, build follows.
 
 ---
 
-## §5 Status
+## §5 — Existing Architecture Review (queued post-§0, added 2026-05-10)
 
-Document status: REPLACEMENT for reverted a375ad1.
+Existing nodes and processes that may violate §0:
+
+- **Phase 24 Reshape Transformer** — currently calls LLM (VoiceClient) to *generate*
+  a reshaped thought when `reshape_hint` is set. The LLM is doing reasoning here, not
+  just speaking from substrate. Queued for review after §0 commits. Possible resolutions:
+  (a) replace LLM-driven reshape with substrate-derived transformation candidates;
+  (b) accept reshape as a §0 carve-out (LLM generates *candidates* that route back
+  through CoherenceGate — substrate-mediated accept/reject still applies);
+  (c) deprecate Reshape and rely on HOLD + corroboration path.
+
+- **`format_for_prompt()` audit across all SentienceNodes** — review which methods
+  compute or synthesize content versus reading existing substrate state. Any method
+  that constructs phrasing at output time (rather than selecting pre-existing substrate)
+  needs review.
+
+- **Voice templates** (queued from row 4 Self-Model work) — pre-designed phrasing
+  fragments may violate §0. Review queued alongside format_for_prompt() audit.
+
+Review session(s) are separate from new port builds. New ports (Phase 26–29) honor
+§0 by design.
+
+---
+
+## §6 Status
+
+Document status: REPLACEMENT for reverted a375ad1, amended 2026-05-10 with §0.
 Phase 25c-spec foundational doc, take 2.
 Q2–Q5 doctrine answers locked per Jon's actual review.
+§0 design principle added post-greenlight.
 Phase 26+ implementation begins after this commit is greenlighted.
 
 ---
