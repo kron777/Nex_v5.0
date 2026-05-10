@@ -18,6 +18,7 @@ Thresholds (v1 starting values, calibrated from nex_core observation):
 from __future__ import annotations
 
 import json
+import re
 import time
 from collections import Counter
 from typing import Optional
@@ -166,6 +167,7 @@ class TriggerDetector:
         """
         if not text:
             return "unknown"
+        text = re.sub(r'\[[^\]]*\]', '', text)
         punct = '.,?!;:\'"()'
         tokens = [
             w.strip(punct).lower()

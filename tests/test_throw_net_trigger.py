@@ -259,6 +259,21 @@ class TestExtractTopic(unittest.TestCase):
         result = self.detector._extract_topic("the a is and or but")
         self.assertEqual(result, "unknown")
 
+    def test_extract_topic_strips_bracketed_markers(self):
+        """[RETIRED] markers are stripped before topic extraction."""
+        result = self.detector._extract_topic(
+            "[RETIRED] The weight of memory and time"
+        )
+        self.assertNotEqual(result, "[retired]")
+        self.assertNotIn("retired", result.lower())
+
+    def test_extract_topic_strips_multiple_bracketed_markers(self):
+        """Multiple [MARKER] prefixes are all stripped."""
+        result = self.detector._extract_topic(
+            "[RETIRED] [RETIRED] [RETIRED] consciousness emerges here"
+        )
+        self.assertEqual(result, "consciousness")
+
 
 if __name__ == "__main__":
     unittest.main()
