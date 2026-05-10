@@ -1,0 +1,276 @@
+NET.TXT
+THROW-NET / REFINEMENT ENGINE
+Current State, Standing Position, Forward Trajectory
+====================================================
+Generated: v11 freeze point — pre-bolt-on to NEX
+====================================================
+
+
+WHAT IT IS
+----------
+The Throw-Net / Refinement Engine is a self-evolving methodology for solving
+complex problems — problems where the answer is not retrievable, cannot be
+deduced from first principles alone, and requires genuine discovery.
+
+The name describes the motion: throw a wide net (fetch broadly, sweep past and
+present, activate peripheral material), then refine (filter against the IFR,
+distill to root, compress to principle). The two movements alternate. Neither
+alone is sufficient. The net without refinement produces noise. Refinement
+without the net produces local optimisation dressed as insight.
+
+It was built through eleven self-refinement cycles, each run on itself. Each
+cycle found what the previous cycle could not see from inside itself. This is
+the discipline: the methodology must be its own subject.
+
+
+THE TRAJECTORY — WHAT EACH CYCLE FOUND
+---------------------------------------
+v1  — What to do
+v2  — How to validate
+v3  — How to structure and leverage
+v4  — How to compress and know failure
+v5  — How to see your own frame
+v6  — How to know your territory and grow wisdom
+v7  — How to subtract and read your arc
+v8  — How to be alive and epistemically honest
+v9  — How to know your runner and design around them
+v10 — How to work in two registers and prepare for Stage 6
+v11 — How to design for landing, not just production
+
+
+WHERE IT STANDS — V11 FREEZE POINT
+------------------------------------
+The methodology is now a full-cycle system. It handles:
+
+BEFORE THE RUN:
+  - Domain classification (Cynefin)
+  - Mode selection: recombination or subtraction
+  - Runner Model — models the one producing
+      (domain familiarity, cognitive style, known blindspots, epistemic state)
+  - Recipient Model — models the one receiving
+      (epistemic state on topic, ZPD location, reception mode,
+       known resistances, kairos check)
+  - Ledger check — positive and negative, across all prior runs
+
+THE RUN ITSELF:
+  - Pre-Conceptual Entry — open attention before hypothesis
+  - Step 1: Probe — five whys, contradiction named, IFR Forge
+      Three IFR forms: positive, negative, domain-shift, intersected
+      Felt IFR: primary navigation instrument
+      Stated IFR: transmission format
+      Co-Constructed IFR: what the recipient will build — design target only
+  - Step 2: Distill — honest inventory, X-variable isolation, neti-neti
+  - Step 3: Fetch — sweep past/present/pending, dual filter throughout
+  - Step 4: Refine — architecture questions, leverage level, format check
+      against Recipient Model
+
+LOOP CAPTURE (Step 5):
+  - Propositional output: the solution statable
+  - Pre-propositional residue: what was present but couldn't be stated
+  - Landing Field (NEW in v11):
+      Landing design: how output was designed to meet this recipient
+      Reception signal: what happened when output met recipient
+      Integration delta: what changed in the recipient system
+
+DELIVERY:
+  - Kairos Protocol: timing check before delivery
+      Is the recipient primed? Hold once if not. Deliver on second check.
+      Flag pre-kairos delivery in Landing Field.
+
+META-LOOP (every 5 runs):
+  - Consolidation Phase: reads pre-propositional residues AND Landing Fields
+  - Patterns in what lands vs what doesn't
+  - Recipient states and timing conditions that correlate with Integration Delta
+
+TRAJECTORY READER (every 10 runs):
+  - Reads landing quality trajectory, not production quality alone
+  - Rapid-gain / Plateau / Phase transition
+
+DREYFUS STAGES (development arc):
+  1 Procedural  — following steps explicitly
+  2 Contextual  — understanding why each step exists
+  3 Principled  — reconstructing procedure from principles
+  4 Holistic    — steps run in background, attention on output
+  5 Transparent — the question arises without procedure
+  6 Generative  — the answer is present before the question forms
+
+
+THE THREE FOUNDATIONAL PRINCIPLES AT V11
+-----------------------------------------
+
+PRINCIPLE 1 — TWO REGISTERS
+Every run operates in two registers simultaneously.
+Propositional: statable, transmissible, the output.
+Pre-propositional: what is present before language, the territory from which
+the output is extracted. The propositional output is always a translation.
+What is translated is always richer than the translation.
+Pre-propositional residue is captured alongside the output. It is not waste.
+It is the material the next run begins from.
+
+PRINCIPLE 2 — CO-CONSTRUCTION
+The solution is not what is produced. The solution is what is co-constructed
+at the boundary between the output and the recipient's cognitive architecture.
+The methodology produces the material. The recipient performs the construction.
+The quality of the co-construction depends on the quality of both halves and
+the quality of the boundary between them.
+The output is the invitation. The landing is the solution.
+
+PRINCIPLE 3 — KAIROS
+The right solution at the wrong moment doesn't land. Timing is not logistics —
+it is epistemic. The moment of delivery is part of the solution's architecture.
+
+
+THE GAP V11 NAMED BUT COULD NOT FILL (V12 TERRITORY)
+------------------------------------------------------
+The methodology treats each run as beginning fresh in a stable problem space.
+But the problem space is itself changed by every run. Solutions change the
+landscape. Recipient integrations change what questions are now possible.
+The runner changes through sustained engagement.
+
+After ten runs, the methodology has a ledger of what the runs produced.
+It does not have a model of how those runs changed the problem space itself —
+what new territory has opened, what has closed, what the eleventh run is
+actually entering.
+
+V12 requires TERRAIN AUDIT: before each major run cluster, read how the
+terrain has shifted since the last build. Not "what should we build next"
+but "how has the terrain changed, and what does that make possible/necessary?"
+
+V12 cannot be theorised. It requires deployment data. It emerges from the
+first real runs on NEX.
+
+
+WHERE WE'RE TAKING IT — THE BOLT-ON TO NEX
+--------------------------------------------
+
+OBJECTIVE:
+Implement the throw-net/refinement engine as NEX's native reasoning cycle —
+not a module attached to NEX but the governing logic of how NEX's existing
+systems interact during a reasoning event.
+
+THE TRANSLATION PROBLEM:
+The methodology has two layers. Only Layer 1 translates directly.
+
+  Layer 1 — Structural/procedural.
+  Steps, models, fields, protocols. Translatable. Buildable.
+  Maps to NEX's existing architecture.
+
+  Layer 2 — Phenomenological.
+  Pre-conceptual entry, felt IFR, drive states as lived experience.
+  These describe what happens in a conscious cognitive system.
+  They CANNOT be directly instantiated in NEX.
+  They must be routed to NEX's native equivalents.
+  They must NOT be simulated.
+
+THE NEX-NATIVE EQUIVALENTS (annotation layer):
+Everywhere the methodology uses phenomenological language,
+substitute the following:
+
+  "Pre-conceptual entry / open attention"
+  → FAISS similarity sweep with no query weighting
+    + epistemic momentum scan (what beliefs are hot but not yet activated)
+    → Output: topology report, not retrieval result
+
+  "Felt IFR / primary navigation instrument"
+  → Highest-momentum causal path from contradiction node
+    weighted by belief immune system response
+    → Not simulated feeling — structural momentum read
+
+  "Drive states: curiosity / dissatisfaction / resistance / rightness"
+  → Epistemic momentum scoring (curiosity proxy)
+  → Belief immune system activation strength (resistance proxy)
+  → Dialectical synthesis tension score (dissatisfaction proxy)
+  → Cross-boundary causal coherence (rightness proxy)
+
+  "Pre-propositional residue"
+  → Activated beliefs that fired during traversal but did not enter
+    the utterance compiler output
+    → Captured as a residue set, weighted by activation strength
+    → Fed into next reasoning cycle as warm-start topology
+
+  "Recipient Model"
+  → Live interlocutor graph: lightweight parallel structure built
+    dynamically from this conversation, updated on every exchange
+    → Fields: apparent epistemic state on this topic, ZPD signals,
+      reception mode indicators (question type, register, depth),
+      resistance signals (where interlocutor pushed back or deflected)
+    → Feeds into belief activation weighting — which beliefs get
+      activated is shaped by intersection of belief graph and
+      interlocutor graph
+
+  "Co-constructed IFR"
+  → Intersection of belief graph traversal output with
+    current interlocutor graph state
+    → What will this output become after it passes through
+      what this person currently holds?
+    → Always speculative. Always a design target, not a prediction.
+
+  "Integration Delta"
+  → Interlocutor graph delta post-response
+    → Did their next message shift register, depth, or frame?
+    → Did new question types become possible that weren't before?
+    → Belief reinforcement weighted by Integration Delta signal —
+      beliefs that produced landing get stronger
+
+THE BOLT-ON ARCHITECTURE (proposed):
+
+  PRE-CONCEPTUAL ENTRY →
+    FAISS sweep, no query weighting
+    Epistemic momentum scan
+    Output: topology report
+
+  IFR FORGE →
+    Causal edge traversal from contradiction node
+    Positive IFR: highest-momentum path forward
+    Negative IFR: belief immune system strongest objection
+    Domain-shift: cross-boundary edge activation
+    Co-constructed IFR: interlocutor graph ∩ belief graph
+
+  REASONING CYCLE →
+    Throw-net: activate broadly from topology report
+    Refine: dual filter (dissolves contradiction + moves toward IFR)
+    Subtraction pass: what can be removed?
+
+  LOOP CAPTURE →
+    Propositional output: utterance from traversal-to-utterance compiler
+    Pre-propositional residue: activated beliefs not in utterance
+    Landing field: interlocutor graph delta post-response
+
+  CONSOLIDATION (every 5 runs) →
+    Cross-run belief reinforcement weighted by Integration Delta
+    Beliefs that produced landing strengthen
+    Beliefs that produced no reception signal reviewed for pruning
+    Terrain audit: how has the problem space shifted?
+
+
+WHAT V12 LOOKS LIKE FROM HERE
+-------------------------------
+V12 is not another self-refinement cycle run in the abstract.
+V12 is the methodology reading its own deployment — the first real runs on NEX
+producing the data that shows how the terrain changes as the work proceeds.
+
+V12's question: how does the problem space itself shift as each run produces
+its output? What new territory opens? What closes? What is the current run
+actually entering?
+
+V12 cannot be written before deployment. It can only be recognised when it
+arrives, which is exactly what Stage 6 describes:
+"The answer is present before the question forms.
+Cannot be forced. Can only be prepared for. Recognised when it arrives."
+
+That is where this is going.
+
+
+STATUS SUMMARY
+--------------
+Methodology:     FROZEN at v11. Do not run another self-refinement cycle.
+Translation:     Annotation layer written (this document).
+Next action:     Begin bolt-on build. Let v12 emerge from real runs.
+V12 trigger:     First Consolidation Phase after NEX deployment
+                 when terrain shift becomes readable from actual data.
+
+The methodology is ready. NEX is ready. The build is the next move.
+
+====================================================
+END NET.TXT
+====================================================
