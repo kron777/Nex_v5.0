@@ -189,6 +189,46 @@ _MIGRATIONS: dict[str, list[str]] = {
         "ON held_resolutions(ts)",
         # Phase 24 — Reshape depth column (existing installs)
         "ALTER TABLE held_thoughts ADD COLUMN reshape_depth INTEGER NOT NULL DEFAULT 0",
+        # Phase 25a TN-0 — Throw-Net schema
+        "CREATE TABLE IF NOT EXISTS throw_net_sessions ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "session_id TEXT NOT NULL UNIQUE, "
+        "topic TEXT, "
+        "triggered_by TEXT NOT NULL, "
+        "trigger_context TEXT, "
+        "started_at REAL NOT NULL, "
+        "completed_at REAL, "
+        "status TEXT NOT NULL DEFAULT 'running', "
+        "throw_count INTEGER NOT NULL DEFAULT 0, "
+        "refined_count INTEGER NOT NULL DEFAULT 0, "
+        "accepted_count INTEGER NOT NULL DEFAULT 0, "
+        "metadata TEXT)",
+        "CREATE INDEX IF NOT EXISTS idx_tn_sessions_status_started "
+        "ON throw_net_sessions(status, started_at)",
+        "CREATE INDEX IF NOT EXISTS idx_tn_sessions_topic "
+        "ON throw_net_sessions(topic)",
+        "CREATE TABLE IF NOT EXISTS throw_net_triggers ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "ts REAL NOT NULL, "
+        "trigger_type TEXT NOT NULL, "
+        "topic TEXT, "
+        "source_event_id TEXT, "
+        "threshold_state TEXT, "
+        "fired INTEGER NOT NULL DEFAULT 0, "
+        "session_id TEXT)",
+        "CREATE INDEX IF NOT EXISTS idx_tn_triggers_ts_type "
+        "ON throw_net_triggers(ts, trigger_type)",
+        "CREATE INDEX IF NOT EXISTS idx_tn_triggers_fired "
+        "ON throw_net_triggers(fired)",
+        "CREATE TABLE IF NOT EXISTS throw_net_x_vars ("
+        "var_id TEXT PRIMARY KEY, "
+        "label TEXT NOT NULL, "
+        "nex5_status TEXT NOT NULL, "
+        "salience REAL NOT NULL DEFAULT 1.0, "
+        "last_observed_at REAL, "
+        "notes TEXT)",
+        "CREATE INDEX IF NOT EXISTS idx_tn_x_vars_status "
+        "ON throw_net_x_vars(nex5_status)",
     ],
     "dynamic": [
         "CREATE TABLE IF NOT EXISTS harmonizer_events ("

@@ -228,7 +228,8 @@ class AppState:
     arc_loop: Optional["ArcLoop"] = None                     # type: ignore[type-arg]
     probe_runner: Optional["ProbeRunner"] = None             # type: ignore[type-arg]
     probes_reader: Optional[Reader] = None
-    coherence_gate: Optional[object] = None  # Phase 22
+    coherence_gate: Optional[object] = None   # Phase 22
+    trigger_detector: Optional[object] = None  # Phase 25a TN-1
     # Optional hook a test can inject to short-circuit chat persistence.
     now_fn: Callable[[], int] = field(default_factory=lambda: (lambda: int(time.time())))
 
@@ -275,21 +276,25 @@ def build_state(
     )
     scheduler = build_scheduler(writers, readers) if with_scheduler else None
 
-    # Phase 22 + 23 + 24 — Coherence Gate + Holding Zone + Reshape Path
+    # Phase 22 + 23 + 24 + 25a — Coherence Gate + Holding Zone + Reshape Path + TriggerDetector
     coherence_gate = None
+    trigger_detector = None
     if "beliefs" in writers and "beliefs" in readers:
         from theory_x.stage_gate.coherence_gate import CoherenceGate
         from theory_x.stage_gate.holding_zone import HoldingZone
         from theory_x.stage_gate.resolver import HoldingZoneResolver
         from theory_x.stage_gate.transformer import ReshapeTransformer
+        from theory_x.stage_throw_net.trigger_detector import TriggerDetector
         _holding_zone = HoldingZone(writers["beliefs"], readers["beliefs"])
         _resolver = HoldingZoneResolver(_holding_zone, beliefs_writer=writers["beliefs"])
+        trigger_detector = TriggerDetector(writers["beliefs"], readers["beliefs"])
         coherence_gate = CoherenceGate(
             beliefs_reader=readers["beliefs"],
             beliefs_writer=writers["beliefs"],
             conversations_reader=readers.get("conversations"),
             holding_zone=_holding_zone,
             resolver=_resolver,
+            trigger_detector=trigger_detector,
         )
         _resolver.set_gate(coherence_gate)
         _transformer = ReshapeTransformer(voice)
@@ -402,6 +407,7 @@ def build_state(
         tool_registry=tool_registry,
         tool_caller=tool_caller,
         coherence_gate=coherence_gate,
+        trigger_detector=trigger_detector,
     )
 
 
@@ -924,6 +930,17 @@ def create_app(state: AppState) -> Flask:
                     error_channel.record(
                         f"conversations: gap refusal insert failed: {exc}",
                         source="gui.server", exc=exc,
+                    )
+            # Phase 25a TN-1 — log gap deflection for throw-net trigger detection
+            if state.trigger_detector is not None:
+                try:
+                    state.trigger_detector.record_gap_deflection(
+                        prompt, f"gap:belief_count_{belief_count}"
+                    )
+                except Exception as _td_exc:
+                    error_channel.record(
+                        f"trigger_detector.record_gap_deflection error: {_td_exc}",
+                        source="gui.server", exc=_td_exc,
                     )
             return jsonify({
                 "register": register.name,

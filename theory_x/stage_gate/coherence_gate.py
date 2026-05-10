@@ -140,14 +140,16 @@ class CoherenceGate:
         beliefs_reader: Reader,
         beliefs_writer: Writer,
         conversations_reader: Optional[Reader] = None,
-        holding_zone=None,   # Phase 23: HoldingZone instance
-        resolver=None,        # Phase 23: HoldingZoneResolver instance
+        holding_zone=None,       # Phase 23: HoldingZone instance
+        resolver=None,            # Phase 23: HoldingZoneResolver instance
+        trigger_detector=None,   # Phase 25a TN-1: TriggerDetector instance
     ) -> None:
         self._beliefs_reader = beliefs_reader
         self._beliefs_writer = beliefs_writer
         self._conversations_reader = conversations_reader
         self._holding_zone = holding_zone
         self._resolver = resolver
+        self._trigger_detector = trigger_detector
         self._decision_count: int = 0
 
     # ── Public API ────────────────────────────────────────────────────────────
@@ -174,6 +176,16 @@ class CoherenceGate:
 
         # Phase 23 — Holding Zone: persist HOLD; check held zone on ACCEPT
         # Phase 24 — RESHAPE: enqueue to reshape_pending for resolver processing
+        # Phase 25a TN-1 — REJECT: log trigger for potential throw-net session
+        if decision.outcome == GateOutcome.REJECT and self._trigger_detector is not None:
+            try:
+                self._trigger_detector.record_gate_reject(packet, decision)
+            except Exception as exc:
+                errors.record(
+                    f"trigger_detector.record_gate_reject error: {exc}",
+                    source=_LOG_SOURCE, exc=exc,
+                )
+
         if decision.outcome == GateOutcome.HOLD and self._holding_zone is not None:
             try:
                 self._holding_zone.hold(packet, decision.reason)

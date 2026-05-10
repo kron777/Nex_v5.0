@@ -102,18 +102,22 @@ def main() -> None:
     scheduler = build_scheduler(writers, readers, mode_state=mode_state)
     log.info("Sense scheduler started — 23 adapters wired")
 
-    # 5a. Coherence Gate + Holding Zone (Phase 22 + Phase 23)
+    # 5a. Coherence Gate + Holding Zone + TriggerDetector (Phase 22–25a)
     from theory_x.stage_gate.coherence_gate import CoherenceGate
     from theory_x.stage_gate.holding_zone import HoldingZone
     from theory_x.stage_gate.resolver import HoldingZoneResolver
+    from theory_x.stage_throw_net.trigger_detector import TriggerDetector
     _holding_zone = HoldingZone(writers["beliefs"], readers["beliefs"])
     _resolver = HoldingZoneResolver(_holding_zone, beliefs_writer=writers["beliefs"])
+    _trigger_detector = TriggerDetector(writers["beliefs"], readers["beliefs"])
+    log.info("Throw-net trigger detector ready — observing gate REJECT and gap deflection paths")
     coherence_gate = CoherenceGate(
         beliefs_reader=readers["beliefs"],
         beliefs_writer=writers["beliefs"],
         conversations_reader=readers["conversations"],
         holding_zone=_holding_zone,
         resolver=_resolver,
+        trigger_detector=_trigger_detector,
     )
     _resolver.set_gate(coherence_gate)
     try:
@@ -366,6 +370,7 @@ def main() -> None:
         probe_runner=probe_runner,
         probes_reader=probes_reader,
         coherence_gate=coherence_gate,
+        trigger_detector=_trigger_detector,
     )
     atexit.register(state.close)
 
