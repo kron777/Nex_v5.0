@@ -14,6 +14,7 @@ class and word-overlap find_matching from commit 950e388 parent.
 from __future__ import annotations
 
 import json
+import sys
 import threading
 import time
 from typing import Optional
@@ -103,11 +104,18 @@ class ProblemMemory:
     def open(self, title: str, description: str) -> int:
         """Write a new open problem. Returns its id."""
         now = time.time()
+        _content_for_tags = (title or "") + " " + (description or "")
+        try:
+            from theory_x.tag_protocol import generate as _tag_gen
+            _tags_json = json.dumps(_tag_gen(_content_for_tags))
+        except Exception as _e:
+            print(f"open_problems tag gen failed: {_e}", file=sys.stderr)
+            _tags_json = "[]"
         rowid = self._writer.write(
             "INSERT INTO open_problems "
-            "(title, description, state, created_at, last_touched_at) "
-            "VALUES (?, ?, 'open', ?, ?)",
-            (title, description, now, now),
+            "(title, description, state, created_at, last_touched_at, tags) "
+            "VALUES (?, ?, 'open', ?, ?, ?)",
+            (title, description, now, now, _tags_json),
         )
         errors.record(
             f"problem opened: '{title}' (id={rowid})",

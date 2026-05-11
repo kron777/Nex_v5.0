@@ -229,6 +229,8 @@ _MIGRATIONS: dict[str, list[str]] = {
         "notes TEXT)",
         "CREATE INDEX IF NOT EXISTS idx_tn_x_vars_status "
         "ON throw_net_x_vars(nex5_status)",
+        # Tag Protocol — inline JSON tag column on beliefs
+        "ALTER TABLE beliefs ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'",
     ],
     "dynamic": [
         "CREATE TABLE IF NOT EXISTS harmonizer_events ("
@@ -344,6 +346,8 @@ _MIGRATIONS: dict[str, list[str]] = {
         "tick_duration_ms    REAL    NOT NULL)",
         "CREATE INDEX IF NOT EXISTS idx_drive_emergence_log_tick_at "
         "ON drive_emergence_log(tick_at)",
+        # Tag Protocol — inline JSON tag column on open_problems
+        "ALTER TABLE open_problems ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'",
     ],
 }
 

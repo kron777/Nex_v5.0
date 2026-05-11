@@ -274,6 +274,9 @@ def build_state(
     paths = db_paths()
     writers = {name: Writer(p, name=name) for name, p in paths.items()}
     readers = {name: Reader(p) for name, p in paths.items()}
+    # Tag Protocol — wrap beliefs writer so new INSERTs auto-generate tags
+    from theory_x.tag_protocol.writer_wrapper import TaggingBeliefWriter as _TBW
+    writers["beliefs"] = _TBW(writers["beliefs"])
     voice = VoiceClient(
         url=voice_url or os.environ.get(
             "NEX5_VOICE_URL", "http://localhost:8080/v1/chat/completions"
