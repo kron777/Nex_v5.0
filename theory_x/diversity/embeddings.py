@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from collections import OrderedDict
 from typing import Optional
 
 import numpy as np
@@ -11,7 +12,8 @@ log = logging.getLogger("theory_x.diversity.embeddings")
 
 _model = None
 _model_lock = threading.Lock()
-_cache: dict[int, np.ndarray] = {}
+_CACHE_MAX = 2048
+_cache: OrderedDict[int, np.ndarray] = OrderedDict()
 _cache_lock = threading.Lock()
 
 
@@ -36,10 +38,14 @@ def embed(text: str) -> np.ndarray:
 def embed_belief(belief_id: int, content: str) -> np.ndarray:
     with _cache_lock:
         if belief_id in _cache:
+            _cache.move_to_end(belief_id)
             return _cache[belief_id]
     vec = embed(content)
     with _cache_lock:
         _cache[belief_id] = vec
+        _cache.move_to_end(belief_id)
+        if len(_cache) > _CACHE_MAX:
+            _cache.popitem(last=False)
     return vec
 
 
