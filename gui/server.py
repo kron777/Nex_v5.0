@@ -61,6 +61,11 @@ Phase 9 endpoints (memory + tools):
     POST /api/problems/<id>/close   — close problem
     GET  /api/tools/available       — list available tools
 
+Phase 25b endpoints (review queue):
+    GET  /api/review                — list review_queue items (flagged problems)
+    GET  /api/review/<id>           — single review_queue item
+    POST /api/review/<id>/unflag    — move item back to open_problems
+
 The app is constructed from an AppState container so tests can drive
 it with mock Writers/Readers and a mock VoiceClient.
 
@@ -232,6 +237,7 @@ class AppState:
     coherence_gate: Optional[object] = None        # Phase 22
     trigger_detector: Optional[object] = None      # Phase 25a TN-1
     throw_net_monitor: Optional[object] = None     # Phase 25a TN-5
+    counterfactual_node: Optional[object] = None   # Phase 25b CN
     voice_engine: Optional[object] = None          # Phase 30 VoiceEngine
     voice_mode: str = "use_llm"                    # "use_llm" | "use_substrate"
     affect_state: Optional[object] = None          # Phase 27 AffectState
@@ -421,6 +427,34 @@ def build_state(
         throw_net_monitor = ThrowNetMonitor(_throw_net_engine)
         throw_net_monitor.start_loop()
 
+    # Phase 25b CN — CounterfactualNode (needs coherence_gate + problem_memory)
+    counterfactual_node = None
+    if (coherence_gate is not None
+            and problem_memory is not None
+            and "beliefs" in writers and "beliefs" in readers
+            and "conversations" in writers and "conversations" in readers):
+        try:
+            from theory_x.stage_counterfactual import CounterfactualNode as _CN
+            from theory_x.stage_throw_net.time_fetch import TimeFetch as _TFcn
+            from theory_x.stage_throw_net.refinement_engine import RefinementEngine as _REcn
+            _tf_cn = _TFcn(readers["beliefs"], problem_memory)
+            _re_cn = _REcn(readers["beliefs"])
+            counterfactual_node = _CN(
+                beliefs_reader=readers["beliefs"],
+                beliefs_writer=writers["beliefs"],
+                conversations_reader=readers["conversations"],
+                conversations_writer=writers["conversations"],
+                coherence_gate=coherence_gate,
+                time_fetch=_tf_cn,
+                refinement_engine=_re_cn,
+            )
+            counterfactual_node.start_loop()
+        except Exception as _cn_err:
+            import logging as _log_cn
+            _log_cn.getLogger("server").warning(
+                "CounterfactualNode failed to start (non-fatal): %s", _cn_err
+            )
+
     return AppState(
         writers=writers,
         readers=readers,
@@ -441,6 +475,7 @@ def build_state(
         coherence_gate=coherence_gate,
         trigger_detector=trigger_detector,
         throw_net_monitor=throw_net_monitor,
+        counterfactual_node=counterfactual_node,
     )
 
 
@@ -1898,6 +1933,73 @@ def create_app(state: AppState) -> Flask:
             return jsonify({"ok": True, "id": problem_id})
         except Exception as e:
             error_channel.record(f"problem close failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    # -- review queue (Phase 25b CN) -----------------------------------------
+
+    @app.get("/api/review")
+    def api_review_list():
+        reader = state.readers.get("conversations")
+        if reader is None:
+            return jsonify({"items": []})
+        try:
+            rows = reader.read(
+                "SELECT id, title, description, created_at, flagged_at, tags "
+                "FROM review_queue ORDER BY flagged_at DESC"
+            )
+            return jsonify({"items": [dict(r) for r in rows]})
+        except Exception as e:
+            error_channel.record(f"review list failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.get("/api/review/<int:item_id>")
+    def api_review_get(item_id: int):
+        reader = state.readers.get("conversations")
+        if reader is None:
+            return jsonify({"error": "conversations db not available"}), 503
+        try:
+            rows = reader.read(
+                "SELECT id, title, description, created_at, flagged_at, tags "
+                "FROM review_queue WHERE id = ?",
+                (item_id,),
+            )
+            if not rows:
+                return jsonify({"error": "not found"}), 404
+            return jsonify(dict(rows[0]))
+        except Exception as e:
+            error_channel.record(f"review get failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.post("/api/review/<int:item_id>/unflag")
+    def api_review_unflag(item_id: int):
+        writer = state.writers.get("conversations")
+        reader = state.readers.get("conversations")
+        if writer is None or reader is None:
+            return jsonify({"error": "conversations db not available"}), 503
+        try:
+            rows = reader.read(
+                "SELECT id, title, description, created_at, tags "
+                "FROM review_queue WHERE id = ?",
+                (item_id,),
+            )
+            if not rows:
+                return jsonify({"error": "not found"}), 404
+            row = dict(rows[0])
+            now = time.time()
+            # Re-insert into open_problems with original id preserved
+            writer.write(
+                "INSERT OR IGNORE INTO open_problems "
+                "(id, title, description, state, created_at, last_touched_at, tags) "
+                "VALUES (?, ?, ?, 'open', ?, ?, ?)",
+                (row["id"], row["title"], row.get("description", ""),
+                 row["created_at"], now, row.get("tags", "[]")),
+            )
+            writer.write(
+                "DELETE FROM review_queue WHERE id = ?", (item_id,)
+            )
+            return jsonify({"ok": True, "id": item_id})
+        except Exception as e:
+            error_channel.record(f"review unflag failed: {e}", source="gui.server", exc=e)
             return jsonify({"error": str(e)}), 500
 
     # -- goal manager (Phase 15) ---------------------------------------------

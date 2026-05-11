@@ -258,6 +258,28 @@ def main() -> None:
     except Exception as _tn_err:
         log.warning("Throw-net monitor failed to start (non-fatal): %s", _tn_err)
 
+    # Phase 25b — CounterfactualNode (needs coherence_gate + problem_memory)
+    _counterfactual_node = None
+    try:
+        from theory_x.stage_counterfactual import CounterfactualNode as _CN
+        from theory_x.stage_throw_net.time_fetch import TimeFetch as _TFcn
+        from theory_x.stage_throw_net.refinement_engine import RefinementEngine as _REcn
+        _tf_cn = _TFcn(readers["beliefs"], problem_memory)
+        _re_cn = _REcn(readers["beliefs"])
+        _counterfactual_node = _CN(
+            beliefs_reader=readers["beliefs"],
+            beliefs_writer=writers["beliefs"],
+            conversations_reader=readers["conversations"],
+            conversations_writer=writers["conversations"],
+            coherence_gate=coherence_gate,
+            time_fetch=_tf_cn,
+            refinement_engine=_re_cn,
+        )
+        _counterfactual_node.start_loop()
+        log.info("CounterfactualNode ready — autonomous cycle every 300s")
+    except Exception as _cn_err:
+        log.warning("CounterfactualNode failed to start (non-fatal): %s", _cn_err)
+
     # Phase 29 — DriveEmergence (constructed before VoiceEngine; passed to both)
     _drive_emergence = None
     try:
@@ -477,6 +499,7 @@ def main() -> None:
         coherence_gate=coherence_gate,
         trigger_detector=_trigger_detector,
         throw_net_monitor=_throw_net_monitor,
+        counterfactual_node=_counterfactual_node,
         voice_engine=_voice_engine,
         affect_state=_affect_state,
         drive_emergence=_drive_emergence,

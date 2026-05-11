@@ -231,6 +231,8 @@ _MIGRATIONS: dict[str, list[str]] = {
         "ON throw_net_x_vars(nex5_status)",
         # Tag Protocol — inline JSON tag column on beliefs
         "ALTER TABLE beliefs ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'",
+        # Phase 25b — CounterfactualNode: links accepted beliefs to source problem
+        "ALTER TABLE beliefs ADD COLUMN problem_id INTEGER",
     ],
     "dynamic": [
         "CREATE TABLE IF NOT EXISTS harmonizer_events ("
@@ -348,6 +350,16 @@ _MIGRATIONS: dict[str, list[str]] = {
         "ON drive_emergence_log(tick_at)",
         # Tag Protocol — inline JSON tag column on open_problems
         "ALTER TABLE open_problems ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'",
+        # Phase 25b — CounterfactualNode: problems promoted here after 3 ACCEPTs
+        "CREATE TABLE IF NOT EXISTS review_queue ("
+        "id INTEGER PRIMARY KEY, "
+        "title TEXT NOT NULL, "
+        "description TEXT, "
+        "created_at REAL NOT NULL, "
+        "flagged_at REAL NOT NULL, "
+        "tags TEXT NOT NULL DEFAULT '[]')",
+        "CREATE INDEX IF NOT EXISTS idx_review_queue_flagged_at "
+        "ON review_queue(flagged_at DESC)",
     ],
 }
 
