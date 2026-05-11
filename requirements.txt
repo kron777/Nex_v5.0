@@ -9,3 +9,7 @@ requests>=2.31
 # Phase 2 — sense stream
 feedparser>=6.0
 psutil>=5.9
+
+# scipy<1.17: 1.17.1 ships _matfuncs_schur_sqrtm.so with an undefined symbol
+# that breaks sentence_transformers→sklearn→scipy in background threads (Phase 29b).
+scipy>=1.11,<1.17
