@@ -102,6 +102,17 @@ def main() -> None:
     scheduler = build_scheduler(writers, readers, mode_state=mode_state)
     log.info("Sense scheduler started — 23 adapters wired")
 
+    # 9b-pre. SelfNarrative — autobiographical accumulation (Phase 26)
+    # Constructed early so CoherenceGate, ProblemMemory, and NovelAssociation
+    # can receive it as a write-trigger target.
+    from theory_x.stage_self_narrative.self_narrative import SelfNarrative
+    self_narrative = SelfNarrative(writers["conversations"], readers["conversations"])
+    try:
+        from theory_x import register as _tx_register_sn
+        _tx_register_sn(self_narrative)
+    except Exception:
+        pass
+
     # 5a. Coherence Gate + Holding Zone + TriggerDetector (Phase 22–25a)
     from theory_x.stage_gate.coherence_gate import CoherenceGate
     from theory_x.stage_gate.holding_zone import HoldingZone
@@ -118,6 +129,7 @@ def main() -> None:
         holding_zone=_holding_zone,
         resolver=_resolver,
         trigger_detector=_trigger_detector,
+        self_narrative=self_narrative,
     )
     _resolver.set_gate(coherence_gate)
     try:
@@ -168,16 +180,11 @@ def main() -> None:
 
     # 9. Problem memory (needed by fountain for task-bearing override)
     from theory_x.stage7_sustained.problem_memory import ProblemMemory
-    problem_memory = ProblemMemory(writers["conversations"], readers["conversations"])
-
-    # 9b-pre. SelfNarrative — autobiographical accumulation (Phase 26)
-    from theory_x.stage_self_narrative.self_narrative import SelfNarrative
-    self_narrative = SelfNarrative(writers["conversations"], readers["conversations"])
-    try:
-        from theory_x import register as _tx_register_sn
-        _tx_register_sn(self_narrative)
-    except Exception:
-        pass
+    problem_memory = ProblemMemory(
+        writers["conversations"],
+        readers["conversations"],
+        self_narrative=self_narrative,
+    )
 
     # 9b. Goal manager — explicit goal stack with priority arbitration (Phase 15)
     from theory_x.stage8_goal_manager.goal_manager import GoalManager
@@ -209,7 +216,11 @@ def main() -> None:
     novel_association = None
     try:
         from theory_x.stage10_imagination.novel_association import NovelAssociation as _NovelAssoc
-        novel_association = _NovelAssoc(writers["beliefs"], readers["beliefs"])
+        novel_association = _NovelAssoc(
+            writers["beliefs"],
+            readers["beliefs"],
+            self_narrative=self_narrative,
+        )
         novel_association.start_loop()
         try:
             from theory_x import register as _tx_register_na
@@ -256,6 +267,25 @@ def main() -> None:
         log.info("VoiceEngine ready — min_score=%.2f", _voice_engine.min_score)
     except Exception as _ve_err:
         log.warning("VoiceEngine failed to start (non-fatal): %s", _ve_err)
+
+    # Phase 27 — AffectState (substrate-resident affect; background tick 300s)
+    _affect_state = None
+    try:
+        from theory_x.stage_affect.affect_state import AffectState as _AffectState
+        _affect_state = _AffectState(
+            writers["conversations"],
+            readers["conversations"],
+            readers["beliefs"],
+        )
+        _affect_state.start_loop()
+        try:
+            from theory_x import register as _tx_register_as
+            _tx_register_as(_affect_state)
+        except Exception:
+            pass
+        log.info("AffectState ready — background tick every 300s")
+    except Exception as _as_err:
+        log.warning("AffectState failed to start (non-fatal): %s", _as_err)
 
     # 10. Fountain ignition
     log.info("Igniting fountain...")
@@ -424,6 +454,7 @@ def main() -> None:
         trigger_detector=_trigger_detector,
         throw_net_monitor=_throw_net_monitor,
         voice_engine=_voice_engine,
+        affect_state=_affect_state,
     )
     atexit.register(state.close)
 

@@ -54,9 +54,11 @@ class ProblemMemory:
     _CACHE_TTL: float = 120.0  # seconds
 
     def __init__(self, conversations_writer: Writer,
-                 conversations_reader: Reader) -> None:
+                 conversations_reader: Reader,
+                 self_narrative=None) -> None:
         self._writer = conversations_writer
         self._reader = conversations_reader
+        self._self_narrative = self_narrative
         self._lock = threading.Lock()
         self._cached_open: Optional[list] = None
         self._cache_ts: float = 0.0
@@ -111,6 +113,18 @@ class ProblemMemory:
             f"problem opened: '{title}' (id={rowid})",
             source=_LOG_SOURCE, level="INFO",
         )
+        if self._self_narrative is not None:
+            try:
+                self._self_narrative.write_narrative(
+                    f"Beginning to track open problem: '{title}'",
+                    "problem_opened",
+                    rowid,
+                )
+            except Exception as exc:
+                errors.record(
+                    f"self_narrative problem_opened: {exc}",
+                    source=_LOG_SOURCE, exc=exc,
+                )
         return rowid
 
     def observe(self, problem_id: int, observation: str) -> None:
@@ -141,6 +155,16 @@ class ProblemMemory:
     def close(self, problem_id: int) -> None:
         """Mark problem as closed."""
         now = time.time()
+        _title = f"problem {problem_id}"
+        if self._self_narrative is not None:
+            try:
+                _row = self._reader.read_one(
+                    "SELECT title FROM open_problems WHERE id = ?", (problem_id,)
+                )
+                if _row:
+                    _title = _row["title"]
+            except Exception:
+                pass
         self._writer.write(
             "UPDATE open_problems SET state = 'closed', resolved_at = ?, "
             "last_touched_at = ? WHERE id = ?",
@@ -150,6 +174,18 @@ class ProblemMemory:
             f"problem {problem_id} closed",
             source=_LOG_SOURCE, level="INFO",
         )
+        if self._self_narrative is not None:
+            try:
+                self._self_narrative.write_narrative(
+                    f"Problem resolved: '{_title}'",
+                    "problem_closed",
+                    problem_id,
+                )
+            except Exception as exc:
+                errors.record(
+                    f"self_narrative problem_closed: {exc}",
+                    source=_LOG_SOURCE, exc=exc,
+                )
 
     def resume(self, problem_id: int) -> Optional[dict]:
         """Return full problem record with parsed observations list."""

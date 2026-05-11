@@ -43,6 +43,7 @@ THEORY_X_STAGE = 10
 _LOG_SOURCE = "novel_association"
 
 _SIMILARITY_THRESHOLD  = 0.72    # normalized cosine; raw ~0.44, above noise floor (~0.30)
+_NARRATIVE_THRESHOLD   = 0.85    # higher bar for SelfNarrative write — strongly significant pairs only
 _LOOP_INTERVAL_S       = 1800    # scan cadence (30 min)
 _ANNOTATION_LOOKBACK_S = 7200   # staleness gate: how old an unannotated entry can be
 _BATCH_SIZE            = 10      # total candidates; per_branch = batch // n_branches
@@ -56,9 +57,11 @@ class NovelAssociation:
         self,
         beliefs_writer: Writer,
         beliefs_reader: Reader,
+        self_narrative=None,     # Phase 26: SelfNarrative instance
     ) -> None:
         self._writer = beliefs_writer
         self._reader = beliefs_reader
+        self._self_narrative = self_narrative
         self._lock = threading.Lock()
         self._last_scan_at: float = 0.0
         self._edges_written_total: int = 0
@@ -190,6 +193,21 @@ class NovelAssociation:
 
             self._write_association(a, b, sim, now)
             written += 1
+
+            if self._self_narrative is not None and sim >= _NARRATIVE_THRESHOLD:
+                try:
+                    self._self_narrative.write_narrative(
+                        f"Strong cross-domain connection: "
+                        f"{a['branch_id']} ↔ {b['branch_id']} "
+                        f"(similarity {sim:.2f})",
+                        "novel_association_crossing",
+                        None,
+                    )
+                except Exception as exc:
+                    errors.record(
+                        f"self_narrative novel_association trigger: {exc}",
+                        source=_LOG_SOURCE, exc=exc,
+                    )
 
         return written
 

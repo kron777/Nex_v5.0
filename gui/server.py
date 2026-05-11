@@ -234,6 +234,7 @@ class AppState:
     throw_net_monitor: Optional[object] = None     # Phase 25a TN-5
     voice_engine: Optional[object] = None          # Phase 30 VoiceEngine
     voice_mode: str = "use_llm"                    # "use_llm" | "use_substrate"
+    affect_state: Optional[object] = None          # Phase 27 AffectState
     # Optional hook a test can inject to short-circuit chat persistence.
     now_fn: Callable[[], int] = field(default_factory=lambda: (lambda: int(time.time())))
 
@@ -869,6 +870,19 @@ def create_app(state: AppState) -> Flask:
                     source="gui.server", exc=_sn_exc,
                 )
 
+        # AffectState: inject current mood/valence into belief_text (Phase 27).
+        # format_for_prompt() reads the DB row — zero output-time computation.
+        if state.affect_state is not None:
+            try:
+                _affect_text = state.affect_state.format_for_prompt()
+                if _affect_text:
+                    belief_text = (belief_text or "") + "\n\n" + _affect_text
+            except Exception as _affect_exc:
+                error_channel.record(
+                    f"affect_state injection failed: {_affect_exc}",
+                    source="gui.server", exc=_affect_exc,
+                )
+
         # Tool use: heuristic tool selection and execution
         tool_result = None
         if state.tool_caller is not None and state.tool_registry is not None:
@@ -1401,6 +1415,19 @@ def create_app(state: AppState) -> Flask:
                 }
             except Exception:
                 ve_info = {"mode": state.voice_mode}
+        affect_info = None
+        if state.affect_state is not None:
+            try:
+                _as = state.affect_state.state()
+                affect_info = {
+                    "mood_label":   _as.get("mood_label", "neutral"),
+                    "valence":      round(_as.get("valence", 0.0), 3),
+                    "arousal":      round(_as.get("arousal", 0.1), 3),
+                    "stability":    round(_as.get("stability", 0.9), 3),
+                    "last_updated": _as.get("last_updated"),
+                }
+            except Exception:
+                affect_info = {"mood_label": "unknown"}
         return jsonify({
             "scheduler": state.scheduler is not None,
             "dynamic": state.dynamic is not None,
@@ -1410,6 +1437,7 @@ def create_app(state: AppState) -> Flask:
             "self_location_committed": committed,
             "alpha": ALPHA.lines[0],
             "voice_engine": ve_info,
+            "affect_state": affect_info,
         })
 
     # -- speech (Phase 7b) ---------------------------------------------------

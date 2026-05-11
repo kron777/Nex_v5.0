@@ -9,16 +9,25 @@ Covers:
 - decay(now) is a no-op (no rows deleted, no exception)
 - state() returns correct narrative_count after N writes
 - state() returns last_write_ts=None when table is empty
+
+Phase 26 trigger wiring (audit-completion):
+- Gate ACCEPT on problem-relevant topic fires narrative write
+- Gate ACCEPT below confidence threshold does not write
+- ProblemMemory.open() fires problem_opened narrative
+- ProblemMemory.close() fires problem_closed narrative with title
+- NovelAssociation._scan() fires narrative only at _NARRATIVE_THRESHOLD
+- NovelAssociation._scan() below narrative threshold does not write
 """
 from __future__ import annotations
 
 import os
 import shutil
+import sys
 import tempfile
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from tests import _bootstrap  # noqa: F401
 
@@ -236,6 +245,160 @@ class TestSentienceNodeProtocol(unittest.TestCase):
         s = self.sn.state()
         self.assertEqual(s["narrative_count"], 0)
         self.assertIsNone(s["last_write_ts"])
+
+
+# ── Trigger 1: Gate ACCEPT on problem-relevant topic ─────────────────────────
+
+class TestGateAcceptProblemTrigger(unittest.TestCase):
+    """Gate ACCEPT on a problem-relevant thought fires a narrative write."""
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+        self.sn = _make_sn(self.writers, self.readers)
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_accept_above_confidence_writes_gate_accept_problem(self):
+        from theory_x.stage7_sustained.problem_memory import ProblemMemory
+        from theory_x.stage_gate.coherence_gate import CoherenceGate, ThoughtPacket
+        ProblemMemory(self.writers["conversations"], self.readers["conversations"]).open(
+            "recursive learning patterns", "How learning compounds over time"
+        )
+        gate = CoherenceGate(
+            beliefs_reader=self.readers["beliefs"],
+            beliefs_writer=self.writers["beliefs"],
+            conversations_reader=self.readers["conversations"],
+            self_narrative=self.sn,
+        )
+        packet = ThoughtPacket(
+            content="New observation about recursive learning patterns",
+            source_node="test",
+            confidence=0.75,
+        )
+        gate.check(packet)
+        time.sleep(0.05)
+
+        rows = self.readers["conversations"].read(
+            "SELECT trigger, source_id FROM narrative_log "
+            "WHERE trigger='gate_accept_problem'"
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertIsNotNone(rows[0]["source_id"])
+
+    def test_accept_below_confidence_threshold_does_not_write(self):
+        from theory_x.stage7_sustained.problem_memory import ProblemMemory
+        from theory_x.stage_gate.coherence_gate import CoherenceGate, ThoughtPacket
+        ProblemMemory(self.writers["conversations"], self.readers["conversations"]).open(
+            "recursive learning patterns", "How learning compounds over time"
+        )
+        gate = CoherenceGate(
+            beliefs_reader=self.readers["beliefs"],
+            beliefs_writer=self.writers["beliefs"],
+            conversations_reader=self.readers["conversations"],
+            self_narrative=self.sn,
+        )
+        packet = ThoughtPacket(
+            content="New observation about recursive learning patterns",
+            source_node="test",
+            confidence=0.50,  # below _NARRATIVE_CONFIDENCE_THRESHOLD = 0.60
+        )
+        gate.check(packet)
+        time.sleep(0.05)
+
+        rows = self.readers["conversations"].read(
+            "SELECT trigger FROM narrative_log WHERE trigger='gate_accept_problem'"
+        )
+        self.assertEqual(len(rows), 0)
+
+
+# ── Trigger 2: Problem state transitions ─────────────────────────────────────
+
+class TestProblemTransitionTrigger(unittest.TestCase):
+    """ProblemMemory.open() and .close() fire SelfNarrative writes."""
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+        self.sn = _make_sn(self.writers, self.readers)
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_problem_open_writes_problem_opened_narrative(self):
+        from theory_x.stage7_sustained.problem_memory import ProblemMemory
+        pm = ProblemMemory(
+            self.writers["conversations"],
+            self.readers["conversations"],
+            self_narrative=self.sn,
+        )
+        pm.open("understanding emergence", "How complexity arises from simplicity")
+        time.sleep(0.05)
+
+        rows = self.readers["conversations"].read(
+            "SELECT content, trigger FROM narrative_log WHERE trigger='problem_opened'"
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertIn("understanding emergence", rows[0]["content"])
+
+    def test_problem_close_writes_problem_closed_narrative_with_title(self):
+        from theory_x.stage7_sustained.problem_memory import ProblemMemory
+        pm = ProblemMemory(
+            self.writers["conversations"],
+            self.readers["conversations"],
+            self_narrative=self.sn,
+        )
+        pid = pm.open("understanding emergence", "How complexity arises from simplicity")
+        pm.close(pid)
+        time.sleep(0.05)
+
+        rows = self.readers["conversations"].read(
+            "SELECT content, trigger FROM narrative_log WHERE trigger='problem_closed'"
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertIn("understanding emergence", rows[0]["content"])
+
+
+# ── Trigger 3: Novel association threshold crossing ───────────────────────────
+
+class TestNovelAssociationCrossingTrigger(unittest.TestCase):
+    """NovelAssociation._scan() fires SelfNarrative only at _NARRATIVE_THRESHOLD."""
+
+    def _make_na_with_mock_sn(self):
+        sn = MagicMock()
+        writer = MagicMock()
+        writer.write.return_value = 1
+        reader = MagicMock()
+        from theory_x.stage10_imagination.novel_association import NovelAssociation
+        na = NovelAssociation(writer, reader, self_narrative=sn)
+        return na, sn
+
+    def _run_scan_with_sim(self, sim):
+        from theory_x.stage10_imagination.novel_association import _SIMILARITY_THRESHOLD
+        na, sn = self._make_na_with_mock_sn()
+        a = {"id": 1, "content": "concept alpha", "branch_id": "systems"}
+        b = {"id": 2, "content": "concept beta",  "branch_id": "cognition"}
+        mock_embeddings = MagicMock()
+        mock_embeddings.embed_belief = MagicMock(return_value=[0.1] * 10)
+        mock_embeddings.cosine = MagicMock(return_value=sim)
+        with patch.object(na, "_pull_candidates", return_value=[a, b]):
+            with patch.dict(sys.modules, {"theory_x.diversity.embeddings": mock_embeddings}):
+                # Force re-import inside _scan by clearing cached module if present
+                sys.modules.pop("theory_x.diversity.embeddings", None)
+                sys.modules["theory_x.diversity.embeddings"] = mock_embeddings
+                na._scan(time.time())
+        return sn
+
+    def test_at_narrative_threshold_fires_write(self):
+        from theory_x.stage10_imagination.novel_association import _NARRATIVE_THRESHOLD
+        sn = self._run_scan_with_sim(_NARRATIVE_THRESHOLD)
+        sn.write_narrative.assert_called_once()
+        trigger = sn.write_narrative.call_args[0][1]
+        self.assertEqual(trigger, "novel_association_crossing")
+
+    def test_below_narrative_threshold_does_not_fire(self):
+        from theory_x.stage10_imagination.novel_association import _NARRATIVE_THRESHOLD
+        sn = self._run_scan_with_sim(_NARRATIVE_THRESHOLD - 0.05)
+        sn.write_narrative.assert_not_called()
 
 
 if __name__ == "__main__":

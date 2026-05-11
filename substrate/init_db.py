@@ -303,6 +303,14 @@ _MIGRATIONS: dict[str, list[str]] = {
         "source_id INTEGER, "
         "created_at REAL NOT NULL)",
         "CREATE INDEX IF NOT EXISTS idx_narrative_ts ON narrative_log(created_at DESC)",
+        # Phase 27 — AffectState (single-row table; id=1 always)
+        "CREATE TABLE IF NOT EXISTS affect_state ("
+        "id         INTEGER PRIMARY KEY, "
+        "valence    REAL    NOT NULL DEFAULT 0.0, "
+        "arousal    REAL    NOT NULL DEFAULT 0.1, "
+        "stability  REAL    NOT NULL DEFAULT 0.9, "
+        "mood_label TEXT    NOT NULL DEFAULT 'neutral', "
+        "updated_at REAL    NOT NULL)",
     ],
 }
 

@@ -59,6 +59,8 @@ _STOPWORDS = frozenset({
 
 # Jaccard ≥ this → REJECT (redundant)
 _REDUNDANCY_THRESHOLD = 0.70
+# Minimum packet confidence to fire a SelfNarrative write on problem-relevant ACCEPT
+_NARRATIVE_CONFIDENCE_THRESHOLD = 0.60
 # Jaccard in [this, _REDUNDANCY_THRESHOLD) → HOLD (similar but not duplicate)
 _HOLD_JACCARD_LOW = 0.40
 # Minimum content-word overlap to count as "connecting to goal/problem"
@@ -143,6 +145,7 @@ class CoherenceGate:
         holding_zone=None,       # Phase 23: HoldingZone instance
         resolver=None,            # Phase 23: HoldingZoneResolver instance
         trigger_detector=None,   # Phase 25a TN-1: TriggerDetector instance
+        self_narrative=None,     # Phase 26: SelfNarrative instance
     ) -> None:
         self._beliefs_reader = beliefs_reader
         self._beliefs_writer = beliefs_writer
@@ -150,6 +153,7 @@ class CoherenceGate:
         self._holding_zone = holding_zone
         self._resolver = resolver
         self._trigger_detector = trigger_detector
+        self._self_narrative = self_narrative
         self._decision_count: int = 0
 
     # ── Public API ────────────────────────────────────────────────────────────
@@ -291,6 +295,22 @@ class CoherenceGate:
         for p in problems:
             p_tok = _tokens(p["title"] or "")
             if len(tok & p_tok) >= _GOAL_CONNECT_OVERLAP:
+                if (
+                    self._self_narrative is not None
+                    and packet.confidence >= _NARRATIVE_CONFIDENCE_THRESHOLD
+                ):
+                    try:
+                        self._self_narrative.write_narrative(
+                            f"New insight connects to open problem '{p['title']}': "
+                            f"{packet.content[:120]}",
+                            "gate_accept_problem",
+                            int(p["id"]),
+                        )
+                    except Exception as exc:
+                        errors.record(
+                            f"self_narrative gate trigger: {exc}",
+                            source=_LOG_SOURCE, exc=exc,
+                        )
                 return GateDecision(
                     outcome=GateOutcome.ACCEPT,
                     reason=f"accept:novel_connects_problem_{p['id']}",
