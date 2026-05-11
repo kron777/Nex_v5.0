@@ -332,6 +332,18 @@ _MIGRATIONS: dict[str, list[str]] = {
         "groove_count INTEGER NOT NULL)",
         "CREATE INDEX IF NOT EXISTS idx_stillness_log_expires "
         "ON stillness_log(expires_at DESC)",
+        # Phase 29b — DriveEmergence observability log (append-only, no behavior change)
+        "CREATE TABLE IF NOT EXISTS drive_emergence_log ("
+        "id                  INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "tick_at             REAL    NOT NULL, "
+        "candidates_examined INTEGER NOT NULL, "
+        "top_candidates      TEXT    NOT NULL, "
+        "rejection_reasons   TEXT    NOT NULL, "
+        "thresholds_snapshot TEXT    NOT NULL, "
+        "drive_formed_id     TEXT, "
+        "tick_duration_ms    REAL    NOT NULL)",
+        "CREATE INDEX IF NOT EXISTS idx_drive_emergence_log_tick_at "
+        "ON drive_emergence_log(tick_at)",
     ],
 }
 

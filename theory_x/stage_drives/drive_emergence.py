@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 import threading
 import time
 from collections import Counter
@@ -273,15 +274,33 @@ class DriveEmergence:
 
         # 5. Score each cluster; keep strongest qualifier
         best: Optional[dict] = None
+        _obs_all_scored: list = []
+        _obs_rejections: dict = {
+            "below_repetition": 0, "below_convergence": 0,
+            "no_cluster_match": 0, "time_window_miss": 0, "other": 0,
+        }
         for cluster in clusters:
             if len(cluster) < _MIN_CLUSTER_SIZE:
+                _obs_rejections["no_cluster_match"] += 1
                 continue
             rep_score  = _repetition_score(cluster, now)
             conv_score = _convergence_score(cluster)
+            _obs_all_scored.append({
+                "theme_label":       _synthesize_topic(cluster)[:40],
+                "member_count":      len(cluster),
+                "repetition_score":  round(rep_score, 4),
+                "convergence_score": round(conv_score, 4),
+                "combined_strength": round(_W_REP * rep_score + _W_CONV * conv_score, 4),
+            })
             if rep_score < _MIN_REPETITION or conv_score < _MIN_CONVERGENCE:
+                if rep_score < _MIN_REPETITION:
+                    _obs_rejections["below_repetition"] += 1
+                else:
+                    _obs_rejections["below_convergence"] += 1
                 continue
             n_branches = len({b["branch_id"] for b in cluster if b.get("branch_id")})
             if n_branches < _MIN_BRANCH_COUNT:
+                _obs_rejections["time_window_miss"] += 1
                 continue
             strength = _W_REP * rep_score + _W_CONV * conv_score
             if best is None or strength > best["drive_strength"]:
@@ -291,6 +310,42 @@ class DriveEmergence:
                     "repetition_score": rep_score,
                     "convergence_score": conv_score,
                 }
+
+        # Observability log — post-scoring, pre-emergence (Phase 29b)
+        try:
+            _tick_duration_ms = round((time.time() - now) * 1000, 1)
+            _top5 = sorted(
+                _obs_all_scored,
+                key=lambda x: x["combined_strength"],
+                reverse=True,
+            )[:5]
+            _thresholds_snap = {
+                "min_cluster_size":    _MIN_CLUSTER_SIZE,
+                "min_repetition":      _MIN_REPETITION,
+                "min_convergence":     _MIN_CONVERGENCE,
+                "min_branch_count":    _MIN_BRANCH_COUNT,
+                "min_drive_strength":  _MIN_DRIVE_STRENGTH,
+                "cluster_similarity":  _CLUSTER_SIMILARITY,
+                "window_days":         _WINDOW_DAYS,
+                "recency_window_days": _RECENCY_WINDOW_DAYS,
+            }
+            self._cw.write(
+                "INSERT INTO drive_emergence_log "
+                "(tick_at, candidates_examined, top_candidates, rejection_reasons, "
+                "thresholds_snapshot, drive_formed_id, tick_duration_ms) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    now,
+                    len(clusters),
+                    json.dumps(_top5),
+                    json.dumps(_obs_rejections),
+                    json.dumps(_thresholds_snap),
+                    None,
+                    _tick_duration_ms,
+                ),
+            )
+        except Exception as _obs_exc:
+            print(f"drive_emergence_log write failed: {_obs_exc}", file=sys.stderr)
 
         # 6. Replace, reinforce, or persist decayed state
         if best is not None and best["drive_strength"] >= _MIN_DRIVE_STRENGTH:
