@@ -235,6 +235,7 @@ class AppState:
     voice_engine: Optional[object] = None          # Phase 30 VoiceEngine
     voice_mode: str = "use_llm"                    # "use_llm" | "use_substrate"
     affect_state: Optional[object] = None          # Phase 27 AffectState
+    drive_emergence: Optional[object] = None       # Phase 29 DriveEmergence
     # Optional hook a test can inject to short-circuit chat persistence.
     now_fn: Callable[[], int] = field(default_factory=lambda: (lambda: int(time.time())))
 
@@ -883,6 +884,19 @@ def create_app(state: AppState) -> Flask:
                     source="gui.server", exc=_affect_exc,
                 )
 
+        # DriveEmergence: inject current drive topic into belief_text (Phase 29).
+        # format_for_prompt() reads the DB row — zero output-time computation.
+        if state.drive_emergence is not None:
+            try:
+                _drive_text = state.drive_emergence.format_for_prompt()
+                if _drive_text:
+                    belief_text = (belief_text or "") + "\n\n" + _drive_text
+            except Exception as _drive_exc:
+                error_channel.record(
+                    f"drive_emergence injection failed: {_drive_exc}",
+                    source="gui.server", exc=_drive_exc,
+                )
+
         # Tool use: heuristic tool selection and execution
         tool_result = None
         if state.tool_caller is not None and state.tool_registry is not None:
@@ -1428,6 +1442,22 @@ def create_app(state: AppState) -> Flask:
                 }
             except Exception:
                 affect_info = {"mood_label": "unknown"}
+        drives_info = None
+        if state.drive_emergence is not None:
+            try:
+                _ds = state.drive_emergence.state()
+                if _ds.get("topic") is not None:
+                    drives_info = {
+                        "topic":             _ds["topic"],
+                        "drive_strength":    round(float(_ds["drive_strength"]), 3),
+                        "repetition_score":  round(float(_ds["repetition_score"]), 3),
+                        "convergence_score": round(float(_ds["convergence_score"]), 3),
+                        "reinforce_count":   _ds["reinforce_count"],
+                        "formed_at":         _ds["formed_at"],
+                        "last_reinforced_at": _ds["last_reinforced_at"],
+                    }
+            except Exception:
+                pass
         return jsonify({
             "scheduler": state.scheduler is not None,
             "dynamic": state.dynamic is not None,
@@ -1438,6 +1468,7 @@ def create_app(state: AppState) -> Flask:
             "alpha": ALPHA.lines[0],
             "voice_engine": ve_info,
             "affect_state": affect_info,
+            "drives_info": drives_info,
         })
 
     # -- speech (Phase 7b) ---------------------------------------------------

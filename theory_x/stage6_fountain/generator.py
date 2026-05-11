@@ -117,6 +117,10 @@ _STILLNESS_READINESS_CAP = 0.85
 _STILLNESS_JACCARD_THRESHOLD = 0.7
 
 
+_DRIVE_PROBE_COOLDOWN_TICKS = 10   # minimum fountain ticks between drive probes
+_OPEN_PROBLEM_RECENT_SECS  = 86400  # 24h: if a problem was touched recently, skip probe
+
+
 class FountainGenerator:
     def __init__(
         self,
@@ -133,6 +137,9 @@ class FountainGenerator:
         mode_state=None,
         world_bridge_selector=None,
         groove_breaker=None,
+        drive_emergence=None,
+        conversations_reader: Optional[Reader] = None,
+        coherence_gate=None,
     ) -> None:
         self._sense_writer = sense_writer
         self._dynamic_writer = dynamic_writer
@@ -147,11 +154,17 @@ class FountainGenerator:
         self._mode_state = mode_state
         self._world_bridge_selector = world_bridge_selector
         self._groove_breaker = groove_breaker
+        self._drive_emergence = drive_emergence
+        self._conversations_reader = conversations_reader
+        self._coherence_gate = coherence_gate
         self._evaluator = ReadinessEvaluator()
         self._last_fountain_output: Optional[str] = None
         self._last_fire_ts: float = 0.0
         self._total_fires: int = 0
         self._consecutive_stillness: int = 0
+        self._last_drive_probe_tick: int = -(
+            _DRIVE_PROBE_COOLDOWN_TICKS + 1
+        )  # allow first probe immediately
         from speech.governor import SpeechGovernor
         _gov_initial_ts = 0.0
         try:
@@ -1037,3 +1050,60 @@ class FountainGenerator:
 
     def total_fires(self) -> int:
         return self._total_fires
+
+    def _maybe_spawn_drive_probe(self) -> None:
+        """Spawn a drive-probe ThoughtPacket through CoherenceGate when conditions met.
+
+        Conditions (all must hold):
+          1. drive_emergence is set and has an active drive topic
+          2. no open problem touched within the last 24h (problem takes priority)
+          3. cooldown: at least _DRIVE_PROBE_COOLDOWN_TICKS fountain ticks since last probe
+        Probe content is deterministic — no LLM call. Delivered through CoherenceGate
+        (standard path; gate decides acceptance).
+        """
+        if self._drive_emergence is None:
+            return
+        drive_topic = getattr(self._drive_emergence, "_topic", None)
+        if not drive_topic:
+            return
+
+        # Cooldown check
+        ticks_since = self._total_fires - self._last_drive_probe_tick
+        if ticks_since < _DRIVE_PROBE_COOLDOWN_TICKS:
+            return
+
+        # Skip if there is a recently-touched open problem
+        if self._conversations_reader is not None:
+            try:
+                cutoff = time.time() - _OPEN_PROBLEM_RECENT_SECS
+                row = self._conversations_reader.read_one(
+                    "SELECT id FROM open_problems "
+                    "WHERE state = 'open' AND last_touched_at >= ? LIMIT 1",
+                    (cutoff,),
+                )
+                if row:
+                    return  # active problem takes priority
+            except Exception:
+                pass
+
+        # Build and deliver probe
+        content = (
+            f"I keep returning to {drive_topic}. "
+            f"What do I actually know about it?"
+        )
+        if self._coherence_gate is not None:
+            try:
+                from theory_x.stage_gate.coherence_gate import ThoughtPacket
+                packet = ThoughtPacket(
+                    content=content,
+                    source_node="drive_probe",
+                    confidence=0.55,
+                    branch_id="drive",
+                )
+                self._coherence_gate.check(packet)
+                self._last_drive_probe_tick = self._total_fires
+            except Exception as exc:
+                error_channel.record(
+                    f"drive probe delivery error: {exc}",
+                    source="stage6_fountain", exc=exc,
+                )

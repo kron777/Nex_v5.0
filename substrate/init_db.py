@@ -311,6 +311,17 @@ _MIGRATIONS: dict[str, list[str]] = {
         "stability  REAL    NOT NULL DEFAULT 0.9, "
         "mood_label TEXT    NOT NULL DEFAULT 'neutral', "
         "updated_at REAL    NOT NULL)",
+        # Phase 29 — DriveEmergence (single-row table; id=1 always; INSERT OR REPLACE)
+        "CREATE TABLE IF NOT EXISTS drives ("
+        "id                 INTEGER PRIMARY KEY, "
+        "topic              TEXT    NOT NULL, "
+        "source_beliefs     TEXT    NOT NULL, "
+        "drive_strength     REAL    NOT NULL, "
+        "repetition_score   REAL    NOT NULL, "
+        "convergence_score  REAL    NOT NULL, "
+        "formed_at          REAL    NOT NULL, "
+        "last_reinforced_at REAL    NOT NULL, "
+        "reinforce_count    INTEGER NOT NULL DEFAULT 1)",
     ],
 }
 

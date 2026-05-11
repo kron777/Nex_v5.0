@@ -255,6 +255,25 @@ def main() -> None:
     except Exception as _tn_err:
         log.warning("Throw-net monitor failed to start (non-fatal): %s", _tn_err)
 
+    # Phase 29 — DriveEmergence (constructed before VoiceEngine; passed to both)
+    _drive_emergence = None
+    try:
+        from theory_x.stage_drives.drive_emergence import DriveEmergence as _DriveEmergence
+        _drive_emergence = _DriveEmergence(
+            writers["conversations"],
+            readers["conversations"],
+            readers["beliefs"],
+        )
+        _drive_emergence.start_loop()
+        try:
+            from theory_x import register as _tx_register_de
+            _tx_register_de(_drive_emergence)
+        except Exception:
+            pass
+        log.info("DriveEmergence ready — background tick every 600s")
+    except Exception as _de_err:
+        log.warning("DriveEmergence failed to start (non-fatal): %s", _de_err)
+
     # Phase 30 — VoiceEngine (substrate-as-voice)
     _voice_engine = None
     try:
@@ -263,6 +282,7 @@ def main() -> None:
             beliefs_reader=readers["beliefs"],
             problem_memory=problem_memory,
             beliefs_writer=writers["beliefs"],
+            drive_emergence=_drive_emergence,
         )
         log.info("VoiceEngine ready — min_score=%.2f", _voice_engine.min_score)
     except Exception as _ve_err:
@@ -330,7 +350,8 @@ def main() -> None:
                               groove_breaker=groove_breaker,
                               snapshot_writer=snapshot_writer,
                               world_bridge_selector=world_bridge_selector,
-                              coherence_gate=coherence_gate)
+                              coherence_gate=coherence_gate,
+                              drive_emergence=_drive_emergence)
     log.info("Fountain lit — loop running at %ds interval", FOUNTAIN_CHECK_INTERVAL_SECONDS)
 
     # 11. Strike protocols
@@ -455,6 +476,7 @@ def main() -> None:
         throw_net_monitor=_throw_net_monitor,
         voice_engine=_voice_engine,
         affect_state=_affect_state,
+        drive_emergence=_drive_emergence,
     )
     atexit.register(state.close)
 

@@ -2,14 +2,15 @@
 
 Replaces the LLM in the chat reply path when in use_substrate mode.
 Retrieves the highest-relevance candidate from NEX's belief substrate,
-scores it against the user query using a four-axis grader, and returns
+scores it against the user query using a five-axis grader, and returns
 it as NEX's reply. The LLM is not called for that turn.
 
-Four-axis grader (§4):
-  semantic  0.50 — cosine similarity between query and candidate
-  confidence 0.25 — beliefs.confidence; non-belief sources default 0.5
-  tier       0.15 — T3-T6 score 1.0; non-belief sources default 0.7
-  recency    0.10 — min(1.0, reinforce_count / 10); non-belief default 0.3
+Five-axis grader (Phase 29 §4):
+  semantic       0.45 — cosine similarity between query and candidate
+  confidence     0.23 — beliefs.confidence; non-belief sources default 0.5
+  tier           0.14 — T3-T6 score 1.0; non-belief sources default 0.7
+  recency        0.08 — min(1.0, reinforce_count / 10); non-belief default 0.3
+  drive_alignment 0.10 — cosine(candidate_emb, drive_topic_emb); 0.0 if no drive
 
 min_score = 0.6 (conservative v1). Returns None when no candidate
 clears the threshold — chat handler falls through to LLM unchanged.
@@ -32,10 +33,11 @@ THEORY_X_STAGE = "voice_engine"
 
 _LOG_SOURCE = "voice_engine"
 
-_SEMANTIC_W  = 0.50
-_CONFIDENCE_W = 0.25
-_TIER_W      = 0.15
-_RECENCY_W   = 0.10
+_SEMANTIC_W       = 0.45
+_CONFIDENCE_W     = 0.23
+_TIER_W           = 0.14
+_RECENCY_W        = 0.08
+_DRIVE_ALIGN_W    = 0.10
 
 # T3-T6 are the productive insight tiers.
 _GOOD_TIERS = frozenset({3, 4, 5, 6})
@@ -56,11 +58,13 @@ class VoiceEngine:
         problem_memory,
         beliefs_writer: Writer,
         min_score: float = 0.6,
+        drive_emergence=None,
     ) -> None:
         self._reader = beliefs_reader
         self._writer = beliefs_writer
         self._time_fetch = TimeFetch(beliefs_reader, problem_memory)
         self.min_score = min_score
+        self._drive_emergence = drive_emergence
         self._reply_count: int = 0
         self._miss_count: int = 0
         self._last_score: Optional[float] = None
@@ -204,14 +208,16 @@ class VoiceEngine:
         self,
         candidate: dict[str, Any],
         query_emb: np.ndarray,
+        candidate_emb: Optional[np.ndarray] = None,
     ) -> float:
-        """Four-axis weighted score. Returns 0.0 on any error."""
+        """Five-axis weighted score. Returns 0.0 on any error."""
         try:
             # Semantic axis
             try:
                 from theory_x.diversity.embeddings import embed, cosine
-                cand_emb = embed(candidate["content"])
-                semantic = cosine(query_emb, cand_emb)
+                if candidate_emb is None:
+                    candidate_emb = embed(candidate["content"])
+                semantic = cosine(query_emb, candidate_emb)
             except Exception:
                 semantic = 0.0
 
@@ -224,7 +230,6 @@ class VoiceEngine:
             # Tier axis
             tier = candidate.get("tier")
             if tier is None:
-                # Non-belief sources: arc, novel_association, gap treated as mid-tier
                 tier_score = 0.7
             else:
                 tier_score = 1.0 if int(tier) in _GOOD_TIERS else 0.5
@@ -236,11 +241,23 @@ class VoiceEngine:
             else:
                 recency = min(1.0, int(rc) / 10.0)
 
+            # Drive alignment axis (Phase 29)
+            drive_alignment = 0.0
+            if self._drive_emergence is not None:
+                try:
+                    drive_emb = self._drive_emergence.drive_topic_embedding()
+                    if drive_emb is not None and candidate_emb is not None:
+                        from theory_x.diversity.embeddings import cosine
+                        drive_alignment = cosine(candidate_emb, drive_emb)
+                except Exception:
+                    pass
+
             return (
-                _SEMANTIC_W * semantic
-                + _CONFIDENCE_W * confidence
-                + _TIER_W * tier_score
-                + _RECENCY_W * recency
+                _SEMANTIC_W    * semantic
+                + _CONFIDENCE_W  * confidence
+                + _TIER_W        * tier_score
+                + _RECENCY_W     * recency
+                + _DRIVE_ALIGN_W * drive_alignment
             )
         except Exception as exc:
             errors.record(

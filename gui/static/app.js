@@ -297,6 +297,26 @@ async function refreshSystemStatus() {
   dots.innerHTML = subsystems.map(k =>
     `<span class="dot ${data[k] ? "dot-on" : "dot-off"}" title="${k}"></span>`
   ).join("");
+
+  // Drive pill (admin-only row, shown when a drive is active)
+  const dRow = document.getElementById("drive-pill-row");
+  if (dRow) {
+    const di = data.drives_info;
+    if (di && di.topic) {
+      const topic = di.topic.length > 40 ? di.topic.slice(0, 38) + "…" : di.topic;
+      document.getElementById("drive-pill-topic").textContent = topic;
+      document.getElementById("drive-pill-strength").textContent =
+        "str:" + (di.drive_strength != null ? di.drive_strength.toFixed(2) : "—");
+      document.getElementById("drive-pill-count").textContent =
+        "×" + (di.reinforce_count ?? 0);
+      dRow.style.display = "";
+    } else {
+      document.getElementById("drive-pill-topic").textContent = "—";
+      document.getElementById("drive-pill-strength").textContent = "";
+      document.getElementById("drive-pill-count").textContent = "";
+      dRow.style.display = "none";
+    }
+  }
 }
 
 // ── Membrane snapshot (CPU, mem, time) ────────────────────────────────────────

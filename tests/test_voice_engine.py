@@ -107,8 +107,8 @@ class TestQueryReplyBasic(unittest.TestCase):
             result = self.engine.query_reply(
                 "consciousness emerges from neural complexity",
             )
-        # With zeroed embeddings semantic=0, confidence=0.1, tier=1.0, recency=0.3
-        # Score ≈ 0*0.5 + 0.1*0.25 + 1.0*0.15 + 0.3*0.1 = 0+0.025+0.15+0.03 = 0.205 → below 0.6
+        # With zeroed embeddings semantic=0, confidence=0.1, tier=1.0, recency=0.3, drive=0
+        # Score ≈ 0*0.45 + 0.1*0.23 + 1.0*0.14 + 0.3*0.08 + 0*0.10 = 0+0.023+0.14+0.024 = 0.187 → below 0.6
         self.assertIsNone(result)
 
     def test_returns_candidate_above_threshold(self):
@@ -199,9 +199,9 @@ class TestScoringAxes(unittest.TestCase):
         }
         zero = _zero_emb()
         score = self.engine._score_candidate(arc_cand, zero)
-        # semantic=0, confidence=0.5, tier=0.7, recency=0.3
-        # = 0 + 0.5*0.25 + 0.7*0.15 + 0.3*0.10 = 0.125+0.105+0.030 = 0.260
-        self.assertAlmostEqual(score, 0.260, places=3)
+        # semantic=0, confidence=0.5, tier=0.7, recency=0.3, drive=0
+        # = 0 + 0.5*0.23 + 0.7*0.14 + 0.3*0.08 + 0*0.10 = 0.115+0.098+0.024 = 0.237
+        self.assertAlmostEqual(score, 0.237, places=3)
 
 
 class TestTriggerRecord(unittest.TestCase):

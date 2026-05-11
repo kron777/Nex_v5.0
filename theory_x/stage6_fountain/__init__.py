@@ -66,6 +66,7 @@ def build_fountain(
     snapshot_writer: "StateSnapshotWriter | None" = None,
     world_bridge_selector: "WorldBridgeSelector | None" = None,
     coherence_gate=None,
+    drive_emergence=None,
 ) -> FountainState:
     crystallizer = None
     if writers.get("beliefs") and readers.get("beliefs"):
@@ -95,6 +96,9 @@ def build_fountain(
         mode_state=mode_state,
         world_bridge_selector=world_bridge_selector,
         groove_breaker=groove_breaker,
+        drive_emergence=drive_emergence,
+        conversations_reader=readers.get("conversations"),
+        coherence_gate=coherence_gate,
     )
 
     state = FountainState(
@@ -144,6 +148,11 @@ def build_fountain(
                 thought = generator.generate(dynamic_state, readers["beliefs"])
                 if thought:
                     logger.info("Fountain fired: %s", thought[:100])
+                # Phase 29: drive probe opportunity each fountain tick
+                try:
+                    generator._maybe_spawn_drive_probe()
+                except Exception as _dpe:
+                    logger.debug("Drive probe error (non-fatal): %s", _dpe)
                 # Phase A: passive groove observation
                 if groove_breaker is not None:
                     try:
