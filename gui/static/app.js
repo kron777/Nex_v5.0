@@ -363,7 +363,50 @@ async function checkAdminState() {
   if (!s.configured)       line.textContent = "admin: not configured";
   else if (s.authenticated) line.textContent = "admin: authenticated ✓";
   else                      line.textContent = "admin: locked";
+  const vmRow = document.getElementById("voice-mode-row");
+  if (vmRow) vmRow.style.display = s.authenticated ? "block" : "none";
 }
+
+// ── Voice mode toggle ──────────────────────────────────────────────────────────
+
+let _voiceMode = "use_llm";
+
+async function refreshVoiceMode() {
+  try {
+    const d = await apiFetch("/api/system/status");
+    if (d && d.voice_engine) {
+      _voiceMode = d.voice_engine.mode || "use_llm";
+      const pill = document.getElementById("voice-mode-pill");
+      const stats = document.getElementById("voice-mode-stats");
+      if (pill) {
+        pill.textContent = _voiceMode === "use_substrate" ? "Substrate mode" : "LLM mode";
+        pill.style.background = _voiceMode === "use_substrate" ? "var(--accent)" : "var(--fg3)";
+      }
+      if (stats && d.voice_engine) {
+        const ve = d.voice_engine;
+        stats.textContent = `replies:${ve.reply_count ?? 0} miss:${ve.miss_count ?? 0}${ve.last_score != null ? " last:" + ve.last_score.toFixed(2) : ""}`;
+      }
+    }
+  } catch (_) {}
+}
+
+document.getElementById("voice-mode-toggle-btn").addEventListener("click", async () => {
+  const newMode = _voiceMode === "use_substrate" ? "use_llm" : "use_substrate";
+  try {
+    const r = await fetch("/api/voice_mode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: newMode }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      _voiceMode = d.mode;
+      await refreshVoiceMode();
+    }
+  } catch (e) {
+    document.getElementById("admin-feedback").textContent = String(e);
+  }
+});
 
 document.getElementById("admin-login-btn").addEventListener("click", async () => {
   const pw = document.getElementById("admin-pw").value;
@@ -836,7 +879,7 @@ async function pollMedium() {
 
 async function pollSlow() {
   try {
-    await Promise.all([refreshSystemStatus(), checkAdminState()]);
+    await Promise.all([refreshSystemStatus(), checkAdminState(), refreshVoiceMode()]);
   } catch (_) {}
 }
 

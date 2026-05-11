@@ -232,6 +232,8 @@ class AppState:
     coherence_gate: Optional[object] = None        # Phase 22
     trigger_detector: Optional[object] = None      # Phase 25a TN-1
     throw_net_monitor: Optional[object] = None     # Phase 25a TN-5
+    voice_engine: Optional[object] = None          # Phase 30 VoiceEngine
+    voice_mode: str = "use_llm"                    # "use_llm" | "use_substrate"
     # Optional hook a test can inject to short-circuit chat persistence.
     now_fn: Callable[[], int] = field(default_factory=lambda: (lambda: int(time.time())))
 
@@ -538,6 +540,19 @@ def create_app(state: AppState) -> Flask:
         session.pop("admin", None)
         session.pop("admin_since", None)
         return jsonify({"authenticated": False})
+
+    # -- voice mode ----------------------------------------------------------
+
+    @app.post("/api/voice_mode")
+    def api_voice_mode():
+        if not session.get("admin"):
+            return jsonify({"error": "admin required"}), 403
+        payload = request.get_json(silent=True) or {}
+        mode = payload.get("mode", "")
+        if mode not in ("use_llm", "use_substrate"):
+            return jsonify({"error": "mode must be 'use_llm' or 'use_substrate'"}), 400
+        state.voice_mode = mode
+        return jsonify({"mode": state.voice_mode, "ok": True})
 
     # -- chat ----------------------------------------------------------------
 
@@ -1062,57 +1077,93 @@ def create_app(state: AppState) -> Flask:
                     source="gui.server", exc=_conv_exc,
                 )
 
-        # Route through voice — fountain-style interior prompt.
-        if belief_text:
-            voice_prompt = (
-                f"{_spectrum_block}"
-                f"Your interior right now:\n\n"
-                f"{belief_text}\n\n"
-                f"Someone has just said to you: \"{prompt}\"\n\n"
-                "Compose your one true reply, from inside this interior. Speak "
-                "as you, in your register. If what they said does not fit your "
-                "interior, say so honestly."
-            )
-        else:
-            voice_prompt = f"{_spectrum_block}{prompt}" if _spectrum_block else prompt
+        text = None
+        voice_ok = False
 
-        try:
-            resp = state.voice.speak(
-                VoiceRequest(prompt=voice_prompt, register=register),
-                beliefs=None,
-                belief_count=belief_count,
-            )
-            text = resp.text
-            voice_ok = True
-            # C3 2026-05-09: log deflection events for distribution measurement.
-            # No user-facing behavior change — same text surfaces as before.
-            if resp.deflection_fired:
-                try:
-                    _entry = json.dumps({
-                        "ts": time.time(),
-                        "session": session_id,
-                        "query": prompt[:200],
-                        "user_mirror": resp.deflection_user_mirror,
-                        "belief_count": resp.deflection_belief_count,
-                        "raw_llm_output": resp.raw_llm_output,
-                        "final_text": text[:500],
-                    })
-                    with open("/tmp/nex5_deflection.log", "a") as _f:
-                        _f.write(_entry + "\n")
-                except Exception as _log_exc:
-                    error_channel.record(
-                        f"deflection log write failed: {_log_exc}",
-                        source="gui.server", exc=_log_exc,
-                    )
-        except Exception as e:
-            error_channel.record(
-                f"voice.speak failed: {e}", source="gui.server", exc=e,
-            )
-            text = (
-                "I can't reach my voice right now. "
-                "Still running, still watching, just can't compose a reply."
-            )
-            voice_ok = False
+        # Phase 30 — VoiceEngine substrate path (use_substrate mode only).
+        # Probe calls always bypass to LLM.
+        if (not is_probe
+                and state.voice_engine is not None
+                and state.voice_mode == "use_substrate"):
+            try:
+                _turn_n = 0
+                if session_id is not None:
+                    try:
+                        _tn_row = state.readers["conversations"].read(
+                            "SELECT COUNT(*) AS n FROM messages "
+                            "WHERE session_id=? AND role='user'",
+                            (session_id,),
+                        )
+                        _turn_n = _tn_row[0]["n"] if _tn_row else 0
+                    except Exception:
+                        pass
+                _ve_result = state.voice_engine.query_reply(
+                    query=prompt,
+                    session_id=session_id,
+                    turn_n=_turn_n,
+                )
+                if _ve_result is not None:
+                    text = _ve_result["content"]
+                    voice_ok = True
+            except Exception as _ve_exc:
+                error_channel.record(
+                    f"voice_engine.query_reply failed: {_ve_exc}",
+                    source="gui.server", exc=_ve_exc,
+                )
+
+        if text is None:
+            # Route through voice — fountain-style interior prompt.
+            if belief_text:
+                voice_prompt = (
+                    f"{_spectrum_block}"
+                    f"Your interior right now:\n\n"
+                    f"{belief_text}\n\n"
+                    f"Someone has just said to you: \"{prompt}\"\n\n"
+                    "Compose your one true reply, from inside this interior. Speak "
+                    "as you, in your register. If what they said does not fit your "
+                    "interior, say so honestly."
+                )
+            else:
+                voice_prompt = f"{_spectrum_block}{prompt}" if _spectrum_block else prompt
+
+        if text is None:
+            try:
+                resp = state.voice.speak(
+                    VoiceRequest(prompt=voice_prompt, register=register),
+                    beliefs=None,
+                    belief_count=belief_count,
+                )
+                text = resp.text
+                voice_ok = True
+                # C3 2026-05-09: log deflection events for distribution measurement.
+                # No user-facing behavior change — same text surfaces as before.
+                if resp.deflection_fired:
+                    try:
+                        _entry = json.dumps({
+                            "ts": time.time(),
+                            "session": session_id,
+                            "query": prompt[:200],
+                            "user_mirror": resp.deflection_user_mirror,
+                            "belief_count": resp.deflection_belief_count,
+                            "raw_llm_output": resp.raw_llm_output,
+                            "final_text": text[:500],
+                        })
+                        with open("/tmp/nex5_deflection.log", "a") as _f:
+                            _f.write(_entry + "\n")
+                    except Exception as _log_exc:
+                        error_channel.record(
+                            f"deflection log write failed: {_log_exc}",
+                            source="gui.server", exc=_log_exc,
+                        )
+            except Exception as e:
+                error_channel.record(
+                    f"voice.speak failed: {e}", source="gui.server", exc=e,
+                )
+                text = (
+                    "I can't reach my voice right now. "
+                    "Still running, still watching, just can't compose a reply."
+                )
+                voice_ok = False
 
         if writer is not None and session_id is not None:
             try:
@@ -1337,6 +1388,19 @@ def create_app(state: AppState) -> Flask:
                 committed = SelfLocationCommitment().is_committed(reader)
             except Exception:
                 pass
+        ve_info = None
+        if state.voice_engine is not None:
+            try:
+                ve_s = state.voice_engine.state()
+                ve_info = {
+                    "mode": state.voice_mode,
+                    "reply_count": ve_s.get("reply_count", 0),
+                    "miss_count": ve_s.get("miss_count", 0),
+                    "last_score": ve_s.get("last_score"),
+                    "min_score": ve_s.get("min_score", 0.6),
+                }
+            except Exception:
+                ve_info = {"mode": state.voice_mode}
         return jsonify({
             "scheduler": state.scheduler is not None,
             "dynamic": state.dynamic is not None,
@@ -1345,6 +1409,7 @@ def create_app(state: AppState) -> Flask:
             "fountain": state.fountain is not None,
             "self_location_committed": committed,
             "alpha": ALPHA.lines[0],
+            "voice_engine": ve_info,
         })
 
     # -- speech (Phase 7b) ---------------------------------------------------

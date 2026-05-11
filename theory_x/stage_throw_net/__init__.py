@@ -14,6 +14,7 @@ from theory_x.stage_throw_net.time_fetch import TimeFetch
 from theory_x.stage_throw_net.refinement_engine import RefinementEngine
 from theory_x.stage_throw_net.throw_net_engine import ThrowNetEngine
 from theory_x.stage_throw_net.monitor import ThrowNetMonitor
+from theory_x.stage_throw_net.voice_engine import VoiceEngine
 
 THEORY_X_STAGE = "throw_net"
 
@@ -23,4 +24,5 @@ __all__ = [
     "RefinementEngine",
     "ThrowNetEngine",
     "ThrowNetMonitor",
+    "VoiceEngine",
 ]

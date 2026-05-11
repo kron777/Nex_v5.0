@@ -244,6 +244,19 @@ def main() -> None:
     except Exception as _tn_err:
         log.warning("Throw-net monitor failed to start (non-fatal): %s", _tn_err)
 
+    # Phase 30 — VoiceEngine (substrate-as-voice)
+    _voice_engine = None
+    try:
+        from theory_x.stage_throw_net.voice_engine import VoiceEngine as _VoiceEngine
+        _voice_engine = _VoiceEngine(
+            beliefs_reader=readers["beliefs"],
+            problem_memory=problem_memory,
+            beliefs_writer=writers["beliefs"],
+        )
+        log.info("VoiceEngine ready — min_score=%.2f", _voice_engine.min_score)
+    except Exception as _ve_err:
+        log.warning("VoiceEngine failed to start (non-fatal): %s", _ve_err)
+
     # 10. Fountain ignition
     log.info("Igniting fountain...")
     log.info(
@@ -410,6 +423,7 @@ def main() -> None:
         coherence_gate=coherence_gate,
         trigger_detector=_trigger_detector,
         throw_net_monitor=_throw_net_monitor,
+        voice_engine=_voice_engine,
     )
     atexit.register(state.close)
 
