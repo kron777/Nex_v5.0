@@ -125,13 +125,13 @@ class TriggerDetector:
         """Return unfired trigger rows ordered by ts ASC.
 
         TN-4 ThrowNetEngine consumes these to decide whether to launch
-        a session. Capped at 50 to avoid large reads.
+        a session. Capped at 500 to avoid large reads.
         """
         try:
             return self._reader.read(
                 "SELECT id, trigger_type, topic, threshold_state, ts "
                 "FROM throw_net_triggers WHERE fired = 0 "
-                "ORDER BY ts ASC LIMIT 50"
+                "ORDER BY ts ASC LIMIT 500"
             )
         except Exception as exc:
             errors.record(

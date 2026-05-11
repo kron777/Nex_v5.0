@@ -259,6 +259,19 @@ class TestExtractTopic(unittest.TestCase):
         result = self.detector._extract_topic("the a is and or but")
         self.assertEqual(result, "unknown")
 
+    def test_pending_triggers_batch_cap_is_500(self):
+        """pending_triggers() returns at most 500 rows when 500+ exist."""
+        p = _make_packet("Emergence in complex adaptive systems is fascinating.")
+        d = _make_decision("redundant:0.80")
+        # Seed 510 triggers
+        for _ in range(510):
+            self.detector.record_gate_reject(p, d)
+        time.sleep(0.1)
+
+        pending = self.detector.pending_triggers()
+        self.assertLessEqual(len(pending), 500)
+        self.assertEqual(len(pending), 500)
+
     def test_extract_topic_strips_bracketed_markers(self):
         """[RETIRED] markers are stripped before topic extraction."""
         result = self.detector._extract_topic(
