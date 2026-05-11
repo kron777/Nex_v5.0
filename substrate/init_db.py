@@ -322,6 +322,16 @@ _MIGRATIONS: dict[str, list[str]] = {
         "formed_at          REAL    NOT NULL, "
         "last_reinforced_at REAL    NOT NULL, "
         "reinforce_count    INTEGER NOT NULL DEFAULT 1)",
+        # Row 9 Stillness — append-only log; Fountain reads most-recent active row
+        "CREATE TABLE IF NOT EXISTS stillness_log ("
+        "id          INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "started_at  REAL    NOT NULL, "
+        "duration_s  REAL    NOT NULL, "
+        "expires_at  REAL    NOT NULL, "
+        "trigger     TEXT    NOT NULL, "
+        "groove_count INTEGER NOT NULL)",
+        "CREATE INDEX IF NOT EXISTS idx_stillness_log_expires "
+        "ON stillness_log(expires_at DESC)",
     ],
 }
 

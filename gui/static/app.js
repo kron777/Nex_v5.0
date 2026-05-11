@@ -298,6 +298,19 @@ async function refreshSystemStatus() {
     `<span class="dot ${data[k] ? "dot-on" : "dot-off"}" title="${k}"></span>`
   ).join("");
 
+  // Stillness pill (admin-only row, shown when stillness is active)
+  const sRow = document.getElementById("stillness-pill-row");
+  if (sRow) {
+    const si = data.stillness_info;
+    if (si && si.active) {
+      document.getElementById("stillness-pill-left").textContent =
+        si.seconds_left > 0 ? si.seconds_left.toFixed(0) + "s left" : "expiring";
+      sRow.style.display = "";
+    } else {
+      sRow.style.display = "none";
+    }
+  }
+
   // Drive pill (admin-only row, shown when a drive is active)
   const dRow = document.getElementById("drive-pill-row");
   if (dRow) {

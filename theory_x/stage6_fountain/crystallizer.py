@@ -106,6 +106,26 @@ class FountainCrystallizer:
         droplet: Optional[str] = None,
         hot_branch: Optional[str] = None,
     ) -> Optional[int]:
+        # Stillness guard — Row 9 extension. Metacognition writes a stillness_log
+        # row when sustained groove exceeds threshold; we skip crystallization
+        # while any row has expires_at > now (pure substrate read, zero coupling).
+        if self._conversations_reader is not None:
+            try:
+                _now = time.time()
+                _still = self._conversations_reader.read_one(
+                    "SELECT id FROM stillness_log WHERE expires_at > ? LIMIT 1",
+                    (_now,),
+                )
+                if _still:
+                    errors.record(
+                        "Stillness active — skipping fountain crystallization",
+                        source=_LOG_SOURCE,
+                        level="INFO",
+                    )
+                    return None
+            except Exception:
+                pass  # table absent on fresh install; proceed normally
+
         thought = _METADATA_PATTERN.sub('', thought).strip()
         ok, reason = self._quality_check(thought, droplet=droplet)
         if not ok:

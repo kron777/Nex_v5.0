@@ -40,6 +40,11 @@ _GROOVE_LOOKBACK = 600       # seconds to look back for groove alerts
 _GOAL_DRIFT_LOOKBACK = 5     # last N nex responses to compare
 _DRIFT_COOLDOWN = 600        # seconds between goal-drift events
 
+# Stillness — Row 9 extension (SYNTHESIS_PLAN_V2 §3)
+_STILLNESS_THRESHOLD  = 3       # groove events in window before stillness fires
+_STILLNESS_WINDOW_S   = 1800    # 30-min sliding window for groove count
+_STILLNESS_DURATION_S = 60.0    # fixed suppression duration (build-tunable)
+
 
 class Metacognition:
     name: str = "metacognition"
@@ -83,6 +88,9 @@ class Metacognition:
                         f"metacognition narrative write failed: {exc}",
                         source=_LOG_SOURCE, exc=exc,
                     )
+
+        if groove_events:
+            self._maybe_engage_stillness(now)
 
         drift_event = self._detect_goal_drift(now)
         if drift_event:
@@ -263,3 +271,58 @@ class Metacognition:
                 self._cached_recent = None
         except Exception as exc:
             errors.record(f"event write failed: {exc}", source=_LOG_SOURCE, exc=exc)
+
+    def _maybe_engage_stillness(self, now: float) -> None:
+        """Write a stillness_log row when sustained groove exceeds threshold.
+
+        Non-reentrant: if a stillness row with expires_at > now exists, returns
+        immediately without writing another. Threshold: _STILLNESS_THRESHOLD
+        groove events in meta_cognition_events within _STILLNESS_WINDOW_S.
+        """
+        # Non-reentrant check
+        try:
+            active = self._reader.read_one(
+                "SELECT id FROM stillness_log WHERE expires_at > ? LIMIT 1",
+                (now,),
+            )
+            if active:
+                return
+        except Exception:
+            pass  # table may not exist on old installs; proceed to count
+
+        # Count groove events in rolling window
+        cutoff = now - _STILLNESS_WINDOW_S
+        try:
+            row = self._reader.read_one(
+                "SELECT COUNT(*) AS n FROM meta_cognition_events "
+                "WHERE event_type = 'groove' AND created_at >= ?",
+                (cutoff,),
+            )
+            count = int(row["n"]) if row else 0
+        except Exception as exc:
+            errors.record(
+                f"stillness count failed: {exc}", source=_LOG_SOURCE, exc=exc
+            )
+            return
+
+        if count < _STILLNESS_THRESHOLD:
+            return
+
+        expires_at = now + _STILLNESS_DURATION_S
+        try:
+            self._writer.write(
+                "INSERT INTO stillness_log "
+                "(started_at, duration_s, expires_at, trigger, groove_count) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (now, _STILLNESS_DURATION_S, expires_at, "sustained_groove", count),
+            )
+            errors.record(
+                f"Stillness engaged: {_STILLNESS_DURATION_S:.0f}s on sustained groove "
+                f"({count} groove events in {_STILLNESS_WINDOW_S}s window)",
+                source=_LOG_SOURCE,
+                level="INFO",
+            )
+        except Exception as exc:
+            errors.record(
+                f"stillness write failed: {exc}", source=_LOG_SOURCE, exc=exc
+            )

@@ -1458,6 +1458,26 @@ def create_app(state: AppState) -> Flask:
                     }
             except Exception:
                 pass
+        stillness_info = None
+        try:
+            _conv_reader = state.readers.get("conversations")
+            if _conv_reader is not None:
+                _srow = _conv_reader.read_one(
+                    "SELECT started_at, expires_at, duration_s, groove_count "
+                    "FROM stillness_log ORDER BY expires_at DESC LIMIT 1"
+                )
+                if _srow:
+                    _now_s = time.time()
+                    stillness_info = {
+                        "active":       _now_s < float(_srow["expires_at"]),
+                        "expires_at":   float(_srow["expires_at"]),
+                        "started_at":   float(_srow["started_at"]),
+                        "duration_s":   float(_srow["duration_s"]),
+                        "groove_count": int(_srow["groove_count"]),
+                        "seconds_left": max(0.0, round(float(_srow["expires_at"]) - _now_s, 1)),
+                    }
+        except Exception:
+            pass
         return jsonify({
             "scheduler": state.scheduler is not None,
             "dynamic": state.dynamic is not None,
@@ -1469,6 +1489,7 @@ def create_app(state: AppState) -> Flask:
             "voice_engine": ve_info,
             "affect_state": affect_info,
             "drives_info": drives_info,
+            "stillness_info": stillness_info,
         })
 
     # -- speech (Phase 7b) ---------------------------------------------------
