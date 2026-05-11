@@ -218,6 +218,7 @@ class AppState:
     goal_manager: Optional["GoalManager"] = None        # type: ignore[type-arg]
     metacognition: Optional["Metacognition"] = None      # type: ignore[type-arg]
     novel_association: Optional["NovelAssociation"] = None  # type: ignore[type-arg]
+    self_narrative: Optional["SelfNarrative"] = None        # type: ignore[type-arg]  # Phase 26
     tool_registry: Optional["ToolRegistry"] = None      # type: ignore[type-arg]
     tool_caller: Optional["ToolCaller"] = None          # type: ignore[type-arg]
     speech_consumer: Optional["SpeechQueueConsumer"] = None  # type: ignore[type-arg]
@@ -837,6 +838,20 @@ def create_app(state: AppState) -> Flask:
                 error_channel.record(
                     f"novel association injection failed: {_nassoc_exc}",
                     source="gui.server", exc=_nassoc_exc,
+                )
+
+        # SelfNarrative: inject topic-matched autobiographical entries (Phase 26).
+        if state.self_narrative is not None:
+            try:
+                import types as _types
+                _sn_ctx = _types.SimpleNamespace(current_topic=prompt[:100])
+                _sn_text = state.self_narrative.format_for_prompt(_sn_ctx)
+                if _sn_text:
+                    belief_text = (belief_text or "") + "\n\n" + _sn_text
+            except Exception as _sn_exc:
+                error_channel.record(
+                    f"self_narrative injection failed: {_sn_exc}",
+                    source="gui.server", exc=_sn_exc,
                 )
 
         # Tool use: heuristic tool selection and execution

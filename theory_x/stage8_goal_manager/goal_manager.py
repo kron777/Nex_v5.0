@@ -35,9 +35,11 @@ class GoalManager:
     _CACHE_TTL: float = 120.0
 
     def __init__(self, conversations_writer: Writer,
-                 conversations_reader: Reader) -> None:
+                 conversations_reader: Reader,
+                 narrative=None) -> None:
         self._writer = conversations_writer
         self._reader = conversations_reader
+        self._narrative = narrative
         self._lock = threading.Lock()
         self._cached_open: Optional[list] = None
         self._cache_ts: float = 0.0
@@ -115,6 +117,22 @@ class GoalManager:
         errors.record(f"goal {goal_id} completed", source=_LOG_SOURCE, level="INFO")
         with self._lock:
             self._cached_open = None
+        if self._narrative is not None:
+            try:
+                row = self._reader.read_one(
+                    "SELECT title FROM goals WHERE id=?", (goal_id,)
+                )
+                title = row["title"] if row else str(goal_id)
+                self._narrative.write_narrative(
+                    f"I completed the goal: {title}",
+                    "goal_complete",
+                    goal_id,
+                )
+            except Exception as exc:
+                errors.record(
+                    f"goal_manager narrative write failed: {exc}",
+                    source=_LOG_SOURCE, exc=exc,
+                )
 
     def cancel(self, goal_id: int) -> None:
         """Mark goal as cancelled."""

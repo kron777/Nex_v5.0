@@ -296,6 +296,13 @@ _MIGRATIONS: dict[str, list[str]] = {
         "problem_id INTEGER REFERENCES open_problems(id))",
         "CREATE INDEX IF NOT EXISTS idx_goals_state ON goals(state)",
         "CREATE INDEX IF NOT EXISTS idx_goals_priority ON goals(priority DESC)",
+        "CREATE TABLE IF NOT EXISTS narrative_log ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "content TEXT NOT NULL, "
+        "trigger TEXT NOT NULL, "
+        "source_id INTEGER, "
+        "created_at REAL NOT NULL)",
+        "CREATE INDEX IF NOT EXISTS idx_narrative_ts ON narrative_log(created_at DESC)",
     ],
 }
 

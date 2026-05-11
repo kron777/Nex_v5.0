@@ -170,9 +170,21 @@ def main() -> None:
     from theory_x.stage7_sustained.problem_memory import ProblemMemory
     problem_memory = ProblemMemory(writers["conversations"], readers["conversations"])
 
+    # 9b-pre. SelfNarrative — autobiographical accumulation (Phase 26)
+    from theory_x.stage_self_narrative.self_narrative import SelfNarrative
+    self_narrative = SelfNarrative(writers["conversations"], readers["conversations"])
+    try:
+        from theory_x import register as _tx_register_sn
+        _tx_register_sn(self_narrative)
+    except Exception:
+        pass
+
     # 9b. Goal manager — explicit goal stack with priority arbitration (Phase 15)
     from theory_x.stage8_goal_manager.goal_manager import GoalManager
-    goal_manager = GoalManager(writers["conversations"], readers["conversations"])
+    goal_manager = GoalManager(
+        writers["conversations"], readers["conversations"],
+        narrative=self_narrative,
+    )
     try:
         from theory_x import register as _tx_register_gm
         _tx_register_gm(goal_manager)
@@ -185,6 +197,7 @@ def main() -> None:
         writers["conversations"],
         readers["conversations"],
         readers["beliefs"],
+        narrative=self_narrative,
     )
     try:
         from theory_x import register as _tx_register_mc
@@ -382,6 +395,7 @@ def main() -> None:
         problem_memory=problem_memory,
         goal_manager=goal_manager,
         metacognition=metacognition,
+        self_narrative=self_narrative,
         novel_association=novel_association,
         tool_registry=tool_registry,
         tool_caller=tool_caller,

@@ -49,10 +49,12 @@ class Metacognition:
         conversations_writer: Writer,
         conversations_reader: Reader,
         beliefs_reader: Reader,
+        narrative=None,
     ) -> None:
         self._writer = conversations_writer
         self._reader = conversations_reader
         self._beliefs_reader = beliefs_reader
+        self._narrative = narrative
         self._lock = threading.Lock()
         self._cached_recent: Optional[list] = None
         self._cache_ts: float = 0.0
@@ -68,6 +70,19 @@ class Metacognition:
         groove_events = self._detect_groove(now)
         for ev in groove_events:
             self._write_event(ev, now)
+            if self._narrative is not None:
+                try:
+                    pattern = ev.get("pattern") or ""
+                    self._narrative.write_narrative(
+                        f"I noticed I am repeatedly returning to {pattern}",
+                        "groove",
+                        ev.get("groove_id"),
+                    )
+                except Exception as exc:
+                    errors.record(
+                        f"metacognition narrative write failed: {exc}",
+                        source=_LOG_SOURCE, exc=exc,
+                    )
 
         drift_event = self._detect_goal_drift(now)
         if drift_event:
@@ -159,6 +174,8 @@ class Metacognition:
                 "description": desc,
                 "severity": float(row["severity"]),
                 "source": f"groove_spotter/{row['alert_type']}",
+                "groove_id": row["id"],
+                "pattern": row["pattern"],
             })
         return results
 
