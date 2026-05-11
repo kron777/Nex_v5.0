@@ -113,22 +113,65 @@ class TestGateOutcomes(unittest.TestCase):
         self.assertIn("redundant", decision.reason)
 
     def test_anchor_contradiction_rejected(self):
-        """Direct negation of a locked T1 anchor → REJECT.
+        """Direct negation of a locked T1 anchor with ≥4-word overlap → REJECT.
 
-        Uses an existing T1 identity belief seeded by init_db:
-        'I attend to the world with wonder.' (always present).
-        Content tokens: {attend, world, wonder}.
-        Thought negates it with overlap=3 and neg=True.
+        Explicitly seeds a T1 locked anchor with 6 content tokens.
+        Threshold raised to 4 from v1's 2 (production calibration May 11).
         """
         from theory_x.stage_gate.coherence_gate import ThoughtPacket, GateOutcome
-        # Always in fresh DB. Overlap: {attend, world, wonder} = 3 >= 2.
-        # Thought has negation ('not'); anchor does not.
-        thought = "I do not attend to the world with wonder or care."
-        packet = ThoughtPacket(content=thought, source_node="fountain",
-                               confidence=0.70)
+        # Seed a rich locked T1 anchor: tokens = {attend, world, wonder, stillness, presence, care}
+        # confidence=0.9: gate anchor query requires confidence > 0.8
+        _seed_belief(
+            self.writers,
+            "I attend to the world with wonder, stillness, presence, and care.",
+            tier=1, confidence=0.9, locked=1, source="keystone",
+        )
+        time.sleep(0.05)
+        # Thought contradicts anchor with 4+ token overlap + negation mismatch
+        thought = "I do not attend to the world with wonder, stillness, or presence."
+        packet = ThoughtPacket(content=thought, source_node="fountain", confidence=0.70)
         decision = self.gate.check(packet)
         self.assertEqual(decision.outcome, GateOutcome.REJECT)
         self.assertIn("contradicts_anchor", decision.reason)
+
+    def test_anchor_contradiction_two_word_overlap_no_longer_rejects(self):
+        """2-word overlap + negation mismatch no longer triggers REJECT (threshold=4).
+
+        v1 threshold of 2 was firing on accidental vocabulary collisions across
+        500 anchors. Raised to 4 after May 11 production observation.
+        """
+        from theory_x.stage_gate.coherence_gate import ThoughtPacket, GateOutcome
+        _seed_belief(
+            self.writers,
+            "Attending with wonder is how I meet the world.",
+            tier=1, confidence=0.9, locked=1, source="keystone",
+        )
+        time.sleep(0.05)
+        # Only 2-word overlap {wonder, world}; thought has negation, anchor does not
+        thought = "I find no wonder in the world today, only stillness."
+        packet = ThoughtPacket(content=thought, source_node="fountain", confidence=0.70)
+        decision = self.gate.check(packet)
+        self.assertNotEqual(decision.outcome, GateOutcome.REJECT)
+
+    def test_anchor_contradiction_rhetorical_negation_no_longer_rejects(self):
+        """Rhetorical negation ('weight does not stop me') with 2-word overlap → ACCEPT.
+
+        Production false positive: throw-net candidates using 'not' to negate
+        an obstacle were being rejected as anchor contradictions. Fixed by
+        threshold=4.
+        """
+        from theory_x.stage_gate.coherence_gate import ThoughtPacket, GateOutcome
+        _seed_belief(
+            self.writers,
+            "The attending keeps moving through weight and presence.",
+            tier=1, confidence=0.9, locked=1, source="keystone",
+        )
+        time.sleep(0.05)
+        # overlap={weight, attending}=2 < 4; should ACCEPT now
+        thought = "The weight does not stop me; I keep attending."
+        packet = ThoughtPacket(content=thought, source_node="fountain", confidence=0.70)
+        decision = self.gate.check(packet)
+        self.assertNotEqual(decision.outcome, GateOutcome.REJECT)
 
     def test_jaccard_band_held(self):
         """Jaccard in [0.40, 0.70) → HOLD.

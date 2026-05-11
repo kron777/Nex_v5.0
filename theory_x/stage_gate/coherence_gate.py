@@ -249,7 +249,7 @@ class CoherenceGate:
             anchor_tok = _tokens(anchor["content"])
             anchor_neg = _has_negation(anchor["content"])
             overlap = len(tok & anchor_tok)
-            if overlap >= 2 and (neg != anchor_neg):
+            if overlap >= 4 and (neg != anchor_neg):
                 return GateDecision(
                     outcome=GateOutcome.REJECT,
                     reason=f"contradicts_anchor:locked_id_{anchor['id']}",
