@@ -44,16 +44,16 @@ def _belief(
     content: str = "emergence complexity pattern",
     confidence: float = 0.7,
     branch_id: str = "systems",
-    reinforce_count: int = 3,
+    use_count: int = 3,
     created_at: float = None,
 ) -> dict:
     return {
-        "id":             id,
-        "content":        content,
-        "confidence":     confidence,
-        "branch_id":      branch_id,
-        "reinforce_count": reinforce_count,
-        "created_at":     created_at or time.time(),
+        "id":        id,
+        "content":   content,
+        "confidence": confidence,
+        "branch_id": branch_id,
+        "use_count": use_count,
+        "created_at": created_at or time.time(),
     }
 
 
@@ -99,14 +99,14 @@ def _emb(seed: int) -> np.ndarray:
 
 
 def _multi_branch_beliefs(n: int = 5, branches=("alpha", "beta", "gamma")) -> list[dict]:
-    """Return n beliefs spread across multiple branches with reinforce_count > 0."""
+    """Return n beliefs spread across multiple branches with use_count > 0."""
     beliefs = []
     for i in range(n):
         beliefs.append(_belief(
             id=i + 1,
             content=f"emergence complexity pattern idea {i}",
             branch_id=branches[i % len(branches)],
-            reinforce_count=4,
+            use_count=4,
         ))
     return beliefs
 
@@ -145,7 +145,7 @@ class TestRepetitionOnlyNoDrive(unittest.TestCase):
     def test_single_branch_cluster_not_written(self):
         # All beliefs same branch → convergence_score = 1/n < _MIN_CONVERGENCE will
         # actually be high for 1 branch. But distinct/total = 1/8 = 0.125 < 0.25.
-        beliefs = [_belief(id=i + 1, branch_id="alpha", reinforce_count=5) for i in range(8)]
+        beliefs = [_belief(id=i + 1, branch_id="alpha", use_count=5) for i in range(8)]
         node = _make_node(candidate_beliefs=beliefs)
 
         similar_emb = _emb(1)
@@ -168,9 +168,9 @@ class TestRepetitionOnlyNoDrive(unittest.TestCase):
 
 class TestConvergenceOnlyNoDrive(unittest.TestCase):
     def test_multi_branch_low_reinforce_not_written(self):
-        # Multiple branches but reinforce_count = 0 → repetition_score = 0 < _MIN_REPETITION
+        # Multiple branches but use_count = 0 → repetition_score = 0 < _MIN_REPETITION
         beliefs = [
-            _belief(id=i + 1, branch_id=f"branch_{i}", reinforce_count=0)
+            _belief(id=i + 1, branch_id=f"branch_{i}", use_count=0)
             for i in range(8)
         ]
         node = _make_node(candidate_beliefs=beliefs)
@@ -286,9 +286,9 @@ class TestWeakerDriveReplaced(unittest.TestCase):
         }
 
         beliefs = _multi_branch_beliefs(8, branches=("x", "y", "z", "w"))
-        # High reinforce_count → high rep_score; multiple branches → high conv_score
+        # High use_count → high rep_score; multiple branches → high conv_score
         for b in beliefs:
-            b["reinforce_count"] = 10
+            b["use_count"] = 10
 
         cw = MagicMock()
         cw.db_path = ":memory:"

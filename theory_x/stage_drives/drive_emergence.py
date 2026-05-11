@@ -13,7 +13,7 @@ Row deleted when no drive qualifies — never stale. format_for_prompt()
 returns "" when the row is absent. §0 aligned: substrate solves, LLM speaks.
 
 Detection math (§2 of DRIVE_EMERGENCE_SPEC):
-  repetition_score  = (sum reinforce_counts / cluster_size) × recency_weight
+  repetition_score  = (sum use_counts / cluster_size) × recency_weight
   convergence_score = distinct_branch_ids / total_beliefs_in_cluster
   drive_strength    = 0.6 × rep + 0.4 × conv
   Decay: drive_strength *= 0.92 each tick; delete when below 0.25.
@@ -51,7 +51,7 @@ _MIN_BRANCH_COUNT    = 2      # at least 2 distinct branches required
 _MIN_DRIVE_STRENGTH  = 0.25   # delete drive below this after decay
 
 # Clustering
-_CLUSTER_SIMILARITY = 0.55    # cosine threshold for single-linkage grouping
+_CLUSTER_SIMILARITY = 0.70    # cosine threshold for centroid-based grouping
 _CANDIDATE_LIMIT    = 200     # cap on beliefs pulled per tick
 
 # Weights
@@ -81,8 +81,8 @@ def _repetition_score(cluster: list[dict], now: float) -> float:
     recency_cutoff = now - _RECENCY_WINDOW_DAYS * 86400
     recent_n = sum(1 for b in cluster if (b.get("created_at") or 0) > recency_cutoff)
     recency_weight = recent_n / len(cluster)
-    total_rc = sum(int(b.get("reinforce_count") or 0) for b in cluster)
-    return (total_rc / len(cluster)) * recency_weight
+    total_uc = sum(int(b.get("use_count") or 0) for b in cluster)
+    return (total_uc / len(cluster)) * recency_weight
 
 
 def _convergence_score(cluster: list[dict]) -> float:
@@ -105,29 +105,32 @@ def _cluster(
     embeddings: dict[int, Any],
     threshold: float,
 ) -> list[list[dict]]:
-    """Greedy single-linkage clustering. A belief joins any cluster it is
-    similar (>= threshold) to at least one existing member of."""
-    clusters: list[list[dict]] = []
-    cluster_embs: list[list[Any]] = []
+    """Centroid-based clustering. Each belief joins the cluster whose centroid
+    cosine similarity is highest and meets threshold. Prevents single-linkage
+    chaining — centroid always represents the semantic mean of all members."""
+    import numpy as np
+    clusters:  list[list[dict]] = []
+    centroids: list[Any]        = []
 
     for cand in candidates:
         cid = cand["id"]
         emb = embeddings.get(cid)
         if emb is None:
             continue
-        placed = False
-        for i, cluster in enumerate(clusters):
-            for member_emb in cluster_embs[i]:
-                if _cosine(emb, member_emb) >= threshold:
-                    clusters[i].append(cand)
-                    cluster_embs[i].append(emb)
-                    placed = True
-                    break
-            if placed:
-                break
-        if not placed:
+        best_i   = -1
+        best_sim = threshold  # must exceed threshold to join
+        for i, cent in enumerate(centroids):
+            sim = _cosine(emb, cent)
+            if sim > best_sim:
+                best_sim = sim
+                best_i   = i
+        if best_i >= 0:
+            n = len(clusters[best_i])
+            centroids[best_i] = (centroids[best_i] * n + emb) / (n + 1)
+            clusters[best_i].append(cand)
+        else:
             clusters.append([cand])
-            cluster_embs.append([emb])
+            centroids.append(np.array(emb, dtype=np.float32))
 
     return clusters
 
@@ -240,7 +243,7 @@ class DriveEmergence:
         # 2. Pull candidates
         cutoff = now - _WINDOW_DAYS * 86400
         rows = self._br.read(
-            "SELECT id, content, confidence, branch_id, reinforce_count, created_at "
+            "SELECT id, content, confidence, branch_id, use_count, created_at "
             "FROM beliefs "
             "WHERE confidence >= 0.15 AND paused = 0 AND created_at >= ? "
             "ORDER BY created_at DESC LIMIT ?",
