@@ -626,6 +626,57 @@ class FountainGenerator:
             return True
         return False
 
+    @staticmethod
+    def _extract_sense_summary(stream: str, payload: str, max_items: int = 3) -> "str | None":
+        """Return a human-readable string summarising the payload, or None
+        if the payload contains nothing displayable.
+
+        Per §0: no content-meaning filtering. This only transforms format —
+        JSON to readable text. The substrate's existing recency and stream
+        balancing decide relevance.
+        """
+        if not payload or not payload.strip():
+            return None
+
+        stripped = payload.lstrip()
+        if not (stripped.startswith("{") or stripped.startswith("[")):
+            return payload[:200] if len(payload) > 200 else payload
+
+        try:
+            data = json.loads(stripped)
+        except (json.JSONDecodeError, ValueError):
+            return None
+
+        titles: list = []
+
+        def _collect(obj):
+            if len(titles) >= max_items:
+                return
+            if isinstance(obj, dict):
+                for key in ("title", "headline", "name", "subject"):
+                    val = obj.get(key)
+                    if isinstance(val, str) and val.strip():
+                        titles.append(val.strip())
+                        if len(titles) >= max_items:
+                            return
+                        break
+                for key in ("items", "results", "entries", "coins", "data"):
+                    if key in obj and isinstance(obj[key], list):
+                        _collect(obj[key])
+                        if len(titles) >= max_items:
+                            return
+            elif isinstance(obj, list):
+                for item in obj:
+                    _collect(item)
+                    if len(titles) >= max_items:
+                        return
+
+        _collect(data)
+
+        if not titles:
+            return None
+        return " · ".join(titles)
+
     def _recent_sense_sample(self, limit: int = 3) -> str:
         """Return a compact multi-source sense snippet for drift context."""
         if self._sense_reader is None:
@@ -635,18 +686,21 @@ class FountainGenerator:
                 "SELECT stream, payload, timestamp FROM sense_events "
                 "WHERE stream NOT LIKE 'internal.%' "
                 "ORDER BY timestamp DESC LIMIT ?",
-                (limit * 6,),  # oversample more to allow for filtered-out rows
+                (limit * 6,),  # oversample to allow for empty/skipped payloads
             )
             seen_streams: set[str] = set()
             lines = []
             for r in rows:
                 if r["stream"] in seen_streams:
                     continue
-                payload = (r["payload"] or "")[:80].strip()
-                if self._sense_payload_is_noise(r["stream"], payload):
+                if FountainGenerator._SENSE_NOISE_STREAMS.match(r["stream"]):
+                    continue
+                full_payload = (r["payload"] or "").strip()
+                summary = FountainGenerator._extract_sense_summary(r["stream"], full_payload)
+                if summary is None:
                     continue
                 seen_streams.add(r["stream"])
-                lines.append(f"  [{r['stream']}] {payload}")
+                lines.append(f"  [{r['stream']}] {summary}")
                 if len(lines) >= limit:
                     break
             return "\n".join(lines) or "(quiet)"
