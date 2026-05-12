@@ -233,6 +233,19 @@ _MIGRATIONS: dict[str, list[str]] = {
         "ALTER TABLE beliefs ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'",
         # Phase 25b — CounterfactualNode: links accepted beliefs to source problem
         "ALTER TABLE beliefs ADD COLUMN problem_id INTEGER",
+        # Phase 34 — Belief uniqueness guard: closes structural gap where only
+        # tier=1 locked keystones had a unique constraint; all other tiers could
+        # silently accumulate duplicate content via INSERT OR IGNORE.
+        # Semantic: same problem cannot have duplicate beliefs; different problems
+        # can have similar exploratory content. Orphan (fountain) beliefs cannot
+        # duplicate themselves. Pre-existing duplicates deduped one-off before
+        # this migration applied (588 rows removed, oldest row kept per group).
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_beliefs_content_problem_uniq "
+        "ON beliefs(content, problem_id) "
+        "WHERE problem_id IS NOT NULL",
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_beliefs_content_orphan_uniq "
+        "ON beliefs(content) "
+        "WHERE problem_id IS NULL",
     ],
     "dynamic": [
         "CREATE TABLE IF NOT EXISTS harmonizer_events ("
