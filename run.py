@@ -321,6 +321,7 @@ def main() -> None:
             writers["conversations"],
             readers["conversations"],
             readers["beliefs"],
+            dynamic_reader=readers["dynamic"],
         )
         _affect_state.start_loop()
         try:

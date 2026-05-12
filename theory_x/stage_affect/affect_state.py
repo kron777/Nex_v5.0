@@ -45,6 +45,7 @@ _TICK_INTERVAL        = 300    # seconds between background ticks
 _BELIEF_POLL_WINDOW   = 300    # seconds to count new beliefs for arousal
 _BELIEF_MAX_NEW       = 40     # N new beliefs in window → arousal delta capped at 0.5
 _AROUSAL_MAX_DELTA    = 0.5
+_SURPRISE_AROUSAL_FACTOR = 0.2  # §6: avg flagged surprise_score × factor → arousal bump
 _VALENCE_BELIEF_LIMIT = 20     # top-N beliefs for polarity scoring
 _GATE_WINDOW          = 20     # last N gate_decisions for accept rate
 _HELD_WINDOW          = 20     # last N held_thoughts for resolution rate
@@ -117,10 +118,12 @@ class AffectState:
         conversations_reader: Reader,
         beliefs_reader: Reader,
         tick_interval_s: int = _TICK_INTERVAL,
+        dynamic_reader: Optional[Reader] = None,
     ) -> None:
         self._cw       = conversations_writer
         self._cr       = conversations_reader
         self._br       = beliefs_reader
+        self._dr       = dynamic_reader  # Phase 36: surprise_events in dynamic.db
         self._interval = tick_interval_s
         self._lock     = threading.Lock()
 
@@ -178,6 +181,27 @@ class AffectState:
         arousal_delta   = self._compute_arousal_delta()
         stability_target = self._compute_stability()
 
+        # §6 surprise coupling: read flagged events since last tick (outside lock)
+        surprise_bump        = 0.0
+        surprise_event_count = 0
+        if self._dr is not None:
+            try:
+                surprise_rows = self._dr.read(
+                    "SELECT surprise_score FROM surprise_events "
+                    "WHERE triggered_at > ? AND surprise_flag = 1",
+                    (self._last_updated,),
+                )
+                if surprise_rows:
+                    scores = [float(r["surprise_score"]) for r in surprise_rows]
+                    avg_surprise = sum(scores) / len(scores)
+                    surprise_bump = avg_surprise * _SURPRISE_AROUSAL_FACTOR
+                    surprise_event_count = len(scores)
+            except Exception as _se:
+                errors.record(
+                    f"AffectState surprise read failed (non-fatal): {_se}",
+                    source=_LOG_SOURCE,
+                )
+
         with self._lock:
             v = self._valence
             a = self._arousal
@@ -186,6 +210,9 @@ class AffectState:
             # Integrate then decay
             v_new  = _integrate(v, valence_delta, -1.0, 1.0) * (1.0 - _DECAY_RATE)
             a_new  = _integrate(a, arousal_delta,  0.0, 1.0) * (1.0 - _DECAY_RATE)
+            # §6: surprise bump applied after baseline decay
+            if surprise_bump > 0.0:
+                a_new = min(1.0, a_new + surprise_bump)
             # Stability: nudge toward coherence target each tick
             s_delta = stability_target - s
             s_new   = _integrate(s, s_delta, 0.0, 1.0) * (1.0 - _STABILITY_DECAY_RATE)
@@ -202,6 +229,13 @@ class AffectState:
                 "arousal_delta":    arousal_delta,
                 "stability_target": stability_target,
             }
+
+        if surprise_event_count > 0:
+            errors.record(
+                f"AffectState: surprise→arousal bump={surprise_bump:.3f} "
+                f"(from {surprise_event_count} events)",
+                source=_LOG_SOURCE, level="INFO",
+            )
 
         self._cw.write(
             "INSERT OR REPLACE INTO affect_state "

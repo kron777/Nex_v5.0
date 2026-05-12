@@ -42,6 +42,7 @@ def _make_node(
     br_held_rows=None,
     br_belief_rows=None,
     tick_interval_s=300,
+    dynamic_reader=None,
 ):
     """Build an AffectState backed entirely by mocks.
 
@@ -50,6 +51,7 @@ def _make_node(
     br_gate_rows  — list of dicts for gate_decisions query
     br_held_rows  — list of dicts for held_thoughts query
     br_belief_rows — list of dicts for top-N beliefs query
+    dynamic_reader — optional mock for dynamic.db (Phase 36 surprise coupling)
     """
     cw = MagicMock()
     cw.write.return_value = 1
@@ -75,7 +77,8 @@ def _make_node(
     br.read_one.side_effect = _br_read_one
     br.read.side_effect = _br_read
 
-    node = AffectState(cw, cr, br, tick_interval_s=tick_interval_s)
+    node = AffectState(cw, cr, br, tick_interval_s=tick_interval_s,
+                       dynamic_reader=dynamic_reader)
     # expose mocks for assertion
     node._mock_cw = cw
     node._mock_cr = cr
@@ -382,6 +385,50 @@ class TestStateShape(unittest.TestCase):
     def test_mood_label_one_of_three(self):
         node = _make_node()
         self.assertIn(node.state()["mood_label"], ("positive", "negative", "neutral"))
+
+
+# ── Surprise coupling (Phase 36, §6) ─────────────────────────────────────────
+
+class TestSurpriseCoupling(unittest.TestCase):
+    """Tests that flagged surprise_events raise arousal per §6 math."""
+
+    def _tick_with_zero_deltas(self, node):
+        with (
+            patch.object(node, "_compute_valence_delta",  return_value=0.0),
+            patch.object(node, "_compute_arousal_delta",  return_value=0.0),
+            patch.object(node, "_compute_stability",      return_value=0.9),
+        ):
+            node._background_tick()
+
+    def test_flagged_surprise_raises_arousal(self):
+        dr = MagicMock()
+        dr.read.return_value = [{"surprise_score": 1.0}]
+        node = _make_node(dynamic_reader=dr)
+        node._arousal = 0.1
+        node._last_updated = 0.0
+        self._tick_with_zero_deltas(node)
+        # baseline decay: 0.1 * (1-0.02) = 0.098; bump = 1.0*0.2 = 0.2; total ≥ 0.29
+        self.assertGreater(node._arousal, 0.1 * (1.0 - _DECAY_RATE),
+                           "flagged surprise must raise arousal above baseline decay")
+
+    def test_unflagged_surprise_no_arousal_bump(self):
+        # SQL query filters WHERE surprise_flag=1; mock returns [] for that query
+        dr = MagicMock()
+        dr.read.return_value = []
+        node = _make_node(dynamic_reader=dr)
+        node._arousal = 0.3
+        self._tick_with_zero_deltas(node)
+        expected = 0.3 * (1.0 - _DECAY_RATE)
+        self.assertAlmostEqual(node._arousal, expected, places=5,
+                               msg="no flagged events must produce no arousal bump")
+
+    def test_no_dynamic_reader_no_surprise_delta(self):
+        node = _make_node(dynamic_reader=None)
+        node._arousal = 0.3
+        self._tick_with_zero_deltas(node)
+        expected = 0.3 * (1.0 - _DECAY_RATE)
+        self.assertAlmostEqual(node._arousal, expected, places=5,
+                               msg="absent dynamic_reader must not alter arousal")
 
 
 if __name__ == "__main__":
