@@ -366,6 +366,21 @@ def main() -> None:
     except Exception as _smv_err:
         log.warning("SelfMindView failed to start (non-fatal): %s", _smv_err)
 
+    # Phase 38 — SocialPresence (her own social presence; 300s autonomous tick)
+    _social_presence = None
+    try:
+        from theory_x.stage_social import SocialPresence as _SP
+        _social_presence = _SP(
+            dynamic_reader=readers["dynamic"],
+            dynamic_writer=writers["dynamic"],
+            beliefs_reader=readers["beliefs"],
+            conversations_reader=readers["conversations"],
+        )
+        _social_presence.start_loop()
+        log.info("SocialPresence ready — autonomous cycle every 300s")
+    except Exception as _sp_err:
+        log.warning("SocialPresence failed to start (non-fatal): %s", _sp_err)
+
     # 10. Fountain ignition
     log.info("Igniting fountain...")
     log.info(
@@ -539,6 +554,7 @@ def main() -> None:
         drive_emergence=_drive_emergence,
         predictive_substrate=_predictive_substrate,
         self_mind_view=_self_mind_view,
+        social_presence=_social_presence,
     )
     atexit.register(state.close)
 

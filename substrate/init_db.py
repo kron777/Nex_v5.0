@@ -342,6 +342,27 @@ _MIGRATIONS: dict[str, list[str]] = {
         "tags TEXT NOT NULL DEFAULT '[]')",
         "CREATE INDEX IF NOT EXISTS idx_self_mind_snapshots_taken_at "
         "ON self_mind_snapshots(taken_at DESC)",
+        # Phase 38 — SocialPresence: social-presence snapshot archive
+        "CREATE TABLE IF NOT EXISTS social_presence_snapshots ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "taken_at REAL NOT NULL, "
+        "total_output_count_5m INTEGER NOT NULL, "
+        "avg_sentence_length_words REAL, "
+        "question_ratio REAL, "
+        "vocab_distinctiveness REAL, "
+        "avg_arousal_during_outputs REAL, "
+        "vocabulary_top_words_json TEXT NOT NULL DEFAULT '[]', "
+        "voice_self_report TEXT, "
+        "response_count_5m INTEGER NOT NULL, "
+        "avg_response_latency_s REAL, "
+        "active_conversation_count INTEGER NOT NULL, "
+        "topic_diversity INTEGER NOT NULL, "
+        "recent_topics_json TEXT NOT NULL DEFAULT '[]', "
+        "active_sessions_json TEXT NOT NULL DEFAULT '[]', "
+        "engagement_self_report TEXT, "
+        "tags TEXT NOT NULL DEFAULT '[]')",
+        "CREATE INDEX IF NOT EXISTS idx_social_presence_taken_at "
+        "ON social_presence_snapshots(taken_at DESC)",
     ],
     "conversations": [
         "CREATE TABLE IF NOT EXISTS open_problems ("
