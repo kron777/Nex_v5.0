@@ -145,3 +145,33 @@ def test_max_items_respected():
     payload = json.dumps([{"title": f"Title {i}"} for i in range(10)])
     result = _extract("news.bbc", payload, max_items=2)
     assert result == "Title 0 · Title 1"
+
+
+# ── Phase 43: noise-stream regex + echo-loop removal ─────────────────────────
+
+def test_noise_streams_regex_matches_crypto_and_market():
+    # internal.* streams are excluded by SQL (WHERE stream NOT LIKE 'internal.%'),
+    # not by this regex — so only crypto.* and market.* are its responsibility.
+    from theory_x.stage6_fountain.generator import FountainGenerator
+    pat = FountainGenerator._SENSE_NOISE_STREAMS
+    should_match = [
+        "crypto.exchanges", "crypto.coingecko", "crypto.news",
+        "market.futures", "CRYPTO.SOMETHING",  # case-insensitive
+    ]
+    should_not_match = [
+        "ai_research.lab_blogs", "emerging_tech.hn",
+        "philosophy.aeon", "news.bbc", "computing.tech_news",
+    ]
+    for s in should_match:
+        assert pat.match(s), f"expected match for {s!r}"
+    for s in should_not_match:
+        assert not pat.match(s), f"expected no match for {s!r}"
+
+
+def test_no_recent_thoughts_header_in_build_prompt_source():
+    import inspect
+    from theory_x.stage6_fountain.generator import FountainGenerator
+    src = inspect.getsource(FountainGenerator._build_prompt)
+    assert "Your recent thoughts" not in src, (
+        "_build_prompt still contains 'Your recent thoughts' — echo-loop block not removed"
+    )

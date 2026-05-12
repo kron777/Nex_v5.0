@@ -955,27 +955,13 @@ class FountainGenerator:
             except Exception:
                 pass
 
-        # Recent fountain outputs — continuity with her last N generative fires
-        _RECENT_THOUGHTS_N = 5
-        try:
-            _recent_rows = list(self._dynamic_reader.read(
-                "SELECT thought, ts FROM fountain_events "
-                "WHERE thought IS NOT NULL AND thought != '' "
-                "ORDER BY id DESC LIMIT ?",
-                (_RECENT_THOUGHTS_N,)
-            ))
-            if _recent_rows:
-                prompt_parts.append("Your recent thoughts (most recent first):")
-                for _r in _recent_rows:
-                    _mins_ago = max(0, int((now - _r["ts"]) / 60))
-                    prompt_parts.append(f"  ({_mins_ago} min ago) {_r['thought']}")
-                prompt_parts.append("")
-        except Exception as _rte:
-            errors.record(
-                f"recent_thoughts_block_failed: {_rte}",
-                source="stage6_fountain",
-                exc=_rte,
-            )
+        # Recent-thoughts block removed (echo-loop fix, Phase 43). The LLM's
+        # access to her own recent thinking flows through retrieval:
+        # _retrieve_context_beliefs returns synergized + fountain_insight
+        # sources, both her own outputs distilled. Showing raw fountain_events
+        # back as exemplars was few-shot-prompting repetition — 3/3 post-
+        # Mechanism-C fires stayed on the cicada/hum surface pattern.
+        # Per §0: substrate provides; speaking layer composes freely.
 
         # Substrate self-observations — structured self-reports fed back to cognition
         try:
