@@ -938,6 +938,32 @@ def create_app(state: AppState) -> Flask:
                     source="gui.server", exc=_drive_exc,
                 )
 
+        # SelfMindView: inject current cognitive state summary (Phase 39).
+        # Always-on — substrate self-state is always available; LLM composes freely.
+        if state.self_mind_view is not None:
+            try:
+                _smv_summary = state.self_mind_view.current_summary()
+                if _smv_summary:
+                    belief_text = (belief_text or "") + "\n\nCurrent cognitive state: " + _smv_summary
+            except Exception as _smv_exc:
+                error_channel.record(
+                    f"self_mind_view injection failed: {_smv_exc}",
+                    source="gui.server", exc=_smv_exc,
+                )
+
+        # SocialPresence: inject current social posture summary (Phase 39).
+        # Always-on — substrate self-state is always available; LLM composes freely.
+        if state.social_presence is not None:
+            try:
+                _sp_summary = state.social_presence.current_summary()
+                if _sp_summary:
+                    belief_text = (belief_text or "") + "\n\nCurrent social posture: " + _sp_summary
+            except Exception as _sp_exc:
+                error_channel.record(
+                    f"social_presence injection failed: {_sp_exc}",
+                    source="gui.server", exc=_sp_exc,
+                )
+
         # Tool use: heuristic tool selection and execution
         tool_result = None
         if state.tool_caller is not None and state.tool_registry is not None:
