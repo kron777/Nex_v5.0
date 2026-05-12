@@ -242,6 +242,7 @@ class AppState:
     voice_mode: str = "use_llm"                    # "use_llm" | "use_substrate"
     affect_state: Optional[object] = None          # Phase 27 AffectState
     drive_emergence: Optional[object] = None       # Phase 29 DriveEmergence
+    predictive_substrate: Optional[object] = None  # Phase 35 PredictiveSubstrate
     # Optional hook a test can inject to short-circuit chat persistence.
     now_fn: Callable[[], int] = field(default_factory=lambda: (lambda: int(time.time())))
 

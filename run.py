@@ -332,6 +332,23 @@ def main() -> None:
     except Exception as _as_err:
         log.warning("AffectState failed to start (non-fatal): %s", _as_err)
 
+    # Phase 35 — PredictiveSubstrate (predictive engine; 300s autonomous tick)
+    _predictive_substrate = None
+    try:
+        from theory_x.stage_prediction import PredictiveSubstrate as _PS
+        _predictive_substrate = _PS(
+            dynamic_reader=readers["dynamic"],
+            dynamic_writer=writers["dynamic"],
+            beliefs_reader=readers["beliefs"],
+            conversations_reader=readers["conversations"],
+            sense_reader=readers["sense"],
+            drive_emergence=_drive_emergence,
+        )
+        _predictive_substrate.start_loop()
+        log.info("PredictiveSubstrate ready — autonomous cycle every 300s")
+    except Exception as _ps_err:
+        log.warning("PredictiveSubstrate failed to start (non-fatal): %s", _ps_err)
+
     # 10. Fountain ignition
     log.info("Igniting fountain...")
     log.info(
@@ -503,6 +520,7 @@ def main() -> None:
         voice_engine=_voice_engine,
         affect_state=_affect_state,
         drive_emergence=_drive_emergence,
+        predictive_substrate=_predictive_substrate,
     )
     atexit.register(state.close)
 

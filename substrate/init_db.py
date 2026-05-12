@@ -286,6 +286,37 @@ _MIGRATIONS: dict[str, list[str]] = {
         "jaccard REAL)",
         "CREATE INDEX IF NOT EXISTS idx_stillness_ts ON stillness_log(ts)",
         "ALTER TABLE stillness_log ADD COLUMN jaccard REAL",
+        # Phase 35 — PredictiveSubstrate: prediction storage + surprise event log
+        "CREATE TABLE IF NOT EXISTS predictions ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "made_at REAL NOT NULL, "
+        "target_window_end REAL NOT NULL, "
+        "prediction_type TEXT NOT NULL, "
+        "centroid_embedding BLOB NOT NULL, "
+        "representative_content TEXT, "
+        "verified_at REAL, "
+        "surprise_score REAL, "
+        "surprise_flag INTEGER, "
+        "tags TEXT NOT NULL DEFAULT '[]')",
+        "CREATE INDEX IF NOT EXISTS idx_predictions_target_window "
+        "ON predictions(target_window_end)",
+        "CREATE INDEX IF NOT EXISTS idx_predictions_type "
+        "ON predictions(prediction_type)",
+        "CREATE TABLE IF NOT EXISTS surprise_events ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "triggered_at REAL NOT NULL, "
+        "prediction_id INTEGER NOT NULL, "
+        "prediction_type TEXT NOT NULL, "
+        "surprise_score REAL NOT NULL, "
+        "surprise_flag INTEGER NOT NULL, "
+        "big_surprise INTEGER NOT NULL DEFAULT 0, "
+        "predicted_content TEXT, "
+        "actual_content TEXT, "
+        "tags TEXT NOT NULL DEFAULT '[]')",
+        "CREATE INDEX IF NOT EXISTS idx_surprise_events_triggered_at "
+        "ON surprise_events(triggered_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_surprise_events_flag "
+        "ON surprise_events(surprise_flag)",
     ],
     "conversations": [
         "CREATE TABLE IF NOT EXISTS open_problems ("
