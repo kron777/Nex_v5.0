@@ -381,6 +381,10 @@ def main() -> None:
     except Exception as _sp_err:
         log.warning("SocialPresence failed to start (non-fatal): %s", _sp_err)
 
+    # Phase 40 — wire drift history nodes into Metacognition now that both are live
+    metacognition._smv = _self_mind_view
+    metacognition._sp = _social_presence
+
     # 10. Fountain ignition
     log.info("Igniting fountain...")
     log.info(

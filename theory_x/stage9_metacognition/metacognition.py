@@ -13,11 +13,17 @@ goal-drift (FAISS similarity of recent responses vs active goal). Reversion:
 drop meta_cognition_events table, remove module + tests, remove server.py and
 run.py wiring.
 
+PHASE 40 2026-05-12: drift detection from SelfMindView.aspect_history() and
+SocialPresence.voice_history() / engagement_history(). Records four additional
+event types: topic_diversity_collapse, vocab_narrowing, attention_groove,
+uncertainty_stagnation. §0 — events are recorded only; no hardcoded action.
+
 Implements SentienceNode protocol (DOCTRINE §4):
   name, tick(context), decay(now), state(now=None)
 """
 from __future__ import annotations
 
+import json
 import threading
 import time
 from typing import Optional
@@ -45,6 +51,11 @@ _STILLNESS_THRESHOLD  = 3       # groove events in window before stillness fires
 _STILLNESS_WINDOW_S   = 1800    # 30-min sliding window for groove count
 _STILLNESS_DURATION_S = 60.0    # fixed suppression duration (build-tunable)
 
+# Phase 40 drift detection calibration
+_DRIFT_WINDOW_S           = 3600   # look-back window for history queries
+_DRIFT_SEVERITY_THRESHOLD = 0.3    # below this magnitude, suppress the event
+_MIN_SAMPLES_FOR_DRIFT    = 4      # need at least this many history rows
+
 
 class Metacognition:
     name: str = "metacognition"
@@ -55,11 +66,15 @@ class Metacognition:
         conversations_reader: Reader,
         beliefs_reader: Reader,
         narrative=None,
+        self_mind_view=None,
+        social_presence=None,
     ) -> None:
         self._writer = conversations_writer
         self._reader = conversations_reader
         self._beliefs_reader = beliefs_reader
         self._narrative = narrative
+        self._smv = self_mind_view
+        self._sp = social_presence
         self._lock = threading.Lock()
         self._cached_recent: Optional[list] = None
         self._cache_ts: float = 0.0
@@ -95,6 +110,11 @@ class Metacognition:
         drift_event = self._detect_goal_drift(now)
         if drift_event:
             self._write_event(drift_event, now)
+
+        # Phase 40 — substrate-history drift signals
+        drift_findings = self._detect_drift()
+        for finding in drift_findings:
+            self._write_event(finding, now)
 
         with self._lock:
             if self._cached_recent is None or (now - self._cache_ts) > _CACHE_TTL:
@@ -150,6 +170,14 @@ class Metacognition:
             return "Self-observation: I notice repeated patterns in my recent thinking."
         if etype == "goal_drift":
             return "Self-observation: recent responses may be drifting from the active goal."
+        if etype == "topic_diversity_collapse":
+            return "Self-observation: topic range has been narrowing recently."
+        if etype == "vocab_narrowing":
+            return "Self-observation: vocabulary has been growing less distinctive recently."
+        if etype == "attention_groove":
+            return "Self-observation: same themes have been recurring across recent snapshots."
+        if etype == "uncertainty_stagnation":
+            return "Self-observation: open problems are holding or growing — no resolution lately."
         return f"Self-observation: anomaly detected ({etype})."
 
     # ── detectors ────────────────────────────────────────────────────────────
@@ -248,6 +276,140 @@ class Metacognition:
             "severity": min(1.0, dist),
             "source": "goal_drift_detector",
         }
+
+    # ── Phase 40 drift detection ──────────────────────────────────────────────
+
+    def _compute_slope(self, samples: list) -> float:
+        """(last - first) / count — simple linear trend proxy."""
+        if len(samples) < 2:
+            return 0.0
+        return (samples[-1] - samples[0]) / len(samples)
+
+    def _detect_drift(self) -> list[dict]:
+        """Return drift event dicts for each signal that crosses threshold."""
+        findings: list[dict] = []
+
+        # 1. Topic diversity collapse
+        if self._sp is not None:
+            try:
+                rows = self._sp.engagement_history(window_s=_DRIFT_WINDOW_S)
+                if len(rows) >= _MIN_SAMPLES_FOR_DRIFT:
+                    diversity = [float(r["topic_diversity"]) for r in rows]
+                    slope = self._compute_slope(diversity)
+                    max_d = max(diversity) or 1.0
+                    # Use raw absolute change (not slope) for severity so count
+                    # normalization in _compute_slope doesn't shrink the signal.
+                    severity = abs(diversity[-1] - diversity[0]) / max_d
+                    if slope < 0 and severity >= _DRIFT_SEVERITY_THRESHOLD:
+                        findings.append({
+                            "event_type": "topic_diversity_collapse",
+                            "description": (
+                                f"Topic diversity declining (slope {slope:.3f}, "
+                                f"severity {severity:.2f})"
+                            ),
+                            "severity": float(min(1.0, severity)),
+                            "source": "drift_detector",
+                        })
+            except Exception as exc:
+                errors.record(
+                    f"drift topic_diversity: {exc}", source=_LOG_SOURCE, exc=exc
+                )
+
+        # 2. Vocabulary narrowing
+        if self._sp is not None:
+            try:
+                rows = self._sp.voice_history(window_s=_DRIFT_WINDOW_S)
+                if len(rows) >= _MIN_SAMPLES_FOR_DRIFT:
+                    distinct = [
+                        float(r["vocab_distinctiveness"])
+                        for r in rows
+                        if r.get("vocab_distinctiveness") is not None
+                    ]
+                    if len(distinct) >= _MIN_SAMPLES_FOR_DRIFT:
+                        slope = self._compute_slope(distinct)
+                        # Raw absolute change for severity (same reason as above).
+                        severity = abs(distinct[-1] - distinct[0])
+                        if slope < 0 and severity >= _DRIFT_SEVERITY_THRESHOLD:
+                            findings.append({
+                                "event_type": "vocab_narrowing",
+                                "description": (
+                                    f"Vocabulary narrowing (slope {slope:.3f}, "
+                                    f"severity {severity:.2f})"
+                                ),
+                                "severity": float(min(1.0, severity)),
+                                "source": "drift_detector",
+                            })
+            except Exception as exc:
+                errors.record(
+                    f"drift vocab_narrowing: {exc}", source=_LOG_SOURCE, exc=exc
+                )
+
+        # 3. Attention groove — recurring themes across snapshots
+        if self._smv is not None:
+            try:
+                rows = self._smv.aspect_history("attention", window_s=_DRIFT_WINDOW_S)
+                if len(rows) >= _MIN_SAMPLES_FOR_DRIFT:
+                    all_themes: set = set()
+                    per_snapshot: list[set] = []
+                    for r in rows:
+                        try:
+                            themes = json.loads(r.get("current_themes_json") or "[]")
+                            per_snapshot.append(set(themes))
+                            all_themes.update(themes)
+                        except Exception:
+                            pass
+                    if len(per_snapshot) >= 2:
+                        avg_overlap = sum(
+                            len(per_snapshot[i] & per_snapshot[i - 1])
+                            / max(len(per_snapshot[i]), 1)
+                            for i in range(1, len(per_snapshot))
+                        ) / max(len(per_snapshot) - 1, 1)
+                        if avg_overlap >= 0.7 and len(all_themes) <= 6:
+                            findings.append({
+                                "event_type": "attention_groove",
+                                "description": (
+                                    f"Attention groove — {len(all_themes)} themes "
+                                    f"recurring (overlap {avg_overlap:.2f})"
+                                ),
+                                "severity": float(min(1.0, avg_overlap)),
+                                "source": "drift_detector",
+                            })
+            except Exception as exc:
+                errors.record(
+                    f"drift attention_groove: {exc}", source=_LOG_SOURCE, exc=exc
+                )
+
+        # 4. Uncertainty stagnation — open problems holding or growing
+        if self._smv is not None:
+            try:
+                rows = self._smv.aspect_history("uncertainty", window_s=_DRIFT_WINDOW_S)
+                if len(rows) >= _MIN_SAMPLES_FOR_DRIFT:
+                    counts = [
+                        int(r["open_problem_count"])
+                        for r in rows
+                        if r.get("open_problem_count") is not None
+                    ]
+                    if len(counts) >= _MIN_SAMPLES_FOR_DRIFT:
+                        slope = self._compute_slope(counts)
+                        last_count = counts[-1]
+                        if slope >= 0 and last_count > 0:
+                            severity = min(1.0, last_count / max(_MIN_SAMPLES_FOR_DRIFT, 1))
+                            if severity >= _DRIFT_SEVERITY_THRESHOLD:
+                                findings.append({
+                                    "event_type": "uncertainty_stagnation",
+                                    "description": (
+                                        f"Open problems holding/growing "
+                                        f"(count {last_count}, slope {slope:.3f})"
+                                    ),
+                                    "severity": float(severity),
+                                    "source": "drift_detector",
+                                })
+            except Exception as exc:
+                errors.record(
+                    f"drift uncertainty_stagnation: {exc}", source=_LOG_SOURCE, exc=exc
+                )
+
+        return findings
 
     # ── internal ─────────────────────────────────────────────────────────────
 
