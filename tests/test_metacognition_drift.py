@@ -1,7 +1,10 @@
-"""Metacognition drift detection tests — Phase 40.
+"""Metacognition drift detection tests — Phase 40 + Phase 41.
 
-12 tests covering slope math, all four drift kinds, threshold gating,
-fault tolerance when nodes are missing, and write-through to the DB.
+Phase 40 (14 tests): slope math, four drift kinds, threshold gating,
+fault tolerance, write-through to DB.
+
+Phase 41 (8 tests): three value-drift signals — distance growth,
+contradiction rate increase, abandonment / keystone-token overlap.
 """
 from __future__ import annotations
 
@@ -281,6 +284,284 @@ class TestTickRobustness(unittest.TestCase):
             self.mc.tick()
         except Exception as exc:
             self.fail(f"tick() raised unexpectedly: {exc}")
+
+
+# ── Phase 41 value-drift tests ────────────────────────────────────────────────
+
+import numpy as np
+from unittest.mock import patch
+
+
+import uuid as _uuid
+
+
+def _seed_keystones(writers, n=5, tag=""):
+    """Seed locked tier-1 beliefs as keystones."""
+    import time as _t
+    now = int(_t.time())
+    uid = _uuid.uuid4().hex[:8]
+    for i in range(n):
+        writers["beliefs"].write(
+            "INSERT OR IGNORE INTO beliefs (content, tier, confidence, source, "
+            "created_at, tags, locked) VALUES (?, 1, 0.99, 'spectrum', ?, '[]', 1)",
+            (f"attend {uid} wonder awareness presence existence {i} {tag}.", now - i * 10),
+        )
+    _t.sleep(0.05)
+
+
+def _seed_recent_beliefs(writers, contents: list[str]):
+    import time as _t
+    now = int(_t.time())
+    uid = _uuid.uuid4().hex[:8]
+    for i, c in enumerate(contents):
+        writers["beliefs"].write(
+            "INSERT OR IGNORE INTO beliefs (content, tier, confidence, source, "
+            "created_at, tags) VALUES (?, 7, 0.5, 'fountain_insight', ?, '[]')",
+            (f"{c} {uid}{i}", now - i * 5),
+        )
+    _t.sleep(0.05)
+
+
+def _seed_gate_decisions(writers, prior_count: int, recent_count: int):
+    """Seed gate_decisions with anchor-contradiction rejects in two windows."""
+    import time as _t
+    now = _t.time()
+    mid = now - 1800  # 30-min split
+
+    def _seed_block(start_ts: float, count: int):
+        for i in range(count):
+            ts = start_ts - i * 0.1
+            writers["beliefs"].write(
+                "INSERT INTO gate_decisions "
+                "(ts, source_node, outcome, reason, latency_ms, content_preview) "
+                "VALUES (?, 'test_node', 'REJECT', "
+                "'contradicts_anchor:locked_id_1', 0.0, 'test')",
+                (ts,),
+            )
+
+    _seed_block(mid - 1, prior_count)     # prior window  (>start, <=mid)
+    _seed_block(now - 1, recent_count)    # recent window (>mid, <=now)
+    _t.sleep(0.05)
+
+
+# ── 11. value_drift_distance fires when distance grows ────────────────────────
+
+class TestValueDriftDistance(unittest.TestCase):
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+        _seed_keystones(self.writers, n=3)
+        # Recent beliefs with far-from-keystone content
+        _seed_recent_beliefs(self.writers, [
+            f"unrelated cryptocurrency market price action {i}" for i in range(10)
+        ])
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def _make_mc_with_distance_history(self, old_dist, new_dist):
+        """MC pre-seeded so the distance increase triggers the threshold."""
+        from theory_x.stage9_metacognition.metacognition import Metacognition, _VALUE_DRIFT_DISTANCE_DEQUE_LEN
+        mc = Metacognition(
+            self.writers["conversations"],
+            self.readers["conversations"],
+            self.readers["beliefs"],
+        )
+        # Pre-populate history so increase is detectable
+        mc._distance_history.append(old_dist)
+        # Pre-load keystone cache with a simple unit vector matrix
+        mc._keystone_matrix = np.eye(384, dtype=np.float32)[:3]
+        mc._keystone_tokens = frozenset(["wonder", "awareness", "presence"])
+        return mc
+
+    def test_distance_fires_when_distance_grows(self):
+        from theory_x.stage9_metacognition.metacognition import _VALUE_DRIFT_DISTANCE_INCREASE
+        mc = self._make_mc_with_distance_history(0.1, None)
+        # Patch embed_belief to return a vector far from the keystone matrix
+        far_vec = np.zeros(384, dtype=np.float32)
+        far_vec[383] = 1.0  # orthogonal to eye[:3] rows
+
+        with patch("theory_x.stage9_metacognition.metacognition.embed_belief",
+                   return_value=far_vec):
+            findings = mc._detect_value_drift()
+        kinds = [f["event_type"] for f in findings]
+        self.assertIn("value_drift_distance", kinds)
+
+    def test_distance_stable_no_fire(self):
+        mc = self._make_mc_with_distance_history(0.5, None)
+        # Patch embed to return a vector identical to a keystone (distance ≈ 0)
+        near_vec = np.eye(384, dtype=np.float32)[0]  # same as first keystone row
+
+        with patch("theory_x.stage9_metacognition.metacognition.embed_belief",
+                   return_value=near_vec):
+            findings = mc._detect_value_drift()
+        kinds = [f["event_type"] for f in findings]
+        self.assertNotIn("value_drift_distance", kinds)
+
+
+# ── 12. value_drift_contradiction fires on rate increase ──────────────────────
+
+class TestValueDriftContradiction(unittest.TestCase):
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_contradiction_fires_on_rate_increase(self):
+        from theory_x.stage9_metacognition.metacognition import _VALUE_DRIFT_CONTRADICTION_THRESHOLD
+        # prior=threshold+1, recent=prior*2 (100% increase > 30% threshold)
+        prior = _VALUE_DRIFT_CONTRADICTION_THRESHOLD + 1
+        recent = prior * 2
+        _seed_gate_decisions(self.writers, prior_count=prior, recent_count=recent)
+        import time as _t; _t.sleep(0.1)
+
+        from theory_x.stage9_metacognition.metacognition import Metacognition
+        mc = Metacognition(
+            self.writers["conversations"],
+            self.readers["conversations"],
+            self.readers["beliefs"],
+        )
+        mc._keystone_matrix = np.eye(384, dtype=np.float32)[:1]
+        mc._keystone_tokens = frozenset(["test"])
+        findings = mc._detect_value_drift()
+        kinds = [f["event_type"] for f in findings]
+        self.assertIn("value_drift_contradiction", kinds)
+
+    def test_contradiction_no_fire_below_threshold(self):
+        from theory_x.stage9_metacognition.metacognition import (
+            Metacognition, _VALUE_DRIFT_CONTRADICTION_THRESHOLD
+        )
+        # prior below minimum floor → signal suppressed
+        _seed_gate_decisions(self.writers, prior_count=2, recent_count=10)
+        import time as _t; _t.sleep(0.1)
+
+        mc = Metacognition(
+            self.writers["conversations"],
+            self.readers["conversations"],
+            self.readers["beliefs"],
+        )
+        mc._keystone_matrix = np.eye(384, dtype=np.float32)[:1]
+        mc._keystone_tokens = frozenset(["test"])
+        findings = mc._detect_value_drift()
+        kinds = [f["event_type"] for f in findings]
+        self.assertNotIn("value_drift_contradiction", kinds)
+
+
+# ── 13. value_drift_abandonment fires on low keystone-token overlap ───────────
+
+class TestValueDriftAbandonment(unittest.TestCase):
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def _make_mc_with_keystone_tokens(self, tokens: frozenset):
+        from theory_x.stage9_metacognition.metacognition import Metacognition
+        mc = Metacognition(
+            self.writers["conversations"],
+            self.readers["conversations"],
+            self.readers["beliefs"],
+        )
+        mc._keystone_matrix = np.eye(384, dtype=np.float32)[:1]
+        mc._keystone_tokens = tokens
+        return mc
+
+    def test_abandonment_fires_when_overlap_low(self):
+        from theory_x.stage9_metacognition.metacognition import _VALUE_DRIFT_ABANDONMENT_OVERLAP_MAX
+        # init_all seeds 76 tier=1 locked=1 beliefs whose content contains keystone
+        # words like "wonder", "attend", "immutable". Delete ALL beliefs so the
+        # recent-belief window only contains our unrelated seeds. _load_keystone_cache
+        # exits early (mc._keystone_matrix is pre-set) so no reload from empty DB.
+        self.writers["beliefs"].write("DELETE FROM beliefs")
+        import time as _t; _t.sleep(0.05)
+        # Seed only content guaranteed absent of any keystone-token vocabulary
+        _seed_recent_beliefs(self.writers, [
+            "cryptocurrency market price action trading volume" for _ in range(5)
+        ])
+        keystone_tokens = frozenset(["wonder", "awareness", "presence", "attend",
+                                      "vantage", "membrane", "compress", "immutable"])
+        mc = self._make_mc_with_keystone_tokens(keystone_tokens)
+        findings = mc._detect_value_drift()
+        kinds = [f["event_type"] for f in findings]
+        self.assertIn("value_drift_abandonment", kinds)
+
+    def test_abandonment_no_fire_when_overlap_healthy(self):
+        # Recent beliefs full of keystone words → overlap high
+        _seed_recent_beliefs(self.writers, [
+            "wonder awareness presence attend vantage membrane compress" for _ in range(5)
+        ])
+        keystone_tokens = frozenset(["wonder", "awareness", "presence", "attend",
+                                      "vantage", "membrane", "compress", "immutable"])
+        mc = self._make_mc_with_keystone_tokens(keystone_tokens)
+        findings = mc._detect_value_drift()
+        kinds = [f["event_type"] for f in findings]
+        self.assertNotIn("value_drift_abandonment", kinds)
+
+
+# ── 14. All three signals robust when keystones empty ─────────────────────────
+
+class TestValueDriftEmptyKeystones(unittest.TestCase):
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+        # No keystones seeded — beliefs table has no tier=1 locked rows
+        from substrate.init_db import init_all
+        init_all()
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_no_keystones_returns_empty(self):
+        from theory_x.stage9_metacognition.metacognition import Metacognition
+        mc = Metacognition(
+            self.writers["conversations"],
+            self.readers["conversations"],
+            self.readers["beliefs"],
+        )
+        # Load cache — will find 76+ keystones from init_all seeds,
+        # so test that even if we force-clear it with empty matrix, no crash
+        mc._keystone_matrix = np.zeros((0, 384), dtype=np.float32)
+        mc._keystone_tokens = frozenset()
+        try:
+            findings = mc._detect_value_drift()
+        except Exception as exc:
+            self.fail(f"_detect_value_drift raised with empty keystones: {exc}")
+        # distance and abandonment should not fire with zero keystones
+        kinds = [f["event_type"] for f in findings]
+        self.assertNotIn("value_drift_distance", kinds)
+        self.assertNotIn("value_drift_abandonment", kinds)
+
+
+# ── 15. format_for_prompt covers each new event type ─────────────────────────
+
+class TestValueDriftFormatForPrompt(unittest.TestCase):
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def _prompt_for_type(self, etype: str) -> str:
+        from theory_x.stage9_metacognition.metacognition import Metacognition
+        mc = Metacognition(
+            self.writers["conversations"],
+            self.readers["conversations"],
+            self.readers["beliefs"],
+        )
+        mc._cached_recent = [{"event_type": etype}]
+        return mc.format_for_prompt()
+
+    def test_format_value_drift_distance(self):
+        result = self._prompt_for_type("value_drift_distance")
+        self.assertIn("deepest beliefs", result)
+
+    def test_format_value_drift_contradiction(self):
+        result = self._prompt_for_type("value_drift_contradiction")
+        self.assertIn("anchors", result)
+
+    def test_format_value_drift_abandonment(self):
+        result = self._prompt_for_type("value_drift_abandonment")
+        self.assertIn("deepest beliefs", result)
 
 
 if __name__ == "__main__":

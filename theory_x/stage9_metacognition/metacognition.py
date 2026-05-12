@@ -18,18 +18,30 @@ SocialPresence.voice_history() / engagement_history(). Records four additional
 event types: topic_diversity_collapse, vocab_narrowing, attention_groove,
 uncertainty_stagnation. §0 — events are recorded only; no hardcoded action.
 
+PHASE 41 2026-05-12: value-drift monitoring via keystones (tier=1 AND locked=1).
+Three additional event types: value_drift_distance (recent beliefs moving away
+from keystones in embedding space), value_drift_contradiction (anchor-reject rate
+increasing — more generated content contradicting keystones),
+value_drift_abandonment (keystone vocabulary barely appearing in recent activity).
+Keystones have empty tags; abandonment uses word-token overlap on content instead.
+Contradiction uses rate-change (recent 30min vs prior 30min) because production
+gate rejects ~24K/hr normally — absolute count would always fire. §0.
+
 Implements SentienceNode protocol (DOCTRINE §4):
   name, tick(context), decay(now), state(now=None)
 """
 from __future__ import annotations
 
 import json
+import string
 import threading
 import time
+from collections import deque
 from typing import Optional
 
 import errors
 from substrate import Writer, Reader
+from theory_x.diversity.embeddings import embed_belief
 
 THEORY_X_STAGE = 9
 
@@ -56,6 +68,23 @@ _DRIFT_WINDOW_S           = 3600   # look-back window for history queries
 _DRIFT_SEVERITY_THRESHOLD = 0.3    # below this magnitude, suppress the event
 _MIN_SAMPLES_FOR_DRIFT    = 4      # need at least this many history rows
 
+# Phase 41 value-drift calibration
+# Note: contradiction uses rate-change (recent 30min vs prior 30min) because
+# production gate rejects ~24K/hr normally — absolute count would always fire.
+_VALUE_DRIFT_CONTRADICTION_THRESHOLD = 100  # min prior-window count before comparing rates
+_VALUE_DRIFT_CONTRADICTION_RATE_INCREASE = 0.30  # 30% rate increase flags drift
+_VALUE_DRIFT_DISTANCE_INCREASE       = 0.15  # cosine-distance growth over rolling window
+_VALUE_DRIFT_ABANDONMENT_OVERLAP_MAX = 0.15  # keystone-token overlap floor
+_VALUE_DRIFT_DISTANCE_DEQUE_LEN      = 8    # rolling history length for distance tracking
+_VALUE_DRIFT_STOPWORDS = frozenset({
+    "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+    "i", "my", "me", "we", "our", "it", "its", "in", "of", "to", "and",
+    "or", "but", "not", "no", "on", "at", "by", "for", "with", "from",
+    "this", "that", "what", "which", "who", "how", "all", "any", "do",
+    "does", "did", "have", "has", "had", "will", "would", "can", "could",
+    "may", "might", "shall", "should", "than", "so", "if", "as", "into",
+})
+
 
 class Metacognition:
     name: str = "metacognition"
@@ -80,6 +109,10 @@ class Metacognition:
         self._cache_ts: float = 0.0
         self._last_groove_at: float = 0.0
         self._last_drift_at: float = 0.0
+        # Phase 41 value-drift caches
+        self._keystone_matrix = None      # numpy (N, 384) — built on first use
+        self._keystone_tokens: Optional[frozenset] = None  # word tokens from all keystones
+        self._distance_history: deque = deque(maxlen=_VALUE_DRIFT_DISTANCE_DEQUE_LEN)
 
     # ── SentienceNode protocol ────────────────────────────────────────────────
 
@@ -178,6 +211,12 @@ class Metacognition:
             return "Self-observation: same themes have been recurring across recent snapshots."
         if etype == "uncertainty_stagnation":
             return "Self-observation: open problems are holding or growing — no resolution lately."
+        if etype == "value_drift_distance":
+            return "Self-observation: my recent thoughts are moving away from my deepest beliefs."
+        if etype == "value_drift_contradiction":
+            return "Self-observation: I've been rejecting more thoughts that conflict with my anchors."
+        if etype == "value_drift_abandonment":
+            return "Self-observation: my deepest beliefs are barely surfacing in my recent thinking."
         return f"Self-observation: anomaly detected ({etype})."
 
     # ── detectors ────────────────────────────────────────────────────────────
@@ -408,6 +447,177 @@ class Metacognition:
                 errors.record(
                     f"drift uncertainty_stagnation: {exc}", source=_LOG_SOURCE, exc=exc
                 )
+
+        # Phase 41 value-drift signals
+        findings.extend(self._detect_value_drift())
+
+        return findings
+
+    # ── Phase 41 value-drift detection ───────────────────────────────────────
+
+    def _tokenize_for_value(self, text: str) -> frozenset:
+        """Lowercase word tokens, strip punctuation, drop stopwords and short words."""
+        trans = str.maketrans("", "", string.punctuation)
+        tokens = text.lower().translate(trans).split()
+        return frozenset(t for t in tokens if len(t) > 1 and t not in _VALUE_DRIFT_STOPWORDS)
+
+    def _load_keystone_cache(self):
+        """Populate _keystone_matrix and _keystone_tokens on first call. Never raises."""
+        if self._keystone_matrix is not None:
+            return
+        try:
+            rows = self._beliefs_reader.read(
+                "SELECT id, content FROM beliefs WHERE tier=1 AND locked=1"
+            )
+            if not rows:
+                return
+            import numpy as np
+            from theory_x.diversity.embeddings import embed_belief
+            vecs = []
+            all_tokens: set = set()
+            for r in rows:
+                vecs.append(embed_belief(r["id"], r["content"]))
+                all_tokens.update(self._tokenize_for_value(r["content"]))
+            self._keystone_matrix = np.vstack(vecs).astype(np.float32)  # (N, 384)
+            self._keystone_tokens = frozenset(all_tokens)
+        except Exception as exc:
+            errors.record(
+                f"keystone cache load failed: {exc}", source=_LOG_SOURCE, exc=exc
+            )
+
+    def _detect_value_drift(self) -> list[dict]:
+        """Return value-drift event dicts (three kinds). Never raises."""
+        findings: list[dict] = []
+        now = time.time()
+
+        self._load_keystone_cache()
+
+        # 5. value_drift_distance — recent beliefs moving away from keystones
+        try:
+            if self._keystone_matrix is not None and len(self._keystone_matrix) > 0:
+                import numpy as np
+                recent_rows = self._beliefs_reader.read(
+                    "SELECT id, content FROM beliefs "
+                    "WHERE created_at > ? ORDER BY created_at DESC LIMIT 200",
+                    (now - _DRIFT_WINDOW_S,),
+                )
+                if recent_rows:
+                    ks = self._keystone_matrix  # (N, 384)
+                    ks_norms = np.linalg.norm(ks, axis=1, keepdims=True)
+                    ks_norms = np.where(ks_norms == 0, 1.0, ks_norms)
+                    ks_normed = ks / ks_norms  # (N, 384) unit vectors
+
+                    min_dists = []
+                    for r in recent_rows:
+                        vec = embed_belief(r["id"], r["content"]).astype(np.float32)
+                        norm = np.linalg.norm(vec)
+                        if norm == 0:
+                            continue
+                        vec_normed = vec / norm
+                        # cosine similarity to all keystones at once
+                        sims = ks_normed @ vec_normed  # (N,)
+                        # distance = (1 - cosine_sim) / 2 matching distance() formula
+                        max_sim = float(np.max(sims))
+                        min_dist = 1.0 - (max_sim + 1.0) / 2.0
+                        min_dists.append(min_dist)
+
+                    if min_dists:
+                        avg_min_dist = sum(min_dists) / len(min_dists)
+                        self._distance_history.append(avg_min_dist)
+
+                        if len(self._distance_history) >= 2:
+                            oldest = self._distance_history[0]
+                            increase = avg_min_dist - oldest
+                            if increase >= _VALUE_DRIFT_DISTANCE_INCREASE:
+                                findings.append({
+                                    "event_type": "value_drift_distance",
+                                    "description": (
+                                        f"Recent beliefs moving away from keystones "
+                                        f"(avg distance {avg_min_dist:.2f}, "
+                                        f"+{increase:.2f} over window)"
+                                    ),
+                                    "severity": float(min(1.0, increase / 0.5)),
+                                    "source": "value_drift_detector",
+                                })
+        except Exception as exc:
+            errors.record(
+                f"value_drift_distance: {exc}", source=_LOG_SOURCE, exc=exc
+            )
+
+        # 6. value_drift_contradiction — anchor-reject rate increasing
+        try:
+            mid = now - 1800  # 30-min boundary
+            start = now - 3600
+
+            recent_row = self._beliefs_reader.read_one(
+                "SELECT COUNT(*) AS n FROM gate_decisions "
+                "WHERE outcome='REJECT' AND ts > ? "
+                "AND reason LIKE 'contradicts_anchor:locked_id_%'",
+                (mid,),
+            )
+            prior_row = self._beliefs_reader.read_one(
+                "SELECT COUNT(*) AS n FROM gate_decisions "
+                "WHERE outcome='REJECT' AND ts > ? AND ts <= ? "
+                "AND reason LIKE 'contradicts_anchor:locked_id_%'",
+                (start, mid),
+            )
+            recent_count = int(recent_row["n"]) if recent_row else 0
+            prior_count = int(prior_row["n"]) if prior_row else 0
+
+            if prior_count >= _VALUE_DRIFT_CONTRADICTION_THRESHOLD and prior_count > 0:
+                rate_increase = (recent_count - prior_count) / prior_count
+                if rate_increase >= _VALUE_DRIFT_CONTRADICTION_RATE_INCREASE:
+                    severity = float(min(1.0, rate_increase))
+                    findings.append({
+                        "event_type": "value_drift_contradiction",
+                        "description": (
+                            f"Anchor-reject rate up {rate_increase:.0%} "
+                            f"(recent {recent_count}, prior {prior_count})"
+                        ),
+                        "severity": severity,
+                        "source": "value_drift_detector",
+                    })
+        except Exception as exc:
+            errors.record(
+                f"value_drift_contradiction: {exc}", source=_LOG_SOURCE, exc=exc
+            )
+
+        # 7. value_drift_abandonment — keystone vocabulary absent from recent beliefs
+        try:
+            if self._keystone_tokens is not None and len(self._keystone_tokens) > 0:
+                recent_rows_ab = self._beliefs_reader.read(
+                    "SELECT content FROM beliefs "
+                    "WHERE created_at > ? ORDER BY created_at DESC LIMIT 200",
+                    (now - _DRIFT_WINDOW_S,),
+                )
+                if recent_rows_ab:
+                    recent_tokens: set = set()
+                    for r in recent_rows_ab:
+                        recent_tokens.update(self._tokenize_for_value(r["content"]))
+
+                    overlap = (
+                        len(self._keystone_tokens & recent_tokens)
+                        / max(len(self._keystone_tokens), 1)
+                    )
+                    if overlap <= _VALUE_DRIFT_ABANDONMENT_OVERLAP_MAX:
+                        severity = float(min(
+                            1.0,
+                            (_VALUE_DRIFT_ABANDONMENT_OVERLAP_MAX - overlap)
+                            / max(_VALUE_DRIFT_ABANDONMENT_OVERLAP_MAX, 1e-9),
+                        ))
+                        findings.append({
+                            "event_type": "value_drift_abandonment",
+                            "description": (
+                                f"Keystone vocabulary barely surfacing in recent activity "
+                                f"(overlap {overlap:.2f})"
+                            ),
+                            "severity": severity,
+                            "source": "value_drift_detector",
+                        })
+        except Exception as exc:
+            errors.record(
+                f"value_drift_abandonment: {exc}", source=_LOG_SOURCE, exc=exc
+            )
 
         return findings
 
