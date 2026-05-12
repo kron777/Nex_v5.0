@@ -350,6 +350,22 @@ def main() -> None:
     except Exception as _ps_err:
         log.warning("PredictiveSubstrate failed to start (non-fatal): %s", _ps_err)
 
+    # Phase 37 — SelfMindView (queryable self-view + snapshot history)
+    _self_mind_view = None
+    try:
+        from theory_x.stage_tom import SelfMindView as _SMV
+        _self_mind_view = _SMV(
+            dynamic_reader=readers["dynamic"],
+            dynamic_writer=writers["dynamic"],
+            beliefs_reader=readers["beliefs"],
+            conversations_reader=readers["conversations"],
+            drive_emergence=_drive_emergence,
+        )
+        _self_mind_view.start_loop()
+        log.info("SelfMindView ready — autonomous cycle every 300s")
+    except Exception as _smv_err:
+        log.warning("SelfMindView failed to start (non-fatal): %s", _smv_err)
+
     # 10. Fountain ignition
     log.info("Igniting fountain...")
     log.info(
@@ -522,6 +538,7 @@ def main() -> None:
         affect_state=_affect_state,
         drive_emergence=_drive_emergence,
         predictive_substrate=_predictive_substrate,
+        self_mind_view=_self_mind_view,
     )
     atexit.register(state.close)
 

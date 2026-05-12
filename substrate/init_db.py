@@ -317,6 +317,31 @@ _MIGRATIONS: dict[str, list[str]] = {
         "ON surprise_events(triggered_at DESC)",
         "CREATE INDEX IF NOT EXISTS idx_surprise_events_flag "
         "ON surprise_events(surprise_flag)",
+        # Phase 37 — SelfMindView: self-mind snapshot archive
+        "CREATE TABLE IF NOT EXISTS self_mind_snapshots ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "taken_at REAL NOT NULL, "
+        "belief_total_count INTEGER NOT NULL, "
+        "belief_t1_count INTEGER NOT NULL, "
+        "belief_t2_count INTEGER NOT NULL, "
+        "belief_t3_count INTEGER NOT NULL, "
+        "belief_t4_count INTEGER NOT NULL, "
+        "belief_avg_confidence REAL, "
+        "recent_beliefs_json TEXT NOT NULL DEFAULT '[]', "
+        "open_problem_count INTEGER NOT NULL, "
+        "active_drive_count INTEGER NOT NULL, "
+        "current_intentions_json TEXT NOT NULL DEFAULT '[]', "
+        "knowledge_anchors_json TEXT NOT NULL DEFAULT '[]', "
+        "review_queue_count INTEGER NOT NULL, "
+        "t3_t4_count INTEGER NOT NULL, "
+        "explicit_unknowns_json TEXT NOT NULL DEFAULT '[]', "
+        "recent_belief_count_5m INTEGER NOT NULL, "
+        "recent_gate_count_5m INTEGER NOT NULL, "
+        "current_themes_json TEXT NOT NULL DEFAULT '[]', "
+        "current_drive_theme TEXT, "
+        "tags TEXT NOT NULL DEFAULT '[]')",
+        "CREATE INDEX IF NOT EXISTS idx_self_mind_snapshots_taken_at "
+        "ON self_mind_snapshots(taken_at DESC)",
     ],
     "conversations": [
         "CREATE TABLE IF NOT EXISTS open_problems ("
