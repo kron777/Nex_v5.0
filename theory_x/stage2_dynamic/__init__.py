@@ -154,7 +154,7 @@ def _sense_distillation_loop(state: DynamicState, stop: threading.Event) -> None
                 "SELECT id, stream, payload, timestamp "
                 "FROM sense_events "
                 "WHERE id > ? AND stream NOT LIKE 'internal.%' "
-                "ORDER BY id ASC LIMIT 100",
+                "ORDER BY id ASC LIMIT 1000",
                 (last_id,),
             )
             written = 0
