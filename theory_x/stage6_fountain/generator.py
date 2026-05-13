@@ -25,6 +25,7 @@ _OWN_CONTENT_SOURCES = (
     "fountain_insight",
     "synergized",
     "precipitated_from_dynamic",
+    "precipitated_from_sense",
     "behavioural_observation",
     "auto_probe",
 )
@@ -634,54 +635,14 @@ class FountainGenerator:
 
     @staticmethod
     def _extract_sense_summary(stream: str, payload: str, max_items: int = 3) -> "str | None":
-        """Return a human-readable string summarising the payload, or None
-        if the payload contains nothing displayable.
+        """Delegates to theory_x.stage1_sense.title_extract.extract_sense_title.
 
-        Per §0: no content-meaning filtering. This only transforms format —
-        JSON to readable text. The substrate's existing recency and stream
-        balancing decide relevance.
+        Kept as a static method for backward compatibility with existing callers
+        and tests. The logic lives in stage1 so stage2_dynamic can import it
+        without a stage2→stage6 cross-stage dependency.
         """
-        if not payload or not payload.strip():
-            return None
-
-        stripped = payload.lstrip()
-        if not (stripped.startswith("{") or stripped.startswith("[")):
-            return payload[:200] if len(payload) > 200 else payload
-
-        try:
-            data = json.loads(stripped)
-        except (json.JSONDecodeError, ValueError):
-            return None
-
-        titles: list = []
-
-        def _collect(obj):
-            if len(titles) >= max_items:
-                return
-            if isinstance(obj, dict):
-                for key in ("title", "headline", "name", "subject"):
-                    val = obj.get(key)
-                    if isinstance(val, str) and val.strip():
-                        titles.append(val.strip())
-                        if len(titles) >= max_items:
-                            return
-                        break
-                for key in ("items", "results", "entries", "coins", "data"):
-                    if key in obj and isinstance(obj[key], list):
-                        _collect(obj[key])
-                        if len(titles) >= max_items:
-                            return
-            elif isinstance(obj, list):
-                for item in obj:
-                    _collect(item)
-                    if len(titles) >= max_items:
-                        return
-
-        _collect(data)
-
-        if not titles:
-            return None
-        return " · ".join(titles)
+        from theory_x.stage1_sense.title_extract import extract_sense_title
+        return extract_sense_title(stream, payload, max_items=max_items)
 
     def _recent_sense_sample(self, limit: int = 3) -> str:
         """Return a compact multi-source sense snippet for drift context."""

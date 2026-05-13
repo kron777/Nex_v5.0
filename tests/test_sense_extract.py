@@ -217,3 +217,73 @@ def test_retrieval_source_mix_cap_applied():
     sources_present = {r["source"] for r in picked}
     assert "synergized" in sources_present
     assert "fountain_insight" in sources_present
+
+
+# ── Phase 45: sense→beliefs path ─────────────────────────────────────────────
+
+def test_extract_sense_title_importable_from_stage1():
+    """extract_sense_title lives in stage1 and produces same results as before."""
+    from theory_x.stage1_sense.title_extract import extract_sense_title
+    import json as _json
+    payload = _json.dumps({"title": "Scaling laws for neural language models", "link": "https://x"})
+    assert extract_sense_title("ai_research.arxiv", payload) == "Scaling laws for neural language models"
+    assert extract_sense_title("any.stream", "") is None
+    assert extract_sense_title("any.stream", _json.dumps({"exchange": "kraken"})) is None
+
+
+def test_extract_sense_summary_delegates_to_stage1():
+    """FountainGenerator._extract_sense_summary delegates without behavioural change."""
+    import json as _json
+    payload = _json.dumps({"title": "Test delegation"})
+    result = _extract("some.stream", payload)
+    assert result == "Test delegation"
+
+
+def test_precipitated_from_sense_in_own_content_sources():
+    from theory_x.stage6_fountain.generator import _OWN_CONTENT_SOURCES
+    assert "precipitated_from_sense" in _OWN_CONTENT_SOURCES
+
+
+def test_distillation_skips_no_title_payloads():
+    """Payloads with no extractable title are skipped."""
+    from theory_x.stage1_sense.title_extract import extract_sense_title
+    import json as _json
+    no_title = _json.dumps({"exchange": "kraken", "prices": {"BTC": 80000}})
+    assert extract_sense_title("crypto.exchanges", no_title) is None
+
+
+def test_distillation_extracts_crypto_titles():
+    """Crypto streams with title fields are included (per design: crypto titles yes)."""
+    from theory_x.stage1_sense.title_extract import extract_sense_title
+    import json as _json
+    payload = _json.dumps({"title": "Bitcoin surges past $90k on ETF inflows"})
+    result = extract_sense_title("crypto.news", payload)
+    assert result == "Bitcoin surges past $90k on ETF inflows"
+
+
+def test_distillation_logic_cap_and_dedup():
+    """Distillation logic: cap at 5/pass, dedup by content."""
+    from theory_x.stage1_sense.title_extract import extract_sense_title
+    import json as _json
+
+    # Simulate 10 sense rows, all with titles
+    rows = [
+        {"id": i, "stream": "emerging_tech.hn", "payload": _json.dumps({"title": f"Story {i}"}),
+         "timestamp": 1_000_000 + i}
+        for i in range(10)
+    ]
+    seen_content: set[str] = set()
+    written: list[str] = []
+    PER_PASS_MAX = 5
+
+    for row in rows:
+        if len(written) >= PER_PASS_MAX:
+            break
+        title = extract_sense_title(row["stream"], row["payload"], max_items=1)
+        if title is None or title in seen_content:
+            continue
+        seen_content.add(title)
+        written.append(title)
+
+    assert len(written) == 5
+    assert written == [f"Story {i}" for i in range(5)]

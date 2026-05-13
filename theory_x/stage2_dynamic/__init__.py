@@ -3,13 +3,14 @@
 build_dynamic(writers, readers) → DynamicState
 
 Starts all daemon loops:
-  sense_poll_loop       — reads sense.db, runs A-F pipeline (every 2.5s poll)
-  aperture_loop         — recalculates membrane aperture (every 5s)
-  accumulator_loop      — decay + flush (every 30s)
-  crystallization_loop  — checks for sustained high focus (every 60s)
-  consolidation_loop    — quiet-triggered consolidation (every 60s)
-  snapshot_loop         — writes tree state to dynamic.db (every 60s)
-  health_loop           — logs health to error channel (every 30s)
+  sense_poll_loop         — reads sense.db, runs A-F pipeline (every 2.5s poll)
+  aperture_loop           — recalculates membrane aperture (every 5s)
+  accumulator_loop        — decay + flush (every 30s)
+  crystallization_loop    — checks for sustained high focus (every 60s)
+  consolidation_loop      — quiet-triggered consolidation (every 60s)
+  sense_distillation_loop — promotes titled sense events to beliefs (every 60s)
+  snapshot_loop           — writes tree state to dynamic.db (every 60s)
+  health_loop             — logs health to error channel (every 30s)
 """
 from __future__ import annotations
 
@@ -34,6 +35,12 @@ _LOG_SOURCE = "dynamic"
 
 # Cursor key for last processed sense event id
 _CURSOR_KEY = "last_sense_id"
+
+# Sense distillation constants
+_DISTILL_CURSOR_KEY = "last_distilled_sense_id"
+_DISTILL_DEDUP_SECONDS = 86400        # skip titles already written in last 24h
+_DISTILL_PER_PASS_MAX = 5             # max new beliefs per 60s pass
+_DISTILL_SOURCE = "precipitated_from_sense"
 
 
 @dataclass
@@ -84,6 +91,115 @@ def _save_cursor(dynamic_writer: Writer, last_id: int) -> None:
         )
     except Exception as exc:
         errors.record(f"cursor save error: {exc}", source=_LOG_SOURCE, exc=exc)
+
+
+def _load_distill_cursor(dynamic_reader: Reader) -> int:
+    try:
+        row = dynamic_reader.read_one(
+            "SELECT value FROM dynamic_cursor WHERE key = ?",
+            (_DISTILL_CURSOR_KEY,),
+        )
+        return int(row["value"]) if row else 0
+    except Exception:
+        return 0
+
+
+def _save_distill_cursor(dynamic_writer: Writer, last_id: int) -> None:
+    try:
+        dynamic_writer.write(
+            "INSERT OR REPLACE INTO dynamic_cursor (key, value) VALUES (?, ?)",
+            (_DISTILL_CURSOR_KEY, last_id),
+        )
+    except Exception as exc:
+        errors.record(f"distill_cursor save error: {exc}", source=_LOG_SOURCE, exc=exc)
+
+
+def _sense_distillation_loop(state: DynamicState, stop: threading.Event) -> None:
+    """Promote titled sense events to precipitated_from_sense beliefs (every 60s).
+
+    Reads sense_events in cursor order, extracts titles via extract_sense_title,
+    dedupes against existing beliefs within 24h, writes up to _DISTILL_PER_PASS_MAX
+    new beliefs per pass. Bypasses CoherenceGate — external perceptions are substrate
+    content, not thoughts to be gated against internal coherence.
+
+    On first run (cursor == 0) fast-forwards to events from the last 48h so the
+    backfill is bounded rather than replaying all history.
+    """
+    from theory_x.stage1_sense.title_extract import extract_sense_title
+    sense_reader = state.readers["sense"]
+    beliefs_writer = state.writers["beliefs"]
+    beliefs_reader = state.readers["beliefs"]
+    dynamic_writer = state.writers["dynamic"]
+    dynamic_reader = state.readers["dynamic"]
+
+    last_id = _load_distill_cursor(dynamic_reader)
+
+    # First-run: skip events older than 48h to bound the initial backfill
+    if last_id == 0:
+        try:
+            cutoff_ts = int(time.time()) - 2 * 86400
+            row = sense_reader.read_one(
+                "SELECT id FROM sense_events WHERE timestamp >= ? ORDER BY id ASC LIMIT 1",
+                (cutoff_ts,),
+            )
+            if row:
+                last_id = max(0, row["id"] - 1)
+                _save_distill_cursor(dynamic_writer, last_id)
+        except Exception:
+            pass
+
+    while not stop.is_set():
+        try:
+            rows = sense_reader.read(
+                "SELECT id, stream, payload, timestamp "
+                "FROM sense_events "
+                "WHERE id > ? AND stream NOT LIKE 'internal.%' "
+                "ORDER BY id ASC LIMIT 100",
+                (last_id,),
+            )
+            written = 0
+            max_id_seen = last_id
+            for row in rows:
+                max_id_seen = row["id"]  # always advance — cap limits writes, not cursor
+                if written < _DISTILL_PER_PASS_MAX:
+                    payload = (row["payload"] or "").strip()
+                    title = extract_sense_title(row["stream"], payload, max_items=1)
+                    if title is not None:
+                        cutoff = int(row["timestamp"]) - _DISTILL_DEDUP_SECONDS
+                        try:
+                            existing = beliefs_reader.read_one(
+                                "SELECT id FROM beliefs WHERE content = ? AND created_at > ? "
+                                "AND source = ?",
+                                (title, cutoff, _DISTILL_SOURCE),
+                            )
+                            if not existing:
+                                branch_id = (
+                                    row["stream"].split(".")[0]
+                                    if "." in row["stream"]
+                                    else row["stream"]
+                                )
+                                try:
+                                    beliefs_writer.write(
+                                        "INSERT INTO beliefs "
+                                        "(content, tier, confidence, created_at, "
+                                        "branch_id, source, locked) "
+                                        "VALUES (?, 7, 0.7, ?, ?, ?, 0)",
+                                        (title, int(row["timestamp"]),
+                                         branch_id, _DISTILL_SOURCE),
+                                    )
+                                    written += 1
+                                except Exception:
+                                    pass  # UNIQUE constraint → skip
+                        except Exception:
+                            pass
+            last_id = max_id_seen
+
+            _save_distill_cursor(dynamic_writer, last_id)
+        except Exception as exc:
+            errors.record(
+                f"sense_distillation_loop error: {exc}", source=_LOG_SOURCE, exc=exc
+            )
+        stop.wait(60.0)
 
 
 def _sense_poll_loop(state: DynamicState, stop: threading.Event) -> None:
@@ -264,11 +380,12 @@ def build_dynamic(writers: dict, readers: dict, coherence_gate=None) -> DynamicS
     stop = threading.Event()
 
     loops = [
-        (_sense_poll_loop,       "dynamic.sense_poll"),
-        (_aperture_loop,         "dynamic.aperture"),
-        (_accumulator_loop,      "dynamic.accumulator"),
-        (_crystallization_loop,  "dynamic.crystallization"),
-        (_consolidation_loop,    "dynamic.consolidation"),
+        (_sense_poll_loop,          "dynamic.sense_poll"),
+        (_aperture_loop,            "dynamic.aperture"),
+        (_accumulator_loop,         "dynamic.accumulator"),
+        (_crystallization_loop,     "dynamic.crystallization"),
+        (_consolidation_loop,       "dynamic.consolidation"),
+        (_sense_distillation_loop,  "dynamic.sense_distillation"),
         (_snapshot_loop,         "dynamic.snapshot"),
         (_health_loop,           "dynamic.health"),
         (_emergent_drives_loop,  "dynamic.emergent_drives"),
