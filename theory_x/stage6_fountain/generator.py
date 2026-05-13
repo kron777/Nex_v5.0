@@ -29,6 +29,12 @@ _OWN_CONTENT_SOURCES = (
     "auto_probe",
 )
 
+# Max retrieval slots any single source can occupy (Mechanism B fix).
+# Without this cap, synergized beliefs crowd out fountain_insight
+# despite both being equally "her own" content. The substrate has
+# multiple sources; retrieval should reflect that diversity.
+_OWN_PER_SOURCE_MAX = 3
+
 # Seed reference material — minority presence (~20%)
 _SEED_SOURCES = (
     "koan",
@@ -759,6 +765,7 @@ class FountainGenerator:
         from theory_x.diversity.boost import BOOST_TIME_BONUS_SECONDS
         own_placeholders = ",".join("?" * len(_OWN_CONTENT_SOURCES))
         seed_placeholders = ",".join("?" * len(_SEED_SOURCES))
+        oversample_n = own_n * len(_OWN_CONTENT_SOURCES)
         try:
             own_rows = self._beliefs_reader.read(
                 f"SELECT b.id, b.content, b.source, b.tier, b.confidence, b.created_at, "
@@ -766,10 +773,32 @@ class FountainGenerator:
                 f"FROM beliefs b LEFT JOIN belief_boost bb ON b.id = bb.belief_id "
                 f"WHERE b.source IN ({own_placeholders}) "
                 f"ORDER BY (b.created_at + (COALESCE(bb.boost_value, 1.0) - 1.0) * ?) DESC LIMIT ?",
-                (*_OWN_CONTENT_SOURCES, BOOST_TIME_BONUS_SECONDS, own_n),
+                (*_OWN_CONTENT_SOURCES, BOOST_TIME_BONUS_SECONDS, oversample_n),
             )
         except Exception:
             own_rows = []
+
+        # Apply per-source cap so no single source crowds out the others.
+        _per_src: dict[str, int] = {}
+        _own_picked: list = []
+        for _r in own_rows:
+            _src = _r["source"] if hasattr(_r, "__getitem__") else getattr(_r, "source", "")
+            if _per_src.get(_src, 0) >= _OWN_PER_SOURCE_MAX:
+                continue
+            _own_picked.append(_r)
+            _per_src[_src] = _per_src.get(_src, 0) + 1
+            if len(_own_picked) >= own_n:
+                break
+        # Fallback: fill remaining slots uncapped when corpus is thin
+        if len(_own_picked) < own_n:
+            _picked_ids = {(_r["id"] if hasattr(_r, "__getitem__") else _r.id) for _r in _own_picked}
+            for _r in own_rows:
+                _rid = _r["id"] if hasattr(_r, "__getitem__") else _r.id
+                if _rid in _picked_ids:
+                    continue
+                _own_picked.append(_r)
+                if len(_own_picked) >= own_n:
+                    break
         try:
             seed_rows = self._beliefs_reader.read(
                 f"SELECT b.id, b.content, b.source, b.tier, b.confidence, b.created_at, "
@@ -810,21 +839,22 @@ class FountainGenerator:
             except Exception:
                 pass
 
-        # Save current cycle's considered-but-unused candidates as residue
+        # Save oversampled-but-unpicked candidates as residue for next cycle
         if self._beliefs_writer is not None and own_rows:
             try:
                 import uuid as _uuid
                 from theory_x.diversity.residue import save_residue
-                own_rows_dicts = [dict(r) for r in own_rows]
+                _picked_ids = {(r["id"] if hasattr(r, "__getitem__") else r.id) for r in _own_picked}
                 cycle_id = _uuid.uuid4().hex
-                for i, row in enumerate(own_rows_dicts):
-                    if row.get("id") and i >= own_n // 2:
-                        save_residue(self._beliefs_writer, cycle_id, row["id"],
-                                     float(row.get("boost_value", 1.0)))
+                for row in own_rows:
+                    row_dict = dict(row) if not isinstance(row, dict) else row
+                    if row_dict.get("id") and row_dict["id"] not in _picked_ids:
+                        save_residue(self._beliefs_writer, cycle_id, row_dict["id"],
+                                     float(row_dict.get("boost_value", 1.0)))
             except Exception as e:
                 logger.error("residue_save_failed: %s", e)
 
-        result.extend(list(own_rows))
+        result.extend(_own_picked)
         result.extend(list(seed_rows))
         return result
 

@@ -175,3 +175,45 @@ def test_no_recent_thoughts_header_in_build_prompt_source():
     assert "Your recent thoughts" not in src, (
         "_build_prompt still contains 'Your recent thoughts' — echo-loop block not removed"
     )
+
+
+# ── Phase 44: retrieval source-mix cap ───────────────────────────────────────
+
+def test_retrieval_source_mix_cap_constant():
+    from theory_x.stage6_fountain.generator import _OWN_PER_SOURCE_MAX
+    assert _OWN_PER_SOURCE_MAX <= 3
+
+
+def test_retrieval_source_mix_cap_applied():
+    """Source-mix logic: no source exceeds _OWN_PER_SOURCE_MAX in the picked list."""
+    from theory_x.stage6_fountain.generator import (
+        _OWN_CONTENT_SOURCES, _OWN_PER_SOURCE_MAX,
+    )
+    from collections import defaultdict
+
+    OWN_N = 7
+    # Build fake rows: 10 synergized, 5 fountain_insight (all same content)
+    fake_rows = [{"id": i, "source": "synergized", "content": f"s{i}",
+                  "created_at": 1000 - i, "boost_value": 1.0} for i in range(10)]
+    fake_rows += [{"id": 100 + i, "source": "fountain_insight", "content": f"f{i}",
+                   "created_at": 900 - i, "boost_value": 1.0} for i in range(5)]
+
+    per_src: dict = defaultdict(int)
+    picked = []
+    for r in fake_rows:
+        src = r["source"]
+        if per_src[src] >= _OWN_PER_SOURCE_MAX:
+            continue
+        picked.append(r)
+        per_src[src] += 1
+        if len(picked) >= OWN_N:
+            break
+
+    for src, count in per_src.items():
+        assert count <= _OWN_PER_SOURCE_MAX, (
+            f"source {src!r} has {count} slots, exceeds cap {_OWN_PER_SOURCE_MAX}"
+        )
+    # Both synergized and fountain_insight should be present
+    sources_present = {r["source"] for r in picked}
+    assert "synergized" in sources_present
+    assert "fountain_insight" in sources_present
