@@ -854,6 +854,8 @@ class FountainGenerator:
             own_n=mode.retrieval_own_n, seed_n=mode.retrieval_seed_n
         )
         own = [b for b in context_beliefs if b["source"] in _OWN_CONTENT_SOURCES]
+        own_thoughts = [b for b in own if b["source"] != "precipitated_from_sense"]
+        own_sense = [b for b in own if b["source"] == "precipitated_from_sense"]
         seeds = [b for b in context_beliefs if b["source"] in _SEED_SOURCES]
 
         # Bump activation for every belief drawn into this prompt context.
@@ -925,14 +927,25 @@ class FountainGenerator:
                 prompt_parts.append(f"  {_probe}")
                 prompt_parts.append("")
 
-        if own:
+        if own_thoughts:
             prompt_parts.append("Some of what you've been thinking recently:")
-            for _own_rank, b in enumerate(own, start=1):
+            for _own_rank, b in enumerate(own_thoughts, start=1):
                 age_min = int((now - b["created_at"]) / 60)
                 prompt_parts.append(f"  ({age_min} min ago) {b['content']}")
                 try:
                     _boost = b["boost_value"] if "boost_value" in b.keys() else None
                     retrieval_manifest.append((b["id"], "own", _own_rank, _boost))
+                except Exception:
+                    pass
+            prompt_parts.append("")
+
+        if own_sense:
+            prompt_parts.append("Things you've been reading about lately:")
+            for _sense_rank, b in enumerate(own_sense, start=1):
+                age_min = int((now - b["created_at"]) / 60)
+                prompt_parts.append(f"  ({age_min} min ago) {b['content']}")
+                try:
+                    retrieval_manifest.append((b["id"], "own_sense", _sense_rank, None))
                 except Exception:
                     pass
             prompt_parts.append("")

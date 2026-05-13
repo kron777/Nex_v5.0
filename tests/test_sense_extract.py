@@ -300,3 +300,14 @@ def test_sense_per_source_cap_override():
     assert _per_source_cap("precipitated_from_sense") == 5
     assert _per_source_cap("synergized") == 3
     assert _per_source_cap("fountain_insight") == 3
+
+
+def test_build_prompt_sense_block_separate_label():
+    """precipitated_from_sense beliefs appear under 'Things you've been reading'
+    not under 'Some of what you've been thinking recently'."""
+    import inspect
+    from theory_x.stage6_fountain.generator import FountainGenerator
+    src = inspect.getsource(FountainGenerator._build_prompt)
+    assert "Things you've been reading about lately:" in src
+    assert "own_sense" in src
+    assert "own_thoughts" in src
