@@ -287,3 +287,16 @@ def test_distillation_logic_cap_and_dedup():
 
     assert len(written) == 5
     assert written == [f"Story {i}" for i in range(5)]
+
+
+# ── Phase 46: sense cap=5 override ───────────────────────────────────────────
+
+def test_sense_per_source_cap_override():
+    from theory_x.stage6_fountain.generator import (
+        _OWN_PER_SOURCE_OVERRIDES,
+        _per_source_cap,
+    )
+    assert _OWN_PER_SOURCE_OVERRIDES.get("precipitated_from_sense") == 5
+    assert _per_source_cap("precipitated_from_sense") == 5
+    assert _per_source_cap("synergized") == 3
+    assert _per_source_cap("fountain_insight") == 3

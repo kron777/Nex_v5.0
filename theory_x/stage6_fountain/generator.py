@@ -36,6 +36,21 @@ _OWN_CONTENT_SOURCES = (
 # multiple sources; retrieval should reflect that diversity.
 _OWN_PER_SOURCE_MAX = 3
 
+# Per-source overrides. Sense gets a higher cap because external
+# perceptions need to be retrieval-majority for fountain output to
+# reflect the world rather than her own historical loop. With cap=5
+# and own_n=7, sense can fill up to 5 slots and synergized + other
+# sources share the remaining 2 — flipping the composition from
+# "mostly self-historical" to "mostly fresh-world".
+_OWN_PER_SOURCE_OVERRIDES: dict[str, int] = {
+    "precipitated_from_sense": 5,
+}
+
+
+def _per_source_cap(source: str) -> int:
+    return _OWN_PER_SOURCE_OVERRIDES.get(source, _OWN_PER_SOURCE_MAX)
+
+
 # Seed reference material — minority presence (~20%)
 _SEED_SOURCES = (
     "koan",
@@ -744,7 +759,7 @@ class FountainGenerator:
         _own_picked: list = []
         for _r in own_rows:
             _src = _r["source"] if hasattr(_r, "__getitem__") else getattr(_r, "source", "")
-            if _per_src.get(_src, 0) >= _OWN_PER_SOURCE_MAX:
+            if _per_src.get(_src, 0) >= _per_source_cap(_src):
                 continue
             _own_picked.append(_r)
             _per_src[_src] = _per_src.get(_src, 0) + 1
