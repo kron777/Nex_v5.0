@@ -117,23 +117,18 @@ class BeliefSynergizer:
             f"synergizer: new belief {result_id!r}: {text[:80]}",
             source=_LOG_SOURCE, level="INFO",
         )
-        # Diversity ecology: grade collision + record lineage
+        # Record lineage only — no boost for synergized.
+        # Boost projected synergized ~1.2-1.4 days into the future via BOOST_TIME_BONUS_SECONDS,
+        # making them outrank genuinely-newer sense beliefs in retrieval even with sense cap=5
+        # (the oversample itself was dominated by future-projected synergized). Synergized are
+        # derivative re-syntheses of content the fountain already read, not fresh perceptions —
+        # giving them a time advantage created a closed loop.
+        # See 2026-05-13/14 session diagnosis.
         try:
-            from theory_x.diversity.grader import CrossbreedGrader
-            from theory_x.diversity.boost import apply_boost, BOOST_THRESHOLD
             from theory_x.diversity.lineage import record_synergy
             record_synergy(self._writer, result_id, belief_a["id"], belief_b["id"])
-            grader = CrossbreedGrader(self._writer, self._reader)
-            grade = grader.grade(result_id, belief_a["id"], belief_b["id"])
-            if grade is not None and grade > BOOST_THRESHOLD:
-                apply_boost(self._writer, result_id, grade)
-                self._errors.record(
-                    f"boost_applied: belief_id={result_id} grade={grade:.3f} "
-                    f"boost_value={1.0 + grade:.2f}",
-                    source=_LOG_SOURCE, level="INFO",
-                )
         except Exception as _de:
-            self._errors.record(f"diversity grading failed: {_de}", source=_LOG_SOURCE)
+            self._errors.record(f"diversity lineage failed: {_de}", source=_LOG_SOURCE)
         return {
             "content": text,
             "belief_id_a": belief_a["id"],

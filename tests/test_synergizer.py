@@ -9,6 +9,7 @@ Covers:
 - _quality_check() rejects strings > 200 chars
 - _quality_check() rejects blacklisted content
 - synthesize() writes belief to DB when quality check passes
+- synthesize() writes no belief_boost row (synergized never boosted)
 - synthesize() logs to synergizer_log
 - synthesize() returns None when LLM returns "nothing"
 - synergizer_log table created by init_db
@@ -272,6 +273,24 @@ class TestSynthesize(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         # belief_b is the second in the cross-branch pair
         self.assertIsNotNone(rows[0]["branch_id"])
+
+    def test_synthesize_writes_no_boost_row(self):
+        # Synergized beliefs must never get a belief_boost row — see 2026-05-13/14 diagnosis.
+        _seed_belief(self.writers, "Attention is selective and costly.", "crypto")
+        _seed_belief(self.writers, "Systems always tend toward entropy.", "ai_research")
+        s = _make_synergizer(
+            self.writers, self.readers,
+            llm_text="Sustained attention is itself a form of anti-entropy.",
+        )
+        result = s.synthesize()
+        self.assertIsNotNone(result)
+        time.sleep(0.1)
+        boost_rows = self.readers["beliefs"].read(
+            "SELECT bb.* FROM belief_boost bb "
+            "JOIN beliefs b ON b.id = bb.belief_id "
+            "WHERE b.source = 'synergized'"
+        )
+        self.assertEqual(len(boost_rows), 0, "synergized belief must not have a boost row")
 
 
 class TestSynergizerLogTable(unittest.TestCase):
