@@ -178,40 +178,46 @@ async function refreshBonsai() {
   }).join("");
 }
 
-// ── Pipeline ─────────────────────────────────────────────────────────────────
-
-let lastPipeId = 0;
-
+// ── Moltbook chats ───────────────────────────────────────────────────────────
+const seenMbEvents = new Set();
 async function refreshPipeline() {
-  const data = await apiFetch("/api/dynamic/pipeline").catch(() => null);
+  const data = await apiFetch("/api/moltbook/chats").catch(() => null);
   if (!data || data.error) return;
-
-  const events = (data.events || []).filter(e => e.id > lastPipeId);
+  const events = (data.events || []).filter(e => !seenMbEvents.has(e.id));
   if (!events.length) return;
-
   const feed = document.getElementById("pipeline-feed");
-  events.forEach(ev => {
-    lastPipeId = Math.max(lastPipeId, ev.id);
-    const valCls = ev.valence === "like" ? "valence-like"
-                 : ev.valence === "dislike" ? "valence-dislike"
-                 : "valence-neutral";
-    const valTxt = ev.valence || "";
-    const mag = ev.magnitude != null ? magBar(ev.magnitude) : "";
-
+  events.slice().reverse().forEach(ev => {
+    seenMbEvents.add(ev.id);
     const row = document.createElement("div");
-    row.className = "pipe-row";
-    row.innerHTML = `<span class="pipe-ts">${fmtTs(ev.ts)}</span>`
-      + `<span class="pipe-step step-${ev.step}">${esc(ev.step)}</span>`
-      + `<span class="pipe-branch">${esc(ev.branch_id || "")}</span>`
-      + `<span class="pipe-mag">${mag}</span>`
-      + `<span class="pipe-valence ${valCls}">${esc(valTxt)}</span>`
-      + `<span class="pipe-src">${esc((ev.sensation_source || "").slice(0, 30))}</span>`;
+    row.className = "pipe-row mb-row mb-" + ev.kind;
+    if (ev.kind === "post") {
+      const stCls = ev.status === "posted" ? "valence-like" : "valence-dislike";
+      row.innerHTML =
+        `<span class="pipe-ts">${fmtTs(ev.ts)}</span>` +
+        `<span class="pipe-valence ${stCls}">${esc(ev.status)}</span>` +
+        `<span class="pipe-src">${esc(ev.content)}</span>`;
+    } else if (ev.kind === "dm_in") {
+      row.innerHTML =
+        `<span class="pipe-ts">${fmtTs(ev.ts)}</span>` +
+        `<span class="pipe-step step-IN">DM</span>` +
+        `<span class="pipe-branch">${esc(ev.from_agent || "")}</span>` +
+        `<span class="pipe-valence valence-neutral">${esc(ev.status)}</span>` +
+        `<span class="pipe-src">${esc(ev.content)}</span>`;
+    } else {
+      row.innerHTML =
+        `<span class="pipe-ts">${fmtTs(ev.ts)}</span>` +
+        `<span class="pipe-step">?</span>` +
+        `<span class="pipe-src">${esc(JSON.stringify(ev))}</span>`;
+    }
     feed.prepend(row);
   });
-
   while (feed.children.length > MAX_ROWS) feed.lastChild.remove();
+  if (seenMbEvents.size > 500) {
+    const arr = Array.from(seenMbEvents).slice(-300);
+    seenMbEvents.clear();
+    arr.forEach(x => seenMbEvents.add(x));
+  }
 }
-
 // ── Fountain ──────────────────────────────────────────────────────────────────
 
 async function refreshFountain() {
@@ -464,6 +470,25 @@ document.getElementById("admin-logout-btn").addEventListener("click", async () =
 });
 
 // ── Chat ──────────────────────────────────────────────────────────────────────
+
+// ── Auto-pull messages Nex initiated (focus_loop stuck-pings, etc) ───
+let lastChatTs = Math.floor(Date.now() / 1000) - 60;  // start 1 min ago
+async function refreshChatRecent() {
+  try {
+    const data = await apiFetch(`/api/chat/recent?since=${lastChatTs}`);
+    if (!data || !data.messages) return;
+    for (const m of data.messages) {
+      if (m.timestamp > lastChatTs) lastChatTs = m.timestamp;
+      // Skip messages from session_id we already rendered via sendChat
+      // (those came from a direct user prompt; auto-pulled ones come from
+      // session_id 'internal_focus_loop' or similar daemon-written rows)
+      if (m.session_id && m.session_id.startsWith("internal_")) {
+        appendChat(m.role, m.content, "(unprompted: " + (m.register || "") + ")");
+      }
+    }
+  } catch (e) { /* silent */ }
+}
+setInterval(refreshChatRecent, 15000);  // every 15s
 
 function appendChat(role, text, meta) {
   const log = document.getElementById("chat-log");

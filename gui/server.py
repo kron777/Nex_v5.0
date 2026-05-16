@@ -1789,6 +1789,105 @@ def create_app(state: AppState) -> Flask:
             error_channel.record(f"dynamic pipeline read failed: {e}", source="gui.server", exc=e)
             return jsonify({"error": str(e)}), 500
 
+    @app.get("/api/chat/recent")
+    def api_chat_recent():
+        """Return chat messages newer than ?since= unix timestamp.
+        Used by the GUI to pick up messages Nex writes on her own initiative
+        (e.g. from focus_loop's stuck-ping mechanism)."""
+        reader = state.readers.get("conversations")
+        if reader is None:
+            return jsonify({"messages": []}), 503
+        try:
+            since = float(request.args.get("since", 0))
+        except ValueError:
+            since = 0
+        try:
+            rows = reader.read(
+                "SELECT id, session_id, role, content, register, timestamp "
+                "FROM messages WHERE timestamp > ? "
+                "ORDER BY timestamp DESC LIMIT 50",
+                (int(since),)
+            )
+            return jsonify({
+                "messages": [
+                    {
+                        "id": r["id"],
+                        "session_id": r["session_id"],
+                        "role": r["role"],
+                        "content": r["content"],
+                        "register": r["register"],
+                        "timestamp": r["timestamp"],
+                    }
+                    for r in rows
+                ]
+            })
+        except Exception as e:
+            error_channel.record(
+                f"chat recent read failed: {e}",
+                source="gui.server", exc=e
+            )
+            return jsonify({"error": str(e)}), 500
+
+    @app.get("/api/moltbook/chats")
+    def api_moltbook_chats():
+        """Unified feed of moltbook activity:
+           - outgoing posts (her posts to submolts)
+           - incoming DMs (messages from other agents)
+           - outgoing DM replies (her responses)
+        Sorted newest-first, max 50 events.
+        """
+        reader = state.readers.get("dynamic")
+        if reader is None:
+            return jsonify({"events": []}), 503
+        try:
+            events = []
+            # Outgoing posts
+            for r in reader.read(
+                "SELECT id, ts, submolt, status, post_id, thought_id "
+                "FROM moltbook_posts ORDER BY id DESC LIMIT 30"
+            ):
+                # Pull the actual thought text
+                content = ""
+                try:
+                    fr = reader.read(
+                        "SELECT thought FROM fountain_events WHERE id=?",
+                        (r["thought_id"],)
+                    )
+                    if fr:
+                        content = fr[0]["thought"] or ""
+                except Exception:
+                    pass
+                events.append({
+                    "id": f"post_{r['id']}",
+                    "ts": r["ts"],
+                    "kind": "post",
+                    "submolt": r["submolt"],
+                    "status": r["status"],
+                    "post_id": r["post_id"],
+                    "content": content[:280],
+                })
+            # Incoming DMs
+            for r in reader.read(
+                "SELECT id, created_at, from_agent, content, status "
+                "FROM moltbook_pending_replies ORDER BY id DESC LIMIT 30"
+            ):
+                events.append({
+                    "id": f"in_{r['id']}",
+                    "ts": r["created_at"],
+                    "kind": "dm_in",
+                    "from_agent": r["from_agent"],
+                    "status": r["status"],
+                    "content": (r["content"] or "")[:280],
+                })
+            events.sort(key=lambda e: e["ts"], reverse=True)
+            return jsonify({"events": events[:50]})
+        except Exception as e:
+            error_channel.record(
+                f"moltbook chats read failed: {e}",
+                source="gui.server", exc=e
+            )
+            return jsonify({"error": str(e)}), 500
+
     @app.get("/api/dynamic/crystallized")
     def api_dynamic_crystallized():
         reader = state.readers.get("dynamic")
