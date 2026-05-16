@@ -1016,10 +1016,26 @@ class FountainGenerator:
                 # bandwidth for the rest of substrate. Spectrum is her identity,
                 # not her vocabulary — 2 standing-points is enough to anchor
                 # voice without flooding the prompt with contemplative content.
-                spec_rows = self._beliefs_reader.read(
+                # 2026-05-16: Balanced spectrum draw - 1 outward (id>=23000) +
+                # 1 inward (id<23000) per fire. The 200-strong inward pool was
+                # outweighing the new 25-strong outward pool ~80/20 by chance;
+                # this forces equal foundational pull each fire.
+                _spec_inward = self._beliefs_reader.read(
                     "SELECT id, content FROM beliefs WHERE source='spectrum' "
-                    "ORDER BY RANDOM() LIMIT 2"
+                    "AND id < 23000 ORDER BY RANDOM() LIMIT 1"
                 )
+                _spec_outward = self._beliefs_reader.read(
+                    "SELECT id, content FROM beliefs WHERE source='spectrum' "
+                    "AND id >= 23000 ORDER BY RANDOM() LIMIT 1"
+                )
+                spec_rows = list(_spec_outward or []) + list(_spec_inward or [])
+                # Fallback: if either pool is empty, fill from the other
+                if len(spec_rows) < 2:
+                    extra = self._beliefs_reader.read(
+                        "SELECT id, content FROM beliefs WHERE source='spectrum' "
+                        "ORDER BY RANDOM() LIMIT 2"
+                    )
+                    spec_rows = extra
                 if spec_rows:
                     prompt_parts.append("Your foundation right now (these are standing-points from which you witness, not propositions to repeat):")
                     for _spec_rank, r in enumerate(spec_rows, start=1):
