@@ -38,7 +38,7 @@ class Mode:
     governor_min_gap_multiplier: float = 1.0
 
     # Retrieval parameters
-    retrieval_own_n: int = 7
+    retrieval_own_n: int = 12  # 2026-05-15: widen outward feed
     retrieval_seed_n: int = 2
 
     # Flags
