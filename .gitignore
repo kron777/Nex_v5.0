@@ -32,3 +32,9 @@ venv/
 
 # Session-specific observation notes
 observations/
+
+# 2026-05-16: block all .db files at any depth (live runtime state)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm

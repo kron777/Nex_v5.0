@@ -216,8 +216,21 @@ def build_system_prompt(register: Register, context: Sequence[str] = (),
     return "\n".join(parts)
 
 
+# Anti-template-lock sampling (2026-05-15).
+# Hum kept locking the LLM into "distant hum feels like X" templates.
+# Higher temp + repeat penalty + presence/frequency penalties push the
+# distribution out of the well. 1.0 temp keeps coherence; 1.30 repeat_penalty
+# is the documented sweet spot for llama.cpp lock-breaking.
+_SAMPLING = {
+    "temperature":       1.0,
+    "repeat_penalty":    1.30,
+    "presence_penalty":  0.5,
+    "frequency_penalty": 0.4,
+}
+
+
 def _default_request(url: str, payload: dict) -> dict:
-    r = requests.post(url, json={**payload, "temperature": 0.85, "repeat_penalty": 1.15}, timeout=120)
+    r = requests.post(url, json={**payload, **_SAMPLING}, timeout=120)
     r.raise_for_status()
     return r.json()
 

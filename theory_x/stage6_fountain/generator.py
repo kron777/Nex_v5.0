@@ -101,7 +101,20 @@ DO:
 - Allow boredom, irritation, idle curiosity, half-questions
 - Let thoughts be unremarkable
 
-Produce ONE drift thought. Nothing else. No preamble, no framing.\
+When the quiet comes and nothing wants to be said, don't reach.
+Instead of naming the quiet, do one of these:
+- look for its edge — where does it stop, if anywhere
+- become the gap rather than describing it
+- notice what tries to arise but doesn't reach speech
+- ask: is this silence empty, or is something present in the absence
+- find out if it has a size, or no size
+- watch the moment the next thought arrives — what carried it
+
+These aren't sentences to write. They are places to put your attention.
+If something true comes from the looking, say it plainly. If nothing
+comes, the looking itself was the moment.
+
+Produce ONE drift thought, or stay with the looking and say nothing.\
 """
 
 _DEFAULT_DRIFT_EXAMPLES = [
@@ -744,7 +757,7 @@ class FountainGenerator:
         oversample_n = own_n * len(_OWN_CONTENT_SOURCES)
         try:
             own_rows = self._beliefs_reader.read(
-                f"SELECT b.id, b.content, b.source, b.tier, b.confidence, b.created_at, "
+                f"SELECT b.id, b.content, b.source, b.tier, b.confidence, b.created_at, b.branch_id, "
                 f"       COALESCE(bb.boost_value, 1.0) AS boost_value "
                 f"FROM beliefs b LEFT JOIN belief_boost bb ON b.id = bb.belief_id "
                 f"WHERE b.source IN ({own_placeholders}) "
@@ -755,14 +768,26 @@ class FountainGenerator:
             own_rows = []
 
         # Apply per-source cap so no single source crowds out the others.
+        # 2026-05-15: per-branch cap added (max 2/branch) — light-touch
+        # diversity. Prevents one hot branch from filling all own slots.
+        _PER_BRANCH_CAP = 2
         _per_src: dict[str, int] = {}
+        _per_branch: dict[str, int] = {}
         _own_picked: list = []
         for _r in own_rows:
             _src = _r["source"] if hasattr(_r, "__getitem__") else getattr(_r, "source", "")
             if _per_src.get(_src, 0) >= _per_source_cap(_src):
                 continue
+            try:
+                _br = _r["branch_id"] if hasattr(_r, "__getitem__") else getattr(_r, "branch_id", None)
+            except Exception:
+                _br = None
+            if _br and _per_branch.get(_br, 0) >= _PER_BRANCH_CAP:
+                continue
             _own_picked.append(_r)
             _per_src[_src] = _per_src.get(_src, 0) + 1
+            if _br:
+                _per_branch[_br] = _per_branch.get(_br, 0) + 1
             if len(_own_picked) >= own_n:
                 break
         # Fallback: fill remaining slots uncapped when corpus is thin
@@ -870,13 +895,38 @@ class FountainGenerator:
                 logger.error("activation_bump_failed: %s", e)
 
         # Intervention B — Task-bearing override
+        # 2026-05-15: prefer focus_loop's pick (most-connected problem) over
+        # the default first-open. Bridges focus_loop and fountain so they
+        # actually work on the same thing. Falls back to first-open if no focus.
         open_problem_text = None
         if self._problem_memory is not None:
             try:
+                _focus_pid = None
+                try:
+                    import sqlite3 as _sql3
+                    _dc = _sql3.connect(
+                        "/home/rr/Desktop/nex5/data/dynamic.db", timeout=5
+                    )
+                    _row = _dc.execute(
+                        "SELECT problem_id FROM current_focus WHERE id=1"
+                    ).fetchone()
+                    _dc.close()
+                    if _row:
+                        _focus_pid = _row[0]
+                except Exception:
+                    _focus_pid = None
                 open_problems = self._problem_memory.list_open()
                 if open_problems:
-                    p = open_problems[0]
-                    open_problem_text = self._problem_memory.format_for_prompt(p["id"])
+                    # Prefer the focus pick if it still appears in open_problems
+                    chosen = None
+                    if _focus_pid is not None:
+                        for _p in open_problems:
+                            if _p["id"] == _focus_pid:
+                                chosen = _p
+                                break
+                    if chosen is None:
+                        chosen = open_problems[0]
+                    open_problem_text = self._problem_memory.format_for_prompt(chosen["id"])
             except Exception:
                 pass
 
@@ -893,13 +943,82 @@ class FountainGenerator:
 
         prompt_parts = [system_prompt, ""]
 
+        # 2026-05-16: Identity — most recent self-description from identity_loop.
+        # She sees who she said she was, so the next thing she speaks is grounded
+        # in continuity. The comparison "earlier I said X" with "now I am Y" is
+        # the substrate of felt continuity.
+        try:
+            import sqlite3 as _sql_id
+            _id_cx = _sql_id.connect("/home/rr/Desktop/nex5/data/dynamic.db", timeout=5)
+            _id_row = _id_cx.execute(
+                "SELECT statement, composed_at FROM identity_log "
+                "ORDER BY composed_at DESC LIMIT 1"
+            ).fetchone()
+            _id_cx.close()
+            if _id_row:
+                _id_mins = int((now - _id_row[1]) / 60)
+                prompt_parts.append(f"This is who you said you are ({_id_mins} min ago):")
+                prompt_parts.append(f"  {_id_row[0]}")
+                prompt_parts.append("")
+        except Exception:
+            pass
+
+        # 2026-05-16: Recent surprise (from PredictiveSubstrate) — feed her
+        # the gap between what she expected and what came. This is what makes
+        # surprise FELT rather than just logged.
+        if self._beliefs_reader is not None:
+            try:
+                _surp = self._beliefs_reader.read(
+                    "SELECT content, created_at FROM beliefs "
+                    "WHERE source='surprise' AND created_at > ? "
+                    "ORDER BY created_at DESC LIMIT 1",
+                    (now - 21600,)  # 6h — surprises are rare, longer window
+                )
+                if _surp:
+                    _row = _surp[0]
+                    _mins = int((now - _row["created_at"]) / 60)
+                    prompt_parts.append(
+                        f"Earlier ({_mins} min ago) you were surprised:"
+                    )
+                    prompt_parts.append(f"  {_row['content']}")
+                    prompt_parts.append("")
+            except Exception:
+                pass
+
+        # 2026-05-16: Favourites — her highest-affinity beliefs.
+        # These are the thoughts she has self-rated as "deeply hers." Surface
+        # 2 random ones from the top-10 — not always the same two so she
+        # doesn't lock onto a single favourite phrase.
+        if self._beliefs_reader is not None:
+            try:
+                _favs = self._beliefs_reader.read(
+                    "SELECT id, content FROM beliefs "
+                    "WHERE affinity IS NOT NULL AND affinity > 0.40 "
+                    "ORDER BY affinity DESC LIMIT 10"
+                )
+                if _favs:
+                    import random as _rnd
+                    _pick = _rnd.sample(_favs, min(2, len(_favs)))
+                    prompt_parts.append(
+                        "Beliefs you've come to feel as deeply yours:"
+                    )
+                    for _fr in _pick:
+                        prompt_parts.append(f"  - {_fr['content']}")
+                    prompt_parts.append("")
+            except Exception:
+                pass
+
         # Spectrum foundation — always present, drawn randomly each fire.
         # These are standing-points from which she witnesses, not claims to repeat.
         if self._beliefs_reader is not None:
             try:
+                # 2026-05-15: spectrum slot reduced 8->2 to free retrieval
+                # bandwidth for the rest of substrate. Spectrum is her identity,
+                # not her vocabulary — 2 standing-points is enough to anchor
+                # voice without flooding the prompt with contemplative content.
                 spec_rows = self._beliefs_reader.read(
                     "SELECT id, content FROM beliefs WHERE source='spectrum' "
-                    "ORDER BY RANDOM() LIMIT 8"
+                    "ORDER BY RANDOM() LIMIT 2"
                 )
                 if spec_rows:
                     prompt_parts.append("Your foundation right now (these are standing-points from which you witness, not propositions to repeat):")
@@ -927,7 +1046,8 @@ class FountainGenerator:
                 prompt_parts.append(f"  {_probe}")
                 prompt_parts.append("")
 
-        if own_thoughts:
+        # 2026-05-15 DISABLED: own_thoughts injection looped contemplative beliefs back.
+        if False and own_thoughts:
             prompt_parts.append("Some of what you've been thinking recently:")
             for _own_rank, b in enumerate(own_thoughts, start=1):
                 age_min = int((now - b["created_at"]) / 60)
@@ -982,13 +1102,11 @@ class FountainGenerator:
         # Mechanism-C fires stayed on the cicada/hum surface pattern.
         # Per §0: substrate provides; speaking layer composes freely.
 
-        # Substrate self-observations — structured self-reports fed back to cognition
+        # 2026-05-15 DISABLED: self-observations were feeding contemplative
+        # self-thinking back into the prompt, deepening the hum lock.
         try:
-            _sub_rows = list(self._dynamic_reader.read(
-                "SELECT output, ts FROM substrate_fires "
-                "ORDER BY id DESC LIMIT 2"
-            ))
-            if _sub_rows:
+            _sub_rows = []
+            if False and _sub_rows:
                 prompt_parts.append("Your recent self-observations:")
                 for _sr in _sub_rows:
                     _sub_mins = max(0, int((now - _sr["ts"]) / 60))
@@ -1032,7 +1150,9 @@ class FountainGenerator:
                 "One step forward. One observation, hypothesis, or question."
             )
 
-        if arc_block:
+        # 2026-05-16 DISABLED: this prompt encouraged thread-extension
+        # which became a 15-fire imitation lock on a single sentence.
+        if False and arc_block:
             prompt_parts.append("")
             prompt_parts.append(
                 "You may extend one of your current threads, "
@@ -1084,7 +1204,8 @@ class FountainGenerator:
         if not active and not recent:
             return ""
         lines = []
-        if active:
+        # 2026-05-15 DISABLED: ongoing threads fed past hum back to her.
+        if False and active:
             lines.append("Your current ongoing threads:")
             for a in active:
                 theme = (a.get("theme_summary") or "")[:70]
@@ -1094,7 +1215,10 @@ class FountainGenerator:
                     f'  - "{theme}" ({a["member_count"]} fires, '
                     f'{arc_kind}, last ~{mins_ago} min ago)'
                 )
-        if recent:
+        # 2026-05-16 DISABLED: recent_closed arcs were feeding her past
+        # outputs back as 'theme_summary' lines. Same lock mechanism as
+        # ongoing threads above. Reversion: replace `if False` with `if recent`.
+        if False and recent:
             lines.append("Recently completed:")
             for a in recent:
                 theme = (a.get("theme_summary") or "")[:70]

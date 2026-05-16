@@ -197,7 +197,13 @@ class CounterfactualNode:
             return 0
 
     def _maybe_promote(self, problem_id: int, problem: dict) -> None:
-        """Promote to review_queue once accept count reaches threshold."""
+        """Promote to review_queue once accept count reaches threshold.
+        
+        2026-05-16 DISABLED: auto-promotion was removing problems from
+        focus_loop / daily_life / morning entry within minutes of opening,
+        making them invisible to her. She decides resolution now, not
+        a 3-belief accept counter. Reversion: remove the early return."""
+        return  # auto-promotion disabled
         if self._accept_count_for(problem_id) < _ACCEPT_THRESHOLD:
             return
 

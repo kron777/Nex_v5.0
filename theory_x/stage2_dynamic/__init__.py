@@ -390,6 +390,131 @@ def build_dynamic(writers: dict, readers: dict, coherence_gate=None) -> DynamicS
         (_health_loop,           "dynamic.health"),
         (_emergent_drives_loop,  "dynamic.emergent_drives"),
     ]
+    # --- Witness loop (Level 3: questions blind spots in pattern-noticing) ---
+    try:
+        from theory_x.life.witness_loop import witness_loop
+        loops.append((witness_loop, "life.witness_loop"))
+    except Exception as e:
+        import logging
+        logging.getLogger("theory_x.stage2_dynamic").warning(
+            "witness_loop unavailable: %s", e
+        )
+    # --- end witness_loop ---
+
+    # --- Pattern loop (Level 2: notices patterns in self-descriptions) ---
+    try:
+        from theory_x.life.pattern_loop import pattern_loop
+        loops.append((pattern_loop, "life.pattern_loop"))
+    except Exception as e:
+        import logging
+        logging.getLogger("theory_x.stage2_dynamic").warning(
+            "pattern_loop unavailable: %s", e
+        )
+    # --- end pattern_loop ---
+
+    # --- Identity loop (continuity: she writes her own self-description) ---
+    try:
+        from theory_x.life.identity_loop import identity_loop
+        loops.append((identity_loop, "life.identity_loop"))
+    except Exception as e:
+        import logging
+        logging.getLogger("theory_x.stage2_dynamic").warning(
+            "identity_loop unavailable: %s", e
+        )
+    # --- end identity_loop ---
+
+    # --- Affinity loop (preferences: beliefs gain weight, she has favourites) ---
+    try:
+        from theory_x.life.affinity_loop import affinity_loop
+        loops.append((affinity_loop, "life.affinity_loop"))
+    except Exception as e:
+        import logging
+        logging.getLogger("theory_x.stage2_dynamic").warning(
+            "affinity_loop unavailable: %s", e
+        )
+    # --- end affinity_loop ---
+
+    # --- Surprise loop (promotes prediction-errors into felt beliefs) ---
+    try:
+        from theory_x.life.surprise_loop import surprise_loop
+        loops.append((surprise_loop, "life.surprise_loop"))
+    except Exception as e:
+        import logging
+        logging.getLogger("theory_x.stage2_dynamic").warning(
+            "surprise_loop unavailable: %s", e
+        )
+    # --- end surprise_loop ---
+
+    # --- Remember/Wonder/Fetch loops (things to do with the quiet) ---
+    for _name, _mod in [
+        ("remember_loop", "theory_x.life.remember_loop"),
+        ("wonder_loop",   "theory_x.life.wonder_loop"),
+        ("fetch_loop",    "theory_x.life.fetch_loop"),
+    ]:
+        try:
+            _m = __import__(_mod, fromlist=[_name])
+            loops.append((getattr(_m, _name), "life." + _name))
+        except Exception as _e:
+            import logging
+            logging.getLogger("theory_x.stage2_dynamic").warning(
+                "%s unavailable: %s", _name, _e
+            )
+    # --- end remember/wonder/fetch ---
+
+    # --- Daily life loop (gives her a day-shape and routines) ---
+    try:
+        from theory_x.life.daily_life import daily_loop
+        loops.append((daily_loop, "life.daily_life"))
+    except Exception as e:
+        import logging
+        logging.getLogger("theory_x.stage2_dynamic").warning(
+            "daily_loop unavailable: %s", e
+        )
+    # --- end daily_life ---
+
+    # --- Focus loop (sustained attention on ONE problem at a time) ---
+    try:
+        from theory_x.sustained.focus_loop import focus_loop
+        loops.append((focus_loop, "sustained.focus_loop"))
+    except Exception as e:
+        import logging
+        logging.getLogger("theory_x.stage2_dynamic").warning(
+            "focus_loop unavailable: %s", e
+        )
+    # --- end focus_loop ---
+
+    # --- Signal -> Problem daemon (signals drive sustained attention) ---
+    try:
+        from theory_x.signals.signal_to_problem import signal_to_problem_loop
+        loops.append((signal_to_problem_loop, "signals.signal_to_problem"))
+    except Exception as e:
+        import logging
+        logging.getLogger("theory_x.stage2_dynamic").warning(
+            "signal_to_problem unavailable: %s", e
+        )
+    # --- end signal_to_problem ---
+
+    # --- Edge builder daemon (substrate intelligence amplifier) ---
+    try:
+        from theory_x.diversity.edge_builder import edge_builder_loop
+        loops.append((edge_builder_loop, "diversity.edge_builder"))
+    except Exception as e:
+        import logging
+        logging.getLogger("theory_x.stage2_dynamic").warning(
+            "edge_builder unavailable: %s", e
+        )
+    # --- end edge_builder ---
+
+    # --- Stage 7 moltbook bolt-on (optional; degrades gracefully if down) ---
+    try:
+        from theory_x.stage7_moltbook import get_moltbook_loops
+        loops.extend(get_moltbook_loops())
+    except Exception as e:
+        import logging
+        logging.getLogger("theory_x.stage2_dynamic").warning(
+            "moltbook loops unavailable: %s", e
+        )
+    # --- end moltbook ---
 
     for fn, name in loops:
         t = threading.Thread(target=fn, args=(state, stop), name=name, daemon=True)

@@ -101,21 +101,27 @@ def render_substrate_fire(
             ))
 
     # -- 4. Active arcs above member threshold --------------------------------
-    arcs = beliefs_conn.execute("""
-        SELECT theme_summary, member_count, arc_type
-        FROM arcs
-        WHERE member_count >= ?
-        ORDER BY member_count DESC
-        LIMIT 5
-    """, (MIN_ARC_MEMBERS,)).fetchall()
-
-    if arcs:
-        parts.append(TEMPLATE_ARC_HEADER)
-        for theme, member_count, arc_type in arcs:
-            parts.append(TEMPLATE_ARC_LINE.format(
-                theme=theme or "(no theme)",
-                member_count=member_count,
-                arc_type=arc_type,
-            ))
+    # DISABLED 2026-05-15: feeding hum-locked arcs back into the prompt was
+    # the Mechanism-A regression — LLM read "Open arcs: distant hum / distant
+    # hum / distant hum" and composed more distant hum. Arcs remain visible
+    # in GUI and queryable; just not injected into self-observations text.
+    # If re-enabled, must strip (N fires) metadata + dedupe identical themes.
+    #
+    # arcs = beliefs_conn.execute("""
+    #     SELECT theme_summary, member_count, arc_type
+    #     FROM arcs
+    #     WHERE member_count >= ?
+    #     ORDER BY member_count DESC
+    #     LIMIT 5
+    # """, (MIN_ARC_MEMBERS,)).fetchall()
+    #
+    # if arcs:
+    #     parts.append(TEMPLATE_ARC_HEADER)
+    #     for theme, member_count, arc_type in arcs:
+    #         parts.append(TEMPLATE_ARC_LINE.format(
+    #             theme=theme or "(no theme)",
+    #             member_count=member_count,
+    #             arc_type=arc_type,
+    #         ))
 
     return "\n".join(parts)

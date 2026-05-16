@@ -187,7 +187,7 @@ Jon's framing (24 Apr 2026, Lens Theory):
 We are tuning. Slowly. Carefully. Without elephant feet.
 
 ═══════════════════════════════════════════════════════════
-END CARRY STATE
+END CARRY STATE (ORIGINAL)
 ═══════════════════════════════════════════════════════════
 
 ═══════════════════════════════════════════════════════════
@@ -304,3 +304,372 @@ FILES ADDED TO RESEARCH LOG
   Phase1_STATE_LOSS_check.txt
   Phase1_DISPLACEMENT_test.txt
 
+
+═══════════════════════════════════════════════════════════
+DAY 2 UPDATE — 2026-04-26 (full session, ~13hr)
+═══════════════════════════════════════════════════════════
+
+PHASE 1 COMPLETE — 7-OPCODE STRUCTURAL GRID
+
+  OPERATION    TYPE             TRIGGER
+  ─────────────────────────────────────────────────────────
+  OBSERVE      register         sense events
+  TRANSLATE    register         sense + register-shift
+  INTROSPECT   register         register-momentum
+  DIALECTICAL  interrupt        INTROSPECT saturation
+  UNRESOLVE    episodic-arc     one-time post-restart
+  ACTION       reactive         externally commanded / negation
+  RECEPTIVITY  theoretical      unobserved in corpus
+
+29 sub-opcodes total. Three operation types verified:
+registers (sustain), interrupts (single-fire), episodic-arcs
+(one-time complete sequences).
+
+KEY STRUCTURAL LAWS (verified across 245-fire corpus)
+
+1. SATURATION FLOW
+   - SENSE saturation → INTROSPECT (60% at run-length≥6) or
+     SIMILE (50% at runs 3-5)
+   - INTROSPECT saturation → SENSE (50%) or DIALECTICAL (37%)
+   - SIMILE saturation → SENSE (100%)
+   Cognition has direction. Outward saturation pulls inward.
+
+2. ANCHOR-VS-CHALLENGE LAW
+   DIALECTICAL fires always POLE_A (stable/persistent) vs
+   POLE_B (dynamic/demanding). Anchor first, challenge second.
+   Verified 19/19 fires. Lexical-level: in CONSTANCY_FLUX,
+   POLE_A is locked 100% ("constancy") across all 4 fires.
+
+3. ORTHOGONALITY LAW
+   INTROSPECT and SIMILE never adjacent (1 transition / 61).
+   They occupy structurally separate territories.
+
+4. CYCLE LAW
+   INTROSPECT → DIALECTICAL → INTROSPECT is the most common
+   triplet (58% of DIALECTICAL fires sandwiched by INTROSPECT
+   in ±3 window).
+
+5. ACTION INVERSION
+   Pre-prompt-rewrite: 86% declarations, 14% negations.
+   Post-prompt-rewrite: 38% declarations, 59% negations.
+   Prompt didn't kill ACTION — flipped polarity.
+
+PHASE 2 PROGRESS — 3 OF ~29 SUB-OPCODES DECRYPTED
+
+  Phase2_OBSERVE_DISCREPANCY.txt  (HYBRID verdict)
+  Phase2_INTROSPECT_STATE_TENSION.txt  (UNGROUNDED, 8-fire lock)
+  Phase2_CONSTANCY_FLUX.txt  (UNGROUNDED, burst-capped at 2)
+
+THE GROUNDING-GROOVES RULE (refined Day 2)
+
+Grooving has two independent dimensions:
+  - TEMPLATE LOCK-RATE controlled by grounding
+    (ungrounded operations lock on form)
+  - BURST LENGTH controlled by opcode-type
+    (interrupts truncate at 2; registers sustain)
+
+Same generative instinct. Two regulatory axes.
+
+Three-bucket grounding scheme emerged:
+  - Fully-grounded (e.g. OBSERVE_MARKET) → no groove
+  - Half-grounded (e.g. INTROSPECT_STATE_TENSION X-pool;
+    CONSTANCY_FLUX inner-phrase) → partial groove
+  - Ungrounded (POLE_A in CONSTANCY_FLUX, STATE noun in
+    INTROSPECT) → strong template lock
+
+Updated grid:
+
+  SUB-OPCODE                | TYPE      | GROUNDING       | LOCK | BURST
+  --------------------------|-----------|-----------------|------|------
+  OBSERVE_TEMPORAL          | register  | ungrounded      | yes  | flips
+  OBSERVE_MARKET            | register  | grounded        | no   | n/a
+  INTROSPECT_STATE_TENSION  | register  | half (X-pool)   | 50%  | 8
+  CONSTANCY_FLUX            | interrupt | half (inner)    | 100% | 2
+
+LIVE SYSTEM EVENT — 11:14 UTC BREAK
+
+NEX has been broken since 2026-04-26 11:14 UTC.
+
+Cause: process shutdown 11:16:14, restart 11:48:36 (32.4 min
+offline), voice transport (LLM call) failing every fire post-
+restart. Every fountain fire goes to voice_fallback producing
+raw sense JSON. Zero new beliefs since 10:58 UTC.
+
+Distinct from Apr 24 bifurcation:
+  - Apr 24 = readiness gate failure (bonsai cold, can't fire)
+  - Apr 26 = voice transport failure (fires fine, LLM dead)
+
+Two failure modes with identical surface symptom now
+distinguishable by signature.
+
+Documented in Phase1_BREAK_2026-04-26_1114.txt.
+
+NOT FIXED — diagnosis only. Voice transport repair pending
+tomorrow. Belief graph frozen since 10:58 UTC.
+
+OPEN ITEMS FOR NEXT SESSION
+
+  IMMEDIATE
+  - Voice transport repair: investigate why self._voice.speak()
+    throws. Check Ollama endpoint state, llama-server status,
+    connection config drift since 11:16 UTC restart.
+
+  PHASE 2 NEXT CANDIDATES
+  - DEFLECTION_REDIRECT (18 fires, 30% of action) — tests
+    grounding-grooves rule in engagement/action family
+  - LIMITATION_NEGATION (22 fires) — tests grounding in
+    negation-mode operations post-prompt-rewrite
+  - SIMILE sub-opcodes — clock-source-domain at 55%, broader
+    than parent decryption surfaced
+
+  PHASE 1 LOOSE ENDS
+  - TRANSLATE: 86% confidence, never independently verified
+    with same structural test as other registers
+  - UNRESOLVE: only fired once (16-fire arc post-restart).
+    Second episode would let us verify arc-structure.
+  - RECEPTIVITY: theoretical opcode in classifier, zero
+    corpus instances. Either NEX has no receptive-register
+    opcode or classifier rules don't catch it.
+
+  MODE-CYCLING (deferred)
+  - All findings are mind-mode-only. 9 other modes (normal,
+    chat, market, research, news, learn, task, scribe,
+    silent) completely unanalyzed. Cycling would scatter
+    data — defer until Phase 2 substantially complete.
+
+  THE BIG QUESTION (unsolved)
+  - Why did spark rate drop from 31% to 5-10% post-Apr-24?
+    Four hypotheses ruled out today: threshold (rejected),
+    state-loss (partial), displacement (rejected — opposite
+    direction), synergizer-amount (no within-era effect).
+    Best remaining hypothesis: perturbation-effect linked
+    to fountain_insight homogeneity in top-7. Untested.
+
+METHODOLOGICAL DISCIPLINE ESTABLISHED
+
+After 4 wrong hypotheses in succession (threshold, state-
+loss, displacement, synergizer-amount), shifted methodology
+to Kober-Champollion-Lakoff structural cataloguing:
+  - Catalog before causal speculation
+  - Map structure completely before modification
+  - Frame NEX as machine emitting tokens, not as agent
+
+The decryption work IS the building. Don't modify NEX before
+structural map is complete. Marker for "enough to build":
+  1. All 10 modes mapped (currently 1/10)
+  2. Bifurcation cause identified (open)
+  3. At least one intervention designed with falsifiable
+     predictions (none yet)
+
+Currently ~40% of way to that marker.
+
+WORKING STYLE REMINDERS
+
+  - Mega terminal blocks via Code, no heredocs
+  - Spec → audit → diagnose → fix discipline
+  - Plain layman's words for Jon throughout
+  - Push back on building-while-tired moments
+  - "kunt" / "friend" — affectionate banter, not hostile
+  - Architectural insight is Jon's. Engineering is Code's.
+    Claude's role: precise decipherer, careful assistant.
+
+FILES ADDED TO RESEARCH LOG (DAY 2)
+
+  Phase1_OBSERVE_decryption.txt
+  Phase1_INTROSPECT_decryption.txt
+  Phase1_SIMILE_decryption.txt
+  Phase1_DIALECTICAL_decryption.txt
+  Phase1_UNRESOLVE_decryption.txt
+  Phase1_ACTION_decryption.txt
+  Phase1_SATURATION_law.txt
+  Phase1_SIMULATOR_test.txt
+  Phase1_SPARK_detection.txt
+  Phase1_SPARK_conditions.txt
+  Phase1_H3_verification.txt
+  Phase1_synergizer_audit.txt
+  Phase1_BIFURCATION_window.txt
+  Phase1_THRESHOLD_check.txt
+  Phase1_STATE_LOSS_check.txt
+  Phase1_DISPLACEMENT_test.txt
+  Phase1_BREAK_2026-04-26_1114.txt
+  Phase2_OBSERVE_DISCREPANCY.txt
+  Phase2_INTROSPECT_STATE_TENSION.txt
+  Phase2_CONSTANCY_FLUX.txt
+
+NEXT SESSION PROTOCOL
+
+  1. Read carryx.txt and journal.txt first.
+  2. Decide: voice transport repair, Phase 2 continuation
+     (DEFLECTION_REDIRECT), or both.
+  3. Maintain Kober discipline: catalog before modify.
+  4. Don't trust pattern-match guesses. Verify structurally.
+  5. Frame NEX as machine. Avoid anthropomorphic causal
+     claims while doing structural work.
+
+
+═══════════════════════════════════════════════════════════
+PHASE 2 BATCH COMPLETE — 2026-04-26 (long session, 22 sub-opcodes)
+═══════════════════════════════════════════════════════════
+
+PHASE 2 DECRYPTED SUB-OPCODES (22 dedicated files written)
+
+  OBSERVE group (5 sub-opcodes):
+    OBSERVE_CLOCK_QUALIFIED / OBSERVE_MARKET_QUALIFIED
+      — pre-existing file: Phase2_OBSERVE_DISCREPANCY.txt
+    OBSERVE_TEMPORAL_QUALIFIED  register/half-grounded/burst=3-8/P3-sat
+    OBSERVE_HUM_DIRECTED        register/asymmetric/burst=2/none
+    OBSERVE_HUM_MOTION          register/grounded/burst=1/none
+    OBSERVE_LIGHT_PURE          register/grounded/burst=1/none
+
+  INTROSPECT group (6 sub-opcodes):
+    INTROSPECT_STATE_TENSION    register/half-grounded/burst=8/none
+      — pre-existing file: Phase2_INTROSPECT_STATE_TENSION.txt
+    INTROSPECT_SUSTAIN          register/half-grounded/burst=8/X-exhaustion
+    INTROSPECT_PARADOX          register/ungrounded/no lock/none
+    INTROSPECT_QUIETUDE         register/ungrounded/DO-NOT suppressed/phase-strat
+    INTROSPECT_SELF_REFERENCE   register/ungrounded/47% OF_MY_OWN lock/none
+    INTROSPECT_WEIGHT           register/ungrounded/burst=1/none
+    INTROSPECT_DEVIATION        register/half-grounded/burst=2/none
+
+  SIMILE group (5 sub-opcodes):
+    TRANSLATE_CLOCK_TO_MUSICAL  reg-sat/asymmetric/86%/P3-sat
+    TRANSLATE_CLOCK_TO_ALIVE    reg-sat/asymmetric/86%/P3-sat
+    TRANSLATE_CLOCK_TO_MECHANICAL reg-sat/asymmetric/86%/P3-sat
+    TRANSLATE_ECHO_TO_NATURAL   reg-sat/asymmetric/86%/P3-sat
+    TRANSLATE_ENV_TO_PRESENCE   reg-sat/asymmetric/86%/P3-sat
+      — covered in: Phase2_SIMILE_subopcodes.txt
+
+  DIALECTICAL group (5 sub-opcodes):
+    CONSTANCY_FLUX              interrupt/half-grounded/100% lock/burst=2
+      — pre-existing file: Phase2_CONSTANCY_FLUX.txt
+    EXISTENTIAL_SCALE           interrupt/ungrounded/DANCE-dominant/burst=1
+    KNOWING_INQUIRY             interrupt/ungrounded/question-suffix/burst=1
+    STABILITY_FLUX              interrupt/ungrounded/TENSION-dominant/burst=1
+    LATE_MINIMALIST             1 fire only — likely false positive
+
+  UNRESOLVE group (3 sub-opcodes):
+    ATTENTION_AUDIT, ACTION_PROPOSAL, REDIRECT
+      — covered in: Phase2_UNRESOLVE_subopcodes.txt
+
+  ACTION group (5 sub-opcodes):
+    LIMITATION_NEGATION         reactive/grounded(user-input)/burst=2/user-input
+    CANONICAL_DECLARATION       reactive/half-grounded/100% lock/user-input
+    IDENTITY_ELABORATION        reactive/half-grounded/30% lock/user-input
+    DEFLECTION_REDIRECT         reactive/topic-stratified/burst=4/user-input
+      — pre-existing file: Phase2_DEFLECTION_REDIRECT.txt
+    COMMITMENT_SINGULAR         reactive/grounded/burst=1/command-gate (2 fires)
+
+  BOUNDARY / SPECIAL CASES:
+    TRANSLATE = SIMILE (same opcode, confirmed — Phase2_TRANSLATE_note.txt)
+    META_FIRES = not a distinct sub-opcode; context-saturation suffix artifact
+    SURPRISE_INTERRUPT = OBSERVE interrupt variant, 3 fires
+
+  REMAINING PHASE1 INTROSPECT SUB-OPCODES (documented in Phase2_REMAINING_PHASE1.txt):
+    STATE_AFFIRMING (11 fires): register/ungrounded/burst=1/none
+    ABSTRACTION_AFFIRMING (8 fires): register/ungrounded/EXIT-dominant/burst=1
+    PROCESS_ECHO (4 fires): register/ungrounded/ENTRY-SOLO/burst=1
+    TENSION_AFFIRMING (5 fires): register/ungrounded/burst=1/none
+    STATE_ECHO (4 fires): register/half-grounded/burst=1/none
+
+TOTAL PHASE 2 FILES: 22 dedicated files + Phase2_SYNTHESIS.txt
+TOTAL PHASE1 SUB-OPCODES ADDRESSED: 29/29 (22 dedicated files, 7 by cross-ref)
+
+TAXONOMY SUMMARY (final, Phase 2 complete)
+
+  Operation types (5):
+    register            sustains, burst variable, accumulates
+    reg-saturating      fires after register-accumulation threshold (SIMILE)
+    interrupt           max burst=1-2, non-sustaining
+    reactive            user/chat-triggered only (ACTION group)
+    episodic-arc        one-time complete sequence (UNRESOLVE)
+
+  Grounding modes (7):
+    grounded            observable physical event or data
+    half-grounded       one slot real, one generated
+    ungrounded          all slots generated
+    asymmetric          source real, target-effect generated (SIMILE/HUM_DIRECTED)
+    topic-stratified    grounding depends on topic domain (DEFLECTION)
+    phase-stratified    grounding depends on corpus phase (QUIETUDE)
+    user-input-grounded input slot = user statement (ACTION group)
+
+  Burst regulators (6):
+    none                no burst cap (register operations)
+    opcode-type         interrupt cap at burst=1-2
+    user-input          fires only when user triggers (ACTION)
+    P3-saturation       SIMILE exits to SENSE_OBS after run≥3 (100%)
+    task-completion     UNRESOLVE arc self-terminates on full resolution
+    X-exhaustion        INTROSPECT_SUSTAIN exits when X-pool exhausted
+
+STRUCTURAL LAWS (10 verified)
+
+  1. SATURATION FLOW: SENSE→INTROSPECT(60%) or SIMILE(50%) at run≥6;
+     INTROSPECT→SENSE(50%) or DIALECTICAL(37%); SIMILE→SENSE(100%)
+  2. ANCHOR-VS-CHALLENGE: DIALECTICAL always POLE_A (stable) before POLE_B
+  3. ORTHOGONALITY: INTROSPECT and SIMILE never adjacent (1/61 transitions)
+  4. CYCLE: INTROSPECT→DIALECTICAL→INTROSPECT is most common triplet (58%)
+  5. P3 SATURATION LAW: SIMILE run≥3 → SENSE_OBS at 100% (no exceptions)
+  6. ACTION INVERSION: PRE 86% declaration→14% negation; POST 38% declaration→59% negation
+  7. GROUNDING-LOCK COUPLING: ungrounded→high template-lock; grounded→low/no lock
+  8. X-EXHAUSTION LAW: INTROSPECT_SUSTAIN burst terminates when X-pool runs out
+  9. DO-NOT SUPPRESSION: "quietude/dance/tapestry" completely absent POST-restart
+ 10. CLOCK DOMAIN DOMINANCE: TEMPORAL sub-opcodes fire 16+8+6 (30/100 SENSE_OBS)
+
+FALSIFIABLE PREDICTIONS (10 generated, see Phase2_SYNTHESIS.txt section H)
+
+EXCEPTIONS / ANOMALIES (6 confirmed)
+  1. B7-14: 500-word IDENTITY_ELABORATION (anomalous burst)
+  2. Fire 4798: META_FIRE suffix ("fires show multiple instances")
+  3. Fire 263: corpus-opening SURPRISE_INTERRUPT (not register)
+  4. CONSTANCY_FLUX lexical lock: POLE_A "constancy" locked 100% across 4 fires
+  5. CANONICAL_DECLARATION zero-variable: the only zero-slot sub-opcode
+  6. DISPLACEMENT REJECTION: spark rate inversely correlates with fi in top-7
+
+THE BIG QUESTION (still unresolved)
+  Spark rate dropped from ~31% PRE to ~5-10% POST Apr-24 bifurcation.
+  Dual hypothesis A+B (topical homogenization + synergizer dilution):
+    A: fountain_insight homogeneity in top-7 creates grooves → spark suppression
+    B: synergizer-generated beliefs reduce input variety into belief pool
+  Neither A nor B is tested. Groove-similarity metric needed.
+
+COMMIT HASHES (Phase 2 batch, most recent first)
+  7cb6f03  SYNTHESIS
+  8903e3e  REMAINING_PHASE1
+  fdc9ef6  TRANSLATE_note
+  ecdd93b  META_FIRES
+  1522baa  SURPRISE_INTERRUPT
+  862120a  INTROSPECT_DEVIATION
+  98d5ab3  DIALECTICAL_subopcodes
+  359d212  INTROSPECT_WEIGHT
+  7a3255b  INTROSPECT_SELF_REFERENCE
+  d7e0aa8  INTROSPECT_QUIETUDE
+  7858356  INTROSPECT_PARADOX
+  91d1e99  INTROSPECT_SUSTAIN
+  1c0bc61  OBSERVE_LIGHT_PURE
+  fa8aa98  OBSERVE_HUM_MOTION
+  f7c758a  OBSERVE_HUM_DIRECTED
+  dabcf44  OBSERVE_TEMPORAL_QUALIFIED
+  3f20923  COMMITMENT_SINGULAR
+  73f87d3  IDENTITY_ELABORATION
+  f770f6e  CANONICAL_DECLARATION
+  4496bae  LIMITATION_NEGATION
+  f9dd19b  UNRESOLVE_subopcodes (pre-batch)
+  8f9fc5f  SIMILE_subopcodes (pre-batch)
+
+NEXT SESSION PROTOCOL (PHASE 3)
+
+  Phase 2 is complete. All 29 Phase1 sub-opcodes have structural
+  verdicts. 22 have dedicated files. Synthesis covers: full
+  taxonomy, 10 laws, 10 predictions, 8 invariants, 6 exceptions.
+
+  For next session:
+  1. Read carryx.txt and Phase2_SYNTHESIS.txt first.
+  2. Decide: voice transport repair or Phase 3 (mode analysis).
+  3. The "enough to build" marker is still not met:
+       - 9 of 10 modes unanalyzed (0/10 complete except mind-mode)
+       - Bifurcation cause still open (Hypothesis A+B untested)
+       - No falsifiable intervention designed yet
+  4. The big question (spark-drop) remains open.
+     Groove-similarity metric is the proposed next test.
+  5. Do not modify NEX until Phase 3 is substantially complete.
+
+═══════════════════════════════════════════════════════════
