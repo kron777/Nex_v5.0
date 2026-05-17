@@ -96,6 +96,23 @@
       <span class="sub-meta" id="drives-meta">—</span>
     </div>
     <div id="drives-feed" style="flex-shrink:0;overflow-y:auto;max-height:120px;font-size:10px;padding:2px 4px;"></div>
+    <!-- Chat (moved from col-fountain) -->
+    <div class="col-subheader" style="margin-top:6px;">CHAT</div>
+    <div id="chat-pane" style="flex:1;display:flex;flex-direction:column;min-height:140px;">
+      <div id="chat-log" style="flex:1;overflow-y:auto;"></div>
+      <div id="chat-input-row">
+        <select id="chat-register">
+          <option value="">AUTO</option>
+          <option value="Analytical">ANALYT</option>
+          <option value="Conversational">CONVER</option>
+          <option value="Philosophical">PHILOS</option>
+          <option value="Technical">TECH</option>
+        </select>
+        <span style="color:var(--fg3);margin:0 0.3rem;">›</span>
+        <input type="text" id="chat-input" placeholder="say something…" autocomplete="off">
+        <button id="chat-send">SEND</button>
+      </div>
+    </div>
   </div>
 
   <!-- Col 3: Fountain / Chat -->
@@ -163,23 +180,6 @@
       <div id="probes-history" style="overflow-y:auto;max-height:100px;font-size:10px;color:var(--fg3);margin-top:4px;"></div>
     </div>
 
-    <!-- Chat -->
-    <div class="col-subheader">CHAT</div>
-    <div id="chat-pane">
-      <div id="chat-log"></div>
-      <div id="chat-input-row">
-        <select id="chat-register">
-          <option value="">AUTO</option>
-          <option value="Analytical">ANALYT</option>
-          <option value="Conversational">CONVER</option>
-          <option value="Philosophical">PHILOS</option>
-          <option value="Technical">TECH</option>
-        </select>
-        <span style="color:var(--fg3);margin:0 0.3rem;">›</span>
-        <input type="text" id="chat-input" placeholder="say something…" autocomplete="off">
-        <button id="chat-send">SEND</button>
-      </div>
-    </div>
   </div>
 
 </div><!-- /main -->

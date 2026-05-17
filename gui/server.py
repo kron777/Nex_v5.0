@@ -1208,9 +1208,36 @@ def create_app(state: AppState) -> Flask:
 
         if text is None:
             # Route through voice — fountain-style interior prompt.
+            # Tag feedback block (5b): inject Jon's tags on her fountain outputs.
+            # No-op unless NEX_TAG_FEEDBACK_ON=1. Always-in-prompt summary +
+            # keyword-matched tagged thoughts based on the user prompt.
+            try:
+                from theory_x.coincidence.tag_retrieval import (
+                    format_prompt_block as _tag_summary_block,
+                    tags_matching as _tag_search,
+                )
+                _tag_summary = _tag_summary_block(rich=True, max_recent=3)
+                _tag_matches = _tag_search(prompt, limit=4, rich=True) if prompt else []
+                _tag_block_parts = []
+                if _tag_summary:
+                    _tag_block_parts.append(_tag_summary)
+                if _tag_matches:
+                    _tag_block_parts.append(
+                        "[Tagged thoughts of yours related to what was just said:]"
+                    )
+                    _tag_block_parts.extend(f"  {m}" for m in _tag_matches)
+                _tag_block = ("\n".join(_tag_block_parts) + "\n\n") if _tag_block_parts else ""
+            except Exception as _tag_exc:
+                error_channel.record(
+                    f"tag retrieval failed: {_tag_exc}",
+                    source="gui.server", exc=_tag_exc,
+                )
+                _tag_block = ""
+
             if belief_text:
                 voice_prompt = (
                     f"{_spectrum_block}"
+                    f"{_tag_block}"
                     f"Your interior right now:\n\n"
                     f"{belief_text}\n\n"
                     f"Someone has just said to you: \"{prompt}\"\n\n"
@@ -1219,7 +1246,10 @@ def create_app(state: AppState) -> Flask:
                     "interior, say so honestly."
                 )
             else:
-                voice_prompt = f"{_spectrum_block}{prompt}" if _spectrum_block else prompt
+                voice_prompt = (
+                    f"{_spectrum_block}{_tag_block}{prompt}"
+                    if (_spectrum_block or _tag_block) else prompt
+                )
 
         if text is None:
             try:
