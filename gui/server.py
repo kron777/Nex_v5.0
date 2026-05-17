@@ -1328,6 +1328,19 @@ def create_app(state: AppState) -> Flask:
         state.scheduler.start_all()
         return jsonify({"global_running": True})
 
+    @app.post("/api/compute/pause")
+    def api_compute_pause():
+        """SIGSTOP own process. Freezes nex5 entirely.
+        GUI will become unresponsive (expected).
+        Resume from terminal: kill -CONT $(cat /tmp/nex5.pid)
+        """
+        import os, signal
+        try:
+            os.kill(os.getpid(), signal.SIGSTOP)
+            return jsonify({"ok": True})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
     @app.post("/api/sense/stop")
     def api_sense_stop():
         if state.scheduler is None:

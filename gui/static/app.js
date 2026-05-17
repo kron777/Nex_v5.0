@@ -1492,3 +1492,10 @@ function _coinlabRenderHypotheses(hyps) {
 }
 
 document.getElementById("coinlab-refresh-btn")?.addEventListener("click", refreshCoinLab);
+
+
+// ── Compute pause button (SIGSTOP self) ───────────────────────────────────
+document.getElementById("compute-pause-btn")?.addEventListener("click", async () => {
+  if (!confirm("Pause NEX (SIGSTOP)? GUI will freeze. Resume from terminal with:\n  kill -CONT $(cat /tmp/nex5.pid)")) return;
+  try { await fetch("/api/compute/pause", {method: "POST"}); } catch (e) { /* expected: process froze before responding */ }
+});
