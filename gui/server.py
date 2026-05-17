@@ -1689,20 +1689,40 @@ def create_app(state: AppState) -> Flask:
     def api_fountain_status():
         if state.fountain is None:
             return jsonify({"error": "fountain not initialised"}), 503
-        return jsonify(state.fountain.status())
+        status = state.fountain.status()
+        # Merge in last_id + last_tag for the FOUNTAIN tag buttons
+        try:
+            import sqlite3 as _sq
+            cx = _sq.connect("/home/rr/Desktop/nex5/data/dynamic.db", timeout=5)
+            row = cx.execute(
+                "SELECT id, tag FROM fountain_events "
+                "WHERE thought != '' AND thought NOT LIKE '[%' "
+                "ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+            cx.close()
+            if row:
+                status["last_id"] = row[0]
+                status["last_tag"] = row[1]
+        except Exception:
+            status["last_id"] = None
+            status["last_tag"] = None
+        return jsonify(status)
 
     @app.post("/api/coincidence/tag")
     def api_coincidence_tag():
-        """Tag a fountain output as hit/miss/neutral/partial against Jon's world.
-        Upserts so re-tagging is allowed. Body: {fountain_event_id, tag, note?}"""
+        """Tag a fountain output as coin/maybe/non.
+        Writes the tag onto fountain_events.tag (substrate-visible) AND
+        captures full substrate context via the coincidence module.
+        Also auto-scores any open hypotheses.
+        """
         from flask import request
-        import sqlite3, time
+        import sqlite3, time, json
+        from theory_x.coincidence.context_capture import capture_and_persist
         body = request.get_json(silent=True) or {}
         fid = body.get("fountain_event_id")
         tag = body.get("tag")
-        note = (body.get("note") or "").strip()[:500]
-        if not fid or tag not in ("hit", "miss", "neutral", "partial"):
-            return jsonify({"error": "fountain_event_id and tag in (hit,miss,neutral,partial) required"}), 400
+        if not fid or tag not in ("coin", "maybe", "non"):
+            return jsonify({"error": "fountain_event_id and tag in (coin,maybe,non) required"}), 400
         dyn_db = "/home/rr/Desktop/nex5/data/dynamic.db"
         try:
             cx = sqlite3.connect(dyn_db, timeout=10)
@@ -1712,60 +1732,298 @@ def create_app(state: AppState) -> Flask:
             if not row:
                 cx.close()
                 return jsonify({"error": "fountain_event_id not found"}), 404
-            thought, ts = row
-            cx.execute(
-                "INSERT INTO coincidences (fountain_event_id, thought, thought_ts, tag, tagged_at, note) "
-                "VALUES (?, ?, ?, ?, ?, ?) "
-                "ON CONFLICT(fountain_event_id) DO UPDATE SET "
-                "  tag=excluded.tag, tagged_at=excluded.tagged_at, note=excluded.note",
-                (fid, thought, ts, tag, time.time(), note)
-            )
+            thought, thought_ts = row
+            # Write tag onto fountain row (substrate-visible)
+            cx.execute("UPDATE fountain_events SET tag=? WHERE id=?", (tag, fid))
             cx.commit()
             cx.close()
-            return jsonify({"ok": True, "fountain_event_id": fid, "tag": tag})
+            # Capture context snapshot (heavy, async-safe)
+            try:
+                capture_and_persist(fid, tag)
+            except Exception as e:
+                error_channel.record(f"context capture failed for fid={fid}: {e}",
+                                     source="gui.server", exc=e)
+            # Auto-score hypotheses
+            try:
+                _hypothesis_autoscore(fid, thought, thought_ts, tag)
+            except Exception as e:
+                error_channel.record(f"hypothesis autoscore failed: {e}",
+                                     source="gui.server", exc=e)
+            return jsonify({"ok": True, "fountain_event_id": fid, "tag": tag,
+                            "thought": thought})
         except Exception as e:
             error_channel.record(f"coincidence tag failed: {e}", source="gui.server", exc=e)
             return jsonify({"error": str(e)}), 500
 
     @app.get("/api/coincidence/stats")
     def api_coincidence_stats():
-        """Stats for analysis."""
-        import sqlite3
+        """Counts, totals, hit rate trend, time-of-day distribution."""
+        import sqlite3, time, datetime
         dyn_db = "/home/rr/Desktop/nex5/data/dynamic.db"
         try:
             cx = sqlite3.connect(dyn_db, timeout=10)
             cx.row_factory = sqlite3.Row
             counts = cx.execute(
-                "SELECT tag, COUNT(*) AS n FROM coincidences GROUP BY tag"
+                "SELECT tag, COUNT(*) AS n FROM fountain_events "
+                "WHERE tag IS NOT NULL GROUP BY tag"
             ).fetchall()
+            total_tagged = sum(r["n"] for r in counts)
+            total_fountain = cx.execute(
+                "SELECT COUNT(*) AS n FROM fountain_events WHERE thought != ''"
+            ).fetchone()["n"]
+            # Hit rate by hour-of-day
+            by_hour = cx.execute(
+                "SELECT CAST(strftime('%H', ts, 'unixepoch', 'localtime') AS INTEGER) AS hour, "
+                "tag, COUNT(*) AS n FROM fountain_events "
+                "WHERE tag IS NOT NULL GROUP BY hour, tag"
+            ).fetchall()
+            hour_buckets = {}
+            for r in by_hour:
+                h = r["hour"]
+                if h not in hour_buckets:
+                    hour_buckets[h] = {"coin": 0, "maybe": 0, "non": 0}
+                hour_buckets[h][r["tag"]] = r["n"]
+            # 7-day rolling hit rate (coin / total_tagged per day)
+            now = time.time()
+            week_ago = now - 7 * 86400
+            by_day = cx.execute(
+                "SELECT date(ts, 'unixepoch', 'localtime') AS d, "
+                "tag, COUNT(*) AS n FROM fountain_events "
+                "WHERE tag IS NOT NULL AND ts > ? "
+                "GROUP BY d, tag ORDER BY d",
+                (week_ago,),
+            ).fetchall()
+            day_buckets = {}
+            for r in by_day:
+                d = r["d"]
+                if d not in day_buckets:
+                    day_buckets[d] = {"coin": 0, "maybe": 0, "non": 0}
+                day_buckets[d][r["tag"]] = r["n"]
             recent = cx.execute(
-                "SELECT fountain_event_id, thought, tag, note, tagged_at, thought_ts "
-                "FROM coincidences ORDER BY tagged_at DESC LIMIT 50"
+                "SELECT id, ts, thought, tag FROM fountain_events "
+                "WHERE tag IS NOT NULL ORDER BY ts DESC LIMIT 50"
             ).fetchall()
             cx.close()
             return jsonify({
                 "counts": {r["tag"]: r["n"] for r in counts},
-                "total": sum(r["n"] for r in counts),
+                "total_tagged": total_tagged,
+                "total_fountain": total_fountain,
+                "hit_rate": (counts and {r["tag"]: r["n"] for r in counts}.get("coin", 0) / total_tagged) or 0,
+                "by_hour": hour_buckets,
+                "by_day": day_buckets,
                 "recent": [dict(r) for r in recent],
+            })
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.get("/api/coincidence/analytics")
+    def api_coincidence_analytics():
+        """Branch correlation, aperture distribution, condition fingerprint."""
+        import sqlite3, json
+        dyn_db = "/home/rr/Desktop/nex5/data/dynamic.db"
+        try:
+            cx = sqlite3.connect(dyn_db, timeout=10)
+            cx.row_factory = sqlite3.Row
+            # Hot_branch correlation: which branch produces most coins/maybes?
+            by_branch = cx.execute(
+                "SELECT hot_branch, tag, COUNT(*) AS n FROM fountain_events "
+                "WHERE tag IS NOT NULL AND hot_branch IS NOT NULL "
+                "GROUP BY hot_branch, tag"
+            ).fetchall()
+            branch_buckets = {}
+            for r in by_branch:
+                b = r["hot_branch"]
+                if b not in branch_buckets:
+                    branch_buckets[b] = {"coin": 0, "maybe": 0, "non": 0}
+                branch_buckets[b][r["tag"]] = r["n"]
+            # Aperture distribution: avg aperture for each tag class
+            apertures = cx.execute(
+                "SELECT cc.tag, cc.aperture FROM coincidence_context cc "
+                "WHERE cc.aperture IS NOT NULL"
+            ).fetchall()
+            aperture_by_tag = {"coin": [], "maybe": [], "non": []}
+            for r in apertures:
+                aperture_by_tag[r["tag"]].append(r["aperture"])
+            aperture_summary = {
+                t: {"n": len(v),
+                    "mean": sum(v) / len(v) if v else None,
+                    "min": min(v) if v else None,
+                    "max": max(v) if v else None}
+                for t, v in aperture_by_tag.items()
+            }
+            # Content trigram clusters: which 3-word phrases recur in coins?
+            coin_thoughts = cx.execute(
+                "SELECT thought FROM fountain_events WHERE tag='coin' AND thought != ''"
+            ).fetchall()
+            trigram_counts = {}
+            for r in coin_thoughts:
+                words = r["thought"].lower().split()
+                for i in range(len(words) - 2):
+                    tri = " ".join(words[i:i+3])
+                    if len(tri) > 8:  # skip junk
+                        trigram_counts[tri] = trigram_counts.get(tri, 0) + 1
+            top_trigrams = sorted(trigram_counts.items(), key=lambda x: -x[1])[:15]
+            # Condition fingerprint: when coin landed, what was the substrate doing?
+            coin_contexts = cx.execute(
+                "SELECT aperture, hot_branch, belief_delta_1h, "
+                "recent_daemons, recent_surprises FROM coincidence_context "
+                "WHERE tag='coin'"
+            ).fetchall()
+            fingerprint = {"n": len(coin_contexts)}
+            if coin_contexts:
+                apertures_c = [r["aperture"] for r in coin_contexts if r["aperture"] is not None]
+                deltas = [r["belief_delta_1h"] for r in coin_contexts if r["belief_delta_1h"] is not None]
+                branches_c = [r["hot_branch"] for r in coin_contexts if r["hot_branch"]]
+                # Most common daemon firing within 5min of coins
+                daemon_freq = {}
+                for r in coin_contexts:
+                    try:
+                        ds = json.loads(r["recent_daemons"] or "[]")
+                        for d in ds:
+                            daemon_freq[d.get("daemon")] = daemon_freq.get(d.get("daemon"), 0) + 1
+                    except Exception:
+                        continue
+                fingerprint.update({
+                    "avg_aperture": sum(apertures_c) / len(apertures_c) if apertures_c else None,
+                    "avg_belief_delta_1h": sum(deltas) / len(deltas) if deltas else None,
+                    "branch_freq": {b: branches_c.count(b) for b in set(branches_c)},
+                    "common_recent_daemons": sorted(daemon_freq.items(),
+                                                    key=lambda x: -x[1])[:5],
+                })
+            cx.close()
+            return jsonify({
+                "by_branch": branch_buckets,
+                "aperture_summary": aperture_summary,
+                "top_trigrams_in_coins": top_trigrams,
+                "coin_fingerprint": fingerprint,
             })
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
     @app.get("/api/coincidence/tags")
     def api_coincidence_tags():
-        """Map fountain_event_id -> tag for marking already-tagged outputs in UI."""
+        """Map fountain_event_id -> tag for UI marking."""
         import sqlite3
         dyn_db = "/home/rr/Desktop/nex5/data/dynamic.db"
         try:
             cx = sqlite3.connect(dyn_db, timeout=10)
             rows = cx.execute(
-                "SELECT fountain_event_id, tag FROM coincidences "
-                "ORDER BY tagged_at DESC LIMIT 500"
+                "SELECT id, tag FROM fountain_events "
+                "WHERE tag IS NOT NULL ORDER BY ts DESC LIMIT 500"
             ).fetchall()
             cx.close()
             return jsonify({"tags": {r[0]: r[1] for r in rows}})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+
+    @app.post("/api/hypothesis")
+    def api_hypothesis_create():
+        """Create a new hypothesis to test against coincidence data."""
+        from flask import request
+        import sqlite3, time
+        body = request.get_json(silent=True) or {}
+        claim = (body.get("claim") or "").strip()
+        keywords = (body.get("keywords") or "").strip()  # comma-separated
+        time_window = body.get("time_window")  # e.g. "21:00-23:00" or null
+        if not claim:
+            return jsonify({"error": "claim required"}), 400
+        dyn_db = "/home/rr/Desktop/nex5/data/dynamic.db"
+        cx = sqlite3.connect(dyn_db, timeout=10)
+        cur = cx.execute(
+            "INSERT INTO hypotheses (created_at, claim, keywords, time_window) "
+            "VALUES (?, ?, ?, ?)",
+            (time.time(), claim, keywords, time_window),
+        )
+        hid = cur.lastrowid
+        cx.commit()
+        cx.close()
+        return jsonify({"ok": True, "id": hid})
+
+    @app.get("/api/hypothesis")
+    def api_hypothesis_list():
+        """List all hypotheses with current support/contradiction counts."""
+        import sqlite3
+        dyn_db = "/home/rr/Desktop/nex5/data/dynamic.db"
+        cx = sqlite3.connect(dyn_db, timeout=10)
+        cx.row_factory = sqlite3.Row
+        rows = cx.execute(
+            "SELECT * FROM hypotheses ORDER BY created_at DESC"
+        ).fetchall()
+        cx.close()
+        return jsonify({"hypotheses": [dict(r) for r in rows]})
+
+    @app.patch("/api/hypothesis/<int:hid>")
+    def api_hypothesis_update(hid):
+        """Update status or notes on a hypothesis."""
+        from flask import request
+        import sqlite3, time
+        body = request.get_json(silent=True) or {}
+        status = body.get("status")
+        notes = body.get("notes")
+        if status and status not in ("open", "confirmed", "refuted", "abandoned"):
+            return jsonify({"error": "invalid status"}), 400
+        dyn_db = "/home/rr/Desktop/nex5/data/dynamic.db"
+        cx = sqlite3.connect(dyn_db, timeout=10)
+        sets, vals = [], []
+        if status:
+            sets.append("status=?")
+            vals.append(status)
+            if status != "open":
+                sets.append("closed_at=?")
+                vals.append(time.time())
+        if notes is not None:
+            sets.append("notes=?")
+            vals.append(notes)
+        if not sets:
+            cx.close()
+            return jsonify({"error": "nothing to update"}), 400
+        vals.append(hid)
+        cx.execute(f"UPDATE hypotheses SET {', '.join(sets)} WHERE id=?", vals)
+        cx.commit()
+        cx.close()
+        return jsonify({"ok": True})
+
+    def _hypothesis_autoscore(fid, thought, thought_ts, tag):
+        """When a new tag lands, check open hypotheses and increment counts.
+        Simple matching: if keywords appear in thought AND time matches the
+        window, the hypothesis is 'tested' by this tag.
+          - tag='coin' on a matching thought = supporting
+          - tag='non' on a matching thought  = contradicting
+          - tag='maybe' = no count change
+        """
+        import sqlite3, datetime
+        dyn_db = "/home/rr/Desktop/nex5/data/dynamic.db"
+        cx = sqlite3.connect(dyn_db, timeout=10)
+        cx.row_factory = sqlite3.Row
+        hyps = cx.execute(
+            "SELECT id, keywords, time_window FROM hypotheses WHERE status='open'"
+        ).fetchall()
+        thought_lc = (thought or "").lower()
+        hour = datetime.datetime.fromtimestamp(thought_ts).hour
+        for h in hyps:
+            kws = [k.strip().lower() for k in (h["keywords"] or "").split(",") if k.strip()]
+            kw_match = (not kws) or any(k in thought_lc for k in kws)
+            tw = h["time_window"]
+            tw_match = True
+            if tw and "-" in tw:
+                try:
+                    start_h, end_h = [int(x.split(":")[0]) for x in tw.split("-")]
+                    if start_h <= end_h:
+                        tw_match = start_h <= hour <= end_h
+                    else:
+                        tw_match = hour >= start_h or hour <= end_h
+                except Exception:
+                    tw_match = True
+            if not (kw_match and tw_match):
+                continue
+            if tag == "coin":
+                cx.execute("UPDATE hypotheses SET supporting=supporting+1 WHERE id=?",
+                           (h["id"],))
+            elif tag == "non":
+                cx.execute("UPDATE hypotheses SET contradicting=contradicting+1 WHERE id=?",
+                           (h["id"],))
+        cx.commit()
+        cx.close()
 
     @app.get("/api/fountain/recent")
     def api_fountain_recent():

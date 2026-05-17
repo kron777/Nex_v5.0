@@ -103,6 +103,11 @@
     <div class="col-header">
       <span class="col-title">FOUNTAIN</span>
       <span class="col-meta">fires: <span id="fountain-fires">0</span></span>
+      <span class="fountain-tag-row">
+        <button class="ftn-tag-btn ftn-tag-coin" id="ftn-tag-coin" title="coincidence — matches Jon's world">coin</button>
+        <button class="ftn-tag-btn ftn-tag-maybe" id="ftn-tag-maybe" title="maybe — uncertain">maybe</button>
+        <button class="ftn-tag-btn ftn-tag-non" id="ftn-tag-non" title="non — unrelated">non</button>
+      </span>
       <span id="speech-indicator" class="speech-indicator" title="Speech — click to pause/resume">
         <span id="speech-icon">🔊</span><span id="speech-depth"></span>
       </span>
@@ -194,6 +199,7 @@
     <div id="agi-panel-toolbar">
       <button class="agi-tab active" data-tab="signals">AGI WATCH</button>
       <button class="agi-tab" data-tab="insights">INSIGHTS</button>
+      <button class="agi-tab" data-tab="coinlab">COINCIDENCE LAB</button>
       <span style="flex:1"></span>
       <button class="agi-ctrl-btn" id="agi-copy-btn">copy all</button>
       <button class="agi-ctrl-btn" id="agi-close-btn">close  ✕</button>
@@ -203,6 +209,21 @@
     </div>
     <div id="agi-tab-insights" class="agi-tab-content">
       <div id="agi-insights-log"></div>
+    </div>
+    <div id="agi-tab-coinlab" class="agi-tab-content">
+      <div id="coinlab-panel">
+        <div class="coinlab-header">
+          <span class="coinlab-title">COINCIDENCE LAB</span>
+          <button class="agi-ctrl-btn" id="coinlab-refresh-btn">refresh</button>
+        </div>
+        <div id="coinlab-summary" class="coinlab-section"></div>
+        <div id="coinlab-byhour" class="coinlab-section"></div>
+        <div id="coinlab-bybranch" class="coinlab-section"></div>
+        <div id="coinlab-aperture" class="coinlab-section"></div>
+        <div id="coinlab-trigrams" class="coinlab-section"></div>
+        <div id="coinlab-fingerprint" class="coinlab-section"></div>
+        <div id="coinlab-hypotheses" class="coinlab-section"></div>
+      </div>
     </div>
   </div>
 </div>

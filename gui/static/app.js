@@ -220,21 +220,33 @@ async function refreshPipeline() {
 }
 // ── Fountain ──────────────────────────────────────────────────────────────────
 
+let _ftnCurrentId = null;
+
 async function refreshFountain() {
   const data = await apiFetch("/api/fountain/status").catch(() => null);
   if (!data || data.error) return;
 
   const el = document.getElementById("fountain-thought");
+  _ftnCurrentId = data.last_id || null;
+
   if (data.last_thought) {
-    el.textContent = data.last_thought;
+    const suffix = data.last_tag ? ` : ${data.last_tag}` : "";
+    el.textContent = data.last_thought + suffix;
     el.classList.remove("empty");
+    el.classList.remove("ftn-tagged-coin","ftn-tagged-maybe","ftn-tagged-non");
+    if (data.last_tag) el.classList.add(`ftn-tagged-${data.last_tag}`);
   }
+
+  // Highlight active button if already tagged
+  ["coin","maybe","non"].forEach(t => {
+    const b = document.getElementById(`ftn-tag-${t}`);
+    if (b) b.classList.toggle("active", data.last_tag === t);
+  });
 
   document.getElementById("fountain-fires").textContent = data.total_fires ?? 0;
   document.getElementById("sb-fires").textContent = data.total_fires ?? 0;
   document.getElementById("fountain-readiness").textContent =
     data.readiness_score != null ? data.readiness_score.toFixed(2) : "—";
-
   const bar = document.getElementById("fountain-bar");
   bar.textContent = readinessBar(data.readiness_score);
   if ((data.readiness_score ?? 0) >= 0.7) {
@@ -242,7 +254,6 @@ async function refreshFountain() {
   } else {
     bar.classList.remove("pulsing");
   }
-
   document.getElementById("fountain-last").textContent =
     data.last_fire_ts ? fmtTs(data.last_fire_ts) : "never";
 }
@@ -672,11 +683,10 @@ function _agiRenderLog() {
     const existing = s.eventId ? (window.coincidenceTags || {})[s.eventId] : null;
     const tagButtons = s.eventId
       ? `<span class="coin-tag-row" data-event-id="${s.eventId}">`
-        + `<button class="coin-btn coin-hit${existing==='hit'?' active':''}" title="hit">✓</button>`
-        + `<button class="coin-btn coin-miss${existing==='miss'?' active':''}" title="miss">✗</button>`
-        + `<button class="coin-btn coin-partial${existing==='partial'?' active':''}" title="partial">~</button>`
-        + `<button class="coin-btn coin-neutral${existing==='neutral'?' active':''}" title="neutral">○</button>`
-        + (existing ? `<span class="coin-tagged">tagged: ${existing}</span>` : "")
+        + `<button class="coin-btn coin-coin${existing==='coin'?' active':''}" title="coincidence">coin</button>`
+        + `<button class="coin-btn coin-maybe${existing==='maybe'?' active':''}" title="maybe">maybe</button>`
+        + `<button class="coin-btn coin-non${existing==='non'?' active':''}" title="non">non</button>`
+        + (existing ? `<span class="coin-tagged">: ${existing}</span>` : "")
         + `</span>`
       : "";
     return `<div class="agi-log-row" data-event-id="${s.eventId || ''}">`
@@ -692,20 +702,15 @@ function _agiRenderLog() {
       const row = btn.closest(".coin-tag-row");
       const fid = parseInt(row.dataset.eventId, 10);
       let tag = null;
-      if (btn.classList.contains("coin-hit")) tag = "hit";
-      else if (btn.classList.contains("coin-miss")) tag = "miss";
-      else if (btn.classList.contains("coin-partial")) tag = "partial";
-      else if (btn.classList.contains("coin-neutral")) tag = "neutral";
+      if (btn.classList.contains("coin-coin")) tag = "coin";
+      else if (btn.classList.contains("coin-maybe")) tag = "maybe";
+      else if (btn.classList.contains("coin-non")) tag = "non";
       if (!fid || !tag) return;
-      let note = "";
-      if (tag === "hit" || tag === "partial") {
-        note = prompt("Optional note:") || "";
-      }
       try {
         const resp = await fetch("/api/coincidence/tag", {
           method: "POST",
           headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({fountain_event_id: fid, tag, note})
+          body: JSON.stringify({fountain_event_id: fid, tag})
         });
         if (resp.ok) {
           window.coincidenceTags = window.coincidenceTags || {};
@@ -749,7 +754,9 @@ function _agiSetTab(tab) {
   });
   document.getElementById("agi-tab-signals")?.classList.toggle("active", tab === "signals");
   document.getElementById("agi-tab-insights")?.classList.toggle("active", tab === "insights");
+  document.getElementById("agi-tab-coinlab")?.classList.toggle("active", tab === "coinlab");
   if (tab === "insights") refreshInsights();
+  if (tab === "coinlab") refreshCoinLab();
 }
 
 function _agiShowSignal(type, ts, excerpt, eventId) {
@@ -1241,3 +1248,247 @@ async function loadArcs() {
 
 setInterval(loadArcs, 60000);
 loadArcs();
+
+// ── Fountain tag buttons (coincidence tracking) ───────────────────────────
+(function wireFountainTagButtons() {
+  ["coin","maybe","non"].forEach(tag => {
+    const btn = document.getElementById(`ftn-tag-${tag}`);
+    if (!btn) return;
+    btn.addEventListener("click", async () => {
+      if (!_ftnCurrentId) {
+        console.warn("no current fountain id to tag");
+        return;
+      }
+      try {
+        const resp = await fetch("/api/coincidence/tag", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({fountain_event_id: _ftnCurrentId, tag})
+        });
+        if (resp.ok) {
+          const el = document.getElementById("fountain-thought");
+          if (el) {
+            const text = el.textContent.split(" : ")[0];
+            el.textContent = text + " : " + tag;
+            el.classList.remove("ftn-tagged-coin","ftn-tagged-maybe","ftn-tagged-non");
+            el.classList.add(`ftn-tagged-${tag}`);
+          }
+          ["coin","maybe","non"].forEach(t => {
+            const b = document.getElementById(`ftn-tag-${t}`);
+            if (b) b.classList.toggle("active", t === tag);
+          });
+        } else {
+          console.error("tag failed", await resp.text());
+        }
+      } catch (err) {
+        console.error("tag exception", err);
+      }
+    });
+  });
+})();
+
+// ── COINCIDENCE LAB ─────────────────────────────────────────────────────
+async function refreshCoinLab() {
+  try {
+    const [stats, analytics, hyps] = await Promise.all([
+      fetch("/api/coincidence/stats").then(r => r.json()),
+      fetch("/api/coincidence/analytics").then(r => r.json()),
+      fetch("/api/hypothesis").then(r => r.json()),
+    ]);
+    _coinlabRenderSummary(stats);
+    _coinlabRenderByHour(stats);
+    _coinlabRenderByBranch(analytics);
+    _coinlabRenderAperture(analytics);
+    _coinlabRenderTrigrams(analytics);
+    _coinlabRenderFingerprint(analytics);
+    _coinlabRenderHypotheses(hyps);
+  } catch (err) {
+    console.error("coinlab refresh failed", err);
+  }
+}
+
+function _coinlabRenderSummary(stats) {
+  const el = document.getElementById("coinlab-summary");
+  if (!el) return;
+  const c = stats.counts || {};
+  const total = stats.total_tagged || 0;
+  const coins = c.coin || 0;
+  const rate = total > 0 ? (coins / total * 100).toFixed(1) : "0.0";
+  el.innerHTML = `
+    <div class="coinlab-h">SUMMARY</div>
+    <div class="coinlab-grid">
+      <div><span class="coin-label coin-coin-lbl">coin</span> <b>${coins}</b></div>
+      <div><span class="coin-label coin-maybe-lbl">maybe</span> <b>${c.maybe || 0}</b></div>
+      <div><span class="coin-label coin-non-lbl">non</span> <b>${c.non || 0}</b></div>
+      <div>tagged: <b>${total}</b> / ${stats.total_fountain || 0}</div>
+      <div>hit rate: <b>${rate}%</b></div>
+    </div>
+  `;
+}
+
+function _coinlabRenderByHour(stats) {
+  const el = document.getElementById("coinlab-byhour");
+  if (!el) return;
+  const buckets = stats.by_hour || {};
+  if (Object.keys(buckets).length === 0) {
+    el.innerHTML = `<div class="coinlab-h">BY HOUR</div><div class="coinlab-empty">no data yet</div>`;
+    return;
+  }
+  let rows = "";
+  for (let h = 0; h < 24; h++) {
+    const b = buckets[h] || {coin: 0, maybe: 0, non: 0};
+    const total = b.coin + b.maybe + b.non;
+    if (total === 0) continue;
+    const maxBar = 20;
+    const cb = "█".repeat(Math.min(maxBar, b.coin));
+    const mb = "▒".repeat(Math.min(maxBar, b.maybe));
+    const nb = "░".repeat(Math.min(maxBar, b.non));
+    rows += `<div class="coinlab-row">
+      <span class="coinlab-hour">${String(h).padStart(2,"0")}:00</span>
+      <span class="coinlab-bar coin-coin-lbl">${cb}</span><span class="coinlab-bar coin-maybe-lbl">${mb}</span><span class="coinlab-bar coin-non-lbl">${nb}</span>
+      <span class="coinlab-n">${total}</span>
+    </div>`;
+  }
+  el.innerHTML = `<div class="coinlab-h">BY HOUR</div>${rows}`;
+}
+
+function _coinlabRenderByBranch(analytics) {
+  const el = document.getElementById("coinlab-bybranch");
+  if (!el) return;
+  const branches = analytics.by_branch || {};
+  if (Object.keys(branches).length === 0) {
+    el.innerHTML = `<div class="coinlab-h">BY BRANCH</div><div class="coinlab-empty">no data yet</div>`;
+    return;
+  }
+  const rows = Object.entries(branches).map(([b, t]) => {
+    const total = (t.coin || 0) + (t.maybe || 0) + (t.non || 0);
+    const coinRate = total > 0 ? (t.coin / total * 100).toFixed(0) : "0";
+    return `<div class="coinlab-row">
+      <span class="coinlab-branch">${esc(b)}</span>
+      <span class="coin-coin-lbl">c:${t.coin || 0}</span>
+      <span class="coin-maybe-lbl">m:${t.maybe || 0}</span>
+      <span class="coin-non-lbl">n:${t.non || 0}</span>
+      <span class="coinlab-rate">${coinRate}% hit</span>
+    </div>`;
+  }).join("");
+  el.innerHTML = `<div class="coinlab-h">BY BRANCH</div>${rows}`;
+}
+
+function _coinlabRenderAperture(analytics) {
+  const el = document.getElementById("coinlab-aperture");
+  if (!el) return;
+  const s = analytics.aperture_summary || {};
+  const fmt = v => (v == null ? "—" : v.toFixed(3));
+  el.innerHTML = `<div class="coinlab-h">APERTURE AT TAG-TIME</div>
+    <div class="coinlab-grid">
+      <div><span class="coin-coin-lbl">coin</span> (n=${s.coin?.n || 0}): mean <b>${fmt(s.coin?.mean)}</b> [${fmt(s.coin?.min)}–${fmt(s.coin?.max)}]</div>
+      <div><span class="coin-maybe-lbl">maybe</span> (n=${s.maybe?.n || 0}): mean <b>${fmt(s.maybe?.mean)}</b> [${fmt(s.maybe?.min)}–${fmt(s.maybe?.max)}]</div>
+      <div><span class="coin-non-lbl">non</span> (n=${s.non?.n || 0}): mean <b>${fmt(s.non?.mean)}</b> [${fmt(s.non?.min)}–${fmt(s.non?.max)}]</div>
+    </div>`;
+}
+
+function _coinlabRenderTrigrams(analytics) {
+  const el = document.getElementById("coinlab-trigrams");
+  if (!el) return;
+  const tris = analytics.top_trigrams_in_coins || [];
+  if (tris.length === 0) {
+    el.innerHTML = `<div class="coinlab-h">TOP TRIGRAMS IN COINS</div><div class="coinlab-empty">no coins tagged yet</div>`;
+    return;
+  }
+  const rows = tris.map(([phrase, n]) =>
+    `<div class="coinlab-row"><span class="coinlab-tri">${esc(phrase)}</span><span class="coinlab-n">${n}</span></div>`
+  ).join("");
+  el.innerHTML = `<div class="coinlab-h">TOP TRIGRAMS IN COINS</div>${rows}`;
+}
+
+function _coinlabRenderFingerprint(analytics) {
+  const el = document.getElementById("coinlab-fingerprint");
+  if (!el) return;
+  const f = analytics.coin_fingerprint || {};
+  if (!f.n) {
+    el.innerHTML = `<div class="coinlab-h">COIN FINGERPRINT</div><div class="coinlab-empty">no coins tagged yet — fingerprint emerges from 3+ coins</div>`;
+    return;
+  }
+  const branchRows = Object.entries(f.branch_freq || {})
+    .sort((a, b) => b[1] - a[1])
+    .map(([b, n]) => `<span class="coinlab-pill">${esc(b)} (${n})</span>`).join(" ");
+  const daemonRows = (f.common_recent_daemons || [])
+    .map(([d, n]) => `<span class="coinlab-pill">${esc(d || "?")} (${n})</span>`).join(" ");
+  el.innerHTML = `<div class="coinlab-h">COIN FINGERPRINT (n=${f.n})</div>
+    <div class="coinlab-grid">
+      <div>avg aperture: <b>${f.avg_aperture != null ? f.avg_aperture.toFixed(3) : "—"}</b></div>
+      <div>avg fires last 1h: <b>${f.avg_belief_delta_1h != null ? f.avg_belief_delta_1h.toFixed(1) : "—"}</b></div>
+      <div>branches: ${branchRows || "—"}</div>
+      <div>daemons fired near coins: ${daemonRows || "—"}</div>
+    </div>`;
+}
+
+function _coinlabRenderHypotheses(hyps) {
+  const el = document.getElementById("coinlab-hypotheses");
+  if (!el) return;
+  const list = (hyps && hyps.hypotheses) || [];
+  let formHTML = `
+    <div class="coinlab-form">
+      <input type="text" id="hyp-claim" placeholder="claim (e.g. tea coincidences cluster after 21:00)" />
+      <input type="text" id="hyp-keywords" placeholder="keywords (comma-separated)" />
+      <input type="text" id="hyp-window" placeholder="time window (e.g. 21:00-23:00)" />
+      <button id="hyp-create-btn">create</button>
+    </div>`;
+  let rows = "";
+  for (const h of list) {
+    const total = (h.supporting || 0) + (h.contradicting || 0);
+    const score = total > 0 ? ((h.supporting / total) * 100).toFixed(0) : "—";
+    rows += `<div class="coinlab-hyp coinlab-hyp-${h.status}">
+      <div class="coinlab-hyp-claim">${esc(h.claim || "")}</div>
+      <div class="coinlab-hyp-meta">
+        keywords: ${esc(h.keywords || "—")} · window: ${esc(h.time_window || "—")} · status: ${h.status}
+      </div>
+      <div class="coinlab-hyp-counts">
+        <span class="coin-coin-lbl">+${h.supporting || 0}</span>
+        <span class="coin-non-lbl">-${h.contradicting || 0}</span>
+        score: <b>${score}${total > 0 ? "%" : ""}</b>
+        <span style="margin-left:auto">
+          <button class="coinlab-hyp-btn" data-hid="${h.id}" data-action="confirmed">confirm</button>
+          <button class="coinlab-hyp-btn" data-hid="${h.id}" data-action="refuted">refute</button>
+          <button class="coinlab-hyp-btn" data-hid="${h.id}" data-action="abandoned">abandon</button>
+        </span>
+      </div>
+    </div>`;
+  }
+  el.innerHTML = `<div class="coinlab-h">HYPOTHESES</div>${formHTML}${rows || '<div class="coinlab-empty">no hypotheses yet</div>'}`;
+  // Wire create button
+  const createBtn = document.getElementById("hyp-create-btn");
+  if (createBtn) {
+    createBtn.addEventListener("click", async () => {
+      const claim = document.getElementById("hyp-claim").value.trim();
+      const keywords = document.getElementById("hyp-keywords").value.trim();
+      const time_window = document.getElementById("hyp-window").value.trim() || null;
+      if (!claim) { alert("claim required"); return; }
+      try {
+        const r = await fetch("/api/hypothesis", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({claim, keywords, time_window})
+        });
+        if (r.ok) refreshCoinLab();
+      } catch (e) { console.error(e); }
+    });
+  }
+  // Wire status-change buttons
+  el.querySelectorAll(".coinlab-hyp-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const hid = btn.dataset.hid;
+      const action = btn.dataset.action;
+      try {
+        const r = await fetch(`/api/hypothesis/${hid}`, {
+          method: "PATCH",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({status: action})
+        });
+        if (r.ok) refreshCoinLab();
+      } catch (e) { console.error(e); }
+    });
+  });
+}
+
+document.getElementById("coinlab-refresh-btn")?.addEventListener("click", refreshCoinLab);

@@ -817,3 +817,174 @@ body {
   color: #888;
   font-style: italic;
 }
+
+/* === Fountain heading tag buttons === */
+.fountain-tag-row {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+  align-items: center;
+}
+.ftn-tag-btn {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.18);
+  color: var(--fg3, #888);
+  font-size: 10px;
+  padding: 2px 8px;
+  cursor: pointer;
+  border-radius: 3px;
+  text-transform: lowercase;
+  letter-spacing: 0.5px;
+  font-family: inherit;
+}
+.ftn-tag-btn:hover {
+  background: rgba(255,255,255,0.10);
+  color: var(--fg1, #ddd);
+}
+.ftn-tag-coin.active {
+  background: #2d5a2d; color: #aef0ae; border-color: #5aa55a;
+}
+.ftn-tag-maybe.active {
+  background: #5a4a2d; color: #f0d8ae; border-color: #a5895a;
+}
+.ftn-tag-non.active {
+  background: #5a2d2d; color: #f0aeae; border-color: #a55a5a;
+}
+.fountain-thought.ftn-tagged-coin { border-left: 2px solid #5aa55a; padding-left: 8px; }
+.fountain-thought.ftn-tagged-maybe { border-left: 2px solid #a5895a; padding-left: 8px; }
+.fountain-thought.ftn-tagged-non { border-left: 2px solid #a55a5a; padding-left: 8px; }
+
+/* === AGI WATCH coin/maybe/non button states (rewired from 4-button) === */
+.coin-coin.active {
+  background: #2d5a2d; color: #aef0ae; border-color: #5aa55a;
+}
+.coin-maybe.active {
+  background: #5a4a2d; color: #f0d8ae; border-color: #a5895a;
+}
+.coin-non.active {
+  background: #5a2d2d; color: #f0aeae; border-color: #a55a5a;
+}
+
+
+/* === COINCIDENCE LAB === */
+#coinlab-panel {
+  font-family: var(--mono, monospace);
+  font-size: 11px;
+  color: var(--fg2, #ccc);
+  padding: 4px 8px;
+  max-height: 100%;
+  overflow-y: auto;
+}
+.coinlab-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  margin-bottom: 8px;
+}
+.coinlab-title {
+  font-weight: bold;
+  color: var(--fg1, #fff);
+  letter-spacing: 0.8px;
+}
+.coinlab-section {
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed rgba(255,255,255,0.06);
+}
+.coinlab-h {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--fg3, #888);
+  margin-bottom: 4px;
+}
+.coinlab-empty {
+  color: var(--fg3, #666);
+  font-style: italic;
+  padding: 4px 0;
+}
+.coinlab-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  padding: 4px 0;
+}
+.coinlab-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+.coinlab-hour { width: 40px; color: var(--fg3); }
+.coinlab-bar { font-family: monospace; letter-spacing: 0; }
+.coinlab-n { color: var(--fg3); margin-left: auto; }
+.coinlab-branch { width: 130px; }
+.coinlab-rate { margin-left: auto; color: var(--fg3); }
+.coinlab-tri { font-style: italic; }
+.coinlab-pill {
+  display: inline-block;
+  padding: 1px 6px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 2px;
+  margin-right: 4px;
+}
+.coin-coin-lbl { color: #8ae08a; }
+.coin-maybe-lbl { color: #e0c08a; }
+.coin-non-lbl { color: #e08a8a; }
+.coin-label {
+  display: inline-block;
+  padding: 0 4px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.04);
+}
+/* hypothesis cards */
+.coinlab-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.coinlab-form input {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: var(--fg1, #ddd);
+  padding: 3px 6px;
+  font-size: 11px;
+  font-family: inherit;
+  flex: 1;
+  min-width: 100px;
+}
+#hyp-create-btn {
+  background: rgba(90,165,90,0.2);
+  border: 1px solid #5aa55a;
+  color: #aef0ae;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-size: 11px;
+  border-radius: 2px;
+}
+.coinlab-hyp {
+  background: rgba(255,255,255,0.03);
+  border-left: 2px solid var(--fg3);
+  padding: 6px 8px;
+  margin-bottom: 6px;
+}
+.coinlab-hyp-open { border-left-color: #888; }
+.coinlab-hyp-confirmed { border-left-color: #5aa55a; }
+.coinlab-hyp-refuted { border-left-color: #a55a5a; }
+.coinlab-hyp-abandoned { border-left-color: #555; opacity: 0.6; }
+.coinlab-hyp-claim { font-weight: bold; color: var(--fg1, #fff); }
+.coinlab-hyp-meta { color: var(--fg3); font-size: 10px; margin: 2px 0; }
+.coinlab-hyp-counts { display: flex; gap: 10px; align-items: center; font-size: 10px; }
+.coinlab-hyp-btn {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.15);
+  color: var(--fg3);
+  font-size: 9px;
+  padding: 1px 5px;
+  margin-left: 3px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.coinlab-hyp-btn:hover { color: var(--fg1); border-color: var(--fg2); }
