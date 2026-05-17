@@ -984,6 +984,22 @@ class FountainGenerator:
                     prompt_parts.append("")
             except Exception:
                 pass
+        # 5c (2026-05-17): Tag feedback. Substrate-visible tags from Jon on
+        # her recent fountain outputs. Rate-limited to 1 in 4 fires to avoid
+        # selection pressure toward coin-shaped thoughts.
+        # No-op unless NEX_TAG_FEEDBACK_ON=1.
+        try:
+            import random as _rnd_tag
+            if _rnd_tag.random() < 0.25:
+                from theory_x.coincidence.tag_retrieval import (
+                    format_prompt_block as _tag_block_fn,
+                )
+                _tag_block = _tag_block_fn(rich=False, max_recent=2)
+                if _tag_block:
+                    prompt_parts.append(_tag_block)
+                    prompt_parts.append("")
+        except Exception:
+            pass
 
         # 2026-05-16: Favourites — her highest-affinity beliefs.
         # These are the thoughts she has self-rated as "deeply hers." Surface

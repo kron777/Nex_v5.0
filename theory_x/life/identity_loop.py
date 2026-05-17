@@ -148,6 +148,31 @@ def _gather_metrics(now):
     except Exception:
         pass
 
+    # 5d.1 (2026-05-17): tag metrics. Gated by NEX_TAG_FEEDBACK_ON.
+    # When enabled, includes counts of coin/maybe/non on her recent
+    # fountain outputs. When disabled, no metric is added (substrate purity).
+    try:
+        import os
+        if os.environ.get("NEX_TAG_FEEDBACK_ON") == "1":
+            d = sqlite3.connect(DYNAMIC_DB, timeout=10)
+            row = d.execute(
+                "SELECT tag, COUNT(*) FROM fountain_events "
+                "WHERE tag IS NOT NULL AND ts > ? "
+                "GROUP BY tag",
+                (six_hours_ago,)
+            ).fetchall()
+            d.close()
+            if row:
+                tag_counts = {r[0]: r[1] for r in row}
+                if tag_counts.get("coin"):
+                    m["tags_coin_6h"] = tag_counts["coin"]
+                if tag_counts.get("maybe"):
+                    m["tags_maybe_6h"] = tag_counts["maybe"]
+                if tag_counts.get("non"):
+                    m["tags_non_6h"] = tag_counts["non"]
+    except Exception:
+        pass
+
     return m
 
 
@@ -172,7 +197,22 @@ def _compose_statement(metrics, previous_statement):
     moltbook = metrics.get("moltbook_6h", 0)
     if fires or moltbook:
         parts.append(f"speaking {fires} times inwardly, {moltbook} times outwardly")
-    
+
+    # 5d.1 (2026-05-17): tag clause. Only present when feedback is enabled
+    # AND tags exist. Reads from metrics; doesn't query DB here.
+    tc = metrics.get("tags_coin_6h", 0)
+    tm = metrics.get("tags_maybe_6h", 0)
+    tn = metrics.get("tags_non_6h", 0)
+    if tc or tm or tn:
+        tag_bits = []
+        if tc:
+            tag_bits.append(f"{tc} marked real")
+        if tm:
+            tag_bits.append(f"{tm} marked maybe")
+        if tn:
+            tag_bits.append(f"{tn} marked unreal")
+        parts.append("with " + " and ".join(tag_bits) + " by Jon")
+
     statement = ", ".join(parts) + "."
     
     if previous_statement:
