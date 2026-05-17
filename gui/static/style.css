@@ -786,3 +786,34 @@ body {
 #arcs-feed::-webkit-scrollbar-corner {
   background: var(--scrollbar-track);
 }
+
+/* === Coincidence tagging buttons === */
+.coin-tag-row {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 10px;
+  align-items: center;
+}
+.coin-btn {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #aaa;
+  width: 22px;
+  height: 22px;
+  font-size: 13px;
+  line-height: 18px;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.coin-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+.coin-hit.active { background: #2d5a2d; color: #aef0ae; border-color: #4a8a4a; }
+.coin-miss.active { background: #5a2d2d; color: #f0aeae; border-color: #8a4a4a; }
+.coin-partial.active { background: #5a4a2d; color: #f0d8ae; border-color: #8a7a4a; }
+.coin-neutral.active { background: #444; color: #ccc; border-color: #666; }
+.coin-tagged {
+  margin-left: 6px;
+  font-size: 10px;
+  color: #888;
+  font-style: italic;
+}

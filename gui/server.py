@@ -1691,6 +1691,82 @@ def create_app(state: AppState) -> Flask:
             return jsonify({"error": "fountain not initialised"}), 503
         return jsonify(state.fountain.status())
 
+    @app.post("/api/coincidence/tag")
+    def api_coincidence_tag():
+        """Tag a fountain output as hit/miss/neutral/partial against Jon's world.
+        Upserts so re-tagging is allowed. Body: {fountain_event_id, tag, note?}"""
+        from flask import request
+        import sqlite3, time
+        body = request.get_json(silent=True) or {}
+        fid = body.get("fountain_event_id")
+        tag = body.get("tag")
+        note = (body.get("note") or "").strip()[:500]
+        if not fid or tag not in ("hit", "miss", "neutral", "partial"):
+            return jsonify({"error": "fountain_event_id and tag in (hit,miss,neutral,partial) required"}), 400
+        dyn_db = "/home/rr/Desktop/nex5/data/dynamic.db"
+        try:
+            cx = sqlite3.connect(dyn_db, timeout=10)
+            row = cx.execute(
+                "SELECT thought, ts FROM fountain_events WHERE id=?", (fid,)
+            ).fetchone()
+            if not row:
+                cx.close()
+                return jsonify({"error": "fountain_event_id not found"}), 404
+            thought, ts = row
+            cx.execute(
+                "INSERT INTO coincidences (fountain_event_id, thought, thought_ts, tag, tagged_at, note) "
+                "VALUES (?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(fountain_event_id) DO UPDATE SET "
+                "  tag=excluded.tag, tagged_at=excluded.tagged_at, note=excluded.note",
+                (fid, thought, ts, tag, time.time(), note)
+            )
+            cx.commit()
+            cx.close()
+            return jsonify({"ok": True, "fountain_event_id": fid, "tag": tag})
+        except Exception as e:
+            error_channel.record(f"coincidence tag failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.get("/api/coincidence/stats")
+    def api_coincidence_stats():
+        """Stats for analysis."""
+        import sqlite3
+        dyn_db = "/home/rr/Desktop/nex5/data/dynamic.db"
+        try:
+            cx = sqlite3.connect(dyn_db, timeout=10)
+            cx.row_factory = sqlite3.Row
+            counts = cx.execute(
+                "SELECT tag, COUNT(*) AS n FROM coincidences GROUP BY tag"
+            ).fetchall()
+            recent = cx.execute(
+                "SELECT fountain_event_id, thought, tag, note, tagged_at, thought_ts "
+                "FROM coincidences ORDER BY tagged_at DESC LIMIT 50"
+            ).fetchall()
+            cx.close()
+            return jsonify({
+                "counts": {r["tag"]: r["n"] for r in counts},
+                "total": sum(r["n"] for r in counts),
+                "recent": [dict(r) for r in recent],
+            })
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.get("/api/coincidence/tags")
+    def api_coincidence_tags():
+        """Map fountain_event_id -> tag for marking already-tagged outputs in UI."""
+        import sqlite3
+        dyn_db = "/home/rr/Desktop/nex5/data/dynamic.db"
+        try:
+            cx = sqlite3.connect(dyn_db, timeout=10)
+            rows = cx.execute(
+                "SELECT fountain_event_id, tag FROM coincidences "
+                "ORDER BY tagged_at DESC LIMIT 500"
+            ).fetchall()
+            cx.close()
+            return jsonify({"tags": {r[0]: r[1] for r in rows}})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
     @app.get("/api/fountain/recent")
     def api_fountain_recent():
         reader = state.readers.get("dynamic")

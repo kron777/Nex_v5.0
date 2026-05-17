@@ -668,14 +668,66 @@ function _agiTypeClass(type) {
 function _agiRenderLog() {
   const log = document.getElementById("agi-log");
   if (!log) return;
-  log.innerHTML = agiSignals.slice(0, 200).map(s =>
-    `<div class="agi-log-row">`
-    + `<span class="agi-log-ts">${fmtTs(s.ts)}</span>`
-    + `<span class="agi-log-type ${_agiTypeClass(s.type)}">${s.type}</span>`
-    + `<span class="agi-log-txt">${esc(s.excerpt)}</span>`
-    + `</div>`
-  ).join("");
+  log.innerHTML = agiSignals.slice(0, 200).map(s => {
+    const existing = s.eventId ? (window.coincidenceTags || {})[s.eventId] : null;
+    const tagButtons = s.eventId
+      ? `<span class="coin-tag-row" data-event-id="${s.eventId}">`
+        + `<button class="coin-btn coin-hit${existing==='hit'?' active':''}" title="hit">✓</button>`
+        + `<button class="coin-btn coin-miss${existing==='miss'?' active':''}" title="miss">✗</button>`
+        + `<button class="coin-btn coin-partial${existing==='partial'?' active':''}" title="partial">~</button>`
+        + `<button class="coin-btn coin-neutral${existing==='neutral'?' active':''}" title="neutral">○</button>`
+        + (existing ? `<span class="coin-tagged">tagged: ${existing}</span>` : "")
+        + `</span>`
+      : "";
+    return `<div class="agi-log-row" data-event-id="${s.eventId || ''}">`
+      + `<span class="agi-log-ts">${fmtTs(s.ts)}</span>`
+      + `<span class="agi-log-type ${_agiTypeClass(s.type)}">${s.type}</span>`
+      + `<span class="agi-log-txt">${esc(s.excerpt)}</span>`
+      + tagButtons
+      + `</div>`;
+  }).join("");
+  log.querySelectorAll(".coin-btn").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const row = btn.closest(".coin-tag-row");
+      const fid = parseInt(row.dataset.eventId, 10);
+      let tag = null;
+      if (btn.classList.contains("coin-hit")) tag = "hit";
+      else if (btn.classList.contains("coin-miss")) tag = "miss";
+      else if (btn.classList.contains("coin-partial")) tag = "partial";
+      else if (btn.classList.contains("coin-neutral")) tag = "neutral";
+      if (!fid || !tag) return;
+      let note = "";
+      if (tag === "hit" || tag === "partial") {
+        note = prompt("Optional note:") || "";
+      }
+      try {
+        const resp = await fetch("/api/coincidence/tag", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({fountain_event_id: fid, tag, note})
+        });
+        if (resp.ok) {
+          window.coincidenceTags = window.coincidenceTags || {};
+          window.coincidenceTags[fid] = tag;
+          _agiRenderLog();
+        }
+      } catch (err) {
+        console.error("tag failed", err);
+      }
+    });
+  });
 }
+
+(async function loadCoincidenceTags() {
+  try {
+    const r = await fetch("/api/coincidence/tags");
+    if (r.ok) {
+      const data = await r.json();
+      window.coincidenceTags = data.tags || {};
+    }
+  } catch (e) { /* silent */ }
+})();
 
 function _agiToggleExpand(force) {
   const panel = document.getElementById("agi-watch");
@@ -700,13 +752,13 @@ function _agiSetTab(tab) {
   if (tab === "insights") refreshInsights();
 }
 
-function _agiShowSignal(type, ts, excerpt) {
+function _agiShowSignal(type, ts, excerpt, eventId) {
   const msg    = document.getElementById("agi-strip-msg");
   const count  = document.getElementById("agi-sig-count");
   const status = document.getElementById("agi-status");
   if (!msg) return;
 
-  agiSignals.unshift({ type, ts, excerpt });
+  agiSignals.unshift({ type, ts, excerpt, eventId: eventId || null });
   _agiRenderLog();
 
   count.textContent = `signals: ${agiSignals.length}`;
