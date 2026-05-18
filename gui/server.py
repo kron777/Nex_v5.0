@@ -1836,7 +1836,7 @@ def create_app(state: AppState) -> Flask:
                 "FROM word_contexts WHERE word=?",
                 (word,),
             ).fetchone()
-            if not agg or agg["n"] == 0:
+            if not agg or not agg["n"]:
                 cx.close()
                 return jsonify({"error": "word not found", "word": word}), 404
             branches = cx.execute(
@@ -1857,14 +1857,14 @@ def create_app(state: AppState) -> Flask:
                 "WHERE wc.word=? ORDER BY wc.ts DESC LIMIT 5",
                 (word,),
             ).fetchall()
-            cx.close()
-            def fmt(v):
-                return round(v, 3) if isinstance(v, (int, float)) else v
             # word-level tag (if any)
             tag_row = cx.execute(
                 "SELECT tag, note FROM word_tags WHERE word=?", (word,)
             ).fetchone()
             word_tag = dict(tag_row) if tag_row else None
+            cx.close()
+            def fmt(v):
+                return round(v, 3) if isinstance(v, (int, float)) else v
             return jsonify({
                 "word": word,
                 "count": agg["n"],
@@ -1955,6 +1955,9 @@ def create_app(state: AppState) -> Flask:
             thought, thought_ts = row
             # Write tag onto fountain row (substrate-visible)
             cx.execute("UPDATE fountain_events SET tag=? WHERE id=?", (tag, fid))
+            # Propagate tag to word_contexts for every word from this fire
+            # (so decoder analytics see the tag immediately, not after stale rewrite)
+            cx.execute("UPDATE word_contexts SET fountain_tag=? WHERE fountain_event_id=?", (tag, fid))
             cx.commit()
             cx.close()
             # Capture context snapshot (heavy, async-safe)
