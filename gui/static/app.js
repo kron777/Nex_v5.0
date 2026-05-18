@@ -1499,3 +1499,155 @@ document.getElementById("compute-pause-btn")?.addEventListener("click", async ()
   if (!confirm("Pause NEX (SIGSTOP)? GUI will freeze. Resume from terminal with:\n  kill -CONT $(cat /tmp/nex5.pid)")) return;
   try { await fetch("/api/compute/pause", {method: "POST"}); } catch (e) { /* expected: process froze before responding */ }
 });
+
+
+// ── Decoder panel ─────────────────────────────────────────────────────────
+let decoderActiveTab = "live";
+let decoderLiveTimer = null;
+let decoderTopLoaded = false;
+
+function _decoderSetTab(tab) {
+  decoderActiveTab = tab;
+  document.querySelectorAll(".decoder-tab").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.dtab === tab);
+  });
+  document.getElementById("decoder-tab-live")?.classList.toggle("active", tab === "live");
+  document.getElementById("decoder-tab-top")?.classList.toggle("active", tab === "top");
+  document.getElementById("decoder-tab-word")?.classList.toggle("active", tab === "word");
+  if (tab === "live") refreshDecoderLive();
+  if (tab === "top" && !decoderTopLoaded) refreshDecoderTop();
+}
+
+async function refreshDecoderLive() {
+  try {
+    const r = await fetch("/api/decoder/recent?limit=15");
+    const d = await r.json();
+    const el = document.getElementById("decoder-tab-live");
+    if (!el || !d.recent) return;
+    if (d.recent.length === 0) {
+      el.innerHTML = '<div class="decoder-empty">no fires logged yet</div>';
+      return;
+    }
+    el.innerHTML = d.recent.map(f => {
+      const ts = new Date(f.ts * 1000).toLocaleTimeString("en-GB", {hour: "2-digit", minute: "2-digit", second: "2-digit"});
+      const tagClass = f.tag ? ` tag-${f.tag}` : "";
+      const tagLabel = f.tag ? ` [${f.tag}]` : "";
+      const words = (f.words || []).slice(0, 12).map(w =>
+        `<span class="decoder-word-chip" data-word="${esc(w)}">${esc(w)}</span>`
+      ).join(" ");
+      return `<div class="decoder-fire${tagClass}">
+        <div class="decoder-fire-head">
+          <span class="decoder-fid">#${f.fid}</span>
+          <span class="decoder-ts">${ts}</span>
+          <span class="decoder-tag">${tagLabel}</span>
+        </div>
+        <div class="decoder-thought">${esc(f.thought)}</div>
+        <div class="decoder-words">${words}</div>
+      </div>`;
+    }).join("");
+    // Wire word chips to jump to WORD tab
+    el.querySelectorAll(".decoder-word-chip").forEach(chip => {
+      chip.addEventListener("click", () => {
+        document.getElementById("decoder-word-input").value = chip.dataset.word;
+        _decoderSetTab("word");
+        refreshDecoderWord(chip.dataset.word);
+      });
+    });
+    document.getElementById("decoder-meta").textContent = `${d.recent.length} recent fires`;
+  } catch (e) { console.error("decoder live failed", e); }
+}
+
+async function refreshDecoderTop() {
+  try {
+    const r = await fetch("/api/decoder/top?limit=50");
+    const d = await r.json();
+    const el = document.getElementById("decoder-tab-top");
+    if (!el || !d.top) return;
+    decoderTopLoaded = true;
+    if (d.top.length === 0) {
+      el.innerHTML = '<div class="decoder-empty">no words logged yet</div>';
+      return;
+    }
+    const maxN = d.top[0].n;
+    el.innerHTML = `<div class="decoder-top-list">${
+      d.top.map(w => {
+        const barW = Math.max(2, Math.round((w.n / maxN) * 80));
+        return `<div class="decoder-top-row" data-word="${esc(w.word)}">
+          <span class="decoder-top-word">${esc(w.word)}</span>
+          <span class="decoder-top-bar" style="width:${barW}px"></span>
+          <span class="decoder-top-n">${w.n}</span>
+        </div>`;
+      }).join("")
+    }</div>`;
+    el.querySelectorAll(".decoder-top-row").forEach(row => {
+      row.addEventListener("click", () => {
+        document.getElementById("decoder-word-input").value = row.dataset.word;
+        _decoderSetTab("word");
+        refreshDecoderWord(row.dataset.word);
+      });
+    });
+    document.getElementById("decoder-meta").textContent = `top ${d.top.length}`;
+  } catch (e) { console.error("decoder top failed", e); }
+}
+
+async function refreshDecoderWord(word) {
+  if (!word) return;
+  word = word.trim().toLowerCase();
+  const el = document.getElementById("decoder-word-result");
+  if (!el) return;
+  el.innerHTML = '<div class="decoder-empty">loading...</div>';
+  try {
+    const r = await fetch(`/api/decoder/word/${encodeURIComponent(word)}`);
+    if (r.status === 404) {
+      el.innerHTML = `<div class="decoder-empty">word "${esc(word)}" not in dictionary yet</div>`;
+      return;
+    }
+    const d = await r.json();
+    if (d.error) { el.innerHTML = `<div class="decoder-empty">${esc(d.error)}</div>`; return; }
+    const fmt = v => (v == null || isNaN(v)) ? "—" : v;
+    const fmtSecs = v => {
+      if (v == null || isNaN(v)) return "—";
+      if (v < 60) return `${Math.round(v)}s`;
+      if (v < 3600) return `${Math.round(v/60)}m`;
+      return `${(v/3600).toFixed(1)}h`;
+    };
+    const branches = (d.top_branches || []).map(b =>
+      `<span class="decoder-pill">${esc(b.hot_branch)} (${b.n})</span>`
+    ).join(" ");
+    const tagsHtml = Object.entries(d.tags || {}).map(([t, n]) =>
+      `<span class="decoder-pill tag-${t}">${esc(t)}: ${n}</span>`
+    ).join(" ");
+    const samples = (d.sample_thoughts || []).map(s =>
+      `<div class="decoder-sample">"${esc(s)}"</div>`
+    ).join("");
+    el.innerHTML = `
+      <div class="decoder-word-head">"${esc(d.word)}" <span class="decoder-word-n">(used ${d.count} times)</span></div>
+      <div class="decoder-fingerprint">
+        <div class="decoder-fpr"><span class="decoder-fp-k">avg hour:</span> <b>${fmt(d.avg_hour)}</b></div>
+        <div class="decoder-fpr"><span class="decoder-fp-k">aperture:</span> <b>${fmt(d.aperture?.avg)}</b> [${fmt(d.aperture?.min)}–${fmt(d.aperture?.max)}]</div>
+        <div class="decoder-fpr"><span class="decoder-fp-k">since last daemon:</span> <b>${fmtSecs(d.avg_secs_daemon)}</b></div>
+        <div class="decoder-fpr"><span class="decoder-fp-k">since last feed:</span> <b>${fmtSecs(d.avg_secs_feed)}</b></div>
+        <div class="decoder-fpr"><span class="decoder-fp-k">active branches:</span> <b>${fmt(d.avg_active_branches)}</b></div>
+        <div class="decoder-fpr"><span class="decoder-fp-k">fires last 1h:</span> <b>${fmt(d.avg_fires_1h)}</b></div>
+      </div>
+      <div class="decoder-section"><span class="decoder-fp-k">branches:</span> ${branches || "—"}</div>
+      <div class="decoder-section"><span class="decoder-fp-k">tags:</span> ${tagsHtml || "(untagged)"}</div>
+      <div class="decoder-section"><span class="decoder-fp-k">samples:</span>${samples}</div>
+    `;
+    document.getElementById("decoder-meta").textContent = `"${d.word}" — ${d.count} uses`;
+  } catch (e) { el.innerHTML = `<div class="decoder-empty">error: ${esc(e.message || e)}</div>`; }
+}
+
+document.querySelectorAll(".decoder-tab").forEach(btn => {
+  btn.addEventListener("click", () => _decoderSetTab(btn.dataset.dtab));
+});
+document.getElementById("decoder-word-go")?.addEventListener("click", () => {
+  refreshDecoderWord(document.getElementById("decoder-word-input").value);
+});
+document.getElementById("decoder-word-input")?.addEventListener("keydown", e => {
+  if (e.key === "Enter") { e.preventDefault(); refreshDecoderWord(e.target.value); }
+});
+
+// Initial load + poll LIVE every 20s
+refreshDecoderLive();
+decoderLiveTimer = setInterval(() => { if (decoderActiveTab === "live") refreshDecoderLive(); }, 20000);

@@ -562,6 +562,21 @@ def main() -> None:
     )
     atexit.register(state.close)
 
+    # Decoder daemon — tokenizes each fountain output, logs substrate state.
+    try:
+        import threading as _t_decoder
+        from theory_x.coincidence.decoder_loop import decoder_loop
+        _decoder_stop = _t_decoder.Event()
+        _decoder_thread = _t_decoder.Thread(
+            target=decoder_loop, args=(state, _decoder_stop),
+            daemon=True, name="decoder_loop",
+        )
+        _decoder_thread.start()
+        atexit.register(lambda: _decoder_stop.set())
+        log.info("Decoder loop started — tokenizing fountain outputs every 30s")
+    except Exception as _dec_exc:
+        log.warning("decoder_loop failed to start: %s", _dec_exc)
+
     app = create_app(state)
 
     host = os.environ.get("NEX5_HOST", "127.0.0.1")

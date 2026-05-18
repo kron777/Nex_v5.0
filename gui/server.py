@@ -1751,6 +1751,132 @@ def create_app(state: AppState) -> Flask:
             status["last_tag"] = None
         return jsonify(status)
 
+    @app.get("/api/decoder/recent")
+    def api_decoder_recent():
+        """Recent fountain fires with their tokenized key words.
+        Live ticker: ?limit=20 by default."""
+        from flask import request
+        import sqlite3
+        limit = int(request.args.get("limit", "20"))
+        dyn_db = "/home/rr/Desktop/nex5/data/dynamic.db"
+        try:
+            cx = sqlite3.connect(dyn_db, timeout=10)
+            cx.row_factory = sqlite3.Row
+            # Get last N fountain_event_ids that have words
+            fids = cx.execute(
+                "SELECT DISTINCT fountain_event_id FROM word_contexts "
+                "ORDER BY fountain_event_id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            out = []
+            for f in fids:
+                fid = f["fountain_event_id"]
+                row = cx.execute(
+                    "SELECT id, ts, thought, tag FROM fountain_events WHERE id=?", (fid,)
+                ).fetchone()
+                words = cx.execute(
+                    "SELECT word FROM word_contexts WHERE fountain_event_id=? ORDER BY word",
+                    (fid,),
+                ).fetchall()
+                if row:
+                    out.append({
+                        "fid": row["id"],
+                        "ts": row["ts"],
+                        "thought": row["thought"],
+                        "tag": row["tag"],
+                        "words": [w["word"] for w in words],
+                    })
+            cx.close()
+            return jsonify({"recent": out})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.get("/api/decoder/top")
+    def api_decoder_top():
+        """Top words by frequency."""
+        from flask import request
+        import sqlite3
+        limit = int(request.args.get("limit", "50"))
+        dyn_db = "/home/rr/Desktop/nex5/data/dynamic.db"
+        try:
+            cx = sqlite3.connect(dyn_db, timeout=10)
+            cx.row_factory = sqlite3.Row
+            rows = cx.execute(
+                "SELECT word, COUNT(*) AS n FROM word_contexts "
+                "GROUP BY word ORDER BY n DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            cx.close()
+            return jsonify({"top": [dict(r) for r in rows]})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.get("/api/decoder/word/<word>")
+    def api_decoder_word(word):
+        """Substrate fingerprint for a single word.
+        Returns: count, avg/min/max aperture, avg_hour, avg_secs_daemon,
+        avg_secs_feed, top hot_branches, top tags."""
+        import sqlite3
+        dyn_db = "/home/rr/Desktop/nex5/data/dynamic.db"
+        word = word.lower().strip()
+        if not word or len(word) > 50:
+            return jsonify({"error": "invalid word"}), 400
+        try:
+            cx = sqlite3.connect(dyn_db, timeout=10)
+            cx.row_factory = sqlite3.Row
+            agg = cx.execute(
+                "SELECT COUNT(*) AS n, "
+                "AVG(aperture) AS avg_ap, MIN(aperture) AS min_ap, MAX(aperture) AS max_ap, "
+                "AVG(hour_of_day) AS avg_hour, "
+                "AVG(seconds_since_daemon) AS avg_secs_daemon, "
+                "AVG(seconds_since_feed) AS avg_secs_feed, "
+                "AVG(active_branch_count) AS avg_active_branches, "
+                "AVG(daemons_5min) AS avg_daemons_5min, "
+                "AVG(belief_delta_1h) AS avg_fires_1h "
+                "FROM word_contexts WHERE word=?",
+                (word,),
+            ).fetchone()
+            if not agg or agg["n"] == 0:
+                cx.close()
+                return jsonify({"error": "word not found", "word": word}), 404
+            branches = cx.execute(
+                "SELECT hot_branch, COUNT(*) AS n FROM word_contexts "
+                "WHERE word=? AND hot_branch IS NOT NULL "
+                "GROUP BY hot_branch ORDER BY n DESC LIMIT 5",
+                (word,),
+            ).fetchall()
+            tags = cx.execute(
+                "SELECT fountain_tag, COUNT(*) AS n FROM word_contexts "
+                "WHERE word=? AND fountain_tag IS NOT NULL "
+                "GROUP BY fountain_tag ORDER BY n DESC",
+                (word,),
+            ).fetchall()
+            sample = cx.execute(
+                "SELECT fe.thought FROM word_contexts wc "
+                "JOIN fountain_events fe ON fe.id = wc.fountain_event_id "
+                "WHERE wc.word=? ORDER BY wc.ts DESC LIMIT 5",
+                (word,),
+            ).fetchall()
+            cx.close()
+            def fmt(v):
+                return round(v, 3) if isinstance(v, (int, float)) else v
+            return jsonify({
+                "word": word,
+                "count": agg["n"],
+                "aperture": {"avg": fmt(agg["avg_ap"]), "min": fmt(agg["min_ap"]), "max": fmt(agg["max_ap"])},
+                "avg_hour": fmt(agg["avg_hour"]),
+                "avg_secs_daemon": fmt(agg["avg_secs_daemon"]),
+                "avg_secs_feed": fmt(agg["avg_secs_feed"]),
+                "avg_active_branches": fmt(agg["avg_active_branches"]),
+                "avg_daemons_5min": fmt(agg["avg_daemons_5min"]),
+                "avg_fires_1h": fmt(agg["avg_fires_1h"]),
+                "top_branches": [dict(b) for b in branches],
+                "tags": {t["fountain_tag"]: t["n"] for t in tags},
+                "sample_thoughts": [s["thought"] for s in sample],
+            })
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
     @app.post("/api/coincidence/tag")
     def api_coincidence_tag():
         """Tag a fountain output as coin/maybe/non.

@@ -68,14 +68,34 @@
 <!-- Main three-column area -->
 <div id="main">
 
-  <!-- Col 1: Sense stream -->
-  <div class="col" id="col-sense">
+  <!-- Col 1: Sense stream + Decoder -->
+  <div class="col" id="col-sense" style="display:flex;flex-direction:column;">
     <div class="col-header">
       <span class="col-title">SENSE</span>
       <span class="col-meta">events: <span id="sense-count">0</span></span>
       <button class="sense-feeds-btn paused" id="sense-feeds-btn">START</button>
     </div>
-    <div class="feed" id="sense-feed"></div>
+    <div class="feed" id="sense-feed" style="flex:1;overflow-y:auto;min-height:100px;"></div>
+
+    <!-- Decoder panel (bottom of col-sense) -->
+    <div id="decoder-panel" style="flex-shrink:0;height:200px;display:flex;flex-direction:column;border-top:1px solid rgba(255,255,255,0.1);margin-top:4px;">
+      <div class="decoder-tabbar">
+        <button class="decoder-tab active" data-dtab="live">LIVE</button>
+        <button class="decoder-tab" data-dtab="top">TOP</button>
+        <button class="decoder-tab" data-dtab="word">WORD</button>
+        <span style="flex:1"></span>
+        <span class="decoder-meta" id="decoder-meta">—</span>
+      </div>
+      <div id="decoder-tab-live" class="decoder-pane active"></div>
+      <div id="decoder-tab-top" class="decoder-pane"></div>
+      <div id="decoder-tab-word" class="decoder-pane">
+        <div class="decoder-word-row">
+          <input type="text" id="decoder-word-input" placeholder="word..." autocomplete="off">
+          <button id="decoder-word-go">go</button>
+        </div>
+        <div id="decoder-word-result"></div>
+      </div>
+    </div>
   </div>
 
   <!-- Col 2: Bonsai / Pipeline -->
