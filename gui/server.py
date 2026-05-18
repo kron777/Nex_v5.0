@@ -1860,6 +1860,11 @@ def create_app(state: AppState) -> Flask:
             cx.close()
             def fmt(v):
                 return round(v, 3) if isinstance(v, (int, float)) else v
+            # word-level tag (if any)
+            tag_row = cx.execute(
+                "SELECT tag, note FROM word_tags WHERE word=?", (word,)
+            ).fetchone()
+            word_tag = dict(tag_row) if tag_row else None
             return jsonify({
                 "word": word,
                 "count": agg["n"],
@@ -1873,7 +1878,53 @@ def create_app(state: AppState) -> Flask:
                 "top_branches": [dict(b) for b in branches],
                 "tags": {t["fountain_tag"]: t["n"] for t in tags},
                 "sample_thoughts": [s["thought"] for s in sample],
+                "word_tag": word_tag,
             })
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.post("/api/decoder/word_tag")
+    def api_decoder_word_tag():
+        """Tag a word globally as key/noise/unsure. Or untag (pass tag=null)."""
+        import sqlite3, time
+        from flask import request
+        payload = request.get_json(silent=True) or {}
+        word = (payload.get("word") or "").strip().lower()
+        tag = payload.get("tag")
+        note = (payload.get("note") or "").strip() or None
+        if not word or len(word) > 50:
+            return jsonify({"error": "invalid word"}), 400
+        if tag is not None and tag not in ("key", "noise", "unsure"):
+            return jsonify({"error": "tag must be key/noise/unsure or null"}), 400
+        dyn_db = "/home/rr/Desktop/nex5/data/dynamic.db"
+        try:
+            cx = sqlite3.connect(dyn_db, timeout=10)
+            if tag is None:
+                cx.execute("DELETE FROM word_tags WHERE word=?", (word,))
+            else:
+                cx.execute(
+                    "INSERT INTO word_tags (word, tag, tagged_at, note) VALUES (?, ?, ?, ?) "
+                    "ON CONFLICT(word) DO UPDATE SET tag=excluded.tag, "
+                    "tagged_at=excluded.tagged_at, note=excluded.note",
+                    (word, tag, time.time(), note),
+                )
+            cx.commit()
+            cx.close()
+            return jsonify({"ok": True, "word": word, "tag": tag})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.get("/api/decoder/word_tags")
+    def api_decoder_word_tags():
+        """Return {word: tag} map for all tagged words. UI uses this to badge chips."""
+        import sqlite3
+        dyn_db = "/home/rr/Desktop/nex5/data/dynamic.db"
+        try:
+            cx = sqlite3.connect(dyn_db, timeout=10)
+            rows = cx.execute("SELECT word, tag, note FROM word_tags").fetchall()
+            cx.close()
+            tags = {r[0]: {"tag": r[1], "note": r[2]} for r in rows}
+            return jsonify({"tags": tags, "count": len(tags)})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 

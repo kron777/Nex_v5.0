@@ -1151,3 +1151,53 @@ body {
   margin: 1px 0;
   font-size: 9px;
 }
+
+
+/* === Decoder word tags === */
+.decoder-tag-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin: 4px 0 6px 0;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed rgba(255,255,255,0.08);
+}
+.decoder-tag-btn {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.15);
+  color: var(--fg3);
+  padding: 1px 8px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 9px;
+  border-radius: 2px;
+}
+.decoder-tag-btn:hover { color: var(--fg1); border-color: var(--fg2); }
+.decoder-tag-btn.tag-key.active { background: rgba(138,224,138,0.2); border-color: #8ae08a; color: #aef0ae; }
+.decoder-tag-btn.tag-unsure.active { background: rgba(224,192,138,0.2); border-color: #e0c08a; color: #f0d8ae; }
+.decoder-tag-btn.tag-noise.active { background: rgba(224,138,138,0.2); border-color: #e08a8a; color: #f0aeae; }
+.decoder-word-tag {
+  display: inline-block;
+  padding: 0 6px;
+  margin-left: 6px;
+  border-radius: 2px;
+  font-size: 9px;
+  font-weight: normal;
+}
+.decoder-word-tag.tag-key { background: rgba(138,224,138,0.15); color: #aef0ae; }
+.decoder-word-tag.tag-unsure { background: rgba(224,192,138,0.15); color: #f0d8ae; }
+.decoder-word-tag.tag-noise { background: rgba(224,138,138,0.15); color: #f0aeae; }
+/* chip badges */
+.decoder-word-chip.word-tagged.tag-key { background: rgba(138,224,138,0.18); color: #aef0ae; }
+.decoder-word-chip.word-tagged.tag-unsure { background: rgba(224,192,138,0.18); color: #f0d8ae; }
+.decoder-word-chip.word-tagged.tag-noise { background: rgba(224,138,138,0.15); color: #f0aeae; opacity: 0.6; }
+.decoder-tag-badge {
+  font-size: 9px;
+  padding: 0 5px;
+  margin-right: 4px;
+  border-radius: 2px;
+}
+.decoder-tag-badge.tag-key { background: rgba(138,224,138,0.18); color: #aef0ae; }
+.decoder-tag-badge.tag-unsure { background: rgba(224,192,138,0.18); color: #f0d8ae; }
+.decoder-tag-badge.tag-noise { background: rgba(224,138,138,0.15); color: #f0aeae; }
+.decoder-top-row.word-tagged.tag-noise { opacity: 0.5; }

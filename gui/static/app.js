@@ -1532,9 +1532,11 @@ async function refreshDecoderLive() {
       const ts = new Date(f.ts * 1000).toLocaleTimeString("en-GB", {hour: "2-digit", minute: "2-digit", second: "2-digit"});
       const tagClass = f.tag ? ` tag-${f.tag}` : "";
       const tagLabel = f.tag ? ` [${f.tag}]` : "";
-      const words = (f.words || []).slice(0, 12).map(w =>
-        `<span class="decoder-word-chip" data-word="${esc(w)}">${esc(w)}</span>`
-      ).join(" ");
+      const words = (f.words || []).slice(0, 12).map(w => {
+        const wt = window.wordTags[w];
+        const cls = wt ? ` word-tagged tag-${wt.tag}` : '';
+        return `<span class="decoder-word-chip${cls}" data-word="${esc(w)}">${esc(w)}</span>`;
+      }).join(" ");
       return `<div class="decoder-fire${tagClass}">
         <div class="decoder-fire-head">
           <span class="decoder-fid">#${f.fid}</span>
@@ -1572,9 +1574,12 @@ async function refreshDecoderTop() {
     el.innerHTML = `<div class="decoder-top-list">${
       d.top.map(w => {
         const barW = Math.max(2, Math.round((w.n / maxN) * 80));
-        return `<div class="decoder-top-row" data-word="${esc(w.word)}">
+        const wt = window.wordTags[w.word];
+        const tagBadge = wt ? `<span class="decoder-tag-badge tag-${wt.tag}">${wt.tag}</span>` : '';
+        return `<div class="decoder-top-row${wt?' word-tagged tag-'+wt.tag:''}" data-word="${esc(w.word)}">
           <span class="decoder-top-word">${esc(w.word)}</span>
           <span class="decoder-top-bar" style="width:${barW}px"></span>
+          ${tagBadge}
           <span class="decoder-top-n">${w.n}</span>
         </div>`;
       }).join("")
@@ -1620,8 +1625,17 @@ async function refreshDecoderWord(word) {
     const samples = (d.sample_thoughts || []).map(s =>
       `<div class="decoder-sample">"${esc(s)}"</div>`
     ).join("");
+    const existingTag = d.word_tag ? d.word_tag.tag : null;
+    const tagBtnsHtml = `<div class="decoder-tag-row">
+      <span class="decoder-fp-k">mark:</span>
+      <button class="decoder-tag-btn tag-key${existingTag==='key'?' active':''}" data-tag="key">key</button>
+      <button class="decoder-tag-btn tag-unsure${existingTag==='unsure'?' active':''}" data-tag="unsure">unsure</button>
+      <button class="decoder-tag-btn tag-noise${existingTag==='noise'?' active':''}" data-tag="noise">noise</button>
+      ${existingTag ? '<button class="decoder-tag-btn tag-clear" data-tag="">clear</button>' : ''}
+    </div>`;
     el.innerHTML = `
-      <div class="decoder-word-head">"${esc(d.word)}" <span class="decoder-word-n">(used ${d.count} times)</span></div>
+      <div class="decoder-word-head">"${esc(d.word)}" <span class="decoder-word-n">(used ${d.count} times)</span>${existingTag ? ` <span class="decoder-word-tag tag-${existingTag}">${existingTag}</span>` : ''}</div>
+      ${tagBtnsHtml}
       <div class="decoder-fingerprint">
         <div class="decoder-fpr"><span class="decoder-fp-k">avg hour:</span> <b>${fmt(d.avg_hour)}</b></div>
         <div class="decoder-fpr"><span class="decoder-fp-k">aperture:</span> <b>${fmt(d.aperture?.avg)}</b> [${fmt(d.aperture?.min)}–${fmt(d.aperture?.max)}]</div>
@@ -1635,6 +1649,27 @@ async function refreshDecoderWord(word) {
       <div class="decoder-section"><span class="decoder-fp-k">samples:</span>${samples}</div>
     `;
     document.getElementById("decoder-meta").textContent = `"${d.word}" — ${d.count} uses`;
+    // Wire tag buttons
+    el.querySelectorAll(".decoder-tag-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const newTag = btn.dataset.tag || null;
+        try {
+          const r = await fetch("/api/decoder/word_tag", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({word: d.word, tag: newTag}),
+          });
+          if (r.ok) {
+            // Update local map + refresh view
+            if (newTag) window.wordTags[d.word] = {tag: newTag, note: null};
+            else delete window.wordTags[d.word];
+            refreshDecoderWord(d.word);
+            // Also refresh LIVE so chip badges update if visible
+            if (decoderActiveTab === "live") refreshDecoderLive();
+          }
+        } catch (err) { console.error("tag failed", err); }
+      });
+    });
   } catch (e) { el.innerHTML = `<div class="decoder-empty">error: ${esc(e.message || e)}</div>`; }
 }
 
@@ -1651,3 +1686,16 @@ document.getElementById("decoder-word-input")?.addEventListener("keydown", e => 
 // Initial load + poll LIVE every 20s
 refreshDecoderLive();
 decoderLiveTimer = setInterval(() => { if (decoderActiveTab === "live") refreshDecoderLive(); }, 20000);
+
+
+// Word-tag map (for badging chips). Loaded on boot, refreshed periodically.
+window.wordTags = {};
+async function _loadWordTags() {
+  try {
+    const r = await fetch("/api/decoder/word_tags");
+    const d = await r.json();
+    window.wordTags = d.tags || {};
+  } catch (e) { /* silent */ }
+}
+_loadWordTags();
+setInterval(_loadWordTags, 30000);
