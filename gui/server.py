@@ -1159,9 +1159,22 @@ def create_app(state: AppState) -> Flask:
                         and _conv_turns[-1]["content"].strip() == prompt.strip()):
                     _conv_turns = _conv_turns[:-1]
                 if _conv_turns and register.name in ("Conversational", "Philosophical"):
+                    # Sanitize: if an assistant message contains fake-dialogue markers
+                    # (hallucinated multi-turn transcript), truncate at first marker
+                    # to keep only the real first-reply portion.
+                    import re as _re_sanitize
+                    _fake_marker = _re_sanitize.compile(r"\n\s*(?:\(user\)|\[user\]|\[nex\])")
+                    _clean_turns = []
+                    for t in _conv_turns:
+                        c = t["content"]
+                        if t["role"] == "nex":
+                            m = _fake_marker.search(c)
+                            if m:
+                                c = c[:m.start()].rstrip()
+                        _clean_turns.append({"role": t["role"], "content": c})
                     _conv_lines = "\n".join(
                         f"[{t['role']}] {t['content']}"
-                        for t in _conv_turns
+                        for t in _clean_turns
                     )
                     belief_text = (belief_text or "") + (
                         "\n\nRecent conversation:\n" + _conv_lines
@@ -1252,6 +1265,15 @@ def create_app(state: AppState) -> Flask:
                 )
 
         if text is None:
+            # Diagnostic: log the full chat prompt for inspection
+            try:
+                import time as _t_log
+                with open('/tmp/nex5_last_chat_prompt.log', 'w') as _cf:
+                    _cf.write(f"=== Chat at {_t_log.time()} (register={register.name}) ===\n")
+                    _cf.write(f"--- USER PROMPT ---\n{prompt}\n\n")
+                    _cf.write(f"--- VOICE PROMPT SENT TO LLM ---\n{voice_prompt}\n=== END ===\n")
+            except Exception:
+                pass
             try:
                 resp = state.voice.speak(
                     VoiceRequest(prompt=voice_prompt, register=register),
