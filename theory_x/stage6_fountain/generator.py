@@ -175,6 +175,7 @@ class FountainGenerator:
         drive_emergence=None,
         conversations_reader: Optional[Reader] = None,
         coherence_gate=None,
+        erosion=None,
     ) -> None:
         self._sense_writer = sense_writer
         self._dynamic_writer = dynamic_writer
@@ -192,6 +193,7 @@ class FountainGenerator:
         self._drive_emergence = drive_emergence
         self._conversations_reader = conversations_reader
         self._coherence_gate = coherence_gate
+        self._erosion = erosion
         self._evaluator = ReadinessEvaluator()
         self._last_fountain_output: Optional[str] = None
         self._last_fire_ts: float = 0.0
@@ -857,6 +859,15 @@ class FountainGenerator:
 
         result.extend(_own_picked)
         result.extend(list(seed_rows))
+        # Record use_count for provenance erosion + DriveEmergence detection
+        if self._erosion is not None:
+            for _b in result:
+                try:
+                    _bid = _b["id"] if hasattr(_b, "__getitem__") else getattr(_b, "id", None)
+                    if _bid:
+                        self._erosion.record_use(_bid)
+                except Exception:
+                    pass
         # Diagnostic: log what we're actually drawing (no exception swallow)
         import time as _t_log
         _entries = []

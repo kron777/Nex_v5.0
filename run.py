@@ -429,7 +429,7 @@ def main() -> None:
                               snapshot_writer=snapshot_writer,
                               world_bridge_selector=world_bridge_selector,
                               coherence_gate=coherence_gate,
-                              drive_emergence=_drive_emergence)
+                              drive_emergence=_drive_emergence, erosion=world_model.erosion)
     log.info("Fountain lit — loop running at %ds interval", FOUNTAIN_CHECK_INTERVAL_SECONDS)
 
     # 11. Strike protocols

@@ -67,6 +67,7 @@ def build_fountain(
     world_bridge_selector: "WorldBridgeSelector | None" = None,
     coherence_gate=None,
     drive_emergence=None,
+    erosion=None,
 ) -> FountainState:
     crystallizer = None
     if writers.get("beliefs") and readers.get("beliefs"):
@@ -99,6 +100,7 @@ def build_fountain(
         drive_emergence=drive_emergence,
         conversations_reader=readers.get("conversations"),
         coherence_gate=coherence_gate,
+        erosion=erosion,
     )
 
     state = FountainState(
