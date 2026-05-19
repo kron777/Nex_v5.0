@@ -857,6 +857,25 @@ class FountainGenerator:
 
         result.extend(_own_picked)
         result.extend(list(seed_rows))
+        # Diagnostic: log what we're actually drawing (no exception swallow)
+        import time as _t_log
+        _entries = []
+        for _b in result:
+            try:
+                _content = (_b["content"] if hasattr(_b, "__getitem__") else getattr(_b, "content", ""))
+            except Exception:
+                _content = "<unreadable>"
+            try:
+                _src = (_b["source"] if hasattr(_b, "__getitem__") else getattr(_b, "source", ""))
+            except Exception:
+                _src = "<no-src>"
+            _entries.append((_src, (_content or "")[:120]))
+        with open("/tmp/nex5_retrieval_history.log", "a") as _rl:
+            _rl.write(f"=== Retrieval at {_t_log.time()} ({len(result)} beliefs) ===\n")
+            for _src, _content in _entries:
+                _rl.write(f"[{_src}] {_content}\n")
+            if len(result) == 0:
+                _rl.write("(empty result)\n")
         return result
 
     def _build_prompt(self, dynamic_status: dict, belief_count: int, tier_dist: dict,
