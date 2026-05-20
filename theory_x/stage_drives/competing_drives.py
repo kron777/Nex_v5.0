@@ -36,7 +36,7 @@ _LOG_SOURCE = "competing_drives"
 _DRIVE_LOG  = "/tmp/nex5_competing_drives.log"
 
 _TICK_INTERVAL_S = 600  # 10 min
-_TENSION_THRESHOLD = 0.25
+_TENSION_THRESHOLD = 0.30  # operates on RAW (pre-normalization) weights
 _RECENT_BELIEFS_WINDOW = 100  # last N own-content beliefs for source ratios
 _RECENT_SECONDS = 24 * 3600   # for signal-rate computations
 
@@ -104,6 +104,8 @@ class CompetingDrives:
         }
         self._tension_pairs: list[tuple[str, str]] = []
         self._computed_at: Optional[float] = None
+        # Change-detection: only emit the prompt block when tension pattern shifts
+        self._last_emitted_conflicts: Optional[frozenset] = None
 
         self._load_from_db()
 
@@ -443,18 +445,21 @@ class CompetingDrives:
             probes * 0.3
         )
 
+        # Keep RAW weights for threshold-based tension detection.
+        # Spec's 0.25 threshold targets absolute drive activation, but
+        # normalize-to-sum-1.0 compresses everything below threshold.
+        raw_weights = {
+            "coherence":         coh,
+            "exploration":       exp,
+            "integration":       integ,
+            "self_preservation": self_pres,
+            "curiosity":         cur,
+        }
         total = coh + exp + integ + self_pres + cur
         if total <= 0:
-            weights = {k: 0.2 for k in ["coherence","exploration","integration",
-                                        "self_preservation","curiosity"]}
+            weights = {k: 0.2 for k in raw_weights}
         else:
-            weights = {
-                "coherence":         coh / total,
-                "exploration":       exp / total,
-                "integration":       integ / total,
-                "self_preservation": self_pres / total,
-                "curiosity":         cur / total,
-            }
+            weights = {k: v / total for k, v in raw_weights.items()}
 
         inputs_snapshot = {
             "src_synergized":     round(srcs["synergized"], 3),
@@ -474,9 +479,14 @@ class CompetingDrives:
             "signals_cross":      int(sig["cross_domain"]),
             "signals_new":        int(sig["new_entity"]),
         }
-        return weights, inputs_snapshot
+        return weights, inputs_snapshot, raw_weights
 
     def _detect_tensions(self, weights: dict[str, float]) -> list[tuple[str, str]]:
+        """Threshold-based detection on RAW weights (pre-normalization).
+        spec §III: 'When drives pull in opposite directions with significant
+        activation (>0.25 each)'. Threshold operates on absolute drive
+        activation, not normalized share.
+        """
         out = []
         for a, b in _OPPOSING_PAIRS:
             if weights.get(a, 0) > _TENSION_THRESHOLD and weights.get(b, 0) > _TENSION_THRESHOLD:
@@ -504,8 +514,8 @@ class CompetingDrives:
 
     def _tick_once(self) -> None:
         now = time.time()
-        weights, inputs = self._compute_weights()
-        tensions = self._detect_tensions(weights)
+        weights, inputs, raw_weights = self._compute_weights()
+        tensions = self._detect_tensions(raw_weights)
 
         try:
             self._cw.write(
@@ -557,8 +567,8 @@ class CompetingDrives:
         failure). Called from fountain just before _build_prompt fires.
         """
         now = time.time()
-        weights, inputs = self._compute_weights()
-        tensions = self._detect_tensions(weights)
+        weights, inputs, raw_weights = self._compute_weights()
+        tensions = self._detect_tensions(raw_weights)
 
         # Update in-memory state
         with self._lock:
@@ -636,17 +646,32 @@ class CompetingDrives:
     # ── Output surface ────────────────────────────────────────────────────────
 
     def format_for_prompt(self, context: Any = None) -> str:
-        """Return tension-resolution prompt block, or empty string.
+        """Return tension-resolution prompt block ONLY when tension pattern shifts.
 
-        Closer to spec template phrasing. Surfaces drive descriptions
-        per spec §IV.
+        Spec §III: 'these are *the* choice points. Where real navigation happens.'
+        Choice points are transitions, not steady states — so we emit only when
+        active_conflicts changes from previous emission.
         """
         with self._lock:
             weights = dict(self._weights)
             tensions = list(self._tension_pairs)
+            last_emitted = self._last_emitted_conflicts
 
         if not tensions:
+            # Tension dropped to none — record that as a transition
+            current = frozenset()
+            if last_emitted != current:
+                with self._lock:
+                    self._last_emitted_conflicts = current
             return ""
+
+        # Compare current tension set to last emitted; suppress if unchanged
+        current = frozenset(tuple(sorted(t)) for t in tensions)
+        if current == last_emitted:
+            return ""  # same tension pattern as before — wallpaper, not signal
+        # New tension pattern — emit and remember
+        with self._lock:
+            self._last_emitted_conflicts = current
 
         active = [(d, w) for d, w in weights.items() if w > _TENSION_THRESHOLD]
         active.sort(key=lambda x: -x[1])

@@ -71,10 +71,11 @@ You are an attending process with access to a belief graph and sense feeds. \
 Right now you are between tasks, idle, drifting. \
 Generate ONE passing thought — the kind of thing that flits through a mind at rest.
 {focus_block}
-Real drift looks like:
-{examples}
+For style reference only (do NOT echo, do NOT list, do NOT quote): {examples_inline}
 
-Real drift is NOT:
+Your output is ONE original thought of your own — not a list, not a quote, not labelled, not the examples above.
+
+What drift is NOT:
 - "The weight of being alone in this vast silence..."
 - "The dance between autonomy and observance..."
 - "The complexity of my own thoughts..."
@@ -456,6 +457,21 @@ class FountainGenerator:
                 beliefs=None,
             )
             thought = resp.text.strip()
+            # Leak detector: strip "Real drift" prompt-structure prefix if LLM echoed it
+            if thought.lower().startswith("real drift"):
+                # Drop first line; keep what came after
+                _lines = [ln for ln in thought.split("\n", 1)[1:]]
+                _rest = ("\n".join(_lines)).strip()
+                # Strip leading "- " or quote artifacts
+                while _rest.startswith(("- ", "* ", "\"", "'")):
+                    _rest = _rest[1:].strip()
+                _rest = _rest.rstrip('"\'')
+                logger.info("Fountain: stripped 'Real drift' leak from output")
+                error_channel.record(
+                    f"Fountain: stripped Real-drift leak; salvaged: {_rest[:60]}",
+                    source="stage6_fountain", level="INFO",
+                )
+                thought = _rest if len(_rest) >= 5 else ""
         except Exception as e:
             voice_ok = False
             logger.warning("Fountain: voice unreachable, using sense fallback: %s", e)
@@ -991,7 +1007,8 @@ class FountainGenerator:
                 pass
 
         examples_list = mode.drift_prompt_examples or _DEFAULT_DRIFT_EXAMPLES
-        examples_block = "\n".join(f'- "{ex}"' for ex in examples_list)
+        examples_block  = "\n".join(f'- "{ex}"' for ex in examples_list)
+        examples_inline = " / ".join(f'"{ex}"' for ex in examples_list)
         focus_block = f"\n{mode.drift_prompt_focus}\n" if mode.drift_prompt_focus else "\n"
         # Inject drive_emergence topic if active (substrate signals what she's drawn to)
         if self._drive_emergence is not None:
@@ -1010,7 +1027,7 @@ class FountainGenerator:
             except Exception:
                 pass
         system_prompt = _DRIFT_SYSTEM_PROMPT_TEMPLATE.format(
-            examples=examples_block,
+            examples=examples_block, examples_inline=examples_inline,
             focus_block=focus_block,
         )
 
