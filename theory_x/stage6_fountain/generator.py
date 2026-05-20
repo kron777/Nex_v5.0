@@ -353,6 +353,10 @@ class FountainGenerator:
             pass
 
         self._last_substrate_voice_fire = self._total_fires
+        # Capture for echo-and-extend: next LLM fire will see this anchor
+        # in its prompt with instruction to continue-from, not paraphrase.
+        # Persists across quiescent fires; cleared on first LLM-fire consume.
+        self._pending_echo_anchor = anchor_content
         self._last_fountain_output = anchor_content
         self._last_fire_ts = ts_now
         self._total_fires += 1
@@ -1113,6 +1117,19 @@ class FountainGenerator:
         examples_block  = "\n".join(f'- "{ex}"' for ex in examples_list)
         examples_inline = " / ".join(f'"{ex}"' for ex in examples_list)
         focus_block = f"\n{mode.drift_prompt_focus}\n" if mode.drift_prompt_focus else "\n"
+        # Echo-and-extend: if substrate-voice just fired (and a normal LLM
+        # fire is now happening), prepend the anchor to the prompt with
+        # instructions to extend from it, not paraphrase. One-shot consume.
+        _pending = getattr(self, "_pending_echo_anchor", None)
+        if _pending:
+            _echo_block = (
+                f'You just spoke from your foundation: "{_pending}"\n'
+                "Continue from where this leaves off, if anything follows. "
+                "Or sit in silence with it.\n"
+                "Do NOT repeat or paraphrase the anchor.\n"
+            )
+            focus_block = _echo_block + focus_block
+            self._pending_echo_anchor = None  # consumed
         # Inject drive_emergence topic if active (substrate signals what she's drawn to)
         if self._drive_emergence is not None:
             try:
