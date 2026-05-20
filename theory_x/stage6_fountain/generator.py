@@ -279,6 +279,95 @@ class FountainGenerator:
         except Exception:
             pass
 
+    _SUBSTRATE_VOICE_GROOVE_THRESHOLD = 0.8
+    _SUBSTRATE_VOICE_COOLDOWN_FIRES = 5
+
+    def _maybe_substrate_voice(
+        self, beliefs_reader, readiness: float,
+    ) -> Optional[str]:
+        """Substrate-as-voice path. Returns the emitted thought if we fired
+        this way, or None to fall through to normal generation.
+
+        Conditions (all must hold):
+          - groove severity >= _SUBSTRATE_VOICE_GROOVE_THRESHOLD
+          - >= _SUBSTRATE_VOICE_COOLDOWN_FIRES fires since last SV fire
+          - at least one tier <=2 un-retired anchor with content exists
+
+        Selection: least-recently-voiced anchor (ORDER BY last_voiced_at ASC).
+        """
+        last_sv = getattr(self, "_last_substrate_voice_fire", -999)
+        if (self._total_fires - last_sv) < self._SUBSTRATE_VOICE_COOLDOWN_FIRES:
+            return None
+
+        try:
+            row = beliefs_reader.read_one(
+                "SELECT MAX(severity) AS s FROM groove_alerts "
+                "WHERE detected_at > ?",
+                (time.time() - 86400,),
+            )
+            groove = float(row["s"] or 0.0) if row else 0.0
+        except Exception:
+            groove = 0.0
+        if groove < self._SUBSTRATE_VOICE_GROOVE_THRESHOLD:
+            return None
+
+        try:
+            rows = beliefs_reader.read(
+                "SELECT id, content FROM beliefs "
+                "WHERE tier <= 2 AND erosion_stage != 'retired' "
+                "  AND content IS NOT NULL AND length(content) >= 20 "
+                "ORDER BY COALESCE(last_voiced_at, 0) ASC, id ASC LIMIT 1"
+            )
+            rows = list(rows or [])
+        except Exception:
+            return None
+        if not rows:
+            return None
+        anchor = rows[0]
+        anchor_id = int(anchor["id"])
+        anchor_content = (anchor["content"] or "").strip()
+        if not anchor_content:
+            return None
+
+        ts_now = time.time()
+
+        if self._beliefs_writer is not None:
+            try:
+                self._beliefs_writer.write(
+                    "UPDATE beliefs SET last_voiced_at = ? WHERE id = ?",
+                    (ts_now, anchor_id),
+                )
+            except Exception:
+                pass
+
+        try:
+            self._dynamic_writer.write(
+                "INSERT INTO fountain_events "
+                "(ts, thought, readiness, hot_branch, word_count) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (ts_now, anchor_content, readiness,
+                 "substrate_voice", len(anchor_content.split())),
+            )
+            self._link_activation_to_event()
+        except Exception:
+            pass
+
+        self._last_substrate_voice_fire = self._total_fires
+        self._last_fountain_output = anchor_content
+        self._last_fire_ts = ts_now
+        self._total_fires += 1
+
+        error_channel.record(
+            f"Fountain SUBSTRATE_VOICE (anchor #{anchor_id}): "
+            f"{anchor_content[:100]}",
+            source="stage6_fountain", level="INFO",
+        )
+        logger.info(
+            "Fountain SUBSTRATE_VOICE (#%d) anchor=%d: %s",
+            self._total_fires, anchor_id, anchor_content[:80],
+        )
+        return anchor_content
+
     def generate(self, dynamic_state, beliefs_reader: Reader) -> Optional[str]:
         readiness = self._evaluator.score(
             dynamic_state, beliefs_reader, last_fire_ts=self._last_fire_ts
@@ -292,6 +381,20 @@ class FountainGenerator:
                 self._last_activation_id = self._competing_drives.compute_now()
             except Exception:
                 pass
+
+        # Intervention C - Substrate-as-Voice
+        # When groove severity is high (template-grip is real) and
+        # cooldown has elapsed, surface a tier-1/2 anchor belief verbatim.
+        # Bypasses LLM, crystallizer, condenser.
+        try:
+            _sv_thought = self._maybe_substrate_voice(beliefs_reader, readiness)
+            if _sv_thought is not None:
+                return _sv_thought
+        except Exception as _sv_err:
+            error_channel.record(
+                f"substrate_voice non-fatal error: {_sv_err}",
+                source="stage6_fountain", exc=_sv_err,
+            )
 
         # Intervention A — Quiescent mode: every 5th fire holds a bare sense
         # event instead of composing a metaphor. No crystallization, no speech.
