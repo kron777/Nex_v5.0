@@ -963,6 +963,14 @@ class FountainGenerator:
         examples_list = mode.drift_prompt_examples or _DEFAULT_DRIFT_EXAMPLES
         examples_block = "\n".join(f'- "{ex}"' for ex in examples_list)
         focus_block = f"\n{mode.drift_prompt_focus}\n" if mode.drift_prompt_focus else "\n"
+        # Inject drive_emergence topic if active (substrate signals what she's drawn to)
+        if self._drive_emergence is not None:
+            try:
+                _drive_line = self._drive_emergence.format_for_prompt()
+                if _drive_line:
+                    focus_block = focus_block.rstrip() + f"\n{_drive_line}\n"
+            except Exception:
+                pass
         system_prompt = _DRIFT_SYSTEM_PROMPT_TEMPLATE.format(
             examples=examples_block,
             focus_block=focus_block,
