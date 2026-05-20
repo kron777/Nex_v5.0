@@ -243,6 +243,16 @@ class AffectState:
             "VALUES (1, ?, ?, ?, ?, ?)",
             (v_new, a_new, s_new, mood, now),
         )
+        # Also append to affect_history for variance computation in CompetingDrives
+        try:
+            self._cw.write(
+                "INSERT INTO affect_history "
+                "(ts, valence, arousal, stability, mood_label) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (now, v_new, a_new, s_new, mood),
+            )
+        except Exception:
+            pass
 
         try:
             with open(_AFFECT_LOG, "a") as _f:

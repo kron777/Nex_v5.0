@@ -341,6 +341,36 @@ class CompetingDrives:
         except Exception:
             return 0.5
 
+    def _affect_variance(self) -> float:
+        """Std-deviation of (valence, arousal) over last 24h of affect_history.
+
+        Higher = swinging emotional/activation state.
+        Lower  = stable, flat.
+        Normalize: 0.20 std-dev = baseline 'meaningful variance'.
+        Both valence and arousal are typically in 0..1 range with most values
+        clustered around 0.1-0.6, so 0.20 std is a real swing.
+        """
+        try:
+            import math
+            rows = self._cr.read(
+                "SELECT valence, arousal FROM affect_history "
+                "WHERE ts > ? ORDER BY ts DESC LIMIT 500",
+                (time.time() - _RECENT_SECONDS,),
+            )
+            rows = list(rows or [])
+            if len(rows) < 3:
+                return 0.0  # not enough samples
+            vals = [float(r["valence"] or 0.0) for r in rows]
+            ars  = [float(r["arousal"] or 0.0) for r in rows]
+            def std(xs):
+                m = sum(xs) / len(xs)
+                v = sum((x - m) ** 2 for x in xs) / len(xs)
+                return math.sqrt(v)
+            combined_std = (std(vals) + std(ars)) / 2.0
+            return max(0.0, min(1.0, combined_std / 0.20))
+        except Exception:
+            return 0.0
+
     # ── Weight computation ────────────────────────────────────────────────────
 
     def _compute_weights(self) -> tuple[dict[str, float], dict[str, Any]]:
@@ -358,10 +388,10 @@ class CompetingDrives:
         novelty_magnitude  = self._branch_entropy_novelty()
         content_complexity = self._content_complexity()
         # Deferred measures (substrate-level reasons documented):
-        # - affect_variance: affect_state is single-row INSERT OR REPLACE; no
-        #   history table exists. To enable: add affect_history table + patch
-        #   stage_affect to log every tick. Deferred pending need.
-        affect_variance = 0.0
+        # - affect_variance: measured from affect_history (added 2026-05-20).
+        #   stage_affect now logs every 300s tick. Std-dev of valence+arousal
+        #   over last 24h, normalized at 0.20 std = "meaningful variance".
+        affect_variance = self._affect_variance()
         # - seed_contradiction_strength: measured 0 in audit (2026-05-20).
         #   Seed sources (koan, spectrum, practice, tao, keystone_seed) are
         #   harmonizer-protected (Tier 1-2 keystones excluded from conflict
@@ -418,6 +448,7 @@ class CompetingDrives:
             "branch_inst":        round(branch_inst, 3),
             "novelty_magnitude":  round(novelty_magnitude, 3),
             "content_complexity": round(content_complexity, 3),
+            "affect_variance":    round(affect_variance, 3),
             "problems":           round(problems, 3),
             "probes":             round(probes, 3),
             "signals_total":      int(sig["total"]),
