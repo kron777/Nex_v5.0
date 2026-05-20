@@ -30,6 +30,7 @@ from theory_x.stage2_dynamic import build_dynamic
 from theory_x.stage3_world_model import build_world_model
 from theory_x.stage4_membrane import build_membrane
 from theory_x.stage6_fountain import build_fountain
+from theory_x.stage_drives.competing_drives import CompetingDrives
 from theory_x.auto_probe.groove_breaker import GrooveBreaker
 from theory_x.memory.snapshot_writer import StateSnapshotWriter
 from theory_x.memory.resumption import ResumptionSeeder
@@ -299,6 +300,20 @@ def main() -> None:
     except Exception as _de_err:
         log.warning("DriveEmergence failed to start (non-fatal): %s", _de_err)
 
+    # Phase 29b — CompetingDrives (5-drive tension)
+    _competing_drives = None
+    try:
+        _competing_drives = CompetingDrives(
+            conversations_writer=writers["conversations"],
+            conversations_reader=readers["conversations"],
+            beliefs_reader=readers["beliefs"],
+            dynamic_reader=readers.get("dynamic"),
+        )
+        _competing_drives.start_loop()
+        log.info("CompetingDrives ready — 5-drive tension every 600s")
+    except Exception as _cd_err:
+        log.warning("CompetingDrives failed to start (non-fatal): %s", _cd_err)
+
     # Phase 30 — VoiceEngine (substrate-as-voice)
     _voice_engine = None
     try:
@@ -429,7 +444,7 @@ def main() -> None:
                               snapshot_writer=snapshot_writer,
                               world_bridge_selector=world_bridge_selector,
                               coherence_gate=coherence_gate,
-                              drive_emergence=_drive_emergence, erosion=world_model.erosion)
+                              drive_emergence=_drive_emergence, erosion=world_model.erosion, competing_drives=_competing_drives)
     log.info("Fountain lit — loop running at %ds interval", FOUNTAIN_CHECK_INTERVAL_SECONDS)
 
     # 11. Strike protocols

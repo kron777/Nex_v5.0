@@ -68,6 +68,7 @@ def build_fountain(
     coherence_gate=None,
     drive_emergence=None,
     erosion=None,
+    competing_drives=None,
 ) -> FountainState:
     crystallizer = None
     if writers.get("beliefs") and readers.get("beliefs"):
@@ -101,6 +102,7 @@ def build_fountain(
         conversations_reader=readers.get("conversations"),
         coherence_gate=coherence_gate,
         erosion=erosion,
+        competing_drives=competing_drives,
     )
 
     state = FountainState(

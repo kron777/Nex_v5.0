@@ -176,6 +176,7 @@ class FountainGenerator:
         conversations_reader: Optional[Reader] = None,
         coherence_gate=None,
         erosion=None,
+        competing_drives=None,
     ) -> None:
         self._sense_writer = sense_writer
         self._dynamic_writer = dynamic_writer
@@ -194,6 +195,7 @@ class FountainGenerator:
         self._conversations_reader = conversations_reader
         self._coherence_gate = coherence_gate
         self._erosion = erosion
+        self._competing_drives = competing_drives
         self._evaluator = ReadinessEvaluator()
         self._last_fountain_output: Optional[str] = None
         self._last_fire_ts: float = 0.0
@@ -969,6 +971,14 @@ class FountainGenerator:
                 _drive_line = self._drive_emergence.format_for_prompt()
                 if _drive_line:
                     focus_block = focus_block.rstrip() + f"\n{_drive_line}\n"
+            except Exception:
+                pass
+        # Inject competing-drives tension block when active
+        if self._competing_drives is not None:
+            try:
+                _cd_block = self._competing_drives.format_for_prompt()
+                if _cd_block:
+                    focus_block = focus_block.rstrip() + f"\n\n{_cd_block}\n"
             except Exception:
                 pass
         system_prompt = _DRIFT_SYSTEM_PROMPT_TEMPLATE.format(
