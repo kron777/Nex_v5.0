@@ -246,6 +246,101 @@ class CompetingDrives:
         except Exception:
             return 0.0
 
+    def _sense_freshness(self) -> float:
+        """Fraction of recent sense events that are NOT duplicates.
+
+        Reads sense.db directly (separate from beliefs_reader).
+        Falls back to 0.5 if unreadable.
+        """
+        try:
+            import sqlite3
+            con = sqlite3.connect("/home/rr/Desktop/nex5/data/sense.db")
+            con.row_factory = sqlite3.Row
+            row = con.execute("""
+                WITH recent AS (
+                  SELECT substr(payload, 1, 200) AS prefix
+                  FROM sense_events
+                  WHERE timestamp > strftime('%s','now') - 86400
+                ),
+                counts AS (
+                  SELECT prefix, COUNT(*) AS n FROM recent GROUP BY prefix
+                )
+                SELECT 
+                  (SELECT COUNT(*) FROM recent) AS total,
+                  (SELECT COALESCE(SUM(n), 0) FROM counts WHERE n > 1) AS dup_total
+            """).fetchone()
+            con.close()
+            total = float(row["total"] or 0)
+            dups  = float(row["dup_total"] or 0)
+            if total <= 0:
+                return 0.5
+            return max(0.0, min(1.0, 1.0 - (dups / total)))
+        except Exception:
+            return 0.5
+
+    def _branch_entropy_novelty(self) -> float:
+        """Shannon entropy of hot_branch distribution (last 24h),
+        normalized by log2 of 7-day distinct branches.
+        High = branches spread evenly (novelty). Low = concentrated (settled).
+        """
+        if self._dr is None:
+            return 0.5
+        try:
+            import math
+            rows = self._dr.read(
+                "SELECT hot_branch, COUNT(*) AS n FROM fountain_events "
+                "WHERE ts > strftime('%s','now') - 86400 "
+                "  AND hot_branch IS NOT NULL "
+                "GROUP BY hot_branch"
+            )
+            rows = list(rows or [])
+            total = sum(int(r["n"] or 0) for r in rows)
+            if total <= 0 or not rows:
+                return 0.5
+            H = 0.0
+            for r in rows:
+                p = (r["n"] or 0) / total
+                if p > 0:
+                    H -= p * math.log2(p)
+            d7_row = self._dr.read_one(
+                "SELECT COUNT(DISTINCT hot_branch) AS d FROM fountain_events "
+                "WHERE ts > strftime('%s','now') - 86400*7 "
+                "  AND hot_branch IS NOT NULL"
+            )
+            distinct_7d = int(d7_row["d"] or 1) if d7_row else 1
+            H_max = math.log2(distinct_7d) if distinct_7d > 1 else 1.0
+            return max(0.0, min(1.0, H / H_max if H_max > 0 else 0.5))
+        except Exception:
+            return 0.5
+
+    def _content_complexity(self) -> float:
+        """Average word-count of last-30 fountain fires, normalized to 0..1.
+
+        Higher = enumerative/structured output (multi-clause).
+        Lower  = template-flat output ("the quiet between thoughts").
+        Normalize: 20 words = baseline 'complex enough'.
+        """
+        if self._dr is None:
+            return 0.5
+        try:
+            rows = self._dr.read(
+                "SELECT thought FROM fountain_events "
+                "WHERE thought IS NOT NULL AND thought != '' "
+                "ORDER BY id DESC LIMIT 30"
+            )
+            rows = list(rows or [])
+            if not rows:
+                return 0.5
+            total_words = 0
+            for r in rows:
+                t = r["thought"] or ""
+                # word-count via split; cheap and good enough
+                total_words += len(t.split())
+            avg = total_words / len(rows)
+            return max(0.0, min(1.0, avg / 20.0))
+        except Exception:
+            return 0.5
+
     # ── Weight computation ────────────────────────────────────────────────────
 
     def _compute_weights(self) -> tuple[dict[str, float], dict[str, Any]]:
@@ -258,12 +353,20 @@ class CompetingDrives:
         problems = self._open_problems_pressure()
         probes = self._probe_rate()
 
-        # Placeholders for measures not yet computed
-        sense_freshness = 0.5  # default
-        affect_variance = 0.0  # affect is single-row
-        novelty_magnitude = 0.5  # default
-        seed_contradiction = 0.0  # rare, deferred
-        content_complexity = 0.5  # default
+        # Real metrics
+        sense_freshness    = self._sense_freshness()
+        novelty_magnitude  = self._branch_entropy_novelty()
+        content_complexity = self._content_complexity()
+        # Deferred measures (substrate-level reasons documented):
+        # - affect_variance: affect_state is single-row INSERT OR REPLACE; no
+        #   history table exists. To enable: add affect_history table + patch
+        #   stage_affect to log every tick. Deferred pending need.
+        affect_variance = 0.0
+        # - seed_contradiction_strength: measured 0 in audit (2026-05-20).
+        #   Seed sources (koan, spectrum, practice, tao, keystone_seed) are
+        #   harmonizer-protected (Tier 1-2 keystones excluded from conflict
+        #   detection per DOCTRINE §2). This stays 0 by design.
+        seed_contradiction = 0.0
 
         coh = (
             srcs["synergized"] * 0.4 +
@@ -305,18 +408,21 @@ class CompetingDrives:
             }
 
         inputs_snapshot = {
-            "src_synergized": round(srcs["synergized"], 3),
-            "src_sense":      round(srcs["sense"], 3),
-            "own_count":      int(srcs["own_count"]),
-            "groove":         round(groove, 3),
-            "contradiction":  round(contradiction, 3),
-            "comp_arcs":      round(comp_arcs, 3),
-            "branch_inst":    round(branch_inst, 3),
-            "problems":       round(problems, 3),
-            "probes":         round(probes, 3),
-            "signals_total":  int(sig["total"]),
-            "signals_cross":  int(sig["cross_domain"]),
-            "signals_new":    int(sig["new_entity"]),
+            "src_synergized":     round(srcs["synergized"], 3),
+            "src_sense":          round(srcs["sense"], 3),
+            "own_count":          int(srcs["own_count"]),
+            "groove":             round(groove, 3),
+            "sense_freshness":    round(sense_freshness, 3),
+            "contradiction":      round(contradiction, 3),
+            "comp_arcs":          round(comp_arcs, 3),
+            "branch_inst":        round(branch_inst, 3),
+            "novelty_magnitude":  round(novelty_magnitude, 3),
+            "content_complexity": round(content_complexity, 3),
+            "problems":           round(problems, 3),
+            "probes":             round(probes, 3),
+            "signals_total":      int(sig["total"]),
+            "signals_cross":      int(sig["cross_domain"]),
+            "signals_new":        int(sig["new_entity"]),
         }
         return weights, inputs_snapshot
 
