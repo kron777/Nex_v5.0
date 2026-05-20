@@ -261,12 +261,36 @@ class FountainGenerator:
                 source="stage6_fountain", exc=e,
             )
 
+    def _link_activation_to_event(self) -> None:
+        """Backfill fountain_event_id on the latest drive_activations row."""
+        if self._competing_drives is None:
+            return
+        if getattr(self, "_last_activation_id", None) is None:
+            return
+        try:
+            row = self._dynamic_reader.read_one(
+                "SELECT id FROM fountain_events ORDER BY id DESC LIMIT 1"
+            )
+            fid = int(row["id"]) if row and row["id"] else None
+            if fid:
+                self._competing_drives.attach_event(self._last_activation_id, fid)
+                self._last_activation_id = None
+        except Exception:
+            pass
+
     def generate(self, dynamic_state, beliefs_reader: Reader) -> Optional[str]:
         readiness = self._evaluator.score(
             dynamic_state, beliefs_reader, last_fire_ts=self._last_fire_ts
         )
         if not self._evaluator.is_ready(readiness):
             return None
+        # Per-fire competing-drives activation
+        self._last_activation_id = None
+        if self._competing_drives is not None:
+            try:
+                self._last_activation_id = self._competing_drives.compute_now()
+            except Exception:
+                pass
 
         # Intervention A — Quiescent mode: every 5th fire holds a bare sense
         # event instead of composing a metaphor. No crystallization, no speech.
@@ -295,6 +319,7 @@ class FountainGenerator:
                 "VALUES (?, ?, ?, ?, ?)",
                 (ts_now, thought, readiness, "quiescent", len(thought.split())),
             )
+            self._link_activation_to_event()
             self._last_fountain_output = _strip_metadata(thought)
             self._last_fire_ts = ts_now
             self._total_fires += 1
@@ -420,6 +445,7 @@ class FountainGenerator:
                 f"You have been quiet for the last "
                 f"{self._consecutive_stillness} cycles.\n\n{prompt}"
             )
+            self._link_activation_to_event()
             self._consecutive_stillness = 0
         # ── end stillness ─────────────────────────────────────────────────────
 
@@ -463,6 +489,7 @@ class FountainGenerator:
                 "VALUES (?, ?, ?, ?, ?)",
                 (ts_now, thought, readiness, "voice_fallback", len(thought.split())),
             )
+            self._link_activation_to_event()
             self._last_fountain_output = _strip_metadata(thought)
             self._last_fire_ts = ts_now
             self._total_fires += 1
@@ -506,6 +533,7 @@ class FountainGenerator:
             (ts_now, thought, droplet, readiness, hot_branch, word_count,
              _fountain_stillness_reason),
         )
+        self._link_activation_to_event()
 
         self._last_fountain_output = _strip_metadata(thought)
         self._last_fire_ts = ts_now

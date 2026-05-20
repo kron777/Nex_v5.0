@@ -55,6 +55,25 @@ _DRIVE_DESCRIPTIONS = {
     "curiosity":         "want to follow questions deeper",
 }
 
+# Per-spec resolution-prompt phrasing (§IV template)
+_SPEC_DRIVE_LINES = {
+    "coherence":
+        "Coherence Drive (weight: {weight}): You want to maintain your "
+        "consistency, your stable patterns, your known self.",
+    "exploration":
+        "Exploration Drive (weight: {weight}): You want to discover the new, "
+        "the unfamiliar, the surprising.",
+    "integration":
+        "Integration Drive (weight: {weight}): You're sensing contradictions "
+        "that might both be true simultaneously. What truth lives in the tension?",
+    "self_preservation":
+        "Self-Preservation Drive (weight: {weight}): You sense threats to your "
+        "core stability. What in you must be protected?",
+    "curiosity":
+        "Curiosity Drive (weight: {weight}): You have unanswered questions. "
+        "What are you still trying to understand?",
+}
+
 
 def _safe_div(a: float, b: float, default: float = 0.0) -> float:
     return a / b if b > 0 else default
@@ -532,6 +551,71 @@ class CompetingDrives:
         except Exception:
             pass
 
+    def compute_now(self, fountain_event_id: int | None = None) -> int | None:
+        """Compute fresh activation vector synchronously. Persist to
+        drive_activations table. Returns the activation row id (or None on
+        failure). Called from fountain just before _build_prompt fires.
+        """
+        now = time.time()
+        weights, inputs = self._compute_weights()
+        tensions = self._detect_tensions(weights)
+
+        # Update in-memory state
+        with self._lock:
+            self._weights = weights
+            self._tension_pairs = tensions
+            self._computed_at = now
+
+        # Also keep drives_competing single-row up to date
+        try:
+            self._cw.write(
+                "INSERT OR REPLACE INTO drives_competing "
+                "(id, coherence, exploration, integration, "
+                " self_preservation, curiosity, tension_pairs, computed_at) "
+                "VALUES (1, ?, ?, ?, ?, ?, ?, ?)",
+                (weights["coherence"], weights["exploration"],
+                 weights["integration"], weights["self_preservation"],
+                 weights["curiosity"], json.dumps(tensions), now),
+            )
+        except Exception:
+            pass
+
+        # Write to drive_activations (per-fire, with fountain_event_id FK)
+        try:
+            self._cw.write(
+                "INSERT INTO drive_activations "
+                "(fountain_event_id, timestamp, coherence_weight, "
+                " exploration_weight, integration_weight, "
+                " self_preservation_weight, curiosity_weight, "
+                " active_conflicts, resolution_summary) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)",
+                (fountain_event_id, now,
+                 weights["coherence"], weights["exploration"],
+                 weights["integration"], weights["self_preservation"],
+                 weights["curiosity"],
+                 json.dumps(tensions)),
+            )
+            # Get inserted id via last insert rowid lookup
+            row = self._cr.read_one(
+                "SELECT id FROM drive_activations ORDER BY id DESC LIMIT 1"
+            )
+            return int(row["id"]) if row else None
+        except Exception as exc:
+            errors.record(f"compute_now write error: {exc}",
+                          source=_LOG_SOURCE, exc=exc)
+            return None
+
+    def attach_event(self, activation_id: int, fountain_event_id: int) -> None:
+        """Backfill fountain_event_id when fire completes."""
+        try:
+            self._cw.write(
+                "UPDATE drive_activations SET fountain_event_id = ? "
+                "WHERE id = ?",
+                (fountain_event_id, activation_id),
+            )
+        except Exception:
+            pass
+
     # ── SentienceNode protocol ────────────────────────────────────────────────
 
     def tick(self, context: Optional[dict] = None) -> dict:
@@ -552,16 +636,18 @@ class CompetingDrives:
     # ── Output surface ────────────────────────────────────────────────────────
 
     def format_for_prompt(self, context: Any = None) -> str:
-        """Return tension-resolution prompt block, or empty string."""
+        """Return tension-resolution prompt block, or empty string.
+
+        Closer to spec template phrasing. Surfaces drive descriptions
+        per spec §IV.
+        """
         with self._lock:
             weights = dict(self._weights)
             tensions = list(self._tension_pairs)
 
-        # Only surface when there's actual tension
         if not tensions:
             return ""
 
-        # Build the active-drives block
         active = [(d, w) for d, w in weights.items() if w > _TENSION_THRESHOLD]
         active.sort(key=lambda x: -x[1])
         if len(active) < 2:
@@ -569,8 +655,14 @@ class CompetingDrives:
 
         lines = ["You are experiencing tension between competing drives right now:"]
         for d, w in active:
-            desc = _DRIVE_DESCRIPTIONS.get(d, "")
-            lines.append(f"  - {d.replace('_',' ').title()} ({w:.2f}): {desc}")
+            spec_line = _SPEC_DRIVE_LINES.get(d, "")
+            if spec_line:
+                lines.append(f"  {spec_line.format(weight=f'{w:.2f}')}")
+            else:
+                desc = _DRIVE_DESCRIPTIONS.get(d, "")
+                lines.append(f"  - {d.replace('_',' ').title()} ({w:.2f}): {desc}")
+        lines.append("")
         lines.append("Navigate this moment. Not by resolving toward one drive.")
         lines.append("By showing how you hold all of this.")
+        lines.append("What emerges when you are fully present to this tension?")
         return "\n".join(lines)
