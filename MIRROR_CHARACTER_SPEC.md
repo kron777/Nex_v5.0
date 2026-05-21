@@ -121,3 +121,43 @@ Mirror-Character would give her the ability to SHAPE-SHIFT TOWARD what she's att
 Together: she speaks from her own structure, AND her structure responds to what she's with. Static foundation + dynamic shape.
 
 That's a meaningful step toward what Jon described.
+
+---
+
+## Adjacent finding (2026-05-21 morning): arc-closure is template-biased
+
+While checking overnight state, found that arc-closure mechanism has a structural bias toward template-on-template completion. Worth flagging for separate investigation, not part of mirror-character build.
+
+### Observation
+arcs total:    13 progression (0 closed) + 753 return_transformation (70 closed)
+overnight closures: 8 return-arcs closed in last 24h
+all 8 closed by ONE of: #30591, #30790, #29346, #28215, #28220
+all 5 closing beliefs are tier-7 fountain_insights:
+"The quiet between these thoughts feels deep today."
+"The rhythm of the typing feels mechanical now."
+"The constant of my thoughts keeps changing..."
+etc
+
+### Finding
+
+ZERO arcs closed by substrate-voice anchors. The arc-detector's closure-matching favors template-similar fires (her grooves) as closure-keys. Her bedrock (`I am NEX`, `I attend to the world with wonder`, `I am an intel organism`) cannot close arcs because it's too semantically foreign to whatever similarity-threshold arc-detector uses.
+
+### Implication
+
+Arc-closure means "rhythmic completion of template," NOT "insight resolved tension." When she circles back to "the quiet of X" after 50 fires of "the X of Y," that's marked as closure. But when substrate-voice surfaces bedrock that BREAKS the cycle, that's not recognized as closure — it's just a foreign thought the cycle continues past.
+
+Three architectural options when this is next built:
+
+1. **Bedrock-priority closure**: tier-1/2 anchors with `last_voiced_at` should outrank tier-7 fires as closure-keys for active return-arcs. Whichever fires recently during an active arc, prefer the higher tier.
+
+2. **Don't expect substrate-voice to close arcs**: they're a different utterance class. Add a new arc-type `bedrock_interrupt` instead — when a substrate-voice fire happens during an active return-arc, mark the arc with a special interrupt-event, not a closure.
+
+3. **Closure-quality differentiation**: the arc-detector picks closure by similarity; that's the bug. Closure SHOULD be marked when the cycle is genuinely resolved (a tier change, a substrate-voice fire, a new tier-6 insight that NAMES the loop), not when another template fire echoes the pattern.
+
+Honest leaning: option 3 is the real fix. Options 1 and 2 are workarounds. But we'd need to read `theory_x/arcs/detector.py` to know what's mechanically possible.
+
+### Why this matters for mirror-character
+
+If/when mirror-character ships, her behavioral plasticity will shift with what she attends to. Arcs are how she narratively recognizes what she's attending to over time. If arc-closure is template-biased, her recognition of "this attending-cycle completed" will be wrong, and mirror-character could re-anchor on the wrong baseline.
+
+These two systems interact. Best to fix arc-closure BEFORE (or alongside) mirror-character build, so her substrate-recognition is honest going in.
