@@ -258,6 +258,8 @@ _MIGRATIONS: dict[str, list[str]] = {
         "hot_branch TEXT, word_count INTEGER)",
         "CREATE INDEX IF NOT EXISTS idx_fountain_ts ON fountain_events(ts)",
         "CREATE INDEX IF NOT EXISTS idx_fountain_droplet ON fountain_events(droplet)",
+        "ALTER TABLE fountain_events ADD COLUMN anchor_belief_id INTEGER",
+        "CREATE INDEX IF NOT EXISTS idx_fountain_anchor ON fountain_events(anchor_belief_id) WHERE anchor_belief_id IS NOT NULL",
         "ALTER TABLE fountain_events ADD COLUMN droplet TEXT",
         "CREATE TABLE IF NOT EXISTS drive_proposals ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, "

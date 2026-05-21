@@ -343,10 +343,10 @@ class FountainGenerator:
         try:
             self._dynamic_writer.write(
                 "INSERT INTO fountain_events "
-                "(ts, thought, readiness, hot_branch, word_count) "
-                "VALUES (?, ?, ?, ?, ?)",
+                "(ts, thought, readiness, hot_branch, word_count, anchor_belief_id) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
                 (ts_now, anchor_content, readiness,
-                 "substrate_voice", len(anchor_content.split())),
+                 "substrate_voice", len(anchor_content.split()), anchor_id),
             )
             self._link_activation_to_event()
         except Exception:

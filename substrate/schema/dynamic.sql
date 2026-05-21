@@ -69,9 +69,11 @@ CREATE TABLE IF NOT EXISTS fountain_events (
     droplet     TEXT,
     readiness   REAL NOT NULL,
     hot_branch  TEXT,
-    word_count  INTEGER
+    word_count  INTEGER,
+    anchor_belief_id INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_fountain_ts ON fountain_events(ts);
+CREATE INDEX IF NOT EXISTS idx_fountain_anchor ON fountain_events(anchor_belief_id) WHERE anchor_belief_id IS NOT NULL;
 
 -- Harmonizer events (Phase 4)
 CREATE TABLE IF NOT EXISTS harmonizer_events (
