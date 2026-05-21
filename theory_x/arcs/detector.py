@@ -279,7 +279,9 @@ class ArcReader:
             return 0
 
         now = time.time()
-        cutoff = now - 600
+        # Lookback 900s = 3x scan interval (300s) to forgive boundary timing.
+        # arc_closers dedup keys on (arc_id, belief_id) prevent re-evaluation.
+        cutoff = now - 900
 
         try:
             sv_rows = self._dynamic_reader.read(
@@ -307,6 +309,9 @@ class ArcReader:
         ]
         if not recent_arcs:
             return 0
+
+        max_sim_seen = 0.0
+        sv_evaluated = 0
 
         already = {
             (r["arc_id"], r["belief_id"])
@@ -351,6 +356,10 @@ class ArcReader:
                 if sim > best_sim:
                     best_sim = sim
                     best_arc = arc
+
+            sv_evaluated += 1
+            if best_sim > max_sim_seen:
+                max_sim_seen = best_sim
 
             if best_arc is None or best_sim <= 0.7:
                 continue
@@ -398,6 +407,12 @@ class ArcReader:
             log.info(
                 "Arc closer (bedrock): arc=%d anchor=%d sim=%.2f overwrite=%s",
                 best_arc["id"], bid, best_sim, overwrite,
+            )
+
+        if sv_evaluated > 0:
+            log.info(
+                "Bedrock-closer scan: sv_evaluated=%d arcs=%d max_sim=%.3f threshold=0.70 fired=%d",
+                sv_evaluated, len(recent_arcs), max_sim_seen, found,
             )
 
         return found
