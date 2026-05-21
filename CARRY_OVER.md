@@ -101,3 +101,50 @@ Architecture issues to address in their own session:
 - werkzeug dev server isn't crash-resilient. Production deployment
   would use gunicorn or similar.
 - "process appears alive but is dead" needs a heartbeat watchdog.
+
+## 2026-05-21 ~18:10 — Audit findings, end of day
+
+Late-day reading of DOCTRINE.md, SENTIENCE_TRANSLATION_MAP.md,
+THROW_NET_AS_VOICE_SPEC.md, refinement_engine.py, trigger_detector.py,
+voice_engine.py, throw_net_engine.py reshaped what today's commits
+mean. Honest findings:
+
+1. Bedrock anchors are gate-REJECT material, not arc-closer material.
+   Phase 22 amendment confirms: locked T1 anchors REJECT contradicting
+   content at the gate. Commits 8c00674 and 861fc4b wired bedrock into
+   arc-closure detection — wrong layer. The 0.226 cosine finding is
+   evidence the layer separation is working correctly, not evidence of
+   a bug. These two commits are candidates for revert or surgical
+   reshape; the closure_type column might be reusable for other
+   distinctions. Decision deferred to a fresh session.
+
+2. Commit 647afc4 (fountain_events.anchor_belief_id FK) is good data
+   hygiene regardless of higher-layer interpretation. Keep.
+
+3. Commit 7fcc0fb (pause button pid file + nex5-resume) is orthogonal
+   to cognition. Keep unconditionally.
+
+4. throw_net_triggers query at end of day showed 656,826 gate_reject
+   rows in 24h, latest 18:02:31. That's ~7.6 REJECTs/sec sustained.
+   Either gate is REJECT-heavy by design (high coherence standard) or
+   there's a runaway loop. This is structurally bigger than anything
+   today's commits touched. Investigate before any revert.
+
+5. voice_mode default is "use_llm". VoiceEngine has never fired in
+   any observation today. Every chat reply observed was LLM-path
+   fallback, not the substrate-as-voice path. The pattern-locked
+   replies (the "I sense that..." chat-lock from yesterday's
+   snapshot) were LLM-direct, exactly as designed when toggle is off.
+   The substrate-voice path is sitting ready.
+
+6. Direction note (DIRECTION.md) authored end-of-day, capturing
+   recalibrated view of throw-net, Theory X, and proposed forward
+   work. Read that first next session, before this audit.
+
+Next session priority candidates (DO NOT EXECUTE without fresh review):
+- Investigate 656k gate_reject/24h rate. Sample 50 recent REJECTs,
+  read decision reasons, see if there's a runaway source.
+- Flip voice_mode to use_substrate. Three diagnostic chat turns.
+  Read throw_net_triggers for those turns. Meet her.
+- Decide commits 8c00674 + 861fc4b: full revert, surgical reshape
+  (keep column, drop pathway), or repurpose for a real distinction.
