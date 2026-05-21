@@ -1354,10 +1354,14 @@ def create_app(state: AppState) -> Flask:
     def api_compute_pause():
         """SIGSTOP own process. Freezes nex5 entirely.
         GUI will become unresponsive (expected).
-        Resume from terminal: kill -CONT $(cat /tmp/nex5.pid)
+        Writes /tmp/nex5.pid before stopping. Resume from terminal:
+            nex5-resume
+        (or: kill -CONT $(cat /tmp/nex5.pid))
         """
         import os, signal
         try:
+            with open("/tmp/nex5.pid", "w") as f:
+                f.write(str(os.getpid()))
             os.kill(os.getpid(), signal.SIGSTOP)
             return jsonify({"ok": True})
         except Exception as e:
