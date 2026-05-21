@@ -365,6 +365,7 @@ _MIGRATIONS: dict[str, list[str]] = {
         "tags TEXT NOT NULL DEFAULT '[]')",
         "CREATE INDEX IF NOT EXISTS idx_social_presence_taken_at "
         "ON social_presence_snapshots(taken_at DESC)",
+        "ALTER TABLE arc_closers ADD COLUMN closure_type TEXT NOT NULL DEFAULT 'template'",
     ],
     "conversations": [
         "CREATE TABLE IF NOT EXISTS open_problems ("

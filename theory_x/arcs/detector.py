@@ -28,9 +28,10 @@ WINDOWS = [
 
 
 class ArcReader:
-    def __init__(self, writer, reader):
+    def __init__(self, writer, reader, dynamic_reader=None):
         self._writer = writer
         self._reader = reader
+        self._dynamic_reader = dynamic_reader
 
     def scan(self) -> dict:
         total_new_arcs = 0
@@ -44,15 +45,17 @@ class ArcReader:
         broad_fires = self._fetch_recent_fires(100)
         members_added = self._check_extensions(broad_fires)
         closers = self._check_for_closers(broad_fires)
+        bedrock_closers = self._check_for_bedrock_closers()
 
         log.info(
-            "ArcReader scan: new_arcs=%d extensions=%d closers=%d",
-            total_new_arcs, members_added, closers,
+            "ArcReader scan: new_arcs=%d extensions=%d closers=%d bedrock=%d",
+            total_new_arcs, members_added, closers, bedrock_closers,
         )
         return {
             "arcs_detected": total_new_arcs,
             "members_added": members_added,
             "closers_found": closers,
+            "bedrock_closers_found": bedrock_closers,
         }
 
     def _detect_in_window(self, fires: list[dict]) -> int:
@@ -245,8 +248,8 @@ class ArcReader:
                 try:
                     self._writer.write(
                         "INSERT INTO arc_closers "
-                        "(arc_id, belief_id, detected_at, meta_confidence) "
-                        "VALUES (?, ?, ?, ?)",
+                        "(arc_id, belief_id, detected_at, meta_confidence, closure_type) "
+                        "VALUES (?, ?, ?, ?, 'template')",
                         (arc_id, fire["id"], now, confidence * proximity),
                     )
                     self._writer.write(
@@ -260,4 +263,141 @@ class ArcReader:
                     )
                 except Exception:
                     pass
+        return found
+
+    def _check_for_bedrock_closers(self) -> int:
+        """Substrate-voice fires as arc closers.
+
+        Reads recent SV events from dynamic.fountain_events, looks up the
+        anchor belief, embeds its content, and closes arcs by cosine match.
+        Bypasses the meta-reflective regex gate (template-biased).
+        Tags arc_closers rows with closure_type='bedrock'.
+        Overwrites arcs.closed_by_belief_id only when SV fire is more recent
+        than the existing closer (recency wins; bedrock breaks ties).
+        """
+        if self._dynamic_reader is None:
+            return 0
+
+        now = time.time()
+        cutoff = now - 600
+
+        try:
+            sv_rows = self._dynamic_reader.read(
+                "SELECT id, ts, anchor_belief_id FROM fountain_events "
+                "WHERE hot_branch='substrate_voice' "
+                "  AND anchor_belief_id IS NOT NULL "
+                "  AND ts > ? "
+                "ORDER BY ts DESC",
+                (cutoff,),
+            )
+        except Exception as exc:
+            log.warning("bedrock-closer SV read failed: %s", exc)
+            return 0
+
+        sv_events = [dict(r) for r in sv_rows]
+        if not sv_events:
+            return 0
+
+        recent_arcs = [
+            dict(r) for r in self._reader.read(
+                "SELECT id, centroid_embedding, closed_by_belief_id "
+                "FROM arcs WHERE last_active_at > ?",
+                (now - 7200,),
+            )
+        ]
+        if not recent_arcs:
+            return 0
+
+        already = {
+            (r["arc_id"], r["belief_id"])
+            for r in self._reader.read(
+                "SELECT arc_id, belief_id FROM arc_closers "
+                "WHERE closure_type='bedrock' AND detected_at > ?",
+                (cutoff,),
+            )
+        }
+
+        found = 0
+        for sv in sv_events:
+            bid = sv["anchor_belief_id"]
+            try:
+                row = self._reader.read_one(
+                    "SELECT content FROM beliefs WHERE id = ?", (bid,),
+                )
+            except Exception:
+                continue
+            if not row:
+                continue
+            content = (row["content"] or "").strip()
+            if not content:
+                continue
+
+            anchor_emb = embed_belief(bid, content)
+            norm_a = np.linalg.norm(anchor_emb)
+            if norm_a == 0:
+                continue
+
+            best_arc = None
+            best_sim = 0.0
+            for arc in recent_arcs:
+                raw = arc["centroid_embedding"]
+                if raw is None:
+                    continue
+                centroid = np.frombuffer(raw, dtype=np.float32)
+                norm_c = np.linalg.norm(centroid)
+                if norm_c == 0:
+                    continue
+                sim = float(np.dot(anchor_emb, centroid) / (norm_a * norm_c))
+                if sim > best_sim:
+                    best_sim = sim
+                    best_arc = arc
+
+            if best_arc is None or best_sim <= 0.7:
+                continue
+            key = (best_arc["id"], bid)
+            if key in already:
+                continue
+
+            try:
+                self._writer.write(
+                    "INSERT INTO arc_closers "
+                    "(arc_id, belief_id, detected_at, meta_confidence, closure_type) "
+                    "VALUES (?, ?, ?, ?, 'bedrock')",
+                    (best_arc["id"], bid, now, best_sim),
+                )
+            except Exception as exc:
+                log.debug("bedrock-closer insert skipped: %s", exc)
+                continue
+
+            existing_id = best_arc.get("closed_by_belief_id")
+            overwrite = existing_id is None
+            if not overwrite:
+                try:
+                    existing_row = self._reader.read_one(
+                        "SELECT MAX(detected_at) AS d FROM arc_closers "
+                        "WHERE arc_id=? AND belief_id=?",
+                        (best_arc["id"], existing_id),
+                    )
+                    if existing_row and existing_row["d"] is not None:
+                        if sv["ts"] > existing_row["d"]:
+                            overwrite = True
+                except Exception:
+                    pass
+
+            if overwrite:
+                try:
+                    self._writer.write(
+                        "UPDATE arcs SET closed_by_belief_id=? WHERE id=?",
+                        (bid, best_arc["id"]),
+                    )
+                except Exception:
+                    pass
+
+            already.add(key)
+            found += 1
+            log.info(
+                "Arc closer (bedrock): arc=%d anchor=%d sim=%.2f overwrite=%s",
+                best_arc["id"], bid, best_sim, overwrite,
+            )
+
         return found

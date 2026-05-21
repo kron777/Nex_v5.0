@@ -291,6 +291,7 @@ CREATE TABLE IF NOT EXISTS arc_closers (
     belief_id           INTEGER NOT NULL,
     detected_at         REAL NOT NULL,
     meta_confidence     REAL NOT NULL,
+    closure_type        TEXT NOT NULL DEFAULT 'template',
     FOREIGN KEY (arc_id) REFERENCES arcs(id),
     FOREIGN KEY (belief_id) REFERENCES beliefs(id)
 );

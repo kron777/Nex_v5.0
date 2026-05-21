@@ -13,8 +13,9 @@ class ArcLoop:
     def __init__(self, writers: dict, readers: dict, interval_seconds: int = 300):
         self._writer = writers["beliefs"]
         self._reader = readers["beliefs"]
+        self._dynamic_reader = readers.get("dynamic")
         self._interval = interval_seconds
-        self._detector = ArcReader(self._writer, self._reader)
+        self._detector = ArcReader(self._writer, self._reader, self._dynamic_reader)
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 
