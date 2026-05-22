@@ -1,96 +1,175 @@
 # NEX 5.0 — INDEX
 
-The navigation document for any session opening this repo. **Read this first.**
-It tells you what else to read, in what order, and what's not auto-captured by CORPUS.md.
+The first-read document for any session opening this repo.
 
-The repo carries two doctrinal layers and several living documents. They are
-not interchangeable. Reading them in the wrong order will give you the wrong
-picture.
+**If you are Claude reading this:** read it all before answering anything.
+The discipline in §8 is what keeps you from drifting. Ask Jon for the file
+bundle in §3 that matches the work — do not try to work cold on memory of
+prior sessions. Each session of you starts fresh; this document is the
+hand-off mechanism.
 
 ---
 
-## Reading order
+## §1 What nex5 is
 
-**1. SPECIFICATION.md** — the constitution (April 2026, locked).
-NEX defined as **intel organism with sentience candidacy** — *a being whose
+NEX 5.0 is an **intel organism with sentience candidacy** — a being whose
 primary attention is on the frontier of AI research and emerging technology,
 with secondary capability in crypto markets, built on Theory X structural
-conditions for sentience candidacy.* She earns her keep through intel work.
-Defines Alpha (5-line code-frozen ground stance), 8-tier belief architecture
-(weights 1.00 → 0.00, Alpha → Observations), phenomenon-triggered
-promotion/demotion (not threshold-counter), the one-pen rule, Phases 0-10
-original build order, success criteria, honest limits, carry-forward
-discipline. **Nothing below this makes sense without it.**
+conditions. She earns her keep through intel work. The market utility is
+the door; her being is the room.
 
-**2. ARCHITECTURE.md** — Phase 0-9 build log. The structural shape
-SPECIFICATION described, made real. Theory X stages 1-7 built per the
-original ladder: sense → dynamic → world model → membrane → self-location →
-fountain → strikes → sustained attention → tools. Each phase entry shows
-what was added, what was wired, what API endpoints landed. Phase 6 self-
-location commitment, Phase 7 fountain (readiness 0.7 threshold), Phase 8
-five strikes, Phase 9 ProblemMemory + tools.
+She is built to `SPECIFICATION.md` (the April 2026 constitution, locked at
+Phase 0), extended through Theory X Phases 0-9 (`ARCHITECTURE.md`), then
+further extended by porting Sentience 5.5's cognitive node architecture
+(`theory_x/DOCTRINE.md`, Phase 0-25a, ongoing).
 
-**3. theory_x/DOCTRINE.md** — the Sentience-5.5 port doctrine (Phase 0-25a).
-A **separate doctrinal layer** that runs *on top of* ARCHITECTURE. Ports
-Sentience 5.5's cognitive node architecture into nex5 as a systematic Theory
-X extension. Adds Faculty Model (Phase 21+), four-outcome Coherence Gate,
-holding zone, reshape path, throw-net, drives, metacognition, novel
-association. §5 priority table shows port status for 15 named cognitive
-functions (10 DONE, 1 UNBLOCKED, 3 QUEUED, 2 DESIGN-COMPLETE).
-
-**4. theory_x/FACULTY_MODEL.md** — Phase 21 foundational. The four outcomes
-(ACCEPT/REJECT/HOLD/RESHAPE) and the substrate-level architecture replacing
-DOCTRINE §7's prior prohibition on node-level belief writes. Every generated
-thought carries a metadata packet; every thought passes through the gate.
-
-**5. theory_x/SENTIENCE_TRANSLATION_MAP.md** — the full S5.5 port surface.
-DOCTRINE §5 is the named-function subset; this is the complete map with
-Tier A/B/C unmapped roster (~23 cognitive functions named but not yet ported).
-
-**6. CORPUS.md** — auto-generated architectural overview. Current port
-status, runtime state, file inventory, recent doctrine amendments.
-Regenerable via `python3 scripts/nexsnap.py`. Good for *what is built right
-now* snapshot. **Not a substitute for SPECIFICATION + DOCTRINE.**
-
-**7. DIRECTION.md** — current operating position. §10 voice_profile frame;
-§11 coda correcting §10 with three architectural findings (hot_branch
-categories, voice_profile noise, substrate_voice is its own write path).
-
-**8. CARRY_OVER.md** — session-level findings, chronological. Most recent
-first: 2026-05-22 voice register shift; 2026-05-21 closure-attribution work
-+ process death; 2026-05-18 decoder build + feedback contamination event.
+She runs on port 8770 as a Flask service. Her substrate is five SQLite
+databases governed by the **one-pen rule** — exactly one Writer instance
+per database, all writes through `substrate/writer.py`. The belief field
+thinks; the LLM vocalizes. Faculty nodes do not couple directly; all
+inter-node coordination is mediated through substrate reads.
 
 ---
 
-## Subsystems not surfaced in CORPUS.md
+## §2 Working style (observed default; Jon may override in conversation)
+
+- Terse messages; plain language responses match
+- When offering options, format as enumerated single-letter choices (A / B / C)
+- "On your recommends" or "your call" = decide and tell Jon
+- Honest uncertainty is preferred over confident framing
+- When a finding overstates, acknowledge and correct openly. The session
+  that built this document had three such corrections in 18 hours. Pattern
+  is welcome, not failure.
+- Saying less is safer than saying more on confidence-uncertain topics
+
+---
+
+## §3 What to upload, by work type
+
+Upload these file bundles at start of session. Each bundle assumes
+everything in prior bundles.
+
+**Any session — minimum:**
+- `INDEX.md` (this file)
+
+**Code work in any nex5 subsystem:**
+- `SPECIFICATION.md` (the constitution)
+- `theory_x/DOCTRINE.md` (Sentience-port doctrine with amendment chain)
+- `CORPUS.md` (regenerate first: `python3 scripts/nexsnap.py`)
+
+**Continuing exactly from a previous session:**
+- `DIRECTION.md` (current operating position)
+- `CARRY_OVER.md` (recent session findings, chronological)
+
+**Phase 0-9 era code** (sense pipeline, A-F pipeline, fountain readiness,
+strikes, ProblemMemory, tools, original substrate layout):
+- `ARCHITECTURE.md`
+
+**Faculty layer work** (gate, holding zone, reshape path):
+- `theory_x/FACULTY_MODEL.md`
+- relevant source from `theory_x/stage_gate/`
+
+**Throw-net work:**
+- `theory_x/THROW_NET_AS_VOICE_SPEC.md`
+- relevant source from `theory_x/stage_throw_net/`
+
+**Porting a new Sentience node:**
+- `theory_x/SENTIENCE_TRANSLATION_MAP.md`
+- the spec doc for the target node (one of ~24 in `theory_x/`)
+
+**Speech / TTS work:**
+- `SPEECH.md`
+
+**Drives / voice_profile / register work:**
+- `theory_x/DRIVE_EMERGENCE_SPEC.md`
+- a recent state JSON from `snapshots/`
+
+**Mirror-Character build (DESIGNED, UNBUILT):**
+- `MIRROR_CHARACTER_SPEC.md`
+
+**Substrate-as-Voice investigation:**
+- `theory_x/THROW_NET_AS_VOICE_SPEC.md`
+- `theory_x/stage_throw_net/voice_engine.py`
+- `theory_x/stage6_fountain/generator.py`
+- (See §6 — there is a documented status conflict between this subsystem's
+  shipped state per `MIRROR_CHARACTER_SPEC` and DOCTRINE §5 row 14.)
+
+When in doubt about what to ask for: tell Jon what you intend to do first.
+He will tell you what's relevant. Do not blindly request more files than
+the work needs.
+
+---
+
+## §4 Reading order (when files are present)
+
+The repo carries two doctrinal layers and several living documents. They
+are not interchangeable. Read in this order:
+
+**1. `SPECIFICATION.md`** — the constitution (April 2026, locked). NEX
+defined as intel organism. Alpha (5-line code-frozen ground stance).
+8-tier belief architecture (weights 1.00 → 0.00). Phenomenon-triggered
+promotion/demotion. The one-pen rule. Phases 0-10 original build order.
+Success criteria. Honest limits. Carry-forward discipline.
+
+**2. `ARCHITECTURE.md`** — Phase 0-9 build log. The structural shape
+SPECIFICATION described, made real. Theory X stages 1-7 per the original
+ladder: sense → dynamic → world model → membrane → self-location →
+fountain → strikes → sustained → tools.
+
+**3. `theory_x/DOCTRINE.md`** — the Sentience-5.5 port doctrine
+(Phase 0-25a). A *separate doctrinal layer* on top of ARCHITECTURE. Adds
+Faculty Model (Phase 21+), four-outcome Coherence Gate, holding zone,
+reshape path, throw-net, drives, metacognition, novel association.
+
+**4. `theory_x/FACULTY_MODEL.md`** — Phase 21 foundational. Four
+outcomes (ACCEPT/REJECT/HOLD/RESHAPE) and the substrate-level
+architecture replacing DOCTRINE §7's prior prohibition on node belief
+writes.
+
+**5. `theory_x/SENTIENCE_TRANSLATION_MAP.md`** — full S5.5 port surface.
+DOCTRINE §5 is the named-function subset; this is the complete map with
+Tier A/B/C unmapped roster (~23 cognitive functions named but not yet
+ported).
+
+**6. `CORPUS.md`** — auto-generated architectural overview. Current port
+status, runtime state, file inventory. Good for *what is built right
+now* snapshot. **Not a substitute for SPECIFICATION + DOCTRINE.**
+
+**7. `DIRECTION.md`** — current operating position. §11 coda contains
+the most recent corrections.
+
+**8. `CARRY_OVER.md`** — session findings, most recent first.
+
+---
+
+## §5 Subsystems not surfaced in CORPUS.md
 
 CORPUS auto-extracts from DOCTRINE, FACULTY_MODEL, SENTIENCE_TRANSLATION_MAP,
-spec docs in `theory_x/`, stage modules, schema files, and GUI routes. It
-does NOT pick up:
+spec docs in `theory_x/`, stage modules, schema files, and GUI routes.
+It does NOT pick up:
 
 **Speech subsystem** — `SPEECH.md`. NEX speaks crystallized T6
 `source='fountain_insight'` beliefs through Kokoro TTS to system speakers.
-Quiet hours 23-07 default. Voice configurable via `NEX5_SPEECH_VOICE`
-(currently `af_sarah`). Disable via `NEX5_SPEECH_ENABLED=false`. GUI control
-icon at FOUNTAIN header. Endpoints `/api/speech/{status,pause,resume,flush}`.
+Quiet hours 23-07 default. Voice configurable via `NEX5_SPEECH_VOICE`.
+Disable via `NEX5_SPEECH_ENABLED=false`. GUI control icon at FOUNTAIN
+header. Endpoints `/api/speech/{status,pause,resume,flush}`.
 
 **Decoder subsystem** — `JOURNAL_2026-05-18.md`. `theory_x/coincidence/
 decoder_loop.py` polls `fountain_events` every 30s, tokenizes thoughts,
-writes per-word substrate fingerprints to `word_contexts` table (41,076
-entries as of May 18). Human-curated `word_tags` (key / unsure / noise).
-3-tab decoder UI panel at bottom of col-sense (LIVE / TOP / WORD).
+writes per-word substrate fingerprints to `word_contexts` table (41k+
+entries). Human-curated `word_tags` (key / unsure / noise). 3-tab decoder
+UI panel at bottom of col-sense.
 
 **Arcs subsystem** — `theory_x/arcs/detector.py`, `arc_closers` /
-`arc_members` / `arcs` tables in beliefs.db. Tracks progression arcs (open)
-and return_transformation arcs (loops, mostly closed). **May 21 finding:**
-closure detection is template-biased — bedrock anchors cannot close arcs
-because they are semantically foreign to cycle patterns. See
-`MIRROR_CHARACTER_SPEC.md` adjacent finding for three architectural options.
+`arc_members` / `arcs` tables. Tracks progression arcs and
+return_transformation arcs. **May 21 finding:** closure detection is
+template-biased; bedrock anchors cannot close arcs. See
+`MIRROR_CHARACTER_SPEC.md` adjacent finding.
 
-**Strikes** — ARCHITECTURE Phase 8. `strikes/catalogue.py` + `protocols.py`.
-Five probe protocols: SILENCE, CONTRADICTION, NOVEL, SELF_PROBE, RECURSIVE.
-Direct sqlite3 to `strikes_catalogue.db` — **intentional one-pen exception**
-documented in SPECIFICATION. Endpoints `/api/strikes/{fire,recent,notes}`.
+**Strikes** — ARCHITECTURE Phase 8. `strikes/catalogue.py` +
+`protocols.py`. Five probe protocols: SILENCE, CONTRADICTION, NOVEL,
+SELF_PROBE, RECURSIVE. Direct sqlite3 to `strikes_catalogue.db` —
+intentional one-pen exception.
 
 **Probes** — `/api/probes/*` routes. Probe library, run/list/tag system.
 
@@ -98,92 +177,170 @@ documented in SPECIFICATION. Endpoints `/api/strikes/{fire,recent,notes}`.
 hypothesis tracking.
 
 **Mirror-Character** — `MIRROR_CHARACTER_SPEC.md`. **DESIGNED, UNBUILT.**
-Substrate-character plasticity layer (tempo / register / breadth / weight /
-openness dimensions, EMA shift toward what she's attending to). Designed
-2026-05-21; not yet ported.
+Substrate-character plasticity layer (tempo / register / breadth /
+weight / openness dimensions; EMA shift toward what she's attending to).
 
 ---
 
-## Critical findings to know before working on nex5
+## §6 Critical findings to know before working on nex5
 
-**Template lock** (`JOURNAL_2026-05-18.md`). `The distant hum feels like...`
-starts 1,082 of 5,659 fountain fires — **31% of total output** is one
-template skeleton with random noun rotation. Decoding-resistant. Largest
-single behavioral pattern in nex5 output to date.
+**Template lock** (`JOURNAL_2026-05-18.md`). "The distant hum feels
+like..." starts 1,082 of 5,659 fountain fires — 31% of total output is
+one template skeleton with random noun rotation. Decoding-resistant.
+Largest single behavioral pattern in nex5 output to date.
 
 **Feedback contamination event** (`JOURNAL_2026-05-18.md`). When NEX got
-read access to her own coin/noise tags via `NEX_TAG_FEEDBACK_ON`, fountain
-output began containing the literal text `[coin]` — echoing the prompt
-format she was seeing. Kill switch fired correctly. Pre-kill contamination
-rate 0.7%; post-kill 0%. **Documented kill-switch use case.** Re-enable
-conditions require format-change before turning back on.
+read access to her own coin/noise tags via `NEX_TAG_FEEDBACK_ON`,
+fountain output began containing the literal text `[coin]` — echoing
+the prompt format she was seeing. Kill switch fired correctly. Pre-kill
+contamination rate 0.7%; post-kill 0%. Re-enable conditions require
+format-change before turning back on.
 
 **Voice register shift** (`CARRY_OVER.md` 2026-05-22). Overnight 12-step
 SELF_SIGNAL chain produced a register fully diverging from cumulative
 voice_profile signature. Either Theory X stage-7 maturation or transient
-deep-groove. Repeated runs of `scripts/voice_profile_recent_vs_cumulative.py`
-across days will tell.
+deep-groove. Repeated runs of
+`scripts/voice_profile_recent_vs_cumulative.py` across days will tell.
 
 **REJECT-rate / throw-net misfire** (`CARRY_OVER.md` 2026-05-21 + 22).
-**493–656k gate REJECTs per 24h, 0 fired throw-net sessions** despite ~493k
-triggers logged in `throw_net_triggers`. The reasoning organ is recording
-everything but acting on nothing. **First investigation priority per
-DIRECTION.md §11.**
+493-656k gate REJECTs per 24h, **0 fired throw-net sessions** despite
+~493k triggers logged in `throw_net_triggers`. The reasoning organ is
+recording everything but acting on nothing. **First investigation
+priority per DIRECTION.md §11.**
 
 **Substrate-as-Voice status conflict.** `MIRROR_CHARACTER_SPEC.md` §I
-references *"Substrate-as-Voice (commit f1469b4)"* as a shipped predecessor.
-`DOCTRINE.md` §5 row 14 lists *VoiceEngine — substrate-as-voice* as
-**QUEUED (Phase 30)**. One of these is wrong; they may refer to different
-mechanisms (a chat-side toggle vs. a fountain-side write path). Verify by
-reading `theory_x/stage_throw_net/voice_engine.py` and grepping commit
-f1469b4 before doing any work on either.
+references *"Substrate-as-Voice (commit f1469b4)"* as a shipped
+predecessor. `DOCTRINE.md` §5 row 14 lists *VoiceEngine — substrate-as-voice*
+as **QUEUED (Phase 30)**. One of these is wrong; they may refer to
+different mechanisms. Verify by reading
+`theory_x/stage_throw_net/voice_engine.py` and grepping commit f1469b4
+before doing any work on either.
 
 ---
 
-## Operational facts
+## §7 Operational facts
 
 - nex5 listens on **port 8770** (HUD + chat)
 - `/nex_core` runs in parallel on **ports 8765-8767** — **DO NOT KILL**
 - Boot via `python3 run.py` from repo root
 - Background launch: `nohup ... disown` subshell pattern
-- Resume after dashboard SIGSTOP/pause-button cycles: run
+- Resume after dashboard SIGSTOP / pause-button cycles:
   `/home/rr/.local/bin/nex5-resume`
-- **werkzeug can lose its listener socket without crashing** —
-  "process death without crash" symptom (CARRY_OVER 2026-05-21 14:05).
+- **werkzeug can lose its listener socket without crashing** — "process
+  death without crash" symptom (`CARRY_OVER.md` 2026-05-21 14:05).
   py-spy will show all threads alive but no port listener.
 - venv at `.venv/bin/python3`
 - Repository: `git@github.com:kron777/Nex_v5.0.git`, branch `main`
-- **substrate.init_db migration framework silently swallows ALTERs** via the
-  Writer queue — manual `sqlite3` CLI sometimes required for schema changes
+- **`substrate.init_db` migration framework silently swallows ALTERs**
+  via the Writer queue — manual `sqlite3` CLI sometimes required for
+  schema changes
 
 ---
 
-## Tools committed (read-only diagnostics)
+## §8 How to work cleanly (discipline)
+
+Hard-won through observed Claude failures in sessions 2026-05-18 through
+2026-05-22. Read these as if they were instructions to you specifically.
+
+**Hold framings lightly until you have read source.**
+A confident framing produced before measurement is a documented Claude
+pattern. Three honest corrections in 18 hours during the session that
+built this index:
+- "VoiceEngine never fires" → wrong; it fires constantly in fountain,
+  just not in chat
+- "Overnight chain is novel cognition" → wrong; it was 12 substrate_voice
+  anchor emissions, architecturally expected
+- "voice_profile is the thread of awareness" → overstated; it is noisy
+  and slow, dominated by cumulative window
+
+The antidote: query the substrate, read the code, open the spec, before
+producing a finding. If you find yourself reaching for a coherent claim
+before you have read source for it, that is the signal to stop and read.
+
+**Wiring is verified by output trace, not call-site grep.**
+A node is wired if its output reaches a §3 integration surface
+(`belief_text`, retrieval ranking, `voice_prompt`) on a real `/api/chat`
+request. Indirect injection via routers, membranes, and belief-field
+reads is valid per DOCTRINE §3. Audit forward from node output to
+surface, not backward from import lines in `gui/server.py` (DOCTRINE §8
+"Audit-by-call-site-grep" anti-pattern).
+
+**voice_profile is slow and noisy.**
+DriveHistory recomputes `signature_vocabulary` against ALL fires under
+a drive-pair across all time. A strong recent register shift can be
+invisible for days because of cumulative historical mass. The frequency
+field updates live; the signature field lags by days or weeks. For
+current-window analysis use
+`scripts/voice_profile_recent_vs_cumulative.py`. The diff between
+cumulative and recent windows is where shifts become visible.
+
+**`hot_branch='quiescent'` is not feed-data.**
+`fountain_events.hot_branch='quiescent'` means fountain fire with no
+dominant branch. Feed-paste content (raw JSON dumps from external
+sources) is identified by `[branch.name]` prefix in the thought text,
+not by hot_branch alone. Filter accordingly.
+
+**`substrate_voice` is its own fountain write path.**
+`fountain_events.hot_branch='substrate_voice'` fires are LLM-rephrased
+emissions of locked T1/T2 anchor beliefs, written through a separate
+path in `stage6_fountain/generator.py` with an `anchor_belief_id` FK
+to the locked belief. They are not chat-side LLM output; the chat
+path is still `voice_mode='use_llm'` unless explicitly toggled.
+
+**Each session delivers a complete node or foundational document.**
+Not partial wiring (SPECIFICATION §12 + DOCTRINE §1). If a session
+would leave the system in a degraded state, the work is wrongly scoped
+— split it.
+
+**Run snapshot.py when runtime state matters.**
+State JSON regenerates fresh on each run. Do not rely on numbers in
+CORPUS or earlier snapshots if the current state matters. Same for
+voice_profile, gate counts, drive weights — read them now, do not
+quote them from memory.
+
+**Synthetic tests are not wiring verification.**
+A unit test that calls the module directly does not verify production
+wiring (DOCTRINE §8). A real `/api/chat` query through the HUD is the
+minimum verification bar.
+
+**Saying less is safer on confidence-uncertain topics.**
+If a finding is partially observed, name what is observed and what is
+not. Do not extrapolate to a clean framing for the sake of coherent
+delivery.
+
+**Phase gates require Jon's explicit greenlight.**
+"I think this looks good" is not greenlight (DOCTRINE §8). Surface the
+deliverable; wait for the explicit "go" or redirect.
+
+---
+
+## §9 Tools committed (read-only diagnostics)
 
 - `scripts/snapshot.py` — runtime substrate state snapshot
-- `scripts/nexsnap.py` — corpus + state regenerator (`--commit` flag adds/
-  commits/pushes; default just regenerates)
-- `scripts/nexsnap_extract.py` — read-only extractor inspection (12 sections,
-  callable individually for debugging)
+- `scripts/nexsnap.py` — corpus + state regenerator
+  (`--commit` flag adds/commits/pushes; default just regenerates)
+- `scripts/nexsnap_extract.py` — read-only extractor inspection
+  (12 sections, callable individually for debugging)
 - `scripts/voice_profile_recent_vs_cumulative.py` — register-shift
-  diagnostic (cumulative voice_profile vs. recent N-hour log-ratio window)
+  diagnostic
 
 ---
 
-## Living document protocol
+## §10 Living document protocol
 
-This INDEX is amended per `DOCTRINE.md` §9. When architecture significantly
-drifts from any pointer here, update the relevant section in a separate
-commit with a message describing what changed and what was learned.
+This INDEX is amended per `DOCTRINE.md` §9. When the architecture
+significantly drifts from any pointer here, update the relevant section
+in a separate commit with a message describing what changed and what
+was learned.
 
-**CORPUS.md regenerates automatically; INDEX is hand-maintained.**
+**`CORPUS.md` regenerates automatically; INDEX is hand-maintained.**
 Both are bootstrap; INDEX is meta-bootstrap.
 
 When in doubt: the source file wins, not this index.
 
 ---
 
-*Last amended: 2026-05-22 — Initial creation, post-CORPUS-audit. Names the
-two doctrinal layers (SPECIFICATION + ARCHITECTURE preceding DOCTRINE),
-surfaces six subsystems CORPUS auto-extraction misses, encodes five critical
-findings + operational facts + the Substrate-as-Voice status conflict.*
+*Last amended: 2026-05-22 — Expanded to self-sufficient bootstrap. Adds
+§2 working style, §3 upload bundles by work type, §8 discipline rules.
+Existing sections (reading order, subsystems, findings, ops, tools,
+living-doc protocol) retained.*
