@@ -1,0 +1,49 @@
+{
+  "snapshot_at": 1779435539.088481,
+  "snapshot_at_str": "2026-05-22 09:38:59",
+  "runtime": {
+    "drives": {
+      "coherence": 0.23710170682132198,
+      "exploration": 0.13481243627258965,
+      "integration": 0.25097622898846095,
+      "self_preservation": 0.24581101199207342,
+      "curiosity": 0.13129861592555392,
+      "tension_pairs": "[[\"integration\", \"self_preservation\"]]"
+    },
+    "voice_profile": [
+      {
+        "pair": "integration_vs_self_preservation",
+        "freq": 878
+      },
+      {
+        "pair": "coherence_vs_curiosity",
+        "freq": 207
+      }
+    ],
+    "fountain_24h_by_branch": {
+      "systems": 384,
+      "quiescent": 133,
+      "substrate_voice": 118,
+      "emerging_tech": 41,
+      "ai_research": 3
+    },
+    "gate_24h": {
+      "ACCEPT": 254268,
+      "HOLD": 152,
+      "REJECT": 485284
+    }
+  },
+  "port_status_counts": {
+    "DONE": 10,
+    "UNBLOCKED": 1,
+    "QUEUED": 3,
+    "DESIGN-COMPLETE": 2
+  },
+  "fountain_by_branch_24h": {
+    "systems": 384,
+    "quiescent": 133,
+    "substrate_voice": 118,
+    "emerging_tech": 41,
+    "ai_research": 3
+  }
+}
