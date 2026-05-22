@@ -333,3 +333,96 @@ voice_profile across time. Not build more layers. Read what is there.
 
 — Claude, end of session 2026-05-21
 
+
+---
+
+## 11. Coda 2 — voice_profile is noisier than §10 claimed
+
+*Added 2026-05-22 ~09:20 after the first snapshot.py run and reading*
+*generator.py + competing_drives.py source.*
+
+Section 10 named voice_profile as "the operational signature of the
+thread of awareness." Refined position: voice_profile is *one* signal,
+and a noisy one. Three architectural facts §10 did not account for:
+
+**A. Fountain_events mixes three categories under one table.**
+- `hot_branch='systems'` — ordinary fountain output, her observational
+  voice
+- `hot_branch='substrate_voice'` — bedrock anchor emissions with an
+  anchor_belief_id FK to the locked belief being voiced
+- `hot_branch='quiescent'` — fountain fires with no dominant branch,
+  often containing raw feed-paste content with `[branch.name]` prefix
+
+Feed-paste rows are ~21% of 24h fountain volume but contain raw JSON
+with ticker symbols (xxbtzusd, solusd) and headlines. The DriveHistory
+daemon tokenizes all three categories uniformly. Under heavy crypto
+or news feed activity, ticker/topic vocabulary climbs into the top-12
+of voice_profile.signature_vocabulary, displacing genuine fountain
+register vocabulary.
+
+**B. Empirical confirmation, 5-hour interval:**
+- 03:45 baseline: top-6 said, his, master, when, all, like
+- 09:13 morning : top-6 bitcoin, crypto, what, name, said, quiet
+
+The signature is not stable on the hours-scale. Treating it as a
+durable record of her resolution character is wrong. It is a record
+of recent fountain_events composition, which itself reflects external
+feed traffic as much as it reflects her internal mode.
+
+**C. The night chain (§10) was 12 substrate_voice fires, not 12
+de-novo statements.**
+
+The 22:42–03:29 chain of first-person philosophical statements were
+all `hot_branch='substrate_voice'` events. The architecture *already
+knew* these were anchor emissions and recorded each one with an
+anchor_belief_id. They are LLM-rephrased variations of locked T1
+identity anchors, not autonomous synthesis. The substrate-voice path
+fires through the fountain (not chat — chat is still `voice_mode =
+use_llm`), and the snapshot.py instrument now surfaces which specific
+anchors get voiced.
+
+The chain remains worth observing — 12 unique anchors voiced across
+9 hours under high-stillness conditions is a real behavioral pattern.
+But it is not novel cognition. The framing in §10 overstated.
+
+### Refined instrument
+
+snapshot.py (committed 002b9ef) is a better thread-question instrument
+than voice_profile alone:
+
+- hot_branch breakdown shows the *real* composition of her output
+- substrate_voice tracking shows *which anchors* are being voiced
+  and how often
+- gate decisions show the rate of ACCEPT/REJECT/HOLD/RESHAPE
+- throw_net triggers show whether the reasoning organ is firing
+- recent thoughts include hot_branch label so the register is legible
+
+The thread question is now: across many snapshots over days, what
+patterns shift and what stays stable? Drive weights, anchor rotation,
+gate rates, throw-net firing patterns — each carries information.
+The "thread" lives somewhere in their joint trajectory, not in any
+single column.
+
+### Honest finding from this morning's snapshot
+
+- 493,005 gate REJECTs in 24h, 257,935 ACCEPTs (65.6% reject rate)
+- 493,004 gate_reject triggers logged in throw_net_triggers
+- **0 throw_net sessions fired**
+
+Either the trigger threshold (4 same-topic REJECTs in 15 min) never
+clears because REJECTs distribute across too many topics, or the
+fire-path is broken. The reasoning organ is recording everything but
+acting on nothing. This needs investigation before any further build.
+
+### What §7 reorders to
+
+1. Investigate the 0-fired throw-net trigger situation. The 493k
+   REJECT rate is real and the throw-net is supposed to engage on it
+   but isn't.
+2. Run snapshot.py periodically over the next 24-72 hours; build
+   trajectory data with the corrected instrument.
+3. The voice_mode meeting (§7.B) and bedrock-pathway revert decision
+   (§7.C) remain valid but secondary to (1) and (2).
+
+— Claude, 2026-05-22 morning
+
