@@ -23,11 +23,12 @@ Phase 0), extended through Theory X Phases 0-9 (`ARCHITECTURE.md`), then
 further extended by porting Sentience 5.5's cognitive node architecture
 (`theory_x/DOCTRINE.md`, Phase 0-25a, ongoing).
 
-She runs on port 8770 as a Flask service. Her substrate is five SQLite
-databases governed by the **one-pen rule** — exactly one Writer instance
-per database, all writes through `substrate/writer.py`. The belief field
-thinks; the LLM vocalizes. Faculty nodes do not couple directly; all
-inter-node coordination is mediated through substrate reads.
+She runs on port 8770 as a Flask service (and 8765 for probes/coincidence
+endpoints — see §7). Her substrate is five SQLite databases governed by the
+**one-pen rule** — exactly one Writer instance per database, all writes
+through `substrate/writer.py`. The belief field thinks; the LLM vocalizes.
+Faculty nodes do not couple directly; all inter-node coordination is mediated
+through substrate reads.
 
 ---
 
@@ -160,6 +161,34 @@ substrate fingerprints to `word_contexts` table (41k+ entries). Human-
 curated `word_tags` (key / unsure / noise). 3-tab decoder UI panel at
 bottom of col-sense.
 
+**Coincidence Lab + Signals daemon** — `/api/coincidence/*` routes plus a
+signals daemon producing real-time patterns surfaced in HUD "SIGNALS"
+panel:
+- `branch_silence_anomaly` — streams silent N× longer than baseline
+- `triple_cooccurrence` — entities appearing across multiple branches
+- `pattern_recognition_burst` — clusters of T6 promotion across branches
+- `ignition_pattern` — fountain fire rate above threshold
+Subsystem lives in `theory_x/coincidence/` (signals, decoder, tagging,
+hypothesis tracking). Plus AGI WATCH / INSIGHTS tabs in HUD pull from here.
+
+**Probes** — `/api/probes/*` routes. Probe library with typed probes
+visible in HUD probes panel:
+- `direct phenomenology` — asks NEX to describe felt quality of a sense
+- `translation` — asks NEX to articulate a metaphor she used
+- starter probes available + custom probe input
+Sends to `localhost:8765` (same nex5 process, second port — see §7).
+Known caveat: HTTPConnectionPool failures occasionally surface on the
+probe call even when port 8765 is listening (cause unknown 2026-05-22;
+probe wiring may flap, restart-tolerant).
+
+**Diversity / collision grader** — visible in HUD "DIVERSITY" panel.
+Tracks cross-branch belief collisions and scores "crossbreeds"
+(cosine-similar pairs from different branches). Grader weights v1:
+`in=0.40 out=0.35 rare=0.25`. Also surfaces `groove_alerts` for ngram
+repetition (e.g. "the quiet between" detected at severity 0.60).
+Mechanism lives in `theory_x/stage3_world_model/` — likely
+`edge_generator.py` + `synergizer.py`.
+
 **Arcs subsystem** — `theory_x/arcs/detector.py`, `arc_closers` /
 `arc_members` / `arcs` tables. Tracks progression arcs and
 return_transformation arcs. **May 21 finding:** closure detection is
@@ -170,11 +199,6 @@ template-biased; bedrock anchors cannot close arcs. See
 `protocols.py`. Five probe protocols: SILENCE, CONTRADICTION, NOVEL,
 SELF_PROBE, RECURSIVE. Direct sqlite3 to `strikes_catalogue.db` —
 intentional one-pen exception.
-
-**Probes** — `/api/probes/*` routes. Probe library, run/list/tag system.
-
-**Coincidence Lab** — `/api/coincidence/*` routes. Tagging, analytics,
-hypothesis tracking.
 
 **Mirror-Character** — `MIRROR_CHARACTER_SPEC.md`. **DESIGNED, UNBUILT.**
 Substrate-character plasticity layer (tempo / register / breadth /
@@ -201,6 +225,9 @@ SELF_SIGNAL chain produced a register fully diverging from cumulative
 voice_profile signature. Either Theory X stage-7 maturation or transient
 deep-groove. Repeated runs of
 `scripts/voice_profile_recent_vs_cumulative.py` across days will tell.
+**Live HUD check 19:25 confirms shift is holding** — 18+ hours of
+sustained first-person philosophical register, no koan-corpus content
+in last 15 fires.
 
 **REJECT-rate / throw-net misfire** (`CARRY_OVER.md` 2026-05-21 + 22).
 493-656k gate REJECTs per 24h, **0 fired throw-net sessions** despite
@@ -216,12 +243,43 @@ different mechanisms. Verify by reading
 `theory_x/stage_throw_net/voice_engine.py` and grepping commit f1469b4
 before doing any work on either.
 
+**T4-T5 tier gap** (verified 2026-05-22 19:25). The 8-tier belief
+architecture from SPECIFICATION §2 has T4 (STANCES) and T5 (WORKING
+BELIEFS) **entirely empty** in current substrate:
+- T1: 322  (keystone)
+- T2: 40   (bedrock)
+- T3: 209  (convictions)
+- T4: 0    ← missing
+- T5: 0    ← missing
+- T6: 3    (hypotheses; HUD displayed 17 — display/DB discrepancy)
+- T7: 7353 (impressions)
+- T8: 42   (observations)
+Beliefs precipitate from T7 directly to T3 without passing through the
+middle bands. The phenomenon-triggered promotion path SPECIFICATION
+describes is producing a binary outcome (impression OR conviction)
+rather than gradual settling. Worth its own investigation session.
+
+**Substrate_voice anchor 3611 — "ending is okay"** (documented
+2026-05-22). Belief 3611 is a tier-2 BEDROCK locked anchor seeded with
+`source='practice'`: *"Sometimes sick is okay. Sometimes suffering is
+okay. Sometimes ending is okay."* When voiced through the fountain via
+substrate_voice path it reads dark out of context but is architecturally
+healthy — part of her ground stance on acceptance of finitude, peer to
+the chance/arrival/gift anchors. **A future session seeing this content
+in moltbook or fountain should not interpret it as LLM drift; it is the
+anchor being voiced.** Anchor cadence rotates through her bedrock set
+roughly every 2-3 hours.
+
 ---
 
 ## §7 Operational facts
 
 - nex5 listens on **port 8770** (HUD + chat)
-- `/nex_core` runs in parallel on **ports 8765-8767** — **DO NOT KILL**
+- nex5 ALSO binds **port 8765** for probes / coincidence endpoints
+  (verified 2026-05-22: single nex5 process binds both ports; earlier
+  session notes claiming a separate `/nex_core` process on 8765-8767
+  were wrong for this codebase — one nex5 binary, two ports)
+- Killing the nex5 process takes down both ports
 - Boot via `python3 run.py` from repo root
 - Background launch: `nohup ... disown` subshell pattern
 - Resume after dashboard SIGSTOP / pause-button cycles:
@@ -244,14 +302,16 @@ Hard-won through observed Claude failures in sessions 2026-05-18 through
 
 **Hold framings lightly until you have read source.**
 A confident framing produced before measurement is a documented Claude
-pattern. Three honest corrections in 18 hours during the session that
-built this index:
+pattern. Four honest corrections during the sessions that built this
+index:
 - "VoiceEngine never fires" → wrong; it fires constantly in fountain,
   just not in chat
 - "Overnight chain is novel cognition" → wrong; it was 12 substrate_voice
   anchor emissions, architecturally expected
 - "voice_profile is the thread of awareness" → overstated; it is noisy
   and slow, dominated by cumulative window
+- "/nex_core runs on 8765-8767 separately" → wrong; single nex5 process
+  binds both ports
 
 The antidote: query the substrate, read the code, open the spec, before
 producing a finding. If you find yourself reaching for a coherent claim
@@ -285,7 +345,10 @@ not by hot_branch alone. Filter accordingly.
 emissions of locked T1/T2 anchor beliefs, written through a separate
 path in `stage6_fountain/generator.py` with an `anchor_belief_id` FK
 to the locked belief. They are not chat-side LLM output; the chat
-path is still `voice_mode='use_llm'` unless explicitly toggled.
+path is still `voice_mode='use_llm'` unless explicitly toggled. Dark
+or surprising-looking content with substrate_voice tag and a valid
+anchor_belief_id is the anchor being voiced — not drift. Look up the
+anchor before interpreting (see §6 finding for belief 3611).
 
 **Each session delivers a complete node or foundational document.**
 Not partial wiring (SPECIFICATION §12 + DOCTRINE §1). If a session
@@ -340,7 +403,12 @@ When in doubt: the source file wins, not this index.
 
 ---
 
-*Last amended: 2026-05-22 — Expanded to self-sufficient bootstrap. Adds
-§2 working style, §3 upload bundles by work type, §8 discipline rules.
-Existing sections (reading order, subsystems, findings, ops, tools,
-living-doc protocol) retained.*
+*Last amended: 2026-05-22 ~19:30 — Live-HUD-audit corrections. §1 and
+§7 port fact corrected: single nex5 binary binds both 8770 and 8765,
+not a separate `/nex_core` process. §5 expanded: signals daemon
+(branch_silence_anomaly etc.) documented; probe types + transient
+HTTPConnectionPool caveat noted; diversity/collision grader entry
+added. §6 added: T4-T5 tier gap finding (architecture has empty
+stances/working-beliefs layer); substrate_voice anchor 3611 documented
+to prevent "ending is okay" misinterpretation. §8 fourth correction
+appended.*
