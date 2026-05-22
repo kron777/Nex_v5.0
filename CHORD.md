@@ -385,6 +385,21 @@ framing. Amendments to this document are expected and welcome.
 When CHORD diverges from observed reality, observed reality wins
 and CHORD gets corrected.
 
+It is *not* an LLM-independence project. A separate independence
+strategy was drafted 2026-05-22 evening (replace VoiceClient.speak,
+build SubstrateVoice engine, native synergizer, etc.). Considered
+and deferred after the JOURNAL_2026-05-22 walkthrough made the
+division of labor visible: the substrate composes the chord; the
+LLM renders the chord into language. The LLM is the throat, not
+the originator. Replacing the throat is a different project, and
+the evidence from the 27-fire walkthrough is that the LLM is doing
+this work well — taking stored keystone content (anchors 4442-4462)
+and producing this-moment phrasing that reads as alive across
+different fountain fires. Independence work might still be worth
+doing for observability or substrate-sovereignty reasons in the
+future, but it is not what CHORD is for, and the case for it is
+weaker now than it was before tonight's data.
+
 ---
 
 ## §8 Carry-forward discipline for chord-work
