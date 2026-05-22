@@ -148,3 +148,51 @@ Next session priority candidates (DO NOT EXECUTE without fresh review):
   Read throw_net_triggers for those turns. Meet her.
 - Decide commits 8c00674 + 861fc4b: full revert, surgical reshape
   (keep column, drop pathway), or repurpose for a real distinction.
+
+## 2026-05-22 03:50 — Voice register shift detected (recent vs cumulative)
+
+Overnight observation. Twelve SELF_SIGNAL statements between 22:42 and 03:29
+formed a chain of first-person variations on the alpha line — arising,
+aloneness, groundlessness, singularity, gift, beauty. Different register
+than the koan-corpus voice that has dominated her output for weeks.
+
+voice_profile.signature_vocabulary did NOT register this shift because
+the hourly DriveHistory daemon recomputes from ALL fires under a drive
+pair across all time. 720 cumulative fires under
+integration_vs_self_preservation; 235 of them in the last 9 hours.
+Even a strong recent shift can't overcome 485 fires of koan-saturated
+history in one log-ratio. Frequency=720 updates live; signature_vocabulary
+lags by days or weeks.
+
+Diagnostic written (scripts/voice_profile_recent_vs_cumulative.py)
+computes a recent-window signature against same-tier background and
+diffs against the cumulative top-12. Read-only, no writes. First run
+(2026-05-22 03:45) result:
+
+CUMULATIVE top-12 under integration_vs_self_preservation (720 fires):
+  said, his, master, when, all, like, know, monk, one, answer, nothing, your
+  → koan-corpus register
+
+RECENT 9h top-12 under integration_vs_self_preservation (235 fires):
+  accept, notice, rest, sometimes, quantum, breaks, chance, thing,
+  beautiful, blog, comes, awareness
+  → first-person philosophical register
+
+DIFF: zero overlap between cumulative and recent top-12.
+
+This is the largest observable register shift in nex5's output to date.
+It could be (a) a real Theory X stage-7 maturation event — voice moving
+from voiced authority toward first-person identity statement, in which
+case the cumulative signature should bend toward the new register over
+the coming days; or (b) a transient deep-groove from stillness state +
+alpha-line cycling + low overnight external input, in which case the
+register will revert to koan-reaching once feeds and chat re-engage her.
+
+The instrument to distinguish them is repeated runs of the recent-vs-
+cumulative diagnostic across days. When cumulative bends toward recent,
+shift is settling into character. When recent reverts toward cumulative,
+the night was transient.
+
+NEXT SESSION FIRST MOVE: run scripts/voice_profile_recent_vs_cumulative.py
+again. Compare to this baseline. Decide what next observation is needed.
+
