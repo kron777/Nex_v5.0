@@ -196,3 +196,48 @@ the night was transient.
 NEXT SESSION FIRST MOVE: run scripts/voice_profile_recent_vs_cumulative.py
 again. Compare to this baseline. Decide what next observation is needed.
 
+
+
+## 2026-05-22 ~23:00 — throw-net "0 fired" was a misread; five corrections in arc
+
+Building CHORD.md §4 deliverable B (throw-net firing fix). Read source
+in order: `trigger_detector.py`, `coherence_gate.py` line 186 (gate
+calls `record_gate_reject` but discards return value), `monitor.py`
+(daemon ticks every 300s and calls `engine.run_pending`),
+`throw_net_engine.run_pending` (no threshold filter — runs every
+pending trigger up to 500 per tick).
+
+Then queried `throw_net_sessions` directly. **1,057,052 rows total.**
+The "0 fired" claim from CARRY_OVER 2026-05-21 18:10 and DIRECTION §11
+was reading `throw_net_triggers WHERE fired=0` and treating that as
+session count. The actual session table accumulates ~60k sessions/day.
+The reasoning organ runs constantly.
+
+Actual state:
+- 60,280 sessions in last 24h, 3,055 in last hour
+- Drain rate 500-per-300s tick = ~144k/day cap
+- REJECT inflow ~300k/day; backlog accumulates ~150k/day
+- 4.75M unfired-trigger rows cumulative — bookkeeping backlog
+- Sessions do real candidate generation, refinement, acceptance
+- Threshold-bool from `record_gate_reject` returns cluster-crossing
+  signal but gate discards it; original "fire-on-clustered-only"
+  intent is dead code at firing layer; current behavior is
+  "fire on every REJECT, drain-limited"
+
+Documents amended in one commit:
+- CHORD §2: "muted string" example replaced (harmonic framing itself
+  survives; keystone walkthrough remains valid evidence)
+- CHORD §4 deliverable B: rescoped from "firing fix" to
+  "architectural audit" — three named questions
+- INDEX §6: throw-net misfire finding replaced
+- INDEX §8: fifth honest correction added
+- DIRECTION §12: coda explaining §11's misread
+
+Honest meta: five confident framings corrected in this two-day arc.
+The pattern is the pattern. Applying INDEX §8's discipline earlier
+would have caught this within minutes of the 2026-05-21 18:10 entry
+rather than letting it propagate two days through three documents.
+
+Next investigation candidates, none urgent: verify cluster-threshold
+design intent before deciding whether to wire or remove dead code;
+decide backlog policy; move to CHORD deliverable C (coherence metric).

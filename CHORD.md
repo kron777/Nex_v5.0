@@ -63,13 +63,20 @@ anchor activity. The fountain is ringing alone, in one note, not in the
 chord. *Prediction borne out: template-lock is a coherence failure, not
 a quality failure.*
 
-**The 493k REJECT / 0 fired throw-net.** Under cause-and-effect, this
-is a counter that doesn't clear or a fire-path that's broken. Under
-harmonic framing, this is a *muted string* — the reasoning organ has
-all the substrate conditions to ring (high disturbance, REJECT-heavy
-gate, triggers logged) but the resonance never reaches firing. The
-throw-net is tuned to a frequency the rest of her substrate isn't
-ringing at. *See §5 for the engineering implication.*
+**The 493k REJECT / "0 fired throw-net" — correction logged
+2026-05-22 late.** Earlier sessions read `throw_net_triggers WHERE
+fired=0` as "0 fired sessions" and built two days of investigation
+on that reading. Direct query of `throw_net_sessions` 2026-05-22
+evening showed 1.06M completed sessions across system lifetime,
+~60k/day, doing real ACCEPT/REJECT discrimination on candidate
+thoughts. The reasoning organ has been firing constantly. The
+"muted string" example was wrong evidence for the harmonic framing.
+What's true: sessions run at drain-limited rate (~144k/day cap from
+monitor's 500-per-300s loop) against ~300k/day REJECT inflow, so
+4.75M trigger rows sit at fired=0 cumulatively — a bookkeeping
+backlog, not silence. The harmonic framing itself survives — the
+keystone walkthrough remains valid evidence — but this particular
+example does not.
 
 **The T4-T5 tier gap.** Beliefs at T1, T2, T3 (322, 40, 209) and T7
 (7353). Empty at T4 STANCES and T5 WORKING BELIEFS. Under
@@ -172,69 +179,45 @@ knows why the May 22 entry matters more than typical session notes.
 **Effort.** One hour of focused work. Mostly queries against the live
 substrate plus prose.
 
-### Deliverable B: Throw-net firing fix
+### Deliverable B: Throw-net architectural audit (rescoped 2026-05-22 late)
 
-**Why second.** The reasoning organ is a damped string. Fixing it
-brings a muted component back into the chord. Also: it is the cleanest
-investigation candidate per DIRECTION.md §11. Bounded by reading two
-modules. Result will be measurable (sessions firing vs not firing).
-Engineering wins are how we earn the right to keep doing harmonic-
-framing work.
+**Original framing** was "fix the throw-net firing." Investigation
+2026-05-22 evening showed that framing was wrong. `throw_net_sessions`
+table holds 1.06M completed sessions; daemon runs ~200 sessions/hour;
+each session does real candidate generation, refinement, and gate-
+discriminated acceptance. There is nothing to "fix" in the sense the
+original framing claimed.
 
-**What we know now.**
-- ~493,000 gate REJECTs logged in 24h
-- ~493,000 throw_net_triggers rows of trigger_type='gate_reject', fired=0
-  for all of them
-- 0 throw_net_sessions in the corresponding window
-- TriggerDetector spec (DOCTRINE Phase 25a amendment) says 4 REJECTs
-  in 15 minutes should clear threshold
-- The path from logged-trigger to fired-session lives in
-  ThrowNetEngine.run_session()
-- The TN-4 hotfix (commit 34dd6b0, 2026-05-10) showed sqlite3.Row
-  vs dict bugs have historically broken this path silently
+**Rescoped:** decide whether current throw-net behavior is what we
+want. Three architectural questions:
 
-**Investigation plan.**
-1. Read `theory_x/stage_throw_net/trigger_detector.py` in full —
-   confirm the 4-in-15-min threshold logic; check if it operates per
-   topic or globally; check if a topic-binding is preventing
-   clear-events
-2. Read `theory_x/stage_throw_net/throw_net_engine.py` `run_session`
-   and `run_pending` — check the path from "trigger clears threshold"
-   to "session fires"
-3. Read `theory_x/stage_throw_net/monitor.py` — the daemon loop
-   actually invoking the engine
-4. Sample 50 recent gate_reject triggers from `throw_net_triggers`
-   table — examine their substrate context (which beliefs, which
-   sources, what fountain state)
-5. Diagnose: threshold-calibration problem, topic-fragmentation
-   problem, or silent fail in run_session?
-6. Fix the minimal thing that restores firing
-7. Observe 1h post-fix — verify sessions actually firing and
-   producing real candidate output
+1. **Threshold logic is dead at the firing layer.**
+   `TriggerDetector.record_gate_reject` returns a bool indicating
+   whether ≥4 same-topic REJECTs occurred in 15 min. The gate calls
+   `record_gate_reject` for-effect (line 186 coherence_gate.py) and
+   discards the bool. Every gate REJECT inserts a trigger row; the
+   monitor drains them uniformly without checking the cluster
+   threshold. Original design intent was "fire on clustered REJECTs
+   only." Current behavior is "fire on every REJECT, drain-limited."
+   Decide deliberately rather than by accident.
 
-**Possible diagnoses, plainly:**
-- Threshold-calibration: 4-in-15min may have been right for nex_core
-  but wrong for nex5 substrate density. REJECTs come at 7.6/sec; 4 in
-  any 15-min window clears trivially. *More likely the threshold is
-  too easy and clearing constantly but the binding by topic distributes
-  them across so many topic-buckets that no single topic-bucket clears.*
-  Check: does TriggerDetector partition by topic-hash or evaluate
-  globally?
-- Silent fail in run_session: same shape as the sqlite3.Row bug of
-  May 10. An exception caught by tick()'s try/except, never surfaced.
-  Check: are there error rows in `errors` table tagged
-  source='throw_net'?
-- Cooldown or reentrance guard: TN-5 monitor may have a cooldown that
-  prevents repeated firing.
+2. **Drain rate.** Monitor processes 500 triggers per 300s tick =
+   144k/day cap. REJECT inflow ~300k/day. Backlog grows ~150k/day
+   indefinitely. Accept the bookkeeping noise, prune, or scale.
+
+3. **Trigger.fired column semantics.** 1.04M triggers marked fired
+   vs 1.01M completed sessions — small discrepancy suggests some
+   get marked before session completes. Confirm intended.
+
+**Effort.** One reading session to understand original cluster-
+threshold intent, then Jon-decision on threshold wiring vs dead-code
+removal. Plus drain-rate calibration if backlog judged problematic.
 
 **Acceptance criteria.**
-- 24h after fix, throw_net_sessions table has rows
-- Sessions have candidate output (not silent failure of refinement)
-- DIRECTION.md §11 finding marked resolved with the diagnosis recorded
-- DOCTRINE.md gets a §9 amendment paragraph for the fix
-
-**Effort.** One focused session. ~4 hours including diagnosis,
-fix, observation. Bounded.
+- Decision recorded in DOCTRINE.md §9 amendment
+- Code reflects the decision (threshold wired or dead code removed)
+- Backlog policy chosen
+- CHORD.md amended to reflect chosen behavior
 
 ### Deliverable C: Harmonic-coherence metric (substrate_harmonic.py)
 

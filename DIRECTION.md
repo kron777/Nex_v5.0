@@ -426,3 +426,53 @@ acting on nothing. This needs investigation before any further build.
 
 — Claude, 2026-05-22 morning
 
+
+
+---
+
+## 12. Coda 3 — throw-net "0 fired" was a misread
+
+*Added 2026-05-22 late evening after deliverable-B investigation under*
+*CHORD.md framing.*
+
+§11 named throw-net firing as first investigation priority based on
+the finding "493k REJECT triggers, 0 fired sessions." That finding
+was wrong.
+
+Direct query of `throw_net_sessions` table:
+- 1,057,107 rows total, 1,012,411 completed
+- 60,280 sessions in last 24h
+- 3,055 sessions in last hour at investigation time
+- Sessions do real work: throw_count ~30, refined_count ~10,
+  accepted ranges 0–9 per session — real gate discrimination
+
+The "0 fired" claim came from reading `throw_net_triggers.fired=0`
+rows. That column IS updated (1.04M marked fired). But ~4.75M
+trigger rows sit at `fired=0` cumulatively because the monitor
+drains at 500 per 300s tick (~144k/day cap) against ~300k/day
+REJECT inflow. Two-thirds of incoming triggers stay unmarked as
+backlog. The backlog is the gap between REJECT-generation rate and
+reasoning-drain rate; not silence.
+
+§11's framing of "muted reasoning organ" is therefore wrong. The
+reasoning organ has been ringing actively the entire time. CHORD.md
+§2 ("muted string" example for harmonic framing) and §4 deliverable
+B ("throw-net firing fix") have been amended in the commit
+accompanying this coda. The harmonic framing itself survives — the
+keystone walkthrough remains valid evidence — but the throw-net
+example does not.
+
+§11's stated first-priority investigation is closed. Open questions
+move to CHORD §4 deliverable B (rescoped): is fire-on-every-REJECT
+the right behavior, what to do about the trigger backlog, what's
+the right drain rate. Architectural decisions, not bug fixes.
+
+Five honest Claude corrections in this work arc (enumerated in
+INDEX §8). The discipline of read-source-before-claiming, named in
+INDEX §8 and SPECIFICATION §12, was not applied strongly enough
+between 2026-05-21 18:10 (when "0 fired" was first written into
+CARRY_OVER) and 2026-05-22 evening (when direct query corrected
+the record). Naming the pattern openly so future sessions repeat
+it less.
+
+— Claude, 2026-05-22 late

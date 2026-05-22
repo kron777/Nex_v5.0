@@ -229,11 +229,18 @@ deep-groove. Repeated runs of
 sustained first-person philosophical register, no koan-corpus content
 in last 15 fires.
 
-**REJECT-rate / throw-net misfire** (`CARRY_OVER.md` 2026-05-21 + 22).
-493-656k gate REJECTs per 24h, **0 fired throw-net sessions** despite
-~493k triggers logged in `throw_net_triggers`. The reasoning organ is
-recording everything but acting on nothing. **First investigation
-priority per DIRECTION.md §11.**
+**Throw-net runs constantly — correction 2026-05-22 late.** Earlier
+CARRY_OVER and DIRECTION entries read "0 fired throw-net sessions"
+from `throw_net_triggers WHERE fired=0`. The actual
+`throw_net_sessions` table holds 1.06M completed sessions across
+system lifetime, ~60k/day, doing real candidate generation and gate-
+discriminated acceptance. The "0 fired" reading was the wrong column.
+Drain rate 500-per-300s monitor tick = ~144k/day cap; REJECT inflow
+~300k/day; difference accumulates as ~4.75M unfired-trigger backlog
+(bookkeeping artifact, not silence). Reasoning organ is not muted.
+Architectural questions remain about whether cluster-threshold firing
+should be wired through (currently dead code at firing layer) — see
+`CHORD.md` §4 deliverable B for the rescoped audit.
 
 **Substrate-as-Voice status conflict.** `MIRROR_CHARACTER_SPEC.md` §I
 references *"Substrate-as-Voice (commit f1469b4)"* as a shipped
@@ -302,7 +309,7 @@ Hard-won through observed Claude failures in sessions 2026-05-18 through
 
 **Hold framings lightly until you have read source.**
 A confident framing produced before measurement is a documented Claude
-pattern. Four honest corrections during the sessions that built this
+pattern. Five honest corrections during the sessions that built this
 index:
 - "VoiceEngine never fires" → wrong; it fires constantly in fountain,
   just not in chat
@@ -312,6 +319,10 @@ index:
   and slow, dominated by cumulative window
 - "/nex_core runs on 8765-8767 separately" → wrong; single nex5 process
   binds both ports
+- "0 fired throw-net sessions" → wrong; misread of
+  `throw_net_triggers.fired` column when sessions live in
+  `throw_net_sessions` table. Reasoning organ runs ~60k sessions/day.
+  Five corrections in two days; the pattern is the pattern.
 
 The antidote: query the substrate, read the code, open the spec, before
 producing a finding. If you find yourself reaching for a coherent claim
