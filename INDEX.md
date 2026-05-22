@@ -154,11 +154,11 @@ Quiet hours 23-07 default. Voice configurable via `NEX5_SPEECH_VOICE`.
 Disable via `NEX5_SPEECH_ENABLED=false`. GUI control icon at FOUNTAIN
 header. Endpoints `/api/speech/{status,pause,resume,flush}`.
 
-**Decoder subsystem** — `JOURNAL_2026-05-18.md`. `theory_x/coincidence/
-decoder_loop.py` polls `fountain_events` every 30s, tokenizes thoughts,
-writes per-word substrate fingerprints to `word_contexts` table (41k+
-entries). Human-curated `word_tags` (key / unsure / noise). 3-tab decoder
-UI panel at bottom of col-sense.
+**Decoder subsystem** — `JOURNAL_2026-05-18.md`. `theory_x/coincidence/decoder_loop.py`
+polls `fountain_events` every 30s, tokenizes thoughts, writes per-word
+substrate fingerprints to `word_contexts` table (41k+ entries). Human-
+curated `word_tags` (key / unsure / noise). 3-tab decoder UI panel at
+bottom of col-sense.
 
 **Arcs subsystem** — `theory_x/arcs/detector.py`, `arc_closers` /
 `arc_members` / `arcs` tables. Tracks progression arcs and
