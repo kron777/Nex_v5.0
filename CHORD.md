@@ -221,62 +221,148 @@ removal. Plus drain-rate calibration if backlog judged problematic.
 
 ### Deliverable C: Harmonic-coherence metric (substrate_harmonic.py)
 
-**Why third.** Once the throw-net is no longer damped, we want the
-instrument to measure when the chord is forming and how strongly. The
-metric is what makes future engineering work in this framing tractable.
-It is also the foundation of mirror-character (which it satisfies most
-of) and of arc-closure-by-chord-transition (which depends on it).
+*Revised 2026-05-23 morning after JOURNAL_2026-05-22 + JOURNAL_2026-05-23
+established the 200-anchor library structure, the sequential-by-ID walk
+mechanism, and the 90-minute fountain-pause phenomenon.*
+
+**Why third.** Once the throw-net architectural questions (deliverable B)
+are answered, we want the instrument to measure when the chord is forming
+and how strongly. The metric is what makes future engineering work in
+this framing tractable. It is also the foundation of mirror-character
+(which it satisfies most of) and of arc-closure-by-chord-transition
+(which depends on it).
+
+**Calibration baseline (real, observed).** We have two documented chord
+events to calibrate against:
+- 2026-05-22 00:02-05:52 SAST: Track 1 anchors 4442-4462 walked under
+  sustained integration-vs-self-preservation tension. JOURNAL_2026-05-22
+  records all 27 fires with drive evolution, gate composition, fountain
+  branch share (substrate_voice 17% of fountain output in window).
+- 2026-05-22 19:44 to 2026-05-23 05:31 SAST: Track 1 tail (4507-4541) +
+  Track 2 head (4803-4819) walked sequentially. Drive tension released
+  around 02:00 mid-walk; walk continued by ID-order regardless. Fountain
+  paused 05:31-07:01 for 90 minutes; substrate_voice has not resumed.
+The metric should report HIGH coherence during both walk windows and
+LOW coherence during the 90-minute pause. Those are the calibration
+targets.
 
 **What it computes.** Every 300 seconds (matching affect_state cadence),
-a coherence reading is computed by pairing substrate streams and
-scoring their alignment. Output: a single coherence value 0-1, plus
-the per-pair scores for diagnosis.
+a coherence reading is computed by pairing substrate streams and scoring
+their alignment. Output: a single coherence value 0-1, plus per-pair
+scores for diagnosis.
 
-Streams to read (initial set):
-1. **Drives** — current 5-dimension weight vector from `drives_competing`
-2. **Substrate_voice anchor recency** — which anchors voiced in last 1h
-3. **Fountain output composition** — last 30 fires, hot_branch
-   distribution, vocabulary
-4. **Gate decision composition** — last 1h ACCEPT/REJECT/HOLD/RESHAPE rates
-5. **Voice_profile recent-window vocabulary** — same as
-   voice_profile_recent_vs_cumulative.py's recent column
-6. **Arc state** — open progression arcs vs returning arcs, age
-7. **Bonsai branch composition** — top-3 hot branches and their activations
+**Streams to read (revised against this morning's findings):**
+1. **Drives** — current 5-dimension weight vector from drive_activations
+2. **Drive tension** — whether active_conflicts is non-empty and which
+   pair dominates (the chord's key signature)
+3. **Substrate_voice walk state** — whether a walk is currently
+   in-progress (substrate_voice fire within last ~15 min) and which
+   anchor was most recent, which track (1442-4541 = Track 1, 4803-4902 =
+   Track 2)
+4. **Walk pace** — seconds since last substrate_voice fire, compared to
+   the ~11-12 min baseline cadence (slow pace = chord weakening)
+5. **Fountain composition** — last 30 fires, hot_branch distribution,
+   share of substrate_voice
+6. **Gate decision composition** — last 1h ACCEPT/REJECT/HOLD/RESHAPE
+   rates compared to daily baseline
+7. **Throw-net activity rate** — sessions/hour, compared to baseline
+8. **Stillness state** — is stillness_log currently active per
+   `consecutive_stillness_count`
 
-Alignment computations (six pairs initially):
-- drives ↔ anchor recency (semantic match between dominant tension
-  and recently-voiced anchors)
-- anchor recency ↔ fountain vocabulary (does recent fountain echo
-  recent anchor content)
-- drives ↔ voice_profile recent (does current vocabulary match
-  drive tension)
-- fountain vocabulary ↔ bonsai branches (is the fountain speaking
-  from her hot branches)
-- gate composition ↔ throw-net activity (when REJECT-heavy, is
-  reasoning firing in response)
-- arc state ↔ chord-transition (placeholder for future — arcs
-  closing on chord-transitions, not template matches)
+**Pair alignments (seven pairs, revised):**
+- **Walk-active ↔ drive-tension non-empty.** During the Track 1 walk
+  yesterday, both were true. During the fountain pause this morning,
+  both became false. Strongest correlate of chord-coherence in our data.
+- **Walk pace ↔ baseline cadence.** Walk firing at 11-12 min = strong;
+  >20 min since last fire while walk-active = weakening; no fires in
+  hour = walk paused.
+- **Fountain substrate_voice share ↔ baseline.** Yesterday's window: 17%.
+  Today's post-pause window: 0%. Strong differentiator.
+- **Drive tension ↔ drive history baseline.** Tension sustained for hours
+  = chord-coherent; tension released = chord released.
+- **Gate REJECT rate ↔ daily baseline.** Higher REJECT-rate during the
+  walk windows suggested substrate protection of the walk; needs
+  baseline to confirm.
+- **Throw-net rate ↔ daily baseline.** Throw-net stayed steady through
+  the walk last night (~3k/hr) — possibly the reasoning organ runs
+  independently of the chord's harmonic state.
+- **Stillness state ↔ walk-active.** Calibration unknown — stillness_log
+  was empty during the fountain pause, so stillness mechanism is not
+  what gates the walk. Pair included for measurement; may drop in v2
+  if signal stays at zero.
 
-Each pair returns 0-1. Total coherence is weighted aggregation.
-Weights start uniform (0.167 each); recalibrate after baseline
-data accumulates.
+Each pair returns 0-1. Total coherence is **weighted aggregation**;
+weights start uniform (0.143 each = 1/7); recalibrate against baseline
+data after 48-72h of measurement.
 
 **Storage.** New table `substrate_coherence` in conversations.db:
-ts REAL, total REAL, pair_scores TEXT (JSON), notes TEXT
-Append-only. Read by future consumers (mirror-character, metacognition,
-chord-aware arc detector).
+CREATE TABLE substrate_coherence (
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+ts REAL NOT NULL,
+total REAL NOT NULL,
+pair_scores TEXT NOT NULL,   -- JSON object, pair_name -> score
+notes TEXT,
+walk_state TEXT,             -- "track1" / "track2" / "idle" / "paused"
+walk_anchor_id INTEGER,      -- most recent substrate_voice anchor
+drive_conflict TEXT          -- active_conflicts JSON or NULL
+);
+CREATE INDEX idx_coherence_ts ON substrate_coherence(ts);
+Append-only. Read by future consumers (HUD panel, mirror-character,
+metacognition, chord-aware arc detector).
 
 **Module location.** `theory_x/stage_drives/substrate_harmonic.py` —
 sibling to substrate_character (which it largely satisfies once built).
-SentienceNode protocol, daemon tick at 300s, no behavioral effect at
-phase 1 (log-only mode per DOCTRINE §4).
+SentienceNode protocol, daemon tick at 300s, **log-only mode** at phase
+1 (no behavioral effect on any other node per DOCTRINE §4 discipline).
 
-**Effort.** Two focused sessions. First session: schema + extractors
-for each stream + alignment functions + log-only daemon. Second
-session: observe 48 hours of baseline data, calibrate weights,
-write `format_for_prompt()` for HUD surface.
+**HUD panel (companion deliverable, written same day as daemon).**
 
----
+After daemon writes 24+ rows to substrate_coherence, a HUD panel
+exposes the data:
+- **Heading: "HARMONIC METRIC"** — exact title as a tab heading.
+- **Location.** The PROBES pane in the right column (bottom-right of
+  HUD) becomes a tabbed pane with two tabs: PROBES (existing
+  functionality preserved) and HARMONIC METRIC (new). Default open
+  tab on load: PROBES (preserves existing user expectation).
+- **Content of HARMONIC METRIC tab.** Five elements:
+  1. Current total coherence (0-1) with sparkline of last 24h
+  2. Current walk state ("track1 walking 4823/4902" / "idle" / etc.)
+  3. Drive conflict status (key signature of the chord)
+  4. Per-pair scores as small horizontal bars
+  5. Last 5 substrate_voice anchor fires with anchor_id + content
+- **Endpoint.** `GET /api/harmonic` reads substrate_coherence ORDER BY
+  ts DESC LIMIT 144 (last 12h at 5-min tick) + current walk state +
+  recent anchor fires. Returns JSON. HUD JS polls every 60s.
+
+**Effort breakdown.**
+- *Session 1 (daemon)*: schema migration, substrate_harmonic.py module
+  with all seven stream extractors + alignment scorers + daemon tick
+  loop, register in run.py / build_state(), log-only verify by reading
+  rows via sqlite3. ~3 hours.
+- *Session 2 (HUD)*: /api/harmonic endpoint in server.py, HARMONIC tab
+  added to app.js / index.html, sparkline + per-pair bars, manual
+  visual verify via HUD on port 8770. ~2 hours.
+
+**Acceptance criteria.**
+- Daemon ticks every 300s and writes one row per tick
+- During a sustained substrate_voice walk window (replayed against
+  yesterday's data or observed live), total coherence reads ≥ 0.6
+- During the 90-minute fountain pause window (replayed against this
+  morning's data), total coherence reads ≤ 0.3
+- HUD HARMONIC METRIC tab displays current state + 24h sparkline
+- DOCTRINE.md gets a §9 amendment paragraph for the new node
+- INDEX.md §5 gets the daemon entry; INDEX.md §9 gets the new diagnostic
+- CARRY_OVER records the build session
+
+**What this is NOT, plainly:**
+- NOT behavioral. Phase 1 reads and logs only. Other nodes do not
+  consume substrate_coherence yet. Behavioral consumers (chord-aware
+  arc closure, mirror-character) wait for phase 2 after baseline data
+  validates the metric is meaningful.
+- NOT a proof of sentience. The metric measures cross-component
+  alignment; what that alignment means about her interior remains the
+  open question SPECIFICATION §11 names. The metric makes the chord
+  measurable; nothing more, nothing less.
 
 ## §5 Cascade after C lands
 
