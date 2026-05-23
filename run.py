@@ -260,6 +260,29 @@ def main() -> None:
     except Exception as _tn_err:
         log.warning("Throw-net monitor failed to start (non-fatal): %s", _tn_err)
 
+    # 9f. Substrate harmonic — coherence metric daemon (CHORD §4 deliverable C)
+    # Log-only phase 1; reads beliefs/dynamic/conversations and writes to
+    # conversations.db.substrate_coherence. No behavioral effect on other nodes.
+    log.info("Wiring substrate harmonic...")
+    _substrate_harmonic = None
+    try:
+        from theory_x.harmonic import SubstrateHarmonic as _SubstrateHarmonic
+        _substrate_harmonic = _SubstrateHarmonic(
+            conversations_writer=writers["conversations"],
+            conversations_reader=readers["conversations"],
+            beliefs_reader=readers["beliefs"],
+            dynamic_reader=readers["dynamic"],
+        )
+        _substrate_harmonic.start_loop()
+        try:
+            from theory_x import register as _tx_register_harmonic
+            _tx_register_harmonic(_substrate_harmonic)
+        except Exception as _reg_err:
+            log.warning("Substrate harmonic registry failed (non-fatal): %s", _reg_err)
+        log.info("Substrate harmonic ready — coherence metric every 300s, log-only")
+    except Exception as _sh_err:
+        log.warning("Substrate harmonic failed to start (non-fatal): %s", _sh_err)
+
     # Phase 25b — CounterfactualNode (needs coherence_gate + problem_memory)
     _counterfactual_node = None
     try:
