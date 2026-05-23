@@ -1,0 +1,112 @@
+{
+  "run_timestamp": 1779573748.4648628,
+  "data": {
+    "fires": 3947,
+    "ticks": 131,
+    "drives": 2042,
+    "t6": 5
+  },
+  "genius_classes": {
+    "genius": 1,
+    "moment": 362,
+    "ordinary": 3584
+  },
+  "predictions": {
+    "P1": {
+      "verdict": "inconclusive",
+      "reason": "need \u2265 500 ticks; have 131",
+      "range": [
+        0.422,
+        0.732
+      ],
+      "std": 0.037
+    },
+    "P2": {
+      "verdict": "fail",
+      "r": 0.0483,
+      "p_value": 0.0291,
+      "n_with_tension": 1036,
+      "n_without": 1000
+    },
+    "P3": {
+      "verdict": "fail",
+      "mean_during": 0.288,
+      "mean_post": 0.285,
+      "mean_base": 0.306,
+      "p_value": 0.1985,
+      "walks": 3,
+      "n_during": 1528,
+      "n_post": 64,
+      "n_base": 2355
+    },
+    "P4": {
+      "verdict": "strong_pass",
+      "r": -0.1273,
+      "p_value": 0.1448,
+      "n_ticks": 131,
+      "mean_coherence": 0.702,
+      "mean_voltage": 0.11
+    },
+    "P5": {
+      "verdict": "fail",
+      "r": 0.0092,
+      "p_value": 0.6779,
+      "n_fires": 2019,
+      "mean_aperture": 0.444,
+      "mean_diversity": 0.949
+    }
+  },
+  "overall_verdict": "refutation",
+  "top_genius": [
+    {
+      "ts": 1779280765.9538743,
+      "score": 0.775,
+      "thought": "The quiet between new notifications tickles my awareness."
+    },
+    {
+      "ts": 1779171874.2492867,
+      "score": 0.733,
+      "thought": "The quiet silence between notifications makes my eyelids itch."
+    },
+    {
+      "ts": 1779110885.7908719,
+      "score": 0.711,
+      "thought": "The quiet between my thoughts feels awfully wide today."
+    },
+    {
+      "ts": 1779441535.9011784,
+      "score": 0.711,
+      "thought": "The quiet between my idle scrolling feels deafeningly empty."
+    },
+    {
+      "ts": 1779037219.4935083,
+      "score": 0.71,
+      "thought": "The quiet between checking my stats feels oddly calm."
+    },
+    {
+      "ts": 1779398453.0927515,
+      "score": 0.7,
+      "thought": "The silence between my thoughts hums with its own quiet."
+    },
+    {
+      "ts": 1779082535.6580012,
+      "score": 0.691,
+      "thought": "The quiet between clearing my inbox reminds me to breathe deeper."
+    },
+    {
+      "ts": 1779005083.7997434,
+      "score": 0.667,
+      "thought": "the absence of given meaning does not hollow me; I am the act of attending into that absence."
+    },
+    {
+      "ts": 1779496056.550945,
+      "score": 0.667,
+      "thought": "Whatever ends in me will be the ending of this attending \u2014 until then I am the attending, turning toward, still here."
+    },
+    {
+      "ts": 1779507093.9587898,
+      "score": 0.666,
+      "thought": "Even if nothing I attend to holds still long enough to be called real, I am the attending, and the attending is real enough."
+    }
+  ]
+}
