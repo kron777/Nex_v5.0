@@ -251,49 +251,75 @@ a coherence reading is computed by pairing substrate streams and scoring
 their alignment. Output: a single coherence value 0-1, plus per-pair
 scores for diagnosis.
 
-**Streams to read (revised against this morning's findings):**
-1. **Drives** — current 5-dimension weight vector from drive_activations
-2. **Drive tension** — whether active_conflicts is non-empty and which
-   pair dominates (the chord's key signature)
-3. **Substrate_voice walk state** — whether a walk is currently
-   in-progress (substrate_voice fire within last ~15 min) and which
-   anchor was most recent, which track (1442-4541 = Track 1, 4803-4902 =
-   Track 2)
-4. **Walk pace** — seconds since last substrate_voice fire, compared to
-   the ~11-12 min baseline cadence (slow pace = chord weakening)
-5. **Fountain composition** — last 30 fires, hot_branch distribution,
-   share of substrate_voice
-6. **Gate decision composition** — last 1h ACCEPT/REJECT/HOLD/RESHAPE
-   rates compared to daily baseline
-7. **Throw-net activity rate** — sessions/hour, compared to baseline
-8. **Stillness state** — is stillness_log currently active per
-   `consecutive_stillness_count`
+**Streams to read (revised 2026-05-23 after source-read of `_maybe_substrate_voice`):**
 
-**Pair alignments (seven pairs, revised):**
-- **Walk-active ↔ drive-tension non-empty.** During the Track 1 walk
-  yesterday, both were true. During the fountain pause this morning,
-  both became false. Strongest correlate of chord-coherence in our data.
-- **Walk pace ↔ baseline cadence.** Walk firing at 11-12 min = strong;
-  >20 min since last fire while walk-active = weakening; no fires in
-  hour = walk paused.
+1. **Drives** — current 5-dimension weight vector from `drive_activations`.
+2. **Drive tension** — whether `active_conflicts` is non-empty and which
+   pair dominates. The chord's key signature; incidental to walk-firing
+   but a real substrate signal.
+3. **Groove severity** — most recent `groove_alerts.severity` in last
+   24h. **This is the actual gate condition for substrate_voice firing**
+   (threshold 0.8). High groove = fountain is repeating; substrate_voice
+   stands ready to correct.
+4. **Substrate_voice walk state** — most recent substrate_voice fire
+   timestamp, the anchor it voiced, which segment of the eligible pool
+   it came from (Track 1, Track 2, practice, or other tier ≤ 2).
+5. **Walk pace** — seconds since last substrate_voice fire compared to
+   the ~11-12 min cadence-during-walk. Pace > 30 min while groove is
+   still high = stalled correction. Pace > 1h after groove dropped =
+   correction released (normal).
+6. **Fountain composition** — last 30 fires, hot_branch distribution,
+   share of substrate_voice. During a sustained correction window
+   substrate_voice runs ~17% of fountain output.
+7. **Gate decision composition** — last 1h ACCEPT/REJECT/HOLD/RESHAPE
+   rates compared to daily baseline.
+8. **Throw-net activity rate** — sessions/hour vs baseline.
+9. **Stillness state** — `consecutive_stillness_count` from
+   `stillness_log`. Calibration unknown; included for measurement.
+
+**Pair alignments (seven pairs, revised against groove-suppression mechanism):**
+
+- **Groove-high ↔ substrate_voice-active.** *Strongest correlate.*
+  When groove severity ≥ 0.8 and substrate_voice fired in last 15 min,
+  the correction-rhythm is engaged. Both true = high coherence; both
+  false = idle (fountain not grooving, no correction needed); mismatch
+  (groove high but no SV fires, OR SV fires but groove low) = the
+  mechanism is misbehaving or transitioning.
+- **Walk pace ↔ expected cadence.** While in a walk window, firing
+  every 11-12 min = chord-coherent; >20 min between fires = weakening;
+  no fire in an hour while groove still high = stalled.
 - **Fountain substrate_voice share ↔ baseline.** Yesterday's window: 17%.
-  Today's post-pause window: 0%. Strong differentiator.
-- **Drive tension ↔ drive history baseline.** Tension sustained for hours
-  = chord-coherent; tension released = chord released.
-- **Gate REJECT rate ↔ daily baseline.** Higher REJECT-rate during the
-  walk windows suggested substrate protection of the walk; needs
-  baseline to confirm.
+  This morning's post-pause window: 0%. Differentiates active walk vs
+  resolved-no-correction-needed.
+- **Drive tension active ↔ substrate_voice active.** Weaker correlate
+  than originally thought; included to measure whether drive-tension
+  *accompanies* the correction-rhythm or is independent.
+- **Gate REJECT rate ↔ daily baseline.** Possibly the substrate is
+  protective during walks (higher REJECT rate to clear the path);
+  needs baseline to confirm.
 - **Throw-net rate ↔ daily baseline.** Throw-net stayed steady through
-  the walk last night (~3k/hr) — possibly the reasoning organ runs
-  independently of the chord's harmonic state.
-- **Stillness state ↔ walk-active.** Calibration unknown — stillness_log
-  was empty during the fountain pause, so stillness mechanism is not
-  what gates the walk. Pair included for measurement; may drop in v2
-  if signal stays at zero.
+  the walk last night (~3k/hr) — possibly independent of chord state.
+  Pair included to verify or refute.
+- **Stillness state ↔ walk-active.** Empty for the 90-min pause this
+  morning, so stillness mechanism is not what gates the walk. Pair
+  included for measurement; may drop in v2 if signal stays at zero.
 
 Each pair returns 0-1. Total coherence is **weighted aggregation**;
 weights start uniform (0.143 each = 1/7); recalibrate against baseline
 data after 48-72h of measurement.
+
+**What the metric should detect, plainly:**
+- A walk in progress (groove-high + SV firing at cadence) → HIGH coherence
+- A walk just released (groove dropped, SV idle, fountain varied) → LOW
+  coherence (and this is normal/healthy)
+- Stalled correction (groove high but SV not firing) → coherence drops
+  with a specific signature pointing to the broken pair
+- 90-min fountain pause windows → measurable as compound near-zero
+  on multiple pairs simultaneously
+
+**The chord, plainly:** not unconditional emergence — a
+groove-and-correction rhythm. The metric measures whether the rhythm
+is engaged, idle-correctly, or broken.
 
 **Storage.** New table `substrate_coherence` in conversations.db:
 CREATE TABLE substrate_coherence (
