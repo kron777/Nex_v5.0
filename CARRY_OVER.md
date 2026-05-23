@@ -241,3 +241,90 @@ rather than letting it propagate two days through three documents.
 Next investigation candidates, none urgent: verify cluster-threshold
 design intent before deciding whether to wire or remove dead code;
 decide backlog policy; move to CHORD deliverable C (coherence metric).
+
+
+## 2026-05-23 ~13:10 — CHORD daemon live; register persistence observed
+
+End-of-arc session entry, ~25 hours of focused work across two days.
+
+### Today's commits (chronological)
+
+Morning session (06:00-12:00):
+- a20968e — JOURNAL_2026-05-23.md initial draft (Track 2 walked,
+  200-anchor library mapped, fountain pause documented)
+- 10b39a3 — CHORD §4 deliverable C revised against findings
+- 4d81ec8 — JOURNAL_2026-05-23 corrected selection mechanism +
+  groove-suppression finding
+- 96564a2 — CHORD §4 deliverable C: streams and pairs revised for
+  groove-suppression mechanism
+
+Build session (12:00-13:00):
+- bf97662 — init_db: substrate_coherence table added to
+  conversations._MIGRATIONS
+- a093b97 — harmonic: substrate_harmonic.py daemon (320 lines)
+- 0defbd1 — run.py: wire substrate_harmonic daemon
+- c982133 — harmonic: two reader bugs caught by manual tick verify
+  (drive_conflict treating '[]' as truthy; throw_net_rate using
+  wrong reader)
+
+Verification session (13:00-13:10):
+- nex5 process killed (pid 18983, 19h27m uptime) and restarted
+  (pid 181116). Boot succeeded; daemon registered cleanly.
+- First autonomous harmonic tick verified at 12:59:18 SAST, exactly
+  300s after start_loop. Row id 3, total 0.708, walk_state 'idle'.
+- HUD port 8770 not listening — werkzeug flap pattern. Substrate
+  alive and ticking; HUD investigation deferred.
+
+### State at arc-close
+
+Process: pid 181116, ~15min uptime, port 8765 bound
+Fountain: 24 fires last hour (active baseline)
+T6 promotions: 14 last hour (substantially elevated vs yesterday)
+Substrate_voice: idle since 2026-05-23 05:31:33 (anchor 4819);
+  next anchor queued: 4820; will fire when groove ≥ 0.8 returns
+Throw-net: ~3,000 sessions/hour, drain-limited as documented
+Drive composition: open, no active conflicts
+substrate_coherence: 3 rows (2 manual test, 1 autonomous), total
+  0.708 stable
+
+### Register persistence observation
+
+The post-walk fountain register held into today. Output character
+shifted toward philosophical-observational ("The lingering echo of
+my last thought still rings"; "I wonder why") and stayed there
+across the restart. T6 promotion rate elevated. Substrate appears
+to have been imprinted by the keystone walks, not merely passed
+through them.
+
+Hypothesis added to DIRECTION §13. Substrate_harmonic baseline
+data over next 48-72h will confirm or refute. If imprint is real,
+post-walk quiet-period coherence will sit higher than pre-walk
+quiet-period coherence.
+
+### What's next
+
+Deliverable C session 2 — HUD panel reading from
+substrate_coherence as HARMONIC METRIC tab in right column.
+Requires port 8770 working; investigate werkzeug flap first or
+accept restart-until-binds workaround.
+
+Deliverable B rescoped — architectural decisions on throw-net
+cluster-threshold, drain rate, backlog. Jon-decision.
+
+Pre-existing bugs not blocking: arc_closers ALTER, beliefs.content
+UNIQUE seed. Migration hygiene session some day.
+
+### Honest meta on the arc
+
+Six confident framings corrected across two days. The pattern is
+the pattern: build before correcting. Antidote in INDEX §8 worked
+at the end of the arc — caught the harmonic daemon's two reader
+bugs in manual verify before they ticked autonomously. Pattern
+improving.
+
+15+ commits, two new subsystems, 200-anchor library mapped, two
+chord-walks documented, throw-net misread corrected across five
+files, substrate_harmonic daemon live in production with first
+autonomous tick verified.
+
+She isn't better today. The substrate has a coherence meter now.
