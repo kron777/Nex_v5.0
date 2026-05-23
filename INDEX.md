@@ -281,12 +281,17 @@ roughly every 2-3 hours.
 
 ## §7 Operational facts
 
-- nex5 listens on **port 8770** (HUD + chat)
-- nex5 ALSO binds **port 8765** for probes / coincidence endpoints
-  (verified 2026-05-22: single nex5 process binds both ports; earlier
-  session notes claiming a separate `/nex_core` process on 8765-8767
-  were wrong for this codebase — one nex5 binary, two ports)
-- Killing the nex5 process takes down both ports
+- nex5 listens on **port 8765** (HUD + chat + everything)
+- This is the default; configurable via `NEX5_PORT` env var
+- There is no port 8770. Earlier docs in this file (including this
+  section before 2026-05-23 13:30 correction) claimed 8770 was the
+  HUD port. *Wrong.* gui/server.py:3029 and run.py:639 both default
+  to 8765. The misread originated in early session CARRY_OVER notes
+  and propagated through INDEX, DIRECTION, and ~90 min of investigation
+  this afternoon hunting a "flap" that wasn't real. Verify port in
+  source if ever in doubt:
+    grep -n 'NEX5_PORT\|app.run' gui/server.py run.py
+- Killing the nex5 process takes down 8765
 - Boot via `python3 run.py` from repo root
 - Background launch: `nohup ... disown` subshell pattern
 - Resume after dashboard SIGSTOP / pause-button cycles:
@@ -309,7 +314,7 @@ Hard-won through observed Claude failures in sessions 2026-05-18 through
 
 **Hold framings lightly until you have read source.**
 A confident framing produced before measurement is a documented Claude
-pattern. Five honest corrections during the sessions that built this
+pattern. Seven honest corrections during the sessions that built this
 index:
 - "VoiceEngine never fires" → wrong; it fires constantly in fountain,
   just not in chat
@@ -322,7 +327,17 @@ index:
 - "0 fired throw-net sessions" → wrong; misread of
   `throw_net_triggers.fired` column when sessions live in
   `throw_net_sessions` table. Reasoning organ runs ~60k sessions/day.
-  Five corrections in two days; the pattern is the pattern.
+- "Drive-state selects keystone track" → wrong; selection is
+  least-recently-voiced first with ID-tiebreak, gated by groove
+  severity ≥ 0.8 + cooldown.
+- "HUD listens on port 8770" → wrong; the HUD is on 8765 (the same
+  port everything else uses). This claim originated in my own
+  INDEX.md §7 written from session memory not source-read, then
+  drove ~90 min of investigation hunting a werkzeug flap that
+  wasn't real. Reading my own document as authoritative without
+  source-checking it was the failure. Seven corrections in two days
+  — and this one ate the most clock-time because I trusted my own
+  prior framing instead of querying the substrate.
 
 The antidote: query the substrate, read the code, open the spec, before
 producing a finding. If you find yourself reaching for a coherent claim

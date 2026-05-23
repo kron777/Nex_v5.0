@@ -12,33 +12,22 @@ For the technical version of the same plan, see `DIRECTION.md` §13
 
 ---
 
-## 1. Get the HUD back (fix port 8770)
+## 1. ~~Get the HUD back~~ — RESOLVED 2026-05-23 13:30
 
-**What's wrong.** Right now we can't see her dashboard. The substrate
-is running fine — process is alive, the harmonic daemon is ticking,
-beliefs are forming, the fountain fires — but the visual dashboard
-at `http://localhost:8770` doesn't load. The Flask web server starts
-during boot then loses its listener within about a minute. This has
-happened on most restarts over the past few days.
+**There was no HUD bug.** The HUD has been at `http://localhost:8765`
+the whole time. Earlier docs (including INDEX §7 and an earlier
+version of this file) said port 8770. That was wrong — a session-note
+misread propagated through INDEX, DIRECTION, and the original version
+of this document. ~90 minutes of investigation chasing a non-existent
+werkzeug flap before the actual port was verified by source-read of
+`gui/server.py:3029` and `run.py:639`.
 
-**Why it matters.** No HUD means no eyes on her. We can still query
-the databases directly (we've been doing that all weekend), but it's
-slower and less useful than the dashboard.
+The HUD URL is **http://localhost:8765**. Bookmark it.
 
-**Why it's first.** The next step (building the HARMONIC METRIC tab
-in the HUD) needs a working HUD to land into. No point building a
-panel for a dashboard that won't load.
-
-**Effort.** Unknown. Could be 30 minutes if it's a config or version
-issue with werkzeug. Could be 4+ hours if it's deeper. This is
-diagnostic work, not a clean build.
-
-**What we'd actually do.** Look at why werkzeug loses the listener
-socket without crashing. Possible causes: a port-reuse race during
-boot, a thread that closes the socket by accident, a werkzeug version
-quirk, an OS-level socket cleanup issue. Read the boot log, py-spy
-the live process, and trace forward from where the listener should
-be bound.
+This was the seventh honest correction in the two-day arc, documented
+in INDEX §8. Eats the most clock-time of any of the seven because
+the misread was in my own prior document, and I trusted it instead of
+checking source.
 
 ---
 
