@@ -1214,6 +1214,106 @@ async function loadDiversity() {
 setInterval(loadDiversity, 30000);
 loadDiversity();
 
+// ── HARMONIC METRIC — CHORD §4 deliverable C ─────────────────────────────
+function _renderSparkline(recent) {
+  if (!recent || recent.length < 2) return "";
+  const W = 200, H = 22, P = 2;
+  const totals = recent.map(r => r.total);
+  const min = Math.min(...totals, 0);
+  const max = Math.max(...totals, 1);
+  const range = (max - min) || 1;
+  const pts = recent.map((r, i) => {
+    const x = P + (i / (recent.length - 1)) * (W - 2 * P);
+    const y = H - P - ((r.total - min) / range) * (H - 2 * P);
+    return x.toFixed(1) + "," + y.toFixed(1);
+  }).join(" ");
+  return (
+    '<svg width="' + W + '" height="' + H + '" style="display:block;margin:2px 0;">' +
+    '<polyline points="' + pts + '" fill="none" stroke="var(--accent)" stroke-width="1.2"/>' +
+    '</svg>'
+  );
+}
+
+function _ageText(seconds) {
+  if (seconds == null) return "—";
+  if (seconds < 60) return Math.round(seconds) + "s";
+  if (seconds < 3600) return Math.round(seconds / 60) + "m";
+  if (seconds < 86400) return (seconds / 3600).toFixed(1) + "h";
+  return (seconds / 86400).toFixed(1) + "d";
+}
+
+async function loadHarmonic() {
+  try {
+    const data = await apiFetch("/api/harmonic/overview");
+    const el = document.getElementById("harmonic-feed");
+    const meta = document.getElementById("harmonic-meta");
+    if (!el) return;
+
+    if (!data.current) {
+      el.innerHTML = '<span style="color:var(--fg3)">no ticks yet</span>';
+      if (meta) meta.textContent = "—";
+      return;
+    }
+
+    const lines = [];
+    const total = (data.current.total != null) ? data.current.total.toFixed(3) : "—";
+    const walkState = data.current.walk_state || "unknown";
+    lines.push(
+      '<span style="color:var(--accent);font-size:12px;font-weight:600">' +
+      total + '</span> ' +
+      '<span style="color:var(--fg3)">' + walkState + '</span>'
+    );
+
+    if (data.recent && data.recent.length > 1) {
+      lines.push(_renderSparkline(data.recent));
+    }
+
+    if (data.walk) {
+      const w = data.walk;
+      const snippet = (w.content || "").substring(0, 90) + (w.content && w.content.length > 90 ? "…" : "");
+      lines.push(
+        '<span style="color:var(--fg2)">' + w.track_label + '</span> ' +
+        '<span style="color:var(--fg3)">' + _ageText(w.age_seconds) + ' ago</span>'
+      );
+      lines.push('<span style="color:var(--fg)">' + snippet + '</span>');
+    } else {
+      lines.push('<span style="color:var(--fg3)">no anchor voiced yet</span>');
+    }
+
+    if (data.pair_scores && Object.keys(data.pair_scores).length > 0) {
+      lines.push('<span style="color:var(--fg3)">pairs:</span>');
+      Object.entries(data.pair_scores).forEach(([name, score]) => {
+        const pct = Math.round((score || 0) * 100);
+        const barChar = "█";
+        const emptyChar = "░";
+        const filled = Math.round(pct / 10);
+        const bar = barChar.repeat(filled) + emptyChar.repeat(10 - filled);
+        const short = name.replace(/_/g, " ").substring(0, 24);
+        lines.push(
+          '<span style="color:var(--fg3);font-family:monospace">' + bar + '</span> ' +
+          '<span style="color:var(--fg2);font-size:9px">' + short + '</span>'
+        );
+      });
+    }
+
+    el.innerHTML = lines.join("<br>");
+    if (meta) {
+      const age = _ageText(data.meta && data.meta.last_tick_age_seconds);
+      meta.textContent = (data.meta && data.meta.total_rows ? data.meta.total_rows : 0) +
+                         " ticks · " + age + " ago";
+    }
+  } catch (err) {
+    console.warn("Load harmonic failed:", err);
+    const el = document.getElementById("harmonic-feed");
+    if (el && !el.innerHTML) {
+      el.innerHTML = '<span style="color:var(--fg3)">harmonic endpoint not ready</span>';
+    }
+  }
+}
+
+setInterval(loadHarmonic, 30000);
+loadHarmonic();
+
 // --- Arcs panel ---
 async function loadArcs() {
   try {
