@@ -2942,6 +2942,18 @@ def create_app(state: AppState) -> Flask:
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+    @app.get("/api/harmonic/overview")
+    def api_harmonic_overview():
+        try:
+            from theory_x.harmonic.panel import overview
+            return jsonify(overview(
+                state.readers["conversations"],
+                state.readers["dynamic"],
+                state.readers["beliefs"],
+            ))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
     # -- probes (Lens Theory archaeology) ------------------------------------
 
     @app.post("/api/probes/run")
