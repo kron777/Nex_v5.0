@@ -205,13 +205,22 @@ class SubstrateHarmonic:
         return {}
 
     def _read_drive_conflict(self, ts_now: float) -> Optional[str]:
+        """Return active_conflicts JSON string, or None if no conflict.
+
+        Note: drive_activations.active_conflicts stores '[]' (literal
+        string) when no conflict is active. Treat empty-list JSON as
+        no-conflict.
+        """
         try:
             rows = self._conv_reader.read(
                 "SELECT active_conflicts FROM drive_activations "
                 "ORDER BY timestamp DESC LIMIT 1"
             )
             if rows and rows[0]["active_conflicts"]:
-                return str(rows[0]["active_conflicts"])
+                raw = str(rows[0]["active_conflicts"]).strip()
+                # Treat '[]' and 'null' as no-conflict
+                if raw and raw not in ("[]", "null", "None"):
+                    return raw
         except Exception:
             pass
         return None
@@ -280,9 +289,13 @@ class SubstrateHarmonic:
         return 0.0
 
     def _read_throw_net_rate(self, ts_now: float) -> float:
-        """Throw-net sessions per hour in last 1h."""
+        """Throw-net sessions per hour in last 1h.
+
+        Note: throw_net_sessions lives in beliefs.db, not conversations.db
+        (per init_db.py _MIGRATIONS['beliefs']). Uses beliefs_reader.
+        """
         try:
-            rows = self._conv_reader.read(
+            rows = self._beliefs_reader.read(
                 "SELECT COUNT(*) AS n FROM throw_net_sessions "
                 "WHERE started_at > ?",
                 (ts_now - 3600,),
