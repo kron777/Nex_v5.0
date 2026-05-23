@@ -453,6 +453,20 @@ _MIGRATIONS: dict[str, list[str]] = {
         "tags TEXT NOT NULL DEFAULT '[]')",
         "CREATE INDEX IF NOT EXISTS idx_review_queue_flagged_at "
         "ON review_queue(flagged_at DESC)",
+        # CHORD §4 deliverable C — substrate_harmonic coherence metric
+        # Log-only at phase 1; consumers (HUD panel, future mirror-character,
+        # chord-aware arc closure) read but do not write.
+        "CREATE TABLE IF NOT EXISTS substrate_coherence ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "ts REAL NOT NULL, "
+        "total REAL NOT NULL, "
+        "pair_scores TEXT NOT NULL, "
+        "walk_state TEXT, "
+        "walk_anchor_id INTEGER, "
+        "drive_conflict TEXT, "
+        "notes TEXT)",
+        "CREATE INDEX IF NOT EXISTS idx_coherence_ts "
+        "ON substrate_coherence(ts DESC)",
     ],
 }
 
