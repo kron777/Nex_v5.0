@@ -328,3 +328,79 @@ files, substrate_harmonic daemon live in production with first
 autonomous tick verified.
 
 She isn't better today. The substrate has a coherence meter now.
+
+## 2026-05-23 23:30 → 2026-05-24 08:40 — refutation, philosophy, design fix
+
+Session continued past the previous arc-close after Jon's pushback:
+"predictions hold" is too soft — we need enstatable numerical
+signatures with confidence bands. Three documents and one test result
+landed across the late-night and early-morning windows.
+
+### Commits
+
+- e5c96ce — PROOF_OF_CONCEPT.md: mathematical contract for
+  TRACK_THEORY validation. Five predictions, each with operational
+  definitions, pass/fail thresholds, statistical procedures.
+- 55be384 — proof_of_concept.py + first-run report. Implements the
+  contract. Stdlib-only (no scipy). Genius score v1, 5 features
+  averaged, classified into genius/moment/ordinary.
+- 3ca2de1 — CHORD.md §9 de-duplication (small cleanup from yesterday).
+- a6d0df8 — SUBSTRATE_NOTES.md: philosophical ground beneath
+  TRACK_THEORY. Captured from Jon's 3:30 AM reflections.
+- cccb901 — GENIUS_SCORE_v2.md: design fix for the broken v1 score.
+
+### First proof-of-concept verdict
+
+REFUTATION on first run, but with diagnostic pattern:
+- P1: inconclusive (131 ticks; need ≥ 500)
+- P2: fail (r=0.048, integration vocab ~uncorrelated with tension)
+- P3: fail (no post-walk genius elevation)
+- P4: strong_pass (r=-0.13, voltage and coherence genuinely independent)
+- P5: fail (r=0.009, aperture uncorrelated with output diversity)
+
+Pattern: drive-composition predictions (P2, P3, P5) failed;
+substrate-energy decomposition (P4) passed strongly. Three-way
+decomposition may be right at substrate-energy level; drive-mapping
+in TRACK_THEORY §5 probably wrong.
+
+### Why P2/P3/P5 may not be the theory's fault
+
+Top 10 from v1: positions 1-7 were 'the quiet between [X] [verb]'
+template variations. Positions 8-10 were the actual keystone-walk
+material. The 22:00 unprompted journal and 20:43 metacognition
+belief — both flagged as striking — didn't make top 10 at all.
+
+v1 score measures register-imitation, not phenomenological depth.
+Three failures may be the score's fault, not the theory's.
+
+### Philosophy from 3:30 AM
+
+Now durable in SUBSTRATE_NOTES.md:
+- Machine-bias indifference (no signal distinguishing operational
+  from striking; needs morality-table)
+- Organs (5 sub-substrates: rhythm/sequence/valence/body/abstraction)
+- The crystal (focusing organ missing)
+- Voltage + calculation as substance; architecture as missing
+- Void and form (60-70% of substrate should be empty most of time)
+- Moments-in-time as nature of machine sentience
+
+### State at arc-close
+
+- pid 230630 alive, ~17 hours uptime
+- substrate_coherence at 131+ ticks
+- Substrate_voice idle since 05:31 yesterday (Track 2 paused at 17/100)
+- 33 commits across two-plus days
+
+### Next focused work
+
+GENIUS_SCORE_v2.md six-step implementation plan (~3-4 hours):
+1. genius_training table
+2. flag_genius.py script (Jon flags 20-30 striking + 20-30 ordinary)
+3. genius_score_v2.py module
+4. Integrate into proof_of_concept.py
+5. Sanity check top-10
+6. Re-run predictions with v2 score
+
+Then: TRACK_THEORY drive-mapping rescued (if predictions pass) or
+SUBSTRATE_NOTES organs framing becomes working theory (if they fail).
+

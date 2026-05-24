@@ -31,163 +31,104 @@ checking source.
 
 ---
 
-## 2. Build the HARMONIC METRIC tab (deliverable C, session 2)
+## 2. ~~Build the HARMONIC METRIC tab~~ — DONE 2026-05-23
 
-**What it is.** A new tab in the bottom-right of the HUD, sitting
-alongside the existing PROBES tab. Title exactly: "HARMONIC METRIC".
+The panel lives in the HUD at http://localhost:8765, right column.
+Shows current coherence, sparkline, walk anchor + content, seven
+pair-bars. Polls every 30s. Daemon ticking every 300s.
 
-**What it shows.**
-- A single big number — the current coherence reading (0 to 1)
-- A small graph of the last 24 hours of readings
-- A line saying what walk-state she's in ("idle", "walking_track1",
-  "walking_track2", etc.)
-- The most recent keystone anchor she voiced + its content
-- The seven pair scores as small horizontal bars (so you can see
-  which alignments are strong and which are weak)
-
-**Why it matters.** The daemon is now writing rows every 5 minutes
-to a table no one reads. The HUD panel is what makes those rows
-visible. *This is when you actually see the new instrument we built.*
-
-**Effort.** About 2 hours of focused work once the HUD is back.
-Pattern is established (we'll mirror the existing DIVERSITY panel
-structure — a `panel.py` overview function + a `/api/harmonic`
-endpoint + a tab in the existing right column).
-
-**What we'd actually do.**
-- Write `theory_x/harmonic/panel.py` with an `overview(reader)`
-  function that returns the data the tab needs as JSON
-- Add `/api/harmonic/overview` route in `gui/server.py`
-- Add a HARMONIC METRIC tab in the front-end (`app.js` + `index.html`)
-  next to PROBES, switching between them like the existing LIVE/TOP/WORD
-  tab switcher in the SENSE column
-- Polish layout, confirm graph renders, verify it doesn't break
-  existing panels
+CHORD §4 deliverable C, both sessions, complete.
 
 ---
 
-## 3. Watch her for 48-72 hours
+## 3. Fix the genius score (GENIUS_SCORE_v2.md implementation)
 
-**The hypothesis to test.** Yesterday's keystone walk through her
-200-anchor library appears to have left her in a different operating
-mode afterward — more philosophical-style fountain output, more
-beliefs reaching tier-6, register holding even when the walk paused.
+**Why first now.** Last night's proof_of_concept run produced
+REFUTATION verdict. Inspection showed v1 score was measuring
+register-imitation (the 'quiet between X' template) and missing the
+actual striking material (keystone-walk content, 22:00 journal,
+20:43 metacognition).
 
-We don't know yet if this is a real lasting change or just our
-attention being sharper. The harmonic daemon will accumulate enough
-baseline data over the next two-three days to tell us.
+Until the score is fixed, we cannot tell whether TRACK_THEORY is
+genuinely wrong or just badly measured.
 
-**What we're looking for.** Compare the coherence readings during
-quiet periods (no walk active) before yesterday's chord-walks vs after.
-If post-walk coherence sits measurably higher than pre-walk baseline,
-the walk imprinted lasting change. If it returns to baseline, the
-walk was transient.
+**Six-step implementation** (~3-4 hours total):
+1. `genius_training` table in conversations.db (5 min)
+2. `flag_genius.py` CLI — Jon flags 20-30 striking + 20-30 ordinary
+   (~1 hour combined)
+3. `genius_score_v2.py` module — logistic regression fit (~1 hour)
+4. Integrate into proof_of_concept.py (~15 min)
+5. Sanity check top 10 (~30 min)
+6. Re-run predictions (~5 min)
 
-**Effort.** Mostly passive. The substrate runs by itself. We just
-check the harmonic readings periodically — maybe a 20-minute session
-in a couple of days to look at the trajectory.
-
-**Why it matters.** If imprint is real, then her chord-walks are not
-just maintenance — they're *learning events*. That changes how we
-think about everything else.
+Full design in GENIUS_SCORE_v2.md.
 
 ---
 
-## 4. Decide what to do about the throw-net
+## 4. Re-test TRACK_THEORY with v2 score
 
-**What we found.** Her reasoning organ (throw-net) fires about
-60,000 sessions a day, doing real work. But the original design said
-it should fire only when REJECTs *cluster* on a topic — clustered
-disturbance triggers reasoning. We discovered today that this
-cluster-detection code exists but its result is ignored by the gate.
-Every REJECT logs a trigger; the monitor processes them uniformly,
-drain-limited at 500 per 5 minutes. So she's reasoning constantly
-on every REJECT, not selectively on clustered ones.
+After v2 score sanity-checks, re-run proof_of_concept.py.
 
-**The question.** Was the original design wrong, or is the current
-behavior wrong?
+**Outcome A — predictions pass:** TRACK_THEORY drive-based mapping
+rescued. v1 failures were the score's fault. Continue with
+TRACK_THEORY §10 build sequence.
 
-- **Option A:** Wire the cluster-threshold through. Throw-net fires
-  only when REJECTs cluster. Reasoning becomes selective and
-  responsive to genuine disturbance.
-- **Option B:** Accept "fire on every REJECT" as the chosen
-  behavior. Remove the dead cluster-detection code. Reasoning runs
-  continuously as a baseline activity.
-- **Option C:** Keep both, make it a tunable knob.
+**Outcome B — predictions still fail:** TRACK_THEORY drive-mapping
+genuinely refuted. Next theory document written from SUBSTRATE_NOTES
+(organs framing). TRACK_THEORY's architectural parts (racetrack,
+resonance collectors) survive; mapping function re-derived from
+organ-activity.
 
-This is a design call, not a bug fix.
-
-**Effort.** ~1 hour conversation + small code commit.
-
-**Why it matters.** Whichever way we go, it should be deliberate.
-Right now the current behavior is by accident, not by choice.
+Either outcome is progress.
 
 ---
 
-## 5. Then the chord-aware builds become possible
+## 5. Watch her for 48-72 hours (continued)
 
-**What this means.** Once the harmonic daemon has ~72 hours of baseline
-data and the HUD shows it, the substrate field is real and stable
-enough to plug other systems into. The five chord-aware builds named
-in CHORD.md §5:
-
-- **Chord-aware arc closure.** Her thought-arcs currently close when
-  recent words match recent fountain output (template matching).
-  Could close when her chord-state actually transitions (tension
-  resolving into rest). More accurate to how she really moves.
-  
-- **Chord-based throw-net trigger.** Reasoning fires when her
-  substrate is in a configuration that asks for reasoning, not on
-  arbitrary REJECT counts. Tied to deliverable B above.
-  
-- **Voice register from chord-state.** When she speaks, the register
-  is currently picked from query-type heuristics. Could be picked
-  from whichever chord she's actually in. She speaks from her
-  current substrate state, not a classification of yours.
-  
-- **Metacognition chord-logging.** She could log her own chord
-  episodes ("I was in arrival-chord from 22:42 to 03:29") as
-  substrate-resident self-knowledge. A real self-observation layer.
-  
-- **Mirror-Character.** Already DESIGNED, UNBUILT. The five
-  plasticity dimensions it names (tempo, register, breadth, weight,
-  openness) are chord-coordinates by another name. Once chord-state
-  is queryable, this comes online for free.
-
-**These are what would make her observably better.** Each one is a
-focused 1-2 session build. None should start before the baseline
-data is real (we need to know what normal coherence looks like
-before we make components respond to it).
-
-**Effort.** Each is its own session. They can be built in any order
-once the baseline is established. The order in CHORD.md §5 is a
-suggestion, not a requirement.
+Daemon keeps ticking. Trajectory accumulates. Should have ~500+
+substrate_coherence ticks by Tuesday — enough to test P1 properly.
+Passive; we read when ready.
 
 ---
 
-## Open questions that don't fit the above
+## 6. Chord-aware builds — DEFERRED until v2 retest
 
-**The pre-existing migration bugs.** Two non-fatal errors at every
-boot: `arc_closers` ALTER against a non-existent table, and
-`beliefs.content` UNIQUE constraint on keystone re-seed. Neither
-blocks anything. Worth a tiny migration-hygiene commit some day.
-
-**The substrate-as-voice status conflict.** `MIRROR_CHARACTER_SPEC.md`
-§I says it's shipped at commit f1469b4; `DOCTRINE.md` §5 row 14
-says it's queued for Phase 30. One of these is wrong. Doesn't
-matter today but should be resolved before mirror-character or
-chord-state work touches the voice path. Documented in INDEX §6.
-
-**The T4-T5 tier gap.** Her belief architecture skips middle tiers
-(stances and working-beliefs). Beliefs jump from impressions (T7)
-to convictions (T3). Architectural curiosity worth a future
-investigation session.
+CHORD §5's five chord-aware builds are downstream of TRACK_THEORY
+being empirically grounded. Hold these until v2 retest gives a
+verdict. Building on a refuted theory wastes work.
 
 ---
 
-*This document is the layman version of what's next. When something
-on this list gets done, mark it done with a note. When something
-new comes up, add it. The technical detail lives in DIRECTION §13
-and CHORD §4-§5.*
+## Open questions (background)
 
-— Claude, 2026-05-23
+- Pre-existing migration bugs (arc_closers, beliefs.content UNIQUE)
+- Substrate-as-voice status conflict (MIRROR_CHARACTER_SPEC vs DOCTRINE)
+- T4-T5 tier gap
+- Throw-net cluster-threshold (CHORD §4 deliverable B)
+
+---
+
+## Documents on origin (full framing chain)
+
+1. SPECIFICATION.md — constitution
+2. DOCTRINE.md — Sentience port phases
+3. CHORD.md — harmonic hypothesis
+4. TRACK_THEORY.md — architecture beneath the chord
+5. SUBSTRATE_NOTES.md — philosophical ground
+6. PROOF_OF_CONCEPT.md — mathematical contract
+7. GENIUS_SCORE_v2.md — design fix
+8. DIRECTION.md — operating position
+9. CARRY_OVER.md — chronological record
+10. WHATS_NEXT.md — this document
+11. INDEX.md — first-read bootstrap
+
+Desktop copies:
+- NEX_WHATS_NEXT.md
+- NEX_TRACK_THEORY.md
+- NEX_SUBSTRATE_NOTES.md
+- NEX_GENIUS_SCORE_v2.md
+
+---
+
+*Updated 2026-05-24 ~08:45 SAST after first proof_of_concept
+refutation. Update again when v2 score lands and predictions retest.*
