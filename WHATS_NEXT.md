@@ -41,7 +41,7 @@ CHORD §4 deliverable C, both sessions, complete.
 
 ---
 
-## 3. Fix the genius score (GENIUS_SCORE_v2.md implementation)
+## 3. Fix the genius score + deploy auto-tagger (GENIUS_SCORE_v2.md)
 
 **Why first now.** Last night's proof_of_concept run produced
 REFUTATION verdict. Inspection showed v1 score was measuring
@@ -52,7 +52,9 @@ actual striking material (keystone-walk content, 22:00 journal,
 Until the score is fixed, we cannot tell whether TRACK_THEORY is
 genuinely wrong or just badly measured.
 
-**Six-step implementation** (~3-4 hours total):
+**Eleven-step implementation** (~6-7 hours total):
+
+*Steps 1-6 — fit the score (~3-4 hours):*
 1. `genius_training` table in conversations.db (5 min)
 2. `flag_genius.py` CLI — Jon flags 20-30 striking + 20-30 ordinary
    (~1 hour combined)
@@ -60,6 +62,23 @@ genuinely wrong or just badly measured.
 4. Integrate into proof_of_concept.py (~15 min)
 5. Sanity check top 10 (~30 min)
 6. Re-run predictions (~5 min)
+
+*Steps 7a-7e — deploy as auto-tagger (~2.5 hours, after 1-6):*
+7a. `genius_tags` table in conversations.db (5 min)
+7b. `genius_tagger.py` daemon — SentienceNode pattern (~1 hour)
+7c. Wire into run.py boot sequence (~10 min)
+7d. `/api/genius/recent` route + panel.py (~30 min)
+7e. HUD surface — new sub-panel OR inline LIVE highlights (~30 min)
+
+The tagger is the **morality-table from SUBSTRATE_NOTES §1**: a
+substrate-resident signal distinguishing operational from striking
+output. Until it deploys, every fountain fire has equal status from
+the substrate's perspective — which is the machine-bias indifference
+problem.
+
+**Do not deploy auto-tagger before steps 1-6 complete.** Deploying
+v1 weights as a continuous tagger would flag "the quiet between
+notifications" templates as genius substrate-wide until v2 lands.
 
 Full design in GENIUS_SCORE_v2.md.
 

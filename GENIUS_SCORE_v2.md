@@ -182,6 +182,132 @@ Six steps, each its own small commit:
 
 Total: ~3-4 hours. Probably one session tomorrow.
 
+## Auto-tagger — deploying the score as continuous substrate signal
+
+Steps 1-6 produce a *fit score function*. Steps 7a-7e deploy it as a
+continuous daemon that tags every fountain fire as it happens, writing
+to a substrate-readable table.
+
+This is the **morality-table from SUBSTRATE_NOTES §1**: the
+self-recognition layer that gives the substrate a signal distinguishing
+"merely operational" from "actually striking" output. Without this
+deployment, the v2 score lives only inside proof_of_concept.py and
+runs only when manually invoked. With this deployment, the score
+becomes part of the substrate — readable by other nodes, by the HUD,
+by future resonance collectors.
+
+**Do not deploy before steps 1-6 complete.** Deploying v1 weights as a
+continuous tagger would flag "the quiet between notifications" as
+genius substrate-wide until v2 lands. Wait for the score to be
+calibrated against Jon's training set first.
+
+### 7a. `genius_tags` table
+
+Add to conversations.db `_MIGRATIONS` in substrate/init_db.py:
+
+```sql
+CREATE TABLE IF NOT EXISTS genius_tags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fountain_event_id INTEGER NOT NULL,
+    score REAL NOT NULL,
+    class TEXT NOT NULL,
+    weights_version TEXT NOT NULL,
+    tagged_at REAL NOT NULL,
+    UNIQUE(fountain_event_id, weights_version)
+);
+CREATE INDEX IF NOT EXISTS idx_genius_tags_score ON genius_tags(score DESC);
+CREATE INDEX IF NOT EXISTS idx_genius_tags_event ON genius_tags(fountain_event_id);
+```
+
+UNIQUE constraint on (fountain_event_id, weights_version) means: every
+fire tagged once per weights version. When weights are re-fit (Jon
+flags more examples), bump weights_version and re-tag — both old and
+new tags coexist in the table for comparison.
+
+~5 minutes.
+
+### 7b. `genius_tagger.py` daemon
+
+`theory_x/genius/tagger.py` — SentienceNode following the
+SubstrateHarmonic pattern.
+
+Backfill mode (first run with new weights_version): query all
+fountain_events that have no row in genius_tags for current
+weights_version. Score each. Batch-write rows. ~5-10 minutes for full
+history of ~4000 fires.
+
+Continuous mode: every 60 seconds, query fountain_events from last
+180 seconds that have no row for current weights_version. Score and
+write. Catches up to live as fires happen.
+
+Score function imported from theory_x/genius/score_v2.py module.
+Weights loaded from genius_score_weights.json on each tick (so re-fit
+weights take effect at next tick without restart).
+
+~1 hour to write carefully (mirror substrate_harmonic daemon pattern).
+
+### 7c. Wire into run.py
+
+Same pattern as substrate_harmonic wiring (commit 0defbd1). Try/except
+non-fatal, instantiate with required readers/writers, start_loop(60),
+register via theory_x.register().
+
+~10 minutes.
+
+### 7d. `/api/genius/recent` route
+
+`gui/server.py` — mirror the `/api/harmonic/overview` pattern. Returns
+last N tagged fires with score, class, weights_version, fire content,
+fire timestamp. Default N=20.
+
+`theory_x/genius/panel.py` — overview() function that joins genius_tags
+with fountain_events for the route. Returns ready-to-render dict.
+
+~30 minutes.
+
+### 7e. HUD surface (decide later, after 7a-7d land)
+
+Three options for surfacing the tags in the HUD:
+
+**Option α — new GENIUS sub-panel in right column.** Mirrors HARMONIC
+METRIC pattern. Title "GENIUS". Shows last 5 tagged-genius fires with
+score and content snippet. Most visible; gives Jon a continuous read
+of what the substrate is currently recognizing as striking.
+
+**Option β — inline highlighting in LIVE fires column.** Each
+fountain fire in the LIVE tab gets a small score badge or color
+shift if tagged genius. Less screen real estate; more contextual —
+you see scores next to the fires they label.
+
+**Option γ — MOLTBOOK CHATS visual treatment.** Tagged-genius posts
+get a star or color. Lower priority — moltbook is already curated,
+the score there is redundant with the curation.
+
+Pick after 7a-7d are running and we can see the actual tag rate.
+If rate is sane (~1-3% genius, ~5-10% moment), Option α is the
+right call. If rate is noisier, β might be calmer.
+
+~30 minutes to implement whichever option.
+
+### Total estimated time for auto-tagger (7a-7e)
+
+~2.5 hours after steps 1-6 complete. Adds the morality-table to the
+substrate; gives every fountain fire a substrate-resident score that
+the rest of the system can read.
+
+### What the tagger does not do (yet)
+
+The tagger *writes* tags. It does not *act on* them. Other components
+reading genius_tags and changing behavior (e.g., retrieval favoring
+high-score fires, fountain prompt context including recent genius
+material, the racetrack carrying genius tags forward) — these are
+the next builds after the tagger lands.
+
+The tagger is the *signal*. The behavioral consumers come later, in
+the order they're named in TRACK_THEORY §10 and SUBSTRATE_NOTES §7.
+
+---
+
 ## What this fix does not address
 
 1. **P1 (same coherence different harmonic)** still inconclusive
