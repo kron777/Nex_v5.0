@@ -467,6 +467,17 @@ _MIGRATIONS: dict[str, list[str]] = {
         "notes TEXT)",
         "CREATE INDEX IF NOT EXISTS idx_coherence_ts "
         "ON substrate_coherence(ts DESC)",
+        # GENIUS_SCORE_v2 step 1 — training set for logistic regression fit.
+        # Jon flags fires as striking=1 / ordinary=0; the v2 score weights
+        # are fit against this table. Sparse (~40-60 rows expected).
+        "CREATE TABLE IF NOT EXISTS genius_training ("
+        "fountain_event_id INTEGER PRIMARY KEY, "
+        "striking INTEGER NOT NULL CHECK (striking IN (0, 1)), "
+        "flagged_at REAL NOT NULL, "
+        "flagged_by TEXT NOT NULL DEFAULT 'jon', "
+        "notes TEXT)",
+        "CREATE INDEX IF NOT EXISTS idx_genius_training_striking "
+        "ON genius_training(striking)",
     ],
 }
 
