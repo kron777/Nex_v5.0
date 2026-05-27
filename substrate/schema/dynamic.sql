@@ -149,3 +149,17 @@ CREATE INDEX IF NOT EXISTS idx_snapshots_ts ON substrate_snapshots(ts);
 CREATE INDEX IF NOT EXISTS idx_snapshots_fire ON substrate_snapshots(fountain_event_id);
 CREATE INDEX IF NOT EXISTS idx_snapshots_tier ON substrate_snapshots(retention_tier);
 CREATE INDEX IF NOT EXISTS idx_snapshots_pinned ON substrate_snapshots(pinned) WHERE pinned = 1;
+
+-- Ghost flags (SUBSTRATE_SNAPSHOTS.md companion) — Jon's intuition log.
+-- Separate from fountain_events.tag (which is constrained to coin/maybe/non);
+-- ghost is a different concept: subtle awareness moments where the substrate
+-- seems to catch something it shouldn't have caught by routine retrieval.
+-- One fire can be both coin-tagged AND ghost-flagged; they're orthogonal.
+CREATE TABLE IF NOT EXISTS ghost_flags (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    fountain_event_id  INTEGER NOT NULL UNIQUE,
+    ts                 REAL NOT NULL,
+    reason             TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ghost_flags_ts ON ghost_flags(ts);
+CREATE INDEX IF NOT EXISTS idx_ghost_flags_fire ON ghost_flags(fountain_event_id);

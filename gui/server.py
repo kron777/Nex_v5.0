@@ -239,7 +239,7 @@ class AppState:
     throw_net_monitor: Optional[object] = None     # Phase 25a TN-5
     counterfactual_node: Optional[object] = None   # Phase 25b CN
     voice_engine: Optional[object] = None          # Phase 30 VoiceEngine
-    voice_mode: str = "use_llm"                    # "use_llm" | "use_substrate"
+    voice_mode: str = "use_substrate"              # "use_llm" | "use_substrate"  TEMP: B-test 2026-05-27
     affect_state: Optional[object] = None          # Phase 27 AffectState
     drive_emergence: Optional[object] = None       # Phase 29 DriveEmergence
     predictive_substrate: Optional[object] = None  # Phase 35 PredictiveSubstrate
@@ -2002,6 +2002,92 @@ def create_app(state: AppState) -> Flask:
                             "thought": thought})
         except Exception as e:
             error_channel.record(f"coincidence tag failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    # -- ghost flagging (Jon's intuition log; SUBSTRATE_SNAPSHOTS.md companion) ---
+    @app.post("/api/ghost/flag")
+    def api_ghost_flag():
+        """Flag a fountain_event as a ghost moment with optional reason.
+
+        Ghost = Jon's subjective sense that the substrate caught something
+        subtle. Independent of coin/maybe/non tagging. Writes to ghost_flags
+        table in dynamic.db.
+
+        Body: {fountain_event_id: int, reason: str (optional)}
+        """
+        from flask import request
+        import sqlite3, time
+        body = request.get_json(silent=True) or {}
+        fid = body.get("fountain_event_id")
+        reason = (body.get("reason") or "").strip()
+        if not fid:
+            return jsonify({"error": "fountain_event_id required"}), 400
+        dyn_db = "/home/rr/Desktop/nex5/data/dynamic.db"
+        try:
+            cx = sqlite3.connect(dyn_db, timeout=10)
+            # Verify fire exists
+            row = cx.execute(
+                "SELECT thought, ts FROM fountain_events WHERE id=?", (fid,)
+            ).fetchone()
+            if not row:
+                cx.close()
+                return jsonify({"error": "fountain_event_id not found"}), 404
+            # Upsert: if already flagged, update the reason and ts
+            cx.execute(
+                "INSERT INTO ghost_flags (fountain_event_id, ts, reason) "
+                "VALUES (?, ?, ?) "
+                "ON CONFLICT(fountain_event_id) DO UPDATE SET "
+                "ts = excluded.ts, reason = excluded.reason",
+                (fid, time.time(), reason or None),
+            )
+            cx.commit()
+            cx.close()
+            return jsonify({"ok": True, "fountain_event_id": fid,
+                            "reason": reason, "thought": row[0]})
+        except Exception as e:
+            error_channel.record(f"ghost flag failed: {e}",
+                                 source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.post("/api/ghost/unflag")
+    def api_ghost_unflag():
+        """Remove a ghost flag (toggle-off behaviour)."""
+        from flask import request
+        import sqlite3
+        body = request.get_json(silent=True) or {}
+        fid = body.get("fountain_event_id")
+        if not fid:
+            return jsonify({"error": "fountain_event_id required"}), 400
+        dyn_db = "/home/rr/Desktop/nex5/data/dynamic.db"
+        try:
+            cx = sqlite3.connect(dyn_db, timeout=10)
+            cx.execute("DELETE FROM ghost_flags WHERE fountain_event_id=?", (fid,))
+            cx.commit()
+            cx.close()
+            return jsonify({"ok": True, "fountain_event_id": fid})
+        except Exception as e:
+            error_channel.record(f"ghost unflag failed: {e}",
+                                 source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.get("/api/ghost/flags")
+    def api_ghost_flags():
+        """Return all ghost flags (for HUD reload — knows which fires are flagged)."""
+        import sqlite3
+        dyn_db = "/home/rr/Desktop/nex5/data/dynamic.db"
+        try:
+            cx = sqlite3.connect(dyn_db, timeout=10)
+            cx.row_factory = sqlite3.Row
+            rows = cx.execute(
+                "SELECT fountain_event_id, ts, reason FROM ghost_flags "
+                "ORDER BY ts DESC LIMIT 500"
+            ).fetchall()
+            cx.close()
+            return jsonify({"flags": {
+                r["fountain_event_id"]: {"ts": r["ts"], "reason": r["reason"]}
+                for r in rows
+            }})
+        except Exception as e:
             return jsonify({"error": str(e)}), 500
 
     @app.get("/api/coincidence/stats")

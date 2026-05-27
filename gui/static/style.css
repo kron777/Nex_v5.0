@@ -1201,3 +1201,56 @@ body {
 .decoder-tag-badge.tag-unsure { background: rgba(224,192,138,0.18); color: #f0d8ae; }
 .decoder-tag-badge.tag-noise { background: rgba(224,138,138,0.15); color: #f0aeae; }
 .decoder-top-row.word-tagged.tag-noise { opacity: 0.5; }
+
+
+/* ── Ghost flag button (SUBSTRATE_SNAPSHOTS.md companion) ─────────────── */
+.ftn-tag-ghost {
+  /* dim default, purple when active */
+}
+.ftn-tag-ghost.active,
+.ftn-tag-btn.ftn-tag-ghost.active {
+  background: #6b46c1;
+  color: #fff;
+  border-color: #6b46c1;
+}
+.ftn-tag-btn.ftn-tagged-ghost,
+#fountain-thought.ftn-tagged-ghost {
+  color: #a78bfa;
+}
+.ghost-reason-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 4px;
+  background: rgba(107, 70, 193, 0.08);
+  border: 1px solid rgba(107, 70, 193, 0.3);
+  border-radius: 3px;
+}
+.ghost-reason-bar input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.85em;
+  outline: none;
+  padding: 2px 4px;
+}
+.ghost-reason-save,
+.ghost-reason-cancel {
+  background: transparent;
+  border: 1px solid currentColor;
+  color: #a78bfa;
+  cursor: pointer;
+  padding: 2px 8px;
+  font-size: 0.8em;
+  border-radius: 2px;
+}
+.ghost-reason-save:hover {
+  background: #6b46c1;
+  color: #fff;
+}
+.ghost-reason-cancel {
+  padding: 2px 6px;
+}

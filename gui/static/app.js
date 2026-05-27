@@ -1349,6 +1349,148 @@ async function loadArcs() {
 setInterval(loadArcs, 60000);
 loadArcs();
 
+// ── Ghost flag button (Jon's intuition log; SUBSTRATE_SNAPSHOTS.md) ───
+window.ghostFlags = window.ghostFlags || {};
+
+async function loadGhostFlags() {
+  try {
+    const r = await fetch("/api/ghost/flags");
+    if (r.ok) {
+      const data = await r.json();
+      window.ghostFlags = data.flags || {};
+      // Reflect state of the button for the current fire if applicable
+      updateGhostButtonState();
+    }
+  } catch (err) {
+    console.warn("loadGhostFlags failed", err);
+  }
+}
+
+function updateGhostButtonState() {
+  const btn = document.getElementById("ftn-tag-ghost");
+  if (!btn) return;
+  const fid = window._ftnCurrentId;
+  if (fid && window.ghostFlags[fid]) {
+    btn.classList.add("active");
+  } else {
+    btn.classList.remove("active");
+  }
+}
+
+function showGhostReasonBar(prefillReason) {
+  const bar = document.getElementById("ghost-reason-bar");
+  const input = document.getElementById("ghost-reason-input");
+  if (!bar || !input) return;
+  input.value = prefillReason || "";
+  bar.style.display = "flex";
+  setTimeout(() => input.focus(), 50);
+}
+
+function hideGhostReasonBar() {
+  const bar = document.getElementById("ghost-reason-bar");
+  if (bar) bar.style.display = "none";
+}
+
+async function saveGhostFlag(fid, reason) {
+  try {
+    const resp = await fetch("/api/ghost/flag", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({fountain_event_id: fid, reason: reason || ""})
+    });
+    if (resp.ok) {
+      window.ghostFlags[fid] = {ts: Date.now()/1000, reason: reason || null};
+      const btn = document.getElementById("ftn-tag-ghost");
+      if (btn) btn.classList.add("active");
+      hideGhostReasonBar();
+      return true;
+    } else {
+      console.error("ghost flag failed", await resp.text());
+      return false;
+    }
+  } catch (err) {
+    console.error("ghost flag exception", err);
+    return false;
+  }
+}
+
+async function unflagGhost(fid) {
+  try {
+    const resp = await fetch("/api/ghost/unflag", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({fountain_event_id: fid})
+    });
+    if (resp.ok) {
+      delete window.ghostFlags[fid];
+      const btn = document.getElementById("ftn-tag-ghost");
+      if (btn) btn.classList.remove("active");
+      hideGhostReasonBar();
+      return true;
+    }
+  } catch (err) {
+    console.error("ghost unflag exception", err);
+  }
+  return false;
+}
+
+(function wireGhostButton() {
+  const btn = document.getElementById("ftn-tag-ghost");
+  const saveBtn = document.getElementById("ghost-reason-save");
+  const cancelBtn = document.getElementById("ghost-reason-cancel");
+  const input = document.getElementById("ghost-reason-input");
+  if (!btn) return;
+
+  btn.addEventListener("click", async () => {
+    const fid = window._ftnCurrentId;
+    if (!fid) {
+      console.warn("no current fountain id to ghost-flag");
+      return;
+    }
+    // If already flagged: clicking again unflags
+    if (window.ghostFlags[fid]) {
+      // Show reason bar pre-filled so Jon can edit; or X to unflag
+      showGhostReasonBar(window.ghostFlags[fid].reason || "");
+    } else {
+      // Not flagged yet — open reason bar (empty); save creates the flag
+      showGhostReasonBar("");
+    }
+  });
+
+  if (saveBtn) {
+    saveBtn.addEventListener("click", async () => {
+      const fid = window._ftnCurrentId;
+      if (!fid) return;
+      await saveGhostFlag(fid, (input?.value || "").trim());
+    });
+  }
+  if (cancelBtn) {
+    cancelBtn.addEventListener("click", async () => {
+      const fid = window._ftnCurrentId;
+      if (fid && window.ghostFlags[fid]) {
+        // X on existing flag = unflag
+        await unflagGhost(fid);
+      } else {
+        hideGhostReasonBar();
+      }
+    });
+  }
+  if (input) {
+    input.addEventListener("keydown", async (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const fid = window._ftnCurrentId;
+        if (fid) await saveGhostFlag(fid, input.value.trim());
+      } else if (e.key === "Escape") {
+        hideGhostReasonBar();
+      }
+    });
+  }
+})();
+
+// Load existing flags on page boot
+loadGhostFlags();
+
 // ── Fountain tag buttons (coincidence tracking) ───────────────────────────
 (function wireFountainTagButtons() {
   ["coin","maybe","non"].forEach(tag => {
