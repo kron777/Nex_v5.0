@@ -18,6 +18,13 @@ import statistics
 import time
 from pathlib import Path
 from typing import Optional
+import sys
+sys.path.insert(0, str(Path(__file__).parent))
+from theory_x.genius.score_v2 import (
+    compute_features as compute_v2_features,
+    load_t6_beliefs as load_t6_v2,
+)
+import json
 
 DATA_DIR = Path("/home/rr/Desktop/nex5/data")
 REPORTS_DIR = Path("/home/rr/Desktop/nex5/reports")
@@ -118,42 +125,54 @@ def compute_normalization(fires):
     }
 
 
+def _load_v2_weights():
+    """Load v2 weights once; cache."""
+    if not hasattr(_load_v2_weights, '_cache'):
+        wp = Path('/home/rr/Desktop/nex5/genius_score_weights.json')
+        _load_v2_weights._cache = json.loads(wp.read_text())
+    return _load_v2_weights._cache
+
+
+def _sigmoid(z):
+    import math
+    if z >= 0:
+        return 1 / (1 + math.exp(-z))
+    return math.exp(z) / (1 + math.exp(z))
+
+
 def compute_genius_score(fire, recent_fires, t6_beliefs, norms):
-    tokens = tokenize(fire["thought"])
-    total = max(1, len(tokens))
-    self_count = sum(1 for t in tokens if t in SELF_REF_TOKENS)
-    f1 = min(1.0, (self_count / total) / norms["self_p95"])
-    phenom_count = sum(1 for t in tokens if t in PHENOM_TOKENS)
-    f2 = min(1.0, (phenom_count / total) / norms["phenom_p95"])
-    my_grams = fourgrams(tokens)
-    if my_grams and recent_fires:
-        sims = []
-        for prev in recent_fires[-30:]:
-            prev_grams = fourgrams(tokenize(prev["thought"]))
-            if prev_grams:
-                sims.append(jaccard(my_grams, prev_grams))
-        f3 = 1.0 - (sum(sims) / len(sims) if sims else 0.0)
+    """v2 score: logistic regression over 5 features, calibrated against
+    Jon's 103-row training set."""
+    weights_data = _load_v2_weights()
+    w = weights_data['weights']
+    b = weights_data['bias']
+    threshold = weights_data['threshold']
+
+    # v2 features need prior_thoughts as list[str] (not list[dict])
+    prior_thoughts = [r["thought"] for r in recent_fires]
+    feats = compute_v2_features(fire, prior_thoughts, t6_beliefs)
+    z = sum(w[j] * feats[j] for j in range(len(w))) + b
+    score = _sigmoid(z)
+
+    if score >= threshold + 0.20:
+        cls = "genius"
+    elif score >= threshold:
+        cls = "moment"
     else:
-        f3 = 0.5
-    f4 = 0.0
-    for b in t6_beliefs:
-        b_ts = b.get("created_at", 0)
-        if b_ts is None:
-            continue
-        if abs(b_ts - fire["ts"]) <= 300 and b_ts >= fire["ts"]:
-            b_grams = fourgrams(tokenize(b["content"]))
-            if jaccard(my_grams, b_grams) >= 0.4:
-                f4 = 1.0
-                break
-    cl = (fire["thought"] or "").lower()
-    marker_count = sum(cl.count(m) for m in REFLECTIVE_MARKERS)
-    f5 = min(1.0, (marker_count / total) / norms["reflective_p95"])
-    score = (f1 + f2 + f3 + f4 + f5) / 5.0
-    cls = "genius" if score >= 0.75 else ("moment" if score >= 0.55 else "ordinary")
-    return {"score": round(score, 3), "class": cls,
-            "features": {"self_ref": round(f1, 3), "phenom": round(f2, 3),
-                         "novelty": round(f3, 3), "t6_promo": round(f4, 3),
-                         "reflective": round(f5, 3)}}
+        cls = "ordinary"
+
+    return {
+        "score": round(score, 3),
+        "class": cls,
+        "features": {
+            "length_struct": round(feats[0], 3),
+            "anti_template": round(feats[1], 3),
+            "t6_promotion": round(feats[2], 3),
+            "self_witness": round(feats[3], 3),
+            "unprompted": round(feats[4], 3),
+        },
+    }
+
 
 
 def cognition_at(t, drives):
