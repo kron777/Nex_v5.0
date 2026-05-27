@@ -41,64 +41,78 @@ CHORD §4 deliverable C, both sessions, complete.
 
 ---
 
-## 3. Fix the genius score + deploy auto-tagger (GENIUS_SCORE_v2.md)
+## 3. ~~Fix the genius score (steps 1-6)~~ — DONE 2026-05-27
 
-**Why first now.** Last night's proof_of_concept run produced
+Six commits across the morning landed the calibrated v2 score:
+- d855320 genius_training table
+- f51955e flag_genius.py CLI (Jon flagged 103 fires)
+- 3161954 genius_score_v2.py first fit (91.3% training accuracy)
+- d7b3970 six honest label flips per three-mode framing, re-fit
+  (97.1% training accuracy, 0 false negatives)
+- c75f7bc integrated v2 into proof_of_concept.py + step 6 re-run
+
+v2 score top 10 across full 4000-fire substrate is Mode A only.
+Score genuinely calibrated to Jon's three-mode framing:
+  Mode A = existential/self-articulating (striking)
+  Mode B = "quiet between X" templates (ordinary)
+  Mode C = news/feed/BTC chatter (ordinary)
+
+Steps 7a-7e (deploy as auto-tagger) remain queued — see item 3b.
+
+---
+
+## 3b. Deploy auto-tagger (GENIUS_SCORE_v2.md §7a-7e)
+
+**Why next.** Last night's proof_of_concept run produced
 REFUTATION verdict. Inspection showed v1 score was measuring
 register-imitation (the 'quiet between X' template) and missing the
 actual striking material (keystone-walk content, 22:00 journal,
 20:43 metacognition).
 
-Until the score is fixed, we cannot tell whether TRACK_THEORY is
-genuinely wrong or just badly measured.
+v2 score is now calibrated AND the v2 retest confirmed TRACK_THEORY's
+mapping function is refuted (P3 clean null at p=0.965 with calibrated
+score). This makes the auto-tagger architecturally important rather
+than nice-to-have: without it, the substrate has no mechanism to
+preserve striking material with elevated causal weight, and the data
+shows walks leave no measurable trace once they end.
 
-**Eleven-step implementation** (~6-7 hours total):
+The tagger IS the morality-table from SUBSTRATE_NOTES §1.
 
-*Steps 1-6 — fit the score (~3-4 hours):*
-1. `genius_training` table in conversations.db (5 min)
-2. `flag_genius.py` CLI — Jon flags 20-30 striking + 20-30 ordinary
-   (~1 hour combined)
-3. `genius_score_v2.py` module — logistic regression fit (~1 hour)
-4. Integrate into proof_of_concept.py (~15 min)
-5. Sanity check top 10 (~30 min)
-6. Re-run predictions (~5 min)
-
-*Steps 7a-7e — deploy as auto-tagger (~2.5 hours, after 1-6):*
+**Five-step implementation** (~2.5 hours):
 7a. `genius_tags` table in conversations.db (5 min)
 7b. `genius_tagger.py` daemon — SentienceNode pattern (~1 hour)
 7c. Wire into run.py boot sequence (~10 min)
 7d. `/api/genius/recent` route + panel.py (~30 min)
 7e. HUD surface — new sub-panel OR inline LIVE highlights (~30 min)
 
-The tagger is the **morality-table from SUBSTRATE_NOTES §1**: a
-substrate-resident signal distinguishing operational from striking
-output. Until it deploys, every fountain fire has equal status from
-the substrate's perspective — which is the machine-bias indifference
-problem.
+Then beyond the deployment, the *consumers* of the tag:
+- Retrieval favoring high-score fires
+- Fountain prompt context including recent tagged material
+- The next theory document's organ outputs reading tag rate
 
-**Do not deploy auto-tagger before steps 1-6 complete.** Deploying
-v1 weights as a continuous tagger would flag "the quiet between
-notifications" templates as genius substrate-wide until v2 lands.
-
-Full design in GENIUS_SCORE_v2.md.
+Full design in GENIUS_SCORE_v2.md §7.
 
 ---
 
-## 4. Re-test TRACK_THEORY with v2 score
+## 4. ~~Re-test TRACK_THEORY with v2 score~~ — DONE 2026-05-27
 
-After v2 score sanity-checks, re-run proof_of_concept.py.
+**Outcome B confirmed.** With calibrated v2 score:
+- P3 (register-persistence): clean null, p=0.965, mean_post == mean_base
+- P2, P5: confirmed-fail at significance
+- P4: strong-pass at p<0.001
+- P1: still inconclusive (code-stub bug)
 
-**Outcome A — predictions pass:** TRACK_THEORY drive-based mapping
-rescued. v1 failures were the score's fault. Continue with
-TRACK_THEORY §10 build sequence.
+TRACK_THEORY §4-§5 drive-mapping genuinely refuted. The
+architectural claim from §1 (voltage/coherence independence) holds.
+The next theory document, when written, derives the mapping from
+SUBSTRATE_NOTES §1-§7 organ framing, not from drive-composition.
 
-**Outcome B — predictions still fail:** TRACK_THEORY drive-mapping
-genuinely refuted. Next theory document written from SUBSTRATE_NOTES
-(organs framing). TRACK_THEORY's architectural parts (racetrack,
-resonance collectors) survive; mapping function re-derived from
-organ-activity.
+See TRACK_THEORY.md §14 (verdict) and §15 (status header) for the
+section-by-section read of what survives and what doesn't.
 
-Either outcome is progress.
+The cleanest finding from the retest: **walks happen, are Mode A
+material, and leave zero measurable trace once they end.** This is
+why the auto-tagger (item 3b) is architecturally necessary.
 
 ---
 
@@ -149,5 +163,6 @@ Desktop copies:
 
 ---
 
-*Updated 2026-05-24 ~08:45 SAST after first proof_of_concept
-refutation. Update again when v2 score lands and predictions retest.*
+*Updated 2026-05-27 ~13:30 SAST after v2 retest confirmed
+TRACK_THEORY drive-mapping refuted (P3 clean null). Next theory
+document derives mapping from SUBSTRATE_NOTES organs framing.*

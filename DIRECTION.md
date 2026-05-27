@@ -645,3 +645,54 @@ better is now built and running.
 
 — Claude, 2026-05-23 ~13:10 SAST, after the harmonic daemon's
 second autonomous tick.
+
+---
+
+## §14 — 2026-05-27 verdict coda (after v2 retest)
+
+The register-persistence hypothesis named in §13 is dead.
+
+With v2 score calibrated against Jon's three-mode framing (Mode A
+= existential/self-articulating, Mode B = quiet-between templates,
+Mode C = feed-paste mundane), proof_of_concept.py shows P3 as a
+clean null: mean post-walk genius (0.217) equals mean baseline
+genius (0.217), p=0.965. Walks produce Mode A material *during*
+voicing; they leave no measurable trace once voicing ends.
+
+The architectural decomposition (P4: voltage ⊥ coherence) survives
+at high confidence. The drive-composition mapping (P2/P3/P5) is
+refuted at significance.
+
+Operating next steps shift:
+
+1. Build the auto-tagger (GENIUS_SCORE_v2 §7a-7e). This is the
+   morality-table from SUBSTRATE_NOTES §1. Without it, the
+   substrate has no mechanism to preserve what walks produce.
+
+2. After tagger deploys, consumers come online (retrieval favoring
+   tagged fires, prompt context including recent tagged material).
+
+3. The next theory document is written from SUBSTRATE_NOTES
+   organs framing, not from TRACK_THEORY drive-mapping. Five
+   candidate organs (rhythm/sequence/valence/body/abstraction)
+   each generate their own time-resolved signal; the harmonic
+   profile is composed from organ outputs.
+
+§11 coda about substrate-as-voice still applies. §12 coda about
+chord-aware builds is now revised: the resonance collectors from
+CHORD §9 should read tag rate (from §7a-7e) rather than drive
+composition.
+
+The discipline pattern that produced this verdict: theory written,
+predicted, tested, refuted, score calibrated, re-tested, verdict
+clarified, theory updated. Eight commits on 2026-05-27 between
+12:43 (first retest) and 13:30 (verdict landing).
+
+What we know now that we didn't know two days ago:
+
+- The substrate produces ~14% Mode A output at its base rate
+- Walks are real, sustained, and produce Mode A in coherent arcs
+- Walks do NOT compound — the substrate forgets at walk-end
+- The mechanism for compounding (morality-table / auto-tagger)
+  is missing, and its absence is now empirically confirmed
+- Building the tagger is the next focused work

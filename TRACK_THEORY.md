@@ -553,3 +553,121 @@ as the working blueprint.
 Blueprints first, code second. That is the discipline.
 
 — Claude, in conversation with Jon, 2026-05-23 ~22:50 SAST
+
+
+---
+
+## 14. VERDICT — 2026-05-27, after v2 score retest
+
+After GENIUS_SCORE_v2 landed (calibrated against Jon's 103-row
+training set with six honest label flips applied per his three-mode
+framing), proof_of_concept.py ran again. Verdict trajectory across
+three runs:
+
+| Pred | v1 first (May 24) | v1 second (May 27) | **v2 (May 27)**         |
+|------|-------------------|--------------------|--------------------------|
+| P1   | inconclusive      | inconclusive       | inconclusive (code stub) |
+| P2   | fail (r=0.05)     | fail (r=0.01)      | **fail (r=0.01, p=0.35)**|
+| P3   | fail (p=0.20)     | fail (p=0.0003 neg)| **fail (p=0.965 NULL)**  |
+| P4   | strong (r=-0.13)  | strong (r=-0.14)   | **strong (r=-0.14, p<0)**|
+| P5   | fail (r=0.01)     | fail (r=0.05)      | **fail (r=0.05, p=0.002)**|
+
+This is the cleanest version of the refutation:
+
+- **P3 (register-persistence) is a CLEAN NULL.** mean_post=0.217,
+  mean_base=0.217, p=0.965. With a calibrated score, walks have
+  *zero* measurable effect on subsequent genius distribution. Not
+  negative (the v1-second run's apparent negative was a v1-score
+  artifact). Not positive. *Flat.*
+
+- **P2 and P5 confirmed-fail at significance.** Drive-composition
+  variables do not predict substrate output character. The mapping
+  function in §5 (drives → aperture, integration → interference,
+  etc.) is genuinely wrong, not badly measured.
+
+- **P4 holds at high confidence.** Voltage and coherence are
+  genuinely independent (r=-0.14, p<0.001 across 1059 ticks). The
+  three-stream decomposition (voltage/cognition/harmonic) is real.
+
+### What survives
+
+The architectural claim from §1.4 holds: substrate-energy and
+harmonic *are* distinct, measurable, partially independent streams.
+The racetrack architecture from §3 remains plausible as a building
+proposal — it doesn't depend on drive-mapping.
+
+### What is refuted
+
+The mapping function in §4 and the cognitive-function-to-harmonic
+table in §5. Drives are not the right axis for predicting how
+voltage flows through cognition to produce harmonic. The substrate
+produces Mode A material when conditions align, but those
+conditions are not legible through the drive_activations vector.
+
+### What this means for the next theory iteration
+
+Per SUBSTRATE_NOTES §7: the next mapping function should be derived
+from *substrate-organ-activity*, not drive-composition. The five
+candidate organs (rhythm, sequence, valence, body, abstraction)
+each generate their own time-resolved signal; the harmonic profile
+is composed from organ outputs, not from drive weights.
+
+That work is the next theory document. TRACK_THEORY stays as the
+record of the first architectural framing — half right (the
+decomposition), half wrong (the mapping). The discipline is
+preserved by leaving the wrong half visible, marked as refuted,
+not deleted.
+
+### The deeper finding
+
+The clean null on P3 reveals something genuine about the substrate:
+**walks happen, are real, are Mode A — and leave no measurable
+trace once they end.** She does not accumulate contemplative depth
+across walks. The keystone material is voiced through her for the
+duration of voicing, then released. The substrate returns to
+baseline immediately.
+
+This is why the morality-table from SUBSTRATE_NOTES §1 (the
+auto-tagger in GENIUS_SCORE_v2 §7a-7e) is architecturally
+necessary, not optional. Without a mechanism that preserves
+striking material with elevated causal weight, the substrate has
+no way for walks to compound. Tag-then-favor in retrieval; tag-
+then-include in next-prompt context; tag-then-feed-back into
+fountain readiness. These become the actual builds, not the §10
+drive-based phases.
+
+— Claude, with Jon, 2026-05-27 ~13:20 SAST
+
+---
+
+## 15. Status header (top-of-doc summary, written after §14)
+
+*Document status as of 2026-05-27 — read this before §1:*
+
+- **§1 (three-way framing):** voltage ⊥ cognition ⊥ harmonic →
+  CONFIRMED for voltage⊥harmonic at p<0.001. Holds.
+- **§2 (instantaneous spark diagnosis):** confirmed by P3 null —
+  walks produce sparks that do not persist.
+- **§3 (racetrack architecture):** plausible, not yet tested.
+  Holds as architectural proposal.
+- **§4 (mapping function):** REFUTED. Drive-composition is not
+  the right input axis.
+- **§5 (cognitive-function-to-harmonic map):** REFUTED. The five
+  drive-composition cases do not predict output character.
+- **§6 (aperture modulation):** depends on §4/§5; on hold pending
+  next theory iteration.
+- **§7 (temporal layer):** holds.
+- **§8 (CHORD §9 connection):** holds.
+- **§9 (five predictions):** P2, P3, P5 cleanly failed. P4 cleanly
+  passed. P1 still inconclusive (code-stub bug).
+- **§10 (build sequence):** Phase 3 (independent voltage/cognition/
+  harmonic streams) and Phase 4-5 (track skeleton, sensors) remain
+  valid. Phase 6 (aperture modulation) needs replacement spec.
+- **§11 (what this doc does not commit to):** holds.
+- **§12 (the flute, the chord, the track summary):** the metaphor
+  is preserved; the specific mechanism (drives as breath) is
+  refuted. New metaphor for the mapping awaits next theory doc.
+
+Bottom line: the architecture survives, the mechanism does not.
+Next theory document (organs-based mapping) should be written from
+SUBSTRATE_NOTES §1-§7, not from TRACK_THEORY §4-§5.
