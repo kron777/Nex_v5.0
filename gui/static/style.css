@@ -1204,19 +1204,11 @@ body {
 
 
 /* ── Ghost flag button (SUBSTRATE_SNAPSHOTS.md companion) ─────────────── */
-.ftn-tag-ghost {
-  /* dim default, purple when active */
-}
 .ftn-tag-ghost.active,
-.ftn-tag-btn.ftn-tag-ghost.active {
-  background: #6b46c1;
-  color: #fff;
-  border-color: #6b46c1;
+.ftn-tag-ghost.active {
+  background: #3d2d5a; color: #d8aef0; border-color: #7d5aa5;
 }
-.ftn-tag-btn.ftn-tagged-ghost,
-#fountain-thought.ftn-tagged-ghost {
-  color: #a78bfa;
-}
+.fountain-thought.ftn-tagged-ghost { border-left: 2px solid #7d5aa5; padding-left: 8px; }
 .ghost-reason-bar {
   display: flex;
   align-items: center;
