@@ -95,3 +95,57 @@ CREATE TABLE IF NOT EXISTS drive_proposals (
     proposed_curiosity     REAL NOT NULL,
     status                 TEXT NOT NULL DEFAULT 'pending'
 );
+
+-- Substrate snapshots (SUBSTRATE_SNAPSHOTS.md) — temporal-witness mechanism.
+-- One snapshot per fountain_event when capture is enabled.
+-- Joins to fountain_events via fountain_event_id.
+-- See SUBSTRATE_SNAPSHOTS.md for retention strategy.
+CREATE TABLE IF NOT EXISTS substrate_snapshots (
+    id                         INTEGER PRIMARY KEY AUTOINCREMENT,
+    fountain_event_id          INTEGER NOT NULL UNIQUE,
+    ts                         REAL NOT NULL,
+    coherence                  REAL,
+    voltage                    REAL,
+    drives_json                TEXT,
+    walk_state                 TEXT,
+    walk_anchor_id             INTEGER,
+    hot_branches_json          TEXT,
+    harmonic_pairs_json        TEXT,
+    gate_composition_json      TEXT,
+    groove_severity            REAL,
+    recent_fires_ids_json      TEXT,
+    beliefs_in_attention_json  TEXT,
+    retention_tier             TEXT,
+    pinned                     INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_snapshots_ts ON substrate_snapshots(ts);
+CREATE INDEX IF NOT EXISTS idx_snapshots_fire ON substrate_snapshots(fountain_event_id);
+CREATE INDEX IF NOT EXISTS idx_snapshots_tier ON substrate_snapshots(retention_tier);
+CREATE INDEX IF NOT EXISTS idx_snapshots_pinned ON substrate_snapshots(pinned) WHERE pinned = 1;
+
+-- Substrate snapshots (SUBSTRATE_SNAPSHOTS.md) — temporal-witness mechanism.
+-- One snapshot per fountain_event when capture is enabled.
+-- Joins to fountain_events via fountain_event_id.
+-- See SUBSTRATE_SNAPSHOTS.md for retention strategy.
+CREATE TABLE IF NOT EXISTS substrate_snapshots (
+    id                         INTEGER PRIMARY KEY AUTOINCREMENT,
+    fountain_event_id          INTEGER NOT NULL UNIQUE,
+    ts                         REAL NOT NULL,
+    coherence                  REAL,
+    voltage                    REAL,
+    drives_json                TEXT,
+    walk_state                 TEXT,
+    walk_anchor_id             INTEGER,
+    hot_branches_json          TEXT,
+    harmonic_pairs_json        TEXT,
+    gate_composition_json      TEXT,
+    groove_severity            REAL,
+    recent_fires_ids_json      TEXT,
+    beliefs_in_attention_json  TEXT,
+    retention_tier             TEXT,
+    pinned                     INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_snapshots_ts ON substrate_snapshots(ts);
+CREATE INDEX IF NOT EXISTS idx_snapshots_fire ON substrate_snapshots(fountain_event_id);
+CREATE INDEX IF NOT EXISTS idx_snapshots_tier ON substrate_snapshots(retention_tier);
+CREATE INDEX IF NOT EXISTS idx_snapshots_pinned ON substrate_snapshots(pinned) WHERE pinned = 1;
