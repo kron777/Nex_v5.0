@@ -1369,7 +1369,7 @@ async function loadGhostFlags() {
 function updateGhostButtonState() {
   const btn = document.getElementById("ftn-tag-ghost");
   if (!btn) return;
-  const fid = window._ftnCurrentId;
+  const fid = _ftnCurrentId;
   if (fid && window.ghostFlags[fid]) {
     btn.classList.add("active");
   } else {
@@ -1442,7 +1442,7 @@ async function unflagGhost(fid) {
   if (!btn) return;
 
   btn.addEventListener("click", async () => {
-    const fid = window._ftnCurrentId;
+    const fid = _ftnCurrentId;
     if (!fid) {
       console.warn("no current fountain id to ghost-flag");
       return;
@@ -1459,14 +1459,14 @@ async function unflagGhost(fid) {
 
   if (saveBtn) {
     saveBtn.addEventListener("click", async () => {
-      const fid = window._ftnCurrentId;
+      const fid = _ftnCurrentId;
       if (!fid) return;
       await saveGhostFlag(fid, (input?.value || "").trim());
     });
   }
   if (cancelBtn) {
     cancelBtn.addEventListener("click", async () => {
-      const fid = window._ftnCurrentId;
+      const fid = _ftnCurrentId;
       if (fid && window.ghostFlags[fid]) {
         // X on existing flag = unflag
         await unflagGhost(fid);
@@ -1479,7 +1479,7 @@ async function unflagGhost(fid) {
     input.addEventListener("keydown", async (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
-        const fid = window._ftnCurrentId;
+        const fid = _ftnCurrentId;
         if (fid) await saveGhostFlag(fid, input.value.trim());
       } else if (e.key === "Escape") {
         hideGhostReasonBar();
