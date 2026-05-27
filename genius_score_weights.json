@@ -1,6 +1,6 @@
 {
   "version": "v2",
-  "fitted_at": 1779880240.9583886,
+  "fitted_at": 1779880423.5238297,
   "feature_names": [
     "length_structure",
     "anti_template",
@@ -9,22 +9,22 @@
     "unprompted"
   ],
   "weights": [
-    2.834244290229814,
-    -1.1895416086784556,
+    2.5452227666241223,
+    -1.5769506179952641,
     0.0,
-    0.4459813676312038,
-    3.4356879052754214
+    1.1571233956131408,
+    4.715061429115058
   ],
-  "bias": -1.8199546750354727,
-  "threshold": 0.35,
+  "bias": -2.319644857504,
+  "threshold": 0.29,
   "training_size": 103,
   "training_striking": 67,
   "training_ordinary": 36,
-  "training_accuracy": 0.912621359223301,
+  "training_accuracy": 0.970873786407767,
   "confusion": {
-    "tp": 64,
-    "fp": 6,
-    "fn": 3,
-    "tn": 30
+    "tp": 67,
+    "fp": 3,
+    "fn": 0,
+    "tn": 33
   }
 }
