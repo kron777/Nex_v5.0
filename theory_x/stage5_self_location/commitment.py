@@ -29,18 +29,23 @@ class SelfLocationCommitment:
         if rows:
             return rows[0]["id"]
 
-        row_id = beliefs_writer.write(
-            "INSERT INTO beliefs "
+        beliefs_writer.write(
+            "INSERT OR IGNORE INTO beliefs "
             "(content, tier, confidence, created_at, source, locked, branch_id) "
             "VALUES (?, ?, ?, ?, ?, ?, ?)",
             (COMMITMENT_CONTENT, 1, 0.98, int(time.time()),
              "self_location", 1, "systems"),
         )
-        error_channel.record(
-            f"Self-location committed (belief id={row_id})",
-            source="stage5_self_location", level="INFO",
+        rows = beliefs_reader.read(
+            "SELECT id FROM beliefs WHERE source='self_location' AND locked=1 LIMIT 1"
         )
-        logger.info("Self-location committed (belief id=%d)", row_id)
+        row_id = rows[0]["id"] if rows else None
+        if row_id is not None:
+            error_channel.record(
+                f"Self-location committed (belief id={row_id})",
+                source="stage5_self_location", level="INFO",
+            )
+            logger.info("Self-location committed (belief id=%s)", row_id)
         return row_id
 
     def is_committed(self, beliefs_reader: Reader) -> bool:
