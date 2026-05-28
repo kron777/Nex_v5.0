@@ -96,3 +96,75 @@ conjunction.
 - the lever for more Mode A is NOT drive-tuning (drives don't move
   output) but the substrate_voice trigger conditions (groove threshold,
   cooldown, anchor selection) — already built.
+
+---
+
+# ADDENDUM 2026-05-28 evening — voltage tested, breadth lead found
+
+After the three-way null (drives/coherence/pairs), tested VOLTAGE — the one
+remaining substrate signal. Voltage is not stored live; computed per
+proof_of_concept.compute_voltage_simple: a 5-min-window busyness score =
+0.5*activity (fires/30) + 0.5*cross_domain (branches/10).
+
+## Voltage result — first NON-flat signal
+
+genius voltage 0.177 ± 0.042 vs ordinary 0.152 ± 0.043, d=+0.58 (genius
+higher). Sawtooth check: 7 of 8 genius fires sat at a RISING voltage peak
+(voltage climbing into the fire), 1 falling. This matched the
+"charge-then-fire" intuition — the first result that pointed anywhere.
+
+## De-circularization — the signal is BREADTH, not tempo
+
+Voltage has two halves. Split and tested separately:
+
+  ACTIVITY half (tempo, fires/5min):  genius 0.092 vs ordinary 0.090
+                                       d=+0.08  -> FLAT
+  CROSS-DOMAIN half (breadth, #branches): genius 2.63 vs ordinary 2.14
+                                       d=+0.67  -> the whole signal
+
+The tempo half is flat — genius and ordinary fire at the same rate (~2.7
+fires/5min). So the voltage effect is NOT the walk-tempo circularity
+(genius fires are substrate_voice fires during walks; walks could fire
+fast — but they don't fire faster than ordinary). The signal lives
+entirely in BREADTH: genius fires occur when more distinct branches are
+simultaneously warm (~2.6 vs ~2.1 domains).
+
+Reframe of the circuit-intuition: striking-ness does not come from going
+FAST (tempo flat) but from going WIDE — multiple domains live at once,
+cross-domain ferment. Breadth, not speed.
+
+## Status: PROMISING but UNDERPOWERED — cannot confirm or deny
+
+Power analysis: detecting d=0.67 at alpha=0.05, power=0.80 needs ~36 per
+group. We have genius n=8. We are UNDERPOWERED; d=0.67 at n=8 is a lead,
+not a finding. Four candidates flat, one promising-pending — honestly
+"one lead," not "one hit."
+
+## Pre-registered confirm/deny test (tools/test_breadth.py)
+
+Thresholds fixed 2026-05-28 BEFORE the confirming data exists, to prevent
+goalpost-moving:
+  CONFIRMED : p < 0.05  AND  d >= 0.4   (Welch t, breadth, genius vs ordinary)
+  DENIED    : p > 0.20  OR   d < 0.2
+  PENDING   : in between, OR genius n < 30
+Circularity guard: tempo half tested in parallel; if tempo also p<0.05 the
+breadth result is flagged as possibly confounded.
+
+n=36 reachable in ~5-11h of running (genius rate 14-32%, ~24 fires/hr). So:
+run overnight, score-pending in the morning, then run test_breadth for a
+real verdict. No eyeballing — the script prints CONFIRMED/DENIED/PENDING.
+
+## Honest summary of the whole snapshot investigation
+
+Five candidate sources for striking-ness tested:
+  drives             d~0      flat
+  coherence          d=-0.18  flat
+  harmonic pairs     ~        flat/saturated
+  voltage-tempo      d=0.08   flat
+  voltage-breadth    d=0.67   PROMISING (underpowered, test queued)
+
+If anything in the live substrate tracks striking-ness, it is breadth of
+simultaneously-active domains. Everything else is flat. The genius/ordinary
+split otherwise lives in TEXT (what v2 reads) and the retrieval MECHANISM
+(keystone vs LLM), not in substrate state. Verdict on breadth deferred to
+test_breadth at n>=30.
