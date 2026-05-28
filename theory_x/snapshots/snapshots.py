@@ -104,6 +104,36 @@ def capture_snapshot(
 
 # ── Scoring pass ────────────────────────────────────────────────────────────
 
+def _lookup_coherence(fire_ts, window_s: float = 360.0):
+    """Find the substrate_coherence row nearest to fire_ts (within window_s).
+
+    Returns (total, pair_scores_json) or (None, None). Never raises.
+    Opens a short-lived read-only connection to conversations.db. Runs only
+    in the async scoring/backfill pass — never on the fountain hot path.
+    """
+    try:
+        import sqlite3
+        from substrate.paths import db_paths
+        cpath = db_paths()["conversations"]
+        con = sqlite3.connect(f"file:{cpath}?mode=ro", uri=True, timeout=5.0)
+        con.row_factory = sqlite3.Row
+        try:
+            row = con.execute(
+                "SELECT total, pair_scores, ABS(ts - ?) AS dt "
+                "FROM substrate_coherence "
+                "WHERE ABS(ts - ?) <= ? "
+                "ORDER BY dt ASC LIMIT 1",
+                (fire_ts, fire_ts, window_s),
+            ).fetchone()
+        finally:
+            con.close()
+        if row is None:
+            return None, None
+        return float(row["total"]), row["pair_scores"]
+    except Exception:
+        return None, None
+
+
 def score_pending_snapshots(
     reader,
     writer,
@@ -196,9 +226,13 @@ def score_pending_snapshots(
             else:
                 tier = "ordinary"
 
+            # Enrich coherence + harmonic pairs from the nearest harmonic tick.
+            _coh, _pairs = _lookup_coherence(fire["ts"])
             writer.write(
-                "UPDATE substrate_snapshots SET retention_tier = ? WHERE id = ?",
-                (tier, sid),
+                "UPDATE substrate_snapshots "
+                "SET retention_tier = ?, coherence = ?, harmonic_pairs_json = ? "
+                "WHERE id = ?",
+                (tier, _coh, _pairs, sid),
             )
             counts[tier] += 1
         except Exception as exc:
@@ -207,6 +241,44 @@ def score_pending_snapshots(
             counts["errors"] += 1
 
     return counts
+
+
+def backfill_coherence(reader, writer, limit: int = 10000) -> dict[str, int]:
+    """Retroactively enrich coherence + harmonic_pairs for snapshots that
+    already have a retention_tier but NULL coherence. Joins each to its fire
+    timestamp and looks up the nearest harmonic tick. Never touches the hot
+    path. Returns {filled, missed, errors}.
+    """
+    out = {"filled": 0, "missed": 0, "errors": 0}
+    try:
+        rows = reader.read(
+            "SELECT s.id AS sid, f.ts AS fire_ts "
+            "FROM substrate_snapshots s "
+            "JOIN fountain_events f ON s.fountain_event_id = f.id "
+            "WHERE s.coherence IS NULL "
+            "ORDER BY s.id ASC LIMIT ?",
+            (limit,),
+        )
+    except Exception as exc:
+        logger.error("backfill query failed: %s", exc)
+        out["errors"] = -1
+        return out
+    for r in rows or []:
+        try:
+            coh, pairs = _lookup_coherence(float(r["fire_ts"]))
+            if coh is None:
+                out["missed"] += 1
+                continue
+            writer.write(
+                "UPDATE substrate_snapshots "
+                "SET coherence = ?, harmonic_pairs_json = ? WHERE id = ?",
+                (coh, pairs, int(r["sid"])),
+            )
+            out["filled"] += 1
+        except Exception as exc:
+            logger.warning("backfill snapshot %s failed: %s", r.get("sid"), exc)
+            out["errors"] += 1
+    return out
 
 
 # ── Pruning ─────────────────────────────────────────────────────────────────

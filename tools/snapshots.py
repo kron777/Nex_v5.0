@@ -31,6 +31,7 @@ from substrate.writer import Writer
 from theory_x.snapshots.snapshots import (
     capture_snapshot, score_pending_snapshots, prune_snapshots,
     pin_snapshot, unpin_snapshot, delete_snapshot, snapshot_stats,
+    backfill_coherence,
 )
 
 
@@ -142,6 +143,15 @@ def cmd_score_pending(args):
         print(f"  errors:   {counts['errors']}")
 
 
+def cmd_backfill_coherence(args):
+    reader, writer = _get_rw()
+    print('Backfilling coherence + harmonic pairs...')
+    out = backfill_coherence(reader, writer)
+    print(f"  filled: {out['filled']}")
+    print(f"  missed: {out['missed']}")
+    if out.get('errors', 0) > 0:
+        print(f"  errors: {out['errors']}")
+
 def cmd_prune(args):
     reader, writer = _get_rw()
     mode = "COMMIT" if args.commit else "DRY-RUN"
@@ -196,6 +206,7 @@ def main():
     sp = sub.add_parser("score-pending")
     sp.add_argument("--limit", type=int, default=1000)
 
+    sub.add_parser("backfill-coherence")
     sp = sub.add_parser("prune")
     sp.add_argument("--commit", action="store_true",
                     help="actually delete (default is dry-run)")
@@ -215,6 +226,7 @@ def main():
     elif args.cmd == "show":           rc = cmd_show(args)
     elif args.cmd == "show-recent":    rc = cmd_show_recent(args)
     elif args.cmd == "score-pending":  cmd_score_pending(args)
+    elif args.cmd == "backfill-coherence": cmd_backfill_coherence(args)
     elif args.cmd == "prune":          cmd_prune(args)
     elif args.cmd == "pin":            cmd_pin(args)
     elif args.cmd == "unpin":          cmd_unpin(args)
