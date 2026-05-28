@@ -341,7 +341,7 @@ class FountainGenerator:
                 pass
 
         try:
-            self._dynamic_writer.write(
+            _sv_fid = self._dynamic_writer.write(
                 "INSERT INTO fountain_events "
                 "(ts, thought, readiness, hot_branch, word_count, anchor_belief_id) "
                 "VALUES (?, ?, ?, ?, ?, ?)",
@@ -349,6 +349,12 @@ class FountainGenerator:
                  "substrate_voice", len(anchor_content.split()), anchor_id),
             )
             self._link_activation_to_event()
+            # Snapshot the substrate_voice fire (Mode A walks). Fire-and-forget.
+            try:
+                if _sv_fid:
+                    self._capture_fire_snapshot(_sv_fid, "substrate_voice", anchor_id)
+            except Exception:
+                pass
         except Exception:
             pass
 
@@ -371,6 +377,62 @@ class FountainGenerator:
             self._total_fires, anchor_id, anchor_content[:80],
         )
         return anchor_content
+
+    def _capture_fire_snapshot(self, fountain_event_id, walk_state, walk_anchor_id=None):
+        """Fire-and-forget substrate snapshot at fountain-fire time.
+
+        SUBSTRATE_SNAPSHOTS.md temporal-witness mechanism. Captures what is
+        cleanly reachable from the generator without adding new DB readers
+        to the hot path: drives, walk state, recent fire ids, total fires.
+        coherence/voltage/harmonic_pairs left NULL for now (enriched later).
+
+        NEVER raises. NEVER blocks the fire. retention_tier left NULL —
+        scored asynchronously by score_pending_snapshots().
+        """
+        if not fountain_event_id:
+            return
+        try:
+            from theory_x.snapshots.snapshots import capture_snapshot
+        except Exception:
+            return
+        try:
+            # Drives — best-effort from competing_drives._weights
+            # (coherence, exploration, integration, self_preservation, curiosity)
+            drives = {}
+            if self._competing_drives is not None:
+                try:
+                    drives = dict(getattr(self._competing_drives, "_weights", {}) or {})
+                except Exception:
+                    drives = {}
+            # Recent fire ids (last 30 from dynamic.db via the writer's reader if any)
+            recent_ids = []
+            try:
+                # _total_fires is a counter; recent ids approximated by id range
+                recent_ids = [fountain_event_id - i for i in range(1, 31) if (fountain_event_id - i) > 0]
+            except Exception:
+                recent_ids = []
+            state = {
+                "coherence": None,
+                "voltage": None,
+                "drives": drives,
+                "walk_state": walk_state,
+                "walk_anchor_id": walk_anchor_id,
+                "hot_branches": {},
+                "harmonic_pairs": {},
+                "gate_composition": {},
+                "groove_severity": None,
+                "recent_fires_ids": recent_ids,
+                "beliefs_in_attention": [],
+            }
+            capture_snapshot(fountain_event_id, state, self._dynamic_writer)
+        except Exception as _snap_exc:
+            try:
+                error_channel.record(
+                    f"snapshot capture non-fatal: {_snap_exc}",
+                    source="stage6_fountain",
+                )
+            except Exception:
+                pass
 
     def generate(self, dynamic_state, beliefs_reader: Reader) -> Optional[str]:
         readiness = self._evaluator.score(
@@ -657,6 +719,12 @@ class FountainGenerator:
              _fountain_stillness_reason),
         )
         self._link_activation_to_event()
+
+        # Snapshot the main fire (SUBSTRATE_SNAPSHOTS.md). Fire-and-forget.
+        try:
+            self._capture_fire_snapshot(fountain_event_id, hot_branch, None)
+        except Exception:
+            pass
 
         self._last_fountain_output = _strip_metadata(thought)
         self._last_fire_ts = ts_now
