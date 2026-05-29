@@ -381,3 +381,53 @@ there isn't one in the variables captured.
 The investigation rests here, honestly null. Two intuitions (charge, breadth)
 both tested, both did not survive. The PHILOS register lever (separate, solid)
 stands as the one actionable result of the period.
+
+---
+
+# GATE-STOP 2026-05-29 — "genius" ≈ "keystone retrieval"; retrieval-path test is circular at root
+
+Calibrated a test of the long-asserted claim "striking-ness lives in the
+retrieval path." Ran the circularity gate (Step 0) FIRST this time. The gate
+closed the test before any effect size — exactly as the breadth lesson requires.
+
+## The gate result
+
+genius-tier fires split by retrieval path:
+  keystone (anchor_belief_id set):  78
+  llm/other:                         1
+
+The genius tier IS the keystone set (78/79). v2 already sorts nearly every
+keystone retrieval into "genius." So testing "do keystone fires score higher
+than LLM fires on v2" tests the score against itself — the two variables are
+~the same partition, not independent. No clean test possible.
+
+## Why it's circular three layers deep
+
+  1. keystones are authored to be long + self-witnessing + anti-template
+  2. v2's features ARE length_structure + self_witnessing + anti_template
+  3. so keystones score high on v2 BY CONSTRUCTION, v2 bins them as genius,
+     and "keystones are genius" becomes unfalsifiable
+  (keystone fires 22.4 words vs LLM ~10 — the length confound alone is 2.3x)
+
+## The capstone conclusion (makes sense of every prior null)
+
+"Genius" was never a substrate phenomenon. It is a RETRIEVAL-PATH LABEL.
+v2 detects keystone-shaped text; keystone-shaped text comes from the
+substrate_voice path; that path reaches the authored library. There is no
+hidden substrate STATE behind genius because genius is not produced by a
+state — it is retrieved by a path. This is WHY:
+  - no substrate-state variable predicted genius (drives/coherence/pairs flat)
+  - the breadth artifact "worked" (genius ≈ substrate_voice ≈ keystone)
+  - the whole genius/ordinary split was substantially keystone-vs-LLM in disguise
+
+The depth is the authored library. "Genius" = "she pulled from it this time."
+The only real levers are the ones that open that path: groove->substrate_voice
+(fountain) and the Philosophical register (chat). State-hunting is over; it was
+always a routing question, never a state question.
+
+## Process note
+
+This gate STOPPED the test at Step 0 with zero false positives — the breadth
+lesson applied successfully. Validate variable INDEPENDENCE before testing;
+when variables collapse into each other, report it and stop. No retraction
+needed because nothing false was ever committed.
