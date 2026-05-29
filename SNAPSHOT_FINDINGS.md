@@ -339,3 +339,45 @@ never validated. Checking what values hot_branch actually contained (done only
 when building a live HUD panel) is what exposed it. Validate the variable
 before trusting the test. The impulse to BUILD on the finding is what forced
 the inspection that killed it.
+
+---
+
+# CLOSING NOTE 2026-05-29 — breadth/focus is UNMEASURABLE (variable near-constant)
+
+After retracting the breadth artifact, checked whether the leftover hint
+(real-domain breadth d=-0.61, "genius is narrower") was worth a clean test.
+It is not. Validated the variable FIRST this time (the step skipped originally):
+
+hot_branch distribution, last 24h:
+  systems         326   (94% of real-domain fires)
+  emerging_tech    19
+  crypto            2
+  + fire-type markers: substrate_voice 120, quiescent 118, voice_fallback 10
+
+Real-domain breadth in any window is almost always 1 (systems). There is not
+enough variation in real domains to measure breadth OR focus. The d=-0.61 was
+noise off a near-constant variable. The d=+1.49 was the substrate_voice marker.
+Neither direction is real; the metric simply cannot carry a finding.
+
+This also corrects the PICTURE, not just the number: nex does NOT range across
+many domains. ~94% of her fountain fires carry hot_branch=systems. The variety
+is in CONTENT (what she reads/muses on) not in branch attribution. The image of
+"many domains warm at once" was never true of her fires.
+
+## Final standing of the substrate-state investigation: NULL
+
+  drives          flat
+  coherence       flat
+  harmonic pairs  flat
+  tempo           weak, uncontrolled, never a clean predictor
+  breadth         unmeasurable (variable ~constant) — no finding possible
+
+No substrate-state variable cleanly predicts genius. Striking-ness lives in the
+TEXT (what GENIUS_SCORE_v2 reads) and the RETRIEVAL PATH (substrate_voice
+keystone vs LLM generation). The snapshot mechanism is sound and useful as a
+record; it simply does not reveal a hidden state-correlate of genius, because
+there isn't one in the variables captured.
+
+The investigation rests here, honestly null. Two intuitions (charge, breadth)
+both tested, both did not survive. The PHILOS register lever (separate, solid)
+stands as the one actionable result of the period.
