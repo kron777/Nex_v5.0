@@ -158,6 +158,22 @@ _BSM_LOG         = "/tmp/nex5_behavioural_self_model.log"
 _SM_LOG          = "/tmp/nex5_self_model.log"
 _PM_LOG          = "/tmp/nex5_problem_memory.log"
 _HARMONIZER_LOG  = "/tmp/nex5_harmonizer.log"
+
+
+def _is_instruction_query(text: str) -> bool:
+    """Skip substrate keystone-retrieval for mechanical instruction/factual
+    queries (they should go to the LLM). Validated fp=0 on logged queries."""
+    t = (text or "").strip().lower()
+    if re.match(r'^(output|translate|complete|print|calculate|solve|convert)\b', t):
+        return True
+    if any(p in t for p in ["exactly:", "only output", "one word", "nothing else",
+                            "respond with only", "reply with exactly", "reply with only",
+                            "complete this sequence", "only this symbol",
+                            "respond with the number", "respond with only the number"]):
+        return True
+    if re.search(r'\d\s*[\+\-\*/\u00d7\u00f7]\s*\d', t) or re.match(r'^what is \d', t):
+        return True
+    return False
 _GM_LOG          = "/tmp/nex5_goal_manager.log"
 _MCOG_LOG        = "/tmp/nex5_metacognition.log"
 _NASSOC_LOG      = "/tmp/nex5_novel_association.log"
@@ -608,12 +624,12 @@ def create_app(state: AppState) -> Flask:
 
         is_probe = bool(payload.get("is_probe", False))
         register_name = payload.get("register")
+        # EDIT A 2026-05-29: default chat to Philosophical (probe-quality richness).
+        # Explicit dropdown/probe register_name still wins. Revert: restore the
+        # _executive.select branch below.
         register = (
             by_name(register_name) if register_name
-            else (
-                _executive.select(prompt, session_id=session.get("chat_session_id"))
-                if _executive is not None else None
-            )
+            else (by_name("Philosophical") or default_register())
         ) or default_register()
 
         # Ensure a session row exists in conversations.db.
@@ -1191,6 +1207,7 @@ def create_app(state: AppState) -> Flask:
         # Phase 30 — VoiceEngine substrate path (use_substrate mode only).
         # Probe calls always bypass to LLM.
         if (not is_probe
+                and not _is_instruction_query(prompt)
                 and state.voice_engine is not None
                 and state.voice_mode == "use_substrate"):
             try:
@@ -1274,6 +1291,8 @@ def create_app(state: AppState) -> Flask:
                     _cf.write(f"--- VOICE PROMPT SENT TO LLM ---\n{voice_prompt}\n=== END ===\n")
             except Exception:
                 pass
+            # EDIT B 2026-05-29 (v2, clean): in use_substrate mode, suppress LLM fallback.
+            # Substrate miss returns her own deflection. Probes + use_llm unaffected.
             try:
                 resp = state.voice.speak(
                     VoiceRequest(prompt=voice_prompt, register=register),
@@ -1283,7 +1302,6 @@ def create_app(state: AppState) -> Flask:
                 text = resp.text
                 voice_ok = True
                 # C3 2026-05-09: log deflection events for distribution measurement.
-                # No user-facing behavior change — same text surfaces as before.
                 if resp.deflection_fired:
                     try:
                         _entry = json.dumps({

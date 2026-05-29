@@ -533,3 +533,46 @@ Demo value: makes her APPROPRIATE (deep when asked deep, direct when asked
 direct) rather than profound about arithmetic. Better presentation than raw
 depth — an AI that koans at "what is 3+5" gets laughed out; one that knows
 when to be plain does not.
+
+---
+
+# SIMPLIFICATION PLAN 2026-05-29 — trim nex5's machinery, keep her mind
+
+DECISION: nex5 is over-engineered (30+ background loops). Simplify — do NOT
+rebuild. Keep the valuable core: belief library (~12,400), authored keystones,
+substrate retrieval, the voice. Trim the machinery around it.
+
+KEEP (the mind — non-negotiable):
+  - beliefs.db (all tiers, esp T1/T2 keystones + identity anchors)
+  - substrate retrieval (voice_engine, throw_net)
+  - the voice (LLM rendering her interior — this IS "talking from the graph")
+  - fountain (spontaneous thought — her signature behavior)
+  - PHILOS register depth (the one robust quality lever)
+  - the instruction-routing fix + Philosophical-default (this session's wins)
+
+CANDIDATES TO TRIM (evaluate each fresh, measure before cutting):
+  - the many life loops (witness/pattern/affinity/surprise/remember/wonder/
+    fetch/daily/focus) — which actually contribute? Likely keep 2-3, cut rest.
+  - moltbook (poster/listener/responder) — external social, may not be needed
+  - drives/harmonics/counterfactual/predictive/tom/social — lots of subsystems
+    that may be more than the core needs
+  - decoder loop, edge generator, arc reader — measure usage first
+
+METHOD (deliberate, fresh session, NOT tired):
+  1. Inventory: list every loop + what it writes + how often it fires
+  2. For each: does its output reach the user / improve replies? measure.
+  3. Cut the ones that don't, ONE at a time, test she still boots + talks
+  4. Reversible: comment out wiring in run.py, don't delete files yet
+  5. Goal: fewer moving parts, same quality of reply, easier to reason about
+
+OPS LESSON FROM TONIGHT (the real blocker, not the architecture):
+  - stale processes + port collisions (v4 on 8765/8766, nex5 on 8770) ate hours
+  - kills didn't take; old process served stale code from RAM for 5+ hrs
+  - FIX: reboot machine for a clean slate before next session
+  - v4 (~/Desktop/nex, systemd services + cron) still installed — decide its
+    fate separately (decommission or leave) as its own focused task
+
+THIS SESSION'S WINS (keep, already in code):
+  - instruction-routing: _is_instruction_query skips substrate for "output 7" etc
+  - chat defaults to Philosophical register (EDIT A, gui/server.py ~627)
+  - EDIT B (LLM suppression) was a mistake → made her mute → REVERTED
