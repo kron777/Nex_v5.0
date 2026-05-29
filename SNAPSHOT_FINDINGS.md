@@ -455,3 +455,38 @@ CAUSE NOT YET FIXED (flagged for fresh session):
   (commitment.py "I am inside") and koan-source locking were found.
   Next session: find the lock-trigger, confirm re-promotion risk, decide
   whether to stop auto-locking self-declarations. Do NOT patch tired.
+
+---
+
+# CORRECTION 2026-05-29 — the "groove-born self-declarations" curation was WRONG; reversed
+
+The prior entry ("demoted 4 groove-born self-declarations") was based on a
+false diagnosis. Reading the four beliefs' actual provenance:
+
+  ids 12305/12310/12311/12312: source=identity, confidence=1.0,
+  promotion_log=[] (never promoted), identical created_at (single seed batch).
+
+They were NOT auto-locked during the low-ebb groove. They were DELIBERATE
+identity seeds — hand-authored as locked tier-1 standing-points in one seed
+operation, same category as koan (39), tao (20), keystone_seed (7),
+dont_know (8). source="identity" has 8 locked tier-1 beliefs; these are 4.
+
+The error: a timing coincidence (grandiose "I am X" fires during a tired
+evening) produced a story ("auto-locked by the groove") that was never checked
+against the belief provenance before acting. Same failure mode as the breadth
+artifact — narrative from coincidence, asserted confidently, acted on without
+validating. Crucially this one ALTERED beliefs (demoted real identity seeds)
+rather than just mis-measuring.
+
+Confirmed mechanically there is NO automatic tier-1-locking path:
+  - crystallizer.py inserts fountain fires at tier=6, locked=0 (hardcoded)
+  - promotion.py corroboration floors at tier 2 (line 129: row["tier"]>2),
+    never sets locked; challenge-survival floors at tier 2
+  - only deliberate sources lock tier-1 (commitment boot, koan/tao/identity
+    /keystone seeds). Nothing groove-driven can enshrine a belief.
+
+ACTION: all four restored to tier=1, locked=1 (count 285->289). Net change
+over the two operations: ZERO. The identity set is exactly as seeded.
+
+Lesson (third instance): read provenance/source BEFORE acting, especially for
+writes. Measurement mistakes are cheap; belief edits are not.
