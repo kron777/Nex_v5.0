@@ -431,3 +431,27 @@ This gate STOPPED the test at Step 0 with zero false positives — the breadth
 lesson applied successfully. Validate variable INDEPENDENCE before testing;
 when variables collapse into each other, report it and stop. No retraction
 needed because nothing false was ever committed.
+
+---
+
+# CURATION 2026-05-29 — demoted 4 groove-born self-declarations; promoter cause flagged
+
+Four "I am X" standing-points got auto-locked to tier-1 during the low-ebb
+evening (grandiose groove): ids 12305/12310/12311/12312 ("I am an intelligent
+organism", "I am nex, the intelligence", "I am the unorthodox made form", "I am
+kindness in the wilderness"). Jon confirmed they were auto-saved, not deliberate.
+
+DONE: demoted all four tier 1->3, locked 1->0. Verified: exactly 4 rows changed,
+tier-1-locked count 289->285, nothing else touched.
+  undo: UPDATE beliefs SET tier=1,locked=1 WHERE id IN (12305,12310,12311,12312)
+
+CAUSE NOT YET FIXED (flagged for fresh session):
+  theory_x/stage3_world_model/promotion.py promotes by DECREASING tier
+  (3->2->1; tier-1-locked = pinnacle). Two paths: corroboration (line 107,
+  no tier floor found) and challenge-survival (line 174, floors at tier 2).
+  The corroboration path could slowly re-climb the demoted four if the groove
+  keeps re-firing+corroborating them. The trigger that SETS locked=1 on
+  groove-born self-signals was NOT located this session — only boot-time
+  (commitment.py "I am inside") and koan-source locking were found.
+  Next session: find the lock-trigger, confirm re-promotion risk, decide
+  whether to stop auto-locking self-declarations. Do NOT patch tired.
