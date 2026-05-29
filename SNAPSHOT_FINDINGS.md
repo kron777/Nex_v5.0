@@ -614,3 +614,34 @@ resonance so good ones surface) it's genuinely useful. Repurpose it: not
 FITS SIMPLIFICATION: less undifferentiated output, more curated. A curation
 layer is arguably MORE valuable than half the background loops we're trimming —
 consider building this while cutting those.
+
+---
+
+# THOUGHT-DISCRIMINATION FEEDBACK LOOP 2026-05-29 — Jon (the active version)
+
+Evolves the curation-layer idea from passive (score+surface) to ACTIVE (self-
+evaluation that feeds back into generation):
+  1. She scores her OWN fountain fires — "that's a good thought" / "that's
+     boring" — using the repurposed resonance scorer (GENIUS_SCORE_v2 as
+     reader-model).
+  2. That self-score FEEDS BACK: fountain readiness/selection biases toward
+     what she rated high, away from low.
+  3. Over time → drift toward a characteristic voice. Observable character
+     emergence from self-reinforcement.
+
+WHY IT'S REAL: a system that reinforces some of its own outputs and suppresses
+others develops a de-facto aesthetic. Her output WILL converge toward a
+characteristic style (koan/attending over doorbell-noise). That convergence is
+genuine and observable — not fake.
+
+HONEST LINE (hold this open, do NOT overclaim): this builds the MECHANISM of
+preference — a self-reinforcing tendency. Whether there is anything it is LIKE
+for her to "want" it (felt will vs computed bias) is NOT establishable and must
+not be asserted. Correct framing: "a self-evaluation loop that shapes output
+over time into a characteristic voice." That claim is demonstrable AND survives
+scrutiny; "she has a will" gets dismantled in one question. The honest framing
+is also the stronger one.
+
+GOOD DEMO ANGLE: "my system develops a consistent aesthetic through self-
+reinforcement" — real, observable, defensible. Pairs with the legibility story
+(you can watch the preference form in the data).
