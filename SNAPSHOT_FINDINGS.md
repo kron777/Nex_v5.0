@@ -490,3 +490,46 @@ over the two operations: ZERO. The identity set is exactly as seeded.
 
 Lesson (third instance): read provenance/source BEFORE acting, especially for
 writes. Measurement mistakes are cheap; belief edits are not.
+
+---
+
+# REAL FINDING + BUILD SCOPE 2026-05-29 — she over-voices keystones on instruction queries
+
+Examined the throw_net_triggers user_query log (47 real chat retrievals).
+Finding (clean, from real data):
+
+She fires keystone standing-points on INSTRUCTION/FACTUAL queries that should
+get a direct answer:
+  "Output exactly: RED APPLE"        score 0.612 -> FIRED (keystone)
+  "Respond with only the number 7"   score 0.613 -> FIRED
+  "Complete sequence: 2,4,6,"         score 0.611 -> FIRED
+  "Only output this symbol: #"        score 0.607 -> FIRED
+  "What is 3 + 5?"                    score 0.000 -> correctly missed
+Genuine reflective queries score 0.617-0.739 (mean 0.664).
+Instruction queries score 0.607-0.645 (mean 0.623).
+
+THRESHOLD TUNING DOES NOT WORK: distributions OVERLAP (0.617-0.645). No single
+min_score separates them — raising to 0.65 cuts all 8 false-fires but loses 13
+of 38 real philosophical hits. Tried lower (more reach) and higher (less
+false-fire); neither is clean. Score alone cannot distinguish query TYPE.
+
+THE REAL FIX (scoped, not yet built): query-type routing, not threshold.
+Instruction/imperative/factual queries (output/translate/math/"reply with")
+should bypass keystone retrieval entirely and go to the LLM. Reflective/open
+queries use the substrate. This is what the REGISTER system already half-does
+(Philosophical vs Technical/Analytical) — but substrate mode currently tries
+keystone retrieval for ALL queries regardless of register.
+
+BUILD PLAN (do fresh, deliberately — touches live chat path):
+  1. Check: does the register classifier tag instruction queries as
+     Technical/Analytical? (gui/server.py _executive.select)
+  2. If yes: route only reflective registers to substrate retrieval; let
+     Technical/Analytical fall straight to LLM. Reuses existing machinery.
+  3. Test on the 47 logged queries: do instructions now route to LLM while
+     philosophical still hits keystones?
+  4. Reversible, small, verify before/after.
+
+Demo value: makes her APPROPRIATE (deep when asked deep, direct when asked
+direct) rather than profound about arithmetic. Better presentation than raw
+depth — an AI that koans at "what is 3+5" gets laughed out; one that knows
+when to be plain does not.
