@@ -229,3 +229,51 @@ warm. Narrow focus (one hot branch) yields ordinary/groove output; wide
 simultaneous attention yields striking output. Possible future intervention:
 bias hot-branch selection toward breadth during low-quality (high-groove)
 stretches.
+
+---
+
+# CONFIRMED 2026-05-29 — breadth CONVERGES at genius fires then DISPERSES
+
+Tested whether breadth shows a temporal dynamic around genius fires
+(Jon's "pressure builds then releases" intuition). Trajectory: sampled
+breadth at -15..+15 min around all 79 genius fires.
+
+## Shape: peak at fire
+
+  -15min 1.09 | -10min 1.95 | -5min 1.14 | FIRE 2.92 | +5min 2.06 | +10 1.95 | +15 1.95
+
+Breadth spikes sharply at the genius-fire moment, declines after.
+Pre-fire rise is jagged (volatile 1-2), not a smooth ramp — so the
+dynamic is "sudden convergence" more than "gradual charge."
+
+## Both confounds ruled out
+
+CONTROL 1 — is the peak just "a fire happened here"? NO.
+  genius breadth peak vs neighbors:   +1.32 (sharp spike)
+  ordinary breadth peak vs neighbors: -0.11 (flat, no peak)
+  Ordinary fires occur in flat-breadth conditions; only genius fires sit
+  at a breadth spike. The peak is GENIUS-SPECIFIC.
+
+CONTROL 2 — is the post-fire decline just substrate_voice cooldown? NO.
+  post-fire breadth drop: 0.97  vs  post-fire tempo drop: 0.47
+  Breadth falls 2x more than tempo. If pure cooldown, they'd fall together.
+  The extra drop is genuine breadth DISPERSAL, beyond fewer-fires.
+
+## Finding
+
+Genius fires occur at a moment of CONVERGENCE — multiple domains briefly
+align (breadth spikes to ~3 distinct branches) — and the striking thought
+fires in that convergence. Afterward the domains DISPERSE (breadth drops,
+more than cooldown explains). The pattern: converge -> fire -> disperse.
+
+Refinement of Jon's "pressure builds and releases": the RELEASE is solid
+(real dispersal post-confound). The BUILD is a sudden convergence, not a
+smooth charge. Breadth is less "stored pressure consumed by the fire" and
+more "a momentary alignment that the striking fire coincides with." Cannot
+fully separate convergence-as-fuel from convergence-as-the-event-itself,
+but the genius-specific spike + real dispersal confirm a genuine temporal
+dynamic, not a plateau.
+
+Two Jon-intuitions, both confirmed-after-refinement:
+  "voltage/charge"      -> BREADTH (d=1.49)
+  "builds and releases" -> CONVERGE / FIRE / DISPERSE (both confounds ruled out)
