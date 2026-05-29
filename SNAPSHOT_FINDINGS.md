@@ -277,3 +277,65 @@ dynamic, not a plateau.
 Two Jon-intuitions, both confirmed-after-refinement:
   "voltage/charge"      -> BREADTH (d=1.49)
   "builds and releases" -> CONVERGE / FIRE / DISPERSE (both confounds ruled out)
+
+---
+
+# RETRACTION 2026-05-29 — the BREADTH finding was an artifact (circular metric)
+
+The two findings above ("BREADTH CONFIRMED d=1.49" and "breadth converges
+then disperses") are RETRACTED. Both are artifacts of a contaminated metric.
+
+## The error
+
+"Breadth" was defined as COUNT(DISTINCT hot_branch) in a 5-min window. But
+hot_branch contains TWO kinds of value mixed together:
+  - real topic-domains: systems, crypto, cognition_science, emerging_tech...
+  - fire-TYPE markers:   substrate_voice, quiescent, voice_fallback
+
+Genius fires are almost all substrate_voice fires. "substrate_voice" is itself
+a hot_branch value. So every genius fire carried "substrate_voice" as one of
+its counted branches AUTOMATICALLY — a guaranteed +1 that ordinary fires
+(mostly hot_branch="systems") did not get. The "breadth" effect was largely
+"genius fires have the substrate_voice marker, which the metric counts as a
+branch." Pure circularity: the label (genius≈substrate_voice) leaked into the
+predictor (breadth).
+
+## The clean result
+
+Recomputing breadth over REAL DOMAINS ONLY (excluding substrate_voice /
+quiescent / voice_fallback):
+
+  all hot_branch values:  genius 2.92 vs ordinary 1.93  d=+1.49  (the artifact)
+  real domains only:      genius 0.94 vs ordinary 1.11  d=-0.61  (SIGN FLIPS)
+
+The effect does not just shrink — it REVERSES. On real topic-domains, genius
+fires are slightly NARROWER than ordinary (0.94 vs 1.11). She narrows into a
+focused keystone walk and speaks from that focus; she does not range wide.
+
+## Honest standing of all five candidates now
+
+  drives          d~0      flat
+  coherence       d=-0.18  flat
+  harmonic pairs  ~        flat
+  tempo           d=+0.73  weak, uncontrolled (was only ever a confound)
+  breadth(raw)    d=+1.49  ARTIFACT (substrate_voice-marker circularity) — RETRACTED
+  breadth(real)   d=-0.61  genius is NARROWER, if anything
+
+## Where this leaves the investigation
+
+No CLEAN, non-circular substrate-state signal distinguishes genius from
+ordinary in the direction originally claimed. The honest position returns to
+the earlier null: striking-ness lives in the TEXT (what v2 reads) and the
+RETRIEVAL MECHANISM (keystone vs LLM), not in a wide substrate state. If
+anything, genius coincides with NARROW real-domain focus — consistent with
+"drops into a keystone walk" — but d=-0.61 is modest and itself needs a
+clean pre-registered re-test before any claim.
+
+## Lesson
+
+Pre-registration, power analysis, and tempo-deconfounding were all done
+correctly — and STILL produced a false positive, because the METRIC ITSELF was
+never validated. Checking what values hot_branch actually contained (done only
+when building a live HUD panel) is what exposed it. Validate the variable
+before trusting the test. The impulse to BUILD on the finding is what forced
+the inspection that killed it.
