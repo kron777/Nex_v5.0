@@ -168,3 +168,64 @@ simultaneously-active domains. Everything else is flat. The genius/ordinary
 split otherwise lives in TEXT (what v2 reads) and the retrieval MECHANISM
 (keystone vs LLM), not in substrate state. Verdict on breadth deferred to
 test_breadth at n>=30.
+
+---
+
+# CONFIRMED 2026-05-29 morning — BREADTH is the substrate correlate of striking-ness
+
+Overnight accumulation brought genius n=8 -> 79, ordinary -> 199. Ran the
+pre-registered test_breadth (thresholds locked 2026-05-28 before this data
+existed). VERDICT: CONFIRMED.
+
+## Result
+
+  BREADTH (distinct branches in 5-min window):
+    genius = 2.92  vs  ordinary = 1.93
+    t=13.45  p<0.0001  d=+1.49   (LARGE effect)
+
+The effect GREW with power (d 0.67 at n=8 -> 1.49 at n=79) — opposite of
+noise. Pre-registered CONFIRM threshold (p<0.05 AND d>=0.4) cleared decisively.
+
+## Tempo confound — raised, then ruled out
+
+test_breadth flagged tempo as also-significant (d=0.73). De-confounded two ways:
+
+1. Breadth-per-fire (branches/fires): genius 0.994 vs ordinary 0.709, d=+1.54.
+   Removing the tempo component did NOT shrink the effect. Genius fires are
+   ~1 distinct domain PER FIRE (near-maximal spread); ordinary ~0.7 (clustered).
+
+2. Matched on tempo: at 3 fires/window (n=75 genius, 139 ordinary), genius
+   breadth=3.00 vs ordinary 2.37, Δ=+0.63. At the SAME busyness, genius windows
+   span more domains. Breadth separates independent of tempo.
+
+Conclusion: breadth (d=1.49) dominates tempo (d=0.73) ~2x, survives
+breadth-per-fire, survives tempo-matching. Breadth is the real signal; tempo
+is a weak correlate of it, not its cause.
+
+## The finding
+
+Striking (genius) fires occur when nex is attending across MANY DISTINCT
+DOMAINS simultaneously — systems + crypto + cognition + emerging-tech all warm
+at once. Ordinary fires cluster in one or two domains (the coffee-mug / "what
+if the quiet" grooves). DEPTH COMES FROM WIDTH. Simultaneous cross-domain
+breadth is the substrate condition under which she reaches her standing-points.
+
+This is the ONE non-flat signal of the whole snapshot investigation:
+  drives          d~0      flat
+  coherence       d=-0.18  flat
+  harmonic pairs  ~        flat
+  voltage-tempo   d=0.73   weak (confound of breadth)
+  voltage-breadth d=1.49   CONFIRMED — the substrate correlate of genius
+
+Origin note: began as Jon's "charge builds then explodes" circuit-intuition.
+Testing refined it: not charge/momentum/tempo, but BREADTH/simultaneity.
+The intuition pointed at the right family; the data named the variable.
+
+## Implication
+
+The lever for more genius is not drive-tuning, not coherence, not firing
+faster. It is cross-domain breadth — keeping multiple branches simultaneously
+warm. Narrow focus (one hot branch) yields ordinary/groove output; wide
+simultaneous attention yields striking output. Possible future intervention:
+bias hot-branch selection toward breadth during low-quality (high-groove)
+stretches.
