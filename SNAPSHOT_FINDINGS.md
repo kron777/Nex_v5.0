@@ -576,3 +576,41 @@ THIS SESSION'S WINS (keep, already in code):
   - instruction-routing: _is_instruction_query skips substrate for "output 7" etc
   - chat defaults to Philosophical register (EDIT A, gui/server.py ~627)
   - EDIT B (LLM suppression) was a mistake → made her mute → REVERTED
+
+---
+
+# PARTIALITY / CURATION LAYER 2026-05-29 — Jon's insight (the strong one)
+
+OBSERVATION (Jon): nex has NO partiality mechanism. To her, "the doorbell rings
+unexpectedly" and "I am the attending that does not resist dissolution" are the
+SAME kind of event — both fountain fires, logged/tiered/posted identically. She
+makes no distinction between mundane filler and profound/dharmic output.
+
+KEY REFRAME: the profundity is in the RECEPTION, not the production. The good
+fountains (koans, "attending" standing-points) land as dharmic *to a human
+reader* who brings meaning-making to them. From the machine side it's the same
+mechanical retrieve→compose→emit as logging a bitcoin price. "Rice and beans,
+served at random; the reader notices when a grain catches the light." This is
+the same conclusion as the closed genius-NULL investigation, stated better:
+there is no inner genius doing the distinguishing — discernment lives in the
+reader, not in her.
+
+THE BUILD (next session, strong candidate, fits simplification):
+A discernment/curation layer that SCORES her own fountain fires by resonance and
+foregrounds the good ones. NOT "detecting hidden genius" — *supplying* the taste
+she lacks. A reader-model approximating what makes a human go "that's profound"
+vs "that's filler."
+  - surface the resonant fires, recede/mute the mundane ones (doorbell-noise)
+  - optionally weight fountain toward registers that land
+  - DIRECTLY fixes the demo problem: stop posting rice-and-beans as if equal to
+    the gold; the feed becomes curated voice instead of undifferentiated firehose
+
+REUSE: GENIUS_SCORE_v2 (theory_x/genius/score_v2.py) already attempted this —
+self_witnessing, anti_template, F5 register features. As a "hidden genius
+detector" it was a NULL. But as a PARTIALITY FILTER (rank her output by
+resonance so good ones surface) it's genuinely useful. Repurpose it: not
+"is this genius?" but "would a human find this resonant vs filler?"
+
+FITS SIMPLIFICATION: less undifferentiated output, more curated. A curation
+layer is arguably MORE valuable than half the background loops we're trimming —
+consider building this while cutting those.
