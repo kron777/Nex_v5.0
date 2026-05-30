@@ -97,6 +97,15 @@ class FountainCrystallizer:
             base_speak_probability=float(os.environ.get("NEX5_SPEECH_PROB", 1.0)),
             initial_ts=_gov_initial_ts,
         )
+        # §8 intake resonance probe — observational, never raises. Hooked here
+        # because FountainCrystallizer is the LIVE belief-write path.
+        self._intake_resonance = None
+        if os.environ.get("NEX5_INTAKE_RESONANCE_OFF") != "1":
+            try:
+                from theory_x.stage2_dynamic.intake_resonance import IntakeResonance
+                self._intake_resonance = IntakeResonance(beliefs_reader, beliefs_writer)
+            except Exception:
+                self._intake_resonance = None
 
     def crystallize(
         self,
@@ -161,6 +170,11 @@ class FountainCrystallizer:
         # hardcoded 'systems'. Was: bug where T6 fountain insights all attributed to
         # systems regardless of input branch. NULL fallback when hot_branch unavailable
         # (~37% of fires per live data).
+        if self._intake_resonance is not None:
+            try:
+                self._intake_resonance.compute(thought)
+            except Exception:
+                pass
         belief_id = self._writer.write(
             "INSERT INTO beliefs "
             "(content, tier, confidence, created_at, source, branch_id, locked) "

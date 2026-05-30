@@ -28,13 +28,15 @@ class Crystallizer:
     def __init__(self, tree: BonsaiTree, beliefs_writer: Writer,
                  dynamic_writer: Writer, dynamic_reader: Reader,
                  beliefs_reader: Optional[Reader] = None,
-                 coherence_gate=None) -> None:
+                 coherence_gate=None,
+                 intake_resonance=None) -> None:
         self._tree = tree
         self._beliefs_writer = beliefs_writer
         self._dynamic_writer = dynamic_writer
         self._dynamic_reader = dynamic_reader
         self._beliefs_reader = beliefs_reader
         self._gate = coherence_gate
+        self._intake_resonance = intake_resonance
         # per-branch: deque of (timestamp, focus_level) records
         self._focus_history: dict[str, deque] = {}
         # per-branch: last crystallization timestamp (to enforce window dedup)
@@ -193,6 +195,20 @@ class Crystallizer:
                     return None
             except Exception as exc:
                 errors.record(f"stage2 gate check error: {exc}", source=_LOG_SOURCE, exc=exc)
+
+        # Carryx §8 Step 1 — measure resonance before insert.
+        # Pure observation: logs to intake_resonance_log, does NOT
+        # change tier yet. Never raises (intake_resonance.compute()
+        # returns None on any failure). Step 2 will use this to set
+        # tier dynamically based on observed distribution.
+        if self._intake_resonance is not None:
+            try:
+                self._intake_resonance.compute(content)
+            except Exception as exc:
+                errors.record(
+                    f"intake_resonance probe error: {exc}",
+                    source=_LOG_SOURCE, exc=exc,
+                )
 
         try:
             rowid = self._beliefs_writer.write(

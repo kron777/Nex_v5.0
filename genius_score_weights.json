@@ -16,7 +16,7 @@
     4.715061429115058
   ],
   "bias": -2.319644857504,
-  "threshold": 0.29,
+  "threshold": 0.5,
   "training_size": 103,
   "training_striking": 67,
   "training_ordinary": 36,
@@ -26,5 +26,13 @@
     "fp": 3,
     "fn": 0,
     "tn": 33
-  }
+  },
+  "threshold_history": [
+    {
+      "from": 0.29,
+      "to": 0.5,
+      "at": 1780151236.4190283,
+      "note": "manual via genius_set_threshold.py"
+    }
+  ]
 }

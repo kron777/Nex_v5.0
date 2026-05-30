@@ -356,6 +356,22 @@ def build_dynamic(writers: dict, readers: dict, coherence_gate=None) -> DynamicS
 
     membrane = Membrane()
 
+    # Carryx §8 Step 1 — intake resonance probe (log-only, no tier change).
+    # Lazy-warmed: standing-points list loaded at construction, embeddings
+    # populated on demand (~30s of first-call cost, sub-ms after).
+    intake_resonance = None
+    try:
+        from theory_x.stage2_dynamic.intake_resonance import IntakeResonance
+        intake_resonance = IntakeResonance(
+            beliefs_reader=readers["beliefs"],
+            beliefs_writer=writers["beliefs"],
+        )
+    except Exception as _ir_err:
+        import logging as _logging
+        _logging.getLogger(__name__).warning(
+            "intake_resonance failed to initialise (non-fatal): %s", _ir_err,
+        )
+
     crystallizer = Crystallizer(
         tree=tree,
         beliefs_writer=writers["beliefs"],
@@ -363,6 +379,7 @@ def build_dynamic(writers: dict, readers: dict, coherence_gate=None) -> DynamicS
         dynamic_reader=readers["dynamic"],
         beliefs_reader=readers["beliefs"],
         coherence_gate=coherence_gate,
+        intake_resonance=intake_resonance,
     )
 
     drive_detector = EmergentDriveDetector(dynamic_writer=writers["dynamic"])
@@ -506,14 +523,18 @@ def build_dynamic(writers: dict, readers: dict, coherence_gate=None) -> DynamicS
     # --- end edge_builder ---
 
     # --- Stage 7 moltbook bolt-on (optional; degrades gracefully if down) ---
-    try:
-        from theory_x.stage7_moltbook import get_moltbook_loops
-        loops.extend(get_moltbook_loops())
-    except Exception as e:
-        import logging
-        logging.getLogger("theory_x.stage2_dynamic").warning(
-            "moltbook loops unavailable: %s", e
-        )
+    # CUT 2026-05-30 (loop cuts round 1): external moltbook server is gone
+    # (dm_check returns 404 every 5 min — see boot logs). Three loops
+    # (poster/listener/responder) ticking continuously for nothing.
+    # To re-enable when the external server is back, uncomment below.
+    # try:
+    #     from theory_x.stage7_moltbook import get_moltbook_loops
+    #     loops.extend(get_moltbook_loops())
+    # except Exception as e:
+    #     import logging
+    #     logging.getLogger("theory_x.stage2_dynamic").warning(
+    #         "moltbook loops unavailable: %s", e
+    #     )
     # --- end moltbook ---
 
     for fn, name in loops:

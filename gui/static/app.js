@@ -256,6 +256,34 @@ async function refreshFountain() {
   }
   document.getElementById("fountain-last").textContent =
     data.last_fire_ts ? fmtTs(data.last_fire_ts) : "never";
+
+  // 2026-05-30 (consumer C) — genius modulation: striking rate + penalty
+  const modRow = document.getElementById("genius-mod-row");
+  const mod = data.genius_modulation;
+  if (!modRow) return;
+  if (mod && mod.wired && !mod.disabled && (mod.sample_size || 0) > 0) {
+    modRow.style.display = "";
+    const rateEl = document.getElementById("genius-mod-rate");
+    const sampEl = document.getElementById("genius-mod-sample");
+    const penEl  = document.getElementById("genius-mod-penalty");
+    if (mod.striking_rate != null) {
+      const rate = mod.striking_rate;
+      rateEl.textContent = (rate * 100).toFixed(0) + "%";
+      // Color the rate by quality: high=yellow, low=red, mid=neutral
+      if (rate >= 0.40)      rateEl.style.color = "#f0e090";
+      else if (rate >= 0.20) rateEl.style.color = "var(--fg2)";
+      else                   rateEl.style.color = "#e08a8a";
+    } else {
+      rateEl.textContent = "—";
+      rateEl.style.color = "";
+    }
+    sampEl.textContent = `(n=${mod.sample_size})`;
+    const pen = mod.penalty || 0;
+    penEl.textContent = pen > 0 ? `−${pen.toFixed(3)}` : "0.000";
+    penEl.style.color = pen > 0.05 ? "#e08a8a" : "var(--fg3)";
+  } else {
+    modRow.style.display = "none";
+  }
 }
 
 // ── Belief stats ──────────────────────────────────────────────────────────────
@@ -1215,23 +1243,42 @@ setInterval(loadDiversity, 30000);
 loadDiversity();
 
 // ── HARMONIC METRIC — CHORD §4 deliverable C ─────────────────────────────
+window.harmonicLineColor = window.harmonicLineColor || 'var(--green)';
 function _renderSparkline(recent) {
   if (!recent || recent.length < 2) return "";
-  const W = 200, H = 22, P = 2;
+  const W = 1000, H = 144, P = 22;     // half-height chart; viewBox scales to container width
   const totals = recent.map(r => r.total);
-  const min = Math.min(...totals, 0);
-  const max = Math.max(...totals, 1);
-  const range = (max - min) || 1;
+  const min = 0.0;   // fixed scale 0.000 -> 1.000
+  const max = 1.0;
+  const range = 1.0;
+  const innerW = W - 2 * P, innerH = H - 2 * P;
   const pts = recent.map((r, i) => {
-    const x = P + (i / (recent.length - 1)) * (W - 2 * P);
-    const y = H - P - ((r.total - min) / range) * (H - 2 * P);
+    const x = P + (i / (recent.length - 1)) * innerW;
+    const y = P + innerH - ((r.total - min) / range) * innerH;
     return x.toFixed(1) + "," + y.toFixed(1);
   }).join(" ");
-  return (
-    '<svg width="' + W + '" height="' + H + '" style="display:block;margin:2px 0;">' +
-    '<polyline points="' + pts + '" fill="none" stroke="var(--accent)" stroke-width="1.2"/>' +
-    '</svg>'
-  );
+  // grey grid
+  const GRID = "#333333";
+  let grid = "";
+  const rows = 16, cols = 150;
+  for (let g = 0; g <= rows; g++) {
+    const y = (P + (g / rows) * innerH).toFixed(1);
+    grid += '<line x1="' + P + '" y1="' + y + '" x2="' + (W - P) + '" y2="' + y +
+            '" stroke="' + GRID + '" stroke-width="1"/>';
+  }
+  for (let g = 0; g <= cols; g++) {
+    const x = (P + (g / cols) * innerW).toFixed(1);
+    grid += '<line x1="' + x + '" y1="' + P + '" x2="' + x + '" y2="' + (H - P) +
+            '" stroke="' + GRID + '" stroke-width="1"/>';
+  }
+  // y-axis min/max labels
+  const labMax = '<text x="' + (P - 4) + '" y="' + (P + 4) + '" fill="#888" font-size="11" text-anchor="end">' + max.toFixed(2) + '</text>';
+  const labMin = '<text x="' + (P - 4) + '" y="' + (H - P + 4) + '" fill="#888" font-size="11" text-anchor="end">' + min.toFixed(2) + '</text>';
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" ' +
+         'style="width:100%;height:' + H + 'px;display:block;margin:-24px 0 -44px 0">' +
+         grid +
+         '<polyline fill="none" stroke="' + window.harmonicLineColor + '" stroke-width="2" points="' + pts + '"/>' +
+         '</svg>';
 }
 
 function _ageText(seconds) {
@@ -1258,10 +1305,14 @@ async function loadHarmonic() {
     const lines = [];
     const total = (data.current.total != null) ? data.current.total.toFixed(3) : "—";
     const walkState = data.current.walk_state || "unknown";
+    const _hsw = [['#ef4444','red'],['#3b82f6','blue'],['#a78bfa','purple'],['#eab308','yellow'],['#ffffff','white'],['var(--green)','green']].map(c => '<span onclick="setHarmonicColor(\''+c[0]+'\')" title="'+c[1]+'" style="display:inline-block;width:11px;height:11px;border-radius:2px;background:'+c[0]+';cursor:pointer;border:1px solid #555;margin-left:4px;vertical-align:middle"></span>').join('');
     lines.push(
-      '<span style="color:var(--accent);font-size:12px;font-weight:600">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;width:100%">' +
+      '<span><span style="color:var(--accent);font-size:12px;font-weight:600">' +
       total + '</span> ' +
-      '<span style="color:var(--fg3)">' + walkState + '</span>'
+      '<span style="color:var(--fg3)">' + walkState + '</span></span>' +
+      '<span style="display:inline-flex;gap:4px">' + _hsw + '</span>' +
+      '</div>'
     );
 
     if (data.recent && data.recent.length > 1) {
@@ -1774,6 +1825,15 @@ async function refreshDecoderLive() {
       const ts = new Date(f.ts * 1000).toLocaleTimeString("en-GB", {hour: "2-digit", minute: "2-digit", second: "2-digit"});
       const tagClass = f.tag ? ` tag-${f.tag}` : "";
       const tagLabel = f.tag ? ` [${f.tag}]` : "";
+      // 2026-05-30 HUD: genius badge — striking gets a star + score, ordinary gets faint score
+      let geniusBadge = "";
+      if (typeof f.genius_score === "number") {
+        const isStriking = f.genius_class === "STRIKING";
+        const scoreStr = f.genius_score.toFixed(2);
+        const cls = isStriking ? "genius-striking" : "genius-ordinary";
+        const marker = isStriking ? "★ " : "";
+        geniusBadge = `<span class="genius-badge ${cls}" title="genius v2 score">${marker}${scoreStr}</span>`;
+      }
       const words = (f.words || []).slice(0, 12).map(w => {
         const wt = window.wordTags[w];
         const cls = wt ? ` word-tagged tag-${wt.tag}` : '';
@@ -1784,6 +1844,7 @@ async function refreshDecoderLive() {
           <span class="decoder-fid">#${f.fid}</span>
           <span class="decoder-ts">${ts}</span>
           <span class="decoder-tag">${tagLabel}</span>
+          ${geniusBadge}
         </div>
         <div class="decoder-thought">${esc(f.thought)}</div>
         <div class="decoder-words">${words}</div>
@@ -1941,3 +2002,5 @@ async function _loadWordTags() {
 }
 _loadWordTags();
 setInterval(_loadWordTags, 30000);
+
+function setHarmonicColor(c){ window.harmonicLineColor = c; try { loadHarmonic(); } catch(e){} }

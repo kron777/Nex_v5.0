@@ -283,6 +283,30 @@ def main() -> None:
     except Exception as _sh_err:
         log.warning("Substrate harmonic failed to start (non-fatal): %s", _sh_err)
 
+    # 9g. Genius tagger — auto-tagger that scores every fountain fire with
+    # the v2 weights (GENIUS_SCORE_v2.md §7). Backfills last 14d on first
+    # run, then ticks every 60s. Reads dynamic + beliefs; writes to
+    # conversations.db.genius_tags. Log-only phase 1.
+    log.info("Wiring genius tagger...")
+    _genius_tagger = None
+    try:
+        from theory_x.genius import GeniusTagger as _GeniusTagger
+        _genius_tagger = _GeniusTagger(
+            conversations_writer=writers["conversations"],
+            conversations_reader=readers["conversations"],
+            dynamic_reader=readers["dynamic"],
+            beliefs_reader=readers["beliefs"],
+        )
+        _genius_tagger.start_loop()
+        try:
+            from theory_x import register as _tx_register_genius
+            _tx_register_genius(_genius_tagger)
+        except Exception as _reg_err:
+            log.warning("Genius tagger registry failed (non-fatal): %s", _reg_err)
+        log.info("Genius tagger ready — v2 score auto-tag every 60s, log-only")
+    except Exception as _gt_err:
+        log.warning("Genius tagger failed to start (non-fatal): %s", _gt_err)
+
     # Phase 25b — CounterfactualNode (needs coherence_gate + problem_memory)
     _counterfactual_node = None
     try:
@@ -360,6 +384,7 @@ def main() -> None:
             problem_memory=problem_memory,
             beliefs_writer=writers["beliefs"],
             drive_emergence=_drive_emergence,
+            conversations_reader=readers["conversations"],
         )
         log.info("VoiceEngine ready — min_score=%.2f", _voice_engine.min_score)
     except Exception as _ve_err:
@@ -419,19 +444,23 @@ def main() -> None:
         log.warning("SelfMindView failed to start (non-fatal): %s", _smv_err)
 
     # Phase 38 — SocialPresence (her own social presence; 300s autonomous tick)
+    # CUT 2026-05-30 (loop cuts round 1): writes social_presence_snapshots
+    # which has zero readers outside its own tests. No GUI, no chat path.
+    # Metacognition._sp set to None below — Metacognition handles None gracefully.
+    # To re-enable, uncomment below.
     _social_presence = None
-    try:
-        from theory_x.stage_social import SocialPresence as _SP
-        _social_presence = _SP(
-            dynamic_reader=readers["dynamic"],
-            dynamic_writer=writers["dynamic"],
-            beliefs_reader=readers["beliefs"],
-            conversations_reader=readers["conversations"],
-        )
-        _social_presence.start_loop()
-        log.info("SocialPresence ready — autonomous cycle every 300s")
-    except Exception as _sp_err:
-        log.warning("SocialPresence failed to start (non-fatal): %s", _sp_err)
+    # try:
+    #     from theory_x.stage_social import SocialPresence as _SP
+    #     _social_presence = _SP(
+    #         dynamic_reader=readers["dynamic"],
+    #         dynamic_writer=writers["dynamic"],
+    #         beliefs_reader=readers["beliefs"],
+    #         conversations_reader=readers["conversations"],
+    #     )
+    #     _social_presence.start_loop()
+    #     log.info("SocialPresence ready — autonomous cycle every 300s")
+    # except Exception as _sp_err:
+    #     log.warning("SocialPresence failed to start (non-fatal): %s", _sp_err)
 
     # Phase 40 — wire drift history nodes into Metacognition now that both are live
     metacognition._smv = _self_mind_view
@@ -546,11 +575,17 @@ def main() -> None:
     log.info("Diversity loop ready")
 
     # 15. Arc reader (LLM-free, retrospective arc detection)
-    log.info("Starting arc reader loop...")
-    from theory_x.arcs.loop import build_arc_loop
-    arc_loop = build_arc_loop(writers, readers)
-    arc_loop.start()
-    log.info("Arc loop ready — scanning every 5 min")
+    # CUT 2026-05-30 (loop cuts round 1): schema mismatch — arc_closers
+    # table is created in beliefs.sql but the loop writes to dynamic.db;
+    # also fires UNIQUE arc_members.* integrity errors in bursts every
+    # ~5 min. Zero downstream consumers (no GUI panel, no chat path).
+    # To re-enable, uncomment below and fix the schema target.
+    arc_loop = None
+    # log.info("Starting arc reader loop...")
+    # from theory_x.arcs.loop import build_arc_loop
+    # arc_loop = build_arc_loop(writers, readers)
+    # arc_loop.start()
+    # log.info("Arc loop ready — scanning every 5 min")
 
     # 16. Belief edge generator (Tropic Gradient Phase 1)
     log.info("Starting edge generator loop...")
@@ -615,6 +650,8 @@ def main() -> None:
     atexit.register(state.close)
 
     # Decoder daemon — tokenizes each fountain output, logs substrate state.
+    # NB 2026-05-30: was briefly cut as "cosmetic" but it feeds /api/decoder/recent
+    # which is the LIVE column in the GUI — must stay running.
     try:
         import threading as _t_decoder
         from theory_x.coincidence.decoder_loop import decoder_loop

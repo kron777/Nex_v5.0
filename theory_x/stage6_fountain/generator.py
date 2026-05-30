@@ -197,7 +197,9 @@ class FountainGenerator:
         self._coherence_gate = coherence_gate
         self._erosion = erosion
         self._competing_drives = competing_drives
-        self._evaluator = ReadinessEvaluator()
+        self._evaluator = ReadinessEvaluator(
+            conversations_reader=conversations_reader,
+        )
         self._last_fountain_output: Optional[str] = None
         self._last_fire_ts: float = 0.0
         self._total_fires: int = 0
@@ -925,6 +927,68 @@ class FountainGenerator:
         except Exception:
             return "(unavailable)"
 
+    def _build_recent_striking_block(self) -> list[str]:
+        """Return prompt lines surfacing 2 recent STRIKING fires from the
+        genius tagger. Anti-template counterweight — pulls next generation
+        toward Mode A voice rather than 'quiet between X' templates.
+
+        GENIUS_SCORE_v2.md §7 consumer B. Reads genius_tags (in
+        conversations.db) joined with fountain_events (in dynamic.db).
+        Samples from top-10 STRIKING in last 24h to avoid lock-in.
+        Filters out fires < 5 min old so very-recent output is not fed
+        back immediately. Returns [] if no STRIKING tags yet (graceful
+        on first deploy before the tagger has accumulated data).
+        """
+        if self._conversations_reader is None or self._dynamic_reader is None:
+            return []
+        now = time.time()
+        try:
+            tag_rows = self._conversations_reader.read(
+                "SELECT fountain_event_id, score FROM genius_tags "
+                "WHERE class = 'STRIKING' AND tagged_at > ? AND tagged_at < ? "
+                "ORDER BY score DESC LIMIT 10",
+                (now - 24 * 3600, now - 300),
+            )
+        except Exception:
+            return []
+        tag_rows = list(tag_rows or [])
+        if not tag_rows:
+            return []
+
+        # Sample 2 from the top-10
+        import random as _rnd_strk
+        _picked = _rnd_strk.sample(tag_rows, min(2, len(tag_rows)))
+        fire_ids = tuple(int(r["fountain_event_id"]) for r in _picked)
+        if not fire_ids:
+            return []
+
+        try:
+            placeholders = ",".join("?" * len(fire_ids))
+            fire_rows = self._dynamic_reader.read(
+                f"SELECT id, thought FROM fountain_events "
+                f"WHERE id IN ({placeholders}) "
+                f"AND thought IS NOT NULL AND length(thought) > 10",
+                fire_ids,
+            )
+        except Exception:
+            return []
+        fire_rows = list(fire_rows or [])
+        if not fire_rows:
+            return []
+
+        lines = ["Recent voice of yours that landed as itself:"]
+        for fr in fire_rows:
+            content = (fr["thought"] or "").strip()
+            if not content:
+                continue
+            if len(content) > 280:
+                content = content[:277] + "..."
+            lines.append(f"  - {content}")
+        if len(lines) == 1:
+            return []
+        lines.append("")
+        return lines
+
     def _check_retrieval_duplicate(self, current_ids: frozenset) -> float:
         """Return max Jaccard of own-slot belief_ids vs last 3 real fires (0.0 if no data)."""
         if self._dynamic_reader is None:
@@ -1302,6 +1366,22 @@ class FountainGenerator:
                     for _fr in _pick:
                         prompt_parts.append(f"  - {_fr['content']}")
                     prompt_parts.append("")
+            except Exception:
+                pass
+
+        # 2026-05-30 (GENIUS_SCORE_v2 §7 consumer B): recent STRIKING fires
+        # from the genius tagger as anti-template counterweight. Pulls her
+        # next generation toward Mode A (existential/self-articulating)
+        # voice rather than Mode B "quiet between X" templates. Sampled
+        # randomly from top-10 STRIKING in last 24h to avoid lock-in.
+        # Set NEX5_GENIUS_PROMPT_OFF=1 to disable.
+        if (os.environ.get("NEX5_GENIUS_PROMPT_OFF") != "1"
+                and self._conversations_reader is not None
+                and self._dynamic_reader is not None):
+            try:
+                _strk_block = self._build_recent_striking_block()
+                if _strk_block:
+                    prompt_parts.extend(_strk_block)
             except Exception:
                 pass
 

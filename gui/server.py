@@ -1798,11 +1798,17 @@ def create_app(state: AppState) -> Flask:
     @app.get("/api/decoder/recent")
     def api_decoder_recent():
         """Recent fountain fires with their tokenized key words.
-        Live ticker: ?limit=20 by default."""
+        Live ticker: ?limit=20 by default.
+
+        2026-05-30 (HUD): each fire now includes the most recent genius
+        score + class from conversations.db.genius_tags, so the LIVE
+        column can render an inline badge per fire.
+        """
         from flask import request
         import sqlite3
         limit = int(request.args.get("limit", "20"))
         dyn_db = "/home/rr/Desktop/nex5/data/dynamic.db"
+        conv_db = "/home/rr/Desktop/nex5/data/conversations.db"
         try:
             cx = sqlite3.connect(dyn_db, timeout=10)
             cx.row_factory = sqlite3.Row
@@ -1831,6 +1837,42 @@ def create_app(state: AppState) -> Flask:
                         "words": [w["word"] for w in words],
                     })
             cx.close()
+
+            # Enrich with genius scores from conversations.db (cross-DB,
+            # so a separate connection). Skip silently if anything goes
+            # wrong — the LIVE column should still render without badges.
+            if out:
+                try:
+                    fire_ids = tuple(int(o["fid"]) for o in out)
+                    ph = ",".join("?" * len(fire_ids))
+                    cv = sqlite3.connect(conv_db, timeout=5)
+                    cv.row_factory = sqlite3.Row
+                    score_rows = cv.execute(
+                        f"SELECT fountain_event_id, score, class, weights_version "
+                        f"FROM genius_tags WHERE fountain_event_id IN ({ph}) "
+                        f"ORDER BY tagged_at DESC",
+                        fire_ids,
+                    ).fetchall()
+                    cv.close()
+                    # First-wins on ORDER BY tagged_at DESC = most recent tag
+                    score_map = {}
+                    for r in score_rows:
+                        fid = int(r["fountain_event_id"])
+                        if fid not in score_map:
+                            score_map[fid] = {
+                                "score": float(r["score"]),
+                                "class": r["class"],
+                                "weights_version": r["weights_version"],
+                            }
+                    for o in out:
+                        entry = score_map.get(int(o["fid"]))
+                        if entry:
+                            o["genius_score"] = round(entry["score"], 3)
+                            o["genius_class"] = entry["class"]
+                            o["genius_version"] = entry["weights_version"]
+                except Exception:
+                    pass  # badges optional
+
             return jsonify({"recent": out})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -3054,6 +3096,31 @@ def create_app(state: AppState) -> Flask:
                 state.readers["conversations"],
                 state.readers["dynamic"],
                 state.readers["beliefs"],
+            ))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.get("/api/genius/recent")
+    def api_genius_recent():
+        """Recent genius_tags joined with fountain_events (GENIUS_SCORE_v2 §7d).
+
+        Query params:
+          limit          — int, default 20, max 200
+          only_striking  — '1' to filter to STRIKING class only
+        """
+        try:
+            from theory_x.genius.panel import overview as _genius_overview
+            from flask import request as _req
+            try:
+                limit = max(1, min(200, int(_req.args.get("limit", "20"))))
+            except (ValueError, TypeError):
+                limit = 20
+            only_striking = _req.args.get("only_striking") == "1"
+            return jsonify(_genius_overview(
+                state.readers["conversations"],
+                state.readers["dynamic"],
+                limit=limit,
+                only_striking=only_striking,
             ))
         except Exception as e:
             return jsonify({"error": str(e)}), 500

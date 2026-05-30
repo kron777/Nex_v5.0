@@ -366,6 +366,21 @@ _MIGRATIONS: dict[str, list[str]] = {
         "CREATE INDEX IF NOT EXISTS idx_social_presence_taken_at "
         "ON social_presence_snapshots(taken_at DESC)",
         "ALTER TABLE arc_closers ADD COLUMN closure_type TEXT NOT NULL DEFAULT 'template'",
+        # Carryx §8 Step 1 — intake resonance probe.
+        # Logs the cosine similarity between each newly-crystallized
+        # belief and her existing standing-points (T1-T3 keystones + top T6).
+        # Pure observation; does not change tier yet. Foundation for §8
+        # Step 2 (tier mapping by resonance).
+        "CREATE TABLE IF NOT EXISTS intake_resonance_log ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "content TEXT NOT NULL, "
+        "resonance REAL NOT NULL, "
+        "top_match_belief_id INTEGER, "
+        "ts REAL NOT NULL)",
+        "CREATE INDEX IF NOT EXISTS idx_intake_resonance_ts "
+        "ON intake_resonance_log(ts DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_intake_resonance_score "
+        "ON intake_resonance_log(resonance DESC)",
     ],
     "conversations": [
         "CREATE TABLE IF NOT EXISTS open_problems ("
@@ -478,6 +493,26 @@ _MIGRATIONS: dict[str, list[str]] = {
         "notes TEXT)",
         "CREATE INDEX IF NOT EXISTS idx_genius_training_striking "
         "ON genius_training(striking)",
+        # GENIUS_SCORE_v2 §7a — auto-tagger output table.
+        # Every fountain fire scored against the fitted v2 weights gets one
+        # row per (fountain_event_id, weights_version). UNIQUE allows old
+        # and new weight versions to coexist when Jon re-fits. Log-only at
+        # phase 1; future consumers (retrieval bias, fountain prompt
+        # context) read but do not write.
+        "CREATE TABLE IF NOT EXISTS genius_tags ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "fountain_event_id INTEGER NOT NULL, "
+        "score REAL NOT NULL, "
+        "class TEXT NOT NULL CHECK (class IN ('STRIKING', 'ordinary')), "
+        "weights_version TEXT NOT NULL, "
+        "tagged_at REAL NOT NULL, "
+        "UNIQUE(fountain_event_id, weights_version))",
+        "CREATE INDEX IF NOT EXISTS idx_genius_tags_score "
+        "ON genius_tags(score DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_genius_tags_event "
+        "ON genius_tags(fountain_event_id)",
+        "CREATE INDEX IF NOT EXISTS idx_genius_tags_tagged_at "
+        "ON genius_tags(tagged_at DESC)",
     ],
 }
 

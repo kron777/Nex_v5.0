@@ -30,29 +30,50 @@ logger = logging.getLogger("theory_x.stage6_fountain")
 @dataclass
 class FountainState:
     generator: FountainGenerator
-    _evaluator: ReadinessEvaluator = field(default_factory=ReadinessEvaluator)
+    # 2026-05-30: was default_factory=ReadinessEvaluator, which created
+    # a SECOND evaluator without conversations_reader — so the GUI's
+    # readiness display did NOT include consumer C's modulation, even
+    # though the fire decision did. Now set in build_fountain() to
+    # share generator._evaluator (single source of truth).
+    _evaluator: Optional[ReadinessEvaluator] = field(default=None)
     _dynamic_state: Optional[object] = field(default=None)
     _beliefs_reader: Optional[Reader] = field(default=None)
     _loop_running: bool = field(default=False)
 
     def status(self) -> dict:
+        evaluator = self._evaluator or self.generator._evaluator
         readiness = 0.0
         if self._dynamic_state is not None and self._beliefs_reader is not None:
             try:
-                readiness = self._evaluator.score(
+                readiness = evaluator.score(
                     self._dynamic_state,
                     self._beliefs_reader,
                     last_fire_ts=self.generator.last_fire_ts(),
                 )
             except Exception:
                 pass
-        return {
+        out = {
             "last_thought": self.generator.last_thought(),
             "last_fire_ts": self.generator.last_fire_ts(),
             "total_fires": self.generator.total_fires(),
             "readiness_score": readiness,
             "loop_running": self._loop_running,
         }
+        # GENIUS_SCORE_v2 §7 consumer C — surface modulation state so
+        # the GUI can show the penalty and the rate it was computed from.
+        try:
+            if hasattr(evaluator, "status"):
+                mod = evaluator.status()
+                out["genius_modulation"] = {
+                    "wired": bool(mod.get("conversations_reader_wired")),
+                    "disabled": bool(mod.get("modulation_disabled")),
+                    "striking_rate": mod.get("last_striking_rate"),
+                    "sample_size": mod.get("last_sample_size", 0),
+                    "penalty": mod.get("current_penalty", 0.0),
+                }
+        except Exception:
+            pass
+        return out
 
 
 def build_fountain(
@@ -107,6 +128,10 @@ def build_fountain(
 
     state = FountainState(
         generator=generator,
+        # 2026-05-30 — share the generator's evaluator so the GUI's
+        # readiness display matches what the fire decision actually uses
+        # (consumer C modulation included).
+        _evaluator=generator._evaluator,
         _dynamic_state=dynamic_state,
         _beliefs_reader=readers.get("beliefs"),
     )

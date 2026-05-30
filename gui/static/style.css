@@ -1079,6 +1079,24 @@ body {
 }
 .decoder-word-chip:hover { background: rgba(255,255,255,0.12); color: var(--fg1); }
 
+/* 2026-05-30 HUD — genius score badge in the LIVE column */
+.genius-badge {
+  margin-left: auto;
+  padding: 0 4px;
+  border-radius: 2px;
+  font-size: 9px;
+  font-family: monospace;
+}
+.genius-badge.genius-striking {
+  color: #f0e090;
+  background: rgba(240, 224, 144, 0.15);
+  font-weight: bold;
+}
+.genius-badge.genius-ordinary {
+  color: var(--fg3, #888);
+  background: rgba(255, 255, 255, 0.04);
+}
+
 /* TOP tab — bars */
 .decoder-top-list { padding: 2px 0; }
 .decoder-top-row {

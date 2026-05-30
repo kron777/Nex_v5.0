@@ -28,6 +28,12 @@ MAX_OBSERVATIONS = 50
 STUCK_SIMILARITY = 0.85
 STUCK_WINDOW = 3
 PING_COOLDOWN_SECONDS = 1800  # don't re-ping the same problem within 30 min
+# 2026-05-30: global cooldown across ALL focus pings (per-problem cooldown
+# does not stop spam when several distinct problems go stuck in the same
+# window — seen on screen: 4 different-problem pings clustered together).
+# Pings stop if a focus ping went out under any problem in the last
+# GLOBAL_PING_COOLDOWN_SECONDS. Override with NEX5_FOCUS_PING_GLOBAL_COOLDOWN.
+GLOBAL_PING_COOLDOWN_SECONDS = 1200  # 20 min between any two focus pings
 INTERNAL_SESSION_ID = "internal_focus_loop"
 
 _STOPWORDS = {
@@ -160,6 +166,23 @@ def _last_ping_age(cv_cx, problem_id: int) -> float:
     return time.time() - row[0]
 
 
+def _global_ping_age(cv_cx) -> float:
+    """Age (seconds) of the most recent focus-ping for ANY problem.
+
+    Identifies focus pings by the distinctive template prefix
+    'I keep returning to my current focus' written by _surface_to_chat
+    so other 'nex' messages are not counted.
+    """
+    row = cv_cx.execute(
+        "SELECT MAX(timestamp) FROM messages "
+        "WHERE role='nex' AND content LIKE ?",
+        ("I keep returning to my current focus%",)
+    ).fetchone()
+    if not row or not row[0]:
+        return 1e12
+    return time.time() - row[0]
+
+
 def _surface_to_chat(cv_cx, problem_id: int, title: str) -> None:
     """Write a ping message visible in the GUI chat pane."""
     msg = (
@@ -217,9 +240,32 @@ def focus_tick() -> dict:
         # Stuck check
         stuck = False
         if _check_stuck(cv_cx, problem_id):
-            if _last_ping_age(cv_cx, problem_id) > PING_COOLDOWN_SECONDS:
+            # Two-tier cooldown:
+            #  - per-problem: don't repeat same problem within PING_COOLDOWN_SECONDS
+            #  - global: don't ping ANY problem within GLOBAL_PING_COOLDOWN_SECONDS
+            #    (added 2026-05-30 — fixes 4-pings-back-to-back UX bleed)
+            import os as _os
+            global_cd = float(_os.environ.get(
+                "NEX5_FOCUS_PING_GLOBAL_COOLDOWN",
+                GLOBAL_PING_COOLDOWN_SECONDS,
+            ))
+            if (_last_ping_age(cv_cx, problem_id) > PING_COOLDOWN_SECONDS
+                    and _global_ping_age(cv_cx) > global_cd):
                 _surface_to_chat(cv_cx, problem_id, title)
                 stuck = True
+            elif _last_ping_age(cv_cx, problem_id) > PING_COOLDOWN_SECONDS:
+                # Per-problem cooldown elapsed, but global gate is holding.
+                # Mark stuck silently so internal state advances without spam.
+                cv_cx.execute(
+                    "UPDATE open_problems SET state='stuck' WHERE id=?",
+                    (problem_id,)
+                )
+                cv_cx.commit()
+                log.info(
+                    "focus_loop: problem %s stuck but global ping cooldown "
+                    "active (%.0fs since last); silenced",
+                    problem_id, _global_ping_age(cv_cx),
+                )
 
         return {
             "focus": problem_id, "title": title[:60],
