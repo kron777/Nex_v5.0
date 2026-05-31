@@ -73,19 +73,22 @@ class IntakeResonance:
         with self._load_lock:
             if self._standing_loaded:
                 return
+            import os as _os
+            _tight = _os.environ.get("NEX5_INTAKE_TIGHT_CORE") == "1"
+            _tiers = (1, 2) if _tight else _STANDING_TIERS
             try:
-                tier_placeholders = ",".join("?" * len(_STANDING_TIERS))
+                tier_placeholders = ",".join("?" * len(_tiers))
                 rows = self._beliefs_reader.read(
                     f"SELECT id, content FROM beliefs "
                     f"WHERE tier IN ({tier_placeholders}) AND content IS NOT NULL "
                     f"AND length(content) > 8",
-                    _STANDING_TIERS,
+                    _tiers,
                 )
                 for r in (rows or []):
                     self._standing_ids.append(int(r["id"]))
                     self._standing_content[int(r["id"])] = r["content"]
                 # Also include T6 beliefs with high affinity (her crystallized voice)
-                t6_rows = self._beliefs_reader.read(
+                t6_rows = [] if _tight else self._beliefs_reader.read(
                     "SELECT id, content FROM beliefs "
                     "WHERE tier = 6 AND content IS NOT NULL "
                     "AND length(content) > 8 "
@@ -100,7 +103,8 @@ class IntakeResonance:
                 self._standing_loaded = True
                 log.info(
                     "intake_resonance: standing-points loaded "
-                    "(T1-T3 keystones + top T6 = %d total)",
+                    "(mode=%s, %d total)",
+                    "TIGHT(T1-T2)" if _tight else "BROAD(T1-T3+T6)",
                     len(self._standing_ids),
                 )
             except Exception as exc:
