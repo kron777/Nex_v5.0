@@ -47,6 +47,8 @@ _BELIEF_MAX_NEW       = 40     # N new beliefs in window → arousal delta cappe
 _AROUSAL_MAX_DELTA    = 0.5
 _SURPRISE_AROUSAL_FACTOR = 0.2  # §6: avg flagged surprise_score × factor → arousal bump
 _VALENCE_BELIEF_LIMIT = 20     # top-N beliefs for polarity scoring
+_GENIUS_VALENCE_WEIGHT = 0.30  # §9: recent striking-rate -> valence nudge (gentle blend)
+_GENIUS_WINDOW_SECONDS = 5400  # last 90 min of genius_tags for mood
 _GATE_WINDOW          = 20     # last N gate_decisions for accept rate
 _HELD_WINDOW          = 20     # last N held_thoughts for resolution rate
 
@@ -305,8 +307,30 @@ class AffectState:
             total_weight   += w
 
         if total_weight == 0.0:
-            return 0.0
-        return max(-1.0, min(1.0, weighted_score / total_weight))
+            polarity = 0.0
+        else:
+            polarity = max(-1.0, min(1.0, weighted_score / total_weight))
+
+        # §9 cascade brick 1: blend in her recent SELF-EVALUATION (genius
+        # striking-rate). Output-quality -> mood. Observed from her own
+        # reactions, NOT dialed. genius_tags lives in conversations.db (self._cr).
+        genius_nudge = 0.0
+        try:
+            grows = self._cr.read(
+                "SELECT class FROM genius_tags "
+                "WHERE tagged_at >= ? ",
+                (time.time() - _GENIUS_WINDOW_SECONDS,),
+            )
+            if grows and len(grows) >= 5:
+                striking = sum(1 for r in grows if r["class"] == "STRIKING")
+                rate = striking / len(grows)
+                # center ~0.20 (typical baseline rate) -> map to [-1,1]-ish nudge
+                genius_nudge = max(-1.0, min(1.0, (rate - 0.20) / 0.20))
+        except Exception:
+            genius_nudge = 0.0
+
+        blended = polarity + _GENIUS_VALENCE_WEIGHT * genius_nudge
+        return max(-1.0, min(1.0, blended))
 
     def _compute_stability(self) -> float:
         """Coherence from gate accept rate + held resolution rate + turnover inverse."""
