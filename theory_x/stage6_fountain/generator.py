@@ -1112,8 +1112,41 @@ class FountainGenerator:
             except Exception:
                 pass
 
-        # Every 20th fire: inject one reanimated dormant belief
-        if self._total_fires > 0 and self._total_fires % 20 == 0:
+        # §9 GOVERNOR brick 1 — adaptive reanimation cadence.
+        # Normal: inject a dormant belief every 20th fire. When she's in a
+        # sustained quality trough (recent striking-rate ~0), accelerate to
+        # every 5th fire so more foreign material breaks up the homogeneous
+        # recent-content feedback loop. Self-limiting: returns to 20 once
+        # striking-rate recovers. Reads the same genius_tags signal the mood
+        # brick uses. Never raises — defaults to normal cadence on any failure.
+        _reanim_cadence = 20
+        try:
+            import os as _os
+            if _os.environ.get("NEX5_GOVERNOR_OFF") != "1":
+                _gc = getattr(self, "_conversations_reader", None) or getattr(self, "_cr", None)
+                if _gc is not None:
+                    _grows = _gc.read(
+                        "SELECT class FROM genius_tags WHERE tagged_at >= ? ",
+                        (time.time() - 5400,),
+                    )
+                    if _grows and len(_grows) >= 4:
+                        _striking = sum(
+                            1 for _gr in _grows
+                            if (_gr["class"] if hasattr(_gr, "__getitem__")
+                                else getattr(_gr, "class", "")) == "STRIKING"
+                        )
+                        _rate = _striking / len(_grows)
+                        if _rate <= 0.05:
+                            _reanim_cadence = 5
+                            logger.info(
+                                "GOVERNOR: trough detected (striking=%.0f%%, n=%d) "
+                                "-> reanimation cadence 20->5",
+                                _rate * 100, len(_grows),
+                            )
+        except Exception:
+            _reanim_cadence = 20
+        # Reanimation fire: inject one dormant belief at the active cadence
+        if self._total_fires > 0 and self._total_fires % _reanim_cadence == 0:
             try:
                 from theory_x.diversity.reanimate import pop_reanimated
                 reanimated = pop_reanimated()
