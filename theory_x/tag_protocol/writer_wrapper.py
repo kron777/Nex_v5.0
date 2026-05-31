@@ -103,6 +103,8 @@ class TaggingBeliefWriter:
         self._inner = inner_writer
         self.db_path = inner_writer.db_path
         self.name = getattr(inner_writer, "name", "beliefs")
+        self._intake_probe = None
+        self._probe_tried = False  # lazy init guard
 
     def write(self, sql: str, params: Sequence[Any] = ()) -> Any:
         params = tuple(params)
@@ -136,6 +138,28 @@ class TaggingBeliefWriter:
                 file=sys.stderr,
             )
             return self._inner.write(sql, params)
+
+        # 4b — §8 intake resonance probe (UNIVERSAL chokepoint:
+        # every belief from every writer passes here). Observational,
+        # never raises. Writes via self._inner to avoid recursion.
+        try:
+            import os as _os
+            if _os.environ.get('NEX5_INTAKE_RESONANCE_OFF') != '1':
+                if not self._probe_tried:
+                    self._probe_tried = True
+                    try:
+                        from substrate.reader import Reader as _Reader
+                        from theory_x.stage2_dynamic.intake_resonance import IntakeResonance
+                        self._intake_probe = IntakeResonance(_Reader(self.db_path), self._inner)
+                    except Exception as _e:
+                        import sys as _sys
+                        print('TaggingBeliefWriter: probe init failed: %r' % (_e,), file=_sys.stderr)
+                        self._intake_probe = None
+                if self._intake_probe is not None:
+                    self._intake_probe.compute(str(params[content_idx]))
+        except Exception as _pe:
+            import sys as _sys
+            print('TaggingBeliefWriter: probe compute failed: %r' % (_pe,), file=_sys.stderr)
 
         # 5 — rewrite SQL+params with injected tags
         new_sql, new_params = _inject_tags_into_sql(

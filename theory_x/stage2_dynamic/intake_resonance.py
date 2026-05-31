@@ -107,6 +107,12 @@ class IntakeResonance:
                 log.warning("intake_resonance: load standing-points failed: %s", exc)
 
     def compute(self, content: str) -> Optional[dict]:
+
+        self._enter_count = getattr(self, '_enter_count', 0) + 1
+
+        if self._enter_count <= 5 or self._enter_count % 50 == 0:
+
+            log.info('intake_resonance: compute() called #%d (standing_loaded=%s)', self._enter_count, self._standing_loaded)
         """Return resonance dict for `content`, or None on failure / disabled.
 
         Result keys:
@@ -158,9 +164,15 @@ class IntakeResonance:
                 "VALUES (?, ?, ?, ?)",
                 (content[:500], float(best_cos), best_id, time.time()),
             )
+            self._write_count = getattr(self, "_write_count", 0) + 1
+            if self._write_count <= 5 or self._write_count % 25 == 0:
+                log.info("intake_resonance: WROTE row #%d (res=%.3f) for: %s",
+                         self._write_count, float(best_cos), content[:50])
         except Exception as exc:
             self._error_count += 1
-            log.debug("intake_resonance: log write failed: %s", exc)
+            self._last_error = repr(exc)
+            log.warning("intake_resonance: WRITE FAILED (#%d): %r | content=%s",
+                        self._error_count, exc, content[:50])
         return {
             "resonance": float(best_cos),
             "top_match_id": best_id,
