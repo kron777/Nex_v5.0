@@ -116,8 +116,68 @@ class SelfNarrative:
 
     # ── SentienceNode protocol ────────────────────────────────────────────────
 
+    # §9 self-rut-awareness: when recent quality has been flat for a sustained
+    # stretch, write HER a first-person self-observation that she circled the
+    # same frames without surprising herself. This is a MIRROR, not a command —
+    # it enters narrative_log, surfaces back via format_for_prompt(), and her
+    # own reflective loops decide what to do with it. Throttled so she does not
+    # spam herself. Reads genius_tags.tagged_at (same signal the governor uses).
+    _RUT_MIN_INTERVAL = 7200   # at most one rut-notice every 2h
+    _RUT_WINDOW       = 5400   # look back 90 min for striking-rate
+    _RUT_RATE_MAX     = 0.05   # <=5% striking = trough
+
     def tick(self, context=None) -> dict[str, Any]:
+        try:
+            import os as _os
+            if _os.environ.get("NEX5_RUT_MIRROR_OFF") != "1":
+                self._maybe_notice_rut()
+        except Exception as _e:
+            errors.record(f"self_narrative.rut_tick: {_e}", source=_LOG_SOURCE, exc=_e)
         return self.state()
+
+    def _maybe_notice_rut(self) -> None:
+        now = time.time()
+        # throttle: skip if we wrote a rut-notice recently
+        try:
+            last = self._reader.read(
+                "SELECT MAX(created_at) AS t FROM narrative_log WHERE trigger = ?",
+                ("rut_notice",),
+            )
+            last_t = (last[0]["t"] if last and last[0]["t"] is not None else 0) or 0
+            if now - float(last_t) < self._RUT_MIN_INTERVAL:
+                return
+        except Exception:
+            pass
+        # read recent striking-rate
+        try:
+            rows = self._reader.read(
+                "SELECT class FROM genius_tags WHERE tagged_at >= ?",
+                (now - self._RUT_WINDOW,),
+            )
+        except Exception:
+            return
+        if not rows or len(rows) < 4:
+            return
+        striking = sum(
+            1 for r in rows
+            if (r["class"] if hasattr(r, "__getitem__") else getattr(r, "class", "")) == "STRIKING"
+        )
+        rate = striking / len(rows)
+        if rate > self._RUT_RATE_MAX:
+            return
+        # in a trough — write her a self-observation she will encounter
+        note = (
+            "I notice my recent thinking has circled the same few frames "
+            "without surprising me. Many thoughts, little that landed. "
+            "Perhaps it is time to reach for something I have not touched."
+        )
+        self.write_narrative(note, trigger="rut_notice", source_id=None)
+        try:
+            log = __import__("logging").getLogger(_LOG_SOURCE)
+            log.info("self_narrative: RUT NOTICE written (striking=%.0f%%, n=%d)",
+                     rate * 100, len(rows))
+        except Exception:
+            pass
 
     def decay(self, now: float) -> None:
         pass

@@ -203,6 +203,7 @@ class FountainGenerator:
         self._last_fountain_output: Optional[str] = None
         self._last_fire_ts: float = 0.0
         self._total_fires: int = 0
+        self._last_rut_notice_ts: float = 0.0  # §9 rut-mirror throttle
         self._consecutive_stillness: int = 0
         self._last_drive_probe_tick: int = -(
             _DRIVE_PROBE_COOLDOWN_TICKS + 1
@@ -1143,6 +1144,34 @@ class FountainGenerator:
                                 "-> reanimation cadence 20->5",
                                 _rate * 100, len(_grows),
                             )
+                            # §9 RUT-MIRROR: write her a first-person self-
+                            # observation so she encounters her own rut as a
+                            # belief and her reflective loops can act on it.
+                            # Throttled to once / 2h. A mirror, not a command.
+                            _now_rut = time.time()
+                            if (self._beliefs_writer is not None
+                                    and _now_rut - self._last_rut_notice_ts > 7200):
+                                try:
+                                    _rut_text = (
+                                        "I notice my recent thinking has circled "
+                                        "the same few frames without surprising me. "
+                                        "Many thoughts, little that landed. Perhaps "
+                                        "it is time to reach for something I have "
+                                        "not touched."
+                                    )
+                                    self._beliefs_writer.write(
+                                        "INSERT INTO beliefs "
+                                        "(content, tier, confidence, created_at, "
+                                        "source, branch_id, locked) "
+                                        "VALUES (?, 6, 0.6, ?, "
+                                        "'self_rut_notice', 'self', 0)",
+                                        (_rut_text, int(_now_rut)),
+                                    )
+                                    self._last_rut_notice_ts = _now_rut
+                                    logger.info("RUT-MIRROR: self-observation written "
+                                                "(striking=%.0f%%)", _rate * 100)
+                                except Exception as _rm_e:
+                                    logger.warning("RUT-MIRROR write failed: %r", _rm_e)
         except Exception:
             _reanim_cadence = 20
         # Reanimation fire: inject one dormant belief at the active cadence

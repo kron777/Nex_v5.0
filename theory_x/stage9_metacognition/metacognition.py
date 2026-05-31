@@ -139,6 +139,19 @@ class Metacognition:
 
         if groove_events:
             self._maybe_engage_stillness(now)
+        # §9 self-rut-awareness: let her notice a sustained quality trough as a
+        # first-person self-observation she will encounter and can act on.
+        # Throttled + signal-gated inside _maybe_notice_rut. Never raises.
+        if self._narrative is not None:
+            try:
+                _mnr = getattr(self._narrative, "_maybe_notice_rut", None)
+                if _mnr is not None:
+                    _mnr()
+            except Exception as exc:
+                errors.record(
+                    f"metacognition rut-notice failed: {exc}",
+                    source=_LOG_SOURCE, exc=exc,
+                )
 
         drift_event = self._detect_goal_drift(now)
         if drift_event:
