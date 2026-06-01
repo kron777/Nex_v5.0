@@ -197,6 +197,12 @@ class FountainGenerator:
         self._coherence_gate = coherence_gate
         self._erosion = erosion
         self._competing_drives = competing_drives
+        # overwhelm runtime flag: initial value from env, live-togglable via GUI
+        import os as _os_ovinit
+        try:
+            self._overwhelm_n = int(_os_ovinit.environ.get('NEX5_SENSE_OVERWHELM_N','0'))
+        except Exception:
+            self._overwhelm_n = 0
         self._evaluator = ReadinessEvaluator(
             conversations_reader=conversations_reader,
         )
@@ -1356,7 +1362,7 @@ class FountainGenerator:
         # Tests Stage 1->2 (raw sense -> opinion-of-senses). Off unless N>0.
         import os as _os_ow
         try:
-            _ow_n = int(_os_ow.environ.get("NEX5_SENSE_OVERWHELM_N", "0"))
+            _ow_n = int(getattr(self, "_overwhelm_n", 0))
         except Exception:
             _ow_n = 0
         if _ow_n > 0 and self._sense_reader is not None:

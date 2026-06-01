@@ -613,6 +613,29 @@ def create_app(state: AppState) -> Flask:
         state.voice_mode = mode
         return jsonify({"mode": state.voice_mode, "ok": True})
 
+    @app.post("/api/overwhelm")
+    def api_overwhelm():
+        payload = request.get_json(silent=True) or {}
+        on = bool(payload.get("on", False))
+        try:
+            n = int(payload.get("n", 25))
+        except Exception:
+            n = 25
+        new_val = n if on else 0
+        if state.fountain is not None and getattr(state.fountain, "generator", None) is not None:
+            state.fountain.generator._overwhelm_n = new_val
+        elif state.fountain is not None:
+            setattr(state.fountain, "_overwhelm_n", new_val)
+        return jsonify({"on": new_val > 0, "n": new_val, "ok": True})
+
+    @app.get("/api/overwhelm")
+    def api_overwhelm_get():
+        cur = 0
+        gen = getattr(state.fountain, "generator", None) if state.fountain is not None else None
+        if gen is not None:
+            cur = int(getattr(gen, "_overwhelm_n", 0))
+        return jsonify({"on": cur > 0, "n": cur})
+
     # -- chat ----------------------------------------------------------------
 
     @app.post("/api/chat")
