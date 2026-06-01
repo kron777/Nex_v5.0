@@ -1350,6 +1350,43 @@ class FountainGenerator:
 
         prompt_parts = [system_prompt, ""]
 
+        # ── Theory-X OVERWHELM block (env-gated, default OFF) ──────────────
+        # Clause 1.3: overwhelm is constitutive — present a flood of raw sense
+        # exceeding single-item capacity, instruct compression into one thought.
+        # Tests Stage 1->2 (raw sense -> opinion-of-senses). Off unless N>0.
+        import os as _os_ow
+        try:
+            _ow_n = int(_os_ow.environ.get("NEX5_SENSE_OVERWHELM_N", "0"))
+        except Exception:
+            _ow_n = 0
+        if _ow_n > 0 and self._sense_reader is not None:
+            try:
+                _ow_rows = self._sense_reader.read(
+                    "SELECT stream, payload FROM sense_events "
+                    "WHERE stream NOT LIKE 'internal.%' "
+                    "ORDER BY timestamp DESC LIMIT ?",
+                    (_ow_n,),
+                )
+                if _ow_rows:
+                    _ow_items = []
+                    for _r in _ow_rows:
+                        _p = (_r["payload"] or "")[:120].strip().replace("\n", " ")
+                        _ow_items.append(f"  - [{_r['stream']}] {_p}")
+                    prompt_parts.append(
+                        f"OVERWHELM: {len(_ow_items)} things are arriving at once, "
+                        "more than you can hold separately:"
+                    )
+                    prompt_parts.extend(_ow_items)
+                    prompt_parts.append(
+                        "Do not pick one. Compress all of them into a single thought "
+                        "that holds what they have in common or how they pull against "
+                        "each other. One sentence."
+                    )
+                    prompt_parts.append("")
+            except Exception:
+                pass
+        # ───────────────────────────────────────────────────────────────────
+
         # 2026-05-16: Identity — most recent self-description from identity_loop.
         # She sees who she said she was, so the next thing she speaks is grounded
         # in continuity. The comparison "earlier I said X" with "now I am Y" is
