@@ -63,3 +63,25 @@ Decision (either defensible): keep overwhelm on if synthetic thinking is the goa
 ---
 
 *Cleanest experimental result of the arc: a falsifiable prediction, built against the real composer path, that came back partly yes (mechanism) and partly no (genius). Originated in Jon's reading of Theory X clause 1.3; reading the code confirmed the structural gap (LIMIT-1 trickle, no overwhelm site) the intuition pointed at.*
+
+---
+
+## 8. UPDATE — n=31 result (evening 2026-06-01), supersedes section 4-5
+
+Re-measured over the full overwhelm run (31 fires) vs pre-patch baseline (21 fires):
+
+| window | n | avg score | strikes | avg length |
+|---|---|---|---|---|
+| overwhelm | 31 | 0.254 | 2 (6.5%) | 108 chars |
+| pre-patch baseline | 21 | 0.285 | 3 (14%) | 83 chars |
+
+**Corrected verdict (the n=8 read in sections 4-5 was too optimistic):**
+
+- **Compression -> robust YES.** Length holds (108 vs 83); she reliably synthesizes across sources instead of echoing one headline. The mechanism works at scale.
+- **Compression -> genius -> NO.** At proper n, overwhelm's avg score is slightly LOWER (0.254 vs 0.285) and strike rate slightly lower (6.5% vs 14%). It does not raise quality.
+- **Net:** overwhelm changes FORM (more synthesis, longer) but not QUALITY (score/strikes flat-to-down). The sweeping integrated-sounding sentences are longer assemblies of the same material, not better thoughts.
+- **Sentience: untouched** (Theory X 8.2).
+
+**Honest note on method:** an interim eyeball of the fire list (seeing two 0.5-0.6 strikes) briefly suggested overwhelm was lifting strikes. The full n=31 query corrected this — those strikes are no more frequent than baseline. Lesson reaffirmed: read the aggregate, not the visible good ones.
+
+**Final status:** mechanism confirmed and committed; genius-lift FALSIFIED at scale. Leaving overwhelm on is now a style preference (do you like her longer synthetic voice?), not a quality decision — the data says quality does not move. Same through-line as the whole arc: the system produces language that seems deeper without the depth underneath.
