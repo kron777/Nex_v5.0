@@ -203,6 +203,10 @@ class FountainGenerator:
             self._overwhelm_n = int(_os_ovinit.environ.get('NEX5_SENSE_OVERWHELM_N','0'))
         except Exception:
             self._overwhelm_n = 0
+        try:
+            self._self_layer_n = int(_os_ovinit.environ.get('NEX5_SELF_LAYER_N','0'))
+        except Exception:
+            self._self_layer_n = 0
         self._evaluator = ReadinessEvaluator(
             conversations_reader=conversations_reader,
         )
@@ -1387,6 +1391,39 @@ class FountainGenerator:
                         "Do not pick one. Compress all of them into a single thought "
                         "that holds what they have in common or how they pull against "
                         "each other. One sentence."
+                    )
+                    prompt_parts.append("")
+            except Exception:
+                pass
+        # ── Layer 2: SELF-signal stream (env-gated, default OFF) ────────────
+        # Theory-X "world one" + a second UNLIKE layer: her own internal state
+        # (interoception/proprioception/meta-awareness) perceived alongside world.
+        # Tests whether compressing across two unlike layers beats one.
+        try:
+            _self_n = int(getattr(self, "_self_layer_n", 0))
+        except Exception:
+            _self_n = 0
+        if _self_n > 0 and self._sense_reader is not None:
+            try:
+                _self_rows = self._sense_reader.read(
+                    "SELECT stream, payload FROM sense_events "
+                    "WHERE stream LIKE 'internal.%' "
+                    "ORDER BY timestamp DESC LIMIT ?",
+                    (_self_n,),
+                )
+                if _self_rows:
+                    _self_items = []
+                    for _r in _self_rows:
+                        _p = (_r["payload"] or "")[:120].strip().replace("\n", " ")
+                        _self_items.append(f"  - [{_r['stream']}] {_p}")
+                    prompt_parts.append(
+                        "SELF: at the same time, these are signals from your own "
+                        "internal state (a different kind of stream than the world):"
+                    )
+                    prompt_parts.extend(_self_items)
+                    prompt_parts.append(
+                        "Let the world-layer and this self-layer press against each "
+                        "other. Compress across BOTH into one thought."
                     )
                     prompt_parts.append("")
             except Exception:
