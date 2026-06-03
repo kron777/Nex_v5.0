@@ -126,3 +126,49 @@ sometimes "what is the sharpest disagreement", "what does one reveal about the o
 ## Toggle
 - NEX5_SYNTH_NO_KOAN=1 : drop koan-class beliefs from the synth hot-set (stress test)
 - Backup: generator.py.bak_nokoan
+
+## REFINEMENT: Vary-the-frame (NEX5_SYNTH_VARY=1)
+Date: 2026-06-03 (same day, evening)
+
+Residual issue from the confirmation run: content varied widely but the CONNECTIVE
+frame had settled into one form ("The juxtaposition of X and Y...", "The tensions
+between..."), groove flagging template_repetition ~0.80 on the frame phrasing.
+
+Fix: rotate the synthesis INSTRUCTION per fire (deterministic by fire count) through
+8 distinct operations instead of one open "what connects these" — e.g. sharpest
+disagreement, what one reveals about another, the hard question forced, the shared
+hidden assumption, what non-obvious thing follows, which two least belong, what would
+have to change to conflict, what concrete consequence follows. Plus an explicit ban on
+the two formulaic openers. Reversible, env-gated.
+
+RESULT (8 fires): openings genuinely vary — no more "The juxtaposition" / "The tensions
+between" on every fire. Observed frames landing distinctly:
+- "These topics all touch on the ethical implications..." (shared-assumption frame)
+- "How can we reconcile the growing scrutiny of police practices..." (hard-question frame)
+- "For these thoughts to conflict, we would need a shift in..." (what-would-change frame)
+- "Beans using an immune receptor to call in airstrikes on caterpillars seems OUT OF
+  PLACE when..." (which-two-least-belong frame — picked the strangest hot item and
+  worked from its strangeness)
+- "These points all implicitly ASSUME the imperative need for..." (hidden-assumption frame)
+
+The connective rut broke. The varied instructions reached the composer and produced
+structurally different openings/operations per fire.
+
+Residual (third-order): some phrasing still recurs ("the growing recognition of
+interconnectedness"; a new groove flag "public controversies / personal struggles"
+~0.80). Content is wide, frames vary, remaining repetition is mild phrasing-drift, not
+a rut. Diminishing returns past this point for prompt-level levers on a 3B voice.
+
+## FULL RESULT OF THE THREAD (three confirmed stages)
+1. SYNTHESIS WORKS — voice aimed outward (conversational register + explicit hot-set +
+   ban on the self-existence register) breaks the 4-template rut, produces real
+   cross-domain synthesis. The narrowness was the VOICE aimed inward, not the model.
+2. GENERAL, NOT KOAN-DEPENDENT — held across 14 koan-free fires under stress test.
+3. VARIED FRAME — rotating the synthesis instruction breaks the connective-form rut too.
+
+NEX: from 42%-one-aphorism (template_repetition 1.00) to varied-frame cross-domain
+synthesis (59% striking on the original grader), same Qwen2.5-3B throughout.
+
+## Toggle
+- NEX5_SYNTH_VARY=1 : rotate the synthesis instruction per fire (8 frames)
+- Backup: generator.py.bak_vary

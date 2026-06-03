@@ -702,12 +702,31 @@ class FountainGenerator:
                         if len(_cc) > 200:
                             _cc = _cc[:197] + "..."
                         _slines.append(f"{_i}. {_cc}")
-                    _slines.append(
-                        "In one or two sentences, say what NEW connection, tension, "
-                        "or question arises from holding these together. Do NOT write "
-                        "about chance, existence, acceptance, being born, or your own "
-                        "nature. Do NOT simply quote them back. Make something new."
-                    )
+                    if os.environ.get("NEX5_SYNTH_VARY") == "1":
+                        _frames = [
+                            "what is the sharpest DISAGREEMENT or tension between these?",
+                            "what does one of these REVEAL about another?",
+                            "what single hard QUESTION does holding these together force?",
+                            "what hidden ASSUMPTION do these share, and is it warranted?",
+                            "if these are all true at once, what NON-OBVIOUS thing follows?",
+                            "which two least belong together \u2014 and what connects them anyway?",
+                            "what would have to change for these to directly CONFLICT?",
+                            "what concrete consequence or prediction do these jointly point to?",
+                        ]
+                        _frame = _frames[int(getattr(self, "_total_fires", 0)) % len(_frames)]
+                        _slines.append(
+                            "In one or two sentences: " + _frame + " Do NOT write about "
+                            "chance, existence, acceptance, being born, or your own nature. "
+                            "Do NOT simply quote them back. Do NOT begin with 'The "
+                            "juxtaposition' or 'The tension between'. Make something new."
+                        )
+                    else:
+                        _slines.append(
+                            "In one or two sentences, say what NEW connection, tension, "
+                            "or question arises from holding these together. Do NOT write "
+                            "about chance, existence, acceptance, being born, or your own "
+                            "nature. Do NOT simply quote them back. Make something new."
+                        )
                     _synprompt = "\n".join(_slines)
                     _synresp = self._voice.speak(
                         VoiceRequest(prompt=_synprompt, register=_synreg),
