@@ -642,6 +642,28 @@ def create_app(state: AppState) -> Flask:
             gen._self_layer_n = new_val
         return jsonify({"on": new_val > 0, "n": new_val, "ok": True})
 
+    @app.post("/api/continuity")
+    def api_continuity():
+        payload = request.get_json(silent=True) or {}
+        on = bool(payload.get("on", False))
+        try:
+            n = int(payload.get("n", 5))
+        except Exception:
+            n = 5
+        new_val = n if on else 0
+        gen = getattr(state.fountain, "generator", None) if state.fountain is not None else None
+        if gen is not None:
+            gen._continuity_n = new_val
+        return jsonify({"on": new_val > 0, "n": new_val, "ok": True})
+
+    @app.get("/api/continuity")
+    def api_continuity_get():
+        cur = 0
+        gen = getattr(state.fountain, "generator", None) if state.fountain is not None else None
+        if gen is not None:
+            cur = int(getattr(gen, "_continuity_n", 0))
+        return jsonify({"on": cur > 0, "n": cur})
+
     @app.get("/api/selflayer")
     def api_selflayer_get():
         cur = 0

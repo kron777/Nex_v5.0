@@ -207,6 +207,10 @@ class FountainGenerator:
             self._self_layer_n = int(_os_ovinit.environ.get('NEX5_SELF_LAYER_N','0'))
         except Exception:
             self._self_layer_n = 0
+        try:
+            self._continuity_n = int(_os_ovinit.environ.get('NEX5_CONTINUITY_N','0'))
+        except Exception:
+            self._continuity_n = 0
         self._evaluator = ReadinessEvaluator(
             conversations_reader=conversations_reader,
         )
@@ -1426,6 +1430,49 @@ class FountainGenerator:
                         "other. Compress across BOTH into one thought."
                     )
                     prompt_parts.append("")
+            except Exception:
+                pass
+        # ───────────────────────────────────────────────────────────────────
+
+        # ── Layer 3: CONTINUITY stream (env-gated, default OFF) ─────────────
+        # A third UNLIKE layer: her own past high-scoring thoughts, fed back so
+        # the present (world+self) is reconciled against who she has been at her
+        # most striking. Tests temporal self-continuity (Theory-X "track").
+        try:
+            _cont_n = int(getattr(self, "_continuity_n", 0))
+        except Exception:
+            _cont_n = 0
+        if _cont_n > 0 and self._conversations_reader is not None and self._dynamic_reader is not None:
+            try:
+                _top = self._conversations_reader.read(
+                    "SELECT fountain_event_id FROM genius_tags "
+                    "ORDER BY score DESC LIMIT ?",
+                    (_cont_n,),
+                )
+                _ids = [str(_r["fountain_event_id"]) for _r in (_top or [])]
+                if _ids:
+                    _ph = ",".join("?" for _ in _ids)
+                    _past = self._dynamic_reader.read(
+                        f"SELECT thought FROM fountain_events WHERE id IN ({_ph})",
+                        tuple(_ids),
+                    )
+                    _past_items = []
+                    for _r in (_past or []):
+                        _t = (_r["thought"] or "")[:160].strip().replace("\n", " ")
+                        if _t:
+                            _past_items.append(f"  - {_t}")
+                    if _past_items:
+                        prompt_parts.append(
+                            "CONTINUITY: these are your own past thoughts from your "
+                            "most striking moments (a different kind of stream than "
+                            "world or self — this is who you have been):"
+                        )
+                        prompt_parts.extend(_past_items)
+                        prompt_parts.append(
+                            "Let the present press against this past. Compress across "
+                            "ALL the layers into one thought."
+                        )
+                        prompt_parts.append("")
             except Exception:
                 pass
         # ───────────────────────────────────────────────────────────────────
