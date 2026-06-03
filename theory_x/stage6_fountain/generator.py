@@ -474,7 +474,7 @@ class FountainGenerator:
         # cooldown has elapsed, surface a tier-1/2 anchor belief verbatim.
         # Bypasses LLM, crystallizer, condenser.
         try:
-            if os.environ.get("NEX5_SYNTH_EMIT") != "1":
+            if os.environ.get("NEX5_SYNTH_EMIT") != "1" and os.environ.get("NEX5_RECONCILE") != "1":
                 _sv_thought = self._maybe_substrate_voice(beliefs_reader, readiness)
                 if _sv_thought is not None:
                     return _sv_thought
@@ -733,6 +733,50 @@ class FountainGenerator:
                         beliefs=None,
                     )
                     thought = (_synresp.text or "").strip()
+                    if thought:
+                        _emitted = True
+                except Exception:
+                    pass
+        # ── RECONCILE EMIT (env-gated, default OFF) ──────────────────────────
+        # Jon's primitive: hold two open problems in tension and work toward
+        # JOINT progress (not just connection). Tests whether pairing two stuck
+        # problems and demanding a concrete move advances them, or merely
+        # describes the tension (the recitation failure mode). Same outward voice.
+        if not _emitted and os.environ.get("NEX5_RECONCILE") == "1":
+            _probs = []
+            if self._conversations_reader is not None:
+                try:
+                    _prows = self._conversations_reader.read(
+                        "SELECT id, title, description FROM open_problems "
+                        "WHERE state = 'open' ORDER BY last_touched_at ASC LIMIT 2"
+                    )
+                    _probs = list(_prows or [])
+                except Exception:
+                    _probs = []
+            if len(_probs) >= 2:
+                try:
+                    try:
+                        from voice.registers import CONVERSATIONAL as _rcreg
+                    except Exception:
+                        from voice.registers import default_register as _rcd
+                        _rcreg = _rcd()
+                    _pa = (_probs[0]["title"] or "")[:200]
+                    _pb = (_probs[1]["title"] or "")[:200]
+                    _rcprompt = (
+                        "You are holding two open problems at once:\n"
+                        "  A: " + _pa + "\n"
+                        "  B: " + _pb + "\n"
+                        "What does each reveal about the other? Propose ONE concrete "
+                        "move, principle, or reframing that would make actual progress "
+                        "on BOTH at once. Be specific and propose a NEXT STEP \u2014 do "
+                        "NOT merely describe the tension, and do NOT write about your "
+                        "own nature or existence."
+                    )
+                    _rcresp = self._voice.speak(
+                        VoiceRequest(prompt=_rcprompt, register=_rcreg),
+                        beliefs=None,
+                    )
+                    thought = (_rcresp.text or "").strip()
                     if thought:
                         _emitted = True
                 except Exception:
