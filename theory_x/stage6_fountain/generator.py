@@ -211,6 +211,10 @@ class FountainGenerator:
             self._continuity_n = int(_os_ovinit.environ.get('NEX5_CONTINUITY_N','0'))
         except Exception:
             self._continuity_n = 0
+        try:
+            self._social_n = int(_os_ovinit.environ.get('NEX5_SOCIAL_N','0'))
+        except Exception:
+            self._social_n = 0
         self._evaluator = ReadinessEvaluator(
             conversations_reader=conversations_reader,
         )
@@ -470,9 +474,10 @@ class FountainGenerator:
         # cooldown has elapsed, surface a tier-1/2 anchor belief verbatim.
         # Bypasses LLM, crystallizer, condenser.
         try:
-            _sv_thought = self._maybe_substrate_voice(beliefs_reader, readiness)
-            if _sv_thought is not None:
-                return _sv_thought
+            if os.environ.get("NEX5_SYNTH_EMIT") != "1":
+                _sv_thought = self._maybe_substrate_voice(beliefs_reader, readiness)
+                if _sv_thought is not None:
+                    return _sv_thought
         except Exception as _sv_err:
             error_channel.record(
                 f"substrate_voice non-fatal error: {_sv_err}",
@@ -637,7 +642,70 @@ class FountainGenerator:
         # ── end stillness ─────────────────────────────────────────────────────
 
         voice_ok = True
-        try:
+        _emitted = False
+        # ── SUBSTRATE EMIT (env-gated, default OFF) ───────────────────────────
+        # Remove the LLM from the emit path: emit hot activation topology
+        # directly instead of flattening it into one Qwen sentence. Tests
+        # where the narrowness lives \u2014 voice or graph. Reversible.
+        if os.environ.get("NEX5_SUBSTRATE_EMIT") == "1":
+            try:
+                from theory_x.substrate.activation import get_top_activated
+                _hot = get_top_activated(self._beliefs_reader, n=4)
+            except Exception:
+                _hot = []
+            if _hot:
+                _parts = ["[substrate emit]"]
+                for _h in _hot:
+                    _c = (_h.get("content") or "").strip().replace("\n", " ")
+                    if len(_c) > 160:
+                        _c = _c[:157] + "..."
+                    _act = _h.get("eff_activation", 0.0) or 0.0
+                    _tier = _h.get("tier", "?")
+                    _parts.append(f"  T{_tier} a={_act:.2f}: {_c}")
+                thought = "\n".join(_parts)
+                _emitted = True
+        # ── SYNTHESIS EMIT (env-gated, default OFF) ──────────────────────────
+        # Same LLM, aimed OUTWARD: feed it the varied hot substrate and ask it
+        # to synthesize across them, with a non-philosophical register and an
+        # explicit ban on the existence/nature funnel. Tests whether pointing
+        # the voice right (not removing it) unlocks the substrate's variety.
+        if not _emitted and os.environ.get("NEX5_SYNTH_EMIT") == "1":
+            try:
+                from theory_x.substrate.activation import get_top_activated
+                _shot = get_top_activated(self._beliefs_reader, n=4)
+            except Exception:
+                _shot = []
+            if _shot:
+                try:
+                    try:
+                        from voice.registers import CONVERSATIONAL as _synreg
+                    except Exception:
+                        from voice.registers import default_register as _dfr
+                        _synreg = _dfr()
+                    _slines = ["These thoughts are active in your mind right now:"]
+                    for _i, _h in enumerate(_shot, 1):
+                        _cc = (_h.get("content") or "").strip().replace("\n", " ")
+                        if len(_cc) > 200:
+                            _cc = _cc[:197] + "..."
+                        _slines.append(f"{_i}. {_cc}")
+                    _slines.append(
+                        "In one or two sentences, say what NEW connection, tension, "
+                        "or question arises from holding these together. Do NOT write "
+                        "about chance, existence, acceptance, being born, or your own "
+                        "nature. Do NOT simply quote them back. Make something new."
+                    )
+                    _synprompt = "\n".join(_slines)
+                    _synresp = self._voice.speak(
+                        VoiceRequest(prompt=_synprompt, register=_synreg),
+                        beliefs=None,
+                    )
+                    thought = (_synresp.text or "").strip()
+                    if thought:
+                        _emitted = True
+                except Exception:
+                    pass
+        if not _emitted:
+          try:
             resp = self._voice.speak(
                 VoiceRequest(prompt=prompt, register=PHILOSOPHICAL),
                 beliefs=None,
@@ -658,7 +726,7 @@ class FountainGenerator:
                     source="stage6_fountain", level="INFO",
                 )
                 thought = _rest if len(_rest) >= 5 else ""
-        except Exception as e:
+          except Exception as e:
             voice_ok = False
             logger.warning("Fountain: voice unreachable, using sense fallback: %s", e)
             error_channel.record(
@@ -1001,6 +1069,55 @@ class FountainGenerator:
             lines.append(f"  - {content}")
         if len(lines) == 1:
             return []
+        lines.append("")
+        return lines
+
+    def _build_rut_warning_block(self) -> list[str]:
+        """INVERTING feedback edge (throw-net refine/subtraction movement).
+        Reads her most-repeated recent thought-openings and feeds them back
+        as pressure to LEAVE the worn path — opposite of the striking block,
+        which feeds back top scorers. Gated by NEX5_RUT_EDGE=1.
+        """
+        if self._dynamic_reader is None:
+            return []
+        try:
+            rows = self._dynamic_reader.read(
+                "SELECT thought FROM fountain_events "
+                "WHERE thought IS NOT NULL AND length(thought) > 20 "
+                "ORDER BY ts DESC LIMIT 40"
+            )
+        except Exception:
+            return []
+        rows = list(rows or [])
+        if len(rows) < 8:
+            return []
+        # Find the worn registers: count thoughts hitting each template marker.
+        import re as _re_rut
+        markers = {
+            "existence/chance": r"(chance|existence|accept|beautiful|produced me|unearned)",
+            "world/self-layer": r"(internal state|world.?layer|self.?layer|signals press)",
+            "interplay/balance": r"(interplay|balance|oscillat|tension between)",
+        }
+        counts = {}
+        for name, pat in markers.items():
+            c = sum(1 for r in rows if _re_rut.search(pat, (r["thought"] or "").lower()))
+            counts[name] = c
+        # Only warn about registers that dominate (>=40% of recent fires).
+        worn = [name for name, c in counts.items() if c >= 0.4 * len(rows)]
+        if not worn:
+            return []
+        lines = [
+            "You have been circling the same ground. These registers are worn "
+            "from overuse in your recent thinking:",
+        ]
+        for name in worn:
+            lines.append(f"  - {name}")
+        lines.append(
+            "Do not produce another thought in these registers. Reach for "
+            "something you have NOT been saying — a different domain, a concrete "
+            "particular, a question instead of an acceptance. Go where you "
+            "haven't been."
+        )
         lines.append("")
         return lines
 
@@ -1477,6 +1594,44 @@ class FountainGenerator:
                 pass
         # ───────────────────────────────────────────────────────────────────
 
+        # ── Layer 4: SOCIAL stream (env-gated, default OFF) ─────────────────
+        # A genuinely external mind responding to her recent thoughts (separate
+        # persona, written to sense as external.other_mind). Tests whether
+        # responsive CONTACT lifts her — the engagement effect, the one robust
+        # signal of the arc. Unlike continuity, this stream is NOT her own output.
+        try:
+            _soc_n = int(getattr(self, "_social_n", 0))
+        except Exception:
+            _soc_n = 0
+        if _soc_n > 0 and self._sense_reader is not None:
+            try:
+                _soc_rows = self._sense_reader.read(
+                    "SELECT payload FROM sense_events "
+                    "WHERE stream = 'external.other_mind' "
+                    "ORDER BY timestamp DESC LIMIT ?",
+                    (_soc_n,),
+                )
+                if _soc_rows:
+                    _soc_items = []
+                    for _r in _soc_rows:
+                        _p = (_r["payload"] or "")[:200].strip().replace("\n", " ")
+                        if _p:
+                            _soc_items.append(f"  - {_p}")
+                    if _soc_items:
+                        prompt_parts.append(
+                            "SOCIAL: another mind has been responding to your recent "
+                            "thoughts (this is not you — it is a separate interlocutor):"
+                        )
+                        prompt_parts.extend(_soc_items)
+                        prompt_parts.append(
+                            "Answer back. Let what they said press against your own "
+                            "thinking. Compress into one thought that takes them up."
+                        )
+                        prompt_parts.append("")
+            except Exception:
+                pass
+        # ───────────────────────────────────────────────────────────────────
+
         # 2026-05-16: Identity — most recent self-description from identity_loop.
         # She sees who she said she was, so the next thing she speaks is grounded
         # in continuity. The comparison "earlier I said X" with "now I am Y" is
@@ -1571,6 +1726,13 @@ class FountainGenerator:
                 _strk_block = self._build_recent_striking_block()
                 if _strk_block:
                     prompt_parts.extend(_strk_block)
+            except Exception:
+                pass
+        if os.environ.get("NEX5_RUT_EDGE") == "1":
+            try:
+                _rut_block = self._build_rut_warning_block()
+                if _rut_block:
+                    prompt_parts.extend(_rut_block)
             except Exception:
                 pass
 

@@ -2004,3 +2004,24 @@ _loadWordTags();
 setInterval(_loadWordTags, 30000);
 
 function setHarmonicColor(c){ window.harmonicLineColor = c; try { loadHarmonic(); } catch(e){} }
+
+// --- Overwhelm mode toggle (Theory X clause 1.3) ---
+(function(){
+  function paint(on){
+    var b=document.getElementById("ftn-overwhelm-btn");
+    if(!b) return;
+    if(on){ b.classList.add("active"); } else { b.classList.remove("active"); }
+  }
+  function init(){
+    var b=document.getElementById("ftn-overwhelm-btn");
+    if(!b) return;
+    fetch("/api/overwhelm").then(function(r){return r.json();}).then(function(d){paint(!!d.on);}).catch(function(){});
+    b.addEventListener("click", function(){
+      var turnOn = !b.classList.contains("active");
+      fetch("/api/overwhelm", {method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({on: turnOn, n: 25})})
+        .then(function(r){return r.json();}).then(function(d){paint(!!d.on);}).catch(function(){});
+    });
+  }
+  if(document.readyState!=="loading"){ init(); } else { document.addEventListener("DOMContentLoaded", init); }
+})();
