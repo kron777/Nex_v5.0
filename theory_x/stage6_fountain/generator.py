@@ -673,6 +673,20 @@ class FountainGenerator:
             try:
                 from theory_x.substrate.activation import get_top_activated
                 _shot = get_top_activated(self._beliefs_reader, n=4)
+                # KOAN-ANCHOR TEST (NEX5_SYNTH_NO_KOAN=1): drop koan-class beliefs
+                # from the hot-set and synthesize from non-koan material only.
+                # Tests whether synthesis is GENERAL or depends on the Zen anchor.
+                if os.environ.get("NEX5_SYNTH_NO_KOAN") == "1":
+                    _km = ("monk", "zen", "master said", "koan", "buddha",
+                           "seung sahn", "yunmen", "don't-know", "don't know",
+                           "the tao", "bodhi", "dharma", "ko bong", "dried shit",
+                           "yellow emperor", "thirty spokes")
+                    _wide = get_top_activated(self._beliefs_reader, n=14)
+                    _nonk = [b for b in _wide
+                             if not any(_m in (b.get("content") or "").lower()
+                                        for _m in _km)]
+                    if len(_nonk) >= 2:
+                        _shot = _nonk[:4]
             except Exception:
                 _shot = []
             if _shot:

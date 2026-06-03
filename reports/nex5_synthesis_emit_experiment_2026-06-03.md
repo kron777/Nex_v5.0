@@ -78,3 +78,51 @@ synthesizes across domains.
 - NEX5_SYNTH_EMIT=1 : synthesis emit (the win); also skips _maybe_substrate_voice
 - Backups on disk: generator.py.bak_{subemit2,synth,svgate}
 - Default off; normal LLM path unchanged when flags unset.
+
+## CONFIRMATION: Koan-anchor stress test (NEX5_SYNTH_NO_KOAN=1)
+Date: 2026-06-03 (same day, evening)
+
+Open question after the initial result: is the synthesis GENERAL, or does it
+depend on the Zen/koan material being a hot anchor (koans are heavily weighted in
+the reading feed and appeared as one pole of most early synth fires)?
+
+Test: filter koan-class beliefs out of the hot-set right before synthesis (refetch
+wider, strip beliefs matching koan markers, synthesize from top-4 non-koan). Reversible,
+env-gated. Then let the hot-set rotate and read the fires.
+
+RESULT (14 fires, ~40 min, zero koans present):
+- AI testing executive order x 6G rollout mistakes
+- California bank shooting x Gemma 4 multimodal model x crypto markets
+- Thoreau's narrative x data-controllership regulation x AI transparency
+- Sir Alex Younger's death x AI oversight x beans' immune receptors in warfare
+- agricultural defense mechanisms x 6G regulation x intelligence-agency leadership
+
+Synthesis held fully WITHOUT the koan anchor — dense, multi-way, cross-domain bridges
+across news, science, tech policy, literature, markets. The Zen pole was NOT
+load-bearing. Synthesis is GENERAL.
+
+Corroborating signals:
+- genius score (ORIGINAL v2 grader, the one that rewarded aphorisms): 59% striking
+  (n=27), up from the 6-20% that characterized the rut. The same grader now scores
+  these as striking because they are long, structured, and genuinely non-template.
+- BONSAI dead branches reactivated: cognition_science 0.18 -> 0.74, ai_research -> 0.43.
+- Existence-aphorism did not fire for 4+ hours.
+
+VERDICT: The widening is real, robust, and not feed-dependent. Confirmed via stress
+test. NEX went from 42%-one-aphorism (template_repetition 1.00) to general
+cross-domain synthesis (59% striking on the original grader).
+
+## Residual finding / next refinement
+A NEW, much milder template is forming at the CONNECTIVE level: the synthesis FRAME
+("the juxtaposition of X and Y raises questions about...", "the tensions between...
+highlight...") recurs, groove flags template_repetition ~0.80 on the frame phrasing.
+The CONTENT varies enormously (AI policy, shootings, Thoreau, beans-as-weapons), but
+the bridge-form is becoming formulaic. This is a far wider state than the existence
+rut — a wide-content / fixed-frame style rather than a narrow-content rut. Next
+throw-net cast: vary the synthesis INSTRUCTION (not always "what connects these" —
+sometimes "what is the sharpest disagreement", "what does one reveal about the other",
+"what question does holding these force") so the bridge-form varies too.
+
+## Toggle
+- NEX5_SYNTH_NO_KOAN=1 : drop koan-class beliefs from the synth hot-set (stress test)
+- Backup: generator.py.bak_nokoan
