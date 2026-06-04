@@ -133,3 +133,51 @@ two stuck problems. Same machinery could pair a stuck problem with a HOT BELIEF 
 a different domain (problem x belief) — fires far more often (hot beliefs always
 exist), forces cross-domain moves, draws on the full graph. Build on this run's
 evidence, not ahead of it.
+
+## v2 RESULT (CLEAN DATA): advancement holds across passes — confirmed on 2 trails
+Date: 2026-06-04 (evening soak, post quality-gate)
+
+After the quality gate (>=300 char floor) and a clean soak, read two problems'
+full observation trails to test advance-vs-plateau across many passes.
+
+PROBLEM 37 'World' (9 entries): passes 1-5 are idle leak (short, repeated:
+"Why not consider why 'World' is open?"). Passes 6-9 are real reconcile fires and
+they ADVANCE: framing ("reframe each problem within the other; Sam as a case study
+within World") -> mechanism ("consider both as feedback loops, how changes in one
+affect the other") -> model ("conceptualize a data-driven model that simulates the
+interdependence") -> method ("integrate direct observations + systematic
+documentation; develop a daily interaction log"). Each builds on the last; pass 8
+explicitly cites "the prior work where both are understood as interdependent" —
+the injected prior-observations working.
+
+PROBLEM 34 'OpenAI' (7 entries): passes 1-3 idle leak (39 ch, "The window for
+OpenAI has closed again" x3). Passes 4-7 are real reconcile fires and ADVANCE:
+angle ("reposition the crypto inquiry to leverage AI/market dynamics") -> method
+("comparative analysis of OpenAI's regulatory environment vs DeFi's landscape") ->
+indicators ("use the comparative analysis to identify key indicators of future
+regulatory change") -> unified framework ("integrate the observations from both
+comparative analyses into a monitoring system"). Pass 7 explicitly synthesizes the
+prior passes.
+
+VERDICT: On clean data, across TWO trails in different domains, the reconcile
+write-back loop produces ADVANCING problem-work — each pass develops the approach
+rather than restating it, and later passes cite/extend earlier ones (prior-obs
+injection functioning). This is the deepest result of the arc: NEX takes a stuck
+problem and works it forward across passes toward a concrete method, accumulating.
+
+HONEST CAVEATS:
+- The advancing portion is ~4 clean passes per trail (6-9 on 'World', 4-7 on
+  'OpenAI'), not the full count. Read trails, not pass-counts.
+- Idle leak persists: short idle fires (39-95 ch) still enter some trails — the
+  300-char gate catches ~105-char slop but shorter idle questions/statements slip
+  through, or predate the gate on a given problem. Does NOT corrupt the advancing
+  reconcile portion, but the gate should be tightened (raise floor and/or filter
+  idle-question patterns) so trails are uniformly clean.
+- n=2 trails. Strong and consistent, but worth periodic spot-checks as the soak
+  accumulates more.
+
+NEXT BUILD (now evidence-motivated): problem x belief — pair a stuck problem with
+a hot belief from another domain. Motivation from this result: advancement is real
+but may run out of fuel after a few passes; injecting fresh cross-domain material
+would keep the trail advancing rather than plateauing. Build against a long soak
+trail, not ahead of it.
