@@ -747,8 +747,8 @@ class FountainGenerator:
             if self._conversations_reader is not None:
                 try:
                     _prows = self._conversations_reader.read(
-                        "SELECT id, title, description FROM open_problems "
-                        "WHERE state = 'open' ORDER BY last_touched_at ASC LIMIT 2"
+                        "SELECT id, title, description, observations FROM open_problems "
+                        "WHERE state IN ('open','stuck') ORDER BY last_touched_at ASC LIMIT 2"
                     )
                     _probs = list(_prows or [])
                 except Exception:
@@ -772,6 +772,26 @@ class FountainGenerator:
                         "NOT merely describe the tension, and do NOT write about your "
                         "own nature or existence."
                     )
+                    if os.environ.get("NEX5_RECONCILE_WB") == "1":
+                        try:
+                            import json as _rcjson
+                            _digest = []
+                            for _li, _p in enumerate(_probs[:2]):
+                                _obs_raw = _p["observations"] if "observations" in _p.keys() else None
+                                _ol = []
+                                if _obs_raw:
+                                    try:
+                                        _ol = _rcjson.loads(_obs_raw)
+                                    except Exception:
+                                        _ol = []
+                                if _ol:
+                                    _last = _ol[-2:] if len(_ol) >= 2 else _ol[-1:]
+                                    _txt = "; ".join(str(_o.get("text", _o) if isinstance(_o, dict) else _o) for _o in _last)
+                                    _digest.append(("A" if _li == 0 else "B") + " prior work: " + _txt[:300])
+                            if _digest:
+                                _rcprompt = _rcprompt + chr(10) + chr(10) + "Prior work already done:" + chr(10) + (chr(10).join(_digest)) + chr(10) + "Build on this. Do NOT repeat earlier moves; propose the genuinely NEXT step."
+                        except Exception:
+                            pass
                     _rcresp = self._voice.speak(
                         VoiceRequest(prompt=_rcprompt, register=_rcreg),
                         beliefs=None,
@@ -779,6 +799,12 @@ class FountainGenerator:
                     thought = (_rcresp.text or "").strip()
                     if thought:
                         _emitted = True
+                        if os.environ.get("NEX5_RECONCILE_WB") == "1" and self._problem_memory is not None:
+                            for _wbp in _probs[:2]:
+                                try:
+                                    self._problem_memory.observe(int(_wbp["id"]), thought)
+                                except Exception:
+                                    pass
                 except Exception:
                     pass
         if not _emitted:
