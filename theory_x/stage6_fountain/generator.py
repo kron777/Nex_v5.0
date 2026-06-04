@@ -813,7 +813,8 @@ class FountainGenerator:
                                                 _lasttxt = _le.get("text", "") if isinstance(_le, dict) else str(_le)
                                         except Exception:
                                             _lasttxt = ""
-                                    if thought.strip() and thought.strip() != _lasttxt.strip():
+                                    if (len(thought.strip()) >= 300
+                                            and thought.strip() != _lasttxt.strip()):
                                         self._problem_memory.observe(int(_wbp["id"]), thought)
                                 except Exception:
                                     pass
