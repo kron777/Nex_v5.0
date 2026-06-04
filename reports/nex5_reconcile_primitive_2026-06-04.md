@@ -66,3 +66,70 @@ so progress ACCUMULATES on the problem instead of evaporating. Then the next rec
 on the same pair builds on the prior move — the integration-delta loop from net.txt.
 The progress test becomes measurable: do a problem's observations ADVANCE across fires
 (new angle, narrower question, candidate move) or LOOP (restate)?
+
+## v2 RESULT: Write-back loop CONFIRMED — progress persists and ADVANCES
+Date: 2026-06-04 (later, after sleep)
+
+Built (NEX5_RECONCILE_WB=1): (A) after a reconcile fire, observe() the move onto
+BOTH problems so it persists instead of evaporating; (B) inject each problem's
+prior observations into the next reconcile prompt ("build on this, propose the
+genuinely NEXT step"); plus the diagnosis fix — seed from state IN ('open','stuck')
+because NEX had 0 'open' but 112 'stuck' problems (the engine was starved while a
+backlog of exactly-the-problems-reconcile-is-for piled up). Added a dedup guard
+(skip observe() if the move equals the problem's most recent observation) after an
+early run showed identical text appended repeatedly by repeating fires.
+
+### Evidence — the loop closing, visible in one record (problems 62/63: Git x Hugo)
+The observation trail on a single stuck problem shows BOTH failure mode and fix:
+- EARLY (days old): the stuck loop, identical questions repeated verbatim
+  ("How does the asynchronous nature of Git diffs play into its robustness..."
+  three identical times). This is the old "arriving at the same place" failure,
+  preserved in the record.
+- RECENT reconcile pass 1: "consider how Git's distributed version control model
+  ... can improve Hugo's branch management ... NEXT STEP: develop a prototype that
+  incorporates hybrid Git features into Hugo for collaborative editing." (general)
+- RECENT reconcile pass 2 (~2.7h later): "implement a distributed caching system
+  leveraging Git's history fetching over asynchronous diffs ... integrate a
+  Git-backed cache manager into Hugo that fetches files in parallel during branch
+  checkout, reducing latency." (specific mechanism)
+
+Pass 2 is DIFFERENT from pass 1 and more concrete (general combine-them ->
+specific cache-manager-on-checkout). That is the move ADVANCING across passes, not
+restating. Same pattern on problem 61 ('Show' x Trump-crypto): two recent passes,
+distinct, the second narrowing from "comparative sentiment analysis" to "a
+longitudinal analysis of how media-coverage changes affect both simultaneously."
+
+The contrast is the proof: stale top of the trail = looping (verbatim repeats);
+recent bottom = progressing (distinct, deepening moves). Write-back turned a stuck
+problem into one that gets somewhere across passes.
+
+### Verdict
+The write-back loop WORKS. Progress persists onto the problem and ADVANCES across
+reconcile passes. This is net.txt's accumulation/refine loop closed: NEX now works
+her backlog of stuck problems two at a time and gets more concrete each pass,
+instead of looping. Deepest result of the arc — from recite -> connect -> work a
+problem once -> work a stuck problem across passes with accumulating progress.
+
+### Honest caveats
+- Advancement observed over 2 passes per pair (general -> specific). The trend is
+  right but it is 2 points, not 10. A long run is needed to see whether it keeps
+  advancing or plateaus after a couple passes.
+- Dedup compares only against the immediately-prior observation; a move separated
+  by one different fire could still recur. Minor; trails remain readable.
+- The verbatim repeats in the early trail are all PRE-dedup-fix; recent (post-fix)
+  observations are distinct.
+- "Fires" count in the run log includes all fountain fires, not only reconcile;
+  the advancement evidence is the observation trails, which are unambiguously
+  reconcile output.
+
+### Toggles / backups
+- NEX5_RECONCILE_WB=1 : write-back + prior-observation injection + dedup
+- seed now: state IN ('open','stuck')
+- backups: generator.py.bak_reconcilewb, .bak_stuck, .bak_dedup
+
+### Next build (Jon's idea, informed by this run): widen the fuel
+Reconcile = "two things in tension, work toward joint progress." It currently pairs
+two stuck problems. Same machinery could pair a stuck problem with a HOT BELIEF from
+a different domain (problem x belief) — fires far more often (hot beliefs always
+exist), forces cross-domain moves, draws on the full graph. Build on this run's
+evidence, not ahead of it.
