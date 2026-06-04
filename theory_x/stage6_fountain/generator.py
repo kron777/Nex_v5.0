@@ -800,9 +800,21 @@ class FountainGenerator:
                     if thought:
                         _emitted = True
                         if os.environ.get("NEX5_RECONCILE_WB") == "1" and self._problem_memory is not None:
+                            import json as _wbjson
                             for _wbp in _probs[:2]:
                                 try:
-                                    self._problem_memory.observe(int(_wbp["id"]), thought)
+                                    _prev = _wbp["observations"] if "observations" in _wbp.keys() else None
+                                    _lasttxt = ""
+                                    if _prev:
+                                        try:
+                                            _pl = _wbjson.loads(_prev)
+                                            if _pl:
+                                                _le = _pl[-1]
+                                                _lasttxt = _le.get("text", "") if isinstance(_le, dict) else str(_le)
+                                        except Exception:
+                                            _lasttxt = ""
+                                    if thought.strip() and thought.strip() != _lasttxt.strip():
+                                        self._problem_memory.observe(int(_wbp["id"]), thought)
                                 except Exception:
                                     pass
                 except Exception:
