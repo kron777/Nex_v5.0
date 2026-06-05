@@ -820,6 +820,94 @@ class FountainGenerator:
                                     pass
                 except Exception:
                     pass
+        # ── RECONCILE PROBLEM x HOT-BELIEF (env-gated, default OFF) ──────────
+        if not _emitted and os.environ.get("NEX5_RECONCILE_PXB") == "1":
+            _pxb_prob = None
+            if self._conversations_reader is not None:
+                try:
+                    _pxb_rows = self._conversations_reader.read(
+                        "SELECT id, title, description, observations FROM open_problems "
+                        "WHERE state IN ('open','stuck') ORDER BY last_touched_at ASC LIMIT 1"
+                    )
+                    _pxb_list = list(_pxb_rows or [])
+                    if _pxb_list:
+                        _pxb_prob = _pxb_list[0]
+                except Exception:
+                    _pxb_prob = None
+            _pxb_belief = None
+            if _pxb_prob is not None and getattr(self, "_beliefs_reader", None) is not None:
+                try:
+                    from theory_x.substrate.activation import get_top_activated
+                    _pxb_hot = get_top_activated(self._beliefs_reader, n=14) or []
+                    _pxb_t6 = [h for h in _pxb_hot if int(h.get("tier", 0)) == 6 and (h.get("content") or "").strip()]
+                    _pxb_pool = _pxb_t6 if _pxb_t6 else [h for h in _pxb_hot if (h.get("content") or "").strip()]
+                    if _pxb_pool:
+                        _pxb_belief = _pxb_pool[0]
+                except Exception:
+                    _pxb_belief = None
+            if _pxb_prob is not None and _pxb_belief is not None:
+                try:
+                    try:
+                        from voice.registers import CONVERSATIONAL as _pxbreg
+                    except Exception:
+                        from voice.registers import default_register as _pxbd
+                        _pxbreg = _pxbd()
+                    _pxb_ptitle = (_pxb_prob["title"] or "")[:200]
+                    _pxb_btext = (_pxb_belief.get("content") or "")[:300]
+                    _pxbprompt = (
+                        "You are holding a stuck problem and a currently-active belief "
+                        "at once:\n"
+                        "  PROBLEM: " + _pxb_ptitle + "\n"
+                        "  ACTIVE BELIEF: " + _pxb_btext + "\n"
+                        "How does the belief bear on the problem? Propose ONE concrete "
+                        "move, principle, or reframing that uses the belief to make "
+                        "actual progress on the problem. Be specific and propose a NEXT "
+                        "STEP \u2014 do NOT merely describe a connection, and do NOT write "
+                        "about your own nature or existence."
+                    )
+                    if os.environ.get("NEX5_RECONCILE_WB") == "1":
+                        try:
+                            import json as _pxbjson
+                            _pxb_obs_raw = _pxb_prob["observations"] if "observations" in _pxb_prob.keys() else None
+                            _pxb_ol = []
+                            if _pxb_obs_raw:
+                                try:
+                                    _pxb_ol = _pxbjson.loads(_pxb_obs_raw)
+                                except Exception:
+                                    _pxb_ol = []
+                            if _pxb_ol:
+                                _pxb_last = _pxb_ol[-2:] if len(_pxb_ol) >= 2 else _pxb_ol[-1:]
+                                _pxb_txt = "; ".join(str(_o.get("text", _o) if isinstance(_o, dict) else _o) for _o in _pxb_last)
+                                _pxbprompt = _pxbprompt + chr(10) + chr(10) + "Prior work already done on this problem:" + chr(10) + _pxb_txt[:300] + chr(10) + "Build on this. Do NOT repeat earlier moves; propose the genuinely NEXT step."
+                        except Exception:
+                            pass
+                    _pxbresp = self._voice.speak(
+                        VoiceRequest(prompt=_pxbprompt, register=_pxbreg),
+                        beliefs=None,
+                    )
+                    thought = (_pxbresp.text or "").strip()
+                    if thought:
+                        _emitted = True
+                        if os.environ.get("NEX5_RECONCILE_WB") == "1" and self._problem_memory is not None:
+                            import json as _pxbwbjson
+                            try:
+                                _pxb_prev = _pxb_prob["observations"] if "observations" in _pxb_prob.keys() else None
+                                _pxb_lasttxt = ""
+                                if _pxb_prev:
+                                    try:
+                                        _pxb_pl = _pxbwbjson.loads(_pxb_prev)
+                                        if _pxb_pl:
+                                            _pxb_le = _pxb_pl[-1]
+                                            _pxb_lasttxt = _pxb_le.get("text", "") if isinstance(_pxb_le, dict) else str(_pxb_le)
+                                    except Exception:
+                                        _pxb_lasttxt = ""
+                                if (len(thought.strip()) >= 300
+                                        and thought.strip() != _pxb_lasttxt.strip()):
+                                    self._problem_memory.observe(int(_pxb_prob["id"]), thought)
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
         if not _emitted:
           try:
             resp = self._voice.speak(
