@@ -821,7 +821,8 @@ class FountainGenerator:
                 except Exception:
                     pass
         # ── RECONCILE PROBLEM x HOT-BELIEF (env-gated, default OFF) ──────────
-        if not _emitted and os.environ.get("NEX5_RECONCILE_PXB") == "1":
+        _pxb_turn = (int(getattr(self, "_total_fires", 0)) % 3 == 2)
+        if os.environ.get("NEX5_RECONCILE_PXB") == "1" and (not _emitted or _pxb_turn):
             _pxb_prob = None
             if self._conversations_reader is not None:
                 try:
