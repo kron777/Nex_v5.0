@@ -42,7 +42,7 @@ class PipelineHooks:
         try:
             rows = self._beliefs_reader.read(
                 "SELECT id, content FROM beliefs "
-                "WHERE tier <= 6 AND paused = 0 AND locked = 0 "
+                "WHERE tier <= 7 AND paused = 0 AND locked = 0 "
                 "ORDER BY id DESC LIMIT 50",
             )
         except Exception as exc:
