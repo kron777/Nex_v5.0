@@ -327,6 +327,8 @@ body {
   margin-bottom: 0.4rem;
   white-space: pre-wrap;
   word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
 }
 .fountain-thought.empty { color: var(--fg3); font-style: normal; }
 .readiness-row {

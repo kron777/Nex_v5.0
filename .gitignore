@@ -39,3 +39,4 @@ observations/
 *.db-wal
 *.db-shm
 CARRY_OVER.md
+data/verification.db

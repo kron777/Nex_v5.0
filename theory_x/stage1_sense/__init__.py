@@ -41,6 +41,7 @@ from .feeds.bbc_news import BBCNews
 # Diversification feeds (20-25) — start paused
 from .feeds.arxiv_math import ArxivMath
 from .feeds.aeon import AeonEssays
+from .feeds.psychology_sciencedaily import PsychologyScienceDaily
 from .feeds.quanta import QuantaMagazine
 from .feeds.lesswrong import LessWrong
 from .feeds.wikipedia_featured import WikipediaFeatured
@@ -106,6 +107,7 @@ def build_scheduler(
         # Diversification feeds (20-25) — start paused
         ArxivMath(sense_writer),
         AeonEssays(sense_writer),
+        PsychologyScienceDaily(sense_writer),
         QuantaMagazine(sense_writer),
         LessWrong(sense_writer),
         WikipediaFeatured(sense_writer),
