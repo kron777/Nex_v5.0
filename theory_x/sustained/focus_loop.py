@@ -231,7 +231,7 @@ def focus_tick() -> dict:
         # Append an observation if her latest fountain thought relates
         thought = _latest_fountain_thought(d_cx)
         obs_added = 0
-        if thought and _related_to_focus(thought, title):
+        if thought and len(thought.strip()) >= 300 and _related_to_focus(thought, title):
             new_count = _append_observation(cv_cx, problem_id, thought)
             obs_added = 1
             log.debug("focus_loop: appended obs to #%s (now %s)",
