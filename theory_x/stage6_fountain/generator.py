@@ -843,7 +843,21 @@ class FountainGenerator:
                     _pxb_t6 = [h for h in _pxb_hot if int(h.get("tier", 0)) == 6 and (h.get("content") or "").strip()]
                     _pxb_pool = _pxb_t6 if _pxb_t6 else [h for h in _pxb_hot if (h.get("content") or "").strip()]
                     if _pxb_pool:
-                        _pxb_belief = _pxb_pool[0]
+                        _pxb_fresh = _pxb_pool[0]
+                        _pxb_lock = getattr(self, "_pxb_lock", None)
+                        _pxb_pid = int(_pxb_prob["id"])
+                        if (_pxb_lock is not None
+                                and _pxb_lock.get("pid") == _pxb_pid
+                                and _pxb_lock.get("count", 0) < 6
+                                and _pxb_lock.get("belief")):
+                            _pxb_belief = {"content": _pxb_lock["belief"], "tier": _pxb_lock.get("tier", 0)}
+                            _pxb_lock["count"] = _pxb_lock.get("count", 0) + 1
+                        else:
+                            _pxb_belief = _pxb_fresh
+                            self._pxb_lock = {"pid": _pxb_pid,
+                                              "belief": (_pxb_fresh.get("content") or ""),
+                                              "tier": int(_pxb_fresh.get("tier", 0)),
+                                              "count": 1}
                 except Exception:
                     _pxb_belief = None
             if _pxb_prob is not None and _pxb_belief is not None:
