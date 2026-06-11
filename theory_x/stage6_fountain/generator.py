@@ -748,9 +748,48 @@ class FountainGenerator:
                 try:
                     _prows = self._conversations_reader.read(
                         "SELECT id, title, description, observations FROM open_problems "
-                        "WHERE state IN ('open','stuck') ORDER BY last_touched_at ASC LIMIT 2"
+                        "WHERE state IN ('open','stuck') ORDER BY last_touched_at ASC LIMIT 8"
                     )
-                    _probs = list(_prows or [])
+                    _pool = list(_prows or [])
+                    # PAIRING HYGIENE: pick up to 2 problems with DISTINCT normalized
+                    # titles so reconcile never pairs a problem with a title-duplicate
+                    # (e.g. 'Papers' x 'Papers'). Falls back gracefully; never starves.
+                    _probs = []
+                    _seen_titles = set()
+                    # PARKING (env-gated): when NEX5_PARK_CAP is a positive int,
+                    # problems with >= cap observations are retired from reconcile so
+                    # it rotates onto fresher problems instead of re-working a trail
+                    # that has plateaued (~5 genuine passes, then rewordings). Two-pass:
+                    # prefer under-cap; fall back to over-cap only if <2 remain (never starve).
+                    try:
+                        _parkcap = int(os.environ.get("NEX5_PARK_CAP", "0") or "0")
+                    except Exception:
+                        _parkcap = 0
+                    for _under in (True, False):
+                        for _cand in _pool:
+                            _t = (_cand["title"] or "").strip().lower()
+                            if _t in _seen_titles:
+                                continue
+                            if _parkcap > 0:
+                                _cn = 0
+                                try:
+                                    _co = _cand["observations"] if "observations" in _cand.keys() else None
+                                    if _co:
+                                        import json as _pj
+                                        _cl = _pj.loads(_co)
+                                        _cn = len(_cl) if isinstance(_cl, list) else 0
+                                except Exception:
+                                    _cn = 0
+                                if _under and _cn >= _parkcap:
+                                    continue
+                                if (not _under) and _cn < _parkcap:
+                                    continue
+                            _seen_titles.add(_t)
+                            _probs.append(_cand)
+                            if len(_probs) >= 2:
+                                break
+                        if len(_probs) >= 2 or _parkcap == 0:
+                            break
                 except Exception:
                     _probs = []
             if len(_probs) >= 2:
@@ -776,6 +815,7 @@ class FountainGenerator:
                         try:
                             import json as _rcjson
                             _digest = []
+                            _tried = []
                             for _li, _p in enumerate(_probs[:2]):
                                 _obs_raw = _p["observations"] if "observations" in _p.keys() else None
                                 _ol = []
@@ -788,10 +828,60 @@ class FountainGenerator:
                                     _last = _ol[-2:] if len(_ol) >= 2 else _ol[-1:]
                                     _txt = "; ".join(str(_o.get("text", _o) if isinstance(_o, dict) else _o) for _o in _last)
                                     _digest.append(("A" if _li == 0 else "B") + " prior work: " + _txt[:300])
+                                    # ANTI-LOOP: signatures of ALL prior real moves (>=300ch),
+                                    # not just last 2, so the model can be told what to avoid.
+                                    if os.environ.get("NEX5_ANTILOOP") == "1":
+                                        for _o in _ol:
+                                            _ot = str(_o.get("text", _o) if isinstance(_o, dict) else _o).strip()
+                                            if len(_ot) >= 300:
+                                                _sig = " ".join(_ot.split())[:120]
+                                                if _sig and _sig not in _tried:
+                                                    _tried.append(_sig)
                             if _digest:
                                 _rcprompt = _rcprompt + chr(10) + chr(10) + "Prior work already done:" + chr(10) + (chr(10).join(_digest)) + chr(10) + "Build on this. Do NOT repeat earlier moves; propose the genuinely NEXT step."
+                            if os.environ.get("NEX5_ANTILOOP") == "1" and _tried:
+                                _avoid = _tried[-10:]
+                                _rcprompt = _rcprompt + chr(10) + chr(10) + "Approaches you have ALREADY proposed (do NOT repeat or reword ANY of these \u2014 propose a genuinely DIFFERENT angle):" + chr(10) + (chr(10).join("- " + _s for _s in _avoid)) + chr(10) + "If your best idea is a variation of something above, instead propose a concrete next step that has NOT been tried."
                         except Exception:
                             pass
+                    # DELIVERABLE FORCING (env-gated): once a paired problem has
+                    # >= NEX5_DELIVER_N prior moves, stop accepting planning and demand
+                    # the actual artifact the problem names. Attacks the core failure:
+                    # trails that plan forever and never produce the thing.
+                    try:
+                        _deln = int(os.environ.get("NEX5_DELIVER_N", "0") or "0")
+                    except Exception:
+                        _deln = 0
+                    if _deln > 0:
+                        _maxobs = 0
+                        for _dp in _probs[:2]:
+                            try:
+                                _dor = _dp["observations"] if "observations" in _dp.keys() else None
+                                if _dor:
+                                    import json as _dj
+                                    _dl = _dj.loads(_dor)
+                                    _maxobs = max(_maxobs, len(_dl) if isinstance(_dl, list) else 0)
+                            except Exception:
+                                pass
+                        if _maxobs >= _deln:
+                            # SINGLE-TARGET + FORBIDDEN-VOCAB: replace the two-problem
+                            # reconcile prompt entirely. Target ONE problem, demand the
+                            # finished answer, ban the planning vocabulary that lets the
+                            # model relabel a plan as an "artifact".
+                            _rcprompt = (
+                                "This problem has been studied " + str(_maxobs) + " times "
+                                "and every attempt was a plan. Stop planning. Problem:\n  "
+                                + _pa + "\n\n"
+                                "Write the FINISHED ANSWER this problem asks for, and nothing else. "
+                                "If it asks how to phrase something, write the exact words in quotes. "
+                                "If it asks a question, state the answer in one or two plain sentences. "
+                                "If it asks for a value, design, or rule, give the final concrete form. "
+                                "FORBIDDEN WORDS (do not use any of these): framework, workshop, protocol, "
+                                "program, pipeline, develop, design, implement, build, explore, investigate, "
+                                "integrate, \"next step\", approach, methodology. "
+                                "Do not describe how you would do it. Do not propose to create anything. "
+                                "Just write the actual finished answer, in full."
+                            )
                     _rcresp = self._voice.speak(
                         VoiceRequest(prompt=_rcprompt, register=_rcreg),
                         beliefs=None,
@@ -805,16 +895,52 @@ class FountainGenerator:
                                 try:
                                     _prev = _wbp["observations"] if "observations" in _wbp.keys() else None
                                     _lasttxt = ""
+                                    _ocount = 0
                                     if _prev:
                                         try:
                                             _pl = _wbjson.loads(_prev)
-                                            if _pl:
-                                                _le = _pl[-1]
-                                                _lasttxt = _le.get("text", "") if isinstance(_le, dict) else str(_le)
+                                            if isinstance(_pl, list):
+                                                _ocount = len(_pl)
+                                                if _pl:
+                                                    _le = _pl[-1]
+                                                    _lasttxt = _le.get("text", "") if isinstance(_le, dict) else str(_le)
                                         except Exception:
                                             _lasttxt = ""
-                                    if (len(thought.strip()) >= 300
-                                            and thought.strip() != _lasttxt.strip()):
+                                    _tnorm = thought.strip()
+                                    _tlow = _tnorm.lower()
+                                    # SINGLE-TARGET guard: closes apply ONLY to the problem the
+                                    # deliverable was aimed at (_probs[0]), never its pair-partner.
+                                    # Fixes the pair-closure bug. Write-back (observe) still both.
+                                    _is_target = False
+                                    try:
+                                        _is_target = (int(_wbp["id"]) == int(_probs[0]["id"]))
+                                    except Exception:
+                                        _is_target = False
+                                    _abstain = any(_m in _tlow for _m in (
+                                        "no specific belief", "no belief about", "i don't know",
+                                        "i do not know", "cannot determine", "unable to determine",
+                                        "focus remains elsewhere", "no clear answer",
+                                        "i'm restless", "i am restless",
+                                    ))
+                                    # COMMIT-AND-CLOSE: a mature problem that produces a concrete,
+                                    # non-abstain, non-planning artifact has ANSWERED. Record it
+                                    # and close, instead of looping forever generating phrasings.
+                                    _planning = any(_m in _tlow for _m in (
+                                        "framework", "workshop", "protocol", "pipeline", "develop",
+                                        "design", "implement", "next step", "explore", "investigate",
+                                        "integrate", "methodology",
+                                    ))
+                                    _is_artifact = ((not _abstain) and (not _planning)
+                                                    and 0 < len(_tnorm) <= 700)
+                                    if (os.environ.get("NEX5_ABSTAIN_CLOSE") == "1"
+                                            and _abstain and _ocount >= 10 and _is_target):
+                                        self._problem_memory.close(int(_wbp["id"]))
+                                    elif (os.environ.get("NEX5_COMMIT_CLOSE") == "1"
+                                            and _is_artifact and _ocount >= 10 and _is_target):
+                                        self._problem_memory.observe(int(_wbp["id"]), thought)
+                                        self._problem_memory.close(int(_wbp["id"]))
+                                    elif (len(_tnorm) >= 300
+                                            and _tnorm != _lasttxt.strip()):
                                         self._problem_memory.observe(int(_wbp["id"]), thought)
                                 except Exception:
                                     pass

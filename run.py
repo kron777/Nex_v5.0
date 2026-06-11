@@ -443,6 +443,30 @@ def main() -> None:
     except Exception as _smv_err:
         log.warning("SelfMindView failed to start (non-fatal): %s", _smv_err)
 
+    # Stage C — World prediction loop (grounding). NEX makes its own falsifiable
+    # crypto-direction calls + a random control, scored against the live price.
+    # Env-gated, default OFF. See theory_x/stage_world/.
+    if os.environ.get("NEX5_WORLD_PRED") == "1":
+        try:
+            from theory_x.stage_world.world_loop import WorldPredictionLoop as _WPL
+            _world_pred_loop = _WPL()
+            _world_pred_loop.start_loop()
+            log.info(
+                "WorldPredictionLoop ready — voice+random calls, interval=%ss horizon=%ss",
+                _world_pred_loop._interval, _world_pred_loop._horizon,
+            )
+        except Exception as _wpl_err:
+            log.warning("WorldPredictionLoop failed to start (non-fatal): %s", _wpl_err)
+
+    # Self-prediction loop (REAL column): NEX predicts its own firing, checks itself.
+    if os.environ.get("NEX5_SELF_PRED") == "1":
+        try:
+            from theory_x.stage_world.self_prediction import SelfPredictionLoop as _SPL
+            _spl_interval = int(os.environ.get("NEX5_SELF_PRED_INTERVAL", "900"))
+            _SPL(interval=_spl_interval).start_loop()
+        except Exception as _spl_err:
+            log.warning("SelfPredictionLoop failed to start (non-fatal): %s", _spl_err)
+
     # Phase 38 — SocialPresence (her own social presence; 300s autonomous tick)
     # CUT 2026-05-30 (loop cuts round 1): writes social_presence_snapshots
     # which has zero readers outside its own tests. No GUI, no chat path.

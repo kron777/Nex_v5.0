@@ -13,6 +13,7 @@ import logging
 import re
 import sqlite3
 import threading
+import os
 import time
 from pathlib import Path
 
@@ -161,6 +162,22 @@ def signal_to_problem_tick() -> dict:
         if not rows:
             return {"considered": 0, "opened": 0, "skipped_cap": 0}
 
+        # JUNK-TOKEN SUPPRESSION (env-gated, default OFF): count how often each
+        # entity recurs across this lookback window. One-off headline fragments
+        # ('Papers','Nine','Netherlands') appear once; real recurring themes
+        # ('Bitcoin') appear repeatedly. Used below to gate the fallback path.
+        from collections import Counter as _Counter
+        _entity_counts = _Counter()
+        if os.environ.get("NEX5_SIG_QUALITY") == "1":
+            for _s in rows:
+                try:
+                    _pl = json.loads(_s["payload"]) if _s["payload"] else {}
+                except Exception:
+                    _pl = {}
+                _e = _extract_entity(_pl)
+                if _e:
+                    _entity_counts[_e.strip().lower()] += 1
+
         opened = 0
         skipped = 0
         remaining_cap = DAILY_PROBLEM_CAP - recent_opens
@@ -185,6 +202,18 @@ def signal_to_problem_tick() -> dict:
                 continue
 
             title = _compose_title(sig["signal_type"], entity, payload)
+            if (os.environ.get("NEX5_SIG_QUALITY") == "1"
+                    and title.startswith("Signal: investigate '")
+                    and entity
+                    and _entity_counts.get(entity.strip().lower(), 0) < 2):
+                # one-off, uncorroborated headline fragment — don't open a
+                # sustained problem for it; mark actioned so we stop re-checking.
+                b_cx.execute(
+                    "UPDATE signals SET actioned_at=? WHERE id=?",
+                    (time.time(), sig["id"])
+                )
+                skipped += 1
+                continue
             desc = _compose_description(sig["signal_type"], payload, sig["id"])
             now = time.time()
 
