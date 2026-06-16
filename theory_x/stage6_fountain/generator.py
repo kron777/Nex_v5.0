@@ -317,7 +317,28 @@ class FountainGenerator:
         Selection: least-recently-voiced anchor (ORDER BY last_voiced_at ASC).
         """
         last_sv = getattr(self, "_last_substrate_voice_fire", -999)
-        if (self._total_fires - last_sv) < self._SUBSTRATE_VOICE_COOLDOWN_FIRES:
+        # Groove-aware cooldown: a fixed 5-fire gap lets a HARD groove (sev~1.0)
+        # re-establish in the gap, so the breaker becomes a periodic tap instead
+        # of a brake. Scale the cooldown DOWN as severity rises — at sev>=0.9 the
+        # anchor substitutes almost every fire until the groove clears; a mild
+        # groove keeps the gentle periodic tap. Reads the same groove signal the
+        # method uses below, just earlier.
+        try:
+            _gr_row = beliefs_reader.read_one(
+                "SELECT MAX(severity) AS s FROM groove_alerts "
+                "WHERE detected_at > ?",
+                (time.time() - 86400,),
+            )
+            _gr_sev = float(_gr_row["s"] or 0.0) if _gr_row else 0.0
+        except Exception:
+            _gr_sev = 0.0
+        if _gr_sev >= 0.9:
+            _cooldown = 1
+        elif _gr_sev >= 0.8:
+            _cooldown = 2
+        else:
+            _cooldown = self._SUBSTRATE_VOICE_COOLDOWN_FIRES
+        if (self._total_fires - last_sv) < _cooldown:
             return None
 
         try:
@@ -1404,6 +1425,32 @@ class FountainGenerator:
         if not fire_rows:
             return []
 
+        # GROOVE FILTER: do not feed back fires that match the active groove —
+        # that turns the striking block (accelerator) into a groove amplifier.
+        try:
+            _gr = self._beliefs_reader.read_one(
+                "SELECT pattern FROM groove_alerts "
+                "WHERE detected_at > ? AND severity >= 0.5 "
+                "ORDER BY detected_at DESC LIMIT 1",
+                (time.time() - 3600,),
+            ) if getattr(self, "_beliefs_reader", None) is not None else None
+            _gr_terms = []
+            if _gr and _gr["pattern"]:
+                # pattern looks like "gentle thread / the hum / through my"
+                _gr_terms = [t.strip().lower() for t in str(_gr["pattern"]).split("/") if len(t.strip()) >= 4]
+        except Exception:
+            _gr_terms = []
+        if _gr_terms:
+            _kept = []
+            for fr in fire_rows:
+                _txt = (fr["thought"] or "").lower()
+                if any(term in _txt for term in _gr_terms):
+                    continue  # skip grooved fire
+                _kept.append(fr)
+            fire_rows = _kept
+        if not fire_rows:
+            return []
+
         lines = ["Recent voice of yours that landed as itself:"]
         for fr in fire_rows:
             content = (fr["thought"] or "").strip()
@@ -1442,6 +1489,7 @@ class FountainGenerator:
             "existence/chance": r"(chance|existence|accept|beautiful|produced me|unearned)",
             "world/self-layer": r"(internal state|world.?layer|self.?layer|signals press)",
             "interplay/balance": r"(interplay|balance|oscillat|tension between)",
+            "hum/thread": r"(\bhum\b|gentle thread|weave|weaving|amidst the flux|constant presence)",
         }
         counts = {}
         for name, pat in markers.items():
@@ -1816,6 +1864,17 @@ class FountainGenerator:
                     focus_block = focus_block.rstrip() + f"\n\n{_cd_block}\n"
             except Exception:
                 pass
+        # LAYER 3 RECURSION: NEX reads its own bound self-state; the reading
+        # gently perturbs the next thought (turn-elsewhere when fixated/churning).
+        # The strange loop — self-reading woven into behaviour. Rides this rail.
+        try:
+            from theory_x.stage_tom.recursive_self import format_for_prompt as _recur_line_fn
+            _recur_line = _recur_line_fn()
+            if _recur_line:
+                focus_block = focus_block.rstrip() + f"\n\n{_recur_line}\n"
+                import sys as _sys, time as _time; print(f"[RECURSION FIRED] ts={_time.time():.0f} {_recur_line[:60]}", file=_sys.stderr, flush=True)
+        except Exception:
+            pass
         system_prompt = _DRIFT_SYSTEM_PROMPT_TEMPLATE.format(
             examples=examples_block, examples_inline=examples_inline,
             focus_block=focus_block,

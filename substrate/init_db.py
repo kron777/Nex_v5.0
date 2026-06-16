@@ -231,6 +231,8 @@ _MIGRATIONS: dict[str, list[str]] = {
         "ON throw_net_x_vars(nex5_status)",
         # Tag Protocol — inline JSON tag column on beliefs
         "ALTER TABLE beliefs ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'",
+        # arc_closers is a beliefs.db table — migration must run in the beliefs block.
+        "ALTER TABLE arc_closers ADD COLUMN closure_type TEXT NOT NULL DEFAULT 'template'",
         # Phase 25b — CounterfactualNode: links accepted beliefs to source problem
         "ALTER TABLE beliefs ADD COLUMN problem_id INTEGER",
         # Phase 34 — Belief uniqueness guard: closes structural gap where only
@@ -365,7 +367,6 @@ _MIGRATIONS: dict[str, list[str]] = {
         "tags TEXT NOT NULL DEFAULT '[]')",
         "CREATE INDEX IF NOT EXISTS idx_social_presence_taken_at "
         "ON social_presence_snapshots(taken_at DESC)",
-        "ALTER TABLE arc_closers ADD COLUMN closure_type TEXT NOT NULL DEFAULT 'template'",
         # Carryx §8 Step 1 — intake resonance probe.
         # Logs the cosine similarity between each newly-crystallized
         # belief and her existing standing-points (T1-T3 keystones + top T6).
