@@ -21,6 +21,21 @@ _TEXTURE_LEVELS = ["a", "b", "c", "d", "e"]
 
 # Decay constant: each pass multiplies each node's focus_num by (1 - DECAY)
 _DECAY_RATE = 0.05
+# Recency penalty (diversity): a branch attended within _RECENCY_WINDOW seconds
+# decays EXTRA, so a hot branch cools faster between fires and starved branches
+# can surface. Gentle-firm: tune _RECENCY_PENALTY up (toward ~0.30) for stronger
+# rotation, down toward 0 to disable. The soak proved the prompt-nudge too soft;
+# this biases the actual focus_num selection works with, at modest strength.
+_RECENCY_WINDOW = 1200.0   # seconds — "recently attended" = last 20 min
+_RECENCY_PENALTY = 0.12    # extra decay fraction applied to recently-hot branches
+# Starvation bonus (strong-firm diversity): a branch NOT attended for
+# _STARVE_WINDOW seconds gets a small focus_num BUMP so it surfaces for a turn
+# regardless of its (possibly low) curiosity_weight. This is what reaches the
+# genuinely cold branches (history/language/psychology) that gentle-firm could
+# not — it deliberately overrides the designed weighting, mildly. Tune
+# _STARVE_BONUS up for more forced rotation, _STARVE_WINDOW down to trigger sooner.
+_STARVE_WINDOW = 7200.0    # seconds — un-attended for 2h+ = starved
+_STARVE_BONUS = 0.15       # focus_num bump given to a starved branch per pass
 # A non-seed branch is pruned when focus_num < PRUNE_FLOOR for PRUNE_HOLD cycles
 _PRUNE_FLOOR = 0.05
 _PRUNE_HOLD_CYCLES = 6
@@ -155,10 +170,21 @@ class BonsaiTree:
         return node
 
     def decay_pass(self) -> None:
-        """Apply focus/texture decay across all nodes."""
+        """Apply focus/texture decay across all nodes. Recency-aware: a branch
+        attended very recently decays EXTRA, so hot branches cool faster between
+        fires and starved branches can surface (diversity fix)."""
+        _now = time.time()
         for node in self._nodes.values():
-            node.focus_num = max(0.0, node.focus_num * (1 - _DECAY_RATE))
+            _rate = _DECAY_RATE
+            # extra decay if attended within the recency window
+            if _now - node.last_attended_at < _RECENCY_WINDOW:
+                _rate = _DECAY_RATE + _RECENCY_PENALTY
+            node.focus_num = max(0.0, node.focus_num * (1 - _rate))
             node.texture_num = max(0.0, node.texture_num * (1 - _DECAY_RATE * 0.5))
+            # Starvation bonus: long-neglected branches get a bump so they
+            # surface regardless of low curiosity_weight (reaches cold branches).
+            if _now - node.last_attended_at > _STARVE_WINDOW:
+                node.focus_num = min(1.0, node.focus_num + _STARVE_BONUS)
 
     def prune_pass(self) -> list[str]:
         """Remove non-seed branches that have been below floor for too long."""
