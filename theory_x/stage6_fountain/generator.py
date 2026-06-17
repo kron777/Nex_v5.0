@@ -1440,11 +1440,16 @@ class FountainGenerator:
                 _gr_terms = [t.strip().lower() for t in str(_gr["pattern"]).split("/") if len(t.strip()) >= 4]
         except Exception:
             _gr_terms = []
-        if _gr_terms:
+        # Static chronic-groove terms: the hum is a long-standing groove that is
+        # often NOT the currently-alerting pattern, so the dynamic filter above
+        # misses it. These catch it regardless of live alert state.
+        _CHRONIC_GROOVE = ("gentle thread", "hum indeed", "weave a gentle", "resonate for you")
+        _all_terms = list(_gr_terms) + list(_CHRONIC_GROOVE)
+        if _all_terms:
             _kept = []
             for fr in fire_rows:
                 _txt = (fr["thought"] or "").lower()
-                if any(term in _txt for term in _gr_terms):
+                if any(term in _txt for term in _all_terms):
                     continue  # skip grooved fire
                 _kept.append(fr)
             fire_rows = _kept
