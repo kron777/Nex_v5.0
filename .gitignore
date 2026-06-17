@@ -40,3 +40,5 @@ observations/
 *.db-shm
 CARRY_OVER.md
 data/verification.db
+protonvpn-stable-release_1.0.8_all.deb
+*.deb
