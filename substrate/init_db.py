@@ -346,6 +346,9 @@ _MIGRATIONS: dict[str, list[str]] = {
         "tags TEXT NOT NULL DEFAULT '[]')",
         "CREATE INDEX IF NOT EXISTS idx_self_mind_snapshots_taken_at "
         "ON self_mind_snapshots(taken_at DESC)",
+        # bridge: the qualitative felt self ("I am...", hum included) written
+        # alongside the quantitative ledger each 5-min snapshot. Self-ledger -> self-narrative.
+        "ALTER TABLE self_mind_snapshots ADD COLUMN bound_self_synthesis TEXT",
         # Phase 38 — SocialPresence: social-presence snapshot archive
         "CREATE TABLE IF NOT EXISTS social_presence_snapshots ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, "

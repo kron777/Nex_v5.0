@@ -354,6 +354,14 @@ class SelfMindView:
     def _snapshot(self) -> int:
         """Compute current_state(), write one row to self_mind_snapshots."""
         state = self.current_state()
+        # bridge: capture the qualitative felt self ("I am...", hum bound in) to
+        # store alongside the quantitative ledger — turns the snapshot into narrative.
+        _bound_self = ""
+        try:
+            from theory_x.stage_tom import self_binding as _sb  # type: ignore
+            _bound_self = _sb.bind().get("synthesis", "") or ""
+        except Exception:
+            _bound_self = ""
         b = state["beliefs"]
         i = state["intentions"]
         k = state["knowledge"]
@@ -382,8 +390,8 @@ class SelfMindView:
             "knowledge_anchors_json, "
             "review_queue_count, t3_t4_count, explicit_unknowns_json, "
             "recent_belief_count_5m, recent_gate_count_5m, "
-            "current_themes_json, current_drive_theme, tags"
-            ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "current_themes_json, current_drive_theme, tags, bound_self_synthesis"
+            ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 state["taken_at"],
                 b["total_count"],
@@ -405,6 +413,7 @@ class SelfMindView:
                 json.dumps(a["current_themes"]),
                 a["current_drive_theme"],
                 tags,
+                _bound_self,
             ),
         )
         return int(row_id) if row_id else 0
