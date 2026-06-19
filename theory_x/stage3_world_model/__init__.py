@@ -23,6 +23,7 @@ from .activation import ActivationEngine
 from .erosion import ProvenanceErosion
 from .pipeline_hooks import PipelineHooks
 from .synergizer import BeliefSynergizer
+from .world_consolidation import WorldConsolidator
 
 THEORY_X_STAGE = 3
 
@@ -83,6 +84,30 @@ class WorldModelState:
             "disturbance_active": self._disturbance is not None,
             "uptime_seconds": int(time.time() - self._started_at),
         }
+
+
+def _world_consolidation_loop(state: WorldModelState, stop: threading.Event) -> None:
+    """Deepen world-knowledge by thematic convergence. Env-gated: does nothing
+    unless NEX5_WORLD_CONSOLIDATE is set (=dry reports, =1 arms). Runs every 30min."""
+    import os
+    if not (os.environ.get("NEX5_WORLD_CONSOLIDATE", "") or "").strip():
+        return  # not enabled — never spawn work
+    consolidator = WorldConsolidator(state.readers["beliefs"], state.promoter)
+    while not stop.is_set():
+        stop.wait(1800.0)
+        if stop.is_set():
+            break
+        try:
+            out = consolidator.tick()
+            if out.get("promoted"):
+                errors.record(
+                    f"world_consolidation_loop promoted {out['promoted']} "
+                    f"across {out.get('clusters_found', 0)} themes",
+                    source=_LOG_SOURCE, level="INFO",
+                )
+        except Exception as exc:
+            errors.record(f"world_consolidation_loop error: {exc}",
+                          source=_LOG_SOURCE, exc=exc)
 
 
 def _decay_loop(state: WorldModelState, stop: threading.Event) -> None:
@@ -273,6 +298,7 @@ def build_world_model(writers: dict, readers: dict,
         (_cross_domain_loop, "world_model.cross_domain"),
         (_erosion_loop,      "world_model.erosion"),
         (_synergizer_loop,   "world_model.synergizer"),
+        (_world_consolidation_loop, "world_model.world_consolidation"),
     ]:
         t = threading.Thread(target=fn, args=(state, stop), name=name, daemon=True)
         t.start()
