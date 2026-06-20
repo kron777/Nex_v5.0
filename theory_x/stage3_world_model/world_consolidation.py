@@ -11,7 +11,7 @@ _SIM_THRESHOLD = 0.76
 _MIN_CLUSTER = 3
 _MAX_PROMOTE_PER_RUN = 3
 
-_SELF_RX = re.compile(r"\b(i am the attending|i am |my thoughts|my own|myself|my nature|i notice|i accept|i hold|the attending|i exist|my existence|i feel|i find myself|my mind|my fingers|my sleeve|inner hum)\b", re.I)
+_SELF_RX = re.compile(r"\b(i am the attending|i am |my thoughts|my own|myself|my nature|i notice|i accept|i hold|the attending|i exist|my existence|i feel|i find myself|my mind|my fingers|my sleeve|inner hum|i expected|my next thought|noticing|interconnectedness|the new insight|i recognize|i observe|i sense|holding multiple|the realization|i'm aware|the dual nature|the constant tension|the interplay|the balance between|the constant influx|attending and being|the barrage|the cacophony|the chatter|pulls me|the influx of)\b", re.I)
 _MOOD_RX = re.compile(r"\b(the clock|the quiet|the silence|the hum|the room|the desk|the cursor|the coffee|the morning light|the shadow|the breeze|silence|stillness|quietude|idle)\b", re.I)
 
 def _diag(msg):
@@ -100,6 +100,9 @@ class WorldConsolidator:
                     if dup: _diag(f"  skip id={bid}: dup shallower"); continue
                 except Exception as exc:
                     _diag(f"  dup-check fail id={bid}: {exc!r} — skip"); continue
+                if not _is_world(contents.get(bid, "")):
+                    _diag(f"  skip non-world id={bid}")
+                    continue
                 _diag(f"  about to corroborate id={bid}")
                 try:
                     if self._promoter.corroborate(bid): promoted += 1; _diag(f"  PROMOTED id={bid}")
