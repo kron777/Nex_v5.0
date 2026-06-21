@@ -50,8 +50,8 @@ def _nudge_active() -> bool:
 def _current_branch() -> str:
     """Hot branch right now, from fountain fires (same signal the teeth-test uses)."""
     try:
-        con = sqlite3.connect(_db("fountain_events")); con.row_factory = sqlite3.Row
-        row = con.execute("SELECT hot_branch FROM fires ORDER BY ts DESC LIMIT 1").fetchone()
+        con = sqlite3.connect(_db("dynamic")); con.row_factory = sqlite3.Row
+        row = con.execute("SELECT hot_branch FROM fountain_events ORDER BY ts DESC LIMIT 1").fetchone()
         con.close()
         return str(row["hot_branch"]) if row and row["hot_branch"] else ""
     except Exception:

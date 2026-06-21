@@ -132,8 +132,10 @@ def perturbation() -> dict:
     # Attention nudge from fixation
     if raga == "fixated":
         nudges.append("turn_attention_strong")
-    elif raga == "mild":
-        nudges.append("turn_attention_gentle")
+    # 'mild' (single lingering thread) no longer triggers the attention nudge —
+    # it was firing perpetually (perseveration count never decayed), giving the
+    # nudge no off-state and making its teeth unmeasurable. Only genuine
+    # multi-signal fixation perturbs attention now.
     # Tone/engagement nudge from emotion
     if emotion in _CHURNING:
         nudges.append("vary_input")          # break the locked-in churn
