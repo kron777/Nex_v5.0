@@ -133,12 +133,11 @@
       "rule": "raga + avidya built; mana + dvesa are siblings with identical satisfied prereqs -> buildable holes",
       "members_built": [
         "delusion_raga",
-        "delusion_avidya"
-      ],
-      "members_gap": [
+        "delusion_avidya",
         "delusion_mana",
         "delusion_dvesa"
-      ]
+      ],
+      "members_gap": []
     }
   }
 }
