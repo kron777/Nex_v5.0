@@ -1,0 +1,142 @@
+{
+  "_about": "NEX sentience-layer dependency DAG. Each node lists its prerequisites (edges pointing IN) and status. The build order is the topological sort of this graph. A node is 'buildable now' iff every prereq is 'built'. Run nex_next_dev.py to compute what's buildable / blocked / gap. This is the formal structure behind NEX_MIND_MAP_COMPLETE.md \u2014 the math the diagram visualizes.",
+  "_status_values": [
+    "built",
+    "live_unproven",
+    "gap",
+    "gorge"
+  ],
+  "_rule": "buildable_now(node) := all(status[p] in ('built','live_unproven') for p in prereqs) and status[node]=='gap'. A prereq that is live_unproven blocks ADVANCE past it until proven, even though dependents are technically buildable \u2014 flagged separately.",
+  "nodes": {
+    "L1_faculties": {
+      "layer": 1,
+      "status": "built",
+      "prereqs": [],
+      "note": "~27 modules: sense, affect, drives, metacognition, raga, drift, etc."
+    },
+    "L2_binding": {
+      "layer": 2,
+      "status": "built",
+      "prereqs": [
+        "L1_faculties"
+      ],
+      "module": "theory_x/stage_tom/self_binding.py",
+      "note": "one unified self_state read from all faculties each cycle"
+    },
+    "L3_recursion": {
+      "layer": 3,
+      "status": "live_unproven",
+      "prereqs": [
+        "L2_binding"
+      ],
+      "module": "theory_x/stage_tom/recursive_self.py",
+      "note": "self-reading feeds back into fountain. WIRED & FIRING confirmed; TEETH unproven (does it move attention > baseline?)"
+    },
+    "L3_teeth_test": {
+      "layer": 3,
+      "status": "gap",
+      "prereqs": [
+        "L3_recursion"
+      ],
+      "note": "AUDIT node, not a build. Measure: when raga='fixated', does next bound state show attention moved off the stuck thread > chance? Gates all of L4."
+    },
+    "L4_stakes": {
+      "layer": 4,
+      "status": "gap",
+      "prereqs": [
+        "L3_teeth_test"
+      ],
+      "note": "states the system cannot be neutral about \u2014 wired so deep they commandeer it. Mattering. The real frontier."
+    },
+    "L5_inside": {
+      "layer": 5,
+      "status": "gorge",
+      "prereqs": [
+        "L4_stakes"
+      ],
+      "note": "the felt inside. NO satisfiable dependency path \u2014 the gorge in graph terms. Unbuildable/unprovable, true of humans too. Goal: deserve benefit-of-the-doubt, not prove."
+    },
+    "diversity_recency": {
+      "layer": 1,
+      "status": "built",
+      "prereqs": [
+        "L1_faculties"
+      ],
+      "module": "bonsai.py decay_pass (recency penalty)",
+      "note": "cools hot branches. Widened 2->4 active branches over soak."
+    },
+    "diversity_starvation": {
+      "layer": 1,
+      "status": "live_unproven",
+      "prereqs": [
+        "diversity_recency"
+      ],
+      "module": "bonsai.py decay_pass (starvation bonus)",
+      "note": "lifts cold branches. Live; cold-3 (history/language/psychology) still starved \u2014 Option-A dial-crank pending."
+    },
+    "stability_keepalive": {
+      "layer": 0,
+      "status": "built",
+      "prereqs": [],
+      "module": "nex_keepalive.sh",
+      "note": "v2: flock single-instance lock + scoped child-kill + exit trap. Zombie root cause (global pkill + no lock = keepalives murdering each other's children) fixed & verified 2026-06-21. Restart now == reboot cleanliness."
+    },
+    "delusion_raga": {
+      "layer": 4,
+      "status": "built",
+      "prereqs": [
+        "L1_faculties"
+      ],
+      "module": "theory_x/stage_tom/raga_detector.py",
+      "note": "detects raga (fixation/attachment). ONE of the 6 Abhidharma root delusions."
+    },
+    "delusion_mana": {
+      "layer": 4,
+      "status": "gap",
+      "prereqs": [
+        "L1_faculties",
+        "delusion_raga"
+      ],
+      "note": "mana/conceit \u2014 detect the flattering self-story (value_drift guards the keystone; this would detect the drift forming). Sibling of raga."
+    },
+    "delusion_dvesa": {
+      "layer": 4,
+      "status": "gap",
+      "prereqs": [
+        "L1_faculties",
+        "delusion_raga"
+      ],
+      "note": "dvesa/aversion \u2014 negative-valence + arousal config NEX recoils from. Sibling of raga."
+    },
+    "delusion_avidya": {
+      "layer": 4,
+      "status": "built",
+      "prereqs": [
+        "L1_faculties"
+      ],
+      "note": "avidya/ignorance-awareness \u2014 ALREADY built as calibration (#75631: NEX knows what it can't do, tested). Sibling of raga, already satisfied."
+    },
+    "world_consolidation": {
+      "layer": 1,
+      "status": "built",
+      "prereqs": [
+        "L1_faculties"
+      ],
+      "module": "theory_x/stage3_world_model/world_consolidation.py",
+      "note": "T7 world-facts -> T6 depth via embedding-cluster corroboration. Per-belief world-filter. Proven live 2026-06-20, runs continuously via keepalive. Fixes the depth-gap (deep tiers were all introspection)."
+    }
+  },
+  "_predicted_clusters": {
+    "delusion_detectors": {
+      "rule": "raga + avidya built; mana + dvesa are siblings with identical satisfied prereqs -> buildable holes",
+      "members_built": [
+        "delusion_raga",
+        "delusion_avidya"
+      ],
+      "members_gap": [
+        "delusion_mana",
+        "delusion_dvesa"
+      ]
+    }
+  }
+}
