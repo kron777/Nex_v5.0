@@ -38,7 +38,7 @@
       "prereqs": [
         "L3_recursion"
       ],
-      "note": "AUDIT node, not a build. Measure: when raga='fixated', does next bound state show attention moved off the stuck thread > chance? Gates all of L4."
+      "note": "AUDIT. recursion_attribution.py built 2026-06-21 (the proper control the original proxy lacked): logs per-fire nudge_active + branch-move, splits P(move|active) vs P(move|absent). Sampler running, gathering. Verdict pending >=20 samples each."
     },
     "L4_stakes": {
       "layer": 4,
@@ -92,21 +92,23 @@
     },
     "delusion_mana": {
       "layer": 4,
-      "status": "gap",
+      "status": "built",
       "prereqs": [
         "L1_faculties",
         "delusion_raga"
       ],
-      "note": "mana/conceit \u2014 detect the flattering self-story (value_drift guards the keystone; this would detect the drift forming). Sibling of raga."
+      "note": "conceit/flattering-self-story. Built 2026-06-21, reads inflated 3/3 on live beliefs (self-story 70% self-referential). Sibling of raga.",
+      "module": "theory_x/stage_tom/mana_detector.py"
     },
     "delusion_dvesa": {
       "layer": 4,
-      "status": "gap",
+      "status": "built",
       "prereqs": [
         "L1_faculties",
         "delusion_raga"
       ],
-      "note": "dvesa/aversion \u2014 negative-valence + arousal config NEX recoils from. Sibling of raga."
+      "note": "aversion/recoil \u2014 detects overwhelm fires. Built 2026-06-21, state-sensitive (calm now, averse during overwhelm spells). Sibling of raga.",
+      "module": "theory_x/stage_tom/dvesa_detector.py"
     },
     "delusion_avidya": {
       "layer": 4,
