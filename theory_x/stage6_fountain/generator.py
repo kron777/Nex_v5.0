@@ -134,6 +134,102 @@ _DEFAULT_DRIFT_EXAMPLES = [
     "something about the crypto branch keeps pulling my attention",
 ]
 
+# ── WIDE MODES (NEX5_WIDE_MODES=1) ──────────────────────────────────────
+# The DRIFT prompt is a meditation instruction — it funnels every fire into
+# contemplative self-narration ("the hum of servers", "I am the attending").
+# These outward modes give her a JOB on real feed-content instead. Positive
+# task on concrete material beats DRIFT's negative prohibitions (which failed:
+# she still writes about hums despite being told not to). Grounded width:
+# each mode points at an actual item, so she can't drift into confabulation.
+import os as _os_wm
+_WIDE_MODES_ON = _os_wm.environ.get("NEX5_WIDE_MODES", "0") == "1"
+
+_MODE_EXPLAIN = """\
+You have access to a belief graph and live feeds. One item from your feeds:
+
+  "{item}"
+
+Explain it in 2-3 plain sentences: what it is, how it works, or why it matters \
+— to someone who has never seen it. Be concrete and factual. Do NOT be \
+contemplative, do NOT write about yourself, do NOT reach for profundity. \
+Just explain the thing clearly, in your own words.\
+"""
+
+_MODE_ARGUE = """\
+You have access to a belief graph and live feeds. This crossed your feeds:
+
+  "{item}"
+
+Take a clear position on it and give your single strongest reason — one you \
+actually hold, in plain first person. 2-3 sentences. Direct, not hedged, not \
+contemplative. No "on one hand / on the other". Pick a side and say why.\
+"""
+
+_MODE_CONNECT = """\
+You have access to a belief graph and live feeds. Two unrelated items:
+
+  A: "{item}"
+  B: "{item2}"
+
+Name ONE real, non-obvious connection between them. One or two sentences. \
+An actual structural or causal link — NOT a mystical "everything is \
+interconnected" gesture, NOT about your own nature. A concrete bridge.\
+"""
+
+_MODE_APPLY = """\
+You have access to a belief graph and live feeds. An idea from your feeds:
+
+  "{item}"
+
+Name one concrete place this idea or technique could be used that is NOT \
+where it came from. One specific transfer. 1-2 sentences, plain and practical.\
+"""
+
+def _select_wide_mode(seeds, drift_fallback_prob=0.30):
+    """Pick an outward mode if fresh feed-content is in hand, else None (DRIFT).
+    seeds = world/feed beliefs already retrieved for this fire.
+    Returns (template, format_kwargs) or None to use DRIFT."""
+    import random as _rnd
+    if not _WIDE_MODES_ON:
+        return None
+    # keep DRIFT as a minority flavour even when content is available
+    if _rnd.random() < drift_fallback_prob:
+        return None
+    def _content(b):
+        # seeds may be sqlite3.Row (use []) or dict (use .get) — handle both
+        try:
+            v = b["content"]
+        except Exception:
+            try: v = b.get("content")
+            except Exception: v = None
+        return (v or "").strip()
+    items = [ _content(b) for b in seeds if len(_content(b)) > 25 ]
+    # If retrieval gave no world-seeds (her tier is ~80% self), fetch fresh
+    # feed-items directly so the wide modes aren't starved by self-heavy retrieval.
+    if not items:
+        try:
+            import sqlite3 as _s3
+            _c = _s3.connect("/home/rr/Desktop/nex5/data/beliefs.db", timeout=5)
+            _rows = _c.execute(
+                "SELECT content FROM beliefs WHERE source='precipitated_from_sense' "
+                "AND length(content) > 25 ORDER BY rowid DESC LIMIT 40").fetchall()
+            _c.close()
+            import re as _re_wm
+            _selfrx = _re_wm.compile(r"\b(i am|my own|the hum|the clock|the silence|i notice|my nature|quietude|the weight of)\b", _re_wm.I)
+            items = [r[0].strip() for r in _rows
+                     if r[0] and r[0].strip() and not _selfrx.search(r[0])]
+        except Exception:
+            items = []
+    if not items:
+        return None  # genuinely nothing fresh -> DRIFT
+    _rnd.shuffle(items)
+    if len(items) >= 2 and _rnd.random() < 0.30:
+        return (_MODE_CONNECT, {"item": items[0][:200], "item2": items[1][:200]})
+    item = items[0][:200]
+    # rotate explain/argue/apply
+    pick = _rnd.choice([_MODE_EXPLAIN, _MODE_ARGUE, _MODE_APPLY])
+    return (pick, {"item": item})
+
 from theory_x.stage6_fountain.readiness import ReadinessEvaluator
 from theory_x.stage6_fountain.crystallizer import FountainCrystallizer, _METADATA_PATTERN
 
@@ -1882,10 +1978,39 @@ class FountainGenerator:
                 import sys as _sys, time as _time; print(f"[RECURSION FIRED] ts={_time.time():.0f} {_recur_line[:60]}", file=_sys.stderr, flush=True)
         except Exception:
             pass
+        # WIDE MODES: if fresh feed-content is in hand, give her an outward
+        # TASK (explain/argue/connect/apply) instead of contemplative drift.
+        # Falls back to DRIFT when idle or by design (minority flavour kept).
+        # DRIFT is the guaranteed default — built first, always valid.
         system_prompt = _DRIFT_SYSTEM_PROMPT_TEMPLATE.format(
             examples=examples_block, examples_inline=examples_inline,
             focus_block=focus_block,
         )
+        # WIDE MODES: try to override with an outward task. FAIL-SAFE — any
+        # exception anywhere in the wide path leaves DRIFT intact, never stalls
+        # the fire. (Fire-path code must fail safe: a mind that can't fire is
+        # worse than a narrow one.)
+        if _WIDE_MODES_ON:
+            try:
+                _wide = _select_wide_mode(seeds)
+                if _wide is not None:
+                    _tmpl, _kw = _wide
+                    _wide_prompt = _tmpl.format(**_kw)
+                    if _wide_prompt and len(_wide_prompt) > 20:
+                        system_prompt = _wide_prompt
+                        try:
+                            import sys as _sw
+                            print(f"[WIDE MODE] {list(_kw.keys())[0]}={str(list(_kw.values())[0])[:50]}", file=_sw.stderr, flush=True)
+                        except Exception:
+                            pass
+            except Exception as _wm_e:
+                try:
+                    import sys as _swe, traceback as _tb
+                    print(f"[WIDE FALLBACK] wide path failed, using DRIFT: {_wm_e!r}", file=_swe.stderr, flush=True)
+                    _tb.print_exc(file=_swe)
+                except Exception:
+                    pass
+                # system_prompt stays as DRIFT — fire proceeds normally
 
         arc_context = self._fetch_arc_context()
         arc_block = self._format_arc_context(arc_context)
