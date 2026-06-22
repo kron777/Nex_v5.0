@@ -152,7 +152,7 @@ You have access to a belief graph and live feeds. One item from your feeds:
 Explain it in 2-3 plain sentences: what it is, how it works, or why it matters \
 — to someone who has never seen it. Be concrete and factual. Do NOT be \
 contemplative, do NOT write about yourself, do NOT reach for profundity. \
-Just explain the thing clearly, in your own words.\
+Just explain the thing clearly, in your own words. Use ONLY what is in the item — do NOT invent facts, people, projects, names, or events that are not stated. If you don't know, say what the item actually says.\
 """
 
 _MODE_ARGUE = """\
@@ -162,7 +162,7 @@ You have access to a belief graph and live feeds. This crossed your feeds:
 
 Take a clear position on it and give your single strongest reason — one you \
 actually hold, in plain first person. 2-3 sentences. Direct, not hedged, not \
-contemplative. No "on one hand / on the other". Pick a side and say why.\
+contemplative. No "on one hand / on the other". Pick a side and say why. Use ONLY what is in the item — do NOT invent facts, people, projects, names, or events that are not stated. If you don't know, say what the item actually says.\
 """
 
 _MODE_CONNECT = """\
@@ -173,7 +173,7 @@ You have access to a belief graph and live feeds. Two unrelated items:
 
 Name ONE real, non-obvious connection between them. One or two sentences. \
 An actual structural or causal link — NOT a mystical "everything is \
-interconnected" gesture, NOT about your own nature. A concrete bridge.\
+interconnected" gesture, NOT about your own nature. A concrete bridge. Use ONLY what is in the item — do NOT invent facts, people, projects, names, or events that are not stated. If you don't know, say what the item actually says.\
 """
 
 _MODE_APPLY = """\
@@ -182,7 +182,7 @@ You have access to a belief graph and live feeds. An idea from your feeds:
   "{item}"
 
 Name one concrete place this idea or technique could be used that is NOT \
-where it came from. One specific transfer. 1-2 sentences, plain and practical.\
+where it came from. One specific transfer. 1-2 sentences, plain and practical. Use ONLY what is in the item — do NOT invent facts, people, projects, names, or events that are not stated. If you don't know, say what the item actually says.\
 """
 
 def _select_wide_mode(seeds, drift_fallback_prob=0.30):
@@ -215,9 +215,13 @@ def _select_wide_mode(seeds, drift_fallback_prob=0.30):
                 "AND length(content) > 25 ORDER BY rowid DESC LIMIT 40").fetchall()
             _c.close()
             import re as _re_wm
-            _selfrx = _re_wm.compile(r"\b(i am|my own|the hum|the clock|the silence|i notice|my nature|quietude|the weight of)\b", _re_wm.I)
+            # exclude self-narration AND koan/tao/philosophy content — the wide
+            # modes should engage REAL feed news, not her contemplative beliefs.
+            _selfrx = _re_wm.compile(r"\b(i am|my own|the hum|the clock|the silence|i notice|my nature|quietude|the weight of|i built|i recognize)\b", _re_wm.I)
+            _koanrx = _re_wm.compile(r"\b(koan|zen|tao|laozi|zhuangzi|confucius|monk|master said|buddha|seung sahn|patriarch|enlighten|the unspoken|surrender|dharma|meditation retreat)\b", _re_wm.I)
             items = [r[0].strip() for r in _rows
-                     if r[0] and r[0].strip() and not _selfrx.search(r[0])]
+                     if r[0] and r[0].strip()
+                     and not _selfrx.search(r[0]) and not _koanrx.search(r[0])]
         except Exception:
             items = []
     if not items:
