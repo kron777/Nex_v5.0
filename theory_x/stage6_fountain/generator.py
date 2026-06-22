@@ -227,11 +227,11 @@ def _select_wide_mode(seeds, drift_fallback_prob=0.30):
     if not items:
         return None  # genuinely nothing fresh -> DRIFT
     _rnd.shuffle(items)
-    if len(items) >= 2 and _rnd.random() < 0.30:
-        return (_MODE_CONNECT, {"item": items[0][:200], "item2": items[1][:200]})
+    # Only EXPLAIN/ARGUE: they anchor to ONE concrete item and can't drift.
+    # CONNECT/APPLY invited her to reach for abstractions -> she pulled koans
+    # (belief store is ~80% philosophy/self), so they're dropped.
     item = items[0][:200]
-    # rotate explain/argue/apply
-    pick = _rnd.choice([_MODE_EXPLAIN, _MODE_ARGUE, _MODE_APPLY])
+    pick = _rnd.choice([_MODE_EXPLAIN, _MODE_ARGUE])
     return (pick, {"item": item})
 
 from theory_x.stage6_fountain.readiness import ReadinessEvaluator
