@@ -203,10 +203,11 @@ def _select_wide_mode(seeds, drift_fallback_prob=0.30):
             try: v = b.get("content")
             except Exception: v = None
         return (v or "").strip()
-    items = [ _content(b) for b in seeds if len(_content(b)) > 25 ]
-    # If retrieval gave no world-seeds (her tier is ~80% self), fetch fresh
-    # feed-items directly so the wide modes aren't starved by self-heavy retrieval.
-    if not items:
+    # ALWAYS fetch fresh news directly. Do NOT use seeds — her retrieval is
+    # ~80% philosophy/koan, so seeds fed the wide modes koans to explain. The
+    # filtered fetch below guarantees real news items only.
+    items = []
+    if True:
         try:
             import sqlite3 as _s3
             _c = _s3.connect("/home/rr/Desktop/nex5/data/beliefs.db", timeout=5)
