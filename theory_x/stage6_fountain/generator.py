@@ -1247,6 +1247,32 @@ class FountainGenerator:
             if sorted_b:
                 hot_branch = sorted_b[0].get("branch_id")
 
+        # teeth-test v2: ONE sample per REAL fire (fail-safe — never stalls a fire).
+        # Compares this fire's branch to previous fire's branch for real movement signal.
+        try:
+            import sqlite3 as _sq2, time as _tt2
+            try:
+                from substrate.paths import db_paths as _dbp2
+                _adb2 = str(_dbp2()["dynamic"])
+            except Exception:
+                _adb2 = "/home/rr/Desktop/nex5/data/dynamic.db"
+            _acon = _sq2.connect(_adb2, timeout=3)
+            _acon.execute("""CREATE TABLE IF NOT EXISTS recursion_attrib
+                (ts REAL PRIMARY KEY, nudge_active INTEGER,
+                 branch TEXT, branch_prev TEXT, moved INTEGER)""")
+            _prev = _acon.execute(
+                "SELECT branch FROM recursion_attrib ORDER BY ts DESC LIMIT 1"
+            ).fetchone()
+            _branch_prev = _prev[0] if _prev else ""
+            _moved = 1 if (hot_branch and _branch_prev and hot_branch != _branch_prev) else 0
+            _nudge = 1 if getattr(self, "_pending_nudge_active", False) else 0
+            _acon.execute(
+                "INSERT OR REPLACE INTO recursion_attrib VALUES (?,?,?,?,?)",
+                (_tt2.time(), _nudge, hot_branch or "", _branch_prev, _moved)
+            )
+            _acon.commit(); _acon.close()
+        except Exception:
+            pass  # never stall a fire
         ts_now = time.time()
         payload = json.dumps(
             {"thought": thought, "readiness": readiness, "hot_branch": hot_branch}
@@ -1983,6 +2009,13 @@ class FountainGenerator:
                 import sys as _sys, time as _time; print(f"[RECURSION FIRED] ts={_time.time():.0f} {_recur_line[:60]}", file=_sys.stderr, flush=True)
         except Exception:
             pass
+        # teeth-test v2: stash nudge state for per-fire attribution sampling.
+        # Captured here where perturbation() is freshest; consumed at fire-completion.
+        try:
+            from theory_x.stage_tom.recursive_self import perturbation as _perturb_fn
+            self._pending_nudge_active = bool(_perturb_fn().get("perturb", False))
+        except Exception:
+            self._pending_nudge_active = False
         # WIDE MODES: if fresh feed-content is in hand, give her an outward
         # TASK (explain/argue/connect/apply) instead of contemplative drift.
         # Falls back to DRIFT when idle or by design (minority flavour kept).
