@@ -5,9 +5,9 @@ import errors
 
 _LOG_SOURCE = "world_consolidation"
 _DIAG_LOG = "/tmp/nex5_worldconsol.log"
-_WINDOW = 25
+_WINDOW = 60
 _BATCH = 5
-_SIM_THRESHOLD = 0.76
+_SIM_THRESHOLD = 0.58
 _MIN_CLUSTER = 3
 _MAX_PROMOTE_PER_RUN = 3
 
