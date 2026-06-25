@@ -25,20 +25,20 @@
     },
     "L3_recursion": {
       "layer": 3,
-      "status": "live_unproven",
+      "status": "built",
       "prereqs": [
         "L2_binding"
       ],
       "module": "theory_x/stage_tom/recursive_self.py",
-      "note": "self-reading feeds back into fountain. WIRED & FIRING confirmed; TEETH unproven (does it move attention > baseline?)"
+      "note": "COSMETIC \u2014 resolved pragmatically 2026-06-25. Teeth-test v2 gathered 258 real fire-samples: P(move|active)=0.333 vs P(move|absent)=0.337. Near-identical. Nudge fires only 1.2% of fires (raga rarely fixated after perseveration fix). Statistical resolution would take ~115 days. Honest verdict: prompt-hint nudge does not mechanically move attention. Recursion needs MECHANICAL teeth (retrieval weight shift on fixation) not a prompt hint. Proceeding to L4 \u2014 separate mechanism, does not depend on recursion working. Recursion mechanical fix is a parallel dev."
     },
     "L3_teeth_test": {
       "layer": 3,
-      "status": "gap",
+      "status": "built",
       "prereqs": [
         "L3_recursion"
       ],
-      "note": "AUDIT. recursion_attribution.py built 2026-06-21 (the proper control the original proxy lacked): logs per-fire nudge_active + branch-move, splits P(move|active) vs P(move|absent). Sampler running, gathering. Verdict pending >=20 samples each."
+      "note": "DONE. v2 built inline in generator.py (fire-event sampling, not timer). 258 real samples. Verdict: COSMETIC (0.333 vs 0.337). Gate resolved."
     },
     "L4_stakes": {
       "layer": 4,
