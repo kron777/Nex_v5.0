@@ -68,6 +68,28 @@ def _extract_entity(payload: dict) -> str | None:
     return None
 
 
+# ── Problem-quality gate ─────────────────────────────────────────────────────
+# Bare common words that fire as "entities" in headlines but produce fake
+# research programs when opened as investigation problems.
+_VAGUE_ENTITY_WORDS = frozenset({
+    "dynamic", "multilingual", "static", "advanced", "new", "latest", "big",
+    "low", "high", "fast", "slow", "smart", "global", "local", "digital",
+    "modern", "future", "source", "data", "system", "model", "process",
+    "signal", "output", "input", "result", "impact", "change", "update",
+    "report", "study", "research", "analysis", "are", "is", "was", "were",
+    "enhancing", "improving", "increasing", "expanding", "growing", "building",
+    "making", "showing", "using", "show", "the", "and", "for",
+})
+
+def _entity_has_substance(entity: str | None) -> bool:
+    """True if entity is specific enough to warrant an investigation problem."""
+    if not entity or len(entity.strip()) < 2:
+        return False
+    e = entity.strip()
+    if " " in e:
+        return True   # multi-word entities always substantive
+    return e.lower() not in _VAGUE_ENTITY_WORDS
+
 def _compose_title(signal_type: str, entity: str | None, payload: dict) -> str:
     """Frame the signal as an actionable inquiry title."""
     if signal_type == "triple_cooccurrence" and entity:
@@ -202,6 +224,14 @@ def signal_to_problem_tick() -> dict:
                 continue
 
             title = _compose_title(sig["signal_type"], entity, payload)
+            if (title.startswith("Signal: investigate '")
+                    and not _entity_has_substance(entity)):
+                # vague bare-word entity — blocks unconditionally before open
+                b_cx.execute("UPDATE signals SET actioned_at=? WHERE id=?",
+                             (time.time(), sig["id"]))
+                log.debug("quality_gate: blocked vague entity %r", entity)
+                skipped += 1
+                continue
             if (os.environ.get("NEX5_SIG_QUALITY") == "1"
                     and title.startswith("Signal: investigate '")
                     and entity
