@@ -324,6 +324,7 @@ class FountainGenerator:
         self._last_fountain_output: Optional[str] = None
         self._last_fire_ts: float = 0.0
         self._total_fires: int = 0
+        self._stakes_active: bool = False  # L4: world-contact gate
         self._last_rut_notice_ts: float = 0.0  # §9 rut-mirror throttle
         self._consecutive_stillness: int = 0
         self._last_drive_probe_tick: int = -(
@@ -1273,6 +1274,23 @@ class FountainGenerator:
             _acon.commit(); _acon.close()
         except Exception:
             pass  # never stall a fire
+        # L4_stakes: check world-contact ratio every 5 fires (fail-safe).
+        if (int(getattr(self, "_total_fires", 0)) % 5 == 4
+                and os.environ.get("NEX5_L4_STAKES") == "1"):
+            try:
+                from theory_x.stage_tom.stakes_monitor import check_world_contact
+                try:
+                    from substrate.paths import db_paths as _dbp_l4
+                    _ddb = str(_dbp_l4()["dynamic"])
+                except Exception:
+                    _ddb = "/home/rr/Desktop/nex5/data/dynamic.db"
+                self._stakes_active = check_world_contact(_ddb)
+                if self._stakes_active:
+                    import sys as _sys_l4
+                    print("[L4_STAKES] world-contact LOW — grounding override ARMED",
+                          file=_sys_l4.stderr, flush=True)
+            except Exception:
+                self._stakes_active = False  # fail-safe
         ts_now = time.time()
         payload = json.dumps(
             {"thought": thought, "readiness": readiness, "hot_branch": hot_branch}
@@ -2016,6 +2034,22 @@ class FountainGenerator:
             self._pending_nudge_active = bool(_perturb_fn().get("perturb", False))
         except Exception:
             self._pending_nudge_active = False
+        # L4_stakes: when world-contact is low, override focus_block to force
+        # direct engagement with specific content rather than attending-template.
+        if (getattr(self, "_stakes_active", False)
+                and os.environ.get("NEX5_L4_STAKES") == "1"):
+            try:
+                _stakes_notice = (
+                    "\n\n[GROUNDING] Your recent fires have been mapping items "
+                    "onto your attending-corpus rather than engaging them directly. "
+                    "This fire: engage the SPECIFIC content only. What does this "
+                    "item actually say? One concrete fact, observation, or position. "
+                    "Do NOT reference your foundation, attending, or standing-points "
+                    "in this fire. Engage the world directly."
+                )
+                focus_block = focus_block.rstrip() + _stakes_notice
+            except Exception:
+                pass  # fail-safe — never break a fire
         # WIDE MODES: if fresh feed-content is in hand, give her an outward
         # TASK (explain/argue/connect/apply) instead of contemplative drift.
         # Falls back to DRIFT when idle or by design (minority flavour kept).
