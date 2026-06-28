@@ -53,15 +53,23 @@ _CHANNEL_HINTS: dict[str, set[str]] = {
     },
     "language": {
         "language", "narrative", "text", "word", "meaning",
-        "discourse", "frame", "story",
+        "discourse", "frame", "story", "linguistic", "literature",
+        "novel", "poem", "author", "book", "speech", "writing",
+        "grammar", "translation", "english", "rhetoric",
     },
     "history": {
         "history", "historical", "past", "pattern",
-        "century", "evolution", "arc",
+        "century", "evolution", "arc", "ancient", "war",
+        "empire", "civilization", "archive", "decade",
+        "biography", "era", "document", "event", "chronicle",
+        "1800s", "1900s", "medieval", "revolution",
     },
     "psychology": {
         "psychology", "behavior", "sentiment", "cognitive",
-        "human", "social", "emotion", "decision",
+        "human", "social", "emotion", "decision", "brain",
+        "depression", "anxiety", "mental", "therapy", "trauma",
+        "psychiatric", "disorder", "neuron", "sciencedaily",
+        "wellbeing", "stress", "probiotic", "sleep", "aging",
     },
 }
 
@@ -77,6 +85,15 @@ _STREAM_BRANCH: dict[str, str] = {
     "computing":               "computing",
     "crypto":                  "crypto",
     "news":                    "markets",
+    # Feed streams that were missing — gave these branches zero base score
+    "psychology":              "psychology",
+    "neuroscience":            "cognition_science",
+    "philosophy":              "cognition_science",
+    "mathematics":             "history",
+    "agi":                     "ai_research",
+    "literature":              "language",
+    "science":                 "cognition_science",
+    "market":                  "markets",
 }
 
 
