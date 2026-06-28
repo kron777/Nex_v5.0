@@ -37,11 +37,15 @@ def _real_fires(dynamic_db: str, n: int = 6) -> list[str]:
         ).fetchall()
         con.close()
         seen = []
+        seen_text = set()
         for thought, branch in rows:
             if len(seen) >= n:
                 break
             if thought and len(thought.split()) >= 8:
-                seen.append((thought[:120], branch or ""))
+                key = thought[:60].lower().strip()
+                if key not in seen_text:
+                    seen_text.add(key)
+                    seen.append((thought[:120], branch or ""))
         return seen
     except Exception:
         return []
@@ -54,10 +58,17 @@ def _recent_t6(beliefs_db: str, n: int = 3) -> list[str]:
         rows = con.execute(
             "SELECT content FROM beliefs WHERE tier=6 "
             "AND content NOT LIKE '[%' "
-            "ORDER BY created_at DESC LIMIT ?", (n,)
+            "ORDER BY created_at DESC LIMIT ?", (n * 4,)
         ).fetchall()
         con.close()
-        return [r[0][:80] for r in rows if r[0]]
+        # filter out self-referential content — same logic as curator
+        results = []
+        for r in rows:
+            if not r[0]: continue
+            if _SELF_RX.search(r[0]): continue
+            results.append(r[0][:80])
+            if len(results) >= n: break
+        return results
     except Exception:
         return []
 
