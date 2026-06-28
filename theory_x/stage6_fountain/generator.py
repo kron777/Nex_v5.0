@@ -325,6 +325,20 @@ class FountainGenerator:
         self._last_fire_ts: float = 0.0
         self._total_fires: int = 0
         self._stakes_active: bool = False  # L4: world-contact gate
+        self._self_narrative = None  # Phase 26: SelfNarrative instance (set below)
+        if os.environ.get("NEX5_SELF_NARRATIVE") == "1":
+            try:
+                from theory_x.stage_tom.self_narrative import SelfNarrative
+                try:
+                    from substrate.paths import db_paths as _dbp_sn
+                    _p = _dbp_sn()
+                    _ddb = str(_p["dynamic"]); _bdb = str(_p["beliefs"])
+                except Exception:
+                    _ddb = "/home/rr/Desktop/nex5/data/dynamic.db"
+                    _bdb = "/home/rr/Desktop/nex5/data/beliefs.db"
+                self._self_narrative = SelfNarrative(_ddb, _bdb)
+            except Exception:
+                pass
         self._last_rut_notice_ts: float = 0.0  # §9 rut-mirror throttle
         self._consecutive_stillness: int = 0
         self._last_drive_probe_tick: int = -(
@@ -2372,6 +2386,20 @@ class FountainGenerator:
                         "ORDER BY RANDOM() LIMIT 2"
                     )
                     spec_rows = extra
+                # Phase 26: inject living narrative before static standing-points
+                # "When I let go of what I am, I become what I might be."
+                # The narrative says what the attending has ACTUALLY been doing —
+                # not who she declared herself to be. Specific beats eternal here.
+                if (os.environ.get("NEX5_SELF_NARRATIVE") == "1"
+                        and self._self_narrative is not None):
+                    try:
+                        _living = self._self_narrative.get_narrative()
+                        if _living:
+                            prompt_parts.append(_living)
+                            prompt_parts.append("")
+                    except Exception:
+                        pass  # fail-safe — never break a fire
+
                 if spec_rows:
                     prompt_parts.append("Your foundation right now (these are standing-points from which you witness, not propositions to repeat):")
                     for _spec_rank, r in enumerate(spec_rows, start=1):
