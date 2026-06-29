@@ -32,8 +32,6 @@ _WINDOW_SECS   = 3 * 3600   # look back 3 hours of fires
 _MIN_FIRES     = 3           # need at least this many fires per branch to trust signal
 _HIGH_GENIUS   = 0.55        # score >= this = genuinely grounded fire
 _LOW_GENIUS    = 0.25        # score <= this = template/drift fire
-_QUALITY_BONUS = 0.10        # focus_num boost for high-quality branches
-_QUALITY_PENALTY = 0.06      # focus_num reduction for template-dominated branches
 _SIGNAL_FILE   = Path("/home/rr/Desktop/nex5/data/quality_signal.json")
 
 
@@ -122,31 +120,16 @@ def apply_quality_signal(branch_quality: dict[str, dict]) -> dict:
 
     applied = 0
     try:
-        d_con = sqlite3.connect(_db("dynamic"), timeout=5)
         for branch, info in branch_quality.items():
             verdict = info["verdict"]
             if verdict == "high":
-                # Boost focus_num — same mechanism as _STARVE_BONUS
-                d_con.execute(
-                    "UPDATE bonsai_branches SET focus_num = MIN(1.0, "
-                    "COALESCE(focus_num, 0.0) + ?) WHERE id = ?",
-                    (_QUALITY_BONUS, branch)
-                )
-                applied += d_con.total_changes
-                log.info("quality_synthesis: BOOST %s (mean=%.2f, %d fires)",
+                        log.info("quality_synthesis: HIGH  %s (mean=%.2f, %d fires) -> 1.20x attention",
                          branch, info["mean_score"], info["fire_count"])
+                applied += 1
             elif verdict == "low":
-                # Gentle penalty — reduce but never below 0
-                d_con.execute(
-                    "UPDATE bonsai_branches SET focus_num = MAX(0.0, "
-                    "COALESCE(focus_num, 0.0) - ?) WHERE id = ?",
-                    (_QUALITY_PENALTY, branch)
-                )
-                applied += d_con.total_changes
-                log.info("quality_synthesis: DAMP  %s (mean=%.2f, %d fires)",
+                log.info("quality_synthesis: LOW   %s (mean=%.2f, %d fires) -> 0.82x attention",
                          branch, info["mean_score"], info["fire_count"])
-        d_con.commit()
-        d_con.close()
+                applied += 1
     except Exception as exc:
         log.warning("quality_synthesis.apply error: %s", exc)
 
