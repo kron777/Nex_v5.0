@@ -1312,6 +1312,19 @@ class FountainGenerator:
                           file=_sys_l4.stderr, flush=True)
             except Exception:
                 self._stakes_active = False  # fail-safe
+        # HOT observer: classify fire, write meta-belief about it (fail-safe)
+        if os.environ.get("NEX5_HOT_OBSERVER") == "1":
+            try:
+                from theory_x.stage_tom.hot_observer import observe as _hot_obs
+                try:
+                    from substrate.paths import db_paths as _dbp_hot
+                    _bdb_hot = str(_dbp_hot()["beliefs"])
+                except Exception:
+                    _bdb_hot = "/home/rr/Desktop/nex5/data/beliefs.db"
+                _hot_obs(thought or "", hot_branch or "", _bdb_hot)
+            except Exception:
+                pass  # never stall a fire
+
         ts_now = time.time()
         payload = json.dumps(
             {"thought": thought, "readiness": readiness, "hot_branch": hot_branch}
