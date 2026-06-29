@@ -1,21 +1,18 @@
 """Quality Synthesis — NEX's RSI loop.
 
-Perplexity Brain for NEX: reviews what she actually fired, measures quality
-(genius score), identifies which branches produce high-quality vs template
-fires, and feeds that signal back into bonsai attention weights.
+Perplexity Brain for NEX: reviews genius scores per branch, writes a quality
+signal JSON file. The attention._magnitude_for function reads this file and
+applies a multiplier: high-genius branches get 1.20x amplification on incoming
+sense events (accumulate focus_num faster), low-genius get 0.82x dampening.
 
 The loop:
   1. Pull last N genius-tagged fires from conversations.db
   2. Join with fountain_events in dynamic.db to get hot_branch per fire
-  3. Compute mean genius score per branch (high = grounded, low = template)
-  4. Write quality bonuses/penalties directly to bonsai_branches.focus_num
-     in dynamic.db — same mechanism as _STARVE_BONUS in bonsai.py
+  3. Compute mean genius score per branch
+  4. Write data/quality_signal.json
+  5. attention.py reads it every 5 min and applies multipliers at magnitude calc
 
-This is genuine RSI: quality of output feeds back into what gets attended.
-Not weight modification. Not code rewriting. But real: what she did well
-shapes what she does next.
-
-Run every 30 min via background thread or keepalive cron.
+Runs every 30 min via background thread started in generator.__init__.
 """
 from __future__ import annotations
 
@@ -27,42 +24,32 @@ from pathlib import Path
 
 log = logging.getLogger("theory_x.quality_synthesis")
 
-# ── Config ────────────────────────────────────────────────────────────────────
-_WINDOW_SECS   = 3 * 3600   # look back 3 hours of fires
-_MIN_FIRES     = 3           # need at least this many fires per branch to trust signal
-_HIGH_GENIUS   = 0.55        # score >= this = genuinely grounded fire
-_LOW_GENIUS    = 0.25        # score <= this = template/drift fire
-_SIGNAL_FILE   = Path("/home/rr/Desktop/nex5/data/quality_signal.json")
+_WINDOW_SECS  = 3 * 3600
+_MIN_FIRES    = 3
+_HIGH_GENIUS  = 0.55
+_LOW_GENIUS   = 0.25
+_SIGNAL_FILE  = Path("/home/rr/Desktop/nex5/data/quality_signal.json")
 
 
 def _db(name: str) -> str:
     base = Path("/home/rr/Desktop/nex5/data")
-    paths = {"conversations": base / "conversations.db",
-             "dynamic":       base / "dynamic.db"}
-    return str(paths[name])
+    return str({"conversations": base / "conversations.db",
+                "dynamic":       base / "dynamic.db"}[name])
 
 
-def compute_branch_quality(window_secs: int = _WINDOW_SECS) -> dict[str, dict]:
-    """
-    Returns {branch_id: {mean_score, fire_count, verdict}}
-    verdict: 'high' | 'low' | 'neutral'
-    """
+def compute_branch_quality(window_secs: int = _WINDOW_SECS) -> dict:
     cutoff = time.time() - window_secs
     try:
-        # Pull genius scores with fountain_event_id from conversations.db
         c_con = sqlite3.connect(_db("conversations"), timeout=5)
         c_con.row_factory = sqlite3.Row
         tags = c_con.execute(
             "SELECT fountain_event_id, score FROM genius_tags "
-            "WHERE tagged_at > ? ORDER BY tagged_at DESC",
-            (cutoff,)
+            "WHERE tagged_at > ? ORDER BY tagged_at DESC", (cutoff,)
         ).fetchall()
         c_con.close()
-
         if not tags:
             return {}
 
-        # Join with fountain_events in dynamic.db to get hot_branch
         d_con = sqlite3.connect(_db("dynamic"), timeout=5)
         d_con.row_factory = sqlite3.Row
         fids = [t["fountain_event_id"] for t in tags]
@@ -73,19 +60,15 @@ def compute_branch_quality(window_secs: int = _WINDOW_SECS) -> dict[str, dict]:
         ).fetchall()
         d_con.close()
 
-        # Build lookup: event_id -> branch
         branch_map = {e["id"]: e["hot_branch"] for e in events
                       if e["hot_branch"] and e["hot_branch"] != "quiescent"}
 
-        # Aggregate scores per branch
         branch_scores: dict[str, list[float]] = {}
         for tag in tags:
-            fid = tag["fountain_event_id"]
-            branch = branch_map.get(fid)
+            branch = branch_map.get(tag["fountain_event_id"])
             if branch:
                 branch_scores.setdefault(branch, []).append(tag["score"])
 
-        # Compute verdict per branch
         result = {}
         for branch, scores in branch_scores.items():
             if len(scores) < _MIN_FIRES:
@@ -100,70 +83,52 @@ def compute_branch_quality(window_secs: int = _WINDOW_SECS) -> dict[str, dict]:
             else:
                 verdict = "neutral"
             result[branch] = {
-                "mean_score":  round(mean, 3),
-                "fire_count":  len(scores),
-                "high_frac":   round(high_frac, 3),
-                "low_frac":    round(low_frac, 3),
-                "verdict":     verdict,
+                "mean_score": round(mean, 3),
+                "fire_count": len(scores),
+                "high_frac":  round(high_frac, 3),
+                "low_frac":   round(low_frac, 3),
+                "verdict":    verdict,
             }
         return result
-
     except Exception as exc:
         log.warning("quality_synthesis.compute error: %s", exc)
         return {}
 
 
-def apply_quality_signal(branch_quality: dict[str, dict]) -> dict:
-    """Write quality bonuses/penalties to bonsai_branches in dynamic.db."""
-    if not branch_quality:
-        return {"applied": 0}
-
+def apply_quality_signal(branch_quality: dict) -> dict:
     applied = 0
-    try:
-        for branch, info in branch_quality.items():
-            verdict = info["verdict"]
-            if verdict == "high":
-                        log.info("quality_synthesis: HIGH  %s (mean=%.2f, %d fires) -> 1.20x attention",
-                         branch, info["mean_score"], info["fire_count"])
-                applied += 1
-            elif verdict == "low":
-                log.info("quality_synthesis: LOW   %s (mean=%.2f, %d fires) -> 0.82x attention",
-                         branch, info["mean_score"], info["fire_count"])
-                applied += 1
-    except Exception as exc:
-        log.warning("quality_synthesis.apply error: %s", exc)
-
+    for branch, info in branch_quality.items():
+        verdict = info["verdict"]
+        if verdict == "high":
+            log.info("quality_synthesis: HIGH  %s mean=%.2f n=%d -> 1.20x attention",
+                     branch, info["mean_score"], info["fire_count"])
+            applied += 1
+        elif verdict == "low":
+            log.info("quality_synthesis: LOW   %s mean=%.2f n=%d -> 0.82x attention",
+                     branch, info["mean_score"], info["fire_count"])
+            applied += 1
     return {"applied": applied}
 
 
 def run_synthesis() -> dict:
-    """One full synthesis pass. Call periodically."""
     t0 = time.time()
     quality = compute_branch_quality()
     result  = apply_quality_signal(quality)
-
-    # Write signal file for inspection / HUD
     try:
         _SIGNAL_FILE.write_text(json.dumps({
-            "ts": t0,
-            "branches": quality,
-            "applied": result["applied"],
+            "ts": t0, "branches": quality, "applied": result["applied"],
         }, indent=2))
     except Exception:
         pass
-
     elapsed = time.time() - t0
-    log.info("quality_synthesis: pass done in %.1fs — %d branches scored, %d adjusted",
+    log.info("quality_synthesis: pass done %.1fs — %d branches scored %d adjusted",
              elapsed, len(quality), result["applied"])
     return {"quality": quality, "applied": result["applied"], "elapsed_s": elapsed}
 
 
 def start_loop(interval_secs: int = 1800) -> None:
-    """Start background synthesis loop — call once at startup."""
     import threading
-
     def _run():
-        # First pass after 5 min (let her fire a few times first)
         time.sleep(300)
         while True:
             try:
@@ -171,9 +136,7 @@ def start_loop(interval_secs: int = 1800) -> None:
             except Exception as exc:
                 log.error("quality_synthesis loop error: %s", exc)
             time.sleep(interval_secs)
-
-    t = threading.Thread(target=_run, daemon=True, name="quality_synthesis")
-    t.start()
+    threading.Thread(target=_run, daemon=True, name="quality_synthesis").start()
     log.info("quality_synthesis loop started (interval=%ds)", interval_secs)
 
 
@@ -185,9 +148,6 @@ if __name__ == "__main__":
     print("\n=== QUALITY SYNTHESIS PASS ===")
     for branch, info in sorted(result["quality"].items(),
                                 key=lambda x: -x[1]["mean_score"]):
-        v = info["verdict"].upper()
-        print(f"  [{v:7s}] {branch:20s} mean={info['mean_score']:.3f} "
-              f"n={info['fire_count']:3d} "
-              f"high={info['high_frac']:.0%} low={info['low_frac']:.0%}")
-    print(f"\n  adjusted: {result['applied']} branches | "
-          f"elapsed: {result['elapsed_s']:.1f}s")
+        print(f"  [{info['verdict']:7s}] {branch:20s} mean={info['mean_score']:.3f} "
+              f"n={info['fire_count']:3d} high={info['high_frac']:.0%} low={info['low_frac']:.0%}")
+    print(f"\n  adjusted: {result['applied']} | elapsed: {result['elapsed_s']:.1f}s")
