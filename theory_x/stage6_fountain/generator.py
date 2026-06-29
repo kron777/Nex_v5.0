@@ -326,6 +326,13 @@ class FountainGenerator:
         self._total_fires: int = 0
         self._stakes_active: bool = False  # L4: world-contact gate
         self._self_narrative = None  # Phase 26: SelfNarrative instance (set below)
+        # Quality synthesis RSI loop — start once per generator instance
+        if os.environ.get("NEX5_QUALITY_SYNTH") == "1":
+            try:
+                from theory_x.stage_tom.quality_synthesis import start_loop as _qs_start
+                _qs_start(interval_secs=1800)
+            except Exception:
+                pass  # fail-safe — never breaks startup
         if os.environ.get("NEX5_SELF_NARRATIVE") == "1":
             try:
                 from theory_x.stage_tom.self_narrative import SelfNarrative
