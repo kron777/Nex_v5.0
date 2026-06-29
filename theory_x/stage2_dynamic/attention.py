@@ -10,6 +10,35 @@ from typing import Any, Optional
 
 THEORY_X_STAGE = 2
 
+# ── Quality synthesis signal ─────────────────────────────────────────────────
+# Loaded from data/quality_signal.json written by quality_synthesis.py.
+# High-genius branches get amplified attention; low-genius get dampened.
+import json as _json_qs
+_QS_FILE = "/home/rr/Desktop/nex5/data/quality_signal.json"
+_QS_CACHE: dict = {}
+_QS_LOADED_AT: float = 0.0
+_QS_RELOAD_INTERVAL = 300.0  # reload every 5 min
+
+def _quality_multiplier(branch_id: str) -> float:
+    """Return attention magnitude multiplier for this branch based on quality signal."""
+    global _QS_CACHE, _QS_LOADED_AT
+    import time as _t
+    now = _t.time()
+    if now - _QS_LOADED_AT > _QS_RELOAD_INTERVAL:
+        try:
+            data = _json_qs.loads(open(_QS_FILE).read())
+            _QS_CACHE = {b: info for b, info in data.get("branches", {}).items()}
+            _QS_LOADED_AT = now
+        except Exception:
+            pass
+    info = _QS_CACHE.get(branch_id, {})
+    verdict = info.get("verdict", "neutral")
+    if verdict == "high":
+        return 1.20   # 20% amplification for high-quality branches
+    elif verdict == "low":
+        return 0.82   # 18% dampening for template-dominated branches
+    return 1.0        # neutral
+
 _DEFAULT_SCALE: dict[str, float] = {
     "internal.proprioception": 1.0,
     "internal.temporal":       0.5,
@@ -192,4 +221,4 @@ def _magnitude_for(stream: str, value: Any, branch_id: str) -> float:
         scale = _DEFAULT_SCALE.get(stream, 1.0)
         return min(1.0, base + abs(float(value)) / max(1e-9, scale))
 
-    return base
+    return min(1.0, base * _quality_multiplier(branch_id))
