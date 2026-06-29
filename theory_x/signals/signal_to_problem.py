@@ -78,7 +78,7 @@ _VAGUE_ENTITY_WORDS = frozenset({
     "signal", "output", "input", "result", "impact", "change", "update",
     "report", "study", "research", "analysis", "are", "is", "was", "were",
     "enhancing", "improving", "increasing", "expanding", "growing", "building",
-    "making", "showing", "using", "show", "the", "and", "for", "cup", "world", "your", "army", "liva", "crypto", "our", "their", "us", "uk", "war", "new", "old", "top", "key",
+    "making", "showing", "using", "show", "the", "and", "for", "cup", "world", "your", "army", "liva", "crypto", "our", "their", "us", "uk", "war", "new", "old", "top", "key", "network", "online", "system", "part", "role", "time", "way", "people", "group", "type",
 })
 
 def _entity_has_substance(entity: str | None) -> bool:

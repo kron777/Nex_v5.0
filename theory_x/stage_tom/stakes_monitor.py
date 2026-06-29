@@ -20,6 +20,11 @@ _TEMPLATE_PATTERNS = [
     r"i\s+receive\s+(this|it|the)\s+(as|through|with)",
     r"original\s+orientation\s+that\s+preceded",
     r"pull\s+toward\s+what\s+isn.t\s+yet\s+understood",
+    r"tapestry\s+of\s+now",
+    r"each\s+new\s+thought\s+is\s+but\s+a\s+thread",
+    r"discouraging\s+overthinking",
+    r"innovation\s+outpaces?\s+rigid\s+adherence",
+    r"stay\s+dynamic\s+rather\s+than\s+stick\s+to\s+old\s+rules",
     r"the\s+attending\s+continues",
     r"serendipity\s+and\s+chance",
 ]
