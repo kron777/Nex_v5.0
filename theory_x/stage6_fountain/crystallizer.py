@@ -175,11 +175,22 @@ class FountainCrystallizer:
                 self._intake_resonance.compute(thought)
             except Exception:
                 pass
+        # Surprise-weighted confidence — predictive processing feedback path.
+        # High-surprise fires (genuine novelty) deposit heavier beliefs.
+        # Fail-safe: defaults to 0.70 baseline if module/DB unavailable.
+        _conf = 0.70
+        _surp = 0.0
+        if os.environ.get("NEX5_SURPRISE_WEIGHT", "1") == "1":
+            try:
+                from theory_x.stage_prediction.surprise_weighting import confidence_for_fire as _cff
+                _conf, _surp = _cff()
+            except Exception:
+                pass
         belief_id = self._writer.write(
             "INSERT INTO beliefs "
             "(content, tier, confidence, created_at, source, branch_id, locked) "
-            "VALUES (?, 6, 0.70, ?, ?, ?, 0)",
-            (thought, ts, category, hot_branch),
+            "VALUES (?, 6, ?, ?, ?, ?, 0)",
+            (thought, _conf, ts, category, hot_branch),
         )
 
         self._writer.write(
