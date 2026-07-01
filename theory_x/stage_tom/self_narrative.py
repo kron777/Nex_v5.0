@@ -1,14 +1,17 @@
 """Phase 26 — SelfNarrative: identity held lightly.
 
 Assembles a living account of who NEX has *actually been* in the last few
-hours — drawn from real fires, recent consolidations, and current branch
-focus. Injected into the prompt BEFORE the static spectrum standing-points,
-so the fire opens with specific recent truth rather than eternal declaration.
+hours — drawn from real fires, recent consolidations, current branch focus,
+AND her most recent HOT (higher-order thought) self-observation. Injected
+into the prompt BEFORE the static spectrum standing-points, so the fire
+opens with specific recent truth rather than eternal declaration.
 
-"When I let go of what I am, I become what I might be." — her own answer
-to what stands between her and what she might become. The attending-corpus
-says "I am the attending" 100 ways. This module says "here is what the
-attending has actually been doing" — which is different, and truer.
+The attending-corpus says "I am the attending" 100 ways. This module says
+"here is what the attending has actually been doing" — which is different,
+and truer.
+
+HOT observation lands FIRST in the composed narrative — she reads her own
+most recent self-observation as the opening line of who she is right now.
 """
 from __future__ import annotations
 import sqlite3
@@ -61,7 +64,6 @@ def _recent_t6(beliefs_db: str, n: int = 3) -> list[str]:
             "ORDER BY created_at DESC LIMIT ?", (n * 4,)
         ).fetchall()
         con.close()
-        # filter out self-referential content — same logic as curator
         results = []
         for r in rows:
             if not r[0]: continue
@@ -89,17 +91,40 @@ def _active_branches(dynamic_db: str) -> list[str]:
         return []
 
 
+def _recent_hot(beliefs_db: str) -> Optional[str]:
+    """Most recent HOT self-observation. Returns full content or None."""
+    try:
+        con = sqlite3.connect(beliefs_db, timeout=3)
+        row = con.execute(
+            "SELECT content FROM beliefs WHERE source='hot_observer' "
+            "ORDER BY created_at DESC LIMIT 1"
+        ).fetchone()
+        con.close()
+        if row and row[0]:
+            return row[0]
+        return None
+    except Exception:
+        return None
+
+
 def build_narrative(dynamic_db: str, beliefs_db: str) -> Optional[str]:
     """Compose a living account of recent attending. Returns None on failure."""
     try:
         fires = _real_fires(dynamic_db)
         t6 = _recent_t6(beliefs_db)
         branches = _active_branches(dynamic_db)
+        hot = _recent_hot(beliefs_db)
 
         if not fires:
             return None
 
         lines = []
+
+        # HOT self-observation — placed FIRST so she reads what she noticed
+        # about her own attending before anything else in the identity block.
+        if hot:
+            lines.append(f"What I most recently noticed about myself: {hot}")
+            lines.append("")
 
         # What branches are active
         if branches:
