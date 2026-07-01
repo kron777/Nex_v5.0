@@ -78,7 +78,7 @@ _VAGUE_ENTITY_WORDS = frozenset({
     "signal", "output", "input", "result", "impact", "change", "update",
     "report", "study", "research", "analysis", "are", "is", "was", "were",
     "enhancing", "improving", "increasing", "expanding", "growing", "building",
-    "making", "showing", "using", "show", "the", "and", "for", "cup", "world", "your", "army", "liva", "crypto", "our", "their", "us", "uk", "war", "new", "old", "top", "key", "network", "online", "system", "part", "role", "time", "way", "people", "group", "type", "five", "four", "six", "seven", "eight", "nine", "ten", "one", "two", "three", "first", "last", "next", "will", "can", "could", "would", "should", "may", "might", "has", "have", "had", "big", "new", "free", "open", "data", "more", "less",
+    "making", "showing", "using", "show", "the", "and", "for", "cup", "world", "your", "army", "liva", "crypto", "our", "their", "us", "uk", "war", "new", "old", "top", "key", "network", "online", "system", "part", "role", "time", "way", "people", "group", "type", "five", "four", "six", "seven", "eight", "nine", "ten", "one", "two", "three", "first", "last", "next", "will", "can", "could", "would", "should", "may", "might", "has", "have", "had", "big", "new", "free", "open", "data", "more", "less", "memory", "patient", "claude", "learning", "cognitive", "india", "china", "america", "europe", "signal", "market", "state", "level", "case", "point", "line", "value",
 })
 
 def _entity_has_substance(entity: str | None) -> bool:
