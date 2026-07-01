@@ -28,8 +28,11 @@ _OWN_CONTENT_SOURCES = (
     "precipitated_from_sense",
     "behavioural_observation",
     "auto_probe",
-    "hot_observer",   # HOT self-observations — signal, not noise (cap=1)
 )
+# HOT self-observations are retrieved via a dedicated slot (see _retrieve_context_beliefs)
+# because their write cadence is 1/3 of fires, which loses the recency race in the
+# main oversample query. One HOT belief per fire, drawn from last 24h at random.
+_HOT_OBSERVER_LOOKBACK_SECS = 86400
 
 # Max retrieval slots any single source can occupy (Mechanism B fix).
 # Without this cap, synergized beliefs crowd out fountain_insight
@@ -45,7 +48,6 @@ _OWN_PER_SOURCE_MAX = 3
 # "mostly self-historical" to "mostly fresh-world".
 _OWN_PER_SOURCE_OVERRIDES: dict[str, int] = {
     "precipitated_from_sense": 5,
-    "hot_observer": 1,   # one self-observation per fire — encountered, not flooded
 }
 
 
@@ -1916,6 +1918,23 @@ class FountainGenerator:
             except Exception as e:
                 logger.error("residue_save_failed: %s", e)
 
+        # Dedicated HOT observer retrieval — one self-observation per fire.
+        # Bypasses recency race so meta-beliefs actually reach the prompt.
+        if self._beliefs_reader is not None:
+            try:
+                import time as _t_hot
+                _hot_cutoff = int(_t_hot.time()) - _HOT_OBSERVER_LOOKBACK_SECS
+                _hot_rows = self._beliefs_reader.read(
+                    "SELECT id, content, source, tier, confidence, created_at, branch_id, "
+                    "1.0 AS boost_value FROM beliefs "
+                    "WHERE source='hot_observer' AND created_at > ? "
+                    "ORDER BY RANDOM() LIMIT 1",
+                    (_hot_cutoff,)
+                )
+                if _hot_rows:
+                    result.extend([dict(r) for r in _hot_rows])
+            except Exception:
+                pass  # fail-safe
         result.extend(_own_picked)
         result.extend(list(seed_rows))
         # Record use_count for provenance erosion + DriveEmergence detection
