@@ -28,6 +28,7 @@ _OWN_CONTENT_SOURCES = (
     "precipitated_from_sense",
     "behavioural_observation",
     "auto_probe",
+    "hot_observer",   # HOT self-observations — signal, not noise (cap=1)
 )
 
 # Max retrieval slots any single source can occupy (Mechanism B fix).
@@ -44,6 +45,7 @@ _OWN_PER_SOURCE_MAX = 3
 # "mostly self-historical" to "mostly fresh-world".
 _OWN_PER_SOURCE_OVERRIDES: dict[str, int] = {
     "precipitated_from_sense": 5,
+    "hot_observer": 1,   # one self-observation per fire — encountered, not flooded
 }
 
 
