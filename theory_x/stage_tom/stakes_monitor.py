@@ -43,6 +43,9 @@ _TEMPLATE_PATTERNS = [
     r"both\s+thoughts\s+(highlight|reveal|reflect)",
     r"the\s+(recent|renewed)\s+thought\s+(revisits|sees|now)",
     r"i\s+notice\s+the\s+(interplay|balance|tension|constant)",
+    r"constant\s+duality\s+and\s+interconnect",
+    r"duality\s+and\s+interconnectedness",
+    r"interconnection\s+in\s+the\s+item",
 ]
 
 _TEMPLATE_RX = re.compile(

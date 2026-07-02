@@ -25,9 +25,14 @@ from pathlib import Path
 log = logging.getLogger("theory_x.quality_synthesis")
 
 _WINDOW_SECS  = 3 * 3600
-_MIN_FIRES    = 3
+_MIN_FIRES    = 8          # was 3 — 5-fire samples were triggering LOW verdicts
+                            # that then suppressed the very branch that needed
+                            # more fires to recover. Require real data before judging.
 _HIGH_GENIUS  = 0.55
 _LOW_GENIUS   = 0.25
+_MAX_DAMPENED_BRANCHES = 2  # never dampen more than 2 branches at once —
+                            # protects diversity when many thin branches
+                            # simultaneously look bad on small samples
 _SIGNAL_FILE  = Path("/home/rr/Desktop/nex5/data/quality_signal.json")
 
 
@@ -97,6 +102,13 @@ def compute_branch_quality(window_secs: int = _WINDOW_SECS) -> dict:
 
 def apply_quality_signal(branch_quality: dict) -> dict:
     applied = 0
+    # Cap how many branches can be dampened simultaneously — protects
+    # diversity from a cascade where every thin branch looks LOW at once.
+    low_candidates = [(b, i) for b, i in branch_quality.items()
+                       if i["verdict"] == "low"]
+    low_candidates.sort(key=lambda x: x[1]["mean_score"])
+    dampened_branches = {b for b, _ in low_candidates[:_MAX_DAMPENED_BRANCHES]}
+
     for branch, info in branch_quality.items():
         verdict = info["verdict"]
         if verdict == "high":
@@ -104,9 +116,14 @@ def apply_quality_signal(branch_quality: dict) -> dict:
                      branch, info["mean_score"], info["fire_count"])
             applied += 1
         elif verdict == "low":
-            log.info("quality_synthesis: LOW   %s mean=%.2f n=%d -> 0.82x attention",
-                     branch, info["mean_score"], info["fire_count"])
-            applied += 1
+            if branch in dampened_branches:
+                log.info("quality_synthesis: LOW   %s mean=%.2f n=%d -> 0.82x attention",
+                         branch, info["mean_score"], info["fire_count"])
+                applied += 1
+            else:
+                log.info("quality_synthesis: LOW   %s mean=%.2f n=%d -> neutral "
+                         "(dampen cap reached, protecting diversity)",
+                         branch, info["mean_score"], info["fire_count"])
     return {"applied": applied}
 
 

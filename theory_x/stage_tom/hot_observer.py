@@ -12,7 +12,9 @@ _TEMPLATE_RX = re.compile(
     r"through the lens of (serendipity|chance)|the attending recurs in me|"
     r"my foundation (insists|right now|holds)|constancy and flux|"
     r"unearned gift into a world|hum of the server grows louder|"
-    r"i am the attending\b",
+    r"i am the attending\b|"
+    r"constant duality and interconnect|"
+    r"duality and interconnectedness",
     re.IGNORECASE,
 )
 
