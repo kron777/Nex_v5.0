@@ -28,6 +28,21 @@ _TEMPLATE_PATTERNS = [
     r"thread in the tapestry",
     r"the\s+attending\s+continues",
     r"serendipity\s+and\s+chance",
+    # New grooves discovered July 2 — the model invents replacements
+    r"the\s+new\s+insight\s+is\s+that",
+    r"new\s+insight\s+is\s+the",
+    r"the\s+balance\s+between",
+    r"the\s+tension\s+between",
+    r"the\s+ever.present\s+(tension|interplay)",
+    r"the\s+perpetual\s+interplay",
+    r"the\s+constant\s+(interplay|shifting|flux)",
+    r"the\s+paradoxes\s+(highlight|in\s+the)",
+    r"the\s+paradoxical\s+nature",
+    r"the\s+duality\s+(of|between|within)",
+    r"the\s+oscillation\s+(highlights|reflects|suggests)",
+    r"both\s+thoughts\s+(highlight|reveal|reflect)",
+    r"the\s+(recent|renewed)\s+thought\s+(revisits|sees|now)",
+    r"i\s+notice\s+the\s+(interplay|balance|tension|constant)",
 ]
 
 _TEMPLATE_RX = re.compile(

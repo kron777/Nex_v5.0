@@ -6,7 +6,7 @@ from pathlib import Path
 log = logging.getLogger("theory_x.hot_observer")
 
 _TEMPLATE_RX = re.compile(
-    r"tapestry of now|each new thought is but a thread|"
+    r"tapestry of now|each new thought is but a thread|the new insight is that|the balance between|the tension between|the ever-present tension|the perpetual interplay|the paradoxes highlight|the oscillation highlights|both thoughts highlight|"
     r"discouraging overthinking|innovation outpaces|stick to old rules|"
     r"thread in the tapestry|aligns with my (foundation|standing.point)|"
     r"through the lens of (serendipity|chance)|the attending recurs in me|"

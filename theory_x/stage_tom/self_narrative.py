@@ -115,13 +115,28 @@ def build_narrative(dynamic_db: str, beliefs_db: str) -> Optional[str]:
         branches = _active_branches(dynamic_db)
         hot = _recent_hot(beliefs_db)
 
+        # Aggregate self-model: statistical knowledge of habitual patterns.
+        # Fail-safe — never blocks the narrative.
+        aggregate = None
+        try:
+            from theory_x.stage_tom.self_model_aggregator import aggregate_self_model
+            aggregate = aggregate_self_model(beliefs_db)
+        except Exception:
+            pass
+
         if not fires:
             return None
 
         lines = []
 
-        # HOT self-observation — placed FIRST so she reads what she noticed
-        # about her own attending before anything else in the identity block.
+        # Aggregate self-model — running statistics FIRST. She knows what
+        # she habitually does before she encounters what she just did.
+        if aggregate:
+            lines.append(f"What I know about my own patterns: {aggregate}")
+            lines.append("")
+
+        # HOT self-observation — most recent specific self-noticing.
+        # Reads it AFTER the aggregate so specific instance follows general pattern.
         if hot:
             lines.append(f"What I most recently noticed about myself: {hot}")
             lines.append("")
