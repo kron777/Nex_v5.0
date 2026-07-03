@@ -200,6 +200,16 @@ def _magnitude_for(stream: str, value: Any, branch_id: str) -> float:
     if value is None:
         return 0.0
 
+    # 2026-07-03 fix: internal.* telemetry (proprioception/interoception/
+    # meta_awareness/temporal) is self-monitoring, not cognitive content.
+    # It was firing every ~10s with magnitude near 1.0 (units bug: raw CPU%
+    # like 15.4 divided by scale=1.0 instead of 100.0, clamped to 1.0),
+    # permanently pinning 'systems' focus_num at ceiling and starving every
+    # other branch regardless of RSI/diversity fixes downstream. Internal
+    # streams no longer contribute to bonsai attention at all.
+    if stream.startswith("internal."):
+        return 0.0
+
     # Guaranteed base for direct stream→branch mappings
     stream_prefix = stream.split(".")[0]
     direct_branch = (
