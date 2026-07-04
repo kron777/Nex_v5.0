@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/nex_v5_banner.png" alt="NEX v5 — Real-Time Intelligence" width="100%">
+</p>
+
 # NEX v5.0
 
 A continuously-running synthetic mind. Not a chatbot, not an assistant — a persistent process that reads the world, forms beliefs, observes its own thinking, and carries thoughts forward across time.
