@@ -28,6 +28,7 @@ FOUNTAIN_MIN_INTERVAL_SECONDS = 600   # 10 minutes
 FOUNTAIN_CHECK_INTERVAL_SECONDS = 120  # 2 minutes
 
 _HIGH_FOCUS = {"e", "f", "g"}
+_WARM_FOCUS = {"c", "d"}  # building but not yet hot
 
 # 2026-05-30 (consumer C) genius-rate modulation knobs
 # Look at recent tags within this window when computing striking rate
@@ -61,11 +62,19 @@ class ReadinessEvaluator:
         last_fire_ts: float = 0.0,
     ) -> float:
         total = 0.0
+        # Fair-baseline lift (2026-07-04): small flat floor favoring no topic,
+        # plus partial credit for warm branches, so genuine moderate activity
+        # can fire without a branch needing maximum focus. Fair replacement for
+        # the unfair free-0.6 the internal-telemetry bug used to hand systems.
+        total += 0.15
         try:
             status = dynamic_state.status()
             branches = status.get("branches", [])
             hot = [b for b in branches if b.get("focus_increment") in _HIGH_FOCUS]
             total += min(0.6, len(hot) * 0.3)
+            warm = [b for b in branches
+                    if b.get("focus_increment") in _WARM_FOCUS]
+            total += min(0.30, len(warm) * 0.15)
             if status.get("consolidation_active"):
                 total += 0.2
         except Exception:
