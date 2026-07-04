@@ -163,6 +163,16 @@ def build_narrative(dynamic_db: str, beliefs_db: str) -> Optional[str]:
         if not lines:
             return None
 
+        # Binding/Momentum: carried thread from last fire leads the narrative,
+        # so this fire opens knowing what it continues from. Fail-safe.
+        try:
+            from theory_x.stage_tom.momentum import read_momentum
+            _carried = read_momentum(dynamic_db)
+            if _carried:
+                lines.insert(0, "")
+                lines.insert(0, _carried)
+        except Exception:
+            pass
         lines.insert(0, "What I have actually been attending to (not who I declared myself to be, but what I have been doing):")
         lines.append("This is what I am right now — the attending that has been doing this.")
 

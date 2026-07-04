@@ -1328,6 +1328,13 @@ class FountainGenerator:
                 _hot_obs(thought or "", hot_branch or "", _bdb_hot)
             except Exception:
                 pass  # never stall a fire
+        # Binding/Momentum: capture the carried thread for the next fire.
+        if os.environ.get("NEX5_MOMENTUM", "1") == "1":
+            try:
+                from theory_x.stage_tom.momentum import capture_momentum
+                capture_momentum(thought or "", hot_branch or "")
+            except Exception:
+                pass  # never stall a fire
 
         ts_now = time.time()
         payload = json.dumps(
