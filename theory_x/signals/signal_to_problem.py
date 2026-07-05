@@ -232,10 +232,17 @@ def signal_to_problem_tick() -> dict:
                 log.debug("quality_gate: blocked vague entity %r", entity)
                 skipped += 1
                 continue
+            # 2026-07-05: single-word entities need STRONGER corroboration.
+            # Common capitalized words (Design, Hawaii, Memory, Fable) hit 2
+            # accidental mentions constantly ("chip design", "UI design"...)
+            # and kept opening recurring noise problems all day. Multi-word
+            # entities ("Chat Control", "Flipper Zero") are inherently
+            # specific, so 2 mentions stays sufficient for them.
+            _min_mentions = 3 if (entity and " " not in entity.strip()) else 2
             if (os.environ.get("NEX5_SIG_QUALITY") == "1"
                     and title.startswith("Signal: investigate '")
                     and entity
-                    and _entity_counts.get(entity.strip().lower(), 0) < 2):
+                    and _entity_counts.get(entity.strip().lower(), 0) < _min_mentions):
                 # one-off, uncorroborated headline fragment — don't open a
                 # sustained problem for it; mark actioned so we stop re-checking.
                 b_cx.execute(
