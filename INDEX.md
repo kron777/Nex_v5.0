@@ -60,7 +60,7 @@ everything in prior bundles.
 
 **Continuing exactly from a previous session:**
 - `DIRECTION.md` (current operating position)
-- `CARRY_OVER.md` (recent session findings, chronological)
+- `journal/CARRY_OVER.md` (recent session findings, chronological)
 
 **Phase 0-9 era code** (sense pipeline, A-F pipeline, fountain readiness,
 strikes, ProblemMemory, tools, original substrate layout):
@@ -139,7 +139,7 @@ now* snapshot. **Not a substitute for SPECIFICATION + DOCTRINE.**
 **7. `DIRECTION.md`** — current operating position. §11 coda contains
 the most recent corrections.
 
-**8. `CARRY_OVER.md`** — session findings, most recent first.
+**8. `journal/CARRY_OVER.md`** — session findings, most recent first.
 
 ---
 
@@ -155,7 +155,7 @@ Quiet hours 23-07 default. Voice configurable via `NEX5_SPEECH_VOICE`.
 Disable via `NEX5_SPEECH_ENABLED=false`. GUI control icon at FOUNTAIN
 header. Endpoints `/api/speech/{status,pause,resume,flush}`.
 
-**Decoder subsystem** — `JOURNAL_2026-05-18.md`. `theory_x/coincidence/decoder_loop.py`
+**Decoder subsystem** — `journal/JOURNAL_2026-05-18.md`. `theory_x/coincidence/decoder_loop.py`
 polls `fountain_events` every 30s, tokenizes thoughts, writes per-word
 substrate fingerprints to `word_contexts` table (41k+ entries). Human-
 curated `word_tags` (key / unsure / noise). 3-tab decoder UI panel at
@@ -208,19 +208,19 @@ weight / openness dimensions; EMA shift toward what she's attending to).
 
 ## §6 Critical findings to know before working on nex5
 
-**Template lock** (`JOURNAL_2026-05-18.md`). "The distant hum feels
+**Template lock** (`journal/JOURNAL_2026-05-18.md`). "The distant hum feels
 like..." starts 1,082 of 5,659 fountain fires — 31% of total output is
 one template skeleton with random noun rotation. Decoding-resistant.
 Largest single behavioral pattern in nex5 output to date.
 
-**Feedback contamination event** (`JOURNAL_2026-05-18.md`). When NEX got
+**Feedback contamination event** (`journal/JOURNAL_2026-05-18.md`). When NEX got
 read access to her own coin/noise tags via `NEX_TAG_FEEDBACK_ON`,
 fountain output began containing the literal text `[coin]` — echoing
 the prompt format she was seeing. Kill switch fired correctly. Pre-kill
 contamination rate 0.7%; post-kill 0%. Re-enable conditions require
 format-change before turning back on.
 
-**Voice register shift** (`CARRY_OVER.md` 2026-05-22). Overnight 12-step
+**Voice register shift** (`journal/CARRY_OVER.md` 2026-05-22). Overnight 12-step
 SELF_SIGNAL chain produced a register fully diverging from cumulative
 voice_profile signature. Either Theory X stage-7 maturation or transient
 deep-groove. Repeated runs of
@@ -240,7 +240,7 @@ Drain rate 500-per-300s monitor tick = ~144k/day cap; REJECT inflow
 (bookkeeping artifact, not silence). Reasoning organ is not muted.
 Architectural questions remain about whether cluster-threshold firing
 should be wired through (currently dead code at firing layer) — see
-`CHORD.md` §4 deliverable B for the rescoped audit.
+`journal/CHORD.md` §4 deliverable B for the rescoped audit.
 
 **Substrate-as-Voice status conflict.** `MIRROR_CHARACTER_SPEC.md` §I
 references *"Substrate-as-Voice (commit f1469b4)"* as a shipped
@@ -297,7 +297,7 @@ roughly every 2-3 hours.
 - Resume after dashboard SIGSTOP / pause-button cycles:
   `/home/rr/.local/bin/nex5-resume`
 - **werkzeug can lose its listener socket without crashing** — "process
-  death without crash" symptom (`CARRY_OVER.md` 2026-05-21 14:05).
+  death without crash" symptom (`journal/CARRY_OVER.md` 2026-05-21 14:05).
   py-spy will show all threads alive but no port listener.
 - venv at `.venv/bin/python3`
 - Repository: `git@github.com:kron777/Nex_v5.0.git`, branch `main`
