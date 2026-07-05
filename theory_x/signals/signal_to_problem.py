@@ -244,6 +244,34 @@ def signal_to_problem_tick() -> dict:
                 )
                 skipped += 1
                 continue
+            # Burst-type gate (2026-07-05): "Why is X producing strong beliefs
+            # right now?" and "What pattern is emerging in X?" come from
+            # t6_promotion_burst / pattern_recognition_burst signals. A branch
+            # producing strong beliefs is normal healthy behavior, not an
+            # anomaly worth a sustained problem — these bypassed the
+            # investigate-gate (wrong title prefix) and accumulated 38+ noise
+            # problems. Throttle: only open a burst-question if no same-type
+            # problem for this framing opened in the last 24h.
+            _BURST_TITLES = ("Why is ", "What pattern is emerging in ")
+            if title.startswith(_BURST_TITLES):
+                try:
+                    _cutoff = time.time() - 86400
+                    _dupe = cv_cx.execute(
+                        "SELECT COUNT(*) FROM open_problems "
+                        "WHERE title = ? AND created_at > ?",
+                        (title, _cutoff)
+                    ).fetchone()
+                    if _dupe and _dupe[0] > 0:
+                        b_cx.execute(
+                            "UPDATE signals SET actioned_at=? WHERE id=?",
+                            (time.time(), sig["id"])
+                        )
+                        log.debug("burst_gate: throttled duplicate %r", title[:60])
+                        skipped += 1
+                        continue
+                except sqlite3.Error:
+                    pass  # fail-open: if the check errors, allow it through
+
             desc = _compose_description(sig["signal_type"], payload, sig["id"])
             now = time.time()
 

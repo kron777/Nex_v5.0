@@ -44,6 +44,13 @@ _TEMPLATE_PATTERNS = [
     r"the\s+(recent|renewed)\s+thought\s+(revisits|sees|now)",
     r"i\s+notice\s+the\s+(interplay|balance|tension|constant)",
     r"constant\s+duality\s+and\s+interconnect",
+    r"the\s+transient\s+nature\s+of",
+    r"transient\s+nature\s+of",
+    r"the\s+ephemeral\s+nature",
+    r"the\s+fleeting\s+nature",
+    r"underscores\s+the\s+(longevity|persistence|importance)",
+    r"highlights\s+persistent\s+human",
+    r"what\s+matters\s+is\s+not\s+solely",
     r"duality\s+and\s+interconnectedness",
     r"interconnection\s+in\s+the\s+item",
 ]

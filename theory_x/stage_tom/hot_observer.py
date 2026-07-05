@@ -14,7 +14,9 @@ _TEMPLATE_RX = re.compile(
     r"unearned gift into a world|hum of the server grows louder|"
     r"i am the attending\b|"
     r"constant duality and interconnect|"
-    r"duality and interconnectedness",
+    r"duality and interconnectedness|"
+    r"the transient nature of|transient nature of|"
+    r"the ephemeral nature|the fleeting nature",
     re.IGNORECASE,
 )
 
