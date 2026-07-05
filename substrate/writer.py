@@ -152,6 +152,22 @@ class Writer:
                 break
             try:
                 item.future.set_result(self._execute(item))
+            except sqlite3.IntegrityError as e:
+                # UNIQUE constraint on beliefs.content is EXPECTED, not an error:
+                # the store is correctly refusing a duplicate belief. Log quietly
+                # at debug level (no traceback, no error-channel spam) so genuine
+                # errors stay visible in the log. Still propagate to the caller.
+                if "UNIQUE constraint" in str(e):
+                    logger.debug("Writer duplicate skipped on %s: %s",
+                                 self.db_path, e)
+                else:
+                    logger.exception("Writer integrity error on %s", self.db_path)
+                    error_channel.record(
+                        f"Writer integrity error on {self.db_path}: {e}",
+                        source=f"substrate.writer[{self.name}]",
+                        exc=e,
+                    )
+                item.future.set_exception(e)
             except BaseException as e:
                 logger.exception("Writer error on %s", self.db_path)
                 error_channel.record(
