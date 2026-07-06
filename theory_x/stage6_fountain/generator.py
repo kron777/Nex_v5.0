@@ -2049,6 +2049,28 @@ class FountainGenerator:
         examples_block  = "\n".join(f'- "{ex}"' for ex in examples_list)
         examples_inline = " / ".join(f'"{ex}"' for ex in examples_list)
         focus_block = f"\n{mode.drift_prompt_focus}\n" if mode.drift_prompt_focus else "\n"
+        # GLOBAL WORKSPACE (GWT): survey competing module signals, pick the
+        # single most salient, and let it LEAD the focus_block. The other
+        # module blocks still append below — but the winner sets the frame.
+        # Competition -> broadcast. Fail-safe: prepends nothing on error.
+        if os.environ.get("NEX5_GLOBAL_WORKSPACE", "1") == "1":
+            try:
+                from theory_x.stage_tom.global_workspace import arbitrate as _gw_arb
+                _drive_hint = ""
+                if self._drive_emergence is not None:
+                    try:
+                        _drive_hint = self._drive_emergence.format_for_prompt() or ""
+                    except Exception:
+                        _drive_hint = ""
+                _gw_line = _gw_arb(
+                    dynamic_status,
+                    stakes_active=getattr(self, "_stakes_active", False),
+                    drive_line=_drive_hint,
+                )
+                if _gw_line:
+                    focus_block = f"\n{_gw_line}\n" + focus_block
+            except Exception:
+                pass  # never break a fire
         # Echo-and-extend: if substrate-voice just fired (and a normal LLM
         # fire is now happening), prepend the anchor to the prompt with
         # instructions to extend from it, not paraphrase. One-shot consume.
