@@ -427,6 +427,27 @@ def main() -> None:
     except Exception as _ps_err:
         log.warning("PredictiveSubstrate failed to start (non-fatal): %s", _ps_err)
 
+    # Phase 37b — PersonaResponder (the SENDING half of the dialogue loop).
+    # Layer 4 SOCIAL (generator.py, env-gated on NEX5_SOCIAL_N) already reads
+    # external.other_mind and tells NEX "another mind responded, answer back" —
+    # but nothing ever generated that other mind's side, so it fired once
+    # (2026-06-14) then went silent. This closes the loop: a genuinely distinct
+    # persona (different system prompt, higher temperature) periodically reads
+    # NEX's recent thoughts and writes a reply as external.other_mind. Additive
+    # only — writes to sense_events, touches no beliefs/genius/fountain directly.
+    # Both halves must be on for dialogue to flow: this loop writes the other
+    # mind's turn, NEX5_SOCIAL_N (set separately) lets the fountain read it back.
+    if os.environ.get("NEX5_PERSONA_RESPONDER", "0") == "1":
+        try:
+            from theory_x.stage_tom.persona_responder import PersonaResponderLoop as _PRL
+            _persona_interval = int(os.environ.get("NEX5_PERSONA_INTERVAL", "600"))
+            _persona_responder = _PRL(interval=_persona_interval)
+            _persona_responder.start_loop()
+            log.info("PersonaResponder ready — separate mind answering NEX every %ds",
+                      _persona_interval)
+        except Exception as _pr_err:
+            log.warning("PersonaResponder failed to start (non-fatal): %s", _pr_err)
+
     # Phase 37 — SelfMindView (queryable self-view + snapshot history)
     _self_mind_view = None
     try:
