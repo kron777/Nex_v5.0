@@ -81,6 +81,32 @@ _VAGUE_ENTITY_WORDS = frozenset({
     "making", "showing", "using", "show", "the", "and", "for", "cup", "world", "your", "army", "liva", "crypto", "our", "their", "us", "uk", "war", "new", "old", "top", "key", "network", "online", "system", "part", "role", "time", "way", "people", "group", "type", "five", "four", "six", "seven", "eight", "nine", "ten", "one", "two", "three", "first", "last", "next", "will", "can", "could", "would", "should", "may", "might", "has", "have", "had", "big", "new", "free", "open", "data", "more", "less", "memory", "patient", "claude", "learning", "cognitive", "india", "china", "america", "europe", "signal", "market", "state", "level", "case", "point", "line", "value", "england", "britain", "mexico", "russia", "ukraine", "france", "germany", "japan", "canada", "australia", "rust", "python", "java", "linux",
 })
 
+# 2026-07-07: closed-category gate, not another word-list entry. "Large" and
+# "You" both slipped past _VAGUE_ENTITY_WORDS (an open-ended list that can
+# never cover every common adjective/pronoun) and produced an elaborate fake
+# research thread ("Investigate Large... Engage with them directly for
+# clarity on their priorities"). Rather than adding "large" as word #91, this
+# rejects whole GRAMMATICAL CATEGORIES that can never be a real investigation
+# topic: personal/possessive pronouns, articles, and common size/quality
+# adjectives. A genuine proper noun (Bitcoin, Postgres, Fable) is never a
+# member of any of these closed, small, linguistically-complete sets.
+_PRONOUNS = frozenset({
+    "you", "your", "yours", "i", "me", "my", "mine", "we", "us", "our",
+    "ours", "he", "him", "his", "she", "her", "hers", "it", "its", "they",
+    "them", "their", "theirs", "this", "that", "these", "those", "who",
+    "whom", "whose", "which", "what",
+})
+_ARTICLES_AND_FUNCTION = frozenset({
+    "a", "an", "the", "some", "any", "all", "each", "every", "both",
+    "either", "neither", "such", "no", "not", "so", "very", "too",
+})
+_COMMON_SIZE_QUALITY_ADJ = frozenset({
+    "large", "small", "big", "little", "huge", "tiny", "massive", "giant",
+    "great", "good", "bad", "nice", "fine", "poor", "rich", "wide", "narrow",
+    "long", "short", "tall", "deep", "shallow", "heavy", "light", "strong",
+    "weak", "hard", "soft", "easy", "difficult", "simple", "complex",
+})
+
 def _entity_has_substance(entity: str | None) -> bool:
     """True if entity is specific enough to warrant an investigation problem."""
     if not entity or len(entity.strip()) < 2:
@@ -88,7 +114,11 @@ def _entity_has_substance(entity: str | None) -> bool:
     e = entity.strip()
     if " " in e:
         return True   # multi-word entities always substantive
-    return e.lower() not in _VAGUE_ENTITY_WORDS
+    lower = e.lower()
+    if (lower in _PRONOUNS or lower in _ARTICLES_AND_FUNCTION
+            or lower in _COMMON_SIZE_QUALITY_ADJ):
+        return False
+    return lower not in _VAGUE_ENTITY_WORDS
 
 def _compose_title(signal_type: str, entity: str | None, payload: dict) -> str:
     """Frame the signal as an actionable inquiry title."""
