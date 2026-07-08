@@ -48,12 +48,19 @@ class CoOccurrenceDetector:
             return []
 
         branch_entities: dict[str, set] = defaultdict(set)
+        entity_contexts: dict[str, list] = defaultdict(list)
         for r in rows:
             content = r["content"] or ""
             branch = r["branch_id"]
-            for w in re.findall(r"\b[A-Z][a-zA-Z]{2,}\b", content):
-                if w.lower() not in _ENTITY_STOPWORDS:
-                    branch_entities[branch].add(w)
+            for m in re.finditer(r"\b[A-Z][a-zA-Z]{2,}\b", content):
+                w = m.group()
+                if w.lower() in _ENTITY_STOPWORDS:
+                    continue
+                start = m.start()
+                branch_entities[branch].add(w)
+                snippet = content[max(0, start - 40):start + len(w) + 40].strip()
+                if len(entity_contexts[w]) < 3:
+                    entity_contexts[w].append(snippet)
 
         entity_branches: dict[str, set] = defaultdict(set)
         for branch, entities in branch_entities.items():
@@ -70,6 +77,7 @@ class CoOccurrenceDetector:
                         "entity": entity,
                         "branches": sorted(branches),
                         "window_seconds": self._window,
+                        "contexts": entity_contexts.get(entity, []),
                     },
                     branches=sorted(branches),
                     entities=[entity],
