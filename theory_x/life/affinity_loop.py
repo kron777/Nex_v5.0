@@ -1,5 +1,59 @@
 """Affinity loop — beliefs gain weight from use, then refined by self-rating.
 
+=======================================================================
+2026-07-09 FINDING: THE SELF-RATING IS HOLLOW. Read before trusting any
+affinity number in this system.
+=======================================================================
+
+_self_rate() asks the 3B voice model "how much does this feel like YOURS?"
+against a four-point scale (0.0/0.3/0.6/1.0). Tested at temperature=0.0
+on six beliefs, five repetitions each, it emits ONLY 0.3 or 0.6 -- it
+copies the nearest anchor label from the prompt rather than scoring the
+content.
+
+  headline   "Mount Etna eruption creates trail of lava"   -> 0.3
+  her ground "My market calls are no better than chance,
+              and I know this because it was checked"       -> 0.3
+  noise      "The doorbell rings but I ignore it for now"   -> 0.3
+  her axiom  "I attend to unfamiliar things..."             -> 0.3 / 0.6 (unstable)
+
+Removing the anchors and asking for 0-100 gives 45/45/45/35/35/50 -- it
+rates the volcano headline ABOVE her founding axiom. Forced binary
+(MINE/OBSERVED) returns MINE for the volcano and the doorbell, and
+OBSERVED for her own synthesis. Exactly backwards.
+
+This is NOT general instruction-following failure. The same model, same
+wrapper, same temperature, classifies the same sentences correctly:
+  headline vs reflection : 4/4
+  external vs internal   : 4/4
+It cannot count words (34 for a 10-word sentence), and it cannot judge
+ownership -- because judging ownership requires a persistent self to
+compare against, and each call is a stateless completion wearing a
+persona. There is no 'there' for the question to point at.
+
+CONSEQUENCE: every affinity value in the store is
+    (0.3 or 0.6) * usage_term
+i.e. FAMILIARITY, relabelled as preference. The 12,564 scored beliefs,
+the 0.2-0.3 histogram cluster, the 'favourites' list read by
+generator.py:2393 -- all of it is retrieval-count arithmetic.
+
+The formula below (draw leads, familiarity amplifies) is structurally
+correct and semantically empty. It is retained because the shape is right
+and awaits a real signal.
+
+WHERE THE REAL SIGNAL LIVES: ownership need not be asked. It is already
+recorded -- beliefs.source. wonder_loop is something she wondered;
+synergized is something she built from two things she held;
+precipitated_from_sense is a headline she read. And DRAW is not a rating
+but a behaviour: what she returns to, builds on, speaks from. All logged.
+The only belief in this system formed by genuine contact with something
+she does not control is the market scorecard (grounded_scorecard,
+tier 1, conf 0.99) -- and it is the only one that was checked rather
+than asserted.
+
+=======================================================================
+
+
 Every 30 minutes:
   1. Compute USAGE_SCORE for candidate beliefs based on:
      - reinforce_count (how many times reinforced)
