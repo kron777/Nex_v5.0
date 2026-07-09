@@ -140,13 +140,35 @@ def affinity_tick(voice):
         if not candidates:
             return {"scored": 0, "candidates": 0}
         scored = 0
+        skipped = 0
         for c in candidates:
             llm_rating = _self_rate(voice, c["content"])
             if llm_rating is None:
-                # Fall back to usage-only score
-                final = c["usage_score"]
-            else:
-                final = 0.5 * c["usage_score"] + 0.5 * llm_rating
+                # No rating means she did not judge it. Silence is not a
+                # preference. Leave affinity NULL so this belief is picked
+                # again next tick, rather than assigning a score she never
+                # gave. (Previously: fell back to usage-only, which handed a
+                # familiarity number to a belief on a scale that is supposed
+                # to mean draw.)
+                skipped += 1
+                continue
+
+            # DRAW LEADS, FAMILIARITY AMPLIFIES.
+            #
+            # Was: 0.5 * usage + 0.5 * llm_rating -- which let familiarity
+            # carry a belief she was indifferent to. The clearest evidence:
+            # 'demoted_confabulation' beliefs (things she has already judged
+            # to be her own fabrications) had the HIGHEST theoretical ceiling
+            # in the store, 0.936, because they are heavily used, richly
+            # edged, and recently touched.
+            #
+            # Now: her rating sets the level; usage can lift it, never
+            # manufacture it. A thought she calls deeply hers scores >= 0.75
+            # even if never used once. A thought she is lukewarm about stays
+            # low however familiar. Under this formula that same
+            # confabulation, rated 0.2, scores 0.194 rather than 0.535.
+            final = llm_rating * (0.75 + 0.25 * c["usage_score"])
+            final = min(1.0, max(0.0, final))
             try:
                 cx.execute(
                     "UPDATE beliefs SET affinity=?, affinity_updated_at=? WHERE id=?",
@@ -156,8 +178,9 @@ def affinity_tick(voice):
                 scored += 1
             except Exception as e:
                 log.warning("affinity write failed for #%s: %s", c["id"], e)
-        log.info("affinity_loop: scored %d/%d candidates", scored, len(candidates))
-        return {"scored": scored, "candidates": len(candidates)}
+        log.info("affinity_loop: scored %d, unrated %d, of %d candidates",
+                 scored, skipped, len(candidates))
+        return {"scored": scored, "unrated": skipped, "candidates": len(candidates)}
     finally:
         cx.close()
 
