@@ -101,44 +101,30 @@ _ARTICLES_AND_FUNCTION = frozenset({
     "either", "neither", "such", "no", "not", "so", "very", "too",
 })
 _COMMON_SIZE_QUALITY_ADJ = frozenset({
-    "large", "small", "big", "little", "huge", "tiny", "massive", "giant",
-    "great", "good", "bad", "nice", "fine", "poor", "rich", "wide", "narrow",
-    "long", "short", "tall", "deep", "shallow", "heavy", "light", "strong",
-    "weak", "hard", "soft", "easy", "difficult", "simple", "complex",
+    # Survivors only. "Big Tech"/"Long Island" fragments push big/long high;
+    # the other 27 score 0-2 and are handled by prose_stats.
+    "big", "good", "great", "light", "long",
 })
 
 # Prepositions: a genuinely closed class in English. A proper noun is never
 # a preposition, so this can never produce a false negative. Catches "Without".
 _PREPOSITIONS = frozenset({
-    "about", "above", "across", "after", "against", "along", "among",
-    "around", "at", "before", "behind", "below", "beneath", "beside",
-    "between", "beyond", "by", "despite", "down", "during", "except",
-    "for", "from", "in", "inside", "into", "near", "of", "off", "on",
-    "onto", "out", "outside", "over", "past", "since", "through",
-    "throughout", "to", "toward", "towards", "under", "underneath",
-    "until", "up", "upon", "with", "within", "without",
+    # Only those surviving the corpus check (cap>=3 from quoted headlines:
+    # "Down Under", "Off the record", "— From the archives"). The other 42
+    # prepositions score 0-2 and are rejected by prose_stats without a list.
+    "across", "behind", "down", "from", "inside", "near", "off",
 })
 
 # Abstract descriptors: the adjective class that slipped past the
 # size/quality set. "Adaptive", "Informed", "Emerging" are never topics.
 _GENERAL_ADJECTIVES = frozenset({
-    "adaptive", "informed", "emerging", "various", "certain", "different",
-    "specific", "general", "relevant", "significant", "important",
-    "interesting", "similar", "overall", "recent", "current", "further",
-    "additional", "potential", "possible", "available", "necessary",
-    "effective", "efficient", "active", "passive", "internal", "external",
-    "primary", "secondary", "major", "minor", "common", "rare",
+    # Only "general" survives the corpus check ("General Motors" fragments).
+    # adaptive/informed/emerging/etc all score 0 and need no list entry.
+    "general",
 })
 
-# Genuinely ambiguous single words: real nouns that are also common verbs or
-# generic terms. No grammatical category can catch these (unlike prepositions
-# or pronouns) — they need an explicit list. Deliberately short: only words
-# observed opening fake investigations in the live system.
-_AMBIGUOUS_COMMON_NOUNS = frozenset({
-    "cross", "text", "anchoring", "signal", "pattern", "focus", "thread",
-})
 
-def _entity_has_substance(entity: str | None) -> bool:
+def _entity_has_substance(entity: str | None, b_cx=None) -> bool:
     """True if entity is specific enough to warrant an investigation problem."""
     if not entity or len(entity.strip()) < 2:
         return False
@@ -149,10 +135,26 @@ def _entity_has_substance(entity: str | None) -> bool:
     if (lower in _PRONOUNS or lower in _ARTICLES_AND_FUNCTION
             or lower in _COMMON_SIZE_QUALITY_ADJ
             or lower in _PREPOSITIONS
-            or lower in _GENERAL_ADJECTIVES
-            or lower in _AMBIGUOUS_COMMON_NOUNS):
+            or lower in _GENERAL_ADJECTIVES):
         return False
-    return lower not in _VAGUE_ENTITY_WORDS
+    if lower in _VAGUE_ENTITY_WORDS:
+        return False
+
+    # Corpus check: closes the open-ended tail the lists never can. A proper
+    # noun is capitalized mid-sentence in ordinary prose; an adjective only
+    # wears a capital inside a title-cased headline. Offenders score 0-2,
+    # real entities 5+. Returns None when stats are missing or stale, in
+    # which case we SKIP (list-only behaviour, no regression).
+    if b_cx is not None:
+        try:
+            from theory_x.signals import prose_stats
+            count = prose_stats.prose_cap_count(b_cx, lower)
+            if count is not None and count < prose_stats.PROSE_CAP_FLOOR:
+                return False
+        except Exception:
+            pass  # fail open: never block on a broken check
+
+    return True
 
 def _compose_title(signal_type: str, entity: str | None, payload: dict) -> str:
     """Frame the signal as an actionable inquiry title."""
@@ -289,7 +291,7 @@ def signal_to_problem_tick() -> dict:
 
             title = _compose_title(sig["signal_type"], entity, payload)
             if (title.startswith("Signal: investigate '")
-                    and not _entity_has_substance(entity)):
+                    and not _entity_has_substance(entity, b_cx)):
                 # vague bare-word entity — blocks unconditionally before open
                 b_cx.execute("UPDATE signals SET actioned_at=? WHERE id=?",
                              (time.time(), sig["id"]))
@@ -385,8 +387,18 @@ def signal_to_problem_loop(state, stop: threading.Event) -> None:
         "(tick=%ds, conf>=%.2f, cap=%d/24h)",
         TICK_SECONDS, MIN_CONFIDENCE, DAILY_PROBLEM_CAP
     )
+    _ticks = 0
+    _REBUILD_EVERY = 30   # ~1 hour at TICK_SECONDS=120; rebuild costs ~1s
     while not stop.is_set():
         try:
+            if _ticks % _REBUILD_EVERY == 0:
+                try:
+                    from theory_x.signals import prose_stats
+                    n = prose_stats.build_direct(BELIEFS_DB)
+                    log.info("prose_stats: %d tokens", n)
+                except Exception as e:
+                    log.warning("prose_stats rebuild failed: %s", e)
+            _ticks += 1
             stats = signal_to_problem_tick()
             if stats.get("opened", 0) > 0:
                 log.info("signal_to_problem: %s", stats)
