@@ -107,6 +107,37 @@ _COMMON_SIZE_QUALITY_ADJ = frozenset({
     "weak", "hard", "soft", "easy", "difficult", "simple", "complex",
 })
 
+# Prepositions: a genuinely closed class in English. A proper noun is never
+# a preposition, so this can never produce a false negative. Catches "Without".
+_PREPOSITIONS = frozenset({
+    "about", "above", "across", "after", "against", "along", "among",
+    "around", "at", "before", "behind", "below", "beneath", "beside",
+    "between", "beyond", "by", "despite", "down", "during", "except",
+    "for", "from", "in", "inside", "into", "near", "of", "off", "on",
+    "onto", "out", "outside", "over", "past", "since", "through",
+    "throughout", "to", "toward", "towards", "under", "underneath",
+    "until", "up", "upon", "with", "within", "without",
+})
+
+# Abstract descriptors: the adjective class that slipped past the
+# size/quality set. "Adaptive", "Informed", "Emerging" are never topics.
+_GENERAL_ADJECTIVES = frozenset({
+    "adaptive", "informed", "emerging", "various", "certain", "different",
+    "specific", "general", "relevant", "significant", "important",
+    "interesting", "similar", "overall", "recent", "current", "further",
+    "additional", "potential", "possible", "available", "necessary",
+    "effective", "efficient", "active", "passive", "internal", "external",
+    "primary", "secondary", "major", "minor", "common", "rare",
+})
+
+# Genuinely ambiguous single words: real nouns that are also common verbs or
+# generic terms. No grammatical category can catch these (unlike prepositions
+# or pronouns) — they need an explicit list. Deliberately short: only words
+# observed opening fake investigations in the live system.
+_AMBIGUOUS_COMMON_NOUNS = frozenset({
+    "cross", "text", "anchoring", "signal", "pattern", "focus", "thread",
+})
+
 def _entity_has_substance(entity: str | None) -> bool:
     """True if entity is specific enough to warrant an investigation problem."""
     if not entity or len(entity.strip()) < 2:
@@ -116,7 +147,10 @@ def _entity_has_substance(entity: str | None) -> bool:
         return True   # multi-word entities always substantive
     lower = e.lower()
     if (lower in _PRONOUNS or lower in _ARTICLES_AND_FUNCTION
-            or lower in _COMMON_SIZE_QUALITY_ADJ):
+            or lower in _COMMON_SIZE_QUALITY_ADJ
+            or lower in _PREPOSITIONS
+            or lower in _GENERAL_ADJECTIVES
+            or lower in _AMBIGUOUS_COMMON_NOUNS):
         return False
     return lower not in _VAGUE_ENTITY_WORDS
 
