@@ -36,7 +36,14 @@ STALE_SECONDS = 7 * 24 * 3600
 # semicolon / colon) plus whitespace. Positive evidence of position -- cannot
 # be fooled by newlines, quote-closers, or multiple spaces the way an
 # exclusionary lookbehind can.
-_MID_SENTENCE = re.compile(r"(?<=[a-z,;:]\s)([A-Za-z]{3,})\b")
+# NOTE: colon and semicolon are deliberately EXCLUDED. ": How" and "; The"
+# are sentence-starts wearing a disguise -- headline subtitle structure
+# ("AlphaEvolve: How our agent works", "NYT and vaping: How to lie").
+# Including them inflated how=48, why=31, bitcoin=96 (JSON feed dumps like
+# "picking this from crypto.coingecko: {...}"). With ':' removed: how=0,
+# why=1, bitcoin=25 -- and every real entity is unchanged (boeing=5,
+# postgres=9, beijing=9, stripe=9, altman=9).
+_MID_SENTENCE = re.compile(r"(?<=[a-z,]\s)([A-Za-z]{3,})\b")
 _WORD = re.compile(r"\b[A-Za-z]{2,}\b")
 
 _SCHEMA = """

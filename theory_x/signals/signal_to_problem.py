@@ -100,6 +100,15 @@ _ARTICLES_AND_FUNCTION = frozenset({
     "a", "an", "the", "some", "any", "all", "each", "every", "both",
     "either", "neither", "such", "no", "not", "so", "very", "too",
 })
+
+# Interrogatives: a closed class, never a proper noun. The corpus check
+# cannot see these -- they score 30-50 prose capitals from quoted headline
+# titles ("reading: 'How Kane and Haaland compare'"). _PRONOUNS already
+# holds what/which/who/whom/whose; these five were covered by
+# _VAGUE_ENTITY_WORDS until the 6c5f823 trim removed it as the fallback.
+_INTERROGATIVES = frozenset({
+    "how", "why", "when", "where", "whether",
+})
 _COMMON_SIZE_QUALITY_ADJ = frozenset({
     # Survivors only. "Big Tech"/"Long Island" fragments push big/long high;
     # the other 27 score 0-2 and are handled by prose_stats.
@@ -133,6 +142,7 @@ def _entity_has_substance(entity: str | None, b_cx=None) -> bool:
         return True   # multi-word entities always substantive
     lower = e.lower()
     if (lower in _PRONOUNS or lower in _ARTICLES_AND_FUNCTION
+            or lower in _INTERROGATIVES
             or lower in _COMMON_SIZE_QUALITY_ADJ
             or lower in _PREPOSITIONS
             or lower in _GENERAL_ADJECTIVES):
