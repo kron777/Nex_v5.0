@@ -35,10 +35,16 @@ MIN_USAGE_FOR_LLM = 2  # don't LLM-rate beliefs never used
 RESCORE_AFTER_DAYS = 14
 
 
-def _usage_score(reinforce, use, edges, hours_since_ref):
-    """Combine signals into a 0-1 usage score."""
-    # Each component normalized via log + sigmoid-ish
-    r = math.log1p(reinforce or 0) / math.log1p(20)
+def _usage_score(use, edges, hours_since_ref):
+    """Combine signals into a 0-1 usage score.
+
+    The `reinforce_count` term was REMOVED. Nothing increments it past 1 --
+    promotion.py:145 is its only caller and promotion happens once. Across
+    35,802 beliefs the max observed value is 1, so `0.35 * log1p(reinforce)`
+    contributed either 0.0 or 0.105, uniformly, to every score. A third of
+    the usage signal was a constant. Its weight is redistributed
+    proportionally across the three live terms.
+    """
     u = math.log1p(use or 0) / math.log1p(50)
     e = math.log1p(edges or 0) / math.log1p(10)
     # Recency: 1.0 if just-touched, halves every 168h
@@ -46,8 +52,8 @@ def _usage_score(reinforce, use, edges, hours_since_ref):
         rec = 0.3  # never referenced = mild penalty
     else:
         rec = 0.5 ** (hours_since_ref / USAGE_RECENCY_HALFLIFE_HOURS)
-    # Weighted blend
-    score = 0.35 * r + 0.35 * u + 0.20 * e + 0.10 * rec
+    # Weighted blend (0.35/0.20/0.10 renormalised to sum 1.0)
+    score = 0.538 * u + 0.308 * e + 0.154 * rec
     return min(1.0, max(0.0, score))
 
 
@@ -65,9 +71,22 @@ def _pick_candidates(cx, limit):
         FROM beliefs b
         WHERE (b.affinity IS NULL OR b.affinity_updated_at < ?)
           AND b.tier >= 4
-          AND COALESCE(b.reinforce_count, 0) + COALESCE(b.use_count, 0) >= ?
           AND b.source NOT IN ('spectrum')
-        ORDER BY (COALESCE(b.reinforce_count, 0) + COALESCE(b.use_count, 0)) DESC
+          AND (
+                COALESCE(b.use_count, 0) >= ?          -- earned it through use
+                OR b.source IN (                        -- or it is hers by origin
+                    'fountain_insight','synergized','counterfactual_node',
+                    'remember_loop','wonder_loop','hot_observer',
+                    'witness_loop','pattern_loop','identity_loop','surprise'
+                )
+          )
+        ORDER BY
+          CASE WHEN b.source IN (
+              'fountain_insight','synergized','counterfactual_node',
+              'remember_loop','wonder_loop','hot_observer',
+              'witness_loop','pattern_loop','identity_loop','surprise'
+          ) THEN 0 ELSE 1 END,                          -- her own first
+          COALESCE(b.use_count, 0) DESC
         LIMIT ?
         """,
         (rescore_cutoff, MIN_USAGE_FOR_LLM, limit)
@@ -76,7 +95,7 @@ def _pick_candidates(cx, limit):
     for r in rows:
         last_ref = r[6]
         hours_since = ((now - last_ref) / 3600) if last_ref else None
-        usage = _usage_score(r[4], r[5], r[9], hours_since)
+        usage = _usage_score(r[5], r[9], hours_since)
         out.append({
             "id": r[0], "content": r[1], "tier": r[2], "source": r[3],
             "usage_score": usage,
