@@ -58,7 +58,19 @@ STATUS_URL = os.environ.get(
 # Readiness at/above this => NEX predicts it WILL fire. Tunable.
 FIRE_THRESHOLD = float(os.environ.get("NEX5_SELFPRED_THRESHOLD", "0.70"))
 # How far ahead a prediction looks before we check it (seconds).
-HORIZON = int(os.environ.get("NEX5_SELFPRED_HORIZON", "900"))
+#
+# 420s is the MEASURED median inter-fire gap (n=1997 real fires from
+# fountain_events). At this horizon P(no fire) = 50.1% -- a coin-flip base
+# rate, so 'nofire' is a live answer and readiness has something to prove.
+# The old 900s gave P(no fire) = 11.8%: 'fire' was nearly always correct,
+# so the test could not distinguish self-knowledge from the fountain's period.
+HORIZON = int(os.environ.get("NEX5_SELFPRED_HORIZON", "420"))
+
+# Persistent fire log. total_fires from the status endpoint is an IN-MEMORY
+# counter that RESETS TO ZERO on restart -- resolving against it compared a
+# post-restart count (7) to a pre-restart baseline (203), so `actual` was
+# 'fire' within an uptime and 'nofire' across a restart. Neither measured NEX.
+DYNAMIC_DB = os.environ.get("NEX5_DYNAMIC_DB", "data/dynamic.db")
 
 
 def _db_path() -> str:
@@ -149,29 +161,59 @@ def make_self_prediction(db_path: Optional[str] = None, horizon: int = HORIZON) 
     }
 
 
+def _fired_between(t0: float, t1: float) -> bool:
+    """Did NEX actually produce a thought in (t0, t1]?
+
+    Reads the persistent fountain_events log. A real fire has a non-empty
+    thought; rows with stillness_reason='duplicate_retrieval' have empty
+    thoughts (4,965 of 26,299 cycles) and are NOT speech.
+
+    Restart-proof, unlike the in-memory total_fires counter.
+    """
+    try:
+        conn = sqlite3.connect(f"file:{DYNAMIC_DB}?mode=ro", uri=True, timeout=5.0)
+    except Exception as e:
+        logger.warning("self_pred: fire-log open failed (%s)", e)
+        return None
+    try:
+        row = conn.execute(
+            "SELECT COUNT(*) FROM fountain_events "
+            "WHERE ts > ? AND ts <= ? AND thought IS NOT NULL AND thought != ''",
+            (t0, t1),
+        ).fetchone()
+        return (row[0] or 0) > 0
+    except Exception as e:
+        logger.warning("self_pred: fire-log query failed (%s)", e)
+        return None
+    finally:
+        try: conn.close()
+        except Exception: pass
+
+
 def resolve_due(db_path: Optional[str] = None, now: Optional[float] = None) -> int:
-    """For every prediction whose time has come, read NEX's CURRENT fire count.
-    If it rose above the baseline recorded at predict time, a fire happened.
-    Stamp each prediction correct/wrong vs that truth."""
+    """Resolve each due prediction against the WINDOW IT NAMED.
+
+    For every prediction, ask the persistent fire log whether a thought was
+    produced between made_at and resolve_at. Each row gets its own window --
+    the old code read one global counter and applied it to all of them.
+    """
     db_path = db_path or _db_path()
     ensure_schema(db_path)
     now = now if now is not None else time.time()
-
-    status = _read_status()
-    if status is None:
-        return 0
-    current_fires = int(status.get("total_fires", 0) or 0)
 
     conn = _connect(db_path)
     resolved = 0
     try:
         due = conn.execute(
-            "SELECT id, predicted, baseline_fires FROM self_predictions "
+            "SELECT id, predicted, made_at, resolve_at FROM self_predictions "
             "WHERE resolved_at IS NULL AND resolve_at <= ?",
             (now,),
         ).fetchall()
         for row in due:
-            actual = "fire" if current_fires > row["baseline_fires"] else "nofire"
+            fired = _fired_between(row["made_at"], row["resolve_at"])
+            if fired is None:
+                continue          # fire log unreadable -- leave pending, retry later
+            actual = "fire" if fired else "nofire"
             outcome = "correct" if actual == row["predicted"] else "wrong"
             conn.execute(
                 "UPDATE self_predictions SET resolved_at=?, actual=?, outcome=? WHERE id=?",
