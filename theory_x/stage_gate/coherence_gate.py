@@ -70,6 +70,25 @@ _RECENT_LIMIT = 50
 # T1 locked anchors — no limit; check all of them
 _ANCHOR_LIMIT = 500
 
+# The hand-seeded axioms, and only these. This pool is used to REJECT
+# incoming thoughts (Check 1b), so membership must be a deliberate act.
+#
+# An empirical, revisable finding about NEX's own performance is not the
+# same kind of object as a koan. It should inform her, not forbid her.
+# grounded_scorecard:market_direction_v1 is tier=1, confidence=0.99,
+# locked=1 and therefore matched the old selector -- which meant a true,
+# measured belief ("a coin beats me at prediction") became an axiom against
+# which NEX could no longer think "I might be improving."
+#
+# A belief that forbids its own revision is not self-knowledge.
+#
+# An allowlist, not a denylist: the next empirical belief must be added
+# here deliberately, or it stays out.
+_AXIOMATIC_SOURCES = frozenset({
+    "spectrum", "koan", "tao", "dont_know", "keystone_seed",
+    "self_location", "heart_sutra", "reification_recognition",
+})
+
 
 # ── Data structures ───────────────────────────────────────────────────────────
 
@@ -346,10 +365,13 @@ class CoherenceGate:
         recent = []
 
         try:
+            placeholders = ",".join("?" * len(_AXIOMATIC_SOURCES))
             anchors = self._beliefs_reader.read(
                 "SELECT id, content FROM beliefs "
                 "WHERE tier=1 AND confidence > 0.8 AND locked=1 "
-                f"LIMIT {_ANCHOR_LIMIT}"
+                f"AND source IN ({placeholders}) "
+                f"LIMIT {_ANCHOR_LIMIT}",
+                tuple(_AXIOMATIC_SOURCES),
             )
         except Exception as exc:
             errors.record(f"gate anchor read: {exc}", source=_LOG_SOURCE)
