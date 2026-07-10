@@ -178,6 +178,21 @@ def make_voice_prediction(
     random_id = wp.make_prediction(
         asset, random_dir, horizon_seconds, db_path=db_path, source="random"
     )
+
+    # Stamp what she knew about her own reliability at the moment she guessed.
+    # Voice row only -- the random control has no self-knowledge to record.
+    # Recorded, not acted on: the guess above is already made and unchanged.
+    if voice_id is not None:
+        try:
+            wp.stamp_trust(
+                voice_id, trust.get("level"), trust.get("gap"), trust.get("n"),
+                db_path=db_path,
+            )
+        except Exception as e:
+            logging.getLogger("nex5.world_loop").warning(
+                "trust stamp failed (non-fatal): %s", e
+            )
+
     return {
         "voice_id": voice_id,
         "voice_dir": voice_dir,

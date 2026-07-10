@@ -517,6 +517,13 @@ _MIGRATIONS: dict[str, list[str]] = {
         "ON genius_tags(fountain_event_id)",
         "CREATE INDEX IF NOT EXISTS idx_genius_tags_tagged_at "
         "ON genius_tags(tagged_at DESC)",
+        # Trust stamp: what NEX knew about her own reliability at the moment
+        # she made a voice prediction. Recorded, not acted on -- acting on it
+        # (abstaining/deferring when trust is low) would remove the very
+        # measurement this scorecard exists to produce.
+        "ALTER TABLE world_predictions ADD COLUMN trust_level TEXT",
+        "ALTER TABLE world_predictions ADD COLUMN trust_gap REAL",
+        "ALTER TABLE world_predictions ADD COLUMN trust_n INTEGER",
     ],
 }
 

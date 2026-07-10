@@ -89,6 +89,7 @@ def consult_self_trust(domain: str = "market_direction") -> dict:
         "level": "unknown",
         "reason": "No tested self-belief found; defaulting to caution.",
         "n": 0,
+        "gap": None,
         "phrase": "I have not measured myself here yet, so I do not trust this.",
     }
 
@@ -118,6 +119,7 @@ def consult_self_trust(domain: str = "market_direction") -> dict:
             "level": "none",
             "reason": "Self-belief present but live numbers unavailable; staying cautious.",
             "n": 0,
+            "gap": None,
             "phrase": "I have tested myself here and was not reliable, so I hold this lightly.",
         }
 
@@ -153,7 +155,7 @@ def consult_self_trust(domain: str = "market_direction") -> dict:
         )
         phrase = "I have a measured edge here that survived a large sample — trust it modestly."
 
-    verdict = {"level": level, "reason": reason, "n": n, "phrase": phrase}
+    verdict = {"level": level, "reason": reason, "n": n, "gap": gap, "phrase": phrase}
 
     # 4) Record the consult (best-effort; failure here must not break anything).
     log_consult(domain, verdict)

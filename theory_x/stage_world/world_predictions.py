@@ -142,6 +142,32 @@ def make_prediction(
         conn.close()
 
 
+def stamp_trust(
+    prediction_id: int,
+    trust_level: Optional[str],
+    trust_gap: Optional[float],
+    trust_n: Optional[int],
+    db_path: Optional[str] = None,
+) -> None:
+    """Stamp what NEX knew about her own reliability onto one prediction row.
+
+    Voice row only -- the caller must not call this for the random control,
+    which has no self-knowledge to record. Additive: does not touch
+    resolution/outcome columns. Missing values write as NULL (None), not 0 --
+    a missing measurement is not a measurement of zero.
+    """
+    db_path = db_path or _default_db_path()
+    conn = _connect(db_path)
+    try:
+        conn.execute(
+            "UPDATE world_predictions SET trust_level=?, trust_gap=?, trust_n=? "
+            "WHERE id=?",
+            (trust_level, trust_gap, trust_n, prediction_id),
+        )
+    finally:
+        conn.close()
+
+
 # --- the resolver: a verdict NEX does not author -----------------------------
 def resolve_due(now: Optional[float] = None, db_path: Optional[str] = None) -> dict:
     """Find claims past their resolve time that are still unresolved, fetch the
