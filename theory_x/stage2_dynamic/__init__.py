@@ -451,6 +451,17 @@ def build_dynamic(writers: dict, readers: dict, coherence_gate=None) -> DynamicS
         )
     # --- end affinity_loop ---
 
+    # --- Scorecard loop (keeps the tested market-prediction self-belief current) ---
+    try:
+        from theory_x.life.scorecard_loop import scorecard_loop
+        loops.append((scorecard_loop, "life.scorecard_loop"))
+    except Exception as e:
+        import logging
+        logging.getLogger("theory_x.stage2_dynamic").warning(
+            "scorecard_loop unavailable: %s", e
+        )
+    # --- end scorecard_loop ---
+
     # --- Surprise loop (promotes prediction-errors into felt beliefs) ---
     try:
         from theory_x.life.surprise_loop import surprise_loop

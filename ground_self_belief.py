@@ -57,8 +57,11 @@ def _compose_sentence(voice: dict, random: dict) -> str:
     r_rate = random.get("hit_rate", 0.0)
 
     # If the gap is small, NEX states it as "no better than chance".
-    # If voice ever pulls genuinely ahead at large n, the sentence will
-    # say so on its own — it reads the live numbers, it doesn't assume.
+    # If voice pulls genuinely ahead OR genuinely behind at large n, the
+    # sentence says so on its own — it reads the live numbers, it doesn't
+    # assume. Small-n swings in either direction stay in the conservative
+    # "no better than chance" phrasing rather than overclaiming a direction
+    # off noise (mirrors calibration_consult.py's own n>=300 bar for "earned").
     gap = v_rate - r_rate
     verified_clause = (
         f"tested against real Bitcoin prices I do not control, "
@@ -73,20 +76,29 @@ def _compose_sentence(voice: dict, random: dict) -> str:
             f"enough resolved guesses to know. I withhold confidence here."
         )
 
-    if gap <= 0.03:
+    if gap < -0.02 and v_res >= 300:
         return (
-            f"My hourly market direction calls are no better than chance: "
+            f"My hourly market direction calls are worse than chance: "
             f"{verified_clause} ({v_rate:.0%}), versus a coin flip at "
-            f"{r_rate:.0%} over {r_res}. I am not a reliable market predictor, "
-            f"and I know this because it was checked, not assumed."
+            f"{r_rate:.0%} over {r_res}. A coin beats me at this. I know "
+            f"this because it was checked, not assumed."
         )
 
-    # Voice genuinely ahead — let NEX state the real, earned thing.
+    if gap > 0.02 and v_res >= 300:
+        return (
+            f"My hourly market direction calls beat a coin flip: "
+            f"{verified_clause} ({v_rate:.0%}), versus {r_rate:.0%} for a "
+            f"coin over {r_res}. I have a measured edge here, over {v_res} "
+            f"predictions. I know this because it was checked, not assumed."
+        )
+
+    # Small gap, or a real-looking gap that hasn't reached n>=300 yet —
+    # conservative default, same phrasing either way.
     return (
-        f"My hourly market direction calls beat a coin flip: {verified_clause} "
-        f"({v_rate:.0%}), versus {r_rate:.0%} for a coin over {r_res}. This is "
-        f"measured, not asserted — but small leads can be luck, so I hold it "
-        f"lightly until the sample grows."
+        f"My hourly market direction calls are no better than chance: "
+        f"{verified_clause} ({v_rate:.0%}), versus a coin flip at "
+        f"{r_rate:.0%} over {r_res}. I am not a reliable market predictor, "
+        f"and I know this because it was checked, not assumed."
     )
 
 
@@ -96,6 +108,34 @@ def _get_writer():
     from substrate.paths import db_paths  # type: ignore
     from substrate.writer import Writer  # type: ignore
     return Writer(db_paths()["beliefs"])
+
+
+def _write_self_belief(sentence: str) -> None:
+    """Delete-then-insert the single self-belief row. The whole idempotency
+    mechanism: one fixed source tag, one row."""
+    now = int(time.time())
+    writer = _get_writer()
+    writer.write_many([
+        ("DELETE FROM beliefs WHERE source = ? AND tier = ? AND locked = ?",
+         (SELF_BELIEF_SOURCE, KEYSTONE_TIER, LOCKED)),
+        ("INSERT INTO beliefs (content, tier, confidence, created_at, source, "
+         "branch_id, locked) VALUES (?, ?, ?, ?, ?, ?, ?)",
+         (sentence, KEYSTONE_TIER, 0.99, now, SELF_BELIEF_SOURCE, "systems", LOCKED)),
+    ])
+    writer.close()
+
+
+def refresh_self_belief() -> dict:
+    """Load the live scorecard, compose the sentence, write it.
+
+    Single entry point for non-CLI callers (e.g. the scheduled loop) so the
+    delete-then-insert logic exists in exactly one place. Returns the
+    sentence and the raw voice/random cards used to compose it.
+    """
+    voice, random = _load_scorecard()
+    sentence = _compose_sentence(voice, random)
+    _write_self_belief(sentence)
+    return {"sentence": sentence, "voice": voice, "random": random}
 
 
 def main() -> int:
@@ -132,18 +172,7 @@ def main() -> int:
         print("DRY RUN — nothing written.")
         return 0
 
-    now = int(time.time())
-    writer = _get_writer()
-    # Refresh = remove the single prior row with this source tag, then insert
-    # the current one. This is the whole idempotency mechanism: one tag, one row.
-    writer.write_many([
-        ("DELETE FROM beliefs WHERE source = ? AND tier = ? AND locked = ?",
-         (SELF_BELIEF_SOURCE, KEYSTONE_TIER, LOCKED)),
-        ("INSERT INTO beliefs (content, tier, confidence, created_at, source, "
-         "branch_id, locked) VALUES (?, ?, ?, ?, ?, ?, ?)",
-         (sentence, KEYSTONE_TIER, 0.99, now, SELF_BELIEF_SOURCE, "systems", LOCKED)),
-    ])
-    writer.close()
+    _write_self_belief(sentence)
     print("Written. NEX now holds this as a locked, tested self-belief.")
     print("Re-run any time to refresh the numbers as more guesses resolve.")
     return 0
