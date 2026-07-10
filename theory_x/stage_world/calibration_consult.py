@@ -132,14 +132,29 @@ def consult_self_trust(domain: str = "market_direction") -> dict:
         phrase = "I am still measuring myself here, so I withhold confidence."
     elif gap <= 0.03:
         level = "none"
-        reason = (
-            f"Tested at n={n}: {v_rate:.0%} vs a coin's {r_rate:.0%}. "
-            f"No real edge."
-        )
-        phrase = (
-            "I have tested this against real prices and I am no better than "
-            "a coin, so do not lean on my call."
-        )
+        # Same split as ground_self_belief.py's _compose_sentence (c07ff0b):
+        # a deficit large enough and sampled enough to say plainly gets said
+        # plainly. Small-n swings stay in the conservative "no real edge"
+        # phrasing rather than overclaiming a direction off noise. level
+        # stays "none" either way -- only the strings get finer-grained.
+        if gap < -0.02 and n >= 300:
+            reason = (
+                f"Tested at n={n}: {v_rate:.0%} vs a coin's {r_rate:.0%}. "
+                f"A coin beats me by {abs(gap):.1%}."
+            )
+            phrase = (
+                "I have tested this against real prices and a coin beats "
+                "me at it, so do not lean on my call."
+            )
+        else:
+            reason = (
+                f"Tested at n={n}: {v_rate:.0%} vs a coin's {r_rate:.0%}. "
+                f"No real edge."
+            )
+            phrase = (
+                "I have tested this against real prices and I am no better "
+                "than a coin, so do not lean on my call."
+            )
     elif n < 300:
         level = "provisional"
         reason = (
