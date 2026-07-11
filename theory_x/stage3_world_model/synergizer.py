@@ -146,7 +146,13 @@ class BeliefSynergizer:
                                  "behavioural_observation"})
     # Below this embedding distance, treat a fresh belief as a near-duplicate
     # restatement of the anchor rather than a genuine pairing candidate.
-    _MIN_RELATEDNESS_DISTANCE = 0.05
+    # Raised 0.05 -> 0.15 (session 24): live distance distribution showed
+    # 0.05 let verbatim-duplicate (0.068) and near-paraphrase (0.137) pairs
+    # through, giving the LLM nothing to synthesize. 0.15 excludes those
+    # while preserving genuinely distinct pairs (e.g. the flag/wind koan at
+    # 0.189). Does NOT fix the separate templated-cluster problem around
+    # anchors 98/135 -- see commit message.
+    _MIN_RELATEDNESS_DISTANCE = 0.15
 
     def _select_pair(self) -> Optional[tuple[dict, dict]]:
         # Include locked seed beliefs (koans, keystones) — rich, philosophically
