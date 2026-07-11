@@ -200,7 +200,16 @@ class CoherenceGate:
         # Phase 23 — Holding Zone: persist HOLD; check held zone on ACCEPT
         # Phase 24 — RESHAPE: enqueue to reshape_pending for resolver processing
         # Phase 25a TN-1 — REJECT: log trigger for potential throw-net session
-        if decision.outcome == GateOutcome.REJECT and self._trigger_detector is not None:
+        # Session 21 (Phase 4): throw_net's own resubmitted candidates carry
+        # source_node="throw_net.{trigger_type}" (throw_net_engine.py) and were
+        # being fed back into this exact trigger, unfiltered -- a closed loop
+        # that produced 99.64% of all gate_decisions and 6.2GB of exhaust for
+        # zero beliefs (journal/AUDIT_2026-07-08_to_10.md). This excludes only
+        # throw_net's own traffic; every other REJECT source (counterfactual_
+        # node, fountain, synergizer, crystallizer) is unaffected.
+        _is_throw_net_self = packet.source_node.startswith("throw_net.")
+        if (decision.outcome == GateOutcome.REJECT and self._trigger_detector is not None
+                and not _is_throw_net_self):
             try:
                 self._trigger_detector.record_gate_reject(packet, decision)
             except Exception as exc:
