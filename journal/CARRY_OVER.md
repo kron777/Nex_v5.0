@@ -605,3 +605,50 @@ One hypothesis disproven and recorded rather than quietly dropped.
 `synergizer.py` untouched — diagnosis and design only; the build is a fresh
 session.
 
+## 2026-07-11 ~14:12 — fix B built, live, prediction pre-registered
+
+`_select_pair()` now pairs anchor × fresh by embedding relatedness instead of
+the tied-confidence/rowid groove (commit d2b57af, built on the feasibility
+audit in 1ca2f44). Verified pre-restart: zero bucket-B test failures, 5
+distinct live pairs simulated read-only (no recurrence of 263-283), cost
+~59s/call matching the audit's ~59.3s prediction. Restarted pid 1450740 ->
+1587179 at 14:12:23 SAST (unix 1783771943) to make it live; stable over two
+15s-apart checks, on-disk import confirmed at synergizer.py:199.
+
+**Frozen baseline, locked immediately before restart:** substance-survival
+(child shares >=2 specific content words with its better-matching parent) =
+**25.6%** (128/500 recent synergized beliefs, read via belief_lineage).
+
+**Prediction, recorded now, before the data:** substance-survival rises
+above 25.6% post-fix. But the pre-restart simulation itself found 3 of 5
+example pairs matched introspective anchors (tao/koan) to *already-abstract*
+`synergized` fresh material rather than grounded `fountain_insight` content
+— pool homogeneity may cap pairing quality regardless of the selector being
+mechanically correct. A large rise means relatedness alone largely fixed
+substance survival. A small rise confirms the separate, still-open
+world-contact selection question (`SPEC_synthesis_provenance.md` §2a-v) is
+the necessary next piece, not a failure of this fix. Either result is real
+and informative.
+
+**The check:** re-run the identical Phase 1c metric restricted to synergized
+beliefs with `created_at > 1783771943`, once ~50+ post-restart synergized
+beliefs have accumulated (roughly a day of synthesis at the observed
+cadence). Compare against the 25.6% baseline above, not against memory.
+
+Status: fix B live, not yet fired at time of writing. First post-restart
+fire being watched for; behavior at that fire (related pair vs. old groove,
+clean vs. erroring) to be recorded separately once it lands.
+
+**First post-restart fire landed at 14:15:22 SAST (~3min after restart):**
+child belief 207581, *"Acknowledging 'Not Knowing' as a profound and
+trustworthy companion suggests an integration of humility with deep
+understanding."* Parents: 261 (`dont_know`, *"Not knowing is most
+intimate."*) and 49409 (`fountain_insight`, *"Not knowing often feels like
+the most intimate companion."*) — exactly simulation Pair 1. The child
+explicitly carries "Not Knowing" (quoted) and "companion" from its parents —
+this one scores SURVIVED under the Phase 1c metric, not mush. Soak log
+clean in the surrounding window; no synergizer/stage3 exception (the only
+errors near restart were unrelated boot noise: a scorecard_loop FK failure
+and a self_pred connection-refused, both pre-existing). Live behavior
+confirmed, matching the read-only simulation exactly.
+
