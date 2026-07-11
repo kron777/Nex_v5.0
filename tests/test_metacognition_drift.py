@@ -322,11 +322,25 @@ def _seed_recent_beliefs(writers, contents: list[str]):
     _t.sleep(0.05)
 
 
-def _seed_gate_decisions(writers, prior_count: int, recent_count: int):
-    """Seed gate_decisions with anchor-contradiction rejects in two windows."""
+def _seed_gate_decisions(writers, prior_count: int, recent_count: int,
+                          source_node: str = "test_node"):
+    """Seed gate_decisions with anchor-contradiction rejects in two windows.
+
+    Session 21: mid is derived from the live _VALUE_DRIFT_CONTRADICTION_WINDOW_S
+    constant (7 days as of Phase 1, session 20), not a hardcoded 1800s (the old
+    30-min window) -- a hardcoded split here is exactly what went stale the
+    last time the detector's window changed (test_contradiction_fires_on_rate_
+    increase went red, test_contradiction_no_fire_below_threshold went green
+    for the wrong reason). source_node defaults to 'test_node', which passes
+    the detector's 'NOT LIKE throw_net.%' exclusion (added session 20) -- every
+    test using this fixture is now implicitly exercising that filter too.
+    """
     import time as _t
+    from theory_x.stage9_metacognition.metacognition import (
+        _VALUE_DRIFT_CONTRADICTION_WINDOW_S as _WINDOW_S,
+    )
     now = _t.time()
-    mid = now - 1800  # 30-min split
+    mid = now - _WINDOW_S
 
     def _seed_block(start_ts: float, count: int):
         for i in range(count):
@@ -334,9 +348,9 @@ def _seed_gate_decisions(writers, prior_count: int, recent_count: int):
             writers["beliefs"].write(
                 "INSERT INTO gate_decisions "
                 "(ts, source_node, outcome, reason, latency_ms, content_preview) "
-                "VALUES (?, 'test_node', 'REJECT', "
+                "VALUES (?, ?, 'REJECT', "
                 "'contradicts_anchor:locked_id_1', 0.0, 'test')",
-                (ts,),
+                (ts, source_node),
             )
 
     _seed_block(mid - 1, prior_count)     # prior window  (>start, <=mid)
@@ -431,8 +445,43 @@ class TestValueDriftContradiction(unittest.TestCase):
         from theory_x.stage9_metacognition.metacognition import (
             Metacognition, _VALUE_DRIFT_CONTRADICTION_THRESHOLD
         )
-        # prior below minimum floor → signal suppressed
-        _seed_gate_decisions(self.writers, prior_count=2, recent_count=10)
+        # prior = threshold-1: the actual boundary, not an arbitrary small
+        # number -- mirrors the fire-test's (threshold+1) pattern (session 21).
+        _seed_gate_decisions(
+            self.writers,
+            prior_count=_VALUE_DRIFT_CONTRADICTION_THRESHOLD - 1,
+            recent_count=10,
+        )
+        import time as _t; _t.sleep(0.1)
+
+        mc = Metacognition(
+            self.writers["conversations"],
+            self.readers["conversations"],
+            self.readers["beliefs"],
+        )
+        mc._keystone_matrix = np.eye(384, dtype=np.float32)[:1]
+        mc._keystone_tokens = frozenset(["test"])
+        findings = mc._detect_value_drift()
+        kinds = [f["event_type"] for f in findings]
+        self.assertNotIn("value_drift_contradiction", kinds)
+
+    def test_throw_net_rejects_excluded_from_drift(self):
+        """Guards the session-20 loop-break fix -- if someone removes the
+        source_node filter from _detect_value_drift's contradiction query,
+        this test goes red. Same fire-triggering shape as
+        test_contradiction_fires_on_rate_increase (prior clears threshold,
+        recent produces a >=30% rate increase), but tagged as throw_net's own
+        traffic -- must stay silent.
+        """
+        from theory_x.stage9_metacognition.metacognition import (
+            Metacognition, _VALUE_DRIFT_CONTRADICTION_THRESHOLD
+        )
+        prior = _VALUE_DRIFT_CONTRADICTION_THRESHOLD + 1
+        recent = prior * 2
+        _seed_gate_decisions(
+            self.writers, prior_count=prior, recent_count=recent,
+            source_node="throw_net.gate_reject",
+        )
         import time as _t; _t.sleep(0.1)
 
         mc = Metacognition(

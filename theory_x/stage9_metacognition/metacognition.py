@@ -69,9 +69,23 @@ _DRIFT_SEVERITY_THRESHOLD = 0.3    # below this magnitude, suppress the event
 _MIN_SAMPLES_FOR_DRIFT    = 4      # need at least this many history rows
 
 # Phase 41 value-drift calibration
-# Note: contradiction uses rate-change (recent 30min vs prior 30min) because
-# production gate rejects ~24K/hr normally — absolute count would always fire.
-_VALUE_DRIFT_CONTRADICTION_THRESHOLD = 100  # min prior-window count before comparing rates
+# Session 20: the "~24K/hr normally" this was originally tuned against was
+# throw_net's closed self-rejection loop (99.64% of all gate traffic, source_node
+# LIKE 'throw_net.%'), not organic gate activity — see journal/AUDIT_2026-07-08_to_10.md
+# and session 19/20 investigation. Both queries below now exclude that source.
+# Window widened from 30min/30min to 7-day/7-day: organic (non-throw_net)
+# contradicts_anchor rejects are bursty day to day (observed 1-290/day over a
+# 14-day sample), too volatile for sub-daily comparison to mean anything.
+_VALUE_DRIFT_CONTRADICTION_WINDOW_S = 7 * 86400  # 7 days, was 1800s (30-min)
+# PROVISIONAL — set 2026-07-10 against throw_net-contaminated history (the only
+# history that exists pre-loop-break). Two overlapping organic-rate estimates
+# from the same investigation disagreed (607/wk vs 1288/wk over 14 vs 30 days),
+# meaning the true organic baseline isn't known yet, only bracketed. 200 sits
+# below the lower estimate so the detector engages rather than sitting shut,
+# but this is a guess against dirty data, not a derived number. RE-DERIVE after
+# ~4 clean weeks of organic-only (post-Phase-4) gate_decisions accumulate —
+# see journal/ carry note, session 20.
+_VALUE_DRIFT_CONTRADICTION_THRESHOLD = 200  # min prior-window count before comparing rates
 _VALUE_DRIFT_CONTRADICTION_RATE_INCREASE = 0.30  # 30% rate increase flags drift
 _VALUE_DRIFT_DISTANCE_INCREASE       = 0.15  # cosine-distance growth over rolling window
 _VALUE_DRIFT_ABANDONMENT_OVERLAP_MAX = 0.15  # keystone-token overlap floor
@@ -559,19 +573,21 @@ class Metacognition:
 
         # 6. value_drift_contradiction — anchor-reject rate increasing
         try:
-            mid = now - 1800  # 30-min boundary
-            start = now - 3600
+            mid = now - _VALUE_DRIFT_CONTRADICTION_WINDOW_S
+            start = now - 2 * _VALUE_DRIFT_CONTRADICTION_WINDOW_S
 
             recent_row = self._beliefs_reader.read_one(
                 "SELECT COUNT(*) AS n FROM gate_decisions "
                 "WHERE outcome='REJECT' AND ts > ? "
-                "AND reason LIKE 'contradicts_anchor:locked_id_%'",
+                "AND reason LIKE 'contradicts_anchor:locked_id_%' "
+                "AND source_node NOT LIKE 'throw_net.%'",
                 (mid,),
             )
             prior_row = self._beliefs_reader.read_one(
                 "SELECT COUNT(*) AS n FROM gate_decisions "
                 "WHERE outcome='REJECT' AND ts > ? AND ts <= ? "
-                "AND reason LIKE 'contradicts_anchor:locked_id_%'",
+                "AND reason LIKE 'contradicts_anchor:locked_id_%' "
+                "AND source_node NOT LIKE 'throw_net.%'",
                 (start, mid),
             )
             recent_count = int(recent_row["n"]) if recent_row else 0

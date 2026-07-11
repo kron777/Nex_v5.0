@@ -272,12 +272,24 @@ class SubstrateHarmonic:
         return 0.0
 
     def _read_gate_reject_rate(self, ts_now: float) -> float:
-        """REJECT rate in last 1h as fraction of total gate decisions."""
+        """REJECT rate in last 24h as fraction of total gate decisions.
+
+        Session 20: excludes throw_net's own resubmissions (source_node LIKE
+        'throw_net.%', 99.64% of all gate_decisions pre-loop-break — see
+        journal/AUDIT_2026-07-08_to_10.md) so this reads organic gate activity.
+        Window widened 1h -> 24h (matches the docstring's pre-existing "daily
+        baseline" language, which the 1h window never actually matched):
+        organic decisions run only ~3-17/hour with real hour-to-hour swings
+        (spot-checked 3-4 in a single hour vs a ~17/hr 14-day average) — too
+        sparse at 1h for a stable rate; 24h averages ~160-400 decisions,
+        tolerable noise.
+        """
         try:
             rows = self._beliefs_reader.read(
                 "SELECT outcome, COUNT(*) AS n FROM gate_decisions "
-                "WHERE ts > ? GROUP BY outcome",
-                (ts_now - 3600,),
+                "WHERE ts > ? AND source_node NOT LIKE 'throw_net.%' "
+                "GROUP BY outcome",
+                (ts_now - 86400,),
             )
             counts = {r["outcome"]: int(r["n"]) for r in rows}
             total = sum(counts.values())
@@ -325,13 +337,16 @@ class SubstrateHarmonic:
     def _score_all_pairs(
         self, streams: dict[str, Any], ts_now: float,
     ) -> dict[str, float]:
+        # Session 20: "throw_net_vs_baseline" (_score_f) excluded from
+        # aggregation — see _score_f's docstring. throw_net_rate is still
+        # read and available in `streams` for diagnostics; it is no longer
+        # folded into `total` as a coherence verdict.
         return {
             "groove_vs_sv_active":       self._score_a(streams, ts_now),
             "walk_pace_vs_cadence":      self._score_b(streams, ts_now),
             "fountain_sv_share":         self._score_c(streams),
             "drive_tension_vs_sv":       self._score_d(streams, ts_now),
             "gate_reject_vs_baseline":   self._score_e(streams),
-            "throw_net_vs_baseline":     self._score_f(streams),
             "stillness_vs_walk":         self._score_g(streams, ts_now),
         }
 
@@ -389,19 +404,50 @@ class SubstrateHarmonic:
     def _score_e(self, streams: dict[str, Any]) -> float:
         """E. Gate REJECT rate vs daily baseline.
 
-        Baseline ~65% REJECT (observed 2026-05-22). Score 1.0 at
-        baseline; falls off linearly toward 0 or 100%.
+        PROVISIONAL (session 20, 2026-07-10). The old "~65% REJECT, observed
+        2026-05-22" baseline was throw_net's own self-rejection loop, not
+        organic gate activity (see journal/AUDIT_2026-07-08_to_10.md) — it was
+        scoring the disease as the cure. gate_reject_rate now excludes
+        throw_net (source_node NOT LIKE 'throw_net.%'), so this baseline is
+        recalibrated to organic history. That history does not yet agree with
+        itself: organic reject rate read 5.6% over the last 24h, 20.9% over 14
+        days, 32.6% over 30 days — real day-to-day/week-to-week volatility,
+        not a settled number. Using the 30-day figure (largest sample) as the
+        working baseline. RE-DERIVE after ~4 clean weeks of organic-only
+        gate_decisions post-Phase-4 (loop not yet cut this session).
         """
         rate = streams["gate_reject_rate"]
-        baseline = 0.65
+        baseline = 0.326  # organic 30-day reject rate, provisional (session 20)
         deviation = abs(rate - baseline)
         return max(0.0, 1.0 - deviation * 2)
 
     def _score_f(self, streams: dict[str, Any]) -> float:
-        """F. Throw-net rate vs daily baseline.
+        """F. Throw-net rate vs daily baseline. RETIRED from aggregation
+        (session 20, 2026-07-10) — kept defined, not called from
+        _score_all_pairs. Do not re-add without re-reading this note.
 
-        Baseline ~2500-3000 sessions/hour (observed 2026-05-22 late).
-        Score 1.0 in 2000-3500 band; falls off outside.
+        The old "2500-3500 sessions/hour = coherent, 0.0 at rate=0" band was
+        throw_net's own runaway self-rejection loop treated as a health
+        target (see journal/AUDIT_2026-07-08_to_10.md) — after the loop
+        breaks (Phase 4, not yet applied), idle-to-near-zero IS the correct
+        state, and this shape would score that as incoherent: a false alarm
+        on a live sparkline for a fix working as intended.
+
+        Unlike _score_e, there is no clean organic baseline to recalibrate
+        to here — historical session counts were all generated under the
+        unfiltered (contaminated) trigger regime, so they can't simply be
+        refiltered the way gate_decisions rows can. To get SOME grounded
+        estimate rather than inventing one, the trigger-clustering logic (4
+        same-topic REJECTs/15min, trigger_detector.py) was replayed against
+        30 days of organic-only REJECTs: ~1066 sessions would have fired
+        (~1.48/hr) — but 942 of those 1066 (88%) cluster on a single repeated
+        word ("emerged"), most likely a counterfactual_node phrasing groove,
+        not diverse genuine contradiction pressure. That is not a number
+        worth building a scored "healthy band" on. Provisional-and-honest
+        here means: don't score this at all until Phase 4 has run and
+        produced real (not replayed) organic session data. RE-EVALUATE
+        whether to reinstate this pair, and with what band, after ~4 clean
+        weeks post-loop-break.
         """
         rate = streams["throw_net_rate"]
         if 2000 <= rate <= 3500:

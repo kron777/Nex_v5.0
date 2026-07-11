@@ -49,7 +49,10 @@ _SURPRISE_AROUSAL_FACTOR = 0.2  # §6: avg flagged surprise_score × factor → 
 _VALENCE_BELIEF_LIMIT = 20     # top-N beliefs for polarity scoring
 _GENIUS_VALENCE_WEIGHT = 0.30  # §9: recent striking-rate -> valence nudge (gentle blend)
 _GENIUS_WINDOW_SECONDS = 5400  # last 90 min of genius_tags for mood
-_GATE_WINDOW          = 20     # last N gate_decisions for accept rate
+_GATE_WINDOW_S        = 3600   # organic gate_decisions in the last hour, not row count
+                                # (session 20: "last 20" was 2.8s of pure throw_net
+                                # noise; organic-only last-20 spans ~6.8h, too stale
+                                # for a 300s tick — see journal/AUDIT_2026-07-08_to_10.md)
 _HELD_WINDOW          = 20     # last N held_thoughts for resolution rate
 
 # Stability weights (must sum to 1.0)
@@ -334,10 +337,16 @@ class AffectState:
 
     def _compute_stability(self) -> float:
         """Coherence from gate accept rate + held resolution rate + turnover inverse."""
-        # Gate decisions: accept rate over last _GATE_WINDOW
+        # Gate decisions: accept rate over the last _GATE_WINDOW_S, organic only.
+        # Session 20: excludes throw_net's own resubmissions (source_node LIKE
+        # 'throw_net.%', 99.64% of all gate_decisions pre-loop-break) and reads
+        # a time window instead of a fixed row count -- "last 20" was fine when
+        # throw_net flooded the table (2.8 seconds of rows); at organic volume
+        # the same 20 rows span ~6.8 hours, stale relative to the 300s tick.
         gate_rows = self._br.read(
-            "SELECT outcome FROM gate_decisions ORDER BY ts DESC LIMIT ?",
-            (_GATE_WINDOW,),
+            "SELECT outcome FROM gate_decisions "
+            "WHERE ts > ? AND source_node NOT LIKE 'throw_net.%'",
+            (time.time() - _GATE_WINDOW_S,),
         )
         if gate_rows:
             accept_n         = sum(1 for r in gate_rows if r["outcome"] == "ACCEPT")

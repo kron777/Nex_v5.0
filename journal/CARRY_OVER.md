@@ -404,3 +404,26 @@ GENIUS_SCORE_v2.md six-step implementation plan (~3-4 hours):
 Then: TRACK_THEORY drive-mapping rescued (if predictions pass) or
 SUBSTRATE_NOTES organs framing becomes working theory (if they fail).
 
+## 2026-07-10 ~22:00 — throw_net loop-break in progress, one open task
+
+Session 19 found throw_net.py's TimeFetch/TriggerDetector/CoherenceGate loop:
+99.64% of all gate_decisions were throw_net resubmitting her own beliefs to
+herself, unfiltered by record_gate_reject, never producing a belief, 6.2GB of
+exhaust. Session 20 is a four-phase fix, phase-gated, consumers recalibrated
+before the loop is cut (journal/AUDIT_2026-07-08_to_10.md and the session
+19/20 transcripts have the full trace).
+
+Phase 1 landed: metacognition.py's `value_drift_contradiction` detector now
+excludes `source_node LIKE 'throw_net.%'` and compares 7-day windows instead
+of 30-minute ones (30-min was pure noise even for the organic signal, which
+runs 1-290/day, not steady).
+
+**Open task, do not forget:** `_VALUE_DRIFT_CONTRADICTION_THRESHOLD = 200` is
+a PLACEHOLDER, set against throw_net-contaminated history because that is
+the only history that exists pre-loop-break. Re-derive it once Phase 4 (the
+loop cut) has been live for **~4 clean weeks** and organic-only
+`gate_decisions` data has accumulated. Until then the detector may under- or
+over-fire on `value_drift_contradiction` — documented, acceptable, not a bug.
+Phases 2 (substrate_harmonic HUD), 3 (affect_state stability), 4 (the cut
+itself) were pending as of this note.
+
