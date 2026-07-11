@@ -527,3 +527,81 @@ deliberately not resolved in this session.
 Status: July 7 finding RETRACTED as mis-specified. Real finding recorded here
 and specced separately. Nothing in `synergizer.py` touched.
 
+## 2026-07-11 ~12:48 — the synergizer selection groove: exact cause, and a disproven hypothesis on record
+
+Follow-on to the entry above (July 7 retraction). That entry traced WHERE
+substance dissolves (composition). This one traces WHY the same ~20 beliefs
+feed composition in the first place — one layer upstream.
+
+**The exact cause**, in `synergizer.py:_select_pair()`:
+
+```python
+rows = self._reader.read(
+    "SELECT id, content, branch_id, confidence, created_at, source "
+    "FROM beliefs "
+    "WHERE source NOT IN ('precipitated_from_dynamic') "
+    "AND confidence > 0.5"
+)
+```
+No `ORDER BY`. `EXPLAIN QUERY PLAN` confirms `SCAN beliefs` — a bare table
+scan, so SQLite returns rows in ascending-rowid (ID) order. Selection is then
+a global argmax, strict `>`:
+```python
+if s > best_score:
+    best_score = s
+    best_pair = (ba, bb)
+```
+`confidence` is ~99.5% tied at exactly 0.70 across `fountain_insight` (audit
+#15 — a fixed per-source default, not an assessment). **No-ORDER-BY + strict
+argmax + a field that's almost universally tied means the lowest ID among the
+tied maximum wins every tie, permanently.** Verified: the winning fresh cohort
+is beliefs 263–283, a sequential unbroken run written in the system's first
+~55 minutes, reused 124–194 times each. Anchor side: identical mechanism,
+independently confirmed (20 distinct anchors ever used, every one either an
+entire small pool or its lowest-ID slice).
+
+**This is NOT the throw_net shape — record the distinction on purpose,
+because "another loop like throw_net" is the wrong pattern-match.** Throw_net
+was a feedback loop: a write (`record_gate_reject`) fed a read (trigger
+threshold) that produced more of the same write, amplifying over time. Here,
+grepped `synergizer.py` in full: **zero writes** to `use_count`,
+`reinforce_count`, or the parent's `confidence`. Nothing about being selected
+makes a belief more selectable next time. This is a **static tie**, fixed
+since the moment beliefs 263–283 were written, not a growing one. A feedback
+loop can be interrupted or decays; this can't — the code will keep
+re-selecting the same ~21 beliefs indefinitely, unless the tie-break itself
+changes. In a sense more permanent than throw_net's loop, not less.
+
+**A hypothesis was tested this session and failed — recorded here in the same
+spirit as the audit's RETRACTIONS section, because a disproven prediction is
+worth as much as a confirmed one.** Going in, the working hypothesis was that
+the selection formula systematically prefers introspective/self-referential
+content over world-contact — that "synthesis rarely touches the world"
+because the criterion actively steers away from feed-derived material.
+**Disproven.** Belief 284 — created minutes after the winning cohort, tied at
+the identical 0.70 confidence, equally introspective (*"The beauty of
+impermanence and constancy coexisting within change"*) — has never once been
+selected. The only difference between 284 and 263–283 is that its ID is
+higher. `_select_pair()` never reads `content`. **The formula is
+content-blind, not content-averse.** The winning cohort's navel-gazing
+character is a bootstrap accident — whatever NEX happened to generate in the
+system's first hour, before any feed-engaged content existed — not a
+preference encoded anywhere. Had the founding 21 been grounded/observational,
+those would be the ones recycled instead.
+
+**The leverage, and its limit:** one tie-break fix in `_select_pair()`
+addresses `collision_grades` (audit #10, distance rewards averaging) and the
+July 7 retraction's real finding (attribution dissolves via composition)
+together — same root, now confirmed, not just analogous. **It does not buy
+world-contact for free.** Since the mechanism never discriminated on content,
+fixing the tie doesn't introduce a content preference either — deciding
+whether synthesis should deliberately touch feed-derived material is a
+separate, independent design choice, still open. See
+`journal/SPEC_synthesis_provenance.md`, updated same session with this root
+cause absorbed and the design questions reordered around it.
+
+Status: selection groove diagnosed to its exact clause. Not self-reinforcing.
+One hypothesis disproven and recorded rather than quietly dropped.
+`synergizer.py` untouched — diagnosis and design only; the build is a fresh
+session.
+
