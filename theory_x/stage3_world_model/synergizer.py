@@ -144,6 +144,9 @@ class BeliefSynergizer:
     # Generated sources that provide fresh material
     _FRESH_SOURCES = frozenset({"fountain_insight", "synergized",
                                  "behavioural_observation"})
+    # Below this embedding distance, treat a fresh belief as a near-duplicate
+    # restatement of the anchor rather than a genuine pairing candidate.
+    _MIN_RELATEDNESS_DISTANCE = 0.05
 
     def _select_pair(self) -> Optional[tuple[dict, dict]]:
         # Include locked seed beliefs (koans, keystones) — rich, philosophically
@@ -183,15 +186,41 @@ class BeliefSynergizer:
             rec_w = 0.5 if (ba["id"] in recent_ids or bb["id"] in recent_ids) else 1.0
             return avg_conf * rec_w
 
-        # Preferred: anchor × fresh (seed wisdom + lived observation)
+        # Preferred: anchor × fresh, selected by SEMANTIC RELATEDNESS.
+        # Session 22/23: the old avg_conf*rec_w score is ~99.5% tied
+        # (confidence is a fixed per-source default), so with no ORDER BY the
+        # strict-> argmax always won on lowest rowid — the same ~20 beliefs
+        # (263-283) recycled forever regardless of content. Relatedness
+        # replaces confidence as the selector; rec_w (recent-pair penalty)
+        # carries over unchanged so the same pair isn't picked every tick.
+        # Ties broken by recency (most-recent fresh belief iterated first,
+        # strict >) not rowid, so the groove can't reform even on an exact tie.
         if anchors and fresh:
+            from theory_x.diversity.embeddings import embed_belief, distance
+
+            fresh_sorted = sorted(fresh, key=lambda b: b["created_at"], reverse=True)
+            fresh_vecs = [
+                (bb, embed_belief(bb["id"], bb["content"])) for bb in fresh_sorted
+            ]
+
+            best_relatedness = -1.0
             for ba in anchors:
-                for bb in fresh:
-                    s = _score(ba, bb)
-                    if s > best_score:
-                        best_score = s
+                a_vec = embed_belief(ba["id"], ba["content"])
+                for bb, b_vec in fresh_vecs:
+                    d = distance(a_vec, b_vec)
+                    if d < self._MIN_RELATEDNESS_DISTANCE:
+                        # Near-duplicate guard: don't pair a belief with a
+                        # restatement of itself.
+                        continue
+                    rec_w = 0.5 if (ba["id"] in recent_ids or bb["id"] in recent_ids) else 1.0
+                    relatedness = (1.0 - d) * rec_w
+                    if relatedness > best_relatedness:
+                        best_relatedness = relatedness
                         best_pair = (ba, bb)
-            return best_pair
+            if best_pair:
+                return best_pair
+            # Every anchor × fresh candidate was filtered as a near-duplicate —
+            # fall through to the cross-branch fallback below.
 
         # Fallback: cross-branch among whatever we have
         by_branch: dict[str, list[dict]] = {}
