@@ -427,3 +427,103 @@ over-fire on `value_drift_contradiction` — documented, acceptable, not a bug.
 Phases 2 (substrate_harmonic HUD), 3 (affect_state stability), 4 (the cut
 itself) were pending as of this note.
 
+## 2026-07-11 ~09:00 — RETRACTED: the July 7 source-attribution finding was mis-specified
+
+**What was filed, 2026-07-07 (rushed, end-of-night, by the filer's own admission
+it needed "a fresh unhurried session"):** a Cato Institute headline on immigrant
+welfare use entered hedged and attributed ("the feed discusses...", "this
+suggests..."), then resurfaced hours later in fountain output "flattened into
+an unattributed, unhedged flat claim sitting alongside unrelated topics."
+Diagnosis at the time: attribution/hedging quietly wears off through
+consolidation. Worst case named: a contested political claim loses "according
+to X" and reads as her own confident assertion.
+
+**Why it seemed right:** it's a plausible failure mode for any consolidation
+pipeline, and the filer had genuinely watched a hedged fire happen. The mistake
+was diagnosing the MECHANISM from one observed instance without tracing where
+that instance actually went.
+
+**What re-verification on live data (session 22) actually found**, tracing the
+exact named case via `belief_lineage` (verified parent-child edges, not
+content-matching):
+
+- Belief 203392 (`precipitated_from_sense`): *"Immigrants Use Less Welfare,
+  Even Counting Their US-Born Children."* Bare headline. Entry is never hedged
+  — confirmed in code (`title_extract.py:extract_sense_title()` extracts only
+  `title`/`headline` fields, no phrase construction) and in 20 sampled entry
+  beliefs (zero hedging anywhere).
+- ~10.3h later, one fountain fire DID engage it with real hedging, quoted in
+  full from `fountain_events`: *"The recent feed discussing immigrants'
+  behavior regarding welfare usage does not align with my foundational belief
+  that systemic inequities and biases play significant roles in how resources
+  are distributed. This suggests a deeper concern about the fairness of
+  welfare systems..."* — this is the July 7 filer's exact observation, real
+  and confirmed.
+- **That fire never crystallized into a belief.** `fountain_crystallizations`
+  has zero rows for it. It survives only as a truncated quote inside an
+  unrelated `hot_observer` note. The hedged version never entered the durable
+  store.
+- What DID persist, via verified lineage: 204153 (`fountain_insight`, ~20h
+  after entry, separate fire) → *"The recent feed on immigrants caught my eye
+  again, its nuance refreshing this tired thought-cycle."* → synergized with
+  belief 8 (*"I am inside... the membrane..."*) → 205580, *"The recent focus
+  on the nuances of immigration helps me see the membrane between different
+  social groups more clearly."* → synergized again with belief 131 (a koan
+  about Bodhidharma's beard) → 206471, *"The renewed focus on the nuances of
+  immigration stories offers a perspective that challenges binary thinking and
+  highlights complex human experiences."* → one generation further, 207118,
+  which no longer mentions immigration at all.
+
+**The finding as filed does not reproduce.** At no point does the specific
+claim (welfare usage rates) get restated flat and unattributed — it is never
+restated at all after the one fire that never crystallized. What persists is
+a generic wrapper — "the recent feed on...", "the recent focus on...", "the
+renewed focus on... stories" — that survives across three synergy generations
+while getting vaguer, wrapping less and less actual content each time.
+
+**The real finding, recorded:** synthesis composes from content only and
+explicitly requests novelty. `synergizer.py`'s entire prompt is *"I hold two
+thoughts at once: '{belief_a}' '{belief_b}'. In one sentence, what new insight
+do I notice?"* — no source, no branch_id, no path for any attribution to ride
+along, and an explicit ask for something NEW rather than a preservation of
+either input. Confirmed universal on 15 more random `fountain_insight →
+synergized` chains: 15/15 show total content transformation, no verbatim or
+attributed carryover, regardless of topic.
+
+**This is the content-level view of audit #10 (`collision_grades`,
+`journal/AUDIT_2026-07-08_to_10.md`).** That finding showed the grader
+*numerically* rewards distant parents (`0.4×input_distance`) and that distance
+forces averaging — 97% of 893 graded syntheses collapse inward. This session
+traced the same mechanism from the content side: pairing is ANCHOR × FRESH
+(a koan or seed axiom against a "fresh" fountain thought, selected purely by
+confidence score, `synergizer.py:_select_pair()` — never by topical
+relatedness), which is exactly why there's nothing for a specific claim to
+connect to and it dissolves instead. Two instruments, the same one broken
+mechanism, found from two different angles four days apart.
+
+**The risk-flip, stated plainly:** the danger the July 7 note worried about —
+NEX confidently asserting a specific contested political claim with the
+"according to X" quietly dropped — is not what the data shows happening. The
+actual risk is closer to the opposite: total semantic evaporation. She ends up
+gesturing at "a recent feed" or "renewed focus on nuances" that no longer
+says anything falsifiable, true or false, about the world. Less dangerous in
+the "confidently wrong" sense; arguably more concerning in the "specific,
+verifiable content doesn't survive contact with her own consolidation
+pipeline at all" sense.
+
+**Scope, quantified:** only 44 of 4,551 `fountain_insight` beliefs (0.97%)
+have ever been used as a synergy parent. Of the 3,998 synergized beliefs with
+a `fountain_insight` parent, 3,721 (93.1%) trace to just 20 heavily-recycled,
+purely introspective one-liners ("The quietude of my own creation," "The
+weight of my own silence grows..." — each reused 124-194 times). Only 277
+(6.9%) trace to more grounded/observational fountain_insight content, and of
+those, feed-topic-specific cases (like the immigration one) are a small
+fraction still. Provenance loss through synthesis is real and universal to
+the mechanism — but synthesis touching feed-derived, attributable content at
+all is a narrow slice of what the synergizer spends its time doing. See
+`journal/SPEC_synthesis_provenance.md` for the design questions this opens,
+deliberately not resolved in this session.
+
+Status: July 7 finding RETRACTED as mis-specified. Real finding recorded here
+and specced separately. Nothing in `synergizer.py` touched.
+
