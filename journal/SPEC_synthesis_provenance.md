@@ -147,16 +147,97 @@ Five options, none picked here — this is a design doc, not a decision:
   would collapse less, because the system has never tried one.**
   `_select_pair()`'s preferred path is always anchor-vs-fresh; there is zero
   data on two topically related fresh beliefs paired together. Most
-  principled option here, and the most work — needs a cheap distance
-  measure the system may not currently compute at selection time (embedding
-  distance is computed only *after* a candidate pair is already fixed, for
-  `collision_grades`, not during `_select_pair()` itself).
+  principled option here — **feasibility audited session 23, see the
+  resolved subsection immediately below: MEDIUM, wiring not a build, with a
+  sizing decision still open.**
 - **(v) Select deliberately for world-contact** (prefer feed-derived fresh
   beliefs). This is the separate design choice §0 flagged: fixing the
   tie-break does not make this happen automatically, because the current
   mechanism never discriminated on content one way or the other. This
   option is now explicitly optional and independent of (i)–(iv) — it can be
   layered on top of whichever tie-break gets chosen, or left out entirely.
+
+#### §2a RESOLVED: fix B is feasible (session 23 audit) — MEDIUM, wiring not a build
+
+Jon chose option (iv) — pair by semantic relatedness. Session 23 audited
+whether that's a one-clause change or a major build, read-only, before
+anything got picked further. Verdict: **MEDIUM.**
+
+**Reachability, proven, not assumed:**
+- No belief embeddings are stored anywhere — no column, no table, no file.
+  `theory_x/diversity/embeddings.py` holds only an in-memory LRU cache (2048
+  entries, dies on restart) over `sentence-transformers/all-MiniLM-L6-v2`
+  (384-dim), computed on demand via a real `model.encode()` call.
+- **The machinery already exists and is already proven working**:
+  `grader.py` (the `collision_grades` grader, audit #10) computes its
+  `input_distance` via exactly this — `embed_belief()` + `1 - cosine` —
+  today, on real beliefs, correctly.
+- **Reachable from `_select_pair()` with a one-line import.** Checked
+  `synergizer.py`'s imports directly: `embeddings.py` is not currently
+  imported anywhere in the file — zero reachability today. But
+  `_select_pair()` runs in the same process as everything else, its own
+  query already returns `content` for every candidate row, and
+  `embed_belief(id, content)` needs nothing else. **This is explicitly NOT
+  the throw_net/TimeFetch reachability trap** (session 19: arXiv was
+  ingested into `sense.db` but `TimeFetch` had no query path to it — a real
+  cross-process/cross-database gap). Here there is no such gap: same
+  process, same interpreter, content already in hand. Checked and ruled out
+  on purpose, not assumed absent because the general shape looked similar.
+- **Cost, measured, not assumed:** 6.9ms/belief (timed on this system, 500
+  real belief contents, model warm). The actual fresh pool matching
+  `_select_pair()`'s own `WHERE` clause is **8,580** (not the ~4,500
+  estimated in session 22 — `synergized` beliefs count too), plus ~20
+  anchors. A full cold sweep: **≈59.3 seconds.** Distance computation once
+  vectors exist is numpy dot products — sub-second, not the bottleneck.
+  Synergizer cadence (`theory_x/stage3_world_model/__init__.py:
+  _synergizer_loop`): fires at most once per 5-minute cooldown, 25-minute
+  timer trigger — not a hot loop. ~60s against a 5–25 minute cadence is
+  tolerable. **But the 2048-entry cache cannot hold an 8,580-item pool** —
+  a full sweep every tick will churn the cache and largely re-pay that ~60s
+  on every single tick, not once at cold start.
+
+**The sizing decision — this is the fork the BUILD session must settle
+first, not something to pick here:**
+
+- **FULL SWEEP.** Embed all ~8,580 fresh candidates every tick. Simple,
+  considers every possible pair, no sampling rule to get wrong. Costs
+  ~60s/tick, recurring (cache too small to amortize it away) — tolerable
+  against the measured cadence, but a real, permanent per-tick cost, not a
+  one-time one.
+- **BOUNDED SAMPLE.** Embed only N fresh candidates per tick (some cheap
+  pre-filter — recency, or a random subsample). Cheap and bounded. Against:
+  needs a sampling rule, and a bad one could silently re-introduce a groove
+  one level down (session 22's own point about breaking ties by recency
+  alone: relocates the problem, doesn't remove it, unless the sample is
+  large or varied enough to matter).
+- **PERSIST THE EMBEDDINGS** — a third option worth naming plainly: add the
+  store the system currently lacks (a column or sidecar table caching each
+  belief's vector permanently), so the ~60s is paid once per belief, ever,
+  not once per tick. Larger change than the other two — it's "wiring plus a
+  persistent store," not just wiring — but it doesn't only serve fix B: all
+  15 files that currently call `embed_belief()` on demand (`crystallizer.py`,
+  `drive_emergence.py`, `metacognition.py`, the `arcs/` cluster, and others)
+  are re-computing the same vectors from an in-memory cache that evicts
+  under load and dies on every restart. Persisting once would remove a
+  recurring cost from the whole system, not just from the synergizer. Worth
+  weighing against the other two options' simplicity, not dismissing as
+  scope creep.
+
+**Cheaper proxy, documented, not chosen:** `tags` (JSON keyword array,
+already on every belief via `tag_ops.generate()`) would let relatedness be
+scored via set-overlap — no model call, no embedding cost at all. **Untested
+for whether keyword overlap actually distinguishes related from unrelated
+well enough to escape the mush pattern** — that's a real open question, not
+a known answer, and would need the same falsifiable substance-survival check
+(§4) run against it before trusting it over embeddings. Worth spiking first
+if the ~60s embedding cost turns out to matter more in practice than the
+cadence measurement here suggests.
+
+**The measurement instrument is unchanged.** §4's substance-survival metric
+applies to fix B exactly as written — whichever sizing option gets chosen,
+run the baseline first, then check whether the chosen change moves the
+survival rate. Feasibility being confirmed here doesn't change what counts
+as evidence that the fix worked.
 
 ### (b) THE PROMPT — downstream of (a); only matters once selection varies
 
