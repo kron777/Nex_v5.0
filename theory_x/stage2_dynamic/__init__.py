@@ -22,7 +22,7 @@ from typing import Optional
 
 import errors
 from substrate import Writer, Reader
-from .bonsai import BonsaiTree, _aggregate_texture_num
+from .bonsai import BonsaiTree, _aggregate_texture_num, _CADENCE_REFRESH_TICKS
 from .membrane import Membrane
 from .pipeline import run_pipeline
 from .crystallization import Crystallizer
@@ -247,8 +247,15 @@ def _aperture_loop(state: DynamicState, stop: threading.Event) -> None:
 
 
 def _accumulator_loop(state: DynamicState, stop: threading.Event) -> None:
+    _tick = 0
     while not stop.is_set():
         try:
+            _tick += 1
+            # Refresh cadence immediately on tick 1, then every ~60th tick
+            # (~30min) -- cheap read-only sense_events query, not run every
+            # 30s tick alongside decay_pass itself.
+            if _tick == 1 or _tick % _CADENCE_REFRESH_TICKS == 0:
+                state.tree.refresh_cadence()
             state.tree.decay_pass()
             state.membrane.decay_accumulator()
             flushed = state.membrane.flush_accumulator()
@@ -351,7 +358,7 @@ def _health_loop(state: DynamicState, stop: threading.Event) -> None:
 
 def build_dynamic(writers: dict, readers: dict, coherence_gate=None) -> DynamicState:
     """Factory: initialise tree, wire everything, start daemon loops."""
-    tree = BonsaiTree()
+    tree = BonsaiTree(sense_reader=readers["sense"])
     tree.init_tree()
 
     membrane = Membrane()

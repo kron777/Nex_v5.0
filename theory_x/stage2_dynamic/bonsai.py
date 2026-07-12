@@ -40,6 +40,53 @@ _STARVE_BONUS = 0.15       # focus_num bump given to a starved branch per pass
 _PRUNE_FLOOR = 0.05
 _PRUNE_HOLD_CYCLES = 6
 
+# Cadence-aware decay (session 26): a branch should decay proportional to how
+# much of ITS OWN expected poll interval has elapsed per tick, not a flat rate
+# tuned for a ~30s cadence. Without this, slow branches (poll every
+# 1800-7200s) lose ~99.8% of focus_num between bursts while fast branches
+# (crypto ~60s) barely decay at all between updates -- branches lose on
+# cadence, not merit (ai_research has curiosity_weight 1.0 and still sat near
+# 0.00). See journal/CARRY_OVER.md, session 25 audit / session 26 build.
+_ACCUMULATOR_TICK_SECONDS = 30.0   # must match _accumulator_loop's stop.wait()
+_CADENCE_WINDOW_SECONDS = 24 * 3600  # sense_events lookback for the calc
+_CADENCE_BURST_GAP = 30.0          # events within this gap = the same burst
+_CADENCE_FACTOR_FLOOR = 0.01      # a branch can't get more than ~100x slowdown
+_CADENCE_FACTOR_CEILING = 3.0     # guards against a garbage/tiny interval value
+_CADENCE_REFRESH_TICKS = 60       # recompute cadence every ~60 ticks (~30 min)
+# Session 26 tuning: raw cadence scaling (alpha=1.0) let slow branches retain
+# so much that real historical replay showed 5 branches saturating at the
+# focus_num 1.0 ceiling, erasing the curiosity_weight differentiation the
+# design was meant to preserve. alpha=0.7 compresses every branch's cadence
+# credit toward 1.0 (less lift, disproportionately less for the branches that
+# were getting the MOST lift) -- replayed against 48h of real pipeline_events:
+# zero branches pinned, Gini 0.31 / normalized entropy 0.89 (target band
+# 0.30-0.42 / 0.86-0.92), slow branches still materially lifted off ~0.00.
+_CADENCE_ALPHA = 0.7
+
+
+def _cluster_bursts(timestamps: list, threshold: float = _CADENCE_BURST_GAP) -> list:
+    """Collapse a sorted timestamp list into burst start-times. A poll's whole
+    batch of items lands within seconds of each other; per-row inter-arrival
+    gaps are dominated by this and don't reflect the real poll cadence."""
+    if not timestamps:
+        return []
+    bursts = [timestamps[0]]
+    for t in timestamps[1:]:
+        if t - bursts[-1] > threshold:
+            bursts.append(t)
+    return bursts
+
+
+def _cadence_factor(branch_interval: Optional[float]) -> float:
+    """Scale factor applied to the selected decay rate. Unknown/absent
+    interval (no external feed maps to this branch, or not enough history
+    yet) -> 1.0, the flat/unscaled default -- safe because it just reproduces
+    today's already-known behavior rather than guessing a number."""
+    if branch_interval is None or branch_interval <= 0:
+        return 1.0
+    raw = (_ACCUMULATOR_TICK_SECONDS / branch_interval) ** _CADENCE_ALPHA
+    return max(_CADENCE_FACTOR_FLOOR, min(_CADENCE_FACTOR_CEILING, raw))
+
 # Seed branches — 10 permanent branches; never pruned
 SEED_BRANCHES = [
     {"id": "ai_research",       "curiosity_weight": 1.0},
@@ -132,9 +179,14 @@ def _new_node(branch_id: str, curiosity_weight: float, is_seed: bool = False,
 
 
 class BonsaiTree:
-    def __init__(self) -> None:
+    def __init__(self, sense_reader=None) -> None:
         self._nodes: dict[str, BonsaiNode] = {}
         self._init_called = False
+        self._sense_reader = sense_reader
+        # branch_id -> effective poll interval (seconds), refreshed
+        # periodically by refresh_cadence(). Empty/missing entries fall back
+        # to _cadence_factor's 1.0 default.
+        self._cadence: dict[str, float] = {}
 
     def init_tree(self) -> None:
         for seed in SEED_BRANCHES:
@@ -169,16 +221,65 @@ class BonsaiTree:
         node.prune_counter = 0
         return node
 
+    def refresh_cadence(self) -> None:
+        """Recompute each branch's effective poll interval from recent
+        sense_events (burst-clustered, min-of-constituent-streams -- whichever
+        feed fires most often sets how often this branch can realistically be
+        attended). Read-only, called periodically (not every decay tick) by
+        _accumulator_loop. On no reader, no data, or any failure: leave the
+        existing cache untouched rather than wiping it to empty -- a
+        transient DB hiccup should not silently revert every branch to flat
+        decay for a tick."""
+        if self._sense_reader is None:
+            return
+        try:
+            from .attention import _STREAM_BRANCH
+            since = time.time() - _CADENCE_WINDOW_SECONDS
+            rows = self._sense_reader.read(
+                "SELECT stream, timestamp FROM sense_events "
+                "WHERE timestamp > ? AND stream NOT LIKE 'internal.%' "
+                "ORDER BY stream, timestamp ASC",
+                (since,),
+            )
+            by_stream: dict[str, list] = {}
+            for r in rows:
+                by_stream.setdefault(r["stream"], []).append(r["timestamp"])
+
+            branch_intervals: dict[str, list] = {}
+            for stream, ts_list in by_stream.items():
+                bursts = _cluster_bursts(ts_list)
+                if len(bursts) < 2:
+                    continue
+                gaps = sorted(bursts[i + 1] - bursts[i] for i in range(len(bursts) - 1))
+                median = gaps[len(gaps) // 2]
+                prefix = stream.split(".")[0]
+                branch_id = _STREAM_BRANCH.get(prefix) or _STREAM_BRANCH.get(stream)
+                if branch_id:
+                    branch_intervals.setdefault(branch_id, []).append(median)
+
+            new_cadence = {
+                branch_id: min(intervals)
+                for branch_id, intervals in branch_intervals.items()
+            }
+            if new_cadence:
+                self._cadence = new_cadence
+        except Exception as exc:
+            errors.record(f"bonsai refresh_cadence failed: {exc}", source="bonsai")
+
     def decay_pass(self) -> None:
         """Apply focus/texture decay across all nodes. Recency-aware: a branch
         attended very recently decays EXTRA, so hot branches cool faster between
-        fires and starved branches can surface (diversity fix)."""
+        fires and starved branches can surface (diversity fix). Cadence-aware:
+        the selected rate is scaled by how much of the branch's OWN expected
+        poll interval elapsed this tick, so a slow-but-healthy branch isn't
+        punished for polling less often than the 30s tick."""
         _now = time.time()
         for node in self._nodes.values():
             _rate = _DECAY_RATE
             # extra decay if attended within the recency window
             if _now - node.last_attended_at < _RECENCY_WINDOW:
                 _rate = _DECAY_RATE + _RECENCY_PENALTY
+            _rate *= _cadence_factor(self._cadence.get(node.branch_id))
             node.focus_num = max(0.0, node.focus_num * (1 - _rate))
             node.texture_num = max(0.0, node.texture_num * (1 - _DECAY_RATE * 0.5))
             # Starvation bonus: long-neglected branches get a bump so they
