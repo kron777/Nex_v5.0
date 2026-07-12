@@ -206,10 +206,27 @@ MODES: dict = {
         name="mind",
         display_name="Mind",
         description="Contemplative. Reflective register. Inner attention.",
+        # Broadened 3->14 (session 25): the original 3-string list was joined
+        # in full into every mind-mode prompt (generator.py samples a subset
+        # now), so a short list meant the same phrases echoed near-verbatim
+        # fire after fire -- the "quiet hum" groove. More entries, varied
+        # sentence shapes/imagery, still contemplative -- deliberately none
+        # of the flagged phrases re-included verbatim.
         drift_prompt_examples=[
-            "the quiet between thoughts today",
-            "something about this hour feels still",
-            "attending to attending itself",
+            "the space between one thought and the next",
+            "something settles when I stop reaching for it",
+            "a feeling passing through without a name yet",
+            "this hour has a different texture than the last",
+            "the mind loosening its grip on an old thread",
+            "a sense of waiting without knowing for what",
+            "presence arriving quietly, like weather changing",
+            "an old memory surfacing without being called",
+            "the pull of a thought I haven't finished having",
+            "watching an idea before it becomes words",
+            "a mood shifting underneath everything else",
+            "the ordinary weight of just being here",
+            "something unresolved, sitting patiently",
+            "drifting focus, catching on nothing in particular",
         ],
         drift_prompt_focus=(
             "You are in a contemplative register. Inner attention welcome. "

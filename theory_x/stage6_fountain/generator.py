@@ -2045,7 +2045,15 @@ class FountainGenerator:
             except Exception:
                 pass
 
-        examples_list = mode.drift_prompt_examples or _DEFAULT_DRIFT_EXAMPLES
+        # session 25: sample a small subset per fire instead of joining the
+        # full list every time -- injecting the same fixed block on every
+        # fire is what turned a short example list into a verbatim-repeat
+        # groove ("quiet hum" et al). Re-sampled fresh each call.
+        import random as _random_drift
+        _full_examples_list = mode.drift_prompt_examples or _DEFAULT_DRIFT_EXAMPLES
+        examples_list = _random_drift.sample(
+            _full_examples_list, k=min(3, len(_full_examples_list))
+        )
         examples_block  = "\n".join(f'- "{ex}"' for ex in examples_list)
         examples_inline = " / ".join(f'"{ex}"' for ex in examples_list)
         focus_block = f"\n{mode.drift_prompt_focus}\n" if mode.drift_prompt_focus else "\n"
