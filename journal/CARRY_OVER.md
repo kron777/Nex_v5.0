@@ -652,3 +652,44 @@ errors near restart were unrelated boot noise: a scorecard_loop FK failure
 and a self_pred connection-refused, both pre-existing). Live behavior
 confirmed, matching the read-only simulation exactly.
 
+## 2026-07-12 ~05:35 — mind-mode drift examples: 2nd "quiet hum" source fixed
+
+Session 24's synergizer 0.15 guard fixed one source of the "quiet hum"
+groove. Session 25's aperture audit (read-only) found a second, independent
+source: `modes.py`'s "mind" mode had only 3 hardcoded
+`drift_prompt_examples`, and `generator.py:2048` joined ALL of them into
+every mind-mode prompt on every fire -- not a sample, the complete fixed
+block, always. Three strings, every time, is exactly the shape that
+produces verbatim echo.
+
+**Frozen baseline, locked before the fix:** last 24h, 122 fountain_events,
+15/122 (12.3%) contained a flagged n-gram ("quiet hum", "the quiet
+before", "hum settles", "settling gently"); **last 100 fires: 15/100
+(15.0%).** Worse than the count alone shows -- several hits were literal
+verbatim sentence repeats (e.g. "The quiet hum in the library mirrors the
+stillness within your thoughts today..." identical 3 times, ids
+27042/27044/27046).
+
+Fix (commit a609542): `modes.py` mind-mode examples broadened 3 -> 14,
+same contemplative register, varied sentence shapes, deliberately not
+re-including the flagged phrases verbatim. `generator.py:2048` now samples
+3 of the mode's examples per fire (`random.sample`) instead of joining the
+full list every time -- confirmed via 3 manual calls returning 3 different
+subsets, and the `_DEFAULT_DRIFT_EXAMPLES` fallback still resolves for
+modes with no list. Full suite 39/1165, identical to the known-stale
+baseline, zero bucket-B. Restarted pid 1657442 -> 1789698 at 05:35:29 SAST
+(unix 1783827312), stable over two 15s-apart checks.
+
+**Prediction, recorded before the data:** the flagged-n-gram rate should
+fall from 15.0%/100 fires, and verbatim sentence-level repeats specifically
+should stop (each fire now seeds from a different 3-of-14 subset, not the
+same fixed 3-of-3). **The check:** re-run the identical n-gram count on
+fountain_events with `ts > 1783827312`, once a comparable ~100-fire sample
+has accumulated (roughly a day at the observed ~5/hour fire rate). Compare
+against 15.0%, not memory.
+
+This fix is independent of and does not touch the M1/M2 aperture-audit
+findings from the same session (decay-cadence mismatch starving 8 branches;
+top-1/recency-only consumption at the fountain) -- those remain open,
+undesigned-into-code, pending a future build session.
+
