@@ -693,3 +693,105 @@ findings from the same session (decay-cadence mismatch starving 8 branches;
 top-1/recency-only consumption at the fountain) -- those remain open,
 undesigned-into-code, pending a future build session.
 
+## 2026-07-12 ~13:47 — M1 cadence-aware decay live, frozen baseline + prediction
+
+Session 26 built and shipped M1: `bonsai.py`'s `decay_pass()` now scales the
+decay rate by `(30s / branch's real poll interval) ** 0.7`, clamped
+[0.01, 3.0], instead of applying the same flat rate to every branch
+regardless of cadence (commit 27cfb97). alpha=0.7 chosen only after a NO-GO
+on alpha=1.0 (raw proportional scaling): replayed against 48h of real
+`pipeline_events`, alpha=1.0 saturated 5 branches at the focus_num ceiling,
+erasing curiosity_weight differentiation entirely. alpha=0.7 replayed at
+zero branches pinned, Gini 0.31 / entropy 0.89 (target band 0.30-0.42 /
+0.86-0.92), re-confirmed against the actual shipped code at Gini 0.2955 /
+entropy 0.8959.
+
+**Frozen pre-restart baseline, live, old code:** Gini = 0.7421, normalized
+entropy = 0.5128 (`emerging_tech` 0.327, `crypto` 0.228, everything else
+0.0002-0.037).
+
+Restarted pid 1789698 -> 1905722 at 13:47:13 SAST (unix 1783856814).
+Stable over two 15s-apart checks. No bonsai/cadence errors in the soak log
+(only the same pre-existing, unrelated boot noise seen at every prior
+restart: a scorecard_loop FK failure and a self_pred connection-refused).
+
+**Prediction, recorded before the data:** live Gini should fall toward
+~0.30, entropy should rise toward ~0.89, over the next ~30-60 minutes of
+real ticks -- `psychology`, `computing`, `language`, `cognition_science`
+should lift materially off ~0.00; `emerging_tech`/`crypto` should stay
+engaged but no longer monopolize. `systems` should remain ~0 (unfed,
+out of scope, not fixed by this change). **Guardrail, checked live not
+just by the replay (which is structurally blind to this):** she should
+still sustain a coherent thread (e.g. the Adams-comparison work already
+in progress at restart) rather than thrashing branch-to-branch every fire
+-- if attention widens but coherence collapses, that is an
+over-correction the weight-replay could not have caught, and must be
+flagged immediately, not waited out.
+
+**Still-open day-later checks from earlier sessions, not yet re-verified:**
+- M3 mind-mode n-gram rate vs the 15.0%/100-fire baseline (`ts > 1783827312`).
+- Substance-survival vs the 25.6% baseline, at a larger n than the 34
+  scored so far (`created_at > 1783771943`).
+
+All three (M1 widening + sustained-thread, M3 n-gram rate, substance-survival)
+to be checked together next session, once a day's worth of data has
+accumulated across all three.
+
+## 2026-07-15 ~13:29 — Reboot recovery, false-green compliance tests, bucket-B baseline moved
+
+Machine rebooted 2026-07-13 18:27, unnoticed until session 27. NEX down since,
+no data written since 18:24-18:26 that day. Cause: repo had long lived at
+`/home/rr/Desktop/Desktop/nex5`; `nex_keepalive.sh` and 48 other files still
+hardcoded the pre-restructure `/home/rr/Desktop/nex5` (no doubled Desktop) —
+April-era debt that had been silently harmless because *something* (never
+identified — no symlink, no mount, no fstab entry found) made the old path
+resolve, right up until the reboot removed whatever that was. Confirmed by
+data, not assumption: identity_loop, remember_loop, wonder_loop, fetch_loop,
+witness_loop, pattern_loop all have their last pre-break writes within a day
+of the 18:27 reboot (identity 16:01, fetch 14:49, remember 03:27, wonder
+06:16, all on the 13th) — **not months of silent death.** The whole arc's
+pool/hum/thread-sustain audits (session 27, Phase 1) were measured on a
+healthy system; nothing from that audit needs recontextualizing.
+
+Fixed: `nex_keepalive.sh:10` (d4f206e), then the remaining 48 references
+(084c6c7) via boundary-safe path substitution — verified against a full
+pytest run before/after and by live data post-restart, not by absence of
+exceptions alone (identity_loop's failure mode was a one-shot startup crash,
+not a per-tick error, so silence alone would have been misleading).
+
+**Instrument finding, worse class than the July misnamed-instrument audit:**
+`test_no_direct_sqlite3_outside_substrate` exists in five places
+(`test_dynamic.py`, `test_fountain.py`, `test_membrane.py`, `test_sense.py`,
+`test_world_model.py`) to catch exactly the pattern that broke tonight —
+background loops calling `sqlite3.connect()` directly instead of going
+through `substrate`'s Reader/Writer. All five were passing FALSE-GREEN,
+for however long the path debt predates this session: each test's own grep
+target was the same broken `/home/rr/Desktop/nex5` path, so it grepped
+nothing and reported success. Not a misnamed or noisy instrument — an
+instrument that measures nothing and certifies the exact failure it exists
+to prevent. Fixing the paths re-armed all five; they now correctly fail
+against ~10 genuine violations (the same loops above, plus edge_builder,
+signal_to_problem, decoder_loop, daily_life — all bypass substrate via raw
+`sqlite3.connect()`).
+
+**THE BUCKET-B BASELINE HAS MOVED: 34 -> 39 failures.** Full-suite diff,
+before/after the path fix, is exactly these 5 compliance tests — zero
+unrelated regressions, zero baseline failures resolved incidentally. Any
+future session diffing bucket-B against the old 34-count baseline will
+misread these 5 as noise or as a new regression. They are neither: they are
+real, correctly-firing, pre-existing violations that were previously
+invisible. Diff against 39, and expect exactly these 5 as already-known.
+
+**New tracked-but-open debt, not fixed tonight:** the substrate-bypass
+pattern itself. ~10 loops (identity/remember/wonder/fetch/witness/pattern/
+daily_life/affinity via `beliefs` UPDATE, edge_builder, signal_to_problem,
+decoder_loop) call `sqlite3.connect()` directly rather than through
+`substrate.Reader`/`Writer`. Scope of the real fix: call-signature changes
+to accept injected reader/writer instances, thread-safety (substrate's
+Writer is a single-writer queue; these loops currently open independent
+connections, which is presumably why this pattern exists rather than being
+an oversight — worth checking for a reason before assuming it's pure
+debt), and dependency-injection plumbing through wherever these loops get
+constructed at boot. Separate project — not attempted tonight, scope was
+restoring function only.
+
