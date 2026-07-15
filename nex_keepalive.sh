@@ -7,7 +7,7 @@
 #   - only ever kill OUR child ($NEX_PID), never a global pkill.
 #   - exit trap kills our child on shutdown (no orphans).
 set -u
-cd /home/rr/Desktop/nex5 || { echo "FATAL: cannot cd to nex5 dir"; exit 1; }
+cd /home/rr/Desktop/Desktop/nex5 || { echo "FATAL: cannot cd to nex5 dir"; exit 1; }
 
 # --- single-instance lock: only ONE keepalive may run ---
 LOCKFILE=/tmp/nex5_keepalive.lock
