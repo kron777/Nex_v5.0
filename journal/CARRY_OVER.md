@@ -911,3 +911,43 @@ real, if extreme, data point from the day of the crash.
   (does a topic survive N consecutive fires) — no design for what "same
   thread" means operationally yet, needs one before it's buildable.
 
+## 2026-07-15 ~22:38 — session 29: instruments #1-#3 live
+
+Built and shipped the three historical-context instruments session 28's audit
+called for (commit 205139b). `scripts/instrument_report.py` (#1 genius rolling
+rate, #2 branch-ordering correlation) — standalone, read-only, no live-code
+touches. `tier_snapshots` table (#3) piggybacking the existing 60s
+`_snapshot_loop` — the one live-code change, own try/except, ~6ms/tick via
+`idx_beliefs_tier` (covering index, no table scan against the live 9.2GB
+`beliefs.db`).
+
+**The backfill rule, validated on all 3 known cases:** row-level, not
+date-hardcoded — exclude any `genius_tags` row where `tagged_at - fire_ts >
+3600s`. Correctly flags 96%+ of 2026-05-30 and 2026-06-03 (the two bulk-
+retagging days) while retaining their genuinely-live rows, and flags zero of
+2026-07-13's real spike (max lag that day: 66s). Generalizes to any future
+backfill by construction, not by knowing today's dates.
+
+**Correction to session 28:** that session's cruder day-level exclusion
+(drop the whole day) wrongly discarded 305 live rows from May 30 and 231 live
+rows from Jun 3 that were sitting inside otherwise-backfilled days. The
+row-level rule fixes this. Session 28's headline numbers (mean 0.290, stdev
+0.263, 79th/40th percentile readings) still reproduce closely under the
+corrected rule — the conclusion didn't change, but the instrument is now
+right for the reason it should be right, not by coincidence.
+
+Full suite: 39/39, zero new (one apparent regression,
+`test_fountain_crystallizer.py::test_writes_belief_on_pass`, confirmed flaky
+via isolation pass + clean full-suite re-run — unrelated to this diff).
+Restarted for #3 to take effect; verified by data post-restart, not absence
+of errors: `tier_snapshots` confirmed receiving 6 rows/tick (tiers
+1,2,3,6,7,8) across consecutive ticks, `tree_snapshots` confirmed still
+writing normally alongside it, zero tier_snapshot/snapshot_loop errors in
+the soak log.
+
+**Still open, not attempted:** #4 groove detection on raw `fountain_events`
+(GrooveSpotter still only reads the last 40 crystallized `beliefs`, blind to
+ruts the crystallizer rejects before they become beliefs) and #5
+thread-persistence (needs a design for what "same thread across fires"
+means operationally before it's buildable). Separate sessions.
+
