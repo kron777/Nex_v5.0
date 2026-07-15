@@ -11,7 +11,7 @@ quality so we can judge whether backward source-recovery is good enough to
 build a real verifier on top of.
 
 Run:
-  cd /home/rr/Desktop/nex5
+  cd /home/rr/Desktop/Desktop/nex5
   .venv/bin/python3 verifier_probe_stage1.py
 
 Reads data/beliefs.db (beliefs) and data/sense.db (sense_events). Adjust paths

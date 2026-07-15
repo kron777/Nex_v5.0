@@ -214,7 +214,7 @@ def _select_wide_mode(seeds, drift_fallback_prob=0.30):
     if True:
         try:
             import sqlite3 as _s3
-            _c = _s3.connect("/home/rr/Desktop/nex5/data/beliefs.db", timeout=5)
+            _c = _s3.connect("/home/rr/Desktop/Desktop/nex5/data/beliefs.db", timeout=5)
             _rows = _c.execute(
                 "SELECT content FROM beliefs WHERE source='precipitated_from_sense' "
                 "AND length(content) > 25 ORDER BY rowid DESC LIMIT 40").fetchall()
@@ -345,8 +345,8 @@ class FountainGenerator:
                     _p = _dbp_sn()
                     _ddb = str(_p["dynamic"]); _bdb = str(_p["beliefs"])
                 except Exception:
-                    _ddb = "/home/rr/Desktop/nex5/data/dynamic.db"
-                    _bdb = "/home/rr/Desktop/nex5/data/beliefs.db"
+                    _ddb = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+                    _bdb = "/home/rr/Desktop/Desktop/nex5/data/beliefs.db"
                 self._self_narrative = SelfNarrative(_ddb, _bdb)
             except Exception:
                 pass
@@ -1281,7 +1281,7 @@ class FountainGenerator:
                 from substrate.paths import db_paths as _dbp2
                 _adb2 = str(_dbp2()["dynamic"])
             except Exception:
-                _adb2 = "/home/rr/Desktop/nex5/data/dynamic.db"
+                _adb2 = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
             _acon = _sq2.connect(_adb2, timeout=3)
             _acon.execute("""CREATE TABLE IF NOT EXISTS recursion_attrib
                 (ts REAL PRIMARY KEY, nudge_active INTEGER,
@@ -1308,7 +1308,7 @@ class FountainGenerator:
                     from substrate.paths import db_paths as _dbp_l4
                     _ddb = str(_dbp_l4()["dynamic"])
                 except Exception:
-                    _ddb = "/home/rr/Desktop/nex5/data/dynamic.db"
+                    _ddb = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
                 self._stakes_active = check_world_contact(_ddb)
                 if self._stakes_active:
                     import sys as _sys_l4
@@ -1324,7 +1324,7 @@ class FountainGenerator:
                     from substrate.paths import db_paths as _dbp_hot
                     _bdb_hot = str(_dbp_hot()["beliefs"])
                 except Exception:
-                    _bdb_hot = "/home/rr/Desktop/nex5/data/beliefs.db"
+                    _bdb_hot = "/home/rr/Desktop/Desktop/nex5/data/beliefs.db"
                 _hot_obs(thought or "", hot_branch or "", _bdb_hot)
             except Exception:
                 pass  # never stall a fire
@@ -2020,7 +2020,7 @@ class FountainGenerator:
                 try:
                     import sqlite3 as _sql3
                     _dc = _sql3.connect(
-                        "/home/rr/Desktop/nex5/data/dynamic.db", timeout=5
+                        "/home/rr/Desktop/Desktop/nex5/data/dynamic.db", timeout=5
                     )
                     _row = _dc.execute(
                         "SELECT problem_id FROM current_focus WHERE id=1"
@@ -2338,7 +2338,7 @@ class FountainGenerator:
         # the substrate of felt continuity.
         try:
             import sqlite3 as _sql_id
-            _id_cx = _sql_id.connect("/home/rr/Desktop/nex5/data/dynamic.db", timeout=5)
+            _id_cx = _sql_id.connect("/home/rr/Desktop/Desktop/nex5/data/dynamic.db", timeout=5)
             _id_row = _id_cx.execute(
                 "SELECT statement, composed_at FROM identity_log "
                 "ORDER BY composed_at DESC LIMIT 1"

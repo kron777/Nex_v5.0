@@ -19,7 +19,7 @@ import time
 import urllib.request
 from pathlib import Path
 
-sys.path.insert(0, "/home/rr/Desktop/nex5")
+sys.path.insert(0, "/home/rr/Desktop/Desktop/nex5")
 from theory_x.stage7_moltbook.client import MoltbookClient, ApiError
 from theory_x.stage7_moltbook.responder import sanitize_inbound
 
@@ -29,7 +29,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("seed")
 
-DB = Path("/home/rr/Desktop/nex5/data/dynamic.db")
+DB = Path("/home/rr/Desktop/Desktop/nex5/data/dynamic.db")
 LLAMA = "http://127.0.0.1:11434/v1/chat/completions"
 SLEEP_BETWEEN = 25  # seconds
 MAX_OPENER_CHARS = 350

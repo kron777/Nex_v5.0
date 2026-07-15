@@ -25,7 +25,7 @@ import sqlite3
 import time
 from typing import Optional
 
-_DYNAMIC_DB = "/home/rr/Desktop/nex5/data/dynamic.db"
+_DYNAMIC_DB = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
 
 # Salience weights — how loud each source is allowed to be when it fires.
 # Tuned so a genuine surprise or active-stakes override outranks routine

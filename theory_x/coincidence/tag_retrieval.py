@@ -17,7 +17,7 @@ import os
 import sqlite3
 from typing import Any
 
-DYN_DB = "/home/rr/Desktop/nex5/data/dynamic.db"
+DYN_DB = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
 FLAG_VAR = "NEX_TAG_FEEDBACK_ON"
 
 

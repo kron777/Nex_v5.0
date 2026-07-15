@@ -21,8 +21,8 @@ from pathlib import Path
 
 log = logging.getLogger("theory_x.life.wonder_loop")
 
-BELIEFS_DB = Path("/home/rr/Desktop/nex5/data/beliefs.db")
-SENSE_DB = Path("/home/rr/Desktop/nex5/data/sense.db")
+BELIEFS_DB = Path("/home/rr/Desktop/Desktop/nex5/data/beliefs.db")
+SENSE_DB = Path("/home/rr/Desktop/Desktop/nex5/data/sense.db")
 TICK_SECONDS = 900
 RECENT_WINDOW_SECONDS = 7200
 DAILY_CAP = 16

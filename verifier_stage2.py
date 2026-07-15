@@ -22,7 +22,7 @@ Method (deterministic, no network by default):
   - write verdicts to data/verification.db (a NEW, separate db; nothing else touched)
 
 Run (read-only on beliefs/sense; creates/writes only verification.db):
-  cd /home/rr/Desktop/nex5
+  cd /home/rr/Desktop/Desktop/nex5
   .venv/bin/python3 verifier_stage2.py
   .venv/bin/python3 verifier_stage2.py --report   # just print last run's summary
 

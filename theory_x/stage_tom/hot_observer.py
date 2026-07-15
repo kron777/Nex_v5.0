@@ -21,7 +21,7 @@ _TEMPLATE_RX = re.compile(
 )
 
 _MIN_WORDS   = 15
-_BELIEFS_DB  = Path("/home/rr/Desktop/nex5/data/beliefs.db")
+_BELIEFS_DB  = Path("/home/rr/Desktop/Desktop/nex5/data/beliefs.db")
 _TIER        = 3
 _CONFIDENCE  = 0.6
 _SOURCE      = "hot_observer"

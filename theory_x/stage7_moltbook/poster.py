@@ -23,7 +23,7 @@ from theory_x.stage7_moltbook.submolt_picker import (
 
 log = logging.getLogger("theory_x.stage7_moltbook.poster")
 
-DYNAMIC_DB = Path("/home/rr/Desktop/nex5/data/dynamic.db")
+DYNAMIC_DB = Path("/home/rr/Desktop/Desktop/nex5/data/dynamic.db")
 TICK_SECONDS = 60                  # how often each loop wakes up
 POST_INTERVAL_SECONDS = 30 * 60    # server cap: 1 post / 30 min
 QUEUE_WINDOW_SECONDS = 30 * 60     # only consider thoughts queued within last 30 min

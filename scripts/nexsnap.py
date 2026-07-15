@@ -33,7 +33,7 @@ SCRIPT_DIR = Path(__file__).parent
 sys.path.insert(0, str(SCRIPT_DIR))
 import nexsnap_extract as ex
 
-REPO = Path("/home/rr/Desktop/nex5")
+REPO = Path("/home/rr/Desktop/Desktop/nex5")
 CORPUS_PATH = REPO / "CORPUS.md"
 SNAP_DIR = REPO / "snapshots"
 

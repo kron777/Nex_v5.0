@@ -25,7 +25,7 @@ from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
-REPO = Path("/home/rr/Desktop/nex5")
+REPO = Path("/home/rr/Desktop/Desktop/nex5")
 THEORY_X = REPO / "theory_x"
 SUBSTRATE = REPO / "substrate"
 GUI = REPO / "gui"

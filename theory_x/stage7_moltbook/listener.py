@@ -22,8 +22,8 @@ from theory_x.stage7_moltbook.client import (
 
 log = logging.getLogger("theory_x.stage7_moltbook.listener")
 
-DYNAMIC_DB = Path("/home/rr/Desktop/nex5/data/dynamic.db")
-SENSE_DB   = Path("/home/rr/Desktop/nex5/data/sense.db")
+DYNAMIC_DB = Path("/home/rr/Desktop/Desktop/nex5/data/dynamic.db")
+SENSE_DB   = Path("/home/rr/Desktop/Desktop/nex5/data/sense.db")
 TICK_SECONDS = 300   # 5 min
 
 

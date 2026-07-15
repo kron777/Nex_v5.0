@@ -19,7 +19,7 @@ from theory_x.diversity.embeddings import embed_belief, cosine
 
 log = logging.getLogger("theory_x.diversity.edge_builder")
 
-BELIEFS_DB = Path("/home/rr/Desktop/nex5/data/beliefs.db")
+BELIEFS_DB = Path("/home/rr/Desktop/Desktop/nex5/data/beliefs.db")
 
 TICK_SECONDS    = 60     # wake up every minute
 MIN_EDGES_PER_BELIEF = 3 # consider a belief "associated" when it has this many

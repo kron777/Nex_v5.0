@@ -16,7 +16,7 @@ Commands:
                            (use before re-scoring with bumped weights).
 
 Run with the project venv:
-  cd /home/rr/Desktop/nex5
+  cd /home/rr/Desktop/Desktop/nex5
   .venv/bin/python3 scripts/genius_tag_cli.py backfill
   .venv/bin/python3 scripts/genius_tag_cli.py show --striking
 """
@@ -30,7 +30,7 @@ import time
 from pathlib import Path
 
 # Repo root on Jon's machine
-ROOT = Path("/home/rr/Desktop/nex5")
+ROOT = Path("/home/rr/Desktop/Desktop/nex5")
 DATA = ROOT / "data"
 DYN = DATA / "dynamic.db"
 BEL = DATA / "beliefs.db"

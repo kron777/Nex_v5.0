@@ -27,11 +27,11 @@ import statistics
 import time
 from pathlib import Path
 
-DATA = Path("/home/rr/Desktop/nex5/data")
+DATA = Path("/home/rr/Desktop/Desktop/nex5/data")
 DYN = DATA / "dynamic.db"
 CONV = DATA / "conversations.db"
 BEL = DATA / "beliefs.db"
-WEIGHTS_PATH = Path("/home/rr/Desktop/nex5/genius_score_weights.json")
+WEIGHTS_PATH = Path("/home/rr/Desktop/Desktop/nex5/genius_score_weights.json")
 
 SELF_WITNESS_PATTERNS = [
     r"\bi am the\b",

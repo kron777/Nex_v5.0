@@ -20,7 +20,7 @@ from pathlib import Path
 
 log = logging.getLogger("theory_x.life.remember_loop")
 
-BELIEFS_DB = Path("/home/rr/Desktop/nex5/data/beliefs.db")
+BELIEFS_DB = Path("/home/rr/Desktop/Desktop/nex5/data/beliefs.db")
 TICK_SECONDS = 600
 OLD_MIN_AGE_DAYS = 7
 RECENT_MAX_AGE_SECONDS = 3600

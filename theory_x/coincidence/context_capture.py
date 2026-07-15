@@ -16,8 +16,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-DYN_DB = "/home/rr/Desktop/nex5/data/dynamic.db"
-BELIEFS_DB = "/home/rr/Desktop/nex5/data/beliefs.db"
+DYN_DB = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+BELIEFS_DB = "/home/rr/Desktop/Desktop/nex5/data/beliefs.db"
 DYNAMIC_STATUS_URL = "http://localhost:8765/api/dynamic/status"
 
 

@@ -37,7 +37,7 @@ import sqlite3
 import time
 from typing import Optional
 
-_DYNAMIC_DB = "/home/rr/Desktop/nex5/data/dynamic.db"
+_DYNAMIC_DB = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
 _STALE_SECS = 1800.0         # a thread older than 30 min is cold — don't carry it
 _MAX_CARRY = 3               # after this many consecutive similar fires, let go
 _SIMILARITY_MIN_SHARED = 3   # 3+ shared distinctive words = "same thread"

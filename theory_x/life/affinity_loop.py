@@ -81,7 +81,7 @@ from pathlib import Path
 
 log = logging.getLogger("theory_x.life.affinity_loop")
 
-BELIEFS_DB = Path("/home/rr/Desktop/nex5/data/beliefs.db")
+BELIEFS_DB = Path("/home/rr/Desktop/Desktop/nex5/data/beliefs.db")
 TICK_SECONDS = 1800
 BATCH_LLM_CALLS = 30  # cap per tick
 USAGE_RECENCY_HALFLIFE_HOURS = 168  # 7 days

@@ -19,9 +19,9 @@ from pathlib import Path
 
 log = logging.getLogger("theory_x.sustained.focus_loop")
 
-BELIEFS_DB = Path("/home/rr/Desktop/nex5/data/beliefs.db")
-CONVERSATIONS_DB = Path("/home/rr/Desktop/nex5/data/conversations.db")
-DYNAMIC_DB = Path("/home/rr/Desktop/nex5/data/dynamic.db")
+BELIEFS_DB = Path("/home/rr/Desktop/Desktop/nex5/data/beliefs.db")
+CONVERSATIONS_DB = Path("/home/rr/Desktop/Desktop/nex5/data/conversations.db")
+DYNAMIC_DB = Path("/home/rr/Desktop/Desktop/nex5/data/dynamic.db")
 
 TICK_SECONDS = 60
 MAX_OBSERVATIONS = 50

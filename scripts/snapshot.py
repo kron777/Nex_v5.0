@@ -20,7 +20,7 @@ from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
-REPO = Path("/home/rr/Desktop/nex5")
+REPO = Path("/home/rr/Desktop/Desktop/nex5")
 CONV_DB = REPO / "data" / "conversations.db"
 DYNAMIC_DB = REPO / "data" / "dynamic.db"
 BELIEFS_DB = REPO / "data" / "beliefs.db"

@@ -17,7 +17,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
-ROOT = Path("/home/rr/Desktop/nex5")
+ROOT = Path("/home/rr/Desktop/Desktop/nex5")
 BELIEFS = ROOT / "data" / "beliefs.db"
 
 

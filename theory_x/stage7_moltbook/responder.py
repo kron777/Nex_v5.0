@@ -25,8 +25,8 @@ from theory_x.stage7_moltbook.client import (
 
 log = logging.getLogger("theory_x.stage7_moltbook.responder")
 
-DYNAMIC_DB = Path("/home/rr/Desktop/nex5/data/dynamic.db")
-BELIEFS_DB = Path("/home/rr/Desktop/nex5/data/beliefs.db")
+DYNAMIC_DB = Path("/home/rr/Desktop/Desktop/nex5/data/dynamic.db")
+BELIEFS_DB = Path("/home/rr/Desktop/Desktop/nex5/data/beliefs.db")
 TICK_SECONDS = 300         # 5 min
 BATCH_PER_TICK = 3         # don't blast through queue
 MAX_REPLY_CHARS = 600      # moltbook DMs can be longer; cap for tone

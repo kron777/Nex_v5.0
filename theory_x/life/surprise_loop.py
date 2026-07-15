@@ -21,8 +21,8 @@ from pathlib import Path
 
 log = logging.getLogger("theory_x.life.surprise_loop")
 
-BELIEFS_DB = Path("/home/rr/Desktop/nex5/data/beliefs.db")
-DYNAMIC_DB = Path("/home/rr/Desktop/nex5/data/dynamic.db")
+BELIEFS_DB = Path("/home/rr/Desktop/Desktop/nex5/data/beliefs.db")
+DYNAMIC_DB = Path("/home/rr/Desktop/Desktop/nex5/data/dynamic.db")
 TICK_SECONDS = 300
 SOURCE = "surprise"
 LAST_PROMOTED_TS_KEY = "surprise_loop_last_ts"

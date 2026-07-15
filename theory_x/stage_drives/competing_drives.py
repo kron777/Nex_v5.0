@@ -275,7 +275,7 @@ class CompetingDrives:
         """
         try:
             import sqlite3
-            con = sqlite3.connect("/home/rr/Desktop/nex5/data/sense.db")
+            con = sqlite3.connect("/home/rr/Desktop/Desktop/nex5/data/sense.db")
             con.row_factory = sqlite3.Row
             row = con.execute("""
                 WITH recent AS (

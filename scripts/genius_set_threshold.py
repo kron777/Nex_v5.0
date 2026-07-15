@@ -16,7 +16,7 @@ The weights_version is NOT bumped — we're tuning the same calibration,
 not recomputing scores. Re-fit (weights_version bump) is a different op.
 
 Usage:
-    cd /home/rr/Desktop/nex5
+    cd /home/rr/Desktop/Desktop/nex5
     .venv/bin/python3 scripts/genius_set_threshold.py --new 0.50
     .venv/bin/python3 scripts/genius_set_threshold.py --new 0.50 --dry-run
     .venv/bin/python3 scripts/genius_set_threshold.py --show
@@ -31,7 +31,7 @@ import sys
 import time
 from pathlib import Path
 
-ROOT = Path("/home/rr/Desktop/nex5")
+ROOT = Path("/home/rr/Desktop/Desktop/nex5")
 WEIGHTS = ROOT / "genius_score_weights.json"
 CONV = ROOT / "data" / "conversations.db"
 

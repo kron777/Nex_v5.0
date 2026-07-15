@@ -30,7 +30,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-DATA = Path("/home/rr/Desktop/nex5/data")
+DATA = Path("/home/rr/Desktop/Desktop/nex5/data")
 DYN = DATA / "dynamic.db"
 CONV = DATA / "conversations.db"
 BEL = DATA / "beliefs.db"

@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
-_BELIEFS_DB     = Path("/home/rr/Desktop/nex5/data/beliefs.db")
+_BELIEFS_DB     = Path("/home/rr/Desktop/Desktop/nex5/data/beliefs.db")
 _LOOKBACK_SECS  = 24 * 3600    # aggregate over last 24h
 _MIN_FOR_STATS  = 5             # need at least 5 HOT observations to speak
 

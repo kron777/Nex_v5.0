@@ -116,7 +116,7 @@ class TestAdapterBase(unittest.TestCase):
         result = subprocess.run(
             [
                 "grep", "-r", "sqlite3.connect",
-                "/home/rr/Desktop/nex5",
+                "/home/rr/Desktop/Desktop/nex5",
                 "--include=*.py",
                 "--exclude-dir=.venv",
                 "--exclude-dir=substrate",

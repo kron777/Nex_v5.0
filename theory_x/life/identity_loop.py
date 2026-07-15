@@ -25,10 +25,10 @@ from zoneinfo import ZoneInfo
 
 log = logging.getLogger("theory_x.life.identity_loop")
 
-BELIEFS_DB = Path("/home/rr/Desktop/nex5/data/beliefs.db")
-DYNAMIC_DB = Path("/home/rr/Desktop/nex5/data/dynamic.db")
-CONVERSATIONS_DB = Path("/home/rr/Desktop/nex5/data/conversations.db")
-SENSE_DB = Path("/home/rr/Desktop/nex5/data/sense.db")
+BELIEFS_DB = Path("/home/rr/Desktop/Desktop/nex5/data/beliefs.db")
+DYNAMIC_DB = Path("/home/rr/Desktop/Desktop/nex5/data/dynamic.db")
+CONVERSATIONS_DB = Path("/home/rr/Desktop/Desktop/nex5/data/conversations.db")
+SENSE_DB = Path("/home/rr/Desktop/Desktop/nex5/data/sense.db")
 
 TZ = ZoneInfo("Europe/Amsterdam")
 TICK_SECONDS = 300

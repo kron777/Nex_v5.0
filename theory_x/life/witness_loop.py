@@ -27,8 +27,8 @@ from zoneinfo import ZoneInfo
 
 log = logging.getLogger("theory_x.life.witness_loop")
 
-BELIEFS_DB = Path("/home/rr/Desktop/nex5/data/beliefs.db")
-DYNAMIC_DB = Path("/home/rr/Desktop/nex5/data/dynamic.db")
+BELIEFS_DB = Path("/home/rr/Desktop/Desktop/nex5/data/beliefs.db")
+DYNAMIC_DB = Path("/home/rr/Desktop/Desktop/nex5/data/dynamic.db")
 TZ = ZoneInfo("Europe/Amsterdam")
 TICK_SECONDS = 1800
 SOURCE = "witness_loop"

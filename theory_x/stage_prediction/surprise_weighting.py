@@ -24,7 +24,7 @@ _MIN_CONF        = 0.55
 _MAX_CONF        = 0.92
 _BOOST_FACTOR    = 0.22   # max additional confidence at surprise_score=1.0
 _LOOKBACK_SECS   = 60.0   # surprise must be recent to count
-_DYNAMIC_DB      = Path("/home/rr/Desktop/nex5/data/dynamic.db")
+_DYNAMIC_DB      = Path("/home/rr/Desktop/Desktop/nex5/data/dynamic.db")
 
 
 def confidence_for_fire(dynamic_db: str | None = None) -> tuple[float, float]:

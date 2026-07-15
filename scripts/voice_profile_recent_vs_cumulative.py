@@ -25,7 +25,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-REPO = Path("/home/rr/Desktop/nex5")
+REPO = Path("/home/rr/Desktop/Desktop/nex5")
 CONV_DB = REPO / "data" / "conversations.db"
 DYNAMIC_DB = REPO / "data" / "dynamic.db"
 DRIVE_PAIR_LIKE = "%integration%self_preservation%"

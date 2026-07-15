@@ -26,8 +26,8 @@ from theory_x.genius.score_v2 import (
 )
 import json
 
-DATA_DIR = Path("/home/rr/Desktop/nex5/data")
-REPORTS_DIR = Path("/home/rr/Desktop/nex5/reports")
+DATA_DIR = Path("/home/rr/Desktop/Desktop/nex5/data")
+REPORTS_DIR = Path("/home/rr/Desktop/Desktop/nex5/reports")
 REPORTS_DIR.mkdir(exist_ok=True)
 
 SELF_REF_TOKENS = {
@@ -128,7 +128,7 @@ def compute_normalization(fires):
 def _load_v2_weights():
     """Load v2 weights once; cache."""
     if not hasattr(_load_v2_weights, '_cache'):
-        wp = Path('/home/rr/Desktop/nex5/genius_score_weights.json')
+        wp = Path('/home/rr/Desktop/Desktop/nex5/genius_score_weights.json')
         _load_v2_weights._cache = json.loads(wp.read_text())
     return _load_v2_weights._cache
 
