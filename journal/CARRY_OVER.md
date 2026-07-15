@@ -795,3 +795,44 @@ debt), and dependency-injection plumbing through wherever these loops get
 constructed at boot. Separate project — not attempted tonight, scope was
 restoring function only.
 
+## 2026-07-15 — three frozen predictions read
+
+Read-only. All three predictions from sessions 24-26 were ripe and unread
+going into this session; read now against their frozen baselines, no fixes,
+no restart.
+
+**M1 CONFIRMED:** steady-state over the clean run (12 Jul 13:47 -> 13 Jul
+18:26, 1275 snapshots): Gini 0.344 (baseline 0.7421, predicted ~0.30),
+entropy 0.873 (baseline 0.5128, predicted ~0.89), active branches 8.52/10
+(baseline 2/10). Directionally and substantially confirmed; slightly short
+of exact predicted values, well inside regime.
+
+**M1 GUARDRAIL VIOLATION, recorded not chased:** 13 Jul 04:56-05:16 UTC, all
+10/10 branches simultaneously ceiling-pinned (~3 min fully locked),
+self-resolved in 2.5 min. This is the alpha=1.0 failure mode occurring once
+under shipped alpha=0.7. Outside that episode pinning ~0.22-0.26
+branches/snapshot over 29h, with 3-5 branch blips every 30min-2h that
+self-resolve. Cause unknown. Rare, self-limiting, aggregate healthy — but a
+future session should know it's possible.
+
+**M1 COHERENCE GUARDRAIL: UNVERIFIED.** No instrument exists for "does she
+sustain a coherent thread." The paired condition we set ("widening is the
+goal, incoherence is the failure") was never measured — only eyeballed on
+the dashboard. M1 is confirmed on widening, unverified on coherence.
+
+**SUBSTANCE-SURVIVAL CONFIRMED:** 60.8% (62/102) vs 25.6% baseline
+(128/500), n up 3x from the 55.9%/n=34 read. Operationalization verified:
+belief 207581 re-scored overlap=2 SURVIVED, matching the original
+CARRY_OVER record exactly. Confirms the "relatedness alone largely fixed
+substance survival" branch. Small caveat, watch-don't-act: post-restart-
+today split is 33.3% at n=9 — far too small to read.
+
+**M3 PARTIAL / SHAPE UNEXPLAINED:** rate went 15.0% baseline -> 21.0% (first
+100 fires post-restart, WORSE) -> dense paraphrase cluster through ~20h (26
+hits total, 5.2% of 499) -> then 371 consecutive clean fires, most recent
+100 = 0/100. Verbatim triplicates never recurred (prediction held). The M1
+restart landed MID-cluster, so it doesn't explain the resolution either. NO
+CAUSAL STORY — recording the shape, not inventing a mechanism. The hum is
+currently gone and has been for ~2.5 days; we do not know why it resolved
+when it did.
+
