@@ -298,6 +298,7 @@ def _consolidation_loop(state: DynamicState, stop: threading.Event) -> None:
 
 def _snapshot_loop(state: DynamicState, stop: threading.Event) -> None:
     dynamic_writer = state.writers["dynamic"]
+    beliefs_reader = state.readers["beliefs"]
     while not stop.is_set():
         try:
             snap = state.tree.snapshot()
@@ -317,6 +318,26 @@ def _snapshot_loop(state: DynamicState, stop: threading.Event) -> None:
             )
         except Exception as exc:
             errors.record(f"snapshot_loop error: {exc}", source=_LOG_SOURCE, exc=exc)
+
+        # Session 29 (instrument #3) — tier-count history. Own try/except,
+        # deliberately separate from the tree_snapshot write above: this is
+        # telemetry, not load-bearing, and must never be able to slow or
+        # block this loop (or anything else — it's a single read + a single
+        # write, ~6ms measured against the live 9GB beliefs.db via the
+        # existing idx_beliefs_tier covering index).
+        try:
+            tier_ts = time.time()
+            tier_rows = beliefs_reader.read(
+                "SELECT tier, COUNT(*) as cnt FROM beliefs GROUP BY tier"
+            )
+            for row in tier_rows:
+                dynamic_writer.write(
+                    "INSERT INTO tier_snapshots (ts, tier, count) VALUES (?, ?, ?)",
+                    (tier_ts, row["tier"], row["cnt"]),
+                )
+        except Exception as exc:
+            errors.record(f"tier_snapshot error: {exc}", source=_LOG_SOURCE, exc=exc)
+
         stop.wait(60.0)
 
 

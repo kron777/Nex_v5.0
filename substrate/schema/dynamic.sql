@@ -36,6 +36,17 @@ CREATE TABLE IF NOT EXISTS tree_snapshots (
 );
 CREATE INDEX IF NOT EXISTS idx_tree_ts ON tree_snapshots(ts);
 
+-- Tier-count snapshots (session 29, instrument #3). Piggybacks the same
+-- 60s _snapshot_loop tick as tree_snapshots. One row per (tier, count) per
+-- tick, so a given ts groups into as many rows as tiers currently populated.
+CREATE TABLE IF NOT EXISTS tier_snapshots (
+    id    INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts    REAL NOT NULL,
+    tier  INTEGER NOT NULL,
+    count INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_tier_snapshots_ts ON tier_snapshots(ts);
+
 -- Crystallization events (Phase 3)
 CREATE TABLE IF NOT EXISTS crystallization_events (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,
