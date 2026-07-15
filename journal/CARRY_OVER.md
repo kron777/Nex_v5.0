@@ -836,3 +836,78 @@ CAUSAL STORY — recording the shape, not inventing a mechanism. The hum is
 currently gone and has been for ~2.5 days; we do not know why it resolved
 when it did.
 
+## 2026-07-15 ~17:33 — session 28 audit: two contradictory readings, both misread, no instrument existed
+
+Read-only. Prompted by 13:40 genius 45%/17:02 genius 17% four hours apart, read
+as possible collapse. It wasn't — the metric itself was never validated as a
+signal, only ever eyeballed live with no baseline.
+
+**`genius` is a rolling 1h window over `genius_tags`, n≈23, SE ±8pts at 1σ.**
+Historical distribution (936 hourly points, 6.5 weeks, two bulk-retagging days
+excluded — see caveat below): mean 0.290, median 0.231, stdev 0.263. Today's
+two readings located in that distribution: 13:40 45% = 79th percentile
+(elevated, not a record); 17:02 17% = 40th percentile (normal, near-median).
+**THE 45->17 "COLLAPSE" WAS SAMPLING NOISE.** Both readings were misread on the
+same day — one taken as evidence of a good state, one as evidence of
+collapse — neither justified by the actual historical spread.
+
+**`open_problems` are 97.8% mechanically templated** (306/313, full history)
+via `signal_to_problem.py:_compose_title()` — "Why is {branch} producing
+strong beliefs right now?" and "Signal: investigate '{entity}'" account for
+nearly all of them; checked the last 25 specifically and they were 25/25
+template matches. "Self-chosen problems" was never evidence of self-direction.
+A 2026-07-05 code comment already diagnosed exactly this ("a branch producing
+strong beliefs is normal healthy behavior, not an anomaly worth a sustained
+problem") and added a 24h-per-branch throttle rather than a fix. Open
+question, not resolved tonight: whether the throttle-not-fix is worth
+revisiting, or whether template-generated problems are simply what this
+mechanism is for and the framing ("self-direction") is what needs correcting,
+not the code.
+
+**`focus_num` vs `curiosity_weight` was NEVER tightly coupled** — not a
+decoupling that developed, a weak correlation that has held steady since M1
+shipped. Pearson mean 0.260 across all 1,560 post-M1 tree_snapshots (stdev
+0.102), first-quartile-of-history 0.280 -> most-recent-quartile 0.238, a
+difference well inside the noise band. No decoupling occurred. CARRY_OVER
+never predicted strict rank-tracking of weight by focus_num — the only
+documented claim (session 26, alpha=1.0 rejection) was that alpha=1.0 would
+"erase curiosity_weight differentiation entirely." Don't inflate that into a
+stronger claim than it was next time this comes up.
+
+**T6 145->15 is an outage artifact, not a new mechanism.** Exact
+`last_demoted_at` trace: 9 decayed pre-crash (13 Jul 16:16), then a 44h gap
+(NEX down), then one 153-belief batch at 15 Jul 12:16 (the first `decay_pass`
+after restart catching up everything that crossed the idle>48h line purely
+from wall-clock time passing during the outage), then immediately back to
+normal 14-19/batch. One-time catch-up, not a drain.
+
+**`genius_tags` has 22,714 rows spanning 6.5 weeks (2026-05-30 onward),
+per-fire, timestamped — only ever read live as a 1h snapshot, never plotted
+as a series before tonight.** The instrument largely exists as data; it was
+just never aggregated or given historical context.
+
+**Caveat for any future instrument built on `genius_tags`:** two bulk-
+retagging artifacts contaminate naive daily/hourly averages if not excluded —
+2026-05-30 (n=7,932, initial tagger backfill) and 2026-06-03 (n=6,518, the
+`v3_widen` weights experiment, reverted same day) both show `tagged_at` lagging
+the actual fire by 7.8-8.8 *days*, meaning thousands of old fires got
+retroactively tagged in a single batch. By contrast the 2026-07-13 85.6% spike
+(n=360) is genuine live data (lag 6-49s) and should NOT be excluded — it's a
+real, if extreme, data point from the day of the crash.
+
+**NEXT BUILD, agreed but not started tonight:**
+- #1 (highest leverage, pure query, no new logging): rolling genius rate +
+  historical percentile band. Would have prevented today's misread on both
+  ends.
+- Bundle with #1: #2 branch-ordering-vs-curiosity_weight correlation as a
+  standing number (same "compute historical context for an existing signal"
+  pattern, data already in tree_snapshots); #3 T6/T7 tier-count time series
+  (not currently persisted anywhere — piggyback the existing 60s
+  `_snapshot_loop`, near-zero incremental cost).
+- Separate session, real work: #4 groove detection on raw `fountain_events`
+  instead of only crystallized beliefs (session 27 already found
+  `GrooveSpotter` is blind to ruts the crystallizer rejects before they become
+  beliefs — same open gap, confirmed still true tonight); #5 thread-persistence
+  (does a topic survive N consecutive fires) — no design for what "same
+  thread" means operationally yet, needs one before it's buildable.
+
