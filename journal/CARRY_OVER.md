@@ -951,3 +951,117 @@ ruts the crystallizer rejects before they become beliefs) and #5
 thread-persistence (needs a design for what "same thread across fires"
 means operationally before it's buildable). Separate sessions.
 
+## 2026-07-16 ~11:44 — session 30: the persona-loop audit, A/B/C design, B shipped
+
+**The finding of the session:** `persona_responder.py`'s own docstring states
+the design intent plainly — the persona must stay "DISTINCT from NEX's own
+voice on purpose: different system prompt (curious, questioning, outside
+NEX's preoccupations), so it introduces genuine otherness, not an echo. **An
+echo would teach NEX nothing.**" The actual shipped `_PERSONA_SYSTEM` prompt
+says the opposite: "contemplative presence: unhurried, reflective... reflect
+back what you sense in NEX's words... sit with the same quiet NEX sits
+with." **The file warns against exactly what it ships.** This is a bug, not
+a design choice — the tool's own reasoning already settles what A2 should
+fix. Origin confirmed via `source_identity.py`'s census (the "3.8%
+other-mind" number the docstring cites): NEX was genuinely ~95-96% isolated
+from any distinct other when this was built. The purpose was real and sound;
+the implementation drifted from its own stated design.
+
+**Audit findings, traced end-to-end (not speculative):** persona reads
+NEX's raw `fountain_events` directly, writes near-verbatim mirrors to
+`sense_events(external.other_mind)`, 98.3% (1,239/1,260 lifetime) convert to
+`precipitated_from_sense` beliefs tagged `branch_id='external'` — 5.2%
+(1,244/23,975) of the entire "world content" belief pool is persona echo.
+Two full mirror-cycles traced within 50 minutes; `hot_observer` (a third,
+independent instrument) certified the resulting fires as "genuine contact...
+actual encounter with what is there." Separately: `GrooveSpotter` is NOT
+blind (164 alerts fired against the "sunlight through leaves"/cicadas groove
+since 2026-05-17, promptly, repeatedly) — but its cooldown enforcement was a
+structural no-op (see below, now fixed). And 29% of the last 500 durable
+`fountain_insight` beliefs passed the crystallizer's engagement gate *only*
+via a contemplative keyword (quiet/still/notice/feels/seems/wonder/tired/
+slow) with no pronoun and no question mark — sampled 30 of these by content,
+not regex: ~67% were genuinely empty mood-atmosphere with no propositional
+content, ~30% were substantive thoughts where the keyword was incidental.
+
+**Design approved: A/B/C, sequenced B -> C -> A2, each observed ~1 week
+before the next ships, so effects stay separable and attributable.**
+- **A (persona loop):** A2 (fix the prompt toward its own documented
+  intent) before A1 (kill it) — cheaper to reverse, and per the docstring
+  contradiction above, closer to a bug fix than a new decision. 1,244
+  existing persona-echo beliefs left alone regardless of which A option
+  ships — rewriting/deleting history to make a graph look clean is its own,
+  larger intervention.
+- **B (cooldown type-mismatch):** smallest, cleanest, shipped this session
+  (see below).
+- **C (engagement gate):** confirmed a real bug by content sampling, not
+  just regex analysis — but needs its own anchor-heuristic design/validation
+  pass (naive keyword removal would also reject the ~30% genuinely good
+  content) before building. Not started.
+
+**B shipped, this session (commit b20de0b):**
+`crystallizer._is_on_cooldown()` was `WHERE content = ?` comparing a full
+new sentence against a stored n-gram fragment via exact equality — could
+essentially never match. Fixed to normalized substring containment.
+`template_repetition` alerts store their pattern as `" / ".join(bigrams)`
+(non-contiguous, for log readability) rather than a single phrase, so the
+fix splits stored patterns on `" / "` and checks each piece — this was a
+real design gap caught before shipping, not assumed away: a naive whole-
+string containment check would have left `template_repetition` (roughly
+half of all groove-alert volume) still a no-op. Also added a write-side
+floor (`_is_meaningful_fragment`, >=2 non-stopword words + >=10 chars) after
+measuring that fragments like "of tech" and "does the" (one content word,
+one stopword — passed the old both-stopwords-only check) produced false
+blocks against unrelated fires sharing the incidental phrase.
+
+Blast radius measured three times as the design was corrected, not asserted
+once: naive raw-fire check 0.6% -> corrected for template-pattern splitting
+1.4% -> final with the floor applied 0.4% (2/500 crystallized
+`fountain_insight` beliefs, both genuinely meaningful matches, no generic-
+fragment false positives). Not a cliff at any stage of the measurement.
+
+Full suite: 39/39 baseline, lands at 39 with zero new (one apparent
+regression, `test_fountain_crystallizer.py::test_writes_belief_on_pass`,
+investigated across an isolation pass + 4 full-suite runs — fail/fail/fail/
+pass, isolation clean every time — consistent with a pre-existing race
+between the test's fixed 50ms sleep and the async writer queue, unrelated to
+this diff). Restarted; `tier_snapshots` (session 29) confirmed still writing
+normally post-restart as an incidental health check.
+
+**Live verification, honestly incomplete as of this entry.** Structural
+correctness is confirmed (unit tests exercising the actual new code path,
+plus the blast-radius simulation run against the real `signal_cooldown`
+table and real crystallized beliefs). What is NOT yet confirmed: a live
+`Cooldown written` or `REJECTED (cooldown)` line from real post-restart
+traffic — watched the soak log for ~35 minutes post-restart (two Monitor
+windows) and zero groove alerts of ANY kind fired in that span, so there was
+nothing to write a cooldown entry from yet, let alone block against. That
+itself is informative — not every 35-minute window has a rut — but it means
+the "does it actually block something live" half of verification is still
+open. **Action for whoever picks this up next: check `signal_cooldown` for
+entries created after 2026-07-16 09:43 UTC (the restart) and grep the soak
+log for `REJECTED (cooldown)` once a repeat has naturally occurred.** Don't
+assume it works from the absence of errors — that's the standing rule this
+whole arc, and it applies to this fix too, including from its own author.
+
+**PRE-REGISTERED, before any data comes in: B is a CONTROL. Predict NO
+meaningful movement in genius rate or groove alert frequency.** The 0.2-0.4%
+blast-radius measurement said B was very unlikely to be the main driver of
+anything — a null result over the following week CONFIRMS that measurement
+was right and is a SUCCESS, not a miss. Do not read a flat genius-rate/
+groove-frequency line next session as "B didn't work." It was never expected
+to move those numbers; it was expected to make the cooldown mechanism
+actually function, which is verified separately (does the log show real
+block events over time), not by watching genius rate.
+
+**Frozen baselines, to diff against after B has run ~1 week and before C or
+A2 ship:**
+- genius rolling rate: 43% (71st percentile full-history, 88th trailing-14d)
+- groove alerts/day: Jul 12: 650 ngram_repetition / 506 template_repetition;
+  Jul 15: 306 / 460
+- persona share of `precipitated_from_sense`: 1,244/23,975 (5.2%)
+- `external.other_mind` volume: ~50-140 events/day (7-day range)
+
+**Not built this session, on purpose:** C (engagement gate anchor
+heuristic) and A2 (persona prompt fix). One change at a time.
+
