@@ -293,12 +293,39 @@ class FountainCrystallizer:
         return None
 
     def _is_on_cooldown(self, content: str) -> bool:
-        rows = self._reader.read(
-            "SELECT 1 FROM signal_cooldown "
-            "WHERE content=? AND cooldown_until > ? LIMIT 1",
-            (content, time.time()),
-        )
-        return bool(rows)
+        """Session 30 (B): was WHERE content=? — comparing a full new sentence
+        against a stored n-gram/bigram fragment via exact equality, which can
+        essentially never match (the stored value is a short pattern like
+        "sunlight through leaves", not a full sentence). GrooveSpotter has
+        fired 164+ alerts against this exact groove since 2026-05-17 and
+        blocked nothing. Fixed to normalized substring containment.
+
+        template_repetition patterns are " / "-joined bigrams (see
+        theory_x.diversity.groove._detect_template_repetition) rather than a
+        single contiguous phrase, so each stored pattern is split on " / "
+        and any piece matching is a hit — this also works unchanged for
+        ngram_repetition/exact_repetition patterns, which are already a
+        single piece.
+        """
+        try:
+            rows = self._reader.read(
+                "SELECT content FROM signal_cooldown WHERE cooldown_until > ?",
+                (time.time(),),
+            )
+        except Exception:
+            return False
+        if not rows:
+            return False
+        normalized = re.sub(r"\s+", " ", (content or "").lower()).strip()
+        if not normalized:
+            return False
+        for row in rows:
+            stored = row["content"] or ""
+            for piece in stored.split(" / "):
+                piece_norm = re.sub(r"\s+", " ", piece.lower()).strip()
+                if piece_norm and piece_norm in normalized:
+                    return True
+        return False
 
     def _read_situation(self) -> dict:
         now = time.time()

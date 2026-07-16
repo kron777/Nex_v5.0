@@ -39,6 +39,27 @@ def _trigrams(text: str) -> list[str]:
     return [" ".join(words[i:i+3]) for i in range(len(words) - 2)]
 
 
+# Cooldown floor (session 30 B): a fragment has to be distinctive enough to be
+# worth silencing future content over. Bare _is_stopword_bigram only rejects
+# bigrams where BOTH words are stopwords, which still lets things like
+# "of tech" or "does the" through (one content word, one stopword) — measured
+# against 500 recent crystallizations, fragments this generic produced false
+# matches against unrelated fires. Require the fragment to carry at least two
+# non-stopword words and a minimum length, so a stray common phrase can't
+# silence content it has nothing to do with.
+_MIN_NONSTOPWORD_WORDS = 2
+_MIN_FRAGMENT_CHARS = 10
+
+
+def _is_meaningful_fragment(piece: str) -> bool:
+    piece = piece.strip()
+    if len(piece) < _MIN_FRAGMENT_CHARS:
+        return False
+    words = piece.split()
+    nonstop = sum(1 for w in words if w not in _STOPWORDS)
+    return nonstop >= _MIN_NONSTOPWORD_WORDS
+
+
 class GrooveSpotter:
     def __init__(self, beliefs_writer, beliefs_reader):
         self._writer = beliefs_writer
@@ -201,6 +222,21 @@ class GrooveSpotter:
         pattern = alert.get("pattern", "")
         if not pattern:
             return
+        # Floor: template_repetition patterns are " / "-joined bigrams (see
+        # _detect_template_repetition); ngram_repetition/exact_repetition
+        # patterns are a single piece. Keep only pieces distinctive enough to
+        # be worth blocking on and drop the rest — otherwise a generic
+        # fragment bundled alongside a meaningful one (e.g. "of tech" next to
+        # a real repeated phrase in the same alert) would still get stored
+        # and could silence unrelated content that just happens to share it.
+        meaningful_pieces = [p for p in pattern.split(" / ") if _is_meaningful_fragment(p)]
+        if not meaningful_pieces:
+            log.info(
+                "Cooldown skipped (no piece met the meaningfulness floor): type=%s pattern=%r",
+                alert["alert_type"], pattern,
+            )
+            return
+        pattern = " / ".join(meaningful_pieces)
         content_hash = hashlib.sha256(pattern.encode()).hexdigest()
         cooldown_until = time.time() + COOLDOWN_HOURS * 3600
         try:

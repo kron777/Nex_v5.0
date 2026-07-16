@@ -175,6 +175,50 @@ class TestGrooveSpotter(unittest.TestCase):
         alert = spotter._check_ngrams(beliefs)
         self.assertIsNone(alert)
 
+    # -----------------------------------------------------------------------
+    # Cooldown floor (session 30, B). Measured against 500 recent
+    # crystallizations that a generic fragment sharing one content word with
+    # a stopword ("of tech", "does the") produced false matches against
+    # unrelated fires — this floor keeps such fragments out of
+    # signal_cooldown in the first place.
+    # -----------------------------------------------------------------------
+
+    def test_is_meaningful_fragment_rejects_generic_short_phrase(self):
+        from theory_x.diversity.groove import _is_meaningful_fragment
+        self.assertFalse(_is_meaningful_fragment("of tech"))
+        self.assertFalse(_is_meaningful_fragment("does the"))
+        self.assertFalse(_is_meaningful_fragment("the"))
+
+    def test_is_meaningful_fragment_accepts_distinctive_phrase(self):
+        from theory_x.diversity.groove import _is_meaningful_fragment
+        self.assertTrue(_is_meaningful_fragment("sunlight through leaves"))
+        self.assertTrue(_is_meaningful_fragment("rate distortion theory"))
+
+    def test_push_cooldown_skips_write_when_no_piece_meaningful(self):
+        from theory_x.diversity.groove import GrooveSpotter
+        writer = _StubWriter()
+        spotter = GrooveSpotter(writer, _StubReader({}))
+        spotter._push_cooldown({
+            "alert_type": "template_repetition",
+            "severity": 0.6,
+            "pattern": "of tech / does the",
+        })
+        self.assertEqual(writer.calls, [])
+
+    def test_push_cooldown_strips_generic_piece_but_keeps_meaningful_one(self):
+        from theory_x.diversity.groove import GrooveSpotter
+        writer = _StubWriter()
+        spotter = GrooveSpotter(writer, _StubReader({}))
+        spotter._push_cooldown({
+            "alert_type": "template_repetition",
+            "severity": 0.6,
+            "pattern": "of tech / sunlight through leaves",
+        })
+        self.assertEqual(len(writer.calls), 1)
+        stored_pattern = writer.calls[0][1][1]
+        self.assertNotIn("of tech", stored_pattern)
+        self.assertIn("sunlight through leaves", stored_pattern)
+
 
 # ---------------------------------------------------------------------------
 # TestDormancyScanner

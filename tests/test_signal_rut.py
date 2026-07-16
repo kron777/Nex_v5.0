@@ -156,9 +156,13 @@ class TestCooldownEnforcement(unittest.TestCase):
         return c
 
     def test_is_on_cooldown_true_when_entry_exists(self):
+        # Session 30 (B): _is_on_cooldown now does normalized substring
+        # containment of the stored fragment in the new thought (was exact
+        # equality, which could never match a stored n-gram fragment against
+        # a full sentence — see crystallizer._is_on_cooldown docstring).
         content = "The clock ticks idly on the table by my side."
         reader = _StubReader({
-            "signal_cooldown": [_RowLike({"1": 1})],
+            "signal_cooldown": [_RowLike({"content": "clock ticks idly"})],
         })
         c = self._make_crystallizer(reader)
         self.assertTrue(c._is_on_cooldown(content))
@@ -168,13 +172,23 @@ class TestCooldownEnforcement(unittest.TestCase):
         c = self._make_crystallizer(reader)
         self.assertFalse(c._is_on_cooldown("Some unique fresh thought."))
 
+    def test_is_on_cooldown_false_when_fragment_does_not_match(self):
+        # Containment, not presence-of-any-row: an active cooldown entry for
+        # an unrelated fragment must not block content that doesn't contain it.
+        reader = _StubReader({
+            "signal_cooldown": [_RowLike({"content": "sunlight through leaves"})],
+        })
+        c = self._make_crystallizer(reader)
+        self.assertFalse(c._is_on_cooldown("A completely unrelated thought about markets."))
+
     def test_quality_check_rejects_cooled_down_content(self):
         content = "The clock ticks idly on the table by my side."
         reader = _StubReader({
             # No recent duplicate → passes recent_repeat check
             "source='fountain_insight' and content=?": [],
-            # But cooldown table has an active entry
-            "signal_cooldown": [_RowLike({"1": 1})],
+            # But cooldown table has an active entry whose fragment is
+            # contained in `content`
+            "signal_cooldown": [_RowLike({"content": "clock ticks idly"})],
             "belief_blacklist": [],
             "fountain_insight": [],
             "synergized": [],
