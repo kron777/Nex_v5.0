@@ -47,6 +47,27 @@ CREATE TABLE IF NOT EXISTS tier_snapshots (
 );
 CREATE INDEX IF NOT EXISTS idx_tier_snapshots_ts ON tier_snapshots(ts);
 
+-- Crystallizer rejections (session 33, census specimen #10/#16). Every one
+-- of FountainCrystallizer._quality_check's 11 reject reasons (empty,
+-- too_short, too_long, no_engagement, blacklisted, performance_insight_
+-- repetition, near_duplicate, recent_repeat, semantic_repeat, cooldown,
+-- droplet_repetition) previously reached only errors.record()'s in-memory
+-- deque(maxlen=500), which churns over in ~24min under real load and never
+-- survives a restart. This is the first durable, queryable record of any
+-- crystallizer rejection. matched_pattern carries the specific fragment
+-- that triggered the reject where one exists (cooldown/blacklist/dedup
+-- families); NULL for reasons with no distinct matched fragment (empty,
+-- too_short, too_long, no_engagement).
+CREATE TABLE IF NOT EXISTS crystallization_rejects (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts              REAL NOT NULL,
+    reason          TEXT NOT NULL,
+    thought_excerpt TEXT,
+    matched_pattern TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_crystallization_rejects_ts     ON crystallization_rejects(ts);
+CREATE INDEX IF NOT EXISTS idx_crystallization_rejects_reason ON crystallization_rejects(reason);
+
 -- Crystallization events (Phase 3)
 CREATE TABLE IF NOT EXISTS crystallization_events (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,

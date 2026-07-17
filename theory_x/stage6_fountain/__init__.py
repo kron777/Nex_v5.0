@@ -101,6 +101,7 @@ def build_fountain(
             dynamic_reader=readers.get("dynamic"),
             mode_state=mode_state,
             coherence_gate=coherence_gate,
+            dynamic_writer=writers.get("dynamic"),
         )
 
     condenser = Condenser(voice_client=voice_client)

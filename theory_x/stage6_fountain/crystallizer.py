@@ -73,6 +73,7 @@ class FountainCrystallizer:
         dynamic_reader: Optional[Reader] = None,
         mode_state=None,
         coherence_gate=None,
+        dynamic_writer: Optional[Writer] = None,
     ) -> None:
         self._writer = beliefs_writer
         self._reader = beliefs_reader
@@ -82,6 +83,17 @@ class FountainCrystallizer:
         self._dynamic_reader = dynamic_reader
         self._mode_state = mode_state
         self._gate = coherence_gate
+        # Session 33 (census #10/#16) — durable reject record lives in
+        # dynamic.db, not beliefs.db, to match tree_snapshots/tier_snapshots'
+        # house pattern. Optional: None in constructions that don't pass it
+        # (tests, older call sites) — the reject write is skipped, never
+        # raises, per the "telemetry must never break the crystallizer" rule.
+        self._dynamic_writer = dynamic_writer
+        # Side channel for _quality_check -> crystallize(): which specific
+        # fragment/pattern triggered a cooldown/blacklist/dedup reject. Kept
+        # out of _quality_check's return tuple deliberately — that 2-tuple
+        # signature is asserted directly by ~15 existing test call sites.
+        self._last_reject_pattern: Optional[str] = None
         _gov_initial_ts = 0.0
         try:
             rows = beliefs_reader.read(
@@ -143,6 +155,21 @@ class FountainCrystallizer:
                 source=_LOG_SOURCE,
                 level="INFO",
             )
+            matched = self._last_reject_pattern
+            self._last_reject_pattern = None
+            if self._dynamic_writer is not None:
+                try:
+                    self._dynamic_writer.write(
+                        "INSERT INTO crystallization_rejects "
+                        "(ts, reason, thought_excerpt, matched_pattern) "
+                        "VALUES (?, ?, ?, ?)",
+                        (time.time(), reason, thought[:200], matched),
+                    )
+                except Exception as exc:
+                    errors.record(
+                        f"crystallization_reject write failed: {exc}",
+                        source=_LOG_SOURCE, exc=exc,
+                    )
             return None
 
         # Phase 22 — Coherence Gate (runs after quality gate, before INSERT)
@@ -307,25 +334,33 @@ class FountainCrystallizer:
         ngram_repetition/exact_repetition patterns, which are already a
         single piece.
         """
+        return self._find_cooldown_match(content) is not None
+
+    def _find_cooldown_match(self, content: str) -> Optional[str]:
+        """Same lookup as _is_on_cooldown, but returns the matched fragment
+        itself (the specific piece of the stored pattern that hit) instead
+        of a bool — session 33, so the durable reject record can carry
+        WHICH pattern matched, not just that one did.
+        """
         try:
             rows = self._reader.read(
                 "SELECT content FROM signal_cooldown WHERE cooldown_until > ?",
                 (time.time(),),
             )
         except Exception:
-            return False
+            return None
         if not rows:
-            return False
+            return None
         normalized = re.sub(r"\s+", " ", (content or "").lower()).strip()
         if not normalized:
-            return False
+            return None
         for row in rows:
             stored = row["content"] or ""
             for piece in stored.split(" / "):
                 piece_norm = re.sub(r"\s+", " ", piece.lower()).strip()
                 if piece_norm and piece_norm in normalized:
-                    return True
-        return False
+                    return piece.strip()
+        return None
 
     def _read_situation(self) -> dict:
         now = time.time()
@@ -386,6 +421,9 @@ class FountainCrystallizer:
         return False
 
     def _quality_check(self, thought: str, droplet: Optional[str] = None) -> Tuple[bool, str]:
+        # Reset the matched-pattern side channel for this call — see __init__.
+        self._last_reject_pattern = None
+
         if not thought:
             return False, "empty"
 
@@ -402,12 +440,26 @@ class FountainCrystallizer:
         try:
             if self._promoter is not None:
                 if self._promoter.is_blacklisted(thought):
+                    # promoter.is_blacklisted() returns bool only — do a
+                    # cheap second lookup, reject-path-only, purely so the
+                    # durable record carries which pattern actually matched
+                    # instead of nothing.
+                    try:
+                        bl_rows = self._reader.read("SELECT pattern FROM belief_blacklist")
+                        tl = thought.lower()
+                        for row in bl_rows:
+                            if row["pattern"].lower() in tl:
+                                self._last_reject_pattern = row["pattern"]
+                                break
+                    except Exception:
+                        pass
                     return False, "blacklisted"
             else:
                 bl_rows = self._reader.read("SELECT pattern FROM belief_blacklist")
                 tl = thought.lower()
                 for row in bl_rows:
                     if row["pattern"].lower() in tl:
+                        self._last_reject_pattern = row["pattern"]
                         return False, "blacklisted"
         except Exception:
             pass
@@ -435,6 +487,9 @@ class FountainCrystallizer:
                             f"{similarity:.2f}): {thought[:80]}",
                             source=_LOG_SOURCE, level="INFO",
                         )
+                        self._last_reject_pattern = (
+                            f"sim={similarity:.2f} vs: {(r['content'] or '')[:120]}"
+                        )
                         return False, "performance_insight_repetition"
         except Exception:
             pass
@@ -453,6 +508,9 @@ class FountainCrystallizer:
                         continue
                     overlap = len(new_words & ex_words) / len(new_words | ex_words)
                     if overlap > 0.6:
+                        self._last_reject_pattern = (
+                            f"jaccard={overlap:.2f} vs: {(row['content'] or '')[:120]}"
+                        )
                         return False, "near_duplicate"
         except Exception:
             pass
@@ -464,6 +522,7 @@ class FountainCrystallizer:
                     f"Crystallizer REJECTED (recent_repeat): {thought[:80]}",
                     source=_LOG_SOURCE, level="INFO",
                 )
+                self._last_reject_pattern = "exact content match, <30min"
                 return False, "recent_repeat"
         except Exception:
             pass
@@ -477,17 +536,20 @@ class FountainCrystallizer:
                     f"[similar to: {similar[:60]}]",
                     source=_LOG_SOURCE, level="INFO",
                 )
+                self._last_reject_pattern = similar[:200]
                 return False, "semantic_repeat"
         except Exception:
             pass
 
         # Cooldown table — groove spotter writes here when it detects a rut
         try:
-            if self._is_on_cooldown(thought):
+            _cd_match = self._find_cooldown_match(thought)
+            if _cd_match:
                 errors.record(
                     f"Crystallizer REJECTED (cooldown): {thought[:80]}",
                     source=_LOG_SOURCE, level="INFO",
                 )
+                self._last_reject_pattern = _cd_match
                 return False, "cooldown"
         except Exception:
             pass
@@ -510,6 +572,7 @@ class FountainCrystallizer:
                         f"Crystallizer REJECTED (droplet repeat x{droplet_matches}): {droplet}",
                         source=_LOG_SOURCE, level="INFO",
                     )
+                    self._last_reject_pattern = droplet
                     return False, "droplet_repetition"
             except Exception:
                 pass
