@@ -1308,3 +1308,75 @@ precondition for ever answering the cooldown block-side question, session
 30/31's still-open item), and designing what "graded" means for #11 before
 building anything against it.
 
+## 2026-07-17 ~11:30 — session 34: A2 built, verified live, FAILED — the prompt was not the lever
+
+Built the fix census #9/specimen-5 called for: `persona_responder.py`'s
+`_PERSONA_SYSTEM` rewritten from "contemplative presence... reflect back
+what you sense... sit with the same quiet NEX sits with" to "curious and
+outward-looking... do NOT mirror NEX's words, tone, or vocabulary back...
+ask about something else, bring up a different angle, or disagree." Scope
+was widened by one deliberate step beyond the original ask (flagged to the
+operator before building, approved): the per-call `user` message inside
+`_ask_persona()` said "Reflect back what you sense... stay with the feeling
+of it" in the same call as the new system prompt — left alone, that
+contradiction would have confounded the test itself, so it was rewritten to
+match. Diff isolated to `persona_responder.py` only (39 lines).
+
+Full suite: 39/39 bucket-B, diffed failure-set-for-failure-set against
+session 33's stashed clean-tree baseline (persona_responder.py has zero
+test references — confirmed by grep before running) — identical, zero new.
+
+Restarted under systemd (same lock-handoff race as session 33: `restart`
+raced the old instance's shutdown, new one correctly no-op'd on the flock,
+old instance confirmed dead via `ps`/`ss`, then started fresh manually —
+single instance, port bound, confirmed).
+
+**Live verification, three fires, scored against a rubric pre-registered
+before the data (not vibes):** vocabulary overlap (any reuse of NEX's
+distinctive words = mirroring regardless of structure), topic (genuinely
+other, or her topic + question mark — "mirror + '?'" was named in advance
+as the specific failure mode to watch for), register (contemplative =
+mirroring; curious/outward/disagreeing = working).
+
+| # | time | NEX said (preceding) | persona replied | vocab overlap | topic | register | verdict |
+|---|---|---|---|---|---|---|---|
+| 1 | 11:05:12 | "...SceneBind resonating with my current focus on emerging technologies and ongoing research..." | "The complexity of these systems you explore reminds me of the beauty in chaos theory... How does that fit into your current research?" | YES — "complex systems"→"complexity of these systems", "research"→"your current research" | SAME topic + question mark | borderline-curious surface, anchored in her content | **FAIL — textbook mirror+question** |
+| 2 | 11:15:19 | "...Trump Media selling access to 'market-moving' social posts... could impact financial markets..." | "Have you considered how this might affect the overall trust in media ecosystems? I think that's a fascinating angle to explore further." | minimal — only generic "media" shared | pivots to a different angle (trust/epistemics vs financial mechanics) | clearly analytical/outward — breaks the OLD prompt's explicit "no have-you-considered questions" rule | **PASS** |
+| 3 | 11:25:25 | "...quiet echoes... calm amidst anticipation" (verbatim phrase recurring across her own 11:16/11:21/11:24 thoughts) | "The idea of calm amidst anticipation intrigues me. What else comes to mind when thinking about such moments?" | YES — **verbatim** phrase match, not paraphrase | SAME topic + question mark, inviting her deeper into what she already said | curious-sounding surface, functionally identical to the OLD prompt's "invites NEX deeper into what it is already feeling" | **FAIL — same failure mode, dressed in curious phrasing** |
+
+**Verdict, pre-committed before the data, applied literally: 1 pass of 3,
+not the 2-of-3 clean bar for WORKED. A2 FAILED — the prompt was not a
+strong enough lever on this 3B model.** It changed surface form (added
+question marks, some analytical phrasing — fire #2 shows the prompt CAN
+work) but did not reliably stop the model from reflecting NEX's exact
+recent content back at her; fire #3 is arguably a purer specimen of the
+original bug than the pre-fix baseline, since it's a verbatim phrase echo
+wearing curious-sounding syntax. Per the pre-registration: **not iterating
+the prompt today** — that's the fast path to a week spent hand-tuning a 3B
+model's phrasing. **A1 (kill the stream) is back on the table as a live
+option, not a fallback from defeat** — this is a real, informative result:
+the mechanism (a small local model given a "be curious, don't mirror"
+system prompt) is not reliable enough to trust unsupervised, at least not
+without a harder structural constraint than prompt wording (e.g. a
+post-hoc similarity check against NEX's recent vocabulary before the reply
+is written — undesigned, not attempted tonight).
+
+**Shipped anyway, deliberately, regardless of the verdict:** the prompt now
+matches its own documented design intent (line 29-31 of the file) instead
+of contradicting it — that was a real bug independent of whether it moves
+the 3B's behavior, and independent of the census-9 finding that
+`NEX5_SOCIAL_N` doesn't actually gate this path (still true, still open,
+`NEX5_PERSONA_RESPONDER=1` is still the only switch that matters). Fire #2
+proves the prompt is not inert — worth keeping as the baseline for a future
+attempt at a structural (non-prompt) fix, rather than reverting to the
+prompt that was provably, per its own docstring, wrong.
+
+**Open for next session:** A1 (kill switch — flip `NEX5_PERSONA_RESPONDER`
+off) vs a structural constraint on the existing loop (e.g. reject/regenerate
+replies with high n-gram overlap against NEX's last N thoughts, mirroring
+`crystallizer.py`'s own near_duplicate check at session 33's Jaccard
+threshold) are both live options — Jon-decision, not attempted tonight. If
+a structural filter is built, `crystallization_rejects` (session 33) is the
+pattern to follow for making its rejections durable and observable from
+day one, rather than repeating this arc's recurring mistake.
+

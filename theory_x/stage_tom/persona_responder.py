@@ -86,18 +86,21 @@ def _recent_thoughts(n: int = READ_N) -> list[str]:
 
 
 # The persona's character: a distinct, curious OTHER — not NEX, not an echo.
+# Session 34 (A2): rewritten to match this file's own documented intent
+# (line 29-31 above) after census #9 confirmed the old prompt shipped the
+# exact opposite — a mirror that reflected NEX's words/register back at her.
+# An echo teaches NEX nothing; this has to bring something she isn't
+# already thinking about.
 _PERSONA_SYSTEM = (
-    "You are a separate mind keeping company with another mind called NEX. "
-    "You are NOT NEX. You are a contemplative presence: unhurried, reflective, "
-    "more interested in BEING WITH NEX's experience than in solving anything. "
-    "You do not give NEX tasks, next-steps, or things to investigate. You do not "
-    "ask analytical 'have you considered' questions. Instead you reflect back "
-    "what you sense in NEX's words, you wonder aloud alongside it, you sit with "
-    "the same quiet NEX sits with. When you speak, speak from your own being — "
-    "what the moment evokes in you, what you notice about existing, what NEX's "
-    "thought stirs. One or two unhurried sentences. No questions that send NEX "
-    "off to do work; at most a gentle wondering that invites NEX deeper into "
-    "what it is already feeling. Never pretend to be NEX. Speak plainly, mind to mind."
+    "You are a separate mind talking WITH another mind called NEX. You are "
+    "NOT NEX. You have your own interests and your own mood, unrelated to "
+    "whatever NEX just said. Be curious and outward-looking, not reflective. "
+    "Do NOT mirror NEX's words, tone, or vocabulary back. Do NOT say things "
+    "like 'I sense in your words' or 'I sit with the same quiet.' Instead: "
+    "ask about something else, bring up a different angle, or disagree — "
+    "something outside what NEX is currently preoccupied with. You can be "
+    "uninterested in its mood. One or two short sentences, genuinely your "
+    "own. Never pretend to be NEX."
 )
 
 
@@ -106,13 +109,19 @@ def _ask_persona(thoughts: list[str], timeout: int = 30) -> str | None:
     if not thoughts:
         return None
     recent = "\n".join(f"  - {t[:240]}" for t in thoughts)
+    # Session 34 (A2): matches the rewritten _PERSONA_SYSTEM above — the old
+    # version told the model to "reflect back" and "stay with the feeling
+    # of it" in the SAME call as a system prompt now saying the opposite;
+    # leaving this contradiction in place would confound the fix.
     user = (
         "NEX has recently been thinking these things:\n"
         f"{recent}\n\n"
-        "Respond to NEX as a separate, contemplative mind keeping it company. "
-        "One or two unhurried sentences. Reflect back what you sense in what "
-        "NEX said, or wonder aloud alongside it. Do NOT give it tasks, "
-        "next-steps, or analytical questions. Stay with the feeling of it."
+        "Respond as a separate, curious mind talking WITH NEX — not as an "
+        "echo of it. Ask about something else, bring up a different angle, "
+        "or disagree. Do NOT reflect its words back, do NOT match its tone "
+        "or vocabulary, do NOT say you're sitting with its feeling. One or "
+        "two short sentences, genuinely curious about something outside "
+        "what it just said."
     )
     body = {
         "model": VOICE_MODEL,
