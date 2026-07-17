@@ -1065,3 +1065,132 @@ A2 ship:**
 **Not built this session, on purpose:** C (engagement gate anchor
 heuristic) and A2 (persona prompt fix). One change at a time.
 
+## 2026-07-17 ~04:00 — reboot recovery, autostart fixed (untested), the alert-rescan finding
+
+Machine rebooted 2026-07-16 17:20:02 (kernel upgrade 35->40, planned, not a
+crash) and NEX did not come back up on its own — down 5h40m until manually
+restarted at 23:02. Same root cause, second occurrence: **NEX has never had
+an autostart hook.** `nex_keepalive.sh` requires manual invocation; no
+`@reboot` cron, no systemd unit existed anywhere for it. This is the actual
+cause of both recent multi-day outages — Jul 13's reboot (down 2 days,
+misdiagnosed at the time, session 27, as a stale-path issue only) and
+tonight's (down 5h40m). **She was never crashing. Nobody was starting her.**
+b20de0b (session 30 B, shipped 11:43 the same day as tonight's reboot) is
+unrelated to the outage — no death-throes to explain, because there was
+nothing running to die; confirmed by the total absence of `/tmp/nex5_soak.log`
+and `/tmp/nex5_keepalive_supervisor.log` post-reboot (never started, not
+crashed-and-lost).
+
+**Fixed:** `~/.config/systemd/user/nex5-keepalive.service`, `ExecStart=`
+absolute path to `nex_keepalive.sh`, `After=network-online.target`. Not
+ordered against `ollama.service` — cross-manager (user/system) ordering
+isn't guaranteed, so this relies on the script's own retry/backoff for an
+Ollama-not-ready window, as scoped going in. `Restart=on-failure` (not
+`always`) chosen deliberately: the script already self-supervises `run.py`
+in its own infinite loop (port/pid death -> respawn, single-instance
+`flock`) — systemd restarting on top of that would only double-supervise.
+`on-failure` covers just the outer script process dying outright, and
+specifically does NOT restart on the script's clean `exit 0` when `flock`
+finds another instance already running — so a duplicate-start attempt
+no-ops instead of fighting the lock or restart-looping against it.
+
+**Live-verified tonight** (not just "enabled and hoped"): stopped the
+already-running manual keepalive (pid 28069/28091, itself stable and
+error-free for ~5h since the 23:02 restart) via `SIGTERM` — cleanly killed
+its child through the script's own trap, port released, confirmed via `ps`
+and `ss`, not assumed. Then `systemctl --user start` — single supervisor
+handoff, no window where two keepalives were racing the lock. Result:
+`active (running)`, exactly one `run.py` (pid 165676) across two checks 15s
+apart with matching PID both times, `NRestarts=0`, port 8765 bound, soak log
+at the same path (`/tmp/nex5_soak.log`) growing under the new supervision —
+the thing every session greps is unaffected, since that redirect lives
+inside the script itself, not the unit.
+
+**Honest gap: boot-start itself is UNVERIFIED.** Tonight's test proves the
+unit runs correctly once started by hand under systemd; it does not prove
+`systemctl --user enable` actually fires at boot (lingering is on for `rr`,
+which should make this work, but "should" isn't "confirmed"). The real test
+is the next reboot. Next session: check `uptime -s` against
+`journalctl --user -u nex5-keepalive -b` and confirm NEX was already up
+without anyone touching a keyboard.
+
+**A third stale-path artifact found while building this, left alone:**
+`~/.config/systemd/user/nex5.service` (pre-existing, unrelated to tonight's
+new unit) — `WorkingDirectory=/home/rr/Desktop/nex5` (single Desktop, a
+different dead path from both the `/home/rr/Desktop/nex` legacy-v4 units
+below AND the correct doubled `/home/rr/Desktop/Desktop/nex5`), `ExecStart`
+via the old `/home/rr/.local/bin/nex5` console-script symlink (itself ->
+`run.py`, predating the `nex_keepalive.sh` supervisor pattern). Confirmed
+`disabled`/`inactive (dead)` — not in `default.target.wants`, doing no
+active harm, unlike the two below. Not touched. New unit deliberately named
+`nex5-keepalive.service` (distinct from this old `nex5.service`) to avoid
+any collision or confusion between them.
+
+**THE ALERT-RESCAN FINDING — the important one this session.** Investigating
+whether the afternoon's sev-0.80 `groove_alerts` hit ("a deeper / notice a /
+i notice", 14:27:10-14:50:21 UTC) had been cooled down per session 30's open
+item: it fired 24 times in those 24 minutes, roughly once a minute — and all
+24 rows cite the **identical `sample_belief_ids`** set, byte-for-byte, every
+time. This is one stale window being re-scanned by a timer tick, not 24
+repeated generations of the groove. At 14:51:21 UTC, exactly one new belief
+(211384) entered the window; the dominant pattern mutated to "insight into /
+a deeper / into the", severity rose to 0.9 — and *that* transition is the
+only moment a `signal_cooldown` row got written for this family
+(`content='insight into'`). **No cooldown entry exists for the literal "a
+deeper / notice a / i notice" 3-gram at all** — the detector alerted on it
+24 times and enforcement never engaged, not because the fix didn't work, but
+because nothing new arrived for it to act on until the pattern had already
+drifted to a different bigram set.
+
+**Consequence, stated plainly: the groove-alert-count baselines frozen at
+the end of session 30 (Jul 12: 650 ngram_repetition / 506 template_repetition;
+Jul 15: 306 / 460) are inflated by an unknown, currently-unmeasured amount
+by exactly this re-scan mechanism, and do NOT mean what we assumed when we
+froze them.** A row in `groove_alerts` is a timer tick that found the window
+still matching, not an independent event. Any future read of "groove
+alerts/day" — including re-deriving those two baselines — must dedupe
+consecutive same-`sample_belief_ids` rows (or window by first-occurrence-
+per-pattern-per-episode) before the count means "grooves," not "ticks."
+This is the sixth species of disconnected wire found across this whole arc:
+an alarm that re-fires on stale data and only actually does something the
+moment the data underneath it moves.
+
+**B's live verification, completed (the other half of session 30's open
+item).** Three `signal_cooldown` entries confirmed written after b20de0b's
+09:43 UTC deploy: `cicada hum / hum mirrors` (13:44:42), `insight into`
+(14:51:21 — the escalation above), and `influence feels / feels like`
+(21:06:13, from tonight's own SILENCE-strike test fire during restart
+verification). **The WRITE side is confirmed live.** The BLOCK side remains
+open: no blocked-attempt table exists anywhere, and the soak log from the
+afternoon window is gone with the reboot as anticipated. Honest answer,
+not a guess: **we cannot currently confirm from data whether the fix has
+ever actually rejected a generation.** Next natural repeat of a
+cooldown-covered pattern, with the soak log intact through it, is the check.
+
+**Watch, don't act:** tonight's restart resumption (`Resumption:
+{'promoted_count': 5, ...}`, 23:03:10) materialized belief rows 211357 and
+211384 at `created_at` 21:03:09 — both members of the same "I notice a
+deeper" family as the afternoon's alert, carrying `promotion_log` timestamps
+from ~14:xx baked into rows that are, by `created_at`, brand new. The
+"insight into" cooldown that did fire had already expired (17:15:33 UTC,
+~4h before this restart) by the time these landed, so nothing in current
+cooldown state would suppress a recurrence. No new alert at 0.8+ for this
+family has fired since restart as of this entry (only the low-sev 0.5
+"influence feels" pattern, tied to the test fire) — worth checking again
+next session, not acted on tonight.
+
+**Separate open item, flagged not fixed:** the legacy NEX v4 install at
+`/home/rr/Desktop/nex` (deleted directory) still has two systemd *system*
+units — `nex-api.service`, `nex-refinement-loop.service` — enabled and
+crash-looping every 5s/30s respectively since every boot, plus ~15 crontab
+entries firing `cd /home/rr/Desktop/nex && ...` into the void on schedules
+from every 5 minutes to weekly. Harmless to nex5 (different port, different
+path, nothing shared), but it's live, continuous noise on the machine and,
+combined with the two disabled/dead artifacts (`nex-brain.service`, the
+`nex5.service` user unit above), the purest specimen yet of the
+disconnected-wire class this whole arc keeps finding — detectors and
+supervisors that fire indefinitely against something that no longer exists.
+Not touched tonight; needs its own session (stop + disable the two live
+system units, decide whether the crontab entries are worth pruning or just
+leaving inert).
+
