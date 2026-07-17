@@ -44,6 +44,7 @@ USAGE (from nex5 root):
 from __future__ import annotations
 
 import os
+import re
 import sys
 import json
 import time
@@ -58,6 +59,46 @@ VOICE_URL = os.environ.get("NEX5_VOICE_URL", "http://localhost:11434/v1/chat/com
 VOICE_MODEL = os.environ.get("NEX5_VOICE_MODEL", "qwen2.5:3b")
 # How many of NEX's recent thoughts the persona reads before responding.
 READ_N = int(os.environ.get("NEX5_PERSONA_READ_N", "4"))
+
+# --- Session 35: the "bouncer" -------------------------------------------
+# A2 (session 34) rewrote the prompt and FAILED verification: 1 pass of 3
+# live fires. Rather than keep tuning the prompt, every reply is checked
+# against the SAME recent thoughts it was generated from before being
+# written. Same mechanism as crystallizer.py's near_duplicate check
+# (Jaccard word-overlap), reused deliberately rather than inventing a new
+# one — but MEASURED first against 50 historical replies + the 3 known-
+# labeled session-34 fires, because crystallizer's own 0.6 threshold is a
+# complete no-op on this data (max observed Jaccard: 0.385 — this compares
+# one short reply against 4 short thoughts, not one belief against an
+# entire stored corpus, so the base rate is much lower). 0.10 is the
+# measured cut that rejects fire #1 (0.111, mirror+question) and fire #3
+# (0.185, verbatim echo) while passing fire #2 (0.088, the one genuine
+# pass) — a real but thin margin (0.023 between #2 and #1), not a clean
+# cliff; predicted ~58% reject rate on historical data, close to the
+# pre-registered ~2/3 estimate.
+_JACCARD_REJECT_THRESHOLD = 0.10
+
+# Second, independent check for the shape Jaccard alone can miss: verbatim
+# phrase reuse (fire #3 — "calm amidst anticipation" — scored only 0.185
+# Jaccard, well inside the noisy middle of the distribution, but is an
+# unambiguous 4-word verbatim echo). A bare "any 3+ word run in common"
+# check false-positives on coincidental function-word runs ("me of the" on
+# fire #1) — measured and rejected. Stopword-filtered: a run only counts if
+# it contains at least one non-stopword.
+_NGRAM_MIN_WORDS = 3
+_STOPWORDS = {
+    "the", "a", "an", "of", "to", "in", "on", "at", "for", "and", "or", "but",
+    "is", "are", "was", "were", "be", "been", "being", "it", "its", "this",
+    "that", "these", "those", "i", "you", "your", "yours", "me", "my", "mine",
+    "we", "us", "our", "he", "she", "they", "them", "their", "with", "as",
+    "by", "from", "how", "what", "when", "where", "why", "who", "which",
+    "do", "does", "did", "have", "has", "had", "not", "no", "yes", "so",
+    "if", "than", "then", "there", "here", "just", "also", "about", "into",
+    "over", "under", "again", "further", "more", "most", "some", "such",
+    "own", "same", "too", "very", "can", "will", "would", "should", "could",
+    "up", "down", "out", "off",
+}
+_PUNCT_RE = re.compile(r"[^\w\s]")
 
 
 def _db(name: str) -> str:
@@ -148,6 +189,83 @@ def _ask_persona(thoughts: list[str], timeout: int = 30) -> str | None:
         return None
 
 
+def _jaccard(a: str, b: str) -> float:
+    """Word-overlap similarity — EXACT formula from
+    crystallizer.py's near_duplicate check (lower().split(), no
+    punctuation stripping), reused deliberately rather than invented."""
+    wa = set(a.lower().split())
+    wb = set(b.lower().split())
+    if not wa or not wb:
+        return 0.0
+    return len(wa & wb) / len(wa | wb)
+
+
+def _normalize_tokens(text: str) -> list[str]:
+    return _PUNCT_RE.sub("", text.lower()).split()
+
+
+def _max_shared_phrase(reply: str, thoughts: list[str]) -> tuple[int, str]:
+    """Longest contiguous token run (>= _NGRAM_MIN_WORDS) shared between
+    the reply and any of the given thoughts, excluding runs made entirely
+    of stopwords. Returns (run_length, phrase) — (0, "") if none."""
+    reply_toks = _normalize_tokens(reply)
+    best_n, best_phrase = 0, ""
+    for t in thoughts:
+        t_toks = _normalize_tokens(t)
+        max_size = min(len(t_toks), len(reply_toks))
+        for size in range(max_size, _NGRAM_MIN_WORDS - 1, -1):
+            t_grams = {tuple(t_toks[i:i + size]) for i in range(len(t_toks) - size + 1)}
+            r_grams = {tuple(reply_toks[i:i + size]) for i in range(len(reply_toks) - size + 1)}
+            hit = {g for g in (t_grams & r_grams) if not all(w in _STOPWORDS for w in g)}
+            if hit:
+                if size > best_n:
+                    best_n, best_phrase = size, " ".join(next(iter(hit)))
+                break  # longest run for this thought found; try next thought
+    return best_n, best_phrase
+
+
+def _check_reply(reply: str, thoughts: list[str]) -> tuple[bool, str, str, float]:
+    """The bouncer. Returns (discard, reason, matched_pattern, max_jaccard).
+    Compares against the SAME `thoughts` the persona was fed as input —
+    no re-query."""
+    max_j = 0.0
+    max_j_thought = ""
+    for t in thoughts:
+        j = _jaccard(reply, t)
+        if j > max_j:
+            max_j, max_j_thought = j, t
+
+    ngram_n, phrase = _max_shared_phrase(reply, thoughts)
+    if ngram_n >= _NGRAM_MIN_WORDS:
+        return True, "phrase_echo", phrase, max_j
+
+    if max_j > _JACCARD_REJECT_THRESHOLD:
+        matched = f"jaccard={max_j:.2f} vs: {max_j_thought[:120]}"
+        return True, "jaccard_overlap", matched, max_j
+
+    return False, "ok", "", max_j
+
+
+def _write_persona_reject(reason: str, reply: str, matched_pattern: str, jaccard: float) -> None:
+    """Durable record of a discarded reply — session 33's
+    crystallization_rejects pattern, not repeated blind this time.
+    Telemetry; must never break the loop."""
+    try:
+        conn = sqlite3.connect(_db("dynamic"), timeout=10)
+        try:
+            conn.execute(
+                "INSERT INTO persona_rejects "
+                "(ts, reason, reply_excerpt, matched_pattern, jaccard) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (time.time(), reason, reply[:200], matched_pattern or None, jaccard),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.warning("persona_reject write failed: %s", e)
+
+
 def _write_other_mind(text: str) -> bool:
     """Write the persona's reply to sense_events as external.other_mind —
     exactly the row shape NEX's Layer 4 reads."""
@@ -168,13 +286,30 @@ def _write_other_mind(text: str) -> bool:
 
 
 def one_exchange() -> dict:
-    """One turn of the OTHER's side: read NEX's recent thoughts, respond, write."""
+    """One turn of the OTHER's side: read NEX's recent thoughts, respond,
+    check for an echo, write (or discard). No retry on discard — a
+    rejected reply just waits for the next tick; regeneration loops are
+    their own tar pit."""
     thoughts = _recent_thoughts()
     if not thoughts:
         return {"error": "no_recent_thoughts"}
     reply = _ask_persona(thoughts)
     if not reply:
         return {"error": "persona_unavailable"}
+
+    try:
+        discard, reason, matched, max_j = _check_reply(reply, thoughts)
+    except Exception as e:
+        logger.warning("persona bouncer check failed (%s) — passing reply through", e)
+        discard, reason, matched, max_j = False, "ok", "", 0.0
+
+    if discard:
+        _write_persona_reject(reason, reply, matched, max_j)
+        return {
+            "responded_to": thoughts[0][:60], "persona_said": reply,
+            "written": False, "discarded": reason, "matched": matched,
+        }
+
     ok = _write_other_mind(reply)
     return {"responded_to": thoughts[0][:60], "persona_said": reply, "written": ok}
 
@@ -187,7 +322,14 @@ class PersonaResponderLoop:
     def tick(self):
         try:
             r = one_exchange()
-            if "error" not in r:
+            if "error" in r:
+                pass
+            elif r.get("discarded"):
+                logger.info(
+                    "persona bouncer DISCARDED (%s): %s",
+                    r["discarded"], r["persona_said"][:80],
+                )
+            else:
                 logger.info("persona -> NEX: %s", r["persona_said"][:80])
         except Exception as e:
             logger.warning("persona tick error: %s", e)

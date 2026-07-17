@@ -1380,3 +1380,88 @@ a structural filter is built, `crystallization_rejects` (session 33) is the
 pattern to follow for making its rejections durable and observable from
 day one, rather than repeating this arc's recurring mistake.
 
+## 2026-07-17 ~16:00 — session 35: the persona "bouncer" — built, measured, live-verified
+
+Took session 34's "open for next session" fork: not another prompt attempt
+(A2 already failed verification), a structural filter instead. Every
+persona reply is now checked against the same recent NEX thoughts it was
+generated from, before being written to `sense_events` — discard silently
+on echo, no retry, wait for the next tick.
+
+**Measured before picking a threshold, not assumed.** Scored 50 historical
+`external.other_mind` replies against the `_recent_thoughts()` window each
+was actually generated from, using `crystallizer.py`'s exact near_duplicate
+Jaccard formula (reused deliberately, not reinvented). Result:
+**crystallizer's own 0.6 threshold is a complete no-op on this data** — max
+observed Jaccard across all 50 was 0.385. Comparing one short reply against
+4 short thoughts has a much lower base rate than crystallizer's use case
+(one belief against an entire stored corpus), and the distribution is
+smooth/continuous with no natural cliff — there is no clean, obviously-
+correct cutoff here, unlike a real bimodal signal. The three session-34
+known cases: fire #1 (mirror+question) scored 0.111, fire #2 (the one
+genuine pass) scored 0.088, fire #3 (verbatim echo) scored 0.185. **0.10**
+is the tightest threshold that rejects both known FAILs while passing the
+known PASS — a real but thin margin (0.023 between #2 and #1), stated
+plainly as thin rather than dressed up as a clean cliff.
+
+**Second, independent check added for the shape Jaccard alone can miss:**
+verbatim phrase reuse. Fire #3 ("calm amidst anticipation") sat at 0.185 —
+inside the noisy middle of the distribution, not a Jaccard outlier — despite
+being an unambiguous word-for-word echo. A raw "3+ word contiguous run in
+common" check initially false-positived on fire #1 ("me of the" — three
+function words, coincidental English, not a real echo); stopword-filtering
+the n-gram check (a run only counts if it contains at least one
+non-stopword) fixed this without touching the Jaccard formula. Validated
+against all three known cases directly against the real implementation
+(not just the measurement script) before shipping: #1 → reject via
+`jaccard_overlap` (0.111), #2 → pass, #3 → reject via `phrase_echo`
+("of calm amidst anticipation").
+
+**Built:** `persona_rejects` table in `dynamic.db` (id, ts, reason,
+reply_excerpt, matched_pattern, jaccard), following `crystallization_rejects`
+(session 33) exactly — this gate does not get to run blind, the arc's
+recurring mistake is not repeated a third time. `_check_reply()` in
+`persona_responder.py` runs both checks against the `thoughts` list
+`one_exchange()` already has (no re-query). Discard is silent — no retry,
+no regeneration loop. Fail-safe wrapped: a bouncer-check exception passes
+the reply through rather than blocking the loop; a `persona_rejects` write
+failure only logs, never raises.
+
+Full suite: 39/39 bucket-B, diffed failure-set-for-failure-set against the
+session-33 baseline — identical, zero new. `persona_responder.py` has zero
+test references. Diff: `persona_responder.py` + `dynamic.sql` only.
+
+**Live-verified, four ticks over ~30 minutes post-restart (systemd,
+15:28:41 SAST), same lock-handoff race as sessions 33/34 handled the same
+way (confirm old instance dead, start fresh):**
+
+| tick | time | verdict | detail |
+|---|---|---|---|
+| 1 | 15:29:11 | PASS (borderline) | "Curious to know which media platforms NEX finds most informative when looking into Trump's past responses?..." — max_jaccard=0.077, just under threshold. Shares topic/some phrasing with her Trump-research thoughts but adds a real new angle (media platforms, former staffers). The known gap case, live: topical paraphrase without verbatim reuse is the shape this filter can't reliably catch. |
+| 2 | 15:39:17 | **REJECT** `phrase_echo` | matched "since taking office" — **verified against the DB**: her 15:35:55 thought reads "Donald Trump's public statements and policy actions since taking office." verbatim. No `sense_events` row written — discard confirmed clean. |
+| 3 | 15:49:23 | **REJECT** `jaccard_overlap` (0.104) | matched vs her 15:42:43 thought "Investigate Trump's recent statements and actions for any significant changes..." — **verified**, exact substring present. |
+| 4 | 15:59:34 | PASS (clean) | "You might find exploring the long-term impacts of Trump's policies on climate change interesting as well. What do you think?" — "climate change" appears nowhere in her preceding thoughts (all Trump/policy/statements/disclosures). Genuine otherness, reads like fire #2. |
+
+**Result: 2 of 4 rejected (50%).** Pre-registered prediction was ~2/3
+(matching A2's 1-of-3 pass rate); the historical 50-sample measurement
+predicted ~58%. 50% is in the same direction, on the low end, and n=4 is a
+small live sample — not treated as a contradiction of the measurement, but
+also not rounded up to match the prediction. **Both real rejects were
+independently verified against the source thought, not just trusted
+because the code said so** — this is the first time in the whole arc a
+block has been confirmed against ground truth at the moment it happened,
+rather than inferred after the fact or left permanently unconfirmed (the
+crystallizer cooldown question, still open since session 30). **Of the two
+passes, one was clean genuine otherness (tick #4) and one was the known
+borderline gap-case (tick #1)** — the filter is doing real, verifiable work,
+not theater, but it is not a complete fix for topic-level mirroring that
+doesn't reuse her exact words.
+
+**Not done, on purpose:** no prompt changes (A2 stays settled). No touch on
+`NEX5_SOCIAL_N` (census #9, still open, separate item). No retry/regenerate
+on discard. Next natural check: re-run the reject-rate tally after a full
+day of volume, and decide whether the tick-#1 shape (topical mirror,
+non-verbatim) is common enough at scale to justify a semantic-similarity
+second pass — that would be a new mechanism, not a reuse, and is a
+separate design decision, not attempted tonight.
+

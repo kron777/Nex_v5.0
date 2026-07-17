@@ -68,6 +68,30 @@ CREATE TABLE IF NOT EXISTS crystallization_rejects (
 CREATE INDEX IF NOT EXISTS idx_crystallization_rejects_ts     ON crystallization_rejects(ts);
 CREATE INDEX IF NOT EXISTS idx_crystallization_rejects_reason ON crystallization_rejects(reason);
 
+-- Persona-reply rejections (session 35, the "bouncer"). A2 (session 34,
+-- 5c6081c) rewrote persona_responder.py's prompt to its documented intent
+-- and FAILED verification: 1 pass of 3 live fires, the 3B echoed NEX's own
+-- words back with a question mark attached (one case verbatim). Rather than
+-- keep tuning the prompt, every reply is now checked against the recent
+-- NEX thoughts it was generated from BEFORE being written to
+-- sense_events — same near_duplicate Jaccard mechanism as
+-- crystallizer.py, plus a stopword-filtered shared-phrase check for the
+-- verbatim-echo shape (measured: crystallizer's stock 0.6 Jaccard is a
+-- total no-op on this data — max observed 0.385 across 50 historical
+-- replies; 0.10 was the measured cut that separates the one known PASS
+-- from the two known FAILs). Follows crystallization_rejects' pattern
+-- exactly, same reason for existing: this gate does not get to run blind.
+CREATE TABLE IF NOT EXISTS persona_rejects (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts              REAL NOT NULL,
+    reason          TEXT NOT NULL,
+    reply_excerpt   TEXT,
+    matched_pattern TEXT,
+    jaccard         REAL
+);
+CREATE INDEX IF NOT EXISTS idx_persona_rejects_ts     ON persona_rejects(ts);
+CREATE INDEX IF NOT EXISTS idx_persona_rejects_reason ON persona_rejects(reason);
+
 -- Crystallization events (Phase 3)
 CREATE TABLE IF NOT EXISTS crystallization_events (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,
