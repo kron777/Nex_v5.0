@@ -1194,3 +1194,117 @@ Not touched tonight; needs its own session (stop + disable the two live
 system units, decide whether the crontab entries are worth pruning or just
 leaving inert).
 
+## 2026-07-17 ~11:00 — session 32: THE DISCONNECTED-WIRE CENSUS
+
+Read-only. No fixes. This entry is the reference document for the next several
+sessions — read it before trusting any prior session's reasoning about what
+was or wasn't being caught, blocked, or gated.
+
+Eight specimens of this class had been found by this point in the arc, every
+one by accident while chasing something else (listed in full below, #1-8).
+This session went looking for the class on purpose, across five deliberate
+sweeps (producers with no consumer, sinks that can't be read, silently-
+discarded config, alarms with no actor, docstring-vs-behavior), run in
+parallel and cross-checked. Found nine new live specimens (nine, not counting
+the four candidates investigated and retracted — see below). 17 total.
+
+**Three things that change how every prior session in this file should be
+read, stated before the table because they're load-bearing:**
+
+1. **#9 invalidates reasoning, not just code.** Sessions 27 and 30 both
+   treated `NEX5_SOCIAL_N=0` as meaning the persona feedback path was at
+   least partly off. It never was — `_sense_distillation_loop` never checks
+   that variable; only `NEX5_PERSONA_RESPONDER` (on) gates it. The session 30
+   A/B/C design was built on that false premise. **A2's urgency is higher
+   than session 30 believed: the persona loop is fully live, both halves,
+   right now** — not a partially-contained echo waiting on a second switch.
+
+2. **#10 + #14 mean this arc has been blind to rejections the whole time —
+   not that the checks failed, that they were impossible, twice over.**
+   Crystallizer reject events never reach anything but a 500-deep in-memory
+   deque that churns in ~24 minutes (#10); the one log anyone has actually
+   grepped for them truncates to zero on every single restart (#14). Any
+   past sentence in this file of the shape "X wasn't caught" or "nothing was
+   blocked" is **unsupported, not disproven.** We don't get to conclude the
+   opposite either — we simply don't have the data and, as built, cannot
+   get it after the fact. Sessions 30 and 31 both tried to close the
+   cooldown-block question this way. Neither could have succeeded.
+
+3. **#11 is not a wire that broke. It never existed.** 152,543 `patterns`
+   rows, zero `validated_at`, zero `UPDATE patterns` call anywhere in the
+   codebase. The self-grading half of the prediction mechanism was never
+   built, not disconnected. Flag it as its own project — designing what
+   "graded correctly" means for a prediction row — not a fix session.
+
+### The ranked census (worst first)
+
+| # | Specimen | Verdict | Evidence | Consequence |
+|---|---|---|---|---|
+| 1 | ~21 instruments measuring something other than their own name (July audit) | KNOWN | prior audit | see original audit |
+| 2 | 5 compliance tests grepping a path that no longer existed — false-green for months | FIXED (084c6c7) | prior session | was high, resolved |
+| 3 | `genius_tags` — 6wk per-fire history, only ever read as a live 1h snapshot | FIXED (session 29) | prior session | was high, resolved |
+| 4 | Cooldown: fragment written, full-sentence equality checked — 164 alerts/2mo, zero blocks | FIXED (b20de0b) | prior session | was high, resolved (write-side; see #10 on block-side observability) |
+| 5 | `persona_responder.py` docstring: "an echo would teach NEX nothing" — ships an echo | KNOWN, A2 not yet shipped | session 30 | high — see #9, worse than believed |
+| 6 | `Mode.feed_weights` — documented multiplier, scheduler only checks `==0.0` | KNOWN, deferred | session 25 | medium |
+| 7 | `groove_alerts` — 24 alerts/24min, identical `sample_belief_ids` — timer, not events | KNOWN | session 31 | invalidated frozen Jul-12/15 groove baselines |
+| 8 | Our own verification plan: `errors.record()` → in-memory deque, never touches logging/stdout — the soak-log grep could never work | KNOWN | this morning | see #10, generalized |
+| **9** | **Persona "two switches" claim — false, and firing live.** `run.py:438-439`/`persona_responder.py:29-30` require both `NEX5_PERSONA_RESPONDER` and `NEX5_SOCIAL_N` on for dialogue to flow. | **REAL CONTRADICTION, ACTIVE** | `theory_x/stage2_dynamic/__init__.py:151-156`: `sense_events WHERE stream NOT LIKE 'internal.%'`, every 60s, **no `NEX5_SOCIAL_N` check in this path at all.** Confirmed live 2026-07-17: env has `SOCIAL_N=0`, `PERSONA_RESPONDER=1`; 10 fresh `precipitated_from_sense`/`external` beliefs landed that morning on the loop's exact 10-min cadence. | **Worst tier** — a safety document actively wrong about a belief-writing path firing as the census ran. |
+| **10** | **Crystallizer's entire reject gate — 11 reasons, zero durable record for any of them.** The filter deciding what becomes a durable belief. | **DEAD (structural, generalizes #8)** | `crystallizer.py:140-146`: every reject path (`empty/too_short/too_long/no_engagement/blacklisted×2/performance_insight_repetition/near_duplicate/recent_repeat/semantic_repeat/cooldown/droplet_repetition`) routes only through `errors.record()` — same 500-deep deque, ~24min churn. `fountain_crystallizations` writes only on accept. | **Near-worst** — the gate functions; no verdict for any of its 11 reasons survives long enough to audit. |
+| **11** | **`patterns.validated_at`/`outcome_score` — 152,543 rows, zero ever populated.** Schema exists to grade whether NEX's own predictions came true. | **NEVER BUILT, proven** | `SELECT COUNT(*), COUNT(validated_at) FROM patterns` → `152543\|0`. Zero `UPDATE patterns` writes anywhere in the repo. | **High** — predicts at scale, never graded right or wrong. |
+| **12** | `generator.py:211-212`: "The filtered fetch below guarantees real news items only." | **REAL CONTRADICTION** | Pulls from `precipitated_from_sense` broadly — the same pool #9 shows persona-echo lands in. Filter excludes only self-narration/koan regex, not persona content. Mechanism proven; live contamination rate unquantified. | High, unquantified — possibly-fabricated "news" reaching wide-mode generation. |
+| **13** | **SignalLoop's three detectors (`co_occurrence`, `silence`, `burst`) re-fire on stale data — groove_alerts' defect, larger scale.** | **RE-FIRES ON STALE DATA, proven** | `silence`: 756 rows/hr, same 8 streams every tick, `current_silence_seconds` incrementing exactly ~60s tick-to-tick. `co_occurrence`: byte-identical payload across 8 straight ticks. `patterns` table amplifies via growing `signal_ids` lists. No CARRY_OVER baseline rests on these counts (checked) — caught before one was frozen. `signal_to_problem.py`'s 24h title-throttle already defends the one real consumer. | Medium — real defect, contained damage; `/api/signals/recent` (HUD) is unprotected and human-facing. |
+| **14** | **`/tmp/nex5_soak.log` truncates (`>`, not `>>`) on every keepalive launch.** | **DEAD-BY-CONSTRUCTION** | `nex_keepalive.sh:44`. Explains three straight sessions' failure to cover a full night — every restart (session 31's, this morning's systemd handoff) wiped the prior window. Cannot span a restart by construction. | Medium-high — invalidates the verification *method*, not one check. |
+| **15** | `StartLimitIntervalSec`/`StartLimitBurst` in `nex5-keepalive.service`, wrong systemd section (`[Service]` not `[Unit]`). | **DEAD, confirmed** | `journalctl`: "Unknown key name... ignoring." Checked all 8 system + 3 user units on the box — isolated to this one, self-inflicted last session. | Medium — ops safety net missing, not cognition-affecting. |
+| **16** | `crystallizer.py` `near_duplicate` reject path — zero `errors.record` call at all, not even the churning deque. | **DEAD, most extreme case of #10** | Grepped — no record call on that branch, period. | Folds into #10's severity. |
+| **17** | `NEX5_SURPRISE_WEIGHT` name implies a graduated weight; it's a boolean gate. | **HALF-DEAD (naming only)** | `crystallizer.py:183`, `== "1"` only; real weight computed downstream once gated on. | Low — misleading name, correct function. |
+| — | Fossil schemas: `beliefs.pattern_template_scores`, `beliefs.throw_net_x_vars`, `intel.market_data/news_events/analysis_snapshots` | DEAD, reconfirmed | Zero references anywhere in the repo. **Already catalogued** in `journal/JOURNAL_2026-05-19.md:175` two months ago — still true, still unfixed. Not new; resurfaced. | Trivia — pure fossil. |
+| — | `NEX5_SYNTH_EMIT`, `NEX5_WORLD_PRED_INTERVAL/HORIZON/ASSET`, `NEX5_SELF_PRED_INTERVAL`, `NEX5_RECONCILE_PXB` | PERMANENTLY-DEFAULTED | Read with defaults; absent from `nex_keepalive.sh`'s launch line — never overridden by the one launcher that starts NEX. | Trivia — untunable in practice, not dead code. |
+| — | `NEX5_MOMENTUM=1`, `NEX5_GLOBAL_WORKSPACE=1` | REDUNDANT-AS-SET | `os.environ.get(..., "1") == "1"` — already the code default; setting it is a no-op. | Trivia. |
+| — | `INDEX.md`'s documented "ignition_pattern" signal type | NEVER BUILT | `templates.py:TEMPLATES` has exactly 3 keys; zero implementing code anywhere for a 4th. | Trivia — doc overclaims a feature never shipped, doesn't misdescribe one that did. |
+
+### Four retractions — the negative space that makes the above trustworthy
+
+Reported because a false DEAD is worse than not looking — someone reading
+only the positive findings would eventually "fix" one of these and cause the
+exact regression the original author already prevented.
+
+- **`beliefs.belief_boost`/`collision_grades`, frozen since 2026-05-14.**
+  Looked exactly like abandoned-write-side (#18-style fossil): zero new rows
+  in ~2 months against a live grading consumer. `git blame` on
+  `synergizer.py:120` found commit `b1a61657`, a 6-line comment explaining
+  the freeze was deliberate — boosting synergized beliefs in retrieval
+  ranking projected them 1.2-1.4 days into the future, closed-looping on the
+  fountain's own re-synthesized content. **A documented kill-switch, not a
+  wire that fell off.** Minor real downstream note, not a fix candidate:
+  `GraderEvolver` (`consolidation.py:103`) still runs, grinding on an input
+  that's had zero new rows since the freeze.
+- **`NEX5_ABSTAIN_CLOSE`/`NEX5_COMMIT_CLOSE`**, `generator.py:1085/1088`.
+  Looked like a dead `elif` — both flags are always `1` together in the
+  launch line, so the second branch appeared unreachable. Traced the guard
+  predicates: `_is_artifact` is defined as `(not _abstain) and ...`, so the
+  two branches gate on states that are mutually exclusive by construction,
+  not by flag collision. Both reachable. Retracted before reporting.
+- **`dynamic.tier_snapshots`/`tree_snapshots`**, write-heavy, 3 days old.
+  Correctly new-not-abandoned — session 29 built the reader
+  (`scripts/instrument_report.py`) on purpose. Included in the sweep only to
+  confirm the "new ≠ abandoned" distinction held under an actual check, not
+  assumed.
+- **`beliefs.hypotheses`, `beliefs.review_queue`,
+  `dynamic.moltbook_pending_replies`** — all 0 rows at check time. Each has
+  a real writer and a real reader (verified, not assumed); zero rows is the
+  correct resting state for an empty queue/flag table, not evidence of
+  disconnection.
+
+Also checked and cleared, no contradiction found: `groove.py` centroid-
+tightening (docstring accurate), `groove_breaker.py` (`ENABLED = False`
+matches its own docstring exactly — deliberate, dated 2026-05-02),
+`synergizer.py`, `source_identity.py`.
+
+**Status: census only. Nothing fixed this session, on purpose — the census
+is the deliverable.** Next session(s), in whatever order the operator
+chooses from here: A2 (persona prompt fix, now more urgent per point 1
+above), a durable sink for crystallizer reject reasons (point 2 — the
+precondition for ever answering the cooldown block-side question, session
+30/31's still-open item), and designing what "graded" means for #11 before
+building anything against it.
+
