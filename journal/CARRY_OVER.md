@@ -1465,3 +1465,45 @@ non-verbatim) is common enough at scale to justify a semantic-similarity
 second pass — that would be a new mechanism, not a reuse, and is a
 separate design decision, not attempted tonight.
 
+**THE TRANSFERABLE FINDING, stated as its own point because it outlives
+this file:** `crystallizer.py`'s 0.6 Jaccard near_duplicate threshold is
+not a general-purpose constant — it is calibrated for ITS comparison shape
+(one candidate belief against an entire stored corpus of hundreds/
+thousands). Reused verbatim against a structurally different comparison
+(one short reply against 4 short thoughts), the SAME formula produces a
+completely different, much-lower base rate — 0.6 never fires here at all
+(max observed 0.385/50). **Any future reuse of a similarity threshold
+across a different comparison shape in this codebase must be re-measured
+against real data for that shape, not carried over on the assumption that
+"it worked there."** The formula travels; the number does not. Session 33's
+crystallization_rejects and this session's persona_rejects are the same
+lesson from two directions — the mechanism generalizes, the calibration
+never does.
+
+**Volume implication, stated as a range because the reject-rate estimate
+itself has a range:** census #9 froze `external.other_mind` baseline volume
+at ~50-140 events/day. Applying tonight's three reject-rate estimates
+(live n=4: 50%; historical measurement n=50: 58%; pre-registered: ~67%) to
+that baseline gives a survivor-volume range of roughly **17-70 events/day**
+— genuinely reduced under every one of the three estimates, by not yet a
+settled amount. A week of real volume will narrow this to one number
+instead of three.
+
+**THE KNOWN BLIND SPOT, stated plainly so it isn't rediscovered as a
+surprise:** tick #1 (max_jaccard=0.077, passed) shares topic and some
+phrasing with NEX's Trump-research thoughts without reusing any exact
+3+ word run — topical paraphrase without verbatim reuse. **A lexical filter
+(Jaccard or n-gram, at any threshold) cannot catch this shape by
+construction** — it doesn't compare meaning, only overlapping tokens. If
+persona output a week from now still reads as echo-with-different-words
+despite a healthy reject rate, THIS is why, and it was known going in, not
+discovered as a failure. **The fix for that shape is semantic (embedding)
+similarity — `crystallizer.py` already has one, in
+`_was_recently_semantically_similar()` — not a lower Jaccard threshold.
+Do not chase the blind spot by dropping 0.10** — the margin between the
+known PASS (0.088) and the known FAIL (0.111) is already thin (0.023);
+lowering it starts rejecting genuine otherness (fire #2 itself, and tick
+#4, would be early casualties), trading a real, working, verifiable filter
+for a stricter one that can't tell the difference between mirroring and
+just talking about something adjacent.
+
