@@ -1,53 +1,61 @@
 #!/usr/bin/env python3
-"""Trajectory monitor — session 38 build.
+"""Trajectory monitor — session 38 build, Phase 2 (3.5-axis).
 
 Reads DIRECTION, not state. Every axis is compared against ITS OWN baseline
-and only gets a directional verdict (improving/drifting/widening/narrowing)
-when the move exceeds normal variance. Inside variance = "holding". This is
-the whole point of the instrument: it must not cry wolf on noise the way the
-raw 45%/17% genius readings did on 2026-07-15 (session 28) -- see Phase 3
-validation below.
+and only gets a directional verdict when the move exceeds normal variance.
+Inside variance = "holding" / "flat". This is the whole point of the
+instrument: it must not cry wolf on noise the way the raw 45%/17% genius
+readings did live on 2026-07-15 (session 28) -- see Phase 3 validation below.
 
 Standalone, read-only. No new tables, no live-code touch. Reuses
 scripts/instrument_report.py for the genius-rate instrument rather than
-re-deriving it, and reads tree_snapshots/open_problems/groove_alerts/
-crystallization_rejects/persona_rejects/beliefs/fountain_events/
-fountain_crystallizations exactly as they already are.
+re-deriving it.
 
-Axes:
-  QUALITY         genius rolling rate vs its full-history band (borrowed
-                   straight from instrument_report.py's own instrument).
-  APERTURE        Gini / normalized-entropy of the latest tree_snapshot's
-                   per-branch focus_num, vs the frozen M1 steady-state band
-                   (session 27 CONFIRMED read, journal/CARRY_OVER.md
-                   2026-07-15 "three frozen predictions read": Gini 0.344,
-                   entropy 0.873, over 1275 snapshots 12 Jul 13:47 -> 13 Jul
-                   18:26 SAST). Reproduced here from tree_json directly
-                   (mean 0.3358/stdev 0.0660 gini, mean 0.8743/stdev 0.0558
-                   entropy over that exact window) -- close enough to the
-                   journal's rounded numbers to confirm this is the same
-                   metric, computed the same way.
-  SELF-DIRECTION  open_problems template-vs-non-template ratio + max age of
-                   any OPEN non-template problem. NO BASELINE EXISTS: session
-                   28 found 97.8% of all-time rows are mechanically templated
-                   (signal_to_problem.py's own title compositor), and every
-                   non-template row that ever existed was closed back in May.
-                   There has never been an open, self-chosen problem to
-                   measure a baseline from. This axis reports ESTABLISHING,
-                   not a faked holding/improving/drifting.
-  GROOVE HEALTH   groove_alerts deduped into episodes by collapsing
-                   consecutive same-(alert_type, sample_belief_ids) rows
-                   (census #7 / session 31: raw rows are a 60s re-scan timer
-                   re-confirming a stale window, not independent events --
-                   the frozen Jul-12/15 raw-count baselines are invalidated
-                   by this and are NOT used here), rolling-24h count vs its
-                   own historical band of rolling-24h deduped counts. Plus
-                   crystallization_rejects / persona_rejects 24h counts,
-                   reported informationally (history starts 2026-07-17/-18 --
-                   too thin for a baseline yet, same honesty rule as
-                   SELF-DIRECTION).
-  LIVENESS        fire / belief / synth (fountain_crystallizations) counts
-                   and recency as of the read time. Is she running at all.
+THREE FULL AXES + ONE HALF AXIS (session 38 Phase 1 cut two candidate axes
+down to what's actually measurable):
+
+  QUALITY    genius rolling rate vs its own full-history band (borrowed
+              straight from instrument_report.py). Verdict only outside
+              2 sigma of the EMPIRICAL historical stdev of hourly windows
+              (~25.7pts over 992 windows) -- NOT the flat "+-16pt/2sigma,
+              n~23" rule of thumb floated earlier in this arc. That flat
+              rule does not survive contact with the actual data: the
+              session-28 "45%" reading sits 16.8pts from the historical
+              mean, which a literal +-16pt cutoff would misclassify as a
+              real move on the exact case this instrument exists to get
+              right. The empirical per-window stdev is wider (real day-to-
+              day dispersion is bigger than the naive n=23 binomial-SE
+              estimate suggested) and is what's actually implemented here.
+              See Phase 3 below -- this is the load-bearing design choice.
+  APERTURE   Gini / normalized-entropy of the latest tree_snapshot's
+              per-branch focus_num, vs the frozen M1 steady-state band
+              (session 27 CONFIRMED read: gini 0.344, entropy 0.873, 1275
+              snapshots 12 Jul 13:47 -> 13 Jul 18:26 SAST). Reproduced here
+              directly from tree_json (0.3358/0.0660 gini, 0.8743/0.0558
+              entropy over that window) -- matches the journal's rounded
+              numbers, confirming same metric. Verdict outside 2 sigma of
+              that band's own stdev; inside = holding.
+  LIVENESS   fire / belief / synth (fountain_crystallizations) counts and
+              recency as of the read time. Not a variance call -- a
+              factual "is she producing" check. ALIVE if all three are
+              within their normal cadence of the read time, else STALLED.
+  GROOVE     (the ".5" axis -- thinner signal, reported honestly as such.)
+  HEALTH     groove_alerts deduped by collapsing consecutive rows that
+              share (alert_type, sample_belief_ids) -- census #7 / session
+              31 proved raw rows are a ~60s re-scan timer re-confirming a
+              stale window, not independent events, which invalidates any
+              frozen raw-count baseline (the old 650/506 etc. numbers are
+              NOT used here). Scored by SEVERITY of deduped episodes, not
+              count -- a quiet day with one severe groove matters more
+              than a noisy day of low-severity ones. Verdict: "rising" if
+              the current 24h window's average episode severity is >=2
+              sigma above its own historical band, else "flat". The dedup
+              ratio (raw rows -> episodes) is printed every time so the
+              number is honest on its face.
+
+SELF-DIRECTION is deliberately OMITTED, not just left out silently --
+see _SELF_DIRECTION_NOTE below for why, so the next reader doesn't
+"notice it's missing" and re-add a phantom axis.
 
 Usage:
   python3 scripts/trajectory.py                          # tonight's read
@@ -60,7 +68,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
-import re
+import math
 import statistics
 import sys
 import time
@@ -75,7 +83,43 @@ import instrument_report as ir  # noqa: E402  (reuse #1's genius instrument, not
 
 DEFAULT_LOG = REPO / "logs" / "trajectory_log.jsonl"
 
-Z_THRESHOLD = 2.0  # sigma; inside this band = "holding", non-negotiable per spec
+Z_THRESHOLD = 2.0  # sigma; inside this band = "holding"/"flat", non-negotiable per spec
+
+# ── why SELF-DIRECTION is not an axis here (session 38 Phase 1/2) ──────────
+#
+# open_problems is 97.9% mechanically templated (7 non-template rows out of
+# 328, via signal_to_problem.py's own _compose_title() -- "Why is {branch}
+# producing strong beliefs right now?", "Signal: investigate '{entity}'",
+# and five sibling templates). All seven non-template rows that have EVER
+# existed were created 2026-05-09/12 and are already closed -- there has
+# never been an open, self-chosen problem to measure persistence from, and
+# there is currently zero open_problems of any kind (327 closed, 1 stuck).
+#
+# It is not just the rare case that's template-generated: even a thread
+# NEX genuinely sustained across days (the "Adams-comparison work" flagged
+# as a coherence anchor at the M1 restart, session 26/CARRY_OVER.md
+# 2026-07-12) shows up in open_problems only as three separate
+# auto-templated "Signal: investigate 'Adams'" rows (ids 300/302/304,
+# each closed within hours to ~3 days, never merged into one persistent
+# entry) -- confirmed directly against the table, not assumed. Whatever
+# self-directed persistence exists in her cognition, open_problems is not
+# where it's currently visible.
+#
+# Recent churn (last 7d avg ~13.1h close time, last 30d avg ~9.7h, n=32/71)
+# is fast regardless of template status -- there's no slow-vs-fast split
+# between template and non-template rows to build a signal from, because
+# there are no recent non-template rows at all.
+#
+# There is no measurable self-directed-persistence signal in this table.
+# Reporting a verdict here would be reporting a phantom axis. If this is
+# ever rebuilt, it needs a different data source than open_problems, not a
+# different threshold on this one.
+_SELF_DIRECTION_NOTE = (
+    "SELF-DIRECTION intentionally omitted -- see module docstring / "
+    "_SELF_DIRECTION_NOTE in scripts/trajectory.py for why (97.9% "
+    "template-generated, zero currently open, no persistence signal "
+    "exists in this table to threshold against)."
+)
 
 
 # ── shared helpers ──────────────────────────────────────────────────────────
@@ -89,9 +133,9 @@ class AxisResult:
         self.note = note
 
     def line(self) -> str:
-        s = f"{self.name:<15} {self.verdict:<10} {self.detail}"
+        s = f"{self.name:<13} {self.verdict:<10} {self.detail}"
         if self.note:
-            s += f"\n{'':<15} {'':<10} NOTE: {self.note}"
+            s += f"\n{'':<13} {'':<10} NOTE: {self.note}"
         return s
 
 
@@ -128,8 +172,10 @@ def axis_quality(now_ts: float) -> AxisResult:
 
     z = (cur_rate - band["mean"]) / band["stdev"]
     verdict = _classify(z, pos="improving", neg="drifting")
-    detail = (f"{cur_rate*100:.0f}% (n={cur_n}) vs baseline mean={band['mean']*100:.0f}% "
-              f"stdev={band['stdev']*100:.0f}pts (n={band['n']} windows) -> z={z:+.2f}sigma")
+    diff_pts = (cur_rate - band["mean"]) * 100
+    detail = (f"{cur_rate*100:.0f}% (n={cur_n}) vs baseline mean={band['mean']*100:.1f}% "
+              f"stdev={band['stdev']*100:.1f}pts (n={band['n']} windows) -> "
+              f"{diff_pts:+.1f}pts from mean, z={z:+.2f}sigma")
     return AxisResult("QUALITY", verdict, detail, z)
 
 
@@ -137,12 +183,9 @@ def axis_quality(now_ts: float) -> AxisResult:
 
 # Frozen M1 steady-state baseline: 2026-07-12 13:47 SAST (M1 live) through
 # 2026-07-13 18:26 SAST, 1275 tree_snapshots, session 27 CONFIRMED read
-# (journal/CARRY_OVER.md). Recomputed here directly from tree_json (gini/
-# entropy of focus_num per branch) rather than trusting the journal's rounded
-# summary numbers -- this reproduces them (0.3358/0.0660 vs journal's 0.344,
-# 0.8743/0.0558 vs journal's 0.873), confirming it is the same metric.
-_APERTURE_BASELINE_START = 1783864020.0  # 2026-07-12 13:47 SAST
-_APERTURE_BASELINE_END = 1783967160.0    # 2026-07-13 18:26 SAST
+# (journal/CARRY_OVER.md). Recomputed here directly from tree_json rather
+# than trusting the journal's rounded summary numbers -- this reproduces
+# them (0.3358/0.0660 vs journal's 0.344, 0.8743/0.0558 vs journal's 0.873).
 GINI_BASELINE = {"mean": 0.3358, "stdev": 0.0660}
 ENTROPY_BASELINE = {"mean": 0.8743, "stdev": 0.0558}
 
@@ -165,8 +208,8 @@ def _norm_entropy(xs: list[float]) -> float:
     n = len(xs)
     if n <= 1:
         return 0.0
-    h = -sum(p * __import__("math").log(p) for p in ps)
-    return h / __import__("math").log(n)
+    h = -sum(p * math.log(p) for p in ps)
+    return h / math.log(n)
 
 
 def axis_aperture(now_ts: float) -> AxisResult:
@@ -201,138 +244,7 @@ def axis_aperture(now_ts: float) -> AxisResult:
     return AxisResult("APERTURE", verdict, detail, max(abs(z_g), abs(z_e)))
 
 
-# ── AXIS 3: SELF-DIRECTION (open_problems template ratio) ──────────────────
-
-# Every auto-generated title shape from theory_x/signals/signal_to_problem.py
-# :_compose_title(). Anything NOT matching one of these is operator/manually
-# authored, or a signal type whose title isn't yet templated.
-_TEMPLATE_PATTERNS = tuple(re.compile(p) for p in (
-    r"^What is '.+' doing across these domains\?$",
-    r"^Why is .+ producing strong beliefs right now\?$",
-    r"^What pattern is emerging in .+\?$",
-    r"^How does '.+' bridge these branches\?$",
-    r"^What does this new arc around '.+' mean\?$",
-    r"^What is '.+'\?$",
-    r"^Signal: investigate '.+'$",
-    r"^Signal: .+$",
-))
-
-
-def _is_template(title: str) -> bool:
-    return any(p.match(title) for p in _TEMPLATE_PATTERNS)
-
-
-def axis_self_direction(now_ts: float) -> AxisResult:
-    with ir._ro(ir.CONV_DB) as c:
-        rows = c.execute(
-            "SELECT title, state, created_at FROM open_problems WHERE created_at <= ?",
-            (now_ts,),
-        ).fetchall()
-
-    total = len(rows)
-    if total == 0:
-        return AxisResult("SELF-DIRECTION", "ESTABLISHING", "no open_problems yet")
-
-    non_template = [r for r in rows if not _is_template(r["title"])]
-    open_non_template = [r for r in non_template if r["state"] == "open"]
-    pct = 100.0 * len(non_template) / total
-
-    if open_non_template:
-        oldest = min(r["created_at"] for r in open_non_template)
-        age_days = (now_ts - oldest) / 86400
-        persistence = f"{len(open_non_template)} open non-template, oldest {age_days:.1f}d"
-    else:
-        persistence = "zero open non-template problems right now"
-
-    detail = f"{len(non_template)}/{total} non-template ({pct:.1f}%) all-time; {persistence}"
-    note = ("no baseline exists yet -- session 28: 97.8% of all-time rows are mechanically "
-            "templated and every non-template row that ever existed is already closed (May "
-            "2026). Verdict withheld until this axis has an open self-chosen problem to track, "
-            "not faked.")
-    return AxisResult("SELF-DIRECTION", "ESTABLISHING", detail, None, note=note)
-
-
-# ── AXIS 4: GROOVE HEALTH (deduped groove_alerts + reject counts) ──────────
-
-def _groove_episode_ts(now_ts: float) -> list[float]:
-    """Collapse consecutive same-(alert_type, sample_belief_ids) rows into
-    one timestamp per episode (first occurrence). Raw rows are a ~60s
-    re-scan timer re-confirming a stale window (session 31 / census #7),
-    not independent events."""
-    with ir._ro(ir.BELIEFS_DB) as c:
-        rows = c.execute(
-            "SELECT id, alert_type, sample_belief_ids, detected_at FROM groove_alerts "
-            "WHERE detected_at <= ? ORDER BY alert_type, id",
-            (now_ts,),
-        ).fetchall()
-    episodes = []
-    prev_key: dict[str, tuple] = {}
-    # re-sort by id ascending overall so episode timestamps come out chronological
-    rows_by_id = sorted(rows, key=lambda r: r["id"])
-    prev = {}
-    for r in rows_by_id:
-        key = r["alert_type"]
-        sig = r["sample_belief_ids"]
-        if prev.get(key) != sig:
-            episodes.append(r["detected_at"])
-        prev[key] = sig
-    return sorted(episodes)
-
-
-def _rolling_count_series(ts_list: list[float], window: float, step: float) -> list[float]:
-    if not ts_list:
-        return []
-    start, end = ts_list[0], ts_list[-1]
-    series = []
-    t = start + window
-    while t <= end:
-        cutoff = t - window
-        n = sum(1 for x in ts_list if cutoff < x <= t)
-        series.append(n)
-        t += step
-    return series
-
-
-def axis_groove(now_ts: float) -> AxisResult:
-    episodes = [e for e in _groove_episode_ts(now_ts) if e <= now_ts]
-    if len(episodes) < 5:
-        return AxisResult("GROOVE HEALTH", "ESTABLISHING", "too few deduped groove episodes yet")
-
-    day = 86400.0
-    band_series = _rolling_count_series(episodes, day, day)
-    band = ir._band(band_series) if band_series else {"n": 0, "mean": None, "stdev": None}
-
-    cur_count = sum(1 for e in episodes if now_ts - day < e <= now_ts)
-
-    with ir._ro(ir.DYNAMIC_DB) as d:
-        crys_rejects = d.execute(
-            "SELECT COUNT(*) n FROM crystallization_rejects WHERE ts > ? AND ts <= ?",
-            (now_ts - day, now_ts),
-        ).fetchone()["n"]
-        persona_rejects = d.execute(
-            "SELECT COUNT(*) n FROM persona_rejects WHERE ts > ? AND ts <= ?",
-            (now_ts - day, now_ts),
-        ).fetchone()["n"]
-
-    if band["stdev"]:
-        z = (cur_count - band["mean"]) / band["stdev"]
-        verdict = _classify(z, pos="elevated", neg="quiet")
-    else:
-        z = None
-        verdict = "N/A"
-
-    detail = (f"{cur_count} deduped episodes/24h vs baseline mean={band.get('mean') or 0:.0f} "
-              f"stdev={band.get('stdev') or 0:.0f} (n={band['n']} daily windows)"
-              + (f" -> z={z:+.2f}sigma" if z is not None else "")
-              + f" | crystallization_rejects/24h={crys_rejects} persona_rejects/24h={persona_rejects}")
-    note = ("frozen raw-count baselines from Jul-12/15 (650/506, 306/460) are INVALID -- they "
-            "counted re-scan ticks, not events (session 31); this axis's own deduped band is "
-            "the only valid baseline. crystallization_rejects/persona_rejects history starts "
-            "2026-07-17/18 -- too thin for a baseline, reported informationally only.")
-    return AxisResult("GROOVE HEALTH", verdict, detail, z, note=note)
-
-
-# ── AXIS 5: LIVENESS (is she running, at all) ───────────────────────────────
+# ── AXIS 3: LIVENESS (is she running, at all) ───────────────────────────────
 
 _STALE_FIRE_S = 900       # 15 min; typical fire cadence ~2-3 min
 _STALE_BELIEF_S = 2700    # 45 min; irregular but typically much tighter
@@ -365,7 +277,7 @@ def axis_liveness(now_ts: float) -> AxisResult:
     if synth_gap is None or synth_gap > _STALE_SYNTH_S:
         stale.append("synth")
 
-    verdict = "RUNNING" if not stale else "STALLED(" + ",".join(stale) + ")"
+    verdict = "ALIVE" if not stale else "STALLED(" + ",".join(stale) + ")"
 
     def _m(gap):
         return f"{gap/60:.1f}m ago" if gap is not None else "never"
@@ -375,39 +287,102 @@ def axis_liveness(now_ts: float) -> AxisResult:
     return AxisResult("LIVENESS", verdict, detail, None)
 
 
+# ── AXIS 3.5: GROOVE HEALTH (deduped, severity-scored) ──────────────────────
+
+def _groove_episodes(now_ts: float) -> tuple[list[tuple[float, float]], int]:
+    """Collapse consecutive same-(alert_type, sample_belief_ids) rows into
+    one (ts, severity) per episode (first occurrence). Raw rows are a ~60s
+    re-scan timer re-confirming a stale window (census #7 / session 31),
+    not independent events -- any raw-count read is dishonest on its own.
+    Returns (episodes, raw_row_count)."""
+    with ir._ro(ir.BELIEFS_DB) as c:
+        rows = c.execute(
+            "SELECT id, alert_type, sample_belief_ids, detected_at, severity "
+            "FROM groove_alerts WHERE detected_at <= ? ORDER BY id",
+            (now_ts,),
+        ).fetchall()
+    episodes: list[tuple[float, float]] = []
+    prev: dict[str, str] = {}
+    for r in rows:
+        key = r["alert_type"]
+        sig = r["sample_belief_ids"]
+        if prev.get(key) != sig:
+            episodes.append((r["detected_at"], r["severity"]))
+        prev[key] = sig
+    episodes.sort()
+    return episodes, len(rows)
+
+
+def _rolling_severity_series(episodes: list[tuple[float, float]], window: float,
+                              step: float) -> list[float]:
+    if not episodes:
+        return []
+    start, end = episodes[0][0], episodes[-1][0]
+    series = []
+    t = start + window
+    while t <= end:
+        cutoff = t - window
+        sevs = [s for ts, s in episodes if cutoff < ts <= t]
+        if sevs:
+            series.append(statistics.mean(sevs))
+        t += step
+    return series
+
+
+def axis_groove(now_ts: float) -> AxisResult:
+    episodes, raw_n = _groove_episodes(now_ts)
+    dedup_line = f"{raw_n} raw rows -> {len(episodes)} deduped episodes (census #7 dedup)"
+
+    if len(episodes) < 10:
+        return AxisResult("GROOVE HEALTH", "N/A", f"{dedup_line}; too few episodes to band")
+
+    day = 86400.0
+    band_series = _rolling_severity_series(episodes, day, day)
+    band = ir._band(band_series) if band_series else {"n": 0, "mean": None, "stdev": None}
+
+    cur_window = [s for ts, s in episodes if now_ts - day < ts <= now_ts]
+    cur_avg = statistics.mean(cur_window) if cur_window else None
+
+    if cur_avg is None or not band["stdev"]:
+        return AxisResult("GROOVE HEALTH", "N/A",
+                           f"{dedup_line}; 0 episodes in trailing 24h -- nothing to score")
+
+    z = (cur_avg - band["mean"]) / band["stdev"]
+    verdict = "rising" if z >= Z_THRESHOLD else "flat"
+
+    detail = (f"{dedup_line} | trailing 24h: n={len(cur_window)} episodes, "
+              f"avg severity={cur_avg:.2f} vs baseline mean={band['mean']:.2f} "
+              f"stdev={band['stdev']:.2f} (n={band['n']} daily windows) -> z={z:+.2f}sigma")
+    return AxisResult("GROOVE HEALTH", verdict, detail, z)
+
+
 # ── overall read + main ─────────────────────────────────────────────────────
 
 def _overall(results: dict[str, AxisResult]) -> str:
     live = results["LIVENESS"]
-    if live.verdict != "RUNNING":
+    if live.verdict != "ALIVE":
         return f"DOWN -- {live.verdict}"
 
-    concerning = [r.name for r in results.values()
-                  if r.verdict in ("drifting", "narrowing", "quiet")]
+    concerning = [r.name for r in results.values() if r.verdict in ("drifting", "narrowing")]
     if concerning:
         return f"{'/'.join(concerning)} DRIFTING"
 
-    groove = results["GROOVE HEALTH"]
-    if groove.verdict == "elevated":
-        return "GROOVING -- elevated pattern-repetition rate, see GROOVE HEALTH line"
+    if results["GROOVE HEALTH"].verdict == "rising":
+        return "GROOVE HEALTH RISING -- see line for severity detail"
 
-    quality = results["QUALITY"]
-    if quality.verdict == "improving":
+    if results["QUALITY"].verdict == "improving":
         return "STABLE, quality trending up"
 
     return "STABLE"
 
 
 def run(now_ts: float) -> dict[str, AxisResult]:
-    order = ["QUALITY", "APERTURE", "SELF-DIRECTION", "GROOVE HEALTH", "LIVENESS"]
-    fns = {
-        "QUALITY": axis_quality,
-        "APERTURE": axis_aperture,
-        "SELF-DIRECTION": axis_self_direction,
-        "GROOVE HEALTH": axis_groove,
-        "LIVENESS": axis_liveness,
+    return {
+        "QUALITY": axis_quality(now_ts),
+        "APERTURE": axis_aperture(now_ts),
+        "LIVENESS": axis_liveness(now_ts),
+        "GROOVE HEALTH": axis_groove(now_ts),
     }
-    return {name: fns[name](now_ts) for name in order}
 
 
 def report(now_ts: float, log_path: Path | None) -> None:
@@ -420,8 +395,10 @@ def report(now_ts: float, log_path: Path | None) -> None:
     print("=" * 78)
     print(overall)
     print("-" * 78)
-    for name in ("QUALITY", "APERTURE", "SELF-DIRECTION", "GROOVE HEALTH", "LIVENESS"):
+    for name in ("QUALITY", "APERTURE", "LIVENESS", "GROOVE HEALTH"):
         print(results[name].line())
+    print()
+    print(_SELF_DIRECTION_NOTE)
     print()
 
     if log_path is not None:
