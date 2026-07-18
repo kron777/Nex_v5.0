@@ -128,6 +128,22 @@ CREATE TABLE IF NOT EXISTS signals (
 CREATE INDEX IF NOT EXISTS idx_signals_detected_at ON signals(detected_at);
 CREATE INDEX IF NOT EXISTS idx_signals_detector    ON signals(detector_name);
 
+-- census #11 (session 37, Phase 1 audit, read-only): validated_at / outcome_score /
+-- outcome_notes are VESTIGIAL -- zero UPDATE statements against this table exist
+-- anywhere in the codebase (grep-confirmed), across 154k+ rows spanning three
+-- months. Of the three templates that write here, only branch_silence_anomaly is
+-- a genuinely gradeable forecast (proved end-to-end against sense_events); the
+-- other two (triple_cooccurrence, pattern_recognition_burst) use unfalsifiable
+-- hedge language ("often precedes significant developments") with no checkable
+-- claim anywhere. Regardless of gradeability: no consumer reads these columns --
+-- the only read site is a GUI display endpoint (gui/server.py /api/signals/recent).
+-- Populating them would be a written-but-unread column with zero downstream
+-- effect unless a consumer is designed and built first. Real, working prediction
+-- validation lives in world_predictions (conversations.db,
+-- theory_x/stage_world/world_predictions.py) -- 4,909/4,916 resolved with an
+-- active trust_level/trust_gap calibration loop. Do NOT drop these columns here
+-- (a migration on 150k+ rows is risk for no gain, and something may read the
+-- schema) -- this comment is the fix.
 CREATE TABLE IF NOT EXISTS patterns (
     id                       INTEGER PRIMARY KEY AUTOINCREMENT,
     matched_at               REAL NOT NULL,
@@ -136,9 +152,9 @@ CREATE TABLE IF NOT EXISTS patterns (
     predicted_window_seconds INTEGER,
     prediction               TEXT,
     template_confidence      REAL DEFAULT 0.5,
-    validated_at             REAL,
-    outcome_score            REAL,
-    outcome_notes            TEXT
+    validated_at             REAL,  -- vestigial, see comment above
+    outcome_score            REAL,  -- vestigial, see comment above
+    outcome_notes            TEXT   -- vestigial, see comment above
 );
 CREATE INDEX IF NOT EXISTS idx_patterns_matched_at ON patterns(matched_at);
 CREATE INDEX IF NOT EXISTS idx_patterns_validated  ON patterns(validated_at);

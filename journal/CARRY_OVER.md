@@ -1633,3 +1633,85 @@ session 35's blind-spot note: don't chase this by loosening the lexical
 checks) is the honest next lever if it proves large at scale, not attempted
 here.
 
+## 2026-07-18 ~18:33 — session 37: census #11 revised, and a within-session
+## corrective note on two mischaracterized "established" premises
+
+**Census #11 revised, documentation-only fix (`substrate/schema/beliefs.sql`).**
+Phase 1 audit of `patterns` (154,440 rows, three months, `validated_at`/
+`outcome_score`/`outcome_notes` — zero UPDATE statements anywhere in the
+codebase, grep-confirmed): all three templates are structured as forecasts
+("X occurred, and this typically precedes/produces Y"), not merely
+retrospective logs. Two of three (`triple_cooccurrence`,
+`pattern_recognition_burst`) are unfalsifiable as worded — "often precedes
+significant developments," "often clusters around emerging themes" — no
+table anywhere can resolve either claim. The third (`branch_silence_anomaly`,
+~71% of rows) is genuinely gradeable: traced one real row end-to-end (id
+145425, stream `science.quanta`, matched Jul 11 18:10:14) against
+`sense_events` in the separate `sense.db` and confirmed the predicted
+"silence precedes activity" resolved TRUE (next event at +166s, inside the
+14,400s window). **The real reason not to build a grader isn't
+"these aren't predictions" — it's that zero consumers exist.** Grepped every
+real SQL reference to the `patterns` table: the write (`signals/loop.py`), one
+test asserting the write, and a read-only GUI display endpoint
+(`gui/server.py` `/api/signals/recent`) that would show `outcome_score` on a
+dashboard and nothing else. No confidence reweighting, no detector tuning, no
+retrieval ranking reads it anywhere. Building the grader today would be
+instrument #18 — a computed-but-unread column — regardless of gradeability.
+Also found and worth recording: `template_confidence` is a hardcoded literal
+`0.5` on every row (not derived from the underlying signal's own confidence,
+which does vary 0.68–0.9) — same "fixed-value column masquerading as
+computed" shape flagged in earlier sessions. And heavy redundancy: the same
+ongoing condition gets re-detected and re-written every ~60s tick
+(`pattern_recognition_burst` is 25,637 rows for only 89 distinct prediction
+texts — 288×; `triple_cooccurrence` 17.7×; `branch_silence_anomaly` 6.6×) —
+"154k predictions" is a much smaller number of distinct events, reported at
+high multiples.
+
+Verified separately, since this session's prompt asserted it as fact and it
+hadn't been checked: `world_predictions` (`conversations.db`,
+`theory_x/stage_world/world_predictions.py`) **is** a genuinely working,
+already-active validation loop — 4,916 rows, 4,909 resolved (99.9%), 462
+resolved in just the last 7 days, real `outcome`/`trust_level`/`trust_gap`
+columns with actual UPDATE statements computing them. This part of the
+premise held up on verification.
+
+Fix shipped: a documentation comment on `patterns.validated_at` /
+`outcome_score` / `outcome_notes` marking them vestigial, stating the actual
+finding above (not the mislabeled "not predictions" framing), pointing at
+`world_predictions` as the real working path, explicitly NOT dropping the
+columns (150k+ rows, no migration risk worth taking for zero gain). Confirmed
+`substrate/init_db.py`'s `_split_sql` strips `--` comments before `;`-splitting
+(regex-verified against the live parser, then executed against an in-memory
+db — 52 statements apply cleanly), so this cannot disturb boot; no restart
+needed. No matching Python dataclass declares these fields (checked, not
+assumed) — nothing else to annotate. Full suite: 39/39, identical failure set
+to baseline. `git diff --stat`: 1 file, comment-only.
+
+**A corrective note, recorded because it happened twice in one session and
+future sessions trust this file as ground truth:** this session's own prompts
+twice asserted "established, don't re-audit" premises that directly
+contradicted the actual, verified findings of the immediately preceding turns
+in the same conversation — not stale memory, not a different session, the
+same one. Specifically: (1) "C — crystallizer already filters hum to 17%"
+— false; session 36 (this arc, same conversation) shipped and live-verified
+BUILD C, the anchor gate, commit `eeeb924`, no "17%" figure was ever produced.
+(2) "drift-templates — dead code, 0/500 fires" — false; this session's own
+Phase 1 drift audit (immediately prior turn) measured 37/144 fires (25.7%)
+were genuine live DRIFT fires in a 6.5-hour window, cross-referenced against
+timestamped log evidence. Both corrected in-thread before being written down
+here. **Recording this because the whole arc's discipline is measure-before-
+building — that has to include measuring the premises we're handed, not just
+the code**, especially when a false premise would otherwise get written into
+this file as settled history for a future session to inherit uncritically.
+
+**Status at arc-close:** the three-session pattern that actually held up:
+C shipped and works (80%/98% confusion matrix, live-traced reject). The hum's
+generator-level source (DRIFT, ~25.7% of fires, confirmed too-eager via its
+own 30%-floor design, real replacement material available, real risk if
+touched carelessly) is understood in detail but deliberately left unbuilt —
+out of scope by decision, not because it's dead code. #11 is a mislabeled-but-
+partially-real detector log, now accurately documented, correctly left
+unbuilt because no consumer exists. Nothing here was "dissolved" — two were
+built and verified, one was scoped and correctly deferred pending a design
+question (the consumer) that's bigger than grading itself.
+
