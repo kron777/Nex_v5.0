@@ -198,13 +198,24 @@ class TestEngagementCheck(unittest.TestCase):
         self.assertTrue(self.c._has_engagement("What's happening in crypto today?"))
 
     def test_noticing_words_pass(self):
-        self.assertTrue(self.c._has_engagement("huh, markets feel slow today"))
+        # "wait, bitcoin's moving" carries a domain-term anchor (bitcoin) so
+        # it still passes under session 36's anchor gate (see below).
         self.assertTrue(self.c._has_engagement("wait, bitcoin's moving"))
-        self.assertTrue(self.c._has_engagement("something about this feels off"))
 
-    def test_evaluative_words_pass(self):
-        self.assertTrue(self.c._has_engagement("that arxiv title is oddly phrased"))
-        self.assertTrue(self.c._has_engagement("feeds are quiet today"))
+    def test_noticing_words_without_anchor_rejected(self):
+        # Session 36 (BUILD C): noticing/wonder vocabulary with no pronoun,
+        # no '?', and no anchor (digit / mid-sentence proper noun / domain
+        # term) is pure mood-atmosphere -- session 30's census found this
+        # shape is ~67% empty content when sampled directly. These three were
+        # previously asserted True; flipped deliberately, not a regression.
+        self.assertFalse(self.c._has_engagement("huh, markets feel slow today"))
+        self.assertFalse(self.c._has_engagement("something about this feels off"))
+        self.assertFalse(self.c._has_engagement("feeds are quiet today"))
+
+    def test_evaluative_words_without_anchor_rejected(self):
+        # Same session-36 flip: "arxiv" alone (lowercase, no specific title
+        # named) isn't a concrete anchor.
+        self.assertFalse(self.c._has_engagement("that arxiv title is oddly phrased"))
 
     def test_pure_external_echo_rejected(self):
         self.assertFalse(self.c._has_engagement("Bitcoin trades at 62340 USD."))

@@ -1507,3 +1507,129 @@ lowering it starts rejecting genuine otherness (fire #2 itself, and tick
 for a stricter one that can't tell the difference between mirroring and
 just talking about something adjacent.
 
+## 2026-07-18 ~17:20 — session 36: BUILD C, the engagement gate anchor heuristic — measured, shipped, live-verified
+
+Session 30's open item: 29% of durable `fountain_insight` beliefs pass the
+crystallizer's engagement gate *only* via a contemplative keyword (quiet/
+still/notice/feels/seems/wonder/tired/slow), no pronoun, no `?`. Sampling
+found ~67% of that shape genuinely empty mood-atmosphere but ~30% substantive
+with the keyword incidental — naive keyword removal would gut the good 30%
+with the bad 67%. This session designed, measured, and shipped an anchor
+requirement instead: self-ref and `?` paths untouched; the contemplative-
+only path additionally needs a digit, a mid-sentence proper noun, or a
+domain term before the match is accepted.
+
+**Measured before shipping, not assumed.** Pulled the last 500
+`fountain_insight` beliefs (2026-06-22 → 2026-07-18, a fresher, more current
+window than session 30's), filtered to the same contemplative-only shape:
+171 beliefs. Hand-labeled by content: **25 substantive (14.6%), 146 empty
+(85.4%)** — a lower substantive fraction than session 30's ~30% estimate on
+n=30; recorded honestly as a real measured difference (likely sample-period:
+this window includes the post-M3 mind-mode-fix period, or the smaller n=30
+in session 30 was simply noisier), not silently reconciled to match the
+older number. The canonical example from the task brief itself turned up
+verbatim in the sample: belief 193457, *"The world of emerging technologies,
+like Fusion Programming Language and Liva AI, feels inextricably linked to
+economic updates (e.g., SpaceX IPO) and regulatory discussions (like
+GPT-5.6)."*
+
+**Anchor design, three checks, reused not invented:**
+1. Digit (`\d`) anywhere in the thought.
+2. Mid-sentence capitalized token that isn't the first word of its sentence
+   (own position-based implementation — prose_stats.py's corpus-frequency
+   check was considered and rejected as overkill for a per-thought check
+   with no stored history to compare against; this is the same *kind* of
+   heuristic, not a reuse of that specific mechanism). A small
+   `_GENERIC_ACRONYMS` exclusion (cpu/gpu/ram/ac/tv/etc.) keeps common
+   appliance/computing abbreviations from counting as proper nouns.
+3. Domain term — reused verbatim from `theory_x.executive_control`'s
+   existing `_ANALYTICAL_KEYWORDS`/`_TECHNICAL_KEYWORDS` sets (imported,
+   not copied) rather than building a parallel list, minus a small
+   `_ANCHOR_TOO_GENERIC` exclusion (market/markets/trend/trends/pattern/
+   patterns/data/deep dive) — measured against the labeled sample, none of
+   these was ever the *sole* anchor for a labeled-substantive example, and
+   all of them fired repeatedly on pure mood-atmosphere ("the market's
+   whisper tonight", "tech trends lately", "irregular patterns on the
+   floor").
+
+**Confusion matrix against the 171 labeled beliefs, iterated twice before
+shipping** (first pass surfaced two real bugs, not accepted as-is): the
+initial domain-term check used naive substring matching, which false-
+positived on "rust" inside "rustling", "git" inside "digital", "rest" inside
+"restless", "api" inside "apartment" — fixed to `\b`-bounded regex matching.
+Final numbers:
+- Substantive correctly KEPT: **20/25 (80%)**
+- Substantive wrongly REJECTED (known gap): 5/25 — all cases with no digit,
+  no proper noun, and no domain-term hit at all ("Hunting a stubborn bug
+  this codebase just got stuck on"; "Kids age verification online checks
+  feel oddly prescient"; "quantum machine learning to ethical computation";
+  "recent tech layoffs"). Real, accepted, not chased — same discipline as
+  session 35's Jaccard blind spot.
+- Empty correctly REJECTED: **143/146 (98%)**
+- Empty wrongly KEPT (known gap): 3/146 — two vague-but-capitalized mentions
+  ("investigate 'Adams'", "Moana research", neither naming any actual
+  content) and one lexical collision ("The rust clatters against the
+  anvil" — corrosion, not the Rust language; case-insensitive domain-term
+  matching can't disambiguate without more context than a single thought
+  provides).
+
+**Shipped** (`theory_x/stage6_fountain/crystallizer.py`): `_has_engagement`
+keeps its bool signature (asserted directly by existing tests) but the
+contemplative-only branch now requires `_has_anchor()`. New reject reason
+`contemplative_no_anchor` flows through session 33's `crystallization_rejects`
+table automatically — zero extra plumbing needed, `crystallize()` already
+writes any reason generically. Full suite: 39/39 bucket-B, identical
+failure set to the pre-change baseline (diffed both ways via `git stash`),
+zero new failures. One incidental fixture collision fixed along the way:
+`test_coherence_gate.py::test_no_gate_path_unchanged` used an anchor-less
+"Something about the nature of..." thought purely to exercise gate wiring,
+not the engagement check — given a self-ref anchor ("I notice...") matching
+the pattern its own sibling test already used, rather than left broken.
+`tests/test_stage1.py`'s `TestEngagementCheck` had 4 assertions that
+asserted the *old*, over-permissive behavior for anchor-less contemplative
+content (`"huh, markets feel slow today"`, `"something about this feels
+off"`, `"that arxiv title is oddly phrased"`, `"feeds are quiet today"`) —
+flipped deliberately to assertFalse with a comment tracing to this session,
+not silently left to rot as stale documentation of intentionally-changed
+behavior.
+
+**Live-verified, restart at 16:04:29 SAST (pid 145215, port 8765, clean
+boot, no import/wiring errors).** First 30-minute window (16:04–16:34)
+produced **zero** `contemplative_no_anchor` rejects — not a failure of the
+gate, but this window's live fountain output happened to skew entirely
+toward long-form multi-sentence "NEXT STEP"/strategic-planning content
+(8 rejects: 7 `too_long`, 1 `no_engagement`; 1 accept via the `?` path),
+not the quiet-hum register this gate targets. Recorded honestly rather than
+padded with the historical Phase 1 numbers as if they were live evidence.
+Extended the watch by another hour rather than declaring victory on
+absence of counterevidence. At **17:15:53 SAST** a live instance landed:
+fountain_event 28783 (*"The quiet hum...*" register — exact text *"The quiet
+holds its own kind of rhythm."*, droplet `quiet-holds-its-own`, fired
+17:15:42) → `crystallization_rejects` id 258, reason
+`contemplative_no_anchor`, matched pattern `'quiet'`, 11s later → confirmed
+via direct query that no belief was ever written for this content. Traced
+end-to-end from real fire to durable reject record to confirmed clean
+discard — not inferred, not assumed.
+
+**Pre-registered prediction, not yet checked:** the hum-phrase groove-alert
+rate (the same `groove_alerts`/n-gram instrument used in sessions 24/25's
+M3 check) should drop over the following day. **Do NOT expect zero** — this
+closes one contributor (the crystallizer gate) among several documented but
+separate feeds of the same register: mode-level drift-seeding (session
+25's M2, still undesigned), and whatever produced this session's own
+observed "NEXT STEP" strategic-planning groove (16:47–17:13, ~9 consecutive
+`too_long` rejects on the same EU-court/Yamal/AI-ethics thread) — a
+different register entirely from the hum, unaddressed by this build, worth
+its own session if it persists.
+
+**Next session candidates, not attempted tonight:** (1) the day-later
+groove-alert-rate check against this session's prediction; (2) the
+"NEXT STEP" strategic-planning groove observed live tonight — different
+shape from the hum, same symptom (verbose, repetitive, stuck on one
+thread), no diagnosis attempted; (3) the five known anchor-check gaps above
+(digit/proper-noun/domain-term-free substantive content) remain a real,
+accepted limitation — a semantic-similarity fallback (same caution as
+session 35's blind-spot note: don't chase this by loosening the lexical
+checks) is the honest next lever if it proves large at scale, not attempted
+here.
+

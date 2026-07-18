@@ -14,6 +14,7 @@ from typing import Optional, Tuple
 import errors
 from substrate import Reader, Writer
 from speech.governor import SpeechGovernor
+from theory_x.executive_control import _ANALYTICAL_KEYWORDS, _TECHNICAL_KEYWORDS
 
 THEORY_X_STAGE = 6
 
@@ -39,6 +40,88 @@ _ENGAGEMENT_RE = re.compile(
     r"something|nothing|somebody|nobody|somewhere)\b",
     re.IGNORECASE,
 )
+
+# Session 36 (BUILD C) — anchor requirement for the contemplative-only
+# engagement path. Session 30's census found 29% of the last 500 durable
+# fountain_insight beliefs passed the engagement gate ONLY via a contemplative
+# keyword (quiet/still/notice/feels/seems/wonder/tired/slow), no pronoun, no
+# question mark; sampling 30 of those by content found ~67% genuinely empty
+# mood-atmosphere but ~30% substantive with the keyword incidental (e.g.
+# "...feels inextricably linked to economic updates (e.g. SpaceX IPO)").
+# Naive keyword removal throws out the good 30% with the bad 67% — this
+# requires a concrete anchor (digit, mid-sentence proper noun, or domain
+# term) alongside the mood word instead. Self-ref and '?' paths are untouched.
+#
+# Measured against 171 labeled contemplative-only beliefs (recent 500
+# fountain_insight, same filter as session 30's census) before shipping:
+# keeps 20/25 (80%) of genuinely substantive content, correctly rejects
+# 143/146 (98%) of genuine mood-atmosphere. Residual gaps, known and
+# accepted rather than chased: substantive content with no digit/proper-noun/
+# domain-term at all (e.g. "kids age verification online", "recent tech
+# layoffs") still gets rejected (5/25 false negatives); a few vague-but-
+# capitalized mentions ("investigate 'Adams'", "Moana research") and one
+# lexical collision ("rust" the metal vs. Rust the language) still get
+# wrongly kept (3/146 false positives). See journal/CARRY_OVER.md session 36
+# for the full confusion matrix.
+_DIGIT_RE = re.compile(r"\d")
+_SENT_SPLIT_RE = re.compile(r"(?<=[.!?:])\s+")
+_ANCHOR_WORD_RE = re.compile(r"[A-Za-z][A-Za-z']*")
+
+# Generic appliance/computing acronyms -- capitalized the same way any
+# all-caps abbreviation is, but name a common noun (a CPU, an AC unit), not a
+# specific entity. A genuine proper noun (SpaceX, Aave, TZero) is never a
+# member of this small closed set.
+_GENERIC_ACRONYMS = frozenset({
+    "cpu", "cpus", "gpu", "gpus", "ram", "rom", "ac", "tv", "it", "id",
+    "url", "os", "led", "ip", "usb", "hdmi", "wifi",
+})
+
+# Reused from executive_control's Analytical/Technical keyword sets rather
+# than a parallel list. A handful of overly generic single words are excluded
+# -- measured against the labeled sample, these fired only on mood-atmosphere
+# ("the market's whisper", "tech trends lately", "irregular patterns on the
+# floor", "focusing on the data spikes") and were never the sole anchor for a
+# labeled-substantive example.
+_ANCHOR_TOO_GENERIC = frozenset({
+    "trend", "trends", "pattern", "patterns", "data",
+    "market", "markets", "deep dive", "deep-dive",
+})
+_DOMAIN_TERM_RE = re.compile(
+    r"\b(" + "|".join(
+        re.escape(t) for t in sorted(
+            (set(_ANALYTICAL_KEYWORDS) | set(_TECHNICAL_KEYWORDS)) - _ANCHOR_TOO_GENERIC
+        )
+    ) + r")\b",
+    re.IGNORECASE,
+)
+
+
+def _mid_sentence_capitalized(thought: str) -> Optional[str]:
+    """First capitalized token that isn't the first word of its sentence --
+    a position-based proper-noun heuristic. Unlike prose_stats.py's corpus
+    check, this runs per-thought with no stored frequency history to compare
+    against, so it can't distinguish a real entity from a one-off capitalized
+    common noun -- the _GENERIC_ACRONYMS exclusion above covers the specific
+    collisions measured in the labeled sample (CPU/AC/etc); rarer ones
+    (e.g. "Adams", "Moana" used vaguely) remain a known, accepted gap.
+    """
+    for sent in _SENT_SPLIT_RE.split(thought):
+        words = _ANCHOR_WORD_RE.findall(sent)
+        for i, w in enumerate(words):
+            if i == 0:
+                continue
+            if len(w) >= 2 and w[0].isupper() and w.lower() not in _GENERIC_ACRONYMS:
+                return w
+    return None
+
+
+def _has_anchor(thought: str) -> bool:
+    return bool(
+        _DIGIT_RE.search(thought)
+        or _mid_sentence_capitalized(thought)
+        or _DOMAIN_TERM_RE.search(thought)
+    )
+
 
 # Verbal tics of the observer-trap — "stinking of Zen" patterns.
 # Two or more matches signals performance of insight, not insight itself.
@@ -408,16 +491,18 @@ class FountainCrystallizer:
     def _has_engagement(thought: str) -> bool:
         """Return True if the thought shows cognitive engagement.
 
-        Accepts first-person self-reference, questions, noticing/wonder
-        vocabulary, and evaluative framing. Rejects pure external echoes
-        (raw feed content with no cognitive framing).
+        Accepts first-person self-reference and questions unconditionally.
+        Noticing/wonder vocabulary (no pronoun, no '?') additionally requires
+        a concrete anchor (session 36, BUILD C) -- see the comment block
+        above _has_anchor for why. Rejects pure external echoes (raw feed
+        content with no cognitive framing at all).
         """
         if _SELF_REF_RE.search(thought):
             return True
         if "?" in thought:
             return True
         if _ENGAGEMENT_RE.search(thought):
-            return True
+            return _has_anchor(thought)
         return False
 
     def _quality_check(self, thought: str, droplet: Optional[str] = None) -> Tuple[bool, str]:
@@ -434,6 +519,15 @@ class FountainCrystallizer:
             return False, "too_long"
 
         if not self._has_engagement(thought):
+            # Distinguish "engagement keyword matched but no anchor" (session
+            # 36, BUILD C) from "no engagement signal at all" -- same check
+            # _has_engagement already did, re-run only on the reject path so
+            # the durable record carries which keyword almost passed.
+            if (not _SELF_REF_RE.search(thought) and "?" not in thought):
+                m = _ENGAGEMENT_RE.search(thought)
+                if m:
+                    self._last_reject_pattern = m.group()
+                    return False, "contemplative_no_anchor"
             return False, "no_engagement"
 
         # Blacklist check

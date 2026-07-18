@@ -91,6 +91,24 @@ class TestQualityCheck(unittest.TestCase):
         self.assertFalse(ok)
         self.assertEqual(reason, "no_engagement")
 
+    def test_rejects_contemplative_no_anchor(self):
+        # Session 36 (BUILD C): engagement keyword ("quiet", "feels") with no
+        # pronoun, no '?', and no digit/proper-noun/domain-term anchor --
+        # pure mood-atmosphere, distinct reject reason from "no_engagement".
+        ok, reason = self.c._quality_check(
+            "The quiet hum of distant stars tonight holds a depth."
+        )
+        self.assertFalse(ok)
+        self.assertEqual(reason, "contemplative_no_anchor")
+
+    def test_accepts_contemplative_with_anchor(self):
+        # Same shape (no pronoun, no '?'), but "Bitcoin" is a genuine
+        # domain-term anchor alongside the mood word "feels".
+        ok, reason = self.c._quality_check(
+            "The sudden drop in Bitcoin feels almost offbeat today."
+        )
+        self.assertTrue(ok, f"Rejected with: {reason}")
+
     def test_accepts_within(self):
         ok, reason = self.c._quality_check(
             "The quietude of non-action blooms within."

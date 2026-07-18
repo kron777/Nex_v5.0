@@ -360,7 +360,13 @@ class TestFountainWiring(unittest.TestCase):
     def test_no_gate_path_unchanged(self):
         """Without a gate, crystallize() behaves exactly as before Phase 22."""
         fc = self._make_crystallizer(gate=None)
-        thought = "Something about the nature of attention under duress."
+        # "I notice" (self-ref) rather than the original anchor-less
+        # "Something about the nature of..." -- session 36 (BUILD C) now
+        # requires a concrete anchor for the contemplative-only engagement
+        # path, and this fixture's job is testing the gate wiring, not that
+        # check; keeping it self-ref-anchored is the least invasive fix
+        # (same pattern as test_gate_accept_allows_belief_write above).
+        thought = "I notice something about the nature of attention under duress."
         result = fc.crystallize(thought, fountain_event_id=1, ts=time.time())
         self.assertIsNotNone(result)
 
