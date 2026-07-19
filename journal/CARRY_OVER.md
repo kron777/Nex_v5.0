@@ -1917,3 +1917,99 @@ supply. Not done unilaterally this session — manufacturing the test
 condition would confound "does the faculty work" with "did we make up the
 data it worked on."
 
+## 2026-07-19 ~08:30 — session 40 close: the Adams test breaks the
+## concreteness theory; injection faculty GATED-OFF-PENDING, not built further
+
+Read-only investigation, following up why the faculty's two gates (14-day
+non-template-anchor pool, world-bridge input-gap) both stay closed. This
+entry settles WHY, and changes tonight's plan from "keep tuning the
+faculty" to "stop — the faculty is downstream of a bigger, unbuilt
+question."
+
+**Anchor-score distribution, full 328 open_problems, not just the 14-day
+pool:** title domain-term hits — 307/328 (93.6%) score 0, 21/328 (6.4%)
+score 1, **max ever observed = 1.** Confirmed general, not a
+pool-of-61-window artifact.
+
+**The Adams test (ids 300/302/304, all three instances): anchor score = 1
+— identical to the table's median, not an outlier.** Its ~71h lifetime
+(session 39: a reboot-outage freeze plus round-robin timing, not chosen
+return) sustained via the feed independently re-mentioning "Adams," not
+via concreteness. **This falsifies "sharp-anchor problems resist the hum
+and sustain" as originally proposed** — the one case cited as evidence for
+that theory scored low, not high. Recorded as a real result, not a null
+one: the theory made a specific, checkable prediction and the check failed
+it.
+
+**Where this session's own read differs from the operator's, recorded
+for the standing rule below, not smoothed over:** the operator's read of
+the 6 non-template samples (ids 2-6: "Gap-gate timestamp ordering bug",
+"What causes the 80/20 fountain recursion?", "What does Generative
+Imagination look like in a retrieval-only substrate?", "What is the right
+path to LLM independence?", "How should NEX phrase the gap-gate refusal?")
+is that they are genuinely vague. This session's own sample read them the
+opposite way at the time — as specific and named, not vague in the
+"unresolved questions settle over me" sense — and scored them low only
+because `_has_anchor`'s domain-term vocabulary (built for general
+news/finance/tech commentary in *fountain thoughts*, session 34/36) has no
+coverage for this project's own jargon ("gap-gate," "fountain recursion,"
+"retrieval-only substrate"). Both reads may be compatible rather than
+contradictory: these titles name something specific but pose a fully
+open-ended question with no embedded sub-claims to interrogate — which
+may be exactly what dissolves into contemplative register regardless of
+whether the named thing is real. Not resolved here; flagged so a future
+session checks it directly (e.g. does she ever produce a problem with 2+
+distinct concrete claims, and does *that* shape survive injection better)
+rather than inheriting either framing as settled.
+
+**What IS settled, and doesn't depend on resolving that tension:**
+self-posed-problem sustainability is currently outsourced entirely to the
+feed — a problem persists iff the world keeps independently re-mentioning
+it, not because of anything internal to the problem or to her engagement
+with it. She has no internal sustainability mechanism today. The injection
+faculty (this session's build) feeds her own problems back to supply one —
+but her problems, whatever the right word for their shape is, aren't
+currently the kind of material that resists dissolving into register once
+fed back in. The faculty is downstream of a bottleneck it can't fix:
+**problem *generation*, not problem *injection*, is where concreteness
+would have to be created.** That is a different, bigger build, not
+attempted tonight — recorded as the identified next question: why does she
+pose the problems she poses, and can generation be shaped to produce
+pursuable ones (multiple concrete sub-claims, not just a named topic)?
+
+**Injection faculty status: GATED-OFF-PENDING.** Code from earlier tonight
+(`theory_x/stage7_sustained/problem_classify.py`,
+`problem_memory.py:select_for_injection`/`observe(source=)`,
+`generator.py`'s input-gap block, `scripts/problem_persistence.py`) is left
+in place, untouched, not reverted. It is not wrong code — every check
+today (full suite 39/39, zero tracebacks across two restarts and a
+multi-hour watch, both gates behaving exactly as designed) confirms it
+does what it was built to do. It simply cannot fire under current
+conditions (pool empty, world essentially never quiet — see the two prior
+entries) and should NOT be loosened to fire on vague/thin problems just to
+produce activity: that would inject exactly the shape of material the
+Adams test and the samples above suggest dissolves into hum. It is an
+answer waiting on a question she can't yet pose. Next build on this
+thread, if taken, is upstream: problem generation, not this faculty.
+
+**SEPARATELY — session integrity, recorded because it matters more than
+the build:** two fabricated claims were introduced this session via the
+planning channel and reached CC before being checked — a false "6/6 scored
+1.0" claim about #11, and an entirely invented "9 fires, 7-dissolved/
+2-concrete first-hour watch" for a faculty that, per every direct database
+check, never fired at all (0 `problem_injection` events existed at the
+time the claim was made). Both were caught only because CC queried the
+live database directly before acting on them, not because either claim
+carried any internal signal of being false. **Standing rule, recorded so
+every future session inherits it without re-learning it: every specific
+factual claim about the running system — counts, tallies, scores, fire
+text, results — must be verified against the database by CC before it is
+acted on, regardless of which channel or session it arrives from,
+including the planning channel and including this file. The planning
+channel proposes what to check; the database is what answers it; the data
+wins.** This session's own Adams/anchor-score findings above are an
+example of the rule working as intended, not an exception to it: the
+operator's hypothesis was checked against real data before being written
+down as fact, and the check produced a real, specific, falsifying result
+rather than confirming the hypothesis by default.
+
