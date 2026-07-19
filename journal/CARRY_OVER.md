@@ -1822,3 +1822,43 @@ expected to move until that supply question is separately addressed.
 Not yet restarted. Next entry should read this baseline against real
 post-restart data, not memory of this one.
 
+## 2026-07-19 ~06:50 — session 40: decision rule frozen BEFORE restart
+
+Written before any post-restart data exists, because the failure mode
+we're watching for — the injected question dissolving into contemplative
+register instead of being worked — is exactly the shape of drift this
+whole arc keeps finding, and a live-in-the-moment call under that register
+is the least trustworthy judge of itself. Frozen now, applied cold after.
+
+**Baseline (frozen, trailing window):** 0 self-sustained threads.
+
+**PASS:** first ~10 problem-injected fires are MAJORITY concrete-engagement
+— she works the actual question (names the entities, advances the problem)
+— AND she references her own posed problems across fires WITHOUT the feed
+independently re-raising the topic.
+
+**FAIL:** first ~10 problem-injected fires are MAJORITY dissolved-into-hum
+(the problem absorbed into contemplative register — e.g. "the gentle
+question of X hums beneath my thoughts" — mentioned, not worked). Binary
+label per fire, majority rules, no rationalizing individual borderline
+fires into the pass column.
+
+**TRIPWIRE, independent of pass/fail:** aperture narrows OR groove severity
+rises on the monitor → rumination loop → stop regardless of the
+concrete/dissolved tally.
+
+**On FAIL, the pre-agreed next step, not to be improvised live:** do NOT
+retune frequency or restart-and-hope. Go directly to a Phase 2b framing
+fix — inject the problem as a concrete question to WORK, not as ambient
+context to reflect on, targeting the dissolution mechanism directly — design
+shown before any further build.
+
+**Known constraint entering the watch, not a violation of the rule above:**
+the live candidate pool is empty (0 non-template + anchor-passing problems
+in the 14-day window, re-checked immediately before restart) — the same
+finding from the pre-restart baseline. `select_for_injection` will return
+None on every fire until this changes. If the pool stays empty, the watch
+will show zero problem-injected fires, which is neither PASS nor FAIL — it
+is the mechanism correctly staying silent, and the decision rule above does
+not apply until n>=1 injected fire exists to label.
+
