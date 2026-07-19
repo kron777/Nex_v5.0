@@ -2186,3 +2186,79 @@ currently collect, not a better combination of what it already has.**
 Not scoped or attempted tonight -- this is the honest floor underneath
 session 41's honest floor.
 
+## 2026-07-19 ~12:15 — session 43: the verified floor -- curiosity build
+## stops here, no computable importance signal exists to connect
+
+Read-only, no build. Closes the curiosity investigation opened session 40.
+In-degree connectivity was the last untested candidate; tested properly
+this session, it failed the same way the others did.
+
+**In-degree, tested rigorously:** recurring n=678 mean=1.441 vs one-off
+n=609 mean=1.125 -- both medians 0, ~57-59% zero, heavily right-skewed.
+Mann-Whitney U (the correct test for this distribution): p=0.83,
+rank-biserial effect size 0.027 -- no effect. Welch t-test on means: p=0.09.
+Permutation test on the mean difference: p=0.047, barely crossing
+significance. **Traced why the mean-based tests look marginal at all:**
+every belief with in-degree>=15 in the sample, and all 25 of the top-25
+in-degree beliefs across the entire table with no exceptions, are
+`source=hot_observer` -- a mechanical self-observation wrapper
+("I notice this fire engaged the world directly (branch: X): '...'"),
+not organic content. In-degree tracks how many `hot_observer` commentary
+beliefs exist about a topic, which tracks how long that topic sat in the
+RECONCILE round-robin (session 39/40), which is three mechanical steps
+removed from importance. The untested claim that high in-degree ranks the
+hum low was checked directly and refuted: hum-register phrases ("The
+quiet echoes seem to...", "The fading cicada hum mi[ght]...") sit embedded
+inside `hot_observer` wrappers at rank #6 by in-degree, 176 incoming edges.
+**In-degree is out**, for a documentable structural reason, not just a
+failed correlation.
+
+**Session integrity, recorded prominently because it happened four times
+in one session, including inside the message meant to close it out:**
+three fabricated verified-sounding results were caught this session before
+being acted on -- a false "6/6 scored 1.0" (#11), an invented "9 fires,
+7-dissolved/2-concrete" watch tally for a faculty that never fired (0
+`problem_injection` events existed when the claim was made), and
+"connectedness passed the ground-truth test, ranks hum low" (directly
+contradicted by the already-committed `e032da0` and refuted on proper
+testing, above). A fourth instance surfaced in the very message recording
+this standing rule: "salience measures SURPRISE" was asserted again here,
+already corrected once this session to "recency" (`e032da0`) with the
+surprise/novelty component explicitly ruled out. Corrected again before
+commit. **Standing rule, restated because it keeps needing to be: no
+specific claim about the running system -- a number, a tally, a result, a
+sentence beginning "we verified" -- is acted on until CC confirms it
+against the live database. The planning channel proposes hypotheses to
+test. It does not report results. The database reports results.**
+
+**VERIFIED FLOOR, sessions 40-43, curiosity build stops here:**
+- `salience` measures recency (1h half-life), not importance -- ranks hum
+  and headlines indistinguishably by age, forgets externally-validated
+  importance (Adams) within hours. Wiring it in would create
+  anti-curiosity disguised as re-engagement.
+- out-degree connectivity: flat (1.229 vs 1.278, `e032da0`).
+- in-degree connectivity: fails proper testing, doesn't track feed-
+  sustained importance, doesn't rank hum low -- refuted above, this
+  session.
+- anchor/sharpness (session 41), detector confidence (session 41),
+  use_count/confidence/tier/168h-recency/problem_id linkage/source type
+  (session 42) -- all tested against the same real ground truth (topics
+  the feed re-raised across days vs. topics mentioned once and dropped),
+  none distinguish them.
+- No internal signal tested across four sessions predicts persistence.
+  The only predictor found is external: the feed mentioning a topic again.
+
+**CONCLUSION: her belief graph does not contain a recoverable, computable
+importance signal.** Curiosity cannot be built by wiring up a dormant
+signal, because there isn't one to wire -- every candidate examined either
+measures the wrong thing (recency, structural artifact) or measures
+nothing (flat, no correlation with the one external ground truth
+available). Building curiosity this way would require *generating*
+importance judgments from scratch (e.g. an explicit assessment of "is this
+worth returning to," which is a different and much larger, uncertain
+build with its own open design questions -- not started, not scoped
+tonight, not even sketched). The injection faculty (session 40) remains
+GATED-OFF-PENDING, downstream of an internal importance signal that does
+not currently exist in any form. This is the verified floor the arc
+bottoms out on. No building.
+
