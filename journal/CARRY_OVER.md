@@ -2262,3 +2262,57 @@ GATED-OFF-PENDING, downstream of an internal importance signal that does
 not currently exist in any form. This is the verified floor the arc
 bottoms out on. No building.
 
+## 2026-07-19 ~13:10 — session 43 continued: generate-importance-via-LLM
+## also fails ground truth. Nothing tested tracks feed-sustained importance.
+
+Read-only, no build, no wiring. Extends the same session's floor with one
+more real, built-and-run test: an LLM "is this substantive/worth-developing"
+judge, since structural signals (surprise/recency, out-degree, in-degree)
+had all already failed.
+
+**Built fresh, not a re-verification.** Direct HTTP calls to the local
+`qwen2.5:3b` (`http://localhost:11434/v1/chat/completions`), bypassing
+`VoiceClient`'s persona system prompt -- a classification task, not
+speech. First attempt (0.0-1.0 scale, "just the number") collapsed to a
+constant `0.0` on all 5 sanity examples regardless of content, including
+on a real ML paper title and a real breaking-news headline -- the exact
+hollow-collapse failure mode `affinity_loop.py` already documented for
+its own LLM self-rating. Discarded. Second attempt (0-10 integer scale)
+showed real, correctly-ordered spread on the same 5 examples (weather
+hum=2, stars/wonder=4, Adams-wrapped-in-atmosphere=6, ML paper title=7,
+Iran headline=8) -- passed the sanity gate to scale up.
+
+**VERIFIED (250 real LLM calls, 125 recurring-entity beliefs vs 125
+one-off-entity beliefs, same sampling/seed as sessions 41-43): the judge
+does NOT separate feed-sustained topics from one-off topics.**
+```
+recurring (feed-sustained): mean=6.256  median=7  stdev=2.275
+one-off (died):              mean=6.184  median=6  stdev=2.134
+Mann-Whitney U (recurring > one-off): p=0.204, rank-biserial effect=-0.058
+Welch t-test: t=0.258, p=0.797
+```
+p=0.204, negligible effect size, wrong sign (one-off ranks marginally
+higher, not lower). Not close to separation. 183.4s wall time for 250
+calls at 8-way concurrency (~0.73s/call effective, ~5-6s single-call
+latency) -- cost is not the reason this fails.
+
+**What DID hold, and why it doesn't rescue the hypothesis:** the same
+judge cleanly separates individually-hum from individually-substantive
+text on the 5 hand-picked sanity examples (2 vs 8-ish). That is a
+different property from "tracks what the feed found worth re-raising."
+A well-formed, specific, one-off observation scores exactly as
+"substantive" as a well-formed, specific, recurring one -- substance and
+external recurrence are independent properties. Substantive-sounding is
+not the same thing as important-by-this-arc's-only-available-ground-truth.
+
+**CONCLUSION, extending the floor recorded ~13:10 this same session:
+generate-importance-via-LLM-substantiveness fails ground truth alongside
+surprise/recency, out-degree, and in-degree.** No signal tested across
+sessions 41-43 plus this one -- structural or LLM-judged -- tracks
+feed-sustained importance. The only predictor of persistence found
+anywhere in this investigation remains external: the feed re-raising the
+topic. Importance, as this arc has been able to operationalize it, is
+apparently not reducible to graph structure or to text substantiveness.
+No proxy hunt attempted -- there is no separation to reproduce. No
+wiring, no code. This is the floor beneath the floor.
+
