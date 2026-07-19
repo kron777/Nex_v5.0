@@ -2013,3 +2013,81 @@ operator's hypothesis was checked against real data before being written
 down as fact, and the check produced a real, specific, falsifying result
 rather than confirming the hypothesis by default.
 
+## 2026-07-19 ~10:00 — session 41: THE FLOOR — curiosity requires an internal
+## salience mechanism that does not exist. Not a fix; a from-scratch faculty.
+
+Read-only, no build, no restart. Convergence point of sessions 39-41's chain
+(problem lifecycle → injection faculty → this). Each step tested a specific,
+falsifiable hypothesis against the live database rather than assuming the
+next one; this entry is where the chain bottoms out.
+
+**Where problems come from (traced, quoted):** exactly two code paths write
+`open_problems`, no third, no LLM anywhere in it —
+`signal_to_problem.py`'s daemon (template-dispatched from
+`CoOccurrenceDetector`/`BurstDetector`/`SilenceDetector` signals) and
+`ProblemMemory.open()` (manual/GUI). Found in the tracing: `_compose_title`
+checks for a `signal_type` value (`"triple_cooccurrence"`) that
+`CoOccurrenceDetector` never actually emits (it emits `"2_branch"`/
+`"3_branch"`) — every entity-co-occurrence signal, the one class whose
+payload carries real quoted context snippets (confirmed live: Yamal,
+Trump, Bitcoin, LLM, Iran examples all had real headline fragments sitting
+in the description JSON, discarded at the title), falls through to the
+bare `"Signal: investigate '{entity}'"` fallback. Generation IS lossy for
+this class — a real, fixable bug, on its own merits.
+
+**VERIFIED: fixing that would not create persistence.** Anchor score vs.
+outcome, checked three independent ways against the live table:
+- Pearson(anchor_score, lifetime_h) = -0.11, Pearson(anchor_score, n_obs)
+  = -0.11 (near zero, weakly negative — sharper if anything dies faster).
+- By signal class: 3_branch (richest available signal, mean anchor 2.49)
+  vs. t6_promotion_burst (payload is bare counts, mean anchor 2.16) —
+  median lifetimes 6.1h vs 5.5h, statistically indistinguishable.
+- Persisted (n_obs>=10, the actual close-gate threshold) vs. died
+  (n_obs<10): mean anchor 2.220 vs 2.353 — no gap, if anything inverted.
+  Top vs bottom quartile by n_obs: 2.173 vs 2.212 — same result, confirmed
+  a second way. **"Improve problem-generation to produce sharper
+  problems" is DISPROVEN as the lever, not merely unconfirmed.**
+
+**VERIFIED: the only thing that predicts a topic recurring is the feed
+mentioning it again.** Checked two further internal candidates beyond
+anchor score — signal-detector `confidence` (an internal, computed
+number, independent of content) correlates ~0 with lifetime (-0.016) and
+n_obs (+0.023). Cross-time recurrence: 38 of 193 distinct entities get a
+*separate, brand-new* problem opened days or weeks apart (`'Iran'` 8x,
+`'Bitcoin'` 7x, `'Anthropic'` 5x, `'GPT'` 3x) — every one of these is the
+external world independently re-mentioning the entity, never a held
+thread resumed; each occurrence is its own row, born and closed within
+about a day. This is the general pattern the Adams case (session 40:
+anchor score 1, sustained via a 69.5h reboot-outage freeze then closed
+within 76 min of restart) was the specific instance of. No internal
+signal checked across three sessions now — content richness, detector
+confidence, topic identity over time — predicts persistence. **Persistence
+is entirely external, not partially: nothing found so far accounts for
+any of it from the inside.**
+
+**THEREFORE — the finding this entry exists to record:** what this arc has
+called the "curiosity gap" is not a vague faculty, not a broken one, and
+not a problem-generation quality issue. It is an ABSENT one. Every thread
+she has ever sustained was the world sustaining it — there is no mechanism
+anywhere in this system, checked from three separate angles, by which one
+of her own thoughts becomes "stickier" than another from the inside,
+independent of the feed reinforcing it. The prerequisite for curiosity is
+an internal salience / self-valuation mechanism, and it does not currently
+exist in any form, not a weak or unused one.
+
+**Consequence for what's already built:** the injection faculty (session
+40) and problem-generation quality (this session) are both downstream of
+this and cannot create curiosity without it — confirmed, not assumed, by
+the anchor-score-vs-outcome numbers above. The injection faculty
+**stays GATED-OFF-PENDING**, unchanged from session 40: it is not wrong
+code, it is an answer waiting for an internal drive that isn't there yet
+to select what's worth answering.
+
+**Not scoped or attempted tonight, and shouldn't be scoped casually:** an
+internal salience mechanism is a from-scratch faculty / research problem,
+not a fix — the largest thing this project has identified so far. It needs
+deliberate design (what would even count as "internal stickiness" for a
+retrieval-and-generation system with no persistent activation state between
+fires is a genuinely open question, not an engineering detail) before any
+build session touches it.
+
