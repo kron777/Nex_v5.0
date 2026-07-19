@@ -1445,6 +1445,26 @@ class FountainGenerator:
                 error_channel.record(f"Condenser error: {_e}", source="stage6_fountain")
 
         word_count = len(thought.split())
+
+        # Session 45/46: EmphasisEngine, observation-only. Scored BEFORE the
+        # fountain_events insert below, deliberately -- PredictionTracker's
+        # surprise window reads recent fountain_events, and scoring after the
+        # insert put this fire's own row inside its own comparison window,
+        # guaranteeing near-zero surprise on every fire (session 46 fix, see
+        # journal/CARRY_OVER.md). Scoring needs only `thought`, not
+        # fountain_event_id, so this reorder is safe. Never touches `thought`,
+        # `hot_branch`, or anything upstream -- pure post-hoc logging,
+        # fail-safe wrapped so a scoring error can never stall a fire.
+        _er = None
+        if self._emphasis_engine is not None:
+            try:
+                _er = self._emphasis_engine.score(thought)
+            except Exception as _ee_err:
+                error_channel.record(
+                    f"EmphasisEngine scoring failed (non-fatal): {_ee_err}",
+                    source="stage6_fountain", exc=_ee_err,
+                )
+
         fountain_event_id = self._dynamic_writer.write(
             "INSERT INTO fountain_events "
             "(ts, thought, droplet, readiness, hot_branch, word_count, stillness_reason) "
@@ -1454,14 +1474,8 @@ class FountainGenerator:
         )
         self._link_activation_to_event()
 
-        # Session 45: EmphasisEngine, observation-only. Scores the thought
-        # that was ACTUALLY generated this fire and logs every component
-        # signal, not just the combined number. Never touches `thought`,
-        # `hot_branch`, or anything upstream -- pure post-hoc logging,
-        # fail-safe wrapped so a scoring error can never stall a fire.
-        if self._emphasis_engine is not None:
+        if _er is not None:
             try:
-                _er = self._emphasis_engine.score(thought)
                 self._dynamic_writer.write(
                     "INSERT INTO emphasis_log "
                     "(fountain_event_id, ts, goal_relevance, drive_resonance, "
@@ -1479,10 +1493,10 @@ class FountainGenerator:
                     _er.signals["goal_relevance"], _er.signals["drive_resonance"],
                     _er.signals["self_relevance"], _er.signals["surprise"],
                 )
-            except Exception as _ee_err:
+            except Exception as _log_err:
                 error_channel.record(
-                    f"EmphasisEngine scoring failed (non-fatal): {_ee_err}",
-                    source="stage6_fountain", exc=_ee_err,
+                    f"emphasis_log write failed (non-fatal): {_log_err}",
+                    source="stage6_fountain", exc=_log_err,
                 )
 
         # Snapshot the main fire (SUBSTRATE_SNAPSHOTS.md). Fire-and-forget.
