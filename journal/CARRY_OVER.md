@@ -2316,3 +2316,64 @@ apparently not reducible to graph structure or to text substantiveness.
 No proxy hunt attempted -- there is no separation to reproduce. No
 wiring, no code. This is the floor beneath the floor.
 
+## 2026-07-19 ~14:00 — session 43 CLOSED: curiosity requires preferential
+## selection where only random selection exists. Not a signal to find.
+
+Read-only, no build. Closes the curiosity thread opened session 40, at a
+floor now verified from a fourth, independent angle: not correlation
+against per-belief properties (sessions 41-43), but the actual mechanism
+generating what looked like her returning to something on her own.
+
+**"Internal revisits" (thoughts referenced again without a fresh feed
+mention) are real as a surface pattern -- ~203 raw occurrences, 125 after
+filtering to substantive entities, over a 21-day window -- but VERIFIED,
+by reading the generating code directly, to be random-sampling
+infrastructure, not preference:**
+- `theory_x/life/remember_loop.py:37` and the matching recent-belief pick:
+  `ORDER BY RANDOM() LIMIT 1`, uniform, no weighting by anything. Built to
+  force "temporal collisions" against substrate flatness, explicitly not
+  to track value (its own docstring never claims otherwise).
+- `theory_x/life/fetch_loop.py:64`: `ORDER BY RANDOM() LIMIT 30` then
+  `random.choice()`, within a 2h feed window.
+- `theory_x/life/wonder_loop.py`: entity picked from `sense_events` in the
+  last 2 hours (`RECENT_WINDOW_SECONDS=7200`) -- feed-anchored by
+  construction. Its apparent independence in the first pass was a
+  methodology artifact: a 24h lookback window and a different entity
+  regex than wonder_loop's own, not a real gap between the two.
+- `theory_x/life/pattern_loop.py`: twice-daily summary of her last 4
+  identity-log statements. Real reflection, tiny volume, derivative of
+  already-feed-influenced recent activity.
+
+Between them these four loops account for the entire clean 125.
+**None select by importance, preference, or any property of the content's
+value.** What read as "she returned to Adams/Trump/Binance without a fresh
+prompt" is uniform-random sampling occasionally re-hitting a topic common
+in a finite recent feed pool, narrated in first-person LLM prose that
+makes coincidence read as continuity.
+
+**THE FLOOR, now confirmed at the mechanism level, not just the
+correlational one:** no internal importance signal exists in graph
+structure (out-degree, in-degree), text substantiveness (anchor score,
+LLM-judged), or revisit behavior (traced to source: it's a coin flip).
+Building an accumulation mechanism on top of `remember_loop`/`fetch_loop`'s
+`ORDER BY RANDOM()` would reinforce beliefs for the sole reason an RNG hit
+them twice -- a sixth misnamed instrument, not curiosity. Not built.
+
+**CURIOSITY THREAD CLOSED, sessions 40-43, on verified ground:** she has
+no mechanism, anywhere in this system, to value her own thoughts
+unequally. Every "return" checked across four independent
+investigations -- structural correlation, LLM judgment, and now the actual
+selection code of the loops that produce the surface appearance of
+returning -- is either random or externally driven. Internal curiosity, if
+it is ever built, requires **replacing random selection with preferential
+selection inside these existing loops** -- a fundamental change to how
+`remember_loop`/`fetch_loop`/`wonder_loop` choose what to revisit, not a
+signal to detect or a weight to accumulate on top of what they already do.
+That is a different, much larger, and currently undesigned project (what
+would "preferential" even mean here, mechanically, given every tested
+candidate for it has failed) -- not scoped, not started. The injection
+faculty (session 40) remains GATED-OFF-PENDING for the same underlying
+reason. No further building on this thread without a new, different idea
+for what preference could be built from -- not a re-test of what's already
+been tried five times and failed five times.
+
