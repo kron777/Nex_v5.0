@@ -2377,3 +2377,62 @@ reason. No further building on this thread without a new, different idea
 for what preference could be built from -- not a re-test of what's already
 been tried five times and failed five times.
 
+## 2026-07-19 ~15:00 — session 44 CLOSED: the curiosity investigation ends
+## at the true floor. No verified basis for preference exists, at any level.
+
+Read-only, no build. This entry closes the thread opened session 40, after
+one more turn of the same pattern this whole session kept catching: "her
+trajectory is where importance lives" was floated as the next design
+premise, one level more abstract than the six disproven single-thought
+signals, and it was itself unverified -- no data was ever produced showing
+recent-attention-relatedness tracks value. It was not tested and found
+false like the others; it was never checked at all before being proposed
+as the foundation for a memory-with-decay mechanism. Caught before design
+work proceeded on it as fact, same discipline as the rest of the session,
+applied one layer further out.
+
+**Where this actually leaves things, stated precisely:** a full,
+internally-consistent memory-with-decay DESIGN exists in this session's
+prior entry (entity-level attention weight, feed/hot_observer excluded,
+bounded-growth proof via geometric series, anti-pinning proof via a
+non-deterministic selection floor, concrete tunable parameters). The
+mathematics of that design are sound on their own terms -- decay
+provably bounds growth, a probability floor provably prevents permanent
+pinning. **But soundness of the mechanism is not the same as soundness of
+the premise it would be built on.** No data anywhere in sessions 40-44
+shows that weighting selection by recent-attention-relatedness would
+track anything about a thought's actual value, as opposed to just
+producing a different, equally arbitrary pattern of repetition. The
+design was correctly not advanced to a build.
+
+**VERIFIED FLOOR, final, across sessions 40-44:**
+- Single-thought properties all failed ground truth: anchor/sharpness,
+  salience (recency), out-degree, in-degree, LLM-judged substantiveness,
+  corroboration_count, reinforce_count -- seven candidates, matched
+  testing, none correlate with what the feed actually sustained.
+- Revisit behavior, traced to source, is random-sampling infrastructure
+  (`remember_loop`/`fetch_loop`: `ORDER BY RANDOM()`) or feed-anchored
+  (`wonder_loop`: 2h sense_events window) -- not preference.
+- "Importance is in the trajectory, not the thought" is UNVERIFIED, not
+  disproven -- no data exists either way, and none was generated before
+  it was proposed as a foundation. Recorded as unverified, not as an
+  eighth failed signal, because it was never tested -- a design was
+  built on top of it and correctly not advanced once the premise itself
+  was checked and found to have nothing under it.
+
+**THEREFORE: preferential selection cannot currently be built, because
+there is no verified basis on which to prefer anything.** This is not a
+statement that the problem is hard -- it is that no foundation exists, in
+anything she currently produces or does, checked from four independent
+angles (structural correlation, LLM judgment, actual selection-mechanism
+source code, and the trajectory hypothesis just now). Whether a valid
+basis could be generated or built from scratch is itself unknown and
+was not investigated this session.
+
+**CURIOSITY INVESTIGATION CLOSED, sessions 40-44.** The injection faculty
+(session 40) remains GATED-OFF-PENDING, correctly-built code waiting on a
+foundation that does not exist. No preferential-selection build -- of any
+design, at any granularity -- proceeds without a verified basis for
+preference first. None currently exists. This is the honest end of the
+thread, not a pause pending the next idea.
+
