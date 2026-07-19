@@ -2091,3 +2091,98 @@ retrieval-and-generation system with no persistent activation state between
 fires is a genuinely open question, not an engineering detail) before any
 build session touches it.
 
+## 2026-07-19 ~11:30 — session 42: salience FAILED (it's recency, not
+## surprise), and no candidate importance signal survives a matched test
+
+Read-only, no build. Two parts: recording the salience verdict, then testing
+whether a real importance signal can be built from other existing per-belief
+data.
+
+**Salience verdict, VERIFIED: `theory_x/focal_set.py:_nex5_salience()` =
+`recency(1h half-life) × tension(near-constant 0.5) × log(tier proxy)`.**
+Correction to how this was first framed for the record: it computes
+**recency**, not surprise/novelty -- `tension` comes from
+`ActivationEngine.typed_roles()`, meaning negative spreading-activation
+relative to current retrieval seeds (graph contradiction), not
+expectation-violation, and is near-constant for almost every belief
+regardless. There is no surprise/novelty term in this formula anywhere;
+that concept lives in a separate, unrelated mechanism
+(`surprise_events`/`global_workspace.py`'s per-fire arbitration). Top-20
+by this formula, reproduced directly against live belief data: hum-register
+filler ("The shifting weather patterns intrigue me," "the stars tonight
+seem more vibrant... reflecting our own curiosity") sits at the same score
+band as real headlines, indistinguishably, because both are ~30 min old.
+Bottom-20: genuinely substantive content (a real ML paper title, real
+breaking news) scores exactly 0.0000 solely for being >2h old. Checked
+against the one external ground truth available: Adams (163-168h old,
+feed-sustained across days) scores 0.0000; same-topic Iran beliefs go from
+0.2981 at 0.6h to 0.0007 at 6.7h -- the metric has no memory of
+externally-validated importance beyond a couple of hours, structurally.
+Also found: this mechanism (`FocalSet`) is wired to the chat handler only,
+explicitly commented "log-only... no behavior change," never the
+autonomous fountain loop, and has been exercised exactly 6 times ever
+(`/tmp/nex5_focal.log`), all from smoke-test-shaped queries. **Verdict
+unchanged from the (corrected) framing: do not wire this in.** Wiring a
+recency-dominated signal into "what she returns to" would resurface
+whatever's freshest, hum included, indistinguishably from substance.
+
+**Importance-signal candidate inventory, checked against the ONE natural
+experiment available:** 38 entities the feed re-raised as a *separate*
+open_problem across different days (session 39-41's "recurring" set --
+Iran, Bitcoin, Anthropic, GPT, Adams, etc.) vs. 155 entities that fired
+once and were never mentioned again ("one-off"). Candidates: `use_count`,
+`belief_edges` out-degree (connectedness), `confidence`, `tier`,
+`last_referenced_at` recency at a MUCH more reasonable 168h/7-day half-life
+(borrowed from `theory_x/life/affinity_loop.py`'s `_usage_score()`, not
+FocalSet's 1h), `problem_id` linkage, and `source` (ownership proxy
+flagged directly in `affinity_loop.py`'s own 2026-07-09 finding as
+"where the real signal lives").
+
+**Methodology note, recorded because it's the load-bearing lesson of this
+session:** the FIRST pass looked like a real hit -- Adams beliefs (n=33)
+showed `belief_edges` out-degree of 6.42 vs. a random-500 baseline of
+2.11, a 3x gap, and one-off entities Pintupi/Nine/Papers showed only
+1.4-1.55. **This did not survive being re-tested at proper scale.** Redone
+with 35 entities per side (recurring vs. one-off, matched sampling,
+n=678 vs n=609 belief rows): mean edges 1.229 vs 1.278 -- statistically
+indistinguishable, the earlier gap was a small-sample artifact of Adams
+specifically, not a general pattern. Recorded as a caught error before it
+went in the log, per this session's own standing rule -- the first
+comparison group (random-500) was the wrong control; one-off entities are
+the actual matched "died" comparison, and against that, the signal
+disappears.
+
+**At matched scale (recurring n=678 vs one-off n=609), every candidate
+checked is statistically indistinguishable:**
+```
+                use_count  confidence  tier   rec(168h)  has_problem_id  source dist
+recurring         33.96      0.722     6.37     0.302        0.7%       ~same proportions
+one-off           35.27      0.732     6.25     0.301        2.1%       ~same proportions
+```
+`affinity` was checked separately and found already self-documented as
+unreliable by a prior session (`affinity_loop.py`'s own 2026-07-09 finding,
+read in full): its LLM self-rating component was tested directly and found
+hollow -- outputs only 0.3 or 0.6 regardless of content, rates a volcano
+headline above her own founding axiom, forced-binary classification gets
+ownership exactly backwards. Only ~50% of beliefs even have an affinity
+value (the rating gate skips rather than guesses). Not re-litigated here;
+the prior session's finding stands and is corroborated by this session's
+independent confirmation that the codebase already knows this.
+
+**Honest feasibility verdict: no. A real importance signal is not
+recoverable from current per-belief data using any of these candidates,
+alone or (by implication, since none show even a weak individual gap)
+in combination.** This is not a failure to find the right formula --
+`use_count`, `belief_edges`, `confidence`, `tier`, a corrected long-window
+recency, `problem_id` linkage, and `source` type were all tested against
+the same real, external ground truth (topics the world found worth
+re-raising across days vs. topics it mentioned once and dropped), and none
+of them move. This extends and reinforces session 41's finding (no
+internal signal predicts persistence) to a wider, more carefully-controlled
+set of candidates, including ones session 41 didn't check. **Curiosity is
+not "add up the existing per-belief columns correctly" -- if it requires
+an internal importance signal, that signal needs data this system does not
+currently collect, not a better combination of what it already has.**
+Not scoped or attempted tonight -- this is the honest floor underneath
+session 41's honest floor.
+
