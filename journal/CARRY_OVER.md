@@ -1862,3 +1862,58 @@ will show zero problem-injected fires, which is neither PASS nor FAIL — it
 is the mechanism correctly staying silent, and the decision rule above does
 not apply until n>=1 injected fire exists to label.
 
+## 2026-07-19 ~07:47-08:48 — session 40: first-hour watch, NULL RESULT (not PASS, not FAIL)
+
+Restarted 07:47:08 SAST (pid 249782, clean boot, zero tracebacks in the
+soak log from restart through the full watch window). Polled every 30s for
+`source="problem_injection"` observations for the full pre-registered hour.
+
+**Result: 0 problem-injected fires. 23 fountain_events in the hour (some
+stillness placeholders), 0 injections, 0/0 concrete-dissolved tally.** Per
+the decision rule frozen before restart, this is explicitly neither PASS
+nor FAIL — the pass/fail rule only applies once n>=1 injected fire exists
+to label, and none did.
+
+**Two independent causes, not one — checked, not assumed:**
+1. The candidate pool stayed empty the whole hour (re-confirmed via
+   `scripts/problem_persistence.py` at the 60-min mark, identical to the
+   pre-restart baseline) — `select_for_injection` had nothing to return
+   even had it been asked.
+2. **It was never asked.** `world_bridge_log` for the watch window:
+   19 rows, `SUM(injected)=19` — `_wb_events` was truthy on every single
+   logged fire this hour. The world never went quiet enough to open the
+   input-gap branch at all. Even with a full candidate pool, tonight's
+   traffic would not have produced an injection.
+
+**The four watch checks, against real data:**
+1. References own problems without feed re-raising — N/A, no injection
+   events exist to check.
+2. Concrete vs. dissolved majority — N/A, 0/0.
+3. Tripwire (aperture narrows / groove rises) — **not tripped.**
+   `trajectory.py` read `STABLE`/holding/flat at both the 10-min mark
+   (gini z+1.64, still inside band) and the 60-min close (gini z-0.75,
+   entropy z+0.42); groove stayed flat throughout (z -0.72 at close, n=33
+   trailing-24h episodes, avg severity 0.60 vs 0.65 baseline).
+4. Still follows the world when it's loud — **yes, cleanly, and more
+   completely confirmed than expected**: with `_wb_events` truthy on 19/19
+   logged fires, 100% of this hour's attention was world-anchored by
+   construction; the self-referential path was never even in contention.
+   This is the strongest possible answer to "did she trade world-engagement
+   for rumination" — she didn't get the option to, and didn't need it.
+
+**What this session actually established:** the faculty is live, wired
+correctly, produced zero tracebacks, and — on the only night tested so
+far — encountered a world too active to ever hand it a turn, on top of an
+already-empty pool. Two separate, unrelated preconditions both have to
+break in this system's favor before the pass/fail rule can even be
+evaluated. Neither is a flaw in tonight's build; both are facts about the
+current state of `signal_to_problem.py`'s output and tonight's feed volume,
+independent of this session's code.
+
+**Not decided here, deferred to the operator:** whether to seed a
+human-opened problem via the GUI to force a real test of the pass/fail
+rule, or let the mechanism wait for a naturally quiet window with real
+supply. Not done unilaterally this session — manufacturing the test
+condition would confound "does the faculty work" with "did we make up the
+data it worked on."
+
