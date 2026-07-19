@@ -2436,3 +2436,81 @@ design, at any granularity -- proceeds without a verified basis for
 preference first. None currently exists. This is the honest end of the
 thread, not a pause pending the next idea.
 
+## 2026-07-19 ~16:30 — session 45: EmphasisEngine built, OBSERVATION-ONLY,
+## pre-registered before restart
+
+Audited the Android EmphasisEngine design against the real codebase before
+writing anything (read-only Step 1, prior entry). Two of the four named
+sources were wrong for the real architecture, found and corrected before
+building rather than after: `drive_resonance` reads `CompetingDrives`
+(five live, slowly-drifting weights), not `DriveEmergence` (confirmed
+dead: 0 of 10,430 logged ticks ever formed a new drive; one row frozen on
+a hum-register fragment for 27 days, `reinforce_count=3295`).
+`self_relevance` reads `SelfNarrative.get_narrative()` + locked Tier-1
+keystones, not `stage4_membrane.self_model.SelfModel` (system
+proprioception -- CPU/memory/thermal -- no relationship to narrative
+identity). `goal_relevance` was kept on `ProblemMemory`/`open_problems`
+exactly as specified, deliberately: it reads ~98% templated, currently-
+empty data, and that flatness is intentional -- a live canary for when the
+separately-scoped, unbuilt problem-generation fix eventually lands, not a
+signal expected to carry information yet.
+
+**Built:** `theory_x/stage_emphasis/prediction_tracker.py`
+(`PredictionTracker`, confirmed genuinely new in the audit -- existing
+surprise machinery is tied to specific market/behavioral predictions, not
+general belief-trajectory expectation; computes `expectation_error` as the
+fraction of a candidate thought's entities absent from the last 20 fires'
+vocabulary, no persisted state, no schema churn) and
+`theory_x/stage_emphasis/emphasis_engine.py` (`EmphasisEngine`, four
+signals logged independently -- `goal_relevance`, `drive_resonance`,
+`self_relevance`, `surprise` -- equal 0.25 weights, not tuned, returns
+`EmphasisResult` with the full signals dict and dominant signal, never
+collapsed to one number). Both follow the `SentienceNode` protocol
+confirmed in the audit (`name`/`tick`/`decay`/`state`,
+`theory_x/__init__.py`'s `@runtime_checkable Protocol`).
+
+**Wired observation-only** in `generator.py`: scored once per fire, right
+after `fountain_event_id` is known, logged to a new `emphasis_log` table
+(dynamic.db, lazy-created, same pattern as `fountain_retrieval_log`) --
+never touches `thought`, `hot_branch`, or any existing generation path.
+Fail-safe wrapped; a scoring error cannot stall a fire. Does not read from
+or write to selection anywhere -- Step 4's "no override" is structural,
+not a flag: nothing currently consumes `emphasis_log` except the logger
+itself.
+
+**Step 5 guardrail recorded in the module docstring itself**, not just
+here: the four fixed drive-category keyword sets are explicitly flagged as
+a different, coarser structure than a per-topic value table, with an
+explicit instruction to stop and flag against sessions 40-44 if this ever
+drifts toward one.
+
+Full suite: 39/39, identical failure set to the established baseline,
+confirmed by direct diff against the stored session-40 baseline file, not
+by count alone. `git diff --stat`: 4 files, 430 insertions, 0 deletions --
+purely additive.
+
+**PRE-REGISTERED, before restart, before any log line exists:**
+- `self_relevance`: predicted to VARY -- reads live, real content
+  (self-narrative + keystones).
+- `surprise`: predicted to VARY -- new mechanism, by construction; the
+  open question is whether that variation means anything, not whether it
+  moves.
+- `drive_resonance`: UNKNOWN, genuinely -- `CompetingDrives` is
+  confirmed real and slowly drifting, but whether that drift is *signal*
+  or just *noise the underlying computation happens to produce* is not
+  yet known. The logs decide this, not the audit.
+- `goal_relevance`: predicted FLAT -- `open_problems` had 0 open rows at
+  build time. Flat here is not a bug to fix; it's the expected reading,
+  and its own live indicator for later.
+
+**Success condition for this step, stated precisely so it can't be
+fudged later:** the engine logs cleanly across real fires and the four
+component signals are visibly distinguishable from each other in the
+logs -- not that any signal is "good," only that the logging reveals
+which ones carry information. Flipping to authoritative selection waits
+on that data across multiple sessions, not this one. No override until
+proven, per the build spec's own Step 4.
+
+Not yet restarted at time of writing. Next entry should read this
+baseline against real post-restart fires, not memory of this one.
+

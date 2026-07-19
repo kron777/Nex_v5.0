@@ -366,6 +366,58 @@ class FountainGenerator:
                 self._self_narrative = SelfNarrative(_ddb, _bdb)
             except Exception:
                 pass
+        # Session 45: EmphasisEngine, observation-only. Instantiated here
+        # (not threaded through run.py) because every input it needs
+        # already lives on self at this point -- self._dynamic_reader,
+        # self._beliefs_reader, self._conversations_reader,
+        # self._problem_memory, self._competing_drives, self._self_narrative.
+        # No new run.py wiring, no new constructor params.
+        self._emphasis_engine = None
+        try:
+            from theory_x.stage_emphasis.prediction_tracker import PredictionTracker
+            from theory_x.stage_emphasis.emphasis_engine import EmphasisEngine
+            _tracker = PredictionTracker(self._dynamic_reader)
+            self._emphasis_engine = EmphasisEngine(
+                prediction_tracker=_tracker,
+                problem_memory=self._problem_memory,
+                competing_drives=self._competing_drives,
+                self_narrative=self._self_narrative,
+                beliefs_reader=self._beliefs_reader,
+                conversations_reader=self._conversations_reader,
+            )
+        except Exception as _ee_init_err:
+            error_channel.record(
+                f"EmphasisEngine init failed (non-fatal, observation-only): {_ee_init_err}",
+                source="stage6_fountain", exc=_ee_init_err,
+            )
+        # emphasis_log: lazy-create, no migration file, same pattern as
+        # fountain_retrieval_log below. Structured per-fire persistence is
+        # needed here (unlike the session-44 memory design) because each
+        # row is tied to the SPECIFIC thought generated at that historical
+        # moment, not re-derivable from other tables after the fact.
+        try:
+            self._dynamic_writer.write(
+                "CREATE TABLE IF NOT EXISTS emphasis_log ("
+                "    id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                "    fountain_event_id INTEGER,"
+                "    ts REAL NOT NULL,"
+                "    goal_relevance REAL NOT NULL,"
+                "    drive_resonance REAL NOT NULL,"
+                "    self_relevance REAL NOT NULL,"
+                "    surprise REAL NOT NULL,"
+                "    combined REAL NOT NULL,"
+                "    dominant_signal TEXT NOT NULL"
+                ")"
+            )
+            self._dynamic_writer.write(
+                "CREATE INDEX IF NOT EXISTS idx_emphasis_log_fire "
+                "ON emphasis_log(fountain_event_id)"
+            )
+        except Exception as _el_schema_err:
+            error_channel.record(
+                f"emphasis_log schema init failed: {_el_schema_err}",
+                source="stage6_fountain", exc=_el_schema_err,
+            )
         self._last_rut_notice_ts: float = 0.0  # §9 rut-mirror throttle
         self._consecutive_stillness: int = 0
         self._last_drive_probe_tick: int = -(
@@ -1401,6 +1453,37 @@ class FountainGenerator:
              _fountain_stillness_reason),
         )
         self._link_activation_to_event()
+
+        # Session 45: EmphasisEngine, observation-only. Scores the thought
+        # that was ACTUALLY generated this fire and logs every component
+        # signal, not just the combined number. Never touches `thought`,
+        # `hot_branch`, or anything upstream -- pure post-hoc logging,
+        # fail-safe wrapped so a scoring error can never stall a fire.
+        if self._emphasis_engine is not None:
+            try:
+                _er = self._emphasis_engine.score(thought)
+                self._dynamic_writer.write(
+                    "INSERT INTO emphasis_log "
+                    "(fountain_event_id, ts, goal_relevance, drive_resonance, "
+                    " self_relevance, surprise, combined, dominant_signal) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (fountain_event_id, ts_now,
+                     _er.signals["goal_relevance"], _er.signals["drive_resonance"],
+                     _er.signals["self_relevance"], _er.signals["surprise"],
+                     _er.combined, _er.dominant_signal),
+                )
+                logger.info(
+                    "emphasis: fire=%s combined=%.3f dominant=%s "
+                    "goal=%.3f drive=%.3f self=%.3f surprise=%.3f",
+                    fountain_event_id, _er.combined, _er.dominant_signal,
+                    _er.signals["goal_relevance"], _er.signals["drive_resonance"],
+                    _er.signals["self_relevance"], _er.signals["surprise"],
+                )
+            except Exception as _ee_err:
+                error_channel.record(
+                    f"EmphasisEngine scoring failed (non-fatal): {_ee_err}",
+                    source="stage6_fountain", exc=_ee_err,
+                )
 
         # Snapshot the main fire (SUBSTRATE_SNAPSHOTS.md). Fire-and-forget.
         try:
