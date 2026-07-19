@@ -1715,3 +1715,110 @@ unbuilt because no consumer exists. Nothing here was "dissolved" — two were
 built and verified, one was scoped and correctly deferred pending a design
 question (the consumer) that's bigger than grading itself.
 
+## 2026-07-19 ~06:33 — session 40: problem-feedback loop built, PENDING RESTART
+
+Read-only Phase 1 design (approved) → Phase 2 build, this session. The
+flagship build of the arc: connects self-posed open_problems back into the
+fountain generator's own prompt, closing the loop session 39 found missing
+(the injection existed but was unconditional-when-present into an
+almost-always-empty pool, wrote nothing back, so no reference ever left a
+trace). Restart NOT yet done — this entry is the pre-registration, written
+before the data exists, per this arc's standing discipline.
+
+**What shipped** (diff: 4 files, 484 insertions / 54 deletions; full suite
+39/39 identical failure set to today's freshly-measured baseline — the
+one apparent diff, `test_fountain_crystallizer.py::test_writes_belief_on_pass`,
+is the same flaky test already flagged session 29, confirmed by re-running,
+not a regression):
+
+- `theory_x/stage7_sustained/problem_classify.py` (new) — `is_template()`
+  revived verbatim from `scripts/trajectory.py`'s Phase-1 build (commit
+  `e9d643b`, dropped when SELF-DIRECTION was cut as a monitor axis; the
+  classifier was never wrong, only the axis had no baseline). `has_anchor()`
+  re-exports `crystallizer.py:_has_anchor` directly rather than copying it —
+  one source of truth across the monitor, this faculty, and the new
+  measurement script.
+- `theory_x/stage7_sustained/problem_memory.py` — `observe()` gained a
+  `source=` tag and a duplicate-text guard (returns False, no-ops, on an
+  exact repeat of the last entry) — the specific bug session 39 found in
+  focus_loop.py's *separate* untouched append path, not fixed there but no
+  longer possible through this one. New `select_for_injection()`: pool is
+  non-template + anchor-passing + ANY state (open/stuck/closed — "closed"
+  currently means "hit the observation-count gate", not "resolved", so a
+  closed problem with a real anchor is as valid a candidate as an open one),
+  created within 14 days, excluding any candidate injected in the last 8h
+  (tracked via its own `source="problem_injection"` history, not
+  `last_touched_at`, which other mechanisms also write). Returns None
+  (skip) if fewer than 3 candidates survive the filter.
+- `theory_x/stage6_fountain/generator.py` — removed the old unconditional
+  "Intervention B" block. New trigger sits at the world-bridge decision
+  point: `if _wb_events: <world block> else: <input gap>`. **The exact
+  predicate is `not _wb_events`** — `WorldBridgeSelector.select_and_log()`
+  returning empty/None because `_identify_active_streams()` found no stream
+  with a fresh event inside its own cadence-scaled freshness window. This
+  is not a new notion of salience; it is the SAME check the drift fallback
+  already used before this session (`else: "Recent input:" + _recent_sense_sample`).
+  A module-level `_PROBLEM_INJECTION_COOLDOWN_S = 2400` (40 min) global
+  floor sits in front of `select_for_injection` so a long sustained input
+  gap can't turn into back-to-back injections even though the trigger has
+  no fixed period — at the live ~159s/fire cadence this caps injected fires
+  at roughly 1-in-15 (~6-7%). Write-back happens once `thought` is known,
+  gated on `not _emitted` (RECONCILE, the one live alternate-path env flag,
+  runs first and can claim the fire before the injected `prompt` is ever
+  used — crediting that thought to the injected problem would be a false
+  positive; the gate prevents it).
+- `scripts/problem_persistence.py` (new) — the measurement, shipped with
+  the faculty per the approved design, not after. Counts only
+  `source="problem_injection"` events (not raw observation count, which
+  session 39 showed is inflated); excludes any event within 15 min of a
+  `precipitated_from_sense` belief mentioning the same keywords (feed
+  re-raised it, not self-sustained); PERSISTED bar is
+  n_fires>=4 spanning >=6h; concentration tripwire flags any single problem
+  above 40% of trailing-24h self-sustained events.
+
+**THE BASELINE, run before restart — and the load-bearing finding of this
+session:** `problem_persistence.py` reads 0 problems with any injection
+event, 0 self-sustained, 0 persisted — the expected ~0, exactly as
+predicted, since no mechanism wrote this tag before today. **But a second
+check, run the same way, is more important: the candidate pool itself is
+currently EMPTY.** Non-template + anchor-passing problems, any lookback:
+6 rows, all from 2026-05-09/12, all already closed by the 30-day `decay()`
+sweep on 2026-06-08 (over 40 days ago). Zero qualify within the 14-day
+window `select_for_injection` actually uses. This is not a bug in the
+selection logic — `signal_to_problem.py`'s `_compose_title()` has, in live
+operation, never produced anything BUT one of its own template shapes (confirmed
+session 39: 97.9%/all-time; re-confirmed this session: 100% of the last 14
+days). The only non-template rows that have ever existed were a one-time
+manual seed via the GUI's `open()` endpoint, not live daemon output. **The
+faculty as built will correctly and safely do nothing until real supply
+exists** — either a human opens a genuine problem by hand, or a future
+session changes what `signal_to_problem.py` writes. Restarting tonight is
+still the right call (zero risk — the mechanism is inert, not broken,
+against current data) but the persistence numbers below should not be
+expected to move until that supply question is separately addressed.
+
+**Pre-registered, before the data exists:**
+- BEFORE: 0 self-sustained references (confirmed above, by construction).
+- PREDICTED AFTER (contingent on the empty-pool caveat above — if it
+  doesn't resolve, expect BEFORE to simply persist, not a failure of the
+  mechanism): once >=3 qualifying candidates exist, she references her own
+  posed problems across fires without a matching `precipitated_from_sense`
+  belief on the same keywords in the preceding/following 15 minutes.
+- TRIPWIRE (rumination / hum-absorption): `problem_persistence.py`'s own
+  concentration check (>40% of trailing-24h self-sustained events on one
+  problem) is the purpose-built signal. GROOVE HEALTH (existing monitor
+  axis, unchanged) is the earliest general-purpose signal — repeated
+  phrasing from re-reading the same injected text should show up there
+  before concentration does. APERTURE is a weak, indirect signal for this
+  specific failure (only moves if the injected topic maps onto one bonsai
+  branch's `focus_num` disproportionately) — watch it, don't rely on it
+  alone. LIVENESS will NOT catch this by design; fires keep happening
+  either way.
+- THE ADDED CHECK (hum-absorption, this session's open question): for each
+  problem-injected fire in the first-hour watch, label concrete-engagement
+  vs. dissolved-into-register by hand against the actual fire text — no
+  query substitutes for reading it, this is a qualitative call.
+
+Not yet restarted. Next entry should read this baseline against real
+post-restart data, not memory of this one.
+

@@ -135,23 +135,46 @@ class ProblemMemory:
                 )
         return rowid
 
-    def observe(self, problem_id: int, observation: str) -> None:
-        """Append an observation to the problem's observations list."""
+    def observe(self, problem_id: int, observation: str,
+                source: Optional[str] = None) -> bool:
+        """Append an observation to the problem's observations list.
+
+        No-ops (returns False) if `observation` is byte-identical to the
+        last entry already on file. Session 39 found focus_loop.py's own
+        append path has no such guard and re-stamps the same stale text on
+        every 60s tick with nothing new to say -- that's how a problem hits
+        the ocount>=10 close gate in under two hours instead of over days.
+        Not fixing focus_loop.py here (separate, untouched call path) but
+        this method now refuses to repeat that specific mistake for any
+        caller that goes through it, including the new problem-injection
+        write-back (source="problem_injection", session 40).
+
+        Returns True if a new entry was actually appended.
+        """
         row = self._reader.read_one(
             "SELECT observations FROM open_problems WHERE id = ?",
             (problem_id,),
         )
         if row is None:
-            return
+            return False
         try:
             obs_list = json.loads(row["observations"] or "[]")
         except (json.JSONDecodeError, TypeError):
             obs_list = []
-        obs_list.append({"text": observation, "ts": time.time()})
+        if obs_list:
+            _last = obs_list[-1]
+            _last_text = _last.get("text", "") if isinstance(_last, dict) else str(_last)
+            if observation.strip() == _last_text.strip():
+                return False
+        entry = {"text": observation, "ts": time.time()}
+        if source:
+            entry["source"] = source
+        obs_list.append(entry)
         self._writer.write(
             "UPDATE open_problems SET observations = ?, last_touched_at = ? WHERE id = ?",
             (json.dumps(obs_list), time.time(), problem_id),
         )
+        return True
 
     def update_plan(self, problem_id: int, plan: str) -> None:
         """Update the plan field."""
@@ -265,3 +288,73 @@ class ProblemMemory:
             if len(query_words & candidate_words) >= 2:
                 matches.append(p)
         return matches
+
+    # ── Session 40: problem-feedback loop selection ─────────────────────────
+
+    _INJECTION_LOOKBACK_DAYS = 14
+    _INJECTION_COOLDOWN_HOURS = 8.0
+    _INJECTION_MIN_POOL = 3
+
+    def select_for_injection(self, now: Optional[float] = None) -> Optional[dict]:
+        """Pick a self-posed problem to re-surface into the fountain prompt.
+
+        Pool: non-template, anchor-passing (theory_x.stage7_sustained.
+        problem_classify.is_real_question -- one source of truth shared with
+        scripts/problem_persistence.py), ANY state including closed --
+        session 39 found "closed" currently means "hit the observation-count
+        gate", not "resolved"; a closed problem with a real anchor is as
+        valid a self-posed question as an open one. Limited to problems
+        created within the last _INJECTION_LOOKBACK_DAYS days.
+
+        Excludes any candidate injected within the last
+        _INJECTION_COOLDOWN_HOURS, tracked via observations tagged
+        source="problem_injection" specifically -- NOT last_touched_at,
+        which is also written by focus_loop/reconcile and would wrongly
+        suppress a candidate this mechanism has never actually surfaced.
+
+        Returns None (skip injection entirely) if fewer than
+        _INJECTION_MIN_POOL candidates survive the filter: LRU among 1-2
+        members degenerates into forced repetition regardless of cooldown
+        (session 40 Phase 1 boundary condition -- current live pool is 0
+        open + 1 stuck, so this guard is not hypothetical on day one).
+        """
+        from theory_x.stage7_sustained.problem_classify import is_real_question
+
+        now = now or time.time()
+        cutoff = now - self._INJECTION_LOOKBACK_DAYS * 86400
+        rows = self._reader.read(
+            "SELECT id, title, description, observations FROM open_problems "
+            "WHERE created_at > ?",
+            (cutoff,),
+        )
+
+        pool = []
+        for row in rows:
+            title = row["title"] or ""
+            desc = row["description"] or ""
+            if not is_real_question(title, desc):
+                continue
+            try:
+                obs = json.loads(row["observations"] or "[]")
+            except (json.JSONDecodeError, TypeError):
+                obs = []
+            last_injected = None
+            for o in obs:
+                if isinstance(o, dict) and o.get("source") == "problem_injection":
+                    ts = o.get("ts")
+                    if ts and (last_injected is None or ts > last_injected):
+                        last_injected = ts
+            if (last_injected is not None
+                    and (now - last_injected) < self._INJECTION_COOLDOWN_HOURS * 3600):
+                continue
+            pool.append({
+                "id": row["id"], "title": title, "description": desc,
+                "_last_injected": last_injected if last_injected is not None else -1.0,
+            })
+
+        if len(pool) < self._INJECTION_MIN_POOL:
+            return None
+
+        pool.sort(key=lambda p: p["_last_injected"])  # never-injected first, then oldest
+        winner = pool[0]
+        return {"id": winner["id"], "title": winner["title"], "description": winner["description"]}

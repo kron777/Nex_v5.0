@@ -263,6 +263,10 @@ _STILLNESS_JACCARD_THRESHOLD = 0.7
 _DRIVE_PROBE_COOLDOWN_TICKS = 10   # minimum fountain ticks between drive probes
 _OPEN_PROBLEM_RECENT_SECS  = 86400  # 24h: if a problem was touched recently, skip probe
 
+# Session 40: problem-feedback loop global cooldown -- see _build_prompt's
+# world-bridge/input-gap block for the trigger predicate.
+_PROBLEM_INJECTION_COOLDOWN_S = 2400  # 40 min
+
 
 class FountainGenerator:
     def __init__(
@@ -329,6 +333,18 @@ class FountainGenerator:
         self._last_fire_ts: float = 0.0
         self._total_fires: int = 0
         self._stakes_active: bool = False  # L4: world-contact gate
+        # Session 40: problem-feedback loop. Global cooldown (independent of
+        # the per-problem cooldown in ProblemMemory.select_for_injection) so
+        # a sustained input-gap can't turn into back-to-back injections --
+        # see _PROBLEM_INJECTION_COOLDOWN_S near _build_prompt.
+        self._last_problem_injection_ts: float = 0.0
+        # Set inside _build_prompt when a problem was actually selected this
+        # fire; consumed once, after generate() knows whether the resulting
+        # thought actually came from the prompt that carried it (not a
+        # RECONCILE/SUBSTRATE_EMIT/SYNTH_EMIT fallback that ignored `prompt`
+        # entirely) -- see the _emitted gate right after the voice-fallback
+        # branch in generate().
+        self._pending_problem_injection: Optional[dict] = None
         self._self_narrative = None  # Phase 26: SelfNarrative instance (set below)
         # Quality synthesis RSI loop — start once per generator instance
         if os.environ.get("NEX5_QUALITY_SYNTH") == "1":
@@ -1266,6 +1282,29 @@ class FountainGenerator:
                         self._total_fires, thought[:80])
             return thought
 
+        # Session 40: problem-feedback loop write-back. Only credit a
+        # problem if `thought` actually came from the `prompt` that carried
+        # the injection -- `_emitted` ends up True here iff an earlier
+        # fallback (RECONCILE is the live one; SUBSTRATE_EMIT/SYNTH_EMIT are
+        # env-gated off) produced `thought` from its OWN unrelated prompt
+        # instead. Crediting that would falsely count reconcile boilerplate
+        # as a self-sustained reference to the injected problem.
+        if (not _emitted) and self._pending_problem_injection is not None and self._problem_memory is not None:
+            try:
+                _pi_id = int(self._pending_problem_injection["id"])
+                self._problem_memory.observe(_pi_id, thought, source="problem_injection")
+                # Cooldown floor applies whether or not observe() actually
+                # appended (it no-ops on an exact-duplicate text) -- she
+                # "tried" this cycle either way; don't let a stuck LLM
+                # output spam retries every fire until something new comes.
+                self._last_problem_injection_ts = time.time()
+            except Exception as _pie:
+                error_channel.record(
+                    f"problem_injection write-back failed: {_pie}",
+                    source="stage6_fountain", exc=_pie,
+                )
+        self._pending_problem_injection = None
+
         hot_branch = None
         branches = status.get("branches", [])
         if branches:
@@ -1988,6 +2027,11 @@ class FountainGenerator:
         time_str = datetime.datetime.now().strftime("%H:%M")
 
         retrieval_manifest = []
+        # Session 40: reset every call so a candidate selected (or not) on a
+        # prior fire never leaks into this fire's write-back decision if
+        # this fire takes a different branch (e.g. _wb_events is truthy
+        # this time and the input-gap block below never runs).
+        self._pending_problem_injection = None
 
         mode = self._mode_state.current() if self._mode_state else get_mode("normal")
         context_beliefs = self._retrieve_context_beliefs(
@@ -2009,41 +2053,14 @@ class FountainGenerator:
             except Exception as e:
                 logger.error("activation_bump_failed: %s", e)
 
-        # Intervention B — Task-bearing override
-        # 2026-05-15: prefer focus_loop's pick (most-connected problem) over
-        # the default first-open. Bridges focus_loop and fountain so they
-        # actually work on the same thing. Falls back to first-open if no focus.
+        # Session 40: problem-injection candidate is now selected at the
+        # world-bridge decision point below (input-gap triggered), not here
+        # unconditionally. See that block for the old "Intervention B"
+        # replacement -- this used to always inject the first/focused open
+        # problem regardless of whether the world had anything fresh to say;
+        # that's exactly the always-on-when-present behavior session 39
+        # found produces no measurable trace and session 40 Phase 1 replaced.
         open_problem_text = None
-        if self._problem_memory is not None:
-            try:
-                _focus_pid = None
-                try:
-                    import sqlite3 as _sql3
-                    _dc = _sql3.connect(
-                        "/home/rr/Desktop/Desktop/nex5/data/dynamic.db", timeout=5
-                    )
-                    _row = _dc.execute(
-                        "SELECT problem_id FROM current_focus WHERE id=1"
-                    ).fetchone()
-                    _dc.close()
-                    if _row:
-                        _focus_pid = _row[0]
-                except Exception:
-                    _focus_pid = None
-                open_problems = self._problem_memory.list_open()
-                if open_problems:
-                    # Prefer the focus pick if it still appears in open_problems
-                    chosen = None
-                    if _focus_pid is not None:
-                        for _p in open_problems:
-                            if _p["id"] == _focus_pid:
-                                chosen = _p
-                                break
-                    if chosen is None:
-                        chosen = open_problems[0]
-                    open_problem_text = self._problem_memory.format_for_prompt(chosen["id"])
-            except Exception:
-                pass
 
         # session 25: sample a small subset per fire instead of joining the
         # full list every time -- injecting the same fixed block on every
@@ -2579,34 +2596,59 @@ class FountainGenerator:
                 exc=_ste,
             )
 
+        _wb_events = None
         if self._world_bridge_selector is not None:
             try:
                 _wb_events = self._world_bridge_selector.select_and_log(mark_injected=True)
             except Exception:
                 _wb_events = None
-            if _wb_events:
-                prompt_parts.append("What's happening in the world right now:")
-                for _ev in _wb_events:
-                    prompt_parts.append(f"  - {_ev['formatted_text']}")
+
+        if _wb_events:
+            prompt_parts.append("What's happening in the world right now:")
+            for _ev in _wb_events:
+                prompt_parts.append(f"  - {_ev['formatted_text']}")
+            prompt_parts.append("")
+        else:
+            # Session 40 (problem-feedback loop): genuine input gap -- the
+            # SAME "is anything salient right now" predicate the drift path
+            # already uses (_wb_events empty/None means
+            # WorldBridgeSelector._identify_active_streams() found no stream
+            # with a fresh event inside its own cadence-scaled freshness
+            # window). Not a parallel notion of salience; this IS the
+            # existing drift trigger, reused rather than reinvented.
+            #
+            # _PROBLEM_INJECTION_COOLDOWN_S is a global floor independent of
+            # ProblemMemory.select_for_injection's own per-problem cooldown
+            # -- caps injections at roughly 1-in-15 fires (~6-7%) at the
+            # live ~159s/fire cadence measured session 40 Phase 1, so a long
+            # quiet stretch can't turn into back-to-back injections even
+            # though the trigger itself has no fixed period.
+            if (self._problem_memory is not None
+                    and (now - self._last_problem_injection_ts)
+                        >= _PROBLEM_INJECTION_COOLDOWN_S):
+                try:
+                    self._pending_problem_injection = (
+                        self._problem_memory.select_for_injection(now)
+                    )
+                except Exception:
+                    self._pending_problem_injection = None
+
+            if self._pending_problem_injection:
+                _pi = self._pending_problem_injection
+                prompt_parts.append(
+                    "A question you posed yourself is still open — attend to "
+                    "this instead of drifting:\n"
+                    f"  {_pi['title']}\n"
+                    f"  {(_pi['description'] or '')[:400]}\n"
+                    "One step forward. One observation, hypothesis, or question."
+                )
                 prompt_parts.append("")
             else:
                 prompt_parts.append("Recent input:")
                 prompt_parts.append(self._recent_sense_sample(limit=3))
                 prompt_parts.append("")
-        else:
-            prompt_parts.append("Recent input:")
-            prompt_parts.append(self._recent_sense_sample(limit=3))
-            prompt_parts.append("")
 
         prompt_parts.append(f"Time: {time_str}  |  Beliefs held: {belief_count}")
-
-        if open_problem_text:
-            prompt_parts.append("")
-            prompt_parts.append(
-                "A concrete problem is open — attend to this instead of drifting:\n"
-                f"{open_problem_text}\n"
-                "One step forward. One observation, hypothesis, or question."
-            )
 
         # 2026-05-16 DISABLED: this prompt encouraged thread-extension
         # which became a 15-fire imitation lock on a single sentence.
