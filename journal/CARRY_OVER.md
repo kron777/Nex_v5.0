@@ -2947,3 +2947,68 @@ this entry was written, see above.
 and `theory_x/stage6_fountain/generator.py` (1-line kwarg drop + comment
 update). Full suite + bucket-B: 39/39, identical to item 3's baseline.
 
+## 2026-07-22 ~09:00 UTC — session 48 item 5: drive_resonance run through
+## the established ground-truth test -- FAILS, same as the other seven
+
+Read-only, no build, no restart. Last open question from the curiosity
+arc (sessions 39-44): `drive_resonance` is the one emphasis signal
+confirmed genuinely varying (329 distinct values logged) that did not
+exist when the seven candidates were killed. Checking it isn't the same
+mistake as session 44's premise-skip -- no design is riding on the
+result either way, it's just the one candidate never tested.
+
+**Methodology, reused exactly, not reinvented.** Same ground truth as
+sessions 39-44: entities `open_problems` re-raised as a separate,
+brand-new problem on a different day ("recurring") vs. entities that
+appeared once, never mentioned again ("one-off"). Rebuilt the
+classification fresh from live data (entity = quoted string in the
+problem title, recurring = title with the entity opened on >=2 distinct
+days): **34 recurring / 165 one-off** (session 41 had 38/193 at the time
+-- consistent growth since, same top entities: Iran, Bitcoin, Anthropic,
+GPT). Matched sampling, n=34 per side (seed=42 -- the original seed isn't
+recorded in this file, flagged rather than silently assumed), all belief
+rows mentioning each entity: **5,007 recurring-linked beliefs vs 3,470
+one-off-linked beliefs.** Same three tests sessions 42-43 used for this
+exact skewed, zero-heavy shape of distribution: Mann-Whitney U, Welch
+t-test, permutation test on the mean difference (10,000 resamples).
+
+**Methodological caveat, stated plainly because it matters:**
+`drive_resonance` did not exist during the original test window --
+there's no way to score old belief content with the drive weights that
+existed *at the time*. Scored all of it against one frozen snapshot of
+today's live `CompetingDrives` weights, applied identically to both
+groups so the comparison stays fair between them. Not a true historical
+replay like the other seven signals got; the closest honest substitute
+given the signal is new. Noted because it should be read alongside the
+result, not because it changes the verdict -- the result isn't borderline.
+
+**Result:**
+```
+              n      zero-frac  mean    median
+recurring     5007   69.5%      0.0641  0.0
+one-off       3470   71.2%      0.0614  0.0
+
+Mann-Whitney U:  p=0.196, rank-biserial effect=-0.013
+Welch t-test:    p=0.245
+Permutation:     observed diff=0.0027, p=0.240 (10,000 resamples)
+```
+
+**VERDICT: FAILS ground truth.** All three tests agree -- no significant
+difference, negligible effect size, same null shape as in-degree
+(p=0.83, effect=0.027, session 43) and the other six. `drive_resonance`
+does not distinguish topics the world sustained from topics it mentioned
+once and dropped. ~70% of both groups score exactly 0.0 -- the coarse,
+fixed five-category keyword sets rarely fire on ordinary belief content
+at all; a plausible sparse-coverage explanation, not a confound worth
+chasing given the result is cleanly null rather than borderline (unlike
+in-degree's p=0.047-on-the-mean that turned out to be a hot_observer
+artifact -- no such digging is warranted here).
+
+**Eight of eight candidate signals checked across this entire arc now
+fail the same ground truth:** anchor/sharpness, salience (recency),
+out-degree, in-degree, LLM-judged substantiveness, corroboration_count,
+reinforce_count (sessions 40-44), and now drive_resonance. This closes
+the curiosity arc's last open thread. No new candidates are queued. The
+verified floor from session 44 stands, now with one more signal
+confirmed under it rather than untested above it.
+
