@@ -2569,3 +2569,62 @@ fires with the fix live, not just by inspection of the diff. `goal_relevance`
 and `drive_resonance` remain the only two signals confirmed varying in
 logged data as of this entry; `self_relevance` status is OPEN, not closed.
 
+## 2026-07-22 ~06:45 UTC — session 47 item 1: legacy v4 crash-loop cleanup
+## (infra only, no code, no cognition-affecting change)
+
+A read-only pass over the accumulated census/emphasis state (this session,
+prior turn, unlogged until now) found three still-open items worth acting on:
+two live crash-looping v4 systemd units (census #32), a stale trajectory
+monitor, and census #13 (SignalLoop stale re-fire). This entry covers item 1
+only; items 2 and 3 follow as separate entries/commits.
+
+**Confirmed independence before touching anything.** `/home/rr/Desktop/nex`
+-- the `WorkingDirectory`/`ExecStart` target of `nex-api.service`,
+`nex-refinement-loop.service`, and `nex-brain.service` -- does not exist on
+disk (checked directly). Grepped nex5's full tree (`.py`/`.service`/`.json`/
+`.sh`) for any reference to that path: zero hits. nex5 and the legacy v4
+units share no file, no db, no socket -- re-confirmed independent
+immediately before disabling anything, per instruction not to trust the
+earlier read-only pass alone.
+
+**`nex-api.service`** (exit 203/EXEC -- the venv/python3 binary the unit
+points at doesn't exist) and **`nex-refinement-loop.service`** (exit
+209/STDOUT -- the log directory it points at doesn't exist) had been
+crash-looping every 5s/30s since every boot. Restart counters at disable
+time: nex-api 422, nex-refinement-loop 73 (up from 148/25 observed ~25min
+earlier this session -- consistent with the 5s/30s intervals, i.e. genuinely
+continuous, not a fluke reading). Disabled via `sudo systemctl disable --now
+nex-api.service nex-refinement-loop.service nex-brain.service` -- run by the
+user in a real terminal; the sandbox has no TTY for sudo and a password was
+correctly not requested through it. **`nex-brain.service`** was already
+`disabled`/`inactive` with zero journal entries -- included in the same
+command anyway for an explicit, idempotent record rather than an assumed
+one. journalctl confirms all three `Stopped`, zero restart activity in the
+~1 minute checked afterward; counters frozen at the values above.
+
+**Crontab: not ~15, all 19 active jobs, every one pointed at the same dead
+path.** Checked line-by-line before editing: every single non-comment,
+non-blank line in the user crontab referenced `/home/rr/Desktop/nex` -- 19
+active jobs, zero exceptions, zero false positives. Commented out, not
+deleted (`# [disabled 2026-07-22: legacy v4, /home/rr/Desktop/nex no longer
+exists on disk] ` prefix on each line), preserving every pre-existing
+comment and blank line as a diff record of what was there. Verified:
+`crontab -l` now has zero active (non-comment, non-blank) lines; installed
+file diffed byte-for-byte against the live crontab, matches exactly. The one
+pre-existing `# [DISABLED] ...` line (idle watchdog, disabled previously by
+someone else) was left untouched, not double-annotated.
+
+**Scope, stated precisely:** none of this touches nex5. No code changed in
+this repo by item 1 itself -- the change is entirely OS-level (three
+systemd units, one crontab). Recorded here per the arc's standing discipline
+of journaling infra fixes even when they don't touch the repo (see the
+nex5-keepalive.service entry, session ~35).
+
+**Verification:** `systemctl is-active`/`is-enabled` on all three units =
+inactive/disabled. journalctl shows no post-disable restart attempts on
+nex-api or nex-refinement-loop. Live crontab has 0 active lines referencing
+the dead path; all 19 preserved as comments, nothing deleted.
+
+Next: item 2 (cron the trajectory monitor, currently manual-invoke only and
+4 days stale), item 3 (census #13 SignalLoop stale-re-fire fix).
+
