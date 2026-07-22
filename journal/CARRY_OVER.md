@@ -2628,3 +2628,57 @@ the dead path; all 19 preserved as comments, nothing deleted.
 Next: item 2 (cron the trajectory monitor, currently manual-invoke only and
 4 days stale), item 3 (census #13 SignalLoop stale-re-fire fix).
 
+## 2026-07-22 ~07:45 UTC — session 47 item 2: trajectory monitor cronned,
+## and the honest answer to "did anything drift in 4 days" is no
+
+**Fresh read run manually first**, before touching the schedule, per
+instruction. Compared directly against the last entry (2026-07-18 20:25
+UTC, 4 days / ~87h stale while the system ran continuously the whole time):
+
+| axis | 07-18 20:25 UTC | 07-22 07:44 UTC | verdict (both) |
+|---|---|---|---|
+| overall | STABLE | STABLE | -- |
+| QUALITY | 27%, z=-0.06sigma | 18%, z=-0.41sigma | holding |
+| APERTURE | gini=0.291, z=-0.69sigma | gini=0.319, z=-0.25sigma | holding |
+| LIVENESS | fires=28447, beliefs=40529 | fires=29474, beliefs=42205 | ALIVE |
+| GROOVE HEALTH | 23 episodes/24h, sev=0.60, z=-0.66sigma | 12 episodes/24h, sev=0.66, z=+0.06sigma | flat |
+
+**Nothing moved outside its own band.** The one number that looks
+eye-catching read cold -- QUALITY 27%->18%, a 9pt drop -- is exactly the
+case this instrument was built (session 38) to not cry wolf on: inside the
+empirical 25.2pt stdev over 1045 historical windows, z=-0.41sigma against
+the 2.0sigma non-negotiable threshold. Fires/beliefs/synth all climbed
+steadily over the gap (she kept producing the whole time this instrument
+was silent). Four days of not checking, and the honest answer is nothing
+happened -- which is a real answer, not a null one, but it's also exactly
+why the instrument shouldn't go dark again.
+
+**Cron install, and a bug caught before it could fire.** First attempt used
+a relative script path (`scripts/trajectory.py`) on the theory that
+`trajectory.py`'s own hardcoded `REPO` constant would cover it -- wrong:
+the *argument to python3* still resolves against cron's cwd, which is
+`$HOME`, not the repo. Caught by testing the exact command from a neutral
+cwd (`cd ~`) before trusting the installed line, per the standing lesson
+from item 1 (exit code alone is not verification) -- confirmed the failure
+mode directly: `can't open file '/home/rr/scripts/trajectory.py'`, exit 2,
+would have failed silently every hour, forever, logged to
+`logs/trajectory_cron.log` where nothing was watching it. Fixed to an
+absolute script path, re-tested from `$HOME` (exit 0, fresh jsonl entry
+written), then reinstalled.
+
+**Final line, hourly:**
+```
+0 * * * * /home/rr/Desktop/Desktop/nex5/.venv/bin/python3 /home/rr/Desktop/Desktop/nex5/scripts/trajectory.py --log >> /home/rr/Desktop/Desktop/nex5/logs/trajectory_cron.log 2>&1
+```
+
+**Verified against live state, not exit code:** `crontab -l` diffed
+byte-for-byte against the intended installed file -- matches. Exactly one
+active (non-comment) line in the live crontab. No systemd user timer was
+created (cron was the chosen mechanism, checked `systemctl --user
+list-timers` to confirm nothing stray appeared). `logs/trajectory_log.jsonl`
+and `logs/trajectory_cron.log` are both gitignored -- no repo files changed
+by this item beyond this journal entry.
+
+Next: item 3 (census #13 SignalLoop stale-re-fire fix) -- this one touches
+code, full suite + bucket-B diff required.
+
