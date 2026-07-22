@@ -37,9 +37,7 @@ wrong classes for two of the four signals:
                    10,430 logged ticks ever formed a new drive; the one
                    row that exists has been frozen on a hum-register
                    word-fragment for 27 days.
-  self_relevance   reads SelfNarrative.get_narrative() (the live
-                   "I am the attending..." self-description) plus locked
-                   Tier-1 keystone beliefs, NOT
+  self_relevance   reads locked Tier-1 keystone beliefs ONLY, NOT
                    stage4_membrane.self_model.SelfModel, which is system
                    proprioception (CPU/memory/thermal) with no plausible
                    relationship to narrative identity.
@@ -52,6 +50,23 @@ not distinguish "confirms" from "challenges" the self-narrative — both
 directions collapse into one overlap score. Separating them cheaply would
 require the same shape of text-judgment that has already failed five
 times this arc; not attempted here.
+
+SESSION 47 ITEM 4 FIX: self_relevance originally also read
+SelfNarrative.get_narrative() into the reference text. Diagnosed
+(session 46) and confirmed at 10x more data (session 47): get_narrative()
+composes its text substantially FROM the immediately preceding thought
+(momentum carry-over quotes it near-verbatim) plus recent-fire excerpts
+from the same fountain_events rows the candidate thought itself
+continues -- so the reference corpus and the candidate shared vocabulary
+by construction, not because the thought was actually self-relevant.
+463/466 logged rows sat at 1.0 (saturated), confirmed not noise. Removed
+entirely rather than re-tuned: raising the overlap threshold would still
+be measuring "did this thought quote its own immediate predecessor," just
+at a higher bar -- the contamination is structural, not a magnitude
+problem, and this arc has already been burned repeatedly by tuning a
+threshold instead of fixing what it's measuring (sessions 40-44). Locked
+keystones are stable across fires and don't shift with momentum, so
+overlap with them is a real signal about identity content, not echo.
 """
 from __future__ import annotations
 
@@ -147,18 +162,15 @@ def _drive_resonance(thought: str, competing_drives: Any) -> float:
     return matched / total
 
 
-def _self_relevance(thought: str, self_narrative: Any,
-                     beliefs_reader: Optional[Reader]) -> float:
-    """Overlap with current self-narrative + locked keystones. Direction-
-    blind (confirms and challenges both count), see module docstring."""
+def _self_relevance(thought: str, beliefs_reader: Optional[Reader]) -> float:
+    """Overlap with locked Tier-1 keystones only (session 47 item 4 --
+    SelfNarrative.get_narrative() removed, see module docstring: it was
+    contaminating the reference corpus with the candidate thought's own
+    immediate context). Direction-blind (confirms and challenges both
+    count), see module docstring."""
     if not thought:
         return 0.0
     ref_text = ""
-    if self_narrative is not None:
-        try:
-            ref_text += (self_narrative.get_narrative() or "") + " "
-        except Exception:
-            pass
     if beliefs_reader is not None:
         try:
             rows = beliefs_reader.read(
@@ -195,13 +207,11 @@ class EmphasisEngine:
     def __init__(self, prediction_tracker: Any,
                  problem_memory: Any = None,
                  competing_drives: Any = None,
-                 self_narrative: Any = None,
                  beliefs_reader: Optional[Reader] = None,
                  conversations_reader: Optional[Reader] = None) -> None:
         self._tracker = prediction_tracker
         self._problem_memory = problem_memory  # not queried directly; conversations_reader is
         self._competing_drives = competing_drives
-        self._self_narrative = self_narrative
         self._beliefs_reader = beliefs_reader
         self._conversations_reader = conversations_reader
         self._last_result: Optional[EmphasisResult] = None
@@ -210,7 +220,7 @@ class EmphasisEngine:
         signals = {
             "goal_relevance": _goal_relevance(thought, self._conversations_reader),
             "drive_resonance": _drive_resonance(thought, self._competing_drives),
-            "self_relevance": _self_relevance(thought, self._self_narrative, self._beliefs_reader),
+            "self_relevance": _self_relevance(thought, self._beliefs_reader),
             "surprise": _surprise(thought, self._tracker),
         }
         combined = sum(signals.values()) / len(signals)  # equal 0.25 weights, per spec

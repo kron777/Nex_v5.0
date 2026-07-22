@@ -2857,3 +2857,93 @@ throwaway lock file, unrelated to the live system:
 `git diff --stat`: 1 file, `nex_keepalive.sh`, +20/-1 (the retry loop and
 its comment; no other logic touched).
 
+## 2026-07-22 ~08:35 UTC — session 48 item 4: self_relevance saturation
+## fix, PRE-REGISTERED before restart
+
+**Diagnosis (session 46, confirmed at 10x data session 47):**
+`self_relevance`'s reference corpus was `SelfNarrative.get_narrative()`
+(momentum carry-over quotes the immediately-preceding thought
+near-verbatim, plus recent-fire excerpts from the same `fountain_events`
+rows the candidate thought itself continues) concatenated with locked
+Tier-1 keystones. The narrative half shares vocabulary with the candidate
+thought by construction, not because the thought is actually
+self-relevant.
+
+**BEFORE, measured right now, pre-fix:** 504 total `emphasis_log` rows,
+501/504 (99.4%) at `self_relevance=1.0`, exactly 3 distinct values ever
+seen (0.25 x2, 0.75 x1, 1.0 x501). (Session 46 caught this at 59/59;
+session 47 read it at 463/466; today, pre-fix, it's 501/504 -- same
+saturation, larger sample, growing monotonically as expected from an
+uncorrected structural bug, not noise.)
+
+**Fix, and why this option over the alternative:** removed
+`SelfNarrative.get_narrative()` from the reference corpus entirely --
+`_self_relevance()` now reads locked Tier-1 keystones ONLY
+(`theory_x/stage_emphasis/emphasis_engine.py`). Considered raising the
+overlap threshold instead; rejected: the contamination is structural (the
+reference text and the candidate share vocabulary by construction), not a
+magnitude problem, so a higher threshold would still be measuring "did
+this thought quote its own predecessor," just less often -- exactly the
+kind of tuned-constant patch this arc has already been burned by
+repeatedly (sessions 40-44, seven signals killed by exactly this shape of
+premise). Keystones are stable across fires and don't shift with
+momentum, so overlap with them is real information about identity
+content. `EmphasisEngine`'s `self_narrative` constructor param was
+removed along with it (no longer read anywhere in the class) rather than
+left as a dead parameter; `generator.py`'s instantiation updated to match
+(`self._self_narrative` itself is untouched -- still live, still used
+elsewhere in `generator.py` for its own unrelated prompt-building path,
+confirmed by grep before editing).
+
+**Observation-only invariant re-confirmed after the edit, not assumed:**
+grepped the full repo for `emphasis_log`/`EmphasisEngine`/
+`_emphasis_engine` outside `theory_x/stage_emphasis/` and the one
+`generator.py` instantiation block -- zero hits, still a pure sink.
+
+**Full suite + bucket-B diff:** 39 failed, identical set to item 3's
+already-investigated baseline (diffed both ways, zero difference against
+the post-item-3 39, and the same single confirmed-flaky/unrelated
+`test_fountain_crystallizer` line as the only difference against the true
+40-failure clean-tree baseline). Zero new failures from this change.
+
+**PREDICTED, before restart, so it can't be fudged after the fact:** the
+next ~20 post-restart fires should show `self_relevance` values spread
+across a real range (not clustered at exactly 1.0), because the
+contamination source is gone and keystone-overlap for an arbitrary
+thought should mostly fall well under the `overlap/4.0` saturation
+ceiling. Pass condition is the histogram, not the diff: the signal has to
+actually vary, not just "the code changed." Not predicting a direction
+(more or less self-relevant on average) -- only that it stops pegging at
+1.0. Next entry reads this against real post-restart data.
+
+**VERIFIED, post-restart, PASS.** Restart via `systemctl --user restart
+nex5-keepalive.service` (with session 48's flock fix live) completed
+clean, no gap: `http=200` within seconds, confirmed by direct poll. First
+20 fresh `emphasis_log` rows after restart (id > 505):
+
+self_relevance: min=0.0, max=1.0, avg=0.438, **5 distinct values**
+(0.0 x5, 0.25 x3, 0.5 x6, 0.75 x4, 1.0 x2) -- spread across the full
+range, only 2/20 (10%) at 1.0, versus 501/504 (99.4%) pre-fix. Matches
+the pre-registered pass condition exactly: the signal varies, not just
+"the code changed." `dominant_signal` breakdown over the same 20 rows is
+now spread across all four (self_relevance 8, goal_relevance 5, surprise
+4, drive_resonance 3) rather than self_relevance alone winning ~70% of
+fires by saturation artifact.
+
+Other three signals, same window, for the full live picture: `surprise`
+min=0.0 max=1.0 avg=0.417 (3 distinct), `drive_resonance` min=0.0 max=1.0
+avg=0.328 (**16 distinct** -- still the richest signal, unchanged by this
+fix), `goal_relevance` min=0.0 max=1.0 avg=0.15 (2 distinct, still mostly
+template-noise-flat per the earlier finding).
+
+**Engine status: 3 of 4 signals now confirmed varying** (`surprise`,
+`drive_resonance`, `self_relevance`); `goal_relevance` remains the one
+outstanding flat/templated axis, unchanged from prior sessions' finding.
+Still strictly observation-only -- invariant re-confirmed by grep before
+this entry was written, see above.
+
+`git diff --stat`: 2 files, `theory_x/stage_emphasis/emphasis_engine.py`
+(+/- docstring and `_self_relevance`/`EmphasisEngine` signature changes)
+and `theory_x/stage6_fountain/generator.py` (1-line kwarg drop + comment
+update). Full suite + bucket-B: 39/39, identical to item 3's baseline.
+

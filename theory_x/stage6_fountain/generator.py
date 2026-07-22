@@ -370,8 +370,12 @@ class FountainGenerator:
         # (not threaded through run.py) because every input it needs
         # already lives on self at this point -- self._dynamic_reader,
         # self._beliefs_reader, self._conversations_reader,
-        # self._problem_memory, self._competing_drives, self._self_narrative.
+        # self._problem_memory, self._competing_drives.
         # No new run.py wiring, no new constructor params.
+        # Session 47 item 4: self_narrative dropped -- get_narrative() was
+        # the diagnosed contamination source for self_relevance (see
+        # emphasis_engine.py module docstring); the engine no longer takes
+        # it at all, keystones-only now.
         self._emphasis_engine = None
         try:
             from theory_x.stage_emphasis.prediction_tracker import PredictionTracker
@@ -381,7 +385,6 @@ class FountainGenerator:
                 prediction_tracker=_tracker,
                 problem_memory=self._problem_memory,
                 competing_drives=self._competing_drives,
-                self_narrative=self._self_narrative,
                 beliefs_reader=self._beliefs_reader,
                 conversations_reader=self._conversations_reader,
             )
