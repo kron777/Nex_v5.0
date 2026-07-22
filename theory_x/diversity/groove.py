@@ -64,6 +64,20 @@ class GrooveSpotter:
     def __init__(self, beliefs_writer, beliefs_reader):
         self._writer = beliefs_writer
         self._reader = beliefs_reader
+        # census #7 fix (session 48, same disease/fix as census #13): each
+        # detector re-derives from the same rolling window every 60s tick
+        # and was unconditionally re-inserting -- a stale, unchanged window
+        # re-fired identically for as long as it stayed the top match
+        # (confirmed live: single ngram patterns re-inserted 6000+ times).
+        # Fingerprint what was last emitted per alert type; skip re-insert
+        # while unchanged, clear when the condition stops holding so a
+        # later, genuinely new recurrence can still alert. Resets on
+        # restart (in-memory, per instance) -- one fresh emission after a
+        # restart is honest, not spam, same as #13.
+        self._last_exact_content: Optional[str] = None
+        self._last_ngram_pattern: Optional[str] = None
+        self._last_template_ids: Optional[frozenset] = None
+        self._last_centroid_ids: Optional[tuple] = None
 
     def detect_all(self) -> list[dict]:
         rows = self._reader.read(
@@ -107,11 +121,16 @@ class GrooveSpotter:
         for row in window:
             all_ngrams.extend(_trigrams(row["content"]))
         if not all_ngrams:
+            self._last_ngram_pattern = None  # condition not met -- clear
             return None
         counts = Counter(all_ngrams)
         top_pattern, top_count = counts.most_common(1)[0]
         if top_count < NGRAM_REPEAT_THRESHOLD:
+            self._last_ngram_pattern = None
             return None
+        if self._last_ngram_pattern == top_pattern:
+            return None  # same top pattern as last emission -- stale re-scan
+        self._last_ngram_pattern = top_pattern
         excess = max(0, top_count - NGRAM_REPEAT_THRESHOLD + 1)
         severity = min(1.0, 0.5 + excess * 0.1)
         ids = json.dumps([r["id"] for r in window[:5]])
@@ -130,6 +149,9 @@ class GrooveSpotter:
         counts = Counter(contents)
         for content, n in counts.most_common(1):
             if n >= EXACT_REPEAT_MIN:
+                if self._last_exact_content == content:
+                    return None  # same repeated sentence as last emission -- stale re-scan
+                self._last_exact_content = content
                 severity = min(1.0, 0.5 + (n - 2) * 0.2)
                 ids = json.dumps([r["id"] for r in window if r["content"] == content])
                 self._writer.write(
@@ -148,6 +170,7 @@ class GrooveSpotter:
                     "pattern": content,
                     "n": n,
                 }
+        self._last_exact_content = None  # condition not met -- clear
         return None
 
     def _detect_template_repetition(self, window: list) -> Optional[dict]:
@@ -164,6 +187,7 @@ class GrooveSpotter:
             if len(fires) >= 2 and not _is_stopword_bigram(bg)
         }
         if not shared:
+            self._last_template_ids = None  # condition not met -- clear
             return None
 
         fire_pairs: Counter = Counter()
@@ -181,6 +205,7 @@ class GrooveSpotter:
                     shared_bigrams_for_pair[key] = common
 
         if not fire_pairs:
+            self._last_template_ids = None
             return None
 
         templated_ids: set = set()
@@ -192,7 +217,13 @@ class GrooveSpotter:
                 sample_bigrams = shared_bigrams_for_pair[k][:3]
 
         if len(templated_ids) < 3:
+            self._last_template_ids = None
             return None
+
+        fingerprint = frozenset(templated_ids)
+        if self._last_template_ids == fingerprint:
+            return None  # same fire-set as last emission -- stale re-scan
+        self._last_template_ids = fingerprint
 
         severity = min(1.0, 0.5 + (len(templated_ids) - 3) * 0.1)
         pattern = " / ".join(sample_bigrams)
@@ -258,11 +289,13 @@ class GrooveSpotter:
 
     def _check_centroid_tightening(self, current_window: list, prev_window: list) -> Optional[dict]:
         if len(prev_window) < 5:
+            self._last_centroid_ids = None  # condition not met -- clear
             return None
         try:
             cur_vecs = np.stack([embed(r["content"]) for r in current_window])
             prev_vecs = np.stack([embed(r["content"]) for r in prev_window])
         except Exception:
+            self._last_centroid_ids = None
             return None
 
         cur_centroid = cur_vecs.mean(axis=0)
@@ -272,10 +305,17 @@ class GrooveSpotter:
         prev_spread = float(np.mean(np.linalg.norm(prev_vecs - prev_centroid, axis=1)))
 
         if prev_spread == 0:
+            self._last_centroid_ids = None
             return None
         tightening = (prev_spread - cur_spread) / prev_spread
         if tightening < CENTROID_TIGHTEN_THRESHOLD:
+            self._last_centroid_ids = None
             return None
+
+        fingerprint = tuple(r["id"] for r in current_window)
+        if self._last_centroid_ids == fingerprint:
+            return None  # same current_window as last emission -- stale re-scan
+        self._last_centroid_ids = fingerprint
 
         severity = min(1.0, tightening)
         ids = json.dumps([r["id"] for r in current_window[:5]])

@@ -3079,3 +3079,81 @@ change.
 `git diff --stat`: 1 file, `theory_x/stage2_dynamic/__init__.py`, +12/-0
 (one query clause, one docstring paragraph).
 
+## 2026-07-22 ~10:55 UTC — session 48 item 7: census #7 fixed --
+## groove_alerts stale re-fire, same disease/fix as #13, verified by an
+## isolated controlled test (no live trigger occurred to catch directly)
+
+**Same disease as #13, confirmed live before touching code:**
+`GrooveSpotter.detect_all()` (`theory_x/diversity/groove.py`) runs every
+60s from `DiversityLoop`, re-deriving all four checks
+(`_detect_exact_repetition`, `_check_ngrams`, `_detect_template_repetition`,
+`_check_centroid_tightening`) from the same rolling 20-fire window every
+tick, unconditionally re-inserting into `groove_alerts` whenever a
+condition held. Historical scale, queried before the fix: `ngram_repetition`
+48,769 rows, `template_repetition` 32,604 rows, `exact_repetition` and
+`centroid_tightening` **zero rows ever** (never triggered in this table's
+whole history -- fixed anyway for consistency, same latent bug, just
+never yet hit). Single patterns re-inserted thousands of times
+identically: `"the balance between"` 6,278x, `"i notice that"` 5,511x,
+`"feels like the"` 3,929x -- ~2.5 months of continuous inflation
+(1777041529 to 1784630333). `_push_cooldown()` (blocks future
+crystallizer content) is a separate downstream mechanism and does not
+gate the `groove_alerts` INSERT itself, confirmed by reading the code.
+
+**Fix:** same fingerprint-dedup pattern as #13, one fingerprint field per
+detector, tracked on the `GrooveSpotter` instance (created once in
+`DiversityLoop.__init__`, reused every tick -- confirmed before relying
+on it): `_last_exact_content` (the repeated sentence), `_last_ngram_pattern`
+(the top trigram), `_last_template_ids` (frozenset of fire ids sharing
+the template), `_last_centroid_ids` (tuple of current-window fire ids).
+Each cleared at every point the underlying condition stops holding, so a
+later genuinely-new recurrence still alerts even if it happens to produce
+an identical fingerprint by coincidence.
+
+**Predicted side effect, named before it's rediscovered as a surprise:**
+`_push_cooldown()` used to get re-triggered every ~60s tick a condition
+persisted, continuously refreshing `signal_cooldown`'s `cooldown_until`
+(`COOLDOWN_HOURS=2`) far past the nominal 2h window for as long as the
+stale re-scan kept firing. Post-fix, cooldown is pushed once per genuinely
+new episode and correctly expires after 2h as designed -- **this is a
+real behavior change, arguably a correction of an unintended side effect
+of the original bug, not a regression.** Flagging it now so a future
+session doesn't read a shorter effective cooldown window as unexplained.
+
+**Full suite + bucket-B:** 39 failed, identical to the established
+post-item-3 baseline (diffed directly, zero difference); the only
+difference against the true 40-count clean-tree baseline is the same
+already-confirmed-flaky, unrelated `test_fountain_crystallizer` test.
+Zero new failures.
+
+**Verified two ways, honestly distinguished:**
+1. **Isolated controlled test** (throwaway fake reader/writer, synthetic
+   data, not the live system): tick 1 (template + ngram condition present)
+   emits both; tick 2 (byte-identical window) produces **zero** writes --
+   direct proof of suppression; tick 3 (window changed, condition still
+   holds via different content) correctly re-emits with a new fingerprint;
+   tick 4 (a distinct new template pattern) correctly emits again. This is
+   the primary, rigorous evidence the fix works.
+2. **Live restart + 15-minute bounded poll**, honestly reported: restart
+   was clean (`http=200` within seconds), but **zero groove_alerts rows
+   fired in the 15 minutes post-restart** -- no natural trigger occurred
+   to catch directly, consistent with the pre-fix data (zero rows in the
+   24h+ immediately before restart too; this condition is episodic/sparse,
+   not continuously active like #13's silence detector was). All-time
+   counts confirmed unchanged immediately post-restart (48,769 / 32,604,
+   exactly matching pre-restart). **Live confirmation of "repeats stop"
+   was not caught this session** -- the isolated test is the real
+   evidence, not this. Not fudging the two together.
+
+**Historical-count caveat, as instructed:** any `groove_alerts` counts
+recorded anywhere in this file or elsewhere before 2026-07-22 are inflated
+by the stale-re-fire defect fixed in this entry -- same caveat as census
+#13 and the original session-31 `groove_alerts` finding (census #7 itself).
+Do not treat pre-fix counts as real distinct-episode volume; treat them as
+(real episode count) x (however many 60s ticks each one persisted for,
+sometimes thousands).
+
+`git diff --stat`: 1 file, `theory_x/diversity/groove.py`, +40/-0 (four
+fingerprint fields + one check-and-clear per detector, no schema changes,
+no changes to `loop.py` or `_push_cooldown` itself).
+
