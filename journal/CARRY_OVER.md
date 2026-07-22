@@ -2798,3 +2798,62 @@ Session 47 items 1-3 complete. Next, per instruction, stop here --
 self_relevance saturation and the drive_resonance ground-truth test are
 explicitly out of scope for this pass.
 
+## 2026-07-22 ~08:30 UTC — session 48: nex_keepalive.sh flock handoff race
+## fixed (the incident from item 3), tested against both failure modes
+
+**The fix.** `nex_keepalive.sh`'s single-instance guard called `flock -n 9`
+exactly once and exited immediately on failure -- correct against a
+genuinely-held lock, wrong against the handoff window on `systemctl
+restart` (stop-then-start of the same unit), where the old instance's
+lock isn't guaranteed released by the instant the new instance's first
+attempt runs. Item 3's restart lost exactly that race and took the whole
+system down for ~48s with no automatic recovery (the script exits 0 on
+this path specifically so a clean no-op isn't treated as a crash by
+`Restart=on-failure` -- correct in general, but it means nothing brings
+NEX back up if the race is lost; only manual intervention did, today).
+Fixed: `flock -n 9` now retries up to 10 times, 1s apart (~10s worst-case
+budget), before giving up and exiting exactly as before. A genuinely-held
+lock is unaffected by this change -- retries only help when the lock is
+about to free up; against real, sustained contention every attempt fails
+identically and the loop still falls through to the same rejection.
+
+**Tested both failure modes directly, not just by re-running the live
+restart and hoping it reproduces (it didn't, either time -- see below).**
+Built an isolated test harness reusing the exact retry code against a
+throwaway lock file, unrelated to the live system:
+- **Handoff race (the actual bug class):** background process holds the
+  test lock 3s (shorter than the retry budget), releases. Result:
+  `ACQUIRED on attempt=4 elapsed=3.01s`. Old code would have failed on
+  attempt 1 -- this is the direct, controlled proof the fix saves exactly
+  today's incident.
+- **Genuine sustained contention (the guard's core job):** background
+  process holds the test lock 15s (longer than the budget). Result:
+  `FAILED to acquire after attempt=10 elapsed=10.03s -- correctly
+  rejected`, exit 1. Bounded, not indefinite -- the guard still works.
+
+**Also tested against the live system, both directions:**
+- Manually ran `nex_keepalive.sh` a second time while the real
+  systemd-supervised instance (holding the lock persistently) was up:
+  correctly exhausted all 10 retries (~10s, up from instant), printed the
+  same "ANOTHER KEEPALIVE IS ALREADY RUNNING" message, exit 0, and
+  launched no second `run.py` -- confirmed via `ps aux` before and after.
+  The only user-visible cost of this fix is that a genuine double-start
+  now takes ~10s to report instead of being instant; judged acceptable
+  against eliminating an indefinite-outage failure mode.
+- Two live `systemctl --user restart nex5-keepalive.service` cycles:
+  both acquired the lock immediately (no retries needed -- the race is
+  timing-dependent and didn't reproduce live either time, which is why
+  the isolated harness above is the real evidence, not these). Both
+  restarts completed cleanly: `KEEPALIVE START` logged within 1s of
+  systemd's `Started`, NEX confirmed up each time. Measured actual HTTP
+  availability across the second restart via tight polling
+  (`/api/system/status` every 0.2s): ~11s unreachable, which is the
+  ordinary, designed cost of `launch_nex()`'s own kill-old/free-port/
+  relaunch sequence (2s+2s built-in sleeps plus model-load boot time),
+  not a race failure -- categorically different from the ~48s
+  no-recovery outage this fix targets. Live process confirmed healthy
+  and serving (`http=200`) after both tests.
+
+`git diff --stat`: 1 file, `nex_keepalive.sh`, +20/-1 (the retry loop and
+its comment; no other logic touched).
+

@@ -12,7 +12,26 @@ cd /home/rr/Desktop/Desktop/nex5 || { echo "FATAL: cannot cd to nex5 dir"; exit 
 # --- single-instance lock: only ONE keepalive may run ---
 LOCKFILE=/tmp/nex5_keepalive.lock
 exec 9>"${LOCKFILE}"
-if ! flock -n 9; then
+# Retry-with-backoff before giving up (session 47 item-3-incident fix).
+# `systemctl restart` stops the old instance then starts the new one, but
+# the old instance's flock isn't guaranteed released by the instant a
+# fresh `flock -n` first runs against it -- session 47 hit exactly this
+# race during a restart and it resolved the wrong way: the old instance
+# was genuinely dead, the new one's first (and only) attempt lost the
+# race anyway and self-aborted, leaving NEX down for ~48s. A handful of
+# retries over a few seconds absorbs that handoff window. A GENUINE second
+# instance is unaffected by this change: its lock is actually held, not
+# about to free up, so every retry fails identically and the loop still
+# falls through to the same exit.
+LOCK_ACQUIRED=0
+for attempt in $(seq 1 10); do
+  if flock -n 9; then
+    LOCK_ACQUIRED=1
+    break
+  fi
+  sleep 1
+done
+if [ "${LOCK_ACQUIRED}" -ne 1 ]; then
   echo "$(date '+%F %T') ANOTHER KEEPALIVE IS ALREADY RUNNING — exiting (this is correct)."
   exit 0
 fi
