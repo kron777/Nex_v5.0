@@ -124,6 +124,17 @@ def _sense_distillation_loop(state: DynamicState, stop: threading.Event) -> None
 
     On first run (cursor == 0) fast-forwards to events from the last 48h so the
     backfill is bounded rather than replaying all history.
+
+    Excludes stream='external.other_mind' (session 48 item 9 fix, census #9):
+    persona_responder.py's docstring and run.py's launch comment both state,
+    unconditionally, that the persona subsystem "touches no beliefs" — not
+    conditional on NEX5_SOCIAL_N, which is a separate knob that correctly
+    gates whether the fountain prompt (generator.py Layer 4) reads it back.
+    This loop had no exclusion for that stream at all, so persona replies
+    were becoming permanent tier-7 beliefs (~30/day, confirmed live)
+    regardless of either switch. Symmetric with the existing internal.%
+    exclusion below — persona output isn't organic external world signal
+    either. Real external signal (news/arxiv/etc, ~398/day) is untouched.
     """
     from theory_x.stage1_sense.title_extract import extract_sense_title
     sense_reader = state.readers["sense"]
@@ -154,6 +165,7 @@ def _sense_distillation_loop(state: DynamicState, stop: threading.Event) -> None
                 "SELECT id, stream, payload, timestamp "
                 "FROM sense_events "
                 "WHERE id > ? AND stream NOT LIKE 'internal.%' "
+                "AND stream != 'external.other_mind' "
                 "ORDER BY id ASC LIMIT 1000",
                 (last_id,),
             )

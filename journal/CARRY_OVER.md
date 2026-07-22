@@ -3012,3 +3012,70 @@ the curiosity arc's last open thread. No new candidates are queued. The
 verified floor from session 44 stands, now with one more signal
 confirmed under it rather than untested above it.
 
+## 2026-07-22 ~10:14 UTC — session 48 item 9: census #9 fixed -- persona
+## content no longer distilled into beliefs, PRE-REGISTERED then verified
+
+**Design approved before code** (full trace in the prior turn's report,
+not duplicated here): `_sense_distillation_loop`
+(`theory_x/stage2_dynamic/__init__.py`) had zero exclusion for
+`stream='external.other_mind'`, so persona_responder.py's replies were
+becoming permanent tier-7 `precipitated_from_sense` beliefs (~30/day,
+confirmed live) despite both `persona_responder.py`'s docstring and
+`run.py`'s launch comment stating, unconditionally, that the persona
+subsystem "touches no beliefs" -- not conditional on `NEX5_SOCIAL_N`,
+which is a separate, already-correctly-implemented knob gating whether
+`generator.py`'s Layer 4 reads it back into the fountain prompt. Fix:
+`AND stream != 'external.other_mind'` added to the distillation query,
+symmetric with the existing `internal.%` exclusion. Unconditional, not
+`SOCIAL_N`-gated, matching the doc's actual unconditional claim. One
+line of logic, one docstring addition explaining it. Real external
+signal (news/arxiv/etc) untouched by construction -- different stream
+values, same query.
+
+**Existing 1,531 persona-derived beliefs left untouched, confirmed safe
+to leave:** 13,158 `belief_edges` rows touch them, well-integrated into
+the live graph; no code anywhere special-cases `branch_id='external'` in
+retrieval (grepped), so their current classification gates nothing.
+Relabeling would be a large, risky operation for zero functional
+benefit. Not attempted.
+
+**PRE-REGISTERED, before restart:** before = ~30 persona-derived beliefs
+created per day (397 real `precipitated_from_sense` beliefs/24h measured
+immediately pre-restart as the "real signal" baseline). Predicted after =
+**0 new** `branch_id='external', source='precipitated_from_sense'`
+beliefs, real-signal rate (~398/day) unchanged.
+
+**Predicted downstream effects, recorded now so a future session doesn't
+read either as an unexplained anomaly:**
+1. `CoOccurrenceDetector` (`theory_x/signals/detectors.py`) reads
+   `beliefs` without excluding `precipitated_from_sense` -- a small, real
+   drop in entity-matching candidates specifically from the 'external'
+   branch is expected going forward, not a defect.
+2. Trajectory monitor's APERTURE axis (branch-focus gini/entropy):
+   expected small drift as 'external' branch's share of new beliefs
+   drops to zero going forward -- expected, not anomalous.
+
+**Full suite + bucket-B:** 40 failed, **zero difference** against the
+true clean-tree baseline (diffed directly, not by count). The one
+difference against the 39-count post-item-3 list is the
+already-confirmed-flaky, unrelated `test_fountain_crystallizer` test
+(same one investigated in item 3's entry). Zero new failures from this
+change.
+
+**VERIFIED, post-restart, PASS on both halves.** Restart clean, no gap
+(`http=200` within seconds). Captured exact restart timestamp
+(1784715278 UTC) and queried directly against it:
+- `branch_id='external', source='precipitated_from_sense'` beliefs since
+  restart: **0**. All-time count still exactly 1,531 -- frozen, not one
+  new row.
+- Real `precipitated_from_sense` beliefs since restart (non-external
+  branches): 7, across neuroscience/news/cognition/emerging_tech --
+  real distillation continuing normally.
+- `external.other_mind` **sense_events** since restart: 2 -- confirming
+  persona_responder.py itself is completely unaffected (still writing
+  exactly as before); the gate held even as the source kept producing,
+  not just because nothing happened to trigger it.
+
+`git diff --stat`: 1 file, `theory_x/stage2_dynamic/__init__.py`, +12/-0
+(one query clause, one docstring paragraph).
+
