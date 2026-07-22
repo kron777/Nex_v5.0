@@ -2682,3 +2682,119 @@ by this item beyond this journal entry.
 Next: item 3 (census #13 SignalLoop stale-re-fire fix) -- this one touches
 code, full suite + bucket-B diff required.
 
+## 2026-07-22 ~08:06 UTC — session 47 item 3: census #13 fixed (SignalLoop
+## stale re-fire), verified live against real post-restart data -- and a
+## self-inflicted ~48s downtime incident during the restart, logged honestly
+
+**The fix.** `theory_x/signals/detectors.py`: all three detectors
+(`CoOccurrenceDetector`, `SilenceDetector`, `BurstDetector`) re-derived
+their result from a rolling window every 60s tick and unconditionally
+returned it -- `SignalLoop._tick()` (`theory_x/signals/loop.py`)
+unconditionally `INSERT`s whatever each `.detect()` call returns, no
+dedup anywhere downstream. Fixed at the source, not the sink: each
+detector instance (created once in `SignalLoop.__init__`, reused every
+tick -- confirmed before relying on it) now tracks an in-memory
+fingerprint of the last thing it emitted per key, and skips emitting when
+the fingerprint is unchanged:
+- `SilenceDetector`: fingerprint = `avg_gap_seconds` per stream (the one
+  field that's genuinely frozen when no new sense_event has landed --
+  `current_silence_seconds`/`multiplier_breach` grow every tick by
+  construction and can't be part of the fingerprint or nothing would ever
+  dedupe). Cleared when the stream recovers, so a later, genuinely new
+  silence episode can still alert even if `avg_gap` happens to coincide.
+- `CoOccurrenceDetector`: fingerprint = `sorted(branches)` per entity.
+- `BurstDetector`: fingerprint = `(count, sorted(branches))`, cleared when
+  the window drops back below threshold.
+
+First tick after any restart always emits fresh (no prior fingerprint) --
+one honest emission per restart, not spam. State is in-memory, not
+persisted; this is a deliberate first pass, matching the arc's established
+tolerance for cheap, restart-scoped state elsewhere (emphasis engine,
+session 45-46).
+
+**Full suite + bucket-B diff, done the right way after item-1's lesson
+(never trust a raw count).** Ran full suite with the fix in place: 39
+failed. Then `git stash`, ran the true pre-change baseline: **40** failed
+-- not 39. Diffed failure-set-for-failure-set rather than trusting the
+count: the only difference was
+`test_fountain_crystallizer.py::TestCrystallize::test_writes_belief_on_pass`,
+present in the baseline run, absent from the fixed run. Investigated
+before accepting it: that test has zero references to `signals`/
+`detectors`/`SignalLoop` (grepped), and reran it in isolation 3/3 passes
+against the unmodified (stashed) code -- confirmed pre-existing,
+unrelated full-suite flakiness (this project runs its suite against a
+live system; not the first time this arc has hit one, see session 34's
+"one apparent regression" note), not something my change fixed or broke.
+`theory_x/signals/detectors.py`'s own pre-existing failures
+(`test_signals.py`, 5 of them -- `TestCoOccurrenceDetector::
+test_confidence_scales_with_branch_count`, three `TestBurstDetector`
+cases, `TestSignalLoop::test_tick_writes_signals`) are **identical set,
+before and after** -- traced one down (`test_no_burst_below_threshold`):
+`sqlite3.OperationalError: no such table: world_predictions`, a test
+fixture/schema gap unrelated to detector logic, out of this item's scope,
+not touched. **Net: identical failure set to the established 39/40-line
+baseline, modulo one confirmed-flaky, confirmed-unrelated test. Zero new
+failures caused by this change.**
+
+**Incident: restarting to make the fix live caused ~48s of full downtime,
+self-inflicted, caught and recovered within about a minute.** The fix
+only takes effect after `run.py` restarts (in-memory process, same as
+every prior session's restart requirement). Used
+`systemctl --user restart nex5-keepalive.service` -- and hit the exact
+lock-handoff race this file already knew about (sessions 33/34: "restart
+raced the old instance's shutdown"), except this time it resolved the
+wrong way: the old instance was killed cleanly, but the new invocation's
+non-blocking `flock` lost the race against the kernel releasing the old
+lock and self-aborted ("ANOTHER KEEPALIVE IS ALREADY RUNNING -- exiting
+(this is correct)" -- correct in isolation, wrong outcome given the old
+one was actually dead). Net result: **zero NEX processes running from
+~09:59:54 to ~10:00:38 UTC (~44s), fully back up and serving by
+~10:00:50 UTC (~56s total from kill to ready).** Caught within seconds via
+`ps aux` showing nothing running; `fuser` confirmed the lock was actually
+free (stale, not held); `systemctl --user start` succeeded cleanly on the
+first retry. No data loss -- all state is in SQLite, nothing was
+mid-write at the kill instant. **Not fixed tonight** (out of this item's
+scope) but flagged for its own session: the keepalive script's flock
+handoff has a real race window on `systemctl restart` specifically
+(stop-then-start of the same unit), distinct from the already-known
+plain-restart race -- worth a retry-with-backoff on the `flock -n` failure
+path rather than an immediate exit, so a second launch attempt gets a
+chance after the OS finishes releasing the old lock.
+
+**Verified live, against real post-restart data, not just by inspection:**
+- Log: `Benchmark` (crypto/neuroscience co-occurrence) and
+  `crypto.exchanges` silence had each been re-firing on every single tick
+  for 6+ consecutive minutes pre-restart (09:53:58 through 09:58:58,
+  visible in `/tmp/nex5_soak.log`). Post-restart, both fired exactly once
+  at the first tick (10:00:50, the expected fresh-state burst) and **did
+  not repeat** across the next 4 ticks (10:01:51-10:04:51), while
+  genuinely new conditions (new streams going silent, a new co-occurring
+  entity, a new T6 burst) did fire normally.
+- Direct query of `data/beliefs.db.signals`, all rows since the restart:
+  zero byte-identical duplicate payloads for the `silence` detector.
+  Streams that legitimately changed `avg_gap_seconds` between ticks
+  (meaning real new sense_events landed) correctly re-fired, e.g.
+  `crypto.news` at 08:00:50 (avg_gap=28.6) and again at 08:02:51
+  (avg_gap=26.77, genuinely different) -- confirming the fix distinguishes
+  real change from stale re-scan rather than just suppressing everything.
+- `GET /api/signals/recent?limit=20` (the previously-unprotected,
+  human-facing HUD endpoint from census #13's original note): confirmed
+  live, returns a clean list of distinct predictions, no repeat rows.
+
+**Historical-count caveat, as instructed:** any signal/pattern counts
+recorded anywhere in this file or elsewhere *before* this session
+(2026-07-22) that reference `signals` or `patterns` table volumes are
+inflated by the stale-re-fire defect this entry fixes -- same caveat
+already standing for the `groove_alerts` counts (census #7, session 31).
+Do not treat pre-fix counts as real event volume.
+
+`git diff --stat`: 1 file, `theory_x/signals/detectors.py`, +65/-29
+(comments + fingerprint tracking + the two clearing branches; no schema
+changes, no changes to `loop.py` or `templates.py` -- the fix cascades
+through them for free since they only ever see whatever `.detect()`
+returns).
+
+Session 47 items 1-3 complete. Next, per instruction, stop here --
+self_relevance saturation and the drive_resonance ground-truth test are
+explicitly out of scope for this pass.
+
