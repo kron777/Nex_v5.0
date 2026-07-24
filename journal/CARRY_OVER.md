@@ -3157,3 +3157,186 @@ sometimes thousands).
 fingerprint fields + one check-and-clear per detector, no schema changes,
 no changes to `loop.py` or `_push_cooldown` itself).
 
+## 2026-07-24 ~19:30 — session 48 continued: fountain template collapse root-
+## caused and fixed, focus_loop's session-39 deferral came due, a live SIGILL
+## watched not chased. Four commits.
+
+**Five fixes closed today:**
+
+1. **`ground_self_belief.py` FK trap.** `--remove` used to run a raw DELETE,
+   which would hit the exact FK constraint the UPDATE-in-place refresh fix
+   (session 48, scorecard_loop investigation) stopped hitting on refresh --
+   `belief_edges`/`novel_association_log` still reference belief 206714 with
+   no `ON DELETE CASCADE`. `--remove` now checks every table in
+   `_BELIEF_ID_REFERRERS` first and refuses, naming tables and row ids, exit
+   non-zero, rather than cascading or hitting the constraint. **Proved by:**
+   both branches run against a disposable copy of `beliefs.db`'s schema (not
+   the 9.4GB production file) -- seeded with a referencing `belief_edges` row
+   and a `novel_association_log` row, `--remove` refused and named both
+   exactly; references cleared, `--remove` deleted cleanly. Commit `511ab33`.
+
+2. **Fountain template collapse** ("I'm restless and keep coming back to X",
+   sometimes with the literal placeholder). Two compounding causes: (a) a
+   chat-only self-report exemplar in `voice/llm.py`'s system prompt was
+   universal across every register including fountain's internal calls, so
+   any fire that couldn't produce real content latched onto the exemplar's
+   own line as an escape hatch -- fixed via a `VoiceRequest.self_report_examples`
+   flag (default True for chat, fountain's internal call sites opt out); (b)
+   a self-sealing trap in RECONCILE: it pairs the two oldest-touched open
+   problems but only bumps `last_touched_at` via `observe()`, which requires
+   >=300 chars. A pair stuck producing short output never gets touched, so
+   it can never age out of the pairing query -- #350/#351 were locked this
+   way for ~18 hours before being manually closed. `ProblemMemory.touch()`
+   bumps `last_touched_at` with no observation, called whenever a reconcile
+   pass doesn't qualify for `observe()`. **Proved by:** 30-day fire data --
+   the pre-fix "restless" population had median 91.5/max 198 chars (matches
+   the disease exactly, not a representative baseline); post-fix fires run
+   median ~400-950 chars, several fires now content-verified as genuine
+   RECONCILE output ("NEXT STEP", "genuinely DIFFERENT angle" phrasing,
+   matching the live ANTILOOP prompt text, not coincidence). `touch()`
+   itself verified via an isolated 3-problem seed against a disposable copy
+   of `conversations.db`: advances the targeted row only, and the pairing
+   query correctly rotates to the third problem once the first two are
+   touched. Commit `f1f774c`. **touch() has never fired live** -- checked
+   both before and after committing; every live RECONCILE_WB pass since has
+   cleared 300 chars, either via the normal `observe()` gate or via
+   COMMIT_CLOSE's bypass (see below). Its correctness rests on the isolated
+   test, not a live firing. Next session: grep is not enough to catch the
+   first live execution -- `touch()` logs on success now (this session's
+   logging fix, below) but nothing logged before that, so a firing before
+   today's restart would be invisible. Diff two `open_problems` snapshots
+   (`last_touched_at` advances, `json_array_length(observations)` unchanged)
+   or watch the new `problem_memory` logger for "touched (LRU rotation..." if
+   checking after this session's commits are live.
+
+3. **focus_loop duplicate observation writes + a logging-channel fix riding
+   along.** `focus_loop.py` runs its own 60s tick, independent of the
+   fountain loop, and appends whatever fountain thought is freshest (its own
+   600s lookback) onto its currently-focused problem via a hand-rolled write
+   path that bypasses `ProblemMemory.observe()` entirely -- and unlike
+   `observe()`, had no dedup guard. A still-fresh thought got re-stamped
+   every tick until it went stale: #353 picked up three byte-identical
+   949-char entries 9s and 60s apart behind a single fountain fire, which
+   promptly tripped its own stuck-similarity check on the duplicates rather
+   than genuine stuckness. **This is the exact gap `ProblemMemory.observe()`'s
+   own docstring flagged and deliberately left unfixed in session 39** --
+   "focus_loop.py's own append path has no such guard... Not fixing
+   focus_loop.py here." It came due today, ~2.5 months later, because
+   #352/#353 are the first pair tracked by both RECONCILE_WB and focus_loop
+   simultaneously. **Worth recording on its own: deferred items do come
+   back** -- the precondition that made this one safe to defer (nothing
+   reads the same problem from both paths at once) stopped holding the
+   moment two problems were open together. Fix mirrors `observe()`'s own
+   guard: no-op if the new text is byte-identical to the last entry. Riding
+   along same commit: the RECONCILE_WB write-back's per-problem exception
+   handler swallowed everything silently (`except Exception: pass`) -- now
+   logs problem id + exception via `error_channel.record(..., exc=e)`; and
+   `problem_memory.py`'s routine `open()`/`close()`/`touch()` events, which
+   were logged via `errors.record(level="INFO")` sharing one 500-slot ring
+   buffer with genuine ERROR entries (measured live: ~77% INFO/DEBUG,
+   cycled under 90 minutes at normal volume) -- routed onto a proper module
+   logger instead, which the error channel's own `CentralHandler` already
+   filters to WARNING+ before forwarding, so it lands in the log, not the
+   bounded buffer. **Proved by:** 30-day baseline taken *before* fixing --
+   274/1598 (17.1%) of all observations across every tracked problem were
+   exact duplicates of their immediate predecessor, median gap 60.0s
+   (focus_loop's own tick interval) -- #352/#353 were typical, not outliers.
+   After, against disposable throwaway DBs (not copies of the production
+   files): a stable thought held across 5 simulated ticks produced exactly 1
+   observation, not 5; a genuinely new thought still landed as a second,
+   real observation. Live post-fix: 0 duplicates across observations
+   written since restart. The logging-channel measurement was only partial
+   at write time (buffer had refilled just 1170s of its ~93-minute pre-fix
+   span when checked) -- confirmed zero `problem_memory`-sourced entries in
+   the buffer post-fix, but hadn't yet caught a live `open()`/`close()`
+   firing to see it print to the soak log; the routing is correct by
+   code-reading (matches every other working `logger.info` call in this
+   codebase) and not yet directly observed end-to-end. Commit `78f39f4`.
+
+4. **`nex_keepalive.sh` first-boot false-warning guard.** First `is_alive`
+   check ran 15s after launch, shorter than model load takes on a cold
+   boot, producing a false "NEX did not come up on first launch" warning.
+   Bumped to 25s; the retry loop's own poll interval and the flock handoff
+   logic untouched. **Not yet verified live** -- diff only, takes effect on
+   next cold boot. Tomorrow's cold start is the real test.
+
+5. **`NEX5_SPEECH_ENABLED=false`**, now committed in `nex_keepalive.sh` and
+   persisting across boots (baked into the launch command, not a one-off
+   runtime override). Stopgap for the SIGILL below -- see that entry for
+   what it does and does not fix. Commit `d411f5f` (same commit as #4).
+
+**COMMIT_CLOSE: characterised, deliberately left undecided.** Two live
+instances today (#352 closed 16:50:09 on 241 chars, #353 closed 18:04:44 on
+205 chars) prompted the audit. `generator.py`'s `_is_artifact` check
+(`0 < len(_tnorm) <= 700`, introduced 2026-06-11, commit `2c78ebc`) has an
+upper bound but no lower one, unlike the sibling `>=300` branch two lines
+below in the same file -- no comment or commit message anywhere argues for
+allowing short closes; reads as an oversight, not a documented decision, but
+that's an inference from absence, not a confirmed intent. **This is the
+system's normal termination path, not an edge case:** 122/129 closes (94.6%)
+in the last 30 days match the COMMIT_CLOSE signature (observe()+close()
+within 2s of each other); of those, 107/122 (87.7%) closed under 300 chars,
+median 130. **All 106 of the checked sub-300 closes (100%) had already
+produced at least one >=300-char observation earlier in their own history**
+-- none of the historical cases look genuinely incapable of clearing a
+floor; a floor would likely just delay these closes a cycle or two. But the
+backstop that would have to make "eventually" true is weaker than the 100%
+figure suggests: `decay()` (30-day staleness auto-close) **is never called
+anywhere in production** -- only referenced in tests, no cron or loop wires
+it up, and `touch()` (fix #2 above) actively works against it anyway by
+design, since touch() exists specifically to keep `last_touched_at` fresh.
+ABSTAIN_CLOSE only catches specific keyword-matched abstains. There is no
+cap on total simultaneously-open problems anywhere, only a 5/day
+*creation-rate* cap (`signal_to_problem.py:DAILY_PROBLEM_CAP`). Net: adding
+a floor risks trading a permissive close for a monotonically growing open
+pool if the close rate measurably slows, and nothing in the code would stop
+that growth -- real in mechanism, not evidenced in the last 30 days of
+actual behavior. No fix applied. Decision is Jon's, not made this session.
+
+**The 18:33 SIGILL: watched, not chased, root cause unresolved.** Service
+crash-looped from 18:33:43, unrelated to any code changed today (the prior
+boot, running last session's fix, had been stable for 37 minutes first).
+Every crash -- 29 total -- hit the *identical* instruction offset,
+`libtorch_cpu.so[0x20c1c06]`, which `nm -D` resolves into the ~8KB unnamed
+gap between `at::native::range_out_no_step` and `at::native::arange_out` --
+the vectorized kernel cluster backing `torch.arange`, explaining why both
+observed triggers (Kokoro TTS and, later, `sentence-transformers` via
+`theory_x/diversity/embeddings.py`, first loaded on `focus_loop`'s stuck-
+check) hit the same address: both generate position/time indices through
+it. **`NEX5_SPEECH_ENABLED=false` was NOT the fix** -- it only removed
+Kokoro as a trigger; the identical crash then moved to the
+sentence-transformers load, firing 9 more times before the 10th respawn
+(19:00:14) got through clean and has been stable since (20+ min at time of
+writing). Same binary worked fine twice earlier the same day (14:48:17 and
+17:56:25, logged "Kokoro pre-loaded successfully" both times) -- rules out
+a hard build/CPU-incompatibility read, since that would fail every time,
+not intermittently. Nothing on disk changed: `libtorch_cpu.so` and
+`torch-2.11.0.dist-info` both dated 2026-04-24, untouched today; today's
+only `apt` activity was unrelated (`libpam`/`rsyslog`/`libxpm4` at 07:41,
+hours before and unrelated to either success). CPU is an AMD Ryzen 7 5800X
+(Zen 3, homogeneous 8C/16T, no AVX-512) -- rules out the Intel hybrid-core
+AVX-512-downclock failure class. No MCE or thermal-fault evidence in
+available telemetry (no CPU package temp sensor exposed on this box; GPU/
+NVMe both read normal). Leading, unconfirmed read: a transient CPU-
+execution fault during a bounded window, not a software regression --
+circumstantial, not proven. **If it recurs:** check `sensors` and
+`journalctl -k` live, in the moment, not reconstructed after. Any code path
+that lazily loads a torch-backed model (Kokoro, `embeddings.py`, and
+whatever else touches `sentence-transformers`/torch at first use) is a
+plausible trigger until this is actually explained.
+
+**SYNTH_EMIT/PXB confirmed dead in this deployment.** `NEX5_SYNTH_EMIT` and
+`NEX5_RECONCILE_PXB` are absent from `nex_keepalive.sh` -- both branches
+(~150 combined lines in `generator.py`) contribute 0% of any fire, always
+have in this deployment's history. Agreed not to touch this pass; noted as
+a real maintenance-cost candidate for later (had to check env vars before
+trusting any content-based path classification this session, specifically
+because the PXB code reads as live).
+
+**Untracked, unrelated, not committed:** `rc2/` -- a separate node.js
+project sitting in this repo directory, untouched this session, flagged
+each time `git status` was checked rather than swept in.
+
+`git log` today: `511ab33` (FK trap), `f1f774c` (template collapse),
+`78f39f4` (focus_loop dedup + logging), `d411f5f` (nex_keepalive.sh guards).
+
