@@ -1173,8 +1173,12 @@ class FountainGenerator:
                                         # last_touched_at first" pairing query instead
                                         # of freezing as the permanent RECONCILE target.
                                         self._problem_memory.touch(int(_wbp["id"]))
-                                except Exception:
-                                    pass
+                                except Exception as _wbe:
+                                    error_channel.record(
+                                        f"RECONCILE_WB write-back failed for "
+                                        f"problem {_wbp.get('id')}: {_wbe}",
+                                        source="stage6_fountain", exc=_wbe,
+                                    )
                 except Exception:
                     pass
         # ── RECONCILE PROBLEM x HOT-BELIEF (env-gated, default OFF) ──────────

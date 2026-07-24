@@ -120,10 +120,7 @@ class ProblemMemory:
             "VALUES (?, ?, 'open', ?, ?, ?)",
             (title, description, now, now, _tags_json),
         )
-        errors.record(
-            f"problem opened: '{title}' (id={rowid})",
-            source=_LOG_SOURCE, level="INFO",
-        )
+        log.info("problem opened: '%s' (id=%s)", title, rowid)
         if self._self_narrative is not None:
             try:
                 self._self_narrative.write_narrative(
@@ -222,10 +219,7 @@ class ProblemMemory:
             "last_touched_at = ? WHERE id = ?",
             (now, now, problem_id),
         )
-        errors.record(
-            f"problem {problem_id} closed",
-            source=_LOG_SOURCE, level="INFO",
-        )
+        log.info("problem %s closed", problem_id)
         if self._self_narrative is not None:
             try:
                 self._self_narrative.write_narrative(

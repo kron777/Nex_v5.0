@@ -105,7 +105,19 @@ def _related_to_focus(thought: str, focus_title: str) -> bool:
 
 
 def _append_observation(cv_cx, problem_id: int, observation: str) -> int:
-    """Append observation; return new count."""
+    """Append observation; return the resulting count.
+
+    No-ops (returns the count unchanged) if `observation` is byte-identical
+    to the last entry already on file -- mirrors the guard in
+    ProblemMemory.observe() (theory_x/stage7_sustained/problem_memory.py).
+    Without this, the same still-fresh fountain thought (up to 600s old,
+    _latest_fountain_thought's own lookback window) gets re-appended on
+    every 60s tick until a newer thought arrives: inflates ocount with
+    pure repeats and trivially trips _check_stuck()'s similarity check on
+    duplicates rather than genuine stuckness. Session 39 first flagged
+    this path lacked the guard; fixed 2026-07-24 once #352/#353 showed it
+    live (three byte-identical 949-char entries on #353, 9s and 60s apart).
+    """
     row = cv_cx.execute(
         "SELECT observations FROM open_problems WHERE id=?", (problem_id,)
     ).fetchone()
@@ -115,6 +127,11 @@ def _append_observation(cv_cx, problem_id: int, observation: str) -> int:
         obs = json.loads(row[0]) if row[0] else []
     except Exception:
         obs = []
+    if obs:
+        _last = obs[-1]
+        _last_text = _last.get("text", "") if isinstance(_last, dict) else str(_last)
+        if observation.strip() == _last_text.strip():
+            return len(obs)
     obs.append({"text": observation, "ts": time.time()})
     if len(obs) > MAX_OBSERVATIONS:
         obs = obs[-MAX_OBSERVATIONS:]
@@ -233,9 +250,10 @@ def focus_tick() -> dict:
         obs_added = 0
         if thought and len(thought.strip()) >= 300 and _related_to_focus(thought, title):
             new_count = _append_observation(cv_cx, problem_id, thought)
-            obs_added = 1
-            log.debug("focus_loop: appended obs to #%s (now %s)",
-                      problem_id, new_count)
+            if new_count != obs_count:
+                obs_added = 1
+                log.debug("focus_loop: appended obs to #%s (now %s)",
+                          problem_id, new_count)
 
         # Stuck check
         stuck = False
