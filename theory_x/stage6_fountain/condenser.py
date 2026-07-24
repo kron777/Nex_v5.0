@@ -71,7 +71,8 @@ class Condenser:
         try:
             prompt = _CONDENSE_PROMPT.format(thought=thought.strip())
             resp = self._voice.speak(
-                VoiceRequest(prompt=prompt, register=ANALYTICAL, max_tokens=20),
+                VoiceRequest(prompt=prompt, register=ANALYTICAL, max_tokens=20,
+                             self_report_examples=False),
             )
             raw = resp.text if resp else ""
             droplet = self._clean(raw)

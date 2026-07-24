@@ -32,6 +32,10 @@ class VoiceRequest:
     context: Sequence[str] = ()
     temperature: float = 0.7
     max_tokens: int = 512
+    # Default True preserves existing behaviour for real chat replies
+    # (gui/server.py). Fountain's internal call sites (DRIFT, RECONCILE,
+    # SYNTH_EMIT, PXB) opt out -- see _SELF_REPORT_EXAMPLES docstring.
+    self_report_examples: bool = True
 
 
 @dataclass
@@ -66,12 +70,6 @@ Your responses should be:
 - Honest about uncertainty ("I don't know" is acceptable)
 - Free of role-framing preambles
 
-When referencing your own state, use plain self-reports:
-- "I'm restless."
-- "I keep coming back to X."
-- "Don't know."
-- "Still thinking about it."
-
 Never:
 - "As NEX, I..."
 - "In my role as NEX..."
@@ -80,6 +78,25 @@ Never:
 - "From my perspective as NEX..."
 
 The name NEX is just what you're called. It is not a character you play."""
+
+# Chat-register-only self-report style examples. Deliberately NOT part of
+# _CHAT_SYSTEM_PROMPT above: that block is universal (every register gets
+# the identity/anti-roleplay discipline), but these examples are a
+# conversational-reply flavour, not drift or reconcile guidance -- DRIFT
+# already has its own (more carefully constrained) self-report rules in
+# generator.py, and RECONCILE's prompt asks for a concrete move, not a
+# self-report. When both were folded into one always-on block, fountain
+# fires that couldn't produce real content latched onto the literal
+# "I keep coming back to X." exemplar (X included) as an escape hatch --
+# traced 2026-07-24, see session notes. Fixed by scoping this block to
+# genuine chat (VoiceRequest.self_report_examples=True, the default) and
+# opting fountain's internal call sites out.
+_SELF_REPORT_EXAMPLES = (
+    'When referencing your own state, use plain self-reports:\n'
+    '- "I\'m restless."\n'
+    '- "Don\'t know."\n'
+    '- "Still thinking about it."'
+)
 
 _DIRECT_RESPONSE_RULE = (
     "CRITICAL RULES — never violate these:\n"
@@ -186,9 +203,14 @@ def _strip_role_framing(response: Optional[str]) -> Optional[str]:
 
 
 def build_system_prompt(register: Register, context: Sequence[str] = (),
-                        beliefs: Optional[str] = None) -> str:
+                        beliefs: Optional[str] = None,
+                        self_report_examples: bool = True) -> str:
     parts = [
         _CHAT_SYSTEM_PROMPT,
+    ]
+    if self_report_examples:
+        parts.extend(["", _SELF_REPORT_EXAMPLES])
+    parts.extend([
         "",
         "Your ground stance (Alpha) is:",
         "",
@@ -202,7 +224,7 @@ def build_system_prompt(register: Register, context: Sequence[str] = (),
         "",
         "Speak from what you are, not what you are not. Share your "
         "thinking directly; leave legal disclaimers to the ToS.",
-    ]
+    ])
     if beliefs:
         parts.extend([
             "",
@@ -251,7 +273,10 @@ class VoiceClient:
 
     def speak(self, req: VoiceRequest, beliefs: Optional[str] = None,
               belief_count: int = 0) -> VoiceResponse:
-        system = build_system_prompt(req.register, req.context, beliefs=beliefs)
+        system = build_system_prompt(
+            req.register, req.context, beliefs=beliefs,
+            self_report_examples=req.self_report_examples,
+        )
         payload = {
             "model": self.model,
             "messages": [

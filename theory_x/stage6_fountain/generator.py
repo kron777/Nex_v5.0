@@ -950,7 +950,8 @@ class FountainGenerator:
                         )
                     _synprompt = "\n".join(_slines)
                     _synresp = self._voice.speak(
-                        VoiceRequest(prompt=_synprompt, register=_synreg),
+                        VoiceRequest(prompt=_synprompt, register=_synreg,
+                                     self_report_examples=False),
                         beliefs=None,
                     )
                     thought = (_synresp.text or "").strip()
@@ -1104,7 +1105,8 @@ class FountainGenerator:
                                 "Just write the actual finished answer, in full."
                             )
                     _rcresp = self._voice.speak(
-                        VoiceRequest(prompt=_rcprompt, register=_rcreg),
+                        VoiceRequest(prompt=_rcprompt, register=_rcreg,
+                                     self_report_examples=False),
                         beliefs=None,
                     )
                     thought = (_rcresp.text or "").strip()
@@ -1163,6 +1165,14 @@ class FountainGenerator:
                                     elif (len(_tnorm) >= 300
                                             and _tnorm != _lasttxt.strip()):
                                         self._problem_memory.observe(int(_wbp["id"]), thought)
+                                    else:
+                                        # 2026-07-24: none of the above qualified (short
+                                        # output, e.g. an abstain collapse below the
+                                        # 300-char observe() floor) -- still touch so
+                                        # this pair ages out of the "oldest
+                                        # last_touched_at first" pairing query instead
+                                        # of freezing as the permanent RECONCILE target.
+                                        self._problem_memory.touch(int(_wbp["id"]))
                                 except Exception:
                                     pass
                 except Exception:
@@ -1244,7 +1254,8 @@ class FountainGenerator:
                         except Exception:
                             pass
                     _pxbresp = self._voice.speak(
-                        VoiceRequest(prompt=_pxbprompt, register=_pxbreg),
+                        VoiceRequest(prompt=_pxbprompt, register=_pxbreg,
+                                     self_report_examples=False),
                         beliefs=None,
                     )
                     thought = (_pxbresp.text or "").strip()
@@ -1273,7 +1284,8 @@ class FountainGenerator:
         if not _emitted:
           try:
             resp = self._voice.speak(
-                VoiceRequest(prompt=prompt, register=PHILOSOPHICAL),
+                VoiceRequest(prompt=prompt, register=PHILOSOPHICAL,
+                             self_report_examples=False),
                 beliefs=None,
             )
             thought = resp.text.strip()

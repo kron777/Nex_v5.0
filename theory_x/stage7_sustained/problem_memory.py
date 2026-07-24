@@ -14,6 +14,7 @@ class and word-overlap find_matching from commit 950e388 parent.
 from __future__ import annotations
 
 import json
+import logging
 import sys
 import threading
 import time
@@ -21,6 +22,8 @@ from typing import Optional
 
 import errors
 from substrate import Writer, Reader
+
+log = logging.getLogger("theory_x.stage7_sustained.problem_memory")
 
 _STOPWORDS = {
     "a", "an", "the", "is", "are", "was", "were", "be", "been",
@@ -175,6 +178,24 @@ class ProblemMemory:
             (json.dumps(obs_list), time.time(), problem_id),
         )
         return True
+
+    def touch(self, problem_id: int) -> None:
+        """Bump last_touched_at without appending an observation.
+
+        2026-07-24: RECONCILE only calls observe() for output >= 300 chars.
+        A pair that consistently produces short/abstain output never gets
+        touched at all, so it never ages out of the "oldest last_touched_at
+        first" pairing query -- it becomes the permanent pair, forever,
+        since nothing else can outrank it. Call this whenever a reconcile
+        attempt was made on a problem but didn't qualify for observe(), so
+        the LRU pool still rotates even when the model has nothing
+        substantial to add.
+        """
+        self._writer.write(
+            "UPDATE open_problems SET last_touched_at = ? WHERE id = ?",
+            (time.time(), problem_id),
+        )
+        log.info("problem %s touched (LRU rotation, no observation appended)", problem_id)
 
     def update_plan(self, problem_id: int, plan: str) -> None:
         """Update the plan field."""
