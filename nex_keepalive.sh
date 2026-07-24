@@ -58,6 +58,7 @@ launch_nex() {
   fuser -k ${PORT}/tcp 2>/dev/null
   sleep 2
   NEX5_RUT_EDGE=1 NEX5_GOVERNOR_OFF=1 NEX5_RECONCILE=1 NEX5_RECONCILE_WB=1 NEX5_SIG_QUALITY=1 \
+  NEX5_SPEECH_ENABLED=false \
   NEX5_ANTILOOP=1 NEX5_DELIVER_N=10 NEX5_ABSTAIN_CLOSE=1 NEX5_COMMIT_CLOSE=1 \
   NEX5_WORLD_PRED=1 NEX5_SELF_PRED=1 NEX5_SOCIAL_N=0 NEX5_PORT=${PORT} \
   NEX5_INTAKE_RESONANCE_OFF=1 NEX5_WORLD_CONSOLIDATE=1 NEX5_L4_STAKES=1 NEX5_SELF_NARRATIVE=1 NEX5_QUALITY_SYNTH=1 NEX5_HOT_OBSERVER=1 NEX5_MOMENTUM=1 NEX5_PERSONA_RESPONDER=1 NEX5_GLOBAL_WORKSPACE=1 NEX5_SURPRISE_WEIGHT=1 NEX5_WIDE_MODES=1 ${VENV} run.py >> ${SOAK_LOG} 2>&1 &
@@ -71,7 +72,7 @@ is_alive() {
 echo "$(date '+%F %T') KEEPALIVE START (v2, locked) — supervising NEX on port ${PORT}"
 launch_nex
 echo "$(date '+%F %T') launched NEX pid=${NEX_PID}"
-sleep 15
+sleep 25
 if is_alive; then
   echo "$(date '+%F %T') NEX confirmed up (flags: $(cat /proc/${NEX_PID}/environ 2>/dev/null | tr '\0' '\n' | grep -c NEX5))"
 else
