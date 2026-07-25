@@ -1,8 +1,11 @@
 """Theory X — Stage 1: Sense Stream.
 
-Factory function `build_scheduler(writers, readers)` wires all 31
+Factory function `build_scheduler(writers, readers)` wires all 28
 adapters and returns a ready SenseScheduler. Call it after the substrate
 is initialized; pass the live Writer/Reader maps from AppState.
+(2026-07-25: was 32 -- Reuters/APNews dropped first (dead DNS), then
+PhilPapers/PapersWithCode (Cloudflare JS-challenge / site retired) --
+see below.)
 
 Internal sensors start immediately. External feeds start paused.
 """
@@ -19,7 +22,6 @@ from .internal.meta_awareness import MetaAwareness
 
 # External feeds (1-19)
 from .feeds.arxiv_ai import ArxivAI
-from .feeds.papers_with_code import PapersWithCode
 from .feeds.lab_blogs import LabBlogs
 from .feeds.ml_conferences import MLConferences
 from .feeds.hacker_news import HackerNews
@@ -28,15 +30,22 @@ from .feeds.ieee_spectrum import IEEESpectrum
 from .feeds.arxiv_emerging import ArxivEmerging
 from .feeds.biorxiv_neuro import BiorxivNeuro
 from .feeds.frontiers_neuro import FrontiersNeuro
-from .feeds.philpapers import PhilPapers
 from .feeds.arxiv_computing import ArxivComputing
 from .feeds.tech_news import TechNews
 from .feeds.coingecko import CoinGecko
 from .feeds.exchange_prices import ExchangePrices
 from .feeds.crypto_news import CryptoNews
-from .feeds.reuters import Reuters
-from .feeds.ap_news import APNews
 from .feeds.bbc_news import BBCNews
+# Reuters, APNews: NOT imported into build_scheduler() as of 2026-07-25 --
+# both feed hosts have been NXDOMAIN since this system's build (see
+# feeds/reuters.py, feeds/ap_news.py docstrings for the DNS evidence).
+# PhilPapers, PapersWithCode: NOT imported as of 2026-07-25 either --
+# philpapers.org returns a Cloudflare JS-challenge (unfixable from a
+# plain HTTP client), paperswithcode.com now redirects its whole domain
+# to huggingface.co (site retired). See feeds/philpapers.py,
+# feeds/papers_with_code.py docstrings for the evidence. All four classes
+# still exist under theory_x/stage1_sense/feeds/ for their structure/
+# tests and in case any of them ship a working replacement.
 
 # Diversification feeds (20-25) — start paused
 from .feeds.arxiv_math import ArxivMath
@@ -61,7 +70,7 @@ def build_scheduler(
     readers: dict[str, Reader],
     mode_state=None,
 ) -> SenseScheduler:
-    """Create, wire, and return a SenseScheduler with all 31 adapters.
+    """Create, wire, and return a SenseScheduler with all 28 adapters.
 
     The sense.db Writer is the only write destination. The beliefs.db
     Reader is passed to interoception. MetaAwareness receives a
@@ -85,7 +94,6 @@ def build_scheduler(
 
         # External feeds (1-19) — start paused
         ArxivAI(sense_writer),
-        PapersWithCode(sense_writer),
         LabBlogs(sense_writer),
         MLConferences(sense_writer),
         HackerNews(sense_writer),
@@ -94,14 +102,11 @@ def build_scheduler(
         ArxivEmerging(sense_writer),
         BiorxivNeuro(sense_writer),
         FrontiersNeuro(sense_writer),
-        PhilPapers(sense_writer),
         ArxivComputing(sense_writer),
         TechNews(sense_writer),
         CoinGecko(sense_writer),
         ExchangePrices(sense_writer),
         CryptoNews(sense_writer),
-        Reuters(sense_writer),
-        APNews(sense_writer),
         BBCNews(sense_writer),
 
         # Diversification feeds (20-25) — start paused

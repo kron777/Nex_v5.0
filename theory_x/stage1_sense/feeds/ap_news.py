@@ -1,4 +1,15 @@
-"""Feed 18 — Associated Press RSS. Poll interval: 900s."""
+"""Feed 18 — Associated Press RSS. Poll interval: 900s.
+
+REMOVED FROM build_scheduler() 2026-07-25: feeds.apnews.com has been
+NXDOMAIN since this system's build (2026-04-23) -- zero successful polls
+ever, confirmed via public DNS (8.8.8.8), not just this box's resolver.
+apnews.com itself resolves fine; only the feeds. subdomain is gone -- AP
+retired public RSS years before this was built. Class kept for its unit
+tests (test_sense.py exercises it directly against a fixture, not via
+build_scheduler()) and in case AP ever ships a replacement feed URL. Do
+not re-add to build_scheduler() without first confirming
+feeds.apnews.com resolves again.
+"""
 from __future__ import annotations
 
 from typing import Optional

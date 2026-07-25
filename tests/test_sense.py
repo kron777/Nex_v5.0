@@ -310,16 +310,20 @@ class TestSenseGUIEndpoints(unittest.TestCase):
         self.assertFalse(r.get_json()["global_running"])
 
     def test_sense_toggle_external(self):
-        # reuters starts enabled after start_all, then toggle disables it
+        # bbc_news starts enabled after start_all, then toggle disables it.
+        # Was reuters until 2026-07-25, when reuters/ap_news were dropped
+        # from build_scheduler() (feeds.reuters.com NXDOMAIN since this
+        # system's build -- see feeds/reuters.py docstring). Any live
+        # external adapter exercises this endpoint equally well.
         self.client.post("/api/sense/start")
-        r = self.client.post("/api/sense/toggle/reuters")
+        r = self.client.post("/api/sense/toggle/bbc_news")
         self.assertEqual(r.status_code, 200)
         data = r.get_json()
         # toggled: enabled was True after start_all, now False
         self.assertFalse(data["enabled"])
 
         # toggle again -> enabled
-        r2 = self.client.post("/api/sense/toggle/reuters")
+        r2 = self.client.post("/api/sense/toggle/bbc_news")
         self.assertTrue(r2.get_json()["enabled"])
 
     def test_sense_toggle_internal_forbidden(self):
