@@ -191,13 +191,31 @@ class BeliefPromoter:
         return True
 
     def decay_pass(self) -> int:
-        """Demote Tier 5-7 beliefs idle for > DECAY_IDLE_HOURS. Returns demotion count."""
+        """Demote Tier 5-7 beliefs idle for > DECAY_IDLE_HOURS. Returns demotion count.
+
+        2026-07-26 fix: was `last_referenced_at IS NULL OR last_referenced_at
+        < cutoff` -- the IS NULL clause bypassed the idle-hours check entirely,
+        so a never-referenced belief (the default state, ~74.5% of T7 at time
+        of fix) qualified on the very next hourly tick regardless of age, not
+        after 48h. Original single-commit code (aa0e4d5, 2026-04-23), never
+        revisited. Now measures from COALESCE(last_referenced_at, created_at)
+        -- a never-referenced belief is aged from its own creation instead of
+        treated as infinitely idle. No other stable birth timestamp exists in
+        the schema; created_at is it. Known bounded caveat: resumption.py's
+        _promote_beliefs() rewrites created_at to now-1s for up to 5 beliefs
+        per boot (keeping recent context after a restart) -- for exactly those
+        few beliefs, this couples decay eligibility to "time since last
+        promoted-to-recent" rather than true birth, delaying their decay
+        window post-promotion. Affects at most 5 beliefs/boot out of ~40,000
+        T7 beliefs and only delays, never prevents, decay -- not worth a
+        schema change to add a separate birth-timestamp column for.
+        """
         cutoff = int(time.time()) - DECAY_IDLE_HOURS * 3600
         try:
             rows = self._reader.read(
                 "SELECT id, tier FROM beliefs "
                 "WHERE tier BETWEEN 5 AND 7 AND locked = 0 "
-                "AND (last_referenced_at IS NULL OR last_referenced_at < ?)",
+                "AND COALESCE(last_referenced_at, created_at) < ?",
                 (cutoff,),
             )
         except Exception as exc:
