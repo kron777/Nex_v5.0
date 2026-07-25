@@ -3730,3 +3730,121 @@ Removal itself: `theory_x/stage6_fountain/generator.py`, commit
 `bfc89b8`. Full verification (test diff against baseline, restart,
 RECONCILE/DRIFT confirmed firing) in the commit message.
 
+## 2026-07-26 ~00:50 — session 49 continued: two fixes, one diagnosis,
+## pre-registered predictions before an overnight restart.
+
+**PRE-REGISTERED, before touching anything, so tomorrow's session can't
+misread flat numbers as something stalling:**
+
+Current state at time of writing: T5=0, T6=158, T7=40,737 (12 locked).
+Decay-tick demotion history reconstructed from `promotion_log` (in-memory
+`error_channel` only holds this restart's ticks, so this is from the
+persistent per-belief log instead): 16,040 decay events total since
+2026-04-23, most recent ticks (excluding two catch-up-after-gap outliers
+of 53/58): 27,6,9,14,10,8,9,9,11,3,12,16,5,11,6,7 -- mean ~10-13/tick,
+median 9. Right now, at this exact minute, zero T5/T6 beliefs match
+either the old or new decay condition (a tick just ran at 00:39:31 and
+cleared what was eligible) -- that's a snapshot artifact, not evidence
+either way.
+
+**Prediction:** after the decay fix below, demotion-tick counts should
+drop to **near-zero for approximately the next 48 hours** (`DECAY_IDLE_
+HOURS`), because nothing currently in the system is genuinely 48h-idle
+without having been referenced first -- the NULL-bypass bug has been
+sweeping everything through within an hour of creation for three months,
+so there's no backlog of "referenced once, then sat idle 48h" material
+for the fixed query to find yet. T6 (158) and T7 (40,737) should hold
+roughly flat for about two days. **If tomorrow's numbers are flat, that
+confirms the fix -- it is not the decay loop stalling or breaking.**
+Only after ~48h should tick counts resume, at a new steady-state rate
+that reflects genuine 48h-idle material for the first time -- likely
+much lower than the historical 9-13/tick average, since that average was
+inflated by catching everything young.
+
+**FIX 1 — `decay_pass()` NULL clause**, `theory_x/stage3_world_model/
+promotion.py`. Was `(last_referenced_at IS NULL OR last_referenced_at <
+cutoff)` -- bypassed the 48h intent for anything never referenced (the
+default state; ~74.5% of T7 was NULL at time of fix). Now `COALESCE(last_
+referenced_at, created_at) < cutoff` -- a never-referenced belief ages
+from its own creation instead of being treated as infinitely idle.
+Checked whether this breaks on `resumption.py`'s `_promote_beliefs()`
+(rewrites `created_at` to now-1s for up to 5 beliefs per boot): it's a
+real, bounded caveat, not a blocker -- no other stable birth timestamp
+exists anywhere in the schema, the affected population is at most 5
+beliefs/boot out of ~40,000 T7 beliefs, and the effect is only a delay
+(their decay window resets from the promotion moment, not truly broken,
+and arguably aligned with resumption's own intent of keeping them
+front-of-mind a while longer). Documented inline at the fix site. Verified
+against live data before committing: old-logic eligible count 40,256,
+new-logic eligible count 39,963 (T7-ceiling reselections dominate both --
+see prediction above for the number that actually matters).
+
+**FIX 2 — `fetch_loop.py` prompt.** Traced belief 222631 (last night's
+confabulation) to its exact origin: `_compose_response()`'s one-shot
+prompt asked for "a thought you had while reading, or what it connects to
+that you already hold" with nothing distinguishing a genuine held belief
+from an invented experience. Added an explicit constraint: connecting to
+an opinion/pattern is still the point and still asked for; inventing a
+personal experience or memory is now explicitly forbidden. First person
+kept, "connects to what you hold" intent kept -- narrowed to beliefs, not
+memories. No test coverage on this file's prompt text.
+
+**DIAGNOSIS — `decisive_contradiction()`, no fix.** The "2 firings across
+44,289 beliefs" framing undercounts the real activity. Full picture from
+`harmonizer_events`: 68 pairs marked `paradox` over the system's history
+(conflict detection runs live, every 2h, confirmed wired in `_harmonizer_
+loop`) -- not dead, just narrow (`_conflict_score` only catches two
+patterns: >=2 shared tokens with one side negated, or one of exactly 4
+hardcoded polar-vocabulary pairs -- significance/insignificance, knowing/
+unknowing, clarity/obscurity, constancy/flux). Of those 68, 39 escalated
+to `both_deleted` (no synthesis bridge found -- both retired directly, no
+`decisive_contradiction()` call, no promotion_log trace) and only 2 to
+`synthesized` (requires a THIRD belief, tier<=5, sharing >=2 tokens with
+EACH side -- only this sub-path calls `decisive_contradiction()`). So
+**41 pairs (82 beliefs) have actually been retired via contradiction over
+this system's life, not 2** -- but the specific promoter method the count
+was taken from only fires on the narrower of two escalation outcomes.
+The two synthesized events: (303,305)->keystone 167, 2026-05-10; (22418,
+108)->keystone 107, 2026-05-16 -- both within the first month, nothing
+since despite `both_deleted` continuing to fire in the meantime (most
+recent `both_deleted` events are far more recent than May). Read: the
+synthesis-bridge sub-condition specifically got harder to satisfy as the
+corpus grew (LIMIT 50 tier<=5 candidates, needs 2-token overlap with
+both sides) -- not "nothing asks the question," but "one of two narrow
+gates went quiet while its sibling kept working." Two different fixes
+would be needed depending which gate you want to loosen -- not done this
+pass, per instruction.
+
+**DO NOT TOUCH, noted for a proper session:** `quality_synthesis.py`
+reading `genius_tags` per branch and writing `data/quality_signal.json`,
+which `attention.py` uses to amplify (1.20x) or dampen (0.82x) an entire
+branch's incoming attention. Confirmed live behaviour-shaping, not just a
+readiness-modulation footnote. Right call to stop trusting it (F4 can't
+tell invented self-experience from real), wrong call to touch it at
+midnight with no time to watch the consequence. Left alone.
+
+**RESTART — retrieval_log free test result: held, on a small sample.**
+Restarted at 00:52:51 to deploy both fixes (commits `4528074`,
+`7c2dd52`). Pre-registered before restarting: if coverage holds at 100%
+this is real, if it drops back to 0% the 22:39 restart's fix was
+restart-lottery coincidence, not the removal. Result: **1 real fire in
+the ~5 minutes since restart, and it's covered** (fire 31231, 00:55:40).
+That's a sample of one -- consistent with the fix holding, not proof of
+it. Machine shuts down overnight; next session should re-check coverage
+over the fuller overnight window before treating this as confirmed. If
+it's still 100% covered on a real sample tomorrow, that's good evidence
+the SYNTH_EMIT/PXB removal genuinely fixed something (mechanism still
+unexplained); if it's dropped again, both restarts landing on opposite
+states says something about process state itself, not this specific
+code change.
+
+No decay_pass tick has fired yet since this restart (loop runs hourly;
+~5 minutes elapsed) -- nothing to verify from live data tonight. The
+pre-registered prediction above stands for tomorrow's session to check
+against actual post-fix tick behaviour.
+
+Two fixes committed separately (`4528074` decay, `7c2dd52` fetch_loop),
+per instruction. `decisive_contradiction()` diagnosis and the genius/
+branch-attention do-not-touch note both landed in the entry above this
+one, same session, no code changes for either.
+
