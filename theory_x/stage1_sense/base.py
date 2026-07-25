@@ -30,10 +30,54 @@ THEORY_X_STAGE = 1
 RequestFn = Callable[[str, Optional[dict]], str]
 
 
+# Split connect/read timeout (2026-07-25 IPv6 survey): several hosts route
+# IPv6-first from this box, and a subset of those (gutenberg.org,
+# frontiersin.org) black-hole on IPv6 -- zero bytes, connection never
+# completes -- while others (sciencedaily.com, quantamagazine.org,
+# coingecko.com, coinbase.com) complete a slow-but-real TLS handshake in
+# 5-6s. A flat 30s timeout let the dead routes burn the full budget every
+# poll and come back indistinguishable from "source has nothing new" --
+# arxiv_math's genuine weekend lull and gutenberg's dead route produced the
+# same symptom (0 events, no error surfaced past last_error) until checked
+# by hand. 10s connect / 20s read: dead routes now fail in ~10s (measured),
+# the slow-but-working hosts complete in 5-6s with margin to spare.
+_CONNECT_TIMEOUT = 10
+_READ_TIMEOUT = 20
+
+# 2026-07-25: wikipedia_featured and ieee_spectrum both 403 on requests'
+# bare default UA ("python-requests/2.31.0") and both return 200 with a
+# descriptive one -- a policy block, not IPv6/routing. Shared here rather
+# than per-adapter since it's already 2/21 hosts and there's no reason to
+# expect the set stops there.
+_USER_AGENT = (
+    "NEX5-ResearchAgent/1.0 "
+    "(personal research project, non-commercial, read-only RSS/API polling; "
+    "contact: zentemplebell@gmail.com)"
+)
+
+
 def _default_fetch(url: str, params: Optional[dict] = None) -> str:
-    r = requests.get(url, params=params, timeout=30)
-    r.raise_for_status()
-    return r.text
+    try:
+        r = requests.get(
+            url,
+            params=params,
+            timeout=(_CONNECT_TIMEOUT, _READ_TIMEOUT),
+            headers={"User-Agent": _USER_AGENT},
+        )
+        r.raise_for_status()
+        return r.text
+    except requests.exceptions.RequestException as e:
+        # Re-raised with the URL and timeout budget explicit: the underlying
+        # urllib3/requests message names the host but not the full URL, and
+        # doesn't say which budget (connect vs read) was exhausted. Without
+        # this, a dead route and a slow-but-alive one both surface as a bare
+        # "Read timed out" in last_error -- indistinguishable from each other
+        # and from a source that's genuinely empty.
+        raise RuntimeError(
+            f"fetch failed for {url} "
+            f"(connect={_CONNECT_TIMEOUT}s/read={_READ_TIMEOUT}s budget): "
+            f"{type(e).__name__}: {e}"
+        ) from e
 
 
 @dataclass
