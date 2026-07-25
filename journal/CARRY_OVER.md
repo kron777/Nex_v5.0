@@ -3340,3 +3340,196 @@ each time `git status` was checked rather than swept in.
 `git log` today: `511ab33` (FK trap), `f1f774c` (template collapse),
 `78f39f4` (focus_loop dedup + logging), `d411f5f` (nex_keepalive.sh guards).
 
+## 2026-07-25 ~15:52 — session 49: cold-boot verification of yesterday's
+## fixes, an IPv6 survey that turned into three separate sense-adapter
+## fixes, moltbook panel date-stamped, two dead RSS feeds retired.
+
+**Fountain template collapse (f1f774c): confirmed held across last night's
+cold boot, not just eyeballed.** Measured the post-boot window (04:59:24 ->
+now, 160 real fires): 0 fires match the old "restless...coming back to X"
+template (exact-phrase and unsubstituted-placeholder checks both zero).
+Distinct 6-word openers: 126/160 (78.8%), vs the pre-fix baseline of 79
+distinct. Sanity-checked against a normal day (2026-07-18, 265 fires):
+67.5% distinct with a heavier single-topic pileup (32 fires sharing one
+opener) than anything seen today -- today's diversity sits at or above a
+normal baseline, not just "better than broken." Fix holds after a full
+process restart, not only within the session that shipped it.
+
+**Wedding-rules anchor persistence (30987-30997, 8/9 fires): characterised,
+left alone.** `fountain_retrieval_log`'s `own_sense` slot shows belief
+222200 in 17 consecutive fire cycles (58.6 min) -- long, but not the
+longest of the day (222095, unrelated topic, ran 19 fires/58.3 min); 116
+distinct belief_ids cycled through that slot today, median persistence 6
+fires. Full-day wedding-mentioning fires: 32/160 (20%) vs 44/265 (16.6%)
+for a comparable single-story pileup on 7/18 (EU court ruling). In range.
+Not a narrowed retrieval pool -- normal recency-weighted anchor behaviour,
+two wedding-themed items landing in the top-4 simultaneously by topic
+coincidence, not by mechanism. No fix.
+
+**IPv6 survey, prompted by the gutenberg stall investigation: 8/21 external
+adapter hosts resolve IPv6-first from this box; 2 hard-fail (gutenberg.org,
+frontiersin.org -- true black holes, zero bytes, connect never completes),
+4 pay an unexplained 4-5s TLS-handshake tax but still complete
+(sciencedaily, quantamagazine, coingecko, coinbase -- TCP connect is fast,
+~0.4s; the slowness is entirely in the TLS handshake). Known-good IPv6
+(ipv6.google.com) connects clean and fast; two other unrelated hosts
+(cloudflare.com, facebook.com) also show IPv6 throughput stalls. Reads as
+degraded/inconsistent IPv6 peering from this box, not one bad destination
+and not a total outage -- systemic enough to fix once, centrally, rather
+than per-adapter.
+
+**base.py `_default_fetch`: flat 30s timeout replaced with a (10s
+connect, 20s read) split, plus a shared descriptive User-Agent.** The
+timeout choice is measured, not guessed: `requests.get(url, timeout=(10,
+20))` tested directly against both classes of host -- dead routes
+(gutenberg, frontiersin) now fail in ~10.5s; all four slow-but-real IPv6
+hosts complete in 5.0-5.6s, comfortable margin under the 10s ceiling. A
+(5, 25) split was tried first and rejected -- sciencedaily completed at
+5.17s, too close to a 5s connect budget to be safe against normal latency
+variance. No IPv4 forcing (Jon's call, argued and accepted: forcing
+discards a route that's genuinely fine, e.g. Google's IPv6, and hides the
+underlying peering problem instead of surfacing it). Exceptions are now
+re-raised with the URL and which budget (connect vs read) was exhausted,
+instead of a bare "Read timed out" -- the reason this needed fixing at all
+is that **four adapters were dead or quiet for four unrelated reasons and
+all four presented as an identical, indistinguishable "quiet feed" symptom**:
+gutenberg.org (IPv6 black hole), frontiers_neuro (IPv6 black hole, same
+class but a different host), wikipedia_featured (403 -- see below, not
+IPv6 at all), and mathematics.arxiv (genuinely just quiet -- arXiv math.GM/
+HO had zero new submissions that day, confirmed by fetching the adapter's
+exact RSS URLs directly and finding well-formed feeds with zero `<item>`
+entries; both anomalously-quiet days this month were Saturdays, consistent
+with arXiv not announcing over weekends). Verified against the live patched
+code (not a standalone timeout test): gutenberg 30s -> 10.5s with a
+diagnostic error naming the URL and budget; sciencedaily/quantamagazine
+still succeed over IPv6, unforced, un-clipped.
+
+**Shared User-Agent: wikipedia_featured confirmed 403ing on requests' bare
+default UA** (`python-requests/2.31.0`), 200 with a descriptive one --
+Wikipedia's API policy is a documented, deterministic UA check. **The
+ieee_spectrum "also 403s" claim, first written here, was wrong and has
+been corrected**: a standalone spot-check (several hosts hit back-to-back
+in one script, no pacing) got a 403 from `spectrum.ieee.org` at that
+moment -- a real result, not fabricated, but not representative. Checked
+against `sense_events` history instead of trusting the one-off test:
+`emerging_tech.ieee` has 20 events every 30-minute cycle, gapless, from
+05:29:28 this morning straight through both of today's restarts, entirely
+on the *old* bare-UA code path before this fix existed. The live scheduled
+adapter was never actually broken. Best read: IEEE's block is rate/burst-
+triggered, not a per-request deterministic UA check like Wikipedia's --
+my rapid multi-host test script tripped something a lone request every
+30 minutes doesn't. Net effect on the fix is harmless either way (shared
+UA still applies, ieee_spectrum still 200/20 events post-restart, no
+regression) -- but the *reason* recorded here was wrong, and it's fixed
+now rather than left standing. Lesson: a spot-check result describes the
+spot-check, not necessarily live behaviour -- check the actual poll
+history before writing either into the journal as fact.
+
+**ap_news, reuters: removed from `build_scheduler()`, not disabled.**
+Both hosts (`feeds.apnews.com`, `feeds.reuters.com`) NXDOMAIN against
+Google's own public DNS (8.8.8.8), not just this box's resolver -- ruling
+out a local/ISP quirk. Parent domains (`apnews.com`, `reuters.com`)
+resolve fine; only the `feeds.` subdomains are gone. `last_poll_at: None`
+on both -- zero successful polls in the ~3 months since this system was
+built (2026-04-23), retrying every 15 min the entire time. Matches the
+well-known industry pattern (Reuters killed public RSS years ago, AP did
+the same) -- permanent, not transient. Chose removal over `disable()`
+specifically because `disable()` wouldn't have reliably achieved the
+actual goal (no permanent noise in `/api/sense/status`): `SenseScheduler.
+__init__` auto-starts all external adapters immediately at construction
+(2026-05-09 behaviour), so a `disable()` call made right after construction
+races the adapter's own first poll attempt -- a fast NXDOMAIN failure could
+easily populate `last_error` before the disable takes effect, and a
+disabled adapter never polls again to clear it. Removal has no such race.
+Checked for side effects before removing: no other production code
+references the `news.reuters`/`news.ap` streams by name (only generic
+vocabulary-hint words "reuters"/"ap" in `attention.py`'s keyword lists,
+unrelated); `sense_events` has zero historical rows for either stream ever
+(nothing to orphan -- they never once succeeded); one test
+(`test_sense.py::test_sense_toggle_external`) exercised the live
+`/api/sense/toggle/reuters` endpoint through the real app and broke on
+removal -- fixed by swapping to `bbc_news`, since the test asserts generic
+toggle behaviour and was never actually testing anything Reuters-specific.
+Adapter classes kept on disk (`feeds/reuters.py`, `feeds/ap_news.py`,
+each carrying a REMOVED-dated docstring with the DNS evidence) for their
+existing unit tests and in case either publication ships a replacement
+URL -- **do not re-add to `build_scheduler()` without confirming the
+`feeds.` subdomain resolves again.** Verified: 30 adapters actually start
+(matches the file), full test suite unaffected -- ran the complete suite
+against both this session's changes and unmodified `main` (background,
+~6 min each, to avoid the truncation mistake below), diffed the two
+39-failure lists: byte-identical, zero new regressions, zero fixed by
+accident. `__init__.py`'s stale "31 adapters" docstring (already wrong --
+actual was 32 before today) corrected to the current true count, 30.
+
+**philpapers, papers_with_code: also removed from `build_scheduler()`,
+same day, second pass.** Left as "note for later" in this entry's first
+draft; characterised properly on follow-up and both turned out to be the
+same class of problem as ap_news/reuters -- permanent, unfixable from
+here, not worth carrying as noise. `philpapers.org`'s 403 is a genuine
+Cloudflare "Attention Required" JS-challenge page (the response body
+loads `/cdn-cgi/challenge-platform/scripts/jsd/main.js` and requires
+executing JavaScript to pass) -- no HTTP header fixes this from a plain
+client. This box's outbound IP (`whois`: "Datacamp Limited" / CDN77, a
+hosting/CDN ASN) is exactly the address class Cloudflare bot-mitigation
+commonly blocks by default. `papers_with_code`'s "Expecting value: line 1
+column 1" wasn't a JSON bug -- `paperswithcode.com`'s entire domain,
+including the API path, now 302-redirects to `huggingface.co/papers/
+trending` (confirmed with `curl -sSL -D -`: 302 -> 200 text/html, 1.5MB,
+no JSON). The site is gone, absorbed into Hugging Face. Same treatment as
+ap_news/reuters and the same reasoning for *why* removal beats
+`disable()`: zero test references to either adapter id (checked first,
+cleaner than the reuters/apnews case which needed one test fixture swap),
+zero historical `sense_events` rows for `cognition.philpapers` or
+`ai_research.pwc` (nothing to orphan -- neither ever succeeded). Verified
+in an isolated scheduler build (no live-service impact): 28 adapters,
+none of the four removed ids present. Adapter count now 28 (was 30 this
+morning, 32 before today). Classes for all four kept on disk with dated,
+evidenced docstrings explaining exactly why and what would need to be
+true to re-add them.
+
+**Process note for next session: a chained `git stash && <long command>
+&& git stash pop` hit this session's 2-minute default Bash timeout mid-run
+and left the repo sitting in a stashed state for several minutes before
+being caught by `git status`.** No data was lost (stash held fine), but
+don't chain stash/restore around anything that might run long -- run the
+long command on its own, confirm completion, then pop as a separate call.
+**Stronger version of the same lesson, given directly this session: never
+run `git stash` at all while the live service is running.** The process
+survived the one incident above only because Python had already imported
+the affected modules into memory before the files reverted on disk -- a
+keepalive respawn during that window would have booted reverted code with
+no error to show for it, silently undoing a fix. Use `git diff`/a worktree/
+a second checkout to compare against a clean baseline instead, never a
+stash, whenever the service is live.
+
+**Moltbook HUD panel date-stamped (display-only).** `/api/moltbook/chats`
+was always going to keep replaying the same frozen 30 rows (`moltbook_
+posts`, last write 2026-05-30) with a bare HH:MM:SS and no date, which
+reads as live activity on every fresh page load. Added `fmtTsStale()` in
+`app.js` -- prefixes a date only when a row is >24h old -- applied to the
+three `pipe-ts` render sites in `refreshPipeline()`. No backend change, no
+dedup/pagination change. Static file, no process restart needed, browser
+reload is enough. **The poster/listener/responder loops were cut 2026-05-30**
+(external moltbook server 404ing; commented out in `stage2_dynamic/
+__init__.py`) -- "0 posts to moltbook" in the morning greeting has been
+correct every single day since, roughly 8 weeks, not a new two-morning
+event as it first read.
+
+**COMMIT_CLOSE: still characterised, still deliberately undecided.**
+Carried forward unchanged from the 07-24 entry above -- no new
+investigation this session. Decision remains Jon's.
+
+**touch() (f1f774c, ProblemMemory LRU rotation): still zero live firings.**
+Checked after every restart today, all reading the same continuous soak
+log (04:59:24 boot through now, no gaps): cold boot + three warm restarts
+(base.py/UA fix, an aborted mid-flight one from the stash incident above,
+and the final adapter-removal restart), zero matches for "touched (LRU
+rotation" in any of them. Same state as when `f1f774c` was committed
+yesterday.
+
+`git diff --stat` today (uncommitted, awaiting Jon's review): `gui/static/
+app.js`, `tests/test_sense.py`, `theory_x/stage1_sense/__init__.py`,
+`theory_x/stage1_sense/base.py`, `theory_x/stage1_sense/feeds/ap_news.py`,
+`theory_x/stage1_sense/feeds/reuters.py`.
+
