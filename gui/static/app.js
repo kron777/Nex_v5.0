@@ -51,6 +51,18 @@ function fmtTs(sec) {
   return new Date(sec * 1000).toLocaleTimeString("en-GB", { hour12: false });
 }
 
+// Like fmtTs, but prefixes a date when the timestamp is >24h stale — the
+// moltbook panel replays old rows verbatim and a bare HH:MM:SS reads as "now".
+function fmtTsStale(sec) {
+  if (!sec) return "—";
+  const d = new Date(sec * 1000);
+  const time = d.toLocaleTimeString("en-GB", { hour12: false });
+  if (Date.now() - sec * 1000 > 24 * 60 * 60 * 1000) {
+    return d.toLocaleDateString("en-GB") + " " + time;
+  }
+  return time;
+}
+
 function focusBar(focusNum) {
   const filled = Math.round((focusNum ?? 0) * 10);
   return "█".repeat(filled) + "░".repeat(10 - filled);
@@ -193,19 +205,19 @@ async function refreshPipeline() {
     if (ev.kind === "post") {
       const stCls = ev.status === "posted" ? "valence-like" : "valence-dislike";
       row.innerHTML =
-        `<span class="pipe-ts">${fmtTs(ev.ts)}</span>` +
+        `<span class="pipe-ts">${fmtTsStale(ev.ts)}</span>` +
         `<span class="pipe-valence ${stCls}">${esc(ev.status)}</span>` +
         `<span class="pipe-src">${esc(ev.content)}</span>`;
     } else if (ev.kind === "dm_in") {
       row.innerHTML =
-        `<span class="pipe-ts">${fmtTs(ev.ts)}</span>` +
+        `<span class="pipe-ts">${fmtTsStale(ev.ts)}</span>` +
         `<span class="pipe-step step-IN">DM</span>` +
         `<span class="pipe-branch">${esc(ev.from_agent || "")}</span>` +
         `<span class="pipe-valence valence-neutral">${esc(ev.status)}</span>` +
         `<span class="pipe-src">${esc(ev.content)}</span>`;
     } else {
       row.innerHTML =
-        `<span class="pipe-ts">${fmtTs(ev.ts)}</span>` +
+        `<span class="pipe-ts">${fmtTsStale(ev.ts)}</span>` +
         `<span class="pipe-step">?</span>` +
         `<span class="pipe-src">${esc(JSON.stringify(ev))}</span>`;
     }
