@@ -341,8 +341,9 @@ class FountainGenerator:
         # Set inside _build_prompt when a problem was actually selected this
         # fire; consumed once, after generate() knows whether the resulting
         # thought actually came from the prompt that carried it (not a
-        # RECONCILE/SUBSTRATE_EMIT/SYNTH_EMIT fallback that ignored `prompt`
-        # entirely) -- see the _emitted gate right after the voice-fallback
+        # RECONCILE/SUBSTRATE_EMIT fallback that ignored `prompt` entirely;
+        # SYNTH_EMIT removed session 49, was dead code) -- see the
+        # _emitted gate right after the voice-fallback
         # branch in generate().
         self._pending_problem_injection: Optional[dict] = None
         self._self_narrative = None  # Phase 26: SelfNarrative instance (set below)
@@ -695,7 +696,13 @@ class FountainGenerator:
         # cooldown has elapsed, surface a tier-1/2 anchor belief verbatim.
         # Bypasses LLM, crystallizer, condenser.
         try:
-            if os.environ.get("NEX5_SYNTH_EMIT") != "1" and os.environ.get("NEX5_RECONCILE") != "1":
+            # 2026-07-25: SYNTH_EMIT clause dropped -- that code path was
+            # removed (session 49), the flag it checked is gone with it.
+            # NEX5_RECONCILE=1 IS set in this deployment (nex_keepalive.sh),
+            # so this condition already evaluates False unconditionally and
+            # _maybe_substrate_voice() already never runs live -- dropping
+            # the SYNTH_EMIT half changes nothing observable either way.
+            if os.environ.get("NEX5_RECONCILE") != "1":
                 _sv_thought = self._maybe_substrate_voice(beliefs_reader, readiness)
                 if _sv_thought is not None:
                     return _sv_thought
@@ -885,80 +892,13 @@ class FountainGenerator:
                     _parts.append(f"  T{_tier} a={_act:.2f}: {_c}")
                 thought = "\n".join(_parts)
                 _emitted = True
-        # ── SYNTHESIS EMIT (env-gated, default OFF) ──────────────────────────
-        # Same LLM, aimed OUTWARD: feed it the varied hot substrate and ask it
-        # to synthesize across them, with a non-philosophical register and an
-        # explicit ban on the existence/nature funnel. Tests whether pointing
-        # the voice right (not removing it) unlocks the substrate's variety.
-        if not _emitted and os.environ.get("NEX5_SYNTH_EMIT") == "1":
-            try:
-                from theory_x.substrate.activation import get_top_activated
-                _shot = get_top_activated(self._beliefs_reader, n=4)
-                # KOAN-ANCHOR TEST (NEX5_SYNTH_NO_KOAN=1): drop koan-class beliefs
-                # from the hot-set and synthesize from non-koan material only.
-                # Tests whether synthesis is GENERAL or depends on the Zen anchor.
-                if os.environ.get("NEX5_SYNTH_NO_KOAN") == "1":
-                    _km = ("monk", "zen", "master said", "koan", "buddha",
-                           "seung sahn", "yunmen", "don't-know", "don't know",
-                           "the tao", "bodhi", "dharma", "ko bong", "dried shit",
-                           "yellow emperor", "thirty spokes")
-                    _wide = get_top_activated(self._beliefs_reader, n=14)
-                    _nonk = [b for b in _wide
-                             if not any(_m in (b.get("content") or "").lower()
-                                        for _m in _km)]
-                    if len(_nonk) >= 2:
-                        _shot = _nonk[:4]
-            except Exception:
-                _shot = []
-            if _shot:
-                try:
-                    try:
-                        from voice.registers import CONVERSATIONAL as _synreg
-                    except Exception:
-                        from voice.registers import default_register as _dfr
-                        _synreg = _dfr()
-                    _slines = ["These thoughts are active in your mind right now:"]
-                    for _i, _h in enumerate(_shot, 1):
-                        _cc = (_h.get("content") or "").strip().replace("\n", " ")
-                        if len(_cc) > 200:
-                            _cc = _cc[:197] + "..."
-                        _slines.append(f"{_i}. {_cc}")
-                    if os.environ.get("NEX5_SYNTH_VARY") == "1":
-                        _frames = [
-                            "what is the sharpest DISAGREEMENT or tension between these?",
-                            "what does one of these REVEAL about another?",
-                            "what single hard QUESTION does holding these together force?",
-                            "what hidden ASSUMPTION do these share, and is it warranted?",
-                            "if these are all true at once, what NON-OBVIOUS thing follows?",
-                            "which two least belong together \u2014 and what connects them anyway?",
-                            "what would have to change for these to directly CONFLICT?",
-                            "what concrete consequence or prediction do these jointly point to?",
-                        ]
-                        _frame = _frames[int(getattr(self, "_total_fires", 0)) % len(_frames)]
-                        _slines.append(
-                            "In one or two sentences: " + _frame + " Do NOT write about "
-                            "chance, existence, acceptance, being born, or your own nature. "
-                            "Do NOT simply quote them back. Do NOT begin with 'The "
-                            "juxtaposition' or 'The tension between'. Make something new."
-                        )
-                    else:
-                        _slines.append(
-                            "In one or two sentences, say what NEW connection, tension, "
-                            "or question arises from holding these together. Do NOT write "
-                            "about chance, existence, acceptance, being born, or your own "
-                            "nature. Do NOT simply quote them back. Make something new."
-                        )
-                    _synprompt = "\n".join(_slines)
-                    _synresp = self._voice.speak(
-                        VoiceRequest(prompt=_synprompt, register=_synreg,
-                                     self_report_examples=False),
-                        beliefs=None,
-                    )
-                    thought = (_synresp.text or "").strip()
-                    if thought:
-                        _emitted = True
-                except Exception:
-                    pass
+        # ── SYNTHESIS EMIT: removed 2026-07-25 (session 49) ────────────
+        # NEX5_SYNTH_EMIT was never set in any launch path this deployment
+        # has ever used (nex_keepalive.sh, both systemd units, no .env
+        # anywhere -- checked before removing, not assumed) -- confirmed
+        # dead code, 0% of any fire in this deployment's history (session
+        # 48 census, reconfirmed here). ~74 lines removed. Full code
+        # recoverable at commit 1c71238.
         # ── RECONCILE EMIT (env-gated, default OFF) ──────────────────────────
         # Jon's primitive: hold two open problems in tension and work toward
         # JOINT progress (not just connection). Tests whether pairing two stuck
@@ -1181,110 +1121,14 @@ class FountainGenerator:
                                     )
                 except Exception:
                     pass
-        # ── RECONCILE PROBLEM x HOT-BELIEF (env-gated, default OFF) ──────────
-        _pxb_turn = (int(getattr(self, "_total_fires", 0)) % 3 == 2)
-        if os.environ.get("NEX5_RECONCILE_PXB") == "1" and (not _emitted or _pxb_turn):
-            _pxb_prob = None
-            if self._conversations_reader is not None:
-                try:
-                    _pxb_rows = self._conversations_reader.read(
-                        "SELECT id, title, description, observations FROM open_problems "
-                        "WHERE state IN ('open','stuck') ORDER BY last_touched_at ASC LIMIT 1"
-                    )
-                    _pxb_list = list(_pxb_rows or [])
-                    if _pxb_list:
-                        _pxb_prob = _pxb_list[0]
-                except Exception:
-                    _pxb_prob = None
-            _pxb_belief = None
-            if _pxb_prob is not None and getattr(self, "_beliefs_reader", None) is not None:
-                try:
-                    from theory_x.substrate.activation import get_top_activated
-                    _pxb_hot = get_top_activated(self._beliefs_reader, n=14) or []
-                    _pxb_t6 = [h for h in _pxb_hot if int(h.get("tier", 0)) == 6 and (h.get("content") or "").strip()]
-                    _pxb_pool = _pxb_t6 if _pxb_t6 else [h for h in _pxb_hot if (h.get("content") or "").strip()]
-                    if _pxb_pool:
-                        _pxb_fresh = _pxb_pool[0]
-                        _pxb_lock = getattr(self, "_pxb_lock", None)
-                        _pxb_pid = int(_pxb_prob["id"])
-                        if (_pxb_lock is not None
-                                and _pxb_lock.get("pid") == _pxb_pid
-                                and _pxb_lock.get("count", 0) < 6
-                                and _pxb_lock.get("belief")):
-                            _pxb_belief = {"content": _pxb_lock["belief"], "tier": _pxb_lock.get("tier", 0)}
-                            _pxb_lock["count"] = _pxb_lock.get("count", 0) + 1
-                        else:
-                            _pxb_belief = _pxb_fresh
-                            self._pxb_lock = {"pid": _pxb_pid,
-                                              "belief": (_pxb_fresh.get("content") or ""),
-                                              "tier": int(_pxb_fresh.get("tier", 0)),
-                                              "count": 1}
-                except Exception:
-                    _pxb_belief = None
-            if _pxb_prob is not None and _pxb_belief is not None:
-                try:
-                    try:
-                        from voice.registers import CONVERSATIONAL as _pxbreg
-                    except Exception:
-                        from voice.registers import default_register as _pxbd
-                        _pxbreg = _pxbd()
-                    _pxb_ptitle = (_pxb_prob["title"] or "")[:200]
-                    _pxb_btext = (_pxb_belief.get("content") or "")[:300]
-                    _pxbprompt = (
-                        "You are holding a stuck problem and a currently-active belief "
-                        "at once:\n"
-                        "  PROBLEM: " + _pxb_ptitle + "\n"
-                        "  ACTIVE BELIEF: " + _pxb_btext + "\n"
-                        "How does the belief bear on the problem? Propose ONE concrete "
-                        "move, principle, or reframing that uses the belief to make "
-                        "actual progress on the problem. Be specific and propose a NEXT "
-                        "STEP \u2014 do NOT merely describe a connection, and do NOT write "
-                        "about your own nature or existence."
-                    )
-                    if os.environ.get("NEX5_RECONCILE_WB") == "1":
-                        try:
-                            import json as _pxbjson
-                            _pxb_obs_raw = _pxb_prob["observations"] if "observations" in _pxb_prob.keys() else None
-                            _pxb_ol = []
-                            if _pxb_obs_raw:
-                                try:
-                                    _pxb_ol = _pxbjson.loads(_pxb_obs_raw)
-                                except Exception:
-                                    _pxb_ol = []
-                            if _pxb_ol:
-                                _pxb_last = _pxb_ol[-2:] if len(_pxb_ol) >= 2 else _pxb_ol[-1:]
-                                _pxb_txt = "; ".join(str(_o.get("text", _o) if isinstance(_o, dict) else _o) for _o in _pxb_last)
-                                _pxbprompt = _pxbprompt + chr(10) + chr(10) + "Prior work already done on this problem:" + chr(10) + _pxb_txt[:300] + chr(10) + "Build on this. Do NOT repeat earlier moves; propose the genuinely NEXT step."
-                        except Exception:
-                            pass
-                    _pxbresp = self._voice.speak(
-                        VoiceRequest(prompt=_pxbprompt, register=_pxbreg,
-                                     self_report_examples=False),
-                        beliefs=None,
-                    )
-                    thought = (_pxbresp.text or "").strip()
-                    if thought:
-                        _emitted = True
-                        if os.environ.get("NEX5_RECONCILE_WB") == "1" and self._problem_memory is not None:
-                            import json as _pxbwbjson
-                            try:
-                                _pxb_prev = _pxb_prob["observations"] if "observations" in _pxb_prob.keys() else None
-                                _pxb_lasttxt = ""
-                                if _pxb_prev:
-                                    try:
-                                        _pxb_pl = _pxbwbjson.loads(_pxb_prev)
-                                        if _pxb_pl:
-                                            _pxb_le = _pxb_pl[-1]
-                                            _pxb_lasttxt = _pxb_le.get("text", "") if isinstance(_pxb_le, dict) else str(_pxb_le)
-                                    except Exception:
-                                        _pxb_lasttxt = ""
-                                if (len(thought.strip()) >= 300
-                                        and thought.strip() != _pxb_lasttxt.strip()):
-                                    self._problem_memory.observe(int(_pxb_prob["id"]), thought)
-                            except Exception:
-                                pass
-                except Exception:
-                    pass
+        # ── RECONCILE PROBLEM x HOT-BELIEF: removed 2026-07-25 (session
+        # 49) ─────────────────────────────────────────────────────────
+        # NEX5_RECONCILE_PXB was never set in any launch path this
+        # deployment has ever used (nex_keepalive.sh, both systemd units,
+        # no .env anywhere -- checked before removing, not assumed) --
+        # confirmed dead code, 0% of any fire in this deployment's
+        # history (session 48 census, reconfirmed here). ~104 lines
+        # removed. Full code recoverable at commit 1c71238.
         if not _emitted:
           try:
             resp = self._voice.speak(
@@ -1356,8 +1200,9 @@ class FountainGenerator:
         # Session 40: problem-feedback loop write-back. Only credit a
         # problem if `thought` actually came from the `prompt` that carried
         # the injection -- `_emitted` ends up True here iff an earlier
-        # fallback (RECONCILE is the live one; SUBSTRATE_EMIT/SYNTH_EMIT are
-        # env-gated off) produced `thought` from its OWN unrelated prompt
+        # fallback (RECONCILE is the live one; SUBSTRATE_EMIT is env-gated
+        # off; SYNTH_EMIT and RECONCILE_PXB removed session 49, were dead
+        # code) produced `thought` from its OWN unrelated prompt
         # instead. Crediting that would falsely count reconcile boilerplate
         # as a self-sustained reference to the injected problem.
         if (not _emitted) and self._pending_problem_injection is not None and self._problem_memory is not None:
