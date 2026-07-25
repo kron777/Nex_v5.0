@@ -3634,3 +3634,99 @@ actual state/date semantics the backing loops use, rather than finding
 these one at a time when they happen to matter. Not fixed -- characterised
 only, per instruction.
 
+## 2026-07-25 ~23:10 — session 49 continued: SYNTH_EMIT/PXB removed
+## (commit `bfc89b8`); `_maybe_substrate_voice()` fully characterised --
+## the most consequential finding of the night, and it corrects the
+## harmonic HUD's reading of its own state.
+
+**Timeline, from `git log`/`blame`, not narrative:**
+- `f1469b49` (2026-05-21): Intervention C try-block written.
+- `1151e439` (2026-06-03): `_maybe_substrate_voice()` itself added.
+- **~830 fires, 2026-05-21 through 2026-05-31** (regular, ~90-120/day)
+  -- this was substrate_voice actually live and walking the keystone
+  library (see the May-23 chord-walk entries above and in DIRECTION.md).
+- `a46b935` (2026-06-04): the RECONCILE primitive lands, and **explicitly,
+  deliberately gates substrate_voice off** -- commit message: *"Required
+  gating `_maybe_substrate_voice` off under reconcile."* `NEX5_RECONCILE=1`
+  is default OFF at this point; the gate exists but only suppresses
+  substrate_voice during occasional manual RECONCILE test runs. Daily
+  fire count already tapering hard as those test runs increase: 40 (06-02)
+  -> 25 -> 7 -> 2 -> 9 (06-06).
+- **Zero fires, 2026-06-07 through 2026-07-12** -- five straight weeks
+  of silence.
+- `93153a0` (2026-06-16): `NEX5_RECONCILE=1` becomes the **permanent**
+  default in `nex_keepalive.sh`. Diffed the actual commit: the message
+  narrates RUT_EDGE, an arc boot-crash fix, and binding hum into
+  self-state -- **it never mentions RECONCILE or substrate_voice at
+  all.** `NEX5_RECONCILE=1` rode in bundled with ~9 other flags being
+  consolidated into the permanent launch line, in a commit about
+  something else entirely.
+- **A single-day burst of 308 fires, 2026-07-13** -- cross-checked
+  against this file's own earlier record (session 27/28, above):
+  *"Machine rebooted 2026-07-13 18:27, unnoticed until session 27"* and
+  *"the 2026-07-13 85.6% spike is genuine live data... a real, if
+  extreme, data point from the day of the crash."* Genuine, not a batch
+  job -- but the crash-recovery day, not normal operation. Whatever
+  launched `run.py` during that recovery evidently didn't carry the
+  standard `NEX5_RECONCILE=1` flag string for a window.
+- **Zero fires since 2026-07-13** -- 12 more days of silence through
+  tonight, confirming normal keepalive operation has kept it dead since.
+
+**The gate was designed. Its permanence was not.** `a46b935` is an
+explicit, argued decision. `93153a0` is a side effect of an unrelated
+commit -- nobody decided "retire Intervention C," and **no commit
+anywhere argues RECONCILE and substrate_voice can't coexist; nobody has
+revisited whether they could.** Same unresolved shape as census #9's
+persona gate: documented behaviour, no rationale behind the specific
+form it's taken, never revisited.
+
+**The harmonic HUD is measuring a dead path and has been since roughly
+mid-June, which is the actual point of this entry.** Read
+`substrate_harmonic.py` directly: `fountain_sv_share` counts
+`hot_branch='substrate_voice'` in the last 30 fires -- mechanically
+pinned at 0.0 since there are none. `groove_vs_sv_active` computes
+`1.0 - abs(groove_active - sv_active)`; `sv_active` is `1.0` only if a
+substrate_voice fire landed in the last 900s, so with zero since 07-13
+it's permanently `0.0`, and the whole pair collapses to `1.0 -
+groove_active` -- tracking groove state ALONE while presenting on the
+HUD as a two-variable correlation.
+
+**Attempted correction of a specific prior claim, honestly incomplete:**
+the working session that produced this entry believed there was an
+existing record stating `groove_vs_sv_active` reads "pinned at 1.0 the
+whole window" for the reason "binary threshold, severity never crossed
+0.8" -- with a conclusion that harmonic movement instead comes from
+`drive_tension_vs_sv` and `gate_reject_vs_baseline`. **Searched
+exhaustively for that specific claim to correct it in place -- `git log
+-S` on every harmonic pair name across all history, every `.md` file in
+the repo, `reports/`, `snapshots/`, non-markdown files -- and could not
+locate it.** The only existing document where `groove_vs_sv_active`
+being pinned/flat is discussed at all is `SNAPSHOT_FINDINGS.md`
+(2026-05-28, "harmonic pairs (7) -- flat or saturated... pinned at
+1.000+/-0.000... saturated, no variance"), and that one is NOT a
+misreading to fix: 2026-05-28 sits inside the ~830-fire live window
+above, well before `a46b935` even existed, so "pinned because sv_active
+is always zero" is factually wrong applied there -- whatever caused
+that day's saturation was real correlation during an active walk, a
+different mechanism entirely. Did not touch that document. If the
+"binary threshold, severity never crossed 0.8" claim lives somewhere
+else, it hasn't been found yet -- flagging the gap rather than guessing
+at a location and editing the wrong thing.
+
+**Fourth instance of tonight's pattern, worth naming explicitly:**
+documented behaviour with nothing behind it, or instrumentation reading
+something that no longer exists. Census #9 (persona gate), the moltbook
+panel (frozen data read as live), `list_open()` vs `IN ('open','stuck')`
+(panel says "none" while an active problem is being worked), and now
+two harmonic HUD pairs quietly measuring a path that's been dead for
+five-plus weeks. Four independent instances in one session is enough to
+call it a class of problem, not four unlucky coincidences: this
+deployment accumulates permanent, undocumented state changes as side
+effects of commits whose stated purpose was something else, and nothing
+currently checks HUD instrumentation against whether its underlying
+signal still exists. Not fixed -- characterised, per instruction.
+
+Removal itself: `theory_x/stage6_fountain/generator.py`, commit
+`bfc89b8`. Full verification (test diff against baseline, restart,
+RECONCILE/DRIFT confirmed firing) in the commit message.
+
