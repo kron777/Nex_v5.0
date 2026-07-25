@@ -119,14 +119,22 @@ def _daily_count(cx):
 
 def _compose_response(voice, url, title, body):
     from voice.llm import VoiceRequest
+    # 2026-07-26: added the no-invented-experience constraint. Before, "what
+    # it connects to that you already hold" had no guard against inventing a
+    # personal experience to connect to -- traced belief 222631 to this exact
+    # prompt (first live confabulation this deployment has evidence of:
+    # "resonates with my past experiences trying cheap family trips", no such
+    # experience exists). Connecting to a held belief/opinion is still fine
+    # and still the point; connecting to a fabricated memory is not.
     prompt = (
         "You just read this:\n\n"
         "Title: " + title + "\n"
         "Body excerpt: \"" + body[:600] + "\"\n\n"
         "Write ONE sentence — your actual response to what you just read. "
-        "Not a summary. A reaction, a question, a thought you had while reading, "
-        "or what it connects to that you already hold. First person, 10-30 words. "
-        "No preamble."
+        "Not a summary. A reaction, a question, or what it connects to among "
+        "beliefs you already hold. First person, 10-30 words. Do NOT invent "
+        "personal experiences, memories, or past events -- connect it to an "
+        "opinion or pattern you hold, not something you did. No preamble."
     )
     try:
         req = VoiceRequest(prompt=prompt, max_tokens=80, temperature=0.85)
