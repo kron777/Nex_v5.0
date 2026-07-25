@@ -3533,3 +3533,104 @@ app.js`, `tests/test_sense.py`, `theory_x/stage1_sense/__init__.py`,
 `theory_x/stage1_sense/base.py`, `theory_x/stage1_sense/feeds/ap_news.py`,
 `theory_x/stage1_sense/feeds/reuters.py`.
 
+## 2026-07-25 ~19:00 — session 49 continued: confabulation origin traced to
+## fetch_loop (resumption.py ruled out), two standing-caveat notes for the
+## record.
+
+**"Resonates with my past experiences trying cheap family trips" --
+resumption.py ruled out, true origin found: `theory_x/life/fetch_loop.py`,
+12 minutes before the boot it was suspected of following.** Read
+`resumption.py`'s actual mechanism first: `_promote_beliefs()` does one
+`UPDATE beliefs SET created_at = now-1 WHERE id IN (...)` against up to 5
+belief ids carried in the prior snapshot's `recent_belief_ids`. It changes
+**only** `created_at` -- no content, no `source`, no framing text of any
+kind gets added; the docstring's "just promoted to recent" is accurate,
+not the "just thought this" gloss the lead suggested. Whatever framing a
+promoted belief gets in the DRIFT prompt still comes from its unchanged
+`source` column (`precipitated_from_sense` -> "Things you've been reading
+about lately:", correctly external).
+
+Checked the specific boot anyway, exactly as asked. The snapshot consumed
+at 16:35:02 was written at 16:33:55 (the outgoing process's SIGTERM
+handler), `recent_belief_ids: [222626, 222624, 222620, 222597, 222229]` --
+all five `source IN ('synergized','fountain_insight')`, genuinely-own
+reflective content, none about the summer-holidays article, none
+resembling the family-trips phrasing. Belief 222164 (the real BBC-sourced
+belief, "Parents on how they get through the summer holidays on a
+budget") was **not** among the five promoted. Ruled out cleanly, not by
+absence of evidence -- direct evidence against.
+
+The real origin: belief 222631, tier 7, `source='fetch_loop'`,
+`created_at` **16:23:06 -- 12 minutes before the 16:35:00 restart, not
+after it.** Full content: *"This article resonates with my past
+experiences trying cheap family trips; always looking for ways to
+maximize savings without compromising on fun. (read: Parents on how they
+get through the summer holidays on a budget)"* -- the confabulation was
+already fully formed, word for word, before any boot happened; the
+restart is coincidental timing, not cause. `fetch_loop.py` is a separate
+loop from DRIFT/fountain entirely -- it fetches a URL body directly and
+calls its own one-shot prompt: *"You just read this... Write ONE
+sentence -- your actual response to what you just read... a thought you
+had while reading, **or what it connects to that you already hold**.
+First person, 10-30 words."* That instruction is a more direct invitation
+to confabulate than anything in DRIFT -- "connects to what you already
+hold," first person, with no constraint distinguishing a genuine prior
+holding from an invented one. This is where the "my past experiences"
+framing was actually generated, not in the DRIFT prompt characterised
+last entry (that characterisation -- the "Things you've been reading
+about" label being correct while the generation instructions don't
+constrain read-vs-did -- still stands as a separate, real gap in DRIFT
+itself; it just isn't what produced this particular belief). The later
+fountain fires (16:51 onward) that repeat and reword the phrase are riding
+an already-confabulated belief, not originating one -- consistent with
+last entry's finding that those fires don't retrieve it as an own_sense
+candidate at all; whatever's carrying it forward from fire to fire is
+still uncharacterised.
+
+**Open thread for next session, explicit so it isn't lost: the
+propagation path from 222631 to the nine repeating/rewording fires is
+unidentified, not just unconfirmed.** Nine fires from 16:51 onward repeat
+and reword belief 222631's exact phrasing while `fountain_retrieval_log`
+shows it as an `own_sense`/`seed`/`spectrum` candidate in **none** of
+them. `NEX5_CONTINUITY_N` is off (ruled out) and `last_thought()` is
+GUI-status-only, never fed to a prompt (ruled out). Confabulation itself
+is explained (fetch_loop, above) -- this is a different question: how is
+the phrasing crossing from fire to fire with no candidate trail in the
+one log that's supposed to capture what each fire drew on. That's the
+next thing worth checking, not a re-ask of the confabulation.
+
+**Standing caveat for CARRY_OVER: bonsai `focus_num` resets to 0.0 on
+every process boot, no persistence, confirmed in `bonsai.py`'s
+`init_tree()`.** Five restarts today meant every branch reading taken
+today was measuring recovery-in-progress, not steady state -- see the
+ai_research/cognition_science entry above, now confirmed as restart-reset
+plus differential recovery speed, not the adapter removals. This isn't
+just a today artifact: **with nightly shutdowns, this happens every
+morning.** Rule of thumb from today's observed recovery: high-cadence
+branches (streams firing every seconds-to-minutes -- emerging_tech,
+computing, markets, crypto) recover within roughly an hour; slow-poll
+branches (ai_research, cognition_science -- real sources on 30-60+ minute
+cycles) can take on the order of **~2 hours** to climb back to a normal
+working range. A future session reading a low ai_research/cognition_science
+number shortly after a morning boot should check time-since-boot before
+reading it as drift or a fault.
+
+**Third HUD/reality mismatch this session, same class as the moltbook
+panel: `ProblemMemory.list_open()` queries `state = 'open'` only, while
+RECONCILE's pairing query and `focus_loop`'s dedup logic both operate on
+`state IN ('open','stuck')`.** `stuck` is a legitimate pre-existing state
+(session 48's focus_loop dedup fix) meaning duplicate/repeated content was
+detected on that problem -- not resolved, not abandoned, still being
+touched (problem #359 today: `stuck`, still getting reconciled, invisible
+to the panel that reported "none"). The pattern worth naming, not just
+this one instance: the moltbook panel showing frozen 2026-05-30 data as
+if live, and this open-problems panel showing "none" while an active
+problem is still being worked, are the same shape of bug -- a GUI read
+that's technically querying real data but with a filter or freshness
+assumption that doesn't match what the engine actually considers "active."
+Both cost session time to notice were misleading rather than accurate.
+Worth a pass at some point auditing every GUI panel's query against the
+actual state/date semantics the backing loops use, rather than finding
+these one at a time when they happen to matter. Not fixed -- characterised
+only, per instruction.
+
