@@ -70,6 +70,34 @@ _RECENT_LIMIT = 50
 # T1 locked anchors — no limit; check all of them
 _ANCHOR_LIMIT = 500
 
+# 2026-07-26: restatement gate on Check 1b (contradicts_anchor). Token-overlap
+# (>=4) + negation-XOR is a cheap pre-filter but cannot tell restatement from
+# opposition. Validated against the real contradicts_anchor reject
+# population: 368,013 rejects/7d, ~3,500/hr, 99.14% from a single throw_net
+# retry loop; hand-classified sample found ZERO genuine contradictions
+# (0/45-50), effectively 100% false positive.
+#
+# First attempt used whole-sentence cosine similarity (embeddings) as the
+# gate -- it does NOT work here and was rejected after testing against
+# test_anchor_contradiction_rejected's deliberate minimal-pair case ("I
+# attend to the world with wonder..." vs "I do not attend to the world with
+# wonder..."), which scored cosine=0.889, HIGHER than the entire real
+# false-positive population (500-sample: mean 0.706, max 0.821). A true
+# minimal pair (same sentence, one word negated) is the MOST textually
+# similar case there is, not the least -- so "high cosine = restatement" is
+# backwards for exactly the case the check exists to catch.
+#
+# Token-Jaccard overlap (the file's own _jaccard(), already used elsewhere
+# in this module) separates the two cleanly instead, and needs no embedding
+# call: the false-positive population is thematically related but uses
+# substantially DIFFERENT wording (300-sample: mean 0.094, p99 0.222, max
+# 0.222 -- loose paraphrase dilutes the shared/union ratio even when 4+
+# core words overlap), while the minimal-pair test case is near-verbatim
+# (0.833 -- same sentence, barely any other words differ). Threshold set at
+# 0.30: comfortably above the observed false-positive ceiling (0.222),
+# comfortably below the one known true-positive shape (0.833).
+_ANCHOR_RESTATEMENT_JACCARD = 0.30
+
 # The hand-seeded axioms, and only these. This pool is used to REJECT
 # incoming thoughts (Check 1b), so membership must be a deliberate act.
 #
@@ -277,11 +305,19 @@ class CoherenceGate:
                 )
 
         # Check 1b — Direct negation of a locked T1 anchor → REJECT
+        # Restatement gate: a candidate whose overall wording is nearly the
+        # same as the anchor's (high Jaccard, not just >=4 shared tokens) is
+        # a minimal-pair contradiction and stays rejected; a candidate that
+        # only shares core vocabulary but is substantially reworded is a
+        # paraphrase, not a contradiction (see _ANCHOR_RESTATEMENT_JACCARD
+        # docstring above for the empirical basis).
         for anchor in anchors:
             anchor_tok = _tokens(anchor["content"])
             anchor_neg = _has_negation(anchor["content"])
             overlap = len(tok & anchor_tok)
             if overlap >= 4 and (neg != anchor_neg):
+                if _jaccard(content, anchor["content"]) < _ANCHOR_RESTATEMENT_JACCARD:
+                    continue  # reworded paraphrase, not a minimal-pair contradiction
                 return GateDecision(
                     outcome=GateOutcome.REJECT,
                     reason=f"contradicts_anchor:locked_id_{anchor['id']}",
