@@ -4896,3 +4896,74 @@ backlog takes to work through. Whether that 12.5M-row backlog should be
 left to drain naturally, drained faster, or pruned is a separate
 question, not decided here.
 
+## 2026-07-26 ~20:25 — throw_net backlog pruned by age; correcting a premise from the prior investigation; gate_decisions flagged as the next unaddressed growth item
+
+**Correction to the record: "accepted" in throw_net's own accounting
+never meant "belief written."** The prior entry's pre-registration
+assumed the backlog was producing ~190 new beliefs/hour once the gate
+fix landed. Traced `throw_net_engine.py::run_session()` directly: on a
+gate ACCEPT it only increments a counter and logs to `gate_decisions`
+-- there is no `INSERT INTO beliefs` anywhere on that path. The shared
+`CoherenceGate`'s `resolver.on_gate_accept()` (`stage_gate/resolver.py`)
+only checks the *holding zone* for corroboration of previously-*held*
+items; it never writes the just-accepted packet itself. Verified
+against real data: in a 1.24h post-fix window, only 30 new beliefs were
+created system-wide (seven unrelated sources), zero traced to
+throw_net, despite 6,090 throw_net ACCEPTs logged in that same window.
+**The backlog was never going to flood the graph directly** -- its
+only route into `beliefs` is the slow, narrow holding-zone-corroboration
+side path (HOLD was 0.2% of throw_net's post-fix decisions), not the
+volume itself. This matters for reading the prior entry correctly: the
+urgency was really about DB growth (`gate_decisions`/
+`throw_net_sessions` row count) and wasted cycles on a dead trigger
+condition, not belief-graph pollution.
+
+**Backlog origin, confirmed precisely.** 12,499,194 unfired
+`throw_net_triggers` rows, 99.9987% `trigger_type='gate_reject'`,
+spanning the system's full history. Daily creation rate found from the
+data (not the calendar): ran 200K-660K/day from 2026-05-10 through
+2026-07-11, then **collapsed at 2026-07-11 04:52:47** (last row of the
+old regime; next row at 08:33:19, a 220-minute gap) to near-zero
+(tens/day) and stayed there. This is the 2026-07-08/10 fix already on
+record (stopped throw_net's own rejects from recursively re-triggering
+itself, "99.64% of all gate_decisions and 6.2GB of exhaust for zero
+beliefs"). **99.97% of every trigger row ever created predates that
+moment.** Content: only 174 distinct topics in the whole backlog,
+top 10 covering 40.6%, dominated by single-word chance/mortality/origin
+extractions (chance, emerged, mystery, mortal, randomness); sampled the
+rarest topics specifically for anything worth preserving -- found
+nothing distinct, just one-off noise (a stray RSS URL, "buzz",
+"netherlands").
+
+**Pruned by age, executed.** Boundary: `ts <= 1783738367.21`
+(2026-07-11 04:52:47, the exact collapse point, not the calendar date).
+Checked before executing: nothing reads `throw_net_triggers.session_id`
+anywhere in the codebase (write-only bookkeeping) and the two
+15min/30min threshold-check queries (`_gate_rejects_in_window`,
+`_gap_deflections_in_window`) don't filter on `fired` at all, only on
+recent `ts` -- marking months-old rows `fired=1` cannot affect them.
+`throw_net_sessions` has no column referencing trigger ids (the FK
+direction runs `triggers.session_id -> sessions.session_id`, only
+populated for rows that already got processed) -- backlog rows were
+never fired, so no session was ever created from them; nothing to
+orphan. Marked `fired=1` (not deleted) in 50 batches of 250K via
+`UPDATE ... WHERE id IN (SELECT id ... LIMIT 250000)` to avoid holding
+one long write lock against the live shared Writer -- 12,494,011 rows
+marked in 64.9s. Before: 12,494,011 to mark, 4,524 to keep. After: 0
+unfired at/before the boundary, 4,524 unfired after it -- exact match,
+untouched. Confirmed over one 300s tick post-prune: 66 new sessions
+drawn from the remaining pool, zero new triggers created -- the
+remaining ~4,524-row tail will fully drain in hours, not the 2.5 years
+the full 12.5M backlog would have taken. No restart needed; a data
+change, not a code change.
+
+**Next unaddressed growth item, on the record per explicit request, no
+action taken:** `gate_decisions` is 25.8M rows on a 9.05GB `beliefs.db`
+with a single shared Writer. Checked: nothing anywhere prunes, rotates,
+or applies any retention/TTL to this table -- every reference in the
+codebase is either an INSERT (logging) or a recent-window SELECT.
+`throw_net_sessions` (2.97M rows) has the same property. Both grow
+unboundedly forever with no cleanup mechanism. This was the second-
+largest contributor to the now-pruned backlog's downstream cost and is
+now the largest remaining unaddressed one.
+
