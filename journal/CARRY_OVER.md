@@ -4382,3 +4382,145 @@ should use 2026-07-26 ~11:35 (item 1's restart) as the new floor, not
 Watch window (30-60 min post-tombstone) still open as of this entry;
 result to be appended once observed.
 
+## 2026-07-26 ~12:52 — the mortality test failed, and why: fire-recycling bypasses beliefs.db entirely
+
+**Watch result (40 min, closing the open item above): the tombstone did
+not work.** 4 phrase-carrying fires in 40 minutes (ids 31470, 31477,
+31482, 31483) against a total of 15 fires -- rate ~6/hr, *higher* than
+the pre-tombstone baseline (1.0-3.4/hr). This is the "more interesting
+result" pre-registered for. Checked `fountain_retrieval_log` for all 4
+new fires: **zero overlap** with the 9 tombstoned belief ids, or with
+any belief id at all containing the phrase. The own_rows and residue
+fixes from the prior entry are working correctly -- they were just not
+where this content re-enters the prompt. `fountain_events` is permanent
+fire history with no tier column and no tombstone concept; the loop had
+already fully detached from the original 9 belief rows.
+
+**Full surface, mapped (not fixed -- explicit instruction this pass was
+characterise only).** Five independent live paths read raw
+`fountain_events.thought` (or equivalent prior-output text) back into a
+prompt, belief, or state, none tier/tombstone-aware:
+
+1. `theory_x/stage_tom/self_narrative.py::_real_fires()` -- last 6
+   substantive fires by raw `ORDER BY ts DESC`, no filter beyond
+   length/dedup. Confirmed live right now: its current output includes
+   fire 31482 verbatim. Gated `NEX5_SELF_NARRATIVE=1`, set live in
+   nex_keepalive.sh.
+2. Same file, `_recent_hot()` -- most recent `hot_observer` belief by
+   `created_at`, no tier filter (a beliefs.db read, not fountain_events,
+   but the same class of gap -- a tombstoned hot_observer belief could
+   still surface here; didn't happen to be the case in the 40-min
+   window, but it's live and unguarded).
+3. `theory_x/stage_tom/recursive_self.py` -> `self_binding.py::
+   _read_attention()` -- most recent fire, quoted in `focus_block` when
+   raga is fixated/mild. **Ungated** (no env var at all), unlike the
+   NEX5_L4_STAKES-gated check beside it in generator.py. Always live.
+4. `theory_x/stage_tom/persona_responder.py::_recent_thoughts()` -- last
+   4 thoughts fed as context to a *separate* LLM call; that call's own
+   reply is echo-checked against the input, but the input context
+   itself (which can carry the phrase) is not filtered, and the reply
+   gets written back as a new `precipitated_from_sense` belief that
+   then re-enters through own_rows on its own account. Gated
+   `NEX5_PERSONA_RESPONDER=1`, live.
+5. `theory_x/stage_tom/momentum.py` -- last fire's 120-char fragment.
+   The one path that's genuinely bounded: caps at 3 consecutive
+   same-thread carries then goes silent (built 2026-07-06 after a real
+   rut incident). Gated `NEX5_MOMENTUM`, defaults on, live, but
+   self-limiting by design.
+
+One path found inert: `coincidence/tag_retrieval.py` is gated on
+`NEX_TAG_FEEDBACK_ON`, which is not set anywhere -- currently dead.
+One loose end, not fully ruled out: `sustained/focus_loop.py` writes
+matched fire text into `open_problems.observations`; no confirmed live
+read-back path was found, but not conclusively ruled inert either.
+`_recent_t6()` in self_narrative.py is fine as-is -- already filters
+`tier=6` explicitly.
+
+**Why `_real_fires()` exists, and a second latent bug found underneath
+it.** There are two different `SelfNarrative` classes live in the
+codebase simultaneously. `theory_x/stage_self_narrative/self_narrative.py`
+is the specced one (`SELF_NARRATIVE_SPEC.md`, DOCTRINE §5 row 11,
+introduced `ae5adaa7` 2026-05-11): write-on-event accumulation only,
+into `narrative_log`, explicitly documented as "does NOT generate text
+at output time... No synthesis. No LLM call," constructor-injected from
+run.py per spec -- this is the one the spec describes and the one
+run.py actually wires up. `theory_x/stage_tom/self_narrative.py` -- the
+one actually driving fountain prompts -- is a later, unspecced,
+self-instantiated duplicate (`84e7d5d`, 2026-06-28, seven weeks after
+the spec, introduced inside `FountainGenerator.__init__` rather than
+injected), which composes a paragraph at read time from raw DB queries.
+This violates both the original spec's no-synthesis-at-speak-time
+doctrine and its constructor-injection convention, and was never given
+its own spec document. Purpose per its own commit message: continuity
+-- "here is what the attending has been doing" against the static,
+repetitive "I am the attending" corpus. It's partially, not fully,
+redundant with own_rows (which already injects "own lived content,"
+tier-aware since this session's fix) -- `_real_fires()` additionally
+catches fires that never got promoted to a belief at all -- but that
+partial overlap through a second, permanently tombstone-blind path is
+the strongest argument for redesigning/narrowing the module rather than
+just adding a filter to it: a filter patches today's symptom on a
+module that's already an out-of-spec shadow of something the tier-aware
+path does more safely.
+
+**Shape of a fountain_events retirement mechanism (design options only,
+none implemented, none recommended):**
+- **(a) `retired`/`suppressed` flag column on `fountain_events`.**
+  Schema change itself is cheap (the migration pattern already exists --
+  idempotent `ALTER TABLE ... ADD COLUMN ... DEFAULT`, same shape as
+  `beliefs.use_count`/`reinforce_count`). Cost is at the ~4-5 call
+  sites above, each needing the filter added and kept in sync as new
+  readers get written -- the same shape of gap that's now bitten twice
+  in one session. No existing fire-retirement flow exists at all;
+  harmonizer only ever touches `beliefs.tier`, so this needs a new
+  primitive, not an extension of an existing one.
+- **(b) Content-match against retired belief text at read time.** Zero
+  schema change. Fragile in a way already demonstrated this session:
+  the 4 post-tombstone fires already show paraphrase drift ("past
+  experiences trying cheap family trips" -> "past experiences trying to
+  maximize savings") -- a substring/pattern match would have missed
+  some of the very fires just observed. Cost also scales with a
+  growing retired-phrase list checked against every candidate.
+- **(c) Join via `anchor_belief_id`.** Checked against live data:
+  populated on only 3.8% of all fires (1187/31044) system-wide, and
+  **0 of 77** family-trip-adjacent fires have it set. Ruled out by the
+  data, not a viable path for this class of incident.
+No winner chosen -- (a) is structurally correct but invasive and needs
+a new retirement primitive; (b) is cheap but already falsified by
+observed drift; (c) is dead on arrival.
+
+**Scope check: is this confabulation-specific, or a general
+fire-recycling-loop problem?** Mixed verdict, not a clean binary.
+Correction first: the crystallizer has no fixed template -- it's a
+content-preserving quality gate (writes survivor thoughts as-is,
+source='fountain_insight'). The actual "I notice this fire engaged the
+world directly..." template lives in `hot_observer.py::
+_compose_meta_belief()`, already implicated (5 of the 9 tombstoned
+beliefs were hot_observer quotes; `_recent_hot()` reads this exact
+source). Checked two candidate patterns against the live mechanism:
+- **Heatwave/"surreal"**: 53 fires over 2 months (2026-05-24 ->
+  2026-07-26), rate flat, not climbing (0.095-0.25/hr across trailing
+  windows, vs. family-trips' 1.0-3.4/hr and rising). Live
+  `_real_fires()` output contains zero surreal-pattern fires right now
+  (aged out of the 6-fire window ~2h ago). 13.5% of inter-fire gaps
+  under 20 min (consistent with a minority of direct loop-echoes), but
+  most of the signal reads as independent reconvergence on a real,
+  recurring news/weather topic rather than self-quoting.
+- **hot_observer template**: fires deterministically on ~1/3 of all
+  fires by design (its own module comment states this cadence) -- a
+  content-agnostic wrapper that snippet-quotes whatever the *current*
+  fire said, not itself a recurring-content bug. This is the same
+  `_recent_hot()` gap already found, viewed from the template side, not
+  a third independent gap.
+**Net**: the mechanism (`_real_fires()`'s unfiltered recency read) is
+general-purpose and structurally capable of amplifying any recurring
+content -- so it is correctly described as a fire-recycling-loop
+problem, not a confabulation-specific one, at the mechanism level. But
+empirically, family-trips is so far the only case that actually ran
+away (dense clustering, climbing rate); the other two checked patterns
+are lower-severity and mostly explained by other causes (a designed
+wrapper; topical convergence) with the loop as a secondary amplifier
+rather than the primary driver in those two cases. Not fixed, not
+recommended -- characterisation only, per explicit instruction this
+pass.
+
