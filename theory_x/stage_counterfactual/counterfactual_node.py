@@ -198,48 +198,24 @@ class CounterfactualNode:
 
     def _maybe_promote(self, problem_id: int, problem: dict) -> None:
         """Promote to review_queue once accept count reaches threshold.
-        
+
         2026-05-16 DISABLED: auto-promotion was removing problems from
         focus_loop / daily_life / morning entry within minutes of opening,
         making them invisible to her. She decides resolution now, not
-        a 3-belief accept counter. Reversion: remove the early return."""
+        a 3-belief accept counter.
+
+        2026-07-26 (session 49 continued): the unreachable body below the
+        early return was removed -- dead since the 2026-05-16 disable
+        (everything after `return` in a function is unreachable regardless
+        of what it says). `_accept_count_for()` and `_ACCEPT_THRESHOLD`
+        were only used here; left in place as small, correct, harmless
+        standalone helpers rather than removed too. Two tests
+        (test_move_fires_when_threshold_reached, test_tags_copied_to_
+        review_queue) were already failing against this disabled state
+        before tonight, unrelated to this edit. Recoverable at commit
+        edbddff; reversion is still "remove the early return", now
+        applied to a shorter function."""
         return  # auto-promotion disabled
-        if self._accept_count_for(problem_id) < _ACCEPT_THRESHOLD:
-            return
-
-        # Idempotency guard
-        try:
-            existing = self._conversations_reader.read(
-                "SELECT id FROM review_queue WHERE id = ?", (problem_id,)
-            )
-            if existing:
-                return
-        except Exception:
-            return
-
-        # Move: INSERT into review_queue (same id), then DELETE from open_problems
-        now = time.time()
-        self._conversations_writer.write(
-            "INSERT INTO review_queue "
-            "(id, title, description, created_at, flagged_at, tags) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (
-                problem_id,
-                problem.get("title", ""),
-                problem.get("description", ""),
-                problem.get("created_at", now),
-                now,
-                problem.get("tags", "[]"),
-            ),
-        )
-        self._conversations_writer.write(
-            "DELETE FROM open_problems WHERE id = ?", (problem_id,)
-        )
-        self._promotions_total += 1
-        errors.record(
-            f"counterfactual_node: problem {problem_id} promoted to review_queue",
-            source=_LOG_SOURCE, level="INFO",
-        )
 
 
 def _constraint_from_problem(problem: dict) -> str:
