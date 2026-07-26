@@ -40,13 +40,23 @@ def pop_residue(reader, writer, limit: int = 2) -> list[dict]:
 
 
 def fetch_residue_beliefs(reader, belief_ids: list[int]) -> list[dict]:
-    """Look up full belief rows for a list of belief_ids."""
+    """Look up full belief rows for a list of belief_ids.
+
+    2026-07-26: tier < 8 added. Residue is saved from generator.py's
+    own_rows oversample pool and can sit unconsumed for many cycles
+    (activation_strength-ordered popping is not FIFO); a belief tombstoned
+    (tier=8) after being saved as residue but before being popped would
+    otherwise still surface here, since this lookup is by raw id with no
+    other filter -- own_rows now excludes tier=8 at the source too, but
+    this guards the pre-existing backlog and any future case of the same
+    shape.
+    """
     if not belief_ids:
         return []
     placeholders = ",".join("?" * len(belief_ids))
     rows = reader.read(
         f"SELECT id, content, source, tier, confidence, created_at FROM beliefs "
-        f"WHERE id IN ({placeholders})",
+        f"WHERE id IN ({placeholders}) AND tier < 8",
         tuple(belief_ids),
     )
     return [dict(r) for r in rows]

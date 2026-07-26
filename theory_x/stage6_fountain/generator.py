@@ -1744,8 +1744,16 @@ class FountainGenerator:
 
         Own lived content dominates (~80%): most recent N regardless of tier.
         Seed reference material is minority (~20%): random sample so the same
-        3 seeds don't dominate forever. Tier is ignored — T7 is long-term
-        memory, not archived content.
+        3 seeds don't dominate forever. Tier is ignored for tiers 3-7 — T7 is
+        long-term memory, not archived content — but tier=8 (retired) is
+        explicitly excluded (2026-07-26): every other retrieval path in the
+        codebase (retrieval.py, pipeline_hooks.py, self_model.py,
+        promotion.py, harmonizer.py, drive_emergence.py, novel_association.py,
+        edge_builder.py, emergent_drives.py) bounds tier<=5/6/7 and so
+        already excludes retired beliefs without needing to; this was the
+        one path that had no tier bound at all, so a tombstoned belief
+        (harmonizer's own tier=8/[RETIRED] convention) could still surface
+        here as a live context candidate.
 
         Boost: beliefs with a belief_boost row rise in priority via additive
         time-bonus. A boost of B treats the belief as if created
@@ -1767,7 +1775,7 @@ class FountainGenerator:
                 f"SELECT b.id, b.content, b.source, b.tier, b.confidence, b.created_at, b.branch_id, "
                 f"       COALESCE(bb.boost_value, 1.0) AS boost_value "
                 f"FROM beliefs b LEFT JOIN belief_boost bb ON b.id = bb.belief_id "
-                f"WHERE b.source IN ({own_placeholders}) "
+                f"WHERE b.source IN ({own_placeholders}) AND b.tier < 8 "
                 f"ORDER BY (b.created_at + (COALESCE(bb.boost_value, 1.0) - 1.0) * ?) DESC LIMIT ?",
                 (*_OWN_CONTENT_SOURCES, BOOST_TIME_BONUS_SECONDS, oversample_n),
             )
