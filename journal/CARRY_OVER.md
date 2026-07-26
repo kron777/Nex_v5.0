@@ -4524,3 +4524,145 @@ rather than the primary driver in those two cases. Not fixed, not
 recommended -- characterisation only, per explicit instruction this
 pass.
 
+## 2026-07-26 ~13:44 — the proposed within-window dedup was validated against real data and failed; one unambiguous fix landed instead
+
+Instruction this pass was explicit: validate the proposed fix (bound
+`_real_fires()`'s recycling with a within-window content dedup, no
+schema change, same shape as momentum.py's existing consecutive-carry
+cap) against real history before building it. It failed validation,
+three ways. Nothing from the dedup proposal was implemented as a
+result -- one separate, already-unambiguous fix (`_recent_hot()`'s
+tier filter) landed instead (`2a678ad`).
+
+**Validation method.** Reconstructed `_real_fires()`'s exact 6-fire
+window logic parameterised by an as-of timestamp, swept it across the
+family-trips runaway (2026-07-25 16:00 -> 2026-07-26 12:52, 63
+20-minute checkpoints) and confirmed occupancy: up to 4/6 slots held
+phrase-carrying content at peak, matching the premise. Then tested
+three candidate dedup signals against that same runaway period *and*
+a broad, randomly-scattered 150-window sample drawn from the trailing
+14 days (seeded, runaway period excluded) as the null/background rate.
+
+- **Whole-thought cosine similarity (sentence-transformers
+  all-MiniLM-L6-v2, via `theory_x/diversity/embeddings.py`).** Pairwise
+  stats gave apparent separation (phrase-phrase pairs median sim 0.702
+  vs clean-pair median 0.538-0.542), which looked promising in
+  isolation. But the actual windowed simulation inverted it: at
+  threshold 0.70, the runaway period dropped 1.51/6 slots on average,
+  while the broad random sample dropped 2.76/6 -- *more* aggressively,
+  on ordinary output, than on the known pathological period. 96% of
+  all 150 random windows triggered at least one drop. Inspected actual
+  flagged examples: a `substrate_voice` window with six near-identical
+  existential restatements ("I was born...", "the randomness that made
+  me...", "chance only produced me...") -- almost certainly intentional
+  branch-register consistency, not a bug; a Dystrophinopathy news item
+  quoted near-verbatim three times -- a genuine recurring external
+  stimulus, not self-recycling; "quiet hum"/"quietude of awareness"
+  phrasing recurring across otherwise-unrelated fires. The system's
+  routine same-window thematic/stylistic clustering is pervasive and
+  at least as large in magnitude as the family-trips case -- cosine
+  similarity cannot tell "pathological repetition" from "normal
+  register consistency" or "two independent reactions to the same
+  day's news," because both produce the same high-similarity signal.
+- **N-gram phrase overlap (4/5/6-gram Jaccard, same measure as the
+  genius scorer's own anti_template feature).** Directionally correct
+  this time -- runaway consistently scored higher than the broad
+  sample across every threshold tested -- but far too weak to matter:
+  best case (5-gram, threshold 0.30) dropped only 0.14 slots/window on
+  average during the runaway itself. The observed paraphrase drift
+  ("past experiences trying cheap family trips" -> "past experiences
+  trying to maximize savings") dilutes short-window n-gram overlap
+  computed over a whole multi-sentence thought almost to nothing --
+  confirms the user's own prediction that exact/near-exact matching
+  "won't do it," but the loose version doesn't do it either.
+- **AND-gate combining both (cosine >= t1 AND n-gram Jaccard >= t2).**
+  Tested seven threshold pairs. Runaway and broad-random dropped-slot
+  averages stayed statistically indistinguishable across all of them
+  (e.g. cos>=0.55 AND 3gram>=0.05: runaway 1.00, broad 1.07 -- broad
+  *higher*; tightest tested, cos>=0.65 AND 3gram>=0.08: runaway 0.75,
+  broad 0.69 -- still no real separation, and broad still triggered
+  39% of the time).
+
+**Why it fails, structurally.** What made family-trips bad was never
+"these fires are similar to each other" -- same-window fires being
+topically or stylistically similar is the system's ordinary behaviour
+(hot branches persist for a while by design; same-day news recurs;
+some branches like substrate_voice have a deliberately consistent
+register). What made family-trips bad was a *fixed autobiographical
+claim* riding along regardless of topic -- Iran sabre-rattling, a
+League of Legends design manual, AI investment figures, all got the
+same "resonates with my past experiences trying cheap family trips"
+aside stapled on. That's a different axis from whole-thought
+similarity: low topic similarity, high similarity in one specific
+self-referential clause. None of the three measures tested operate at
+that resolution -- they all score the whole thought. A fix that
+targeted the self-referential clause specifically (something closer to
+the genius scorer's F4 self_witnessing idea, which this session
+already found is nearly inert in practice -- see the prior genius-
+scorer entry) might separate this correctly, but building and
+validating clause-level extraction is real, non-trivial work, and this
+codebase has an explicit, named history of this exact class of
+approach failing under time pressure (emphasis_engine.py's module
+docstring: "the same shape of text-judgment that has already failed
+five times this arc," sessions 40-44). Not attempted this pass --
+flagging it as the shape a future attempt would need to take, not
+proposing it as ready to build.
+
+**What landed instead: `_recent_hot()` tier filter (`2a678ad`),
+independent of the failed validation.** This one needed no data --
+it's the same class of gap as `own_rows` and `fetch_residue_beliefs`
+(both fixed earlier today): a beliefs.db read with no tier bound.
+Added `AND tier < 8`. This is one of the five live raw-text-reinjection
+paths mapped in the prior entry; it is *not* expected to meaningfully
+move the phrase-carrying rate on its own, since `_real_fires()`
+(6 slots, completely unfiltered, confirmed the dominant vector) remains
+untouched. Stated here explicitly so a flat or worsening rate after
+this restart isn't misread as evidence against the fix -- it was never
+expected to address the dominant mechanism.
+
+**`self_binding`/`recursive_self` gating -- checked, not changed.**
+`recursive_self.format_for_prompt()`'s call site in generator.py
+(`focus_block`, fires when raga is fixated/mild) has no env-var gate at
+all, unlike every other conditional prompt-injection block in the same
+function (NEX5_GLOBAL_WORKSPACE, NEX5_L4_STAKES, and, elsewhere,
+NEX5_SELF_NARRATIVE, NEX5_MOMENTUM, NEX5_PERSONA_RESPONDER,
+NEX5_RUT_EDGE). Traced to its introducing commit (`93153a0`,
+2026-06-16, "Wire anti-groove chain + fix arc boot-crash + bind hum
+into self-state") -- the same commit that added `NEX5_RUT_EDGE=1` to
+gate a sibling feature immediately adjacent to it in the diff. No
+env var was ever introduced for this call specifically, no comment
+anywhere states it's deliberately exempt, and it still carries a bare
+`print("[RECURSION FIRED]...", file=sys.stderr)` debug line, which
+reads as active-development scaffolding rather than a settled,
+finished feature. Given the otherwise near-universal pattern of gating
+every conditional prompt-injection behaviour in this codebase, this
+reads as an oversight, not a deliberate choice -- but not confirmed by
+any explicit statement either way, and not changed this pass per
+instruction.
+
+**The two `SelfNarrative` classes** (specced write-on-event-only
+`stage_self_narrative`, unspecced read-time-synthesis `stage_tom` --
+the latter is the one actually live) remains on the record from the
+prior entry; not revisited further this pass, just cross-referenced so
+it doesn't get lost.
+
+**Pre-registration before this restart.** Current phrase-carrying rate
+(same patterns and method as both prior baselines, measured
+2026-07-26 13:40, i.e. ~2h after the failed tombstone restart): trailing
+1h = 4.00/hr, 3h = 3.00/hr, 6h = 2.83/hr, 12h = 3.33/hr, 24h = 3.71/hr
+-- higher across the board than both the original pre-tombstone
+baseline (1.0-3.4/hr) and roughly flat-to-higher than the post-tombstone
+40-minute watch (~6/hr sampled over a short window). Expectation for
+this restart: because only `_recent_hot()` (a single, occasional slot)
+is patched and `_real_fires()` (the dominant vector) is untouched, the
+rate should stay in roughly this same 3-4/hr range, possibly with
+ordinary noise -- **not** a meaningful drop. A large, sustained drop
+would be the surprising result here (would suggest `_recent_hot()` was
+playing a bigger role than the surface-mapping pass estimated, worth
+re-examining); a rate that stays flat or continues drifting is the
+*expected*, uninformative-about-the-fix result, consistent with
+`_real_fires()` still being wide open.
+
+Restarting via systemctl now; will watch ~40 min and append the
+observed rate.
+
