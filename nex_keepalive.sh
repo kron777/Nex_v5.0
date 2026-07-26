@@ -57,8 +57,15 @@ launch_nex() {
   # only free the port if OUR old child was the listener; safe fuser as fallback
   fuser -k ${PORT}/tcp 2>/dev/null
   sleep 2
+  # 2026-07-26: NEX5_SPEECH_ENABLED=false removed. It went in 2026-07-24
+  # as a stopgap for a libtorch_cpu.so SIGILL crash-loop, but was never
+  # actually the fix -- the trap moved to embeddings.py's sentence-
+  # transformer load and crashed 9 more times before a clean respawn
+  # (see journal/CARRY_OVER.md, 2026-07-24). Flag was left in after the
+  # crash stopped recurring on its own. Zero recurrences confirmed since
+  # 2026-07-24 19:00 across 34 restarts. Re-enabled; if the trap is live
+  # again this flag goes back with a real reason next to it.
   NEX5_RUT_EDGE=1 NEX5_GOVERNOR_OFF=1 NEX5_RECONCILE=1 NEX5_RECONCILE_WB=1 NEX5_SIG_QUALITY=1 \
-  NEX5_SPEECH_ENABLED=false \
   NEX5_ANTILOOP=1 NEX5_DELIVER_N=10 NEX5_ABSTAIN_CLOSE=1 NEX5_COMMIT_CLOSE=1 \
   NEX5_WORLD_PRED=1 NEX5_SELF_PRED=1 NEX5_SOCIAL_N=0 NEX5_PORT=${PORT} \
   NEX5_INTAKE_RESONANCE_OFF=1 NEX5_WORLD_CONSOLIDATE=1 NEX5_L4_STAKES=1 NEX5_SELF_NARRATIVE=1 NEX5_QUALITY_SYNTH=1 NEX5_HOT_OBSERVER=1 NEX5_MOMENTUM=1 NEX5_PERSONA_RESPONDER=1 NEX5_GLOBAL_WORKSPACE=1 NEX5_SURPRISE_WEIGHT=1 NEX5_WIDE_MODES=1 ${VENV} run.py >> ${SOAK_LOG} 2>&1 &
