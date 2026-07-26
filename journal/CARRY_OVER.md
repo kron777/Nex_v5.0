@@ -52,8 +52,18 @@ recurring on its own — closed 2026-07-26, see that entry.
   (`d52ec78`) — ground-truth tested and failed, correctly removed.
 - Speech re-enabled 2026-07-26 (`NEX5_SPEECH_ENABLED` flag removed) — SIGILL
   confirmed zero recurrences since 2026-07-24 19:00 across 34 restarts
-  before re-enabling. If it crashes again, that's new information, not a
-  reason to silently re-disable.
+  before re-enabling. **Untested against a cold boot** (validated on warm
+  restarts only — the last real reboot, 2026-07-25 04:59, predates
+  re-enabling). CHECK FIRST after tomorrow's boot: grep
+  `/tmp/nex5_soak.log` for "Kokoro pre-loaded successfully" vs an Illegal
+  instruction/SIGILL line before trusting it further.
+- Empty decoy DBs at repo root (`beliefs.db`/`dynamic.db`/`conversations.db`,
+  0 bytes, stale April/May) deleted 2026-07-26 — `data/` was always
+  canonical (`substrate.db_paths()`), nothing depended on the deleted
+  files' content. Residual risk, not closed by deleting them: any bare
+  `sqlite3.connect("beliefs.db")` run from repo root (e.g.
+  `train_curator.py`'s `--db` default) silently recreates the same
+  trap — always resolve via `data/` or `db_paths()`.
 
 <!-- END STANDING HEADER — log begins below, chronological, oldest first. -->
 
