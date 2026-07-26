@@ -13,6 +13,15 @@ to inject the pending probe into the fountain prompt.
 
 Disabled 2026-05-02 pending grounded_observation probe set and probe category
 audit. Re-enable by setting ENABLED=True and restarting NEX.
+
+2026-07-26 (session 49 continued): the live wiring that instantiated and
+called this class (run.py, theory_x/stage6_fountain/__init__.py and
+generator.py) has been removed -- it was calling into a class whose every
+method has been a guaranteed no-op since the 2026-05-02 disable, which cost
+investigation time (had to trace three call sites down to this single
+ENABLED flag to confirm it). This file is untouched and still fully
+functional; to re-enable, set ENABLED=True and restore the removed wiring
+(recoverable at commit edbddff).
 """
 
 import logging

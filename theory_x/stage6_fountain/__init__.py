@@ -18,7 +18,6 @@ from theory_x.stage6_fountain.readiness import (
     FOUNTAIN_CHECK_INTERVAL_SECONDS,
     ReadinessEvaluator,
 )
-from theory_x.auto_probe.groove_breaker import GrooveBreaker
 from theory_x.memory.snapshot_writer import StateSnapshotWriter
 from theory_x.world_bridge.selector import WorldBridgeSelector
 
@@ -83,7 +82,6 @@ def build_fountain(
     dynamic_state=None,
     problem_memory=None,
     mode_state=None,
-    groove_breaker: "GrooveBreaker | None" = None,
     snapshot_writer: "StateSnapshotWriter | None" = None,
     world_bridge_selector: "WorldBridgeSelector | None" = None,
     coherence_gate=None,
@@ -119,7 +117,6 @@ def build_fountain(
         condenser=condenser,
         mode_state=mode_state,
         world_bridge_selector=world_bridge_selector,
-        groove_breaker=groove_breaker,
         drive_emergence=drive_emergence,
         conversations_reader=readers.get("conversations"),
         coherence_gate=coherence_gate,
@@ -183,12 +180,9 @@ def build_fountain(
                     generator._maybe_spawn_drive_probe()
                 except Exception as _dpe:
                     logger.debug("Drive probe error (non-fatal): %s", _dpe)
-                # Phase A: passive groove observation
-                if groove_breaker is not None:
-                    try:
-                        groove_breaker.check_and_maybe_log()
-                    except Exception as _gbe:
-                        logger.warning("GrooveBreaker error: %s", _gbe)
+                # 2026-07-26: GrooveBreaker.check_and_maybe_log() call removed
+                # (session 49 continued) -- ENABLED=False since 2026-05-02
+                # made this a permanent no-op. Recoverable at commit edbddff.
                 # Phase A: state snapshot (Memory Layers)
                 if snapshot_writer is not None:
                     try:

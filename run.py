@@ -32,7 +32,6 @@ from theory_x.stage4_membrane import build_membrane
 from theory_x.stage6_fountain import build_fountain
 from theory_x.stage_drives.competing_drives import CompetingDrives
 from theory_x.stage_drives.drive_history import DriveHistory
-from theory_x.auto_probe.groove_breaker import GrooveBreaker
 from theory_x.memory.snapshot_writer import StateSnapshotWriter
 from theory_x.memory.resumption import ResumptionSeeder
 from theory_x.world_bridge.selector import WorldBridgeSelector
@@ -518,11 +517,12 @@ def main() -> None:
         os.environ.get("NEX5_SPEECH_MIN_GAP", "180"),
         float(os.environ.get("NEX5_SPEECH_PROB", "1.0")),
     )
-    # Phase A: groove observer (Design v0.3)
-    groove_breaker = GrooveBreaker(
-        beliefs_db_path=str(paths["beliefs"]),
-        dynamic_db_path=str(paths["dynamic"]),
-    )
+    # 2026-07-26: GrooveBreaker instantiation removed (session 49 continued)
+    # -- theory_x/auto_probe/groove_breaker.py has had ENABLED=False (module
+    # constant, disabled 2026-05-02, see catalogue d9ce4b7) for the whole
+    # time it was still being wired up here; every method it exposes has
+    # been a no-op since. File itself is untouched -- flip ENABLED=True and
+    # restore this wiring (recoverable at commit edbddff) to re-enable.
     # Phase B: resumption seeder (Memory Layers v0.2)
     # Runs once on boot, promotes prior beliefs if snapshot is recent
     try:
@@ -551,7 +551,6 @@ def main() -> None:
     )
     fountain = build_fountain(writers, readers, voice, dynamic_state=dynamic,
                               problem_memory=problem_memory, mode_state=mode_state,
-                              groove_breaker=groove_breaker,
                               snapshot_writer=snapshot_writer,
                               world_bridge_selector=world_bridge_selector,
                               coherence_gate=coherence_gate,
