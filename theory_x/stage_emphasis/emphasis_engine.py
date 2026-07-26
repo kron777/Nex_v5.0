@@ -1,11 +1,19 @@
 """EmphasisEngine — observation-only emphasis scoring (session 45).
 
 Combines four independently-computed, independently-logged signals into an
-EmphasisResult. Per the build spec: equal weights (0.25 each), no tuning,
-no override of generation — log-only until multi-session data shows any of
-this tracks something real. Never collapses to just the combined number,
-same discipline CoherenceGate already uses for its own accept/reject/hold/
+EmphasisResult. Per the build spec: equal weights, no tuning, no override
+of generation — log-only until multi-session data shows any of this tracks
+something real. Never collapses to just the combined number, same
+discipline CoherenceGate already uses for its own accept/reject/hold/
 reshape signals.
+
+2026-07-26: `drive_resonance` was ground-truth tested and failed (p=0.190,
+effect -0.013 -- see journal/CARRY_OVER.md). It's still computed and
+logged (four signals, still independently observable) but no longer
+contributes to `combined`, which is now an equal-weight average of the
+other three (goal_relevance, self_relevance, surprise) — the one signal
+in this file that's actually been tested and found wanting is the one
+dropped from the score; the other three remain untested, not endorsed.
 
 STEP 5 GUARDRAIL, stated here so it can't be missed: this must never become
 a per-topic or per-category static lookup table. journal/CARRY_OVER.md,
@@ -217,15 +225,30 @@ class EmphasisEngine:
         self._last_result: Optional[EmphasisResult] = None
 
     def score(self, thought: str) -> EmphasisResult:
+        # 2026-07-26: drive_resonance dropped from the combiner. It's the
+        # only one of the four signals that's actually been ground-truth
+        # tested (p=0.190, effect -0.013 -- same null shape as the seven
+        # other failed importance-signal candidates from sessions 40-44;
+        # see journal/CARRY_OVER.md). The other three remain untested, not
+        # validated -- this drops the one falsified component rather than
+        # claiming the rest are better. Still computed and logged below
+        # (emphasis_log's own stated purpose is "log-only until data shows
+        # this tracks something real" -- it didn't, but the column stays
+        # informative rather than going dark); it just no longer
+        # contributes to `combined` or competes for `dominant_signal`.
         signals = {
             "goal_relevance": _goal_relevance(thought, self._conversations_reader),
-            "drive_resonance": _drive_resonance(thought, self._competing_drives),
             "self_relevance": _self_relevance(thought, self._beliefs_reader),
             "surprise": _surprise(thought, self._tracker),
         }
-        combined = sum(signals.values()) / len(signals)  # equal 0.25 weights, per spec
+        drive_resonance = _drive_resonance(thought, self._competing_drives)
+        combined = sum(signals.values()) / len(signals)  # equal weights, now three
         dominant = max(signals, key=signals.get)
-        result = EmphasisResult(combined=combined, signals=signals, dominant_signal=dominant)
+        result = EmphasisResult(
+            combined=combined,
+            signals={**signals, "drive_resonance": drive_resonance},
+            dominant_signal=dominant,
+        )
         self._last_result = result
         return result
 
