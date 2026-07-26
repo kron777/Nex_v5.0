@@ -4151,3 +4151,234 @@ script. The cheaper check is worth having; the expensive one is what
 this weekend's sessions were doing by hand and can't be fully automated
 away.
 
+## 2026-07-26 ~11:41 — four sequenced decisions: drop drive_resonance, doubt-engine denominator characterised, genius scorer characterised (not edited), family-trips mortality test executed
+
+Four items, executed in the risk order given: (1) and (4) cheap and done,
+(2) a characterisation not a build, (3) characterised and proposed but
+explicitly NOT edited this pass.
+
+**1. `drive_resonance` dropped from EmphasisEngine.score()'s combiner
+(`d52ec78`).** It was the one signal of the four actually ground-truth
+tested (p=0.190, effect -0.013 -- same null shape as the seven failed
+sessions-40-44 candidates). `combined`/`dominant_signal` now come from
+the other three (goal_relevance, self_relevance, surprise) equal-
+weighted; drive_resonance is still computed and present in the logged
+`signals` dict so `emphasis_log`'s INSERT (which reads it by literal
+key) needed no changes. `emphasis_log` is a confirmed pure sink (zero
+reads anywhere), so this has no live behavioural consequence beyond the
+logged number. Verified via three full suite runs -- two showed a
+single "extra" failure each but a *different* one each time
+(test_predictive_substrate, then the already-known-flaky
+test_fountain_crystallizer), neither related to this module; third run
+matched the 39-item baseline exactly.
+
+**2. Doubt-engine denominator ("how often a belief actually gets drawn
+on") -- characterised, not built.** Checked what already exists before
+proposing anything new:
+- `use_count` (erosion.py `record_use()`): the only writer, incremented
+  from two paths -- `BeliefRetriever.retrieve()` (general-purpose,
+  multi-consumer: router, novel_association, tools, gui, world_model
+  init) and fountain's own `_retrieve_context_beliefs()`. For the 351
+  T1/T2 keystones: T1 92.6% nonzero (avg 178), T2 97.5% nonzero (avg
+  15.6). Broadly populated, but conflates two different retrieval
+  mechanisms into one counter and isn't fountain-prompt-specific.
+- `last_referenced_at`: **100% NULL across all 351 keystones, zero
+  exceptions.** Sole writer is `promotion.py` corroborate()'s
+  promotion-success UPDATE, which structurally never fires for
+  tier<=2. Unusable for keystones, full stop.
+- `fountain_retrieval_log`: the most precise signal -- records actual
+  slot-level inclusion in a live prompt (own_sense/seed/spectrum/
+  disturbance_a/disturbance_b). 65 of 351 keystones (18.5%) have
+  appeared at least once via seed (40) or spectrum (25) slots. But this
+  table only had 100% coverage from the 00:52:51 restart onward (fixed
+  as an apparent side effect of the SYNTH_EMIT/PXB dead-code removal at
+  22:39 the prior day) -- so at characterisation time this was a real
+  but very young (~10h) signal.
+Conclusion: no new counter needed yet. `use_count` is a usable interim
+proxy today, imprecise but real. `fountain_retrieval_log` is the right
+long-run answer to "how often actually drawn into a prompt" and needs
+nothing built -- it already does exactly what's being asked, it just
+needs more calendar time to accumulate before it's trustworthy as a
+denominator. Revisit in a few days once it has multi-day coverage.
+
+**3. Genius scorer (`theory_x/genius/score_v2.py` +
+`genius_score_weights.json`) -- characterised and a fix proposed, NOT
+edited this pass, per explicit instruction.**
+
+Five features, live weights:
+```
+length_structure   (F1)  w=+2.545
+anti_template       (F2)  w=-1.577
+t6_promotion        (F3)  w= 0.000   <- dead, contributes nothing regardless of value
+self_witnessing     (F4)  w=+1.157
+unprompted          (F5)  w=+4.715   <- by far the largest weight
+bias = -2.3196, threshold = 0.5
+```
+
+Reimplemented the live scoring pipeline against 683 real fires from the
+last 48h (matched 683/683 stored genius_tags rows, 93.4% within 0.01 of
+the stored score -- confirms the reimplementation is faithful). n=175
+STRIKING (25.6%), 508 ordinary.
+
+Per-feature discrimination (mean value STRIKING vs ordinary, and each
+feature's swing in contribution to z = weight × Δmean):
+```
+                    mean(STRIKING)  mean(ordinary)  weight   swing(z)
+length_structure         0.740           0.525      +2.545   +0.547
+anti_template             0.924           0.917      -1.577   -0.011
+t6_promotion              0.011           0.051       0.000    0.000
+self_witnessing           0.010           0.002      +1.157   +0.008
+unprompted                0.500           0.070      +4.715   +2.028
+```
+**F5 (unprompted/register) is overwhelmingly the dominant discriminator
+(swing +2.028) -- ~3.7x F1's swing.** F2, F3, F4 are all empirically
+negligible in real data despite F2 and F4 having non-trivial |weight|:
+F2 sits near-maximal (~0.92) for almost every fire regardless of class,
+and F4's regex almost never matches real fountain output at all
+(~0.01 for STRIKING, ~0.002 for ordinary) -- self-witnessing framing is
+not actually driving the score, whatever the weight implies.
+
+Counterfactuals against the 175 real STRIKING fires:
+- **F4 zeroed for all fires: 175/175 (100%) stay STRIKING.** F4
+  contributes nothing to the actual classification outcome in this
+  dataset -- removing it entirely changes zero labels.
+- **F1 capped at 0.5 (halves its max contribution) for all fires:
+  24/175 (13.7%) stay STRIKING, 151/175 (86.3%) drop.** F1 alone is
+  load-bearing for the large majority of current STRIKING labels.
+- Both together: 21/175 (12.0%) stay STRIKING.
+- Not requested but relevant given the swing table: F5 zeroed for all
+  fires: 0/175 (0%) stay STRIKING. F5 is necessary for essentially
+  every current STRIKING label.
+
+Correction on the record: fire 31338 (cited as the motivating case --
+"plain summary, no first-person content, scored 0.56 on F1 alone") was
+re-checked with exact feature values: f1=0.7, f2=0.987, f3=0.0,
+**f4=0.0**, f5=0.5 (branch "markets", which is in neither
+UNPROMPTED_BRANCHES nor FEED_BRANCHES, so gets the default 0.5). F4 was
+never a contributor to this fire's score -- an earlier characterisation
+in this session that attributed part of it to F4/self-witnessing was
+wrong. The actual drivers were F1=0.7 (long, comma/period structured)
+and F5's branch-default midpoint. This matters for scope: F4 is not
+carrying meaningful weight in practice at all, so a fix aimed only at
+self-witnessing content would leave the actual problem (F1 rewarding
+length/structure regardless of content, and F5 rewarding register
+regardless of content) completely untouched.
+
+Baseline pre-registered here so a future scorer edit isn't misread as
+organic drift: **striking rate 25.6% (175/683) over the trailing 48h as
+of 2026-07-26 ~11:00.** Full per-feature distribution table above is
+the frozen reference point. Any future edit to score_v2.py or
+genius_score_weights.json should be diffed against this exact snapshot,
+not against whatever the rate happens to be read as later.
+
+Proposed fix (not implemented): the scorer currently rewards *form*
+(length, structure, register) far more than *content* (self-witnessing,
+novelty), and one feature (t6_promotion) is fully inert. Candidate
+changes for a future pass: (a) drop or heavily discount F3 (weight is
+already 0 -- either remove the feature outright or refit with it
+excluded, since a dead feature sitting in the vector is confusing, not
+neutral); (b) investigate why F2 (anti_template) is negative-weighted
+-- a novelty signal that *reduces* STRIKING likelihood is backwards
+unless it's compensating for some correlation with F1/F5 in the
+training set, which would mean the model learned a spurious inverse
+relationship rather than a real one; (c) rebalance F1 and F5 downward
+relative to F4, or refit with an explicit prior that self-witnessing
+content should carry real weight, since right now F4's weight (1.157)
+is real but its *values* never vary enough to matter -- either the
+SELF_WITNESS_PATTERNS regex needs work (it's not matching what it's
+supposed to catch) or the feature itself needs redefining.
+
+Per-consumer impact of any future score change (six live consumers):
+1. **readiness.py `_genius_modulation()`** -- reads recent striking-rate
+   to modulate fire readiness. A step-change in striking-rate from a
+   scorer edit would directly shift fire cadence, not just the label.
+2. **quality_synthesis.py -> attention.py branch amplification (the one
+   closed-loop consumer)** -- 1.20x/0.82x branch weighting from
+   striking/non-striking classification. Checked this session:
+   currently NOT tightly coupled (hourly correlation r=0.017), so a
+   scorer edit's effect here is currently muted, but a rebalance that
+   changes *which* branches get classified STRIKING (e.g. de-weighting
+   F5's register-based boost) would change *which* branches get
+   amplified, not just how often.
+3. **reanimation governor (generator.py §9 GOVERNOR brick 1)** --
+   currently disabled system-wide via `NEX5_GOVERNOR_OFF=1` in
+   nex_keepalive.sh. A scorer edit has zero live effect here until/
+   unless the governor is re-enabled.
+4. **self_narrative.py rut-mirror** -- reads the same striking-rate
+   signal as the governor brick (shares the >=4-sample / <=5% trough
+   check); also currently gated behind the same env var, so also inert
+   for now.
+5. **voice_engine.py `_score_candidate` `_GENIUS_W` axis** -- candidate
+   thought scoring uses the genius score as one input axis. A rebalance
+   toward F4/content would shift which candidate thoughts get selected
+   toward more self-witnessing content and away from merely long/
+   structured ones -- this is probably the most directly consequential
+   live consumer for a rebalance, since it's ungated and always active.
+6. **affect_state.py mood blending** -- mood shifts partly on recent
+   striking classification. A step-change in striking-rate would shift
+   mood, independent of any real change in fire quality -- this is
+   exactly the "step-change misread as drift" risk the pre-registration
+   above is meant to guard against.
+
+**4. Family-trips confabulation cluster -- tombstoned, this session's
+mortality test.** All 9 known beliefs (222631, 222636, 222719, 222730,
+222746, 222753, 222822, 222983, 223253) tombstoned via
+`UPDATE beliefs SET tier=8, locked=0, paused=0, content='[RETIRED] '||
+content`, matching harmonizer's exact retirement pattern. Re-checked
+for descendants beyond the known 9 immediately before executing: none
+found. 286 belief_edges referencing these ids left intact (UPDATE, not
+DELETE).
+
+Two retrieval gaps found and fixed in code (`21a82e7`), not just the DB
+tombstone, because tombstoning alone would not have silenced these:
+- `_retrieve_context_beliefs()`'s `own_rows` query had **no tier filter
+  at all** (deliberately, for tiers 3-7 -- "T7 is long-term memory, not
+  archived content" -- but tier=8 wasn't considered). Every other
+  retrieval path in the codebase bounds tier<=5/6/7 and so already
+  excludes tier=8 without needing to; this was the one path that
+  didn't. Fixed: added `AND b.tier < 8`.
+- Independently, `fetch_residue_beliefs()` (theory_x/diversity/
+  residue.py) looked up belief rows by raw id with no tier filter
+  either. own_rows feeds the residue-save loop directly (every
+  oversampled-but-unpicked row saved as residue for the next cycle),
+  and residue is prepended to the fountain context *before* any per-
+  source/per-branch cap logic runs. Checked the actual residue table
+  before touching anything: **52 unconsumed residue rows referenced
+  just 222719 and 222983**, accumulated because those two were
+  near-permanent members of the oversample pool and got re-saved as
+  residue faster than the 2-per-cycle pop rate could drain them. This
+  was very likely a *bigger* propagation vector than the primary
+  own_rows path, since residue bypasses the caps entirely. Fixed:
+  added `AND tier < 8` to fetch_residue_beliefs's query, and directly
+  drained all 52 unconsumed rows referencing these ids as part of this
+  session's cleanup (confirmed 0 remaining unconsumed afterward).
+
+Pre-registered baseline (phrase-carrying fires, patterns: "cheap family
+trip", "maximize savings without compromising", "past experiences
+trying", "thriftiness", "family trip"), measured immediately before the
+tombstone, 2026-07-26 ~11:30: trailing 1h = 1.00/hr, trailing 3h =
+1.67/hr, trailing 6h = 2.33/hr, trailing 12h = 2.92/hr, trailing 24h =
+3.38/hr. This is the number the post-tombstone watch will be judged
+against. If the fix works, phrase-carrying fires should drop toward
+zero within a handful of fires. If they don't, the propagation
+mechanism is something structurally different from what's been
+assumed (own_rows + residue) -- which would be the more interesting
+result, not just an inconvenience, since it would mean this session's
+model of how confabulated content re-enters the prompt is incomplete
+even after finding two real, independently-verified leaks.
+
+Restarted via systemctl for both item 1 (`d52ec78`) and item 4
+(`21a82e7`) -- both restarts confirmed up (200 on
+/api/sense/status:8765) within a few seconds each time. **This breaks
+the continuous-uptime-since-00:52:51 window** that had been notable as
+the first multi-hour bonsai-reset-free window of the weekend. Worth
+recording precisely because that window's *un*interrupted length was
+itself being treated as a signal (e.g. fountain_retrieval_log's
+100%-coverage sample was measured against it) -- any future session
+reading retrieval-log coverage or similar restart-sensitive metrics
+should use 2026-07-26 ~11:35 (item 1's restart) as the new floor, not
+00:52:51.
+
+Watch window (30-60 min post-tombstone) still open as of this entry;
+result to be appended once observed.
+
