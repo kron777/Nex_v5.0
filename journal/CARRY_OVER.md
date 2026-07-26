@@ -3848,3 +3848,160 @@ per instruction. `decisive_contradiction()` diagnosis and the genius/
 branch-attention do-not-touch note both landed in the entry above this
 one, same session, no code changes for either.
 
+## 2026-07-26 ~10:30 — session 49 continued: overnight verification,
+## genius-consumer census, surprise characterised, drive_resonance
+## decided, six-item cleanup backlog cleared, Doubt Engine arithmetic
+## checked.
+
+**Overnight run confirmed: no restart between 00:52:51 and this entry.**
+First multi-hour window this weekend without a bonsai reset or a
+bounded sample -- retrieval_log's 100% coverage held on 88 real fires
+overnight (settles the SYNTH_EMIT/PXB removal as a real fix, not
+restart-lottery); decay_pass demonstrated zero demotions against a
+correctly-empty live query and a confirmed-alive sibling loop
+(`corroborate()` fired three times in the same window the ring buffer
+covers) -- working as predicted, not stalled.
+
+**Genius-tags consumer census, done before touching anything else, per
+instruction.** Six live behavioural consumers, not the two previously
+named:
+1. `readiness.py` `_genius_modulation()` -- readiness penalty, 1h window.
+2. `quality_synthesis.py` -> `quality_signal.json` -> `attention.py`'s
+   1.20x/0.82x branch amplification (already flagged, do-not-touch).
+3. `generator.py`'s own "GOVERNOR brick 1" inside `_retrieve_context_
+   beliefs` -- accelerates reanimation cadence 20->5 and writes a
+   RUT-MIRROR self-observation belief when striking-rate <=5% (90min
+   window, throttled 2h).
+4. `self_narrative.py`'s `_maybe_notice_rut()` -- a SEPARATE, parallel
+   implementation of the same rut-mirror concept (same <=5%/90min
+   trigger, same 2h throttle), writing to `narrative_log` instead of
+   directly to `beliefs`. Two independent rut-mirrors exist; not
+   examined further this pass, flagging the duplication.
+5. `voice_engine.py`'s `_score_candidate` -- genius_score is a direct
+   weighted axis (`_GENIUS_W`) in candidate selection scoring
+   (GENIUS_SCORE_v2 §7 consumer A). Not a rate/throttle input -- directly
+   shapes which belief gets chosen.
+6. `affect_state.py` -- genius striking-rate (90min window) blends
+   directly into mood/valence via `_GENIUS_VALENCE_WEIGHT`.
+Confirmed clean of genius entirely: `theory_x/stage_emphasis/` (zero
+references anywhere), `groove_breaker.py`, `counterfactual_node.py` --
+none of tonight's items 1-3 touch a genius-derived signal.
+
+**Surprise -- three separate mechanisms share the name; characterised
+the one that matters.** `emphasis_engine.py`'s `_surprise`/
+`PredictionTracker.expectation_error()` is NOT the fire-31425 mechanism
+-- it's a crude capitalised-entity-overlap novelty proxy, self-described
+in its own docstring as exactly that. The real one is
+`predictive_substrate.py` + `surprise_loop.py`: every 5 min, predicts a
+weighted centroid (beliefs 0.6 + problems 0.3 + drive 0.1 for
+`internal_belief`; recent sense/chat for `external_input`), verifies
+next tick via `1.0 - cosine_similarity` against whatever actually
+appeared. Range [0, ~1], `surprise_flag` >0.5, `big_surprise` >0.8.
+**Blunt finding: as observed, this is mostly measuring window-emptiness,
+not prediction failure.** Of 36,980 historical events, ALL 5,396
+`big_surprise` events are the "nothing appeared in the window" auto-1.0
+fallback -- zero genuine content comparisons ever exceeded 0.8, and only
+172/31,584 (0.5%) genuine comparisons crossed even the 0.5 threshold.
+`internal_belief` predictions hit the empty-window case 29.2% of the
+time. The mechanism is grounded in principle; the signal as thresholded
+today is an availability artifact more than a content-mismatch one.
+`emphasis_log` (the OTHER surprise's sink) reconfirmed a pure sink --
+zero reads anywhere outside its own CREATE/INSERT in `generator.py`.
+For the real mechanism: `surprise_events` is read by `context_capture.py`
+into `coincidence_context` (Coincidence Lab HUD panel, human review, not
+a live consumer). `surprise_loop.py`'s own docstring claims a
+big-surprise -> `current_focus` pivot signal to `focus_loop` -- **checked;
+that code does not exist anywhere in the file.** Another instance of
+documented-but-not-implemented, found incidentally answering "who
+consumes it." **Re-examining "the belief that generated the failed
+prediction" is not directly supported by the data as framed**:
+predictions are a blended centroid of up to 10 recent beliefs + problems
++ drive, and neither `predicted_content` nor `actual_content` in
+`surprise_events` stores a belief id -- free text only. Building this
+would need belief-id tracking added to the mechanism first; nothing
+links it today.
+
+**`drive_resonance`: decided drop, not executed.** Checked whether the
+other three `EmphasisEngine` signals have also been ground-truth tested
+-- they haven't; `drive_resonance` is uniquely the one falsified
+component (p=0.190, effect -0.013, same null shape as the other seven
+failed importance-signal candidates), the other three are untested, not
+validated. Decision: drop `drive_resonance`, reweight
+`goal_relevance`/`self_relevance`/`surprise` to three. Not executed this
+pass (characterise-then-decide, not cleanup, per this session's own
+framing) -- a two-line change in `emphasis_engine.py`'s `EmphasisEngine.
+score()` combiner whenever picked up. Logged now so it doesn't sit
+unexamined another month.
+
+**Cleanup backlog cleared -- six items, three commits' worth of
+surgery.** `theory_x/stage6_fountain/generator.py`'s five `if False and
+X` blocks (own_thoughts, self-observations, arc_block, and both halves
+of `_format_arc_context`'s active/recent arc injection) removed, each
+with a dated recovery comment pointing at commit `edbddff`. One finding
+along the way: with both `_format_arc_context` blocks gone, that
+function now provably always returns `""` regardless of input --
+arc-context prompt injection was already a complete no-op at the call
+site too (`if arc_block:` never fires), not restructured further this
+pass, only the two named `if False` blocks touched.
+`theory_x/stage_counterfactual/counterfactual_node.py`'s `_maybe_
+promote()` unreachable body (dead since the 2026-05-16 `return`) removed
+-- confirmed two dependent tests (`test_move_fires_when_threshold_
+reached`, `test_tags_copied_to_review_queue`) were already failing
+against this disabled state before tonight, unrelated to the edit.
+`GrooveBreaker` (`ENABLED=False` since 2026-05-02, catalogue d9ce4b7) --
+wiring removed from all three live call sites (`run.py`, `stage6_
+fountain/__init__.py`, `generator.py`); the file itself untouched, still
+fully functional, dated note added explaining current state and
+re-enable path. Verified before removing: no shared helper used
+elsewhere for any of the six (checked `own_thoughts`, `arc_block` --
+which IS used elsewhere and was correctly left alone --, `_sub_rows`,
+`_accept_count_for`, and every `GrooveBreaker` call site individually).
+Full test suite run and diffed against the established clean-main
+baseline (not just counts) before restarting.
+
+**Doubt Engine arithmetic version -- checked, verdict below, not
+built.**
+- Confidence is NOT circular relative to corroboration_count: grepped
+  the entire codebase for any `UPDATE beliefs SET confidence` -- zero
+  exist anywhere. Confidence is assigned exactly once, at insert time
+  (hardcoded in seed scripts like `keystone.py` for T1/T2), and never
+  recomputed from anything afterward. Not circular -- but also nearly
+  constant: 225/311 T1 beliefs sit at confidence=1.0, all 40/40 T2
+  beliefs sit at exactly 0.9. Little real variance to divide by even if
+  the denominator worked.
+- corroboration_count is 0 across all 351 T1+T2 keystones, no
+  exceptions -- **the ratio is unusable as literally proposed.** Not
+  just empirically zero: structurally inapplicable. `corroborate()`
+  explicitly refuses on `locked and tier<=1` ("Tier 1 locked --
+  untouchable"), and its promotion branch requires `tier > 2` -- Tier
+  2->1 has no entry in `_CORROBORATION_THRESHOLDS` at all ("re-seed
+  ceremony only" per its own comment). The counter-increment path
+  (`else` branch) isn't hard-blocked for T2, so if `corroborate()` were
+  ever called with a T2 belief id the count would tick up regardless --
+  it never has been, meaning the callers (`pipeline_hooks.py`,
+  `world_consolidation.py`) simply never target T1/T2 in the first
+  place. Confirmed empirically, not just by internal guard.
+- Keystones confirmed genuinely never re-examined, three independent,
+  overlapping guards: `decay_pass()`'s `locked = 0` filter (278/311 T1 +
+  40/40 T2 are locked=1) plus its own `tier BETWEEN 5 AND 7` range
+  (excludes tier 1/2 outright regardless of lock); `harmonizer.scan_for_
+  conflicts()`'s explicit `tier BETWEEN 3 AND 7`, documented as
+  deliberate ("Excludes Tier 1-2 keystones/bedrock (immutable per SPEC
+  §2)"), plus its own separate "locked beliefs excluded regardless of
+  tier"; `survive_challenge()`'s explicit `tier <= 1` refusal. One minor
+  nuance for completeness: 33/311 T1 beliefs have `locked=0` (not the
+  usual 278), so the *lock*-based guards don't cover them specifically
+  -- but the *tier*-range guards in both `decay_pass` and `harmonizer`
+  exclude tier=1 outright regardless of lock status, so they're still
+  protected, just via a different one of the three overlapping guards.
+  No gap in practice.
+- **Verdict for Jon to decide on: the ratio as proposed doesn't work
+  (denominator is uniformly and structurally zero), but the underlying
+  premise -- keystones are set once and never re-examined by any
+  existing mechanism -- is now confirmed, not assumed. A workable
+  arithmetic version would need a different denominator than
+  corroboration_count (which fundamentally doesn't apply to T1/T2) --
+  possibly something like time-since-creation with zero references, or
+  a dedicated "times this keystone was actually retrieved into a live
+  prompt" counter, neither of which exist today either.**
+
