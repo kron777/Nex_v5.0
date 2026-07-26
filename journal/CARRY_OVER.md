@@ -4666,3 +4666,18 @@ re-examining); a rate that stays flat or continues drifting is the
 Restarting via systemctl now; will watch ~40 min and append the
 observed rate.
 
+**Watch result (40 min, closing this entry): matched the prediction.**
+2 phrase-carrying fires out of 9 total (ids 31513, 31518) -> ~3.0/hr,
+squarely inside the pre-registered 2.83-4.00/hr baseline range -- flat,
+not a meaningful move either direction, exactly the expected,
+uninformative result stated above. Confirms `_real_fires()` remains the
+dominant, unpatched vector, as predicted. Worth noting: fire 31513 is
+itself a hot_observer-style echo ("I notice this fire engaged the
+world directly...") that carries the phrase -- a *new*, untombstoned
+hot_observer belief quoting a phrase-carrying fire verbatim, which the
+tier filter correctly leaves alone (it isn't tombstoned; it's fresh).
+This is `_compose_meta_belief()` working exactly as designed --
+content-agnostic verbatim quoting of whatever the current fire said --
+not a gap in this session's fix. The `_recent_hot()` fix did what it
+was scoped to do; it was never going to touch this.
+
