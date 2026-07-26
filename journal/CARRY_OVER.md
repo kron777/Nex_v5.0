@@ -4005,3 +4005,149 @@ built.**
   a dedicated "times this keystone was actually retrieved into a live
   prompt" counter, neither of which exist today either.**
 
+## 2026-07-26 ~10:53 — session 49 continued: genius loop characterised,
+## second rut-mirror characterised, named pattern entry for eight
+## documented-but-dead instances.
+
+**The genius loop: real for one of six consumers, not visibly tight
+where checked.** Traced `voice_engine.py`'s `_score_candidate` input
+precisely: it reads each specific CANDIDATE belief's own genius_score
+via `fountain_crystallizations` (belief_id -> fountain_event_id ->
+genius_tags.score), not an aggregate rate -- a real per-candidate bias.
+But `VoiceEngine` is the chat-reply substitution path ("Replaces the LLM
+in the chat reply path when in use_substrate mode" -- and `use_substrate`
+is the live default, not an edge case), not the fountain/DRIFT loop:
+`query_reply()` only returns a dict, writes nothing back to `beliefs`,
+and its selected reply doesn't re-enter `predictive_substrate`'s
+`external_input` embedding either (that only reads `role='user'`
+messages). **This is a leak into what gets said to a human, not a loop
+that produces more fountain content** -- high-genius (and therefore
+possibly-confabulated) past beliefs get preferentially surfaced in
+chat, but nothing new gets written from this path. `affect_state.py`'s
+mood-blending is a similar dead end in the other direction: grepped
+generator.py and every fountain-adjacent file for `affect_state`/
+`mood_label` -- zero references. Mood is a display/self-model value,
+consumed nowhere that reaches DRIFT content. `readiness.py` affects
+firing frequency/timing, not content shape -- weak, indirect at best.
+`generator.py`'s reanimation governor and `self_narrative.py`'s
+rut-mirror are explicitly CORRECTIVE (trigger on LOW striking-rate,
+inject dormant/foreign material) -- the opposite direction from
+reinforcement, not part of this loop at all.
+
+**The one real, closed loop: `quality_synthesis.py` -> `attention.py`.**
+Per-branch mean genius score -> branch attention multiplier (1.20x/
+0.82x) -> branch focus_num accumulation -> which branch fires more ->
+more content in that branch's register -> genius-scored again. This is
+the only one of the six that is architecturally a closed loop entirely
+within the autonomous fountain system.
+
+**Checked whether it's visibly running -- it is not, at the resolution
+checked.** Hourly striking-rate vs hourly share of long/structural/
+first-person ("high-F1-form") content over the last 48h: Pearson
+r=0.017, no correlation. Notably, 2026-07-25 18:00-21:00 (the heaviest
+family-trips confabulation window) shows high-F1-form share spiking to
+33-39% while striking-rate stays flat-to-unremarkable (23.5%, 22.2%,
+41.2%, 16.7% -- its LOWEST point in that stretch is inside the spike,
+not outside it). **Checked the loop's actual mechanism directly, not
+just the proxy:** `emerging_tech` -- the branch carrying most of the
+confabulation -- currently has verdict LOW (mean=0.11-0.12, n=30-32,
+100% of its recent fires in the low bucket, confirmed live via
+`quality_synthesis` log lines every 30 min) and is being DAMPENED
+(0.82x), not amplified. Read: `emerging_tech` is a high-volume, mostly-
+ordinary branch (HN-style short items dominate); a subset of
+confabulated high-scorers isn't enough to move a large, diverse
+population's mean. **The loop exists architecturally but is currently
+diluted past visibility by branch volume -- not tight, not currently
+self-reinforcing in any way the data shows.** Not fixed, per
+instruction -- characterised only.
+
+**Second rut-mirror: one is permanently gated off, the other is live
+but quiet, not disagreeing.** `generator.py`'s version fired exactly
+ONCE ever (belief 53030, 2026-05-31) and never again -- because
+`NEX5_GOVERNOR_OFF=1` IS set in `nex_keepalive.sh`, and that flag guards
+the entire "§9 GOVERNOR brick 1" the rut-mirror is bundled inside
+(reanimation-cadence acceleration + the rut-mirror write share one
+`if` gate). The one 05-31 firing predates that flag taking effect;
+every tick since has been a no-op. `self_narrative.py`'s
+`_maybe_notice_rut()` has no such flag set (`NEX5_RUT_MIRROR_OFF` is
+absent from `nex_keepalive.sh`) and fired 15 times, 2026-06-01 through
+2026-06-18 -- then nothing for 5+ weeks, not disabled, its trigger
+condition (or something upstream of it) simply hasn't recurred since
+(unexplained, not investigated further this pass). Zero overlap ever
+observed between the two -- generator.py's single firing predates
+self_narrative's first by a day, no shared window exists to check
+simultaneity directly. Compared parameters instead: window (5400s/90min),
+rate ceiling (0.05), minimum sample (n>=4), and throttle (7200s/2h) are
+IDENTICAL across both implementations, querying the same `genius_tags`
+table the same way -- if both were live at once they would almost
+certainly fire in the same tick on the same data, not disagree. The
+risk was never disagreement; it's redundant duplicate writes to two
+different tables (`beliefs` vs `narrative_log`) for what's
+architecturally one event. **Read: self_narrative.py's is the intended,
+maintained implementation** (dedicated toggle, purpose-built method);
+generator.py's is collateral damage from a broader governor flag being
+switched off for unrelated reasons, not a deliberate decision about the
+rut-mirror specifically -- same shape as this weekend's other
+accidental-permanence findings. Characterised only, nothing touched.
+
+**NAMED PATTERN: documented behaviour with nothing behind it -- eight
+instances this weekend, worth a standing entry rather than scattering
+across session notes.**
+
+The class of problem: a docstring, comment, or prose description
+asserts that the code performs some action or connects to some other
+part of the system -- and it doesn't, either because it never was
+implemented past the description, or because it was disabled as a side
+effect of an unrelated change and the description was never updated to
+say so. Both shapes are dangerous the same way: reading the comment
+gives a false model of what the system does, and that false model
+costs real time to correct once something depends on believing it (this
+weekend's concrete case: PXB's code *looked* live, so its env var had to
+be traced and confirmed dead before any path-classification could be
+trusted).
+
+The eight instances, in the order surfaced:
+1. `NEX5_SYNTH_EMIT` -- ~74 lines of live-looking code, flag never set
+   in any launch path. Removed (`bfc89b8`).
+2. `NEX5_RECONCILE_PXB` -- ~104 lines, same shape. Removed (`bfc89b8`).
+3. `_maybe_substrate_voice()` / Intervention C -- gated off as a side
+   effect of `NEX5_RECONCILE=1` going permanent in a commit whose
+   message narrates unrelated work (RUT_EDGE, an arc boot-crash fix) and
+   never mentions RECONCILE or substrate_voice. Characterised, left
+   alone (harmonic HUD pairs still read it as live -- also flagged).
+4. The persona gate (census #9) -- the original named instance of this
+   whole class, from before this weekend; cited here as the precedent,
+   already fixed in a prior session.
+5. Moltbook HUD panel -- replays frozen 2026-05-30 data with no date,
+   reads as live. Fixed (`dc5fb08`).
+6. `list_open()` vs `IN ('open','stuck')` -- open-problems panel reports
+   "none" while an actively-touched problem exists. Characterised, not
+   fixed.
+7. `surprise_loop.py`'s docstring claims a `big_surprise` ->
+   `current_focus` pivot signal to `focus_loop`. Checked: no such write
+   exists anywhere in the file. Not fixed.
+8. `_format_arc_context()` -- with both internal `if False` blocks
+   (removed this session, `7e71935`) gone, the function is now provably
+   always `""` for any input; the "live" call site (`if arc_block:`)
+   never actually fired even before removal. Arc-context injection was
+   dead at the call site the whole time these blocks existed, not just
+   inside them.
+
+What would catch these systematically, not proposed as a build, just
+named: nothing in this codebase currently checks a docstring's claimed
+side effect against whether that side effect's code path actually
+exists and is reachable -- that's not something a type checker or the
+existing test suite verifies by construction, since prose claims aren't
+executable. Two different levels of catch, at two different costs: (a)
+cheap, mechanical -- grep every module for env-var-gated blocks and cross-
+reference each flag's current value against every launch path, on some
+cadence, flagging any block whose flag has been unset/set for >N weeks
+without the surrounding comment being touched (would have caught #1,
+#2, #3's permanence, #7 partially); (b) expensive, not mechanical --
+actually reading a docstring's claims and grepping for the specific
+call/table-write it describes, which is what caught #3's HUD
+consequence and #7 and #8 this weekend, and doesn't generalise into a
+script. The cheaper check is worth having; the expensive one is what
+this weekend's sessions were doing by hand and can't be fully automated
+away.
+
