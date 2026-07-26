@@ -1,3 +1,61 @@
+<!-- START HERE — standing header, updated 2026-07-26 ~15:20. Read this before the log below. -->
+
+## OPEN DECISIONS (not yet acted on)
+- **Genius scorer** (`theory_x/genius/score_v2.py`): F3 dead (weight=0), F2
+  negative-weighted, F5 dominates by far, F4 nearly inert on real data. Fix
+  proposed, NOT implemented. Baseline pre-registered (see below) so a future
+  edit can be diffed against it. See 2026-07-26 ~11:41 entry.
+- **`_real_fires()` fire-recycling** (`theory_x/stage_tom/self_narrative.py`):
+  the family-trips tombstone (2026-07-25 confabulation) did NOT stop
+  recurrence — the carrier is raw `fountain_events` text re-injection, not
+  belief retrieval. Five live paths mapped, one fixed (`_recent_hot` tier
+  filter). A within-window content dedup was tested against real history and
+  REJECTED (fires more on normal output than on the actual runaway — see
+  2026-07-26 ~13:44 entry). Real fix needs clause-level matching, not
+  whole-thought similarity; not yet attempted, flagged as historically
+  failure-prone (sessions 40-44 pattern) if rushed.
+- **Doubt Engine denominator**: `use_count` is a usable interim proxy
+  (broad, imprecise). `fountain_retrieval_log` is the precise answer but
+  was only ~10h old as of 2026-07-26 ~11:00 — needs more calendar time
+  before trusting it. No build needed yet either way.
+
+## STANDING CAVEATS (cause misreads if missed)
+- **Bonsai `focus_num` resets to 0.0 on every process boot**, no
+  persistence. Fast branches (emerging_tech, computing, markets, crypto)
+  recover in ~1h; slow-poll branches (ai_research, cognition_science) take
+  **~2h**. Check time-since-boot before reading a low reading as drift.
+- **`decay_pass()` near-zero demotions = the fix working**, not stalled.
+  Fixed 2026-07-26 (`4528074`, COALESCE NULL-bypass); confirmed against a
+  correctly-empty live query with a confirmed-alive sibling loop. Don't
+  re-diagnose a quiet decay_pass as broken.
+- **Genius striking-rate baseline: 25.6% (175/683), frozen 2026-07-26
+  ~11:00.** Full per-feature distribution in that entry. Any future scorer
+  edit should diff against this exact snapshot, not against a later read.
+- **`fountain_retrieval_log` has been at 100% coverage since the
+  2026-07-24 22:39 restart** (confirmed real via an 88-fire overnight
+  sample, not restart-lottery). Restarts since then (several 2026-07-26)
+  reset uptime but not this fix.
+
+## THE DOCUMENTED-BUT-DEAD PATTERN
+Named this weekend: a docstring/comment claims a behavior the code doesn't
+actually perform (disabled by an unrelated flag change, or never built past
+the description). Instance list: `## documented-but-dead instances` section,
+2026-07-26 ~10:53 entry (8 instances). **Instance 9: `NEX5_SPEECH_ENABLED=
+false`**, a 2026-07-24 SIGILL stopgap left in after the crash stopped
+recurring on its own — closed 2026-07-26, see that entry.
+
+## CONFIRMED WORKING — don't re-investigate
+- `own_rows`/`fetch_residue_beliefs`/`_recent_hot` tier<8 filters
+  (2026-07-26, three commits) — tombstoning is now retrieval-effective for
+  belief-sourced paths (not `_real_fires()`, see above).
+- `drive_resonance` dropped from `EmphasisEngine.score()` combiner
+  (`d52ec78`) — ground-truth tested and failed, correctly removed.
+- Speech re-enabled 2026-07-26 (`NEX5_SPEECH_ENABLED` flag removed) — SIGILL
+  confirmed zero recurrences since 2026-07-24 19:00 across 34 restarts
+  before re-enabling. If it crashes again, that's new information, not a
+  reason to silently re-disable.
+
+<!-- END STANDING HEADER — log begins below, chronological, oldest first. -->
 
 ## 2026-05-21 ~12:10 — Closure-attribution build, finding
 
