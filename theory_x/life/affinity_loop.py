@@ -112,7 +112,23 @@ def _usage_score(use, edges, hours_since_ref):
 
 
 def _pick_candidates(cx, limit):
-    """Top usage-score beliefs that need affinity rating."""
+    """Top usage-score beliefs that need affinity rating.
+
+    2026-07-26: 'demoted_confabulation' excluded from eligibility entirely.
+    It was already correctly absent from the "hers by origin" whitelist
+    below, but the usage-based branch (use_count >= MIN_USAGE_FOR_LLM) has
+    no source filter, so an already-self-acknowledged fabrication with high
+    legacy use_count (accumulated before it was demoted) stayed eligible
+    for LLM self-rating anyway. Confirmed live: belief 12310 ("I am nex,
+    the intelligence", use_count=487) scored affinity=0.973 -- the highest
+    in the entire store -- under the current llm_rating*(0.75+0.25*usage)
+    formula, because the rater judged it maximally "hers." This is the same
+    class of gap the whitelist already exists to prevent; the whitelist
+    just didn't cover the OR'd usage branch. Whether the LLM rating itself
+    should be trusted at all is a separate, unresolved question (see the
+    SELF-RATING IS HOLLOW finding at the top of this file) -- not touched
+    here.
+    """
     now = time.time()
     rescore_cutoff = now - RESCORE_AFTER_DAYS * 86400
     rows = cx.execute(
@@ -125,7 +141,7 @@ def _pick_candidates(cx, limit):
         FROM beliefs b
         WHERE (b.affinity IS NULL OR b.affinity_updated_at < ?)
           AND b.tier >= 4
-          AND b.source NOT IN ('spectrum')
+          AND b.source NOT IN ('spectrum', 'demoted_confabulation')
           AND (
                 COALESCE(b.use_count, 0) >= ?          -- earned it through use
                 OR b.source IN (                        -- or it is hers by origin
