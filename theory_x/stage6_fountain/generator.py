@@ -283,7 +283,6 @@ class FountainGenerator:
         condenser=None,
         mode_state=None,
         world_bridge_selector=None,
-        groove_breaker=None,
         drive_emergence=None,
         conversations_reader: Optional[Reader] = None,
         coherence_gate=None,
@@ -302,7 +301,6 @@ class FountainGenerator:
         self._condenser = condenser
         self._mode_state = mode_state
         self._world_bridge_selector = world_bridge_selector
-        self._groove_breaker = groove_breaker
         self._drive_emergence = drive_emergence
         self._conversations_reader = conversations_reader
         self._coherence_gate = coherence_gate
@@ -1999,7 +1997,6 @@ class FountainGenerator:
             own_n=mode.retrieval_own_n, seed_n=mode.retrieval_seed_n
         )
         own = [b for b in context_beliefs if b["source"] in _OWN_CONTENT_SOURCES]
-        own_thoughts = [b for b in own if b["source"] != "precipitated_from_sense"]
         own_sense = [b for b in own if b["source"] == "precipitated_from_sense"]
         seeds = [b for b in context_beliefs if b["source"] in _SEED_SOURCES]
 
@@ -2472,28 +2469,16 @@ class FountainGenerator:
             prompt_parts.append(arc_block)
             prompt_parts.append("")
 
-        if self._groove_breaker is not None:
-            try:
-                _probe = self._groove_breaker.get_pending_probe_text()
-            except Exception:
-                _probe = None
-            if _probe:
-                prompt_parts.append("A question arising from your recent pattern:")
-                prompt_parts.append(f"  {_probe}")
-                prompt_parts.append("")
+        # 2026-07-26: GrooveBreaker probe-injection removed (session 49
+        # continued) -- self._groove_breaker was never non-None (the class
+        # is functionally dead: ENABLED=False since 2026-05-02, and its only
+        # writer of auto_probe_log rows was gated behind that same flag, so
+        # get_pending_probe_text() could never have returned anything even
+        # when wired). Recoverable at commit edbddff.
 
-        # 2026-05-15 DISABLED: own_thoughts injection looped contemplative beliefs back.
-        if False and own_thoughts:
-            prompt_parts.append("Some of what you've been thinking recently:")
-            for _own_rank, b in enumerate(own_thoughts, start=1):
-                age_min = int((now - b["created_at"]) / 60)
-                prompt_parts.append(f"  ({age_min} min ago) {b['content']}")
-                try:
-                    _boost = b["boost_value"] if "boost_value" in b.keys() else None
-                    retrieval_manifest.append((b["id"], "own", _own_rank, _boost))
-                except Exception:
-                    pass
-            prompt_parts.append("")
+        # 2026-07-26: DISABLED own_thoughts injection removed (session 49
+        # continued) -- dead since 2026-05-15, unreachable behind
+        # `if False`. Recoverable at commit edbddff.
 
         if own_sense:
             prompt_parts.append("Things you've been reading about lately:")
@@ -2538,24 +2523,10 @@ class FountainGenerator:
         # Mechanism-C fires stayed on the cicada/hum surface pattern.
         # Per §0: substrate provides; speaking layer composes freely.
 
-        # 2026-05-15 DISABLED: self-observations were feeding contemplative
-        # self-thinking back into the prompt, deepening the hum lock.
-        try:
-            _sub_rows = []
-            if False and _sub_rows:
-                prompt_parts.append("Your recent self-observations:")
-                for _sr in _sub_rows:
-                    _sub_mins = max(0, int((now - _sr["ts"]) / 60))
-                    prompt_parts.append(f"  ({_sub_mins} min ago)")
-                    for _line in _sr["output"].splitlines():
-                        prompt_parts.append(f"    {_line}")
-                prompt_parts.append("")
-        except Exception as _ste:
-            errors.record(
-                f"substrate_observations_block_failed: {_ste}",
-                source="stage6_fountain",
-                exc=_ste,
-            )
+        # 2026-07-26: DISABLED self-observations block removed (session 49
+        # continued) -- dead since 2026-05-15 (`if False`), and `_sub_rows`
+        # was hardcoded to an empty list right above it besides. Recoverable
+        # at commit edbddff.
 
         _wb_events = None
         if self._world_bridge_selector is not None:
@@ -2611,14 +2582,9 @@ class FountainGenerator:
 
         prompt_parts.append(f"Time: {time_str}  |  Beliefs held: {belief_count}")
 
-        # 2026-05-16 DISABLED: this prompt encouraged thread-extension
-        # which became a 15-fire imitation lock on a single sentence.
-        if False and arc_block:
-            prompt_parts.append("")
-            prompt_parts.append(
-                "You may extend one of your current threads, "
-                "notice a connection between them, or let a new observation arise."
-            )
+        # 2026-07-26: DISABLED arc_block injection removed (session 49
+        # continued) -- dead since 2026-05-16, unreachable behind
+        # `if False`. Recoverable at commit edbddff.
 
         error_channel.record(
             f"Fountain context: own={len(own)} seed={len(seeds)} "
@@ -2665,25 +2631,16 @@ class FountainGenerator:
         if not active and not recent:
             return ""
         lines = []
-        # 2026-05-15 DISABLED: ongoing threads fed past hum back to her.
-        if False and active:
-            lines.append("Your current ongoing threads:")
-            for a in active:
-                theme = (a.get("theme_summary") or "")[:70]
-                mins_ago = int((time.time() - a["last_active_at"]) / 60)
-                arc_kind = "progression" if a["arc_type"] == "progression" else "return-transformation"
-                lines.append(
-                    f'  - "{theme}" ({a["member_count"]} fires, '
-                    f'{arc_kind}, last ~{mins_ago} min ago)'
-                )
-        # 2026-05-16 DISABLED: recent_closed arcs were feeding her past
-        # outputs back as 'theme_summary' lines. Same lock mechanism as
-        # ongoing threads above. Reversion: replace `if False` with `if recent`.
-        if False and recent:
-            lines.append("Recently completed:")
-            for a in recent:
-                theme = (a.get("theme_summary") or "")[:70]
-                lines.append(f'  - "{theme}" ({a["member_count"]} fires, closed)')
+        # 2026-07-26: both DISABLED-arc blocks below removed (session 49
+        # continued) -- dead since 2026-05-15/05-16, unreachable behind
+        # `if False`. Recoverable at commit edbddff. Note: with both gone,
+        # this function always returns "" (the `if not active and not
+        # recent: return ""` guard only catches the case where both are
+        # empty; when either is non-empty it falls through an empty
+        # `lines` list) -- arc-context prompt injection is currently a
+        # total no-op at the call site too (`if arc_block:` never fires).
+        # Not restructured further this pass -- only the two `if False`
+        # blocks named for removal were touched.
         return "\n".join(lines)
 
     def last_thought(self) -> Optional[str]:
