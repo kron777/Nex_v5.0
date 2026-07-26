@@ -92,12 +92,20 @@ def _active_branches(dynamic_db: str) -> list[str]:
 
 
 def _recent_hot(beliefs_db: str) -> Optional[str]:
-    """Most recent HOT self-observation. Returns full content or None."""
+    """Most recent HOT self-observation. Returns full content or None.
+
+    2026-07-26: tier < 8 added -- same class of gap as own_rows and
+    fetch_residue_beliefs (fixed same day): a tombstoned hot_observer
+    belief has no reason to still surface as "what I most recently
+    noticed." No other filter here was validated to help (see
+    CARRY_OVER) -- this one is unambiguous on its own, independent of
+    that.
+    """
     try:
         con = sqlite3.connect(beliefs_db, timeout=3)
         row = con.execute(
             "SELECT content FROM beliefs WHERE source='hot_observer' "
-            "ORDER BY created_at DESC LIMIT 1"
+            "AND tier < 8 ORDER BY created_at DESC LIMIT 1"
         ).fetchone()
         con.close()
         if row and row[0]:
