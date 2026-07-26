@@ -4749,3 +4749,117 @@ content-agnostic verbatim quoting of whatever the current fire said --
 not a gap in this session's fix. The `_recent_hot()` fix did what it
 was scoped to do; it was never going to touch this.
 
+## 2026-07-26 ~18:21 — three findings from a live state-of-mind read, acted on: gate false-positive fixed, harmonizer LIMIT 200 closed as a fault (not fixed), affinity eligibility gap closed
+
+Prompted by a direct request to read the live system's actual current
+epistemic state (not architecture) -- what's active, what's contested,
+what happens to genuine self-criticism. Full investigation surfaced
+three concrete, actionable findings, each characterised against real
+data before any code changed.
+
+**Harmonizer LIMIT 200 -- CLOSED, not fixed. Do not reopen this
+thinking the cap is the only problem.** `scan_for_conflicts()`'s
+`ORDER BY tier ASC LIMIT 200` against 3,071 unpaused tier-3 beliefs
+means it always returns the same 200 tier-3 rows and has never once
+reached tier 4-7 (41,100 of 44,171 T3-7 beliefs, 93%, structurally
+invisible -- matches zero `harmonizer_events` in the last 30 days,
+last real one 2026-05-21/22). Modelled what removing the cap would
+actually do, against the live graph, using the real `_conflict_score()`:
+**88,843 conflicts exist in the currently-invisible 93%.** Sampled both
+detection paths for content -- **zero genuine disagreement found in
+either.** Polar-vocabulary path (95.2% of hits) is thematically-related
+koan-register musings sharing vocabulary. Negation path is dominated by
+duplicate/near-duplicate headlines and echo-loop quotes (81.7%
+same-source pairs). Naive nested-loop cost at full scale: ~18 minutes
+per 2h tick (measured on a 2,500-belief sample, extrapolated) -- fits
+the interval, not free, but not the real risk. The real risk: all
+88,843 pairs would mark-paradox in the first tick, escalate ~16h later,
+and since synthesis is already established as functionally dead (0 in
+~2 months, 2 ever, both in the system's first month), nearly all would
+resolve `both_deleted`. **5,173 unique beliefs -- 11.7% of the entire
+T3-7 working body -- would be retired in a single incubation wave.**
+System's entire history: 41 pairs / 82 beliefs ever retired via
+contradiction, total. This one snapshot is 2,167x the pair-count and
+63x the belief-count of that lifetime total. **Both facts belong on
+the record together, so nobody reopens this thinking either one alone
+is the problem: the detector is blind to 93% of the graph, AND it
+would be wrong about nearly everything it found if it could see it.**
+Uncapping this is not a tradeoff, it's a fault. Not touched. No code
+changed for this item.
+
+**Gate false-positive -- FIXED (`coherence_gate.py`).** `contradicts_
+anchor` (Check 1b: token-overlap>=4 + negation-word-presence XOR
+against locked T1 anchors) was firing 368,013 times/7d (~3,500/hr,
+99.14% from a single throw_net retry loop: 4 same-topic rejects in 15
+min spawns a new throw_net session that generates more candidates and
+resubmits to the same gate). Hand-classified sample: 0/45-50 genuine
+contradictions found, effectively 100% false positive -- the locked
+anchors being "contradicted" are a cluster of chance/mortality/origin
+koans, and the rejected candidates are paraphrases of the same idea
+using negation-style phrasing ("no cosmic warrant," "without being
+summoned") that trips the crude XOR.
+
+First attempt used whole-sentence cosine similarity (embeddings) as a
+restatement gate on top of the existing pre-filter -- validated
+cleanly against the real reject population (500-sample: mean 0.706,
+max 0.821) vs a random-belief baseline (mean 0.548), looked solid.
+**Failed when tested against the one existing deliberate true-positive
+case** (`test_anchor_contradiction_rejected`'s minimal pair: "I attend
+to the world with wonder..." vs "I do not attend to the world with
+wonder..."), which scored cosine=0.889 -- HIGHER than the entire real
+false-positive population. A true minimal pair (same sentence, one
+word negated) is the most textually similar case there is, not the
+least, so "high cosine = restatement" is backwards for exactly the
+shape the check exists to catch. This could not have been caught by
+corpus validation alone -- the 7-day production corpus contains zero
+genuine contradictions to test against; only the pre-existing unit
+test surfaced it.
+
+**Shipped instead: token-Jaccard overlap** (the file's own existing
+`_jaccard()`, already used elsewhere in this module -- no embedding
+call needed, cheaper than the rejected cosine approach). Separates the
+two cleanly: false-positive population (300-sample) mean 0.094, p99
+0.222, max 0.222; the minimal-pair test case scores 0.833. Threshold
+set at 0.30 -- comfortably above the false-positive ceiling,
+comfortably below the one known true-positive shape. Verified directly
+(ad hoc CoherenceGate instantiation, properly-sourced anchor): minimal-
+pair contradiction still REJECTs, loose paraphrase of the same idea now
+ACCEPTs. `test_anchor_contradiction_rejected` was already failing
+before this change (confirmed via `git stash`, same failure, unrelated
+`no such table: world_predictions` test-scaffolding issue, in the
+original 39-item baseline) -- not a regression, pre-existing.
+
+**Affinity eligibility gap -- FIXED (`affinity_loop.py`).**
+`demoted_confabulation` was correctly excluded from `_pick_candidates`'s
+"hers by origin" whitelist, but eligibility is `whitelist OR use_count
+>= 2`, and that branch had no source filter -- so an already-self-
+acknowledged fabrication with high legacy use_count (from before it was
+demoted) stayed eligible for LLM self-rating regardless. Confirmed
+live: belief 12310 ("I am nex, the intelligence," use_count=487) scored
+affinity=0.973 -- highest in the entire store, outranking all 63
+witness_loop self-critical beliefs (which rank 2,642nd-15,822nd) --
+because the rater judged it maximally "hers" under the current
+`llm_rating*(0.75+0.25*usage)` formula (deployed 2026-07-09 specifically
+to prevent usage alone from doing this; the gate's input, not its
+shape, is what failed here). Added `demoted_confabulation` to the same
+source-exclusion clause `'spectrum'` already sits in. Not touched: the
+LLM self-rating mechanism itself, or the affinity formula -- both are
+Jon's call, and the file's own top-of-file docstring already documents
+the rater as independently unreliable ("SELF-RATING IS HOLLOW," dated
+2026-07-09). This fix closes the one unambiguous gap (source filter
+missing on one branch); it does not address whether the rater should
+gate anything at all.
+
+**Pre-registration before restart.** Current rates (measured
+2026-07-26 ~18:20, before restart): `contradicts_anchor` rejects
+~3,500/hr; throw_net session rate ~14,600/day (one every ~6s). Expect:
+if the jaccard fix works, `contradicts_anchor` rejections should drop
+toward near-zero within the watch window, since the classified sample
+found no real catches for it to preserve. If throw_net session
+creation ALSO collapses alongside it, that's the more interesting
+secondary result worth noting explicitly: it would mean a large
+fraction of what looked like generative/exploratory activity was
+actually retry-loop churn against a broken gate, not independent
+thought generation. Watching 40 min post-restart; result to be
+appended below.
+
