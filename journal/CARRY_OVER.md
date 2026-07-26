@@ -4863,3 +4863,36 @@ actually retry-loop churn against a broken gate, not independent
 thought generation. Watching 40 min post-restart; result to be
 appended below.
 
+**Watch result (41.5 min, closing this entry): the fix worked
+completely, and the secondary result is larger than expected.**
+`contradicts_anchor` rejections: **0** in the entire window (down from
+~3,500/hr) -- total REJECT count across all reasons: 2. The jaccard
+gate is working exactly as designed.
+
+Initial read of `throw_net_sessions` looked like it hadn't moved
+(395 sessions in the window, ~571/hr, close to the pre-fix ~608/hr) --
+this looked like a null result on the secondary question. It wasn't:
+checked whether these sessions were freshly triggered or draining a
+backlog, via `throw_net_triggers` (the queue `record_gate_reject()`
+writes to, drained by TN-5's background tick). **Zero new trigger rows
+have been created since the restart.** All 421 post-restart sessions
+joined back to triggers with `ts` from *before* the fix landed. There
+is a backlog of **12,499,194 unfired trigger rows** sitting in that
+table, accumulated over the system's history. At the current drain
+rate (~571 sessions/hr, one trigger consumed per session), that backlog
+would take on the order of 2.5 years to clear on its own.
+
+This is the "more interesting result" flagged in the pre-registration:
+**a very large fraction of what looked like generative/exploratory
+throw_net activity was retry-loop churn against a broken gate, not
+independent thought generation** -- confirmed directly, not inferred:
+new trigger creation is zero, not reduced. One more thing worth
+flagging forward, not fixed this pass: the backlog is now succeeding
+far more often than it used to (accepted_count 10/30 per session
+sampled just now, vs the historical 14.1% rate) -- meaning it's not
+inert, it will keep producing real accepted beliefs as it drains, at a
+materially higher rate than before the fix, for however long the
+backlog takes to work through. Whether that 12.5M-row backlog should be
+left to drain naturally, drained faster, or pruned is a separate
+question, not decided here.
+
