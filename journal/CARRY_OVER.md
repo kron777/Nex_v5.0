@@ -4967,3 +4967,102 @@ unboundedly forever with no cleanup mechanism. This was the second-
 largest contributor to the now-pruned backlog's downstream cost and is
 now the largest remaining unaddressed one.
 
+## 2026-07-27 ~05:27 — three more dead loops from the 2026-05-30 cut round removed; two audit items resolved by reading, not code; audit progress noted; a fourth template groove observed (expected, not new)
+
+**Three more loops from the same 2026-05-30 cut round as groove_breaker
+(cleared earlier today, `a044ebc`) removed, `7804621`.** All three were
+already fully commented-out/inert; this deletes the dead text rather
+than leaving it as a permanent comment block. Each verified
+independently before touching anything (per the standing "arc_block
+turned out to be live last time" caution -- don't trust the cut
+comment's stated reason without re-checking):
+
+1. **SocialPresence** (`run.py`, Phase 38) -- writes
+   `social_presence_snapshots`, zero readers outside its own tests.
+   Confirmed `Metacognition._sp` stays `None` and both call sites
+   (`_detect_drift`'s topic_diversity_collapse and vocab_narrowing
+   checks) are guarded `if self._sp is not None:` -- graceful no-op,
+   exactly as the original comment claimed.
+2. **Arc reader** (`run.py`, "15. Arc reader") -- the original cut
+   comment's *first* stated reason (schema mismatch: writes dynamic.db,
+   table defined in beliefs.sql) does **not** hold up: `ArcLoop`/
+   `ArcReader` (`theory_x/arcs/loop.py`, `detector.py`) both use
+   `writers["beliefs"]`, and `arcs`/`arc_members`/`arc_closers` are
+   defined only in `substrate/schema/beliefs.sql` and exist only in
+   `beliefs.db` -- code and schema have agreed the whole time. The
+   *second* stated reason (recurring `arc_members` integrity errors)
+   does hold: `detector.py` is the only writer of these three tables
+   anywhere in the codebase, and with the loop disabled since
+   2026-05-30, no such error has been possible in that window either.
+   Recorded the correction at the removal site rather than silently
+   dropping the stale half of the original reasoning.
+3. **Moltbook bolt-on** (`stage2_dynamic/__init__.py`, 3 loops:
+   poster/listener/responder) -- external server 404ing. Confirmed the
+   HUD panel (`/api/moltbook/chats`, `dc5fb08`'s stale-date-stamp fix)
+   reads `moltbook_posts` directly via its own DB reader with zero
+   dependency on these loops or on `get_moltbook_loops()` -- verified
+   live post-restart, still serving the same frozen rows correctly.
+   `theory_x.stage7_moltbook.client.MoltbookClient` is also used
+   independently by `daily_life.py`'s `_activity_outreach()`, which
+   doesn't route through `get_moltbook_loops()` either -- untouched,
+   since only the wiring was removed, not the `stage7_moltbook`
+   package.
+
+Full suite diffed against the 39-item baseline: exact match, zero
+diff. Restarted via systemctl, confirmed clean boot (no errors
+referencing any of the three in the boot log) and confirmed the
+moltbook panel endpoint still serves correctly post-restart.
+
+**Two more audit items resolved by reading, not code (per explicit
+instruction -- no code touched for either):**
+
+- **`novel_association.py:20`'s "10b (Counterfactual Simulation)
+  deferred pending §7 amendment" is confirmed stale.** Traced
+  `FACULTY_MODEL.md` directly: §6.2 states row 10b's status changed
+  DEFERRED -> UNBLOCKED, and §6.3 confirms the §7 amendment was
+  supplied by that same document (Phase 21, 2026-05-10). Phase 25+ was
+  explicitly earmarked to "port the first faculty using the full
+  model (likely 10b Counterfactual Simulation...)" -- and
+  `theory_x/stage_counterfactual/counterfactual_node.py`
+  ("CounterfactualNode -- Phase 25b. DOCTRINE §5 row 10b") is exactly
+  that port, confirmed live and instantiated unconditionally in
+  `run.py` (`_counterfactual_node.start_loop()`, not gated, not
+  commented out). The comment in `novel_association.py` should say the
+  deferral was resolved and point at `counterfactual_node.py`, not
+  still describe it as blocked.
+- **`self_model.py:250`'s Experiment A (Site 3, disabled 2026-05-09) --
+  the verdict is already logged, just not restated at the code site.**
+  `theory_x/LLM_INDEPENDENCE_DOCTRINE.md` line 214: Claim 1a's
+  hypothesis (the "By pure chance" preamble is code-injected via
+  `belief_text`, not LLM-generated) **SURVIVES** -- disabling Site 3
+  alone dropped preamble occurrence from 4-5/5 to 0/5 in a staged
+  test, with a text-length delta (-130 chars) matching the removed
+  line exactly. Sites 1 and 2 were deliberately left untested (Site 1
+  retained on the reasoning that it provides architectural framing
+  without driving literal openers) -- this was a complete, successful,
+  quantified falsification test, not an open question. The code
+  comment's "see the log" pointer is accurate; the log itself already
+  has the answer.
+
+**Audit progress, on the record:** an external audit surfaced 13
+documented-but-dead items total; 8 of them cleared this weekend
+(includes groove_breaker and these three loops, all from the same
+2026-05-30 cut round, plus earlier weekend work). The two items
+directly above were checked and found to need no code change (one
+stale comment worth correcting when someone's next in that file, one
+already-settled experiment). The open list is materially shorter than
+it was Friday.
+
+**One observation, no action -- expected, not new:** a fourth template
+groove is forming via the same unpatched `_real_fires()` mechanism
+mapped 2026-07-26 (~12:52 and ~13:44 entries): "The quiet emptiness
+flits through my mind again" and near-variants, 4 fires in the last
+50 minutes (23:21:24, 23:07:34, 22:43:52, 22:34:50 -- ids 31694, 31689,
+31680, 31677). Confirmed against real data before logging. This is the
+same class as the "i notice / insight that" and "feel surreal" grooves
+already characterised and left unpatched pending the clause-level fix
+that whole-thought similarity approaches (both cosine and jaccard)
+were shown not to support cleanly. Not a new finding -- the mechanism
+was left open deliberately, this is it doing exactly what was
+predicted.
+
