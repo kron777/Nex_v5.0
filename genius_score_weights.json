@@ -9,7 +9,7 @@
     "unprompted"
   ],
   "weights": [
-    2.5452227666241223,
+    2.1634393516305037,
     -1.5769506179952641,
     0.0,
     1.1571233956131408,
@@ -33,6 +33,12 @@
       "to": 0.5,
       "at": 1780151236.4190283,
       "note": "manual via genius_set_threshold.py"
+    }
+  ],
+  "weights_history": [
+    {
+      "at": 1785092400,
+      "note": "2026-07-27: length_structure (index 0) scaled x0.85 (2.5452 -> 2.1634), all other weights unchanged. Not a refit -- t6_promotion (index 2) confirmed dead (weight 0.0, reproduced via independent refit on the same 103-example training set) and left as-is rather than restructuring the 5-feature vector; anti_template (index 1) showed refit instability (-1.577 deployed vs -0.430 on today's refit, same data, same hyperparameters, attributed to score_v2.py's rolling context windows) and was deliberately NOT touched pending separate investigation; unprompted (index 4) confirmed necessary for ~100% of current STRIKING labels (not merely large) and left unchanged. 0.85 is the minimal scale factor (swept 1.0 down to 0.25 against the live 683-fire/48h dataset) that flips the motivating case (fire 31338, a plain summary scored STRIKING purely on length+branch-register) to non-striking. Predicted effect: striking rate 25.6% (175/683) -> ~12.3% (84/683) on the same dataset. See journal/CARRY_OVER.md for the full pre-registration and per-consumer analysis."
     }
   ]
 }
