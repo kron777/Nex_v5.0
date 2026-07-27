@@ -574,18 +574,20 @@ def build_dynamic(writers: dict, readers: dict, coherence_gate=None) -> DynamicS
     # --- end edge_builder ---
 
     # --- Stage 7 moltbook bolt-on (optional; degrades gracefully if down) ---
-    # CUT 2026-05-30 (loop cuts round 1): external moltbook server is gone
-    # (dm_check returns 404 every 5 min — see boot logs). Three loops
-    # (poster/listener/responder) ticking continuously for nothing.
-    # To re-enable when the external server is back, uncomment below.
-    # try:
-    #     from theory_x.stage7_moltbook import get_moltbook_loops
-    #     loops.extend(get_moltbook_loops())
-    # except Exception as e:
-    #     import logging
-    #     logging.getLogger("theory_x.stage2_dynamic").warning(
-    #         "moltbook loops unavailable: %s", e
-    #     )
+    # CUT 2026-05-30 (loop cuts round 1), removed 2026-07-27: external
+    # moltbook server is gone (dm_check returns 404 every 5 min). Three
+    # loops (poster/listener/responder) ticking continuously for nothing.
+    # Re-checked 2026-07-27: the HUD panel (/api/moltbook/chats,
+    # gui/server.py) reads moltbook_posts directly via its own DB reader,
+    # with no dependency on these loops or on get_moltbook_loops() --
+    # confirmed the dc5fb08 stale-date-stamp fix keeps working unchanged.
+    # theory_x.stage7_moltbook.client.MoltbookClient is also used
+    # independently by theory_x/life/daily_life.py's _activity_outreach(),
+    # which does not go through get_moltbook_loops() either -- untouched by
+    # this removal since the stage7_moltbook package itself isn't being
+    # deleted, only this wiring. To re-enable when the external server is
+    # back: reintroduce the import and loops.extend(get_moltbook_loops())
+    # call. Recoverable at commit c63ebfe (commented-out form).
     # --- end moltbook ---
 
     for fn, name in loops:

@@ -488,23 +488,16 @@ def main() -> None:
             log.warning("SelfPredictionLoop failed to start (non-fatal): %s", _spl_err)
 
     # Phase 38 — SocialPresence (her own social presence; 300s autonomous tick)
-    # CUT 2026-05-30 (loop cuts round 1): writes social_presence_snapshots
-    # which has zero readers outside its own tests. No GUI, no chat path.
-    # Metacognition._sp set to None below — Metacognition handles None gracefully.
-    # To re-enable, uncomment below.
+    # CUT 2026-05-30 (loop cuts round 1), removed 2026-07-27: writes
+    # social_presence_snapshots, which has zero readers outside its own
+    # tests -- no GUI, no chat path. Metacognition._sp is set to None below;
+    # both call sites (Metacognition._detect_drift, topic_diversity_collapse
+    # and vocab_narrowing) are guarded `if self._sp is not None:`, confirmed
+    # graceful no-op. Nothing else references SocialPresence or
+    # social_presence_snapshots outside theory_x/stage_social/ itself.
+    # Recoverable at commit c63ebfe (commented-out form) or further back at
+    # whichever commit last had it live.
     _social_presence = None
-    # try:
-    #     from theory_x.stage_social import SocialPresence as _SP
-    #     _social_presence = _SP(
-    #         dynamic_reader=readers["dynamic"],
-    #         dynamic_writer=writers["dynamic"],
-    #         beliefs_reader=readers["beliefs"],
-    #         conversations_reader=readers["conversations"],
-    #     )
-    #     _social_presence.start_loop()
-    #     log.info("SocialPresence ready — autonomous cycle every 300s")
-    # except Exception as _sp_err:
-    #     log.warning("SocialPresence failed to start (non-fatal): %s", _sp_err)
 
     # Phase 40 — wire drift history nodes into Metacognition now that both are live
     metacognition._smv = _self_mind_view
@@ -619,17 +612,20 @@ def main() -> None:
     log.info("Diversity loop ready")
 
     # 15. Arc reader (LLM-free, retrospective arc detection)
-    # CUT 2026-05-30 (loop cuts round 1): schema mismatch — arc_closers
-    # table is created in beliefs.sql but the loop writes to dynamic.db;
-    # also fires UNIQUE arc_members.* integrity errors in bursts every
-    # ~5 min. Zero downstream consumers (no GUI panel, no chat path).
-    # To re-enable, uncomment below and fix the schema target.
+    # CUT 2026-05-30 (loop cuts round 1), removed 2026-07-27. The original
+    # cut comment claimed a schema mismatch (writes to dynamic.db, table in
+    # beliefs.sql) -- re-checked 2026-07-27 and that claim does NOT hold:
+    # ArcLoop/ArcReader (theory_x/arcs/loop.py, detector.py) both use
+    # writers["beliefs"], and arcs/arc_members/arc_closers are all defined
+    # only in substrate/schema/beliefs.sql and exist only in beliefs.db --
+    # code and schema agree. The second reason still stands: detector.py is
+    # the only writer of these three tables anywhere in the codebase, and
+    # since this loop is the only caller and has been disabled since
+    # 2026-05-30, no integrity errors have been possible in that window
+    # either. Zero downstream consumers confirmed (no GUI panel, no chat
+    # path, build_arc_loop referenced nowhere else). Recoverable at commit
+    # c63ebfe (commented-out form).
     arc_loop = None
-    # log.info("Starting arc reader loop...")
-    # from theory_x.arcs.loop import build_arc_loop
-    # arc_loop = build_arc_loop(writers, readers)
-    # arc_loop.start()
-    # log.info("Arc loop ready — scanning every 5 min")
 
     # 16. Belief edge generator (Tropic Gradient Phase 1)
     log.info("Starting edge generator loop...")
