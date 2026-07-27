@@ -5066,3 +5066,151 @@ were shown not to support cleanly. Not a new finding -- the mechanism
 was left open deliberately, this is it doing exactly what was
 predicted.
 
+## 2026-07-27 ~10:12 — gate_decisions/throw_net_sessions retention built and run; genius scorer weight change pre-registered
+
+**Item 3 (gate_decisions/throw_net_sessions retention) -- built, tested
+against a copy first, executed.** New module
+`theory_x/stage_gate/retention.py`. Retention windows derived from
+surveying every live consumer, not guessed:
+- gate_decisions: self_mind_view.py (300s), affect_state.py (3600s),
+  substrate_harmonic.py + two manual scripts (86400s), and
+  metacognition.py's value_drift_contradiction check, which compares
+  two consecutive 7-day windows (mid=now-7d, start=now-14d) -- the
+  furthest actual read reaches **14 days** back, the longest need
+  found anywhere. Retention set to **21 days** (14-day max need + 7-day
+  margin).
+- throw_net_sessions: one consumer, substrate_harmonic.py, 3600s (1h).
+  Retention set to **7 days** -- vastly more than the actual need, kept
+  generous purely for investigative headroom given how cheap the table
+  is at this volume.
+
+NULL-bypass failure mode (decay_pass's original bug) explicitly ruled
+out, not just avoided: confirmed via `sqlite_master` that
+`gate_decisions.ts` and `throw_net_sessions.started_at` are both
+`REAL NOT NULL` by schema -- there is no null case for a plain
+`ts < cutoff` comparison to bypass, unlike decay_pass's original
+`last_referenced_at IS NULL OR ...` which fired on the default state
+immediately.
+
+First-tick behaviour stated explicitly and verified against a full
+copy of beliefs.db before touching the live one: at 21/7-day retention,
+gate_decisions had 23,336,373 of 25,847,986 rows (90.3%) and
+throw_net_sessions 2,908,332 of 2,977,771 (97.7%) older than cutoff --
+both expected and correct given neither table was ever pruned before,
+mirroring the throw_net_triggers backlog shape from the prior entry.
+Batched via the same LIMIT-subquery pattern (250K/batch) to avoid one
+long write lock against the live shared Writer.
+
+Executed against the real DB after the dry run confirmed clean: 
+gate_decisions 25,847,987 -> 2,510,758 (23,337,229 removed, 171.3s),
+throw_net_sessions 2,977,771 -> 69,439 (2,908,332 removed, 74.8s).
+File size unchanged (8.9GB) as predicted -- `auto_vacuum=0` on
+beliefs.db means DELETE frees pages onto SQLite's internal freelist for
+future reuse (bounding growth going forward) but does not shrink the
+file on disk. Reclaiming that space needs a manual VACUUM, deliberately
+NOT done here or ever automatically: exclusive lock for the full
+duration against a live-traffic DB, plausibly multi-minutes, disk space
+itself is not the constraint (74GB free vs ~9GB file). Left as a
+separate, deliberately-scheduled decision.
+
+Wired `retention_loop` into stage2_dynamic's loop registry (daily tick,
+matching the week-scale retention windows) -- maintains the steady
+state going forward without needing another manual run.
+
+**Item 2 (genius scorer) -- pre-registered, weight change implemented,
+NOT yet restarted/watched as of this entry.** Proposal: (a) F1
+(length_structure) weight scaled x0.85, 2.5452 -> 2.1634 -- the minimal
+scale factor found by sweeping 1.0 down to 0.25 against the live
+683-fire/48h dataset that flips the motivating case (fire 31338) to
+non-striking; (b) F3 (t6_promotion) left at its already-fitted 0.0 --
+confirmed dead via an independent refit today on the identical 103-
+example training set (same hyperparameters as score_v2.py's main(),
+lr=0.2/epochs=2000/l2=0.005): reproduces w3=0.0000 exactly, so removing
+it is a pure simplification with zero behavioural change, not attempted
+this pass to avoid touching compute_features()'s shape across its
+several callers for no behavioural gain; (c) F2 (anti_template)
+deliberately NOT touched -- the same refit exercise surfaced that F2's
+weight is NOT stable across time: -1.577 deployed vs -0.430 refit today
+on nominally the same data, attributable to score_v2.py's
+load_all_fires_window/load_t6_beliefs using rolling windows relative to
+"now" rather than a frozen historical snapshot. This instability is
+itself a finding, flagged for separate investigation, not resolved by
+picking either value; (d) F5 (unprompted) deliberately NOT touched --
+confirmed NECESSARY (not merely large) for ~100% of current STRIKING
+labels; reads as a legitimate register signal rather than a bug on its
+own, and the demonstrated problem (fire 31338) is specifically about F1
+independently crossing threshold, not F5's dominance.
+
+Sweep note worth recording: neither a raw-input cap on F1 nor a weight
+scale gave a smooth dial -- F1's actual value distribution among
+STRIKING fires is massively clustered at exactly 0.70 (76.6%, since
+`structure_indicator` is 0.7 for any comma or period, which is nearly
+every sentence) and 1.0 (17.7%, saturated length + semicolon/em-dash).
+In practice F1 reduces to a length proxy for most real fires, and the
+whole STRIKING population sits close to the same decision-boundary
+margin, so any effective correction moves a large block at once rather
+than trimming gradually -- confirmed a real property of the data, not
+an artifact of the intervention mechanism (checked both capping and
+weight-scaling, same cliff shape either way).
+
+**Pre-registration, before restart:**
+- Frozen 48h/683-fire dataset baseline (2026-07-26 ~11:00): 25.6%
+  (175/683) STRIKING. Live baseline just before this restart
+  (2026-07-27 ~10:12, trailing 48h): 20.7% (212/1026) -- natural drift
+  over the day, noted so a future session compares against the right
+  number for the right window.
+- Predicted post-change rate on the frozen dataset: ~12.3% (84/683),
+  computed by re-running the same 683 fires through the new weights.
+  Expect the live rate to drop by a comparable relative amount (roughly
+  half) from whatever it's actually running at post-restart, not
+  necessarily hitting 12.3% exactly given the live baseline has already
+  moved.
+- **readiness.py `_genius_modulation()`**: target rate is 40%
+  (`_GENIUS_TARGET_RATE`), so even today's 25.6%/20.7% rates are
+  already below target and already drawing a penalty. At 25.6%:
+  penalty = 0.15*(1-0.256/0.40) = 0.054. At the predicted ~12.3%:
+  penalty = 0.15*(1-0.123/0.40) = 0.104 -- roughly doubles. Expect
+  fountain readiness to face a real but moderate additional
+  suppression (~0.05 more subtracted from a 0-1 score), a modest
+  cadence decrease.
+- **quality_synthesis.py -> attention.py branch amplification**:
+  already established this session as not tightly coupled (hourly
+  r=0.017). Since F5 (branch-register) is unchanged and the fix removes
+  F1-driven false positives concentrated in FEED branches (which get
+  F5=0.0 and previously needed F1 alone to cross threshold), expect a
+  small directional shift -- amplification, where it applies, tilts
+  further toward UNPROMPTED branches (substrate_voice/narrative/
+  self_signal/journal) and away from FEED branches, not a large change
+  given the already-weak coupling.
+- **voice_engine.py `_score_candidate`'s `_GENIUS_W` axis**: reads the
+  raw continuous score directly, always active (ungated). Lower scores
+  for length-driven FEED-branch candidates means candidate selection
+  tilts further toward UNPROMPTED-branch content -- a real, always-on
+  effect, the most directly consequential of the ungated consumers
+  after affect_state.
+- **affect_state.py mood**: `genius_nudge = clip((rate-0.20)/0.20,-1,1)`,
+  blended at weight 0.30. At 25.6%: nudge=+0.28 (mild positive,
+  +0.084 to blended valence). At predicted ~12.3%: nudge=-0.385
+  (negative, -0.116 to blended valence) -- a real swing of about 0.2 in
+  the blended contribution, mild-positive to moderate-negative. Largest
+  behavioural shift among the four ungated consumers.
+- **Two consumers inert behind `NEX5_GOVERNOR_OFF=1`** (confirmed set
+  in nex_keepalive.sh), unaffected regardless: generator.py's GOVERNOR
+  brick 1 (reanimation-cadence acceleration + rut-mirror write) and
+  self_narrative.py's `_maybe_notice_rut()` (parallel rut-mirror
+  implementation) -- both gated on the same striking-rate<=5%/90min
+  trough trigger. Predicted ~12.3% stays comfortably above that 5%
+  floor even if these were re-enabled, so the fix wouldn't accidentally
+  trip them on its own.
+
+Weight change written to `genius_score_weights.json` (new
+`weights_history` entry added, mirroring the existing
+`threshold_history` provenance convention) -- prospective only, applies
+to new taggings via the tagger's mtime check; existing `genius_tags`
+rows keep their historical scores, not retroactively rescored, matching
+this session's established pattern of watching forward rather than
+rewriting history.
+
+Restart and 40-min watch for the genius scorer change to follow this
+entry.
+
