@@ -573,6 +573,23 @@ def build_dynamic(writers: dict, readers: dict, coherence_gate=None) -> DynamicS
         )
     # --- end edge_builder ---
 
+    # --- gate_decisions / throw_net_sessions retention (2026-07-27) ---
+    # Neither table ever had a cleanup mechanism; gate_decisions reached
+    # 25.8M rows and throw_net_sessions 2.97M before this. See
+    # theory_x/stage_gate/retention.py for the full derivation of the
+    # retention windows and the first-run catch-up (23.3M / 2.9M rows,
+    # already executed once manually 2026-07-27 -- this loop maintains
+    # the steady state going forward, daily).
+    try:
+        from theory_x.stage_gate.retention import retention_loop
+        loops.append((retention_loop, "stage_gate.retention"))
+    except Exception as e:
+        import logging
+        logging.getLogger("theory_x.stage2_dynamic").warning(
+            "gate_retention unavailable: %s", e
+        )
+    # --- end gate_decisions retention ---
+
     # --- Stage 7 moltbook bolt-on (optional; degrades gracefully if down) ---
     # CUT 2026-05-30 (loop cuts round 1), removed 2026-07-27: external
     # moltbook server is gone (dm_check returns 404 every 5 min). Three
