@@ -248,6 +248,15 @@ _MIGRATIONS: dict[str, list[str]] = {
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_beliefs_content_orphan_uniq "
         "ON beliefs(content) "
         "WHERE problem_id IS NULL",
+        # Round 27 — serves pop_residue's hot query directly. That query runs
+        # once per fire against a 446k-row table with no supporting index:
+        # measured 34ms before the ordering change and 79ms after (full SCAN
+        # plus a temp B-tree for the ORDER BY). Partial on consumed_at IS NULL
+        # so the index covers only the live queue, not the consumed history
+        # the reaper deletes.
+        "CREATE INDEX IF NOT EXISTS idx_residue_unconsumed_recent "
+        "ON residue(created_at DESC) "
+        "WHERE consumed_at IS NULL",
     ],
     "dynamic": [
         "CREATE TABLE IF NOT EXISTS harmonizer_events ("
