@@ -116,6 +116,23 @@ EXPLAIN 161 (30.1%) · ARGUE 145 (27.1%) · DRIFT 123 (23.0%) · NULL 106 (19.8%
 
 ---
 
+## 3b. Prompt-content changes AFTER the frozen window
+
+Anything here moves fidelity. A future before/after must treat the frozen
+baseline as "pre-" and account for these.
+
+| when (UTC) | commit | change | expected direction |
+|---|---|---|---|
+| 2026-08-03 ~15:5x | `81b04ad` | **B1 residue ordering.** `pop_residue` served the oldest unconsumed row (head of queue 73.3 days old) because all 393,838 rows tie at `activation_strength=1.0`. Now `created_at DESC`; head of queue ~2 min. | fidelity **up** — prompts stop carrying 73-day-old material |
+| 2026-08-03 ~15:5x | `522fbb0` | **B4 ingestion dedup at 0.96.** Corpus-level, not prompt-level. 4.9% of distilled titles (18/365 over 24h) suppressed as near-duplicates. | fidelity ~neutral; reduces corpus redundancy |
+
+**Still held for attribution** (ready, verified, not shipped): the
+`self_narrative.py:48` 60-char prefix key, and the `noticing` gerund gate
+(+ Anchoring, Hunting, Scaling, Getting, Shipping, Watching). Both change
+prompt content. B1 already moved prompt content this window; shipping these
+alongside it would make any fidelity movement unattributable among three
+causes.
+
 ## 4. Other conversation-only findings, recorded here
 
 - **DRIFT share cannot be read from the soak log.** `generator.py` sets
@@ -175,6 +192,78 @@ span a third distinct vector (it already spans two — the ×0.85 change on
 2026-07-27 kept the label). Also note `_load_weights` hard-validates
 `len(weights) == 5`, so no feature can be dropped from the vector without
 editing the scorer.
+
+### The predicate has NO consumer inside NEX5 — confirmed round 27
+
+`focal_item` is **written** by `generator.py` (the wide-mode branch) and the
+`init_db` migration, and **read by nothing**. No NEX5 code implements the
+fidelity predicate, the furniture list, or the possessive fix — they exist
+only in the analysis harness and in this file. R20's finding still holds.
+
+**So the round-19 possessive fix must never be "ported to NEX5" — there is
+nothing to port.** If a future round finds a fidelity number that disagrees
+with this file, the cause is a different predicate, not a code drift.
+
+### F5 is NOT inverted — its positive arm was switched off. Round 27.
+
+Round 27 tested the hypothesis that substrate-voice fires carry
+`hot_branch='quiescent'`, which would put the intended UNPROMPTED arm into
+FEED_BRANCHES. **The 106=106 identity is real but the inference is wrong.**
+
+- All 106 NULL-mode fires in the frozen window carry `hot_branch='quiescent'`,
+  both directions, zero exclusive rows. **But `quiescent` is not the
+  substrate-*voice* register** — it is raw feed payload: **5,651/5,651
+  `quiescent` fires ever are payload-shaped** (`[crypto.exchanges] {...}`),
+  zero prose. FEED=0.0 is the **correct** classification for them.
+- The genuine unprompted register is `hot_branch='substrate_voice'`:
+  **1,190/1,222 prose** ("I am what form looks like when chance is the
+  composer"). UNPROMPTED=1.0 is the **correct** classification for it.
+- **That arm went extinct on 2026-07-13.** Cause is not a mapping bug:
+  `generator.py` gates `_maybe_substrate_voice()` behind
+  `if os.environ.get("NEX5_RECONCILE") != "1"`, and `NEX5_RECONCILE=1` is set
+  in `nex_keepalive.sh`. The code comment states it outright — "already never
+  runs live".
+- Branch vocabulary the field has **ever** taken: systems, quiescent,
+  emerging_tech, NULL, ai_research, substrate_voice, cognition_science,
+  markets, crypto, computing, voice_fallback. Of the eight strings F5 maps,
+  **four have never appeared at all**: `narrative`, `self_signal`, `journal`
+  (UNPROMPTED) and `news` (FEED).
+
+**For the refit:** F5 does not need remapping. It needs either the unprompted
+arm switched back on (un-gate `_maybe_substrate_voice` from `NEX5_RECONCILE`),
+or F5 dropped as a feature, because its positive class does not exist in this
+deployment. Labelling new data while the arm is off will bake the same
+degeneracy into the refit.
+
+### The exemplar pool is a branch filter. Round 27.
+
+`generator.py:1601-1604` selects exemplars: `class='STRIKING'`, rolling 24h,
+`ORDER BY score DESC LIMIT 10`, then samples 2 into the prompt.
+
+Simulated hour by hour across the frozen window (24 hours, 240 pool slots):
+
+| branch | population | pool slots | skew |
+|---|---|---|---|
+| emerging_tech | 48.4% | **0.0%** | **0.00×** |
+| ai_research | 23.4% | 70.0% | 3.00× |
+| quiescent | 19.8% | **0.0%** | **0.00×** |
+| markets | 5.0% | 11.2% | 2.23× |
+| computing | 1.7% | 8.3% | 4.95× |
+| crypto | 1.1% | **0.0%** | **0.00×** |
+| cognition_science | 0.6% | 10.4% | **18.58×** |
+| **else-default total** | **30.7%** | **100.0%** | **3.26×** |
+
+**240/240 pool slots, every hour, were else-default branches.** The 69.3% of
+fires in FEED branches are categorically ineligible — they cannot score
+STRIKING, so they can never become an exemplar.
+
+**Gatwick:** its branch spread roughly matches the population (else-default
+33.8% vs 30.7%, only 1.10× skew), so it was *not* concentrated in the
+eligible branches. But it is **61.3% of the STRIKING population** (46/75)
+against 26.0% of fires, and it occupied **240/240 pool slots**. Verified by
+spot-check: at 08-03 00:00 UTC every one of the top 10, scores 0.830–0.885,
+carried the Gatwick text. That is the persistence mechanism — a closed loop,
+Gatwick text → high score → exemplar pool → injected into the next prompt.
 
 ### F5 (`unprompted`) — covariate shift, and why the scorer has no fidelity signal
 
