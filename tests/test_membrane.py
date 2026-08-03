@@ -153,7 +153,12 @@ class TestSelfModel(unittest.TestCase):
             "INSERT INTO sense_events (stream, payload, provenance, timestamp) "
             "VALUES (?, ?, ?, ?)",
             ("internal.proprioception",
-             json.dumps({"cpu_percent": 25.5, "memory_percent": 60.0, "load_avg": [0.5, 0.4, 0.3]}),
+             # Payload shape must mirror Proprioception.poll()'s pack() call.
+             # This fixture used to invent memory_percent/load_avg, which is
+             # how the broken self_model lookups stayed green.
+             json.dumps({"cpu_percent": 25.5, "mem_percent": 60.0,
+                         "load_1m": 0.5, "load_5m": 0.4, "load_15m": 0.3,
+                         "thermal": {"k10temp": 44.2}}),
              "substrate://psutil", int(time.time())),
         )
         time.sleep(0.1)
@@ -161,6 +166,8 @@ class TestSelfModel(unittest.TestCase):
         snap = sm.snapshot()
         self.assertAlmostEqual(snap["proprioception"]["cpu_percent"], 25.5)
         self.assertAlmostEqual(snap["proprioception"]["mem_percent"], 60.0)
+        self.assertAlmostEqual(snap["proprioception"]["load_1min"], 0.5)
+        self.assertAlmostEqual(snap["proprioception"]["thermal"], 44.2)
 
     def test_format_self_state_non_empty(self):
         from theory_x.stage4_membrane.self_model import format_self_state

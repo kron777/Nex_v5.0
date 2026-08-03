@@ -681,6 +681,12 @@ class FountainGenerator:
         )
         if not self._evaluator.is_ready(readiness):
             return None
+        # Round 23 — per-fire mode/focal-item labels. Reset FIRST so a fire
+        # that never reaches _build_prompt's wide-mode branch (substrate-voice)
+        # writes NULL rather than inheriting the previous fire's value.
+        self._last_fire_mode = None
+        self._last_focal_item = None
+
         # Per-fire competing-drives activation
         self._last_activation_id = None
         if self._competing_drives is not None:
@@ -1327,12 +1333,21 @@ class FountainGenerator:
                     source="stage6_fountain", exc=_ee_err,
                 )
 
+        # Round 23 — mode/focal_item read defensively: getattr with a None
+        # default so a missing attribute can never raise on the fire path.
+        try:
+            _fire_mode = getattr(self, "_last_fire_mode", None)
+            _fire_focal = getattr(self, "_last_focal_item", None)
+        except Exception:
+            _fire_mode, _fire_focal = None, None
+
         fountain_event_id = self._dynamic_writer.write(
             "INSERT INTO fountain_events "
-            "(ts, thought, droplet, readiness, hot_branch, word_count, stillness_reason) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "(ts, thought, droplet, readiness, hot_branch, word_count, stillness_reason, "
+            "mode, focal_item) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (ts_now, thought, droplet, readiness, hot_branch, word_count,
-             _fountain_stillness_reason),
+             _fountain_stillness_reason, _fire_mode, _fire_focal),
         )
         self._link_activation_to_event()
 
@@ -2137,6 +2152,15 @@ class FountainGenerator:
         # exception anywhere in the wide path leaves DRIFT intact, never stalls
         # the fire. (Fire-path code must fail safe: a mind that can't fire is
         # worse than a narrow one.)
+        # Round 23 — reaching here means this fire went through mode selection,
+        # so it is at least DRIFT. Upgraded to EXPLAIN/ARGUE below iff the wide
+        # branch is actually taken. Substrate-voice fires never reach this line
+        # and stay NULL.
+        try:
+            self._last_fire_mode = "DRIFT"
+        except Exception:
+            pass
+
         if _WIDE_MODES_ON:
             try:
                 _wide = _select_wide_mode(seeds)
@@ -2145,6 +2169,15 @@ class FountainGenerator:
                     _wide_prompt = _tmpl.format(**_kw)
                     if _wide_prompt and len(_wide_prompt) > 20:
                         system_prompt = _wide_prompt
+                        # Round 23 — record the branch. Observation only: no
+                        # effect on selection, ordering, or the prompt itself.
+                        try:
+                            self._last_fire_mode = (
+                                "EXPLAIN" if _tmpl == _MODE_EXPLAIN else "ARGUE"
+                            )
+                            self._last_focal_item = _kw.get("item")
+                        except Exception:
+                            pass
                         try:
                             import sys as _sw
                             print(f"[WIDE MODE] {list(_kw.keys())[0]}={str(list(_kw.values())[0])[:50]}", file=_sw.stderr, flush=True)

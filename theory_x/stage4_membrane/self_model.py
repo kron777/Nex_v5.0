@@ -59,9 +59,13 @@ class SelfModel:
 
         # -- Proprioception --
         prop = _last_payload(self._sense, "internal.proprioception") or {}
-        # thermal: first value from temps dict if present
+        # Key names must match what Proprioception.poll() actually packs
+        # (stage1_sense/internal/proprioception.py:48-56): mem_percent,
+        # load_1m, thermal. The old lookups (memory_percent / load_avg /
+        # temps) never matched a single row on disk, so mem, load and
+        # thermal read None from the first event in 2026-04 onward.
         thermal = None
-        temps = prop.get("temps")
+        temps = prop.get("thermal")
         if isinstance(temps, dict) and temps:
             thermal = next(iter(temps.values()), None)
         elif isinstance(temps, (int, float)):
@@ -69,10 +73,8 @@ class SelfModel:
 
         proprioception = {
             "cpu_percent": prop.get("cpu_percent"),
-            "mem_percent": prop.get("memory_percent"),
-            "load_1min": (prop.get("load_avg") or [None])[0]
-                         if isinstance(prop.get("load_avg"), list)
-                         else prop.get("load_1min"),
+            "mem_percent": prop.get("mem_percent"),
+            "load_1min": prop.get("load_1m"),
             "thermal": thermal,
         }
 

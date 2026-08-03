@@ -112,7 +112,7 @@ function parsePreview(payload, stream) {
     if (stream === "internal.meta_awareness") return `beliefs:${p.beliefs ?? "?"} pipeline:${p.pipeline_runs ?? "?"}`;
     if (p.title)   return p.title.slice(0, 55);
     if (p.symbol)  return p.symbol;
-    if (p.cpu_percent !== undefined) return `cpu:${p.cpu_percent}% mem:${p.memory_percent ?? "?"}%`;
+    if (p.cpu_percent !== undefined) return `cpu:${p.cpu_percent}% mem:${p.mem_percent ?? "?"}%`;
     if (p.iso_local) return p.iso_local;
     if (p.belief_count !== undefined) return `beliefs:${p.belief_count}`;
     if (p.thought) return p.thought.slice(0, 55);

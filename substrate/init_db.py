@@ -281,6 +281,13 @@ _MIGRATIONS: dict[str, list[str]] = {
         "CREATE INDEX IF NOT EXISTS idx_substrate_fires_ts ON substrate_fires(ts)",
         # Phase 1 — stillness instrumentation
         "ALTER TABLE fountain_events ADD COLUMN stillness_reason TEXT",
+        # Round 23 — record which template produced each fire, and its focal
+        # item. EXPLAIN/ARGUE selection is an unseeded, unlogged _rnd.choice
+        # (generator.py:239), so half of production was previously invisible;
+        # focal_item retires the 50-char soak-log join.
+        # NULL on substrate-voice fires, which never consult _select_wide_mode.
+        "ALTER TABLE fountain_events ADD COLUMN mode TEXT",
+        "ALTER TABLE fountain_events ADD COLUMN focal_item TEXT",
         "CREATE TABLE IF NOT EXISTS stillness_log ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, "
         "ts REAL NOT NULL, "
