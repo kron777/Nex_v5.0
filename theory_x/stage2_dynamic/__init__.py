@@ -42,6 +42,8 @@ _DISTILL_DEDUP_SECONDS = 86400        # skip titles already written in last 24h
 _DISTILL_PER_PASS_MAX = 5             # max new beliefs per 60s pass
 _DISTILL_SOURCE = "precipitated_from_sense"
 _TIER_SNAPSHOT_INTERVAL = 900.0       # tier_snapshots sample period (see _snapshot_loop)
+_DEDUP_SIMILARITY = 0.96              # embeddings.cosine REMAPPED scale, not raw
+_DEDUP_CANDIDATE_MAX = 400            # cap the representative set (~330 titles/day)
 
 
 @dataclass
@@ -115,6 +117,56 @@ def _save_distill_cursor(dynamic_writer: Writer, last_id: int) -> None:
         errors.record(f"distill_cursor save error: {exc}", source=_LOG_SOURCE, exc=exc)
 
 
+def _is_near_duplicate(beliefs_reader, title: str, cutoff: int) -> bool:
+    """True if `title` is a near-duplicate of a distilled title already kept.
+
+    Round 27. The exact-equality check above is not the binding constraint --
+    idx_beliefs_content_orphan_uniq already enforces exact uniqueness globally,
+    so a repeat can only get through by differing in at least one character.
+    That is precisely what publishers produce: measured specimens include
+    "...to fulfill lifelong promise" vs "...to fulfil lifelong promise" (one
+    letter, 4h42m apart, two beliefs) and a drought headline reworded three
+    times in 86 minutes.
+
+    Threshold _DEDUP_SIMILARITY is on embeddings.cosine's REMAPPED scale
+    ((raw+1)/2, so 1.0 identical / 0.5 orthogonal) -- NOT raw cosine. 0.96 is
+    the conservative setting: it catches in-place rewrites with wide margin
+    (the worst measured false-merge candidate, two distinct Love Island
+    stories, sits at 0.823) while leaving genuine story development alone.
+
+    Compares against KEPT titles only. Because suppressed titles are never
+    written, the set of distilled beliefs in the window IS the set of cluster
+    representatives -- this gives representative-comparison for free and
+    avoids the single-link chaining drift that comparing against every member
+    would allow.
+
+    Fails OPEN: any error at all returns False, so the belief is written. A
+    duplicate belief is cheaper than a silently stalled distiller.
+    """
+    try:
+        rows = beliefs_reader.read(
+            "SELECT id, content FROM beliefs "
+            "WHERE created_at > ? AND source = ? LIMIT ?",
+            (cutoff, _DISTILL_SOURCE, _DEDUP_CANDIDATE_MAX),
+        )
+        if not rows:
+            return False
+        from theory_x.diversity.embeddings import embed, embed_belief, cosine
+        vec = embed(title)
+        for r in rows:
+            # embed_belief is LRU-cached on belief id (2048 entries), so each
+            # representative is encoded once, not once per incoming title.
+            if cosine(vec, embed_belief(r["id"], r["content"])) >= _DEDUP_SIMILARITY:
+                return True
+        return False
+    except Exception as exc:
+        errors.record(
+            f"distill near-dup check failed, writing belief: {exc}",
+            source=_LOG_SOURCE, level="WARNING", exc=exc,
+        )
+        return False
+
+
 def _sense_distillation_loop(state: DynamicState, stop: threading.Event) -> None:
     """Promote titled sense events to precipitated_from_sense beliefs (every 60s).
 
@@ -185,6 +237,10 @@ def _sense_distillation_loop(state: DynamicState, stop: threading.Event) -> None
                                 "AND source = ?",
                                 (title, cutoff, _DISTILL_SOURCE),
                             )
+                            if not existing and _is_near_duplicate(
+                                beliefs_reader, title, cutoff
+                            ):
+                                existing = True   # suppress: near-dup of a kept title
                             if not existing:
                                 branch_id = (
                                     row["stream"].split(".")[0]
