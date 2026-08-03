@@ -142,6 +142,40 @@ EXPLAIN 161 (30.1%) · ARGUE 145 (27.1%) · DRIFT 123 (23.0%) · NULL 106 (19.8%
 - **Contamination, frozen window:** the Gatwick / youth-benefits /
   security-camera text is in 139/535 = 26.0% of all fires and **49.7% of
   ARGUE**, eight days after the story broke.
+### Round 26 A2 — offline re-score of the frozen window under candidate F2 weights
+
+Method: recompute all five features per fire with `score_v2.compute_features`,
+prior-50 context exactly as `tagger._tag_window` builds it (6h of preceding
+fires for context), then apply candidate vectors. **Validated: the recompute
+reproduces all 535 stored `genius_tags` scores to `0.00e+00` and 535/535 class
+agreement.** F3's weight is exactly 0.0, so `t6_beliefs` cannot affect `z`.
+
+| `weights[1]` | source | predicted STRIKING | delta vs 14.0% |
+|---|---|---|---|
+| **−1.5770** | **deployed** | **75/535 = 14.0%** [11.3–17.2] | — |
+| +0.7270 | round-26 brief's value | 239/535 = 44.7% [40.5–48.9] | **+30.7 pp** |
+| +0.5245 | F2 univariate, l2=0.01 (reproduced) | 238/535 = 44.5% [40.3–48.7] | +30.5 pp |
+| +1.5514 | F2 univariate, unregularised | 364/535 = 68.0% [64.0–71.8] | +54.0 pp |
+| 0.0000 | F2 neutralised | 212/535 = 39.6% [35.6–43.8] | +25.6 pp |
+| −0.7116 | multivariate refit, same 103 rows | 129/535 = 24.1% [20.7–27.9] | +10.1 pp |
+
+**Nothing lands inside the frozen CI.** Even deleting the term entirely moves
++25.6 pp, because production F2 averages 0.851 and the deployed −1.577 is
+suppressing `z` by ~1.34 on a typical fire. A was **held at this checkpoint**
+on 2026-08-03 pending re-derivation of the target value.
+
+**Operational note:** `tagger._load_weights()` hot-reloads on mtime change —
+editing `genius_score_weights.json` deploys within one 60s tick. There is no
+stage-then-restart; the save is the deploy.
+
+**When A does ship, bump `version` to `v3`.** `genius_tags` is
+`UNIQUE(fountain_event_id, weights_version)` and `_existing_tag_ids` skips
+fires already tagged under the current label, so holding `v2` would make it
+span a third distinct vector (it already spans two — the ×0.85 change on
+2026-07-27 kept the label). Also note `_load_weights` hard-validates
+`len(weights) == 5`, so no feature can be dropped from the vector without
+editing the scorer.
+
 - **Attractor shapes (n=2, hypothesis only):** Gatwick was born in
   substrate-voice, seeded sparsely for ~14h, then ignited and persisted
   (759 fires, 33.1% STRIKING saturation). The agent-safety attractor was
