@@ -67,7 +67,18 @@ class SelfModel:
         thermal = None
         temps = prop.get("thermal")
         if isinstance(temps, dict) and temps:
-            thermal = next(iter(temps.values()), None)
+            # Round 26: pick the CPU package sensor by name. next(iter(...))
+            # returned dict-insertion order, which on this box is `nvme` — the
+            # SSD, ~31C — so her reported body temperature was the coolest
+            # component rather than the one that tracks how hard she is working
+            # (k10temp, ~62-68C). Falls back to insertion order on an unknown
+            # sensor set so a different machine still reports something.
+            for _name in ("coretemp", "k10temp", "cpu_thermal", "zenpower", "acpitz"):
+                if _name in temps:
+                    thermal = temps[_name]
+                    break
+            else:
+                thermal = next(iter(temps.values()), None)
         elif isinstance(temps, (int, float)):
             thermal = float(temps)
 

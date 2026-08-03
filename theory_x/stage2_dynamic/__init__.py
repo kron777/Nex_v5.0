@@ -41,6 +41,7 @@ _DISTILL_CURSOR_KEY = "last_distilled_sense_id"
 _DISTILL_DEDUP_SECONDS = 86400        # skip titles already written in last 24h
 _DISTILL_PER_PASS_MAX = 5             # max new beliefs per 60s pass
 _DISTILL_SOURCE = "precipitated_from_sense"
+_TIER_SNAPSHOT_INTERVAL = 900.0       # tier_snapshots sample period (see _snapshot_loop)
 
 
 @dataclass
@@ -311,6 +312,7 @@ def _consolidation_loop(state: DynamicState, stop: threading.Event) -> None:
 def _snapshot_loop(state: DynamicState, stop: threading.Event) -> None:
     dynamic_writer = state.writers["dynamic"]
     beliefs_reader = state.readers["beliefs"]
+    tier_last_ts = 0.0
     while not stop.is_set():
         try:
             snap = state.tree.snapshot()
@@ -337,16 +339,25 @@ def _snapshot_loop(state: DynamicState, stop: threading.Event) -> None:
         # block this loop (or anything else — it's a single read + a single
         # write, ~6ms measured against the live 9GB beliefs.db via the
         # existing idx_beliefs_tier covering index).
+        # Round 26: sampled at _TIER_SNAPSHOT_INTERVAL rather than every pass.
+        # At the loop's 60s cadence this wrote one row per tier per minute —
+        # ~8.6k rows/day, 130k accumulated, for a 6-value series that moves by
+        # single digits per hour. No reader exists anywhere in the tree (no
+        # Python, JS, HTML or report references tier_snapshots outside this
+        # write), so nothing consumes it at full resolution. 15 min keeps the
+        # shape of every trend this could ever be asked about at 1/15th the rows.
         try:
             tier_ts = time.time()
-            tier_rows = beliefs_reader.read(
-                "SELECT tier, COUNT(*) as cnt FROM beliefs GROUP BY tier"
-            )
-            for row in tier_rows:
-                dynamic_writer.write(
-                    "INSERT INTO tier_snapshots (ts, tier, count) VALUES (?, ?, ?)",
-                    (tier_ts, row["tier"], row["cnt"]),
+            if tier_ts - tier_last_ts >= _TIER_SNAPSHOT_INTERVAL:
+                tier_last_ts = tier_ts
+                tier_rows = beliefs_reader.read(
+                    "SELECT tier, COUNT(*) as cnt FROM beliefs GROUP BY tier"
                 )
+                for row in tier_rows:
+                    dynamic_writer.write(
+                        "INSERT INTO tier_snapshots (ts, tier, count) VALUES (?, ?, ?)",
+                        (tier_ts, row["tier"], row["cnt"]),
+                    )
         except Exception as exc:
             errors.record(f"tier_snapshot error: {exc}", source=_LOG_SOURCE, exc=exc)
 
