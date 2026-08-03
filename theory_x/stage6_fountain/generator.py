@@ -1475,6 +1475,7 @@ class FountainGenerator:
                     ts=ts_now,
                     droplet=droplet,
                     hot_branch=hot_branch,
+                    focal_item=_fire_focal,
                 )
                 if crystallized_id:
                     error_channel.record(

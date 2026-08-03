@@ -193,7 +193,21 @@ span a third distinct vector (it already spans two — the ×0.85 change on
 `len(weights) == 5`, so no feature can be dropped from the vector without
 editing the scorer.
 
-### The predicate has NO consumer inside NEX5 — confirmed round 27
+### ⚠️ The predicate IS production code as of round 29
+
+`crystallizer.py` `_is_on_subject()` / `_fidelity_tokens()` implement section 1
+and gate the crystallization length limit: **on-subject → 600 chars,
+everything else → 300**. This file is the authority; **the two must be kept in
+step.** If you change the furniture list or the tokenizer here, change it
+there, and re-read section 3b — the predicate now affects which beliefs exist.
+
+Fail-safe contract: `_is_on_subject` swallows every exception and returns
+`False`, which yields the *current* 300 limit. It can never fail open.
+
+*(Superseded below: the statement that the predicate has no consumer was true
+through round 28 and is retained for history.)*
+
+### The predicate had NO consumer inside NEX5 — round 27, superseded by round 29
 
 `focal_item` is **written** by `generator.py` (the wide-mode branch) and the
 `init_db` migration, and **read by nothing**. No NEX5 code implements the

@@ -27,6 +27,62 @@ _USER_ACTIVE_WINDOW_SECONDS = 60
 
 _SELF_REF_RE = re.compile(r"\b(I|my|me|myself|mine|within|inside)\b", re.IGNORECASE)
 
+# ── Fidelity-gated length limit (round 29) ───────────────────────────────────
+# EXPLAIN's median output is ~491 chars against a flat 300 ceiling, so wide
+# mode crystallized almost nothing. Raising the ceiling for everything would
+# admit 219 fires of which only 42.9% are on-subject -- 125 off-subject fires
+# into the permanent belief corpus. Gating the raise on the subject-fidelity
+# check admits the length without the contamination: 94 fires, 100% on-subject
+# by construction.
+#
+# The predicate is specified in GENIUS_FIDELITY_BASELINE.md section 1. This is
+# its first production use; that file is the authority and must be kept in step.
+_TOO_LONG_DEFAULT = 300        # off-subject, or no focal_item (DRIFT/substrate)
+_TOO_LONG_ON_SUBJECT = 600     # on-subject wide fires only
+
+_FIDELITY_FURNITURE = frozenset("""
+a an the and or but of to in on at for from by with as is are was were be been it its this that
+these those into over under after before amid about up down out off than then new not no has have
+had will can could would should may might says say said how why what who when where which more most
+less first last you your i we our they their he she his her them uk us update live exclusive report
+reports reveals warns here just also one two get gets make makes take takes back still now via amp
+per cent""".split())
+_FIDELITY_POSS = re.compile(r"(?:'s|s'|’s|s’)\b")
+_FIDELITY_TOK = re.compile(r"[a-z0-9]+")
+
+
+def _fidelity_tokens(text: Optional[str]) -> list:
+    """Content tokens per GENIUS_FIDELITY_BASELINE.md: lowercase, strip
+    possessives, drop sub-3-char tokens and furniture."""
+    stripped = _FIDELITY_POSS.sub("", (text or "").lower())
+    return [t for t in _FIDELITY_TOK.findall(stripped)
+            if len(t) >= 3 and t not in _FIDELITY_FURNITURE]
+
+
+def _is_on_subject(focal_item: Optional[str], thought: Optional[str]) -> bool:
+    """True iff the thought carries at least one content token from its focal
+    item. Runs on the fire path (~21us measured), so it swallows everything:
+    ANY failure returns False, which yields the CURRENT 300 limit. It can
+    never fail open into the permissive branch.
+
+    Returns False when focal_item is absent -- DRIFT and substrate-voice fires
+    bind no focal item by design, so they keep the 300 limit unchanged.
+
+    Note: the tokenizer is [a-z0-9]+, so a non-Latin-script title yields no
+    content tokens and reads as off-subject. That is conservative, not a
+    regression -- those fires keep exactly the limit they have today.
+    """
+    try:
+        if not focal_item or not thought:
+            return False
+        focal = list(dict.fromkeys(_fidelity_tokens(focal_item)))
+        if not focal:
+            return False
+        body = set(_fidelity_tokens(thought))
+        return any(t in body for t in focal)
+    except Exception:
+        return False
+
 # Words that signal cognitive engagement without requiring a first-person pronoun.
 # Drift-register outputs include external observations ("huh, markets feel slow")
 # that the old _SELF_REF_RE check would incorrectly reject.
@@ -209,6 +265,7 @@ class FountainCrystallizer:
         ts: float,
         droplet: Optional[str] = None,
         hot_branch: Optional[str] = None,
+        focal_item: Optional[str] = None,
     ) -> Optional[int]:
         # Stillness guard — Row 9 extension. Metacognition writes a stillness_log
         # row when sustained groove exceeds threshold; we skip crystallization
@@ -231,7 +288,8 @@ class FountainCrystallizer:
                 pass  # table absent on fresh install; proceed normally
 
         thought = _METADATA_PATTERN.sub('', thought).strip()
-        ok, reason = self._quality_check(thought, droplet=droplet)
+        ok, reason = self._quality_check(thought, droplet=droplet,
+                                         focal_item=focal_item)
         if not ok:
             errors.record(
                 f"Fountain crystallization rejected ({reason}): {thought[:60]}",
@@ -505,7 +563,8 @@ class FountainCrystallizer:
             return _has_anchor(thought)
         return False
 
-    def _quality_check(self, thought: str, droplet: Optional[str] = None) -> Tuple[bool, str]:
+    def _quality_check(self, thought: str, droplet: Optional[str] = None,
+                       focal_item: Optional[str] = None) -> Tuple[bool, str]:
         # Reset the matched-pattern side channel for this call — see __init__.
         self._last_reject_pattern = None
 
@@ -515,7 +574,14 @@ class FountainCrystallizer:
         if len(thought) < 20:
             return False, "too_short"
 
-        if len(thought) > 300:
+        # Round 29: on-subject wide fires get the larger ceiling. Everything
+        # else -- off-subject, and DRIFT/substrate which carry no focal_item --
+        # keeps 300 exactly as before. _is_on_subject swallows all exceptions
+        # and returns False, so a failure lands on the CURRENT limit.
+        _limit = (_TOO_LONG_ON_SUBJECT
+                  if _is_on_subject(focal_item, thought)
+                  else _TOO_LONG_DEFAULT)
+        if len(thought) > _limit:
             return False, "too_long"
 
         if not self._has_engagement(thought):
