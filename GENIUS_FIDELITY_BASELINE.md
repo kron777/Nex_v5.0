@@ -176,6 +176,41 @@ span a third distinct vector (it already spans two — the ×0.85 change on
 `len(weights) == 5`, so no feature can be dropped from the vector without
 editing the scorer.
 
+### F5 (`unprompted`) — covariate shift, and why the scorer has no fidelity signal
+
+Measured round 26 (B-EXTRA) on the frozen window. **This supersedes any reading
+of F5 as a quality signal.**
+
+- **F5 = 1.0 never occurs in production.** 0/535. The intended "unprompted"
+  arm (`substrate_voice`/`narrative`/`self_signal`/`journal`) has no support.
+  Production F5 is binary: `{0.0: 371, 0.5: 164}`.
+- **30.7% (164/535) hit the `else 0.5` fall-through**: ai_research 125,
+  markets 27, computing 9, cognition_science 3.
+- **The scorer is, in production, a branch lookup.** STRIKING rate by bucket:
+  F5=0.0 → **1/371 = 0.3%**; F5=0.5 → **74/164 = 45.1%**. **74 of 75 STRIKING
+  fires (98.7%) sit in the else-default bucket.**
+- **Root cause is covariate shift, not a mapping typo.** Training was 59.2%
+  `substrate_voice` (61/103) at **100% STRIKING**, F5=1.0 — a near-perfect
+  separator, hence r=+0.850 and weight 4.715. That population is now absent.
+  What survives is the else-default bucket reproducing training's `systems`
+  arm base rate (16.7% training → 45.1% production).
+- **Fidelity is FLAT across the buckets the scorer discriminates on:** F5=0.0
+  → 50.8%, F5=0.5 → 53.0%. Population fidelity is 51.6% (158/306).
+- **Therefore no F2 value can make this scorer select for fidelity.** Every
+  candidate merely dilutes the pool toward the population mean:
+  deployed 37.5% (−14.1 pp vs population), +0.727 → 45.3% (−6.3),
+  0.0 → 42.3% (−9.3), −0.7116 → 51.7% (**+0.1**, i.e. exactly average).
+  None lands *above* the population mean.
+- **Reclassifying the F5 default is not a fix either:** moving ai_research /
+  markets / computing / cognition_science into `FEED_BRANCHES` collapses
+  STRIKING to **1/535 = 0.2%**, because it removes the scorer's only
+  production signal without replacing it.
+
+**Consequence for the queue:** tuning F2, or correcting F5's default, both
+operate on axes that carry no fidelity information. Judging a fidelity
+intervention by STRIKING rate is only valid once the scorer is refit on
+production-representative labels.
+
 - **Attractor shapes (n=2, hypothesis only):** Gatwick was born in
   substrate-voice, seeded sparsely for ~14h, then ignited and persisted
   (759 fires, 33.1% STRIKING saturation). The agent-safety attractor was
