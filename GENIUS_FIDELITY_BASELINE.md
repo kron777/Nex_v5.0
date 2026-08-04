@@ -57,7 +57,11 @@ Reference implementation: `POSS = re.compile(r"(?:'s|s'|’s|s’)\b")`,
 
 ---
 
-## 2. The furniture list (86 terms)
+## 2. The furniture list (108 terms)
+
+*(Round 31: the heading previously read "86 terms". The list below is correct
+and matches `crystallizer.py` exactly — `len(frozenset(...)) == 108`. Only the
+count was wrong; nothing measured against it needs redoing.)*
 
 ```
 # grammatical
@@ -321,3 +325,380 @@ production-representative labels.
   fires and 0 STRIKING. Working hypothesis: an attractor persists only if it
   reaches the substrate-voice/feed layer, where it is re-presented as fresh
   input.
+
+---
+
+## 5. maxDF* — the corpus-convergence metric (round 31)
+
+Shipped as `theory_x/stage6_fountain/corpus_convergence.py` +
+`theory_x/stage6_fountain/register_exclusion.json`. **Read-only
+instrumentation.** Not on the fire path, gates nothing, writes nothing, opens
+the DB `mode=ro`. Run it with:
+
+```
+python3 -m theory_x.stage6_fountain.corpus_convergence [--history N]
+```
+
+### What it measures, and why nothing else could see it
+
+Every per-fire check — the fidelity predicate, the scorer, `_quality_check` —
+scores **one row at a time**. The failure mode documented in round 27 is not a
+property of any row: a single story scores STRIKING, saturates the exemplar
+pool, is copied into the next prompt, and scores STRIKING again. Each fire in
+that loop passes every check. What has degraded is the **corpus**.
+
+    maxDF* = over the rolling 50 most recent crystallized beliefs
+             (`source='fountain_insight'`), the largest document-frequency
+             share reached by any single content token, after excluding
+             NEX5's own standing register.
+
+Document frequency = the share of those 50 beliefs a token appears in *at all*.
+Tokenisation is `_fidelity_tokens()` **imported from `crystallizer.py`** — not
+re-declared — so section 1's predicate keeps exactly one definition.
+
+maxDF* is **not** a fidelity metric. Fidelity asks "did this fire stay on its
+assigned subject". maxDF* asks "is the corpus still about more than one thing".
+A run can be 100% subject-faithful and still converging, because the *subjects*
+are what collapsed. Round 30's Gatwick finding is the worked example.
+
+### The register exclusion is the whole trick
+
+Without it the answer is always `quiet` or `hum` — that is her voice, not a
+convergence. The 40 excluded terms are the top-40 by DF over the fitting
+corpus. `societal`, the token now driving the reading, is **not** in the list
+(1.2% global DF), so the signal survives its own exclusion.
+
+**This list is fitted data and it will drift.** `register_exclusion.json`
+carries `fitted_on`, the corpus definition, the window, and `n_documents`
+precisely so a later session knows whether to refit. **Refit only on a corpus
+with no active convergence in it** — otherwise the convergence gets absorbed
+into the register and the metric goes blind to it.
+
+Fitted 2026-08-04 on 1,101 `fountain_insight` beliefs, 45-day window.
+Stability: withholding the last 7 or 14 days keeps **33/40** terms and leaves
+the backtest quantiles **identical**. The metric does not depend on the churn
+in the tail of the list.
+
+### Backtest — 45 days to 2026-08-04, 1,054 rolling windows
+
+| statistic | value |
+|---|---|
+| median | **12%** |
+| p90 | **18%** |
+| p99 | **22%** |
+| threshold | **25%** |
+
+The threshold sits just above the observed p99 and is deliberately coarse: at
+N=50 one belief is 2 percentage points, so anything finer is quantisation
+noise. Insensitive to the fit: lagging the exclusion-list fit by 0, 7 or 14
+days reproduces 12 / 18 / 22 exactly.
+
+### Reading at ship time — 2026-08-04 10:32 UTC
+
+**maxDF\* = 26.0%, driven by `societal` (13/50 beliefs). Over threshold.**
+Runners-up: `broader` 16%, `technologies` 14%, `research` 12%.
+
+`societal` **is still climbing**, and monotonically. Rolling-50 DF by day:
+
+| day | 07-20 → 07-29 | 07-30 | 07-31 | 08-01 | 08-02 | 08-03 | 08-04 |
+|---|---|---|---|---|---|---|---|
+| maxDF*(`societal`) | 0% | 2% | 6% | 6% | 2% | 12% | **26%** |
+
+It crossed 25% for the first time on 2026-08-04 at ~10:20 UTC. Note this is a
+**successor** to the Gatwick attractor, not the same one: the run of readings
+immediately before it was driven by `benefits`.
+
+### Is this checked by hand, or should it alert?
+
+**By hand for now, and it should eventually alert — but not yet.** The honest
+reason is that the threshold has been crossed exactly once, so its false-alarm
+rate is unmeasured. The p99 = 22% comes from a corpus that *contains* the
+Gatwick episode, which means the baseline is contaminated by the very thing the
+metric is for; a clean baseline needs a stretch of corpus with no attractor in
+it, and there isn't one yet in the 45 days available.
+
+What makes it alertable later, and what does not:
+
+- **It is cheap and stateless** — one query, one pass over 50 short strings.
+- **It names the token**, so an alert would be actionable rather than just a
+  number going red.
+- **But it has no hysteresis.** It sat at 22% for three separate readings on
+  08-04 before crossing. A naive threshold alert would flap.
+- **And the register list drifts.** An alerter that silently uses a stale
+  `fitted_on` list will drift into either constant firing or permanent silence.
+  Any alerting must read `fitted_on` and warn when it is stale.
+
+The sequencing that follows from this: **check it by hand for one clean
+attractor-free stretch, refit the register list on that stretch, re-derive p99
+from it, and only then decide the alert threshold.** Alerting built before that
+would be calibrated on a contaminated baseline.
+
+---
+
+## 6. Round 31 corrections to the standing record
+
+- **The fidelity tripwire's denominator is FOCAL-BEARING CRYSTALLIZATIONS
+  ONLY.** DRIFT and substrate-voice bind no `focal_item`, so `_is_on_subject`
+  returns `False` for them **by construction** — they can never pass, and
+  including them makes the tripwire read low no matter what the wide modes do.
+  Measured since the R29 restart: **19/23 = 82.6%** on the correct denominator;
+  the same numerator over all 38 crystallizations reads **50.0%** and would
+  have caused a false revert.
+- **The furniture list in section 2 is 108 terms, not 86.** The list itself is
+  correct and matches `crystallizer.py`; only the count in the heading was
+  wrong. Nothing measured against it needs redoing.
+- **The 60-char-prefix convergence metric is discarded as degenerate.**
+  Superseded by section 5.
+- **There is no ~200 beliefs/day ceiling.** Normal is 495–736/day.
+- **Cadence band is ~124–203s**, not 124–195s.
+
+### Restart discipline — and a correction to the round-30 note
+
+One change per restart, and record the restart time in the commit. The journal
+(`journalctl --user -u nex5-keepalive.service`) is the authority. Round 30
+recorded R27 and R29 as sharing a 16:32 restart and being permanently
+unseparable. **That is not what happened.** The three restarts on 2026-08-03,
+mapped against commit times (all UTC):
+
+| restart (UTC) | carried | separable? |
+|---|---|---|
+| 14:02:30 | `3d91731` — documentation only | n/a, no code |
+| 15:58:36 | `81b04ad` (B1 residue) **+** `522fbb0` (B4 dedup) | **no — these two are confounded with each other** |
+| 16:30:02 | `7c04a56` (R29 fidelity-gated crystallization) | **yes — R29 shipped alone** |
+
+So R29 is cleanly separable and does not need reverting for attribution.
+**What is confounded is B1 with B4.**
+
+The real trap is a different one: R29's live window opens at 16:30 UTC, which
+is entirely *downstream* of B1+B4. Comparing R29-live against the frozen window
+therefore measures R29 **and** B1 **and** B4 together. Any before/after across
+that boundary must say so — see the EXPLAIN fidelity drop in section 8, which
+is **not** attributable to R29.
+
+---
+
+## 7. Where the preamble enters (round 31, investigation only — no change made)
+
+Round 30 established that the contamination is **positional**: it arrives at
+the start of the output, and 0 of the affected wide fires had a contaminated
+focal item. Thirty rounds had looked for a block whose *content* leaks. This
+section answers the different question — why it is a **preamble**.
+
+Contaminant is matched as the cluster `gatwick | youth benefit | security
+camera | welfare benefit`. That definition reproduces section 4's recorded
+figures exactly (**139/535 = 26.0%** of all fires, **49.7% of ARGUE**), so it
+is the same population earlier rounds measured. Within the frozen window it is
+**135/306 wide fires** (EXPLAIN 63/161 = 39.1%, ARGUE 72/145 = 49.7%).
+*(Round 30 reported 103; the literal-`gatwick` count is 129. The 103 is not
+reproducible from the frozen window and should not be re-used.)*
+
+### 7.1 Position — OBSERVED
+
+| measure | value |
+|---|---|
+| first cluster mention in **sentence 0** | **113/135 = 83.7%** |
+| sentence 1 | 12 (8.9%) |
+| sentence 2+ | 10 (7.4%) |
+| first **clause** of its own sentence | **128/135 = 94.8%** |
+| character offset, as fraction of output | median **0.090**, p90 0.423 |
+| cluster present in the fire's own `focal_item` | **0/135** |
+
+It is a preamble, quantitatively.
+
+### 7.2 The continuation hypothesis is FALSE — OBSERVED
+
+The model is **not** completing the last thing in the prompt.
+
+`_build_prompt` ends, invariably, with the world-bridge block
+(`"What's happening in the world right now:"`) or its fallback, then the single
+line `Time: … | Beliefs held: …`. `world_bridge_log` records the exact injected
+payload per selection, so the true prompt tail is recoverable. Matching each of
+the 135 fires to its world-bridge row (**135/135 matched within 400s**):
+
+- cluster text in the **last** world-bridge line: **0/135**
+- cluster text **anywhere** in the injected world-bridge block: **0/135**
+- 430 world-bridge rows in the frozen window carry the cluster: **0**
+
+Reconstructed tails are proprioception JSON, Alexandre Dumas, opioid
+pharmacology. The last ~200 characters of a contaminated prompt are never the
+contaminant. **Rule this out and do not re-test it.**
+
+### 7.3 The insertion point — OBSERVED
+
+`generator.py:2443` → `_build_recent_striking_block()`, rendered under the
+header **`"Recent voice of yours that landed as itself:"`**, two exemplars
+sampled from the top-10 STRIKING of the last 24h, each truncated to 280 chars.
+
+Replaying that pool exactly from `genius_tags` for every wide fire in the
+frozen window:
+
+| | fires with ≥1 cluster exemplar in pool | cluster share of pool slots |
+|---|---|---|
+| cluster-carrying fires (135) | **135/135 = 100%** | **1350/1350 = 100%** |
+| clean fires (171) | **171/171 = 100%** | **1710/1710 = 100%** |
+
+This reproduces round 27's 240/240. Saturation is total and it is **identical
+in both groups** — so the block is the **carrier**, but it has **zero
+discriminating power** as a trigger. Every prompt in the window contained the
+contaminant. Only 44% of outputs emitted it.
+
+Two other candidates were tested and eliminated: the identity block
+(`identity_log`, exactly replayable) carries the cluster in **0/135** and
+**0/171**; the world-bridge block in 0/430 as above.
+
+### 7.4 The mechanism is verbatim transcription, not paraphrase — OBSERVED
+
+For every wide fire, the 5-gram overlap between the **first sentence of the
+output** and the first sentence of the best-matching exemplar then in its pool:
+
+| group | n | median overlap | ≥0.5 | ≥0.8 | exact (1.0) |
+|---|---|---|---|---|---|
+| cluster-carrying | 135 | **1.00** | 76.3% | 67.4% | **60.0%** |
+| clean | 171 | **0.00** | **0.0%** | 0.0% | 0.0% |
+
+Perfect separation. Not one clean fire copies an exemplar opening; 60% of
+contaminated fires reproduce one **verbatim**.
+
+The opening 6 words say the same thing. Contaminated: `"this headline
+discusses changes to youth"` ×70, `"the headline discusses changes to youth"`
+×24. Clean: `"the item you provided is about"`, `"this item discusses a
+technique called"` — i.e. answering the instruction, which names its subject
+as *"One item from your feeds"*.
+
+**The two populations are behaviourally binary: a fire either answers the
+instruction or transcribes the exemplar.** Round 30's "hybrids" are the fires
+that do the second and then recover into the first.
+
+### 7.5 The mechanism — REASONED
+
+The exemplar block is a **few-shot demonstration presented as the model's own
+best voice**, placed ~10 blocks below the task instruction and separated from
+it by thousands of characters. Few-shot exemplars teach form, and the first
+thing a form specifies is how to open. When 10/10 exemplars open with the same
+sentence, "how to open" and "what to say first" are indistinguishable in the
+demonstration — so the opening is copied with its content attached. The fire
+then either has enough grip on its own focal item to pivot (hybrid) or does
+not (fully off-subject).
+
+This also explains the **closed loop** round 27 identified, and why it
+ratchets: a transcribed opening is scored by a scorer that (section on F5)
+is in production a branch lookup carrying no fidelity signal, so the copy
+scores as well as the original and re-enters the pool.
+
+The block has a groove filter, but its static term list is
+`("gentle thread", "hum indeed", "weave a gentle", "resonate for you")` — the
+2026-05 hum groove. It cannot see a new attractor.
+
+### 7.6 Ignition timeline — OBSERVED
+
+Cluster share of the top-10 exemplar pool, sampled at 00:00 UTC daily:
+
+| 07-24 → 07-27 | 07-28 | 07-29 | 07-30 | 07-31 | 08-01 → 08-04 |
+|---|---|---|---|---|---|
+| 0% | 60% | 80% | 70% | 80% | **100%** |
+
+Seed: belief **225184**, `source='precipitated_from_sense'`, created
+2026-07-26 23:10 — `"UK papers: Youth benefits 'crack down' and Gatwick 'Fly
+and dry'"`. It is the **only** ingested item carrying the cluster; the
+"security camera system" detail appears nowhere in it and is confabulated,
+then propagated verbatim from that point on. By 08-01 the pool is fully closed.
+
+Her own crystallized copies now also sit in the affinity pool
+(belief 234481, affinity 0.484, `use_count` 15; belief 233368, affinity 0.524)
+— above the 0.40 threshold of the "Beliefs you've come to feel as deeply
+yours" block at `generator.py:2418`. **REASONED:** that is a second, slower
+re-entry path that outlives the 24h exemplar window.
+
+### 7.7 Is a preamble effect compatible with round 18's nulls? — REASONED
+
+**Yes, and R18 is not wrong.** But the reason is not the one proposed.
+
+R18 added each block to a clean baseline and measured no effect. That design
+would in fact have detected a purely positional effect, since adding a block
+places it somewhere. What it cannot detect is what is actually happening:
+
+1. **The block's harm is a function of its contents, and its contents are
+   state.** `_build_recent_striking_block` renders whatever the STRIKING
+   top-10 currently holds. Tested against a diverse pool it is inert — that is
+   R18's null, and it was a true reading of the system at the time. Tested
+   against a 100%-saturated pool it transcribes. The block is a mirror; R18
+   measured the mirror in a clean room.
+2. **The effect is a feedback loop, and R18's design is single-shot.** The
+   mechanism requires the block's output to re-enter its own input. One-fire
+   A/B cannot express a fixed point. The ignition curve in 7.6 takes **five
+   days** to close.
+
+So R18's nulls and the preamble effect are both correct and describe different
+regimes. **Consequence: no additive A/B on the exemplar block will ever
+reproduce this.** The block must be tested against a *saturated* pool, or the
+saturation itself must be measured — which is what section 5's maxDF* does.
+
+---
+
+## 8. Why EXPLAIN missed its R29 prediction (round 31, investigation only)
+
+R29 predicted EXPLAIN 0.0% → 34.8%. Delivered, over the 17.9h since the
+16:30:02 UTC restart: **EXPLAIN 6/118 = 5.1%**, ARGUE 17/101 = 16.8%,
+DRIFT 15/82 = 18.3%.
+
+### 8.1 EXPLAIN did not lengthen — it shortened. OBSERVED.
+
+| | frozen window | post-R29 live |
+|---|---|---|
+| EXPLAIN median length | 491 | **426** |
+| EXPLAIN p75 / p90 | 688 / 859 | 576 / 731 |
+| EXPLAIN >600 chars | 34.2% | **23.7%** |
+| ARGUE median length | 432 | 403 |
+
+**Length is not the problem.** The R29 ceiling is doing its job: EXPLAIN
+`too_long` rejects fell 153 → 65.
+
+### 8.2 The gate it fails is `no_engagement`, not `too_long`. OBSERVED.
+
+`_quality_check` is sequential — length is checked at `crystallizer.py:584`,
+engagement at `:587`. Raising the ceiling did not admit fires; it **moved them
+to the next gate**. EXPLAIN `no_engagement` rejects went **5 → 43**.
+
+Replaying the real gates in code order:
+
+| gate (survivors) | EXPLAIN | ARGUE |
+|---|---|---|
+| fires | 118 (100%) | 101 (100%) |
+| survive `too_long` (R29 gate) | 53 (44.9%) | 49 (48.5%) |
+| **survive engagement gate** | **10 (8.5%)** | **32 (31.7%)** |
+| *of the length-survivors, fail engagement* | **43 (81.1%)** | 17 (34.7%) |
+
+### 8.3 The cause is that two prompts contradict each other. OBSERVED + REASONED.
+
+`_has_engagement` passes on `_SELF_REF_RE = \b(I|my|me|myself|mine|within|
+inside)\b`, or a `?`, or an engagement keyword **with** a concrete anchor.
+Among post-R29 length-survivors:
+
+| | first-person self-ref | contains `?` | engagement keyword |
+|---|---|---|---|
+| EXPLAIN | **15.1%** | 0.0% | 5.7% |
+| ARGUE | **65.3%** | 0.0% | 20.4% |
+
+`_MODE_EXPLAIN` instructs: *"Do NOT be contemplative, **do NOT write about
+yourself**"*. `_MODE_ARGUE` instructs: *"in plain **first person**"*. The
+engagement gate's main door is first-person reference. **EXPLAIN is told to do
+the one thing the crystallizer requires; ARGUE is told to do it.** The 8.5%
+vs 31.7% split is that instruction, measured.
+
+### 8.4 The prediction was wrong against its own frozen window. OBSERVED.
+
+Replaying the frozen window under the *shipped* R29 code gives EXPLAIN
+**30/161 = 18.6%**, not 34.8%. 34.8% ≈ 56/161 is what the length gate alone
+admits (64) less the dedup/blacklist gates (~8) — i.e. **the offline
+prediction did not apply the engagement gate**, which removes a further 34.
+This is a harness error in the R29 prediction, not a covariate shift.
+
+There is *additionally* a covariate shift: EXPLAIN fidelity fell
+**66.5% → 46.6%** across the boundary. Per section 6 that boundary also
+contains B1 and B4, so **this drop is not attributable to R29.**
+
+### 8.5 Answer to "is the fix a higher ceiling for EXPLAIN?"
+
+**No.** EXPLAIN clears the ceiling at 44.9% and dies at the engagement gate at
+81.1%. Raising the ceiling further can add at most the 23.7% now over 600, and
+those fires face the same 81.1% engagement failure. Nothing is proposed here.
