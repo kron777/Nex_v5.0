@@ -702,3 +702,128 @@ contains B1 and B4, so **this drop is not attributable to R29.**
 **No.** EXPLAIN clears the ceiling at 44.9% and dies at the engagement gate at
 81.1%. Raising the ceiling further can add at most the 23.7% now over 600, and
 those fires face the same 81.1% engagement failure. Nothing is proposed here.
+
+---
+
+## 9. Round 32 — the mirror was showing one document
+
+Shipped `a791cc8`. Restart **2026-08-07T16:10:54Z**. One change, one restart.
+
+### 9.1 Why §7.5 named the wrong culprit — OBSERVED
+
+§7.5 said the groove filter's term list is static and cannot see a new
+attractor. True, but it understates the defect. The filter **runs after
+`sample(2)`**, and the pool query selects only `(fountain_event_id, score)`
+— the text does not exist in scope until after the draw. The filter
+therefore never had substitution power, only deletion: when it matched, the
+block returned `[]`. It is a silencer, not a selector.
+
+Its static terms matched **0 / 240** replayed pool slots over 24h. The
+dynamic half found no `groove_alerts` row at severity ≥ 0.5 on the current
+attractor. **The filter has been an exact no-op for the whole contamination
+window.**
+
+### 9.2 The pool is not converged on a token — it is copies of one document
+
+| | n | unique 1st sentences | median pairwise 5-gram Jaccard |
+|---|---|---|---|
+| h−24 | 10 | 4 | 0.889 |
+| h−18 | 10 | **2** | **1.000** |
+| h−12 | 10 | **2** | **1.000** |
+| h−6 | 10 | **2** | **1.000** |
+| h−0 | 10 | 2 | 0.889 |
+
+Near-duplicate fires score near-identically, so `ORDER BY score DESC LIMIT 10`
+selects *the same document ten times*. `sample(2)` then drew it twice with
+probability ≈ 1.0. §7.6's ignition table was reading this as "cluster share";
+it is better described as pool collapse. It has held the top-10 every day
+since at least 07-28.
+
+### 9.3 The maxDF*-token predicate was rejected — OBSERVED
+
+Replay, 24h, 240 pool slots, excluding any candidate carrying the current
+dominant non-register token:
+
+- **132 / 240 slots excluded (55%)**
+- **block empties in 13 of 24 hours** — R18's `+EX-removed` arm as the *modal*
+  outcome, i.e. the round's own revert tripwire firing by design
+- **0 / 10 excluded** in the hour the pool was ten identical copies
+  (dominant token `reason`; the contaminant does not contain it)
+
+The indirection does not hold: maxDF* reads the **crystallized-belief**
+corpus, a different corpus from the STRIKING pool. A token that dominates one
+need not appear in the other.
+
+### 9.4 What shipped — dedup ahead of the LIMIT
+
+Widen candidates to `LIMIT 200` (~99 in practice), fetch text for all,
+greedily drop near-duplicates by first-sentence 5-gram Jaccard ≥ 0.5, keep
+the 10 best **distinct**, then `sample(2)`. Fetch is 0.7 ms on the integer
+primary key. Dedup **cannot empty a non-empty pool** — the first candidate
+always survives. Downstream groove filter and fail-safe `[]` returns untouched.
+
+Measured on live DBs at the same instant, 4000 draws each:
+
+| | pool n | distinct 1st sents | P(≥1 drawn leads w/ contaminant) | P(both) | mean pairwise overlap |
+|---|---|---|---|---|---|
+| OLD | 10 | 2 | **1.000** | **1.000** | **0.939** |
+| NEW | 10 | 10 | **0.197** | **0.000** | **0.000** |
+
+200 live calls of the real method: **0 empty blocks**, 10 distinct exemplars
+drawn near-uniformly (31–47× each of 400 lines).
+
+### 9.5 Pre-registration
+
+Baseline over **530 fires** in the 24h before restart — max first-sentence
+5-gram Jaccard of each fire against its exemplar pool. The statistic separates
+cleanly, as §7 found: 78.7% at exactly 0, 18.7% at ≥ 0.8, almost nothing between.
+
+- **Primary.** Copied-preamble rate `P(overlap ≥ 0.5)` = **0.198** →
+  predict **≤ 0.06** within 24h (point estimate 0.039 if the rate is
+  proportional to prompt exposure: 0.198 × 0.197).
+  **Falsifier: still ≥ 0.15 at 24h post-restart** — then the exemplar block is
+  not the carrier and the fix has failed.
+- **Secondary.** maxDF* is **18.0%** on `aligns` and *not* saturated — the
+  08-04 peak of 34.0% on `societal` decayed by 08-06 and the driving token now
+  churns between five candidates at 18–20%. **Predict no step change**, band
+  14–20%, no breach of 25%. This is a weak endpoint here: maxDF* never saw the
+  mono-culture, so it cannot register its removal.
+- **Tripwire → revert.** Empty-block rate > 2% over 200 sampled draws
+  (measured 0/200 now), or pool distinct-first-sentences < 4.
+
+### 9.6 What this does NOT fix — REASONED
+
+§7 established the block is a **carrier, not a trigger**: every prompt carried
+the contaminant and only 44% of outputs emitted it. So:
+
+- **copied-preamble rate — falls.** 0.198 → ~0.04 predicted.
+- **fire rate — unchanged.** ~530/24h. Nothing gates firing.
+- **the confabulation itself — not removed.** It remains in `beliefs.db`
+  (6 members above affinity 0.40), in `fountain_events`, and in the
+  crystallized corpus. Only the feedback amplification stops. Existing copies
+  age out of the 24h window on their own.
+- **maxDF* — little movement.** See §9.5.
+
+### 9.7 The second door is CLOSED — OBSERVED, corrects §7.6
+
+§7.6 flagged the favourites block at `generator.py:2418` as a slower re-entry
+path, comparing the cluster's 0.484/0.524 against that block's `affinity > 0.40`.
+**That comparison was wrong.** 6,247 beliefs pass the 0.40 threshold; what binds
+is `ORDER BY affinity DESC LIMIT 10`, whose floor is currently **0.904**.
+
+The cluster is **0 / 10** in the block's live output. Best member `id=228960`
+at 0.527 ranks **881st** — it needs +0.377 affinity, or 870 beliefs must
+vacate, to enter. Fixing the exemplar block alone does **not** under-deliver
+through this path. No change made.
+
+### 9.8 The confabulation, exactly — OBSERVED
+
+Seed belief **225184** reads in full:
+
+> `UK papers: Youth benefits 'crack down' and Gatwick 'Fly and dry'`
+
+"Fly and dry" is an airport-alcohol story. It was confabulated into *"plans for
+dismantling a security camera system at Gatwick"* — no security camera, no
+dismantling, nothing in the source — and then propagated verbatim into 10/10
+exemplar slots for 11+ days. The confabulation is a hallucinated expansion of a
+three-word headline fragment, and the exemplar block is what made it permanent.
