@@ -1589,10 +1589,20 @@ class FountainGenerator:
 
         GENIUS_SCORE_v2.md §7 consumer B. Reads genius_tags (in
         conversations.db) joined with fountain_events (in dynamic.db).
-        Samples from top-10 STRIKING in last 24h to avoid lock-in.
-        Filters out fires < 5 min old so very-recent output is not fed
-        back immediately. Returns [] if no STRIKING tags yet (graceful
-        on first deploy before the tagger has accumulated data).
+        Samples 2 from a near-duplicate-free top-10 of STRIKING in the
+        last 24h. Filters out fires < 5 min old so very-recent output is
+        not fed back immediately. Returns [] if no STRIKING tags yet
+        (graceful on first deploy before the tagger has accumulated data).
+
+        2026-08-07 (round 32): dedup moved AHEAD of the LIMIT 10. The old
+        query took top-10 by score and sampled from that; because
+        near-duplicate fires score near-identically, the pool degenerated
+        into copies of one document — measured at 2 unique first sentences
+        across 10 slots, median pairwise 5-gram Jaccard 1.000, holding the
+        top-10 every day for 11+ days. sample(2) then drew the same text
+        twice with probability ~1.0 and the block fed the fixed point back
+        to itself. We now widen the candidate set, drop near-duplicates by
+        first-sentence 5-gram overlap, and keep the 10 best DISTINCT.
         """
         if self._conversations_reader is None or self._dynamic_reader is None:
             return []
@@ -1601,7 +1611,7 @@ class FountainGenerator:
             tag_rows = self._conversations_reader.read(
                 "SELECT fountain_event_id, score FROM genius_tags "
                 "WHERE class = 'STRIKING' AND tagged_at > ? AND tagged_at < ? "
-                "ORDER BY score DESC LIMIT 10",
+                "ORDER BY score DESC LIMIT 200",
                 (now - 24 * 3600, now - 300),
             )
         except Exception:
@@ -1610,26 +1620,61 @@ class FountainGenerator:
         if not tag_rows:
             return []
 
-        # Sample 2 from the top-10
-        import random as _rnd_strk
-        _picked = _rnd_strk.sample(tag_rows, min(2, len(tag_rows)))
-        fire_ids = tuple(int(r["fountain_event_id"]) for r in _picked)
-        if not fire_ids:
-            return []
-
+        # Fetch text for the whole candidate set — dedup needs the content,
+        # which is why the old code could not filter the pool at all (it
+        # only ever read the 2 rows it had already sampled). ~99 rows in
+        # practice, primary-key lookup, sub-millisecond.
+        cand_ids = tuple(int(r["fountain_event_id"]) for r in tag_rows)
         try:
-            placeholders = ",".join("?" * len(fire_ids))
-            fire_rows = self._dynamic_reader.read(
+            placeholders = ",".join("?" * len(cand_ids))
+            _cand = self._dynamic_reader.read(
                 f"SELECT id, thought FROM fountain_events "
                 f"WHERE id IN ({placeholders}) "
                 f"AND thought IS NOT NULL AND length(thought) > 10",
-                fire_ids,
+                cand_ids,
             )
         except Exception:
             return []
-        fire_rows = list(fire_rows or [])
-        if not fire_rows:
+        _by_id = {int(r["id"]): r for r in (_cand or [])}
+        # Re-impose score DESC: the IN () result comes back in rowid order.
+        _ranked = [_by_id[i] for i in cand_ids if i in _by_id]
+        if not _ranked:
             return []
+
+        # DEDUP: greedy, highest-score-first. A candidate is dropped if its
+        # first sentence shares >= _DEDUP_TH 5-gram Jaccard with one already
+        # kept. Cannot empty a non-empty pool — the first candidate always
+        # survives (nothing to compare against).
+        import re as _re_dd
+        _DEDUP_TH = 0.5
+
+        def _first_sentence_grams(_t: str) -> set:
+            _s = _re_dd.split(r"(?<=[.!?])\s+", (_t or "").strip())
+            _w = _re_dd.findall(r"[a-z0-9']+", (_s[0] if _s else "").lower())
+            return {tuple(_w[i:i + 5]) for i in range(len(_w) - 4)}
+
+        _kept_rows: list = []
+        _kept_grams: list = []
+        for _r in _ranked:
+            if len(_kept_rows) >= 10:
+                break
+            _g = _first_sentence_grams(_r["thought"])
+            _dupe = False
+            for _kg in _kept_grams:
+                _u = len(_g | _kg)
+                if _u and len(_g & _kg) / _u >= _DEDUP_TH:
+                    _dupe = True
+                    break
+            if _dupe:
+                continue
+            _kept_rows.append(_r)
+            _kept_grams.append(_g)
+        if not _kept_rows:
+            return []
+
+        # Sample 2 from the deduped top-10
+        import random as _rnd_strk
+        fire_rows = _rnd_strk.sample(_kept_rows, min(2, len(_kept_rows)))
 
         # GROOVE FILTER: do not feed back fires that match the active groove —
         # that turns the striking block (accelerator) into a groove amplifier.
