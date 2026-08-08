@@ -92,7 +92,14 @@ echo "$(date '+%F %T') launched NEX pid=${NEX_PID}"
     "${NEX_PID}" "auto" \
     >> /home/rr/Desktop/Desktop/nex5/journal/DEPLOY_LEDGER.tsv
 } 2>/dev/null || true
-sleep 25
+# 2026-08-08 (round 39): 25 -> 45. Three of five machine reboots logged
+# "did not come up on first launch" and NONE of them had actually failed --
+# no RESTART # ever followed, and fire gaps were normal (6.7/4.1/5.5 min).
+# Measured launch->confirmed-up is 25s, 25s, 26s: the old deadline sat exactly
+# on the boundary, so a cold boot missed it by a second or two. The 30s
+# supervision loop below is what actually detects failure and is untouched;
+# this only stops a false alarm that has cost real investigation time.
+sleep 45
 if is_alive; then
   echo "$(date '+%F %T') NEX confirmed up (flags: $(cat /proc/${NEX_PID}/environ 2>/dev/null | tr '\0' '\n' | grep -c NEX5))"
 else
