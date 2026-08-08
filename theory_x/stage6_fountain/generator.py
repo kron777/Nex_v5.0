@@ -482,6 +482,70 @@ class FountainGenerator:
                 source="stage6_fountain", exc=e,
             )
 
+        # 2026-08-08 (round 37): PROMPT BLOCK MANIFEST.
+        #
+        # fountain_retrieval_log above records which BELIEFS entered a prompt,
+        # but only for three slots (seed, own_sense, spectrum) and -- note the
+        # DROP TABLE at the top of this method -- it is destroyed on every
+        # restart, so it can never answer a retrospective question. Rounds 31,
+        # 32 and 33 each had to reconstruct "which block carried X into this
+        # fire" by live-sampling /tmp/nex5_last_prompt.log, which holds exactly
+        # one prompt and is overwritten every fire.
+        #
+        # This table records the SHAPE of every prompt: one row per block, with
+        # a content hash, its length, its ordinal position, and a bounded
+        # prefix. The prefix is what makes a preamble-style contaminant
+        # findable after the fact; the hash is what makes exact repeats
+        # countable across fires.
+        #
+        # DELIBERATELY NOT DROPPED ON STARTUP. That is the entire point.
+        #
+        # Cost, measured on a real 5,920-char prompt with 16 blocks:
+        #   ~110 B/row x 16 = ~1.8 KiB/fire -> ~930 KiB/day at 530 fires/day.
+        # Content-addressing the full text was considered and REJECTED: the
+        # measured dedup ratio across sampled prompts is only 1.13x (most
+        # blocks embed a changing timestamp or count), so storing text would
+        # cost ~2.8 MB/day for almost no sharing. Hence prefix-only + a reaper.
+        # REAPER: 30-day retention, run once per process start below, matching
+        # the retention pattern already used for gate_decisions. Steady state
+        # is ~27 MiB.
+        try:
+            self._dynamic_writer.write(
+                "CREATE TABLE IF NOT EXISTS fountain_prompt_blocks ("
+                "    id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                "    fire_id INTEGER NOT NULL,"
+                "    ordinal INTEGER NOT NULL,"
+                "    block TEXT NOT NULL,"
+                "    hash TEXT NOT NULL,"
+                "    n_chars INTEGER NOT NULL,"
+                "    prefix TEXT,"
+                "    ts REAL NOT NULL"
+                ")"
+            )
+            self._dynamic_writer.write(
+                "CREATE INDEX IF NOT EXISTS idx_fpb_fire "
+                "ON fountain_prompt_blocks(fire_id)"
+            )
+            self._dynamic_writer.write(
+                "CREATE INDEX IF NOT EXISTS idx_fpb_ts "
+                "ON fountain_prompt_blocks(ts)"
+            )
+            self._dynamic_writer.write(
+                "CREATE INDEX IF NOT EXISTS idx_fpb_hash "
+                "ON fountain_prompt_blocks(hash)"
+            )
+            # Reaper, once per start. Bounded retention, never a full scan
+            # on the fire path.
+            self._dynamic_writer.write(
+                "DELETE FROM fountain_prompt_blocks WHERE ts < ?",
+                (time.time() - 30 * 86400,),
+            )
+        except Exception as e:
+            error_channel.record(
+                f"fountain_prompt_blocks schema init failed: {e}",
+                source="stage6_fountain", exc=e,
+            )
+
     def _link_activation_to_event(self) -> None:
         """Backfill fountain_event_id on the latest drive_activations row."""
         if self._competing_drives is None:
@@ -1408,6 +1472,31 @@ class FountainGenerator:
         except Exception as e:
             error_channel.record(
                 f"retrieval_log write failed: {e}",
+                source="stage6_fountain", exc=e,
+            )
+
+        # Round 37: persist the prompt block manifest stashed by _build_prompt.
+        # Same fail-safe contract as the retrieval log above -- this runs after
+        # the fire is already written, so nothing here can affect what she said.
+        try:
+            _blocks = getattr(self, "_last_prompt_blocks", None)
+            if _blocks and fountain_event_id:
+                self._dynamic_writer.write_many(
+                    [
+                        (
+                            "INSERT INTO fountain_prompt_blocks "
+                            "(fire_id, ordinal, block, hash, n_chars, prefix, ts) "
+                            "VALUES (?,?,?,?,?,?,?)",
+                            (fountain_event_id, _ordinal, _name, _hash,
+                             _nchars, _prefix, ts_now),
+                        )
+                        for _ordinal, _name, _hash, _nchars, _prefix in _blocks
+                    ]
+                )
+            self._last_prompt_blocks = []
+        except Exception as e:
+            error_channel.record(
+                f"prompt_blocks write failed: {e}",
                 source="stage6_fountain", exc=e,
             )
 
@@ -2679,7 +2768,45 @@ class FountainGenerator:
             source="stage6_fountain", level="DEBUG",
         )
 
-        return "\n".join(prompt_parts), retrieval_manifest
+        _prompt_text = "\n".join(prompt_parts)
+
+        # Round 37: stash the block manifest for the caller to persist once it
+        # has a fire_id. RECORDS ONLY -- _prompt_text is already built above and
+        # is returned untouched; nothing here can alter the prompt. Every
+        # failure mode lands in the except and leaves the fire unaffected.
+        try:
+            self._last_prompt_blocks = self._prompt_block_manifest(_prompt_text)
+        except Exception:
+            self._last_prompt_blocks = []
+
+        return _prompt_text, retrieval_manifest
+
+    @staticmethod
+    def _prompt_block_manifest(prompt_text: str) -> list:
+        """Describe a prompt's blocks: (ordinal, name, hash, n_chars, prefix).
+
+        Blocks are blank-line separated, which is how _build_prompt already
+        assembles them (every block appends a trailing ""). Pure function of
+        its input -- no I/O, no state, cannot raise into the fire path from
+        anywhere but its own try in the caller.
+        """
+        import hashlib as _hl
+        import re as _re_pb
+
+        out = []
+        for _i, _b in enumerate(_re_pb.split(r"\n\s*\n", prompt_text or "")):
+            if not _b.strip():
+                continue
+            _first = _b.strip().splitlines()[0]
+            out.append((
+                _i,
+                _first[:48],                                     # block name
+                _hl.blake2b(_b.encode("utf-8", "replace"),
+                            digest_size=8).hexdigest(),          # content hash
+                len(_b),                                         # length
+                _b.strip().replace("\n", " ")[:96],              # bounded prefix
+            ))
+        return out
 
     def _fetch_arc_context(self, max_active: int = 3, max_recent: int = 2) -> dict:
         """Pull active and recently-closed arcs for prompt context."""
