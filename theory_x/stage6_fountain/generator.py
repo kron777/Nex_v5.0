@@ -155,9 +155,24 @@ You have access to a belief graph and live feeds. One item from your feeds:
 
 Explain it in 2-3 plain sentences: what it is, how it works, or why it matters \
 — to someone who has never seen it. Be concrete and factual. Do NOT be \
-contemplative, do NOT write about yourself, do NOT reach for profundity. \
+contemplative, do NOT reach for profundity. \
 Just explain the thing clearly, in your own words. Use ONLY what is in the item — do NOT invent facts, people, projects, names, or events that are not stated. If you don't know, say what the item actually says.\
 """
+# 2026-08-08 (round 38): "do NOT write about yourself" removed from the line
+# above. It contradicted the crystallizer's own admission gate:
+# _has_engagement's primary door is _SELF_REF_RE (first person), and on the
+# current 600-char ceiling EXPLAIN fails that gate 49.3% of the time against
+# ARGUE's 8.8% -- while first person is what saves 46.8% of EXPLAIN survivors
+# and the question door saves 0.2%. So the instruction forbade the only door
+# that works. The anti-profundity clauses are NOT in conflict with anything and
+# stay. Prompt changed rather than gate, because _has_engagement is shared by
+# every mode and by all crystallization: loosening it would raise the floor for
+# DRIFT (50.8% fail) and mode=None (67.8% fail) too, admitting exactly the
+# low-grade echoes it exists to reject.
+#
+# This matters beyond EXPLAIN's yield: R34 found EXPLAIN is the mode that stays
+# ON SUBJECT (0.643 vs ARGUE 0.416), so it is the better output that is being
+# discarded.
 
 _MODE_ARGUE = """\
 You have access to a belief graph and live feeds. This crossed your feeds:

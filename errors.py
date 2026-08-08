@@ -77,9 +77,33 @@ def _disk_sink() -> Optional[logging.Logger]:
         return _disk
 
 
+# 2026-08-08 (round 38): the disk sink takes WARNING+ ONLY.
+#
+# Round 33 shipped this sink and estimated 29 records/day = 5.7 KiB/day from
+# the soak log's WARNING+ count. Measured over the first 7.85 h live, the real
+# rate was 1,968 KiB/day -- 345x the estimate -- which turned the 12 MiB
+# ceiling into SIX DAYS of history rather than the ~year claimed. An
+# observability instrument that silently discards after six days is the same
+# defect it was built to fix.
+#
+# Cause: CentralHandler.emit already filters to WARNING+, but modules call
+# errors.record(...) DIRECTLY with level="INFO"/"DEBUG" and bypass it entirely.
+# Measured composition of those 7.85 h: 4453 INFO, 407 DEBUG, 124 ERROR,
+# 6 WARNING. The volume is dominated by novel_association (2684) and by
+# crystallizer.py:294, which records one INFO per crystallization reject
+# (~328/day). None of that is an error.
+#
+# The in-memory deque is UNCHANGED and still takes every level, so the GUI tab
+# keeps its full stream. This filter applies to the durable sink only, whose
+# purpose is "no new traceback signatures" checks.
+_DISK_LEVELS = frozenset(("WARNING", "ERROR", "CRITICAL"))
+
+
 def _to_disk(ev: "ErrorEvent") -> None:
     """Append one event. Swallows everything — never raises into a caller."""
     try:
+        if ev.level not in _DISK_LEVELS:
+            return
         lg = _disk_sink()
         if lg is None:
             return

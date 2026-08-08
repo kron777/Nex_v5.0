@@ -79,6 +79,19 @@ is_alive() {
 echo "$(date '+%F %T') KEEPALIVE START (v2, locked) — supervising NEX on port ${PORT}"
 launch_nex
 echo "$(date '+%F %T') launched NEX pid=${NEX_PID}"
+
+# 2026-08-08 (round 37 design, round 38 build): append to the deploy ledger.
+# journalctl --user is retention-bounded and rolling; 79% of this system's
+# lifetime of restart history was ALREADY unrecoverable when the ledger was
+# backfilled. This line is what stops that happening again. Failure here must
+# never affect the launch, hence `|| true` and the redirect guard.
+{
+  printf '%s\t%s\t%s\t%s\t%s\n' \
+    "$(date -u '+%Y-%m-%dT%H:%M:%S%z')" "keepalive_start" \
+    "$(git -C /home/rr/Desktop/Desktop/nex5 rev-parse --short HEAD 2>/dev/null || echo '')" \
+    "${NEX_PID}" "auto" \
+    >> /home/rr/Desktop/Desktop/nex5/journal/DEPLOY_LEDGER.tsv
+} 2>/dev/null || true
 sleep 25
 if is_alive; then
   echo "$(date '+%F %T') NEX confirmed up (flags: $(cat /proc/${NEX_PID}/environ 2>/dev/null | tr '\0' '\n' | grep -c NEX5))"
