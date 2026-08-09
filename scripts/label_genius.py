@@ -113,6 +113,8 @@ def spot_draw(set_id: int = 1) -> int:
     in theory_x/genius/JUDGING_RULE_r40.md.
     """
     c = _connect_rw()
+    c.execute("CREATE TABLE IF NOT EXISTS genius_spot_retired ("
+              "  set_id INTEGER PRIMARY KEY, reason TEXT, retired_at REAL)")
     c.execute(
         "CREATE TABLE IF NOT EXISTS genius_labels_spot ("
         "  fountain_event_id INTEGER PRIMARY KEY, band TEXT, score REAL,"
@@ -147,10 +149,13 @@ def spot() -> int:
     c = _connect_rw()
     dyn = sqlite3.connect(f"file:{DYN}?mode=ro", uri=True)
     dyn.row_factory = sqlite3.Row
-    row = c.execute("SELECT MAX(set_id) FROM genius_labels_spot "
-                    "WHERE label IS NULL").fetchone()
-    active = row[0] if row and row[0] is not None else c.execute(
-        "SELECT MAX(set_id) FROM genius_labels_spot").fetchone()[0]
+    # Round 43: pick the HIGHEST set overall, not the highest unanswered one.
+    # The old rule selected set 1 -- fully unanswered because it was RETIRED
+    # after its ratio was leaked (R41) -- in preference to set 2, which was
+    # the live one. A retired set must never be served again.
+    active = c.execute("SELECT MAX(set_id) FROM genius_labels_spot "
+                       "WHERE set_id NOT IN (SELECT set_id FROM genius_spot_retired)"
+                       ).fetchone()[0]
     todo = c.execute("SELECT fountain_event_id, claude_label, score FROM "
                      "genius_labels_spot WHERE label IS NULL AND set_id=? "
                      "ORDER BY RANDOM()", (active,)).fetchall()
