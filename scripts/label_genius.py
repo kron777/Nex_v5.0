@@ -33,6 +33,11 @@ BANDS = [("decision", 0.3, 0.7, 80), ("high", 0.8, 1.01, 20), ("low", 0.0, 0.2, 
 # ~5 minutes. Weighted to the decision band, which is where the analysis lives.
 SPOT = [("decision", 14), ("high", 4), ("low", 2)]
 SPOT_SEED = 40
+# Round 42: set 1's ratio was disclosed before it was run, which makes its
+# agreement number unfalsifiable (see JUDGING_RULE_r40.md). Set 2 is drawn
+# from the 100 fires NOT in set 1, with a fresh seed, and nothing about it
+# has been disclosed.
+SPOT_SEED_2 = 42
 WINDOW_DAYS = 14
 SEED = 39  # frozen; changing it would redraw the sample
 
@@ -100,31 +105,40 @@ def draw(force: bool = False) -> int:
     return 0
 
 
-def spot_draw() -> int:
-    """Pick 20 of the labelled set for a second flagger, and stage them."""
+def spot_draw(set_id: int = 1) -> int:
+    """Stage a blind set for a second flagger. Excludes every earlier set.
+
+    Prints ONLY band counts and the run command. No label counts, no ratios,
+    no indication of which items are contested -- see the blind-check protocol
+    in theory_x/genius/JUDGING_RULE_r40.md.
+    """
     c = _connect_rw()
     c.execute(
         "CREATE TABLE IF NOT EXISTS genius_labels_spot ("
         "  fountain_event_id INTEGER PRIMARY KEY, band TEXT, score REAL,"
-        "  claude_label INTEGER, label INTEGER, labelled_at REAL, labeller TEXT)"
+        "  claude_label INTEGER, label INTEGER, labelled_at REAL, labeller TEXT,"
+        "  set_id INTEGER DEFAULT 1)"
     )
-    if c.execute("SELECT COUNT(*) FROM genius_labels_spot").fetchone()[0]:
-        print("Spot set already drawn — frozen. Run without --spot-draw to label it.")
+    if c.execute("SELECT COUNT(*) FROM genius_labels_spot WHERE set_id=?",
+                 (set_id,)).fetchone()[0]:
+        print(f"Set {set_id} already drawn — frozen.")
         return 1
-    rng = random.Random(SPOT_SEED)
+    seed = {1: SPOT_SEED, 2: SPOT_SEED_2}.get(set_id, 1000 + set_id)
+    rng = random.Random(seed)
     for band, k in SPOT:
         pool = c.execute(
             "SELECT fountain_event_id, band, score, label FROM genius_labels "
-            "WHERE band=? AND label IS NOT NULL", (band,)).fetchall()
+            "WHERE band=? AND label IS NOT NULL AND fountain_event_id NOT IN "
+            "(SELECT fountain_event_id FROM genius_labels_spot)", (band,)).fetchall()
         rng.shuffle(pool)
         c.executemany(
             "INSERT OR IGNORE INTO genius_labels_spot "
-            "(fountain_event_id, band, score, claude_label, label, labelled_at, labeller) "
-            "VALUES (?,?,?,?,NULL,NULL,NULL)",
-            [(r[0], r[1], r[2], r[3]) for r in pool[:k]])
+            "(fountain_event_id, band, score, claude_label, label, labelled_at, "
+            " labeller, set_id) VALUES (?,?,?,?,NULL,NULL,NULL,?)",
+            [(r[0], r[1], r[2], r[3], set_id) for r in pool[:k]])
         print(f"  {band:<9} {min(k, len(pool))} drawn")
     c.commit()
-    print("\n20 fires staged. Run:  python3 scripts/label_genius.py --spot")
+    print(f"\n20 fires staged as set {set_id}. Run:  python3 scripts/label_genius.py --spot")
     return 0
 
 
@@ -133,19 +147,38 @@ def spot() -> int:
     c = _connect_rw()
     dyn = sqlite3.connect(f"file:{DYN}?mode=ro", uri=True)
     dyn.row_factory = sqlite3.Row
+    row = c.execute("SELECT MAX(set_id) FROM genius_labels_spot "
+                    "WHERE label IS NULL").fetchone()
+    active = row[0] if row and row[0] is not None else c.execute(
+        "SELECT MAX(set_id) FROM genius_labels_spot").fetchone()[0]
     todo = c.execute("SELECT fountain_event_id, claude_label, score FROM "
-                     "genius_labels_spot WHERE label IS NULL ORDER BY RANDOM()").fetchall()
+                     "genius_labels_spot WHERE label IS NULL AND set_id=? "
+                     "ORDER BY RANDOM()", (active,)).fetchall()
     if not todo:
-        agree = c.execute("SELECT COUNT(*) FROM genius_labels_spot "
-                          "WHERE label IS NOT NULL AND label=claude_label").fetchone()[0]
-        n = c.execute("SELECT COUNT(*) FROM genius_labels_spot "
-                      "WHERE label IS NOT NULL").fetchone()[0]
+        r = c.execute("SELECT claude_label, label FROM genius_labels_spot "
+                      "WHERE label IS NOT NULL AND set_id=?", (active,)).fetchall()
+        n = len(r)
         if not n:
             print("Nothing staged. Run --spot-draw first.")
             return 0
-        print(f"\nAGREEMENT WITH CLAUDE: {agree}/{n} = {agree/n:.0%}")
-        print("  >=80%: R40's conclusions carry over to your judgement.")
-        print("  <60% : the analysis is about Claude's taste, not yours — say so and redo.")
+        a = sum(1 for cl, jl in r if cl == jl)
+        # Cohen's kappa -- raw agreement is dominated by the negative class on
+        # an imbalanced set and must never be reported alone (round 41 A.4).
+        c1 = sum(1 for cl, _ in r if cl == 1); j1 = sum(1 for _, jl in r if jl == 1)
+        pe = (c1/n)*(j1/n) + ((n-c1)/n)*((n-j1)/n)
+        po = a/n
+        kappa = (po - pe) / (1 - pe) if pe < 1 else 1.0
+        both = sum(1 for cl, jl in r if cl == 1 and jl == 1)
+        union = sum(1 for cl, jl in r if cl == 1 or jl == 1)
+        print(f"\nSET {active}  n={n}")
+        print(f"  Cohen's kappa            : {kappa:+.3f}   <-- PRIMARY")
+        print(f"  positive-class agreement : {both}/{union}"
+              f"{'' if union else '  (neither marked any striking)'}")
+        print(f"  raw agreement            : {a}/{n} = {po:.0%}   (context only)")
+        print("\n  kappa >= 0.60 : substantial — R40's conclusions carry over.")
+        print("  kappa 0.20-0.59: fair/moderate — recompute R40 B.1/B.3 against your labels.")
+        print("  kappa <  0.20 : the analysis is about Claude's taste, not yours.")
+        print("                  Discard R40 B.1/B.3; B.2 survives (it needs no labels).")
         return 0
     print("=" * 74)
     print("  s = STRIKING   o = ordinary   q = quit.  Claude's label is HIDDEN until you answer.")
@@ -261,13 +294,14 @@ def main(argv) -> int:
     ap.add_argument("--draw", action="store_true", help="draw and freeze the sample (once)")
     ap.add_argument("--force", action="store_true", help="with --draw: discard an existing set")
     ap.add_argument("--status", action="store_true", help="show progress")
-    ap.add_argument("--spot-draw", action="store_true", help="stage Jon's 20-fire spot check")
+    ap.add_argument("--spot-draw", action="store_true", help="stage a 20-fire blind check")
+    ap.add_argument("--set", type=int, default=1, help="with --spot-draw: which set")
     ap.add_argument("--spot", action="store_true", help="run Jon's 20-fire spot check")
     a = ap.parse_args(argv)
     if a.draw:
         return draw(force=a.force)
     if a.spot_draw:
-        return spot_draw()
+        return spot_draw(set_id=a.set)
     if a.spot:
         return spot()
     if a.status:
