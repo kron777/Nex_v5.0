@@ -385,3 +385,4 @@ ts_utc	event	commit_sha	service_pid	note
 2026-08-08T10:45:08+02:00	nex_confirmed_up			
 2026-08-08T16:36:48+0000	keepalive_start	b64fc27	491781	auto
 2026-08-08T17:04:38+0000	keepalive_start	5894b2f	499690	auto
+2026-08-09T04:00:10+0000	code_staged_inactive	2fc1fc0		R40 errors.py error-ring; NO restart, inert until next process start (C2 window open until 2026-08-10T16:36:43Z)

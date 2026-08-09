@@ -29,6 +29,10 @@ CONV = os.path.join(ROOT, "data", "conversations.db")
 DYN = os.path.join(ROOT, "data", "dynamic.db")
 
 BANDS = [("decision", 0.3, 0.7, 80), ("high", 0.8, 1.01, 20), ("low", 0.0, 0.2, 20)]
+# Round 40 spot check: 20 of the 120 Claude labelled, for Jon to re-judge in
+# ~5 minutes. Weighted to the decision band, which is where the analysis lives.
+SPOT = [("decision", 14), ("high", 4), ("low", 2)]
+SPOT_SEED = 40
 WINDOW_DAYS = 14
 SEED = 39  # frozen; changing it would redraw the sample
 
@@ -93,6 +97,87 @@ def draw(force: bool = False) -> int:
         total += len(picked)
     c.commit()
     print(f"\nDrew {total} fires. FROZEN. Now run:  python3 scripts/label_genius.py")
+    return 0
+
+
+def spot_draw() -> int:
+    """Pick 20 of the labelled set for a second flagger, and stage them."""
+    c = _connect_rw()
+    c.execute(
+        "CREATE TABLE IF NOT EXISTS genius_labels_spot ("
+        "  fountain_event_id INTEGER PRIMARY KEY, band TEXT, score REAL,"
+        "  claude_label INTEGER, label INTEGER, labelled_at REAL, labeller TEXT)"
+    )
+    if c.execute("SELECT COUNT(*) FROM genius_labels_spot").fetchone()[0]:
+        print("Spot set already drawn — frozen. Run without --spot-draw to label it.")
+        return 1
+    rng = random.Random(SPOT_SEED)
+    for band, k in SPOT:
+        pool = c.execute(
+            "SELECT fountain_event_id, band, score, label FROM genius_labels "
+            "WHERE band=? AND label IS NOT NULL", (band,)).fetchall()
+        rng.shuffle(pool)
+        c.executemany(
+            "INSERT OR IGNORE INTO genius_labels_spot "
+            "(fountain_event_id, band, score, claude_label, label, labelled_at, labeller) "
+            "VALUES (?,?,?,?,NULL,NULL,NULL)",
+            [(r[0], r[1], r[2], r[3]) for r in pool[:k]])
+        print(f"  {band:<9} {min(k, len(pool))} drawn")
+    c.commit()
+    print("\n20 fires staged. Run:  python3 scripts/label_genius.py --spot")
+    return 0
+
+
+def spot() -> int:
+    """Jon's 5-minute second pass. Claude's label is hidden until after."""
+    c = _connect_rw()
+    dyn = sqlite3.connect(f"file:{DYN}?mode=ro", uri=True)
+    dyn.row_factory = sqlite3.Row
+    todo = c.execute("SELECT fountain_event_id, claude_label, score FROM "
+                     "genius_labels_spot WHERE label IS NULL ORDER BY RANDOM()").fetchall()
+    if not todo:
+        agree = c.execute("SELECT COUNT(*) FROM genius_labels_spot "
+                          "WHERE label IS NOT NULL AND label=claude_label").fetchone()[0]
+        n = c.execute("SELECT COUNT(*) FROM genius_labels_spot "
+                      "WHERE label IS NOT NULL").fetchone()[0]
+        if not n:
+            print("Nothing staged. Run --spot-draw first.")
+            return 0
+        print(f"\nAGREEMENT WITH CLAUDE: {agree}/{n} = {agree/n:.0%}")
+        print("  >=80%: R40's conclusions carry over to your judgement.")
+        print("  <60% : the analysis is about Claude's taste, not yours — say so and redo.")
+        return 0
+    print("=" * 74)
+    print("  s = STRIKING   o = ordinary   q = quit.  Claude's label is HIDDEN until you answer.")
+    print("=" * 74)
+    done = 0
+    for fid, claude_label, score in todo:
+        r = dyn.execute("SELECT thought, focal_item, mode FROM fountain_events WHERE id=?",
+                        (fid,)).fetchone()
+        if r is None:
+            continue
+        done += 1
+        print(f"\n[{done}/{len(todo)}]  mode={r['mode']}")
+        if r["focal_item"]:
+            print(f"  ITEM : {r['focal_item'][:160]}")
+        print(f"  FIRE : {(r['thought'] or '').strip()[:800]}")
+        while True:
+            try:
+                k = input("  > ").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                print("\nsaved."); return 0
+            if k == "q":
+                print("saved."); return 0
+            if k in ("s", "o"):
+                lab = 1 if k == "s" else 0
+                c.execute("UPDATE genius_labels_spot SET label=?, labelled_at=?, labeller='jon' "
+                          "WHERE fountain_event_id=?", (lab, time.time(), fid))
+                c.commit()
+                print(f"  recorded. Claude said {'STRIKING' if claude_label else 'ordinary'}"
+                      f" — {'agree' if lab == claude_label else 'DISAGREE'}")
+                break
+            print("  s / o / q")
+    print("\nDone. Re-run --spot for the agreement rate.")
     return 0
 
 
@@ -176,9 +261,15 @@ def main(argv) -> int:
     ap.add_argument("--draw", action="store_true", help="draw and freeze the sample (once)")
     ap.add_argument("--force", action="store_true", help="with --draw: discard an existing set")
     ap.add_argument("--status", action="store_true", help="show progress")
+    ap.add_argument("--spot-draw", action="store_true", help="stage Jon's 20-fire spot check")
+    ap.add_argument("--spot", action="store_true", help="run Jon's 20-fire spot check")
     a = ap.parse_args(argv)
     if a.draw:
         return draw(force=a.force)
+    if a.spot_draw:
+        return spot_draw()
+    if a.spot:
+        return spot()
     if a.status:
         return status()
     return label()

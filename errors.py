@@ -130,6 +130,21 @@ class ErrorEvent:
 _lock = threading.Lock()
 _events: "deque[ErrorEvent]" = deque(maxlen=_MAX_RECENT)
 
+# 2026-08-09 (round 40): a SECOND ring holding WARNING+ only.
+#
+# Round 39 measured the channel at 636 events/h against a 500-slot deque:
+# FULL TURNOVER EVERY 47 MINUTES. At 17 WARNING+/h, at most ~13 of the 500
+# slots held an actual error at any moment, and novel_association alone was
+# 54% of the volume. So for ten rounds the GUI error tab -- and every "no new
+# traceback signatures" check made against it -- could see roughly the last
+# 47 minutes, and real errors were being evicted by routine INFO before
+# anyone read them.
+#
+# This is additive. `_events` is untouched: same maxlen, same order, same
+# contents, so the GUI's existing stream is unchanged. `_errors` simply keeps
+# WARNING+ from being crowded out. At 17/h a 500-slot ring holds ~29 hours.
+_errors: "deque[ErrorEvent]" = deque(maxlen=_MAX_RECENT)
+
 
 def record(
     message: str,
@@ -150,6 +165,8 @@ def record(
     )
     with _lock:
         _events.append(ev)
+        if ev.level in _DISK_LEVELS:
+            _errors.append(ev)
     _to_disk(ev)
 
 
@@ -158,9 +175,20 @@ def recent(limit: int = 100) -> list[ErrorEvent]:
         return list(_events)[-limit:]
 
 
+def recent_errors(limit: int = 100) -> list[ErrorEvent]:
+    """WARNING+ only, from the ring that routine INFO cannot evict.
+
+    Use this for audit questions ("any new traceback signatures?"). `recent()`
+    is the full stream and turns over roughly every 47 minutes.
+    """
+    with _lock:
+        return list(_errors)[-limit:]
+
+
 def clear() -> None:
     with _lock:
         _events.clear()
+        _errors.clear()
 
 
 class CentralHandler(logging.Handler):
@@ -179,6 +207,8 @@ class CentralHandler(logging.Handler):
         )
         with _lock:
             _events.append(ev)
+            if ev.level in _DISK_LEVELS:
+                _errors.append(ev)
         _to_disk(ev)
 
 
