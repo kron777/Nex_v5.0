@@ -386,3 +386,6 @@ ts_utc	event	commit_sha	service_pid	note
 2026-08-08T16:36:48+0000	keepalive_start	b64fc27	491781	auto
 2026-08-08T17:04:38+0000	keepalive_start	5894b2f	499690	auto
 2026-08-09T04:00:10+0000	code_staged_inactive	2fc1fc0		R40 errors.py error-ring; NO restart, inert until next process start (C2 window open until 2026-08-10T16:36:43Z)
+2026-08-09T20:29:48+0000	keepalive_start	01c2ff6	1938	auto
+2026-08-09T20:29:48+0000	code_activated	2fc1fc0	1938	R40 errors.py error-ring ACTIVATED by this start (unplanned machine boot, not a deploy); staged 2026-08-09T04:00:10Z. Fire path byte-identical -- observability only. Recorded retroactively in R47.
+2026-08-10T18:20:26+0000	read_only	01c2ff6	1938	R47 C2 48h read at T+49.73h. Hypothesis FALSIFIED (eng-fail 0.455 vs falsifier >0.35); revert trigger NOT tripped (on-subject 0.785). C2 KEPT, no revert, no restart.
