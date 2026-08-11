@@ -29,8 +29,25 @@ WHAT IT IS NOT
     between two arms under identical conditions. Read the delta, not the level.
 
     It is read-only and offline: databases open mode=ro, nothing is written to
-    them, and it never touches the fountain. It calls the same ollama endpoint
-    the fountain uses, so it does consume model capacity while running.
+    them, and it never touches the fountain.
+
+ENDPOINT CONTENTION — READ THIS BEFORE ANY LARGE RUN (measured, round 55)
+    It calls the SAME ollama endpoint the live fountain depends on, and at scale
+    that is not a background cost. Measured on 2026-08-11 at --concurrency 3:
+
+        fountain fire rate  21.9/h baseline -> 14/h (1h) -> 10/h (30min)
+                            -> 4/h (15min), still falling when aborted
+        persona timeouts    2 in the preceding 4h -> 4 in ~1.5h of replay
+
+    Throughput was 103 fires/h, i.e. ~6 h to reach the n=615 a decisive
+    on-subject read needs -- six hours of that degradation. The run was aborted
+    at n=39. ollama serialises per model, so --concurrency mostly reorders the
+    queue AHEAD of the fountain rather than adding throughput.
+
+    So: a decisive run (n>=615) CANNOT be taken against a live NEX. Do it with
+    the fountain stopped, or against a second model instance on another port
+    via NEX5_VOICE_URL. Default concurrency is 1 for this reason; raising it
+    does not buy throughput, it only starves the fountain faster.
 
 USAGE
     PYTHONPATH=. python3 scripts/replay_retrieval.py --n 40
@@ -174,6 +191,9 @@ def main():
     ap.add_argument("--n", type=int, default=40, help="fires to replay (each = 2 generations)")
     ap.add_argument("--since", default="2026-08-08T00:00:00")
     ap.add_argument("--seed", type=int, default=54)
+    ap.add_argument("--concurrency", type=int, default=1,
+                    help="parallel generations. The fountain shares this ollama endpoint, "
+                         "so keep this low and watch the live fire rate (~22/h baseline).")
     ap.add_argument("--validate", action="store_true",
                     help="check live-model reachability and that the harness reproduces "
                          "the LIVE fires' own metrics under the live predicates")
@@ -239,34 +259,62 @@ def main():
         "SELECT thought FROM fountain_events WHERE ts < ? ORDER BY ts DESC LIMIT 50",
         (T(a.since),))][::-1]
 
+    # Belief selection is sqlite-bound and must stay on one thread per handle;
+    # only the generation calls are parallelised.
+    def one_fire(f):
+        tmpl = _MODE_EXPLAIN if f["mode"] == "EXPLAIN" else _MODE_ARGUE
+        rec = {"fire_id": f["id"], "mode": f["mode"], "focal_item": f["focal_item"]}
+        for arm, bl in (("recency", f["_rec"]), ("relevance", f["_rel"])):
+            out = generate(build_prompt(tmpl, f["focal_item"], bl, f["ts"]))
+            rec[arm] = {"text": out, **score(out, f["focal_item"], prior)}
+            # B.2 mechanism capture: how long are the priors this arm supplied?
+            rec[arm]["prior_chars"] = statistics.fmean(
+                [len(b["content"]) for b in bl]) if bl else 0.0
+            rec[arm]["prior_n"] = len(bl)
+        return rec
+
+    for f in fires:
+        f["_rec"] = beliefs_recency(bel, f["ts"])
+        f["_rel"] = beliefs_relevance(bel, f["ts"], f["focal_item"])
+
+    # Incremental write. A decisive run is thousands of generations against a
+    # 3B model and takes hours; buffering to the end means a crash, a timeout or
+    # an OOM loses all of it, and it makes a partial read impossible. Every
+    # completed fire is flushed immediately, so the run is both crash-safe and
+    # readable while in flight. Summaries below are computed from `rows`, which
+    # is exactly what reached disk.
+    out_fh = open(a.out, "w", buffering=1) if a.out else None
+
+    def _emit(rec):
+        rows.append(rec)
+        if out_fh:
+            out_fh.write(json.dumps(rec) + "\n")
+
     rows = []
     t0 = time.time()
-    for i, f in enumerate(fires, 1):
-        tmpl = _MODE_EXPLAIN if f["mode"] == "EXPLAIN" else _MODE_ARGUE
-        arms = {
-            "recency": beliefs_recency(bel, f["ts"]),
-            "relevance": beliefs_relevance(bel, f["ts"], f["focal_item"]),
-        }
-        rec = {"fire_id": f["id"], "mode": f["mode"], "focal_item": f["focal_item"]}
-        ok = True
-        for arm, bl in arms.items():
-            p = build_prompt(tmpl, f["focal_item"], bl, f["ts"])
+    if a.concurrency > 1:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        with ThreadPoolExecutor(max_workers=a.concurrency) as ex:
+            futs = {ex.submit(one_fire, f): f for f in fires}
+            for i, fut in enumerate(as_completed(futs), 1):
+                try:
+                    _emit(fut.result())
+                except Exception as e:
+                    print(f"  fire {futs[fut]['id']} failed: {e}")
+                if i % 25 == 0:
+                    print(f"  {i}/{len(fires)} fires  ({time.time()-t0:.0f}s, "
+                          f"{(time.time()-t0)/i:.1f}s/fire)", flush=True)
+    else:
+        for i, f in enumerate(fires, 1):
             try:
-                out = generate(p)
+                _emit(one_fire(f))
             except Exception as e:
-                print(f"  [{i}] generation failed ({arm}): {e}")
-                ok = False
-                break
-            rec[arm] = {"text": out, **score(out, f["focal_item"], prior)}
-        if ok:
-            rows.append(rec)
-        if i % 10 == 0:
-            print(f"  {i}/{len(fires)} fires  ({time.time()-t0:.0f}s elapsed)")
+                print(f"  [{i}] failed: {e}")
+            if i % 25 == 0:
+                print(f"  {i}/{len(fires)} fires  ({time.time()-t0:.0f}s elapsed)", flush=True)
 
-    if a.out:
-        with open(a.out, "w") as fh:
-            for r in rows:
-                fh.write(json.dumps(r) + "\n")
+    if out_fh:
+        out_fh.close()
         print(f"\nwrote {len(rows)} rows to {a.out}")
 
     print(f"\n=== PAIRED RESULT over {len(rows)} fires ===")
