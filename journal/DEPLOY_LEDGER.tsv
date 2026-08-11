@@ -389,3 +389,4 @@ ts_utc	event	commit_sha	service_pid	note
 2026-08-09T20:29:48+0000	keepalive_start	01c2ff6	1938	auto
 2026-08-09T20:29:48+0000	code_activated	2fc1fc0	1938	R40 errors.py error-ring ACTIVATED by this start (unplanned machine boot, not a deploy); staged 2026-08-09T04:00:10Z. Fire path byte-identical -- observability only. Recorded retroactively in R47.
 2026-08-10T18:20:26+0000	read_only	01c2ff6	1938	R47 C2 48h read at T+49.73h. Hypothesis FALSIFIED (eng-fail 0.455 vs falsifier >0.35); revert trigger NOT tripped (on-subject 0.785). C2 KEPT, no revert, no restart.
+2026-08-11T10:05:00+0000	code_staged_inactive			R53 retrieval.py BeliefRetriever pool (tier ASC->confidence DESC, LIMIT 500->20000). CHAT PATH ONLY; module is lazily imported so this is inert until the next process start. NO restart performed. Fountain fire path untouched.

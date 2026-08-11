@@ -63,12 +63,37 @@ class BeliefRetriever:
         side_filter: 'INSIDE', 'OUTSIDE', or None (no filter).
         """
         try:
+            # 2026-08-11 (round 53): was `ORDER BY tier ASC, confidence DESC
+            # LIMIT 500`. That pre-filter is not a ranking — it runs BEFORE any
+            # scoring — so `tier ASC` simply decided which beliefs were allowed
+            # to be scored at all. Measured, it returned 303 tier-1 + 40 tier-2
+            # + 157 tier-3 and ZERO tier-6: the only relevance retriever in NEX
+            # could not see a single belief the fountain has ever crystallized.
+            #
+            # The cap was bounding a cost that does not exist. The whole
+            # eligible set (tier<=6, unpaused, locked or confidence>=0.15) is
+            # 6,184 rows; fetch+score measures ~75 ms against ~3 ms, which is
+            # noise beside a chat round-trip. At 20000 the cap no longer binds
+            # (years of headroom at ~65 tier-6 beliefs/day) and every eligible
+            # belief reaches the scorer, which is what a relevance retriever is
+            # for. `confidence DESC` is kept so the ordering still degrades
+            # sensibly if the cap ever does bind.
+            #
+            # Confidence is NOT dropped as a signal — it still multiplies in
+            # the keyword score below. And widening cannot admit low-confidence
+            # beliefs: the WHERE clause floors them, and the measured floor
+            # across the eligible set is 0.600.
+            #
+            # Measured over 120 real user queries, top-10 recall against the
+            # retriever's own scoring over the full eligible set:
+            #   old pool  0.658 recall, 0.00 tier-6 per query, 1 zero-result
+            #   new pool  0.998 recall, 1.83 tier-6 per query, 0 zero-result
             rows = self._reader.read(
                 "SELECT id, content, tier, confidence, branch_id, source, locked "
                 "FROM beliefs "
                 "WHERE tier <= 6 AND paused = 0 AND (locked = 1 OR confidence >= 0.15) "
-                "ORDER BY tier ASC, confidence DESC "
-                "LIMIT 500",
+                "ORDER BY confidence DESC "
+                "LIMIT 20000",
             )
         except Exception as exc:
             errors.record(f"belief retrieval error: {exc}", source=_LOG_SOURCE, exc=exc)
