@@ -37,8 +37,31 @@ _SELF_REF_RE = re.compile(r"\b(I|my|me|myself|mine|within|inside)\b", re.IGNOREC
 #
 # The predicate is specified in GENIUS_FIDELITY_BASELINE.md section 1. This is
 # its first production use; that file is the authority and must be kept in step.
+# 2026-08-12 (round 57): _TOO_LONG_ON_SUBJECT raised 600 -> 750.
+#
+# R56 ran a 624-fire paired replay with the fountain stopped and found that
+# relevance retrieval's real benefit (engagement-failure -6.1pp, significant)
+# was cancelled by a length penalty (+4.5pp too_long) concentrated entirely in
+# EXPLAIN -- the one mode that writes long (490 chars mean vs ARGUE's 389)
+# against this ceiling. The binding constraint was this constant, not the
+# retrieval and not the model.
+#
+# Measured on 7 days of REAL production fires (not harness text): 42.1% of
+# on-subject EXPLAIN fires are currently rejected by the 600 ceiling. At 750
+# that falls to 20.1%, and the share passing BOTH gates goes 0.2106 -> 0.3560.
+#
+# 750 rather than 800/900: sampled the generated text either side. The 601-750
+# band reads as complete, on-subject explanations that simply run past "2-3
+# plain sentences"; the >800 tail is coherent but redundant ("In simpler
+# terms:" restating what was just said). 750 admits the genuine band and still
+# rejects the padding.
+#
+# The 300 default is deliberately UNTOUCHED -- DRIFT and substrate bind no
+# focal_item, so _is_on_subject returns False for them and they keep 300. One
+# variable. Note this constant is not EXPLAIN-only: ARGUE's on-subject fires
+# use it too (+51 in the band over 7d), which is expected, not a confound.
 _TOO_LONG_DEFAULT = 300        # off-subject, or no focal_item (DRIFT/substrate)
-_TOO_LONG_ON_SUBJECT = 600     # on-subject wide fires only
+_TOO_LONG_ON_SUBJECT = 750     # on-subject wide fires only (was 600, round 29)
 
 _FIDELITY_FURNITURE = frozenset("""
 a an the and or but of to in on at for from by with as is are was were be been it its this that
