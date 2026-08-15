@@ -43,3 +43,8 @@ data/verification.db
 protonvpn-stable-release_1.0.8_all.deb
 *.deb
 *.bak_*
+
+# Third-party clone: stryker-mutator/robo-coasters-example (mutation-testing demo).
+# Not NEX code. Nested git repo (~196MB) — ignored so `git add -A` cannot stage it
+# as a gitlink. Removal/retention is a separate decision; see r68 eligibility map.
+rc2/
