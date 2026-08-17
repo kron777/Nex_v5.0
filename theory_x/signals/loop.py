@@ -69,6 +69,17 @@ class SignalLoop:
 
     def _tick(self):
         now = time.time()
+
+        # Round 70: bounded retention for `signals`. Self-throttled to one pass
+        # per hour and bounded per pass, so this adds at most one small DELETE
+        # to a tick. Never raises -- see theory_x/signals/reaper.py for why a
+        # 7-day window is safe against every reader (widest is 24h).
+        try:
+            from theory_x.signals.reaper import reap as _reap_signals
+            _reap_signals(self._beliefs_writer, now)
+        except Exception as _re:
+            logger.warning("signals reap skipped (non-fatal): %s", _re)
+
         all_signals = []
 
         for det in self._detectors:
