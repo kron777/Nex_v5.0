@@ -31,11 +31,33 @@ DEDUPE_WINDOW_DAYS = 7          # don't open same-entity problem twice within a 
 
 # Signal types that map to genuine inquiry-worthy belief-graph events.
 # Excludes noise: branch_silence_anomaly, ngram_repetition, template_repetition.
+#
+# 2026-08-17 (round 71): t6_promotion_burst and pattern_recognition_burst
+# REMOVED. They are the only promotable types whose title compositor
+# (_compose_title, lines ~173-180) interpolates a BRANCH rather than an
+# ENTITY -- "Why is {branch} producing strong beliefs right now?" and
+# "What pattern is emerging in {branch}?". A branch name is not a subject,
+# so these problems can never name anything specific, and 162 of them (34.8%
+# of the table) accumulated.
+#
+# WHY NOT THROTTLE INSTEAD. cf99584 already added a per-title 24h throttle for
+# exactly these. It works -- R69 measured the minimum gap between identical
+# titles pinned at 24.00h for 11 of 13 titles -- but it keys on the FULL TITLE
+# STRING, and each branch yields a distinct string, so 13 active branches buy
+# 13 openings/day rather than one. Making the throttle branch-agnostic would
+# cut that to ~1/day, not the ~0 this round targets, and it would require a
+# text predicate that could over-match a real title. Removing the TYPE cannot
+# over-match: signal_type is a closed enum written by the detectors, carries no
+# free text, and a genuine problem arrives as 2_branch / 3_branch /
+# concept_emergence / novel_arc / cross_branch_convergence -- all retained.
+#
+# MEASURED before removal (21 days): 96 problems created, 100% of them
+# templated, 76 (79.2%) from t6_promotion_burst, and the 5/day cap hit on 17
+# of 21 days. pattern_recognition_burst has produced 0 problems all-time and is
+# removed as the dormant sibling of the same construct, not on its own record.
 _PROMOTABLE_TYPES = {
     "2_branch",            # entity appearing across 2 branches (~650/day, conf 0.7)
     "3_branch",            # entity appearing across 3 branches (~24/day, conf 0.9)
-    "t6_promotion_burst",  # tier-6 burst (conf ~0.4, threshold lowered below)
-    "pattern_recognition_burst",
     "cross_branch_convergence",
     "novel_arc",
     "concept_emergence",
