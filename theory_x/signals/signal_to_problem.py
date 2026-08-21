@@ -55,13 +55,50 @@ DEDUPE_WINDOW_DAYS = 7          # don't open same-entity problem twice within a 
 # templated, 76 (79.2%) from t6_promotion_burst, and the 5/day cap hit on 17
 # of 21 days. pattern_recognition_burst has produced 0 problems all-time and is
 # removed as the dormant sibling of the same construct, not on its own record.
+#
+# 2026-08-21 (round 72): 4_branch ADDED. signal_type is built dynamically as
+# f"{len(branches)}_branch" (detectors.py:87), so 4_branch started appearing on
+# 2026-08-17 as branch count grew and was silently unpromotable -- 0 problems
+# ever. It is conf 0.95 against 3_branch's 0.90 and strictly more corroborated,
+# so excluding it was an artifact of this set predating 4-branch entities, not
+# a decision. It has no _compose_title clause, so it takes the entity fallback
+# ("Signal: investigate '{entity}'") and faces the FULL R27 quality gate.
+# Volume ~0.75/day against a 5/day cap. 5_branch is NOT added -- it has never
+# been observed, and _warn_unpromotable_branch_type below makes the next one
+# visible instead of silent.
 _PROMOTABLE_TYPES = {
     "2_branch",            # entity appearing across 2 branches (~650/day, conf 0.7)
     "3_branch",            # entity appearing across 3 branches (~24/day, conf 0.9)
+    "4_branch",            # entity across 4 branches (~0.75/day, conf 0.95)
     "cross_branch_convergence",
     "novel_arc",
     "concept_emergence",
 }
+
+# Types matching N_branch that we are NOT promoting. Logged once per tick so a
+# new arity (5_branch, 6_branch...) surfaces as a warning rather than silently
+# starving the queue the way 4_branch did between 08-17 and 08-21.
+_warned_branch_types: set[str] = set()
+
+
+def _warn_unpromotable_branch_type(b_cx, cutoff: float) -> None:
+    """Log any N_branch signal_type in the window that isn't promotable."""
+    try:
+        seen = b_cx.execute(
+            "SELECT DISTINCT signal_type FROM signals "
+            "WHERE detected_at > ? AND signal_type LIKE '%_branch'",
+            (cutoff,)
+        ).fetchall()
+    except sqlite3.Error:
+        return
+    for (st,) in seen:
+        if st in _PROMOTABLE_TYPES or st in _warned_branch_types:
+            continue
+        _warned_branch_types.add(st)
+        log.warning(
+            "unpromotable branch-arity signal_type %r seen in window -- "
+            "add it to _PROMOTABLE_TYPES if it should open problems", st
+        )
 
 
 def _ensure_actioned_column(cx: sqlite3.Connection) -> None:
@@ -286,10 +323,36 @@ def signal_to_problem_tick() -> dict:
         # entity recurs across this lookback window. One-off headline fragments
         # ('Papers','Nine','Netherlands') appear once; real recurring themes
         # ('Bitcoin') appear repeatedly. Used below to gate the fallback path.
+        #
+        # 2026-08-21 (round 72): COUNT OVER THE WINDOW, NOT THE BATCH.
+        # b20ac35 introduced this gate saying single-word entities need "3+
+        # mentions in the lookback window", but it counted over `rows` -- the
+        # LIMIT 20 fetch, filtered actioned_at IS NULL. Every row below is
+        # marked actioned whether or not it opens a problem, so that pool
+        # drains every TICK_SECONDS and refills at ~0.09 rows/tick. Measured:
+        # 149 ticks reconstructed from actioned_at over 227 signals, 110 of
+        # them (73.8%) holding exactly one row, and NOT ONE of the 149 ever
+        # reached the 3-mention bar. Bitcoin produced 59 signals in 3.1 days
+        # and opened nothing. Entity-named problems stopped entirely on
+        # 2026-08-12; the burst templates only kept flowing because their
+        # titles miss the "Signal: investigate '" prefix this gate keys on,
+        # so they never faced it.
+        #
+        # The bar is NOT lowered -- _min_mentions is still 3 single-word / 2
+        # multi-word, and the blocklist, prose_stats check, 7-day dedupe and
+        # daily cap are untouched. It is applied to the population b20ac35
+        # already claimed. actioned_at is deliberately NOT filtered here: that
+        # filter is the defect. Cost is one SELECT per tick over ~18 rows.
         from collections import Counter as _Counter
         _entity_counts = _Counter()
         if os.environ.get("NEX5_SIG_QUALITY") == "1":
-            for _s in rows:
+            _wrows = b_cx.execute(
+                f"SELECT payload FROM signals "
+                f"WHERE detected_at > ? "
+                f"  AND signal_type IN ({type_placeholders})",
+                (cutoff, *_PROMOTABLE_TYPES)
+            ).fetchall()
+            for _s in _wrows:
                 try:
                     _pl = json.loads(_s["payload"]) if _s["payload"] else {}
                 except Exception:
@@ -297,6 +360,8 @@ def signal_to_problem_tick() -> dict:
                 _e = _extract_entity(_pl)
                 if _e:
                     _entity_counts[_e.strip().lower()] += 1
+
+        _warn_unpromotable_branch_type(b_cx, cutoff)
 
         opened = 0
         skipped = 0
