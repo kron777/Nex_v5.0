@@ -31,8 +31,35 @@ _OWN_CONTENT_SOURCES = (
 )
 # HOT self-observations are retrieved via a dedicated slot (see _retrieve_context_beliefs)
 # because their write cadence is 1/3 of fires, which loses the recency race in the
-# main oversample query. One HOT belief per fire, drawn from last 24h at random.
-_HOT_OBSERVER_LOOKBACK_SECS = 86400
+# main oversample query. One HOT belief per fire, drawn from the pool at random.
+#
+# 2026-08-23 (round 76): WIDENED 24h -> 72h AND DEDUPED.
+# R75 traced the `advancements` groove's amplifier to this slot: hot_observer
+# beliefs quote the fountain's own crystallized text VERBATIM, one is injected
+# into every fire, and the pick had no near-duplicate filtering at all -- the
+# few-shot repetition loop Phase 43 removed, re-entering by another door.
+# Measured P(pick carries the groove token) at the 24h/no-dedup setting: 25.0%.
+# Dedup alone gets 18.6%; widening alone gets 11.8%; 72h + dedup gets 13.2%.
+# 168h + dedup measured best (7.5%) and is NOT used: a week-old observation is
+# not a "live self-observation", and the slot's whole point is recency. 72h is
+# the honest ceiling -- it buys most of the dilution without the slot lying
+# about what it is.
+_HOT_OBSERVER_LOOKBACK_SECS = 259200      # 72h (was 86400 = 24h)
+_HOT_OBSERVER_POOL_LIMIT = 300            # covers 72h at the ~90/day write rate
+_HOT_OBSERVER_DEDUP_TH = 0.5              # same bar as R32's exemplar dedup
+
+
+def _hot_first_sentence_grams(_t: str) -> set:
+    """First-sentence 5-gram set -- identical construction to R32's exemplar
+    dedup (see _build_prompt). hot_observer beliefs open with a fixed stem
+    ("I notice this fire engaged the world directly (branch: X): '...'") but
+    the quoted fountain text sits INSIDE that first sentence, so the first
+    sentence still discriminates: measured 53 candidates -> 47 distinct, i.e.
+    the stem does not collapse the pool."""
+    import re as _re_h
+    _s = _re_h.split(r"(?<=[.!?])\s+", (_t or "").strip())
+    _w = _re_h.findall(r"[a-z0-9']+", (_s[0] if _s else "").lower())
+    return {tuple(_w[i:i + 5]) for i in range(len(_w) - 4)}
 
 # Max retrieval slots any single source can occupy (Mechanism B fix).
 # Without this cap, synergized beliefs crowd out fountain_insight
@@ -2102,15 +2129,43 @@ class FountainGenerator:
             try:
                 import time as _t_hot
                 _hot_cutoff = int(_t_hot.time()) - _HOT_OBSERVER_LOOKBACK_SECS
+                # Widened pool + near-duplicate drop (round 76). Fetch the
+                # whole 72h pool in random order, collapse near-duplicates,
+                # THEN pick uniformly from the survivors.
+                #
+                # Order matters and is easy to get wrong: dedup is greedy and
+                # the first row always survives, so "dedup then take the first"
+                # would reproduce the ORIGINAL row-uniform distribution exactly
+                # and buy nothing. The dilution comes from collapsing each
+                # near-duplicate CLUSTER to one entry before the draw, so a
+                # groove phrase repeated 3x holds one slot instead of three.
                 _hot_rows = self._beliefs_reader.read(
                     "SELECT id, content, source, tier, confidence, created_at, branch_id, "
                     "1.0 AS boost_value FROM beliefs "
                     "WHERE source='hot_observer' AND created_at > ? "
-                    "ORDER BY RANDOM() LIMIT 1",
-                    (_hot_cutoff,)
+                    "ORDER BY RANDOM() LIMIT ?",
+                    (_hot_cutoff, _HOT_OBSERVER_POOL_LIMIT)
                 )
                 if _hot_rows:
-                    result.extend([dict(r) for r in _hot_rows])
+                    _hot_kept: list = []
+                    _hot_grams: list = []
+                    for _hr in _hot_rows:
+                        _hg = _hot_first_sentence_grams(_hr["content"])
+                        _hdupe = False
+                        for _hk in _hot_grams:
+                            _hu = len(_hg | _hk)
+                            if _hu and len(_hg & _hk) / _hu >= _HOT_OBSERVER_DEDUP_TH:
+                                _hdupe = True
+                                break
+                        if _hdupe:
+                            continue
+                        _hot_kept.append(_hr)
+                        _hot_grams.append(_hg)
+                    # Fail-safe: cannot empty a non-empty pool -- the first
+                    # candidate has nothing to compare against and always
+                    # survives. The `or _hot_rows` is belt-and-braces.
+                    import random as _rnd_hot
+                    result.append(dict(_rnd_hot.choice(_hot_kept or _hot_rows)))
             except Exception:
                 pass  # fail-safe
         result.extend(_own_picked)
