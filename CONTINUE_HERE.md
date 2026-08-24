@@ -12,7 +12,7 @@ checkpointed properly; no torn writes.
 | | |
 |---|---|
 | `run.py` | not running |
-| `nex5-keepalive.service` | **stopped, but still `enabled`** |
+| `nex5-keepalive.service` | **stopped AND disabled** (2026-08-24) |
 | `nex_tor_pool` (docker) | Exited (137) |
 | port 8765 | free |
 | last `fountain_insight` | **2026-08-23 23:55:27 UTC** |
@@ -27,7 +27,32 @@ docker start nex_tor_pool
 The 24 external feeds **auto-start on boot** (`stage1_sense/scheduler.py:149`) — no need
 to call `/api/sense/start`. Verify with `curl -s localhost:8765/api/sense/status`.
 
-To keep her down across a reboot: `systemctl --user disable nex5-keepalive.service`.
+**She will NOT come back on reboot.** A full autostart audit was done 2026-08-24 and every
+user-level vector is disabled:
+
+| vector | state |
+|---|---|
+| `nex5-keepalive.service` (user) | **disabled** |
+| `nex-gpu-cleanup.service` (user) | **disabled + stopped** |
+| `nex5.service` (user) | masked (was already) |
+| hourly `scripts/trajectory.py` cron | **commented out** — it was live and running every hour |
+| `nex_tor_pool` docker | `unless-stopped` policy, but explicitly stopped, so it will **not** auto-start |
+| XDG autostart / `.bashrc` | nothing (only shell aliases, harmless) |
+
+**Two SYSTEM units still need root** — they were left running because they need a password:
+
+```bash
+sudo systemctl disable --now nex-brain-log.service   # tails nex-brain's journal, ~2 MB, pointless (nex-brain is inactive)
+sudo systemctl disable --now ollama.service          # NEX's LLM backend -- see note below
+```
+
+`ollama` is what `NEX5_VOICE_URL` points at (`localhost:11434`). Its *runner* (2.2 GB with a
+model loaded) unloads itself on idle and already has; only `ollama serve` (~450 MB) persists.
+**Disable it only if nothing else on the machine uses ollama** — it is a general-purpose tool,
+not NEX-exclusive.
+
+To re-enable everything: `systemctl --user enable --now nex5-keepalive.service`, restore the
+cron line, `docker start nex_tor_pool`.
 
 ### The thing that wastes an hour if you don't know it
 
