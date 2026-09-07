@@ -18,6 +18,8 @@ from __future__ import annotations
 import atexit
 import logging
 import os
+import signal
+import time as _time
 
 import errors as error_channel
 from alpha import ALPHA
@@ -692,6 +694,7 @@ def main() -> None:
     # Decoder daemon — tokenizes each fountain output, logs substrate state.
     # NB 2026-05-30: was briefly cut as "cosmetic" but it feeds /api/decoder/recent
     # which is the LIVE column in the GUI — must stay running.
+    _decoder_stop = None
     try:
         import threading as _t_decoder
         from theory_x.coincidence.decoder_loop import decoder_loop
@@ -705,6 +708,32 @@ def main() -> None:
         log.info("Decoder loop started — tokenizing fountain outputs every 30s")
     except Exception as _dec_exc:
         log.warning("decoder_loop failed to start: %s", _dec_exc)
+
+    # --- graceful standby on SIGTERM (power switch / supervisor) ---------
+    # The power pill and nex_keepalive.sh put NEX to sleep with SIGTERM so
+    # the RX6600's VRAM frees for gaming. Python does NOT run atexit on
+    # SIGTERM by default, so we handle it explicitly: let any in-flight fire
+    # submit its writes, drain every Writer queue (persist), shut the
+    # scheduler, then exit -- process death releases the model/GPU. Nothing
+    # dies mid-write because Writer.close() drains its queue whole-request.
+    def _graceful_standby(signum, frame):
+        log.warning("SIGTERM received -> STANDBY: finishing writes, releasing GPU/VRAM")
+        try:
+            _time.sleep(1.5)  # window for a current fire to enqueue its writes
+        except Exception:
+            pass
+        try:
+            if _decoder_stop is not None:
+                _decoder_stop.set()
+        except Exception:
+            pass
+        try:
+            state.close()   # drains Writer queues + scheduler.shutdown()
+            log.info("STANDBY: dbs flushed, scheduler down -- clean exit")
+        except Exception as _e:
+            log.error("STANDBY cleanup error: %s", _e)
+        os._exit(0)  # frees the VRAM held by torch/kokoro in this process
+    signal.signal(signal.SIGTERM, _graceful_standby)
 
     app = create_app(state)
 
