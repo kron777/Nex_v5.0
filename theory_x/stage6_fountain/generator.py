@@ -330,6 +330,7 @@ class FountainGenerator:
         coherence_gate=None,
         erosion=None,
         competing_drives=None,
+        metacognition=None,
     ) -> None:
         self._sense_writer = sense_writer
         self._dynamic_writer = dynamic_writer
@@ -348,6 +349,7 @@ class FountainGenerator:
         self._coherence_gate = coherence_gate
         self._erosion = erosion
         self._competing_drives = competing_drives
+        self._metacognition = metacognition
         # overwhelm runtime flag: initial value from env, live-togglable via GUI
         import os as _os_ovinit
         try:
@@ -2352,6 +2354,18 @@ class FountainGenerator:
                 import sys as _sys, time as _time; print(f"[RECURSION FIRED] ts={_time.time():.0f} {_recur_line[:60]}", file=_sys.stderr, flush=True)
         except Exception:
             pass
+        # Metacognition self-observation — self-pattern / anomaly readout woven
+        # into the next fire, exactly like recursive_self above. format_for_prompt()
+        # returns '' when nothing is notable, so a quiet metacognition adds nothing.
+        # GATED OFF by default: set NEX5_METACOG_VOICE=1 to arm.
+        if (self._metacognition is not None
+                and os.environ.get("NEX5_METACOG_VOICE") == "1"):
+            try:
+                _mc_line = self._metacognition.format_for_prompt()
+                if _mc_line:
+                    focus_block = focus_block.rstrip() + f"\n\n{_mc_line}\n"
+            except Exception:
+                pass  # never stall a fire
         # teeth-test v2: stash nudge state for per-fire attribution sampling.
         # Captured here where perturbation() is freshest; consumed at fire-completion.
         try:
