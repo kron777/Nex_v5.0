@@ -8,6 +8,53 @@
     /* Apply saved theme before first paint — prevents flash of wrong theme */
     (function(){var t=localStorage.getItem('nex5_theme');if(t==='light')document.documentElement.classList.add('light-mode');})();
   </script>
+  <style>
+    /* Cyberpunk power pill (titlebar) — label + glowing LED, driven by /power */
+    #nex-power-pill.pw-pill{
+      margin-left:.5rem; display:inline-flex; align-items:center; gap:7px;
+      padding:3px 12px; cursor:pointer; line-height:1;
+      border:1px solid rgba(255,255,255,.14); border-radius:6px;
+      background:#0a0e14;
+      font-family:"JetBrains Mono","Fira Code",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+      font-size:11px; font-weight:700; letter-spacing:.24em; text-transform:uppercase;
+      color:#8a94a6;
+      transition:color .18s, border-color .18s, box-shadow .18s;
+    }
+    #nex-power-pill .pw-led{
+      width:8px; height:8px; border-radius:50%; flex:0 0 auto;
+      background:#4a5261;
+      transition:background .18s, box-shadow .18s;
+    }
+    /* ON — neon green */
+    #nex-power-pill.on{
+      color:#00FF9C; border-color:rgba(0,255,156,.55);
+      text-shadow:0 0 6px rgba(0,255,156,.75);
+      box-shadow:0 0 10px rgba(0,255,156,.28), inset 0 0 6px rgba(0,255,156,.12);
+    }
+    #nex-power-pill.on .pw-led{
+      background:#00FF9C;
+      box-shadow:0 0 6px #00FF9C, 0 0 12px rgba(0,255,156,.85);
+      animation:pw-pulse 1.6s ease-in-out infinite;
+    }
+    /* OFF — neon red */
+    #nex-power-pill.off{
+      color:#FF3131; border-color:rgba(255,49,49,.55);
+      text-shadow:0 0 6px rgba(255,49,49,.75);
+      box-shadow:0 0 10px rgba(255,49,49,.24), inset 0 0 6px rgba(255,49,49,.12);
+    }
+    #nex-power-pill.off .pw-led{
+      background:#FF3131;
+      box-shadow:0 0 6px #FF3131, 0 0 12px rgba(255,49,49,.85);
+      animation:pw-pulse 1.9s ease-in-out infinite;
+    }
+    /* busy / unknown — dim amber, no glow, no pulse */
+    #nex-power-pill.busy{ color:#c9a227; border-color:rgba(201,162,39,.4); text-shadow:none; box-shadow:none; }
+    #nex-power-pill.busy .pw-led{ background:#c9a227; box-shadow:0 0 6px rgba(201,162,39,.7); animation:none; }
+    @keyframes pw-pulse{ 0%,100%{opacity:1} 50%{opacity:.4} }
+    @media (prefers-reduced-motion: reduce){
+      #nex-power-pill .pw-led{ animation:none !important; }
+    }
+  </style>
 </head>
 <body>
 
@@ -19,8 +66,7 @@
   <div class="dots" id="tb-dots" title="subsystem status"></div>
   <span class="clock" id="tb-clock"></span>
   <button class="pause-btn" id="compute-pause-btn" title="SIGSTOP nex5 (frees CPU for games). Resume from terminal: nex5-resume">⏸</button>
-  <button id="nex-power-pill" title="NEX power — click to sleep/wake (frees GPU/VRAM)"
-          style="margin-left:.5rem;border:none;border-radius:999px;padding:2px 12px;font:700 11px/1 system-ui,sans-serif;letter-spacing:.12em;color:#fff;background:#555;cursor:pointer;">…</button>
+  <button id="nex-power-pill" class="pw-pill" title="NEX power — click to sleep/wake (frees GPU/VRAM)"><span class="pw-led"></span><span class="pw-lbl">…</span></button>
   <button class="lock-btn" id="admin-toggle-btn">🔒</button>
 </div>
 
@@ -426,26 +472,31 @@
   var API="http://127.0.0.1:8766";
   var pill=document.getElementById('nex-power-pill');
   if(!pill) return;
+  var lbl=pill.querySelector('.pw-lbl');
   var cur=null, busy=false;
+  function setState(cls, text, title){
+    pill.classList.remove('on','off','busy');
+    if(cls) pill.classList.add(cls);
+    lbl.textContent=text;
+    if(title) pill.title=title;
+  }
   function paint(s){
     cur=s;
-    if(s==='on'){pill.textContent='NEX ON';pill.style.background='#1f9d55';
-      pill.title='NEX awake — click to sleep (frees GPU/VRAM)';}
-    else if(s==='off'){pill.textContent='NEX OFF';pill.style.background='#c0392b';
-      pill.title='NEX asleep — click to wake';}
-    else{pill.textContent='…';pill.style.background='#7a5c12';}
+    if(s==='on'){setState('on','ON','NEX awake — click to sleep (frees GPU/VRAM)');}
+    else if(s==='off'){setState('off','OFF','NEX asleep — click to wake');}
+    else{setState('busy','…');}
   }
   function poll(){
     if(busy) return;
     fetch(API+'/power').then(function(r){return r.json();})
       .then(function(j){paint(j.state);})
-      .catch(function(){pill.textContent='NEX ?';pill.style.background='#555';});
+      .catch(function(){setState('busy','?');});
   }
   pill.onclick=function(){
     if(busy||!cur) return;
     busy=true;
     var target=cur==='on'?'off':'on';
-    pill.textContent=target==='off'?'sleeping…':'waking…';pill.style.background='#7a5c12';
+    setState('busy', target==='off'?'OFF':'ON');
     fetch(API+'/power',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({action:target})})
       .then(function(r){return r.json();}).then(function(j){paint(j.state);})
