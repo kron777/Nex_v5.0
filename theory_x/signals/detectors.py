@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import json
 import time
 import logging
 from collections import defaultdict
@@ -24,6 +25,55 @@ class Signal:
     branches: list
     entities: list
     confidence: float
+
+
+def emit_advancements_drift(
+    beliefs_writer,
+    *,
+    token,
+    max_df_star_value,
+    window,
+    threshold,
+):
+    """Emit ONE `advancements_drift` signal row for a maxDF* corpus-convergence
+    breach (the "she's closing into a self-generated loop" alarm).
+
+    This is the routing for corpus_convergence.max_df_star(), which previously
+    gated nothing (WIRE_MAP.md row 1). The caller (fountain generator, L4 seam)
+    edge-triggers this on a false->true breach transition, so one drift EPISODE
+    emits one signal, not one per fire.
+
+    Reuses the SAME writer and the SAME INSERT the SignalLoop uses (loop.py) so
+    the new type flows through signal_to_problem.py end-to-end like any other
+    signal. Fail-safe: returns the new signal id, or None on any error / no
+    writer -- never raises into the fire loop.
+    """
+    if beliefs_writer is None:
+        return None
+    payload = {
+        "token": token,
+        "max_df_star": max_df_star_value,
+        "window": window,
+        "threshold": threshold,
+    }
+    try:
+        return beliefs_writer.write(
+            "INSERT INTO signals "
+            "(detected_at, detector_name, signal_type, payload, "
+            " branches, entities, confidence) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                time.time(),
+                "convergence",
+                "advancements_drift",
+                json.dumps(payload),
+                json.dumps([]),
+                json.dumps([token] if token else []),
+                0.9,
+            ),
+        )
+    except Exception:
+        return None
 
 
 class CoOccurrenceDetector:

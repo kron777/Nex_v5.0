@@ -73,6 +73,7 @@ _PROMOTABLE_TYPES = {
     "cross_branch_convergence",
     "novel_arc",
     "concept_emergence",
+    "advancements_drift",  # maxDF* corpus-convergence breach (edge-triggered)
 }
 
 # Types matching N_branch that we are NOT promoting. Logged once per tick so a
@@ -243,6 +244,11 @@ def _compose_title(signal_type: str, entity: str | None, payload: dict) -> str:
         return f"What does this new arc around '{entity}' mean?"
     if signal_type == "concept_emergence" and entity:
         return f"What is '{entity}'?"
+    if signal_type == "advancements_drift":
+        tok = payload.get("token") or "a single theme"
+        pct = payload.get("max_df_star")
+        pct_s = f" ({pct*100:.0f}% of recent output)" if isinstance(pct, (int, float)) else ""
+        return f"Is the corpus closing into a self-generated loop on '{tok}'{pct_s}?"
     # Fallback
     if entity:
         return f"Signal: investigate '{entity}'"
@@ -376,6 +382,27 @@ def signal_to_problem_tick() -> dict:
                 payload = {}
 
             entity = _extract_entity(payload)
+
+            # DEBOUNCE (advancements_drift): one problem per drift EPISODE. The
+            # producer edge-triggers (false->true) so it emits once per episode,
+            # but that in-memory edge resets on restart; this DB-backed check is
+            # the durable guard -- skip while an advancements_drift problem is
+            # still open/stuck. Keyed on the auto-tag, mirrors the burst gate.
+            if sig["signal_type"] == "advancements_drift":
+                try:
+                    _open_drift = cv_cx.execute(
+                        "SELECT COUNT(*) FROM open_problems "
+                        "WHERE state IN ('open','stuck') AND tags LIKE ?",
+                        ("%signal:advancements_drift%",)
+                    ).fetchone()
+                    if _open_drift and _open_drift[0] > 0:
+                        b_cx.execute("UPDATE signals SET actioned_at=? WHERE id=?",
+                                     (time.time(), sig["id"]))
+                        log.debug("drift_gate: an advancements_drift problem is already open")
+                        skipped += 1
+                        continue
+                except sqlite3.Error:
+                    pass  # fail-open: if the check errors, allow it through
 
             if _has_recent_dupe(cv_cx, entity, DEDUPE_WINDOW_DAYS):
                 # Mark actioned anyway so we don't keep re-checking

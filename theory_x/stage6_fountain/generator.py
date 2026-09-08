@@ -373,6 +373,7 @@ class FountainGenerator:
         self._last_fire_ts: float = 0.0
         self._total_fires: int = 0
         self._stakes_active: bool = False  # L4: world-contact gate
+        self._advancements_breached: bool = False  # L4: maxDF* drift edge-state
         # Session 40: problem-feedback loop. Global cooldown (independent of
         # the per-problem cooldown in ProblemMemory.select_for_injection) so
         # a sustained input-gap can't turn into back-to-back injections --
@@ -1381,6 +1382,35 @@ class FountainGenerator:
                           file=_sys_l4.stderr, flush=True)
             except Exception:
                 self._stakes_active = False  # fail-safe
+        # L4 sibling: advancements-drift tripwire. maxDF* over the last 50
+        # crystallized beliefs; EDGE-triggered (emit once on false->true) so a
+        # multi-day breach opens ONE problem, not one per fire. Same %5==4
+        # cadence and NEX5_L4_STAKES gate as the world-contact check above.
+        # Routes corpus_convergence.max_df_star() -> a signal row -> an
+        # open_problem via signal_to_problem (WIRE_MAP.md row 1).
+        if (int(getattr(self, "_total_fires", 0)) % 5 == 4
+                and os.environ.get("NEX5_L4_STAKES") == "1"):
+            try:
+                from theory_x.stage6_fountain.corpus_convergence import max_df_star
+                from theory_x.signals.detectors import emit_advancements_drift
+                _cv = max_df_star()  # read-only, 50 rows from beliefs.db
+                _breached = bool(_cv.get("breach"))
+                if _breached and not bool(getattr(self, "_advancements_breached", False)):
+                    _sid = emit_advancements_drift(
+                        self._beliefs_writer,
+                        token=_cv.get("token"),
+                        max_df_star_value=_cv.get("max_df_star"),
+                        window=_cv.get("n"),
+                        threshold=_cv.get("threshold"),
+                    )
+                    import sys as _sys_dr
+                    print(f"[L4_DRIFT] maxDF* breach: '{_cv.get('token')}' "
+                          f"{(_cv.get('max_df_star') or 0)*100:.1f}% "
+                          f"-> advancements_drift signal #{_sid}",
+                          file=_sys_dr.stderr, flush=True)
+                self._advancements_breached = _breached
+            except Exception:
+                pass  # never stall a fire
         # HOT observer: classify fire, write meta-belief about it (fail-safe)
         if os.environ.get("NEX5_HOT_OBSERVER") == "1":
             try:
