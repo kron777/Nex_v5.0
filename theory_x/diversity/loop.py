@@ -62,18 +62,6 @@ class DiversityLoop:
                 )
             self._stop.wait(60)
 
-    def grade_synergy(self, child_id: int, parent_a_id: int, parent_b_id: int) -> None:
-        """Called from the synergizer after a new belief is inserted."""
-        try:
-            from theory_x.diversity.boost import apply_boost, BOOST_THRESHOLD
-            from theory_x.diversity.lineage import record_synergy
-            record_synergy(self._writers["beliefs"], child_id, parent_a_id, parent_b_id)
-            grade = self.grader.grade(child_id, parent_a_id, parent_b_id)
-            if grade is not None and grade > BOOST_THRESHOLD:
-                apply_boost(self._writers["beliefs"], child_id, grade)
-        except Exception as e:
-            log.warning("grade_synergy failed: %s", e)
-
 
 def build_diversity_loop(writers: dict, readers: dict) -> DiversityLoop:
     return DiversityLoop(writers, readers)

@@ -33,23 +33,9 @@ DEDUPE_WINDOW_DAYS = 7          # don't open same-entity problem twice within a 
 # Excludes noise: branch_silence_anomaly, ngram_repetition, template_repetition.
 #
 # 2026-08-17 (round 71): t6_promotion_burst and pattern_recognition_burst
-# REMOVED. They are the only promotable types whose title compositor
-# (_compose_title, lines ~173-180) interpolates a BRANCH rather than an
-# ENTITY -- "Why is {branch} producing strong beliefs right now?" and
-# "What pattern is emerging in {branch}?". A branch name is not a subject,
-# so these problems can never name anything specific, and 162 of them (34.8%
-# of the table) accumulated.
-#
-# WHY NOT THROTTLE INSTEAD. cf99584 already added a per-title 24h throttle for
-# exactly these. It works -- R69 measured the minimum gap between identical
-# titles pinned at 24.00h for 11 of 13 titles -- but it keys on the FULL TITLE
-# STRING, and each branch yields a distinct string, so 13 active branches buy
-# 13 openings/day rather than one. Making the throttle branch-agnostic would
-# cut that to ~1/day, not the ~0 this round targets, and it would require a
-# text predicate that could over-match a real title. Removing the TYPE cannot
-# over-match: signal_type is a closed enum written by the detectors, carries no
-# free text, and a genuine problem arrives as 2_branch / 3_branch /
-# concept_emergence / novel_arc / cross_branch_convergence -- all retained.
+# REMOVED from the promotable set. Their auto-titles named a BRANCH rather
+# than a subject, so these problems could never name anything specific, and
+# 162 of them (34.8% of the table) accumulated.
 #
 # MEASURED before removal (21 days): 96 problems created, 100% of them
 # templated, 76 (79.2%) from t6_promotion_burst, and the 5/day cap hit on 17
@@ -70,9 +56,6 @@ _PROMOTABLE_TYPES = {
     "2_branch",            # entity appearing across 2 branches (~650/day, conf 0.7)
     "3_branch",            # entity appearing across 3 branches (~24/day, conf 0.9)
     "4_branch",            # entity across 4 branches (~0.75/day, conf 0.95)
-    "cross_branch_convergence",
-    "novel_arc",
-    "concept_emergence",
     "advancements_drift",  # maxDF* corpus-convergence breach (edge-triggered)
 }
 
@@ -228,22 +211,6 @@ def _entity_has_substance(entity: str | None, b_cx=None) -> bool:
 
 def _compose_title(signal_type: str, entity: str | None, payload: dict) -> str:
     """Frame the signal as an actionable inquiry title."""
-    if signal_type == "triple_cooccurrence" and entity:
-        return f"What is '{entity}' doing across these domains?"
-    if signal_type == "t6_promotion_burst":
-        branches = payload.get("branches") or []
-        branch = branches[0] if branches else "substrate"
-        return f"Why is {branch} producing strong beliefs right now?"
-    if signal_type == "pattern_recognition_burst":
-        branches = payload.get("branches") or []
-        branch = branches[0] if branches else "substrate"
-        return f"What pattern is emerging in {branch}?"
-    if signal_type == "cross_branch_convergence" and entity:
-        return f"How does '{entity}' bridge these branches?"
-    if signal_type == "novel_arc" and entity:
-        return f"What does this new arc around '{entity}' mean?"
-    if signal_type == "concept_emergence" and entity:
-        return f"What is '{entity}'?"
     if signal_type == "advancements_drift":
         tok = payload.get("token") or "a single theme"
         pct = payload.get("max_df_star")
@@ -441,34 +408,6 @@ def signal_to_problem_tick() -> dict:
                 )
                 skipped += 1
                 continue
-            # Burst-type gate (2026-07-05): "Why is X producing strong beliefs
-            # right now?" and "What pattern is emerging in X?" come from
-            # t6_promotion_burst / pattern_recognition_burst signals. A branch
-            # producing strong beliefs is normal healthy behavior, not an
-            # anomaly worth a sustained problem — these bypassed the
-            # investigate-gate (wrong title prefix) and accumulated 38+ noise
-            # problems. Throttle: only open a burst-question if no same-type
-            # problem for this framing opened in the last 24h.
-            _BURST_TITLES = ("Why is ", "What pattern is emerging in ")
-            if title.startswith(_BURST_TITLES):
-                try:
-                    _cutoff = time.time() - 86400
-                    _dupe = cv_cx.execute(
-                        "SELECT COUNT(*) FROM open_problems "
-                        "WHERE title = ? AND created_at > ?",
-                        (title, _cutoff)
-                    ).fetchone()
-                    if _dupe and _dupe[0] > 0:
-                        b_cx.execute(
-                            "UPDATE signals SET actioned_at=? WHERE id=?",
-                            (time.time(), sig["id"])
-                        )
-                        log.debug("burst_gate: throttled duplicate %r", title[:60])
-                        skipped += 1
-                        continue
-                except sqlite3.Error:
-                    pass  # fail-open: if the check errors, allow it through
-
             desc = _compose_description(sig["signal_type"], payload, sig["id"])
             now = time.time()
 
