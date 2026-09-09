@@ -5,6 +5,7 @@ events corroborate matching beliefs.
 """
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 
 import errors
@@ -48,6 +49,22 @@ class PipelineHooks:
         except Exception as exc:
             errors.record(f"pipeline_hooks read error: {exc}", source=_LOG_SOURCE, exc=exc)
             return
+
+        # NEX5_TIER_CLIMB (default OFF): the 50-newest window ages T6 beliefs out
+        # before they can accrue the corroborations needed to promote to T5 (the
+        # "6->5 wall"). When armed, also give the whole T6 population a corroboration
+        # shot, not just whichever few are newest. Fail-safe; bounded at 500.
+        if os.environ.get("NEX5_TIER_CLIMB") == "1":
+            try:
+                t6 = self._beliefs_reader.read(
+                    "SELECT id, content FROM beliefs "
+                    "WHERE tier = 6 AND paused = 0 AND locked = 0 LIMIT 500",
+                )
+                seen = {r["id"] for r in rows}
+                rows = list(rows) + [r for r in t6 if r["id"] not in seen]
+            except Exception as exc:
+                errors.record(f"pipeline_hooks T6-climb read error: {exc}",
+                              source=_LOG_SOURCE, exc=exc)
 
         for row in rows:
             content_tokens = _tokenize(row["content"])

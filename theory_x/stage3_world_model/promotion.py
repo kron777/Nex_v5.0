@@ -6,6 +6,7 @@ Demotion triggers: decay_pass(), decisive_contradiction()
 from __future__ import annotations
 
 import json
+import os
 import time
 from typing import Optional
 
@@ -17,6 +18,10 @@ THEORY_X_STAGE = 3
 _LOG_SOURCE = "promotion"
 
 DECAY_IDLE_HOURS = 48
+# NEX5_TIER_CLIMB (default OFF): a much longer idle window for Tier 6 only, so
+# T6 beliefs get time to accrue the corroborations needed to reach T5 instead
+# of decaying to T7 at 48h. T5/T7 keep DECAY_IDLE_HOURS.
+_TIER6_CLIMB_IDLE_HOURS = 720  # 30 days
 
 # Corroboration thresholds per source tier
 _CORROBORATION_THRESHOLDS: dict[int, int] = {
@@ -211,13 +216,26 @@ class BeliefPromoter:
         schema change to add a separate birth-timestamp column for.
         """
         cutoff = int(time.time()) - DECAY_IDLE_HOURS * 3600
-        try:
-            rows = self._reader.read(
-                "SELECT id, tier FROM beliefs "
-                "WHERE tier BETWEEN 5 AND 7 AND locked = 0 "
-                "AND COALESCE(last_referenced_at, created_at) < ?",
-                (cutoff,),
+        # NEX5_TIER_CLIMB (default OFF): exempt fresh T6 beliefs from the 48h
+        # decay by giving T6 a 30-day idle window, so they can climb to T5
+        # before demotion. T5/T7 keep the standard 48h. Fail-safe: any error
+        # falls through to the unchanged read below.
+        _sql = (
+            "SELECT id, tier FROM beliefs "
+            "WHERE tier BETWEEN 5 AND 7 AND locked = 0 "
+            "AND COALESCE(last_referenced_at, created_at) < ?"
+        )
+        _params: tuple = (cutoff,)
+        if os.environ.get("NEX5_TIER_CLIMB") == "1":
+            t6_cutoff = int(time.time()) - _TIER6_CLIMB_IDLE_HOURS * 3600
+            _sql = (
+                "SELECT id, tier FROM beliefs WHERE locked = 0 AND ("
+                "(tier IN (5, 7) AND COALESCE(last_referenced_at, created_at) < ?) "
+                "OR (tier = 6 AND COALESCE(last_referenced_at, created_at) < ?))"
             )
+            _params = (cutoff, t6_cutoff)
+        try:
+            rows = self._reader.read(_sql, _params)
         except Exception as exc:
             errors.record(f"decay_pass read error: {exc}", source=_LOG_SOURCE, exc=exc)
             return 0
