@@ -2,9 +2,21 @@
 
 Node: `RecursiveSelf` (working name for build session)
 Doctrine: DOCTRINE §5 row 15
-Phase: 31-spec (design session complete); Phase 32-build queued
+Phase: 31-spec (design session complete); Phase 32-build DEFERRED
 Decisions: 11 — all locked by Jon 2026-05-11
-Status: DESIGN-COMPLETE
+Status: DESIGN-COMPLETE · **RUNTIME DEFERRED (2026-09-09)**
+
+---
+
+> **⚠ DEFERRED — NO RUNTIME (2026-09-09).** This spec has never been built: no
+> `self_proposals` table exists in any DB and no code implements the detection /
+> resolution / chat-surfacing / approval / substrate-mutation pipeline. It is
+> deliberately NOT partially built — this spec's own §0 "Comprehensiveness
+> corollary" forbids a detect-but-don't-resolve stub, and a complete build is a
+> large, high-risk feature (autonomous self-modification driven by chat: LLM
+> classification of replies, plus belief / drive / problem / parameter edits).
+> Marked DEFERRED so the docs match reality. If prioritized, build it whole in a
+> dedicated session, gated behind `NEX5_SELF_PROPOSALS` (default OFF).
 
 ---
 
