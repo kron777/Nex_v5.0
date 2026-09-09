@@ -116,8 +116,8 @@ let cur=null, busy=false;
 function paint(s){
   cur=s;
   pill.classList.remove('on','off','wait');
-  if(s==='on'){pill.classList.add('on');pill.textContent='ON';sub.textContent='NEX is awake — GPU in use';}
-  else if(s==='off'){pill.classList.add('off');pill.textContent='OFF';sub.textContent='NEX asleep — GPU/VRAM free';}
+  if(s==='on'){pill.classList.add('on');pill.textContent='ON';sub.textContent='NEX is awake — CPU/RAM in use';}
+  else if(s==='off'){pill.classList.add('off');pill.textContent='OFF';sub.textContent='NEX asleep — CPU/RAM free';}
   else{pill.classList.add('wait');pill.textContent='…';}
   pill.disabled=false;
 }
