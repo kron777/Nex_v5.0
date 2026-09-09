@@ -81,9 +81,25 @@ class EmergentDriveDetector:
         except Exception:
             pass
 
+        # Dedup: skip any branch that already has a proposal awaiting approval,
+        # so a branch proposes ONCE and waits rather than re-proposing every 12h
+        # scan. Fail-open: if the read fails, dedup is simply skipped this pass.
+        pending_branches: set[str] = set()
+        try:
+            if dynamic_state is not None:
+                pending_branches = {
+                    r["branch_id"]
+                    for r in dynamic_state.readers["dynamic"].read(
+                        "SELECT DISTINCT branch_id FROM drive_proposals "
+                        "WHERE status = 'pending'"
+                    )
+                }
+        except Exception:
+            pass
+
         proposals = []
         for branch_id, beliefs in grouped.items():
-            if branch_id in _SEED_BRANCH_IDS:
+            if branch_id in _SEED_BRANCH_IDS or branch_id in pending_branches:
                 continue
 
             belief_count = len(beliefs)
