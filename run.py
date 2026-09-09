@@ -33,7 +33,6 @@ from theory_x.stage3_world_model import build_world_model
 from theory_x.stage4_membrane import build_membrane
 from theory_x.stage6_fountain import build_fountain
 from theory_x.stage_drives.competing_drives import CompetingDrives
-from theory_x.stage_drives.drive_history import DriveHistory
 from theory_x.memory.snapshot_writer import StateSnapshotWriter
 from theory_x.memory.resumption import ResumptionSeeder
 from theory_x.world_bridge.selector import WorldBridgeSelector
@@ -363,18 +362,10 @@ def main() -> None:
     except Exception as _cd_err:
         log.warning("CompetingDrives failed to start (non-fatal): %s", _cd_err)
 
-    # Phase 29c — DriveHistory (voice profile analyzer)
-    _drive_history = None
-    try:
-        _drive_history = DriveHistory(
-            conversations_writer=writers["conversations"],
-            conversations_reader=readers["conversations"],
-            dynamic_reader=readers["dynamic"],
-        )
-        _drive_history.start_loop()
-        log.info("DriveHistory ready — voice profile every 1h")
-    except Exception as _dh_err:
-        log.warning("DriveHistory failed to start (non-fatal): %s", _dh_err)
+    # Phase 29c — DriveHistory REMOVED 2026-09-09: hourly voice_profile analyzer
+    # whose output was read back only by its own state() (never registered, never
+    # in AppState) — a dead loop shaping nothing. The intended voice-shaping
+    # consumer was never built; module retained on disk if that is built later.
 
     # Phase 30 — VoiceEngine (substrate-as-voice)
     _voice_engine = None
