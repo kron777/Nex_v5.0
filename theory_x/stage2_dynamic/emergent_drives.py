@@ -17,7 +17,14 @@ THEORY_X_STAGE = 2
 
 _LOG_SOURCE = "emergent_drives"
 
-PRESSURE_THRESHOLD = 0.4
+# 2026-09-09: lowered 0.4 -> 0.06. At 0.4 no proposal ever fired. Measured on
+# live T6/T7 content, the STABLE per-non-seed-branch pressure tops out ~0.085
+# (agi), with cognition ~0.06-0.07 and news ~0.05 (an earlier "~0.18" reading
+# was a LIMIT-500 sampling artifact, not the real signal). 0.06 admits the
+# top one/occasionally-two branches per 12h scan (~2 proposals/day) without
+# becoming a firehose; 0.15 would fire ~0/day. Proposals still land 'pending'
+# — the human-approval gate (apply_approved) is unchanged.
+PRESSURE_THRESHOLD = 0.06
 
 _VERB_SUFFIXES = ("ing", "ed", "ize", "ise", "ate", "ify")
 
@@ -49,7 +56,7 @@ class EmergentDriveDetector:
         try:
             rows = beliefs_reader.read(
                 "SELECT id, content, branch_id, confidence FROM beliefs "
-                "WHERE tier <= 4 AND confidence > 0.6 AND branch_id IS NOT NULL "
+                "WHERE tier >= 4 AND confidence > 0.6 AND branch_id IS NOT NULL "
                 "AND paused = 0 AND locked = 0 LIMIT 500"
             )
         except Exception as exc:
