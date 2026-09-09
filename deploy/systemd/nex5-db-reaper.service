@@ -1,0 +1,12 @@
+[Unit]
+Description=NEX5 nightly DB retention reaper (nex_db_reaper.py)
+Documentation=file:/home/rr/Desktop/Desktop/nex5/DB_AUDIT.md
+# Runs while NEX is live: batched short-txn deletes over WAL, never VACUUM.
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/rr/Desktop/Desktop/nex5
+ExecStart=/home/rr/Desktop/Desktop/nex5/.venv/bin/python3 /home/rr/Desktop/Desktop/nex5/nex_db_reaper.py
+Nice=10
+IOSchedulingClass=idle
+# Low priority so it yields CPU/IO to the live NEX process.

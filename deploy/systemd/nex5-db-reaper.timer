@@ -1,0 +1,10 @@
+[Unit]
+Description=Nightly trigger for NEX5 DB retention reaper (~04:00)
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
