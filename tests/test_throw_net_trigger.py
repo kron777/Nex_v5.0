@@ -79,7 +79,7 @@ class TestRecordGateReject(unittest.TestCase):
 
     def test_record_gate_reject_logs_row(self):
         """record_gate_reject writes one row to throw_net_triggers."""
-        packet = _make_packet("Consciousness emerges from complexity of neural binding.")
+        packet = _make_packet("The pattern in Bitcoin emerges from complexity of neural binding.")
         decision = _make_decision("redundant:0.80")
         self.detector.record_gate_reject(packet, decision)
         time.sleep(0.05)
@@ -117,7 +117,7 @@ class TestThresholds(unittest.TestCase):
 
     def test_gate_reject_threshold_returns_true_at_4(self):
         """4th REJECT on same topic returns True; first 3 return False."""
-        packet = _make_packet("Emergence arises when complexity reaches critical threshold.")
+        packet = _make_packet("A signal from Ethereum reaches a critical threshold in complexity.")
         decision = _make_decision("redundant:0.75")
 
         results = []
@@ -146,8 +146,8 @@ class TestThresholds(unittest.TestCase):
 
     def test_different_topics_do_not_share_counts(self):
         """REJECTs on different topics do not accumulate against each other."""
-        p1 = _make_packet("Consciousness emerges from neural complexity and binding.")
-        p2 = _make_packet("Gravity bends spacetime according to general relativity.")
+        p1 = _make_packet("A view of Bitcoin from neural complexity and binding.")
+        p2 = _make_packet("How Ethereum bends spacetime according to general relativity.")
         decision = _make_decision("redundant:0.80")
 
         # 3 on consciousness
@@ -193,7 +193,7 @@ class TestPendingAndMarkFired(unittest.TestCase):
     def test_pending_triggers_returns_only_unfired(self):
         """pending_triggers excludes rows where fired=1."""
         # Write 2 rows
-        p = _make_packet("Emergence in complex adaptive systems is fascinating.")
+        p = _make_packet("Behavior in Ethereum complex adaptive systems is fascinating.")
         d = _make_decision("redundant:0.80")
         self.detector.record_gate_reject(p, d)
         self.detector.record_gate_reject(p, d)
@@ -211,7 +211,7 @@ class TestPendingAndMarkFired(unittest.TestCase):
 
     def test_mark_fired_updates_correctly(self):
         """mark_fired sets fired=1 and session_id on the correct row."""
-        p = _make_packet("Fractal geometry reveals hidden self-similarity everywhere.")
+        p = _make_packet("Fractal geometry in Mandelbrot sets reveals hidden self-similarity.")
         d = _make_decision("redundant:0.75")
         self.detector.record_gate_reject(p, d)
         time.sleep(0.05)
@@ -261,7 +261,7 @@ class TestExtractTopic(unittest.TestCase):
 
     def test_pending_triggers_batch_cap_is_500(self):
         """pending_triggers() returns at most 500 rows when 500+ exist."""
-        p = _make_packet("Emergence in complex adaptive systems is fascinating.")
+        p = _make_packet("Behavior in Ethereum complex adaptive systems is fascinating.")
         d = _make_decision("redundant:0.80")
         # Seed 510 triggers
         for _ in range(510):

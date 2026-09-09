@@ -69,7 +69,19 @@ class TriggerDetector:
         Never raises.
         """
         try:
-            topic = self._extract_topic(packet.content)
+            # Topic must be a REAL subject/entity. TimeFetch.run() does
+            # LIKE %topic% over belief content, so a bare high-frequency token
+            # ("headline") matches nothing -> the session comes back empty and
+            # is pruned. Reuse the crystallizer's proper-noun heuristic; if there
+            # is no real subject, write NO trigger (better none than junk).
+            try:
+                from theory_x.stage6_fountain.crystallizer import _mid_sentence_capitalized
+                _subject = _mid_sentence_capitalized(packet.content or "")
+            except Exception:
+                _subject = None
+            if not _subject:
+                return False
+            topic = _subject.lower()
             count_before = self._gate_rejects_in_window(topic)
             self._writer.write(
                 "INSERT INTO throw_net_triggers "

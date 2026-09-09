@@ -90,7 +90,8 @@ _TICK_SECONDS = 86400  # daily -- both retention windows are measured in weeks
 
 
 def _prune_table(writer, reader, table: str, ts_column: str,
-                  retention_days: int, batch_size: int = _BATCH_SIZE) -> int:
+                  retention_days: int, batch_size: int = _BATCH_SIZE,
+                  extra_where: str = "") -> int:
     """Delete rows in `table` older than retention_days, batched.
 
     Loops until no more rows match rather than assuming a single batch
@@ -99,10 +100,13 @@ def _prune_table(writer, reader, table: str, ts_column: str,
     handles both without a special case.
     """
     cutoff = time.time() - retention_days * 86400
+    # extra_where is a static, code-supplied predicate (never user input) that
+    # narrows what is eligible for pruning — e.g. "only empty sessions".
+    _and = f" AND ({extra_where})" if extra_where else ""
     total_deleted = 0
     while True:
         remaining = reader.read(
-            f"SELECT COUNT(*) AS n FROM {table} WHERE {ts_column} < ?",
+            f"SELECT COUNT(*) AS n FROM {table} WHERE {ts_column} < ?{_and}",
             (cutoff,),
         )
         n = remaining[0]["n"] if remaining else 0
@@ -110,7 +114,7 @@ def _prune_table(writer, reader, table: str, ts_column: str,
             break
         writer.write(
             f"DELETE FROM {table} WHERE id IN "
-            f"(SELECT id FROM {table} WHERE {ts_column} < ? LIMIT ?)",
+            f"(SELECT id FROM {table} WHERE {ts_column} < ?{_and} LIMIT ?)",
             (cutoff, batch_size),
         )
         total_deleted += min(n, batch_size)
@@ -124,9 +128,13 @@ def prune_gate_decisions(writer, reader) -> int:
 
 
 def prune_throw_net_sessions(writer, reader) -> int:
+    # Prune only EMPTY sessions; keep any that did real work (throw_count or
+    # accepted_count > 0, or a non-'empty' status) so useful sessions survive
+    # instead of being deleted alongside the empties.
     return _prune_table(
         writer, reader, "throw_net_sessions", "started_at",
         THROW_NET_SESSIONS_RETENTION_DAYS,
+        extra_where="status = 'empty' AND throw_count = 0 AND accepted_count = 0",
     )
 
 
