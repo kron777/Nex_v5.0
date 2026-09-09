@@ -32,6 +32,7 @@ Single-row table (id=1 always). Last write wins. Fail-safe throughout —
 never blocks or stalls a fire.
 """
 from __future__ import annotations
+import os
 import re
 import sqlite3
 import time
@@ -60,12 +61,20 @@ def _ensure_table(con: sqlite3.Connection) -> None:
         " thought_fragment TEXT,"
         " surprise_score REAL DEFAULT 0.0,"
         " surprise_note TEXT,"
-        " carry_count INTEGER DEFAULT 1"
+        " carry_count INTEGER DEFAULT 1,"
+        " resolved INTEGER"
         ")"
     )
     # Migration for tables created before carry_count existed.
     try:
         con.execute("ALTER TABLE momentum ADD COLUMN carry_count INTEGER DEFAULT 1")
+    except sqlite3.OperationalError:
+        pass  # column already exists — fine
+    # Migration: episodic resolution outcome (NEX5_CARRYOVER). Nullable, no
+    # default -> NULL for existing rows, so momentum-only mode reads fine with
+    # it absent. Additive + idempotent.
+    try:
+        con.execute("ALTER TABLE momentum ADD COLUMN resolved INTEGER")
     except sqlite3.OperationalError:
         pass  # column already exists — fine
 
@@ -145,6 +154,36 @@ def capture_momentum(thought: str, branch: str,
         return False
 
 
+def stamp_resolution(resolved: bool, dynamic_db: str = _DYNAMIC_DB) -> bool:
+    """Stamp this cycle's outcome (resolved=crystallized vs stalled) onto the
+    current momentum thread, for the NEX5_CARRYOVER episodic clause. Writes ONLY
+    the 'resolved' column; touches nothing else. Clean no-op — never an error in
+    the fire loop — if the row is missing or exhausted (carry_count > _MAX_CARRY,
+    i.e. already silenced). Caller gates on NEX5_CARRYOVER, so with the flag off
+    this is never called and momentum's writes are byte-identical to before."""
+    try:
+        con = sqlite3.connect(dynamic_db, timeout=3)
+        _ensure_table(con)
+        row = con.execute(
+            "SELECT carry_count FROM momentum WHERE id = 1"
+        ).fetchone()
+        if not row:
+            con.close()
+            return False  # no thread to stamp — no-op
+        if (row[0] or 0) > _MAX_CARRY:
+            con.close()
+            return False  # exhausted/silenced thread — leave it alone
+        con.execute(
+            "UPDATE momentum SET resolved = ? WHERE id = 1",
+            (1 if resolved else 0,)
+        )
+        con.commit()
+        con.close()
+        return True
+    except Exception:
+        return False
+
+
 def read_momentum(dynamic_db: str = _DYNAMIC_DB) -> Optional[str]:
     """Return the carried-thread line, or None if cold/absent/EXHAUSTED."""
     try:
@@ -152,12 +191,12 @@ def read_momentum(dynamic_db: str = _DYNAMIC_DB) -> Optional[str]:
         _ensure_table(con)
         row = con.execute(
             "SELECT updated_at, branch, thought_fragment, surprise_score, "
-            " surprise_note, carry_count FROM momentum WHERE id = 1"
+            " surprise_note, carry_count, resolved FROM momentum WHERE id = 1"
         ).fetchone()
         con.close()
         if not row:
             return None
-        updated_at, branch, fragment, surprise_score, surprise_note, carry_count = row
+        updated_at, branch, fragment, surprise_score, surprise_note, carry_count, resolved = row
         carry_count = carry_count or 1
 
         if time.time() - (updated_at or 0) > _STALE_SECS:
@@ -176,6 +215,13 @@ def read_momentum(dynamic_db: str = _DYNAMIC_DB) -> Optional[str]:
         if surprise_score and surprise_score > 0.3 and surprise_note:
             line += (f" What surprised me: '{surprise_note}...' "
                      f"still sits unresolved.")
+        # NEX5_CARRYOVER (default OFF): append last cycle's episodic outcome.
+        # With the flag off this clause is skipped, so the rendered line is
+        # byte-identical to momentum-only behavior. Silent when outcome unknown
+        # (resolved IS NULL — e.g. first fire, or a pre-carryover history row).
+        if os.environ.get("NEX5_CARRYOVER") == "1" and resolved is not None:
+            line += (" — and last cycle it settled into a belief." if resolved
+                     else " — and last cycle it stalled; nothing settled.")
         return line
     except Exception:
         return None

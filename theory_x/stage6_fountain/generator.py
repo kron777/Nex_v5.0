@@ -1630,6 +1630,7 @@ class FountainGenerator:
                     source="stage6_fountain", exc=e,
                 )
 
+        crystallized_id = None
         if self._crystallizer is not None and thought and fountain_event_id:
             try:
                 crystallized_id = self._crystallizer.crystallize(
@@ -1651,6 +1652,18 @@ class FountainGenerator:
                     f"Fountain crystallization error: {e}",
                     source="stage6_fountain", exc=e,
                 )
+
+        # NEX5_CARRYOVER (default OFF): stamp this cycle's outcome onto the
+        # momentum thread so the NEXT fire's carried line can say whether it
+        # resolved (crystallized a belief) or stalled. Extends the existing
+        # momentum continuity note — no parallel table. Fail-safe: no-op if the
+        # thread is missing/exhausted; never stalls a fire.
+        if os.environ.get("NEX5_CARRYOVER") == "1":
+            try:
+                from theory_x.stage_tom.momentum import stamp_resolution
+                stamp_resolution(bool(crystallized_id))
+            except Exception:
+                pass
 
         error_channel.record(
             f"Fountain fired: {thought[:100]}",
