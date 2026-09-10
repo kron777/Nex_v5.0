@@ -32,11 +32,14 @@ Single-row table (id=1 always). Last write wins. Fail-safe throughout —
 never blocks or stalls a fire.
 """
 from __future__ import annotations
+import logging
 import os
 import re
 import sqlite3
 import time
 from typing import Optional
+
+log = logging.getLogger("theory_x.stage_tom.momentum")
 
 _DYNAMIC_DB = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
 _STALE_SECS = 1800.0         # a thread older than 30 min is cold — don't carry it
@@ -222,6 +225,15 @@ def read_momentum(dynamic_db: str = _DYNAMIC_DB) -> Optional[str]:
         if os.environ.get("NEX5_CARRYOVER") == "1" and resolved is not None:
             line += (" — and last cycle it settled into a belief." if resolved
                      else " — and last cycle it stalled; nothing settled.")
+            # Purely observational: emit a live signal that the clause was
+            # appended, so carry-over behaviour is visible in the soak log
+            # without DB spelunking. Wrapped so logging can never break a fire;
+            # does NOT change `line`.
+            try:
+                log.info("carryover: rendered %s clause, branch=%s",
+                         "settled" if resolved else "stalled", branch or "?")
+            except Exception:
+                pass
         return line
     except Exception:
         return None
