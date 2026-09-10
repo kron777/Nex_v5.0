@@ -131,14 +131,20 @@ else
   launch_nex
   echo "$(date '+%F %T') launched NEX pid=${NEX_PID}"
 
-  # deploy ledger (unchanged intent): journalctl --user is retention-bounded;
-  # this append is what preserves restart history. Never affect the launch.
+  # restart history: journalctl --user is retention-bounded, so this append
+  # preserves it on disk. It goes to an UNTRACKED runtime log, NOT the tracked
+  # DEPLOY_LEDGER.tsv -- an automatic keepalive_start on every launch was
+  # dirtying the ledger's git working tree on each restart. Real deploy events
+  # (code_live_restart, read_only diagnostics, code_activated) are still added
+  # to DEPLOY_LEDGER.tsv by hand; this auto row is runtime noise, kept separate.
+  # Same TSV columns, so the two can be concatenated if a full timeline is ever
+  # wanted. Never affect the launch.
   {
     printf '%s\t%s\t%s\t%s\t%s\n' \
       "$(date -u '+%Y-%m-%dT%H:%M:%S%z')" "keepalive_start" \
       "$(git -C /home/rr/Desktop/Desktop/nex5 rev-parse --short HEAD 2>/dev/null || echo '')" \
       "${NEX_PID}" "auto" \
-      >> /home/rr/Desktop/Desktop/nex5/journal/DEPLOY_LEDGER.tsv
+      >> /home/rr/Desktop/Desktop/nex5/journal/keepalive_runtime.tsv
   } 2>/dev/null || true
 
   sleep 45

@@ -48,3 +48,7 @@ protonvpn-stable-release_1.0.8_all.deb
 # Not NEX code. Nested git repo (~196MB) — ignored so `git add -A` cannot stage it
 # as a gitlink. Removal/retention is a separate decision; see r68 eligibility map.
 rc2/
+
+# Auto keepalive_start rows (runtime restart history). Redirected out of
+# the tracked DEPLOY_LEDGER.tsv so restarts stop dirtying git; see nex_keepalive.sh.
+journal/keepalive_runtime.tsv
