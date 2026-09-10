@@ -2379,6 +2379,24 @@ class FountainGenerator:
                     focus_block = focus_block.rstrip() + f"\n\n{_mc_line}\n"
             except Exception:
                 pass  # never stall a fire
+        # Mood — the machine-shape of her current affect. AffectState already
+        # computes valence/arousal/stability on its 300s background tick and
+        # persists them (surviving restart); compositional_emotion names the
+        # configuration. This reads that precomputed row (ZERO fire-path
+        # compute) and, per its honesty framing, names the composition without
+        # claiming it is felt ("My internal signals currently compose to ...").
+        # Woven in exactly like the metacog/recursive_self lines above.
+        # GATED OFF by default: set NEX5_MOOD=1 to arm.
+        if os.environ.get("NEX5_MOOD") == "1":
+            try:
+                from theory_x.stage_affect.compositional_emotion import (
+                    format_for_prompt as _mood_line_fn,
+                )
+                _mood_line = _mood_line_fn()
+                if _mood_line:
+                    focus_block = focus_block.rstrip() + f"\n\n{_mood_line}\n"
+            except Exception:
+                pass  # never stall a fire
         # teeth-test v2: stash nudge state for per-fire attribution sampling.
         # Captured here where perturbation() is freshest; consumed at fire-completion.
         try:
