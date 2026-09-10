@@ -92,6 +92,10 @@ _RECIPES = [
      "negative tone with instability — something is off and moving",
      lambda v, a, s: v < -0.3 and s < 0.45),
 
+    ("braced focus",
+     "negative tone at high activation, held steady — locked onto something unresolved",
+     lambda v, a, s: v <= -0.2 and a >= 0.55 and s >= 0.55),
+
     ("dullness",
      "thīna-middha — low energy, low coherence, flat tone",
      lambda v, a, s: a < 0.3 and s < 0.45 and abs(v) < 0.3),
