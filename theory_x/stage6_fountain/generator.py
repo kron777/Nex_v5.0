@@ -231,6 +231,134 @@ Name one concrete place this idea or technique could be used that is NOT \
 where it came from. One specific transfer. 1-2 sentences, plain and practical. Use ONLY what is in the item — do NOT invent facts, people, projects, names, or events that are not stated. If you don't know, say what the item actually says.\
 """
 
+_CURIOSITY_GROOVE_MARGIN = 0.05   # a token within this of the maxDF* threshold counts as "grooving"
+
+
+def _curiosity_score(toks, surprise_toks, unfinished_toks, building_toks,
+                     groove_toks, drive_scale):
+    """Pure scorer (testable in isolation) — higher = more worth dwelling on.
+
+    surprise + unfinished-thread always add. The building-thread term is exactly
+    the R75/R76 groove amplifier, so it is GUARDED: if the candidate shares any
+    token under groove pressure (near/over maxDF* threshold, or under an active
+    groove cooldown), its building boost is not merely zeroed but mildly
+    INVERTED — curiosity backs off a thread the moment it starts to groove,
+    never piles onto it. Reorders only; it never removes a candidate.
+    """
+    # _fidelity_tokens returns a list — coerce so set-ops are robust to callers.
+    toks = set(toks); surprise_toks = set(surprise_toks)
+    unfinished_toks = set(unfinished_toks); building_toks = set(building_toks)
+    groove_toks = set(groove_toks)
+    s = len(toks & surprise_toks)
+    u = len(toks & unfinished_toks)
+    b = len(toks & building_toks)
+    if toks & groove_toks:
+        b_contrib = -0.5 * b          # GROOVE-GUARD: back off, do not amplify
+    else:
+        b_contrib = 1.0 * b
+    return float(drive_scale) * (1.0 * s + 1.0 * u + b_contrib)
+
+
+def _curiosity_pick(items):
+    """Soft weighted re-rank of the SAME candidate set; returns the chosen
+    content string. Gathers the live signals (surprise, momentum's carried
+    thread with its anti-rut carry_count, recent focal items) and the live
+    groove state (maxDF* + active signal_cooldown), scores every candidate via
+    _curiosity_score, and returns the argmax with a small jitter so she still
+    casts wide. FAIL-SAFE: any error falls back to uniform random choice —
+    today's behaviour. Never drops a candidate (DOCTRINE: the net goes wide;
+    curiosity only reads the catch)."""
+    import random as _r
+    try:
+        from theory_x.stage6_fountain.crystallizer import _fidelity_tokens
+        import sqlite3 as _s3, time as _t
+        try:
+            from substrate.paths import db_paths as _dbp
+            _ddb = str(_dbp()["dynamic"]); _bdb = str(_dbp()["beliefs"])
+            _cdb = str(_dbp()["conversations"])
+        except Exception:
+            _base = "/home/rr/Desktop/Desktop/nex5/data"
+            _ddb = _base + "/dynamic.db"; _bdb = _base + "/beliefs.db"
+            _cdb = _base + "/conversations.db"
+        now = _t.time()
+
+        surprise_toks, unfinished_toks, building_toks = set(), set(), set()
+        try:
+            dcon = _s3.connect(_ddb, timeout=3)
+            for (ac,) in dcon.execute(
+                    "SELECT actual_content FROM surprise_events "
+                    "WHERE triggered_at > ? AND surprise_score > 0.3 "
+                    "ORDER BY triggered_at DESC LIMIT 20", (now - 6 * 3600,)):
+                if ac:
+                    surprise_toks |= set(_fidelity_tokens(ac))
+            _m = dcon.execute(
+                "SELECT thought_fragment, carry_count FROM momentum WHERE id=1"
+            ).fetchone()
+            # momentum anti-rut: _MAX_CARRY=3 — past it she has let the thread go,
+            # so it gets NO unfinished-thread boost.
+            if _m and _m[0] and (_m[1] or 1) < 3:
+                unfinished_toks = set(_fidelity_tokens(_m[0]))
+            for (fi,) in dcon.execute(
+                    "SELECT focal_item FROM fountain_events "
+                    "WHERE focal_item IS NOT NULL AND focal_item != '' "
+                    "ORDER BY ts DESC LIMIT 8"):
+                if fi:
+                    building_toks |= set(_fidelity_tokens(fi))
+            dcon.close()
+        except Exception:
+            pass
+
+        # ---- groove-guard state: tokens under convergence pressure ----
+        groove_toks = set()
+        try:
+            from theory_x.stage6_fountain.corpus_convergence import max_df_star
+            cv = max_df_star(db_path=_bdb)
+            thr = cv.get("threshold", 0.25)
+            for _tok, _cnt, _frac in cv.get("top", []):
+                if _tok and _frac is not None and _frac >= thr - _CURIOSITY_GROOVE_MARGIN:
+                    groove_toks.add(_tok)
+        except Exception:
+            pass
+        try:
+            bcon = _s3.connect(_bdb, timeout=3)
+            for (content,) in bcon.execute(
+                    "SELECT content FROM signal_cooldown WHERE cooldown_until > ?",
+                    (now,)):
+                if content:
+                    groove_toks |= set(_fidelity_tokens(content))
+            bcon.close()
+        except Exception:
+            pass
+
+        # ---- scale by live Curiosity + Exploration drive weights (neutral 1.0) ----
+        drive_scale = 1.0
+        try:
+            ccon = _s3.connect(_cdb, timeout=3)
+            _dr = ccon.execute(
+                "SELECT curiosity, exploration FROM drives_competing "
+                "ORDER BY rowid DESC LIMIT 1"
+            ).fetchone()
+            ccon.close()
+            if _dr:
+                drive_scale = float(_dr[0] or 0.0) + float(_dr[1] or 0.0)
+            if drive_scale <= 0.0:
+                drive_scale = 1.0
+        except Exception:
+            drive_scale = 1.0
+
+        best_item, best_score = None, None
+        for it in items:
+            toks = set(_fidelity_tokens(it or ""))
+            score = _curiosity_score(toks, surprise_toks, unfinished_toks,
+                                     building_toks, groove_toks, drive_scale)
+            score += _r.random() * 0.15    # jitter — still cast wide; signal wins when present
+            if best_score is None or score > best_score:
+                best_score, best_item = score, it
+        return best_item if best_item is not None else _r.choice(items)
+    except Exception:
+        return _r.choice(items)
+
+
 def _select_wide_mode(seeds, drift_fallback_prob=0.30):
     """Pick an outward mode if fresh feed-content is in hand, else None (DRIFT).
     seeds = world/feed beliefs already retrieved for this fire.
@@ -273,11 +401,19 @@ def _select_wide_mode(seeds, drift_fallback_prob=0.30):
             items = []
     if not items:
         return None  # genuinely nothing fresh -> DRIFT
-    _rnd.shuffle(items)
+    # NEX5_CURIOSITY (default OFF): soft weighted re-rank of the SAME candidate
+    # set toward what she cares about (surprise / dropped thread / building
+    # thread), groove-guarded. Reorders only — never removes a candidate
+    # (DOCTRINE: the net goes wide; curiosity reads the catch). Flag OFF takes
+    # the uniform shuffle below, byte-identical to prior behaviour.
     # Only EXPLAIN/ARGUE: they anchor to ONE concrete item and can't drift.
     # CONNECT/APPLY invited her to reach for abstractions -> she pulled koans
     # (belief store is ~80% philosophy/self), so they're dropped.
-    item = items[0][:200]
+    if os.environ.get("NEX5_CURIOSITY") == "1":
+        item = _curiosity_pick(items)[:200]
+    else:
+        _rnd.shuffle(items)
+        item = items[0][:200]
     pick = _rnd.choice([_MODE_EXPLAIN, _MODE_ARGUE])
     return (pick, {"item": item})
 
