@@ -377,11 +377,31 @@ class FountainCrystallizer:
                 _conf, _surp = _cff()
             except Exception:
                 pass
+        # STRUCTURAL ATTRIBUTION at the crystallization choke point (fix #1A).
+        # GATED default-OFF via NEX5_ATTRIB_CRYSTALLIZE. A wide-mode fire that
+        # engaged a specific external feed item (focal_item present) but emitted
+        # the claim BARE is stating sourced content as settled fact. Re-stamp a
+        # structured marker (attribution:<focal snippet> in tags) and surface an
+        # HONEST "(per a feed item)" clause — never a fabricated authority (the
+        # source is a headline, not a citable name). Cheap (param + one regex,
+        # no DB/LLM) and fully fail-safe: any error leaves `thought` and NULL
+        # tags untouched so crystallization always proceeds. Fires that bind no
+        # focal_item (DRIFT/substrate/contemplative) are never touched.
+        _attr_tags = None
+        if os.environ.get("NEX5_ATTRIB_CRYSTALLIZE") == "1" and focal_item:
+            try:
+                from theory_x.stage3_world_model import attribution_marker as _am
+                if _am.detect_attribution(thought) is None and "(per " not in thought.lower():
+                    thought = _am.surface_in_content(thought, "a feed item")
+                    _attr_tags = _am.stamp_tags(None, focal_item)
+            except Exception:
+                _attr_tags = None  # never stall a fire
+
         belief_id = self._writer.write(
             "INSERT INTO beliefs "
-            "(content, tier, confidence, created_at, source, branch_id, locked) "
-            "VALUES (?, 6, ?, ?, ?, ?, 0)",
-            (thought, _conf, ts, category, hot_branch),
+            "(content, tier, confidence, created_at, source, branch_id, locked, tags) "
+            "VALUES (?, 6, ?, ?, ?, ?, 0, ?)",
+            (thought, _conf, ts, category, hot_branch, _attr_tags),
         )
 
         self._writer.write(

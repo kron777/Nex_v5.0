@@ -126,8 +126,11 @@ def surface_in_content(content, snippet):
     try:
         if not content or not snippet:
             return content
-        if detect_attribution(content):
-            return content  # rewrite kept an attribution — leave it
+        # Idempotent: skip if already attributed — a named/hedge source
+        # (detect_attribution) OR a generic "(per ...)" clause already present.
+        # Prevents double-stamping and accretion across generations.
+        if detect_attribution(content) or "(per " in content.lower():
+            return content
         src = snippet.strip().rstrip(".")
         # Surface a SPECIFIC source only when the snippet is a clean name (short,
         # and not itself a hedge phrase). Otherwise stay honest: "per its source"
