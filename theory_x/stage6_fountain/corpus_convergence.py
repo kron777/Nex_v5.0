@@ -48,6 +48,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 from collections import Counter
 from typing import Optional
@@ -69,6 +70,24 @@ THRESHOLD = 0.25
 # Backtest quantiles, 45 days to 2026-08-04. Recorded here so a caller can
 # report the reading against its baseline without a second lookup.
 BACKTEST = {"median": 0.12, "p90": 0.18, "p99": 0.22}
+
+
+# The code-surfaced attribution clause (attribution_marker.surface_in_content):
+# " (per <src>)." — "(per a feed item).", "(per its source).", "(per CERN).".
+# It is injected into EVERY sourced crystallization/synthesis (fix #1A/#1b), so
+# its tokens ('feed', 'item', 'source', 'per') would otherwise dominate maxDF*
+# as pure boilerplate — 25 of 26 'feed' hits were this clause, reading a false
+# 50%. Strip ONLY the injected clause before token-counting; a genuine inline
+# 'feed' mention in the claim body still survives and can still trip the alarm.
+_ATTRIB_CLAUSE_RX = re.compile(r"\s*\(per\b[^)]*\)\.?", re.IGNORECASE)
+
+
+def _strip_attribution_clause(text):
+    """Remove the '(per ...)' attribution clause from a belief's text. Best-effort;
+    returns text unchanged on falsy/non-str input."""
+    if not text or not isinstance(text, str):
+        return text
+    return _ATTRIB_CLAUSE_RX.sub("", text)
 
 
 def load_register_exclusion(path: str = _REGISTER_PATH) -> dict:
@@ -115,7 +134,8 @@ def max_df_star(
     """
     if docs is None:
         docs = recent_crystallized(db_path, window)
-    texts = [d if isinstance(d, str) else d[-1] for d in docs]
+    texts = [_strip_attribution_clause(d if isinstance(d, str) else d[-1])
+             for d in docs]
     if exclusion is None:
         exclusion = set(load_register_exclusion()["terms"])
 
