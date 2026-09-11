@@ -147,19 +147,31 @@ class CoOccurrenceDetector:
         for r in rows:
             content = r["content"] or ""
             branch = r["branch_id"]
-            for m in re.finditer(r"\b[A-Z][a-zA-Z]{2,}\b", content):
-                w = m.group()
-                if w.lower() in _ENTITY_STOPWORDS:
-                    continue
-                branch_entities[branch].add(w)
-                # ROOT-CAUSE FIX: carry the sentence span the token came from,
-                # tagged with its branch — not a bare word, and not the old
-                # mid-word ±40-char slice. Each extracted token keeps its
-                # context so nothing downstream has to work on an orphaned word.
-                if len(entity_contexts[w]) < 3:
+            # PHRASE-AWARE extraction: a contiguous run of capitalized words is
+            # ONE entity ("Large Hadron Collider"), not three orphans. A genuine
+            # single-word name still comes through as itself (a run of length 1).
+            # This is the source-level fix — the raw signal keys on the whole
+            # name. Safe because the detector fires on a SINGLE entity across
+            # branches, never on entity pairs, so merging cannot collapse a real
+            # co-occurrence pair (each distinct name is still tracked on its own).
+            for m in re.finditer(
+                    r"\b[A-Z][a-zA-Z]{2,}(?:[ \t]+[A-Z][a-zA-Z]{2,})*\b", content):
+                toks = m.group().split()
+                # trim EDGE stopwords ("The Large Hadron Collider" -> the name);
+                # internal title-case function words ("War And Peace") are kept.
+                while toks and toks[0].lower() in _ENTITY_STOPWORDS:
+                    toks = toks[1:]
+                while toks and toks[-1].lower() in _ENTITY_STOPWORDS:
+                    toks = toks[:-1]
+                if not toks:
+                    continue  # run was all stopwords (e.g. a lone "The")
+                entity = " ".join(toks)
+                branch_entities[branch].add(entity)
+                # carry the branch-tagged sentence span the PHRASE came from (6ef84ac).
+                if len(entity_contexts[entity]) < 3:
                     span = _sentence_span(content, m.start(), m.end())
                     if span:
-                        entity_contexts[w].append({"branch": branch, "span": span})
+                        entity_contexts[entity].append({"branch": branch, "span": span})
 
         entity_branches: dict[str, set] = defaultdict(set)
         for branch, entities in branch_entities.items():
