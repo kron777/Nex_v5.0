@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import os
 import shutil
-import sqlite3
 import tempfile
 import time
 import unittest
@@ -26,28 +25,10 @@ _FLAG = "NEX5_ATTRIB_CRYSTALLIZE"
 _THOUGHT = "I notice a pull toward complexity that I cannot fully name"
 
 
-def _relax_beliefs_tags(db_path):
-    """Isolated-tempdir only: drop the NOT NULL on beliefs.tags so an untouched
-    crystallization (tags=None on the flag-off / DRIFT / already-attributed
-    paths) can land and be inspected. The live DB predates this constraint (0/66k
-    NULLs; the pre-fix INSERT omitted the column, taking the '[]' DEFAULT), so
-    this restores production's effective semantics. db_path is always a fresh
-    mkdtemp path here — never a live DB."""
-    con = sqlite3.connect(str(db_path))
-    try:
-        con.execute("PRAGMA writable_schema=ON")
-        con.execute(
-            "UPDATE sqlite_master SET sql="
-            "REPLACE(sql,'tags TEXT NOT NULL DEFAULT','tags TEXT DEFAULT') "
-            "WHERE type='table' AND name='beliefs'"
-        )
-        con.execute("PRAGMA writable_schema=OFF")
-        con.commit()
-    finally:
-        con.close()
-
-
 def _make_env():
+    # No schema relax: beliefs.tags is NOT NULL in production, and the fix makes
+    # the untouched paths write '[]' (the column DEFAULT), never None. These
+    # tests run against the real fresh schema to prove that.
     tmp = tempfile.mkdtemp(prefix="nex5_crystal_attrib_")
     os.environ["NEX5_DATA_DIR"] = tmp
     os.environ["NEX5_ADMIN_HASH_FILE"] = str(Path(tmp) / "admin.argon2")
@@ -55,7 +36,6 @@ def _make_env():
     init_all()
     from substrate import Reader, Writer, db_paths
     paths = db_paths()
-    _relax_beliefs_tags(paths["beliefs"])  # before Writers open their connections
     writers = {n: Writer(p, name=n) for n, p in paths.items()}
     readers = {n: Reader(p) for n, p in paths.items()}
     return writers, readers, tmp
@@ -125,6 +105,8 @@ class TestCrystallizerAttribution(unittest.TestCase):
         row, marker = self._row(bid)
         self.assertIsNone(marker)
         self.assertEqual(row["content"], _THOUGHT)
+        # untouched path writes the '[]' DEFAULT, never None (beliefs.tags NOT NULL)
+        self.assertEqual(row["tags"], "[]")
 
     def test_drift_no_focal_item_untouched_even_with_flag(self):
         os.environ[_FLAG] = "1"
@@ -137,6 +119,7 @@ class TestCrystallizerAttribution(unittest.TestCase):
         row, marker = self._row(bid)
         self.assertIsNone(marker)
         self.assertEqual(row["content"], _THOUGHT)
+        self.assertEqual(row["tags"], "[]")
 
     def test_idempotent_when_already_attributed(self):
         os.environ[_FLAG] = "1"
@@ -151,6 +134,7 @@ class TestCrystallizerAttribution(unittest.TestCase):
         # already attributed -> no re-stamp, no second clause appended
         self.assertIsNone(marker)
         self.assertEqual(row["content"].count("(per "), 1)
+        self.assertEqual(row["tags"], "[]")
         self.assertNotIn("(per a feed item)", row["content"])
 
 

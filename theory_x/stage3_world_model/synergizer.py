@@ -109,17 +109,20 @@ class BeliefSynergizer:
         # marker), re-stamp the child's marker IN CODE and surface "per [source]"
         # in its content — never by asking the model to keep it. Fire-path
         # fail-safe: any error leaves the original text/no-tags behaviour intact.
-        _attr_tags = None
+        # '[]' base = the beliefs.tags production DEFAULT; clean-parent syntheses
+        # (the normal case) must write '[]', never None -- beliefs.tags is NOT
+        # NULL, so a None write fails the insert and silently drops the belief.
+        _attr_tags = "[]"
         try:
             from theory_x.stage3_world_model import attribution_marker as _am
             _snip = _am.contested_snippet(belief_a) or _am.contested_snippet(belief_b)
             if _snip:
                 text = _am.surface_in_content(text, _snip)
-                _attr_tags = _am.stamp_tags(None, _snip)
+                _attr_tags = _am.stamp_tags(None, _snip) or "[]"
         except Exception as _ae:
             self._errors.record(f"attribution marker skipped: {_ae}",
                                 source=_LOG_SOURCE, level="DEBUG")
-            _attr_tags = None
+            _attr_tags = "[]"
 
         # PHASE 19 fix 2026-05-09: branch_id propagated from belief_b (the fresh belief
         # in primary anchor×fresh path; the second belief in cross-branch fallback).
