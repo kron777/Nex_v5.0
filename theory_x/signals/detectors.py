@@ -17,6 +17,44 @@ _ENTITY_STOPWORDS = frozenset({
 })
 
 
+_SENTENCE_BOUNDARY = re.compile(r"[.!?](?:\s|$)|\n")
+
+
+def _sentence_span(text: str, start: int, end: int, max_len: int = 200) -> str:
+    """Return the sentence (or a word-snapped window) surrounding text[start:end].
+
+    Root-cause context carry: an extracted token keeps the span it came from
+    rather than being reduced to a bare word or a blind ±40-char slice that cuts
+    mid-word — "Large Hadron Collider results announced" instead of an orphaned
+    "Large". Best-effort and never raises; returns '' on bad input.
+    """
+    try:
+        if not text:
+            return ""
+        # left edge: just after the last sentence boundary before the token
+        left = 0
+        for _m in _SENTENCE_BOUNDARY.finditer(text[:start]):
+            left = _m.end()
+        # right edge: end of the first sentence boundary at/after the token
+        _m = _SENTENCE_BOUNDARY.search(text, end)
+        right = _m.end() if _m else len(text)
+        span = text[left:right].strip()
+        if len(span) <= max_len:
+            return span
+        # sentence too long: word-snapped window centred on the token
+        tok = start - left
+        lo = max(0, tok - max_len // 2)
+        hi = min(len(span), tok + (end - start) + max_len // 2)
+        while lo > 0 and span[lo - 1].isalnum():
+            lo -= 1
+        while hi < len(span) and span[hi].isalnum():
+            hi += 1
+        clip = span[lo:hi].strip()
+        return (("…" if lo > 0 else "") + clip + ("…" if hi < len(span) else ""))
+    except Exception:
+        return ""
+
+
 @dataclass
 class Signal:
     detector_name: str
@@ -113,11 +151,15 @@ class CoOccurrenceDetector:
                 w = m.group()
                 if w.lower() in _ENTITY_STOPWORDS:
                     continue
-                start = m.start()
                 branch_entities[branch].add(w)
-                snippet = content[max(0, start - 40):start + len(w) + 40].strip()
+                # ROOT-CAUSE FIX: carry the sentence span the token came from,
+                # tagged with its branch — not a bare word, and not the old
+                # mid-word ±40-char slice. Each extracted token keeps its
+                # context so nothing downstream has to work on an orphaned word.
                 if len(entity_contexts[w]) < 3:
-                    entity_contexts[w].append(snippet)
+                    span = _sentence_span(content, m.start(), m.end())
+                    if span:
+                        entity_contexts[w].append({"branch": branch, "span": span})
 
         entity_branches: dict[str, set] = defaultdict(set)
         for branch, entities in branch_entities.items():
@@ -132,6 +174,7 @@ class CoOccurrenceDetector:
             if self._last_branches.get(entity) == fingerprint:
                 continue  # same branch-set as last emission -- stale re-scan, not new
             self._last_branches[entity] = fingerprint
+            _ctxs = entity_contexts.get(entity, [])
             signals.append(Signal(
                 detector_name="co_occurrence",
                 signal_type=f"{len(branches)}_branch",
@@ -139,7 +182,13 @@ class CoOccurrenceDetector:
                     "entity": entity,
                     "branches": sorted(branches),
                     "window_seconds": self._window,
-                    "contexts": entity_contexts.get(entity, []),
+                    # contexts: sentence spans (branch-tagged) each token came
+                    # from — upgraded from bare ±40-char slices. `context` is the
+                    # representative span, so consumers can use it without
+                    # unpacking the list. entity/branches/entities are unchanged,
+                    # so the downstream quality gates keep their exact inputs.
+                    "contexts": _ctxs,
+                    "context": (_ctxs[0]["span"] if _ctxs else ""),
                 },
                 branches=sorted(branches),
                 entities=[entity],

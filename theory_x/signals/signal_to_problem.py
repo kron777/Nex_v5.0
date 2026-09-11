@@ -225,9 +225,27 @@ def _compose_title(signal_type: str, entity: str | None, payload: dict) -> str:
 def _compose_description(signal_type: str, payload: dict, sig_id: int) -> str:
     """Body of the problem — pretty-print the signal evidence."""
     pretty = json.dumps(payload, indent=2)[:800]
+    # Surface the carried extraction context (the sentence spans each entity
+    # token came from) as readable evidence, so the problem records what it
+    # actually saw rather than only an orphaned capitalized word. Tolerant of
+    # the new [{"branch","span"}] shape AND any old flat-string signals still in
+    # the DB; best-effort, never raises.
+    ctx_block = ""
+    try:
+        spans = []
+        for c in (payload.get("contexts") or []):
+            if isinstance(c, dict) and c.get("span"):
+                br = c.get("branch")
+                spans.append(f'  - [{br}] "{c["span"]}"' if br else f'  - "{c["span"]}"')
+            elif isinstance(c, str) and c.strip():
+                spans.append(f'  - "{c.strip()}"')
+        if spans:
+            ctx_block = "\n\nSeen in context:\n" + "\n".join(spans[:3])
+    except Exception:
+        ctx_block = ""
     return (
         f"Auto-opened from signal #{sig_id} (type: {signal_type}).\n\n"
-        f"Evidence:\n{pretty}\n\n"
+        f"Evidence:\n{pretty}{ctx_block}\n\n"
         f"This problem will accumulate observations as more sense events arrive."
     )
 
