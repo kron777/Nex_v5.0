@@ -103,14 +103,32 @@ class BeliefSynergizer:
                 self._log(belief_a["id"], belief_b["id"], None, None)
                 return None
 
+        # STRUCTURAL ATTRIBUTION GUARD (fix #1b): a synthesis of contested/
+        # attributed lineage must not silently flatten into bare settled fact.
+        # If either parent entered hedged/sourced (or already carries the
+        # marker), re-stamp the child's marker IN CODE and surface "per [source]"
+        # in its content — never by asking the model to keep it. Fire-path
+        # fail-safe: any error leaves the original text/no-tags behaviour intact.
+        _attr_tags = None
+        try:
+            from theory_x.stage3_world_model import attribution_marker as _am
+            _snip = _am.contested_snippet(belief_a) or _am.contested_snippet(belief_b)
+            if _snip:
+                text = _am.surface_in_content(text, _snip)
+                _attr_tags = _am.stamp_tags(None, _snip)
+        except Exception as _ae:
+            self._errors.record(f"attribution marker skipped: {_ae}",
+                                source=_LOG_SOURCE, level="DEBUG")
+            _attr_tags = None
+
         # PHASE 19 fix 2026-05-09: branch_id propagated from belief_b (the fresh belief
         # in primary anchor×fresh path; the second belief in cross-branch fallback).
         # Was: bug where T6 syntheses all attributed to systems regardless of input branches.
         result_id = self._writer.write(
             "INSERT INTO beliefs "
-            "(content, tier, confidence, created_at, source, branch_id, locked) "
-            "VALUES (?, 6, 0.65, ?, 'synergized', ?, 0)",
-            (text, time.time(), belief_b.get("branch_id")),
+            "(content, tier, confidence, created_at, source, branch_id, locked, tags) "
+            "VALUES (?, 6, 0.65, ?, 'synergized', ?, 0, ?)",
+            (text, time.time(), belief_b.get("branch_id"), _attr_tags),
         )
         self._log(belief_a["id"], belief_b["id"], text, result_id)
         self._errors.record(
@@ -158,7 +176,7 @@ class BeliefSynergizer:
         # Include locked seed beliefs (koans, keystones) — rich, philosophically
         # diverse candidates. Exclude low-quality URL stubs.
         rows = self._reader.read(
-            "SELECT id, content, branch_id, confidence, created_at, source "
+            "SELECT id, content, branch_id, confidence, created_at, source, tags "
             "FROM beliefs "
             "WHERE source NOT IN ('precipitated_from_dynamic') "
             "AND confidence > 0.5"
