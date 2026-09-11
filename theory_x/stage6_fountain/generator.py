@@ -82,6 +82,51 @@ def _per_source_cap(source: str) -> int:
     return _OWN_PER_SOURCE_OVERRIDES.get(source, _OWN_PER_SOURCE_MAX)
 
 
+def _weighted_branch_pick(sorted_branches, top_pick):
+    """ATTENTION fix (gate-check): winner-take-top branch crediting never lets a
+    lifted cold branch (history/language/psychology) surface, so it never enters
+    the credit+carry loop (momentum "(I was on X)", hot_observer "(branch: X)")
+    that seeds subsequent fires. Softmax-by-focus_num lets hot branches still
+    usually win while a lifted cold branch occasionally wins proportional to its
+    (starvation-bonus-lifted) focus_num.
+
+    Env-gated NEX5_BRANCH_TEMP (temperature, float):
+      unset / <= 0 / unparseable  -> return `top_pick` unchanged (old behaviour).
+      > 0                          -> softmax(focus_num / temp) roulette pick.
+    Low temp ~ near-deterministic (hot wins); higher temp ~ more uniform.
+    FAIL-SAFE: any error returns `top_pick` — a mis-weighted branch label must
+    never stall or distort a fire beyond falling back to the true hottest.
+    """
+    try:
+        temp = float(os.environ.get("NEX5_BRANCH_TEMP", "0") or "0")
+    except Exception:
+        temp = 0.0
+    if temp <= 0.0:
+        return top_pick
+    try:
+        import math as _m
+        import random as _rnd
+        cands = [(b.get("branch_id"), float(b.get("focus_num", 0) or 0.0))
+                 for b in sorted_branches]
+        cands = [(bid, f) for bid, f in cands if bid]
+        if not cands:
+            return top_pick
+        _mx = max(f for _, f in cands)  # subtract max for numerical stability
+        weights = [_m.exp((f - _mx) / temp) for _, f in cands]
+        _tot = sum(weights)
+        if _tot <= 0:
+            return top_pick
+        r = _rnd.random() * _tot
+        acc = 0.0
+        for (bid, _f), w in zip(cands, weights):
+            acc += w
+            if r <= acc:
+                return bid
+        return cands[-1][0]
+    except Exception:
+        return top_pick
+
+
 # Seed reference material — minority presence (~20%)
 _SEED_SOURCES = (
     "koan",
@@ -1476,6 +1521,10 @@ class FountainGenerator:
             sorted_b = sorted(branches, key=lambda b: b.get("focus_num", 0), reverse=True)
             if sorted_b:
                 hot_branch = sorted_b[0].get("branch_id")
+                # ATTENTION fix: weight the pick by focus_num (env NEX5_BRANCH_TEMP,
+                # default OFF -> exact top-pick) so a lifted cold branch can
+                # occasionally win the credit+carry loop. Fail-safe to top-pick.
+                hot_branch = _weighted_branch_pick(sorted_b, hot_branch)
 
         # teeth-test v2: ONE sample per REAL fire (fail-safe — never stalls a fire).
         # Compares this fire's branch to previous fire's branch for real movement signal.
