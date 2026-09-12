@@ -2161,6 +2161,82 @@ class FountainGenerator:
             pass
         return max_jaccard
 
+    def _associative_recall(self, n: int) -> list:
+        """R52 associative recall (NEX5_ASSOC_RECALL). Return up to `n` own-content
+        beliefs most RELEVANT to the current thread by content-token overlap,
+        computed at query time — the missing 'select by what is being thought
+        about' that every existing retrieval path lacks (all order by recency).
+
+        The thread = the PRIOR fire's focal item (`self._last_focal_item`): the
+        current fire's item is not chosen until AFTER retrieval (the pipeline
+        picks it from the retrieved seeds), so associating on the current item
+        would need a two-phase retrieval restructure. R52 measured revisits as a
+        6h burst (median gap 1.1h, 97.7% within 6h), so the prior subject is
+        almost always still the live thread — the clean available signal.
+
+        Dampers (R52, mandatory): dedicated slots (caller steals them from the
+        recency own-budget, never merges); overlap ranked at query time, never a
+        stored score; a 6h per-thread already-shown set so the burst doesn't
+        re-serve the same priors every fire. Pool is own content, tier<8 (so it
+        sees her own conclusions, unlike BeliefRetriever's tier-6-blind pool),
+        recency-ordered but wide (NEX5_ASSOC_POOL, default 1500 ~ weeks) so it
+        reaches PAST the immediate recency window.
+
+        FAIL-SAFE: returns [] on any error or when there is no thread yet — the
+        caller then falls back to pure recency/nearness. Never stalls a fire.
+        """
+        try:
+            query = getattr(self, "_last_focal_item", None)
+            if not query or self._beliefs_reader is None:
+                return []
+            from theory_x.stage6_fountain.crystallizer import _fidelity_tokens
+            q_set = set(_fidelity_tokens(query))
+            if not q_set:
+                return []
+            try:
+                pool_lim = int(os.environ.get("NEX5_ASSOC_POOL", "1500") or "1500")
+            except Exception:
+                pool_lim = 1500
+            own_placeholders = ",".join("?" * len(_OWN_CONTENT_SOURCES))
+            rows = self._beliefs_reader.read(
+                f"SELECT id, content, source, tier, confidence, created_at, branch_id, "
+                f"1.0 AS boost_value FROM beliefs "
+                f"WHERE source IN ({own_placeholders}) AND tier < 8 "
+                f"ORDER BY created_at DESC LIMIT ?",
+                (*_OWN_CONTENT_SOURCES, pool_lim),
+            )
+            if not rows:
+                return []
+            now = time.time()
+            shown = getattr(self, "_assoc_shown", None)
+            if shown is None:
+                shown = {}
+                self._assoc_shown = shown
+            # prune stale (>6h) entries for this thread — the burst dedup window
+            seen = {bid: ts for bid, ts in shown.get(query, {}).items()
+                    if now - ts < 21600}
+            scored = []
+            for r in rows:
+                bid = r["id"] if hasattr(r, "__getitem__") else getattr(r, "id", None)
+                if bid is None or bid in seen:
+                    continue
+                content = r["content"] if hasattr(r, "__getitem__") else getattr(r, "content", "")
+                body = set(_fidelity_tokens(content))
+                if not body:
+                    continue
+                ov = sum(1 for t in q_set if t in body)
+                if ov <= 0:
+                    continue
+                scored.append((ov / len(q_set), bid, r))
+            scored.sort(key=lambda x: x[0], reverse=True)
+            top = scored[:n]
+            for _s, bid, _r in top:
+                seen[bid] = now
+            shown[query] = seen
+            return [dict(r) for _s, _bid, r in top]
+        except Exception:
+            return []
+
     def _retrieve_context_beliefs(self, own_n: int = 7, seed_n: int = 2) -> list:  # noqa: E501
         """Retrieve beliefs for fountain context.
 
@@ -2189,6 +2265,28 @@ class FountainGenerator:
         if self._beliefs_reader is None:
             return []
         from theory_x.diversity.boost import BOOST_TIME_BONUS_SECONDS
+        # ASSOCIATIVE RECALL (env NEX5_ASSOC_RECALL, default OFF; fail-safe).
+        # Dedicated relevance slots stolen from the recency own-budget so the
+        # total context size is unchanged. See _associative_recall. Any error
+        # leaves the pure recency/nearness path below exactly as it was.
+        assoc_beliefs = []
+        try:
+            if os.environ.get("NEX5_ASSOC_RECALL") == "1" and own_n > 1:
+                try:
+                    _assoc_n = int(os.environ.get("NEX5_ASSOC_N", "3") or "3")
+                except Exception:
+                    _assoc_n = 3
+                _assoc_n = max(0, min(_assoc_n, own_n - 1))  # never starve recency
+                if _assoc_n > 0:
+                    assoc_beliefs = self._associative_recall(_assoc_n)
+        except Exception:
+            assoc_beliefs = []
+        if assoc_beliefs:
+            own_n = max(1, own_n - len(assoc_beliefs))
+        _assoc_ids = {
+            (_b["id"] if hasattr(_b, "__getitem__") else getattr(_b, "id", None))
+            for _b in assoc_beliefs
+        }
         own_placeholders = ",".join("?" * len(_OWN_CONTENT_SOURCES))
         seed_placeholders = ",".join("?" * len(_SEED_SOURCES))
         oversample_n = own_n * len(_OWN_CONTENT_SOURCES)
@@ -2212,6 +2310,9 @@ class FountainGenerator:
         _per_branch: dict[str, int] = {}
         _own_picked: list = []
         for _r in own_rows:
+            _rid0 = _r["id"] if hasattr(_r, "__getitem__") else getattr(_r, "id", None)
+            if _rid0 in _assoc_ids:  # already served as a dedicated assoc slot
+                continue
             _src = _r["source"] if hasattr(_r, "__getitem__") else getattr(_r, "source", "")
             if _per_src.get(_src, 0) >= _per_source_cap(_src):
                 continue
@@ -2398,6 +2499,7 @@ class FountainGenerator:
                     result.append(dict(_rnd_hot.choice(_hot_kept or _hot_rows)))
             except Exception:
                 pass  # fail-safe
+        result.extend(assoc_beliefs)  # dedicated associative-recall slots (R52)
         result.extend(_own_picked)
         result.extend(list(seed_rows))
         # Record use_count for provenance erosion + DriveEmergence detection
