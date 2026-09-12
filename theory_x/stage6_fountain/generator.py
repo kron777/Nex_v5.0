@@ -304,6 +304,84 @@ def _curiosity_score(toks, surprise_toks, unfinished_toks, building_toks,
     return float(drive_scale) * (1.0 * s + 1.0 * u + b_contrib)
 
 
+_STAKES_MIN_STRENGTH = 0.6   # a GENUINELY HELD drive, well above the 0.25 decay-delete floor
+
+
+def _stakes_pick(items):
+    """SITUATED STAKES (NEX5_STAKES_DEEP): let a genuinely-held emergent drive
+    PULL what she engages this fire — she pursues what pulls her, among the
+    items actually in front of her. Returns the chosen item, or None to defer to
+    the ordinary (curiosity/uniform) pick.
+
+    This is a felt pull in the concrete moment, not a global objective function:
+      * it acts ONLY on THIS fire's candidate `items` (situated, context-bound);
+      * the drive is ABDUCED from her own substrate (drive_emergence: she has
+        been returning to a topic across branches), not a rule about what matters;
+      * it fires only when a real drive is HELD (strength >= _STAKES_MIN_STRENGTH);
+      * it pulls only toward GENUINE CONTENT in the drive topic — register/frame
+        vocabulary and groove-flagged tokens are stripped first (the live drive
+        can converge on narration scaffold like 'item aligns'; pulling toward
+        that would chase her own voice, and amplifying a groove is the opposite
+        of a stake), so a junk/register drive correctly yields None;
+      * if no candidate resonates with the genuine drive content, it yields None.
+    FAIL-SAFE: any error returns None (defer to the ordinary pick).
+    """
+    try:
+        import sqlite3 as _s3
+        from theory_x.stage6_fountain.crystallizer import _fidelity_tokens
+        try:
+            from substrate.paths import db_paths as _dbp
+            _cdb = str(_dbp()["conversations"]); _bdb = str(_dbp()["beliefs"])
+        except Exception:
+            _base = "/home/rr/Desktop/Desktop/nex5/data"
+            _cdb = _base + "/conversations.db"; _bdb = _base + "/beliefs.db"
+        # 1) the held drive
+        topic = None; strength = 0.0
+        try:
+            ccon = _s3.connect(f"file:{_cdb}?mode=ro", uri=True, timeout=3)
+            row = ccon.execute(
+                "SELECT topic, drive_strength FROM drives WHERE id = 1"
+            ).fetchone()
+            ccon.close()
+            if row:
+                topic = row[0]; strength = float(row[1] or 0.0)
+        except Exception:
+            return None
+        if not topic or strength < _STAKES_MIN_STRENGTH:
+            return None
+        drive_toks = set(_fidelity_tokens(topic))
+        if not drive_toks:
+            return None
+        # 2) strip standing register (her own voice, not the drive's content)
+        try:
+            from theory_x.stage6_fountain.corpus_convergence import (
+                load_register_exclusion, max_df_star)
+            drive_toks -= set(load_register_exclusion().get("terms", []))
+        except Exception:
+            pass
+        # 3) strip groove-flagged tokens — a stake pulls toward content, never
+        #    amplifies a convergence the alarm is already watching
+        try:
+            cv = max_df_star(db_path=_bdb)
+            thr = cv.get("threshold", 0.25)
+            groove = {t for t, _c, f in cv.get("top", [])
+                      if t and f is not None and f >= thr - _CURIOSITY_GROOVE_MARGIN}
+            drive_toks -= groove
+        except Exception:
+            pass
+        if not drive_toks:
+            return None  # nothing genuine left to be pulled by
+        # 4) pull toward the candidate that most resonates with the drive content
+        best_item, best_ov = None, 0
+        for it in items:
+            ov = len(set(_fidelity_tokens(it or "")) & drive_toks)
+            if ov > best_ov:
+                best_ov, best_item = ov, it
+        return best_item if best_ov > 0 else None
+    except Exception:
+        return None
+
+
 def _curiosity_pick(items):
     """Soft weighted re-rank of the SAME candidate set; returns the chosen
     content string. Gathers the live signals (surprise, momentum's carried
@@ -454,7 +532,19 @@ def _select_wide_mode(seeds, drift_fallback_prob=0.30):
     # Only EXPLAIN/ARGUE: they anchor to ONE concrete item and can't drift.
     # CONNECT/APPLY invited her to reach for abstractions -> she pulled koans
     # (belief store is ~80% philosophy/self), so they're dropped.
-    if os.environ.get("NEX5_CURIOSITY") == "1":
+    # SITUATED STAKES (NEX5_STAKES_DEEP, default OFF): a genuinely-held drive
+    # pulls FIRST — she pursues what pulls her when a candidate resonates with
+    # it. Yields (None) to curiosity/uniform when no drive is held, the drive is
+    # register/groove junk, or nothing in front of her resonates. Fail-safe.
+    _staked = None
+    if os.environ.get("NEX5_STAKES_DEEP") == "1":
+        try:
+            _staked = _stakes_pick(items)
+        except Exception:
+            _staked = None
+    if _staked is not None:
+        item = _staked[:200]
+    elif os.environ.get("NEX5_CURIOSITY") == "1":
         item = _curiosity_pick(items)[:200]
     else:
         _rnd.shuffle(items)
