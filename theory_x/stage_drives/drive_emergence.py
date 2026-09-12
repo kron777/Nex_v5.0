@@ -24,6 +24,7 @@ from source beliefs. No LLM call.
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 import threading
@@ -53,6 +54,7 @@ _MIN_DRIVE_STRENGTH  = 0.25   # delete drive below this after decay
 # Clustering
 _CLUSTER_SIMILARITY = 0.70    # cosine threshold for centroid-based grouping
 _CANDIDATE_LIMIT    = 200     # cap on beliefs pulled per tick
+_DRIVE_DF_LIMIT     = 2000    # own-voice docs for the content-topic IDF (NEX5_DRIVE_CONTENT)
 
 # Weights
 _W_REP  = 0.6
@@ -152,6 +154,45 @@ def _synthesize_topic(cluster: list[dict]) -> str:
     return (best.get("content") or "")[:80]
 
 
+def _synthesize_topic_content(cluster: list[dict], corpus_df: Counter,
+                             n_docs: int) -> str:
+    """Content-aware topic synthesis (NEX5_DRIVE_CONTENT). Same confidence-
+    weighted term frequency as _synthesize_topic, but each token is weighted by
+    its INVERSE document frequency over her own generated voice, so standing
+    register vocabulary self-demotes:
+
+        score(tok) = conf_weighted_tf(tok, cluster) * idf(tok)
+        idf(tok)   = log((N+1) / (1 + corpus_df[tok])) + 1
+
+    A word she uses across all her output ('item', 'aligns', 'understanding')
+    has high corpus DF -> low idf -> demoted; a word specific to what THIS
+    cluster is about (low corpus DF but present here) rises. The signal is
+    computed LIVE from her corpus every tick, so it self-recalibrates as her
+    voice drifts -- no hand-maintained stopword/register list to go stale.
+
+    Falls back to plain _synthesize_topic when the DF corpus is too thin to be
+    meaningful (never worse than today)."""
+    if not corpus_df or n_docs < 50:
+        return _synthesize_topic(cluster)
+    import math as _math
+    tf: Counter = Counter()
+    for b in cluster:
+        conf = float(b.get("confidence") or 0.5)
+        for tok in _tokens(b.get("content") or ""):
+            tf[tok] += conf
+    if not tf:
+        return _synthesize_topic(cluster)
+    scored = {
+        tok: w * (_math.log((n_docs + 1) / (1 + corpus_df.get(tok, 0))) + 1.0)
+        for tok, w in tf.items()
+    }
+    top_words = [w for w, _ in Counter(scored).most_common(5)]
+    if len(top_words) >= 2:
+        return " ".join(top_words)[:80]
+    best = max(cluster, key=lambda b: float(b.get("confidence") or 0.0))
+    return (best.get("content") or "")[:80]
+
+
 class DriveEmergence:
     """Substrate-resident emergent drive detector. Daemon thread drives 600s tick.
 
@@ -225,6 +266,33 @@ class DriveEmergence:
                 )
             time.sleep(self._interval)
 
+    def _own_voice_df(self):
+        """DF over her own generated voice (fountain_insight + synergized) for the
+        content-topic IDF. Returns (Counter, n_docs), or (None, 0) on any error /
+        thin corpus so the caller falls back to plain frequency synthesis. This is
+        where her standing register concentrates ('item'/'aligns' scaffold), so
+        it is the right basis to demote it from. NEX5_DRIVE_CONTENT only."""
+        try:
+            rows = self._br.read(
+                "SELECT content FROM beliefs "
+                "WHERE source IN ('fountain_insight','synergized') "
+                "AND content IS NOT NULL "
+                "ORDER BY created_at DESC LIMIT ?",
+                (_DRIVE_DF_LIMIT,),
+            )
+            if not rows:
+                return None, 0
+            df: Counter = Counter()
+            n = 0
+            for r in rows:
+                n += 1
+                content = r["content"] if hasattr(r, "__getitem__") else getattr(r, "content", "")
+                for tok in set(_tokens(content or "")):
+                    df[tok] += 1
+            return (df, n) if n >= 50 else (None, 0)
+        except Exception:
+            return None, 0
+
     def _background_tick(self) -> None:
         now = time.time()
 
@@ -255,6 +323,25 @@ class DriveEmergence:
             if existing:
                 self._persist_decay(existing, now)
             return
+
+        # CONTENT-TOPIC synthesis (NEX5_DRIVE_CONTENT, default OFF): compute the
+        # own-voice DF once per tick and dispatch every topic through the IDF-
+        # weighted synthesis so register vocabulary self-demotes. Fail-safe: any
+        # error / thin corpus -> plain frequency synthesis (current behaviour).
+        _cdf, _cn = (None, 0)
+        if os.environ.get("NEX5_DRIVE_CONTENT") == "1":
+            try:
+                _cdf, _cn = self._own_voice_df()
+            except Exception:
+                _cdf, _cn = (None, 0)
+
+        def _topic(_cl):
+            if _cdf is not None:
+                try:
+                    return _synthesize_topic_content(_cl, _cdf, _cn)
+                except Exception:
+                    return _synthesize_topic(_cl)
+            return _synthesize_topic(_cl)
 
         # 3. Embed candidates
         try:
@@ -289,7 +376,7 @@ class DriveEmergence:
             rep_score  = _repetition_score(cluster, now)
             conv_score = _convergence_score(cluster)
             _obs_all_scored.append({
-                "theme_label":       _synthesize_topic(cluster)[:40],
+                "theme_label":       _topic(cluster)[:40],
                 "member_count":      len(cluster),
                 "repetition_score":  round(rep_score, 4),
                 "convergence_score": round(conv_score, 4),
@@ -352,7 +439,7 @@ class DriveEmergence:
 
         # 6. Replace, reinforce, or persist decayed state
         if best is not None and best["drive_strength"] >= _MIN_DRIVE_STRENGTH:
-            topic         = _synthesize_topic(best["cluster"])
+            topic         = _topic(best["cluster"])
             source_ids    = [b["id"] for b in best["cluster"]]
             formed_at     = existing["formed_at"] if existing else now
             reinforce_cnt = (int(existing["reinforce_count"]) + 1) if existing else 1
