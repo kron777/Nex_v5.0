@@ -145,11 +145,26 @@ _PERSONA_SYSTEM = (
 )
 
 
-def _ask_persona(thoughts: list[str], timeout: int = 30) -> str | None:
-    """Call the model AS the separate interlocutor, responding to NEX's thoughts."""
+def _ask_persona(thoughts: list[str], timeout: int = 30,
+                 state: "dict | None" = None) -> str | None:
+    """Call the model AS the separate interlocutor, responding to NEX's thoughts.
+
+    When `state` is given (NEX5_SOCIAL_DEPTH), the persona is told who it has
+    been — its carried focus and mood — so it continues a CONSISTENT thread and
+    evolves it, instead of resetting to random small-talk each turn."""
     if not thoughts:
         return None
     recent = "\n".join(f"  - {t[:240]}" for t in thoughts)
+    _continuity = ""
+    if state and (state.get("turn_count") or 0) > 0:
+        _f = (state.get("focus") or "").strip()
+        _continuity = (
+            "\n\nContinuity — you are the SAME mind as in prior turns, not a new "
+            "one. You have been preoccupied with '" + (_f or "your own thread") +
+            "' and your mood is " + _mood_word(float(state.get("mood", 0.0))) +
+            ". Stay that consistent other: carry your own thread forward and let "
+            "it evolve — do not reset to a random new subject each time."
+        )
     # Session 34 (A2): matches the rewritten _PERSONA_SYSTEM above — the old
     # version told the model to "reflect back" and "stay with the feeling
     # of it" in the SAME call as a system prompt now saying the opposite;
@@ -162,7 +177,7 @@ def _ask_persona(thoughts: list[str], timeout: int = 30) -> str | None:
         "or disagree. Do NOT reflect its words back, do NOT match its tone "
         "or vocabulary, do NOT say you're sitting with its feeling. One or "
         "two short sentences, genuinely curious about something outside "
-        "what it just said."
+        "what it just said." + _continuity
     )
     body = {
         "model": VOICE_MODEL,
@@ -285,15 +300,120 @@ def _write_other_mind(text: str) -> bool:
         conn.close()
 
 
+# ---------------------------------------------------------------------------
+# SOCIAL DEPTH (NEX5_SOCIAL_DEPTH): a small persisted model of the interlocutor
+# so the "other" is a CONSISTENT, EVOLVING mind across turns — a focus it keeps
+# and develops, and a mood that walks — rather than a fresh stateless small-talk
+# reply each tick. The model is a GENERIC other, abduced purely from the
+# persona's OWN prior outputs (focus = the content word its last reply settled
+# on) — it reads NO personal data (no Jon chats, no genius labels, no beliefs),
+# only its own state row + NEX's public fountain thoughts (already the input).
+# Single-row table interlocutor_state.id=1 in conversations.db. Default OFF.
+# ---------------------------------------------------------------------------
+
+def _ensure_interlocutor_table(conn) -> None:
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS interlocutor_state ("
+        "id INTEGER PRIMARY KEY, focus TEXT, mood REAL, "
+        "turn_count INTEGER, updated_at REAL)"
+    )
+
+
+def _load_interlocutor_state() -> dict:
+    """Current model of the other, or a neutral init. Fail-safe -> neutral."""
+    try:
+        conn = sqlite3.connect(_db("conversations"), timeout=10)
+        try:
+            _ensure_interlocutor_table(conn)
+            row = conn.execute(
+                "SELECT focus, mood, turn_count FROM interlocutor_state WHERE id=1"
+            ).fetchone()
+        finally:
+            conn.close()
+        if not row:
+            return {"focus": "", "mood": 0.0, "turn_count": 0}
+        return {"focus": row[0] or "", "mood": float(row[1] or 0.0),
+                "turn_count": int(row[2] or 0)}
+    except Exception:
+        return {"focus": "", "mood": 0.0, "turn_count": 0}
+
+
+# discourse fillers that survive the stopword+length filter but are not a topic
+_FOCUS_FILLERS = frozenset({
+    "actually", "really", "maybe", "perhaps", "something", "anything",
+    "things", "think", "thing", "lately", "quite", "rather", "always",
+    "never", "about", "would", "could", "should", "there", "their",
+})
+
+
+def _focus_from_reply(reply: str, prev_focus: str) -> str:
+    """The other's current interest, abduced from its OWN reply. CARRIES the
+    prior focus if the new reply still touches it (consistency); otherwise
+    DRIFTS to the reply's dominant content word (evolution). Its own output
+    only — no external/personal source."""
+    toks = [t for t in _normalize_tokens(reply or "")
+            if len(t) >= 4 and t not in _STOPWORDS and t not in _FOCUS_FILLERS]
+    if not toks:
+        return prev_focus
+    if prev_focus and prev_focus in toks:
+        return prev_focus                      # stayed on its thread -> carry
+    from collections import Counter
+    counts = Counter(toks)
+    # most frequent; ties broken toward the longer (more content-bearing) word
+    return max(toks, key=lambda t: (counts[t], len(t)))
+
+
+def _mood_word(mood: float) -> str:
+    if mood > 0.3:
+        return "buoyant"
+    if mood < -0.3:
+        return "subdued"
+    return "even"
+
+
+def _evolve_interlocutor_state(prev: dict, reply: str) -> dict:
+    """Advance the model one turn from the other's own reply. focus drifts/
+    carries; mood does a bounded, mean-reverting walk (a curious question lifts
+    it slightly, otherwise it decays toward even) so it develops without
+    runaway. Persists to interlocutor_state. Fail-safe: returns prev on error."""
+    try:
+        focus = _focus_from_reply(reply, prev.get("focus", ""))
+        nudge = 0.1 if "?" in (reply or "") else -0.02
+        mood = max(-1.0, min(1.0, 0.85 * float(prev.get("mood", 0.0)) + nudge))
+        turn = int(prev.get("turn_count", 0)) + 1
+        conn = sqlite3.connect(_db("conversations"), timeout=10)
+        try:
+            _ensure_interlocutor_table(conn)
+            conn.execute(
+                "INSERT OR REPLACE INTO interlocutor_state "
+                "(id, focus, mood, turn_count, updated_at) VALUES (1, ?, ?, ?, ?)",
+                (focus, mood, turn, time.time()),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return {"focus": focus, "mood": mood, "turn_count": turn}
+    except Exception as e:
+        logger.warning("interlocutor_state evolve failed: %s", e)
+        return prev
+
+
 def one_exchange() -> dict:
     """One turn of the OTHER's side: read NEX's recent thoughts, respond,
     check for an echo, write (or discard). No retry on discard — a
     rejected reply just waits for the next tick; regeneration loops are
-    their own tar pit."""
+    their own tar pit.
+
+    NEX5_SOCIAL_DEPTH: the persona carries a persisted model of itself across
+    turns (focus + mood), so it is a consistent evolving other rather than
+    stateless small-talk. Fail-safe: any error -> the stateless path.
+    """
+    _depth = os.environ.get("NEX5_SOCIAL_DEPTH") == "1"
+    _state = _load_interlocutor_state() if _depth else None
     thoughts = _recent_thoughts()
     if not thoughts:
         return {"error": "no_recent_thoughts"}
-    reply = _ask_persona(thoughts)
+    reply = _ask_persona(thoughts, state=_state)
     if not reply:
         return {"error": "persona_unavailable"}
 
@@ -311,6 +431,11 @@ def one_exchange() -> dict:
         }
 
     ok = _write_other_mind(reply)
+    # NEX5_SOCIAL_DEPTH: advance the interlocutor model from its own reply, so
+    # next turn continues a consistent, evolving thread. Only on a real (non-
+    # discarded) reply; fail-safe (never blocks the loop).
+    if ok and _depth and _state is not None:
+        _evolve_interlocutor_state(_state, reply)
     return {"responded_to": thoughts[0][:60], "persona_said": reply, "written": ok}
 
 
