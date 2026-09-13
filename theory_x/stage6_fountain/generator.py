@@ -280,7 +280,7 @@ _CURIOSITY_GROOVE_MARGIN = 0.05   # a token within this of the maxDF* threshold 
 
 
 def _curiosity_score(toks, surprise_toks, unfinished_toks, building_toks,
-                     groove_toks, drive_scale):
+                     groove_toks, drive_scale, valence_reach: float = 1.0):
     """Pure scorer (testable in isolation) — higher = more worth dwelling on.
 
     surprise + unfinished-thread always add. The building-thread term is exactly
@@ -289,6 +289,12 @@ def _curiosity_score(toks, surprise_toks, unfinished_toks, building_toks,
     groove cooldown), its building boost is not merely zeroed but mildly
     INVERTED — curiosity backs off a thread the moment it starts to groove,
     never piles onto it. Reorders only; it never removes a candidate.
+
+    VALENCE (NEX5_VALENCE_DRIVE): valence_reach scales ONLY the surprise/novelty
+    term — up mood reaches for the new, flat/down mood favours the steady
+    (unfinished/building) thread. It never introduces an affective-content
+    channel (no 'negative mood -> negative content'), so it cannot spiral; it is
+    a bounded factor computed by _valence_reach (default 1.0 == today).
     """
     # _fidelity_tokens returns a list — coerce so set-ops are robust to callers.
     toks = set(toks); surprise_toks = set(surprise_toks)
@@ -301,7 +307,51 @@ def _curiosity_score(toks, surprise_toks, unfinished_toks, building_toks,
         b_contrib = -0.5 * b          # GROOVE-GUARD: back off, do not amplify
     else:
         b_contrib = 1.0 * b
-    return float(drive_scale) * (1.0 * s + 1.0 * u + b_contrib)
+    try:
+        vr = float(valence_reach)
+    except Exception:
+        vr = 1.0
+    return float(drive_scale) * (vr * s + 1.0 * u + b_contrib)
+
+
+# --- valence-as-driver (NEX5_VALENCE_DRIVE) --------------------------------
+_VALENCE_GAIN      = 0.5   # how hard mood tilts the novelty term
+_VALENCE_CAP       = 0.4   # bound: reach stays in [1-CAP, 1+CAP] = [0.6, 1.4]
+_VALENCE_NEG_FLOOR = -0.7  # anti-rut: below this (strong negative) mood stops biasing
+
+
+def _valence_reach():
+    """Bounded novelty-reach multiplier from her live mood (affect_state).
+    reach = 1 + GAIN*valence*arousal, clamped to [1-CAP, 1+CAP]. Positive+aroused
+    mood -> reach>1 (reach for the new); flat/mild-down -> reach<1 (favour the
+    steady thread). ANTI-RUT: a STRONGLY negative mood (valence <= NEG_FLOOR)
+    returns EXACTLY 1.0 — mood stops steering in the spiral zone, so a bad mood
+    can never runaway-amplify its own selection; valence then recovers via the
+    affect decay. There is no affective-content channel here at all, so even
+    outside that zone it cannot pick 'negative' material. FAIL-SAFE: 1.0 on any
+    error (no bias, current behaviour)."""
+    try:
+        import sqlite3 as _s3
+        try:
+            from substrate.paths import db_paths as _dbp
+            _cdb = str(_dbp()["conversations"])
+        except Exception:
+            _cdb = "/home/rr/Desktop/Desktop/nex5/data/conversations.db"
+        con = _s3.connect(f"file:{_cdb}?mode=ro", uri=True, timeout=3)
+        row = con.execute(
+            "SELECT valence, arousal FROM affect_state WHERE id = 1"
+        ).fetchone()
+        con.close()
+        if not row:
+            return 1.0
+        valence = max(-1.0, min(1.0, float(row[0] or 0.0)))
+        arousal = max(0.0, min(1.0, float(row[1] or 0.0)))
+        if valence <= _VALENCE_NEG_FLOOR:      # anti-rut: no steering when spiralling
+            return 1.0
+        reach = 1.0 + _VALENCE_GAIN * valence * arousal
+        return max(1.0 - _VALENCE_CAP, min(1.0 + _VALENCE_CAP, reach))
+    except Exception:
+        return 1.0
 
 
 _STAKES_MIN_STRENGTH = 0.6   # a GENUINELY HELD drive, well above the 0.25 decay-delete floor
@@ -469,11 +519,22 @@ def _curiosity_pick(items):
         except Exception:
             drive_scale = 1.0
 
+        # VALENCE-as-driver (NEX5_VALENCE_DRIVE, default OFF): mood tilts the
+        # novelty term within THIS pick — modulates, never overrides (stakes-pick
+        # already ran ahead of us). 1.0 == today. Bounded + anti-rut in helper.
+        _vr = 1.0
+        try:
+            if os.environ.get("NEX5_VALENCE_DRIVE") == "1":
+                _vr = _valence_reach()
+        except Exception:
+            _vr = 1.0
+
         best_item, best_score = None, None
         for it in items:
             toks = set(_fidelity_tokens(it or ""))
             score = _curiosity_score(toks, surprise_toks, unfinished_toks,
-                                     building_toks, groove_toks, drive_scale)
+                                     building_toks, groove_toks, drive_scale,
+                                     valence_reach=_vr)
             score += _r.random() * 0.15    # jitter — still cast wide; signal wins when present
             if best_score is None or score > best_score:
                 best_score, best_item = score, it
