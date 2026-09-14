@@ -1508,9 +1508,26 @@ def create_app(state: AppState) -> Flask:
             _chat_mem = _chat_memory_active(session)
             _convo_block = _recent_dialogue(state.readers, session_id, prompt) if _chat_mem else ""
 
+            # COMPASSION (NEX5_COMPASSION, admin-scoped, karuna/B-person): read the
+            # person's distress from their own words and, when compassion is high,
+            # ride a care/non-harm STANCE beside the operator block. Prompt-only
+            # (guard 2). Fail-safe: any error -> "" -> no modulation. Admin-gated,
+            # so non-admin/public chat is untouched.
+            _compassion_block = ""
+            try:
+                if os.environ.get("NEX5_COMPASSION") == "1" and bool(session.get("admin")):
+                    from theory_x.stage_affect.compassion import update_and_level, format_stance
+                    _compassion_block = format_stance(update_and_level(prompt))
+            except Exception as _comp_exc:
+                error_channel.record(
+                    f"compassion skipped: {_comp_exc}", source="gui.server", exc=_comp_exc,
+                )
+                _compassion_block = ""
+
             if belief_text:
                 voice_prompt = (
                     f"{_operator_block}"
+                    f"{_compassion_block}"
                     f"{_convo_block}"
                     f"{_spectrum_block}"
                     f"{_tag_block}"
@@ -1523,8 +1540,8 @@ def create_app(state: AppState) -> Flask:
                 )
             else:
                 voice_prompt = (
-                    f"{_operator_block}{_convo_block}{_spectrum_block}{_tag_block}{prompt}"
-                    if (_operator_block or _convo_block or _spectrum_block or _tag_block) else prompt
+                    f"{_operator_block}{_compassion_block}{_convo_block}{_spectrum_block}{_tag_block}{prompt}"
+                    if (_operator_block or _compassion_block or _convo_block or _spectrum_block or _tag_block) else prompt
                 )
 
         if text is None:
