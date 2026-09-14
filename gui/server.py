@@ -1353,8 +1353,27 @@ def create_app(state: AppState) -> Flask:
                 )
                 _tag_block = ""
 
+            # OPERATOR MODEL (NEX5_OPERATOR_MODEL, default OFF): when the person
+            # in this session is Jon (admin), prepend her held read of her
+            # architect so it colours HOW SHE MEETS HIM — stance/tone only.
+            # Additive (no change to retrieval/routing -> guard 1). Only ever the
+            # Jon-facing reply, never a published path -> guard 2. Fail-safe: any
+            # error, or non-admin, or flag off -> exact current prompt.
+            _operator_block = ""
+            try:
+                if (os.environ.get("NEX5_OPERATOR_MODEL") == "1"
+                        and bool(session.get("admin"))):
+                    from theory_x.stage_tom.operator_model import format_for_meeting
+                    _operator_block = format_for_meeting()
+            except Exception as _op_exc:
+                error_channel.record(
+                    f"operator_model skipped: {_op_exc}", source="gui.server", exc=_op_exc,
+                )
+                _operator_block = ""
+
             if belief_text:
                 voice_prompt = (
+                    f"{_operator_block}"
                     f"{_spectrum_block}"
                     f"{_tag_block}"
                     f"Your interior right now:\n\n"
@@ -1366,8 +1385,8 @@ def create_app(state: AppState) -> Flask:
                 )
             else:
                 voice_prompt = (
-                    f"{_spectrum_block}{_tag_block}{prompt}"
-                    if (_spectrum_block or _tag_block) else prompt
+                    f"{_operator_block}{_spectrum_block}{_tag_block}{prompt}"
+                    if (_operator_block or _spectrum_block or _tag_block) else prompt
                 )
 
         if text is None:
