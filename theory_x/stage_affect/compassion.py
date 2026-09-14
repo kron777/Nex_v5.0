@@ -36,11 +36,18 @@ _SALIENCE_SCALE = 2.5    # map (distress - neutral) contrast into 0..1
 # Seed anchors for the SEMANTIC read — a few ways suffering/need actually sound,
 # not a keyword list. Embedding proximity generalises past these to paraphrase.
 _DISTRESS_ANCHORS = (
+    # acute
     "I am struggling and in pain and I don't know what to do",
     "I feel hopeless and overwhelmed, everything is too much",
     "I am exhausted and I can't keep going like this",
     "I'm scared and I really need help right now",
     "I'm grieving and it hurts more than I can bear",
+    # mild / quiet difficulty — stuck, tired, discouraged, quietly asking
+    "I'm a bit stuck on this and not sure how to move forward",
+    "this is frustrating and I'm tired of fighting with it",
+    "I could use some help, I've been at this a while",
+    "I'm discouraged, it feels like it's not coming together",
+    "this is harder than I expected and it's wearing me down",
 )
 _NEUTRAL_ANCHORS = (
     "here is an update on the project and the next steps",
