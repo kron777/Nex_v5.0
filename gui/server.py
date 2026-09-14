@@ -174,6 +174,25 @@ def _is_instruction_query(text: str) -> bool:
     if re.search(r'\d\s*[\+\-\*/\u00d7\u00f7]\s*\d', t) or re.match(r'^what is \d', t):
         return True
     return False
+
+
+def _use_operator_composition(session) -> bool:
+    """Route Jon's (admin) chats through the LLM voice COMPOSITION path instead
+    of RAG/query_reply, but ONLY when the operator model is armed \u2014 so her held
+    read of him actually colours the reply (it lives in the composition prompt).
+
+    RAG returns a stored belief verbatim and short-circuits before composition;
+    for admin+flag we skip it so the reply is composed (operator-coloured) from
+    her interior. Scoped to admin + NEX5_OPERATOR_MODEL only: non-admin/public
+    chat and the flag-off case are untouched (RAG-first exactly as before).
+    Fail-safe: any error -> False -> current RAG-first path."""
+    try:
+        return (os.environ.get("NEX5_OPERATOR_MODEL") == "1"
+                and bool(session.get("admin")))
+    except Exception:
+        return False
+
+
 _GM_LOG          = "/tmp/nex5_goal_manager.log"
 _MCOG_LOG        = "/tmp/nex5_metacognition.log"
 _NASSOC_LOG      = "/tmp/nex5_novel_association.log"
@@ -1295,8 +1314,13 @@ def create_app(state: AppState) -> Flask:
 
         # Phase 30 — VoiceEngine substrate path (use_substrate mode only).
         # Probe calls always bypass to LLM.
+        # OPERATOR MODEL: when Jon (admin) chats with the flag armed, skip RAG so
+        # the reply is COMPOSED (carrying his held read) rather than returned as a
+        # stored belief verbatim — otherwise the operator model never fires for
+        # the one person it's for. Scoped to admin+flag; all other chat unchanged.
         if (not is_probe
                 and not _is_instruction_query(prompt)
+                and not _use_operator_composition(session)
                 and state.voice_engine is not None
                 and state.voice_mode == "use_substrate"):
             try:
