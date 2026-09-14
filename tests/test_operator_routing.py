@@ -44,11 +44,13 @@ class TestOperatorRouting(unittest.TestCase):
         os.environ["NEX5_OPERATOR_MODEL"] = "1"
         self.assertFalse(s._use_operator_composition(None))        # .get raises -> False
 
-    def test_rag_condition_references_the_gate(self):
-        # the fix must actually be wired into the chat handler's RAG branch
+    def test_hybrid_wiring_present(self):
+        # the gate must drive HYBRID routing: RAG hit -> grounding fed to compose
         import inspect
-        src = inspect.getsource(s.build_app) if hasattr(s, "build_app") else inspect.getsource(s)
-        self.assertIn("_use_operator_composition(session)", src)
+        src = inspect.getsource(s)
+        self.assertIn("_op_comp = _use_operator_composition(session)", src)
+        self.assertIn("_rag_grounding = _ve_result[\"content\"]", src)
+        self.assertIn("_rag_grounding", src)
 
 
 if __name__ == "__main__":

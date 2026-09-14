@@ -177,15 +177,13 @@ def _is_instruction_query(text: str) -> bool:
 
 
 def _use_operator_composition(session) -> bool:
-    """Route Jon's (admin) chats through the LLM voice COMPOSITION path instead
-    of RAG/query_reply, but ONLY when the operator model is armed \u2014 so her held
-    read of him actually colours the reply (it lives in the composition prompt).
-
-    RAG returns a stored belief verbatim and short-circuits before composition;
-    for admin+flag we skip it so the reply is composed (operator-coloured) from
-    her interior. Scoped to admin + NEX5_OPERATOR_MODEL only: non-admin/public
-    chat and the flag-off case are untouched (RAG-first exactly as before).
-    Fail-safe: any error -> False -> current RAG-first path."""
+    """True when Jon (admin) is chatting AND the operator model is armed. In that
+    case the chat uses HYBRID routing: RAG still runs, but a hit is fed into the
+    composition prompt as grounding rather than returned verbatim, and the reply
+    is composed (operator-coloured) from it \u2014 grounding AND stance together. On a
+    RAG miss it composes from her interior. Scoped to admin + NEX5_OPERATOR_MODEL:
+    non-admin/public chat and the flag-off case are untouched (RAG-first verbatim
+    exactly as before). Fail-safe: any error -> False -> current RAG-first path."""
     try:
         return (os.environ.get("NEX5_OPERATOR_MODEL") == "1"
                 and bool(session.get("admin")))
@@ -1312,15 +1310,19 @@ def create_app(state: AppState) -> Flask:
         text = None
         voice_ok = False
 
+        # OPERATOR MODEL — HYBRID routing. When Jon (admin) chats with the flag
+        # armed, we still run RAG, but a hit is NOT returned verbatim: it is fed
+        # into the composition prompt as grounding, then the reply is COMPOSED
+        # (operator-coloured) FROM it — so he gets both RAG's grounding AND the
+        # operator stance. On a RAG miss, compose from her interior as before.
+        # Non-admin / flag-off: RAG-first-verbatim, exactly unchanged.
+        _op_comp = _use_operator_composition(session)
+        _rag_grounding = None
+
         # Phase 30 — VoiceEngine substrate path (use_substrate mode only).
         # Probe calls always bypass to LLM.
-        # OPERATOR MODEL: when Jon (admin) chats with the flag armed, skip RAG so
-        # the reply is COMPOSED (carrying his held read) rather than returned as a
-        # stored belief verbatim — otherwise the operator model never fires for
-        # the one person it's for. Scoped to admin+flag; all other chat unchanged.
         if (not is_probe
                 and not _is_instruction_query(prompt)
-                and not _use_operator_composition(session)
                 and state.voice_engine is not None
                 and state.voice_mode == "use_substrate"):
             try:
@@ -1341,15 +1343,31 @@ def create_app(state: AppState) -> Flask:
                     turn_n=_turn_n,
                 )
                 if _ve_result is not None:
-                    text = _ve_result["content"]
-                    voice_ok = True
+                    if _op_comp:
+                        # HYBRID: keep the sharp hit as grounding for the compose
+                        # step below; do NOT short-circuit to verbatim.
+                        _rag_grounding = _ve_result["content"]
+                    else:
+                        text = _ve_result["content"]   # non-admin: verbatim, unchanged
+                        voice_ok = True
             except Exception as _ve_exc:
                 error_channel.record(
                     f"voice_engine.query_reply failed: {_ve_exc}",
                     source="gui.server", exc=_ve_exc,
                 )
+                _rag_grounding = None   # fail-safe -> compose from interior only
 
         if text is None:
+            # HYBRID grounding: prepend the RAG hit (her sharpest stored answer)
+            # to the interior so the composed reply is grounded in it. Admin+flag
+            # only (that is the only path that sets _rag_grounding). Her own
+            # belief — carries no operator content; guard 2 unaffected.
+            if _rag_grounding:
+                belief_text = (
+                    "Your sharpest stored answer to what was just asked — ground "
+                    "your reply in this, do not drift from it:\n"
+                    + _rag_grounding + "\n\n" + (belief_text or "")
+                )
             # Route through voice — fountain-style interior prompt.
             # Tag feedback block (5b): inject Jon's tags on her fountain outputs.
             # No-op unless NEX_TAG_FEEDBACK_ON=1. Always-in-prompt summary +
