@@ -191,6 +191,94 @@ def _use_operator_composition(session) -> bool:
         return False
 
 
+def _chat_memory_active(session) -> bool:
+    """Conversation memory + anti-repeat for admin chat (NEX5_CHAT_MEMORY + admin).
+    Admin-scoped: non-admin/public chat is never touched. Fail-safe -> False."""
+    try:
+        return os.environ.get("NEX5_CHAT_MEMORY") == "1" and bool(session.get("admin"))
+    except Exception:
+        return False
+
+
+def _recent_dialogue(readers, session_id, current_prompt="", limit=3):
+    """Compact block of the last `limit` user+nex turns for this session (oldest
+    first) so the reply can track the conversation instead of composing each turn
+    in isolation. Excludes the just-inserted current user message. Read-only;
+    returns "" on error / no history."""
+    try:
+        if session_id is None or readers is None:
+            return ""
+        rows = readers["conversations"].read(
+            "SELECT role, content FROM messages WHERE session_id=? "
+            "AND role IN ('user','nex') ORDER BY id DESC LIMIT ?",
+            (session_id, limit * 2 + 1),
+        )
+        if not rows:
+            return ""
+        turns = list(reversed([dict(r) for r in rows]))
+        # drop the trailing current user turn (already shown as "just said")
+        if turns and turns[-1].get("role") == "user" \
+                and (turns[-1].get("content") or "").strip() == (current_prompt or "").strip():
+            turns = turns[:-1]
+        turns = turns[-(limit * 2):]
+        if not turns:
+            return ""
+        lines = []
+        for t in turns:
+            who = "Jon" if t.get("role") == "user" else "You"
+            lines.append(f"  {who}: {(t.get('content') or '').strip()[:240]}")
+        return ("The conversation so far (most recent last) — track it, build on it, "
+                "do not restart from scratch:\n" + "\n".join(lines) + "\n\n")
+    except Exception:
+        return ""
+
+
+def _reply_first_sentence(s: str) -> str:
+    s = (s or "").strip().lower()
+    for sep in (".", "!", "?", "\n"):
+        i = s.find(sep)
+        if 0 < i < 120:
+            return s[:i]
+    return s[:80]
+
+
+def _reply_prefix_words(s: str, n: int = 7) -> str:
+    """First n content-bearing words, lowercased — catches a shared OPENING even
+    when the sentence runs on differently after it (the '10x same opening' case)."""
+    words = re.sub(r"[^\w\s]", " ", (s or "").lower()).split()
+    return " ".join(words[:n])
+
+
+def _is_repeat_reply(text: str, prior_replies) -> bool:
+    """True when `text` opens like, or heavily overlaps, one of her recent replies
+    — the same-opening / same-paragraph groove the admin chat showed. Catches:
+    (1) an identical leading word-prefix (the real '10x same opening' failure,
+    where the sentence continues differently), (2) an identical first sentence,
+    or (3) word-set Jaccard >= 0.6 (paragraph reuse). Fail-safe -> False."""
+    try:
+        if not text or not prior_replies:
+            return False
+        def toks(s):
+            return set(w for w in re.sub(r"[^\w\s]", " ", (s or "").lower()).split()
+                       if len(w) > 2)
+        t_pref = _reply_prefix_words(text)
+        t_first = _reply_first_sentence(text)
+        t_tok = toks(text)
+        for pr in prior_replies:
+            if not pr:
+                continue
+            if t_pref and len(t_pref.split()) >= 4 and t_pref == _reply_prefix_words(pr):
+                return True
+            if t_first and t_first == _reply_first_sentence(pr):
+                return True
+            pt = toks(pr)
+            if pt and t_tok and len(t_tok & pt) / len(t_tok | pt) >= 0.6:
+                return True
+        return False
+    except Exception:
+        return False
+
+
 _GM_LOG          = "/tmp/nex5_goal_manager.log"
 _MCOG_LOG        = "/tmp/nex5_metacognition.log"
 _NASSOC_LOG      = "/tmp/nex5_novel_association.log"
@@ -1413,9 +1501,17 @@ def create_app(state: AppState) -> Flask:
                 )
                 _operator_block = ""
 
+            # CONVERSATION MEMORY (NEX5_CHAT_MEMORY, admin-scoped): thread the
+            # recent turns into the compose prompt so she tracks the dialogue
+            # instead of composing each reply in isolation. Fail-safe: "" -> no
+            # change. Non-admin/public chat never reaches this (admin-gated).
+            _chat_mem = _chat_memory_active(session)
+            _convo_block = _recent_dialogue(state.readers, session_id, prompt) if _chat_mem else ""
+
             if belief_text:
                 voice_prompt = (
                     f"{_operator_block}"
+                    f"{_convo_block}"
                     f"{_spectrum_block}"
                     f"{_tag_block}"
                     f"Your interior right now:\n\n"
@@ -1427,8 +1523,8 @@ def create_app(state: AppState) -> Flask:
                 )
             else:
                 voice_prompt = (
-                    f"{_operator_block}{_spectrum_block}{_tag_block}{prompt}"
-                    if (_operator_block or _spectrum_block or _tag_block) else prompt
+                    f"{_operator_block}{_convo_block}{_spectrum_block}{_tag_block}{prompt}"
+                    if (_operator_block or _convo_block or _spectrum_block or _tag_block) else prompt
                 )
 
         if text is None:
@@ -1451,6 +1547,36 @@ def create_app(state: AppState) -> Flask:
                 )
                 text = resp.text
                 voice_ok = True
+                # ANTI-REPEAT (NEX5_CHAT_MEMORY, admin-scoped): if she opened like
+                # / echoed a recent reply (the same-opening groove), regenerate
+                # ONCE with an explicit "vary" instruction. One retry only — no
+                # regeneration loop. Fail-safe: keep the original reply on error.
+                if _chat_memory_active(session) and text:
+                    try:
+                        _prior = [
+                            (r["content"] if hasattr(r, "__getitem__")
+                             else getattr(r, "content", ""))
+                            for r in state.readers["conversations"].read(
+                                "SELECT content FROM messages WHERE session_id=? "
+                                "AND role='nex' ORDER BY id DESC LIMIT 3",
+                                (session_id,))
+                        ] if session_id else []
+                        if _is_repeat_reply(text, _prior):
+                            _resp2 = state.voice.speak(
+                                VoiceRequest(
+                                    prompt=voice_prompt + (
+                                        "\n\nYou have recently opened replies the "
+                                        "same way and repeated yourself. Do NOT "
+                                        "reuse your previous opening or phrasing — "
+                                        "answer THIS afresh, in a different shape."),
+                                    register=register),
+                                beliefs=None, belief_count=belief_count,
+                            )
+                            if (_resp2 and _resp2.text
+                                    and not _is_repeat_reply(_resp2.text, _prior)):
+                                text = _resp2.text
+                    except Exception:
+                        pass   # fail-safe: keep the original composed reply
                 # C3 2026-05-09: log deflection events for distribution measurement.
                 if resp.deflection_fired:
                     try:
