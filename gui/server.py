@@ -1516,8 +1516,8 @@ def create_app(state: AppState) -> Flask:
             _compassion_block = ""
             try:
                 if os.environ.get("NEX5_COMPASSION") == "1" and bool(session.get("admin")):
-                    from theory_x.stage_affect.compassion import update_and_level, format_stance
-                    _compassion_block = format_stance(update_and_level(prompt))
+                    from theory_x.stage_affect.compassion import stance_for
+                    _compassion_block = stance_for(prompt)
             except Exception as _comp_exc:
                 error_channel.record(
                     f"compassion skipped: {_comp_exc}", source="gui.server", exc=_comp_exc,

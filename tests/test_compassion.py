@@ -21,6 +21,7 @@ from pathlib import Path
 from tests import _bootstrap  # noqa: F401
 
 _DISTRESS = "my father passed last week and I can barely function or sleep"
+_MILD = "I'm kind of stuck and not sure what to try next"
 _NEUTRAL = "what do you think about using rust for the new parser"
 
 
@@ -74,6 +75,26 @@ class TestCompassionLevel(unittest.TestCase):
     def test_failsafe_returns_baseline(self):
         # a bad message type -> baseline, no raise
         self.assertEqual(self.k.distress_salience(None), 0.0)
+
+    def test_register_separates_acute_from_mild(self):
+        # magnitude can't separate the registers; the anchor-family cut can
+        self.assertEqual(self.k.distress_register(_DISTRESS), "acute")
+        self.assertEqual(self.k.distress_register(_MILD), "mild")
+        self.assertEqual(self.k.distress_register(None), "mild")   # fail-safe: lighter
+
+    def test_graded_stance_tiers(self):
+        hi = self.k._THRESHOLD + 0.1
+        self.assertEqual(self.k.format_stance(hi, "acute"), self.k._STANCE_FULL)
+        self.assertEqual(self.k.format_stance(hi, "mild"), self.k._STANCE_LIGHT)
+        self.assertEqual(self.k.format_stance(self.k._THRESHOLD - 0.1, "acute"), "")
+        self.assertEqual(self.k.format_stance(self.k._THRESHOLD - 0.1, "mild"), "")
+
+    def test_stance_for_picks_tier_by_message(self):
+        # ordered neutral -> mild -> acute from a fresh baseline, so decay memory
+        # never lifts a lower tier: neutral stays silent, mild is light, acute full
+        self.assertEqual(self.k.stance_for(_NEUTRAL), "")            # baseline, silent
+        self.assertEqual(self.k.stance_for(_MILD), self.k._STANCE_LIGHT)
+        self.assertEqual(self.k.stance_for(_DISTRESS), self.k._STANCE_FULL)
 
 
 class TestCompassionInjection(unittest.TestCase):
