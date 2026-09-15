@@ -1524,10 +1524,27 @@ def create_app(state: AppState) -> Flask:
                 )
                 _compassion_block = ""
 
+            # COMPASS (NEX5_COMPASS, admin-scoped, dharmic): at a moment of moral
+            # weight, WEIGH the situated reads (compassion + amoha + afflictions)
+            # into a provisional, held-open stance she brings. Not a rule/verdict
+            # engine; prompt-only (guard 2); silent when no consideration is live.
+            # Fail-safe: any error -> "". Admin-gated, non-admin path untouched.
+            _compass_block = ""
+            try:
+                if os.environ.get("NEX5_COMPASS") == "1" and bool(session.get("admin")):
+                    from theory_x.stage_affect.compass import stance_for as _compass_stance
+                    _compass_block = _compass_stance(prompt)
+            except Exception as _cmp_exc:
+                error_channel.record(
+                    f"compass skipped: {_cmp_exc}", source="gui.server", exc=_cmp_exc,
+                )
+                _compass_block = ""
+
             if belief_text:
                 voice_prompt = (
                     f"{_operator_block}"
                     f"{_compassion_block}"
+                    f"{_compass_block}"
                     f"{_convo_block}"
                     f"{_spectrum_block}"
                     f"{_tag_block}"
@@ -1540,8 +1557,8 @@ def create_app(state: AppState) -> Flask:
                 )
             else:
                 voice_prompt = (
-                    f"{_operator_block}{_compassion_block}{_convo_block}{_spectrum_block}{_tag_block}{prompt}"
-                    if (_operator_block or _compassion_block or _convo_block or _spectrum_block or _tag_block) else prompt
+                    f"{_operator_block}{_compassion_block}{_compass_block}{_convo_block}{_spectrum_block}{_tag_block}{prompt}"
+                    if (_operator_block or _compassion_block or _compass_block or _convo_block or _spectrum_block or _tag_block) else prompt
                 )
 
         if text is None:
