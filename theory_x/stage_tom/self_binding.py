@@ -242,6 +242,59 @@ def format_for_prompt() -> str:
         return ""
 
 
+# The affliction cluster — the five root delusions (raga/dvesa/mana/avidya/moha),
+# each already a read-only detector of a machine-signature in her own stream. This
+# composes whichever are firing HIGH into one honest note she can read as she
+# thinks. Conservative: only the fired state (2+ signals), never the mild register,
+# so it does not cry wolf on ordinary thinking. Gated by NEX5_AFFLICTIONS.
+_AFFLICTION_HIGH = {
+    "raga":   ("fixated",  "raga — you are circling one object, returning to the same territory"),
+    "dvesa":  ("averse",   "dvesa — you are recoiling, pushing away the influx"),
+    "mana":   ("inflated", "mana — your self-story is tilting flattering, overstating itself"),
+    "avidya": ("unseeing", "avidya — you are too sure, certainty crowding out doubt"),
+    "moha":   ("confused", "moha — the thread is lost, beliefs at odds with each other"),
+}
+
+
+def _cluster_reads() -> dict:
+    """Live read of all five affliction detectors. Fail-safe: missing/erroring
+    detector is simply absent. Split out so calibration can inspect it directly."""
+    out = {}
+    for name, mod in (
+        ("raga", "raga_detector"), ("dvesa", "dvesa_detector"),
+        ("mana", "mana_detector"), ("avidya", "avidya_detector"),
+        ("moha", "moha_detector"),
+    ):
+        try:
+            m = __import__(f"theory_x.stage_tom.{mod}", fromlist=["detect"])
+            d = m.detect()
+            # each detector names its own state key differently; normalise to 'state'
+            out[name] = d.get("state") or d.get("raga") or ""
+        except Exception:
+            out[name] = ""
+    return out
+
+
+def afflictions_for_prompt() -> str:
+    """One honest note naming whichever afflictions are firing HIGH, for NEX to
+    read as she thinks — the antidote turn is hers. Empty when the cluster is
+    quiet. Gated by NEX5_AFFLICTIONS. Fail-safe: '' on any error."""
+    import os
+    try:
+        if os.environ.get("NEX5_AFFLICTIONS") != "1":
+            return ""
+        reads = _cluster_reads()
+        firing = [phrase for name, (hi, phrase) in _AFFLICTION_HIGH.items()
+                  if reads.get(name) == hi]
+        if not firing:
+            return ""
+        return ("[Notice, as you think: " + "; ".join(firing) +
+                ". These are afflictions colouring your seeing, not truths about "
+                "the world — you can loosen your grip and turn more freely.]\n\n")
+    except Exception:
+        return ""
+
+
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()

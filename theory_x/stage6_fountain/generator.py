@@ -2850,6 +2850,20 @@ class FountainGenerator:
                     focus_block = focus_block.rstrip() + f"\n\n{_amoha_line}\n"
             except Exception:
                 pass  # never stall a fire
+        # Affliction cluster — the five root delusions (raga/dvesa/mana/avidya/
+        # moha) composed into one note when any fire HIGH, so she can notice and
+        # loosen them. Read-only detectors; afflictions_for_prompt() returns ''
+        # when the cluster is quiet. GATED OFF: set NEX5_AFFLICTIONS=1 to arm.
+        if os.environ.get("NEX5_AFFLICTIONS") == "1":
+            try:
+                from theory_x.stage_tom.self_binding import (
+                    afflictions_for_prompt as _afflict_line_fn,
+                )
+                _afflict_line = _afflict_line_fn()
+                if _afflict_line:
+                    focus_block = focus_block.rstrip() + f"\n\n{_afflict_line}\n"
+            except Exception:
+                pass  # never stall a fire
         # teeth-test v2: stash nudge state for per-fire attribution sampling.
         # Captured here where perturbation() is freshest; consumed at fire-completion.
         try:
