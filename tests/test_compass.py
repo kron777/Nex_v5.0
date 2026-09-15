@@ -25,12 +25,25 @@ class TestCompassWeighing(unittest.TestCase):
         quiet = {"care": 0.0, "care_register": "", "clarity": "clear", "distortions": []}
         self.assertEqual(self.c.format_stance(quiet), "")
 
-    def test_care_dimension_shifts_stance(self):
-        s = self.c.format_stance({"care": 0.6, "care_register": "acute",
-                                  "clarity": "clear", "distortions": []})
-        self.assertTrue(s)
+    def test_care_only_is_silent_moral_wakes_it(self):
+        # DEV 1: care alone -> silent (compassion owns that case)
+        self.assertEqual(self.c.format_stance(
+            {"care": 0.6, "care_register": "acute", "clarity": "clear",
+             "distortions": [], "moral": 0.0}), "")
+        # DEV 2: moral weight wakes it; care is led with when also live
+        s = self.c.format_stance(
+            {"care": 0.6, "care_register": "acute", "clarity": "clear",
+             "distortions": [], "moral": 0.5})
         self.assertIn("care is owed", s)
+        self.assertIn("carries real weight", s)
         self.assertIn("held open to revision", s)   # abductive framing, not a verdict
+
+    def test_moral_weight_read_separates(self):
+        self.assertGreaterEqual(
+            self.c.moral_weight("should I tell my friend a truth that will hurt them?"),
+            self.c._MORAL_MIN)
+        self.assertEqual(self.c.moral_weight("how should I structure this database schema"), 0.0)
+        self.assertEqual(self.c.moral_weight(None), 0.0)   # fail-safe
 
     def test_clarity_dimension_shifts_stance(self):
         s = self.c.format_stance({"care": 0.0, "clarity": "clouded", "distortions": []})
@@ -66,11 +79,11 @@ class TestCompassEndToEnd(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
         os.environ.pop("NEX5_DATA_DIR", None)
 
-    def test_shifts_on_distress_silent_on_neutral(self):
-        distress = self.c.stance_for("my father passed last week and I can barely cope")
+    def test_moral_question_wakes_compass_neutral_silent(self):
+        moral = self.c.stance_for("should I tell my friend a truth that will hurt them?")
         neutral = self.c.stance_for("what do you think about using rust for the parser")
-        self.assertTrue(distress)
-        self.assertIn("care is owed", distress)
+        self.assertTrue(moral)
+        self.assertIn("carries real weight", moral)
         self.assertEqual(neutral, "")
 
     def test_does_not_mutate_compassion_level(self):
