@@ -2835,6 +2835,21 @@ class FountainGenerator:
                     focus_block = focus_block.rstrip() + f"\n\n{_mood_line}\n"
             except Exception:
                 pass  # never stall a fire
+        # Amoha (clear-seeing) — the antidote to clouded thinking. Reads whether
+        # her recent thoughts tilt toward false certainty / absolutes and, when
+        # clouded, weaves in a gentle clear-seeing note. Woven in exactly like the
+        # mood/metacog lines above; format_for_prompt() returns '' when seeing is
+        # clear, so a clear mind adds nothing. GATED OFF: set NEX5_AMOHA=1 to arm.
+        if os.environ.get("NEX5_AMOHA") == "1":
+            try:
+                from theory_x.stage_tom.amoha_detector import (
+                    format_for_prompt as _amoha_line_fn,
+                )
+                _amoha_line = _amoha_line_fn()
+                if _amoha_line:
+                    focus_block = focus_block.rstrip() + f"\n\n{_amoha_line}\n"
+            except Exception:
+                pass  # never stall a fire
         # teeth-test v2: stash nudge state for per-fire attribution sampling.
         # Captured here where perturbation() is freshest; consumed at fire-completion.
         try:
