@@ -58,23 +58,30 @@ def format_stance(reads: dict) -> str:
         clarity = reads.get("clarity", "clear")
         distortions = list(reads.get("distortions", []))
 
+        # Non-care dimensions decide WHETHER the compass speaks. Care alone is
+        # compassion's job — the compass adds a note only when it has something
+        # beyond care to weigh (clouded seeing or an affliction).
+        non_care = []
+        if clarity == "clouded":
+            non_care.append(
+                "your own seeing is clouded right now — hold your read lightly, you may have it wrong")
+        elif clarity == "mild":
+            non_care.append(
+                "your seeing is only partly clear — leave room to be corrected")
+        if distortions:
+            non_care.append(
+                "your stance is coloured just now (" + ", ".join(distortions) +
+                ") — loosen it before you lean on it")
+
+        if not non_care:
+            return ""   # care-only, or nothing live => compassion owns it => silent
+
+        # Compass speaks: lead with care if it is also live, then the non-care weights.
         considerations = []
         if care >= _CARE_MIN:
             considerations.append(
                 "the person seems to be carrying some difficulty — care is owed here")
-        if clarity == "clouded":
-            considerations.append(
-                "your own seeing is clouded right now — hold your read lightly, you may have it wrong")
-        elif clarity == "mild":
-            considerations.append(
-                "your seeing is only partly clear — leave room to be corrected")
-        if distortions:
-            considerations.append(
-                "your stance is coloured just now (" + ", ".join(distortions) +
-                ") — loosen it before you lean on it")
-
-        if not considerations:
-            return ""   # no live consideration => no moral weight => silent
+        considerations.extend(non_care)
 
         return (
             "[A moment with some weight in it. Given what you are reading here — "
