@@ -284,8 +284,12 @@ def afflictions_for_prompt() -> str:
         if os.environ.get("NEX5_AFFLICTIONS") != "1":
             return ""
         reads = _cluster_reads()
+        # raga is intentionally excluded here: it already surfaces once through
+        # bind()'s self-synthesis (read back via recursive_self). Including it in
+        # the cluster line too would make raga speak twice on a fixation. The
+        # other four have no other surface, so the cluster is their only voice.
         firing = [phrase for name, (hi, phrase) in _AFFLICTION_HIGH.items()
-                  if reads.get(name) == hi]
+                  if name != "raga" and reads.get(name) == hi]
         if not firing:
             return ""
         return ("[Notice, as you think: " + "; ".join(firing) +

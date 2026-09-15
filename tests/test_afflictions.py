@@ -44,7 +44,13 @@ class TestNewDetectors(unittest.TestCase):
 
 
 class TestClusterNote(unittest.TestCase):
+    def setUp(self):
+        from theory_x.stage_tom import self_binding as sb
+        self._orig_cluster_reads = sb._cluster_reads   # restore so we don't pollute compass
+
     def tearDown(self):
+        from theory_x.stage_tom import self_binding as sb
+        sb._cluster_reads = self._orig_cluster_reads
         os.environ.pop("NEX5_AFFLICTIONS", None)
 
     def test_gated_and_only_on_high(self):
@@ -64,6 +70,21 @@ class TestClusterNote(unittest.TestCase):
         # armed + all quiet -> silent
         sb._cluster_reads = lambda: {"raga": "free", "dvesa": "calm"}   # type: ignore
         self.assertEqual(sb.afflictions_for_prompt(), "")
+
+    def test_raga_suppressed_in_cluster_other_four_emit(self):
+        from theory_x.stage_tom import self_binding as sb
+        os.environ["NEX5_AFFLICTIONS"] = "1"
+        # raga alone firing HIGH -> cluster stays silent (raga speaks via synthesis)
+        sb._cluster_reads = lambda: {"raga": "fixated"}   # type: ignore
+        self.assertEqual(sb.afflictions_for_prompt(), "")
+        # all five HIGH -> cluster names the other four, never raga
+        sb._cluster_reads = lambda: {"raga": "fixated", "dvesa": "averse",   # type: ignore
+                                     "mana": "inflated", "avidya": "unseeing",
+                                     "moha": "confused"}
+        note = sb.afflictions_for_prompt()
+        self.assertNotIn("raga", note)
+        for other in ("dvesa", "mana", "avidya", "moha"):
+            self.assertIn(other, note)
 
 
 if __name__ == "__main__":
