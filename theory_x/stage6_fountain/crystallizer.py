@@ -256,6 +256,12 @@ class FountainCrystallizer:
         # out of _quality_check's return tuple deliberately — that 2-tuple
         # signature is asserted directly by ~15 existing test call sites.
         self._last_reject_pattern: Optional[str] = None
+        # Best-of-cluster (NEX5_BESTOFCLUSTER): side-channel carrying the
+        # belief row a semantic_repeat collided with, so crystallize() can
+        # attempt an in-place upgrade after _quality_check returns. Reset per
+        # call alongside _last_reject_pattern.
+        self._last_semantic_match: Optional[dict] = None
+        self._genius_weights: Optional[dict] = None  # cached score_v2 weights
         _gov_initial_ts = 0.0
         try:
             rows = beliefs_reader.read(
@@ -313,6 +319,43 @@ class FountainCrystallizer:
         thought = _METADATA_PATTERN.sub('', thought).strip()
         ok, reason = self._quality_check(thought, droplet=droplet,
                                          focal_item=focal_item)
+
+        # Best-of-cluster upgrade (NEX5_BESTOFCLUSTER, default OFF). When a
+        # thought is rejected as a semantic near-duplicate but scores higher on
+        # the calibrated genius v2 score than the belief it collided with,
+        # replace that belief's content in place (same id, so belief_edges and
+        # all other belief_id-keyed state survive — the same operation the
+        # harmonizer performs) instead of discarding the better variant. Any
+        # error falls through to the normal reject below (fail-safe).
+        if (not ok and reason == "semantic_repeat"
+                and self._last_semantic_match is not None
+                and os.environ.get("NEX5_BESTOFCLUSTER") == "1"):
+            _match = self._last_semantic_match
+            try:
+                _upgraded_id = self._maybe_bestofcluster_upgrade(
+                    thought, _match, ts, hot_branch)
+            except Exception as _exc:
+                _upgraded_id = None
+                errors.record(
+                    f"bestofcluster upgrade errored (fail-safe reject): {_exc}",
+                    source=_LOG_SOURCE, exc=_exc,
+                )
+            if _upgraded_id is not None:
+                if self._dynamic_writer is not None:
+                    try:
+                        self._dynamic_writer.write(
+                            "INSERT INTO crystallization_rejects "
+                            "(ts, reason, thought_excerpt, matched_pattern) "
+                            "VALUES (?, ?, ?, ?)",
+                            (time.time(), "semantic_repeat_upgraded",
+                             thought[:200], (_match.get("content") or "")[:200]),
+                        )
+                    except Exception:
+                        pass
+                self._last_reject_pattern = None
+                self._last_semantic_match = None
+                return _upgraded_id
+
         if not ok:
             errors.record(
                 f"Fountain crystallization rejected ({reason}): {thought[:60]}",
@@ -471,8 +514,14 @@ class FountainCrystallizer:
 
     def _was_recently_semantically_similar(
         self, content: str, minutes: int = 30, threshold: float = 0.85
-    ) -> Optional[str]:
-        """Return matching content if a semantically similar belief was emitted recently."""
+    ) -> Optional[dict]:
+        """Return the matching belief row (id, content, branch_id, created_at)
+        if a semantically similar belief was emitted recently, else None.
+
+        Returns the full row rather than just content (session: best-of-cluster)
+        so the caller can upgrade that belief in place by id. Window and
+        threshold are unchanged (last 20 fountain_insight beliefs in the last
+        `minutes`, cosine >= `threshold`)."""
         try:
             from theory_x.diversity.embeddings import embed, cosine
         except ImportError:
@@ -480,7 +529,7 @@ class FountainCrystallizer:
 
         cutoff = time.time() - (minutes * 60)
         rows = self._reader.read(
-            "SELECT content FROM beliefs "
+            "SELECT id, content, branch_id, created_at FROM beliefs "
             "WHERE source='fountain_insight' AND created_at > ? "
             "ORDER BY created_at DESC LIMIT 20",
             (cutoff,),
@@ -501,10 +550,94 @@ class FountainCrystallizer:
                 prev_emb = embed(prev_content)
                 sim = cosine(new_emb, prev_emb)
                 if sim >= threshold:
-                    return prev_content
+                    return {"id": r["id"], "content": prev_content,
+                            "branch_id": r["branch_id"],
+                            "created_at": r["created_at"]}
             except Exception:
                 continue
         return None
+
+    def _load_genius_weights(self) -> Optional[dict]:
+        """Cached genius v2 weights (genius_score_weights.json). Loaded once
+        per process; None on any failure so callers fail safe."""
+        if self._genius_weights is not None:
+            return self._genius_weights
+        try:
+            import json
+            from theory_x.genius import score_v2
+            self._genius_weights = json.loads(score_v2.WEIGHTS_PATH.read_text())
+        except Exception:
+            self._genius_weights = None
+        return self._genius_weights
+
+    def _genius_score(self, weights: dict, prior: list, text: str,
+                      branch: Optional[str], ts: Optional[float]) -> float:
+        """Inline calibrated genius v2 score for a single thought, matching
+        tagger._score_fire exactly (z = sum(w*feats) + bias, sigmoid).
+
+        Faithful at fire time: the only look-ahead feature, t6_promotion, has
+        fitted weight 0.0 in genius_score_weights.json, so computing it as 0
+        (t6_beliefs=[]) changes nothing. `prior` (recent thoughts) is shared
+        across both variants of a comparison so anti_template is symmetric."""
+        from theory_x.genius import score_v2
+        fire = {"thought": text or "", "ts": ts or time.time(),
+                "hot_branch": branch}
+        feats = score_v2.compute_features(fire, prior, [])
+        w = weights["weights"]
+        b = weights["bias"]
+        z = sum(w[j] * feats[j] for j in range(len(w))) + b
+        return score_v2.sigmoid(z)
+
+    def _maybe_bestofcluster_upgrade(
+        self, thought: str, match: dict, ts: float,
+        hot_branch: Optional[str],
+    ) -> Optional[int]:
+        """If `thought` scores strictly higher on the genius v2 score than the
+        belief it collided with (`match`), replace that belief's content in
+        place and return its id; otherwise return None (caller rejects as
+        normal). Content-only UPDATE keeps the id, so belief_edges and every
+        other belief_id-keyed row survive — the same in-place rewrite the
+        harmonizer already performs. The belief + provenance rows are written
+        atomically; a UNIQUE(content) collision raises and is caught upstream
+        (fail-safe reject, no partial write)."""
+        weights = self._load_genius_weights()
+        if not weights:
+            return None
+        bid = match.get("id")
+        if bid is None:
+            return None
+
+        # Shared recent-thought context for anti_template (feature 2), so the
+        # two variants are compared on identical novelty footing.
+        prior: list = []
+        try:
+            rows = self._reader.read(
+                "SELECT content FROM beliefs WHERE source='fountain_insight' "
+                "ORDER BY created_at DESC LIMIT 50"
+            )
+            prior = [r["content"] for r in rows if r["content"]]
+        except Exception:
+            prior = []
+
+        new_score = self._genius_score(weights, prior, thought, hot_branch, ts)
+        old_score = self._genius_score(
+            weights, prior, match.get("content") or "",
+            match.get("branch_id"), match.get("created_at"))
+        if new_score <= old_score:
+            return None
+
+        # Atomic in-place replace: belief content + its crystallization record.
+        self._writer.write_many([
+            ("UPDATE beliefs SET content = ? WHERE id = ?", (thought, bid)),
+            ("UPDATE fountain_crystallizations SET content = ? "
+             "WHERE belief_id = ?", (thought, bid)),
+        ])
+        errors.record(
+            f"bestofcluster UPGRADE belief {bid}: genius {old_score:.3f} -> "
+            f"{new_score:.3f}; replaced with: {thought[:60]}",
+            source=_LOG_SOURCE, level="INFO",
+        )
+        return bid
 
     def _is_on_cooldown(self, content: str) -> bool:
         """Session 30 (B): was WHERE content=? — comparing a full new sentence
@@ -613,6 +746,7 @@ class FountainCrystallizer:
                        focal_item: Optional[str] = None) -> Tuple[bool, str]:
         # Reset the matched-pattern side channel for this call — see __init__.
         self._last_reject_pattern = None
+        self._last_semantic_match = None
 
         if not thought:
             return False, "empty"
@@ -737,12 +871,17 @@ class FountainCrystallizer:
         try:
             similar = self._was_recently_semantically_similar(thought, minutes=30, threshold=0.85)
             if similar:
+                _sim_content = similar.get("content") or ""
                 errors.record(
                     f"Crystallizer REJECTED (semantic_repeat, sim>=0.85): {thought[:80]} "
-                    f"[similar to: {similar[:60]}]",
+                    f"[similar to: {_sim_content[:60]}]",
                     source=_LOG_SOURCE, level="INFO",
                 )
-                self._last_reject_pattern = similar[:200]
+                # Stash the collided belief row so crystallize() can attempt a
+                # best-of-cluster upgrade (NEX5_BESTOFCLUSTER). Behaviour here
+                # is unchanged: still a semantic_repeat reject.
+                self._last_semantic_match = similar
+                self._last_reject_pattern = _sim_content[:200]
                 return False, "semantic_repeat"
         except Exception:
             pass
