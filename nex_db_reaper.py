@@ -44,6 +44,7 @@ MAX_LOCK_RETRIES = 5         # per batch, before backing off this table
 TARGETS = [
     ("dynamic.db", "pipeline_events", "ts"),
     ("dynamic.db", "tree_snapshots",  "ts"),
+    ("dynamic.db", "tier_snapshots",  "ts"),
     ("sense.db",   "sense_events",    "timestamp"),
 ]
 
