@@ -20,6 +20,8 @@ any error -> '' (no stance). Admin-scoped at the seam; non-admin path untouched.
 """
 from __future__ import annotations
 
+import os
+
 _CARE_MIN  = 0.33   # a distress salience worth weighing as care owed (~compassion's fire point)
 _MORAL_MIN = 0.30   # semantic moral-weight salience that opens the gate on its own
 _MORAL_SCALE = 2.5  # map (moral - neutral) contrast into 0..1 (as compassion/amoha)
@@ -139,6 +141,18 @@ def format_stance(reads: dict) -> str:
                 "the person seems to be carrying some difficulty — care is owed here")
         considerations.extend(non_care)
 
+        # COSMETIC trim (NEX5_COMPASS_TRIM, default OFF): cut the fixed
+        # slow-down / do-no-harm / "not a verdict, think it through" boilerplate
+        # tail that repeats verbatim every fire. The WEIGHING (considerations) is
+        # unchanged, and the held-open, not-a-verdict, co-constructed framing is
+        # PRESERVED in compact form — this touches wording only, never the
+        # weighing logic. Hard line intact: still a held-open lean, never a ruling.
+        if os.environ.get("NEX5_COMPASS_TRIM") == "1":
+            return (
+                "[Weighing, held open — " + "; ".join(considerations)
+                + ". Not a verdict; think it through with them, let the choice "
+                "stay live.]\n\n"
+            )
         return (
             "[A moment with some weight in it. Given what you are reading here — "
             + "; ".join(considerations) +

@@ -238,6 +238,12 @@ _META_SENTENCE_RE = re.compile(
     r"[^.?!]*[.?!]"
 )
 
+# Compass boilerplate tail (NEX5_COMPASS_TRIM) — stripped from a reply only if
+# the model echoes it. Cosmetic; matches the fixed phrasing, not the weighing.
+_COMPASS_TAIL_RE = re.compile(
+    r"(?i)\s*the caring-and-clear thing seems to be to slow down.*?"
+    r"let the choice stay live\.?", re.S)
+
 
 def _sanitize_reply(text):
     """Strip prompt-scaffolding the model leaked into its reply, keeping real
@@ -251,6 +257,11 @@ def _sanitize_reply(text):
         if m:
             text = text[:m.start()]
         text = _META_SENTENCE_RE.sub(" ", text)
+        # NEX5_COMPASS_TRIM: if the model echoes the compass boilerplate tail into
+        # its reply, strip those fixed phrases (cosmetic; the weighing content and
+        # everything else is untouched). Same flag as the compass.py trim.
+        if os.environ.get("NEX5_COMPASS_TRIM") == "1":
+            text = _COMPASS_TAIL_RE.sub("", text)
         # Collapse only runs of spaces/tabs (NOT newlines — keep paragraphs),
         # then trim. Leaves legitimate prose and its line structure untouched.
         text = re.sub(r"[ \t]{2,}", " ", text).strip()
