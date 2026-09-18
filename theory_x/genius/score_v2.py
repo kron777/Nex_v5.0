@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 import sqlite3
 import statistics
@@ -32,6 +33,45 @@ DYN = DATA / "dynamic.db"
 CONV = DATA / "conversations.db"
 BEL = DATA / "beliefs.db"
 WEIGHTS_PATH = Path("/home/rr/Desktop/Desktop/nex5/genius_score_weights.json")
+# F2-V2 (NEX5_SCORE_F2_V2, default OFF): the live 3-gram-mean anti_template is
+# ceiling-saturated (57-61% of fires >=0.95, 17.7% ==1.0) -> a near-constant the
+# fit degenerated to weight -1.577. V2 replaces the metric with 1 - MAX content-
+# token Jaccard vs the recent 50 fires (denser, graded): de-saturates (5.5%
+# >=0.95), doubles T6 separation (delta +0.106 -> +0.225, AUC 0.765 -> 0.772),
+# no sign flip. Requires its OWN refit weights (applying the old -1.577 to V2's
+# spread would catastrophically penalise novelty), kept in a separate file so
+# the live score_v2 is untouched until the swap is approved.
+WEIGHTS_PATH_V2 = Path("/home/rr/Desktop/Desktop/nex5/genius_score_weights_v2.json")
+
+
+def _f2v2_score_active() -> bool:
+    return os.environ.get("NEX5_SCORE_F2_V2") == "1"
+
+
+_F2_TOK_RE = re.compile(r"[a-z0-9]{3,}")
+_F2_STOP = frozenset(
+    "the and for are was has had not but with into over from this that how what "
+    "who when where which more most just now here there they them their his her "
+    "its our you your item these those been being also very much many some".split())
+
+
+def _f2_tokens(text):
+    return {t for t in _F2_TOK_RE.findall((text or "").lower()) if t not in _F2_STOP}
+
+
+def feat_anti_template_v2(thought, prior_thoughts):
+    """1.0 = novel; 0.0 = near-duplicate. V2: 1 - MAX content-token Jaccard vs
+    the recent 50 fires (denser/graded than V1's sparse 3-gram mean, so it
+    detects paraphrase-similarity and does not pile at the ceiling)."""
+    mine = _f2_tokens(thought)
+    if not mine or not prior_thoughts:
+        return 0.5
+    best = 0.0
+    for p in prior_thoughts[-50:]:
+        pg = _f2_tokens(p)
+        if pg:
+            best = max(best, len(mine & pg) / len(mine | pg))
+    return 1.0 - min(1.0, best)
 
 SELF_WITNESS_PATTERNS = [
     r"\bi am the\b",
@@ -182,7 +222,11 @@ def load_t6_beliefs():
 
 def compute_features(fire, prior_thoughts, t6_beliefs):
     f1 = feat_length_structure(fire["thought"])
-    f2 = feat_anti_template(fire["thought"], prior_thoughts)
+    # F2: V2 metric when NEX5_SCORE_F2_V2=1 (must be paired with V2 weights).
+    if _f2v2_score_active():
+        f2 = feat_anti_template_v2(fire["thought"], prior_thoughts)
+    else:
+        f2 = feat_anti_template(fire["thought"], prior_thoughts)
     f3 = feat_t6_promotion(fire, t6_beliefs)
     f4 = feat_self_witnessing(fire["thought"])
     f5 = feat_unprompted(fire["hot_branch"])

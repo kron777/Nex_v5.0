@@ -1,0 +1,31 @@
+{
+  "version": "v2-f2v2",
+  "fitted_at": 1789745942.8266008,
+  "feature_names": [
+    "length_structure",
+    "anti_template_v2",
+    "t6_promotion",
+    "self_witnessing",
+    "unprompted"
+  ],
+  "weights": [
+    2.5276076901848508,
+    -0.4478983782699921,
+    0.0,
+    1.1486008479901195,
+    4.625975448515423
+  ],
+  "bias": -3.4031111364840223,
+  "threshold": 0.35,
+  "training_size": 103,
+  "training_striking": 67,
+  "training_ordinary": 36,
+  "training_accuracy": 0.9514563106796117,
+  "confusion": {
+    "tp": 63,
+    "fp": 1,
+    "fn": 4,
+    "tn": 35
+  },
+  "note": "F2-V2 refit (1 - max content-token Jaccard). Gated by NEX5_SCORE_F2_V2. Not live until approved."
+}

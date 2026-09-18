@@ -79,7 +79,15 @@ class GeniusTagger:
         self._conv_reader = conversations_reader
         self._dyn_reader = dynamic_reader
         self._bel_reader = beliefs_reader
-        self._weights_path = Path(weights_path) if weights_path else _WEIGHTS_PATH
+        # NEX5_SCORE_F2_V2 (default OFF): load the V2 refit weights so the V2
+        # anti_template feature (score_v2.compute_features gates the same flag)
+        # is paired with weights fit for it. Live weights untouched until swap.
+        if weights_path:
+            self._weights_path = Path(weights_path)
+        elif score_v2._f2v2_score_active():
+            self._weights_path = score_v2.WEIGHTS_PATH_V2
+        else:
+            self._weights_path = _WEIGHTS_PATH
         self._backfill_hours = backfill_hours
 
         self._stop: Optional[threading.Event] = None
