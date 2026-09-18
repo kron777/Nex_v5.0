@@ -200,6 +200,62 @@ def _chat_memory_active(session) -> bool:
         return False
 
 
+# ── Chat scaffolding sanitizer ───────────────────────────────────────────────
+# The 3B voice model, under prompt crowding, sometimes echoes the compose-path
+# framing into its OWN reply — turn tags ([user]/[nex]), the "Someone has just
+# said" framing verb, "My response would be honest and fresh:", an off-topic
+# self-correction, and "I realize I was veering…" meta. Left unsanitised, that
+# reply is stored to `messages` and replayed as history, which teaches the model
+# to leak MORE — a compounding loop (see /tmp/nex5_last_chat_prompt.log dump).
+#
+# This ONE helper is applied at all three seams: at storage (before the reply is
+# written to messages) and at both history-render builders (so already-poisoned
+# rows in the current replay window render clean immediately). It strips ONLY
+# scaffolding and is fail-safe: on any error, or if stripping would empty the
+# reply, it returns the ORIGINAL text unchanged — it never drops a whole turn
+# and never touches legitimate prose (newlines/paragraphs preserved).
+
+# Once any of these appears, everything from that point on is the model replaying
+# the prompt frame / fabricating a new turn — keep only the text BEFORE it.
+_SCAFFOLD_TRUNCATE_RE = re.compile(
+    r"(?i)(\[user\]|\[nex\]|\(user\)|\(nex\)"
+    r"|someone has just said"
+    r"|my response would be honest and fresh"
+    r"|this seems like an off[- ]topic response)"
+)
+# Conservative meta-narration sentences to drop even before any marker: only
+# "I realize …" clauses that carry an unambiguous meta cue (veer/drift/off-topic/
+# jibing/my response|focus|reply). "I realize the answer is X" has no cue and is
+# kept.
+_META_SENTENCE_RE = re.compile(
+    r"(?i)\bI reali[sz]e\b[^.?!]*?\b"
+    r"(veer|veering|drift|drifting|off[- ]topic|jibing|my (?:response|focus|reply))"
+    r"[^.?!]*[.?!]"
+)
+
+
+def _sanitize_reply(text):
+    """Strip prompt-scaffolding the model leaked into its reply, keeping real
+    prose intact. Fail-safe: returns the ORIGINAL text on any error or if
+    sanitising would empty the reply."""
+    try:
+        if not text or not isinstance(text, str):
+            return text
+        original = text
+        m = _SCAFFOLD_TRUNCATE_RE.search(text)
+        if m:
+            text = text[:m.start()]
+        text = _META_SENTENCE_RE.sub(" ", text)
+        # Collapse only runs of spaces/tabs (NOT newlines — keep paragraphs),
+        # then trim. Leaves legitimate prose and its line structure untouched.
+        text = re.sub(r"[ \t]{2,}", " ", text).strip()
+        if not text.strip():
+            return original          # over-stripped -> keep the real reply
+        return text
+    except Exception:
+        return text
+
+
 def _recent_dialogue(readers, session_id, current_prompt="", limit=3):
     """Compact block of the last `limit` user+nex turns for this session (oldest
     first) so the reply can track the conversation instead of composing each turn
@@ -225,8 +281,12 @@ def _recent_dialogue(readers, session_id, current_prompt="", limit=3):
             return ""
         lines = []
         for t in turns:
-            who = "Jon" if t.get("role") == "user" else "You"
-            lines.append(f"  {who}: {(t.get('content') or '').strip()[:240]}")
+            is_user = t.get("role") == "user"
+            who = "Jon" if is_user else "You"
+            content = (t.get("content") or "").strip()
+            if not is_user:
+                content = _sanitize_reply(content)  # clean poisoned nex history
+            lines.append(f"  {who}: {content.strip()[:240]}")
         return ("The conversation so far (most recent last) — track it, build on it, "
                 "do not restart from scratch:\n" + "\n".join(lines) + "\n\n")
     except Exception:
@@ -1369,18 +1429,14 @@ def create_app(state: AppState) -> Flask:
                         and _conv_turns[-1]["content"].strip() == prompt.strip()):
                     _conv_turns = _conv_turns[:-1]
                 if _conv_turns and register.name in ("Conversational", "Philosophical"):
-                    # Sanitize: if an assistant message contains fake-dialogue markers
-                    # (hallucinated multi-turn transcript), truncate at first marker
-                    # to keep only the real first-reply portion.
-                    import re as _re_sanitize
-                    _fake_marker = _re_sanitize.compile(r"\n\s*(?:\(user\)|\[user\]|\[nex\])")
+                    # Sanitize poisoned nex history: strip the FULL scaffolding
+                    # set (tag-form + sentence-form + meta) via the one shared
+                    # sanitizer, so already-stored leaks render clean here too.
                     _clean_turns = []
                     for t in _conv_turns:
                         c = t["content"]
                         if t["role"] == "nex":
-                            m = _fake_marker.search(c)
-                            if m:
-                                c = c[:m.start()].rstrip()
+                            c = _sanitize_reply(c)
                         _clean_turns.append({"role": t["role"], "content": c})
                     _conv_lines = "\n".join(
                         f"[{t['role']}] {t['content']}"
@@ -1639,6 +1695,11 @@ def create_app(state: AppState) -> Flask:
                     "Still running, still watching, just can't compose a reply."
                 )
                 voice_ok = False
+
+        # Storage boundary: strip any leaked scaffolding from the reply BEFORE it
+        # is persisted AND before it is returned to the GUI, so neither the stored
+        # history nor the displayed reply carries prompt frame. Fail-safe inside.
+        text = _sanitize_reply(text)
 
         if writer is not None and session_id is not None:
             try:
