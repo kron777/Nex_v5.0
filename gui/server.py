@@ -1433,40 +1433,12 @@ def create_app(state: AppState) -> Flask:
                         "\n\nRecently attended (cross-turn):\n" + _wm_lines
                     )
 
-        # Conversation Memory injection — dialogue history for Conversational and Philosophical.
-        if session_id is not None and _conversation_memory is not None:
-            try:
-                _conv_state = _conversation_memory.state(session_id=session_id)
-                _conv_turns = _conv_state.get("turns", [])
-                # messages write is at line ~877 (after prompt construction);
-                # in practice the current prompt is not yet in the table.
-                # Defensive: skip if last entry matches current prompt exactly.
-                if (_conv_turns
-                        and _conv_turns[-1]["role"] == "user"
-                        and _conv_turns[-1]["content"].strip() == prompt.strip()):
-                    _conv_turns = _conv_turns[:-1]
-                if _conv_turns and register.name in ("Conversational", "Philosophical"):
-                    # Sanitize poisoned nex history: strip the FULL scaffolding
-                    # set (tag-form + sentence-form + meta) via the one shared
-                    # sanitizer, so already-stored leaks render clean here too.
-                    _clean_turns = []
-                    for t in _conv_turns:
-                        c = t["content"]
-                        if t["role"] == "nex":
-                            c = _sanitize_reply(c)
-                        _clean_turns.append({"role": t["role"], "content": c})
-                    _conv_lines = "\n".join(
-                        f"[{t['role']}] {t['content']}"
-                        for t in _clean_turns
-                    )
-                    belief_text = (belief_text or "") + (
-                        "\n\nRecent conversation:\n" + _conv_lines
-                    )
-            except Exception as _conv_exc:
-                error_channel.record(
-                    f"conversation_memory_failed: {_conv_exc}",
-                    source="gui.server", exc=_conv_exc,
-                )
+        # SEAM 2 (chat only): the "Recent conversation" [user]/[nex] block used to
+        # be appended here, rendering the SAME turns a second time (the compact
+        # _recent_dialogue / _convo_block already carries history in Jon:/You:
+        # form). Two history copies in different formats was pure crowding, and
+        # the [user]/[nex] tag format is the one the 3B imitates. Dropped — the
+        # single _recent_dialogue block below is the one kept.
 
         text = None
         voice_ok = False
