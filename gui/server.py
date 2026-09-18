@@ -1665,6 +1665,22 @@ def create_app(state: AppState) -> Flask:
                 )
                 _sraddha_block = ""
 
+            # PLIANCY (NEX5_PRASRABDHI, admin-scoped, prasrabdhi): when she is
+            # circling the same cluster aimlessly (off-focus), nudge "let it move".
+            # Silent when the circling is on her focus (legit sustain -> virya's
+            # job). Behavioural nudge only, not a content cut (no double-trim with
+            # the crowding seams). Prompt-only; fail-safe "". Admin-gated.
+            _prasrabdhi_block = ""
+            try:
+                if os.environ.get("NEX5_PRASRABDHI") == "1" and bool(session.get("admin")):
+                    from theory_x.stage_affect.prasrabdhi import stance_for as _pras_stance
+                    _prasrabdhi_block = _pras_stance()
+            except Exception as _prs_exc:
+                error_channel.record(
+                    f"prasrabdhi skipped: {_prs_exc}", source="gui.server", exc=_prs_exc,
+                )
+                _prasrabdhi_block = ""
+
             if belief_text:
                 voice_prompt = (
                     f"{_operator_block}"
@@ -1674,6 +1690,7 @@ def create_app(state: AppState) -> Flask:
                     f"{_apramada_block}"
                     f"{_virya_block}"
                     f"{_sraddha_block}"
+                    f"{_prasrabdhi_block}"
                     f"{_convo_block}"
                     f"{_spectrum_block}"
                     f"{_tag_block}"
@@ -1688,8 +1705,8 @@ def create_app(state: AppState) -> Flask:
                 )
             else:
                 voice_prompt = (
-                    f"{_operator_block}{_compassion_block}{_compass_block}{_equanimity_block}{_apramada_block}{_virya_block}{_sraddha_block}{_convo_block}{_spectrum_block}{_tag_block}{prompt}"
-                    if (_operator_block or _compassion_block or _compass_block or _equanimity_block or _apramada_block or _virya_block or _sraddha_block or _convo_block or _spectrum_block or _tag_block) else prompt
+                    f"{_operator_block}{_compassion_block}{_compass_block}{_equanimity_block}{_apramada_block}{_virya_block}{_sraddha_block}{_prasrabdhi_block}{_convo_block}{_spectrum_block}{_tag_block}{prompt}"
+                    if (_operator_block or _compassion_block or _compass_block or _equanimity_block or _apramada_block or _virya_block or _sraddha_block or _prasrabdhi_block or _convo_block or _spectrum_block or _tag_block) else prompt
                 )
 
         if text is None:
