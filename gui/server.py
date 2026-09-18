@@ -948,7 +948,9 @@ def create_app(state: AppState) -> Flask:
                 )
         elif state.world_model is not None:
             try:
-                from theory_x.stage3_world_model.retrieval import format_beliefs_for_prompt
+                from theory_x.stage3_world_model.retrieval import (
+                    format_beliefs_for_prompt, _tokenize as _bt_tokenize,
+                )
                 active_branches: list[str] = []
                 if state.dynamic is not None:
                     snap = state.dynamic.status()
@@ -957,9 +959,24 @@ def create_app(state: AppState) -> Flask:
                         if b.get("focus_num", 0) > 0.1
                     ]
                 beliefs = state.world_model.retriever.retrieve(
-                    query=prompt, branch_hints=active_branches, limit=8
+                    query=prompt, branch_hints=active_branches, limit=3
                 )
+                # SEAM 1 (chat only): the belief block was 38.5% of the prompt and
+                # off-topic — feed-news beliefs coincidentally sharing ONE token
+                # with the turn (e.g. "simplicity") drove the drift/loop. Keep only
+                # beliefs that share MORE than one content token with the turn, and
+                # hard-cap the rendered block to ~800 chars. Fountain path untouched
+                # (this filter/cap lives here, not in the shared retriever/formatter).
+                if beliefs:
+                    _q_toks = _bt_tokenize(prompt)
+                    if _q_toks:
+                        beliefs = [
+                            b for b in beliefs
+                            if len(_q_toks & _bt_tokenize(b.get("content", ""))) >= 2
+                        ]
                 belief_text = format_beliefs_for_prompt(beliefs) if beliefs else None
+                if belief_text and len(belief_text) > 800:
+                    belief_text = belief_text[:800].rstrip() + " …"
             except Exception as e:
                 error_channel.record(
                     f"belief retrieval failed: {e}", source="gui.server", exc=e,
