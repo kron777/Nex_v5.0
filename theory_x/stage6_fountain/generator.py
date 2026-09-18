@@ -2510,6 +2510,52 @@ class FountainGenerator:
         except Exception:
             own_rows = []
 
+        # EDGE-WEIGHTED FIRING (NEX5_EDGE_WEIGHTED_FOUNTAIN, default OFF —
+        # ARCHITECTURAL INVESTIGATION, not a ship). Re-rank the recency-ordered
+        # oversample by a blend of recency + edge-degree + tier, biasing the fire
+        # toward well-connected, established beliefs. Kept a BIAS not a takeover
+        # (recency stays the dominant term) so the A/B can detect whether it
+        # raises crystallization quality or narrows her into a connectivity echo
+        # chamber. Fail-safe: any error leaves the pure recency order untouched.
+        if os.environ.get("NEX5_EDGE_WEIGHTED_FOUNTAIN") == "1" and own_rows:
+            try:
+                def _w(name, default):
+                    try:
+                        return float(os.environ.get(name, default) or default)
+                    except Exception:
+                        return float(default)
+                _wr, _we, _wt = (_w("NEX5_EWF_W_RECENCY", "0.5"),
+                                 _w("NEX5_EWF_W_EDGE", "0.35"),
+                                 _w("NEX5_EWF_W_TIER", "0.15"))
+                _ids = [(_r["id"] if hasattr(_r, "__getitem__") else _r.id) for _r in own_rows]
+                _deg = {i: 0 for i in _ids}
+                _ph = ",".join("?" * len(_ids))
+                for _e in (self._beliefs_reader.read(
+                        f"SELECT bid, COUNT(*) AS d FROM ("
+                        f"  SELECT source_id AS bid FROM belief_edges WHERE source_id IN ({_ph}) "
+                        f"  UNION ALL "
+                        f"  SELECT target_id AS bid FROM belief_edges WHERE target_id IN ({_ph})"
+                        f") GROUP BY bid", (*_ids, *_ids)) or []):
+                    _deg[_e["bid"]] = _e["d"]
+                _maxd = max(_deg.values()) or 1
+                _maxt = max((_r["tier"] if hasattr(_r, "__getitem__") else _r.tier)
+                            for _r in own_rows) or 1
+                _n = len(own_rows)
+                _scored = []
+                for _pos, _r in enumerate(own_rows):
+                    _rid = _r["id"] if hasattr(_r, "__getitem__") else _r.id
+                    _rec = 1.0 - (_pos / _n)                       # recency (order-based)
+                    _edg = _deg.get(_rid, 0) / _maxd
+                    _tr = (_r["tier"] if hasattr(_r, "__getitem__") else _r.tier) / _maxt
+                    _scored.append((_wr * _rec + _we * _edg + _wt * _tr, _r))
+                _scored.sort(key=lambda x: x[0], reverse=True)
+                own_rows = [_r for _, _r in _scored]
+            except Exception as _ewf_e:
+                error_channel.record(
+                    f"edge-weighted firing re-rank failed (non-fatal): {_ewf_e}",
+                    source="stage6_fountain", exc=_ewf_e,
+                )
+
         # Apply per-source cap so no single source crowds out the others.
         # 2026-05-15: per-branch cap added (max 2/branch) — light-touch
         # diversity. Prevents one hot branch from filling all own slots.
