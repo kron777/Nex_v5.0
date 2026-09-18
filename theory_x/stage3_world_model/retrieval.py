@@ -47,9 +47,14 @@ def format_beliefs_for_prompt(beliefs: list[dict]) -> str:
 
 
 class BeliefRetriever:
-    def __init__(self, beliefs_reader: Reader, erosion=None) -> None:
+    def __init__(self, beliefs_reader: Reader, erosion=None,
+                 edges_writer=None) -> None:
         self._reader = beliefs_reader
         self._erosion = erosion  # Optional ProvenanceErosion instance
+        # Optional beliefs Writer: threaded into the spreading-activation engine
+        # so traversed edges get last_traversed_at stamped. None on auxiliary
+        # retrievers (capability tools, strikes) — they simply don't stamp.
+        self._edges_writer = edges_writer
 
     def retrieve(self, query: str, branch_hints: Optional[list[str]] = None,
                  limit: int = 10, side_filter: Optional[str] = None) -> list[dict]:
@@ -154,7 +159,7 @@ class BeliefRetriever:
         epistemic_temp = 0.0
         try:
             from .activation import ActivationEngine
-            engine = ActivationEngine(self._reader)
+            engine = ActivationEngine(self._reader, edges_writer=self._edges_writer)
             # Use top-5 keyword seeds
             top_seeds = sorted(keyword_scores, key=keyword_scores.__getitem__, reverse=True)[:5]
             activation_scores = engine.activate(top_seeds)

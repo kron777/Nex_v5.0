@@ -8,8 +8,10 @@ from __future__ import annotations
 import statistics
 from typing import Optional
 
+import time
+
 import errors
-from substrate import Reader
+from substrate import Reader, Writer
 
 THEORY_X_STAGE = 3
 
@@ -25,8 +27,14 @@ _EDGE_MULTIPLIERS = {
 
 
 class ActivationEngine:
-    def __init__(self, beliefs_reader: Reader) -> None:
+    def __init__(self, beliefs_reader: Reader,
+                 edges_writer: Optional[Writer] = None) -> None:
         self._reader = beliefs_reader
+        # Optional: when present, activate() stamps last_traversed_at on the
+        # edges it actually follows (belief_edges lives in beliefs.db). Left
+        # None on read-only/auxiliary paths — stamping is best-effort signal
+        # collection and must never be required for activation to work.
+        self._edges_writer = edges_writer
 
     def activate(self, seed_ids: list[int], hops: int = 3,
                  decay: float = 0.55) -> dict[int, float]:
@@ -34,6 +42,11 @@ class ActivationEngine:
 
         Returns dict of belief_id → activation_score.
         Falls back to empty dict if belief_edges is empty.
+
+        Side effect (only when constructed with an edges_writer): every edge
+        actually traversed here has last_traversed_at stamped to now, in one
+        batched write at the end. This is the sole place edge traversal is
+        recorded — it runs on the chat/query retrieval path, not the fountain.
         """
         try:
             edge_count = self._reader.read_one(
@@ -46,6 +59,7 @@ class ActivationEngine:
 
         scores: dict[int, float] = {sid: 1.0 for sid in seed_ids}
         current_frontier = dict(scores)
+        traversed_edge_ids: set[int] = set()  # stamped at the end (best-effort)
 
         for hop in range(1, hops + 1):
             if not current_frontier:
@@ -57,7 +71,7 @@ class ActivationEngine:
             placeholders = ",".join("?" * len(source_ids))
             try:
                 edges = self._reader.read(
-                    f"SELECT source_id, target_id, edge_type, weight "
+                    f"SELECT id, source_id, target_id, edge_type, weight "
                     f"FROM belief_edges WHERE source_id IN ({placeholders})",
                     tuple(source_ids),
                 )
@@ -71,6 +85,7 @@ class ActivationEngine:
                 etype = edge["edge_type"]
                 w = edge["weight"]
                 src_score = current_frontier[src]
+                traversed_edge_ids.add(edge["id"])
 
                 if etype == "opposes":
                     delta = -(src_score * w * factor * 0.5)
@@ -84,7 +99,26 @@ class ActivationEngine:
 
             current_frontier = {k: v for k, v in next_frontier.items() if v > 0}
 
+        self._stamp_traversed(traversed_edge_ids)
         return scores
+
+    def _stamp_traversed(self, edge_ids: set[int]) -> None:
+        """Mark the traversed edges' last_traversed_at = now, in one batched
+        write. Fail-safe: any error is swallowed so a stamp failure can never
+        break chat retrieval. No-op without an edges_writer or edges."""
+        if not self._edges_writer or not edge_ids:
+            return
+        try:
+            ids = list(edge_ids)
+            placeholders = ",".join("?" * len(ids))
+            self._edges_writer.write(
+                f"UPDATE belief_edges SET last_traversed_at = ? "
+                f"WHERE id IN ({placeholders})",
+                (time.time(), *ids),
+            )
+        except Exception as exc:
+            errors.record(f"edge traversal stamp failed (non-fatal): {exc}",
+                          source=_LOG_SOURCE, exc=exc)
 
     def epistemic_temperature(self, activation_scores: dict[int, float]) -> float:
         """0.0 = cold/settled; 1.0 = hot/uncertain.

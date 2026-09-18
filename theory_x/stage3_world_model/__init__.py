@@ -255,7 +255,8 @@ def build_world_model(writers: dict, readers: dict,
                       coherence_gate=None) -> WorldModelState:
     """Factory: wire belief retrieval, promotion, harmonization, and pipeline hooks."""
     erosion = ProvenanceErosion(writers["beliefs"], readers["beliefs"])
-    retriever = BeliefRetriever(readers["beliefs"], erosion=erosion)
+    retriever = BeliefRetriever(readers["beliefs"], erosion=erosion,
+                                edges_writer=writers["beliefs"])
     promoter = BeliefPromoter(writers["beliefs"], readers["beliefs"], erosion=erosion)
     harmonizer = Harmonizer(
         beliefs_writer=writers["beliefs"],
