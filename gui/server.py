@@ -1634,6 +1634,21 @@ def create_app(state: AppState) -> Flask:
                 )
                 _apramada_block = ""
 
+            # JOYOUS-EFFORT (NEX5_VIRYA, admin-scoped, virya): when she is drifting
+            # off a hard thread to easy chatter, ride a lean-back-in signal.
+            # Capped (anti-mania) and composes with upekkha (yields when a pull is
+            # hot). Prompt-only; fail-safe "". Admin-gated.
+            _virya_block = ""
+            try:
+                if os.environ.get("NEX5_VIRYA") == "1" and bool(session.get("admin")):
+                    from theory_x.stage_affect.virya import stance_for as _virya_stance
+                    _virya_block = _virya_stance()
+            except Exception as _vir_exc:
+                error_channel.record(
+                    f"virya skipped: {_vir_exc}", source="gui.server", exc=_vir_exc,
+                )
+                _virya_block = ""
+
             if belief_text:
                 voice_prompt = (
                     f"{_operator_block}"
@@ -1641,6 +1656,7 @@ def create_app(state: AppState) -> Flask:
                     f"{_compass_block}"
                     f"{_equanimity_block}"
                     f"{_apramada_block}"
+                    f"{_virya_block}"
                     f"{_convo_block}"
                     f"{_spectrum_block}"
                     f"{_tag_block}"
@@ -1655,8 +1671,8 @@ def create_app(state: AppState) -> Flask:
                 )
             else:
                 voice_prompt = (
-                    f"{_operator_block}{_compassion_block}{_compass_block}{_equanimity_block}{_apramada_block}{_convo_block}{_spectrum_block}{_tag_block}{prompt}"
-                    if (_operator_block or _compassion_block or _compass_block or _equanimity_block or _apramada_block or _convo_block or _spectrum_block or _tag_block) else prompt
+                    f"{_operator_block}{_compassion_block}{_compass_block}{_equanimity_block}{_apramada_block}{_virya_block}{_convo_block}{_spectrum_block}{_tag_block}{prompt}"
+                    if (_operator_block or _compassion_block or _compass_block or _equanimity_block or _apramada_block or _virya_block or _convo_block or _spectrum_block or _tag_block) else prompt
                 )
 
         if text is None:
