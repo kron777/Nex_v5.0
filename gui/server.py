@@ -221,7 +221,12 @@ _SCAFFOLD_TRUNCATE_RE = re.compile(
     r"(?i)(\[user\]|\[nex\]|\(user\)|\(nex\)"
     r"|someone has just said"
     r"|my response would be honest and fresh"
-    r"|this seems like an off[- ]topic response)"
+    r"|this seems like an off[- ]topic response"
+    # Bare transcript labels (a fabricated Jon:/You: dialogue tail). Anchored to
+    # a NEWLINE boundary so only a line-start label is cut, never legitimate
+    # mid-sentence prose like "...and you: ..." — and so a reply that merely
+    # contains the word "you" is untouched.
+    r"|\n[ \t]*(?:Jon|You):)"
 )
 # Conservative meta-narration sentences to drop even before any marker: only
 # "I realize …" clauses that carry an unambiguous meta cue (veer/drift/off-topic/
