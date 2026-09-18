@@ -1681,6 +1681,21 @@ def create_app(state: AppState) -> Flask:
                 )
                 _prasrabdhi_block = ""
 
+            # AFFECT-CARRY (NEX5_AFFECT_CARRY, admin-scoped): carry a decaying
+            # conversational-affect weight across turns and, when non-trivial,
+            # colour the reply's TONE (never narrate the feeling). Item-11 build.
+            # Prompt-only; fail-safe "". Admin-gated.
+            _affect_carry_block = ""
+            try:
+                if os.environ.get("NEX5_AFFECT_CARRY") == "1" and bool(session.get("admin")):
+                    from theory_x.stage_affect.affect_carry import stance_for as _ac_stance
+                    _affect_carry_block = _ac_stance(session_id or "", prompt)
+            except Exception as _ac_exc:
+                error_channel.record(
+                    f"affect_carry skipped: {_ac_exc}", source="gui.server", exc=_ac_exc,
+                )
+                _affect_carry_block = ""
+
             if belief_text:
                 voice_prompt = (
                     f"{_operator_block}"
@@ -1691,6 +1706,7 @@ def create_app(state: AppState) -> Flask:
                     f"{_virya_block}"
                     f"{_sraddha_block}"
                     f"{_prasrabdhi_block}"
+                    f"{_affect_carry_block}"
                     f"{_convo_block}"
                     f"{_spectrum_block}"
                     f"{_tag_block}"
@@ -1705,8 +1721,8 @@ def create_app(state: AppState) -> Flask:
                 )
             else:
                 voice_prompt = (
-                    f"{_operator_block}{_compassion_block}{_compass_block}{_equanimity_block}{_apramada_block}{_virya_block}{_sraddha_block}{_prasrabdhi_block}{_convo_block}{_spectrum_block}{_tag_block}{prompt}"
-                    if (_operator_block or _compassion_block or _compass_block or _equanimity_block or _apramada_block or _virya_block or _sraddha_block or _prasrabdhi_block or _convo_block or _spectrum_block or _tag_block) else prompt
+                    f"{_operator_block}{_compassion_block}{_compass_block}{_equanimity_block}{_apramada_block}{_virya_block}{_sraddha_block}{_prasrabdhi_block}{_affect_carry_block}{_convo_block}{_spectrum_block}{_tag_block}{prompt}"
+                    if (_operator_block or _compassion_block or _compass_block or _equanimity_block or _apramada_block or _virya_block or _sraddha_block or _prasrabdhi_block or _affect_carry_block or _convo_block or _spectrum_block or _tag_block) else prompt
                 )
 
         if text is None:
