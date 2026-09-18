@@ -1604,11 +1604,27 @@ def create_app(state: AppState) -> Flask:
                 )
                 _compass_block = ""
 
+            # EQUANIMITY (NEX5_EQUANIMITY, admin-scoped, upekkha): when a strong
+            # pull (raga/dvesa) fires hot, ride a hold-steady/even-not-numb note.
+            # Silent when karuna is live (never flatten compassion). Prompt-only;
+            # fail-safe "". Admin-gated.
+            _equanimity_block = ""
+            try:
+                if os.environ.get("NEX5_EQUANIMITY") == "1" and bool(session.get("admin")):
+                    from theory_x.stage_affect.upekkha import stance_for as _upekkha_stance
+                    _equanimity_block = _upekkha_stance(prompt)
+            except Exception as _upk_exc:
+                error_channel.record(
+                    f"equanimity skipped: {_upk_exc}", source="gui.server", exc=_upk_exc,
+                )
+                _equanimity_block = ""
+
             if belief_text:
                 voice_prompt = (
                     f"{_operator_block}"
                     f"{_compassion_block}"
                     f"{_compass_block}"
+                    f"{_equanimity_block}"
                     f"{_convo_block}"
                     f"{_spectrum_block}"
                     f"{_tag_block}"
@@ -1623,8 +1639,8 @@ def create_app(state: AppState) -> Flask:
                 )
             else:
                 voice_prompt = (
-                    f"{_operator_block}{_compassion_block}{_compass_block}{_convo_block}{_spectrum_block}{_tag_block}{prompt}"
-                    if (_operator_block or _compassion_block or _compass_block or _convo_block or _spectrum_block or _tag_block) else prompt
+                    f"{_operator_block}{_compassion_block}{_compass_block}{_equanimity_block}{_convo_block}{_spectrum_block}{_tag_block}{prompt}"
+                    if (_operator_block or _compassion_block or _compass_block or _equanimity_block or _convo_block or _spectrum_block or _tag_block) else prompt
                 )
 
         if text is None:
