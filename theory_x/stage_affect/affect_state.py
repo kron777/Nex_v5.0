@@ -17,6 +17,29 @@ Integration math (S5.5 EmotionStateModel, adapted):
 
 Single-row table: affect_state.id = 1 always (INSERT OR REPLACE).
 Survives restart: loads existing row from DB on __init__.
+
+── Emotional-continuity investigation (dev-sweep item 11, 2026-09-18) ──────────
+Question: she's episodic — affect doesn't carry across CHAT turns (Q7 didn't
+receive Q6's hard news). Substrate limitation, or the qwen2.5:3b voice ceiling?
+Findings (investigate-only; NO carry built — owner go/no-go pending):
+  1. SUBSTRATE CAN CARRY. This AffectState already persists + decays an affect
+     vector across time (0.02/tick, survives restart). The carry mechanism
+     exists — but it is driven by INTERNAL cognition (belief-insertion rate,
+     tier-polarity, surprise, striking-rate), NOT by the conversation's emotional
+     content. So dialogue affect never enters or carries: that is the gap.
+  2. NOT A HARD 3B CEILING. Live probe (qwen2.5:3b): same neutral follow-up turn,
+     with vs without an injected "carried affect (heaviness from Jon's earlier
+     hard news, still with you)" line. WITHOUT -> flat ("monitoring market
+     dynamics"). WITH -> "I'm feeling somber from hearing Jon's hard news..." —
+     the 3B DOES voice carried affect when given it.
+  3. CAVEAT: the 3B tends to META-NARRATE the carry ("I'll be extra attentive")
+     rather than simply hold it in tone — brushes the no-self-narration failure
+     mode. A carry line must say "let it colour your tone, don't announce it."
+DIAGNOSIS: substrate-side and fixable, NOT a model-swap question. RECOMMENDED
+(pending go/no-go): NEX5_AFFECT_CARRY — a decaying CONVERSATIONAL-affect vector,
+seeded from the dialogue's emotional read (e.g. compassion.distress_salience of
+recent turns), carried turn->turn with decay (this module's pattern), injected as
+a tone-colour line (NOT self-narrated). Do not ship until approved.
 """
 from __future__ import annotations
 
