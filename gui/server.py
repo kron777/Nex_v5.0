@@ -1649,6 +1649,22 @@ def create_app(state: AppState) -> Flask:
                 )
                 _virya_block = ""
 
+            # WARRANTED CONFIDENCE (NEX5_SRADDHA, admin-scoped, sraddha): when a
+            # genuinely well-supported belief (crystallized, well-connected,
+            # confident) bears on the turn, signal she can stand on it. Keys off
+            # REAL substrate support only; thin -> silent (no confabulation).
+            # Prompt-only; fail-safe "". Admin-gated.
+            _sraddha_block = ""
+            try:
+                if os.environ.get("NEX5_SRADDHA") == "1" and bool(session.get("admin")):
+                    from theory_x.stage_affect.sraddha import stance_for as _sraddha_stance
+                    _sraddha_block = _sraddha_stance(prompt)
+            except Exception as _srd_exc:
+                error_channel.record(
+                    f"sraddha skipped: {_srd_exc}", source="gui.server", exc=_srd_exc,
+                )
+                _sraddha_block = ""
+
             if belief_text:
                 voice_prompt = (
                     f"{_operator_block}"
@@ -1657,6 +1673,7 @@ def create_app(state: AppState) -> Flask:
                     f"{_equanimity_block}"
                     f"{_apramada_block}"
                     f"{_virya_block}"
+                    f"{_sraddha_block}"
                     f"{_convo_block}"
                     f"{_spectrum_block}"
                     f"{_tag_block}"
@@ -1671,8 +1688,8 @@ def create_app(state: AppState) -> Flask:
                 )
             else:
                 voice_prompt = (
-                    f"{_operator_block}{_compassion_block}{_compass_block}{_equanimity_block}{_apramada_block}{_virya_block}{_convo_block}{_spectrum_block}{_tag_block}{prompt}"
-                    if (_operator_block or _compassion_block or _compass_block or _equanimity_block or _apramada_block or _virya_block or _convo_block or _spectrum_block or _tag_block) else prompt
+                    f"{_operator_block}{_compassion_block}{_compass_block}{_equanimity_block}{_apramada_block}{_virya_block}{_sraddha_block}{_convo_block}{_spectrum_block}{_tag_block}{prompt}"
+                    if (_operator_block or _compassion_block or _compass_block or _equanimity_block or _apramada_block or _virya_block or _sraddha_block or _convo_block or _spectrum_block or _tag_block) else prompt
                 )
 
         if text is None:
