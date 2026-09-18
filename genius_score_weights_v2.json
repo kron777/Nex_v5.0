@@ -16,7 +16,7 @@
     4.625975448515423
   ],
   "bias": -3.4031111364840223,
-  "threshold": 0.35,
+  "threshold": 0.578,
   "training_size": 103,
   "training_striking": 67,
   "training_ordinary": 36,
@@ -27,5 +27,11 @@
     "fn": 4,
     "tn": 35
   },
-  "note": "F2-V2 refit (1 - max content-token Jaccard). Gated by NEX5_SCORE_F2_V2. Not live until approved."
+  "note": "F2-V2 refit (1 - max content-token Jaccard). Gated by NEX5_SCORE_F2_V2. Not live until approved.",
+  "threshold_calibration": {
+    "target_v1_live_rate": 0.311,
+    "achieved_v2_rate": 0.305,
+    "at": 1789763608.2498136,
+    "basis": "7d live fires"
+  }
 }
