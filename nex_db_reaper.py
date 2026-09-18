@@ -41,12 +41,26 @@ CHECKPOINT_EVERY = 40        # PASSIVE wal checkpoint cadence (non-blocking)
 MAX_LOCK_RETRIES = 5         # per batch, before backing off this table
 
 # (db file, table, timestamp column)
+# (db, table, col) uses the run's default retention; an optional 4th element sets
+# a per-target retention in DAYS. residue gets a SHORT TTL: under pop_residue's
+# created_at DESC ordering, anything not popped within ~a cycle is unreachable,
+# so a 2-day window drops the permanently-stranded backlog and bounds growth
+# while never touching a row the live consumer could still reach.
 TARGETS = [
     ("dynamic.db", "pipeline_events", "ts"),
     ("dynamic.db", "tree_snapshots",  "ts"),
     ("dynamic.db", "tier_snapshots",  "ts"),
     ("sense.db",   "sense_events",    "timestamp"),
+    ("beliefs.db", "residue",         "created_at", 2),
 ]
+
+
+def _unpack(target, now: int, default_days: int):
+    """(db, table, col, cutoff) for a TARGETS entry — honouring a per-target
+    retention-days override (4th element) or the run default."""
+    db_file, tbl, col = target[0], target[1], target[2]
+    days = target[3] if len(target) > 3 else default_days
+    return db_file, tbl, col, int(now) - int(days) * 86400
 
 
 def log(msg: str) -> None:
@@ -78,11 +92,12 @@ def _freelist(con: sqlite3.Connection) -> int:
         return -1
 
 
-def dry_run(cutoff: int) -> None:
-    log(f"DRY-RUN — cutoff {time.strftime('%F %T', time.gmtime(cutoff))}Z "
-        f"({RETENTION_DAYS}d). Deleting nothing.")
+def dry_run(now: int, default_days: int) -> None:
+    log(f"DRY-RUN — default {default_days}d retention. Deleting nothing.")
     total_would = 0
-    for db_file, tbl, col in TARGETS:
+    for target in TARGETS:
+        db_file, tbl, col, cutoff = _unpack(target, now, default_days)
+        days = target[3] if len(target) > 3 else default_days
         try:
             con = _connect(db_file, readonly=True)
             tot = con.execute(f"SELECT COUNT(*) FROM {tbl}").fetchone()[0]
@@ -90,7 +105,7 @@ def dry_run(cutoff: int) -> None:
             con.close()
             total_would += old
             pct = (100.0 * old / tot) if tot else 0.0
-            log(f"  {db_file}:{tbl}: total={tot:,} WOULD DELETE={old:,} ({pct:.1f}%) keep={tot-old:,}")
+            log(f"  {db_file}:{tbl} ({days}d): total={tot:,} WOULD DELETE={old:,} ({pct:.1f}%) keep={tot-old:,}")
         except sqlite3.Error as e:
             log(f"  {db_file}:{tbl}: read error (skipped): {e}")
     log(f"DRY-RUN total rows that WOULD be deleted: {total_would:,}")
@@ -154,11 +169,12 @@ def reap_table(db_file: str, tbl: str, col: str, cutoff: int) -> int:
         return reaped
 
 
-def reap(cutoff: int) -> None:
-    log(f"START — cutoff {time.strftime('%F %T', time.gmtime(cutoff))}Z ({RETENTION_DAYS}d), "
+def reap(now: int, default_days: int) -> None:
+    log(f"START — default {default_days}d retention, "
         f"batch={BATCH}, busy_timeout={BUSY_TIMEOUT_MS}ms")
     grand = 0
-    for db_file, tbl, col in TARGETS:
+    for target in TARGETS:
+        db_file, tbl, col, cutoff = _unpack(target, now, default_days)
         grand += reap_table(db_file, tbl, col, cutoff)
     log(f"DONE — total rows reaped: {grand:,}. "
         f"(No VACUUM: freed pages are on the freelist, reused by NEX. "
@@ -172,12 +188,12 @@ def main() -> int:
     ap.add_argument("--days", type=int, default=RETENTION_DAYS,
                     help=f"retention window in days (default {RETENTION_DAYS})")
     args = ap.parse_args()
-    cutoff = int(time.time()) - args.days * 86400
+    now = int(time.time())
     try:
         if args.dry_run:
-            dry_run(cutoff)
+            dry_run(now, args.days)
         else:
-            reap(cutoff)
+            reap(now, args.days)
     except Exception as e:  # never crash a scheduled run
         log(f"FATAL (exiting clean): {e}")
         return 0
