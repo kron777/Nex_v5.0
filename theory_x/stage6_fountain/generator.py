@@ -47,6 +47,45 @@ def _dedup_jaccard(a: set, b: set) -> float:
     return len(a & b) / len(a | b) if a and b else 0.0
 
 
+# Focus-rotation staleness bound (NEX5_FOCUS_ROTATE), set above the live p90
+# focal dwell (18 fires / 68 min) so only genuine ruts rotate, not healthy dwell.
+_FOCUS_STALE_FIRES = 18
+_FOCUS_STALE_MIN = 68
+
+
+def _stale_cluster_tokens():
+    """If one focal cluster has dominated recent fires past the staleness bound,
+    return its content-token set (so its items can be excluded); else None.
+    Reads dynamic.db via db_paths (respects NEX5_DATA_DIR). Fail-safe None."""
+    try:
+        import sqlite3 as _s3
+        from collections import Counter
+        from substrate import db_paths
+        _dp = str(db_paths()["dynamic"])
+        _c = _s3.connect(f"file:{_dp}?mode=ro", uri=True, timeout=5)
+        rows = _c.execute(
+            "SELECT focal_item FROM fountain_events "
+            "WHERE ts > ? AND focal_item IS NOT NULL AND focal_item != '' "
+            "ORDER BY id DESC LIMIT 40",
+            (time.time() - _FOCUS_STALE_MIN * 60,)).fetchall()
+        _c.close()
+        if not rows:
+            return None
+        # group by a 40-char key, but keep a FULL representative text per key so
+        # tokenisation isn't corrupted by truncation (e.g. "Search" -> "Searc").
+        keys = [(r[0] or "")[:40] for r in rows]
+        full_by_key = {}
+        for r in rows:
+            k = (r[0] or "")[:40]
+            full_by_key.setdefault(k, r[0] or "")
+        top, n = Counter(keys).most_common(1)[0]
+        if n >= _FOCUS_STALE_FIRES and top:
+            return _dedup_tokens(full_by_key.get(top, top))
+        return None
+    except Exception:
+        return None
+
+
 _OWN_CONTENT_SOURCES = (
     "fountain_insight",
     "synergized",
@@ -611,6 +650,29 @@ def _select_wide_mode(seeds, drift_fallback_prob=0.30):
             items = []
     if not items:
         return None  # genuinely nothing fresh -> DRIFT
+    # FOCUS ROTATION (NEX5_FOCUS_ROTATE, default OFF): when one focal cluster has
+    # held past the staleness bound (>_FOCUS_STALE_FIRES fires within
+    # _FOCUS_STALE_MIN min — set above the live p90 dwell of 18 fires / 68 min so
+    # healthy dwell is untouched), drop that cluster's items from the pool so a
+    # different focus must surface. Anti-thrash: fires only on a genuine rut, and
+    # excludes only the ONE over-dwelt cluster; the rest of selection is normal.
+    if os.environ.get("NEX5_FOCUS_ROTATE") == "1":
+        try:
+            _stale = _stale_cluster_tokens()
+            if _stale:
+                def _on_stale(it):
+                    _t = _dedup_tokens(it)
+                    if not _t:
+                        return False
+                    # containment (shared / smaller set) — robust to same-topic,
+                    # different-phrasing between the focal_item and the candidate.
+                    _shared = len(_t & _stale)
+                    return _shared / min(len(_t), len(_stale)) >= 0.30
+                _kept = [it for it in items if not _on_stale(it)]
+                if _kept:                      # never starve -> DRIFT fallback if empty
+                    items = _kept
+        except Exception:
+            pass
     # NEX5_CURIOSITY (default OFF): soft weighted re-rank of the SAME candidate
     # set toward what she cares about (surprise / dropped thread / building
     # thread), groove-guarded. Reorders only — never removes a candidate
