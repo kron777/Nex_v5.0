@@ -1104,16 +1104,16 @@ def create_app(state: AppState) -> Flask:
                     f"problem memory matching failed: {exc}", source="gui.server", exc=exc
                 )
 
-        # Goal manager: inject top-priority open goal into belief_text (Phase 15).
-        # Always-on; no register gating; no semantic match requirement.
-        # Goal is the organizing target — should be in awareness each turn.
+        # SEAM 3 (chat only): the fountain "Current goal / Working on" block used
+        # to be injected into belief_text here. In the empty-history voice test it
+        # bled into her chat voice verbatim ("solving that 80/20 fountain
+        # recursion issue") — it's a fountain-internal target, irrelevant to
+        # conversation. Dropped from the CHAT path; the goal manager itself and
+        # the fountain path are untouched (get_active still runs for the log).
         if state.goal_manager is not None:
             try:
                 active_goal = state.goal_manager.get_active()
-                if active_goal:
-                    goal_text = state.goal_manager.format_for_prompt(active_goal["id"])
-                    if goal_text:
-                        belief_text = (belief_text or "") + "\n\n" + goal_text
+                # (goal_text no longer appended to the chat prompt — SEAM 3)
                 try:
                     with open(_GM_LOG, "a") as _gmf:
                         import json as _json
