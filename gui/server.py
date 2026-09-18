@@ -287,8 +287,11 @@ def _recent_dialogue(readers, session_id, current_prompt="", limit=3):
             if not is_user:
                 content = _sanitize_reply(content)  # clean poisoned nex history
             lines.append(f"  {who}: {content.strip()[:240]}")
-        return ("The conversation so far (most recent last) — track it, build on it, "
-                "do not restart from scratch:\n" + "\n".join(lines) + "\n\n")
+        return ("The conversation so far (most recent last) — this is the "
+                "authoritative record of what has actually been said between you "
+                "two; track it, build on it, do not restart from scratch. If they "
+                "ask what was just said or just asked, answer directly from the "
+                "last turns below:\n" + "\n".join(lines) + "\n\n")
     except Exception:
         return ""
 
@@ -1597,8 +1600,10 @@ def create_app(state: AppState) -> Flask:
                     f"{belief_text}\n\n"
                     f"Someone has just said to you: \"{prompt}\"\n\n"
                     "Compose your one true reply, from inside this interior. Speak "
-                    "as you, in your register. If what they said does not fit your "
-                    "interior, say so honestly."
+                    "as you, in your register. If your interior holds little that "
+                    "bears on this, do NOT say you don't recognise the question or "
+                    "ask them to clarify — stay warm and present, and answer from "
+                    "what they just said and the conversation so far."
                 )
             else:
                 voice_prompt = (
