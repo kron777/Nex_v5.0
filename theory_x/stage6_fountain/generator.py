@@ -21,6 +21,32 @@ from voice.llm import VoiceClient, VoiceRequest
 from voice.registers import PHILOSOPHICAL
 
 # Her own lived content — dominates retrieval (~80%)
+# --- Paraphrase-burst dampener (NEX5_FOUNTAIN_DEDUP, default OFF) ---------------
+# She over-generates near-duplicate insights within a firing cluster (~6.3% of
+# raw fires/24h were >0.55 Jaccard to a temporal sibling). The crystallizer's
+# best-of-cluster already dedups what reaches BELIEF, but the redundant fires
+# still get generated and scored. This suppresses a fire whose thought is a
+# near-duplicate of a recent sibling fire (the cluster's earlier best-of, which
+# already went through) BEFORE it is crystallized — keeping best-of, dropping the
+# echo. Fail-safe: any error -> do not suppress (crystallize as normal).
+_DEDUP_JACCARD = 0.55
+_DEDUP_WINDOW_SECONDS = 15 * 60
+_DEDUP_WORD_RE = re.compile(r"[a-z0-9]{3,}")
+_DEDUP_STOP = frozenset(
+    "the and for are was has had not but with into over from this that how what "
+    "who when where which more most just now here there they them their his her "
+    "its our you your item these those been being also very much many some".split())
+
+
+def _dedup_tokens(text: str) -> set:
+    return {t for t in _DEDUP_WORD_RE.findall((text or "").lower())
+            if t not in _DEDUP_STOP}
+
+
+def _dedup_jaccard(a: set, b: set) -> float:
+    return len(a & b) / len(a | b) if a and b else 0.0
+
+
 _OWN_CONTENT_SOURCES = (
     "fountain_insight",
     "synergized",
@@ -1967,7 +1993,38 @@ class FountainGenerator:
                 )
 
         crystallized_id = None
-        if self._crystallizer is not None and thought and fountain_event_id:
+        # Paraphrase-burst dampener (NEX5_FOUNTAIN_DEDUP): suppress this fire from
+        # crystallizing if it near-duplicates a recent sibling fire (keep best-of).
+        _burst_suppress = False
+        if (os.environ.get("NEX5_FOUNTAIN_DEDUP") == "1"
+                and thought and fountain_event_id):
+            try:
+                _mine = _dedup_tokens(thought)
+                if _mine:
+                    _sibs = self._dynamic_reader.read(
+                        "SELECT thought FROM fountain_events "
+                        "WHERE ts > ? AND id != ? AND thought IS NOT NULL "
+                        "ORDER BY id DESC LIMIT 40",
+                        (ts_now - _DEDUP_WINDOW_SECONDS, fountain_event_id),
+                    )
+                    for _s in (_sibs or []):
+                        if _dedup_jaccard(_mine, _dedup_tokens(_s["thought"])) >= _DEDUP_JACCARD:
+                            _burst_suppress = True
+                            break
+                if _burst_suppress:
+                    error_channel.record(
+                        "Fountain dedup: burst-suppressed near-duplicate fire "
+                        f"(fid={fountain_event_id}); kept cluster best-of",
+                        source="stage6_fountain", level="INFO",
+                    )
+            except Exception as e:
+                _burst_suppress = False  # fail-safe: never block on the dedup path
+                error_channel.record(
+                    f"Fountain dedup check failed (non-fatal): {e}",
+                    source="stage6_fountain", exc=e,
+                )
+        if (self._crystallizer is not None and thought and fountain_event_id
+                and not _burst_suppress):
             try:
                 crystallized_id = self._crystallizer.crystallize(
                     thought=thought,
