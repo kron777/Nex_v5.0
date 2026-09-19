@@ -304,6 +304,14 @@ def _recent_dialogue(readers, session_id, current_prompt="", limit=3):
         turns = turns[-(limit * 2):]
         if not turns:
             return ""
+        # NEX5_CHAT_ANTIECHO (default OFF): she latches verbatim spans from her
+        # OWN prior replies threaded here (measured ~38% of turns reuse a 6+ word
+        # span). Root is this block handing back her reusable surface phrasing, so
+        # when armed we thread only a short GIST of each of HER turns (first
+        # sentence, ~14 words) — enough for continuity, nothing to copy — and add
+        # a light say-it-fresh line. Jon's turns stay full (so "what did I just
+        # ask" still works). Cheap, no retry, no 3B-fighting.
+        _antiecho = os.environ.get("NEX5_CHAT_ANTIECHO") == "1"
         lines = []
         for t in turns:
             is_user = t.get("role") == "user"
@@ -311,12 +319,19 @@ def _recent_dialogue(readers, session_id, current_prompt="", limit=3):
             content = (t.get("content") or "").strip()
             if not is_user:
                 content = _sanitize_reply(content)  # clean poisoned nex history
+                if _antiecho:
+                    first = re.split(r"(?<=[.!?])\s+", content.strip(), 1)[0]
+                    words = first.split()
+                    content = (" ".join(words[:14]) + ("…" if len(words) > 14 else "")) or content[:60]
             lines.append(f"  {who}: {content.strip()[:240]}")
+        footer = (" Your own turns are shown only as a short gist — do NOT reuse "
+                  "your earlier wording; say anything new in fresh words."
+                  if _antiecho else "")
         return ("The conversation so far (most recent last) — this is the "
                 "authoritative record of what has actually been said between you "
                 "two; track it, build on it, do not restart from scratch. If they "
                 "ask what was just said or just asked, answer directly from the "
-                "last turns below:\n" + "\n".join(lines) + "\n\n")
+                "last turns below:" + footer + "\n" + "\n".join(lines) + "\n\n")
     except Exception:
         return ""
 
