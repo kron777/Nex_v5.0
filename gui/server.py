@@ -219,7 +219,7 @@ def _chat_memory_active(session) -> bool:
 # the prompt frame / fabricating a new turn — keep only the text BEFORE it.
 _SCAFFOLD_TRUNCATE_RE = re.compile(
     r"(?i)(\[user\]|\[nex\]|\(user\)|\(nex\)"
-    r"|someone has just said"
+    r"|someone has just (?:said|asked|mentioned|told|noted|remarked)"
     r"|my response would be honest and fresh"
     r"|this seems like an off[- ]topic response"
     # Bare transcript labels (a fabricated Jon:/You: dialogue tail). Anchored to
@@ -255,7 +255,16 @@ def _sanitize_reply(text):
         original = text
         m = _SCAFFOLD_TRUNCATE_RE.search(text)
         if m:
-            text = text[:m.start()]
+            before = text[:m.start()]
+            if before.strip():
+                text = before                      # real prose precedes the leak
+            else:
+                # Scaffold at the very start (e.g. reply opens "Someone has just
+                # asked me if …") — truncating empties it, so instead drop the
+                # leading scaffold SENTENCE and keep what follows.
+                after = text[m.start():]
+                sent = re.split(r"(?<=[.!?])\s+", after, 1)
+                text = sent[1] if len(sent) > 1 else ""
         text = _META_SENTENCE_RE.sub(" ", text)
         # NEX5_COMPASS_TRIM: if the model echoes the compass boilerplate tail into
         # its reply, strip those fixed phrases (cosmetic; the weighing content and
