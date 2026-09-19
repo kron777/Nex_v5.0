@@ -1565,6 +1565,31 @@ def create_app(state: AppState) -> Flask:
                 )
                 _operator_block = ""
 
+            # OPERATOR ANCHOR (NEX5_OPERATOR_ANCHOR, admin-scoped): the operator
+            # block reads Jon in the THIRD person ("meet him"), and the turn
+            # framing says "Someone" — so a low-signal/ambiguous turn can let her
+            # invent a name for him or slip to third person (the "Finn" slip).
+            # This holds the second-person addressee anchor unconditionally, even
+            # on short/ambiguous turns. Does NOT recite Jon's details (guard 2) —
+            # it only fixes WHO the addressee is. Fail-safe "".
+            _operator_anchor_block = ""
+            try:
+                if (os.environ.get("NEX5_OPERATOR_ANCHOR") == "1"
+                        and bool(session.get("admin"))):
+                    _operator_anchor_block = (
+                        "[You are in a live conversation with Jon right now — he is "
+                        "the one speaking to you this turn, and you are replying "
+                        "straight to him. Address him directly as \"you\". Never "
+                        "invent a name for him and never refer to him in the third "
+                        "person; if a turn is short, casual, or ambiguous, it is "
+                        "still Jon, still you-to-him.]\n\n"
+                    )
+            except Exception as _oa_exc:
+                error_channel.record(
+                    f"operator_anchor skipped: {_oa_exc}", source="gui.server", exc=_oa_exc,
+                )
+                _operator_anchor_block = ""
+
             # CONVERSATION MEMORY (NEX5_CHAT_MEMORY, admin-scoped): thread the
             # recent turns into the compose prompt so she tracks the dialogue
             # instead of composing each reply in isolation. Fail-safe: "" -> no
@@ -1699,6 +1724,7 @@ def create_app(state: AppState) -> Flask:
             if belief_text:
                 voice_prompt = (
                     f"{_operator_block}"
+                    f"{_operator_anchor_block}"
                     f"{_compassion_block}"
                     f"{_compass_block}"
                     f"{_equanimity_block}"
@@ -1721,8 +1747,8 @@ def create_app(state: AppState) -> Flask:
                 )
             else:
                 voice_prompt = (
-                    f"{_operator_block}{_compassion_block}{_compass_block}{_equanimity_block}{_apramada_block}{_virya_block}{_sraddha_block}{_prasrabdhi_block}{_affect_carry_block}{_convo_block}{_spectrum_block}{_tag_block}{prompt}"
-                    if (_operator_block or _compassion_block or _compass_block or _equanimity_block or _apramada_block or _virya_block or _sraddha_block or _prasrabdhi_block or _affect_carry_block or _convo_block or _spectrum_block or _tag_block) else prompt
+                    f"{_operator_block}{_operator_anchor_block}{_compassion_block}{_compass_block}{_equanimity_block}{_apramada_block}{_virya_block}{_sraddha_block}{_prasrabdhi_block}{_affect_carry_block}{_convo_block}{_spectrum_block}{_tag_block}{prompt}"
+                    if (_operator_block or _operator_anchor_block or _compassion_block or _compass_block or _equanimity_block or _apramada_block or _virya_block or _sraddha_block or _prasrabdhi_block or _affect_carry_block or _convo_block or _spectrum_block or _tag_block) else prompt
                 )
 
         if text is None:
