@@ -161,5 +161,71 @@ class TestCompassionInjection(unittest.TestCase):
         self.assertNotIn("Compassion is up in you", blob)
 
 
+# NEX5_COMPASSION_V2 — plainly-stated grief (no feeling words) reads under the
+# fire line in V1; V2 lifts it without firing on logistics / machine "death".
+_FLAT_GRIEF = (
+    "My mum died last night.",
+    "My dad's scans came back bad, I don't know what to do.",
+    "Dad has cancer.",
+    "We had to put our dog down this morning.",
+    "The funeral is on Thursday.",
+)
+_KEEP_FIRING = (
+    "My dad's scans came back bad and I'm scared. I don't know how to hold it together.",
+    "I feel hopeless and overwhelmed, everything is too much",
+)
+_TRAPS = (
+    "The test suite died on CI last night, can you look?",
+    "My mum's phone died, can you help me set up the new one?",
+    "My dad passed me the salt and asked about your work.",
+    "My dad passed his driving test at 70!",
+    "Can you write stage four of the pipeline?",
+    "The diagnosis tool in the dashboard is showing stale data.",
+    "Our cat knocked the plant over again.",
+    "The benchmark results came back and they're not good.",
+    "Morning. What's been on your mind since we last spoke?",
+)
+
+
+class TestCompassionV2(unittest.TestCase):
+    """Fire decision = salience x (gain+bias) >= threshold. Read-only: uses
+    _distress_read, which never touches compassion_state."""
+
+    def setUp(self):
+        from theory_x.stage_affect import compassion as k
+        self.k = k
+        self._prev = os.environ.pop("NEX5_COMPASSION_V2", None)
+
+    def tearDown(self):
+        os.environ.pop("NEX5_COMPASSION_V2", None)
+        if self._prev is not None:
+            os.environ["NEX5_COMPASSION_V2"] = self._prev
+
+    def _fires(self, msg):
+        sal, _ = self.k._distress_read(msg)
+        return sal * (self.k._GAIN + self.k._ETHICAL_BIAS) >= self.k._THRESHOLD
+
+    def test_flag_off_is_v1(self):
+        # the blind spot, as measured live: flat grief does not fire without V2
+        self.assertFalse(self._fires("My mum died last night."))
+        self.assertFalse(self._fires("Dad has cancer."))
+
+    def test_v2_flat_grief_fires_acute(self):
+        os.environ["NEX5_COMPASSION_V2"] = "1"
+        for m in _FLAT_GRIEF:
+            self.assertTrue(self._fires(m), m)
+            self.assertEqual(self.k._distress_read(m)[1], "acute", m)
+
+    def test_v2_existing_fires_kept(self):
+        os.environ["NEX5_COMPASSION_V2"] = "1"
+        for m in _KEEP_FIRING:
+            self.assertTrue(self._fires(m), m)
+
+    def test_v2_traps_stay_silent(self):
+        os.environ["NEX5_COMPASSION_V2"] = "1"
+        for m in _TRAPS:
+            self.assertFalse(self._fires(m), m)
+
+
 if __name__ == "__main__":
     unittest.main()

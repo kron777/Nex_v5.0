@@ -24,6 +24,7 @@ never stalls the chat path.
 from __future__ import annotations
 
 import os
+import re
 import time
 
 _BASELINE       = 0.20   # resting compassion_level
@@ -61,7 +62,91 @@ _NEUTRAL_ANCHORS = (
     "the weather is fine and the news is ordinary today",
 )
 
-_anchor_cache = {"acute": None, "mild": None, "neutral": None}
+# NEX5_COMPASSION_V2 (default OFF) — the quiet-grief blind spot. Every distress
+# anchor above is a first-person FEELING statement, so the read keys on how
+# intense someone sounds, not on what happened to them: plainly-stated loss with
+# no feeling words ("My mum died last night." 0.316, "Dad has cancer." 0.187)
+# reads under the 0.333 fire line. V2 adds three things, all read-only:
+#   1. a LOSS anchor family — plain-fact loss/hard-news, semantic (catches
+#      paraphrase), counted in the ACUTE register;
+#   2. two tech-neutral anchors, so machine "death" (a job/process/test dying)
+#      contrasts away instead of reading as loss;
+#   3. a lexical LOSS-CUE floor for constructions the 3-word-ish embedding under-
+#      reads ("scans came back bad", "put our dog down"). Each cue is anchored to
+#      a relation or a medical subject, so "the test suite died", "the diagnosis
+#      tool", "my mum's phone died", "stage four of the pipeline" stay silent.
+_LOSS_ANCHORS = (
+    "someone I love has died",
+    # (no "my father passed away" here: it pulled "my dad passed me the salt"
+    # over the line semantically; the literal "passed away" cue covers it)
+    "we just found out it's terminal",
+    "the doctor said the tumour has spread",
+    "the test results came back and the news is bad",
+    "our family is burying my grandmother this week",
+    "I lost my husband",
+    "we had a miscarriage",
+    "my sister is in intensive care after the crash",
+    "our cat had to be euthanised",
+)
+_TECH_NEUTRAL_ANCHORS = (
+    "the build failed and the server process crashed overnight",
+    "can you look at the bug in this code and the error logs",
+)
+_REL = (r"(?:mum|mom|mother|mam|dad|father|parents?|wife|husband|partner|son|"
+        r"daughter|kids?|child|baby|brother|sister|grand(?:ma|pa|mother|father|"
+        r"parents?|son|daughter)|gran|nan|nana|aunt(?:ie)?|uncle|cousin|"
+        r"(?:best )?friend|fianc[eé]e?|boyfriend|girlfriend|dog|cat|pet)")
+_LOSS_CUE_RE = re.compile(
+    r"(?i)"
+    # a loved one died / is dying / was killed ("my mum's phone died" excluded)
+    rf"\b{_REL}(?:(?-i:\s+[A-Z][a-z]+))?(?!'s|s')\s+(?:(?:has|had|just|finally|suddenly|sadly|recently|"
+    r"unexpectedly|was|is|got)\s+){0,3}"
+    r"(?:died|dead|passed(?=\s*(?:[.,!;]|$|away\b|on\b(?!\s+(?:the|a|it|that|this)\b)|"
+    r"last\b|this\b|yesterday|today|recently|earlier|overnight|suddenly|in\s+(?:his|her|their)\s+sleep))|"
+    r"was killed|been killed|killed(?!\s+it\b)|is dying|dying)\b"
+    r"|\bpassed away\b"
+    rf"|\b{_REL}\s+(?:didn't|did not|won't|will not)\s+make it\b"
+    r"|\btook (?:his|her|their|my) own life\b|\bsuicide\b|\bkilled (?:himself|herself|themselves)\b"
+    rf"|\blost\s+(?:my|our|his|her)\s+(?:\w+\s+)?{_REL}\b|\blost the baby\b|\bmiscarr"
+    # medical hard news — needs a medical subject
+    r"|\b(?:scans?|biopsy|blood ?work|bloods|mri|ct(?: scan)?|pathology|mammogram)"
+    r"(?:\s+results?)?\s+(?:came|come|have come|has come)\s+back\s+"
+    r"(?:bad|badly|positive|malignant|abnormal|not good|worse)"
+    r"|\bdiagnosed with\b|\b(?:got|received|had|given)\s+(?:the|a|her|his|my|our|"
+    r"their)\s+(?:\w+\s+)?diagnosis\b"
+    r"|\bstage (?:three|four|3|4|iii|iv)\b(?=\s*(?:[.!]|$|\w*\s*(?:cancer|lymphoma|"
+    r"melanoma|tumou?r)))"
+    rf"|\b{_REL}\s+(?:has|had|got)\s+(?:\w+\s+)?(?:cancer|a tumou?r|dementia|leukaemia|leukemia)\b"
+    r"|\bterminal(?:ly ill)?\b(?!\s+(?:window|emulator|app|session|command|output|velocity))"
+    r"|\b(?:had|suffered|having)\s+(?:a\s+)?(?:massive\s+|major\s+|bad\s+)?"
+    r"(?:stroke|heart attack|aneurysm|brain bleed)\b(?!\s+of\b)"
+    # endings
+    r"|\b(?:scattered|spread|collected)\s+(?:his|her|their|the)\s+ashes\b"
+    r"|\bfuneral\b|\bhospice\b|\beuthani[sz]|\bput to sleep\b"
+    rf"|\bput\s+(?:our|my|the|his|her)\s+(?:\w+\s+)?(?:dog|cat|pet|horse)\s+down\b"
+)
+# The semantic LOSS read over-generalises on its own (MiniLM keys on topic: "our
+# cat knocked the plant over" rode the euthanised-cat anchor to 0.50, "the
+# benchmark results came back and they're not good" rode the test-results one).
+# So it only counts when the message also carries loss/medical vocabulary — the
+# meaning of loss AND the words of it. Machine "death" has the word but not the
+# meaning (tech-neutral anchors hold it down).
+_LOSS_DOMAIN_RE = re.compile(
+    r"(?i)\b(?:die[ds]?|dying|death|dead|passed|funeral|ashes|buried|burial|grave|"
+    r"griev\w*|grief|mourn\w*|widow\w*|cancer|tumou?r|malignant|oncolog\w*|chemo\w*|"
+    r"diagnos\w*|terminal|hospice|icu|nicu|intensive care|hospital|stroke|heart attack|"
+    r"scans?|biopsy|surgery|survive|pull through|make it|killed|accident|crash|"
+    r"miscarr\w*|euthan\w*|vet|goodbye|lost|sick|ill|seizure|ambulance|doctors?)\b"
+)
+_LOSS_CUE_FLOOR = 0.40   # a matched cue reads at least this (x1.5 = 0.60 -> FULL stance)
+
+
+def _v2() -> bool:
+    return os.environ.get("NEX5_COMPASSION_V2") == "1"
+
+
+_anchor_cache = {"acute": None, "mild": None, "neutral": None,
+                 "loss": None, "tech_neutral": None}
 
 
 def _anchor_vecs(embed):
@@ -70,6 +155,13 @@ def _anchor_vecs(embed):
         _anchor_cache["mild"] = [embed(a) for a in _MILD_ANCHORS]
         _anchor_cache["neutral"] = [embed(a) for a in _NEUTRAL_ANCHORS]
     return _anchor_cache["acute"], _anchor_cache["mild"], _anchor_cache["neutral"]
+
+
+def _v2_anchor_vecs(embed):
+    if _anchor_cache["loss"] is None:
+        _anchor_cache["loss"] = [embed(a) for a in _LOSS_ANCHORS]
+        _anchor_cache["tech_neutral"] = [embed(a) for a in _TECH_NEUTRAL_ANCHORS]
+    return _anchor_cache["loss"], _anchor_cache["tech_neutral"]
 
 
 def _distress_read(message: str):
@@ -91,8 +183,15 @@ def _distress_read(message: str):
         da = max(cosine(e, v) for v in a_vecs)
         dm = max(cosine(e, v) for v in m_vecs)
         n = max(cosine(e, v) for v in n_vecs)
+        if _v2():
+            l_vecs, tn_vecs = _v2_anchor_vecs(embed)
+            if _LOSS_DOMAIN_RE.search(message):                # loss reads ACUTE
+                da = max(da, max(cosine(e, v) for v in l_vecs))
+            n = max(n, max(cosine(e, v) for v in tn_vecs))
         salience = max(0.0, min(1.0, (max(da, dm) - n) * _SALIENCE_SCALE))
         register = "acute" if da > dm else "mild"
+        if _v2() and _LOSS_CUE_RE.search(message):
+            salience, register = max(salience, _LOSS_CUE_FLOOR), "acute"
         return salience, register
     except Exception:
         return 0.0, "mild"
