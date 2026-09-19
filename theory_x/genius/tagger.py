@@ -294,6 +294,14 @@ class GeniusTagger:
         b = weights["bias"]
         z = sum(w[j] * feats[j] for j in range(len(w))) + b
         score = score_v2.sigmoid(z)
+        # NEX5_FRAME_DEDUP: stop rewarding the framing skeleton — penalise a fire
+        # that wears the stock frame so genius measures genuine content, not the
+        # groove. Fail-safe: no penalty on any error.
+        if os.environ.get("NEX5_FRAME_DEDUP") == "1":
+            try:
+                score *= score_v2.frame_penalty(fire.get("thought", ""))
+            except Exception:
+                pass
         cls = "STRIKING" if score >= weights["threshold"] else "ordinary"
         return score, cls
 

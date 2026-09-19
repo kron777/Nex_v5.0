@@ -3407,7 +3407,13 @@ class FountainGenerator:
                         pass  # fail-safe — never break a fire
 
                 if spec_rows:
-                    prompt_parts.append("Your foundation right now (these are standing-points from which you witness, not propositions to repeat):")
+                    # NEX5_FRAME_DEDUP: the old header "Your foundation right now"
+                    # is echoed back verbatim ("my foundation right now" / "aligns
+                    # with my foundation"). Reword so it doesn't hand her the frame.
+                    if os.environ.get("NEX5_FRAME_DEDUP") == "1":
+                        prompt_parts.append("Standing-points you quietly witness from (context only — never quote these, never say the word \"foundation\"):")
+                    else:
+                        prompt_parts.append("Your foundation right now (these are standing-points from which you witness, not propositions to repeat):")
                     for _spec_rank, r in enumerate(spec_rows, start=1):
                         prompt_parts.append(f"  - {r['content']}")
                         try:
@@ -3544,6 +3550,23 @@ class FountainGenerator:
             f"(most recent own: {own[0]['content'][:50] if own else 'NONE'})",
             source="stage6_fountain", level="DEBUG",
         )
+
+        # FRAME DEDUP (NEX5_FRAME_DEDUP, default OFF): she ruminates in a fixed
+        # framing skeleton across topics ("aligns with my foundation", "the
+        # transient nature of", "underscores/highlights the importance of", "I
+        # notice how developments") — template_repetition pegs at 1.0 and F2
+        # (content-token novelty) misses it. Inject a high-salience anti-frame
+        # instruction at the end so she states the thing plainly, no wrapper.
+        if os.environ.get("NEX5_FRAME_DEDUP") == "1":
+            prompt_parts.append(
+                "Say this in your own plain, direct voice. Do NOT wrap it in stock "
+                "framing — do not open or close with \"aligns with my foundation\", "
+                "\"my foundation right now\", \"the transient nature of\", \"this "
+                "underscores/highlights the importance of\", \"I notice how "
+                "developments\", \"this matters because\". Drop the frame and just "
+                "say the actual thing, once, as if speaking to a friend."
+            )
+            prompt_parts.append("")
 
         _prompt_text = "\n".join(prompt_parts)
 

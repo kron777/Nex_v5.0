@@ -59,6 +59,34 @@ def _f2_tokens(text):
     return {t for t in _F2_TOK_RE.findall((text or "").lower()) if t not in _F2_STOP}
 
 
+# FRAME PENALTY (NEX5_FRAME_DEDUP): the scorer otherwise REWARDS the stock
+# framing skeleton (length_structure + self_witnessing load on exactly these
+# phrases), so framed rumination out-scores plain genuine thought. This penalty
+# multiplies the score DOWN when a fire wears the skeleton, so the scorer stops
+# selecting for the groove. Phrase-level (not topic tokens) — the anti-template
+# layer F2 misses.
+_FRAME_SKELETON = [
+    r"aligns? with my foundation", r"my foundation right now", r"the transient nature of",
+    r"underscores? the (importance|need|significance)", r"underscore(s)? (the|how)",
+    r"highlights? the (importance|need|significance|growing)", r"i notice how (developments|these|things|it)",
+    r"this matters because", r"speaks to the", r"the interplay (of|between)",
+    r"reflects? the (importance|growing|need)", r"a reminder (of|that)",
+]
+_FRAME_RE = [re.compile(p, re.I) for p in _FRAME_SKELETON]
+
+
+def frame_penalty(thought) -> float:
+    """Multiplier in (0,1]: 1.0 = no stock frame; lower = more framing skeleton.
+    Only active behind NEX5_FRAME_DEDUP (caller gates)."""
+    t = thought or ""
+    hits = sum(1 for r in _FRAME_RE if r.search(t))
+    if hits >= 2:
+        return 0.55
+    if hits == 1:
+        return 0.78
+    return 1.0
+
+
 def feat_anti_template_v2(thought, prior_thoughts):
     """1.0 = novel; 0.0 = near-duplicate. V2: 1 - MAX content-token Jaccard vs
     the recent 50 fires (denser/graded than V1's sparse 3-gram mean, so it
