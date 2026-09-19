@@ -52,3 +52,12 @@ rc2/
 # Auto keepalive_start rows (runtime restart history). Redirected out of
 # the tracked DEPLOY_LEDGER.tsv so restarts stop dirtying git; see nex_keepalive.sh.
 journal/keepalive_runtime.tsv
+
+# Operator backups / data dumps (e.g. residue_reclaimed_*.csv.gz) — keep on disk, never commit
+backups/
+*.csv.gz
+
+# Scratch audit / assessment notes — local only unless explicitly promoted
+ASSESSMENT_PACK.md
+DB_AUDIT.md
+WIRE_MAP.md
