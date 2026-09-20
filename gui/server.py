@@ -245,6 +245,71 @@ _COMPASS_TAIL_RE = re.compile(
     r"let the choice stay live\.?", re.S)
 
 
+_PARROT_MIN_REMAINDER = 20      # chars; below this we keep the original reply
+
+
+def _strip_question_parrot(text, prompt):
+    """NEX5_NO_PARROT (default OFF) — drop a reply OPENING that restates the
+    question just asked, keeping the answer behind it.
+
+    Measured (2026-09-20, live, fresh session per turn): leading/tag questions
+    ("…aren't you?", "…right?", "Admit it") parrot 4/18 = 22% strict; plain open
+    questions 0/9. The prompt ends with the user's sentence verbatim
+    ("Someone has just said to you: …") immediately before "Compose your one true
+    reply", and on a question that grammatically invites confirmation the model
+    continues by copying that line, then answers after a blank line. The parrot is
+    a PREAMBLE — in every measured case the real answer followed intact.
+
+    Source fixes were measured and rejected: an explicit "do NOT repeat or
+    rephrase his question" QUADRUPLED it (1/10 -> 4/10 strict; naming the action
+    primes it in a 3B) and also leaked scaffolding; removing the quotes alone
+    changed nothing (1/10). So this strips, like the position-0 scaffold case in
+    _sanitize_reply.
+
+    Deliberately near-verbatim only: the reply's opening tokens must equal the
+    question's tokens (punctuation/case/curly-quote insensitive), or its first
+    sentence must equal the question outright. A rhetorical re-ask in her own
+    voice ("What's something I find genuinely beautiful? The dance of light…")
+    is NOT cut — that reads as her own opening, not a parrot.
+
+    Fail-safe: returns the ORIGINAL text on any error, when the flag is off, or
+    whenever cutting would leave nothing substantive. Never returns empty.
+    """
+    try:
+        if os.environ.get("NEX5_NO_PARROT") != "1":
+            return text
+        if not text or not isinstance(text, str) or not prompt:
+            return text
+        q_tokens = re.findall(r"\w+", prompt.lower())
+        if len(q_tokens) < 4:            # too short to distinguish from a real opening
+            return text
+        r_tokens = [(m.group(0).lower(), m.end())
+                    for m in re.finditer(r"\w+", text)]
+        if len(r_tokens) <= len(q_tokens):
+            return text                  # nothing would remain
+        cut = -1
+        if [t for t, _ in r_tokens[:len(q_tokens)]] == q_tokens:
+            cut = r_tokens[len(q_tokens) - 1][1]          # verbatim opening
+            # The echo must END there: the next thing after it has to be sentence
+            # punctuation or a line break. Otherwise her sentence merely STARTS
+            # with the question's words and runs on ("…a dozen beliefs, right NOW?
+            # That's curious"), and cutting would leave a broken fragment.
+            if not re.match(r"[ \t\"'’”)]*([.?!…]|\n|$)", text[cut:]):
+                cut = -1
+        if cut < 0:
+            first = re.split(r"(?<=[.!?])\s+|\n\n", text.strip(), 1)[0]
+            if re.findall(r"\w+", first.lower()) == q_tokens:
+                cut = len(first)                           # first sentence IS the question
+        if cut < 0:
+            return text
+        remainder = text[cut:].lstrip(" \t\r\n\"'’”)*.!?-–—:;,")
+        if len(remainder.strip()) < _PARROT_MIN_REMAINDER:
+            return text                  # answer-less echo: keep the original
+        return remainder.strip()
+    except Exception:
+        return text
+
+
 def _sanitize_reply(text):
     """Strip prompt-scaffolding the model leaked into its reply, keeping real
     prose intact. Fail-safe: returns the ORIGINAL text on any error or if
@@ -1854,6 +1919,12 @@ def create_app(state: AppState) -> Flask:
                                 text = _resp2.text
                     except Exception:
                         pass   # fail-safe: keep the original composed reply
+                # NO-PARROT (NEX5_NO_PARROT, default OFF): drop a leading
+                # restatement of the question just asked, keeping the answer
+                # behind it. Runs BEFORE the provenance read so mirror scores the
+                # reply she actually gives, not the parroted preamble (the two
+                # are coupled: parroting inflates mirror). Idempotent + fail-safe.
+                text = _strip_question_parrot(text, prompt)
                 # PROVENANCE READ (NEX5_PROVENANCE, admin-scoped): an honest
                 # internal read of WHERE this reply came from — how much of it is
                 # Jon's own turn handed back. Always logged when armed. Only when
@@ -1914,7 +1985,7 @@ def create_app(state: AppState) -> Flask:
         # Storage boundary: strip any leaked scaffolding from the reply BEFORE it
         # is persisted AND before it is returned to the GUI, so neither the stored
         # history nor the displayed reply carries prompt frame. Fail-safe inside.
-        text = _sanitize_reply(text)
+        text = _sanitize_reply(_strip_question_parrot(text, prompt))
 
         if writer is not None and session_id is not None:
             try:
