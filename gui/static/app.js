@@ -542,33 +542,36 @@ async function refreshChatRecent() {
 setInterval(refreshChatRecent, 15000);  // every 15s
 
 // ── Read aloud (browser Web Speech API) ──────────────────────────────────────
-// Manual, on-demand TTS for one reply. Uses window.speechSynthesis: no server
-// load, no model, nothing to install. Kokoro (speech/) is a separate thing —
-// it speaks HER unprompted queue through the server box's own speakers and
-// exposes no audio over HTTP, so it can't serve a browser button.
-// Fail-safe: no speechSynthesis -> no button is ever added.
-const TTS_OK = typeof window !== "undefined"
-  && "speechSynthesis" in window && typeof SpeechSynthesisUtterance === "function";
-let ttsCurrentBtn = null;
+// Manual read-aloud for one reply, in HER voice: POSTs the text to
+// /api/speech/say, which has Kokoro (voice af_sarah) synthesize and play it
+// through the server box's speakers. NEX and this browser are the same machine,
+// so that IS Jon's speakers. The browser speechSynthesis path is gone — this
+// Linux box has no OS speech voice, so it never produced sound.
+// Admin-scoped server-side (same as the other admin routes): a 403 means the
+// dashboard is not logged in as admin.
+let ttsBtn = null;          // the one sun, in the input row
+let ttsPoll = null;         // status poll that clears the speaking state
 
-function pickVoice() {
-  try {
-    const vs = window.speechSynthesis.getVoices() || [];
-    const en = vs.filter(v => /^en[-_]/i.test(v.lang || ""));
-    if (!en.length) return null;
-    return en.find(v => /samantha|aoede|bella|zira|female|serena|karen/i.test(v.name))
-        || en.find(v => /google|natural|neural/i.test(v.name))
-        || en[0];
-  } catch (e) { return null; }
-}
-if (TTS_OK && typeof speechSynthesis.onvoiceschanged !== "undefined") {
-  speechSynthesis.onvoiceschanged = pickVoice;   // warm the list on first load
+function ttsSetSpeaking(on) {
+  if (ttsBtn) ttsBtn.classList.toggle("speaking", !!on);
+  if (!on && ttsPoll) { clearInterval(ttsPoll); ttsPoll = null; }
 }
 
-function stopSpeaking() {
-  try { window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
-  if (ttsCurrentBtn) ttsCurrentBtn.classList.remove("speaking");
-  ttsCurrentBtn = null;
+// Kokoro playback ends server-side; poll status so the sun stops pulsing then.
+function ttsWatch() {
+  if (ttsPoll) clearInterval(ttsPoll);
+  ttsPoll = setInterval(async () => {
+    try {
+      const r = await fetch("/api/speech/status");
+      const d = await r.json();
+      if (!d || !d.saying) ttsSetSpeaking(false);
+    } catch (e) { ttsSetSpeaking(false); }
+  }, 1500);
+}
+
+async function ttsStop() {
+  ttsSetSpeaking(false);
+  try { await fetch("/api/speech/stop", { method: "POST" }); } catch (e) { /* ignore */ }
 }
 
 // The visible text of the most recent nex reply in the log ("" if none yet).
@@ -583,13 +586,13 @@ function latestNexText() {
 // One fixed sun in the input row, right of SEND: reads the LATEST nex reply.
 // Built here rather than in the template so this stays a static-file change.
 function initSpeakButton() {
-  if (!TTS_OK) return;                        // no speech support -> no button
   const row = document.getElementById("chat-input-row");
   if (!row) return;
   const btn = document.createElement("button");
   btn.id = "chat-speak";
   btn.type = "button";
-  btn.title = "Read the latest reply aloud";
+  // No title attribute: Jon doesn't want a mouseover popup. aria-label gives the
+  // button an accessible name for screen readers without rendering a tooltip.
   btn.setAttribute("aria-label", "Read the latest reply aloud");
   btn.innerHTML =
     '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">'
@@ -598,26 +601,33 @@ function initSpeakButton() {
     + '<path d="M12 2.6v2.6M12 18.8v2.6M2.6 12h2.6M18.8 12h2.6"/>'
     + '<path d="M5.4 5.4l1.8 1.8M16.8 16.8l1.8 1.8M18.6 5.4l-1.8 1.8M7.2 16.8l-1.8 1.8"/>'
     + "</g></svg>";
-  btn.addEventListener("click", () => {
-    if (ttsCurrentBtn === btn) { stopSpeaking(); return; }   // toggle: stop
-    stopSpeaking();
-    const said = latestNexText();             // the VISIBLE, sanitized reply text
-    if (!said) return;                        // no reply in the log yet -> no-op
+  btn.addEventListener("click", async () => {
+    if (btn.classList.contains("speaking")) { await ttsStop(); return; }  // toggle
+    const said = latestNexText();          // the VISIBLE, sanitized reply text
+    if (!said) return;                     // no reply in the log yet -> no-op
+    ttsSetSpeaking(true);
     try {
-      const u = new SpeechSynthesisUtterance(said);
-      const v = pickVoice();
-      if (v) u.voice = v;
-      u.rate = 1.0;
-      u.onend = () => { if (ttsCurrentBtn === btn) stopSpeaking(); };
-      u.onerror = () => { if (ttsCurrentBtn === btn) stopSpeaking(); };
-      ttsCurrentBtn = btn;
-      btn.classList.add("speaking");
-      window.speechSynthesis.speak(u);
-    } catch (e) { stopSpeaking(); }
+      const r = await fetch("/api/speech/say", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: said }),
+      });
+      if (!r.ok) {
+        ttsSetSpeaking(false);
+        // aria-label, not title — feedback without a mouseover popup
+        btn.setAttribute("aria-label", r.status === 403
+          ? "Read aloud needs admin login"
+          : "Read aloud unavailable (speech not running)");
+        return;
+      }
+      btn.setAttribute("aria-label", "Read the latest reply aloud");
+      ttsWatch();
+    } catch (e) { ttsSetSpeaking(false); }
   });
   const send = document.getElementById("chat-send");
   if (send && send.parentNode === row) row.insertBefore(btn, send.nextSibling);
   else row.appendChild(btn);
+  ttsBtn = btn;
 }
 initSpeakButton();
 

@@ -42,10 +42,12 @@ Phase 7 endpoints (fountain):
     GET  /api/beliefs/insights          — last 200 fountain_insight + synergized beliefs
 
 Phase 7b endpoints (speech):
-    GET  /api/speech/status  — {enabled, voice, queue_depth, last_spoken_at}
+    GET  /api/speech/status  — {enabled, voice, queue_depth, last_spoken_at, saying}
     POST /api/speech/pause   — pause TTS
     POST /api/speech/resume  — resume TTS
-    POST /api/speech/flush   — skip all pending entries
+    POST /api/speech/flush   — skip all pending entries (does NOT stop playback)
+    POST /api/speech/say     — {text} speak one line now in her voice (admin)
+    POST /api/speech/stop    — cut playback now (admin)
 
 Phase 8 endpoints (strikes):
     POST /api/strikes/fire         — {strike_type, custom_input?} → fires strike, returns record
@@ -2325,11 +2327,18 @@ def create_app(state: AppState) -> Flask:
                 last_spoken_at = r2[0]["t"] if r2 else None
             except Exception:
                 pass
+        saying = False
+        try:
+            from speech import on_demand
+            saying = on_demand.is_speaking()
+        except Exception:
+            pass
         return jsonify({
             "enabled": not consumer.paused,
             "voice": consumer.config.voice,
             "queue_depth": depth,
             "last_spoken_at": last_spoken_at,
+            "saying": saying,          # an on-demand (read-aloud) line is playing
         })
 
     @app.post("/api/speech/pause")
@@ -2349,6 +2358,44 @@ def create_app(state: AppState) -> Flask:
         if state.speech_consumer is None:
             return jsonify({"flushed": 0})
         return jsonify({"flushed": state.speech_consumer.flush()})
+
+    @app.post("/api/speech/say")
+    def api_speech_say():
+        """Speak one line NOW in her own voice (Kokoro), through the box's
+        speakers — the read-aloud button. Reuses the queue consumer's backend and
+        player; her speech_queue is not touched. Admin-scoped."""
+        if not session.get("admin"):
+            return jsonify({"error": "admin required"}), 403
+        payload = request.get_json(silent=True) or {}
+        text = payload.get("text")
+        consumer = state.speech_consumer
+        if consumer is None:
+            return jsonify({"error": "speech not running"}), 503
+        try:
+            from speech import on_demand
+            ok, err = on_demand.speak_async(consumer, text)
+            if not ok:
+                code = 503 if "not running" in err else 400
+                return jsonify({"error": err}), code
+            return jsonify({"speaking": True, "chars": len((text or "").strip()),
+                            "voice": on_demand.resolve_voice(consumer)})
+        except Exception as e:
+            error_channel.record(f"speech say failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": "say failed"}), 500
+
+    @app.post("/api/speech/stop")
+    def api_speech_stop():
+        """Cut playback now. flush() only marks PENDING queue rows skipped — it
+        cannot stop audio already in the speakers; sounddevice.stop() can."""
+        if not session.get("admin"):
+            return jsonify({"error": "admin required"}), 403
+        try:
+            from speech import on_demand
+            return jsonify({"stopped": on_demand.stop(),
+                            "speaking": on_demand.is_speaking()})
+        except Exception as e:
+            error_channel.record(f"speech stop failed: {e}", source="gui.server", exc=e)
+            return jsonify({"stopped": False}), 500
 
     # -- strikes (Phase 8) ---------------------------------------------------
 
