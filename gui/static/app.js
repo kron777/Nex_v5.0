@@ -571,13 +571,26 @@ function stopSpeaking() {
   ttsCurrentBtn = null;
 }
 
-function addSpeakButton(div) {
-  if (!TTS_OK || !div) return;
+// The visible text of the most recent nex reply in the log ("" if none yet).
+function latestNexText() {
+  try {
+    const els = document.querySelectorAll("#chat-log .chat-msg.nex-msg .text");
+    if (!els.length) return "";
+    return (els[els.length - 1].textContent || "").trim();
+  } catch (e) { return ""; }
+}
+
+// One fixed sun in the input row, right of SEND: reads the LATEST nex reply.
+// Built here rather than in the template so this stays a static-file change.
+function initSpeakButton() {
+  if (!TTS_OK) return;                        // no speech support -> no button
+  const row = document.getElementById("chat-input-row");
+  if (!row) return;
   const btn = document.createElement("button");
-  btn.className = "speak-btn";
+  btn.id = "chat-speak";
   btn.type = "button";
-  btn.title = "Read this reply aloud";
-  btn.setAttribute("aria-label", "Read this reply aloud");
+  btn.title = "Read the latest reply aloud";
+  btn.setAttribute("aria-label", "Read the latest reply aloud");
   btn.innerHTML =
     '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">'
     + '<circle cx="12" cy="12" r="4.2" fill="currentColor"/>'
@@ -586,14 +599,12 @@ function addSpeakButton(div) {
     + '<path d="M5.4 5.4l1.8 1.8M16.8 16.8l1.8 1.8M18.6 5.4l-1.8 1.8M7.2 16.8l-1.8 1.8"/>'
     + "</g></svg>";
   btn.addEventListener("click", () => {
-    // toggle: pressing the sun that is currently speaking stops it
-    if (ttsCurrentBtn === btn) { stopSpeaking(); return; }
-    stopSpeaking();                                   // cancel any other reply
-    const textEl = div.querySelector(".text");
-    const said = textEl ? (textEl.textContent || "").trim() : "";
-    if (!said) return;                                // nothing rendered yet
+    if (ttsCurrentBtn === btn) { stopSpeaking(); return; }   // toggle: stop
+    stopSpeaking();
+    const said = latestNexText();             // the VISIBLE, sanitized reply text
+    if (!said) return;                        // no reply in the log yet -> no-op
     try {
-      const u = new SpeechSynthesisUtterance(said);   // the VISIBLE, sanitized text
+      const u = new SpeechSynthesisUtterance(said);
       const v = pickVoice();
       if (v) u.voice = v;
       u.rate = 1.0;
@@ -604,8 +615,11 @@ function addSpeakButton(div) {
       window.speechSynthesis.speak(u);
     } catch (e) { stopSpeaking(); }
   });
-  div.appendChild(btn);
+  const send = document.getElementById("chat-send");
+  if (send && send.parentNode === row) row.insertBefore(btn, send.nextSibling);
+  else row.appendChild(btn);
 }
+initSpeakButton();
 
 function appendChat(role, text, meta) {
   const log = document.getElementById("chat-log");
@@ -614,7 +628,6 @@ function appendChat(role, text, meta) {
   div.innerHTML = `<div class="who">${role === "user" ? "you" : "nex"}</div>`
     + `<div class="text">${esc(text)}</div>`
     + (meta ? `<div class="chat-meta">${esc(meta)}</div>` : "");
-  if (role !== "user") addSpeakButton(div);
   log.appendChild(div);
   log.scrollTop = log.scrollHeight;
 }
@@ -655,7 +668,6 @@ async function sendChat() {
   const div = document.createElement("div");
   div.className = "chat-msg nex-msg";
   div.innerHTML = `<div class="who">nex</div><div class="text"></div>`;
-  addSpeakButton(div);          // reads .text at click time, so streaming is fine
   log.appendChild(div);
   log.scrollTop = log.scrollHeight;
   const textEl = div.querySelector(".text");
