@@ -403,6 +403,24 @@ _MIGRATIONS: dict[str, list[str]] = {
         "ON intake_resonance_log(resonance DESC)",
     ],
     "conversations": [
+        # NEX5_PROVENANCE — what she held going INTO a turn, written before the
+        # reply is composed, so reply provenance can be scored against a small
+        # pre-turn set later instead of the whole belief graph.
+        "CREATE TABLE IF NOT EXISTS provenance_snapshots ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "session_id TEXT, "
+        "ts REAL NOT NULL, "
+        "focus_problem_id INTEGER, "
+        "focus_title TEXT, "
+        "focal_thought TEXT, "
+        "belief_ids TEXT NOT NULL DEFAULT '[]', "
+        "belief_texts TEXT NOT NULL DEFAULT '[]', "
+        "valence REAL, "
+        "arousal REAL, "
+        "stability REAL, "
+        "mood_label TEXT, "
+        "user_turn TEXT)",
+        "CREATE INDEX IF NOT EXISTS idx_prov_snap_ts ON provenance_snapshots(ts DESC)",
         "CREATE TABLE IF NOT EXISTS open_problems ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, "
         "title TEXT NOT NULL, "

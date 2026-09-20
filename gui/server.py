@@ -281,6 +281,16 @@ def _sanitize_reply(text):
         return text
 
 
+def _provenance_active(session) -> bool:
+    """Provenance read + pre-turn snapshot (NEX5_PROVENANCE + admin). Admin-scoped
+    like the other chat faculties; non-admin/public chat is never touched.
+    Fail-safe -> False."""
+    try:
+        return os.environ.get("NEX5_PROVENANCE") == "1" and bool(session.get("admin"))
+    except Exception:
+        return False
+
+
 def _recent_dialogue(readers, session_id, current_prompt="", limit=3):
     """Compact block of the last `limit` user+nex turns for this session (oldest
     first) so the reply can track the conversation instead of composing each turn
@@ -1776,6 +1786,25 @@ def create_app(state: AppState) -> Flask:
                 )
 
         if text is None:
+            # PROVENANCE (NEX5_PROVENANCE, admin-scoped) — snapshot what she holds
+            # going INTO this turn, BEFORE the reply is composed: focal problem,
+            # most recently active tier-6+ belief ids, latest fountain thought,
+            # affect vector. Accumulates so reply grounding can later be scored
+            # against a small pre-turn set instead of the whole graph (grounding
+            # is UNPROVEN today — see theory_x/stage_provenance/provenance.py).
+            # Read-only w.r.t. cognition; fail-safe -> {}.
+            _prov_snap = {}
+            if _provenance_active(session):
+                try:
+                    from theory_x.stage_provenance import provenance_snapshot
+                    _prov_snap = provenance_snapshot(
+                        state.readers, writer, session_id, prompt, now=state.now_fn())
+                except Exception as _snap_exc:
+                    error_channel.record(
+                        f"provenance snapshot skipped: {_snap_exc}",
+                        source="gui.server", exc=_snap_exc,
+                    )
+                    _prov_snap = {}
             # Diagnostic: log the full chat prompt for inspection
             try:
                 import time as _t_log
@@ -1823,6 +1852,34 @@ def create_app(state: AppState) -> Flask:
                             if (_resp2 and _resp2.text
                                     and not _is_repeat_reply(_resp2.text, _prior)):
                                 text = _resp2.text
+                    except Exception:
+                        pass   # fail-safe: keep the original composed reply
+                # PROVENANCE READ (NEX5_PROVENANCE, admin-scoped): an honest
+                # internal read of WHERE this reply came from — how much of it is
+                # Jon's own turn handed back. Always logged when armed. Only when
+                # the reply is STRONGLY mirror-dominant, regenerate ONCE with a
+                # light honesty cue (provenance language only — say what you hold,
+                # own agreement as agreement; never "announce your feelings", never
+                # a claim that anything is authentic). The retry is kept only if it
+                # is measurably LESS mirrored, so the cue can never make it worse.
+                # Verdicts are 'mirror-dominant' / 'not established' — there is no
+                # self-grounded verdict, because grounding did not discriminate.
+                if _provenance_active(session) and text:
+                    try:
+                        from theory_x.stage_provenance import read_provenance
+                        _prov = read_provenance(text, prompt, _prov_snap, session_id)
+                        if _prov.get("cue"):
+                            _resp3 = state.voice.speak(
+                                VoiceRequest(prompt=voice_prompt + _prov["cue"],
+                                             register=register),
+                                beliefs=None, belief_count=belief_count,
+                            )
+                            if _resp3 and _resp3.text and _resp3.text.strip():
+                                _after = read_provenance(_resp3.text, prompt,
+                                                         _prov_snap, session_id,
+                                                         log=False)
+                                if _after["mirror"] < _prov["mirror"]:
+                                    text = _resp3.text
                     except Exception:
                         pass   # fail-safe: keep the original composed reply
                 # C3 2026-05-09: log deflection events for distribution measurement.
