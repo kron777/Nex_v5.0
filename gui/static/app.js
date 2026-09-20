@@ -541,6 +541,72 @@ async function refreshChatRecent() {
 }
 setInterval(refreshChatRecent, 15000);  // every 15s
 
+// ── Read aloud (browser Web Speech API) ──────────────────────────────────────
+// Manual, on-demand TTS for one reply. Uses window.speechSynthesis: no server
+// load, no model, nothing to install. Kokoro (speech/) is a separate thing —
+// it speaks HER unprompted queue through the server box's own speakers and
+// exposes no audio over HTTP, so it can't serve a browser button.
+// Fail-safe: no speechSynthesis -> no button is ever added.
+const TTS_OK = typeof window !== "undefined"
+  && "speechSynthesis" in window && typeof SpeechSynthesisUtterance === "function";
+let ttsCurrentBtn = null;
+
+function pickVoice() {
+  try {
+    const vs = window.speechSynthesis.getVoices() || [];
+    const en = vs.filter(v => /^en[-_]/i.test(v.lang || ""));
+    if (!en.length) return null;
+    return en.find(v => /samantha|aoede|bella|zira|female|serena|karen/i.test(v.name))
+        || en.find(v => /google|natural|neural/i.test(v.name))
+        || en[0];
+  } catch (e) { return null; }
+}
+if (TTS_OK && typeof speechSynthesis.onvoiceschanged !== "undefined") {
+  speechSynthesis.onvoiceschanged = pickVoice;   // warm the list on first load
+}
+
+function stopSpeaking() {
+  try { window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
+  if (ttsCurrentBtn) ttsCurrentBtn.classList.remove("speaking");
+  ttsCurrentBtn = null;
+}
+
+function addSpeakButton(div) {
+  if (!TTS_OK || !div) return;
+  const btn = document.createElement("button");
+  btn.className = "speak-btn";
+  btn.type = "button";
+  btn.title = "Read this reply aloud";
+  btn.setAttribute("aria-label", "Read this reply aloud");
+  btn.innerHTML =
+    '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">'
+    + '<circle cx="12" cy="12" r="4.2" fill="currentColor"/>'
+    + '<g stroke="currentColor" stroke-width="1.6" stroke-linecap="round">'
+    + '<path d="M12 2.6v2.6M12 18.8v2.6M2.6 12h2.6M18.8 12h2.6"/>'
+    + '<path d="M5.4 5.4l1.8 1.8M16.8 16.8l1.8 1.8M18.6 5.4l-1.8 1.8M7.2 16.8l-1.8 1.8"/>'
+    + "</g></svg>";
+  btn.addEventListener("click", () => {
+    // toggle: pressing the sun that is currently speaking stops it
+    if (ttsCurrentBtn === btn) { stopSpeaking(); return; }
+    stopSpeaking();                                   // cancel any other reply
+    const textEl = div.querySelector(".text");
+    const said = textEl ? (textEl.textContent || "").trim() : "";
+    if (!said) return;                                // nothing rendered yet
+    try {
+      const u = new SpeechSynthesisUtterance(said);   // the VISIBLE, sanitized text
+      const v = pickVoice();
+      if (v) u.voice = v;
+      u.rate = 1.0;
+      u.onend = () => { if (ttsCurrentBtn === btn) stopSpeaking(); };
+      u.onerror = () => { if (ttsCurrentBtn === btn) stopSpeaking(); };
+      ttsCurrentBtn = btn;
+      btn.classList.add("speaking");
+      window.speechSynthesis.speak(u);
+    } catch (e) { stopSpeaking(); }
+  });
+  div.appendChild(btn);
+}
+
 function appendChat(role, text, meta) {
   const log = document.getElementById("chat-log");
   const div = document.createElement("div");
@@ -548,6 +614,7 @@ function appendChat(role, text, meta) {
   div.innerHTML = `<div class="who">${role === "user" ? "you" : "nex"}</div>`
     + `<div class="text">${esc(text)}</div>`
     + (meta ? `<div class="chat-meta">${esc(meta)}</div>` : "");
+  if (role !== "user") addSpeakButton(div);
   log.appendChild(div);
   log.scrollTop = log.scrollHeight;
 }
@@ -588,6 +655,7 @@ async function sendChat() {
   const div = document.createElement("div");
   div.className = "chat-msg nex-msg";
   div.innerHTML = `<div class="who">nex</div><div class="text"></div>`;
+  addSpeakButton(div);          // reads .text at click time, so streaming is fine
   log.appendChild(div);
   log.scrollTop = log.scrollHeight;
   const textEl = div.querySelector(".text");

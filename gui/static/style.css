@@ -370,6 +370,22 @@ body {
 .chat-msg.nex-msg .text { color: var(--fg); }
 .chat-meta { font-size: 10px; color: var(--fg3); margin-top: 0.1rem; }
 
+/* Read-aloud sun — one per nex reply, right-aligned. Browser speechSynthesis;
+   hidden entirely when the browser has no speech support (button never added). */
+.chat-msg.nex-msg { position: relative; }
+.speak-btn {
+  position: absolute; top: 0; right: 0;
+  background: none; border: 0; padding: 2px; margin: 0;
+  color: var(--fg3); cursor: pointer; line-height: 0;
+  opacity: 0; transition: opacity .15s ease, color .15s ease;
+}
+.chat-msg.nex-msg:hover .speak-btn,
+.speak-btn:focus-visible { opacity: 1; }
+.speak-btn:hover { color: var(--accent2); }
+.speak-btn.speaking { opacity: 1; color: var(--amber); animation: speak-pulse 1.4s ease-in-out infinite; }
+@keyframes speak-pulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .speak-btn.speaking { animation: none; } }
+
 #chat-input-row {
   display: flex;
   align-items: center;
