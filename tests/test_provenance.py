@@ -158,6 +158,43 @@ class TestSnapshot(unittest.TestCase):
         self.assertEqual(row[4], "positive")
         self.assertEqual(row[5], "hello")
 
+    def test_records_the_retrieved_belief_block_not_recency(self):
+        # the beliefs actually assembled into the reply prompt win over the
+        # 25-most-recently-touched fallback (which measured as a null)
+        os.environ["NEX5_PROVENANCE"] = "1"
+        block = ("Her current beliefs relevant to this topic:\n"
+                 "- [Tier 7 | 0.82] meaning forms by accretion, not by decree\n"
+                 "- [Tier 6 | 0.71 | BRIDGE] attention is a kind of consent")
+        snap = P.provenance_snapshot(self.readers, self.writer, "S", "hello",
+                                     now=1.0, prompt_beliefs=block)
+        self.assertEqual(snap["belief_source"], "retrieved")
+        self.assertEqual(snap["belief_texts"],
+                         ["meaning forms by accretion, not by decree",
+                          "attention is a kind of consent"])
+        row = self.writer.conn.execute(
+            "SELECT belief_source, belief_texts FROM provenance_snapshots").fetchone()
+        self.assertEqual(row[0], "retrieved")
+        self.assertIn("accretion", row[1])
+
+    def test_falls_back_to_recency_when_nothing_retrieved(self):
+        os.environ["NEX5_PROVENANCE"] = "1"
+        for empty in (None, "", "Her current beliefs relevant to this topic:"):
+            P._table_ready = False
+            snap = P.provenance_snapshot(self.readers, self.writer, "S", "hello",
+                                         now=1.0, prompt_beliefs=empty)
+            self.assertEqual(snap["belief_source"], "recency", repr(empty))
+            self.assertEqual(snap["belief_ids"], [11])
+
+    def test_parse_belief_block(self):
+        self.assertEqual(P.parse_belief_block("- [Tier 7 | 0.82] a held belief here"),
+                         ["a held belief here"])
+        self.assertEqual(P.parse_belief_block("- [Tier ? ] another one that is long"),
+                         ["another one that is long"])
+        # headers, prose and short fragments are not beliefs
+        for junk in ("Her current beliefs relevant to this topic:", "", None,
+                     "just some prose", "- [Tier 7] short"):
+            self.assertEqual(P.parse_belief_block(junk), [], repr(junk))
+
     def test_snapshot_failsafe_on_broken_readers(self):
         os.environ["NEX5_PROVENANCE"] = "1"
         snap = P.provenance_snapshot(None, None, "S", "hello")

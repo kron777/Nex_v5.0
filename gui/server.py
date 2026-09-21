@@ -1102,6 +1102,14 @@ def create_app(state: AppState) -> Flask:
                     f"belief retrieval failed: {e}", source="gui.server", exc=e,
                 )
 
+        # PROVENANCE (NEX5_PROVENANCE): the belief block AS RETRIEVED for this turn,
+        # captured here — before the self-model / harm / problem / affect / drive
+        # injections below append to belief_text. This is the belief set actually
+        # assembled into her reply prompt, which is what reply provenance has to be
+        # checked against; the 25-most-recently-touched list the snapshot used
+        # before was a recency proxy and measured as a null (2026-09-21).
+        _retrieved_belief_text = belief_text
+
         # BehaviouralSelfModel injection — INSIDE routes only (Phase 5.3).
         # Adds observed behavioural metrics (hedge rate, register pattern, avg length)
         # to belief_text so the LLM has grounded self-knowledge for self-inquiry queries.
@@ -1865,7 +1873,8 @@ def create_app(state: AppState) -> Flask:
                 try:
                     from theory_x.stage_provenance import provenance_snapshot
                     _prov_snap = provenance_snapshot(
-                        state.readers, writer, session_id, prompt, now=state.now_fn())
+                        state.readers, writer, session_id, prompt, now=state.now_fn(),
+                        prompt_beliefs=_retrieved_belief_text)
                 except Exception as _snap_exc:
                     error_channel.record(
                         f"provenance snapshot skipped: {_snap_exc}",

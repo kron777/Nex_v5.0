@@ -139,35 +139,79 @@ def _ensure_table_once(writer) -> None:
         "belief_ids TEXT NOT NULL DEFAULT '[]', belief_texts TEXT NOT NULL DEFAULT '[]', "
         "valence REAL, arousal REAL, stability REAL, mood_label TEXT, "
         "user_turn TEXT)", ())
+    try:        # rows written before belief_source existed stay readable
+        writer.write("ALTER TABLE provenance_snapshots ADD COLUMN "
+                     "belief_source TEXT NOT NULL DEFAULT 'recency'", ())
+    except Exception:
+        pass    # already present
     _table_ready = True
 
 
+_BELIEF_LINE_RE = re.compile(r"^-\s*\[Tier\s*([0-9?]+)[^\]]*\]\s*(.+)$")
+
+
+def parse_belief_block(block: str) -> list:
+    """Belief contents out of a rendered retrieval block — the
+    "- [Tier 7 | 0.82] <content>" lines that format_beliefs_for_prompt writes.
+    The header and any non-belief injections are ignored. [] if unparseable."""
+    out = []
+    try:
+        for line in (block or "").splitlines():
+            m = _BELIEF_LINE_RE.match(line.strip())
+            if m:
+                content = m.group(2).strip()
+                if len(content) > 10:
+                    out.append(content)
+    except Exception:
+        pass
+    return out
+
+
 def provenance_snapshot(readers, writer, session_id, user_turn: str,
-                        now: float = None, n_beliefs: int = 25) -> dict:
+                        now: float = None, n_beliefs: int = 25,
+                        prompt_beliefs: str = None) -> dict:
     """Record what she held going INTO this turn — before the reply is composed.
 
-    Pre-turn state only: the live focal problem, the most recently active tier-6+
-    beliefs, the latest fountain thought, and the current affect vector. Written
-    through the conversations writer (queued, same as messages). Returns the
-    snapshot dict (used for the logged grounding_hint); {} on any error.
+    Pre-turn state only: the live focal problem, the latest fountain thought, the
+    current affect vector, and the beliefs.
+
+    BELIEFS: `prompt_beliefs` is the belief block AS RETRIEVED into this turn's
+    reply prompt — the set she was actually given, captured before the later
+    self-model/affect/drive injections append to it. That is what reply
+    provenance has to be scored against. The 25-most-recently-touched list is now
+    only a FALLBACK, for turns where retrieval returned nothing; as the primary
+    signal it measured as a null on 2026-09-21 (a reply matched its own recency
+    snapshot no better than a random other turn's: 0.392 vs 0.386, p=0.57).
+    `belief_source` records which of the two a row holds, so the two eras never
+    get pooled in an analysis.
+
+    Written through the conversations writer (queued, same as messages). Returns
+    the snapshot dict (used for the logged grounding_hint); {} on any error.
     """
     snap = {"ts": now if now is not None else time.time(), "session_id": session_id,
             "focus_problem_id": None, "focus_title": "", "focal_thought": "",
-            "belief_ids": [], "belief_texts": [], "valence": None, "arousal": None,
-            "stability": None, "mood_label": ""}
+            "belief_ids": [], "belief_texts": [], "belief_source": "none",
+            "valence": None, "arousal": None, "stability": None, "mood_label": ""}
     if not armed():
         return {}
     try:
-        try:
-            rows = readers["beliefs"].read(
-                "SELECT id, content FROM beliefs WHERE tier>=6 AND length(content)>25 "
-                "ORDER BY COALESCE(last_referenced_at, last_voiced_at, created_at) DESC "
-                "LIMIT ?", (n_beliefs,))
-            for r in rows:
-                snap["belief_ids"].append(r["id"])
-                snap["belief_texts"].append(r["content"])
-        except Exception:
-            pass
+        retrieved = parse_belief_block(prompt_beliefs)
+        if retrieved:
+            snap["belief_texts"] = retrieved       # what she was ACTUALLY given
+            snap["belief_source"] = "retrieved"
+        else:
+            try:                                   # fallback only: recency proxy
+                rows = readers["beliefs"].read(
+                    "SELECT id, content FROM beliefs WHERE tier>=6 AND length(content)>25 "
+                    "ORDER BY COALESCE(last_referenced_at, last_voiced_at, created_at) DESC "
+                    "LIMIT ?", (n_beliefs,))
+                for r in rows:
+                    snap["belief_ids"].append(r["id"])
+                    snap["belief_texts"].append(r["content"])
+                if snap["belief_texts"]:
+                    snap["belief_source"] = "recency"
+            except Exception:
+                pass
         try:
             f = readers["dynamic"].read(
                 "SELECT problem_id FROM current_focus WHERE id=1", ())
@@ -201,12 +245,13 @@ def provenance_snapshot(readers, writer, session_id, user_turn: str,
                 _ensure_table_once(writer)
                 writer.write(
                     "INSERT INTO provenance_snapshots (session_id, ts, focus_problem_id, "
-                    "focus_title, focal_thought, belief_ids, belief_texts, valence, "
-                    "arousal, stability, mood_label, user_turn) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "focus_title, focal_thought, belief_ids, belief_texts, belief_source, "
+                    "valence, arousal, stability, mood_label, user_turn) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (session_id, snap["ts"], snap["focus_problem_id"], snap["focus_title"],
                      snap["focal_thought"][:2000], json.dumps(snap["belief_ids"]),
                      json.dumps([t[:400] for t in snap["belief_texts"]]),
+                     snap["belief_source"],
                      snap["valence"], snap["arousal"], snap["stability"],
                      snap["mood_label"], (user_turn or "")[:2000]),
                 )

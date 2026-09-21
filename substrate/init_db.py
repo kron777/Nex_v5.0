@@ -419,8 +419,13 @@ _MIGRATIONS: dict[str, list[str]] = {
         "arousal REAL, "
         "stability REAL, "
         "mood_label TEXT, "
-        "user_turn TEXT)",
+        "user_turn TEXT, "
+        # 'retrieved' = the belief block actually assembled into that turn's reply
+        # prompt; 'recency' = the pre-2026-09-22 proxy (25 most recently touched),
+        # which measured as a null. Never pool the two in one analysis.
+        "belief_source TEXT NOT NULL DEFAULT 'recency')",
         "CREATE INDEX IF NOT EXISTS idx_prov_snap_ts ON provenance_snapshots(ts DESC)",
+        "ALTER TABLE provenance_snapshots ADD COLUMN belief_source TEXT NOT NULL DEFAULT 'recency'",
         "CREATE TABLE IF NOT EXISTS open_problems ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, "
         "title TEXT NOT NULL, "
