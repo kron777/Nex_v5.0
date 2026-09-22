@@ -11,6 +11,7 @@ See SPECIFICATION.md §5 — Voice Registers, and §5.Voice discipline.
 """
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from typing import Callable, Optional, Sequence
@@ -19,6 +20,17 @@ import requests
 
 from alpha import ALPHA
 from .registers import Register, default_register
+
+# The single source of truth for which model speaks. Every generation path — chat
+# and the life loops — resolves through NEX5_VOICE_MODEL so exactly one model
+# writes into the belief graph at a time.
+DEFAULT_VOICE_MODEL = "qwen2.5:3b"
+
+
+def voice_model() -> str:
+    """The configured voice model (NEX5_VOICE_MODEL, else the 3b default)."""
+    return os.environ.get("NEX5_VOICE_MODEL", DEFAULT_VOICE_MODEL)
+
 
 THEORY_X_STAGE = None
 
@@ -264,11 +276,17 @@ class VoiceClient:
         self,
         *,
         url: str = "http://localhost:11434/v1/chat/completions",
-        model: str = "qwen2.5:3b",
+        model: Optional[str] = None,
         request_fn: Optional[RequestFn] = None,
     ):
+        # model=None -> NEX5_VOICE_MODEL, else the 3b default. Read HERE, not as a
+        # signature default, so a bare VoiceClient() — the six life loops build one
+        # that way — follows the flag too. Otherwise flipping the flag would change
+        # only her chat voice while the loops kept generating on the 3b, and two
+        # different models would be writing into one belief graph: the A/B
+        # (NEX5_VOICE_MODEL=qwen2.5:7b vs 3b, same substrate) would be confounded.
         self.url = url
-        self.model = model
+        self.model = model or os.environ.get("NEX5_VOICE_MODEL", DEFAULT_VOICE_MODEL)
         self._request_fn = request_fn or _default_request
 
     def speak(self, req: VoiceRequest, beliefs: Optional[str] = None,

@@ -170,8 +170,8 @@ def wonder_loop(state, stop):
     while not stop.is_set():
         try:
             if voice is None:
-                from voice.llm import VoiceClient
-                voice = VoiceClient()
+                from voice.llm import VoiceClient, voice_model
+                voice = VoiceClient(model=voice_model())
             stats = wonder_tick(voice)
             if stats.get("wondered"):
                 log.info("wonder_loop: %s", stats.get("text", "")[:100])

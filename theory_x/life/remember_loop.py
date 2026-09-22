@@ -131,8 +131,8 @@ def remember_loop(state, stop):
     while not stop.is_set():
         try:
             if voice is None:
-                from voice.llm import VoiceClient
-                voice = VoiceClient()
+                from voice.llm import VoiceClient, voice_model
+                voice = VoiceClient(model=voice_model())
             stats = remember_tick(voice)
             if stats.get("linked"):
                 log.info("remember_loop: %s", stats.get("text", "")[:100])

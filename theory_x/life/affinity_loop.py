@@ -262,8 +262,8 @@ def affinity_loop(state, stop):
     while not stop.is_set():
         try:
             if voice is None:
-                from voice.llm import VoiceClient
-                voice = VoiceClient()
+                from voice.llm import VoiceClient, voice_model
+                voice = VoiceClient(model=voice_model())
             stats = affinity_tick(voice)
             if stats.get("scored"):
                 log.info("affinity_loop: %s", stats)

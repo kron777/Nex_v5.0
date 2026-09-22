@@ -129,8 +129,8 @@ def pattern_loop(state, stop):
     while not stop.is_set():
         try:
             if voice is None:
-                from voice.llm import VoiceClient
-                voice = VoiceClient()
+                from voice.llm import VoiceClient, voice_model
+                voice = VoiceClient(model=voice_model())
             stats = pattern_tick(voice)
             if stats.get("composed"):
                 log.info("pattern_loop: %s", stats.get("text", ""))

@@ -82,10 +82,10 @@ def voice_prompt_from_log() -> str:
 
 def regenerate_with_cue(voice_prompt: str, cue: str, register_name: str) -> str:
     try:
-        from voice.llm import VoiceClient, VoiceRequest
+        from voice.llm import VoiceClient, VoiceRequest, voice_model
         from voice.registers import by_name, default_register
         reg = by_name(register_name) or default_register()
-        r = VoiceClient().speak(VoiceRequest(prompt=voice_prompt + cue, register=reg))
+        r = VoiceClient(model=voice_model()).speak(VoiceRequest(prompt=voice_prompt + cue, register=reg))
         return (r.text or "").strip()
     except Exception as exc:
         print(f"    ! cue regeneration failed: {exc}")
