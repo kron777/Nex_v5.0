@@ -175,6 +175,55 @@ class BeliefSynergizer:
     # anchors 98/135 -- see commit message.
     _MIN_RELATEDNESS_DISTANCE = 0.15
 
+    # NEX5_SYNTH_FRESH (default OFF): recency preference on the FRESH side.
+    # Measured 2026-09-26 over the last 200 picks (tools/synth_fresh_harness.py):
+    # median fresh-side age 47.6 days; 153/200 fresh sides were syntheses of the
+    # SAME anchor (a koan's own offspring sits closest to it); 23 distinct fresh
+    # beliefs reused 10x each; recent (<48h) fountain insights were in every pool
+    # but never top-10 (median rank 476, gap to the winner 0.095). Old beliefs
+    # are down-weighted, never excluded: weight = FLOOR + (1-FLOOR)*exp(-age/TAU).
+    #
+    # Recency ALONE was measured harmful (closed-loop replay): age fell 47d ->
+    # 0.4d but fountain share FELL (10% -> 8%) and the self-offspring loop held
+    # (80%) — a fresher synthesis of the same koan just wins faster. The root
+    # cause is lineage: a koan's own descendants sit closest to it (84% of
+    # picks, transitively). So the flag also treats an anchor's LINEAGE
+    # DESCENDANTS as re-use of that anchor (x _DESC_PENALTY, the same weight
+    # rec_w gives a recently used belief). Together (replay, 200 picks):
+    # self-offspring 84% -> 0%, fountain share 10% -> 24%, cross-branch 20% ->
+    # 26%, distinct fresh 23 -> 90, maxDF 34% -> 34% (every other tried
+    # combination raised it to 37-46%).
+    _FRESH_FLOOR = 0.85
+    _FRESH_TAU_DAYS = 3.0
+    _DESC_PENALTY = 0.5
+    _DESC_DEPTH = 6
+
+    @classmethod
+    def fresh_weight(cls, created_at, now: float) -> float:
+        import math
+        age_days = max(0.0, (now - float(created_at or now)) / 86400.0)
+        return cls._FRESH_FLOOR + (1.0 - cls._FRESH_FLOOR) * math.exp(-age_days / cls._FRESH_TAU_DAYS)
+
+    def _ancestor_map(self, fresh_ids) -> dict:
+        """{fresh_id: set(ancestor ids)} over belief_lineage, depth-limited.
+        Only non-empty entries. Read-only."""
+        parents: dict = {}
+        for r in self._reader.read("SELECT child_id, parent_id FROM belief_lineage"):
+            parents.setdefault(r["child_id"], set()).add(r["parent_id"])
+        memo: dict = {}
+
+        def anc(b, depth):
+            if b in memo:
+                return memo[b]
+            out: set = set()
+            if depth < self._DESC_DEPTH:
+                for p in parents.get(b, ()):
+                    out.add(p)
+                    out |= anc(p, depth + 1)
+            memo[b] = out
+            return out
+        return {f: a for f in fresh_ids if (a := anc(f, 0))}
+
     def _select_pair(self) -> Optional[tuple[dict, dict]]:
         # Include locked seed beliefs (koans, keystones) — rich, philosophically
         # diverse candidates. Exclude low-quality URL stubs.
@@ -230,6 +279,20 @@ class BeliefSynergizer:
                 (bb, embed_belief(bb["id"], bb["content"])) for bb in fresh_sorted
             ]
 
+            # NEX5_SYNTH_FRESH: per-fresh recency weight, computed once. Any
+            # error -> no weighting (today's pick).
+            _fw = None
+            _anc = None
+            try:
+                import os as _os
+                if _os.environ.get("NEX5_SYNTH_FRESH") == "1":
+                    _now = time.time()
+                    _fw = {bb["id"]: self.fresh_weight(bb["created_at"], _now) for bb in fresh}
+                    _anc = self._ancestor_map([bb["id"] for bb in fresh])
+            except Exception:
+                _fw = None
+                _anc = None
+
             best_relatedness = -1.0
             for ba in anchors:
                 a_vec = embed_belief(ba["id"], ba["content"])
@@ -241,6 +304,10 @@ class BeliefSynergizer:
                         continue
                     rec_w = 0.5 if (ba["id"] in recent_ids or bb["id"] in recent_ids) else 1.0
                     relatedness = (1.0 - d) * rec_w
+                    if _fw is not None:
+                        relatedness *= _fw.get(bb["id"], 1.0)
+                        if _anc and ba["id"] in _anc.get(bb["id"], ()):
+                            relatedness *= self._DESC_PENALTY   # its own offspring
                     if relatedness > best_relatedness:
                         best_relatedness = relatedness
                         best_pair = (ba, bb)
