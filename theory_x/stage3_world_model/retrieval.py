@@ -7,6 +7,7 @@ activation is blended in: final = keyword*0.4 + activation*0.6.
 """
 from __future__ import annotations
 
+import os
 import re
 from typing import Optional
 
@@ -14,6 +15,11 @@ import errors
 from substrate import Reader
 
 THEORY_X_STAGE = 3
+
+# NEX5_RETRIEVAL_DEBOILER — the two machine templates that make up 64.1% of the
+# retrieval pool. Downweighted, not excluded, so recall is preserved.
+_BOILERPLATE_SOURCES = ("hot_observer", "counterfactual_node")
+_BOILERPLATE_WEIGHT = 0.15
 
 _LOG_SOURCE = "retrieval"
 _STOPWORDS = {"the", "and", "for", "are", "was", "has", "had", "not", "but",
@@ -93,6 +99,17 @@ class BeliefRetriever:
             # retriever's own scoring over the full eligible set:
             #   old pool  0.658 recall, 0.00 tier-6 per query, 1 zero-result
             #   new pool  0.998 recall, 1.83 tier-6 per query, 0 zero-result
+            # NEX5_RETRIEVAL_DEBOILER (default OFF): hold back the two machine
+            # templates. Measured 2026-09-22: hot_observer (5,561) and
+            # counterfactual_node (3,447) are 64.1% of the 14,061-belief retrieval
+            # pool. Both are fixed wrappers around a quoted fire or a running
+            # counter — "I notice this fire engaged the world directly (branch:
+            # X): '<quote>'" and "I am the attending, that has grown by N beliefs
+            # this quarter-day" — so they carry the quoted item's keywords and win
+            # the overlap score against her actual conclusions (5.0% of the pool).
+            # Downweighted rather than dropped, so a query that genuinely matches
+            # one can still reach it and recall is preserved.
+            _deboil = os.environ.get("NEX5_RETRIEVAL_DEBOILER") == "1"
             rows = self._reader.read(
                 "SELECT id, content, tier, confidence, branch_id, source, locked "
                 "FROM beliefs "
@@ -148,6 +165,9 @@ class BeliefRetriever:
             score = (overlap / max(1, len(query_tokens))) * row["confidence"]
             if row["branch_id"] in hints:
                 score *= 1.5
+            if _deboil and row["source"] in _BOILERPLATE_SOURCES:
+                score *= _BOILERPLATE_WEIGHT
+
             keyword_scores[row["id"]] = score
             row_map[row["id"]] = dict(row)
 
