@@ -238,9 +238,10 @@ def _desc_fn(parents, pen=0.5, floor=None, tau=None):
     return fn
 
 
-def arm_metrics(res, rows, parents):
+def arm_metrics(res, rows, parents, norm=None):
     from theory_x.stage6_fountain.crystallizer import _fidelity_tokens
     byid = {r["id"]: r for r in rows}
+    idx_of = {r["id"]: k for k, r in enumerate(rows)}
     ages = [(r["ts"] - float(byid[r["b"]]["created_at"])) / D for r in res]
     q = st.quantiles(ages, n=10)
     src = Counter(byid[r["b"]]["source"] for r in res)
@@ -271,6 +272,10 @@ def arm_metrics(res, rows, parents):
         "distinct_anchor": len({r["a"] for r in res}),
         "maxdf": top_n / len(res), "maxdf_tok": top_tok,
         "win_rel": st.median(r["score"] for r in res),
+        # PURE relatedness of the chosen pair, (cos+1)/2 — the weighted score
+        # above includes the arm's own multipliers and is not comparable across arms
+        "pure_rel": (st.median((float(norm[idx_of[r["a"]]] @ norm[idx_of[r["b"]]]) + 1) / 2 for r in res)
+                     if norm is not None else float("nan")),
     }
 
 
@@ -301,17 +306,112 @@ def measure(n, cache, grid):
               f"{m['maxdf']:5.0%} {m['win_rel']:6.3f}  top-token '{m['maxdf_tok']}'")
 
 
+# ── NEX5_BRIDGE: three arms ─────────────────────────────────────────────────
+
+def _bridge_ctxs(rows, log, n):
+    """Real BeliefSynergizer._bridge_context as of each pick's ts (read-only)."""
+    from substrate import Reader
+    syn = _BS(None, Reader(BEL_DB), None)
+    is_anchor = [r["source"] in _BS._ANCHOR_SOURCES for r in rows]
+    is_fresh = [r["source"] in _BS._FRESH_SOURCES for r in rows]
+    out = {}
+    for pick in log[-n:]:
+        ts = float(pick["ts"])
+        anchors = [r for r, a in zip(rows, is_anchor) if a and float(r["created_at"] or 0) <= ts]
+        fresh = [r for r, f in zip(rows, is_fresh) if f and float(r["created_at"] or 0) < ts]
+        try:
+            out[ts] = syn._bridge_context(anchors, fresh, ts)
+        except Exception as e:
+            print("ctx error", e); out[ts] = None
+    return out
+
+
+def _bridge_fn(ctxs, gain, desc_parents):
+    """SYNTH_FRESH (0.85/3d + desc x0.5) x BRIDGE matrix, mirroring bridge_factor."""
+    base = _desc_fn(desc_parents, _BS._DESC_PENALTY, 0.85, 3.0)
+    def fn(rows, F, ts, A):
+        m = base(rows, F, ts, A)
+        ctx = ctxs.get(ts)
+        if not ctx:
+            return m
+        factor = 1.0 + gain * (ctx["factor"] - 1.0) / _BS._BRIDGE_GAIN   # rescale to this arm's gain
+        fid = [rows[f]["id"] for f in F]
+        elig = np.array([i in ctx["eligible"] for i in fid])
+        fbr = [ctx["eligible"].get(i) for i in fid]
+        for i, a in enumerate(A):
+            aid = rows[a]["id"]
+            reg = ctx["region"].get(aid, set())
+            linked = set(reg)
+            for r_ in reg:
+                linked |= ctx["syn"].get(r_, set())
+            abr = ctx["anchor_branch"].get(aid)
+            row = np.where(elig & np.array([b != abr for b in fbr])
+                           & np.array([f not in linked for f in fid]), factor, 1.0)
+            m[i] = m[i] * row
+        return m
+    return fn
+
+
+def measure_bridge(n, cache, gains):
+    rows, norm, parents, log = load(cache)
+    ctxs = _bridge_ctxs(rows, log, n)
+    live = [c for c in ctxs.values() if c]
+    print(f"bridge context available at {len(live)}/{len(ctxs)} picks; median active branches "
+          f"{st.median(len(c['active']) for c in live) if live else 0}, median eligible fresh "
+          f"{st.median(len(c['eligible']) for c in live) if live else 0}, median drive "
+          f"{st.median(c['drive'] for c in live) if live else 0:.3f}, median factor "
+          f"{st.median(c['factor'] for c in live) if live else 0:.3f}, median groove tokens "
+          f"{st.median(len(c['groove']) for c in live) if live else 0}")
+    # spot-check: harness matrix == real bridge_factor
+    ts0 = next((t for t, c in ctxs.items() if c), None)
+    if ts0 is not None:
+        ctx = ctxs[ts0]
+        A = [k for k, r in enumerate(rows) if r["source"] in _BS._ANCHOR_SOURCES and float(r["created_at"] or 0) <= ts0]
+        F = [k for k, r in enumerate(rows) if r["source"] in _BS._FRESH_SOURCES and float(r["created_at"] or 0) < ts0]
+        base = _desc_fn(parents, _BS._DESC_PENALTY, 0.85, 3.0)(rows, np.array(F), ts0, np.array(A))
+        m = _bridge_fn(ctxs, _BS._BRIDGE_GAIN, parents)(rows, np.array(F), ts0, np.array(A)) / base
+        import random as _r
+        rnd = _r.Random(3); bad = 0
+        for _ in range(3000):
+            i, j = rnd.randrange(len(A)), rnd.randrange(len(F))
+            bad += abs(m[i, j] - _BS.bridge_factor(ctx, rows[A[i]]["id"], rows[F[j]]["id"])) > 1e-9
+        print(f"spot-check harness matrix vs real bridge_factor: {3000 - bad}/3000 agree")
+        assert bad == 0
+
+    byid = {r["id"]: r for r in rows}
+    arms = [("A baseline", None), ("B SYNTH_FRESH", _desc_fn(parents, _BS._DESC_PENALTY, 0.85, 3.0))]
+    arms += [(f"C +BRIDGE g={g:.2f}", _bridge_fn(ctxs, g, parents)) for g in gains]
+    print(f"\n{'arm':20s} {'cross':>6s} {'active':>6s} {'bridge':>6s} {'fount%':>6s} {'selfdesc':>8s} "
+          f"{'age med':>7s} {'<6h':>5s} {'dist.b':>6s} {'maxre':>5s} {'dist.a':>6s} {'maxDF':>6s} {'pure_rel':>8s}")
+    for name, fn in arms:
+        res, _, _ = replay(rows, norm, log, n, score_fn=fn, simulate=True)
+        m = arm_metrics(res, rows, parents, norm)
+        act = [ctxs.get(r["ts"]) for r in res]
+        active_share = st.mean(1.0 if c and byid[r["b"]]["branch_id"] in c["active"] else 0.0
+                               for r, c in zip(res, act))
+        bridged = st.mean(1.0 if c and _BS.bridge_factor(c, r["a"], r["b"]) > 1.0 else 0.0
+                          for r, c in zip(res, act))
+        print(f"{name:20s} {m['cross']:6.0%} {active_share:6.0%} {bridged:6.0%} {m['fountain_share']:6.0%} "
+              f"{m['same_anchor_desc']:8.0%} {m['age_med']:7.1f} {m['lt6h']:5.0%} {m['distinct_fresh']:6d} "
+              f"{m['max_reuse']:5d} {m['distinct_anchor']:6d} {m['maxdf']:5.0%} {m['pure_rel']:6.3f}"
+              f"  top-token '{m['maxdf_tok']}'")
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--investigate", action="store_true")
     ap.add_argument("--n", type=int, default=200)
     ap.add_argument("--cache", default="/tmp/synth_fresh_vecs.npz")
     ap.add_argument("--measure", action="store_true")
+    ap.add_argument("--bridge", action="store_true", help="3-arm NEX5_BRIDGE measurement")
+    ap.add_argument("--gains", default="0.05,0.10,0.20")
     ap.add_argument("--grid", default="0.9:3,0.85:3,0.8:1,0.8:3,0.8:7,0.7:3",
                     help="floor:tau_days,... for NEX5_SYNTH_FRESH arms")
     a = ap.parse_args()
     if a.investigate:
         investigate(a.n, a.cache)
+    if a.bridge:
+        measure_bridge(a.n, a.cache, [float(g) for g in a.gains.split(",")])
     if a.measure:
         grid = [tuple(float(x) for x in g.split(":")) for g in a.grid.split(",")]
         measure(a.n, a.cache, grid)

@@ -224,6 +224,132 @@ class BeliefSynergizer:
             return out
         return {f: a for f in fresh_ids if (a := anc(f, 0))}
 
+    # NEX5_BRIDGE (default OFF): bridging drive — favour a fresh belief that
+    # would open a real, currently-ABSENT bridge: its branch is ACTIVE in her
+    # recent fires, differs from the anchor's branch, and it has no lineage /
+    # synthesises link into the anchor's region. Biases which opportunity is
+    # offered; the quality, coherence and duplicate gates still decide whether
+    # a synthesis lands, so nothing is manufactured.
+    #   ACTIVE  = branch's share of her non-quiescent fires in the last
+    #             _BRIDGE_WINDOW_S >= _BRIDGE_ACTIVE_MIN (fountain_events.hot_branch)
+    #   REGION  = anchor + its lineage descendants (depth _DESC_DEPTH) + its
+    #             synthesises-edge neighbours. (Anchors are all branch 'systems'
+    #             or NULL, so branch alone cannot define a region.)
+    #   LINKED  = fresh is in the region, or has a synthesises edge into it
+    #   GROOVE  = curiosity's guard, unchanged: a token within _GROOVE_MARGIN of
+    #             the maxDF* threshold (last 50 crystallized) or under an active
+    #             signal_cooldown -> no boost
+    #   FACTOR  = 1 + _BRIDGE_GAIN * clamp((curiosity+exploration)/_BRIDGE_DRIVE_REF,
+    #             0, _BRIDGE_DRIVE_CAP) — weighted by the live drives, as curiosity is
+    # Every input is read AS OF `now` (live: now), so a replay is faithful.
+    _BRIDGE_WINDOW_S = 6 * 3600
+    _BRIDGE_ACTIVE_MIN = 0.10
+    _BRIDGE_GAIN = 0.10
+    _BRIDGE_DRIVE_REF = 0.40
+    _BRIDGE_DRIVE_CAP = 1.5
+    _GROOVE_MARGIN = 0.05            # == generator._CURIOSITY_GROOVE_MARGIN
+    _BRIDGE_IDLE = frozenset({"quiescent", "voice_fallback"})
+
+    def _bridge_context(self, anchors: list, fresh: list, now: float,
+                        dynamic_reader=None, conversations_reader=None) -> Optional[dict]:
+        """Everything the bridge test needs, read-only and as of `now`.
+        Returns None when nothing can be boosted (no active branch, no drive).
+        Readers default to the live dbs (injectable for tests)."""
+        import json as _json
+        from theory_x.stage6_fountain.corpus_convergence import max_df_star, load_register_exclusion
+        from theory_x.stage6_fountain.crystallizer import _fidelity_tokens
+        if dynamic_reader is None or conversations_reader is None:
+            from substrate import Reader, db_paths
+            paths = db_paths()
+            dynamic_reader = dynamic_reader or Reader(paths["dynamic"])
+            conversations_reader = conversations_reader or Reader(paths["conversations"])
+
+        # active branches (her recent fires)
+        fires = dynamic_reader.read(
+            "SELECT hot_branch, COUNT(*) AS n FROM fountain_events WHERE ts > ? AND ts <= ? "
+            "AND hot_branch IS NOT NULL GROUP BY hot_branch", (now - self._BRIDGE_WINDOW_S, now))
+        counts = {r["hot_branch"]: r["n"] for r in fires if r["hot_branch"] not in self._BRIDGE_IDLE}
+        total = sum(counts.values())
+        active = {b for b, n in counts.items() if total and n / total >= self._BRIDGE_ACTIVE_MIN}
+        if not active:
+            return None
+
+        # drive weight (curiosity + exploration), latest reading as of now
+        row = conversations_reader.read_one(
+            "SELECT weights_json FROM drives_competing_log WHERE tick_at <= ? "
+            "ORDER BY tick_at DESC LIMIT 1", (now,))
+        w = _json.loads(row["weights_json"]) if row else {}
+        drive = float(w.get("curiosity", 0.0)) + float(w.get("exploration", 0.0))
+        factor = 1.0 + self._BRIDGE_GAIN * max(0.0, min(self._BRIDGE_DRIVE_CAP,
+                                                        drive / self._BRIDGE_DRIVE_REF))
+        if factor <= 1.0:
+            return None
+
+        # groove tokens — curiosity's rule, as of now
+        groove: set = set()
+        docs = self._reader.read(
+            "SELECT content FROM beliefs WHERE source='fountain_insight' AND content IS NOT NULL "
+            "AND created_at <= ? ORDER BY created_at DESC LIMIT 50", (now,))
+        cv = max_df_star(docs=[d["content"] for d in docs],
+                         exclusion=set(load_register_exclusion()["terms"]))
+        thr = cv.get("threshold", 0.25)
+        for tok, _c, frac in cv.get("top", []):
+            if tok and frac is not None and frac >= thr - self._GROOVE_MARGIN:
+                groove.add(tok)
+        for r in self._reader.read(
+                "SELECT content FROM signal_cooldown WHERE created_at <= ? AND cooldown_until > ?",
+                (now, now)):
+            groove |= set(_fidelity_tokens(r["content"] or ""))
+
+        # eligible fresh: active branch, not grooving
+        eligible = {f["id"]: f.get("branch_id") for f in fresh
+                    if f.get("branch_id") in active
+                    and not (set(_fidelity_tokens(f.get("content") or "")) & groove)}
+        if not eligible:
+            return None
+
+        # regions: anchor + lineage descendants + synthesises neighbours
+        kids: dict = {}
+        for r in self._reader.read("SELECT child_id, parent_id FROM belief_lineage"):
+            kids.setdefault(r["parent_id"], set()).add(r["child_id"])
+        a_ids = [a["id"] for a in anchors]
+        syn: dict = {}
+        ids = list(set(a_ids) | set(eligible))
+        for i in range(0, len(ids), 500):
+            chunk = ids[i:i + 500]
+            ph = ",".join("?" * len(chunk))
+            for r in self._reader.read(
+                    f"SELECT source_id, target_id FROM belief_edges WHERE edge_type='synthesises' "
+                    f"AND (source_id IN ({ph}) OR target_id IN ({ph}))", (*chunk, *chunk)):
+                syn.setdefault(r["source_id"], set()).add(r["target_id"])
+                syn.setdefault(r["target_id"], set()).add(r["source_id"])
+        region = {}
+        for a in a_ids:
+            reg, stack = {a}, [(a, 0)]
+            while stack:
+                b, d = stack.pop()
+                if d >= self._DESC_DEPTH:
+                    continue
+                for k in kids.get(b, ()):
+                    if k not in reg:
+                        reg.add(k); stack.append((k, d + 1))
+            region[a] = reg | syn.get(a, set())
+        return {"active": active, "factor": factor, "eligible": eligible,
+                "region": region, "syn": syn, "groove": groove, "drive": drive,
+                "anchor_branch": {a["id"]: a.get("branch_id") for a in anchors}}
+
+    @staticmethod
+    def bridge_factor(ctx: Optional[dict], a_id: int, f_id: int) -> float:
+        """The bridge multiplier for one anchor x fresh pair (1.0 = no boost)."""
+        if not ctx or f_id not in ctx["eligible"]:
+            return 1.0
+        if ctx["eligible"][f_id] == ctx["anchor_branch"].get(a_id):
+            return 1.0                                   # not cross-branch
+        reg = ctx["region"].get(a_id, ())
+        if f_id in reg or (ctx["syn"].get(f_id, set()) & reg):
+            return 1.0                                   # bridge already exists
+        return ctx["factor"]
+
     def _select_pair(self) -> Optional[tuple[dict, dict]]:
         # Include locked seed beliefs (koans, keystones) — rich, philosophically
         # diverse candidates. Exclude low-quality URL stubs.
@@ -292,6 +418,14 @@ class BeliefSynergizer:
             except Exception:
                 _fw = None
                 _anc = None
+            # NEX5_BRIDGE: independent of NEX5_SYNTH_FRESH. Any error -> no boost.
+            _br = None
+            try:
+                import os as _os2
+                if _os2.environ.get("NEX5_BRIDGE") == "1":
+                    _br = self._bridge_context(anchors, fresh, time.time())
+            except Exception:
+                _br = None
 
             best_relatedness = -1.0
             for ba in anchors:
@@ -308,6 +442,8 @@ class BeliefSynergizer:
                         relatedness *= _fw.get(bb["id"], 1.0)
                         if _anc and ba["id"] in _anc.get(bb["id"], ()):
                             relatedness *= self._DESC_PENALTY   # its own offspring
+                    if _br is not None:
+                        relatedness *= self.bridge_factor(_br, ba["id"], bb["id"])
                     if relatedness > best_relatedness:
                         best_relatedness = relatedness
                         best_pair = (ba, bb)
