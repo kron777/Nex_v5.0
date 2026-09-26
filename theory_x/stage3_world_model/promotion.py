@@ -226,6 +226,15 @@ class BeliefPromoter:
             "AND COALESCE(last_referenced_at, created_at) < ?"
         )
         _params: tuple = (cutoff,)
+        # NEX5_SYNTH_KEEP (default OFF): her own syntheses stop aging out of the
+        # tier<=6 retrieval pool. Measured 2026-09-22: 6,061 of 6,778 synergized
+        # beliefs (89%) had decayed to tier 7, because decay runs on idle time and
+        # only RETRIEVAL stamps last_referenced_at — so a synthesis that never got
+        # retrieved was guaranteed to fall below the line that would have let it be
+        # retrieved. Held at tier 6; anything already at 7 still decays normally.
+        _synth_keep = os.environ.get("NEX5_SYNTH_KEEP") == "1"
+        if _synth_keep:
+            _sql += " AND NOT (source = 'synergized' AND tier <= 6)"
         if os.environ.get("NEX5_TIER_CLIMB") == "1":
             t6_cutoff = int(time.time()) - _TIER6_CLIMB_IDLE_HOURS * 3600
             _sql = (
@@ -233,6 +242,8 @@ class BeliefPromoter:
                 "(tier IN (5, 7) AND COALESCE(last_referenced_at, created_at) < ?) "
                 "OR (tier = 6 AND COALESCE(last_referenced_at, created_at) < ?))"
             )
+            if _synth_keep:
+                _sql += " AND NOT (source = 'synergized' AND tier <= 6)"
             _params = (cutoff, t6_cutoff)
         try:
             rows = self._reader.read(_sql, _params)
