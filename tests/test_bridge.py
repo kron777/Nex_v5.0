@@ -123,6 +123,17 @@ class TestBridgeFactor(unittest.TestCase):
         self.assertEqual(BS.bridge_factor(ctx, 1, 14), 1.0)      # synthesises edge into region
         self.assertEqual(BS.bridge_factor(ctx, 1, 13), 1.0)      # psychology inactive
 
+    def test_min_cosine_floor(self):
+        ctx = _Fixture(self.tmp.name).ctx()
+        f = BS._BRIDGE_MIN_COS
+        self.assertEqual(BS.bridge_factor(ctx, 1, 11, cos=f - 0.01), 1.0)    # too weak: no boost
+        self.assertGreater(BS.bridge_factor(ctx, 1, 11, cos=f + 0.01), 1.0)
+        self.assertGreater(BS.bridge_factor(ctx, 1, 11), 1.0)               # no cos given: unchanged
+        # the sample's calibration points
+        self.assertEqual(BS.bridge_factor(ctx, 1, 11, cos=0.362), 1.0)      # moon pun
+        self.assertEqual(BS.bridge_factor(ctx, 1, 11, cos=0.372), 1.0)      # dyslexia non-sequitur
+        self.assertGreater(BS.bridge_factor(ctx, 1, 11, cos=0.389), 1.0)    # Cook Ding
+
     def test_groove_guard_blocks_boost(self):
         ctx = _Fixture(self.tmp.name, cooldown="liquidity cascades are everywhere").ctx()
         self.assertEqual(BS.bridge_factor(ctx, 1, 11), 1.0)

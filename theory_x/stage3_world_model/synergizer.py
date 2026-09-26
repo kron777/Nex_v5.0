@@ -248,6 +248,14 @@ class BeliefSynergizer:
     _BRIDGE_DRIVE_REF = 0.40
     _BRIDGE_DRIVE_CAP = 1.5
     _GROOVE_MARGIN = 0.05            # == generator._CURIOSITY_GROOVE_MARGIN
+    # Minimum anchor x fresh COSINE for a bridge to earn the boost (dry live-LLM
+    # sample 2026-09-26): the shallow bridges sat at 0.362 (moon koan x lunar
+    # magnetic field, a word pun) and 0.372 (keystone x dyslexia study, a
+    # non-sequitur); the lowest passable one at 0.389 (Cook Ding x markets).
+    # Thin margin, n=1 each side. A floor cannot catch RESTATEMENTS (too
+    # related, not too weak: 0.599 / 0.693 in the same sample) — that would need
+    # an upper cap, deliberately not added here.
+    _BRIDGE_MIN_COS = 0.38
     _BRIDGE_IDLE = frozenset({"quiescent", "voice_fallback"})
 
     def _bridge_context(self, anchors: list, fresh: list, now: float,
@@ -338,11 +346,15 @@ class BeliefSynergizer:
                 "region": region, "syn": syn, "groove": groove, "drive": drive,
                 "anchor_branch": {a["id"]: a.get("branch_id") for a in anchors}}
 
-    @staticmethod
-    def bridge_factor(ctx: Optional[dict], a_id: int, f_id: int) -> float:
-        """The bridge multiplier for one anchor x fresh pair (1.0 = no boost)."""
+    @classmethod
+    def bridge_factor(cls, ctx: Optional[dict], a_id: int, f_id: int,
+                      cos: Optional[float] = None) -> float:
+        """The bridge multiplier for one anchor x fresh pair (1.0 = no boost).
+        `cos` (anchor x fresh cosine) below _BRIDGE_MIN_COS -> no boost."""
         if not ctx or f_id not in ctx["eligible"]:
             return 1.0
+        if cos is not None and cos < cls._BRIDGE_MIN_COS:
+            return 1.0                                   # too weak to be a real bridge
         if ctx["eligible"][f_id] == ctx["anchor_branch"].get(a_id):
             return 1.0                                   # not cross-branch
         reg = ctx["region"].get(a_id, ())
@@ -443,7 +455,8 @@ class BeliefSynergizer:
                         if _anc and ba["id"] in _anc.get(bb["id"], ()):
                             relatedness *= self._DESC_PENALTY   # its own offspring
                     if _br is not None:
-                        relatedness *= self.bridge_factor(_br, ba["id"], bb["id"])
+                        # distance() = (1 - cos) / 2  ->  cos = 1 - 2d
+                        relatedness *= self.bridge_factor(_br, ba["id"], bb["id"], cos=1.0 - 2.0 * d)
                     if relatedness > best_relatedness:
                         best_relatedness = relatedness
                         best_pair = (ba, bb)
