@@ -912,15 +912,28 @@ class FountainGenerator:
         # beliefs.db, not dynamic.db; SQLite does not support cross-file FKs).
         try:
             # Drop the table if it was created with the old (broken) cross-DB FK schema.
-            self._dynamic_writer.write(
-                "DROP TABLE IF EXISTS fountain_retrieval_log"
-            )
-            self._dynamic_writer.write(
-                "DROP INDEX IF EXISTS idx_fountain_retrieval_log_fire"
-            )
-            self._dynamic_writer.write(
-                "DROP INDEX IF EXISTS idx_fountain_retrieval_log_ts"
-            )
+            # NEX5_WARRANT_RECORD (default OFF): that drop was a one-off migration
+            # left running unconditionally, so it destroyed the whole log on every
+            # restart and per-belief retrieval use could never accrue. When armed,
+            # drop ONLY if the old FK into beliefs is actually present.
+            _drop_rlog = True
+            if os.environ.get("NEX5_WARRANT_RECORD") == "1":
+                try:
+                    _fks = self._dynamic_reader.read(
+                        "PRAGMA foreign_key_list(fountain_retrieval_log)")
+                    _drop_rlog = any(r["table"] == "beliefs" for r in _fks)
+                except Exception:
+                    _drop_rlog = False      # can't tell -> keep the data
+            if _drop_rlog:
+                self._dynamic_writer.write(
+                    "DROP TABLE IF EXISTS fountain_retrieval_log"
+                )
+                self._dynamic_writer.write(
+                    "DROP INDEX IF EXISTS idx_fountain_retrieval_log_fire"
+                )
+                self._dynamic_writer.write(
+                    "DROP INDEX IF EXISTS idx_fountain_retrieval_log_ts"
+                )
             self._dynamic_writer.write(
                 "CREATE TABLE IF NOT EXISTS fountain_retrieval_log ("
                 "    id INTEGER PRIMARY KEY AUTOINCREMENT,"

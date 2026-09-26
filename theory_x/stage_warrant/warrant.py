@@ -198,10 +198,11 @@ def persist(writer, results: dict, now: float = None) -> int:
            "computed_at=excluded.computed_at")
     items = list(results.items())
     n = 0
+    from theory_x.stage_warrant.recorder import write_batch   # wrapper-safe
     for i in range(0, len(items), _BATCH):
-        writer.write_many([(sql, (bid, c["warrant"], c["survival"], c["sustain"],
-                                  c["indep"], c["xsynth"], c["sustain_days"], now))
-                           for bid, c in items[i:i + _BATCH]])
+        write_batch(writer, [(sql, (bid, c["warrant"], c["survival"], c["sustain"],
+                                    c["indep"], c["xsynth"], c["sustain_days"], now))
+                             for bid, c in items[i:i + _BATCH]])
         n += len(items[i:i + _BATCH])
     return n
 

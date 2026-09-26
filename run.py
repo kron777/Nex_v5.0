@@ -348,6 +348,20 @@ def main() -> None:
     except Exception as _de_err:
         log.warning("DriveEmergence failed to start (non-fatal): %s", _de_err)
 
+    # NEX5_WARRANT_RECORD (default OFF) — start RECORDING earned-ness so warrant
+    # can be re-validated (it failed its 2026-09-26 gate for lack of signal).
+    # Append-only side tables in beliefs.db, background thread only; nothing on
+    # the fire/chat path. See theory_x/stage_warrant/recorder.py.
+    if os.environ.get("NEX5_WARRANT_RECORD") == "1":
+        try:
+            from theory_x.stage_warrant.recorder import WarrantRecorder as _WarrantRecorder
+            _warrant_recorder = _WarrantRecorder(
+                writers["beliefs"], readers["beliefs"], readers["dynamic"])
+            _warrant_recorder.start_loop()
+            log.info("WarrantRecorder ready — use-days every 900s, survival checks every 3600s")
+        except Exception as _wr_err:
+            log.warning("WarrantRecorder failed to start (non-fatal): %s", _wr_err)
+
     # Phase 29b — CompetingDrives (5-drive tension)
     _competing_drives = None
     try:
