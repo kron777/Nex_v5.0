@@ -224,6 +224,50 @@ class BeliefSynergizer:
             return out
         return {f: a for f in fresh_ids if (a := anc(f, 0))}
 
+    # NEX5_SYNTH_FRESH_SIBLING (default OFF, own flag): the descendant penalty
+    # above only fires when the fresh belief descends from the CURRENT anchor,
+    # so a synthesis of a DIFFERENT koan slips through and SYNTH_FRESH's recency
+    # weight then favours it. Live soak 2026-09-26: 3/3 picks took <48h
+    # syntheses, 298325 -> 298501 -> 298511 inside an hour, theme converging on
+    # 'zen / not knowing'. GENERATION g = the length of the chain of syntheses
+    # created within _SIB_WINDOW_S of now, starting at the fresh belief itself
+    # and following lineage parents (a synthesis's parents are its anchor and
+    # its fresh input). g=1 is a synthesis of non-recent-synthesis material and
+    # is left alone; each further generation multiplies by _SIB_PENALTY, so a
+    # synthesis-of-synthesis-of-synthesis (g=3) scores x0.25 — near-ineligible.
+    _SIB_PENALTY = 0.5
+    _SIB_WINDOW_S = 48 * 3600
+    _SIB_MAX_GEN = 6
+
+    def _synth_generations(self, fresh_ids, now: float) -> dict:
+        """{fresh_id: g} for fresh beliefs with g >= 2 (see above). Read-only."""
+        recent = {r["id"] for r in self._reader.read(
+            "SELECT id FROM beliefs WHERE source='synergized' AND created_at >= ?",
+            (now - self._SIB_WINDOW_S,))}
+        if not recent:
+            return {}
+        parents: dict = {}
+        for r in self._reader.read("SELECT child_id, parent_id FROM belief_lineage"):
+            if r["child_id"] in recent:
+                parents.setdefault(r["child_id"], set()).add(r["parent_id"])
+        memo: dict = {}
+
+        def gen(b, depth):
+            if b not in recent:
+                return 0
+            if b in memo:
+                return memo[b]
+            g = 1
+            if depth < self._SIB_MAX_GEN:
+                g += max((gen(p, depth + 1) for p in parents.get(b, ())), default=0)
+            memo[b] = g
+            return g
+        return {f: g for f in fresh_ids if (g := gen(f, 1)) >= 2}
+
+    @classmethod
+    def sibling_weight(cls, g: int) -> float:
+        return cls._SIB_PENALTY ** max(0, g - 1)
+
     # NEX5_BRIDGE (default OFF): bridging drive — favour a fresh belief that
     # would open a real, currently-ABSENT bridge: its branch is ACTIVE in her
     # recent fires, differs from the anchor's branch, and it has no lineage /
@@ -450,6 +494,14 @@ class BeliefSynergizer:
                     _br = self._bridge_context(anchors, fresh, time.time())
             except Exception:
                 _br = None
+            # NEX5_SYNTH_FRESH_SIBLING: own flag. Any error -> no penalty.
+            _sib = None
+            try:
+                import os as _os3
+                if _os3.environ.get("NEX5_SYNTH_FRESH_SIBLING") == "1":
+                    _sib = self._synth_generations([bb["id"] for bb in fresh], time.time())
+            except Exception:
+                _sib = None
 
             best_relatedness = -1.0
             for ba in anchors:
@@ -466,6 +518,8 @@ class BeliefSynergizer:
                         relatedness *= _fw.get(bb["id"], 1.0)
                         if _anc and ba["id"] in _anc.get(bb["id"], ()):
                             relatedness *= self._DESC_PENALTY   # its own offspring
+                    if _sib and bb["id"] in _sib:
+                        relatedness *= self.sibling_weight(_sib[bb["id"]])   # recent synthesis-of-synthesis
                     if _br is not None:
                         # distance() = (1 - cos) / 2  ->  cos = 1 - 2d
                         relatedness *= self.bridge_factor(_br, ba["id"], bb["id"], cos=1.0 - 2.0 * d)

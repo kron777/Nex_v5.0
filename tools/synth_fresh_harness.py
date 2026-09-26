@@ -397,6 +397,149 @@ def measure_bridge(n, cache, gains):
               f"  top-token '{m['maxdf_tok']}'")
 
 
+
+# ── NEX5_SYNTH_FRESH_SIBLING: recent synthesis-of-synthesis penalty ─────────
+
+class _MemReader:
+    """Answers the two queries BeliefSynergizer._synth_generations makes, as of
+    `ts`, from in-memory rows — so the replay runs the REAL generation code."""
+    def __init__(self, synth_created, lineage, ts):
+        self.sc, self.lin, self.ts = synth_created, lineage, ts
+
+    def read(self, sql, params=()):
+        if "FROM beliefs" in sql:
+            lo = params[0]
+            return [{"id": i} for i, c in self.sc.items() if lo <= c < self.ts]
+        return self.lin
+
+
+def _gens(synth_created, lineage, fresh_ids, ts):
+    syn = object.__new__(_BS)              # no __init__: only _reader is used
+    syn._reader = _MemReader(synth_created, lineage, ts)
+    return syn._synth_generations(fresh_ids, ts)
+
+
+def _sib_fn(base, state, strict=False):
+    """SYNTH_FRESH matrix x the sibling weight. strict=True (diagnostic only)
+    also penalises generation-1 recent syntheses (0.5**g instead of 0.5**(g-1))."""
+    def fn(rows, F, ts, A):
+        m = base(rows, F, ts, A)
+        fid = [rows[f]["id"] for f in F]
+        g = _gens(state["sc"], state["lin"], fid, ts)
+        if strict:
+            lo = ts - _BS._SIB_WINDOW_S
+            w = np.array([_BS._SIB_PENALTY ** g.get(i, 1 if lo <= state["sc"].get(i, -1) < ts else 0)
+                          for i in fid])
+        else:
+            w = np.array([_BS.sibling_weight(g.get(i, 1)) for i in fid])
+        return m * w[None, :]
+    return fn
+
+
+def measure_sibling(n, cache, virtual):
+    """Arms: A baseline / B SYNTH_FRESH (live) / C B+SIBLING (shipped) / D B+strict.
+    virtual=False: closed-loop replay over the real db (existing syntheses only).
+    virtual=True: counterfactual — every replayed pick lands a VIRTUAL synthesis
+    (lineage = anchor + fresh, embedding = normalised mean of the two, branch of
+    the fresh side, created 30s after the pick) and the REAL syntheses from the
+    replay window are removed; this is the only way to see the arm's own
+    chaining. Worst case: every pick lands (live gates pass ~65-90%)."""
+    rows0, norm0, parents0, log = load(cache)
+    t0 = float(log[-n]["ts"])
+    base_rows = [dict(r) for r in rows0]
+    if virtual:
+        for r in base_rows:
+            if r["source"] == "synergized" and float(r["created_at"] or 0) >= t0:
+                r["created_at"] = float("inf")
+    # fidelity: in-memory generations == the real method on the live db, now
+    from substrate import Reader
+    import time as _t
+    now = _t.time()
+    live = _BS(None, Reader(BEL_DB), None)
+    fid_ids = [r["id"] for r in rows0 if r["source"] in _BS._FRESH_SOURCES]
+    sc0 = {r["id"]: float(r["created_at"] or 0) for r in rows0 if r["source"] == "synergized"}
+    lin0 = [{"child_id": c, "parent_id": p} for c, ps in parents0.items() for p in ps]
+    real_g, mem_g = live._synth_generations(fid_ids, now), _gens(sc0, lin0, fid_ids, now + 1e-6)
+    print(f"fidelity: real _synth_generations {len(real_g)} fresh with g>=2 now; in-memory replay agrees: "
+          f"{real_g == mem_g}")
+
+    print(f"\n{'mode':8s} {'arm':18s} {'own<48h':>7s} {'g>=2':>5s} {'g>=3':>5s} {'max g':>5s} "
+          f"{'age med':>7s} {'p90':>6s} {'<6h':>5s} {'fount%':>6s} {'selfdesc':>8s} {'dist.b':>6s} "
+          f"{'maxre':>5s} {'dist.a':>6s} {'maxDF':>6s} {'pure_rel':>8s}")
+    for arm in ("A baseline", "B SYNTH_FRESH", "C +SIBLING", "D +strict"):
+        rows = [dict(r) for r in base_rows]
+        norm = norm0
+        parents = defaultdict(set, {k: set(v) for k, v in parents0.items()})
+        state = {"sc": {r["id"]: float(r["created_at"] or 0) for r in rows if r["source"] == "synergized"},
+                 "lin": [{"child_id": c, "parent_id": p} for c, ps in parents.items() for p in ps]}
+        if virtual:
+            vbase = len(rows)
+            for k in range(n):
+                rows.append({"id": -(k + 1), "content": "", "branch_id": None, "confidence": 0.65,
+                             "created_at": float("inf"), "source": "synergized"})
+            norm = np.vstack([norm0, np.zeros((n, norm0.shape[1]))])
+        desc = _desc_fn(parents, _BS._DESC_PENALTY, _BS._FRESH_FLOOR, _BS._FRESH_TAU_DAYS)
+        fn = {"A baseline": None, "B SYNTH_FRESH": desc,
+              "C +SIBLING": _sib_fn(desc, state), "D +strict": _sib_fn(desc, state, strict=True)}[arm]
+        res = _replay_sib(rows, norm, log, n, fn, parents, state, vbase if virtual else None)
+        byid = {r["id"]: r for r in rows}
+        own = gs = []
+        own = [byid[r["b"]]["source"] == "synergized" and r["ts"] - byid[r["b"]]["created_at"] < 2 * D for r in res]
+        gs = [r["g"] for r in res]
+        m = arm_metrics(res, rows, parents, norm)
+        print(f"{'virtual' if virtual else 'real':8s} {arm:18s} {st.mean(own):7.0%} "
+              f"{st.mean(g >= 2 for g in gs):5.0%} {st.mean(g >= 3 for g in gs):5.0%} {max(gs):5d} "
+              f"{m['age_med']:7.2f} {m['age_p90']:6.1f} {m['lt6h']:5.0%} {m['fountain_share']:6.0%} "
+              f"{m['same_anchor_desc']:8.0%} {m['distinct_fresh']:6d} {m['max_reuse']:5d} "
+              f"{m['distinct_anchor']:6d} {m['maxdf']:5.0%} {m['pure_rel']:8.3f}  top '{m['maxdf_tok']}'")
+
+
+def _replay_sib(rows, norm, log, n, fn, parents, state, vbase):
+    """Closed-loop replay (recently-used set from its own choices). Each pick
+    records the chosen fresh side's generation g at pick time; with vbase set,
+    each pick lands a virtual synthesis (see measure_sibling)."""
+    is_anchor = np.array([r["source"] in _BS._ANCHOR_SOURCES for r in rows])
+    is_fresh = np.array([r["source"] in _BS._FRESH_SOURCES for r in rows])
+    created = np.array([float(r["created_at"] or 0) for r in rows])
+    tail = log[-n:]
+    first = len(log) - len(tail)
+    hist = [(x["belief_id_a"], x["belief_id_b"]) for x in log[max(0, first - 20): first]]
+    out = []
+    for j, pick in enumerate(tail):
+        ts = float(pick["ts"])
+        recent = {a for a, _ in hist[-20:]} | {b for _, b in hist[-20:]}
+        A = np.where(is_anchor & (created <= ts))[0]
+        F = np.where(is_fresh & (created < ts))[0]
+        cos = norm[A] @ norm[F].T
+        d = (1.0 - cos) / 2.0
+        rec_a = np.array([0.5 if rows[a]["id"] in recent else 1.0 for a in A])
+        rec_f = np.array([0.5 if rows[f]["id"] in recent else 1.0 for f in F])
+        score = (1.0 - d) * np.minimum(rec_a[:, None], rec_f[None, :])
+        if fn is not None:
+            w = fn(rows, F, ts, A)
+            score = score * (w[None, :] if w.ndim == 1 else w)
+        score[d < MIN_D] = -1.0
+        ai, fi = divmod(int(np.argmax(score)), len(F))
+        a, f = A[ai], F[fi]
+        aid, fid = rows[a]["id"], rows[f]["id"]
+        hist.append((aid, fid))
+        g2 = _gens(state["sc"], state["lin"], [fid], ts)
+        g = g2.get(fid, 1 if ts - _BS._SIB_WINDOW_S <= state["sc"].get(fid, -1) < ts else 0)
+        out.append({"ts": ts, "a": aid, "b": fid, "score": float(score[ai, fi]), "g": g})
+        if vbase is not None:
+            k = vbase + j
+            v = norm[a] + norm[f]
+            norm[k] = v / max(np.linalg.norm(v), 1e-9)
+            t_new = ts + 30.0
+            vid = rows[k]["id"]
+            rows[k]["created_at"] = t_new
+            rows[k]["branch_id"] = rows[f]["branch_id"]
+            created[k] = t_new
+            state["sc"][vid] = t_new
+            parents[vid] |= {aid, fid}
+            state["lin"] += [{"child_id": vid, "parent_id": aid}, {"child_id": vid, "parent_id": fid}]
+    return out
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--investigate", action="store_true")
@@ -404,6 +547,8 @@ if __name__ == "__main__":
     ap.add_argument("--cache", default="/tmp/synth_fresh_vecs.npz")
     ap.add_argument("--measure", action="store_true")
     ap.add_argument("--bridge", action="store_true", help="3-arm NEX5_BRIDGE measurement")
+    ap.add_argument("--sibling", action="store_true",
+                    help="NEX5_SYNTH_FRESH_SIBLING arms, real replay + virtual-offspring loop")
     ap.add_argument("--gains", default="0.05,0.10,0.20")
     ap.add_argument("--grid", default="0.9:3,0.85:3,0.8:1,0.8:3,0.8:7,0.7:3",
                     help="floor:tau_days,... for NEX5_SYNTH_FRESH arms")
@@ -412,6 +557,9 @@ if __name__ == "__main__":
         investigate(a.n, a.cache)
     if a.bridge:
         measure_bridge(a.n, a.cache, [float(g) for g in a.gains.split(",")])
+    if a.sibling:
+        measure_sibling(a.n, a.cache, virtual=False)
+        measure_sibling(a.n, a.cache, virtual=True)
     if a.measure:
         grid = [tuple(float(x) for x in g.split(":")) for g in a.grid.split(",")]
         measure(a.n, a.cache, grid)
