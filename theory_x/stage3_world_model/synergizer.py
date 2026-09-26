@@ -252,10 +252,14 @@ class BeliefSynergizer:
     # sample 2026-09-26): the shallow bridges sat at 0.362 (moon koan x lunar
     # magnetic field, a word pun) and 0.372 (keystone x dyslexia study, a
     # non-sequitur); the lowest passable one at 0.389 (Cook Ding x markets).
-    # Thin margin, n=1 each side. A floor cannot catch RESTATEMENTS (too
-    # related, not too weak: 0.599 / 0.693 in the same sample) — that would need
-    # an upper cap, deliberately not added here.
+    # Thin margin, n=1 each side.
     _BRIDGE_MIN_COS = 0.38
+    # ...and a CAP: a floor cannot catch RESTATEMENTS (too related, not too
+    # weak). Arm-C re-sample 2026-09-26: sun/cloud koan x its own paraphrase at
+    # 0.599, flag koan x "the wind makes the flag move" at 0.693; the genuine
+    # bridges sat at 0.389 (Cook Ding) and 0.421 (juggling). Boost band is
+    # _BRIDGE_MIN_COS <= cos < _BRIDGE_MAX_COS.
+    _BRIDGE_MAX_COS = 0.59
     _BRIDGE_IDLE = frozenset({"quiescent", "voice_fallback"})
 
     def _bridge_context(self, anchors: list, fresh: list, now: float,
@@ -309,9 +313,14 @@ class BeliefSynergizer:
                 (now, now)):
             groove |= set(_fidelity_tokens(r["content"] or ""))
 
-        # eligible fresh: active branch, not grooving
+        # eligible fresh: active branch, not grooving, and NOT the synergizer's
+        # own output — a recent synthesis carries its hot_branch tag, so it
+        # looks cross-branch; boosting it fed a self-template loop (re-sample
+        # 2026-09-26: 3 of 7 bridges were hours-old 'I notice the new insight…'
+        # syntheses tagged emerging_tech). Bridges pull in new material only.
         eligible = {f["id"]: f.get("branch_id") for f in fresh
-                    if f.get("branch_id") in active
+                    if f.get("source") != "synergized"
+                    and f.get("branch_id") in active
                     and not (set(_fidelity_tokens(f.get("content") or "")) & groove)}
         if not eligible:
             return None
@@ -350,11 +359,14 @@ class BeliefSynergizer:
     def bridge_factor(cls, ctx: Optional[dict], a_id: int, f_id: int,
                       cos: Optional[float] = None) -> float:
         """The bridge multiplier for one anchor x fresh pair (1.0 = no boost).
-        `cos` (anchor x fresh cosine) below _BRIDGE_MIN_COS -> no boost."""
+        `cos` (anchor x fresh cosine) outside [_BRIDGE_MIN_COS, _BRIDGE_MAX_COS)
+        -> no boost."""
         if not ctx or f_id not in ctx["eligible"]:
             return 1.0
         if cos is not None and cos < cls._BRIDGE_MIN_COS:
             return 1.0                                   # too weak to be a real bridge
+        if cos is not None and cos >= cls._BRIDGE_MAX_COS:
+            return 1.0                                   # a restatement, not a bridge
         if ctx["eligible"][f_id] == ctx["anchor_branch"].get(a_id):
             return 1.0                                   # not cross-branch
         reg = ctx["region"].get(a_id, ())

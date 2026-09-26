@@ -34,7 +34,7 @@ def _vec(angle_deg):
 # anchor 1 (systems). 10: systems fresh, closest. 11: markets (active) fresh, a bit further.
 # 12: markets fresh but a lineage child of 1 (linked). 13: psychology (inactive).
 # 14: markets fresh, linked by a synthesises edge to 12 (in 1's region).
-_ANGLE = {1: 0, 10: 60, 11: 64, 12: 62, 13: 61, 14: 61.5}
+_ANGLE = {1: 0, 10: 60, 11: 64, 12: 62, 13: 61, 14: 61.5, 15: 63}   # 15: synergized, would out-bridge 11 if eligible
 
 
 class _Fixture:
@@ -59,7 +59,8 @@ class _Fixture:
                 (11, "markets insight on liquidity cascades", "markets", 0.7, _NOW - 2 * _D, "fountain_insight"),
                 (12, "markets child of the koan on liquidity", "markets", 0.65, _NOW - 2 * _D, "synergized"),
                 (13, "psychology note on habit formation", "psychology", 0.7, _NOW - 2 * _D, "fountain_insight"),
-                (14, "markets insight on order books", "markets", 0.7, _NOW - 2 * _D, "fountain_insight")]
+                (14, "markets insight on order books", "markets", 0.7, _NOW - 2 * _D, "fountain_insight"),
+                (15, "markets synthesis on spreads widening", "markets", 0.7, _NOW - 2 * _D, "synergized")]
         # maxDF* window filler: 50 older crystallized beliefs with unique words, so
         # the fixture tokens are not "grooving" by small-corpus arithmetic. Their
         # confidence (0.4) keeps them out of the synergizer's candidate set.
@@ -133,6 +134,22 @@ class TestBridgeFactor(unittest.TestCase):
         self.assertEqual(BS.bridge_factor(ctx, 1, 11, cos=0.362), 1.0)      # moon pun
         self.assertEqual(BS.bridge_factor(ctx, 1, 11, cos=0.372), 1.0)      # dyslexia non-sequitur
         self.assertGreater(BS.bridge_factor(ctx, 1, 11, cos=0.389), 1.0)    # Cook Ding
+        self.assertGreater(BS.bridge_factor(ctx, 1, 11, cos=0.421), 1.0)    # juggling
+
+    def test_max_cosine_cap(self):
+        ctx = _Fixture(self.tmp.name).ctx()
+        m = BS._BRIDGE_MAX_COS
+        self.assertGreater(BS.bridge_factor(ctx, 1, 11, cos=m - 0.01), 1.0)
+        self.assertEqual(BS.bridge_factor(ctx, 1, 11, cos=m), 1.0)
+        # the re-sample's restatements
+        self.assertEqual(BS.bridge_factor(ctx, 1, 11, cos=0.599), 1.0)      # sun/cloud paraphrase
+        self.assertEqual(BS.bridge_factor(ctx, 1, 11, cos=0.693), 1.0)      # flag restatement
+
+    def test_synergized_fresh_never_bridged(self):
+        ctx = _Fixture(self.tmp.name).ctx()
+        self.assertNotIn(15, ctx["eligible"])        # active, cross-branch, unlinked — but her own output
+        self.assertEqual(BS.bridge_factor(ctx, 1, 15), 1.0)
+        self.assertEqual(BS.bridge_factor(ctx, 1, 15, cos=0.45), 1.0)
 
     def test_groove_guard_blocks_boost(self):
         ctx = _Fixture(self.tmp.name, cooldown="liquidity cascades are everywhere").ctx()
