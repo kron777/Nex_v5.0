@@ -494,6 +494,19 @@ def main() -> None:
         except Exception as _spl_err:
             log.warning("SelfPredictionLoop failed to start (non-fatal): %s", _spl_err)
 
+    # Self-maintenance SHADOW regulator (Phase A, log-only): hourly, records what an
+    # active-set regulator WOULD pause into dynamic.db self_maintain_shadow. Pauses
+    # nothing; nothing reads the table. Env-gated, default OFF.
+    # Spec: nex5_research_log/self_maintenance_spec.txt.
+    if os.environ.get("NEX5_SELF_MAINTAIN_SHADOW") == "1":
+        try:
+            from theory_x.stage_self_maintain.shadow import SelfMaintainShadow as _SMS
+            _SMS(writers["dynamic"], readers["beliefs"], readers["dynamic"],
+                 readers["sense"]).start_loop()
+            log.info("SelfMaintainShadow ready — log-only, first tick in 600s, then hourly")
+        except Exception as _sms_err:
+            log.warning("SelfMaintainShadow failed to start (non-fatal): %s", _sms_err)
+
     # Phase 38 — SocialPresence (her own social presence; 300s autonomous tick)
     # CUT 2026-05-30 (loop cuts round 1), removed 2026-07-27: writes
     # social_presence_snapshots, which has zero readers outside its own
