@@ -497,6 +497,50 @@ def _stakes_pick(items):
         return None
 
 
+# --- non-attachment / alobha (NEX5_ALOBHA, default OFF) ----------------------
+# When her own recent thoughts show she is gripping (raga's repetition score r),
+# loosen the pick's hold on what she has just held: each candidate loses
+# drive_scale * (r / r_med) * g, g = how much of the candidate is contained in her
+# last 20 focal items. Reorder-only, inside the curiosity pick; never removes a
+# candidate. Spec: nex5_research_log mental_factors_inventory_alobha_spec.txt +
+# dev_queue_2026-10-04_spec.txt. r_med = E2 (Sep 18-Oct 3) median of r, 4,385 fires.
+_ALOBHA_FOCAL_N = 20
+_ALOBHA_THOUGHT_N = 15
+_ALOBHA_R_MED = 0.1108
+
+
+def _alobha_context():
+    """(token union of her last 20 focal items, her repetition score r). Read from
+    fountain_events; a separate function so a probe can supply its own history."""
+    import sqlite3 as _s3
+    try:
+        from substrate.paths import db_paths as _dbp
+        _ddb = str(_dbp()["dynamic"])
+    except Exception:
+        _ddb = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+    con = _s3.connect(_ddb, timeout=3)
+    try:
+        focal = [r[0] for r in con.execute(
+            "SELECT focal_item FROM fountain_events WHERE focal_item IS NOT NULL "
+            "AND focal_item != '' ORDER BY ts DESC LIMIT ?", (_ALOBHA_FOCAL_N,))]
+    finally:
+        con.close()
+    from theory_x.stage_tom.raga_detector import _recent_thoughts, _repetition_score
+    union = set()
+    for f in focal:
+        union |= _dedup_tokens(f)
+    return union, float(_repetition_score(_recent_thoughts(_ALOBHA_THOUGHT_N)))
+
+
+def _alobha_penalty(item, ctx, drive_scale):
+    focal_union, r = ctx
+    toks = _dedup_tokens(item or "")
+    if not toks or not focal_union or r <= 0:
+        return 0.0
+    g = len(toks & focal_union) / min(len(toks), len(focal_union))
+    return float(drive_scale) * (r / _ALOBHA_R_MED) * g
+
+
 def _curiosity_pick(items):
     """Soft weighted re-rank of the SAME candidate set; returns the chosen
     content string. Gathers the live signals (surprise, momentum's carried
@@ -594,6 +638,13 @@ def _curiosity_pick(items):
         except Exception:
             _vr = 1.0
 
+        _alobha_ctx = None
+        if os.environ.get("NEX5_ALOBHA") == "1":
+            try:
+                _alobha_ctx = _alobha_context()
+            except Exception:
+                _alobha_ctx = None
+
         best_item, best_score = None, None
         for it in items:
             toks = set(_fidelity_tokens(it or ""))
@@ -601,6 +652,11 @@ def _curiosity_pick(items):
                                      building_toks, groove_toks, drive_scale,
                                      valence_reach=_vr)
             score += _r.random() * 0.15    # jitter — still cast wide; signal wins when present
+            if _alobha_ctx is not None:    # after the jitter: same RNG draws flag on or off
+                try:
+                    score -= _alobha_penalty(it, _alobha_ctx, drive_scale)
+                except Exception:
+                    pass
             if best_score is None or score > best_score:
                 best_score, best_item = score, it
         return best_item if best_item is not None else _r.choice(items)
