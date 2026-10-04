@@ -21,6 +21,7 @@ Candidates and their salience:
 Fail-safe throughout — returns "" on any error, leaving prior behavior intact.
 """
 from __future__ import annotations
+import os
 import sqlite3
 import time
 from typing import Optional
@@ -42,10 +43,15 @@ _MOMENTUM_STALE  = 1800.0
 
 
 def _surprise_candidate(con) -> Optional[tuple[float, str]]:
+    # NEX5_GW_SURPRISE_NONEMPTY (default OFF): skip EMPTY prediction windows. An empty
+    # window scores 1.0 (the maximum) with actual_content NULL, so it used to win the
+    # workspace with an empty quote — "nothing happened" framed as surprise.
+    _nonempty = (" AND actual_content IS NOT NULL AND surprise_score < 0.9999"
+                 if os.environ.get("NEX5_GW_SURPRISE_NONEMPTY") == "1" else "")
     try:
         row = con.execute(
             "SELECT surprise_score, actual_content FROM surprise_events "
-            "WHERE triggered_at > ? AND surprise_score > 0.3 "
+            "WHERE triggered_at > ? AND surprise_score > 0.3" + _nonempty + " "
             "ORDER BY triggered_at DESC LIMIT 1",
             (time.time() - _SURPRISE_WINDOW,)
         ).fetchone()
