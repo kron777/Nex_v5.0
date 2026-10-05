@@ -2977,6 +2977,11 @@ class FountainGenerator:
         examples_block  = "\n".join(f'- "{ex}"' for ex in examples_list)
         examples_inline = " / ".join(f'"{ex}"' for ex in examples_list)
         focus_block = f"\n{mode.drift_prompt_focus}\n" if mode.drift_prompt_focus else "\n"
+        # NEX5_WIDE_FOCUS: the faculty lines below, collected as they are woven
+        # into focus_block, so a wide (EXPLAIN/ARGUE) fire can carry them too.
+        # Excludes the mode's own drift_prompt_focus (DRIFT-only, contemplative)
+        # and the drive line (parked junk, repair queue 2026-10-05 item 6).
+        _wide_fac: list[str] = []
         # GLOBAL WORKSPACE (GWT): survey competing module signals, pick the
         # single most salient, and let it LEAD the focus_block. The other
         # module blocks still append below — but the winner sets the frame.
@@ -2997,6 +3002,7 @@ class FountainGenerator:
                 )
                 if _gw_line:
                     focus_block = f"\n{_gw_line}\n" + focus_block
+                    _wide_fac.append(_gw_line)
             except Exception:
                 pass  # never break a fire
         # Echo-and-extend: if substrate-voice just fired (and a normal LLM
@@ -3026,6 +3032,7 @@ class FountainGenerator:
                 _cd_block = self._competing_drives.format_for_prompt()
                 if _cd_block:
                     focus_block = focus_block.rstrip() + f"\n\n{_cd_block}\n"
+                    _wide_fac.append(_cd_block.strip())
             except Exception:
                 pass
         # LAYER 3 RECURSION: NEX reads its own bound self-state; the reading
@@ -3036,6 +3043,7 @@ class FountainGenerator:
             _recur_line = _recur_line_fn()
             if _recur_line:
                 focus_block = focus_block.rstrip() + f"\n\n{_recur_line}\n"
+                _wide_fac.append(_recur_line)
                 import sys as _sys, time as _time; print(f"[RECURSION FIRED] ts={_time.time():.0f} {_recur_line[:60]}", file=_sys.stderr, flush=True)
         except Exception:
             pass
@@ -3049,6 +3057,7 @@ class FountainGenerator:
                 _mc_line = self._metacognition.format_for_prompt()
                 if _mc_line:
                     focus_block = focus_block.rstrip() + f"\n\n{_mc_line}\n"
+                    _wide_fac.append(_mc_line)
             except Exception:
                 pass  # never stall a fire
         # Mood — the machine-shape of her current affect. AffectState already
@@ -3067,6 +3076,7 @@ class FountainGenerator:
                 _mood_line = _mood_line_fn()
                 if _mood_line:
                     focus_block = focus_block.rstrip() + f"\n\n{_mood_line}\n"
+                    _wide_fac.append(_mood_line)
             except Exception:
                 pass  # never stall a fire
         # Amoha (clear-seeing) — the antidote to clouded thinking. Reads whether
@@ -3082,6 +3092,7 @@ class FountainGenerator:
                 _amoha_line = _amoha_line_fn()
                 if _amoha_line:
                     focus_block = focus_block.rstrip() + f"\n\n{_amoha_line}\n"
+                    _wide_fac.append(_amoha_line.strip())
             except Exception:
                 pass  # never stall a fire
         # Affliction cluster — the five root delusions (raga/dvesa/mana/avidya/
@@ -3096,6 +3107,7 @@ class FountainGenerator:
                 _afflict_line = _afflict_line_fn()
                 if _afflict_line:
                     focus_block = focus_block.rstrip() + f"\n\n{_afflict_line}\n"
+                    _wide_fac.append(_afflict_line.strip())
             except Exception:
                 pass  # never stall a fire
         # teeth-test v2: stash nudge state for per-fire attribution sampling.
@@ -3119,6 +3131,7 @@ class FountainGenerator:
                     "in this fire. Engage the world directly."
                 )
                 focus_block = focus_block.rstrip() + _stakes_notice
+                _wide_fac.append(_stakes_notice.strip())
             except Exception:
                 pass  # fail-safe — never break a fire
         # WIDE MODES: if fresh feed-content is in hand, give her an outward
@@ -3150,6 +3163,16 @@ class FountainGenerator:
                     _wide_prompt = _tmpl.format(**_kw)
                     if _wide_prompt and len(_wide_prompt) > 20:
                         system_prompt = _wide_prompt
+                        # NEX5_WIDE_FOCUS (default OFF): the wide template used to
+                        # replace focus_block wholesale, so the inner-faculty lines
+                        # reached DRIFT fires only (~25% of fires). Carry them after
+                        # the task text. Fail-safe: any error leaves the plain task.
+                        if os.environ.get("NEX5_WIDE_FOCUS") == "1" and _wide_fac:
+                            try:
+                                system_prompt = (_wide_prompt + "\n\n"
+                                                 + "\n\n".join(_wide_fac))
+                            except Exception:
+                                system_prompt = _wide_prompt
                         # Round 23 — record the branch. Observation only: no
                         # effect on selection, ordering, or the prompt itself.
                         try:
