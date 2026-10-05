@@ -210,6 +210,37 @@ def _entity_has_substance(entity: str | None, b_cx=None) -> bool:
 
     return True
 
+# NEX5_PROBLEM_SELF_GATE (default OFF) — repair 2026-10-05 (research log
+# voice_collapse_2026-10-05). N_branch signals count an entity's branches over
+# ALL recent beliefs, including her own self-sources: hot_observer meta-beliefs
+# quote each fountain fire WITH the fire's branch (so her own repeated fires
+# cross branches), and the grounded_scorecard self-belief (re-inserted hourly,
+# branch systems) mentions Bitcoin. 60% of the problems in the 30 days to
+# 2026-10-05 did not reach 2 branches without them, and their problems kept
+# RECONCILE (>=2 open) grinding "Investigate X / NEXT STEP" fires. The gate
+# re-counts branches without self-sources just before opening a problem.
+_SELF_SOURCES_EXCLUDED = ("koan", "tao", "dont_know", "keystone_seed", "alpha", "hot_observer")
+
+
+def _external_branch_count(b_cx, entity: str, detected_at: float, payload: dict) -> int:
+    """Distinct belief branches mentioning `entity` in the signal's own window,
+    excluding self-sources. Fail-open: any error returns a large count."""
+    try:
+        window = float(payload.get("window_seconds") or 1800)
+        ph = ",".join("?" * len(_SELF_SOURCES_EXCLUDED))
+        rows = b_cx.execute(
+            f"SELECT DISTINCT branch_id FROM beliefs "
+            f"WHERE created_at > ? AND created_at <= ? AND branch_id IS NOT NULL "
+            f"AND source NOT IN ({ph}) AND source NOT LIKE 'grounded_scorecard%' "
+            f"AND content LIKE ?",
+            (float(detected_at) - window, float(detected_at) + 1, *_SELF_SOURCES_EXCLUDED, f"%{entity}%"),
+        ).fetchall()
+        return len(rows)
+    except Exception as e:
+        log.warning("self_gate check failed (%s) — allowing", e)
+        return 99
+
+
 def _compose_title(signal_type: str, entity: str | None, payload: dict) -> str:
     """Frame the signal as an actionable inquiry title."""
     if signal_type == "advancements_drift":
@@ -425,6 +456,15 @@ def signal_to_problem_tick() -> dict:
                     "UPDATE signals SET actioned_at=? WHERE id=?",
                     (time.time(), sig["id"])
                 )
+                skipped += 1
+                continue
+            if (os.environ.get("NEX5_PROBLEM_SELF_GATE") == "1"
+                    and str(sig["signal_type"]).endswith("_branch") and entity
+                    and _external_branch_count(b_cx, entity, sig["detected_at"], payload) < 2):
+                b_cx.execute("UPDATE signals SET actioned_at=? WHERE id=?",
+                             (time.time(), sig["id"]))
+                log.info("self_gate: skipped %r (signal %s) — under 2 branches without "
+                         "self-sources (hot_observer / scorecard)", entity, sig["id"])
                 skipped += 1
                 continue
             desc = _compose_description(sig["signal_type"], payload, sig["id"])
