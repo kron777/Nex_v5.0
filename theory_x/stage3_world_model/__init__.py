@@ -32,8 +32,6 @@ _HARMONIZER_LOG = "/tmp/nex5_harmonizer.log"
 
 
 SYNERGIZER_INTERVAL = 25 * 60
-SYNERGIZER_QUIET_THRESHOLD = 15 * 60
-SYNERGIZER_QUIET_EVENTS = 5
 
 
 @dataclass
@@ -213,18 +211,13 @@ def _synergizer_loop(state: WorldModelState, stop: threading.Event) -> None:
 
         fire = False
 
-        # Quiet trigger: < SYNERGIZER_QUIET_EVENTS sense events in last 15 min
-        try:
-            sense_reader = state.readers.get("sense")
-            if sense_reader is not None:
-                rows = sense_reader.read(
-                    "SELECT COUNT(*) as cnt FROM sense_events WHERE ts > ?",
-                    (now - SYNERGIZER_QUIET_THRESHOLD,),
-                )
-                if rows and rows[0]["cnt"] < SYNERGIZER_QUIET_EVENTS:
-                    fire = True
-        except Exception:
-            pass
+        # 2026-10-05: the "quiet trigger" (<5 sense events in 15 min) was
+        # retired here. It queried sense_events.ts (the column is `timestamp`),
+        # so it raised and was swallowed on every tick since 88768a1
+        # (2026-04-23) -- it never fired. Replayed with the column fixed over
+        # 28 d of sense_events it would still fire 0/24,729 awake ticks: the
+        # internal sensors alone emit ~200 events per 15 min (min seen: 175).
+        # Removing it is behaviour-neutral. Research log: repair queue item 3.
 
         # Timer trigger: every 25 minutes
         if (now - last_timer_fire) >= SYNERGIZER_INTERVAL:
