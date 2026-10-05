@@ -2979,8 +2979,9 @@ class FountainGenerator:
         focus_block = f"\n{mode.drift_prompt_focus}\n" if mode.drift_prompt_focus else "\n"
         # NEX5_WIDE_FOCUS: the faculty lines below, collected as they are woven
         # into focus_block, so a wide (EXPLAIN/ARGUE) fire can carry them too.
-        # Excludes the mode's own drift_prompt_focus (DRIFT-only, contemplative)
-        # and the drive line (parked junk, repair queue 2026-10-05 item 6).
+        # Excludes the mode's own drift_prompt_focus (DRIFT-only, contemplative),
+        # the drive line (parked junk, repair queue 2026-10-05 item 6) and the
+        # workspace line (pulls wide fires off the item, item 2b).
         _wide_fac: list[str] = []
         # GLOBAL WORKSPACE (GWT): survey competing module signals, pick the
         # single most salient, and let it LEAD the focus_block. The other
@@ -3002,7 +3003,10 @@ class FountainGenerator:
                 )
                 if _gw_line:
                     focus_block = f"\n{_gw_line}\n" + focus_block
-                    _wide_fac.append(_gw_line)
+                    # NOT carried into wide fires (repair queue item 2b): its
+                    # winner is almost always the momentum line ("Continue it
+                    # if it leads somewhere"), which pulled EXPLAIN/ARGUE off
+                    # the item (on-subject 43->35/60 in the item-2 probe).
             except Exception:
                 pass  # never break a fire
         # Echo-and-extend: if substrate-voice just fired (and a normal LLM

@@ -3,7 +3,7 @@
 Repair queue 2026-10-05 item 2. The wide templates replaced focus_block
 wholesale, so the faculty lines (workspace, mood, metacog, amoha, self,
 stakes) reached DRIFT fires only. With the flag on they follow the wide task
-text; the mode's own drift focus and the (parked) drive line never do.
+text; the mode's own drift focus, the (parked) drive line and the workspace line never do.
 """
 from __future__ import annotations
 
@@ -75,17 +75,18 @@ class TestWideFocus(unittest.TestCase):
         os.environ["NEX5_WIDE_FOCUS"] = "1"
         p = self._prompt(wide=True)
         self.assertIn(_ITEM, p)
-        self.assertIn("[WORKSPACE] test winner line", p)
         self.assertIn("compose to 'calm'", p)
         self.assertIn("SELF: test self line", p)
         # faculty lines follow the task text, not precede it
-        self.assertLess(p.index(_ITEM), p.index("[WORKSPACE] test winner line"))
+        self.assertLess(p.index(_ITEM), p.index("SELF: test self line"))
 
-    def test_flag_on_excludes_mode_drift_focus_and_drive_line(self):
+    def test_flag_on_excludes_mode_drift_focus_drive_and_workspace(self):
         os.environ["NEX5_WIDE_FOCUS"] = "1"
         p = self._prompt(wide=True)
         self.assertNotIn("MODE-DRIFT-FOCUS", p)
         self.assertNotIn("Drawn lately to:", p)
+        # item 2b: the workspace (momentum "continue it") line stays DRIFT-only
+        self.assertNotIn("[WORKSPACE] test winner line", p)
 
     def test_drift_prompt_unchanged_by_flag(self):
         os.environ.pop("NEX5_WIDE_FOCUS", None)
