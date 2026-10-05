@@ -43,6 +43,25 @@ def _dedup_tokens(text: str) -> set:
             if t not in _DEDUP_STOP}
 
 
+# --- Exit language guard (NEX5_FIRE_LANG_GUARD, default OFF) ------------------
+# Chinese drift 2026-09-27..10-05 (research log chinese_drift_2026-10-05): the
+# 3B switches to Chinese spontaneously ~1-2 per 1000 fires, and a Chinese fire
+# is re-carried into the next prompts (momentum / self-narrative), which tips
+# the next fire too (T1: Chinese carry -> 13/26 Chinese even with an English
+# SOCIAL block). Guard: a fire whose letters are >20% non-ASCII is regenerated
+# once in English, else dropped, so it is never stored, carried or quoted.
+# Detector on live data: 0/2000 English fires flagged, 210/211 Chinese caught.
+_FIRE_LANG_MAX_NON_ASCII = 0.20
+_FIRE_LANG_RETRY_SUFFIX = "\n\nWrite your thought in English."
+
+
+def _non_ascii_letter_share(text: str) -> float:
+    letters = [c for c in (text or "") if c.isalpha()]
+    if not letters:
+        return 0.0
+    return sum(1 for c in letters if not c.isascii()) / len(letters)
+
+
 def _dedup_jaccard(a: set, b: set) -> float:
     return len(a & b) / len(a | b) if a and b else 0.0
 
@@ -1755,6 +1774,26 @@ class FountainGenerator:
                     source="stage6_fountain", level="INFO",
                 )
                 thought = _rest if len(_rest) >= 5 else ""
+            # NEX5_FIRE_LANG_GUARD (default OFF): exit guard, see module note.
+            if (thought and os.environ.get("NEX5_FIRE_LANG_GUARD") == "1"
+                    and _non_ascii_letter_share(thought) > _FIRE_LANG_MAX_NON_ASCII):
+                _first_share = _non_ascii_letter_share(thought)
+                try:
+                    _retry = self._voice.speak(
+                        VoiceRequest(prompt=prompt + _FIRE_LANG_RETRY_SUFFIX,
+                                     register=PHILOSOPHICAL,
+                                     self_report_examples=False),
+                        beliefs=None,
+                    )
+                    _rt = (_retry.text or "").strip()
+                except Exception:
+                    _rt = ""
+                if _rt and _non_ascii_letter_share(_rt) <= _FIRE_LANG_MAX_NON_ASCII:
+                    thought = _rt
+                    logger.info("fire_lang_guard: regenerated in English (non-ascii %.2f)", _first_share)
+                else:
+                    thought = ""
+                    logger.info("fire_lang_guard: dropped non-English fire (non-ascii %.2f)", _first_share)
           except Exception as e:
             voice_ok = False
             logger.warning("Fountain: voice unreachable, using sense fallback: %s", e)
