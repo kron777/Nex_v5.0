@@ -2493,7 +2493,8 @@ def create_app(state: AppState) -> Flask:
         # Merge in last_id + last_tag for the FOUNTAIN tag buttons
         try:
             import sqlite3 as _sq
-            cx = _sq.connect("/home/rr/Desktop/Desktop/nex5/data/dynamic.db", timeout=5)
+            from substrate.paths import db_paths as _dbp_tag
+            cx = _sq.connect(str(_dbp_tag()["dynamic"]), timeout=5)
             row = cx.execute(
                 "SELECT id, tag FROM fountain_events "
                 "WHERE thought != '' AND thought NOT LIKE '[%' "

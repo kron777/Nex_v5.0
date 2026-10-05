@@ -26,7 +26,14 @@ import sqlite3
 import time
 from typing import Optional
 
-_DYNAMIC_DB = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+try:
+    from substrate.paths import DbPath  # resolves NEX5_DATA_DIR at use time (test hygiene)
+except ImportError:  # run as a script: put the repo root on sys.path
+    import sys as _sys
+    from pathlib import Path as _P
+    _sys.path.insert(0, str(_P(__file__).resolve().parents[2]))
+    from substrate.paths import DbPath
+_DYNAMIC_DB = DbPath("dynamic")
 
 # Salience weights — how loud each source is allowed to be when it fires.
 # Tuned so a genuine surprise or active-stakes override outranks routine

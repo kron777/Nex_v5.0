@@ -19,9 +19,10 @@ from pathlib import Path
 
 log = logging.getLogger("theory_x.signals.signal_to_problem")
 
-BELIEFS_DB = Path("/home/rr/Desktop/Desktop/nex5/data/beliefs.db")
-CONVERSATIONS_DB = Path("/home/rr/Desktop/Desktop/nex5/data/conversations.db")
-DYNAMIC_DB = Path("/home/rr/Desktop/Desktop/nex5/data/dynamic.db")
+from substrate.paths import DbPath  # resolves NEX5_DATA_DIR at use time (test hygiene)
+BELIEFS_DB = DbPath("beliefs")
+CONVERSATIONS_DB = DbPath("conversations")
+DYNAMIC_DB = DbPath("dynamic")
 
 TICK_SECONDS = 120              # check every 2 minutes
 MIN_CONFIDENCE = 0.40  # lowered from 0.65 to admit t6_promotion_burst           # confidence floor

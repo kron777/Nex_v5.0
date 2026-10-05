@@ -689,7 +689,8 @@ def _select_wide_mode(seeds, drift_fallback_prob=0.30):
     if True:
         try:
             import sqlite3 as _s3
-            _c = _s3.connect("/home/rr/Desktop/Desktop/nex5/data/beliefs.db", timeout=5)
+            from substrate.paths import db_paths as _dbp_wm
+            _c = _s3.connect(str(_dbp_wm()["beliefs"]), timeout=5)
             _rows = _c.execute(
                 "SELECT content FROM beliefs WHERE source='precipitated_from_sense' "
                 "AND length(content) > 25 ORDER BY rowid DESC LIMIT 40").fetchall()
@@ -3362,7 +3363,8 @@ class FountainGenerator:
         # the substrate of felt continuity.
         try:
             import sqlite3 as _sql_id
-            _id_cx = _sql_id.connect("/home/rr/Desktop/Desktop/nex5/data/dynamic.db", timeout=5)
+            from substrate.paths import db_paths as _dbp_id
+            _id_cx = _sql_id.connect(str(_dbp_id()["dynamic"]), timeout=5)
             _id_row = _id_cx.execute(
                 "SELECT statement, composed_at FROM identity_log "
                 "ORDER BY composed_at DESC LIMIT 1"

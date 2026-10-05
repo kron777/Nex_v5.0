@@ -28,10 +28,11 @@ from zoneinfo import ZoneInfo
 
 log = logging.getLogger("theory_x.life.daily_life")
 
-DYNAMIC_DB = Path("/home/rr/Desktop/Desktop/nex5/data/dynamic.db")
-CONVERSATIONS_DB = Path("/home/rr/Desktop/Desktop/nex5/data/conversations.db")
-BELIEFS_DB = Path("/home/rr/Desktop/Desktop/nex5/data/beliefs.db")
-SENSE_DB = Path("/home/rr/Desktop/Desktop/nex5/data/sense.db")
+from substrate.paths import DbPath  # resolves NEX5_DATA_DIR at use time (test hygiene)
+DYNAMIC_DB = DbPath("dynamic")
+CONVERSATIONS_DB = DbPath("conversations")
+BELIEFS_DB = DbPath("beliefs")
+SENSE_DB = DbPath("sense")
 
 TZ = ZoneInfo("Europe/Amsterdam")
 TICK_SECONDS = 60

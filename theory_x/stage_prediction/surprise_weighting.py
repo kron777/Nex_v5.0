@@ -24,7 +24,14 @@ _MIN_CONF        = 0.55
 _MAX_CONF        = 0.92
 _BOOST_FACTOR    = 0.22   # max additional confidence at surprise_score=1.0
 _LOOKBACK_SECS   = 60.0   # surprise must be recent to count
-_DYNAMIC_DB      = Path("/home/rr/Desktop/Desktop/nex5/data/dynamic.db")
+try:
+    from substrate.paths import DbPath  # resolves NEX5_DATA_DIR at use time (test hygiene)
+except ImportError:  # run as a script: put the repo root on sys.path
+    import sys as _sys
+    from pathlib import Path as _P
+    _sys.path.insert(0, str(_P(__file__).resolve().parents[2]))
+    from substrate.paths import DbPath
+_DYNAMIC_DB      = DbPath("dynamic")
 
 
 def confidence_for_fire(dynamic_db: str | None = None) -> tuple[float, float]:

@@ -21,8 +21,9 @@ from pathlib import Path
 
 log = logging.getLogger("theory_x.life.wonder_loop")
 
-BELIEFS_DB = Path("/home/rr/Desktop/Desktop/nex5/data/beliefs.db")
-SENSE_DB = Path("/home/rr/Desktop/Desktop/nex5/data/sense.db")
+from substrate.paths import DbPath  # resolves NEX5_DATA_DIR at use time (test hygiene)
+BELIEFS_DB = DbPath("beliefs")
+SENSE_DB = DbPath("sense")
 TICK_SECONDS = 900
 RECENT_WINDOW_SECONDS = 7200
 DAILY_CAP = 16

@@ -18,7 +18,14 @@ import time
 from pathlib import Path
 from typing import Optional
 
-_BELIEFS_DB     = Path("/home/rr/Desktop/Desktop/nex5/data/beliefs.db")
+try:
+    from substrate.paths import DbPath  # resolves NEX5_DATA_DIR at use time (test hygiene)
+except ImportError:  # run as a script: put the repo root on sys.path
+    import sys as _sys
+    from pathlib import Path as _P
+    _sys.path.insert(0, str(_P(__file__).resolve().parents[2]))
+    from substrate.paths import DbPath
+_BELIEFS_DB     = DbPath("beliefs")
 _LOOKBACK_SECS  = 24 * 3600    # aggregate over last 24h
 _MIN_FOR_STATS  = 5             # need at least 5 HOT observations to speak
 

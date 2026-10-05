@@ -51,7 +51,8 @@ def _affect_db() -> str:
 
 def _read_affect() -> dict | None:
     """Read NEX's current real affect signals (the dimensional substrate)."""
-    for db in (_affect_db(), "data/conversations.db", "data/dynamic.db"):
+    from substrate.paths import DbPath
+    for db in (_affect_db(), str(DbPath("conversations")), str(DbPath("dynamic"))):
         try:
             conn = sqlite3.connect(db, timeout=10)
             conn.row_factory = sqlite3.Row

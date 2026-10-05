@@ -41,7 +41,14 @@ from typing import Optional
 
 log = logging.getLogger("theory_x.stage_tom.momentum")
 
-_DYNAMIC_DB = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+try:
+    from substrate.paths import DbPath  # resolves NEX5_DATA_DIR at use time (test hygiene)
+except ImportError:  # run as a script: put the repo root on sys.path
+    import sys as _sys
+    from pathlib import Path as _P
+    _sys.path.insert(0, str(_P(__file__).resolve().parents[2]))
+    from substrate.paths import DbPath
+_DYNAMIC_DB = DbPath("dynamic")
 _STALE_SECS = 1800.0         # a thread older than 30 min is cold — don't carry it
 _MAX_CARRY = 3               # after this many consecutive similar fires, let go
 _SIMILARITY_MIN_SHARED = 3   # 3+ shared distinctive words = "same thread"

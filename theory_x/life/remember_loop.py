@@ -20,7 +20,8 @@ from pathlib import Path
 
 log = logging.getLogger("theory_x.life.remember_loop")
 
-BELIEFS_DB = Path("/home/rr/Desktop/Desktop/nex5/data/beliefs.db")
+from substrate.paths import DbPath  # resolves NEX5_DATA_DIR at use time (test hygiene)
+BELIEFS_DB = DbPath("beliefs")
 TICK_SECONDS = 600
 OLD_MIN_AGE_DAYS = 7
 RECENT_MAX_AGE_SECONDS = 3600

@@ -81,7 +81,8 @@ from pathlib import Path
 
 log = logging.getLogger("theory_x.life.affinity_loop")
 
-BELIEFS_DB = Path("/home/rr/Desktop/Desktop/nex5/data/beliefs.db")
+from substrate.paths import DbPath  # resolves NEX5_DATA_DIR at use time (test hygiene)
+BELIEFS_DB = DbPath("beliefs")
 TICK_SECONDS = 1800
 BATCH_LLM_CALLS = 30  # cap per tick
 USAGE_RECENCY_HALFLIFE_HOURS = 168  # 7 days

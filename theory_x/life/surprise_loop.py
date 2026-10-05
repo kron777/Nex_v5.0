@@ -21,8 +21,9 @@ from pathlib import Path
 
 log = logging.getLogger("theory_x.life.surprise_loop")
 
-BELIEFS_DB = Path("/home/rr/Desktop/Desktop/nex5/data/beliefs.db")
-DYNAMIC_DB = Path("/home/rr/Desktop/Desktop/nex5/data/dynamic.db")
+from substrate.paths import DbPath  # resolves NEX5_DATA_DIR at use time (test hygiene)
+BELIEFS_DB = DbPath("beliefs")
+DYNAMIC_DB = DbPath("dynamic")
 TICK_SECONDS = 300
 SOURCE = "surprise"
 LAST_PROMOTED_TS_KEY = "surprise_loop_last_ts"

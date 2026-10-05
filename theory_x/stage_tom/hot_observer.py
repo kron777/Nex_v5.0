@@ -21,7 +21,14 @@ _TEMPLATE_RX = re.compile(
 )
 
 _MIN_WORDS   = 15
-_BELIEFS_DB  = Path("/home/rr/Desktop/Desktop/nex5/data/beliefs.db")
+try:
+    from substrate.paths import DbPath  # resolves NEX5_DATA_DIR at use time (test hygiene)
+except ImportError:  # run as a script: put the repo root on sys.path
+    import sys as _sys
+    from pathlib import Path as _P
+    _sys.path.insert(0, str(_P(__file__).resolve().parents[2]))
+    from substrate.paths import DbPath
+_BELIEFS_DB  = DbPath("beliefs")
 _TIER        = 3
 _CONFIDENCE  = 0.6
 _SOURCE      = "hot_observer"

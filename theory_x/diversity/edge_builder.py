@@ -19,7 +19,8 @@ from theory_x.diversity.embeddings import embed_belief, cosine
 
 log = logging.getLogger("theory_x.diversity.edge_builder")
 
-BELIEFS_DB = Path("/home/rr/Desktop/Desktop/nex5/data/beliefs.db")
+from substrate.paths import DbPath  # resolves NEX5_DATA_DIR at use time (test hygiene)
+BELIEFS_DB = DbPath("beliefs")
 
 TICK_SECONDS    = 60     # wake up every minute
 MIN_EDGES_PER_BELIEF = 3 # consider a belief "associated" when it has this many
