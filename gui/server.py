@@ -729,7 +729,9 @@ def build_state(
             coherence_gate=coherence_gate,
         )
         throw_net_monitor = ThrowNetMonitor(_throw_net_engine)
-        throw_net_monitor.start_loop()
+        # RETIRED 2026-10-05 (repair queue item 4) — see run.py; NEX5_THROWNET=1 restores.
+        if os.environ.get("NEX5_THROWNET") == "1":
+            throw_net_monitor.start_loop()
 
     # Phase 25b CN — CounterfactualNode (needs coherence_gate + problem_memory)
     counterfactual_node = None

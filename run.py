@@ -255,8 +255,17 @@ def main() -> None:
             coherence_gate=coherence_gate,
         )
         _throw_net_monitor = _ThrowNetMonitor(_throw_net_engine)
-        _throw_net_monitor.start_loop()
-        log.info("Throw-net monitor ready — autonomous cycle every 300s when triggers pending")
+        # RETIRED 2026-10-05 (repair queue item 4): in five months its sessions
+        # produced 4 beliefs (one sentence x4), ~21k held-zone churn, re-gated
+        # existing beliefs (ACCEPT writes nothing) and re-triggered itself via its
+        # own "redundant" REJECTs; no trigger since 09-13. The loop is no longer
+        # started; trigger telemetry (gate / gap / user_query rows) is still
+        # logged. NEX5_THROWNET=1 restores the loop.
+        if os.environ.get("NEX5_THROWNET") == "1":
+            _throw_net_monitor.start_loop()
+            log.info("Throw-net monitor ready — autonomous cycle every 300s when triggers pending")
+        else:
+            log.info("Throw-net monitor RETIRED — loop not started (NEX5_THROWNET=1 restores); triggers still logged")
     except Exception as _tn_err:
         log.warning("Throw-net monitor failed to start (non-fatal): %s", _tn_err)
 
