@@ -156,7 +156,8 @@ def _ask_persona(thoughts: list[str], timeout: int = 30,
         return None
     recent = "\n".join(f"  - {t[:240]}" for t in thoughts)
     _continuity = ""
-    if state and (state.get("turn_count") or 0) > 0:
+    _stale_lang = bool(state) and _lang_guard_on() and not (state.get("focus") or "").isascii()
+    if state and (state.get("turn_count") or 0) > 0 and not _stale_lang:
         _f = (state.get("focus") or "").strip()
         _continuity = (
             "\n\nContinuity — you are the SAME mind as in prior turns, not a new "
@@ -239,10 +240,36 @@ def _max_shared_phrase(reply: str, thoughts: list[str]) -> tuple[int, str]:
     return best_n, best_phrase
 
 
+# NEX5_PERSONA_LANG_GUARD (default OFF): keep the persona in English. One
+# spontaneous Chinese NEX fire (2026-09-27 03:16) got a Chinese persona reply;
+# SOCIAL_DEPTH stored that whole sentence as the focus (the tokenizer splits on
+# whitespace) and every later call was told to carry it forward -> 100% Chinese
+# replies from then on, fed into every fountain prompt via the SOCIAL block
+# (research log chinese_drift_2026-10-05). Causal tests: live Chinese focus
+# 30/30 Chinese replies vs English focus 0/30; Chinese SOCIAL block 34% vs 16%
+# Chinese fires (p=0.0001).
+_LANG_GUARD_MAX_NON_ASCII = 0.20   # share of letters outside ASCII
+
+
+def _lang_guard_on() -> bool:
+    return os.environ.get("NEX5_PERSONA_LANG_GUARD") == "1"
+
+
+def _non_ascii_letter_share(text: str) -> float:
+    letters = [c for c in (text or "") if c.isalpha()]
+    if not letters:
+        return 0.0
+    return sum(1 for c in letters if not c.isascii()) / len(letters)
+
+
 def _check_reply(reply: str, thoughts: list[str]) -> tuple[bool, str, str, float]:
     """The bouncer. Returns (discard, reason, matched_pattern, max_jaccard).
     Compares against the SAME `thoughts` the persona was fed as input —
     no re-query."""
+    if _lang_guard_on():
+        _share = _non_ascii_letter_share(reply)
+        if _share > _LANG_GUARD_MAX_NON_ASCII:
+            return True, "non_english", f"non_ascii_letters={_share:.2f}", 0.0
     max_j = 0.0
     max_j_thought = ""
     for t in thoughts:
@@ -353,6 +380,8 @@ def _focus_from_reply(reply: str, prev_focus: str) -> str:
     only — no external/personal source."""
     toks = [t for t in _normalize_tokens(reply or "")
             if len(t) >= 4 and t not in _STOPWORDS and t not in _FOCUS_FILLERS]
+    if _lang_guard_on():
+        toks = [t for t in toks if t.isascii()]
     if not toks:
         return prev_focus
     if prev_focus and prev_focus in toks:
