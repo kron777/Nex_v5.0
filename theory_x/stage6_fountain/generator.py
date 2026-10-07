@@ -105,6 +105,42 @@ def _stale_cluster_tokens():
         return None
 
 
+# Carry-side topic gate (NEX5_CARRY_TOPIC_GATE, default OFF). The recent-striking
+# feedback block (GENIUS_SCORE_v2 §7 consumer B) feeds recent STRIKING fires back
+# verbatim; its groove filter is PHRASE/TEMPLATE-only (groove_alerts patterns +
+# chronic stylistic phrases), so a TOPIC rut (e.g. Optimism/ETH-L2) is fed back
+# unchanged. This detector names the tokens that dominate recent fires so the block
+# can drop fires on them. df_frac/window reuse the existing "dominates >= 40% of
+# recent fires" (register-warning / RUT_EDGE) and 40-fire (_stale_cluster_tokens)
+# conventions, NOT tuned to the rut (research log topic_rut_2026-10-07_var2). Topic
+# analogue of NEX5_FIRE_LANG_GUARD.
+_CARRY_TOPIC_DF = 0.40
+_CARRY_TOPIC_WINDOW = 40
+_CARRY_TOPIC_MIN_FIRES = 10   # below this the window is too small to call a rut
+
+
+def _dominant_topic_terms(thoughts, df_frac: float = _CARRY_TOPIC_DF) -> list:
+    """Content tokens whose document-frequency across `thoughts` (the recent-fire
+    window) is >= df_frac — the tokens dominating recent output. Reuses the
+    crystallizer's _fidelity_tokens (lowercase, no stem, so a returned term
+    substring-matches the raw fire text). Pure; [] on empty or sub-_CARRY_TOPIC_MIN_FIRES
+    input (too small to judge a rut). Fail-safe []."""
+    try:
+        from theory_x.stage6_fountain.crystallizer import _fidelity_tokens
+        from collections import Counter
+        docs = [set(_fidelity_tokens(t)) for t in (thoughts or []) if (t or "").strip()]
+        n = len(docs)
+        if n < _CARRY_TOPIC_MIN_FIRES:
+            return []
+        df = Counter()
+        for d in docs:
+            df.update(d)
+        thresh = df_frac * n
+        return [tok for tok, c in df.items() if c >= thresh]
+    except Exception:
+        return []
+
+
 _OWN_CONTENT_SOURCES = (
     "fountain_insight",
     "synergized",
@@ -2322,6 +2358,23 @@ class FountainGenerator:
         except Exception:
             return "(unavailable)"
 
+    def _recent_fire_topic_terms(self) -> list:
+        """Tokens dominating the recent-fire window (for the carry-side topic
+        gate). Reads the last _CARRY_TOPIC_WINDOW fire thoughts via the dynamic
+        reader and defers to the pure _dominant_topic_terms. Fail-safe []."""
+        if self._dynamic_reader is None:
+            return []
+        try:
+            rows = self._dynamic_reader.read(
+                "SELECT thought FROM fountain_events "
+                "WHERE thought IS NOT NULL AND thought != '' "
+                "ORDER BY id DESC LIMIT ?",
+                (_CARRY_TOPIC_WINDOW,),
+            )
+            return _dominant_topic_terms([r["thought"] for r in (rows or [])])
+        except Exception:
+            return []
+
     def _build_recent_striking_block(self) -> list[str]:
         """Return prompt lines surfacing 2 recent STRIKING fires from the
         genius tagger. Anti-template counterweight — pulls next generation
@@ -2411,6 +2464,27 @@ class FountainGenerator:
             _kept_grams.append(_g)
         if not _kept_rows:
             return []
+
+        # CARRY-SIDE TOPIC GATE (NEX5_CARRY_TOPIC_GATE, default OFF): the phrase
+        # groove filter below catches stylistic grooves, not a TOPIC rut. When a
+        # topic dominates recent fires, drop its fires from the POOL before the
+        # sample so a non-rut STRIKING fire surfaces instead of the rut being fed
+        # back verbatim (research log topic_rut_2026-10-07_var2). Never empties the
+        # pool — if every kept fire is on the rut topic, keep them (the block stays
+        # a counterweight; fail-safe to current behaviour).
+        if os.environ.get("NEX5_CARRY_TOPIC_GATE") == "1":
+            try:
+                _topic_terms = self._recent_fire_topic_terms()
+                if _topic_terms:
+                    _ungrooved = [
+                        _r for _r in _kept_rows
+                        if not any(_tt in (_r["thought"] or "").lower()
+                                   for _tt in _topic_terms)
+                    ]
+                    if _ungrooved:
+                        _kept_rows = _ungrooved
+            except Exception:
+                pass
 
         # Sample 2 from the deduped top-10
         import random as _rnd_strk
