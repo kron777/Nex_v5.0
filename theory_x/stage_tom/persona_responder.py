@@ -342,8 +342,17 @@ def _ensure_interlocutor_table(conn) -> None:
     conn.execute(
         "CREATE TABLE IF NOT EXISTS interlocutor_state ("
         "id INTEGER PRIMARY KEY, focus TEXT, mood REAL, "
-        "turn_count INTEGER, updated_at REAL)"
+        "turn_count INTEGER, updated_at REAL, focus_streak INTEGER DEFAULT 0)"
     )
+    # Back-compat for a row-store created before NEX5_PERSONA_FOCUS_ROTATE: add
+    # the column if it is missing. SQLite has no ADD COLUMN IF NOT EXISTS, so the
+    # duplicate-column error on an already-migrated table is the no-op signal.
+    try:
+        conn.execute(
+            "ALTER TABLE interlocutor_state ADD COLUMN focus_streak INTEGER DEFAULT 0"
+        )
+    except Exception:
+        pass
 
 
 def _load_interlocutor_state() -> dict:
@@ -373,23 +382,68 @@ _FOCUS_FILLERS = frozenset({
 })
 
 
+def _focus_tokens(reply: str) -> list[str]:
+    """Content tokens of a reply, by the rule the interlocutor focus uses:
+    normalized, length >= 4, not a stopword or discourse filler (and ASCII-only
+    under the language guard). Shared by _focus_from_reply and _drift_focus so the
+    carried focus and a forced drift are drawn from the same vocabulary."""
+    toks = [t for t in _normalize_tokens(reply or "")
+            if len(t) >= 4 and t not in _STOPWORDS and t not in _FOCUS_FILLERS]
+    if _lang_guard_on():
+        toks = [t for t in toks if t.isascii()]
+    return toks
+
+
+def _most_frequent(toks: list[str]) -> str:
+    """Most frequent token; ties broken toward the longer (more content-bearing)
+    word. "" for an empty list."""
+    if not toks:
+        return ""
+    from collections import Counter
+    counts = Counter(toks)
+    return max(toks, key=lambda t: (counts[t], len(t)))
+
+
 def _focus_from_reply(reply: str, prev_focus: str) -> str:
     """The other's current interest, abduced from its OWN reply. CARRIES the
     prior focus if the new reply still touches it (consistency); otherwise
     DRIFTS to the reply's dominant content word (evolution). Its own output
     only — no external/personal source."""
-    toks = [t for t in _normalize_tokens(reply or "")
-            if len(t) >= 4 and t not in _STOPWORDS and t not in _FOCUS_FILLERS]
-    if _lang_guard_on():
-        toks = [t for t in toks if t.isascii()]
+    toks = _focus_tokens(reply)
     if not toks:
         return prev_focus
     if prev_focus and prev_focus in toks:
         return prev_focus                      # stayed on its thread -> carry
-    from collections import Counter
-    counts = Counter(toks)
-    # most frequent; ties broken toward the longer (more content-bearing) word
-    return max(toks, key=lambda t: (counts[t], len(t)))
+    return _most_frequent(toks)
+
+
+# NEX5_PERSONA_FOCUS_ROTATE (default OFF): a staleness bound on the carried focus.
+# The persona keeps interlocutor_state.focus (SOCIAL_DEPTH) and is told in every
+# call to "carry your own thread forward"; _focus_from_reply then keeps that focus
+# as long as it reappears, which the instruction makes near-certain -> a one-way
+# RATCHET with no staleness bound. It is the one carry channel without one (cf.
+# momentum _MAX_CARRY=3, the fountain's NEX5_FOCUS_ROTATE, NEX5_RUT_EDGE), and the
+# topic sibling of the confirmed LANGUAGE ratchet the persona lang guard fixed.
+# Under a rut it locks the persona onto one topic and, via the fountain SOCIAL
+# block, pushes that topic into every fire, overriding even the assigned wide item
+# (research log topic_rut_2026-10-07). This bounds it: after the SAME focus has
+# been carried _PERSONA_FOCUS_STALE_TURNS consecutive turns, the next would-be
+# carry is forced off it (to a different content word, else cleared), so the
+# persona reverts to its own system-prompt default ("bring up a different angle").
+# Set from the HEALTHY focus-dwell, NOT the rut (anti-tuning) — the operator
+# confirms it sits above the live p90 dwell before arming.
+_PERSONA_FOCUS_STALE_TURNS = 4
+
+
+def _focus_rotate_on() -> bool:
+    return os.environ.get("NEX5_PERSONA_FOCUS_ROTATE") == "1"
+
+
+def _drift_focus(reply: str, exclude: str) -> str:
+    """The most frequent content word in the reply that is NOT `exclude` (the
+    stale focus); "" if the reply offers no other content word. Used only when the
+    staleness bound forces the thread off `exclude`."""
+    return _most_frequent([t for t in _focus_tokens(reply) if t != exclude])
 
 
 def _mood_word(mood: float) -> str:
@@ -404,24 +458,54 @@ def _evolve_interlocutor_state(prev: dict, reply: str) -> dict:
     """Advance the model one turn from the other's own reply. focus drifts/
     carries; mood does a bounded, mean-reverting walk (a curious question lifts
     it slightly, otherwise it decays toward even) so it develops without
-    runaway. Persists to interlocutor_state. Fail-safe: returns prev on error."""
+    runaway. Under NEX5_PERSONA_FOCUS_ROTATE, a staleness bound forces the focus
+    off a thread it has carried too long so the persona stops locking onto one
+    topic. Persists to interlocutor_state. Fail-safe: returns prev on error."""
     try:
-        focus = _focus_from_reply(reply, prev.get("focus", ""))
+        prev_focus = prev.get("focus", "") or ""
+        focus = _focus_from_reply(reply, prev_focus)
+        is_carry = bool(prev_focus) and focus == prev_focus
         nudge = 0.1 if "?" in (reply or "") else -0.02
         mood = max(-1.0, min(1.0, 0.85 * float(prev.get("mood", 0.0)) + nudge))
         turn = int(prev.get("turn_count", 0)) + 1
         conn = sqlite3.connect(_db("conversations"), timeout=10)
         try:
             _ensure_interlocutor_table(conn)
+            # Streak is read from the persisted row (not `prev`), so it survives
+            # across the single load/evolve per persona tick regardless of the
+            # shape of the dict passed in.
+            _row = conn.execute(
+                "SELECT focus_streak FROM interlocutor_state WHERE id=1"
+            ).fetchone()
+            prev_streak = int(_row[0]) if _row and _row[0] is not None else 0
+            rotated = False
+            # NEX5_PERSONA_FOCUS_ROTATE: once the SAME focus has been carried
+            # _PERSONA_FOCUS_STALE_TURNS turns, force the next would-be carry off
+            # it, so the persona reverts to its outward-looking default instead of
+            # locking every fire onto one topic (research log topic_rut_2026-10-07).
+            if (_focus_rotate_on() and is_carry
+                    and prev_streak >= _PERSONA_FOCUS_STALE_TURNS):
+                focus = _drift_focus(reply, prev_focus)   # "" if nothing else
+                is_carry = False
+                rotated = True
+            streak = (prev_streak + 1) if is_carry else (1 if focus else 0)
             conn.execute(
                 "INSERT OR REPLACE INTO interlocutor_state "
-                "(id, focus, mood, turn_count, updated_at) VALUES (1, ?, ?, ?, ?)",
-                (focus, mood, turn, time.time()),
+                "(id, focus, mood, turn_count, updated_at, focus_streak) "
+                "VALUES (1, ?, ?, ?, ?, ?)",
+                (focus, mood, turn, time.time(), streak),
             )
             conn.commit()
         finally:
             conn.close()
-        return {"focus": focus, "mood": mood, "turn_count": turn}
+        if rotated:
+            logger.info(
+                "persona focus ROTATED off stale '%s' -> '%s' (carried %d >= %d)",
+                prev_focus, focus or "(cleared)", prev_streak,
+                _PERSONA_FOCUS_STALE_TURNS,
+            )
+        return {"focus": focus, "mood": mood, "turn_count": turn,
+                "focus_streak": streak}
     except Exception as e:
         logger.warning("interlocutor_state evolve failed: %s", e)
         return prev
