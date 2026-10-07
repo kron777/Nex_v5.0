@@ -141,6 +141,50 @@ def _dominant_topic_terms(thoughts, df_frac: float = _CARRY_TOPIC_DF) -> list:
         return []
 
 
+# NEX5_FRAME_DEDUP stock-phrase SEED — her observed register skeleton, the "costume of
+# insight" the register dokusan found (research dokusan_baseline_2026-10-07: DULL mean
+# 1.36, REGISTER-TEMPLATE on 64% of probes; fountain template rate 55%/last-40). FITTED
+# DATA that WILL DRIFT — the prior seed ("aligns with my foundation", "the transient
+# nature of", ...) went stale, exactly as register_exclusion.json did. This is a SEED
+# only: the load-bearing anti-frame lever is the POSITIVE concreteness demand in
+# _frame_dedup_block, not this list. Matched case-insensitively, as substrings.
+_FRAME_STOCK_PHRASES = (
+    # observed live register (2026-10-07 dokusan + fountain)
+    "this item is about",
+    "the curious dance",
+    "the fabric that ties",
+    "rich and beautiful in itself",
+    "a space for presence",
+    "dance of becoming",
+    # prior seed (kept — low cost, may still surface)
+    "aligns with my foundation",
+    "my foundation right now",
+    "the transient nature of",
+    "underscores the importance of",
+    "highlights the importance of",
+    "i notice how developments",
+    "this matters because",
+)
+
+
+def _frame_dedup_block() -> list:
+    """The anti-frame injection (NEX5_FRAME_DEDUP, default OFF). Leads with a HARD POSITIVE
+    demand for the one concrete, present thing — the B1 recipe the dokusan proved breaks her
+    register groove clean — then a SEED ban on her observed stock skeleton. Returns [] when
+    the flag is off, so the prompt is byte-identical to HEAD. Pure (flag + constant only)."""
+    if os.environ.get("NEX5_FRAME_DEDUP") != "1":
+        return []
+    _bans = ", ".join(f'"{p}"' for p in _FRAME_STOCK_PHRASES)
+    return [
+        "Say it plainly, in your own direct voice, as if telling a friend in one sentence. "
+        "Name the ONE concrete, present thing — what is actually in this moment, or in the "
+        "item in front of you — with no metaphor and no wrapper, then stop. Do NOT open or "
+        "close with stock framing such as: " + _bans + ". Drop the frame; just say the one "
+        "true thing, once.",
+        "",
+    ]
+
+
 _OWN_CONTENT_SOURCES = (
     "fountain_insight",
     "synergized",
@@ -3762,22 +3806,13 @@ class FountainGenerator:
             source="stage6_fountain", level="DEBUG",
         )
 
-        # FRAME DEDUP (NEX5_FRAME_DEDUP, default OFF): she ruminates in a fixed
-        # framing skeleton across topics ("aligns with my foundation", "the
-        # transient nature of", "underscores/highlights the importance of", "I
-        # notice how developments") — template_repetition pegs at 1.0 and F2
-        # (content-token novelty) misses it. Inject a high-salience anti-frame
-        # instruction at the end so she states the thing plainly, no wrapper.
-        if os.environ.get("NEX5_FRAME_DEDUP") == "1":
-            prompt_parts.append(
-                "Say this in your own plain, direct voice. Do NOT wrap it in stock "
-                "framing — do not open or close with \"aligns with my foundation\", "
-                "\"my foundation right now\", \"the transient nature of\", \"this "
-                "underscores/highlights the importance of\", \"I notice how "
-                "developments\", \"this matters because\". Drop the frame and just "
-                "say the actual thing, once, as if speaking to a friend."
-            )
-            prompt_parts.append("")
+        # FRAME DEDUP (NEX5_FRAME_DEDUP, default OFF): see _frame_dedup_block. The register
+        # dokusan (research dokusan_baseline_2026-10-07) found her core live pathology is
+        # moha — a pretty-dharma register skeleton (DULL mean 1.36, template 64%). Probe B1
+        # (ban her stock words + demand the one concrete present thing) broke it clean; this
+        # is the standing fountain form of that lever. Appended AFTER the wide/drift branch,
+        # so it reaches both DRIFT and wide (EXPLAIN/ARGUE) fires. Not the chat/operator path.
+        prompt_parts.extend(_frame_dedup_block())
 
         _prompt_text = "\n".join(prompt_parts)
 
