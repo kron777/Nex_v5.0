@@ -185,6 +185,42 @@ def _frame_dedup_block() -> list:
     ]
 
 
+# --- Register gate (NEX5_FRAME_GATE, default OFF) ----------------------------
+# The always-on NEX5_FRAME_DEDUP validated the lever (research
+# frame_dedup_2026-10-08_results: held-out register 46->15) but over-pruned her
+# range (words/fire 50->26, still sliding at 5h). This fires the SAME B1
+# concreteness demand ONLY when a draft trips the register-template detector,
+# regenerating ONCE -- the NEX5_FIRE_LANG_GUARD analogue -- so concrete/alive
+# fires keep their full range and only grooved fires are rewritten. The detector
+# GATES the intervention; it is deliberately NOT the success metric (that is a
+# held-out set, see frame_dedup_gated_2026-10-08_spec). The structural opener is
+# load-bearing; the phrase set is a SEED that will drift.
+_FRAME_GATE_OPENER_RX = re.compile(
+    r"^\W*(?:this item (?:is about|talks about|states|discusses|describes|reports|claims|introduces|notes)"
+    r"|the feed (?:discusses|reports|states|notes))",
+    re.IGNORECASE,
+)
+_FRAME_GATE_RETRY_SUFFIX = (
+    "\n\nSay it plainly, in your own direct voice, as if telling a friend in one "
+    "sentence. Name the ONE concrete, present thing — what is actually in this "
+    "moment, or in the item in front of you — with no metaphor and no wrapper, "
+    "then stop. Drop the frame; just say the one true thing, once."
+)
+
+
+def _register_template_trips(text: str) -> bool:
+    """True if a fountain draft reads as register-template moha — the NEX5_FRAME_GATE
+    trigger for a single B1 regeneration. Two independent catches: (a) the STRUCTURAL
+    attending-template opener (generalises), and (b) any _FRAME_STOCK_PHRASES member
+    as a case-insensitive substring (SEED only). Pure; never raises."""
+    if not text:
+        return False
+    if _FRAME_GATE_OPENER_RX.match(text.lstrip()):
+        return True
+    low = text.lower()
+    return any(p in low for p in _FRAME_STOCK_PHRASES)
+
+
 _OWN_CONTENT_SOURCES = (
     "fountain_insight",
     "synergized",
@@ -1373,6 +1409,31 @@ class FountainGenerator:
             except Exception:
                 pass
 
+    def _apply_frame_gate(self, thought: str, prompt: str) -> str:
+        """NEX5_FRAME_GATE (default OFF): if a draft trips the register-template
+        detector, regenerate ONCE with the B1 concreteness demand and use the clean
+        retry; otherwise keep the original (never drop, never degrade). Returns
+        `thought` unchanged when the flag is off or the draft is already clean. The
+        FIRE_LANG_GUARD analogue for register moha (see module note)."""
+        if not thought or os.environ.get("NEX5_FRAME_GATE") != "1":
+            return thought
+        if not _register_template_trips(thought):
+            return thought
+        try:
+            _rg = self._voice.speak(
+                VoiceRequest(prompt=prompt + _FRAME_GATE_RETRY_SUFFIX,
+                             register=PHILOSOPHICAL, self_report_examples=False),
+                beliefs=None,
+            )
+            _rgt = (_rg.text or "").strip()
+        except Exception:
+            _rgt = ""
+        if _rgt and not _register_template_trips(_rgt):
+            logger.info("frame_gate: regenerated concrete (original tripped register detector)")
+            return _rgt
+        logger.info("frame_gate: retry unclean/empty, kept original")
+        return thought
+
     def generate(self, dynamic_state, beliefs_reader: Reader) -> Optional[str]:
         readiness = self._evaluator.score(
             dynamic_state, beliefs_reader, last_fire_ts=self._last_fire_ts
@@ -1874,6 +1935,9 @@ class FountainGenerator:
                 else:
                     thought = ""
                     logger.info("fire_lang_guard: dropped non-English fire (non-ascii %.2f)", _first_share)
+            # NEX5_FRAME_GATE (default OFF): register-moha exit guard — detector-gated
+            # single regeneration (the FIRE_LANG_GUARD analogue; see _apply_frame_gate).
+            thought = self._apply_frame_gate(thought, prompt)
           except Exception as e:
             voice_ok = False
             logger.warning("Fountain: voice unreachable, using sense fallback: %s", e)
