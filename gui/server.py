@@ -2374,9 +2374,14 @@ def create_app(state: AppState) -> Flask:
     def api_speech_say():
         """Speak one line NOW in her own voice (Kokoro), through the box's
         speakers — the read-aloud button. Reuses the queue consumer's backend and
-        player; her speech_queue is not touched. Admin-scoped."""
-        if not session.get("admin"):
-            return jsonify({"error": "admin required"}), 403
+        player; her speech_queue is not touched.
+
+        NOT admin-scoped: reading an ALREADY-VISIBLE reply aloud through the local
+        box's own speakers is benign — it mutates no state and her speech_queue is
+        untouched. The old admin gate made the read-aloud sun button silently 403
+        on a normally-viewed (non-admin) HUD, which read as "the button is broken".
+        The queue-management routes (pause/resume/flush) stay admin. If this HUD is
+        ever exposed off localhost, re-gate say/stop behind a flag."""
         payload = request.get_json(silent=True) or {}
         text = payload.get("text")
         consumer = state.speech_consumer
@@ -2397,9 +2402,11 @@ def create_app(state: AppState) -> Flask:
     @app.post("/api/speech/stop")
     def api_speech_stop():
         """Cut playback now. flush() only marks PENDING queue rows skipped — it
-        cannot stop audio already in the speakers; sounddevice.stop() can."""
-        if not session.get("admin"):
-            return jsonify({"error": "admin required"}), 403
+        cannot stop audio already in the speakers; sounddevice.stop() can.
+
+        NOT admin-scoped: it is the stop half of the read-aloud toggle (so the sun
+        can cancel what it started). Benign on the local box; re-gate if the HUD is
+        exposed off localhost."""
         try:
             from speech import on_demand
             return jsonify({"stopped": on_demand.stop(),

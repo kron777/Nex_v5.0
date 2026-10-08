@@ -557,6 +557,18 @@ function ttsSetSpeaking(on) {
   if (!on && ttsPoll) { clearInterval(ttsPoll); ttsPoll = null; }
 }
 
+// Visible, tooltip-free failure feedback: briefly flash the sun red (the SVG
+// uses currentColor) and set an aria-label for screen readers. Replaces the old
+// aria-only path, so a failed OR empty read no longer looks like "nothing
+// happened" (Jon doesn't want a mouseover tooltip, hence a colour flash).
+function ttsFlashError(msg) {
+  if (!ttsBtn) return;
+  ttsBtn.setAttribute("aria-label", msg || "Read aloud failed");
+  const prev = ttsBtn.style.color;
+  ttsBtn.style.color = "#e5534b";
+  setTimeout(() => { if (ttsBtn) ttsBtn.style.color = prev; }, 1200);
+}
+
 // Kokoro playback ends server-side; poll status so the sun stops pulsing then.
 function ttsWatch() {
   if (ttsPoll) clearInterval(ttsPoll);
@@ -604,7 +616,7 @@ function initSpeakButton() {
   btn.addEventListener("click", async () => {
     if (btn.classList.contains("speaking")) { await ttsStop(); return; }  // toggle
     const said = latestNexText();          // the VISIBLE, sanitized reply text
-    if (!said) return;                     // no reply in the log yet -> no-op
+    if (!said) { ttsFlashError("No reply to read yet"); return; }
     ttsSetSpeaking(true);
     try {
       const r = await fetch("/api/speech/say", {
@@ -614,15 +626,14 @@ function initSpeakButton() {
       });
       if (!r.ok) {
         ttsSetSpeaking(false);
-        // aria-label, not title — feedback without a mouseover popup
-        btn.setAttribute("aria-label", r.status === 403
+        ttsFlashError(r.status === 403
           ? "Read aloud needs admin login"
           : "Read aloud unavailable (speech not running)");
         return;
       }
       btn.setAttribute("aria-label", "Read the latest reply aloud");
       ttsWatch();
-    } catch (e) { ttsSetSpeaking(false); }
+    } catch (e) { ttsSetSpeaking(false); ttsFlashError("Read aloud failed"); }
   });
   const send = document.getElementById("chat-send");
   if (send && send.parentNode === row) row.insertBefore(btn, send.nextSibling);
