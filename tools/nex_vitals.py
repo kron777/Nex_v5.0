@@ -409,19 +409,29 @@ def _line_ts(line: str) -> Optional[float]:
 # ╚══════════════════════════════════════════════════════════════════════════╝
 
 def load_fires(db_path: Optional[str] = None, window: int = WINDOW,
-               since: Optional[float] = None) -> list:
-    """The recent fires, oldest first. Most-recent `window` fires (or, with
-    `since`, all fires with ts > since). Read-only; returns [] if the table or
-    DB is absent."""
+               since: Optional[float] = None, until: Optional[float] = None) -> list:
+    """The fires, oldest first. With `since`/`until` returns all fires in
+    (since, until]; otherwise the most-recent `window` fires. Read-only; [] if the
+    table or DB is absent. The time bounds enable RETROSPECTIVE per-day reads over
+    the existing history — the frozen detectors stay identical across windows, so
+    a historical day is directly comparable to tonight."""
     path = db_path or _db("dynamic")
     if not os.path.exists(path):
         return []
     conn = _ro(path)
     try:
-        if since is not None:
+        if since is not None or until is not None:
+            clauses, params = [], []
+            if since is not None:
+                clauses.append("ts > ?")
+                params.append(since)
+            if until is not None:
+                clauses.append("ts <= ?")
+                params.append(until)
             rows = conn.execute(
                 "SELECT id, ts, thought, word_count, mode, focal_item "
-                "FROM fountain_events WHERE ts > ? ORDER BY ts", (since,)
+                "FROM fountain_events WHERE " + " AND ".join(clauses) +
+                " ORDER BY ts", params
             ).fetchall()
             return list(rows)
         rows = conn.execute(
@@ -1046,6 +1056,67 @@ def maybe_log(res: dict, log_path: Optional[str]) -> Optional[str]:
     return log_path
 
 
+# ── retrospective daily series (read the EXISTING history; frozen detectors) ─
+
+def daily_series(dynamic_db: Optional[str] = None, days: int = 14,
+                 now_ts: Optional[float] = None) -> list:
+    """Per-day battery over the last `days` UTC day-buckets, computed from the
+    EXISTING fire history — a backward-looking series so climate-vs-weather can be
+    read NOW, not after N future nights. Same FROZEN detectors as the live read,
+    so days are comparable. Read-only. One dict per day (n=0 when no fires)."""
+    now_ts = time.time() if now_ts is None else now_ts
+    excl = register_info().get("terms")
+    today = datetime.datetime.fromtimestamp(now_ts, datetime.timezone.utc).date()
+    out = []
+    for i in range(days - 1, -1, -1):
+        d = today - datetime.timedelta(days=i)
+        start = datetime.datetime(d.year, d.month, d.day,
+                                  tzinfo=datetime.timezone.utc).timestamp()
+        fires = load_fires(dynamic_db, since=start, until=start + 86400.0)
+        if not fires:
+            out.append({"date": d.isoformat(), "n": 0})
+            continue
+        pm = per_mode_metrics(fires)
+        agg = compute_fire_metrics(fires)
+        mix = topic_mix(fires, excl, topn=3)
+        out.append({
+            "date": d.isoformat(),
+            "n": agg["n"],
+            "agg_held": agg["held_out_rate"],
+            "argue_held": pm["ARGUE"]["held_out_rate"],
+            "argue_n": pm["ARGUE"]["n"],
+            "drift_held": pm["DRIFT"]["held_out_rate"],
+            "explain_held": pm["EXPLAIN"]["held_out_rate"],
+            "drift_wf": pm["DRIFT"]["words"]["mean"],
+            "top_topics": [t["token"] for t in mix["top"]],
+        })
+    return out
+
+
+def render_daily(series: list) -> str:
+    out = ["=" * 84,
+           "NEX VITALS — RETROSPECTIVE DAILY SERIES (frozen instrument, READ-ONLY)",
+           f"instrument {INSTRUMENT_VERSION}",
+           "=" * 84,
+           "date          n    AGG-held  ARGUE-held(n)  DRIFT-held  DRIFT w/f  top topics",
+           "-" * 84]
+    for r in series:
+        if not r.get("n"):
+            out.append(f"{r['date']}     0    (no fires)")
+            continue
+        out.append(
+            f"{r['date']}  {r['n']:>4}   {_fmt_pct(r['agg_held'])}   "
+            f"{_fmt_pct(r['argue_held'])}({r['argue_n']:>3})   "
+            f"{_fmt_pct(r['drift_held'])}   {_fmt_num(r['drift_wf'],6,1)}   "
+            f"{', '.join(r.get('top_topics') or [])}")
+    out.append("-" * 84)
+    out.append("READ: is ARGUE-held-out register STABLE across days (climate) or does it")
+    out.append("track the top-topics (weather)? NB 2026-10-08/09 overlap the FRAME_DEDUP /")
+    out.append("FRAME_GATE armed windows (perturbed); all other days are dark/natural.")
+    out.append("=" * 84)
+    return "\n".join(out)
+
+
 # ── CLI ──────────────────────────────────────────────────────────────────────
 
 def main(argv: Optional[list] = None) -> int:
@@ -1069,10 +1140,17 @@ def main(argv: Optional[list] = None) -> int:
                     metavar="PATH",
                     help=f"append ONE JSON line to PATH (default {DEFAULT_LOG}). "
                          f"Opt-in only; with no flag nothing is written.")
+    ap.add_argument("--daily", type=int, default=None, metavar="N",
+                    help="RETROSPECTIVE: print a per-day battery over the last N "
+                         "days from existing history (read-only; ignores --log).")
     args = ap.parse_args([] if argv is None else argv)
 
     if args.data_dir:
         os.environ["NEX5_DATA_DIR"] = args.data_dir
+
+    if args.daily:
+        print(render_daily(daily_series(days=args.daily)))
+        return 0
 
     trip_markers = None
     if args.trip_log and args.trip_tag:

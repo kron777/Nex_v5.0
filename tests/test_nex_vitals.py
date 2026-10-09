@@ -300,5 +300,59 @@ class TestSurpriseWindowing(unittest.TestCase):
             os.remove(path)
 
 
+class TestRetrospectiveDaily(unittest.TestCase):
+    """load_fires time-bounds (since, until] + daily_series bucketing over the
+    existing history — the retrospective read that answers climate-vs-weather now."""
+
+    def _db(self):
+        import datetime as dt
+        fd, path = tempfile.mkstemp(prefix="nex5_vitals_daily_", suffix=".db")
+        os.close(fd)
+        con = sqlite3.connect(path)
+        con.execute(
+            "CREATE TABLE fountain_events (id INTEGER PRIMARY KEY, ts REAL, "
+            "thought TEXT, word_count INTEGER, mode TEXT, focal_item)")
+
+        def e(day, hour):
+            return dt.datetime(2026, 10, day, hour, tzinfo=dt.timezone.utc).timestamp()
+
+        rows = [  # 10-01: 2 fires | 10-02: 1 | 10-03: 3
+            (1, e(1, 1), "makes me wonder about alpha", 5, "ARGUE", "x"),
+            (2, e(1, 2), "the rain is loud",            4, "DRIFT", None),
+            (3, e(2, 5), "This item talks about beta",  5, "ARGUE", "y"),
+            (4, e(3, 1), "feels surreal here",          3, "EXPLAIN", "z"),
+            (5, e(3, 2), "plain concrete thing",        3, "DRIFT", None),
+            (6, e(3, 3), "resonates with my view",      4, "ARGUE", "w"),
+        ]
+        con.executemany(
+            "INSERT INTO fountain_events (id,ts,thought,word_count,mode,focal_item) "
+            "VALUES (?,?,?,?,?,?)", rows)
+        con.commit()
+        con.close()
+        return path, e
+
+    def test_until_bounds(self):
+        path, e = self._db()
+        try:
+            fires = V.load_fires(db_path=path, since=e(1, 0), until=e(2, 0))
+            self.assertEqual({r["id"] for r in fires}, {1, 2})  # only day-1
+        finally:
+            os.remove(path)
+
+    def test_daily_bucketing(self):
+        path, e = self._db()
+        try:
+            series = V.daily_series(dynamic_db=path, days=3, now_ts=e(3, 12))
+            by = {r["date"]: r for r in series}
+            self.assertEqual(by["2026-10-01"]["n"], 2)
+            self.assertEqual(by["2026-10-02"]["n"], 1)
+            self.assertEqual(by["2026-10-03"]["n"], 3)
+            # 10-03 ARGUE = 1 fire ("resonates with my") -> held-out 100%
+            self.assertEqual(by["2026-10-03"]["argue_n"], 1)
+            self.assertAlmostEqual(by["2026-10-03"]["argue_held"], 1.0)
+        finally:
+            os.remove(path)
+
+
 if __name__ == "__main__":
     unittest.main()
