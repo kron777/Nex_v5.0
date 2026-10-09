@@ -268,5 +268,37 @@ class TestReportRenders(_Fixture):
         self.assertIn("ARM-LEDGER", text)
 
 
+class TestSurpriseWindowing(unittest.TestCase):
+    """surprise_reading windows by triggered_at (the real column, not ts) and
+    honours `since` — so rate/mean are window-scoped, not all-time (the fix that
+    turned the garbage 'rate 320.79' of snapshot #1 into a comparable number)."""
+
+    def _db(self):
+        fd, path = tempfile.mkstemp(prefix="nex5_vitals_surp_", suffix=".db")
+        os.close(fd)
+        con = sqlite3.connect(path)
+        con.execute(
+            "CREATE TABLE surprise_events (triggered_at REAL, surprise_score REAL)")
+        con.executemany(
+            "INSERT INTO surprise_events (triggered_at, surprise_score) VALUES (?,?)",
+            [(100.0, 0.1), (200.0, 0.3), (300.0, 0.5), (400.0, 0.7)])
+        con.commit()
+        con.close()
+        return path
+
+    def test_windowed_by_triggered_at(self):
+        path = self._db()
+        try:
+            r = V.surprise_reading(db_path=path, since=250.0, n_fires=2)
+            self.assertTrue(r["available"])
+            self.assertEqual(r["n"], 2)                 # only the 300 & 400 events
+            self.assertAlmostEqual(r["mean"], 0.6)      # (0.5 + 0.7)/2
+            self.assertAlmostEqual(r["rate"], 1.0)      # 2 events / 2 window fires
+            r_all = V.surprise_reading(db_path=path, since=None, n_fires=4)
+            self.assertEqual(r_all["n"], 4)             # no floor -> all four
+        finally:
+            os.remove(path)
+
+
 if __name__ == "__main__":
     unittest.main()

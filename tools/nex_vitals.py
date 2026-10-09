@@ -795,7 +795,14 @@ def build_result(dynamic_db: Optional[str] = None,
         "fitted_on": reg.get("fitted_on"), "n_terms": reg.get("n_terms"),
         "sha256": reg.get("sha256"),
     }
-    aggregate["surprise"] = surprise_reading(dynamic_db, since, len(fires))
+    # Scope surprise to the SAME window as the fires. Without this, a "last N
+    # fires" run (since=None) reads ALL surprise_events, so rate (= events /
+    # window-fires) and mean are all-time, not window-scoped — not comparable
+    # across snapshots. In window mode, derive the floor from the oldest fire.
+    _fire_floor = min((_rg(r, "ts") for r in fires if _rg(r, "ts") is not None),
+                      default=None)
+    _surprise_since = since if since is not None else _fire_floor
+    aggregate["surprise"] = surprise_reading(dynamic_db, _surprise_since, len(fires))
     aggregate["mood"] = mood_reading(conversations_db)
     aggregate["momentum"] = momentum_reading(dynamic_db)
 
