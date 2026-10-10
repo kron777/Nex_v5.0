@@ -74,8 +74,11 @@ class TestCoOccurrenceDetector(unittest.TestCase):
 
     def test_confidence_scales_with_branch_count(self):
         from theory_x.signals.detectors import CoOccurrenceDetector
+        # Distinct content per branch (orphan beliefs are content-unique since
+        # Phase 34) that still carries the shared entity "Bitcoin" — the
+        # detector keys on the capitalized entity across branches, not content.
         for branch in ["ai_research", "crypto", "emerging_tech"]:
-            self._insert_belief(f"Bitcoin movement today", branch)
+            self._insert_belief(f"Bitcoin news from {branch}", branch)
 
         det = CoOccurrenceDetector(self.readers["beliefs"], min_branches=2)
         signals = det.detect()
@@ -123,10 +126,15 @@ class TestBurstDetector(unittest.TestCase):
         _teardown(self.tmp, self.writers, self.readers)
 
     def _insert_t6_belief(self, branch="systems", offset_sec=60):
+        # Distinct content per insert: orphan (fountain) beliefs are content-
+        # unique since the Phase-34 guard (idx_beliefs_content_orphan_uniq).
+        # BurstDetector counts rows in the window, so distinctness is irrelevant
+        # to the count but required for the inserts to land.
+        self._t6_seq = getattr(self, "_t6_seq", 0) + 1
         self.writers["beliefs"].write(
             "INSERT INTO beliefs (content, tier, confidence, created_at, "
             "source, branch_id) VALUES (?, 6, 0.7, ?, 'fountain_insight', ?)",
-            ("A tier 6 belief", time.time() - offset_sec, branch),
+            (f"A tier 6 belief #{self._t6_seq}", time.time() - offset_sec, branch),
         )
 
     def test_burst_detected_above_threshold(self):
@@ -318,13 +326,18 @@ class TestSignalLoop(unittest.TestCase):
 
     def test_tick_writes_signals(self):
         from theory_x.signals.loop import SignalLoop
-        # Seed two beliefs with same entity in different branches
+        # Same entity ("OpenAI") in different branches, but distinct content:
+        # orphan beliefs are content-unique since Phase 34, and co-occurrence
+        # keys on the shared capitalized entity, not identical content.
         now = time.time()
-        for branch in ["ai_research", "crypto"]:
+        for branch, text in (
+            ("ai_research", "OpenAI moves into crypto market"),
+            ("crypto", "OpenAI expands its crypto ambitions"),
+        ):
             self.writers["beliefs"].write(
                 "INSERT INTO beliefs (content, tier, confidence, created_at, "
                 "source, branch_id) VALUES (?, 1, 0.5, ?, 'test', ?)",
-                ("OpenAI moves into crypto market", now - 30, branch),
+                (text, now - 30, branch),
             )
         loop = SignalLoop(
             beliefs_writer=self.writers["beliefs"],
