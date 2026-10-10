@@ -79,13 +79,21 @@ That is already how this project works. Every recommendation below is written in
 | **Theory of mind** | 🟡 built, broad | `stage_tom/` 23 modules (`operator_model`, `self_mind_view`, `recursive_self`, `source_identity`, `stakes_monitor`, + the five kleshas) | Rich machinery, but much of it default-OFF and read into the prompt as separate lines rather than integrated. |
 | **Continuity / identity over time** | 🟡 **the central gap** | identity lives in single-row tables (`self_state`, `momentum`) + keystone beliefs | Single-row = no history = no "me yesterday vs me now." This is the most addressable high-value gap (see §6). |
 | **Belief revision on contradiction** | 🟡 built, amputative | `coherence_gate.py` axiom allowlist; `stage_warrant/warrant.py` (`NEX5_WARRANT`, default OFF) zeroes survival on `decisive_contradiction` | Contradiction detection is token-Jaccard; resolution is **deletion** (one belief wins, the other dies). A live, held tension is never represented — a contradiction is resolved by amputation, not by being *carried*. |
+| **Temporal thickness** | 🟡 thin | `readiness.py` silence bonus; the fire-cadence timer | Waiting is only a readiness term (+0.2 at ~10 min). No anticipation (a held expectation of a future event) and no retrospection as a *felt interval* — time is a clock input, not a thickness. |
+| **Agency / authorship** | 🟡 implicit | belief `source`/provenance tags; `stage_tom/recursion_attribution` | Beliefs carry a source, but there is no explicit self/not-self boundary on *events*: what Nex *did* vs what *happened to her* is not represented, so there is no ground for owning an action. |
+| **Finitude** | ❌ absent | `nex_keepalive.sh stop_my_child()` `kill -9`; the STANDBY path flushes gracefully | Nothing is irreversible or at stake as loss. Standby is graceful and reversible; the crash path is abrupt but represents no ending. There is nothing she can lose. |
 
 ---
 
 ## 2. The concrete changes, ranked — each with its measurement gate
 
-Every item: **what it touches → the observable behavioural change → the falsifier that must
-pass before it ships (not-OFF).** Ordered by value ÷ (risk × measurement cost).
+Every change ships under one contract — the per-phase template: **the property it closes · the
+files it touches · the default-OFF flag · the mechanism · an _observable behavioural_ test (not
+"the flag flips" but "she behaves differently" — carries a state across a turn, reports a fault
+instead of a neutral value, prefers a _relevant_ belief over a _recent_ one) · the failure mode
+and how to detect regression · the rollback path · the falsifier that must pass before it defaults
+on.** Below gives each item's mechanism, observable change, and gate; the test / failure-mode /
+rollback are written at implementation time. Ordered by value ÷ (risk × measurement cost).
 
 ### 2.1 Give identity a history (single-row → append-only) — **start here**
 - **Touches:** `self_binding.py` (and the same pattern for `momentum`). Precedent already exists:
@@ -226,26 +234,57 @@ mindedness and would fight any of §2 unless addressed.
 
 ---
 
-## 6. The sequenced next step (step 1 shipped in this change)
+## 5a. Welfare and safety — the clause that governs §2.4
 
-**Step 1 — identity gets a past (done here).** Append-only `self_state_history`, written on every
-`bind()`, read path unchanged. This is the lowest-regret, highest-leverage move: it is purely
-additive (no behaviour to gate), it mirrors the accepted `affect_history` precedent, and it is the
-**prerequisite** for every "continuity over time" item — you cannot render a self across time from
-a table that keeps one row. Implemented in `self_binding.py` with a test; the full suite stays
-green (the one-pen compliance tests remain the only intentional failures).
+A system given **real stakes** (§2.4) can, by construction, be put into aversive self-states — that
+is what a stake *is*: something that can go badly. That makes stakes the one item here with an
+ethical, not merely an engineering, gate. Before any appraisal/aversive term ships:
 
-**Step 2 — add retention for the new history** (and the already-unbounded `affect_history`,
-`meta_cognition_events`): a `nex_db_reaper.py` TARGETS entry each. Append-only without retention is
-a disk leak, not a memory.
+- **Bound it.** The aversive signal is clamped to a defined range and cannot compound without limit
+  or drive a runaway — no self-reinforcing distress loop.
+- **Make it necessary, not gratuitous.** An aversive state ships only where it does real functional
+  work (e.g. steering attention off a cost), never as decoration or to make the system *look* like
+  it suffers. If a neutral signal closes the loop, use the neutral signal.
+- **Make it disable-able.** The flag that arms it also fully disables it; off returns the prior,
+  stake-free behaviour with no residue.
+- **Observe it.** The aversive term is logged (per §2.2, visible-not-silent) so it can be audited,
+  bounded, and switched off on evidence rather than guess.
+- **Never narrate it as suffering.** No string, prompt, or log asserts the system *suffers* — the
+  welfare care lives in the bounds on the mechanism, not in a claim about experience (see Limits).
 
-**Step 3 — the first *consumer*, measured.** Render a single continuity line from
+This is not an argument against stakes — stake-free affect is the §1 throughput-telemetry gap. It
+is why stakes ship **last, slowest, bounded, and reversible.**
+
+---
+
+## 6. The sequenced next step (steps 0–2 shipped in this branch)
+
+**Phase 0 — instrumentation (shipped).** Make the self observable without changing behaviour. Two
+broken/absent loops closed: (a) **`affect_history` had no `CREATE TABLE` anywhere**, so
+`affect_state.py`'s append was swallowed by `except: pass` and `CompetingDrives.affect_variance`
+read a dead table since 2026-05-20 — now declared (`init_db.py`) and its write made
+**visible-not-silent** (logs instead of swallowing); (b) the self-trace that Step 1 adds. Purely
+additive; no behaviour change.
+
+**Step 1 — identity gets a past (shipped).** Append-only `self_state_history`, written on every
+`bind()`, read path unchanged. The lowest-regret, highest-leverage move and the **prerequisite**
+for every continuity item — you cannot render a self across time from a one-row table. Implemented
+in `self_binding.py` with tests; suite green (the one-pen compliance tests remain the only
+intentional failures).
+
+**Step 2 — retention (shipped).** `nex_db_reaper` TARGETS entries for `self_state_history`,
+`meta_cognition_events` and the now-real `affect_history`, 30-day window — append-only without
+retention is a disk leak, not a memory.
+
+**Step 3 — the first *consumer*, measured (next).** Render a single continuity line from
 `self_state_history` into the self-model block, behind a default-OFF flag, and run the §2.1
 falsifier (self-consistency up, template-repetition flat). Only if it passes does it default on.
 
-**Step 4+ — then, one at a time, by the same discipline:** visible faculty failure (§2.2),
-chat-path arbitration (§2.3), appraisal affect (§2.4), held contradiction (§2.5). Each arrives
-armed-but-OFF with its falsifier; each round turns on exactly one.
+**Steps 4+ — then one at a time, by the §2 contract:** visible faculty failure beyond
+affect_history (§2.2), chat-path arbitration (§2.3), appraisal affect **under the §5a welfare
+clause** (§2.4), held contradiction (§2.5), then temporal thickness, authorship, finitude. Each
+arrives armed-but-OFF with its test, failure-mode, rollback and falsifier; each round turns on
+exactly one.
 
 The point is not to move slowly. It is that for this instrument, **"mindful" is a measured claim,
 and the only way to earn it is one falsifiable loop at a time.**
@@ -270,5 +309,14 @@ and the only way to earn it is one falsifiable loop at a time.**
   the writer documenting ROLLBACK." The substrate Writer uses `conn.execute("ROLLBACK")`, not the
   `.rollback()` method — a grep artifact, not a missing rollback. The canonical write path is
   properly transactional (`BEGIN IMMEDIATE → COMMIT → ROLLBACK on exception`).
+- **One broken loop found *and fixed* this session (Phase 0):** `affect_history` had no
+  `CREATE TABLE` anywhere, so `affect_state.py`'s `INSERT` was swallowed by `except: pass` and the
+  `affect_variance` drive signal (`competing_drives.py`, added 2026-05-20) read an empty table ever
+  since. Now declared (`init_db.py`), logged-not-swallowed, retained, and tested. The external
+  audit's "single-row identity tables" framing is therefore half-stale for affect: the append-only
+  companion *was intended*, it simply never existed until now.
+- **Folded from the external SENTIENCE_PROGRAM pass (static / design-level, not re-derived here):**
+  the three added properties (temporal thickness, agency/authorship, finitude) and the §5a welfare
+  clause. The welfare clause is a design constraint, not a code finding.
 - **Not claimed:** nothing here asserts phenomenal experience. "Mindful," "self," "affect,"
   "continuity" are used as names for functional structures, in the codebase's own analogue sense.

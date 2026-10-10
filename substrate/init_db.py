@@ -466,6 +466,19 @@ _MIGRATIONS: dict[str, list[str]] = {
         "stability  REAL    NOT NULL DEFAULT 0.9, "
         "mood_label TEXT    NOT NULL DEFAULT 'neutral', "
         "updated_at REAL    NOT NULL)",
+        # affect_history — append-only trace of every affect tick, feeding
+        # CompetingDrives' affect_variance (added 2026-05-20). It had NO CREATE
+        # anywhere, so the INSERT in affect_state.py failed and was swallowed and
+        # the variance signal read an empty table since. Declared here so the
+        # loop actually closes. (Retention: nex_db_reaper TARGETS, 30d.)
+        "CREATE TABLE IF NOT EXISTS affect_history ("
+        "id         INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "ts         REAL    NOT NULL, "
+        "valence    REAL, "
+        "arousal    REAL, "
+        "stability  REAL, "
+        "mood_label TEXT)",
+        "CREATE INDEX IF NOT EXISTS idx_affect_history_ts ON affect_history(ts DESC)",
         # Phase 29 — DriveEmergence (single-row table; id=1 always; INSERT OR REPLACE)
         "CREATE TABLE IF NOT EXISTS drives ("
         "id                 INTEGER PRIMARY KEY, "
