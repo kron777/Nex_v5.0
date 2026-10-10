@@ -1,0 +1,47 @@
+name: tests
+
+# Runs the full suite under the live-data guard (tests/conftest.py redirects
+# NEX5_DATA_DIR to a temp dir and forbids writes under data/). Gates on the
+# delta against tests/known_failures.txt via scripts/check_test_baseline.py:
+# green when only the known/intentional failures remain, red on anything new.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Tests mock embed(), so the embeddings model is never needed — keep the
+      # import offline so nothing reaches the Hugging Face hub.
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install CPU torch (avoid the CUDA wheel pulled transitively)
+        run: pip install "torch" --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Run suite with baseline gate
+        run: python scripts/check_test_baseline.py

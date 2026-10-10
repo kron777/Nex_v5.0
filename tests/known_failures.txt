@@ -1,0 +1,18 @@
+# Known / intentional test failures — the CI baseline allowlist.
+#
+# scripts/check_test_baseline.py runs the suite and fails CI only when a test
+# NOT listed here fails (a new regression). A listed test that starts PASSING is
+# reported as "newly fixed" (non-fatal) so this list can be trimmed.
+#
+# One pytest node id per line; blank lines and # comments ignored.
+#
+# ── The one-pen compliance ratchet ────────────────────────────────────────────
+# Deliberately un-masked: ~90 non-substrate modules still import sqlite3
+# directly, bypassing the Reader/Writer layer. These stay RED until the
+# substrate connect()-factory migration lands; they are the signal, not a bug.
+tests/test_dynamic.py::TestArchitectureCompliance::test_no_direct_sqlite3_outside_substrate
+tests/test_edges.py::TestNoDirectSqlite::test_no_direct_sqlite3_outside_substrate
+tests/test_fountain.py::TestFountainCompliance::test_no_direct_sqlite3_outside_substrate
+tests/test_membrane.py::TestMembraneCompliance::test_no_direct_sqlite3_outside_substrate
+tests/test_sense.py::TestAdapterBase::test_no_direct_sqlite3_outside_substrate
+tests/test_world_model.py::TestPhase4Compliance::test_no_direct_sqlite3_outside_substrate

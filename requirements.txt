@@ -1,7 +1,12 @@
 # Runtime dependencies — kept minimal by design.
 # SQLite via stdlib; no ORM.
+#
+# Install:   pip install -r requirements.txt
+# For tests: pip install -r requirements-dev.txt
+# torch (pulled in by sentence-transformers) has no CUDA needs here — CI installs
+# the CPU wheel first; see .github/workflows/tests.yml.
 
-# Phase 1
+# Phase 1 — web / auth / IO
 Flask>=3.0
 argon2-cffi>=23.1
 requests>=2.31
@@ -10,6 +15,16 @@ requests>=2.31
 feedparser>=6.0
 psutil>=5.9
 
-# scipy<1.17: 1.17.1 ships _matfuncs_schur_sqrtm.so with an undefined symbol
-# that breaks sentence_transformers→sklearn→scipy in background threads (Phase 29b).
+# Numerics. numpy is imported at module load (theory_x/diversity/embeddings.py
+# and others); scipy is used by the affect/provenance paths.
+# scipy is pinned <1.17: 1.17.x ships _matfuncs_schur_sqrtm.so with an undefined
+# symbol that breaks sentence_transformers→sklearn→scipy in background threads
+# (Phase 29b). numpy is left to resolve under scipy's own ceiling.
+numpy>=1.26
 scipy>=1.11,<1.17
+
+# Embeddings. theory_x/diversity/embeddings.py lazily loads all-MiniLM-L6-v2 on
+# first embed(); the import must exist or ~20 tests error at collection even
+# though the model itself is only needed at runtime (tests mock embed()).
+# Pulls torch + scikit-learn transitively.
+sentence-transformers>=2.2
