@@ -9,10 +9,12 @@ stakes): a change that diversifies attention must move these numbers DOWN; one
 that does not has not earned its flag regardless of how the output reads.
 
 Why a harness at all, separate from the crystallizer's in-line semantic-repeat
-guard: that guard looks at a 30-minute window, but the median inter-arrival is
-~213 min (R75), so the window is usually empty — R75 found 0/15 consecutive
-pairs were catchable in-line. This tool measures over **N consecutive outputs**,
-not a time window, which is the whole point.
+guard: that guard compares only within a fixed 30-minute wall-clock window, so it
+is blind to any repetition slower than that cadence. This tool measures over
+**N consecutive outputs** — cadence-independent, which is the whole point.
+(The external audit's cited "~213-min R75 median" did NOT match the live corpus
+when actually measured: raw fires run ~2 min median, crystallized ~27 min. So the
+specific number is not relied on here.)
 
 Three signals:
   1. consecutive near-duplicate rate — fraction of adjacent crystallized outputs
