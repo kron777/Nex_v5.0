@@ -370,8 +370,9 @@ class TestReadLastFireTs(unittest.TestCase):
             reader.read.return_value = [{"last_ts": time.time() - 5}]
             proto = self._make_protocol_with_reader(reader, tmp)
             _, readiness = proto._dynamic_snapshot()
-            # hot branch "f" → +0.3; beliefs=0 → +0; elapsed<600 → +0; total=0.3
-            self.assertAlmostEqual(readiness, 0.3, places=5)
+            # fair-baseline +0.15 (5cf19fa) + hot branch "f" +0.3; beliefs=0;
+            # elapsed<600 → no time bonus; total=0.45
+            self.assertAlmostEqual(readiness, 0.45, places=5)
         finally:
             import shutil; shutil.rmtree(tmp, ignore_errors=True)
 
@@ -383,8 +384,9 @@ class TestReadLastFireTs(unittest.TestCase):
             reader.read.return_value = [{"last_ts": None}]
             proto = self._make_protocol_with_reader(reader, tmp)
             _, readiness = proto._dynamic_snapshot()
-            # hot branch → +0.3; last_fire_ts==0.0 → +0.2; total=0.5
-            self.assertAlmostEqual(readiness, 0.5, places=5)
+            # fair-baseline +0.15 (5cf19fa) + hot branch +0.3 + zero-ts time
+            # bonus +0.2; total=0.65
+            self.assertAlmostEqual(readiness, 0.65, places=5)
         finally:
             import shutil; shutil.rmtree(tmp, ignore_errors=True)
 
@@ -400,7 +402,8 @@ class TestReadLastFireTs(unittest.TestCase):
             # _dynamic_snapshot itself must not raise
             hottest, readiness = proto._dynamic_snapshot()
             self.assertIsInstance(readiness, float)
-            self.assertAlmostEqual(readiness, 0.5, places=5)
+            # fair-baseline +0.15 (5cf19fa) + hot +0.3 + zero-ts +0.2 = 0.65
+            self.assertAlmostEqual(readiness, 0.65, places=5)
         finally:
             import shutil; shutil.rmtree(tmp, ignore_errors=True)
 
