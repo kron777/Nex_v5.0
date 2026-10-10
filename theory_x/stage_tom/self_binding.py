@@ -158,6 +158,23 @@ def _ensure_table():
         "emotion TEXT, raga TEXT, drive TEXT, drift TEXT, "
         "readiness REAL, synthesis TEXT, components TEXT)"
     )
+    # Append-only history of the bound self over time. self_state above holds
+    # only "now" (id=1, overwritten each bind), which leaves no trace of a self
+    # across time -- the central continuity gap (see DESIGN_MINDEDNESS.md §2.1).
+    # Mirrors affect_state -> affect_history (9fbd1bb). Purely additive: the
+    # read path (format_for_prompt) is unchanged, so prompt composition and
+    # behaviour are identical; this only persists the trace.
+    # NOTE: append-only -> needs a nex_db_reaper retention entry (step 2).
+    c.execute(
+        "CREATE TABLE IF NOT EXISTS self_state_history ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, bound_at REAL NOT NULL, "
+        "emotion TEXT, raga TEXT, drive TEXT, drift TEXT, "
+        "readiness REAL, synthesis TEXT, components TEXT)"
+    )
+    c.execute(
+        "CREATE INDEX IF NOT EXISTS idx_self_state_history_bound_at "
+        "ON self_state_history(bound_at DESC)"
+    )
     c.commit()
     c.close()
 
@@ -215,14 +232,30 @@ def bind() -> dict:
         "substrate_tone": substrate.get("tone", ""),
     }
 
+    bound_ts = time.time()
+    components_json = json.dumps(components)
+    readiness = att.get("readiness", 0.0)
+
     c = sqlite3.connect(_db("dynamic"), timeout=10)
     c.execute(
         "INSERT OR REPLACE INTO self_state "
         "(id, bound_at, emotion, raga, drive, drift, readiness, synthesis, components) "
         "VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (time.time(), emotion, raga_level, drive, drift,
-         att.get("readiness", 0.0), synthesis, json.dumps(components)),
+        (bound_ts, emotion, raga_level, drive, drift,
+         readiness, synthesis, components_json),
     )
+    # Append the same bound state to history (shares bound_ts with the row
+    # above). Fail-safe: a history-write error must never break the bind.
+    try:
+        c.execute(
+            "INSERT INTO self_state_history "
+            "(bound_at, emotion, raga, drive, drift, readiness, synthesis, components) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (bound_ts, emotion, raga_level, drive, drift,
+             readiness, synthesis, components_json),
+        )
+    except Exception:
+        pass
     c.commit()
     c.close()
 
