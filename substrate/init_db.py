@@ -479,6 +479,16 @@ _MIGRATIONS: dict[str, list[str]] = {
         "stability  REAL, "
         "mood_label TEXT)",
         "CREATE INDEX IF NOT EXISTS idx_affect_history_ts ON affect_history(ts DESC)",
+        # self_present — the structured, persisted present (Phase A / W3). Carries
+        # the chat arbiter's candidate salience vector across turns, per session,
+        # so attention has continuity. Written only when NEX5_SELF_PRESENT=1.
+        "CREATE TABLE IF NOT EXISTS self_present ("
+        "session_id      TEXT PRIMARY KEY, "
+        "winner_kind     TEXT, "
+        "winner_salience REAL, "
+        "salience_json   TEXT, "
+        "turn_count      INTEGER NOT NULL DEFAULT 0, "
+        "updated_at      REAL NOT NULL)",
         # Phase 29 — DriveEmergence (single-row table; id=1 always; INSERT OR REPLACE)
         "CREATE TABLE IF NOT EXISTS drives ("
         "id                 INTEGER PRIMARY KEY, "

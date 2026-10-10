@@ -184,21 +184,33 @@ _CHAT_BLOCK_SALIENCE = {
 _CHAT_BLOCK_EXEMPT = {"compassion", "compass"}
 
 
-def _assemble_chat_blocks(ordered: "list[tuple[str, str]]") -> str:
+def _assemble_chat_blocks(ordered: "list[tuple[str, str]]", session_id=None,
+                          conv_writer=None, conv_reader=None) -> str:
     """Combine the chat faculty blocks into one string (de-dups the old twin
     f-string). ordered = [(kind, text), ...] in prompt order.
 
     Default / flag OFF: all blocks concatenated in order — byte-identical to the
     previous inline concatenation. Flag ON (NEX5_CHAT_WORKSPACE=1): keep exempt
     blocks + the highest-salience others that fit NEX5_CHAT_WORKSPACE_BUDGET
-    chars. Fail-safe: any error falls back to the full concatenation."""
+    chars. With NEX5_SELF_PRESENT=1 as well, the per-block salience is carried
+    across turns (theory_x.stage_tom.self_present) so attention has continuity
+    rather than a fresh recomputation. Fail-safe: any error falls back to the
+    full concatenation."""
     texts = [t for _, t in ordered]
     if os.environ.get("NEX5_CHAT_WORKSPACE") != "1":
         return "".join(texts)
     try:
         from theory_x.stage_tom.global_workspace import select_within_budget
         budget = int(os.environ.get("NEX5_CHAT_WORKSPACE_BUDGET", "1400"))
-        cands = [(_CHAT_BLOCK_SALIENCE.get(kind, 0.4), text,
+        sal = {kind: _CHAT_BLOCK_SALIENCE.get(kind, 0.4) for kind, _ in ordered}
+        # structured present (W3): carry the salience vector across turns.
+        if os.environ.get("NEX5_SELF_PRESENT") == "1":
+            try:
+                from theory_x.stage_tom import self_present as _sp
+                sal = _sp.update(session_id, sal, conv_writer, conv_reader)
+            except Exception:
+                pass  # fall back to this-turn salience
+        cands = [(sal.get(kind, _CHAT_BLOCK_SALIENCE.get(kind, 0.4)), text,
                   kind in _CHAT_BLOCK_EXEMPT) for kind, text in ordered]
         return "".join(select_within_budget(cands, budget))
     except Exception:
@@ -1892,7 +1904,9 @@ def create_app(state: AppState) -> Flask:
                 ("convo", _convo_block),
                 ("spectrum", _spectrum_block),
                 ("tag", _tag_block),
-            ])
+            ], session_id=session_id,
+               conv_writer=state.writers.get("conversations"),
+               conv_reader=state.readers.get("conversations"))
             if belief_text:
                 voice_prompt = (
                     f"{_blocks_concat}"
