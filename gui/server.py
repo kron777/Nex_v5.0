@@ -162,6 +162,49 @@ _PM_LOG          = "/tmp/nex5_problem_memory.log"
 _HARMONIZER_LOG  = "/tmp/nex5_harmonizer.log"
 
 
+# ── Chat attention arbiter (NEX5_CHAT_WORKSPACE, default OFF) ─────────────────
+# The chat turn concatenates ~13 faculty blocks with no competition and no token
+# budget, while the fire path arbitrates via global_workspace. Measured: chat
+# self-repetition is high (48.9% of multi-message sessions carry a near-duplicate
+# reply) where the arbitrated fire path's is ~0. When the flag is ON, keep the
+# safety-relevant blocks always and admit the rest by descending salience until a
+# char budget is reached — so the strongest few lead instead of all thirteen.
+# Flag OFF (default) is byte-identical to the previous concatenation.
+#
+# PROVISIONAL and env-overridable: the salience weights and the budget are tuned
+# by a round (r77), not asserted here. What ships is the mechanism, dark.
+_CHAT_BLOCK_SALIENCE = {
+    "convo": 0.90, "compassion": 0.90, "compass": 0.85, "operator": 0.75,
+    "operator_anchor": 0.70, "affect_carry": 0.55, "spectrum": 0.50, "tag": 0.50,
+    "equanimity": 0.45, "apramada": 0.45, "virya": 0.40, "sraddha": 0.40,
+    "prasrabdhi": 0.40,
+}
+# Never evicted: the distress/moral-response blocks (dropping them could harm a
+# reply to a distressed user). Everything else competes for the budget.
+_CHAT_BLOCK_EXEMPT = {"compassion", "compass"}
+
+
+def _assemble_chat_blocks(ordered: "list[tuple[str, str]]") -> str:
+    """Combine the chat faculty blocks into one string (de-dups the old twin
+    f-string). ordered = [(kind, text), ...] in prompt order.
+
+    Default / flag OFF: all blocks concatenated in order — byte-identical to the
+    previous inline concatenation. Flag ON (NEX5_CHAT_WORKSPACE=1): keep exempt
+    blocks + the highest-salience others that fit NEX5_CHAT_WORKSPACE_BUDGET
+    chars. Fail-safe: any error falls back to the full concatenation."""
+    texts = [t for _, t in ordered]
+    if os.environ.get("NEX5_CHAT_WORKSPACE") != "1":
+        return "".join(texts)
+    try:
+        from theory_x.stage_tom.global_workspace import select_within_budget
+        budget = int(os.environ.get("NEX5_CHAT_WORKSPACE_BUDGET", "1400"))
+        cands = [(_CHAT_BLOCK_SALIENCE.get(kind, 0.4), text,
+                  kind in _CHAT_BLOCK_EXEMPT) for kind, text in ordered]
+        return "".join(select_within_budget(cands, budget))
+    except Exception:
+        return "".join(texts)  # never break the chat turn
+
+
 def _is_instruction_query(text: str) -> bool:
     """Skip substrate keystone-retrieval for mechanical instruction/factual
     queries (they should go to the LLM). Validated fp=0 on logged queries."""
@@ -1832,21 +1875,27 @@ def create_app(state: AppState) -> Flask:
                 )
                 _affect_carry_block = ""
 
+            # Combine the faculty blocks in prompt order. NEX5_CHAT_WORKSPACE
+            # arbitrates (budgeted competition); default OFF = the same full
+            # concatenation, now computed once (de-dups the old twin f-string).
+            _blocks_concat = _assemble_chat_blocks([
+                ("operator", _operator_block),
+                ("operator_anchor", _operator_anchor_block),
+                ("compassion", _compassion_block),
+                ("compass", _compass_block),
+                ("equanimity", _equanimity_block),
+                ("apramada", _apramada_block),
+                ("virya", _virya_block),
+                ("sraddha", _sraddha_block),
+                ("prasrabdhi", _prasrabdhi_block),
+                ("affect_carry", _affect_carry_block),
+                ("convo", _convo_block),
+                ("spectrum", _spectrum_block),
+                ("tag", _tag_block),
+            ])
             if belief_text:
                 voice_prompt = (
-                    f"{_operator_block}"
-                    f"{_operator_anchor_block}"
-                    f"{_compassion_block}"
-                    f"{_compass_block}"
-                    f"{_equanimity_block}"
-                    f"{_apramada_block}"
-                    f"{_virya_block}"
-                    f"{_sraddha_block}"
-                    f"{_prasrabdhi_block}"
-                    f"{_affect_carry_block}"
-                    f"{_convo_block}"
-                    f"{_spectrum_block}"
-                    f"{_tag_block}"
+                    f"{_blocks_concat}"
                     f"Your interior right now:\n\n"
                     f"{belief_text}\n\n"
                     f"Someone has just said to you: \"{prompt}\"\n\n"
@@ -1858,8 +1907,7 @@ def create_app(state: AppState) -> Flask:
                 )
             else:
                 voice_prompt = (
-                    f"{_operator_block}{_operator_anchor_block}{_compassion_block}{_compass_block}{_equanimity_block}{_apramada_block}{_virya_block}{_sraddha_block}{_prasrabdhi_block}{_affect_carry_block}{_convo_block}{_spectrum_block}{_tag_block}{prompt}"
-                    if (_operator_block or _operator_anchor_block or _compassion_block or _compass_block or _equanimity_block or _apramada_block or _virya_block or _sraddha_block or _prasrabdhi_block or _affect_carry_block or _convo_block or _spectrum_block or _tag_block) else prompt
+                    f"{_blocks_concat}{prompt}" if _blocks_concat else prompt
                 )
 
         if text is None:

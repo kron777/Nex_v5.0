@@ -130,6 +130,33 @@ def arbitrate_candidates(candidates: "list[tuple[float, str]]",
     return prefix + max(candidates, key=lambda c: c[0])[1]
 
 
+def select_within_budget(candidates: "list[tuple[float, str, bool]]",
+                         char_budget: int) -> list[str]:
+    """Budgeted competition for paths that assemble MANY blocks (the chat turn),
+    not one winner: keep every exempt candidate, then admit the rest by
+    descending salience until char_budget is reached. Returns the kept texts in
+    their ORIGINAL order (stable), so downstream assembly order is unchanged.
+
+    candidates: (salience, text, exempt). Empty texts are ignored. Exempt
+    candidates are never evicted (they still count toward the budget).
+    """
+    kept = set()
+    used = 0
+    for i, (_sal, text, exempt) in enumerate(candidates):
+        if exempt and text:
+            kept.add(i)
+            used += len(text)
+    rest = sorted(
+        (i for i, (_s, t, ex) in enumerate(candidates) if t and not ex),
+        key=lambda i: candidates[i][0], reverse=True)
+    for i in rest:
+        t = candidates[i][1]
+        if used + len(t) <= char_budget:
+            kept.add(i)
+            used += len(t)
+    return [candidates[i][1] for i in range(len(candidates)) if i in kept]
+
+
 def arbitrate(status: dict, stakes_active: bool = False,
               drive_line: str = "", dynamic_db: str = _DYNAMIC_DB) -> str:
     """
