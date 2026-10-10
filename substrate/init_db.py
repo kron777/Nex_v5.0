@@ -582,6 +582,28 @@ def _column_exists(db_path: str, table: str, column: str) -> bool:
         return False  # DB not yet created or unreadable — let the write proceed
 
 
+def _table_exists(db_path: str, table: str) -> bool:
+    """Read-only check whether a table exists — direct sqlite3, WAL-safe.
+
+    Distinct from _column_exists: an ADD COLUMN migration must be skipped when
+    the *table* is absent, not just when the column is. Some tables (e.g.
+    world_predictions, conversations.db) are created lazily by their own module
+    rather than during init_db, so running their ALTERs here fires against a
+    non-existent table -- a swallowed "no such table" error whose only legacy
+    was log noise, while the columns never landed on a fresh DB. The table's
+    own creator owns the full schema; here we migrate only what already exists.
+    """
+    try:
+        with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
+            rows = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                (table,),
+            ).fetchall()
+            return bool(rows)
+    except Exception:
+        return False  # DB/table not readable — treat as absent, skip the ALTER
+
+
 def _apply_migrations(writers: dict[str, Writer]) -> None:
     """Apply additive migrations for existing databases.
 
@@ -598,6 +620,8 @@ def _apply_migrations(writers: dict[str, Writer]) -> None:
             m = _ALTER_COL_RE.match(stmt.strip())
             if m:
                 table, col = m.group(1), m.group(2)
+                if not _table_exists(w.db_path, table):
+                    continue  # table not created yet (lazy creator owns schema)
                 if _column_exists(w.db_path, table, col):
                     continue  # column already exists — skip silently
             try:
