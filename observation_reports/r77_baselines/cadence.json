@@ -1,0 +1,10 @@
+{
+  "n_fires": 3798,
+  "median_inter_arrival_min": 2.09,
+  "p90_inter_arrival_min": 2.11,
+  "active_fires_per_day": 690.51,
+  "raw_fires_per_day": 275.74,
+  "likely_pauses": 5,
+  "paused_hours": 173.8,
+  "span_days": 13.8
+}
