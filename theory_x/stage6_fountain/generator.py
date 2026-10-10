@@ -132,6 +132,11 @@ _HOT_OBSERVER_LOOKBACK_SECS = 259200      # 72h (was 86400 = 24h)
 _HOT_OBSERVER_POOL_LIMIT = 300            # covers 72h at the ~90/day write rate
 _HOT_OBSERVER_DEDUP_TH = 0.5              # same bar as R32's exemplar dedup
 
+# Max distilled own-content lines rendered when NEX5_OWN_CONTENT_RENDER=1.
+# Bounded on purpose: this block exists to let her distilled thinking reach the
+# speaking layer as words without turning retrieval into a few-shot echo wall.
+_OWN_CONTENT_RENDER_MAX = 3
+
 
 def _hot_first_sentence_grams(_t: str) -> set:
     """First-sentence 5-gram set -- identical construction to R32's exemplar
@@ -3611,18 +3616,62 @@ class FountainGenerator:
             except Exception:
                 pass
 
-        # Recent-thoughts block removed (echo-loop fix, Phase 43). The LLM's
-        # access to her own recent thinking flows through retrieval:
-        # _retrieve_context_beliefs returns synergized + fountain_insight
-        # sources, both her own outputs distilled. Showing raw fountain_events
-        # back as exemplars was few-shot-prompting repetition — 3/3 post-
-        # Mechanism-C fires stayed on the cicada/hum surface pattern.
-        # Per §0: substrate provides; speaking layer composes freely.
-
-        # 2026-07-26: DISABLED self-observations block removed (session 49
-        # continued) -- dead since 2026-05-15 (`if False`), and `_sub_rows`
-        # was hardcoded to an empty list right above it besides. Recoverable
-        # at commit edbddff.
+        # Her own recent thinking. Phase 43 (ea6fe74, "Mechanism A") removed the
+        # block that fed RAW fountain_events back as exemplars -- that was
+        # few-shot repetition (3/3 post-Mechanism-C fires stayed on the
+        # cicada/hum surface pattern). CORRECTION (2026-10): the note that once
+        # stood here claimed her distilled thinking still "flows through
+        # retrieval ... synergized + fountain_insight sources". It does reach
+        # _retrieve_context_beliefs (for activation + residue), but since
+        # ea6fe74 it has NOT rendered into the prompt text at all -- so by
+        # default her distilled thought never reaches the speaking layer as
+        # words, only as activation. The session-49 cleanup that removed the
+        # dead `if False` self-observations block (recoverable at edbddff) left
+        # that gap in place.
+        #
+        # NEX5_OWN_CONTENT_RENDER (default OFF) restores a bounded,
+        # first-sentence-deduped render of that DISTILLED content (not raw
+        # events). hot_observer is deliberately excluded: it quotes crystallized
+        # text verbatim and R75/R76 traced the live `advancements` groove to it,
+        # so rendering it would re-amplify the very attractor this block avoids.
+        # own_sense renders separately above. LIVE CHECK before defaulting ON:
+        # re-measure groove-token P() with the block enabled (R76 baseline for
+        # the hot slot was 13.2%); this distilled-only block should sit at or
+        # below that.
+        if os.environ.get("NEX5_OWN_CONTENT_RENDER") == "1":
+            _own_distilled = [b for b in own
+                              if b["source"] != "precipitated_from_sense"]
+            _own_kept: list = []
+            _own_grams: list = []
+            for _ob in _own_distilled:
+                try:
+                    _content = _ob["content"] or ""
+                except Exception:
+                    continue
+                _g = _hot_first_sentence_grams(_content)
+                _dupe = False
+                for _sg in _own_grams:
+                    _u = len(_g | _sg)
+                    if _u and len(_g & _sg) / _u >= _HOT_OBSERVER_DEDUP_TH:
+                        _dupe = True
+                        break
+                if _dupe:
+                    continue
+                _own_grams.append(_g)
+                _own_kept.append((_ob, _content))
+                if len(_own_kept) >= _OWN_CONTENT_RENDER_MAX:
+                    break
+            if _own_kept:
+                prompt_parts.append(
+                    "Some of what you've been thinking recently:")
+                for _own_rank, (_ob, _content) in enumerate(_own_kept, start=1):
+                    prompt_parts.append(f"  {_content}")
+                    try:
+                        retrieval_manifest.append(
+                            (_ob["id"], "own_render", _own_rank, None))
+                    except Exception:
+                        pass
+                prompt_parts.append("")
 
         _wb_events = None
         if self._world_bridge_selector is not None:

@@ -122,7 +122,14 @@ class TestProblemOverride(unittest.TestCase):
             from voice.llm import VoiceClient
 
             pm = ProblemMemory(writers["conversations"], readers["conversations"])
+            # select_for_injection requires >= _INJECTION_MIN_POOL (3) real,
+            # anchor-passing, non-template candidates (session-40 guard against
+            # forced LRU repetition among 1-2 members). Open three so injection
+            # actually fires; each title carries a proper-noun anchor.
+            titles = ["Synergizer silence", "Bitcoin stall", "Kafka retries"]
             pm.open("Synergizer silence", "Why does the synergizer return nothing?")
+            pm.open("Bitcoin stall", "Why has the Bitcoin feed gone quiet for 3 days?")
+            pm.open("Kafka retries", "Why does the Kafka consumer retry twice?")
 
             gen = FountainGenerator(
                 sense_writer=writers["sense"],
@@ -131,9 +138,12 @@ class TestProblemOverride(unittest.TestCase):
                 dynamic_reader=readers["dynamic"],
                 problem_memory=pm,
             )
-            prompt = gen._build_prompt({}, 10, {})
-            self.assertIn("Synergizer silence", prompt)
-            self.assertIn("concrete problem is open", prompt)
+            prompt, _ = gen._build_prompt({}, 10, {})
+            # Injection fired (current wording; was "concrete problem is open").
+            self.assertIn("still open", prompt)
+            # One of the self-posed problems is surfaced into the prompt.
+            self.assertTrue(any(t in prompt for t in titles),
+                            f"no open-problem title in prompt: {prompt[:300]}")
         finally:
             _cleanup(writers, tmp)
 
@@ -154,8 +164,9 @@ class TestProblemOverride(unittest.TestCase):
                 dynamic_reader=readers["dynamic"],
                 problem_memory=pm,
             )
-            prompt = gen._build_prompt({}, 10, {})
-            self.assertNotIn("concrete problem is open", prompt)
+            prompt, _ = gen._build_prompt({}, 10, {})
+            # No open problem → no injection block (current wording).
+            self.assertNotIn("still open", prompt)
             # No problems → pure drift mode
             self.assertIn("idle, drifting", prompt)
         finally:
