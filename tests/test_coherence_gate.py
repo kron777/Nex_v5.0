@@ -121,10 +121,13 @@ class TestGateOutcomes(unittest.TestCase):
         from theory_x.stage_gate.coherence_gate import ThoughtPacket, GateOutcome
         # Seed a rich locked T1 anchor: tokens = {attend, world, wonder, stillness, presence, care}
         # confidence=0.9: gate anchor query requires confidence > 0.8
+        # Anchor source must be in the axiom allowlist (_AXIOMATIC_SOURCES, set
+        # by cb0f690 — an allowlist, not tier+confidence+locked). "keystone" is
+        # NOT in it ("keystone_seed" is); the old selector matched any locked T1.
         _seed_belief(
             self.writers,
             "I attend to the world with wonder, stillness, presence, and care.",
-            tier=1, confidence=0.9, locked=1, source="keystone",
+            tier=1, confidence=0.9, locked=1, source="keystone_seed",
         )
         time.sleep(0.05)
         # Thought contradicts anchor with 4+ token overlap + negation mismatch

@@ -19,6 +19,13 @@ _SELF_INQUIRY_KEYWORDS = {
 _INSIDE_SOURCES = {
     "fountain_insight",
     "synergized",
+    # Her own internally-generated content (matches the fountain's
+    # _OWN_CONTENT_SOURCES). These were omitted when the sources were
+    # introduced, so classify_belief routed her own precipitations/probes
+    # OUTSIDE, excluding them from INSIDE (self-inquiry) retrieval.
+    "precipitated_from_dynamic",
+    "precipitated_from_sense",
+    "auto_probe",
     "keystone_seed",
     "practice",
     "self_location",
