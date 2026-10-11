@@ -263,7 +263,8 @@ class TestAllAdapterIdsUnique(unittest.TestCase):
         self.assertEqual(len(new_ids), len(set(new_ids)), "Adapter IDs must be unique")
 
     def test_adapter_count_in_scheduler(self):
-        """build_scheduler should produce 31 adapters."""
+        """build_scheduler should produce 28 adapters (4 dead feeds removed in
+        b40a357; roster is 4 internal + 15 external + 7 diversification + 2 AGI)."""
         import os, shutil, tempfile
         from pathlib import Path
         tmp = tempfile.mkdtemp(prefix="nex5_sched_")
@@ -278,7 +279,7 @@ class TestAllAdapterIdsUnique(unittest.TestCase):
             readers = {n: Reader(p) for n, p in paths.items()}
             from theory_x.stage1_sense import build_scheduler
             sched = build_scheduler(writers, readers)
-            self.assertEqual(len(sched._threads), 31)
+            self.assertEqual(len(sched._threads), 28)
         finally:
             for w in writers.values():
                 try: w.close()

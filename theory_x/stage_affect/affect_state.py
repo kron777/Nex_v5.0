@@ -279,8 +279,13 @@ class AffectState:
                 "VALUES (?, ?, ?, ?, ?)",
                 (now, v_new, a_new, s_new, mood),
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            # Fail-safe (never break the tick) but no longer silent: a history
+            # write failure means CompetingDrives' affect_variance is blind.
+            errors.record(
+                "affect_history append failed (affect_variance reads a dead table)",
+                source=_LOG_SOURCE, exc=exc,
+            )
 
         try:
             with open(_AFFECT_LOG, "a") as _f:

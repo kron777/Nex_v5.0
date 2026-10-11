@@ -47,11 +47,16 @@ MAX_LOCK_RETRIES = 5         # per batch, before backing off this table
 # so a 2-day window drops the permanently-stranded backlog and bounds growth
 # while never touching a row the live consumer could still reach.
 TARGETS = [
-    ("dynamic.db", "pipeline_events", "ts"),
-    ("dynamic.db", "tree_snapshots",  "ts"),
-    ("dynamic.db", "tier_snapshots",  "ts"),
-    ("sense.db",   "sense_events",    "timestamp"),
-    ("beliefs.db", "residue",         "created_at", 2),
+    ("dynamic.db",       "pipeline_events",       "ts"),
+    ("dynamic.db",       "tree_snapshots",        "ts"),
+    ("dynamic.db",       "tier_snapshots",        "ts"),
+    ("sense.db",         "sense_events",          "timestamp"),
+    ("beliefs.db",       "residue",               "created_at", 2),
+    # Append-only history tables — unbounded without this. self_state_history is
+    # the self-continuity trace (self_binding.py); meta_cognition_events was
+    # written but never digested or bounded. Default 30d window.
+    ("dynamic.db",       "self_state_history",    "bound_at"),
+    ("conversations.db", "meta_cognition_events", "created_at"),
 ]
 
 

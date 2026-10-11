@@ -20,6 +20,11 @@ class TestFountainArcAwareness(unittest.TestCase):
         self.assertEqual(ctx["recent_closed"], [])
         self.assertEqual(fg._format_arc_context(ctx), "")
 
+    @unittest.skip(
+        "arc-context render removed session 49 (dead since 2026-05-15); "
+        "_format_arc_context is a documented no-op and `if arc_block:` never "
+        "fires at the call site. Recoverable at edbddff -- re-enable the render "
+        "(behind a flag, like NEX5_OWN_CONTENT_RENDER) to restore this test.")
     def test_active_arc_renders_in_context(self):
         """Active arc appears in rendered arc context."""
         from theory_x.stage6_fountain.generator import FountainGenerator
@@ -44,6 +49,10 @@ class TestFountainArcAwareness(unittest.TestCase):
         self.assertIn("6 fires", rendered)
         self.assertIn("progression", rendered)
 
+    @unittest.skip(
+        "arc-context render removed session 49 (dead since 2026-05-16); "
+        "_format_arc_context is a documented no-op. Recoverable at edbddff -- "
+        "re-enable the render (behind a flag) to restore this test.")
     def test_recent_closed_renders_in_context(self):
         """Recently-closed arc appears in the recent section."""
         from theory_x.stage6_fountain.generator import FountainGenerator

@@ -37,8 +37,19 @@ sys.path.insert(0, __file__.rsplit("/tools/", 1)[0])
 from theory_x.stage6_fountain.crystallizer import _fidelity_tokens
 from theory_x.stage6_fountain import corpus_convergence as cc
 from theory_x.stage6_fountain import subject_fidelity as sf
+from substrate.paths import DbPath
 
-_BELIEFS = "/home/rr/Desktop/Desktop/nex5/data/beliefs.db"
+# Resolved at use-time via substrate, honouring NEX5_DATA_DIR. With it unset
+# (the live instrument, run from the main checkout) these resolve to the same
+# <repo>/data/<name>.db the hardcoded literals named, so the production reading
+# is unchanged -- but the tool no longer silently reads the /home/rr tree when
+# run from a worktree or pointed at a staging instance. For a SAFETY tool that
+# was a false-green hazard: a tripwire read against the wrong data dir can pass
+# vacuously on an empty/foreign DB. The imported sf/cc modules still carry
+# hardcoded _DEFAULT_DB fallbacks; those are FILED, not fixed here -- this tool
+# now passes resolved paths into every call so its own reads never touch them.
+_BELIEFS = DbPath("beliefs")
+_DYNAMIC = DbPath("dynamic")
 
 
 def _driver_context(token: str, window_days: int = 30) -> dict:
@@ -83,7 +94,7 @@ def main(argv):
     print("=" * 68)
 
     # --- maxDF* ---
-    r = cc.max_df_star()
+    r = cc.max_df_star(db_path=str(_BELIEFS))
     tok = r.get("token")
     ctx = _driver_context(tok) if tok else {}
     breach = r.get("breach")
@@ -101,7 +112,7 @@ def main(argv):
     print(f"  runners-up: " + ", ".join(f"{t} {s*100:.0f}%" for t, _c, s in r["top"][1:]))
 
     # --- on-subject (the REAL instrument) ---
-    f = sf.subject_fidelity(window=win)
+    f = sf.subject_fidelity(window=win, db_path=str(_DYNAMIC))
     bm = f.get("by_mode", {})
     print()
     print("on-subject p_on_subject  (>=1 shared content token; NOT mean token_recall)")

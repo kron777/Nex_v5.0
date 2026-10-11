@@ -60,7 +60,14 @@ _SCHEMA = (
     "resolved_at REAL, "                # NULL until resolved
     "price_at_resolve REAL, "           # NULL until resolved
     "outcome TEXT, "                    # NULL / 'correct' / 'wrong' / 'error'
-    "source TEXT NOT NULL DEFAULT 'manual')"  # who made it: 'manual'/'voice'
+    "source TEXT NOT NULL DEFAULT 'manual', "  # who made it: 'manual'/'voice'
+    # Trust stamp (what NEX knew about her own reliability when she predicted).
+    # Mirrored by the additive ALTERs in substrate/init_db.py _MIGRATIONS for
+    # aged DBs that predate these columns; owned here so a fresh DB gets them
+    # at create time (the ALTERs are skipped while the table is still absent).
+    "trust_level TEXT, "
+    "trust_gap REAL, "
+    "trust_n INTEGER)"
 )
 _IDX = (
     "CREATE INDEX IF NOT EXISTS idx_wp_resolve "

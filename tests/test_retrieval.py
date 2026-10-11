@@ -107,19 +107,38 @@ class TestFountainRetrieval(unittest.TestCase):
         self.assertEqual(own[0]["tier"], 7)
 
     def test_build_prompt_includes_own_content_section(self):
+        # The distilled own-content render is gated behind NEX5_OWN_CONTENT_RENDER
+        # (default OFF). With it ON, her distilled thinking reaches the prompt as
+        # text. _build_prompt returns (prompt_text, retrieval_manifest).
         self._insert_belief("I notice bitcoin feels quiet today.", "fountain_insight")
         time.sleep(0.1)
-        prompt = self.gen._build_prompt({}, 10, {})
+        os.environ["NEX5_OWN_CONTENT_RENDER"] = "1"
+        try:
+            prompt, _ = self.gen._build_prompt({}, 10, {})
+        finally:
+            os.environ.pop("NEX5_OWN_CONTENT_RENDER", None)
         self.assertIn("Some of what you've been thinking recently:", prompt)
         self.assertIn("bitcoin", prompt)
 
     def test_build_prompt_no_own_content_skips_section(self):
-        # No fountain_insight beliefs seeded
-        prompt = self.gen._build_prompt({}, 10, {})
+        # Render enabled but no distilled own content → section is skipped.
+        os.environ["NEX5_OWN_CONTENT_RENDER"] = "1"
+        try:
+            prompt, _ = self.gen._build_prompt({}, 10, {})
+        finally:
+            os.environ.pop("NEX5_OWN_CONTENT_RENDER", None)
+        self.assertNotIn("Some of what you've been thinking recently:", prompt)
+
+    def test_build_prompt_default_off_skips_own_content(self):
+        # Default (flag unset): distilled own content does NOT render, even when
+        # present — live prompt composition is unchanged by this feature.
+        self._insert_belief("I notice bitcoin feels quiet today.", "fountain_insight")
+        time.sleep(0.1)
+        prompt, _ = self.gen._build_prompt({}, 10, {})
         self.assertNotIn("Some of what you've been thinking recently:", prompt)
 
     def test_build_prompt_includes_beliefs_held(self):
-        prompt = self.gen._build_prompt({}, 42, {})
+        prompt, _ = self.gen._build_prompt({}, 42, {})
         self.assertIn("Beliefs held: 42", prompt)
 
 

@@ -332,8 +332,14 @@ class TestSemanticDedup(unittest.TestCase):
         reader = _StubReader({
             # exact-match check → no hit
             "source='fountain_insight' and content=?": [],
-            # semantic check: returns previous emission
-            "source='fountain_insight' and created_at": [_RowLike({"content": prev})],
+            # semantic check: returns previous emission. The query selects
+            # (id, content, branch_id, created_at) and the method returns that
+            # full row (best-of-cluster upgrade path), so the stub row must
+            # carry all four columns -- a content-only row raises KeyError that
+            # the method swallows, silently skipping the match.
+            "source='fountain_insight' and created_at": [_RowLike(
+                {"id": 1, "content": prev, "branch_id": "systems",
+                 "created_at": time.time() - 60})],
             # cooldown → no entry
             "signal_cooldown": [],
             "belief_blacklist": [],

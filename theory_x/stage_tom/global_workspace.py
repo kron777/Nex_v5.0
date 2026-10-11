@@ -105,6 +105,58 @@ def _bonsai_candidate(status: dict) -> Optional[tuple[float, str]]:
     return None
 
 
+# Public salience weights, so other paths (e.g. the chat turn) can declare their
+# own candidate salience without importing module-private constants.
+SALIENCE = {
+    "surprise": _W_SURPRISE, "stakes": _W_STAKES, "momentum": _W_MOMENTUM,
+    "bonsai": _W_BONSAI, "drive": _W_DRIVE,
+}
+
+_WORKSPACE_PREFIX = ("[WORKSPACE] Of everything active in you right now, this is "
+                     "most prominent: ")
+
+
+def arbitrate_candidates(candidates: "list[tuple[float, str]]",
+                         prefix: str = _WORKSPACE_PREFIX) -> str:
+    """Competition core: pick the single most-salient (salience, text) candidate
+    and frame it; "" when there's nothing to lead.
+
+    Extracted from arbitrate() so other paths (the chat turn) can run the same
+    competition over their OWN candidates. arbitrate() stays behaviour-identical.
+    Pure: the DB IO and the fail-safe wrapper live in the callers.
+    """
+    if not candidates:
+        return ""
+    return prefix + max(candidates, key=lambda c: c[0])[1]
+
+
+def select_within_budget(candidates: "list[tuple[float, str, bool]]",
+                         char_budget: int) -> list[str]:
+    """Budgeted competition for paths that assemble MANY blocks (the chat turn),
+    not one winner: keep every exempt candidate, then admit the rest by
+    descending salience until char_budget is reached. Returns the kept texts in
+    their ORIGINAL order (stable), so downstream assembly order is unchanged.
+
+    candidates: (salience, text, exempt). Empty texts are ignored. Exempt
+    candidates are never evicted (they still count toward the budget).
+    """
+    kept = set()
+    used = 0
+    for i, (_sal, text, exempt) in enumerate(candidates):
+        if exempt and text:
+            kept.add(i)
+            used += len(text)
+    rest = sorted(
+        (i for i, (_s, t, ex) in enumerate(candidates) if t and not ex),
+        key=lambda i: candidates[i][0], reverse=True)
+    for i in rest:
+        t = candidates[i][1]
+        if used + len(t) <= char_budget:
+            kept.add(i)
+            used += len(t)
+    return [candidates[i][1] for i in range(len(candidates)) if i in kept]
+
+
 def arbitrate(status: dict, stakes_active: bool = False,
               drive_line: str = "", dynamic_db: str = _DYNAMIC_DB) -> str:
     """
@@ -137,13 +189,8 @@ def arbitrate(status: dict, stakes_active: bool = False,
             # drive_line is already-formatted text; give it baseline salience
             candidates.append((_W_DRIVE, drive_line.strip()))
 
-        if not candidates:
-            return ""
-
         # Competition: highest salience wins and is broadcast as the frame.
-        winner = max(candidates, key=lambda c: c[0])
-        return ("[WORKSPACE] Of everything active in you right now, this is "
-                "most prominent: " + winner[1])
+        return arbitrate_candidates(candidates)
     except Exception:
         return ""
 

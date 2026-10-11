@@ -73,8 +73,10 @@ class TestMembraneClassifier(unittest.TestCase):
                              f"{stream} should be OUTSIDE")
 
     def test_inside_belief_sources(self):
-        for source in ("precipitated_from_dynamic", "nex_seed", "manual",
-                       "identity", "injector", "keystone"):
+        # nex_seed/injector dropped: not produced anywhere in the codebase
+        # (phantom sources). The rest are real internally-sourced beliefs.
+        for source in ("precipitated_from_dynamic", "precipitated_from_sense",
+                       "auto_probe", "manual", "identity", "keystone"):
             b = {"source": source}
             self.assertEqual(self.cls.classify_belief(b), self.INSIDE,
                              f"source={source} should be INSIDE")
@@ -177,6 +179,11 @@ class TestSelfModel(unittest.TestCase):
         self.assertIn("inner state", text.lower())
         self.assertGreater(len(text), 20)
 
+    @unittest.skip(
+        "Inner-conviction/ALPHA line is disabled by EXPERIMENT A (2026-05-09, "
+        "self_model.py) to test whether preamble in belief_text drives response "
+        "openings (LLM_INDEPENDENCE_DOCTRINE.md). Pre-registered experiment — "
+        "re-enable the test when it closes (uncomment the line in self_model).")
     def test_format_self_state_includes_alpha(self):
         from theory_x.stage4_membrane.self_model import format_self_state
         from alpha import ALPHA
