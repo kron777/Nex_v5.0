@@ -1,6 +1,23 @@
 # R83 — PRE-REGISTRATION: the phrasing-layer groove (`NEX5_PHRASING_ROTATE`)
 
-## 0. Status — the groove is phrasing-level (measured); lever = the generation prompt; NOT built pending Step-0
+> **⛔ STEP-0 RUN 2026-10-11 — the `NEX5_PHRASING_ROTATE` lever is FALSIFIED. NOT BUILT. The gate worked.**
+> Local Ollama A/B (qwen2.5:3b, 24 items × 2 arms, scratchpad `r83_step0_ab.py` / `r83_step0b_source.py`):
+> - **Rotating the item-referent did nothing:** FIXED "the item" → template-opener 0.042, ROTATED → 0.125;
+>   opener_repeat **0.000 in both** (24/24 distinct openers). The grounding-clause referent is NOT the driver.
+> - **Own-vs-world content did nothing:** reflecting on her own `fountain_insight` content AND on world
+>   content both gave opener_repeat **0.000** (24/24 distinct). The self-referential loop is NOT the driver.
+> - **The live 0.54 opener-repeat is not reproduced by any single-shot generation** — yet it is genuine
+>   cross-mode LLM prose (1377/21d: EXPLAIN 736, ARGUE 545, DRIFT 96), not a wrapper. So the "this item
+>   is about…" cue lives in the **full `_build_prompt` structure** (persona + focus_block + how the item
+>   is presented) that the minimal A/B stripped — not the grounding clause, not own-content.
+> - **Decision (r83 §5 Branch B/this-gate):** do NOT build the rotate lever. The honest next step is a
+>   **faithful `_build_prompt` ablation** — reproduce the real fire prompt for a fixed focal and remove
+>   components one at a time until the opener diversifies — to locate the exact cue, THEN design the lever
+>   against it. This is a larger build (instantiate the Generator), proposed, not done.
+> This is the 4th L4 lever a pre-arm measurement stopped before shipping inert (r79 threshold, r80
+> saturation, r82 branch base-rate, r83 referent). The measure-before-build rule is earning its keep.
+
+## 0. Status — the groove is phrasing-level (measured); lever FALSIFIED by Step-0 (see banner); NOT built
 
 Every earlier L4 locus was the wrong layer: readiness (volume, r79/r80 — saturated gate), framing
 (arbitrate, r81 — prompt-only), branch retrieval (r82 — branch switches 88%, no fixation). The
