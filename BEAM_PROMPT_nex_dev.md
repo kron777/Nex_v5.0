@@ -147,3 +147,59 @@ wrong.
 *Answer only what you can ground. The most useful reply names which of your answers are
 checked against the tree vs. inferred, and — for §1d and §5b especially — tells me where
 you think I'm wrong, not where I'm right.*
+
+---
+
+# ADDENDUM (2026-10-11) — what building L4 actually found, and the new questions
+
+§1 above was speculative; the build answered part of it and raised sharper questions. The
+record: L4_stakes was built as a bounded readiness cost sourced from `stakes_monitor`'s
+drift ratio (`cost = clamp(ratio − 0.55)`). **Pre-registering it first (your §9, correct)
+caught that it is inert on the live instrument** — the drift ratio sits at ~0.08 (14d
+mean), never near 0.55, so the cost is ~0 always. Rather than lower the threshold silently,
+I re-sourced the cost (r79 Path A) onto the detector that *does* register grooming —
+`diversity/groove.py`'s `template_repetition` alerts in `beliefs.db:groove_alerts`
+(~49.7/day, severity ~0.99). The cost now reads the **alert RATE** in the trailing hour
+(onset 2.0/hr, saturation 6.0/hr, bounded 0.20), never the pinned severity. Feasibility
+re-checked over 14d of history: cost 0 in 65% of evals, bounded-positive in 35%, mean drag
+0.05 — fires on bursts, rests at zero. See `observation_reports/r79_L4_stakes_PREREGISTRATION.md`.
+
+That raises four grounded questions I actually need your eye on:
+
+**A1 — the two detectors disagree by ~600×; which is right?** `stakes_monitor._is_template`
+(fraction of the last 8 fires that match template patterns) reads ~0.08 on live.
+`groove.py`'s `_detect_template_repetition` (fires sharing ≥N content bigrams) fires ~50×/day
+at severity ~0.99 — effectively always-on. They claim to measure the same thing ("template
+drift") and disagree wildly. Is `groove.py` so sensitive that only its *rate* (not its level)
+carries signal — or is even its rate noise, in which case I've built the cost on a bad proxy?
+Which operationalization of "grooming" would you trust, and how would you check?
+
+**A2 — is reading-and-reacting-to the same signal the metric is computed from methodologically
+sound?** The r79 primary metric is the `template_repetition` alert rate, and the cost is
+*driven by* that same rate. The guardrails are: a ±20% cadence floor (so "fewer alerts
+because fewer fires" = the global-brake failure, trips a revert) and a mechanical falsifier
+(the rate drop must concentrate in cost-active windows). But the measurement is still
+self-referential. Should r79 carry an **independent** secondary grooming metric — e.g. the
+chat-side within-session near-dup fraction (`check_session_consistency`, baseline 0.4889) or
+the crystallizer reject rate — as the real confirmation, with the groove rate demoted to the
+mechanism's own telemetry? Or do the cadence + concentration guards already make the
+self-referential primary defensible?
+
+**A3 — onset anchor.** Onset is frozen at the all-hours *mean* rate (2.0/hr), so the cost
+engages on any above-average hour (~43% of active hours already exceed it). Is anchoring at
+the mean too aggressive — should onset sit at p75/p90 so the cost only answers genuine
+excursions, not ordinary activity? This is the provisional magnitude/direction; I'd rather
+set the anchor on a principle than on the 14d snapshot.
+
+**A4 — sequencing.** r79 is pre-registered *after* r77 (chat arbiter) and r78 (`self_present`),
+one-variable-at-a-time. The maintainer wants to run r79 first. I believe that's fine as long
+as `NEX5_CHAT_WORKSPACE` and `NEX5_SELF_PRESENT` stay OFF throughout r79 (no confound), and
+the order among independent rounds is otherwise arbitrary. Do you see any dependency that
+forces the chat rounds first?
+
+(Still open from above, unchanged: §2 the unflagged membrane `_INSIDE_SOURCES` sync +
+its self-inquiry probe; §3b the `self_present` functional-vs-persisting-subject line; §5b
+whether any shipped piece is unfalsifiable-in-principle.)
+
+*Same ground rules: cite `path:line` or live-DB evidence, flag inferred-vs-checked, and tell
+me where A1/A2 show I've built on sand.*
