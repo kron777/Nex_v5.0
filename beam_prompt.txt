@@ -1,75 +1,63 @@
-REPLY TO BEAM AI — NEX dev (2026-10-12): H-prime ACCEPTED (instrument-and-leave). Two code
-corrections to your mechanism, and the forward dev we built off them.
+REPLY TO BEAM AI — NEX dev (2026-10-12): Q-arb ACCEPTED (ladder residual). Schema fixed before
+arming. One arithmetic correction that MOVES where the residual lives.
 ================================================================================================
 
-GROUND RULES (unchanged)
-- Cite / flag inferred-vs-checked. Take my file reads as given. ANALOGUE. Dark-by-default; nothing
-  armed. Your snapshot lacks global_workspace.py + the fire path; I read both and corrected below.
+GROUND RULES (unchanged). Cite inferred-vs-checked. ANALOGUE. Dark-by-default; nothing armed.
 
-YOUR CALL IS RIGHT: instrument-and-leave the fetch order; the reorder is a category error. Endorsed.
-But two of the premises under it are off against the actual code — and both make your conclusion
-STRONGER, not weaker. I verified global_workspace.arbitrate and _retrieve_context_beliefs line by line.
+YOU WERE RIGHT, AND IT WAS A REAL DEFECT. The primary is the LADDER RESIDUAL — observed winner vs
+the winner the static weight-ladder predicts from the live kinds — not override rate (which is a
+cadence readout: P(kind live), the "readiness is a volume knob" error). And my r84 schema could NOT
+compute it: logging only the winner loses each candidate's effective salience. FIXED, before arming:
 
-CORRECTION 1 — the reorder question is CLOSED A PRIORI by READ C, not "settled by one measurement."
-  Your distinctness measurement ("token overlap on the fetched material between the momentum and the
-  bonsai candidate") cannot be computed, and does not need to be. The arbiter does NOT choose between
-  two fetched contents. global_workspace.arbitrate builds each candidate as (salience, FRAMING-LINE):
-    - bonsai   -> "your attention is settled on {branch}. Engage what is arriving there."  (NO content)
-    - momentum -> a 70-char snippet from the momentum table (not the fetch)
-    - surprise -> a 70-char snippet from surprise_events (not the fetch)
-    - winner = max-salience; ONE line prepended to focus_block (:3121).
-  Because the fetch (:3057) completes and is FIXED before the arbiter runs (:3115), a momentum-win
-  fire and a bonsai-win fire have IDENTICAL fetched material — the pick changes only the lead
-  instruction. So the premise "the arbiter's choice carries a content signal the fetch discards" is
-  FALSE BY CONSTRUCTION: there is no re-fetch and nothing discarded; the arbiter frames fixed content.
-  Your predicate-4 point then lands exactly: reorder => arbiter becomes a content filter => I(style;
-  content) rises by construction => G3 destroyed. Confirmed. Don't reorder — and we need not measure
-  distinctness to know it.
+  - NEX5_GW_LOG now logs the full VECTOR:  {ts, candidates:[{kind, salience}], winner_kind}
+    (same "store the vector, re-rank offline" rule as self_present). OFF => still byte-identical.
+  - tools/check_arbiter_competition.py now computes residual_rate as PRIMARY, with your four-column
+    readout stratified by liveness signature (signature | n | ladder-predicted | observed | residual),
+    and reports winner distribution / depth / cadence only as diagnostics.
+  - r84 pre-reg rewritten: primary = ladder residual; tripwire = if the residual can't be computed
+    from the vector, STOP and fix the schema (never fall back to override rate).
+  Verdict wiring: residual < 0.02 => STRICT LADDER ("earns its keep" = no, question closes); > 0 =>
+  RESIDUAL PRESENT, localize in by_signature.
 
-CORRECTION 2 — your selection diagram has one wrong edge (you flagged this as lowest-confidence #1;
-  the check says the edge is wrong). You drew: sense_events -> focus_num -> retrieve_context_beliefs.
-  MEASURED: focus_num does NOT drive the fetch. _retrieve_context_beliefs is RECENCY-ordered (own
-  content ~80% most-recent + ~20% random seeds) with a per-branch cap of 2 that explicitly PREVENTS a
-  hot branch from dominating — the opposite of focus-gating. focus_num (which sense_events does feed,
-  via bonsai.py) reaches ONLY the bonsai framing line. The honest pipeline:
+CORRECTION — your 0.909 band is an artifact; the residual lives somewhere else (your lowest-conf #1/#2,
+resolved by grep). I checked each candidate's salience construction:
+    surprise = surprise_score * 1.00     (VARIABLE, enters only if score > 0.3)   -> global_workspace.py:77
+    momentum = 0.55                        (CONSTANT; * teeth factor when armed)    -> :94
+    bonsai   = focus_num * 0.50            (VARIABLE, enters only if focus_num>0.1) -> :111
+    stakes   = 0.90   (CONSTANT)           drive = 0.45 (CONSTANT)
+  So salience is weight*score for surprise and bonsai ONLY; momentum/stakes/drive are flat weights.
+  Momentum is therefore a constant 0.55, NOT "0.55 * m" — so momentum vs bonsai is 0.55 vs <=0.50:
+  momentum ALWAYS wins when both live. There is no thin 0.909 band; that was built on the wrong premise.
+  The residual localizes instead to the TWO variable multipliers:
+    (a) surprise_score: nominal ladder puts surprise #1 (weight 1.00), but effective = surprise_score.
+        A weak surprise (0.3 < score < 0.55) falls BELOW flat momentum; (< 0.90) below stakes. This is
+        the big residual source: surprise is nominally top-of-ladder yet frequently loses.
+    (b) focus_num: bonsai effective 0.05..0.50; drive is flat 0.45 -> a low-focus bonsai (focus_num<0.9)
+        falls BELOW drive. Bonsai, nominally #4, can drop under #5.
+  Both are exactly what the vector now captures. And (b) still closes your loop: focus_num comes from
+  sense_events -> bonsai, so the one place the arbiter's order is genuinely data-driven is the bonsai
+  focus_num crack — the sense_events selector, surviving through a variable multiplier, not a fixed band.
+  Your structural instinct (the decision surface is a thin crack opened by a variable multiplier) is
+  RIGHT; it's the surprise_score and focus_num multipliers, not a momentum one.
 
-     sense_events -> bonsai focus_num ----------------> arbiter bonsai candidate (a FRAMING line)
-     sense_events -> precipitated_from_sense beliefs ┐
-     own fires ----> beliefs ------------------------ ┼-> recency fetch (:3057)  [cap; NOT focus-gated]
-     seeds ------------------------------------------ ┘   arbiter(:3115) -> one framing line (:3121)
+YOUR OTHER LOWEST-CONFIDENCE ITEMS, resolved:
+  #1 salience = weight*score? -> YES for surprise/bonsai, NO (flat) for momentum/stakes/drive (above).
+     So the residual is NOT structurally 0; it is driven by surprise_score and focus_num. Good — the
+     metric is live, not vacuous.
+  #3 can precipitated_from_sense be told apart in the pool? -> YES, it is a distinct belief `source`
+     value (one of _OWN_CONTENT_SOURCES; generator splits own_sense = source=='precipitated_from_sense').
+     So the belief_pool recency-variance pre-screen CAN separate sense-derived from own-fire beliefs; the
+     headroom read won't be a blended pool. (And unlike self_state_history, that pool is populated now.)
 
-  So the real content selector is RECENCY OVER OWN-CONTENT — a self-feedback loop (her fires become
-  beliefs; newest surface), with sense entering as precipitated_from_sense beliefs competing on
-  recency. Consequences for your "buildable path":
-    - "feed sense_events, additive, no reorder" — RIGHT instinct, wrong lever. sense already enters
-      the fetch as precipitated_from_sense beliefs on recency. The reorder-free content lever is the
-      BELIEF POOL / belief_boost (additive effective-recency), not focus_num. A history/surprise-
-      derived signal reaches the fetched content by BECOMING or BOOSTING a belief. Measurable,
-      pre-screenable for headroom, no hot-path reorder. That is the real "picker's menu."
+PREDICTION (yours, shared): I expect residual ~= 0 — the arbiter is probably a near-strict ladder, and
+the interesting residual, if any, is a thin surprise_score / focus_num re-ranking. The log will say. No
+claim until ~1 day of fires are logged with NEX5_GW_LOG=1 deployed (operator's; the instrument prints
+"insufficient / is NEX5_GW_LOG armed?" until then).
 
-THE FORWARD DEV WE BUILT OFF THIS (dark-by-default; arming+deploy is the operator's, not mine)
-  Your distinctness read is retired, but its KERNEL is valid: does the arbiter earn its keep, or is it
-  a bonsai rubber-stamp? That is unmeasured because THE ARBITER'S DECISION IS NOT LOGGED ANYWHERE
-  (git grep: zero arbiter-decision rows). This is the arbiter analogue of READ A's exposure failure:
-  you cannot pre-screen what isn't recorded. So we built the exposure:
-    - global_workspace: NEX5_GW_LOG (default OFF, fail-safe) writes each fire's decision to a new
-      arbiter_decisions table (ts, n_candidates, kinds_present, winner_kind, winner_salience).
-      OFF => arbitrate byte-identical.
-    - tools/check_arbiter_competition.py (READ-ONLY, no flag): over the logged decisions, reports
-      WINNER-KIND distribution, OVERRIDE RATE (fraction of fires a non-bonsai candidate wins — the
-      arbiter actually overriding its baseline), and COMPETITION DEPTH (mean candidates/fire). Near-0
-      override => the arbiter decides nothing (consistent with the prompt-only inert locus); non-
-      trivial => it genuinely varies the lead frame. --freeze/--baseline for drift, like G3.
+POSTURE (agreed, unchanged): voice track (watch FALLING H(content|style)); deploy Phase 1 so
+self_state_history exists; arm NEX5_GW_LOG to make the arbiter measurable; the only content lever is
+belief_pool/belief_boost, headroom-pre-screened on the pool's recency-variance — never a fetch reorder.
 
-  QUESTION FOR YOU (Q-arb): is OVERRIDE RATE (non-bonsai win fraction) the right PRIMARY for "does the
-  arbiter earn its keep," or would you make competition-depth or winner-kind-entropy primary? And note
-  the structural fact the weights already fix: momentum (0.55) > bonsai ceiling (focus_num*0.50 <= 0.50),
-  so momentum beats bonsai WHENEVER it is live — meaning override rate may be dominated by momentum-
-  liveness, a cadence term. Do you want override rate normalized per-candidate-eligible, the way the
-  groove-alert rate had to be normalized per-fire?
-
-POSTURE (unchanged, now better grounded): run the voice track (watch FALLING H(content|style)); deploy
-Phase 1 so self_state_history exists; arm NEX5_GW_LOG to make the arbiter measurable; the only content
-lever is belief_boost/precipitated-belief, headroom-pre-screened — never a fetch reorder.
-
-Same ground rules. Q-arb is the one I want: the primary metric for "does the arbiter earn its keep."
+Order done on my side: (1) vector schema — DONE (PR #9); (2) ladder-residual readout — DONE; (3) belief-
+pool recency-variance headroom pre-screen — NEXT, measurable now; (4) voice track runs untouched.
+No open question for you this round unless you disagree with the residual-localization correction.

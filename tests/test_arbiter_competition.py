@@ -1,8 +1,9 @@
 """Arbiter-competition instrument (NEX5_GW_LOG + check_arbiter_competition).
 
 The logger is observational: default OFF => no file written, arbitrate() byte-identical.
-The instrument reads the JSONL and reports override rate / depth / winner distribution.
-No fire-path behaviour change (the log is a lock-free append, never the one-pen). ANALOGUE.
+It logs the full candidate VECTOR [{kind, salience}] so the LADDER RESIDUAL (observed
+winner vs static-weight prediction) can be computed offline. No fire-path behaviour change
+(the log is a lock-free append, never the one-pen). ANALOGUE.
 """
 from __future__ import annotations
 
@@ -44,19 +45,20 @@ class TestArbiterLogger(unittest.TestCase):
             rows = [json.loads(x) for x in f if x.strip()]
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["winner_kind"], "bonsai")
-        self.assertEqual(rows[0]["n_candidates"], 1)
-        self.assertEqual(rows[0]["kinds_present"], ["bonsai"])
+        self.assertEqual(rows[0]["candidates"],
+                         [{"kind": "bonsai", "salience": 0.45}])   # 0.9 focus_num * 0.50
 
-    def test_winner_index_is_first_max(self):
+    def test_winner_index_is_first_max_and_vector_logged(self):
         os.environ["NEX5_GW_LOG"] = "1"
         # two equal-salience maxima: the FIRST wins, matching arbitrate_candidates()
         self.gw._maybe_log_decision([(0.5, "a"), (0.9, "b"), (0.9, "c")],
                                     ["surprise", "momentum", "bonsai"])
         with open(self._jsonl) as f:
             rec = json.loads(f.readline())
-        self.assertEqual(rec["winner_kind"], "momentum")
-        self.assertEqual(rec["winner_salience"], 0.9)
-        self.assertEqual(rec["kinds_present"], ["bonsai", "momentum", "surprise"])
+        self.assertEqual(rec["winner_kind"], "momentum")          # first of the 0.9 maxima
+        self.assertEqual(len(rec["candidates"]), 3)
+        self.assertEqual(rec["candidates"][0], {"kind": "surprise", "salience": 0.5})
+        self.assertEqual(rec["candidates"][2], {"kind": "bonsai", "salience": 0.9})
 
     def test_empty_candidates_is_noop(self):
         os.environ["NEX5_GW_LOG"] = "1"
@@ -78,44 +80,52 @@ class TestArbiterMeasure(unittest.TestCase):
         self.assertAlmostEqual(_entropy({"a": 1, "b": 1, "c": 1, "d": 1}), 2.0)
         self.assertEqual(_entropy({"a": 9}), 0.0)
 
-    def test_aggregation(self):
+    def test_ladder_predicted_uses_static_weights(self):
+        from tools.check_arbiter_competition import _ladder_predicted
+        self.assertEqual(_ladder_predicted(["momentum", "surprise"]), "surprise")  # 1.00 > 0.55
+        self.assertEqual(_ladder_predicted(["bonsai", "drive"]), "bonsai")         # 0.50 > 0.45
+        self.assertIsNone(_ladder_predicted([]))
+
+    def test_residual_aggregation(self):
         from tools.check_arbiter_competition import measure, _verdict
-        rows = ([{"ts": 1.0, "n_candidates": 1, "kinds_present": ["bonsai"],
-                  "winner_kind": "bonsai", "winner_salience": 0.45}] * 30
-                + [{"ts": 1.0, "n_candidates": 2, "kinds_present": ["bonsai", "momentum"],
-                    "winner_kind": "momentum", "winner_salience": 0.55}] * 10)
-        path = self._write(rows)
+        # 30 fires: weak surprise (0.40) loses to flat momentum (0.55) -> residual (ladder said surprise)
+        weak = {"ts": 1.0, "winner_kind": "momentum",
+                "candidates": [{"kind": "surprise", "salience": 0.40},
+                               {"kind": "momentum", "salience": 0.55}]}
+        # 10 fires: strong surprise (0.80) wins -> matches ladder -> no residual
+        strong = {"ts": 1.0, "winner_kind": "surprise",
+                  "candidates": [{"kind": "surprise", "salience": 0.80},
+                                 {"kind": "momentum", "salience": 0.55}]}
+        path = self._write([weak] * 30 + [strong] * 10)
         try:
             m = measure(path, window=5000)
         finally:
             os.unlink(path)
         self.assertEqual(m["n"], 40)
-        self.assertEqual(m["winner_distribution"]["bonsai"], 0.75)
-        self.assertEqual(m["winner_distribution"]["momentum"], 0.25)
-        self.assertEqual(m["non_bonsai_win_share"], 0.25)
-        self.assertEqual(m["override_given_bonsai_present"], 0.25)   # bonsai lost 10/40 present
-        self.assertEqual(m["bonsai_present_share"], 1.0)
-        self.assertEqual(m["mean_candidates"], 1.25)
-        self.assertEqual(m["kinds_present_rate"]["momentum"], 0.25)
-        self.assertTrue(_verdict(m).startswith("ACTIVE"))
+        self.assertEqual(m["residual_rate"], 0.75)                 # 30/40 off-ladder
+        self.assertTrue(_verdict(m).startswith("RESIDUAL PRESENT"))
+        sig = m["by_signature"][0]
+        self.assertEqual(sig["signature"], "momentum,surprise")
+        self.assertEqual(sig["ladder_predicted"], "surprise")
+        self.assertEqual(sig["residual_rate"], 0.75)
+        self.assertEqual(m["kinds_present_rate"]["surprise"], 1.0)
 
-    def test_rubber_stamp_verdict(self):
+    def test_strict_ladder_verdict(self):
         from tools.check_arbiter_competition import measure, _verdict
-        rows = [{"ts": 1.0, "n_candidates": 1, "kinds_present": ["bonsai"],
-                 "winner_kind": "bonsai", "winner_salience": 0.45}] * 50
+        rows = [{"ts": 1.0, "winner_kind": "bonsai",
+                 "candidates": [{"kind": "bonsai", "salience": 0.45}]}] * 50
         path = self._write(rows)
         try:
             m = measure(path, window=5000)
         finally:
             os.unlink(path)
-        self.assertEqual(m["override_given_bonsai_present"], 0.0)
-        self.assertTrue(_verdict(m).startswith("RUBBER-STAMP"))
+        self.assertEqual(m["residual_rate"], 0.0)                  # observed == predicted always
+        self.assertTrue(_verdict(m).startswith("STRICT LADDER"))
 
     def test_insufficient(self):
         from tools.check_arbiter_competition import measure
-        path = self._write([{"ts": 1.0, "n_candidates": 1,
-                             "kinds_present": ["bonsai"], "winner_kind": "bonsai",
-                             "winner_salience": 0.45}] * 5)
+        path = self._write([{"ts": 1.0, "winner_kind": "bonsai",
+                             "candidates": [{"kind": "bonsai", "salience": 0.45}]}] * 5)
         try:
             m = measure(path)
         finally:

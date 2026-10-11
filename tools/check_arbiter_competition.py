@@ -1,34 +1,30 @@
 #!/usr/bin/env python3
 """check_arbiter_competition.py — READ-ONLY instrument for the GLOBAL WORKSPACE arbiter.
 
-The arbiter (theory_x/stage_tom/global_workspace.arbitrate) picks one framing line
-to LEAD each fire's focus_block. Whether it earns its keep — how often it overrides
-its routine bonsai baseline rather than rubber-stamping it — was unmeasured, because
-the decision is not recorded anywhere. Arm NEX5_GW_LOG (default OFF) and the arbiter
-appends one JSON line per fire to arbiter_decisions.jsonl; this tool reads that log.
+The arbiter (theory_x/stage_tom/global_workspace.arbitrate) picks one framing line to
+LEAD each fire's focus_block. Whether it EARNS ITS KEEP — decides anything beyond a fixed
+priority order — was unmeasured, because the decision was recorded nowhere. Arm NEX5_GW_LOG
+(default OFF) and the arbiter appends one JSON line per fire, the full candidate VECTOR:
+    {ts, candidates:[{kind, salience}], winner_kind}
 
-WHAT IT MEASURES (and, as importantly, what it does NOT):
-  - winner-kind distribution + winner ENTROPY  — how varied the broadcast lead is.
-  - NON-BONSAI win share                        — fires where the lead was NOT the
-                                                  routine attention baseline.
-  - OVERRIDE-given-bonsai-present               — among fires where bonsai WAS a
-                                                  candidate, how often it LOST. This is
-                                                  the honest "did the arbiter override an
-                                                  available baseline" number; the raw
-                                                  non-bonsai share mixes in fires where
-                                                  bonsai was never an option.
-  - candidate DEPTH                             — mean candidates/fire (1 == no contest).
-  - kinds-present RATE                          — per kind, the fraction of fires it was
-                                                  even eligible. The CADENCE term: the
-                                                  weights fix momentum (0.55) > bonsai
-                                                  ceiling (<=0.50), so a non-bonsai win is
-                                                  largely momentum-LIVENESS, not a quality
-                                                  judgement. Read override alongside this.
+PRIMARY — LADDER RESIDUAL (Beam Q-arb). The salience weights form a static ladder
+(surprise 1.00 > stakes 0.90 > momentum 0.55 > bonsai 0.50 > drive 0.45). A naive "override
+rate" just reads out WHICH candidates were live (cadence), not whether the arbiter decided
+anything. The decision content is the RESIDUAL: the fraction of fires where the observed
+winner differs from the one the STATIC weight-ladder predicts from that fire's live kinds.
+  - residual ~= 0  -> STRICT LADDER: the arbiter selects the top-priority AVAILABLE line and
+                     decides nothing beyond priority. "Earns its keep" = no; question closes.
+  - residual  > 0  -> something re-ranks candidates. It can only be the two VARIABLE
+                     multipliers: surprise = surprise_score x 1.00 (a weak surprise, score in
+                     (0.3, 0.55), falls BELOW flat momentum 0.55); bonsai = focus_num x 0.50
+                     (a low-focus bonsai falls BELOW flat drive 0.45). momentum/stakes/drive are
+                     CONSTANT, so they never move. The residual therefore localizes to
+                     surprise_score and focus_num — and focus_num comes from sense_events -> bonsai,
+                     closing the loop back to the sense_events selector.
 
-It does NOT measure content: the arbiter emits a FRAMING line over a fetch that is
-already fixed (generator.py :3057 precedes :3115), so the winner changes the lead
-instruction, never the retrieved material. This is an EXPRESSION instrument, a sibling
-of check_voice_stability.py, not a selection one.
+It does NOT measure content: the arbiter emits a FRAMING line over a fetch already fixed
+(generator.py :3057 precedes :3115), so the winner changes the lead instruction, never the
+retrieved material. An EXPRESSION instrument, a sibling of check_voice_stability.py.
 
 READ-ONLY: reads the JSONL append log; writes nothing (except --freeze -> a profile).
 Usage:
@@ -50,7 +46,12 @@ sys.path.insert(0, __file__.rsplit("/tools/", 1)[0])
 
 from substrate.paths import db_paths  # noqa: E402
 
-_DRIFT_BAND = 0.15  # |delta| beyond this on a share flags drift
+try:
+    from theory_x.stage_tom.global_workspace import SALIENCE as _LADDER  # the static weights
+except Exception:
+    _LADDER = {"surprise": 1.00, "stakes": 0.90, "momentum": 0.55, "bonsai": 0.50, "drive": 0.45}
+
+_RESID_BAND = 0.02   # residual below this == strict ladder
 
 
 def _default_path() -> str:
@@ -62,7 +63,17 @@ def _entropy(counts) -> float:
     n = sum(counts.values())
     if not n:
         return 0.0
-    return -sum((c / n) * math.log2(c / n) for c in counts.values() if c)
+    h = -sum((c / n) * math.log2(c / n) for c in counts.values() if c)
+    return h if h else 0.0          # avoid -0.0 for the single-category case
+
+
+def _ladder_predicted(kinds_present) -> str | None:
+    """The winner the STATIC weight-ladder predicts: the live kind with the highest fixed
+    weight. Deterministic — the five weights are distinct."""
+    kinds = [k for k in kinds_present if k]
+    if not kinds:
+        return None
+    return max(kinds, key=lambda k: _LADDER.get(k, 0.0))
 
 
 def _load(path: str, window: int, days: float | None) -> list:
@@ -96,51 +107,65 @@ def measure(path: str, window: int = 5000, days: float | None = None) -> dict:
 
     winner_c = collections.Counter()
     depth_c = collections.Counter()
-    present_c = collections.Counter()      # per-kind eligibility count
-    bonsai_present = 0
-    bonsai_lost = 0
-    non_bonsai_wins = 0
+    present_c = collections.Counter()
+    residual_hits = 0
+    sig_total = collections.Counter()
+    sig_residual = collections.Counter()
+    sig_predicted: dict = {}
+    sig_observed = collections.defaultdict(collections.Counter)
+
     for r in rows:
-        wk = r.get("winner_kind") or "none"
-        winner_c[wk] += 1
-        depth_c[int(r.get("n_candidates") or 0)] += 1
-        kp = r.get("kinds_present") or []
-        for k in kp:
+        cand = r.get("candidates") or []
+        kinds_present = [c.get("kind") for c in cand]
+        obs = r.get("winner_kind") or "none"
+        winner_c[obs] += 1
+        depth_c[len(cand)] += 1
+        for k in set(kinds_present):
             present_c[k] += 1
-        if "bonsai" in kp:
-            bonsai_present += 1
-            if wk != "bonsai":
-                bonsai_lost += 1
-        if wk != "bonsai":
-            non_bonsai_wins += 1
+        pred = _ladder_predicted(kinds_present)
+        sig = ",".join(sorted(set(k for k in kinds_present if k))) or "none"
+        sig_total[sig] += 1
+        sig_predicted[sig] = pred
+        sig_observed[sig][obs] += 1
+        if obs != pred:
+            residual_hits += 1
+            sig_residual[sig] += 1
+
+    by_signature = []
+    for sig, tot in sig_total.most_common():
+        by_signature.append({
+            "signature": sig,
+            "n": tot,
+            "share": round(tot / n, 3),
+            "ladder_predicted": sig_predicted[sig],
+            "observed": {k: round(v / tot, 3) for k, v in sig_observed[sig].most_common()},
+            "residual_rate": round(sig_residual[sig] / tot, 3),
+        })
 
     return {
         "n": n,
+        "residual_rate": round(residual_hits / n, 4),          # PRIMARY
         "winner_distribution": {k: round(v / n, 3) for k, v in winner_c.most_common()},
         "winner_entropy": round(_entropy(winner_c), 4),
-        "non_bonsai_win_share": round(non_bonsai_wins / n, 3),
-        "override_given_bonsai_present": (
-            round(bonsai_lost / bonsai_present, 3) if bonsai_present else None),
-        "bonsai_present_share": round(bonsai_present / n, 3),
         "mean_candidates": round(sum(d * c for d, c in depth_c.items()) / n, 3),
         "depth_distribution": {str(k): round(v / n, 3) for k, v in sorted(depth_c.items())},
         "kinds_present_rate": {k: round(v / n, 3) for k, v in present_c.most_common()},
+        "by_signature": by_signature,
     }
 
 
 def _verdict(m: dict) -> str:
-    # Descriptive, deliberately coarse. The binding number is override-given-bonsai;
-    # the raw non-bonsai share is reported but is confounded by eligibility cadence.
-    ov = m.get("override_given_bonsai_present")
-    if ov is None:
-        return "INDETERMINATE (bonsai never a candidate in-window)"
-    if ov < 0.05:
-        return ("RUBBER-STAMP (arbiter broadcasts the bonsai baseline ~always; "
-                "its decision adds ~no variation to the lead frame)")
-    if ov < 0.25:
-        return "MOSTLY-BASELINE (arbiter overrides bonsai only occasionally)"
-    return ("ACTIVE (arbiter frequently overrides the baseline; read against "
-            "kinds_present_rate — a momentum-dominated override is cadence, not judgement)")
+    rr = m.get("residual_rate")
+    if rr is None:
+        return "INDETERMINATE"
+    if rr < _RESID_BAND:
+        return ("STRICT LADDER (observed winner == static-weight prediction ~always; the "
+                "arbiter picks the top-priority AVAILABLE line and decides nothing beyond "
+                "the priority order — 'earns its keep' = no, and the question closes)")
+    if rr < 0.10:
+        return "NEAR-LADDER (a small residual beyond priority; localize it in by_signature)"
+    return ("RESIDUAL PRESENT (the arbiter departs the static ladder materially — the variable "
+            "multipliers surprise_score / focus_num are re-ranking; read by_signature for where)")
 
 
 def main(argv):
@@ -154,21 +179,23 @@ def main(argv):
 
     path = args.path or _default_path()
     m = measure(path, window=args.window, days=args.days)
-    print("=" * 70)
+    print("=" * 72)
     print(f"ARBITER-COMPETITION  {time.strftime('%Y-%m-%d %H:%M:%S')}  (n={m.get('n')})")
-    print("=" * 70)
+    print("=" * 72)
     if "error" in m:
         print("  " + m["error"])
         return 1
-    print(f"  winner distribution      : {m['winner_distribution']}")
-    print(f"  winner entropy           : {m['winner_entropy']:.3f} bits")
-    print(f"  non-bonsai win share     : {m['non_bonsai_win_share']:.3f}   (raw; confounded by cadence)")
-    ov = m['override_given_bonsai_present']
-    print(f"  override | bonsai present : {ov if ov is None else f'{ov:.3f}'}   <- the honest number "
-          f"(bonsai present in {m['bonsai_present_share']:.0%} of fires)")
-    print(f"  mean candidates / fire   : {m['mean_candidates']:.3f}   depth {m['depth_distribution']}")
-    print(f"  kinds-present rate       : {m['kinds_present_rate']}   (cadence / eligibility)")
-    print(f"  VERDICT                  : {_verdict(m)}")
+    print(f"  LADDER RESIDUAL (primary) : {m['residual_rate']:.4f}   "
+          f"(observed winner != static-weight prediction)")
+    print(f"  VERDICT                   : {_verdict(m)}")
+    print(f"  winner distribution       : {m['winner_distribution']}  (entropy {m['winner_entropy']:.3f} b)")
+    print(f"  mean candidates / fire    : {m['mean_candidates']:.3f}   depth {m['depth_distribution']}")
+    print(f"  kinds-present rate        : {m['kinds_present_rate']}   (cadence / eligibility)")
+    print("  by liveness signature (predicted vs observed -- the residual lives in cols 3 vs 4):")
+    print(f"    {'signature':<34s} {'n':>5s} {'predicted':>10s}  observed / residual")
+    for s in m["by_signature"]:
+        print(f"    {s['signature']:<34s} {s['n']:>5d} {str(s['ladder_predicted']):>10s}  "
+              f"{s['observed']}  r={s['residual_rate']:.3f}")
 
     if args.freeze:
         os.makedirs(os.path.dirname(args.freeze) or ".", exist_ok=True)
@@ -178,14 +205,12 @@ def main(argv):
     if args.baseline:
         with open(args.baseline) as f:
             base = json.load(f)
-        print(f"\n  DRIFT vs {base.get('frozen_at','?')} (winner-share movement):")
-        bw = base.get("winner_distribution", {})
-        cw = m["winner_distribution"]
-        for k in sorted(set(bw) | set(cw)):
-            b_, c_ = bw.get(k, 0.0), cw.get(k, 0.0)
-            d = c_ - b_
-            flag = "  ** SHIFT **" if abs(d) > _DRIFT_BAND else ""
-            print(f"    {k:<10s} : {c_:.3f}  (was {b_:.3f}, {d:+.3f}){flag}")
+        rb, rc = base.get("residual_rate"), m.get("residual_rate")
+        if rb is not None:
+            d = rc - rb
+            flag = "  ** RESIDUAL DRIFT **" if abs(d) > 0.05 else ""
+            print(f"\n  DRIFT vs {base.get('frozen_at','?')}:")
+            print(f"    residual_rate : {rc:.4f}  (was {rb:.4f}, {d:+.4f}){flag}")
     return 0
 
 

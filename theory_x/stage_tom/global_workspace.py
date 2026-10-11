@@ -196,7 +196,13 @@ def _maybe_log_decision(candidates: "list[tuple[float, str]]",
     """Append this fire's arbiter decision when NEX5_GW_LOG=1; never raises, never
     blocks a fire. No-op (no file touched) when the flag is off or there was no
     competition, so the default path is byte-identical to the pre-log behaviour.
-    winner index uses the same first-max rule as arbitrate_candidates()."""
+
+    Logs the full candidate VECTOR [{kind, salience}], not just the winner — the
+    EFFECTIVE salience each candidate actually carried this fire. This is what lets
+    the LADDER RESIDUAL be computed offline (observed winner vs the one the static
+    weight-ladder would predict): salience is weight×score for surprise/bonsai but a
+    flat weight for momentum/stakes/drive, so the two can diverge, and only the vector
+    records by how much. winner index uses the same first-max rule as arbitrate_candidates()."""
     if os.environ.get("NEX5_GW_LOG") != "1" or not candidates:
         return
     try:
@@ -204,10 +210,9 @@ def _maybe_log_decision(candidates: "list[tuple[float, str]]",
         wi = max(range(len(candidates)), key=lambda i: candidates[i][0])
         rec = {
             "ts": round(time.time(), 3),
-            "n_candidates": len(candidates),
-            "kinds_present": sorted(set(kinds)),
+            "candidates": [{"kind": kinds[i], "salience": round(float(candidates[i][0]), 4)}
+                           for i in range(len(candidates))],
             "winner_kind": kinds[wi],
-            "winner_salience": round(float(candidates[wi][0]), 4),
         }
         with open(_decisions_path(), "a") as f:
             f.write(_json.dumps(rec) + "\n")

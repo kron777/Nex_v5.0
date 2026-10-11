@@ -26,36 +26,44 @@ nowhere (`git grep` arbiter_decisions → 0). This round fixes that, and nothing
   fire to `arbiter_decisions.jsonl`, a **lock-free sibling of the dynamic DB** — deliberately NOT the
   one-pen substrate, so it never contends with the single writer or stalls a fire. OFF ⇒ no file is
   written and `arbitrate()` is **byte-identical** (verified: `tests/test_arbiter_competition.py`,
-  end-to-end tmp-dir run shows `line_on == line_off`). Record: `ts, n_candidates, kinds_present,
-  winner_kind, winner_salience`.
-- **`tools/check_arbiter_competition.py` (READ-ONLY, no flag)**: winner-kind distribution + entropy,
-  override rate, candidate depth, per-kind eligibility (cadence). `--freeze`/`--baseline` for drift,
-  like G3.
+  end-to-end tmp-dir run shows `line_on == line_off`). Record: `ts` + the full candidate VECTOR
+  `[{kind, salience}]` + `winner_kind`. The vector (not just the winner) is
+  mandatory — it is the only way to recover each candidate's EFFECTIVE salience and so the ladder
+  prediction (Beam Q-arb; same "log the vector, re-rank offline" rule as `self_present`).
+- **`tools/check_arbiter_competition.py` (READ-ONLY, no flag)**: the ladder-residual readout below +
+  winner distribution/entropy, candidate depth, per-kind eligibility (cadence). `--freeze`/`--baseline`
+  for drift, like G3.
 
-## PRIMARY (pre-registered)
+## PRIMARY (pre-registered) — LADDER RESIDUAL
 
-**OVERRIDE-GIVEN-BONSAI-PRESENT** = among fires where `bonsai` was a candidate, the fraction where it
-**lost**. This is the honest "the arbiter overrode an available baseline" number.
+The salience weights form a static ladder: `surprise 1.00 > stakes 0.90 > momentum 0.55 > bonsai 0.50 >
+drive 0.45`. A naive "override rate" just reads out *which* candidates were live (cadence), not whether
+the arbiter decided anything. The decision content is the **residual**:
 
-- **< 0.05 → RUBBER-STAMP.** The arbiter broadcasts the bonsai baseline ~always; its decision adds ~no
-  variation to the lead frame. This would *confirm* the prompt-only-inert reading empirically and close
-  the "does GWT do anything" question: keep it (fail-safe), stop investing, do not reorder.
-- **≥ 0.25 → ACTIVE.** The arbiter frequently varies the lead frame. An **expression** lever may live
-  there — but it folds into the **voice track** (does a different lead line measurably shift *style over
-  fixed content*?), NOT a selection/reorder question.
-- 0.05–0.25 → MOSTLY-BASELINE (occasional override).
+> **residual rate** = fraction of fires where the observed winner ≠ the winner the **static weight
+> ladder** predicts from that fire's live kinds, reported as a four-column readout stratified by
+> liveness signature (signature → n → ladder-predicted → observed dist → residual).
+
+- **≈ 0 → STRICT LADDER.** The arbiter picks the top-priority *available* line and decides nothing beyond
+  priority order. "Earns its keep" = no; the question closes as cleanly as diversity_starvation did.
+  Keep it (fail-safe), stop investing, do not reorder.
+- **> 0 → RESIDUAL PRESENT.** Something re-ranks candidates. It can only be the two **variable**
+  multipliers (momentum/stakes/drive are *constant* weights, so they never move the ladder): a weak
+  surprise (`surprise_score·1.00`, score ∈ (0.3, 0.55)) falling **below** flat momentum 0.55, or a
+  low-focus bonsai (`focus_num·0.50`) falling **below** flat drive 0.45. The residual therefore localizes
+  to `surprise_score` and `focus_num` — and `focus_num` comes from `sense_events → bonsai`, closing the
+  loop back to the sense_events selector. *That* localized residual is the answer.
 
 ## Tripwire / measurement-of-what guard (binding)
 
-1. **The number measures FRAME variation, not content selection.** The fetch is fixed before the
-   arbiter; override rate can never license a fetch reorder. State this on every citation.
-2. **Override is confounded by cadence.** The weights fix `momentum (0.55) > bonsai ceiling
-   (focus_num·0.50 ≤ 0.50)`, so momentum beats bonsai *whenever it is live*. A high override rate may be
-   pure **momentum-liveness**, not a quality judgement — exactly the groove-alert "readiness is a volume
-   knob" error ([[nex5-readiness-is-a-volume-knob]]). **Report override against `kinds_present_rate`;**
-   if the override is ~entirely momentum-driven, the arbiter is a momentum-cadence relay, not a judge.
-   If this question — "is override a judgement or a cadence term?" — cannot be answered from the logged
-   fields, **STOP and ask**, do not substitute a weaker claim ([[nex5-round-protocol]]).
+1. **The residual measures FRAME variation, not content selection.** The fetch is fixed before the
+   arbiter; it can never license a fetch reorder. State this on every citation.
+2. **Do not report the raw override/winner distribution as the primary** — it is a cadence readout
+   (P(kind live)), exactly the groove-alert "readiness is a volume knob" error
+   ([[nex5-readiness-is-a-volume-knob]]). The residual *subtracts* the ladder (the cadence) and is the
+   only non-cadence number. If the residual cannot be computed from the logged vector (e.g. a schema
+   regression drops saliences), **STOP and fix the schema**, do not substitute override rate
+   ([[nex5-round-protocol]]).
 3. **Exposure gate.** No claim until ≥ ~1 day of live fires are logged with `NEX5_GW_LOG=1` deployed.
    Until then the instrument prints "insufficient / is NEX5_GW_LOG armed?" by design.
 
