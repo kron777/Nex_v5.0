@@ -1,0 +1,63 @@
+PROMPT FOR BEAM AI — NEX dev (2026-10-11): the firing-branch set excludes high-input topics. Defect or design?
+================================================================================================================
+
+GROUND RULES
+- Cite, don't assert: path:line or live-DB/measurement evidence; flag inferred-vs-checked. Your
+  snapshot may be pre-PR; generator.py / bonsai.py you likely have, global_workspace.py you don't.
+- ANALOGUE throughout. Dark-by-default, measure-before-flip.
+
+CONTEXT — L4 closed; this is a different node (diversity_starvation), measured today
+The L4 "break the groove" line concluded: the "this item is about…" opener is her VOICE, not a defect
+(conditional content entropy equal frame-present vs absent) — no lever built. Moving to the next open
+DAG node, diversity_starvation (live_unproven), I measured branch firing (1000 fires, recursion_attrib)
+against branch INPUT (21d, non-fountain beliefs by branch_id), and the node's premise was INVERTED:
+
+  branch            input%   fire%   fire/input
+  emerging_tech      27.1     17.1      0.63
+  cognition          14.5      4.5      0.31
+  news               13.5      0.0      0.00   <-- 13.5% of input, NEVER fires
+  computing          11.3      9.8      0.86
+  crypto              9.1      6.9      0.76
+  ai_research         6.6     13.9      2.12
+  cognition_science   3.9     15.0      3.86
+  markets             3.2      9.8      3.07
+  psychology          2.4      8.8      3.61  (a "cold-3" seed)
+  language            1.1      4.9      4.28  (a "cold-3" seed)
+  history             0.9      3.5      3.69  (a "cold-3" seed)
+  literature/neuroscience/mathematics/philosophy/science: have input, fire 0%
+
+The firing tree is a FIXED 10-seed set (bonsai.py:91 SEED_BRANCHES = ai_research, emerging_tech,
+cognition_science, computing, systems, crypto, markets, language, history, psychology). The "cold-3"
+starvation targets (history/language/psychology) are SEEDS and now OVER-fire 3.6-4.3x their input;
+the genuinely input-starved topics outside the seed set (news 13.5% -> 0%, literature/neuro/math/
+philosophy/science -> 0%, cognition 14.5% -> 4.5%) are excluded from fountain reflection. All measured
+against the live DB.
+
+FOUR QUESTIONS
+
+F1 — DEFECT or BY-DESIGN? Is the fixed-seed firing set intended to keep ephemeral/high-volume topics
+(news especially) OUT of contemplative fountain reflection — i.e., news 13.5%-input-0%-fire is correct,
+the fountain is for "deep" seed branches? Or is it a stale defect — the seed set predates the current
+input mix and should track it, so 13.5% news input is wasted? What is the intended relationship between
+the INPUT distribution and the FIRING distribution (proportional? deliberately decoupled? curated)?
+
+F2 — is the starvation bonus mis-targeted? _STARVE_BONUS (0.15, bonsai.py:38) lifts a hardcoded cold-3
+that already over-fire (3.6-4.3x input). Should "starvation" instead target branches with fire/input < 1
+(news, cognition, emerging_tech) rather than a fixed list — or is per-branch fire/input the wrong metric
+because seeds SHOULD over-fire (they're the chosen deep branches, and input-proportional firing would
+just chase the news cycle)? This is the defect-vs-voice call one layer up: is "balanced by input" even
+the goal?
+
+F3 — can non-seed branches enter the firing tree at all? add_branch exists (bonsai.py:200) but news/
+literature fire 0%. Are they never added (the pipeline only attends seed branch_ids), or added but never
+win the softmax pick from a cold start? If you can see bonsai.py / the stage2 pipeline, cite which — it
+decides whether a fix is tree-membership (admit news) or scoring (lift new branches), and the pre-screen
+LOCUS predicate needs it.
+
+F4 — stale DAG notes. The node's own note said "cold-3 still starved"; the measurement says they OVER-fire.
+That's the 2nd backwards note I've hit (L3_teeth_test said "gate resolved" over a null). Should every DAG
+node carry a last-measured date + the measurement, re-measured on a cadence, so the graph can't drift from
+reality? (Derived stats going stale is a known failure mode here.)
+
+Same ground rules. F1 is the one that gates everything — if news-excluded-from-fountain is by design, there
+is no defect and I close the node; if it's stale, the fix is the seed set / starvation target, pre-screened.

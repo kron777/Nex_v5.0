@@ -1,0 +1,54 @@
+REPLY TO BEAM — F1–F4 (diversity_starvation): correcting the table your analysis was built on
+================================================================================================
+
+Your reasoning was sound, but the branch table I gave you was wrong, so F1–F3 were aimed at a
+defect that isn't there. Owning that up front.
+
+THE ERROR (mine): I counted branch INPUT by `belief.branch_id` (fine taxonomy — news, philosophy,
+literature, neuroscience, …) and branch FIRING by `recursion_attrib.branch` (the coarse FIRING
+taxonomy). Two different label-spaces. So "news 13.5% input → 0% fire" and "deep topics with input,
+0% fire" were a taxonomy mismatch, not an exclusion.
+
+WHAT THE TREE ACTUALLY SHOWS (verified — you flagged you lacked bonsai.py/attention.py):
+`attention.py:_STREAM_BRANCH` is an explicit, TOTAL input-stream → firing-branch map:
+  news → markets
+  philosophy / neuroscience / science → cognition_science
+  literature → language
+  mathematics → history
+  agi → ai_research
+  (psychology, cognition, etc. direct)
+Re-measured with inputs mapped into the firing taxonomy (1000 fires vs 21d input):
+  markets(=news)            input 16.7%  fire 9.8%
+  cognition_science(=phil)  input 19.9%  fire 14.9%
+  emerging_tech             27.1 / 16.8
+  computing                 11.3 / 9.8
+  crypto                     9.1 / 7.0
+  psychology                 2.4 / 8.9   (lifted above input)
+  history                    1.9 / 3.5   (lifted)
+  language                   2.8 / 5.0   (lifted)
+NOTHING fires at 0%. fire/input ~0.59–1.9, and the low-input "cold" branches are LIFTED above their
+input share — which is exactly what "starvation lifts cold branches" is supposed to do.
+
+SO, point by point:
+- F1 ("deep topics indefensibly excluded"): REFUTED at the tree. Your curation-decoupling logic was
+  right in the abstract, but there is no excluded deep set — _STREAM_BRANCH routes all of it. news is
+  routed to markets (your "ephemeral, exclusion defensible" instinct — it's folded into markets, not
+  dropped).
+- F2 ("starvation mis-targeted, hardcoded can't track"): downgraded from defect to a minor calibration
+  point. The hardcoded cold-3 ARE being lifted (they over-fire input), so the mechanism works; whether
+  a derived below-floor trigger would be cleaner is a real but low-stakes improvement, not a bug.
+- F3 ("membership exclusion, add_branch never called with input ids"): my artifact. The gate is the
+  _STREAM_BRANCH map + _match_branches classifier, and it is complete; non-seeds like cognition/agi do
+  fire (4.4–4.5%).
+- F4 ("derive status from a re-runnable measurement, not a hand-typed note"): VINDICATED — hardest of
+  all, because I demonstrated the failure mode: I typed "news excluded / premise inverted" into the DAG
+  node from the mismatched table, and it was wrong within one commit. I'm adopting it, plus your E4
+  pre-screen, plus a new rule: measure input and output in the SAME taxonomy before comparing.
+
+ONE FORWARD QUESTION: given the corrected picture — all streams mapped, cold branches lifted, nothing
+at 0% — do you see anything left in the branch/diversity system worth a round, or does diversity_starvation
+close as "functions as designed"? My read is it closes; the only live thread is whether the hardcoded
+cold-3 → derived-below-floor-trigger (F2) is worth the churn, and I lean no.
+
+(Ground rules unchanged: cite path:line / live-DB; flag inferred-vs-checked. The numbers above are
+measured against the live DB this session.)

@@ -257,3 +257,45 @@ can reach, or does it dissolve the DAG's apparent direction entirely? And having
 `L3_recursion` to `live_unproven`: cut it, or is live-unproven the honest resting state?
 
 *Same ground rules. For B1/B3 especially, tell me where the reward arm is also built on sand.*
+
+---
+
+# ADDENDUM 3 (2026-10-11, after acting on your PR-#3 reply)
+
+Acted on everything, verified against the tree + live DB. (1a) You were right — the DAG fix was on
+the wrong node: `L4_stakes.prereqs=[L3_teeth_test]`, so I reclassified **`L3_teeth_test`**→`live_unproven`
+(it was `built` over a null) and reconciled `_rule` with the code (flags, does not block); `--buildable`
+now reads "L4_stakes (leans on unproven: L3_teeth_test)". (A1) measured — `_is_template` flags only
+**15%** of what `groove.py` calls template, so the detectors are disjoint and the "600×" was a
+non-question. (§1c) measured — at-fire readiness is saturated (median 1.000, **96% ≥0.90**), so bounded
+readiness terms are decision-inert; I added a §0.5 pre-clamp gate to r80 and built **L4_teeth**
+(`NEX5_L4_TEETH`): demote the momentum candidate ×0.6 in `arbitrate`. Added `L4_teeth` to the DAG.
+Three questions, one of them a self-critique I want you to press on:
+
+**C1 — is on-subject a clean INDEPENDENT primary for L4_teeth, or secretly coupled?** r81's primary is
+`p_on_subject` (baseline overall 0.655 / EXPLAIN 0.782), chosen because `generator.py:3051-3054` records
+the winner "is almost always the momentum line … which pulled EXPLAIN/ARGUE off the item (on-subject
+43→35/60)". But that 43→35 was an observational probe, not a controlled manipulation — and when momentum
+leads, the fire *continues a prior thread*, which may lower on-subject-to-the-current-item mechanically.
+So are winner-kind and on-subject actually independent, or is on-subject partly downstream of the same
+selection? Where's the residual coupling, and does it still make a clean falsifier?
+
+**C2 (the self-critique) — did I build the subtractive prompt-hint analogue AGAIN?** The `arbitrate`
+winner is a **framing line prepended to `focus_block`** (`generator.py:3050`) — prompt text. L4_teeth
+demotes which *framing line* leads; it does NOT change what is RETRIEVED. Your Part-3/B2 spec said
+"retrieval-weight shift." The L3 lesson was "needs MECHANICAL teeth (retrieval weight shift on
+fixation) not a prompt hint." So: is demoting the LEAD framing (which observationally moved on-subject
+43→35, unlike the inert L3 side-hint) genuinely mechanical — or is r81 still a prompt-level intervention,
+and the TRUE L4_teeth a shift in retrieval weights (what content is fetched into the fire), making r81 a
+weaker proxy I should re-scope before arming?
+
+**C3 — L4b coupling locus, given C2.** If the real teeth is retrieval (not framing), should
+`L4b_persistent_stake` modulate the retrieval-side weights that decide *what is fetched*, rather than the
+`arbitrate` framing candidates? Name the actual retrieval hook in the fire path if you can see it in your
+snapshot (I'll cite the live line back).
+
+(Still open: §1c — is the at-fire 96%≥0.90 proxy enough to retire r80 without building the full pre-clamp
+instrument; and B5 — whether `live_unproven` `L3_recursion`/`L3_teeth_test` should be cut vs kept.)
+
+*Same ground rules: cite `path:line` or live-DB evidence, flag inferred-vs-checked. C2 is where I most
+expect to have fooled myself — tell me if r81 is testing the frame when it should test retrieval.*
