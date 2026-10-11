@@ -1,6 +1,30 @@
 # R80 — PRE-REGISTRATION: L4 reward / approach arm (`NEX5_APPROACH`)
 
-## 0. Status — built, feasibility PASS, ready to arm; why reward-FIRST
+> **⚠ AMENDED 2026-10-11 (Beam's PR-#3 reply, verified) — DO NOT ARM until the §0.5 gate clears.**
+> Three verified findings demote r80 from "ready to arm":
+> - **Decision-inertness (§1c proxy).** At-fire readiness is saturated — median 1.000, 96% of fires at
+>   ≥0.90, only **4%** in the [0.70, 0.90) band where a ≤0.20 term could flip a firing decision. So a
+>   bounded readiness term (reward or cost) rarely changes *whether* she fires; it moves a number that is
+>   already maxed. The reward arm's one remaining lever is *sub-threshold lift* (pushing a near-miss over
+>   0.70), which the at-fire data cannot see — it needs the real pre-clamp measurement (§0.5).
+> - **Self-referential primary (B3).** The primary below (grounded fraction) is the signal the reward
+>   reads. Beam A2 applies: the primary must be **off-substrate** (crystallizer reject rate / chat
+>   near-dup). But grounding is orthogonal to both (corr +0.08), so the honest pre-registered outcome is
+>   likely **INCONCLUSIVE** (no off-substrate metric moves) — not success.
+> - **The frontier is selection, not readiness (Beam Part 3 → `L4_teeth`).** readiness is a saturated
+>   volume knob; r80 is the reward-shaped sibling of the inert L3 prompt-hint. The lever that moves *what*
+>   fires is selection-coupling (`L4_teeth`, added to the DAG as a gap node). If §0.5 shows the term can't
+>   bite, skip to `L4_teeth`.
+
+## 0.5. Step-0 gate (MUST pass before arming) — can a bounded readiness term ever flip a decision?
+
+Instrument the **pre-clamp** `total` in `readiness.score()` and log it over ≥24h of live evaluations
+(all checks, not just fires). Compute `P(pre-clamp total ∈ [0.70 − bonus_max, 0.70))` — the only band
+where the +bonus changes a fire/no-fire outcome. If that band is rarely populated (say < a few %), r80 is
+**decision-inert** → do not arm; the frontier is `L4_teeth`. The at-fire proxy already shows the *aversive*
+direction is inert (96% of fires ≥ 0.90). ANALOGUE throughout.
+
+## 0. Status — built, feasibility PASS (signal level), but NOT decision-proven; why reward-FIRST
 
 Supersedes the aversive r79 (never armed; `readiness` is a volume knob and the groove RATE
 is ~71% a cadence proxy — see r79's banner). Per the welfare **dominance-out** bar

@@ -6,7 +6,7 @@
     "gap",
     "gorge"
   ],
-  "_rule": "buildable_now(node) := all(status[p] in ('built','live_unproven') for p in prereqs) and status[node]=='gap'. A prereq that is live_unproven blocks ADVANCE past it until proven, even though dependents are technically buildable \u2014 flagged separately.",
+  "_rule": "buildable_now(node) := all(status[p] in ('built','live_unproven') for p in prereqs) and status[node]=='gap'. A live_unproven prereq is TREATED AS SATISFIED by the tool: dependents remain buildable and are tagged [LEANS ON UNPROVEN: ...] (nex_next_dev.py:79-81,102) \u2014 the tool FLAGS, it does not block. (Corrected 2026-10-11: the prior wording 'blocks ADVANCE until proven' described an intent the code never implemented; the project advanced to L4 over an unproven L3 deliberately \u2014 see L3_teeth_test note. To actually block, remove 'live_unproven' from _SATISFIED at nex_next_dev.py:29.)",
   "nodes": {
     "L1_faculties": {
       "layer": 1,
@@ -34,11 +34,11 @@
     },
     "L3_teeth_test": {
       "layer": 3,
-      "status": "built",
+      "status": "live_unproven",
       "prereqs": [
         "L3_recursion"
       ],
-      "note": "DONE. v2 built inline in generator.py (fire-event sampling, not timer). 258 real samples. Verdict: COSMETIC (0.333 vs 0.337). Gate resolved."
+      "note": "RECLASSIFIED built->live_unproven 2026-10-11 (Beam, verified): this is the node that GATES L4_stakes (L4.prereqs=[L3_teeth_test]), and marking it 'built / Gate resolved' over a NULL overstated it. v2 built inline in generator.py (fire-event sampling, not timer), n=258 real samples, P(move|active)=0.333 vs P(move|absent)=0.337 — null at achievable sample (~115 days to resolve statistically). The test ran; the mechanism is unproven. L4 remains buildable but now correctly flags [LEANS ON UNPROVEN: L3_teeth_test]."
     },
     "L4_stakes": {
       "layer": 4,
@@ -46,7 +46,15 @@
       "prereqs": [
         "L3_teeth_test"
       ],
-      "note": "states the system cannot be neutral about \u2014 wired so deep they commandeer it. Mattering. The real frontier."
+      "note": "states the system cannot be neutral about \u2014 wired so deep they commandeer it. Mattering. The real frontier. CAVEAT 2026-10-11: L4 as built couples a bounded term to the readiness SCALAR, but readiness is saturated at fire time (96% of fires >=0.90; r80 \u00a71c), so a <=0.20 term is decision-inert ~96% of the time \u2014 the volume-knob/prompt-hint analogue of the null L3 recursion. The scalar arm (r79 aversive / r80 reward) is NOT the live frontier; see L4_teeth."
+    },
+    "L4_teeth": {
+      "layer": 4,
+      "status": "gap",
+      "prereqs": [
+        "L3_teeth_test"
+      ],
+      "note": "SELECTION-coupling frontier (added 2026-10-11, Beam Part 3; placement provisional). Where L4_stakes moves a readiness SCALAR (how OFTEN she fires \u2014 decision-inert, see L4_stakes caveat), L4_teeth shifts WHICH candidate leads WITHIN a fire: a retrieval-weight shift in global_workspace.arbitrate between candidate construction and max(), single-turn, no persistence. This is the mechanical-teeth lesson the L3 note already named ('needs MECHANICAL teeth not a prompt hint'). > L4 (moves selection, not a clamp-absorbed scalar); < L4b/L5 (no persistence, no felt claim). Falsifier: flag ON must change the LEADING candidate at matched cadence. Prereq L3_teeth_test = the teeth lineage; parallel to the L4_stakes scalar, not downstream of it. The persistent version is L4b_persistent_stake."
     },
     "L5_inside": {
       "layer": 5,
