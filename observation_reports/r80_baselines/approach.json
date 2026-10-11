@@ -1,0 +1,44 @@
+{
+  "round": "r80",
+  "metric": "L4 reward/approach arm (NEX5_APPROACH) — bounded positive readiness term on world-contact",
+  "signal": "p_on_subject over the last 30 fires (subject_fidelity: fraction of fires sharing >=1 content token with their focal_item)",
+  "frozen_at": "2026-10-11",
+  "frozen_by": "manual measurement this session (NEX running); re-freeze before reuse — rates go stale",
+  "window_days": 14,
+  "signal_baseline_30fire_window": {
+    "mean": 0.593, "median": 0.667, "p25": 0.433, "p75": 0.767, "p90": 0.833, "min": 0.0, "max": 1.0,
+    "grounded_fire_fraction": 0.59
+  },
+  "reward_params_frozen": {
+    "window_fires": 30,
+    "onset": 0.767,
+    "onset_basis": "30-fire-window p75 (top-quartile grounding; NOT the mean, per Beam A3; NOT the daily p75 0.676 which engaged ~46%)",
+    "saturation": 0.90,
+    "bonus_max": 0.10,
+    "bonus_max_basis": "PROVISIONAL — Beam 1c calibration (> readiness noise floor, < ~half smallest decision margin) is the principled bound; 0.10 < smallest existing readiness term pending that measurement",
+    "formula": "bonus = clamp01((p_on_subject - onset)/(sat - onset)) * bonus_max"
+  },
+  "feasibility_simulation": {
+    "method": "30-fire window slid over the 14d history; bonus = f(window p_on_subject)",
+    "windows": 2086,
+    "bonus_zero_pct": 81,
+    "bonus_positive_pct": 19,
+    "bonus_saturated_pct": 5,
+    "mean_lift_all_windows": 0.0112,
+    "verdict": "PASS — engages only in clearly-above-baseline grounding (~19% duty), silent otherwise. A positive, bounded mattering-term."
+  },
+  "mechanism_premise_CONFIRMED": {
+    "grounded_flag_lag1_autocorr": 0.379,
+    "meaning": "grounding PERSISTS fire-to-fire, so 'fire more when recently grounded' can raise the grounded FRACTION — the reward is non-tautological and has real leverage."
+  },
+  "scope_finding_ORTHOGONALITY": {
+    "corr_p_on_subject_vs_groove_per_fire": 0.079,
+    "corr_note_reject_rate": "p_on_subject is also flat against crystallizer reject rate (~1.0-1.2/fire regardless of grounding)",
+    "meaning": "Grounding is ORTHOGONAL to grooming and to reject rate on live. This arm reshapes the GROUNDING mix; it does NOT target grooming (a separate axis for a later selection-coupling node, L4b). Pre-registered as a prediction: r80 will raise grounded fraction and will NOT move groove/fire."
+  },
+  "independent_primary_for_round": {
+    "primary": "grounded fraction (p_on_subject) at CONSTANT cadence (Beam 1a: ratio + cadence co-primary)",
+    "why_not_an_external_metric": "grounding predicts no independent downstream outcome on live (orthogonal to grooming and reject rate), so the honest primary is the ratio itself, de-cadenced by the co-primary; non-tautological per the +0.379 autocorrelation",
+    "cadence_baseline_fires_per_day": 690.5
+  }
+}
