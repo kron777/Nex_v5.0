@@ -1,0 +1,19 @@
+{
+  "n": 2091,
+  "I_style_content": 0.0178,
+  "H_style": 1.6261,
+  "H_content": 3.2256,
+  "H_content_given_style": 3.2078,
+  "dominant_style": "item-frame",
+  "dominant_style_share": 0.425,
+  "H_content_in_dominant_style": 3.2153,
+  "style_distribution": {
+    "item-frame": 889,
+    "deictic-open": 855,
+    "topic-direct": 272,
+    "self-ref": 66,
+    "question-open": 9
+  },
+  "verdict": "VOICE (stable signature, responsive content)",
+  "frozen_at": "2026-10-11"
+}
