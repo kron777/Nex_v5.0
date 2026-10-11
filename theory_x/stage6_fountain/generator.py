@@ -251,6 +251,29 @@ def _fixation_teeth(sorted_branches, pick, dynamic_db=None):
         return pick
 
 
+# L4 phrasing (NEX5_PHRASING_ROTATE, default OFF) — rotate the item-referent so the
+# "this item is about ..." opener frame can't lock in across fires. A substitutive
+# prompt-STRUCTURE change, not an instruction. r83 Step-0 on a MINIMAL reconstruction
+# showed the referent alone didn't move the opener and the frame measured as VOICE
+# (equal content entropy frame-present vs absent); this ships default-OFF so it can be
+# tested on the REAL fire prompt, which the minimal A/B could not reproduce. Preserves
+# first-letter capitalization; fail-safe returns the text unchanged.
+_ITEM_REFERENTS = ("the passage", "the material", "the text", "this note", "the excerpt")
+
+
+def _rotate_item_referent(prompt_text: str, fire_count: int) -> str:
+    try:
+        import re as _re
+        ref = _ITEM_REFERENTS[int(fire_count) % len(_ITEM_REFERENTS)]
+
+        def _sub(m):
+            return ref[0].upper() + ref[1:] if m.group(0)[0].isupper() else ref
+
+        return _re.sub(r"\b(?:the|this) item\b", _sub, prompt_text, flags=_re.IGNORECASE)
+    except Exception:
+        return prompt_text
+
+
 # Seed reference material — minority presence (~20%)
 _SEED_SOURCES = (
     "koan",
@@ -3812,6 +3835,12 @@ class FountainGenerator:
             self._last_prompt_blocks = self._prompt_block_manifest(_prompt_text)
         except Exception:
             self._last_prompt_blocks = []
+
+        # L4 phrasing rotation (NEX5_PHRASING_ROTATE, default OFF): swap the item-referent
+        # per fire so the opener frame can't lock in. OFF => _prompt_text byte-identical.
+        if os.environ.get("NEX5_PHRASING_ROTATE") == "1":
+            _prompt_text = _rotate_item_referent(
+                _prompt_text, int(getattr(self, "_total_fires", 0)))
 
         return _prompt_text, retrieval_manifest
 
