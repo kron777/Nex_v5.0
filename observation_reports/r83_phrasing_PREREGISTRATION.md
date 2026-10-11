@@ -1,5 +1,17 @@
 # R83 — PRE-REGISTRATION: the phrasing-layer groove (`NEX5_PHRASING_ROTATE`)
 
+> **✅ CONCLUDED 2026-10-11 — the opener frame is VOICE, not a defect. No lever built; L4 phrasing line closes.**
+> Beam's E2 defect-vs-voice test, run read-only on 3,739 fires: content entropy and lexical richness are
+> EQUAL for frame-present vs frame-absent fires (body token-entropy 5.53 vs 5.36; TTR 0.934 vs 0.942 — the
+> frame's bodies are if anything slightly richer). Beam's defect signature (entropy drops under the frame)
+> is ABSENT. The only gap is item-responsiveness 0.362 vs 0.415, explained by the frame fires being the
+> MULTI-belief ones (the body engages the whole set, so it shares fewer tokens with any single focal_item —
+> by construction, not decoupling). So the "this item is about…" opener is her characteristic summarizing
+> cadence; levering it out (the located multi-belief cue) would flatten her distinguishability without
+> recovering engagement. Analogue-honest call (Beam E2): KEEP it — it is identity, not a bug. The lever
+> is located and understood but deliberately NOT built. See `observation_reports/LEVER_PRESCREEN.md` for
+> the E4 pre-screen now gating future levers.
+
 > **⛔ STEP-0 RUN 2026-10-11 — the `NEX5_PHRASING_ROTATE` lever is FALSIFIED. NOT BUILT. The gate worked.**
 > Local Ollama A/B (qwen2.5:3b, 24 items × 2 arms, scratchpad `r83_step0_ab.py` / `r83_step0b_source.py`):
 > - **Rotating the item-referent did nothing:** FIXED "the item" → template-opener 0.042, ROTATED → 0.125;
