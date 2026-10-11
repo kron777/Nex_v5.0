@@ -216,6 +216,41 @@ def _weighted_branch_pick(sorted_branches, top_pick):
         return top_pick
 
 
+def _fixation_teeth(sorted_branches, pick, dynamic_db=None):
+    """L4_teeth (retrieval, r82): the MECHANICAL teeth the L3 note named — a
+    "retrieval weight shift on fixation", not a prompt hint.
+
+    If `pick` repeats the previous fire's RECORDED seed branch (fixation), divert the
+    CREDIT+CARRY to the next branch with positive focus so a DIFFERENT branch seeds
+    subsequent fires (the carry loop — momentum/hot_observer — is what seeds them). The
+    recorded branch is left honest by the caller, so the fixation signal stays valid and
+    the teeth re-fires while fixation persists. BOUNDED: diverts at most one step, only to
+    a real alternative, only on a detected repeat. Reads recursion_attrib RO; FAIL-SAFE:
+    returns `pick` on any error (incl. no history / absent table) — never distorts a fire
+    beyond falling back to the true pick."""
+    try:
+        import sqlite3 as _sq
+        if dynamic_db is None:
+            from substrate.paths import db_paths as _dbp
+            dynamic_db = str(_dbp()["dynamic"])
+        con = _sq.connect(f"file:{dynamic_db}?mode=ro", uri=True, timeout=3)
+        try:
+            row = con.execute(
+                "SELECT branch FROM recursion_attrib ORDER BY ts DESC LIMIT 1").fetchone()
+        finally:
+            con.close()
+        prev = row[0] if row and row[0] else ""
+        if not prev or pick != prev:
+            return pick  # no fixation -> leave the pick untouched
+        for b in sorted_branches:
+            bid = b.get("branch_id")
+            if bid and bid != pick and float(b.get("focus_num", 0) or 0) > 0:
+                return bid  # divert the carry to the next real branch
+        return pick
+    except Exception:
+        return pick
+
+
 # Seed reference material — minority presence (~20%)
 _SEED_SOURCES = (
     "koan",
@@ -1952,6 +1987,19 @@ class FountainGenerator:
             except Exception:
                 pass  # never stall a fire
         # HOT observer: classify fire, write meta-belief about it (fail-safe)
+        # L4_teeth (retrieval, NEX5_RETRIEVAL_TEETH, default OFF): on fixation (this fire's
+        # seed branch repeats the previous), divert the CREDIT+CARRY to the next branch so a
+        # DIFFERENT branch seeds subsequent fires. The recorded hot_branch stays honest
+        # (recursion_attrib / fountain_events); only the carry (momentum + hot_observer) is
+        # diverted, so the fixation signal remains valid and the teeth re-fires while fixated.
+        _carry_branch = hot_branch
+        if os.environ.get("NEX5_RETRIEVAL_TEETH") == "1" and hot_branch and branches:
+            try:
+                _carry_branch = _fixation_teeth(
+                    sorted(branches, key=lambda b: b.get("focus_num", 0), reverse=True),
+                    hot_branch)
+            except Exception:
+                _carry_branch = hot_branch  # never distort the carry
         if os.environ.get("NEX5_HOT_OBSERVER") == "1":
             try:
                 from theory_x.stage_tom.hot_observer import observe as _hot_obs
@@ -1960,14 +2008,14 @@ class FountainGenerator:
                     _bdb_hot = str(_dbp_hot()["beliefs"])
                 except Exception:
                     _bdb_hot = "/home/rr/Desktop/Desktop/nex5/data/beliefs.db"
-                _hot_obs(thought or "", hot_branch or "", _bdb_hot)
+                _hot_obs(thought or "", _carry_branch or "", _bdb_hot)
             except Exception:
                 pass  # never stall a fire
         # Binding/Momentum: capture the carried thread for the next fire.
         if os.environ.get("NEX5_MOMENTUM", "1") == "1":
             try:
                 from theory_x.stage_tom.momentum import capture_momentum
-                capture_momentum(thought or "", hot_branch or "")
+                capture_momentum(thought or "", _carry_branch or "")
             except Exception:
                 pass  # never stall a fire
 
