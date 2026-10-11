@@ -1,0 +1,31 @@
+{
+  "n": 2116,
+  "opener_repeat": 0.5397,
+  "opener_distinct": 1284,
+  "opener_hhi": 0.00276,
+  "consec_jaccard_ge_0.5": 0.1599,
+  "is_template_rate": 0.1026,
+  "top_openers": [
+    [
+      "this item is about an ethereum layer network",
+      48
+    ],
+    [
+      "this item brings up that fear again it",
+      46
+    ],
+    [
+      "the drone plan item reminds me again of",
+      30
+    ],
+    [
+      "this item discusses concerns about corporate accountability and",
+      27
+    ],
+    [
+      "the item discusses concerns about corporate accountability and",
+      21
+    ]
+  ],
+  "frozen_at": "2026-10-11"
+}
