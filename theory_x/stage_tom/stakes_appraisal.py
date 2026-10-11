@@ -152,8 +152,98 @@ def appraise_groove(beliefs_db: str | None = None, now: float | None = None) -> 
 
 def readiness_penalty(cost: float) -> float:
     """The BOUNDED, non-positive readiness contribution of a stake going badly.
-    In [-_COST_CLAMP, 0]. This is where a stake becomes a cost that shapes
-    behaviour — discouraging her from churning readiness while grooving. The
-    magnitude and direction are PROVISIONAL (r79 measures whether it reduces
-    grooving without over-suppressing); shipped only behind NEX5_STAKES."""
+    In [-_COST_CLAMP, 0]. SHELVED (not armed): r79's aversive design was found to be
+    a volume brake on a cadence-proxy signal. Per the welfare dominance-out bar
+    (SENTIENCE_PROGRAM §5a), the aversive term is admissible only if the reward arm
+    (appraise_approach, r80) provably fails a pre-named discrimination. Retained as
+    the to-be-admitted-against-a-gap option; shipped only behind NEX5_STAKES."""
     return -_clamp(max(0.0, cost))
+
+
+# ── r80: the REWARD / approach arm — a bounded POSITIVE readiness term ────────
+# Dominance-out (Beam 1b/1d): a reward term has a checkable positive prediction
+# (readiness higher after world-contact) where the aversive term's success and
+# failure both look like "less fire". Ship this first; admit the aversive arm only
+# against a proven gap. "Mattering is the term, not its sign."
+#
+# Signal = recent world-contact = p_on_subject (fraction of recent fires sharing
+# >=1 content token with their retrieved focal subject — subject_fidelity). It is a
+# per-fire FRACTION, so (unlike the groove RATE) it is not a cadence proxy.
+#
+# SCOPE, measured 2026-10-11 (observation_reports/r80_baselines/approach.json):
+# grounding is ORTHOGONAL to grooming on live (corr p_on_subject vs groove/fire =
+# +0.08) and flat against the crystallizer reject rate. So this arm reshapes the
+# GROUNDING mix (makes readiness ABOUT grounding); it does NOT target grooming —
+# that is a separate axis for a later selection-coupling node (L4b). r80's primary
+# is the grounded fraction at CONSTANT cadence (Beam 1a: ratio + cadence co-primary),
+# non-tautological because it depends on grounding being autocorrelated.
+#
+# Params FROZEN from the 14d live baseline; re-measure before reuse (rates go stale).
+_APPROACH_BONUS_MAX = 0.10   # positive readiness bonus cap. PROVISIONAL — 1c calibration
+                             # (> readiness noise floor, < ~half smallest decision margin)
+                             # is the principled way to set it; 0.10 < the smallest
+                             # existing readiness term pending that measurement.
+_APPROACH_WINDOW = 30        # recent fires defining "recent world-contact"
+_APPROACH_ONSET = 0.767      # p75 of the 30-fire-WINDOW p_on_subject (reward engages in
+                             # the clearly-above-baseline top quartile — ~25% duty cycle;
+                             # NOT the mean, per A3; the daily p75 (0.676) was the wrong
+                             # grain and engaged ~46% of windows)
+_APPROACH_SAT = 0.90         # bonus saturates here (window p90 is 0.833; max 1.0)
+_APPROACH_CACHE_TTL = 30.0
+_approach_cache = {"val": None, "at": 0.0}
+
+
+def _approach_bonus(p_on_subject: float) -> float:
+    """Bounded onset ramp: 0 at/below onset, linear to _APPROACH_BONUS_MAX at sat."""
+    if p_on_subject <= _APPROACH_ONSET:
+        return 0.0
+    span = _APPROACH_SAT - _APPROACH_ONSET
+    frac = (p_on_subject - _APPROACH_ONSET) / span if span > 0 else 1.0
+    return max(0.0, min(_APPROACH_BONUS_MAX, _APPROACH_BONUS_MAX * frac))
+
+
+def appraise_approach(dynamic_db: str | None = None, now: float | None = None) -> dict:
+    """The r80 reward: recent world-contact -> a bounded POSITIVE readiness bonus.
+
+    Reads p_on_subject over the last _APPROACH_WINDOW fires (subject_fidelity) and
+    ramps a bonus above the frozen onset. Below onset => 0. Cold-start safe (n<5 =>
+    0). Short-cached for the default DB. Fail-safe: bonus 0 on any error — a reward
+    read that fails must never fabricate readiness."""
+    import time as _t
+    now = _t.time() if now is None else now
+    use_cache = dynamic_db is None
+    if use_cache:
+        c = _approach_cache
+        if c["val"] is not None and (now - c["at"]) < _APPROACH_CACHE_TTL:
+            return c["val"]
+    try:
+        from theory_x.stage6_fountain import subject_fidelity as _sf
+        if dynamic_db is None:
+            from substrate.paths import db_paths
+            dynamic_db = str(db_paths()["dynamic"])
+        f = _sf.subject_fidelity(window=_APPROACH_WINDOW, db_path=dynamic_db)
+        p = float(f.get("p_on_subject", 0.0) or 0.0)
+        n = int(f.get("n", 0) or 0)
+        if n < 5:
+            out = {"p_on_subject": round(p, 3), "bonus": 0.0, "contact_active": False, "n": n}
+        else:
+            out = {
+                "p_on_subject": round(p, 3),
+                "bonus": round(_approach_bonus(p), 3),
+                "contact_active": p > _APPROACH_ONSET,
+                "n": n,
+            }
+        if use_cache:
+            _approach_cache["val"] = out
+            _approach_cache["at"] = now
+        return out
+    except Exception:
+        return {"p_on_subject": 0.0, "bonus": 0.0, "contact_active": False, "n": 0}
+
+
+def readiness_bonus(bonus: float) -> float:
+    """The BOUNDED, non-negative readiness contribution of world-contact going well.
+    In [0, _APPROACH_BONUS_MAX]. This is where mattering becomes a term readiness is
+    ABOUT — grounded firing is rewarded, not just clocked. Magnitude PROVISIONAL (r80
+    measures whether grounded fraction rises at constant cadence); behind NEX5_APPROACH."""
+    return max(0.0, min(_APPROACH_BONUS_MAX, bonus))

@@ -45,6 +45,17 @@ _W_MOMENTUM  = 0.55   # a live thread pulls, but shouldn't drown novelty
 _W_BONSAI    = 0.50   # routine attention baseline
 _W_DRIVE     = 0.45   # emergent drive, quietest unless strong
 
+# L4_teeth (NEX5_L4_TEETH, default OFF) — MECHANICAL selection shift, not a scalar.
+# readiness is saturated at fire (96% of fires >=0.90; r80 §1c), so a bounded readiness
+# term rarely flips a decision — SELECTION (which candidate LEADS a fire) is the lever
+# readiness is not. This demotes the momentum (groove-continuer) candidate by a bounded
+# factor so a novel candidate can lead, answering the code's own worry that momentum
+# "shouldn't drown novelty" (_W_MOMENTUM). Single-turn, no persistence (that is L4b).
+# OFF => factor 1.0 => arbitrate byte-identical. Factor PROVISIONAL — r81 measures the
+# winner-kind shift at matched cadence before it defaults on. Bounded to (0, 1] (demotes,
+# never inverts or amplifies).
+_W_MOMENTUM_TEETH_FACTOR = 0.6
+
 _SURPRISE_WINDOW = 60.0
 _MOMENTUM_STALE  = 1800.0
 
@@ -157,6 +168,15 @@ def select_within_budget(candidates: "list[tuple[float, str, bool]]",
     return [candidates[i][1] for i in range(len(candidates)) if i in kept]
 
 
+def _teeth_momentum_factor() -> float:
+    """Bounded momentum demotion when NEX5_L4_TEETH is armed; 1.0 (no-op) otherwise.
+    Clamped to (0, 1] so the teeth can only DEMOTE the groove-continuer, never invert
+    or amplify it."""
+    if os.environ.get("NEX5_L4_TEETH") != "1":
+        return 1.0
+    return max(0.01, min(1.0, _W_MOMENTUM_TEETH_FACTOR))
+
+
 def arbitrate(status: dict, stakes_active: bool = False,
               drive_line: str = "", dynamic_db: str = _DYNAMIC_DB) -> str:
     """
@@ -172,7 +192,8 @@ def arbitrate(status: dict, stakes_active: bool = False,
             candidates.append(s)
         m = _momentum_candidate(con)
         if m:
-            candidates.append(m)
+            # L4_teeth: demote the groove-continuer so a novel candidate can lead.
+            candidates.append((m[0] * _teeth_momentum_factor(), m[1]))
         con.close()
 
         b = _bonsai_candidate(status)

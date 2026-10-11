@@ -1,5 +1,18 @@
 # R79 — PRE-REGISTRATION: L4_stakes, the bounded self-referent cost (`NEX5_STAKES`)
 
+> **⚠ SUPERSEDED 2026-10-11 — NEVER ARMED. Do not run this as written.**
+> A pre-arm review (Beam, verified) found the aversive design flawed: (1) `readiness`
+> is a volume knob, not a selection knob — a cost reduces how *often* she fires, not
+> *what* is fired, so it is a brake, not a corrective; (2) the groove-alert RATE the
+> cost reads is **~71% a cadence proxy** (regressing hourly alert count on fire count
+> gives R²=0.713), so both the cost and this doc's primary metric ride cadence and the
+> §6 concentration falsifier passes by construction. Per the welfare dominance-out bar
+> (`SENTIENCE_PROGRAM §5a`), the aversive term is admissible only if a reward arm
+> provably fails first. **Replaced by the reward/approach arm, `r80` (`NEX5_APPROACH`),
+> `observation_reports/r80_L4_approach_PREREGISTRATION.md`.** This doc is retained as the
+> record of the aversive attempt and the to-be-admitted-against-a-gap fallback. See the
+> memory note `nex5-readiness-is-a-volume-knob`.
+
 ## 0. Status — feasibility MEASURED; fork RESOLVED to Path A (built); ready to arm
 
 Writing the pre-registration first did its job. The cost **as first built** (drift ratio ≥ 0.55)
