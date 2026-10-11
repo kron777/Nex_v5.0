@@ -1,5 +1,15 @@
 # R80 — PRE-REGISTRATION: L4 reward / approach arm (`NEX5_APPROACH`)
 
+> **⛔ RETIRED 2026-10-11 — do not arm, do not build the §0.5 instrument.**
+> The §1c gate is now settled: a grep confirmed readiness `score()` is used ONLY as a fire/no-fire
+> GATE (`is_ready`, `>= THRESHOLD` at `generator.py:1305,1407`, `__init__:167`) — nothing ranks by it.
+> So Beam's §1c arithmetic applies cleanly: a ≤0.20 term flips a fire only when the pre-clamp total is
+> in [0.70, 0.90), and at-fire readiness is median 1.000 / 96% ≥0.90 (and 1.000 is the clamp ceiling, so
+> pre-clamp is ≥ that — the proxy can only UNDERstate inertness). A bounded readiness reward is therefore
+> decision-inert; building the pre-clamp instrument would measure a term we are dropping. The reward arm
+> `NEX5_APPROACH` stays in the tree default-OFF as dead code pending removal. The lever is selection /
+> retrieval (L4_teeth), not readiness. The retained notes below are the record of the attempt.
+>
 > **⚠ AMENDED 2026-10-11 (Beam's PR-#3 reply, verified) — DO NOT ARM until the §0.5 gate clears.**
 > Three verified findings demote r80 from "ready to arm":
 > - **Decision-inertness (§1c proxy).** At-fire readiness is saturated — median 1.000, 96% of fires at

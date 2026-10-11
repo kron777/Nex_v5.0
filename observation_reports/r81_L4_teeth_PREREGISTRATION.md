@@ -1,6 +1,25 @@
 # R81 — PRE-REGISTRATION: L4_teeth, mechanical selection shift (`NEX5_L4_TEETH`)
 
-## 0. Status — built, feasibility PASS (and this one is actually ON A LIVE PATH)
+> **⚠ AMENDED 2026-10-11 (Beam's C1/C2 reply, verified by grep) — RE-SCOPED; do not arm on the old primary.**
+> Two confirmed problems:
+> - **C2 — this is FRAME-only, not retrieval teeth.** Grep settled it: the arbiter winner `_gw_line`
+>   appears ONLY at the import/compute/prepend (`generator.py:3037,3044,3050`); `focus_block`'s body is
+>   fetched before the prepend and never uses the winner. So L4_teeth demotes *which framing line leads*,
+>   not *what is retrieved*. It is a legitimate **framing-selection** round (substitutive, more falsifiable
+>   than r79/r80), but it is NOT the mechanical-retrieval teeth the L3 lesson named. The **true** L4_teeth
+>   is a retrieval-weight shift at the focus_num-weighted branch/seed selection
+>   (`generator.py:184-198` keystone seed, `:1874-1877` branch pick, `_retrieve_context_beliefs:2624`) —
+>   a separate build (see §8 / L4_teeth DAG node).
+> - **C1 — the old primary (`p_on_subject`) is partly DEFINITIONAL.** When momentum leads, the fire
+>   continues a prior thread, so it scores off the current item *by the selection's definition*, not
+>   because attention degraded. Demoting momentum ⇒ fewer continuation fires ⇒ higher on-subject is
+>   **arithmetically guaranteed**, and the 43→35 baseline is a replay of the motivating observation.
+>   **New primary (the side being bought, not sold):** item COVERAGE — distinct items fired on per 100
+>   fires at matched cadence — and/or thread-switch concentration (HHI over fired items). Both are blind
+>   to winner-kind. If on-subject is kept at all, only per-fire (not pooled) and reported *within* the
+>   momentum-led stratum. §3/§5 below are superseded by this primary.
+
+## 0. Status — built (FRAME version), feasibility PASS, but RE-SCOPED per C1/C2 — see banner
 
 The readiness arms (r79 aversive, r80 reward) are near decision-inert: readiness is saturated at
 fire (96% of fires ≥0.90; r80 §1c), so a bounded readiness term rarely flips a decision. L4_teeth
