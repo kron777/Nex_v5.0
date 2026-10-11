@@ -80,7 +80,14 @@
         "diversity_recency"
       ],
       "module": "bonsai.py decay_pass (starvation bonus)",
-      "note": "RE-MEASURED CORRECTLY 2026-10-11 — the earlier 'news excluded / premise inverted' claim was MY taxonomy-mismatch artifact (I compared INPUT by belief.branch_id to FIRES by firing-branch — two different vocabularies). The firing path maps every input stream to a firing branch via attention.py:_STREAM_BRANCH (news->markets, philosophy/neuroscience/science->cognition_science, literature->language, mathematics->history, agi->ai_research). With inputs mapped into the firing taxonomy, NOTHING fires at 0%: markets(=news) 9.8%, cognition_science(=philosophy/neuro) 14.9%, all branches fire. fire/input ranges ~0.59-1.9, and the LOW-input cold branches are LIFTED above their input share (psychology 2.4%in/8.9%fire, history 1.9/3.5, language 2.8/5.0) — which is exactly what 'starvation lifts cold branches' should do. So the mechanism FUNCTIONS as designed; there is no exclusion defect. Residual: the lift is a hardcoded cold-3 rather than a derived below-floor trigger (Beam F2) — a minor calibration point, not a bug. Lesson (memory nex5-measurement-of-what): measure input and output in the SAME taxonomy."
+      "note": "FUNCTIONS AS DESIGNED (closed 2026-10-11). The starvation lift is a range-compressor toward parity: high-input streams are capped (emerging_tech 27%in/17%fire=0.62, markets 0.59) and low-input cold branches are lifted above their input share (psychology 3.7x, history/language 1.8x) — a per-stream diversity guarantee, so 'emerging_tech under-fires' is NOT a bug. The cold-3 lift is a CURATED hardcoded list (identity, keep it — a derived below-floor trigger would homogenize the tail; Beam F2 reversed). psychology over-fires its siblings because its curiosity_weight (0.6) is highest, not a flat-bonus nonlinearity. NO successor node: within-branch (lexical) diversity — where the L4 opener groove lived — is already instrumented by the L4 conditional-entropy apparatus; a question answered by an existing instrument does not earn a node. See correction_history.",
+      "verdict": "functions-as-designed (observed; controlled bonus-on/off not run)",
+      "last_measured": "2026-10-11",
+      "measured_by": "mapped fire-share (1000 fires, recursion_attrib) vs 21d input-share through attention.py:_STREAM_BRANCH; nothing at 0%, ratios 0.59-3.7, lift pulls toward parity; cold-3 firing order (psych 8.9>lang 5.0>hist 3.5) tracks curiosity_weight (0.6>0.5>0.4), NOT input (lang has more input, fires less)",
+      "owner": "maintainer (kron777)",
+      "correction_history": [
+        "2026-10-11: prior note 'premise inverted / deep branches excluded' was an ARTIFACT of comparing input by belief.branch_id against fires by firing-branch (two taxonomies, no total map); retracted. _STREAM_BRANCH is the total map; no exclusion."
+      ]
     },
     "stability_keepalive": {
       "layer": 0,
