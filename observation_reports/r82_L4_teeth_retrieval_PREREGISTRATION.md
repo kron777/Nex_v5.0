@@ -1,6 +1,24 @@
 # R82 — PRE-REGISTRATION: L4_teeth (retrieval), the mechanical fixation shift (`NEX5_RETRIEVAL_TEETH`)
 
-## 0. Status — built, the TRUE teeth (retrieval, not frame)
+> **⛔ DO NOT ARM — falsified before arming by two live measurements (Beam D1/D3, 2026-10-11).**
+> - **D1 (grep): the carry is DECOUPLED from the pick.** `focus_num` (which drives the branch pick)
+>   is set by `BonsaiTree.attend`, driven only by `sense_events`
+>   (`stage2_dynamic/__init__.py:286`); the carry writes to `beliefs`/`momentum`, never
+>   `sense_events`. So diverting the carry never moves the pick — r82's carry-only shift is inert
+>   on selection (the pick re-fixates from sense-driven `focus_num` every fire).
+> - **D3 (measured): there is no branch-fixation to break.** Over the last 500 fires in
+>   `recursion_attrib`, the branch **switch rate s = 0.878** (12 distinct branches; consecutive-equal
+>   runs ≥3 occur in ~2% of fires). A fixation-triggered teeth (K≈3) would fire on ~2% of fires AND
+>   target a non-problem: the branch already diversifies fire-to-fire.
+> - **Therefore the groove is PHRASING-level, not branch-level** — template phrasing repeats *across*
+>   different branches, consistent with grounding ⊥ grooming (r80 §3) and `_is_template` vs `groove`
+>   being ~15% disjoint. Every L4 locus tried — readiness (volume), framing (arbitrate), branch
+>   retrieval (this) — was the wrong layer. **The lever is the phrasing layer: the crystallizer
+>   fidelity gate / the generation prompt.** The `_fixation_teeth` code stays default-OFF as a
+>   documented dead-end (targets a non-problem); do not arm. r82 is retired in favour of a
+>   phrasing-layer round (r83, to be designed after measuring the phrasing-repeat base rate FIRST).
+
+## 0. Status — built, but RETIRED (branch does not fixate; groove is phrasing-level) — see banner
 
 r81's `NEX5_L4_TEETH` was confirmed frame-only (it demotes a prompt framing line; the body is
 fetched independently — grep, Beam C2). This is the mechanical version the L3 note named:
