@@ -177,6 +177,44 @@ def _teeth_momentum_factor() -> float:
     return max(0.01, min(1.0, _W_MOMENTUM_TEETH_FACTOR))
 
 
+# --- NEX5_GW_LOG: observational arbiter-decision log (default OFF) -----------
+# The arbiter's winner is otherwise unrecorded anywhere, so whether it EARNS ITS
+# KEEP — how often a non-bonsai candidate overrides the routine baseline — cannot
+# be measured (the arbiter analogue of an undeployed history table). Under
+# NEX5_GW_LOG, append one JSON line per fire to a lock-free sibling of the dynamic
+# DB. Deliberately NOT the one-pen substrate: a plain append never contends with
+# the single writer and cannot stall a fire. Read-only consumer:
+# tools/check_arbiter_competition.py. ANALOGUE. OFF => no file written, arbitrate()
+# byte-identical.
+def _decisions_path() -> str:
+    import os as _os
+    return _os.path.join(_os.path.dirname(str(_DYNAMIC_DB)), "arbiter_decisions.jsonl")
+
+
+def _maybe_log_decision(candidates: "list[tuple[float, str]]",
+                        kinds: "list[str]") -> None:
+    """Append this fire's arbiter decision when NEX5_GW_LOG=1; never raises, never
+    blocks a fire. No-op (no file touched) when the flag is off or there was no
+    competition, so the default path is byte-identical to the pre-log behaviour.
+    winner index uses the same first-max rule as arbitrate_candidates()."""
+    if os.environ.get("NEX5_GW_LOG") != "1" or not candidates:
+        return
+    try:
+        import json as _json
+        wi = max(range(len(candidates)), key=lambda i: candidates[i][0])
+        rec = {
+            "ts": round(time.time(), 3),
+            "n_candidates": len(candidates),
+            "kinds_present": sorted(set(kinds)),
+            "winner_kind": kinds[wi],
+            "winner_salience": round(float(candidates[wi][0]), 4),
+        }
+        with open(_decisions_path(), "a") as f:
+            f.write(_json.dumps(rec) + "\n")
+    except Exception:
+        pass
+
+
 def arbitrate(status: dict, stakes_active: bool = False,
               drive_line: str = "", dynamic_db: str = _DYNAMIC_DB) -> str:
     """
@@ -185,33 +223,37 @@ def arbitrate(status: dict, stakes_active: bool = False,
     """
     try:
         candidates: list[tuple[float, str]] = []
+        kinds: list[str] = []            # parallel kind labels, for NEX5_GW_LOG only
 
         con = sqlite3.connect(dynamic_db, timeout=3)
         s = _surprise_candidate(con)
         if s:
-            candidates.append(s)
+            candidates.append(s); kinds.append("surprise")
         m = _momentum_candidate(con)
         if m:
             # L4_teeth: demote the groove-continuer so a novel candidate can lead.
-            candidates.append((m[0] * _teeth_momentum_factor(), m[1]))
+            candidates.append((m[0] * _teeth_momentum_factor(), m[1])); kinds.append("momentum")
         con.close()
 
         b = _bonsai_candidate(status)
         if b:
-            candidates.append(b)
+            candidates.append(b); kinds.append("bonsai")
 
         if stakes_active:
             candidates.append((_W_STAKES,
                 "you have been mapping items onto your own attending rather "
                 "than engaging them. The most important thing right now is to "
                 "meet the world directly — one concrete fact, not reflection."))
+            kinds.append("stakes")
 
         if drive_line:
             # drive_line is already-formatted text; give it baseline salience
-            candidates.append((_W_DRIVE, drive_line.strip()))
+            candidates.append((_W_DRIVE, drive_line.strip())); kinds.append("drive")
 
         # Competition: highest salience wins and is broadcast as the frame.
-        return arbitrate_candidates(candidates)
+        line = arbitrate_candidates(candidates)
+        _maybe_log_decision(candidates, kinds)   # NEX5_GW_LOG (default OFF); fail-safe
+        return line
     except Exception:
         return ""
 
