@@ -209,5 +209,131 @@ class TestReadinessWiring(unittest.TestCase):
         self.assertAlmostEqual(off - on, 0.2, places=3)  # == _COST_CLAMP for a full burst
 
 
+_FOCAL = "bitcoin regulation"
+_GROUNDED = "bitcoin regulation reshapes global markets and traders weigh the news"
+_UNGROUNDED = "gentle breezes drift across distant quiet meadows while swallows wheel"
+
+
+class TestAppraiseApproach(unittest.TestCase):
+    """The r80 REWARD arm — a bounded POSITIVE readiness bonus on world-contact."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="nex5_apr_")
+        os.environ["NEX5_DATA_DIR"] = self.tmp
+        from substrate.init_db import init_all
+        init_all()
+        from substrate import Writer, db_paths
+        self.dw = Writer(str(db_paths()["dynamic"]), name="dynamic")
+        self.db = str(db_paths()["dynamic"])
+        import theory_x.stage_tom.stakes_appraisal as sa
+        sa._approach_cache.update(val=None, at=0.0)
+
+    def tearDown(self):
+        try:
+            self.dw.close()
+        except Exception:
+            pass
+        os.environ.pop("NEX5_DATA_DIR", None)
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _fire(self, thought, focal, ts):
+        self.dw.write(
+            "INSERT INTO fountain_events (ts, thought, focal_item, readiness) "
+            "VALUES (?, ?, ?, ?)", (float(ts), thought, focal, 0.5))
+
+    def test_high_contact_gives_bounded_max_bonus(self):
+        from theory_x.stage_tom.stakes_appraisal import appraise_approach, _APPROACH_BONUS_MAX
+        now = time.time()
+        for k in range(30):                       # all grounded -> p_on_subject = 1.0 > sat
+            self._fire(_GROUNDED, _FOCAL, now - (30 - k))
+        self.dw.close()
+        a = appraise_approach(dynamic_db=self.db)
+        self.assertTrue(a["contact_active"])
+        self.assertEqual(a["bonus"], _APPROACH_BONUS_MAX)   # welfare bound
+
+    def test_low_contact_zero_bonus(self):
+        from theory_x.stage_tom.stakes_appraisal import appraise_approach
+        now = time.time()
+        for k in range(30):                       # none grounded -> p_on_subject = 0
+            self._fire(_UNGROUNDED, _FOCAL, now - (30 - k))
+        self.dw.close()
+        a = appraise_approach(dynamic_db=self.db)
+        self.assertFalse(a["contact_active"])
+        self.assertEqual(a["bonus"], 0.0)
+
+    def test_mid_contact_bounded_positive(self):
+        from theory_x.stage_tom.stakes_appraisal import appraise_approach, _APPROACH_BONUS_MAX
+        now = time.time()
+        for k in range(30):                       # 25/30 = 0.833, between onset and sat
+            self._fire(_GROUNDED if k < 25 else _UNGROUNDED, _FOCAL, now - (30 - k))
+        self.dw.close()
+        a = appraise_approach(dynamic_db=self.db)
+        self.assertGreater(a["bonus"], 0.0)
+        self.assertLess(a["bonus"], _APPROACH_BONUS_MAX)
+
+    def test_cold_start_and_empty_are_zero(self):
+        from theory_x.stage_tom.stakes_appraisal import appraise_approach
+        a0 = appraise_approach(dynamic_db=self.db)   # no fires
+        self.assertEqual(a0["bonus"], 0.0)
+        for k in range(3):                           # < 5 -> cold-start safe
+            self._fire(_GROUNDED, _FOCAL, time.time() - k)
+        self.dw.close()
+        a1 = appraise_approach(dynamic_db=self.db)
+        self.assertEqual(a1["bonus"], 0.0)
+
+
+class TestReadinessBonus(unittest.TestCase):
+
+    def test_bounded_nonnegative(self):
+        from theory_x.stage_tom.stakes_appraisal import readiness_bonus, _APPROACH_BONUS_MAX
+        self.assertEqual(readiness_bonus(0.0), 0.0)
+        self.assertEqual(readiness_bonus(-5.0), 0.0)                 # never negative
+        self.assertAlmostEqual(readiness_bonus(0.05), 0.05)
+        self.assertEqual(readiness_bonus(10.0), _APPROACH_BONUS_MAX)  # clamped
+
+
+class TestApproachWiring(unittest.TestCase):
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="nex5_aprw_")
+        os.environ["NEX5_DATA_DIR"] = self.tmp
+        from substrate.init_db import init_all
+        init_all()
+        from substrate import Writer, Reader, db_paths
+        self.dw = Writer(str(db_paths()["dynamic"]), name="dynamic")
+        self.br = Reader(str(db_paths()["beliefs"]))
+        now = time.time()
+        for k in range(30):                       # grounded burst -> p_on_subject = 1.0
+            self.dw.write("INSERT INTO fountain_events (ts, thought, focal_item, readiness) "
+                          "VALUES (?, ?, ?, ?)", (now - (30 - k), _GROUNDED, _FOCAL, 0.5))
+        self.dw.close()
+        import theory_x.stage_tom.stakes_appraisal as sa
+        self._sa = sa
+        sa._approach_cache.update(val=None, at=0.0)
+
+    def tearDown(self):
+        os.environ.pop("NEX5_DATA_DIR", None)
+        os.environ.pop("NEX5_APPROACH", None)
+        self._sa._approach_cache.update(val=None, at=0.0)
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _score(self):
+        from theory_x.stage6_fountain.readiness import ReadinessEvaluator
+        ds = MagicMock()
+        ds.status.return_value = {"branches": [], "consolidation_active": False}
+        return ReadinessEvaluator().score(ds, self.br, last_fire_ts=0.0)
+
+    def test_approach_off_no_bonus_on_adds(self):
+        from theory_x.stage_tom.stakes_appraisal import _APPROACH_BONUS_MAX
+        os.environ.pop("NEX5_APPROACH", None)
+        self._sa._approach_cache.update(val=None, at=0.0)
+        off = self._score()
+        os.environ["NEX5_APPROACH"] = "1"
+        self._sa._approach_cache.update(val=None, at=0.0)
+        on = self._score()
+        self.assertGreater(on, off)                       # the world-contact bonus was added
+        self.assertAlmostEqual(on - off, _APPROACH_BONUS_MAX, places=3)
+
+
 if __name__ == "__main__":
     unittest.main()
