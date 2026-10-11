@@ -29,6 +29,23 @@
 > and ablating its real block stack — a heavy build. The honest alternative reading: the groove is an
 > emergent voice-ATTRACTOR of the whole system (her characteristic opening cadence), not a single
 > fixable mechanism — in which case it may be a feature of her voice, not a bug to lever out.
+>
+> **UPDATE 2 — CUE LOCATED (Beam E-reply, verified). It is the MULTI-BELIEF presentation.** Beam's
+> E1/E3 greps + a decisive A/B settled it: (E3) no exemplar/self-report block contains "is about"/
+> "this item" → not in-context imitation. (E1) the live sampling config is temp **1.0** + repeat_penalty
+> **1.30** + presence 0.5 + frequency 0.4 (`voice/llm.py:258`) — the ANTI-repeat extreme, so the groove
+> is NOT a low-entropy decoding artifact (it persists *despite* aggressive anti-repeat decoding). Then,
+> at that live config, SINGLE belief vs 7 beliefs: frame-opener **0.062 → 0.250** (`r83_multibelief.log`).
+> So the multi-belief *summarizing* presentation (own_n=7/seed_n=2) is a real, located cue — 7 items
+> force a "this item is about [the common topic]" topic-opener; one item does not. (0.25 < live 0.54, so
+> it is a large share, not the whole — there is an additional axis: the retrieval keeps surfacing the
+> same focal topics, which is why the live EXACT-8-word opener repeats, not just the frame.) The groove
+> is therefore LEVERABLE, not an untouchable attractor. **Before building a lever (Beam E2): decide
+> defect-vs-voice by conditional content entropy** — is content entropy / item-responsiveness LOWER when
+> the frame is present (defect) or equal (voice)? If defect, the lever is the multi-belief presentation
+> (engage one focal directly vs summarize a set); if voice, keep it. Also adopt Beam's E4 five-predicate
+> static pre-screen (exposure / headroom / locus / definitional-coupling / reproduce-from-live-input)
+> before any future lever.
 
 ## 0. Status — the groove is phrasing-level (measured); lever FALSIFIED by Step-0 (see banner); NOT built
 
