@@ -1,0 +1,13 @@
+{
+  "n_outputs": 200,
+  "threshold": 0.5,
+  "consecutive_duplicate_rate": 0.0,
+  "largest_cluster_size": 2,
+  "largest_cluster_fraction": 0.01,
+  "semantic_repeat": {
+    "semantic_repeat": 36,
+    "total_rejects": 626,
+    "per_day": 20.09,
+    "available": true
+  }
+}

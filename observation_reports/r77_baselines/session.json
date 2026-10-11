@@ -1,0 +1,27 @@
+{
+  "threshold": 0.5,
+  "self_repetition": {
+    "sessions_with_multiple_nex_msgs": 45,
+    "worst_session_self_repetition": 1.0,
+    "mean_session_self_repetition": 0.4923,
+    "fraction_sessions_with_near_dup": 0.4889
+  },
+  "register": {
+    "nex_messages": 2403,
+    "register_populated_fraction": 1.0,
+    "distinct_registers": 9,
+    "largest_register_share": 0.4178,
+    "register_distribution": {
+      "Philosophical": 1004,
+      "Internal": 433,
+      "Reading": 256,
+      "Outreach": 253,
+      "Conversational": 207,
+      "Morning": 129,
+      "Journal": 115,
+      "Technical": 3,
+      "Analytical": 3
+    }
+  },
+  "carry_fidelity": "PENDING \u2014 needs the self_present structured carry (W3)"
+}

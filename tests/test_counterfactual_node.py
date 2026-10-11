@@ -306,6 +306,12 @@ class TestPromotionThreshold(unittest.TestCase):
             )
         time.sleep(0.05)
 
+    @unittest.skip(
+        "auto-promotion to review_queue was intentionally disabled 2026-05-16 "
+        "(_maybe_promote early-returns: it was removing problems from "
+        "focus_loop/daily_life within minutes; she decides resolution now, not "
+        "a 3-belief accept counter). The node's own comment names this test as "
+        "expected-failing against the disabled state. Recoverable at edbddff.")
     def test_move_fires_when_threshold_reached(self):
         """Test 8 — problem moves to review_queue when accept count >= 3."""
         problem_id = _seed_problem_r(self.writers, self.readers,
@@ -426,6 +432,10 @@ class TestTagsInherited(unittest.TestCase):
     def tearDown(self):
         _cleanup(self.writers, self.tmp)
 
+    @unittest.skip(
+        "auto-promotion to review_queue intentionally disabled 2026-05-16 "
+        "(see _maybe_promote early-return); no move happens, so tags cannot be "
+        "carried. Recoverable at edbddff.")
     def test_tags_copied_to_review_queue(self):
         """review_queue.tags equals open_problems.tags at move time."""
         expected_tags = '["recursion","computation","formal-systems"]'

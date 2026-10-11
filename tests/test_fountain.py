@@ -209,7 +209,7 @@ class TestFountainGenerator(unittest.TestCase):
         gen = self._make_generator()
         ds = _mock_dynamic_state(hot_branch="curiosity")
         status = ds.status()
-        prompt = gen._build_prompt(status, 5, {"5": 5})
+        prompt, _ = gen._build_prompt(status, 5, {"5": 5})
         self.assertIn("idle, drifting", prompt)
         self.assertIn("Beliefs held: 5", prompt)
 

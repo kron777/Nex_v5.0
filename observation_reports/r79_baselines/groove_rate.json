@@ -1,0 +1,39 @@
+{
+  "round": "r79",
+  "metric": "L4_stakes grooming-onset cost (NEX5_STAKES, Path A)",
+  "signal": "beliefs.db:groove_alerts WHERE alert_type='template_repetition'",
+  "frozen_at": "2026-10-11",
+  "frozen_by": "manual measurement this session (NEX just resumed); re-freeze before reuse",
+  "window_days": 14,
+  "off_condition_baseline": {
+    "comment": "This rate IS the OFF-condition primary metric for the r79 effect-round.",
+    "alerts_per_day": 49.7,
+    "total_alerts_14d": 692,
+    "span_hours": 336,
+    "hours_with_an_alert_pct": 43
+  },
+  "rate_distribution_per_hour": {
+    "all_hours_incl_zero": {"mean": 2.06, "median": 0.0, "p90": 6.0, "p99": 10.0, "max": 13},
+    "non_zero_hours_only": {"mean": 4.81, "median": 4.0, "p90": 8.7, "max": 13}
+  },
+  "severity_note": "severity is pinned high (mean 0.991, median 1.0, min 0.7) — this is WHY the cost reads RATE/onset, not severity (severity would be a perpetual brake).",
+  "cost_params_frozen": {
+    "window_s": 3600,
+    "onset_per_hour": 2.0,
+    "onset_basis": "all-hours mean rate (2.06, rounded) — above-average grooming",
+    "saturation_per_hour": 6.0,
+    "saturation_basis": "all-hours p90 (6.0) — the burstiest decile saturates",
+    "clamp": 0.20,
+    "formula": "cost = clamp01((rate_1h - onset)/(sat - onset)) * clamp"
+  },
+  "feasibility_simulation": {
+    "method": "1h window slid every 10 min across the 14d history; cost = f(count in preceding hour)",
+    "evaluations": 2007,
+    "cost_zero_pct": 65,
+    "cost_positive_pct": 35,
+    "cost_saturated_pct": 15,
+    "mean_cost_over_all_evals": 0.0501,
+    "verdict": "PASS — bites on bursts (35% of evals), rests at 0 (65%), saturates only in the burstiest 15%; mean drag 0.05. Not inert (unlike the 0.55 ratio) and not a perpetual brake."
+  },
+  "staleness": "Derived rates go stale (memory: nex5-flag-remeasurement). onset/saturation are frozen HERE for r79; re-measure the rate distribution before any reuse or re-arm."
+}

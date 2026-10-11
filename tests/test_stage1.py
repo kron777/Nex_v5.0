@@ -25,7 +25,7 @@ class TestDriftRegister(unittest.TestCase):
             voice_client=VoiceClient.__new__(VoiceClient),
             dynamic_reader=None,
         )
-        prompt = gen._build_prompt({}, 10, {})
+        prompt, _ = gen._build_prompt({}, 10, {})
         # Drift system prompt should be present verbatim
         self.assertIn("idle, drifting", prompt)
         self.assertIn("DO NOT", prompt)

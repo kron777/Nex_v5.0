@@ -95,6 +95,58 @@ class ReadinessEvaluator:
         # 2026-05-30 — genius rate modulation (subtractive, opt-in)
         total -= self._genius_modulation()
 
+        # L4 REWARD / approach arm (NEX5_APPROACH, default OFF): world-contact going
+        # well — recent grounded firing (p_on_subject) — adds a BOUNDED POSITIVE term,
+        # so readiness is partly ABOUT a stake (mattering), not only a clock. This is
+        # the dominance-out first arm (reward before aversive): its success signature
+        # is unambiguous (readiness higher after contact). r80 measures whether the
+        # grounded fraction rises at constant cadence. Welfare (SENTIENCE_PROGRAM §5a).
+        # Mutually exclusive with NEX5_STAKES — never arm both (one variable).
+        if os.environ.get("NEX5_APPROACH") == "1":
+            try:
+                from theory_x.stage_tom.stakes_appraisal import (
+                    appraise_approach, readiness_bonus)
+                _aw = appraise_approach()
+                _bon = readiness_bonus(_aw["bonus"])
+                if _bon > 0.0:
+                    total += _bon
+                    try:
+                        import errors as _err
+                        _err.record(
+                            f"approach bonus {_aw['bonus']} -> readiness +{_bon:.3f} "
+                            f"(p_on_subject {_aw['p_on_subject']})",
+                            source="approach", level="INFO",
+                        )
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        # L4 AVERSIVE arm (NEX5_STAKES, default OFF): SHELVED pending the dominance-out
+        # gate — admit only if the reward arm (above) provably fails. Sourced from the
+        # groove detector (appraise_groove); subtracts a BOUNDED cost on a grooming RISE.
+        # Known limitation (r79): the groove rate is ~71% a cadence proxy, so this is a
+        # volume brake — retained, not the current round.
+        if os.environ.get("NEX5_STAKES") == "1":
+            try:
+                from theory_x.stage_tom.stakes_appraisal import (
+                    appraise_groove, readiness_penalty)
+                _ap = appraise_groove()
+                _pen = readiness_penalty(_ap["cost"])
+                if _pen < 0.0:
+                    total += _pen
+                    try:
+                        import errors as _err
+                        _err.record(
+                            f"stakes cost {_ap['cost']} -> readiness {_pen:+.3f} "
+                            f"(groove rate {_ap['rate_per_hour']}/hr)",
+                            source="stakes", level="INFO",
+                        )
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
         return max(0.0, min(1.0, total))
 
     def is_ready(self, score: float) -> bool:

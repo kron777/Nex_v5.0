@@ -45,6 +45,17 @@ _W_MOMENTUM  = 0.55   # a live thread pulls, but shouldn't drown novelty
 _W_BONSAI    = 0.50   # routine attention baseline
 _W_DRIVE     = 0.45   # emergent drive, quietest unless strong
 
+# L4_teeth (NEX5_L4_TEETH, default OFF) — MECHANICAL selection shift, not a scalar.
+# readiness is saturated at fire (96% of fires >=0.90; r80 §1c), so a bounded readiness
+# term rarely flips a decision — SELECTION (which candidate LEADS a fire) is the lever
+# readiness is not. This demotes the momentum (groove-continuer) candidate by a bounded
+# factor so a novel candidate can lead, answering the code's own worry that momentum
+# "shouldn't drown novelty" (_W_MOMENTUM). Single-turn, no persistence (that is L4b).
+# OFF => factor 1.0 => arbitrate byte-identical. Factor PROVISIONAL — r81 measures the
+# winner-kind shift at matched cadence before it defaults on. Bounded to (0, 1] (demotes,
+# never inverts or amplifies).
+_W_MOMENTUM_TEETH_FACTOR = 0.6
+
 _SURPRISE_WINDOW = 60.0
 _MOMENTUM_STALE  = 1800.0
 
@@ -105,6 +116,67 @@ def _bonsai_candidate(status: dict) -> Optional[tuple[float, str]]:
     return None
 
 
+# Public salience weights, so other paths (e.g. the chat turn) can declare their
+# own candidate salience without importing module-private constants.
+SALIENCE = {
+    "surprise": _W_SURPRISE, "stakes": _W_STAKES, "momentum": _W_MOMENTUM,
+    "bonsai": _W_BONSAI, "drive": _W_DRIVE,
+}
+
+_WORKSPACE_PREFIX = ("[WORKSPACE] Of everything active in you right now, this is "
+                     "most prominent: ")
+
+
+def arbitrate_candidates(candidates: "list[tuple[float, str]]",
+                         prefix: str = _WORKSPACE_PREFIX) -> str:
+    """Competition core: pick the single most-salient (salience, text) candidate
+    and frame it; "" when there's nothing to lead.
+
+    Extracted from arbitrate() so other paths (the chat turn) can run the same
+    competition over their OWN candidates. arbitrate() stays behaviour-identical.
+    Pure: the DB IO and the fail-safe wrapper live in the callers.
+    """
+    if not candidates:
+        return ""
+    return prefix + max(candidates, key=lambda c: c[0])[1]
+
+
+def select_within_budget(candidates: "list[tuple[float, str, bool]]",
+                         char_budget: int) -> list[str]:
+    """Budgeted competition for paths that assemble MANY blocks (the chat turn),
+    not one winner: keep every exempt candidate, then admit the rest by
+    descending salience until char_budget is reached. Returns the kept texts in
+    their ORIGINAL order (stable), so downstream assembly order is unchanged.
+
+    candidates: (salience, text, exempt). Empty texts are ignored. Exempt
+    candidates are never evicted (they still count toward the budget).
+    """
+    kept = set()
+    used = 0
+    for i, (_sal, text, exempt) in enumerate(candidates):
+        if exempt and text:
+            kept.add(i)
+            used += len(text)
+    rest = sorted(
+        (i for i, (_s, t, ex) in enumerate(candidates) if t and not ex),
+        key=lambda i: candidates[i][0], reverse=True)
+    for i in rest:
+        t = candidates[i][1]
+        if used + len(t) <= char_budget:
+            kept.add(i)
+            used += len(t)
+    return [candidates[i][1] for i in range(len(candidates)) if i in kept]
+
+
+def _teeth_momentum_factor() -> float:
+    """Bounded momentum demotion when NEX5_L4_TEETH is armed; 1.0 (no-op) otherwise.
+    Clamped to (0, 1] so the teeth can only DEMOTE the groove-continuer, never invert
+    or amplify it."""
+    if os.environ.get("NEX5_L4_TEETH") != "1":
+        return 1.0
+    return max(0.01, min(1.0, _W_MOMENTUM_TEETH_FACTOR))
+
+
 def arbitrate(status: dict, stakes_active: bool = False,
               drive_line: str = "", dynamic_db: str = _DYNAMIC_DB) -> str:
     """
@@ -120,7 +192,8 @@ def arbitrate(status: dict, stakes_active: bool = False,
             candidates.append(s)
         m = _momentum_candidate(con)
         if m:
-            candidates.append(m)
+            # L4_teeth: demote the groove-continuer so a novel candidate can lead.
+            candidates.append((m[0] * _teeth_momentum_factor(), m[1]))
         con.close()
 
         b = _bonsai_candidate(status)
@@ -137,13 +210,8 @@ def arbitrate(status: dict, stakes_active: bool = False,
             # drive_line is already-formatted text; give it baseline salience
             candidates.append((_W_DRIVE, drive_line.strip()))
 
-        if not candidates:
-            return ""
-
         # Competition: highest salience wins and is broadcast as the frame.
-        winner = max(candidates, key=lambda c: c[0])
-        return ("[WORKSPACE] Of everything active in you right now, this is "
-                "most prominent: " + winner[1])
+        return arbitrate_candidates(candidates)
     except Exception:
         return ""
 

@@ -169,8 +169,13 @@ class TestPipeline(unittest.TestCase):
 
     def test_numeric_magnitude(self):
         from theory_x.stage2_dynamic.attention import _magnitude_for
-        mag = _magnitude_for("internal.proprioception", 50.0, "systems")
+        # A numeric payload on a real content stream mapped to its branch
+        # yields a positive magnitude.
+        mag = _magnitude_for("crypto.ticker", 50.0, "crypto")
         self.assertGreater(mag, 0.0)
+        # internal.* telemetry is deliberately zeroed (dfe72c7 root-cause fix:
+        # it pinned 'systems' focus at ceiling). Guard that it stays excluded.
+        self.assertEqual(_magnitude_for("internal.proprioception", 50.0, "systems"), 0.0)
 
     def test_pipeline_step_a_unpacks_row(self):
         from theory_x.stage2_dynamic.pipeline import step_A

@@ -208,6 +208,22 @@ class TestDecayApplied(unittest.TestCase):
 
 # ── Background tick writes row ────────────────────────────────────────────────
 
+def _affect_state_write(node):
+    """(sql, params) of the affect_state INSERT among all write calls.
+
+    A tick now writes two rows: the affect_state single-row upsert AND an
+    affect_history append (9fbd1bb, feeds CompetingDrives' affect_variance),
+    so call_args (the last call) is the history write. These tests assert on
+    the affect_state row specifically, so locate it rather than taking the
+    last call.
+    """
+    for c in node._mock_cw.write.call_args_list:
+        sql = c[0][0]
+        if "INSERT OR REPLACE INTO affect_state" in sql:
+            return sql, c[0][1]
+    raise AssertionError("no affect_state write was recorded")
+
+
 class TestTickWritesRow(unittest.TestCase):
     def test_background_tick_calls_write(self):
         node = _make_node()
@@ -218,9 +234,7 @@ class TestTickWritesRow(unittest.TestCase):
         ):
             node._background_tick()
 
-        node._mock_cw.write.assert_called_once()
-        call_args = node._mock_cw.write.call_args
-        sql, params = call_args[0]
+        sql, params = _affect_state_write(node)
         self.assertIn("INSERT OR REPLACE INTO affect_state", sql)
         self.assertEqual(len(params), 5)  # valence, arousal, stability, mood_label, updated_at
 
@@ -244,7 +258,7 @@ class TestTickWritesRow(unittest.TestCase):
             patch.object(node, "_compute_stability",      return_value=0.9),
         ):
             node._background_tick()
-        sql, params = node._mock_cw.write.call_args[0]
+        sql, params = _affect_state_write(node)
         mood_in_params = params[3]
         self.assertIn(mood_in_params, ("positive", "negative", "neutral"))
 
@@ -258,7 +272,7 @@ class TestTickWritesRow(unittest.TestCase):
         ):
             node._background_tick()
         after = time.time()
-        sql, params = node._mock_cw.write.call_args[0]
+        sql, params = _affect_state_write(node)
         updated_at = params[4]
         self.assertGreaterEqual(updated_at, before)
         self.assertLessEqual(updated_at, after)

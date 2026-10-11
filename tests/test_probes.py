@@ -130,8 +130,10 @@ class TestProbeWritesToDb(unittest.TestCase):
         # Patch requests.post so no real network call is made
         with patch("theory_x.probes.probe_runner.requests.post") as mock_post:
             mock_resp = MagicMock()
+            # The /api/chat endpoint (and ProbeRunner) use the "text" key, not
+            # "response" — the old mock key left response_text empty.
             mock_resp.json.return_value = {
-                "response": "The hum feels like background presence.",
+                "text": "The hum feels like background presence.",
                 "register": "Philosophical",
             }
             mock_resp.raise_for_status.return_value = None

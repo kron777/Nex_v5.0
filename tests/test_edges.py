@@ -294,15 +294,17 @@ class TestCrossDomainDetection(unittest.TestCase):
         promoter = BeliefPromoter(w, r)
         harmonizer = Harmonizer(w, r, dw, promoter)
 
-        # Identical keyword sets, different branches → high Jaccard overlap
+        # High keyword overlap across branches → high Jaccard. Content must be
+        # distinct (orphan beliefs are content-unique since Phase 34); one
+        # trailing token differs, so the shared keyword set stays near-identical.
         _insert_belief(
             w,
-            "attention memory learning pattern recognition overlap test cross domain",
+            "attention memory learning pattern recognition overlap test cross domain neuro",
             tier=3, branch_id="neuro",
         )
         _insert_belief(
             w,
-            "attention memory learning pattern recognition overlap test cross domain",
+            "attention memory learning pattern recognition overlap test cross domain systems",
             tier=3, branch_id="systems",
         )
 

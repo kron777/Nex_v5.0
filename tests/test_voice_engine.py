@@ -200,8 +200,11 @@ class TestScoringAxes(unittest.TestCase):
         zero = _zero_emb()
         score = self.engine._score_candidate(arc_cand, zero)
         # semantic=0, confidence=0.5, tier=0.7, recency=0.3, drive=0
-        # = 0 + 0.5*0.23 + 0.7*0.14 + 0.3*0.08 + 0*0.10 = 0.115+0.098+0.024 = 0.237
-        self.assertAlmostEqual(score, 0.237, places=3)
+        # Six-axis score (genius axis added 2026-05-30, GENIUS_SCORE_v2 §7):
+        #   semantic 0*0.45 + conf 0.5*0.23 + tier 0.7*0.14 + recency 0.3*0.08
+        #   + drive 0*0.10 + genius 0.5(neutral)*0.15
+        #   = 0 + 0.115 + 0.098 + 0.024 + 0 + 0.075 = 0.312
+        self.assertAlmostEqual(score, 0.312, places=3)
 
 
 class TestTriggerRecord(unittest.TestCase):

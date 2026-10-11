@@ -94,7 +94,9 @@ class TestGuiEndpoints(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         data = r.get_json()
         self.assertEqual(data["text"], "mocked")
-        self.assertEqual(data["register"], "Conversational")
+        # Default chat register is Philosophical since EDIT A (2026-05-29,
+        # gui/server.py — "probe-quality richness"); was Conversational.
+        self.assertEqual(data["register"], "Philosophical")
         self.assertTrue(data["voice_ok"])
 
         # Explicit register selection.

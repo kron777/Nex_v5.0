@@ -248,6 +248,11 @@ _HOT_OBSERVER_LOOKBACK_SECS = 259200      # 72h (was 86400 = 24h)
 _HOT_OBSERVER_POOL_LIMIT = 300            # covers 72h at the ~90/day write rate
 _HOT_OBSERVER_DEDUP_TH = 0.5              # same bar as R32's exemplar dedup
 
+# Max distilled own-content lines rendered when NEX5_OWN_CONTENT_RENDER=1.
+# Bounded on purpose: this block exists to let her distilled thinking reach the
+# speaking layer as words without turning retrieval into a few-shot echo wall.
+_OWN_CONTENT_RENDER_MAX = 3
+
 
 def _hot_first_sentence_grams(_t: str) -> set:
     """First-sentence 5-gram set -- identical construction to R32's exemplar
@@ -325,6 +330,64 @@ def _weighted_branch_pick(sorted_branches, top_pick):
         return cands[-1][0]
     except Exception:
         return top_pick
+
+
+def _fixation_teeth(sorted_branches, pick, dynamic_db=None):
+    """L4_teeth (retrieval, r82): the MECHANICAL teeth the L3 note named — a
+    "retrieval weight shift on fixation", not a prompt hint.
+
+    If `pick` repeats the previous fire's RECORDED seed branch (fixation), divert the
+    CREDIT+CARRY to the next branch with positive focus so a DIFFERENT branch seeds
+    subsequent fires (the carry loop — momentum/hot_observer — is what seeds them). The
+    recorded branch is left honest by the caller, so the fixation signal stays valid and
+    the teeth re-fires while fixation persists. BOUNDED: diverts at most one step, only to
+    a real alternative, only on a detected repeat. Reads recursion_attrib RO; FAIL-SAFE:
+    returns `pick` on any error (incl. no history / absent table) — never distorts a fire
+    beyond falling back to the true pick."""
+    try:
+        import sqlite3 as _sq
+        if dynamic_db is None:
+            from substrate.paths import db_paths as _dbp
+            dynamic_db = str(_dbp()["dynamic"])
+        con = _sq.connect(f"file:{dynamic_db}?mode=ro", uri=True, timeout=3)
+        try:
+            row = con.execute(
+                "SELECT branch FROM recursion_attrib ORDER BY ts DESC LIMIT 1").fetchone()
+        finally:
+            con.close()
+        prev = row[0] if row and row[0] else ""
+        if not prev or pick != prev:
+            return pick  # no fixation -> leave the pick untouched
+        for b in sorted_branches:
+            bid = b.get("branch_id")
+            if bid and bid != pick and float(b.get("focus_num", 0) or 0) > 0:
+                return bid  # divert the carry to the next real branch
+        return pick
+    except Exception:
+        return pick
+
+
+# L4 phrasing (NEX5_PHRASING_ROTATE, default OFF) — rotate the item-referent so the
+# "this item is about ..." opener frame can't lock in across fires. A substitutive
+# prompt-STRUCTURE change, not an instruction. r83 Step-0 on a MINIMAL reconstruction
+# showed the referent alone didn't move the opener and the frame measured as VOICE
+# (equal content entropy frame-present vs absent); this ships default-OFF so it can be
+# tested on the REAL fire prompt, which the minimal A/B could not reproduce. Preserves
+# first-letter capitalization; fail-safe returns the text unchanged.
+_ITEM_REFERENTS = ("the passage", "the material", "the text", "this note", "the excerpt")
+
+
+def _rotate_item_referent(prompt_text: str, fire_count: int) -> str:
+    try:
+        import re as _re
+        ref = _ITEM_REFERENTS[int(fire_count) % len(_ITEM_REFERENTS)]
+
+        def _sub(m):
+            return ref[0].upper() + ref[1:] if m.group(0)[0].isupper() else ref
+
+        return _re.sub(r"\b(?:the|this) item\b", _sub, prompt_text, flags=_re.IGNORECASE)
+    except Exception:
+        return prompt_text
 
 
 # Seed reference material — minority presence (~20%)
@@ -2091,6 +2154,19 @@ class FountainGenerator:
             except Exception:
                 pass  # never stall a fire
         # HOT observer: classify fire, write meta-belief about it (fail-safe)
+        # L4_teeth (retrieval, NEX5_RETRIEVAL_TEETH, default OFF): on fixation (this fire's
+        # seed branch repeats the previous), divert the CREDIT+CARRY to the next branch so a
+        # DIFFERENT branch seeds subsequent fires. The recorded hot_branch stays honest
+        # (recursion_attrib / fountain_events); only the carry (momentum + hot_observer) is
+        # diverted, so the fixation signal remains valid and the teeth re-fires while fixated.
+        _carry_branch = hot_branch
+        if os.environ.get("NEX5_RETRIEVAL_TEETH") == "1" and hot_branch and branches:
+            try:
+                _carry_branch = _fixation_teeth(
+                    sorted(branches, key=lambda b: b.get("focus_num", 0), reverse=True),
+                    hot_branch)
+            except Exception:
+                _carry_branch = hot_branch  # never distort the carry
         if os.environ.get("NEX5_HOT_OBSERVER") == "1":
             try:
                 from theory_x.stage_tom.hot_observer import observe as _hot_obs
@@ -2099,14 +2175,14 @@ class FountainGenerator:
                     _bdb_hot = str(_dbp_hot()["beliefs"])
                 except Exception:
                     _bdb_hot = "/home/rr/Desktop/Desktop/nex5/data/beliefs.db"
-                _hot_obs(thought or "", hot_branch or "", _bdb_hot)
+                _hot_obs(thought or "", _carry_branch or "", _bdb_hot)
             except Exception:
                 pass  # never stall a fire
         # Binding/Momentum: capture the carried thread for the next fire.
         if os.environ.get("NEX5_MOMENTUM", "1") == "1":
             try:
                 from theory_x.stage_tom.momentum import capture_momentum
-                capture_momentum(thought or "", hot_branch or "")
+                capture_momentum(thought or "", _carry_branch or "")
             except Exception:
                 pass  # never stall a fire
 
@@ -3793,18 +3869,62 @@ class FountainGenerator:
             except Exception:
                 pass
 
-        # Recent-thoughts block removed (echo-loop fix, Phase 43). The LLM's
-        # access to her own recent thinking flows through retrieval:
-        # _retrieve_context_beliefs returns synergized + fountain_insight
-        # sources, both her own outputs distilled. Showing raw fountain_events
-        # back as exemplars was few-shot-prompting repetition — 3/3 post-
-        # Mechanism-C fires stayed on the cicada/hum surface pattern.
-        # Per §0: substrate provides; speaking layer composes freely.
-
-        # 2026-07-26: DISABLED self-observations block removed (session 49
-        # continued) -- dead since 2026-05-15 (`if False`), and `_sub_rows`
-        # was hardcoded to an empty list right above it besides. Recoverable
-        # at commit edbddff.
+        # Her own recent thinking. Phase 43 (ea6fe74, "Mechanism A") removed the
+        # block that fed RAW fountain_events back as exemplars -- that was
+        # few-shot repetition (3/3 post-Mechanism-C fires stayed on the
+        # cicada/hum surface pattern). CORRECTION (2026-10): the note that once
+        # stood here claimed her distilled thinking still "flows through
+        # retrieval ... synergized + fountain_insight sources". It does reach
+        # _retrieve_context_beliefs (for activation + residue), but since
+        # ea6fe74 it has NOT rendered into the prompt text at all -- so by
+        # default her distilled thought never reaches the speaking layer as
+        # words, only as activation. The session-49 cleanup that removed the
+        # dead `if False` self-observations block (recoverable at edbddff) left
+        # that gap in place.
+        #
+        # NEX5_OWN_CONTENT_RENDER (default OFF) restores a bounded,
+        # first-sentence-deduped render of that DISTILLED content (not raw
+        # events). hot_observer is deliberately excluded: it quotes crystallized
+        # text verbatim and R75/R76 traced the live `advancements` groove to it,
+        # so rendering it would re-amplify the very attractor this block avoids.
+        # own_sense renders separately above. LIVE CHECK before defaulting ON:
+        # re-measure groove-token P() with the block enabled (R76 baseline for
+        # the hot slot was 13.2%); this distilled-only block should sit at or
+        # below that.
+        if os.environ.get("NEX5_OWN_CONTENT_RENDER") == "1":
+            _own_distilled = [b for b in own
+                              if b["source"] != "precipitated_from_sense"]
+            _own_kept: list = []
+            _own_grams: list = []
+            for _ob in _own_distilled:
+                try:
+                    _content = _ob["content"] or ""
+                except Exception:
+                    continue
+                _g = _hot_first_sentence_grams(_content)
+                _dupe = False
+                for _sg in _own_grams:
+                    _u = len(_g | _sg)
+                    if _u and len(_g & _sg) / _u >= _HOT_OBSERVER_DEDUP_TH:
+                        _dupe = True
+                        break
+                if _dupe:
+                    continue
+                _own_grams.append(_g)
+                _own_kept.append((_ob, _content))
+                if len(_own_kept) >= _OWN_CONTENT_RENDER_MAX:
+                    break
+            if _own_kept:
+                prompt_parts.append(
+                    "Some of what you've been thinking recently:")
+                for _own_rank, (_ob, _content) in enumerate(_own_kept, start=1):
+                    prompt_parts.append(f"  {_content}")
+                    try:
+                        retrieval_manifest.append(
+                            (_ob["id"], "own_render", _own_rank, None))
+                    except Exception:
+                        pass
+                prompt_parts.append("")
 
         _wb_events = None
         if self._world_bridge_selector is not None:
@@ -3888,6 +4008,12 @@ class FountainGenerator:
             self._last_prompt_blocks = self._prompt_block_manifest(_prompt_text)
         except Exception:
             self._last_prompt_blocks = []
+
+        # L4 phrasing rotation (NEX5_PHRASING_ROTATE, default OFF): swap the item-referent
+        # per fire so the opener frame can't lock in. OFF => _prompt_text byte-identical.
+        if os.environ.get("NEX5_PHRASING_ROTATE") == "1":
+            _prompt_text = _rotate_item_referent(
+                _prompt_text, int(getattr(self, "_total_fires", 0)))
 
         return _prompt_text, retrieval_manifest
 
