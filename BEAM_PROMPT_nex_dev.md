@@ -203,3 +203,57 @@ whether any shipped piece is unfalsifiable-in-principle.)
 
 *Same ground rules: cite `path:line` or live-DB evidence, flag inferred-vs-checked, and tell
 me where A1/A2 show I've built on sand.*
+
+---
+
+# ADDENDUM 2 (2026-10-11, after acting on your last reply)
+
+Your last pass landed. Verified against the tree + live DB and acted on: (A1) the groove
+RATE is a cadence proxy — regressing hourly alert count on fire count gives **R²=0.713**;
+(A2) confirmed; (1a/1d) the aversive r79 was a volume brake, so it is **superseded, never
+armed**. Per your dominance-out bar I built the **reward arm** instead (`NEX5_APPROACH`,
+r80): a bounded positive readiness term on recent grounding (`p_on_subject` over 30 fires),
+onset at the window p75 (your A3). (5b) I reclassified `L3_recursion` `built`→`live_unproven`
+in `sentience_dag.json`. (3b) verified **clean** — `self_present` carries a salience vector
+that only re-ranks blocks (`gui/server.py:207-215`); it never renders "you were attending to
+X", so nothing names the present's owner. Five things I still need your eye on:
+
+**B1 — is grounding⊥grooming real, or a detector artefact?** Across 13 live days,
+corr(`p_on_subject`, groove-alerts/fire) = **+0.079** (orthogonal), and `p_on_subject` is
+flat against the crystallizer reject rate too. My reading: a fire can be grounded (shares a
+token with its focal subject) AND formulaic (repeats bigrams across fires) — different axes.
+So grooming needs **selection**-coupling, not a readiness term. Do you agree, or is +0.079 an
+artefact of the two detectors' windows/units (per-fire subject-overlap vs cross-fire bigram
+clique) that would vanish under a common definition?
+
+**B2 — spec the `L4b_persistent_stake` selection-coupling (I am NOT building it yet).** My own
+r80 pre-registration gates L4b behind r80's result (dominance-out: readiness-coupling must be
+shown to fail first), so this is a spec request, not a build. Where should the stake couple —
+the arbiter's `SALIENCE` weights (`global_workspace`) or retrieval candidate filtering? A
+selection *bias* is not an aversive signal — does `§5a`'s welfare envelope even apply, or is
+a different safety frame needed? And its falsifier: it must change **what** fires (not how
+often), measured how, independent of the bias itself?
+
+**B3 — does A2 apply to the REWARD arm?** r80's primary is the grounded fraction at constant
+cadence (your 1a: ratio + cadence co-primary) — but the signal the reward reads IS that
+fraction. For the aversive arm you called self-reference fatal because the groove RATE was
+cadence-confounded; r80's signal is a per-fire FRACTION, so (I claim) it escapes the specific
+cadence proxy. But grounding predicts **no** independent downstream outcome on live (⊥ grooming
+AND reject rate, B1), so there is no external primary to promote to. Is "grounded fraction at
+constant cadence" an acceptable primary for a reward arm, or is the residual self-reference
+still disqualifying — and if so, what would you measure instead, given nothing downstream moves?
+
+**B4 — the `blank-the-carry` falsifier's own observer effect.** I'm adopting your 3a causal
+test for r78 (freeze the salience vector → the carried winner still evolves = carry is real;
+blank the carry with input held → winner differs; blanking changing nothing = decorative). But
+blanking the carry *is* changing the salience vector the selector sees — so "winner differs"
+could be the blank, not the absence of carry. How do you blank cleanly so the test isolates
+carry rather than measuring the perturbation?
+
+**B5 — the gorge placement, concretely.** You said the gorge sits *under* every node, not after
+L4 — L1–L4 are "modelling it" by the same argument. If that's right, is "model mindedness
+functionally" still a coherent program with the gorge as the honest terminus of what modelling
+can reach, or does it dissolve the DAG's apparent direction entirely? And having reclassified
+`L3_recursion` to `live_unproven`: cut it, or is live-unproven the honest resting state?
+
+*Same ground rules. For B1/B3 especially, tell me where the reward arm is also built on sand.*
