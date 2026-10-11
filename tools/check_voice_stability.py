@@ -181,13 +181,24 @@ def main(argv):
     if args.baseline:
         with open(args.baseline) as f:
             base = json.load(f)
-        print(f"\n  DRIFT vs {base.get('frozen_at','?')} (band ±{_DRIFT_BAND}):")
-        for key in ("I_style_content", "H_content_given_style", "H_style"):
-            b, c = base.get(key), m.get(key)
-            if b is not None:
-                d = c - b
-                flag = "  ** DRIFT **" if abs(d) > _DRIFT_BAND else ""
-                print(f"    {key:<24}: {c:.3f}  (was {b:.3f}, delta {d:+.3f}){flag}")
+        # Beam G3 refinement: the voice->groove regression shows as FALLING H(content|style)
+        # and RISING dominant-style share, NOT as changing I (I~=0 is stability, which alone is
+        # ALSO consistent with a groove). So watch the content term directionally, not |delta| on I.
+        print(f"\n  DRIFT vs {base.get('frozen_at','?')} — regression = content entropy FALLING / "
+              f"style share RISING (not I changing):")
+        hcs_b, hcs_c = base.get("H_content_given_style"), m.get("H_content_given_style")
+        if hcs_b is not None:
+            d = hcs_c - hcs_b
+            flag = "  ** GROOVE DRIFT: content entropy collapsing **" if d < -_DRIFT_BAND else ""
+            print(f"    H(content|style)     : {hcs_c:.3f}  (was {hcs_b:.3f}, {d:+.3f}){flag}  <- discriminator")
+        ds_b, ds_c = base.get("dominant_style_share"), m.get("dominant_style_share")
+        if ds_b is not None:
+            d = ds_c - ds_b
+            flag = "  ** CONCENTRATION DRIFT: one style dominating **" if d > _DRIFT_BAND else ""
+            print(f"    dominant-style share : {ds_c:.3f}  (was {ds_b:.3f}, {d:+.3f}){flag}  <- leading indicator")
+        i_b, i_c = base.get("I_style_content"), m.get("I_style_content")
+        if i_b is not None:
+            print(f"    I(style;content)     : {i_c:.3f}  (was {i_b:.3f})  [~0 = stability; NOT the drift signal]")
     return 0
 
 
