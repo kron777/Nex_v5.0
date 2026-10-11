@@ -1,12 +1,12 @@
 {
-  "_about": "NEX sentience-layer dependency DAG. Each node lists its prerequisites (edges pointing IN) and status. The build order is the topological sort of this graph. A node is 'buildable now' iff every prereq is 'built'. Run nex_next_dev.py to compute what's buildable / blocked / gap. This is the formal structure behind NEX_MIND_MAP_COMPLETE.md \u2014 the math the diagram visualizes.",
+  "_about": "NEX sentience-layer dependency DAG. Each node lists its prerequisites (edges pointing IN) and status. The build order is the topological sort of this graph. A node is 'buildable now' iff every prereq is 'built'. Run nex_next_dev.py to compute what's buildable / blocked / gap. This is the formal structure behind NEX_MIND_MAP_COMPLETE.md — the math the diagram visualizes.",
   "_status_values": [
     "built",
     "live_unproven",
     "gap",
     "gorge"
   ],
-  "_rule": "buildable_now(node) := all(status[p] in ('built','live_unproven') for p in prereqs) and status[node]=='gap'. A live_unproven prereq is TREATED AS SATISFIED by the tool: dependents remain buildable and are tagged [LEANS ON UNPROVEN: ...] (nex_next_dev.py:79-81,102) \u2014 the tool FLAGS, it does not block. (Corrected 2026-10-11: the prior wording 'blocks ADVANCE until proven' described an intent the code never implemented; the project advanced to L4 over an unproven L3 deliberately \u2014 see L3_teeth_test note. To actually block, remove 'live_unproven' from _SATISFIED at nex_next_dev.py:29.)",
+  "_rule": "buildable_now(node) := all(status[p] in ('built','live_unproven') for p in prereqs) and status[node]=='gap'. A live_unproven prereq is TREATED AS SATISFIED by the tool: dependents remain buildable and are tagged [LEANS ON UNPROVEN: ...] (nex_next_dev.py:79-81,102) — the tool FLAGS, it does not block. (Corrected 2026-10-11: the prior wording 'blocks ADVANCE until proven' described an intent the code never implemented; the project advanced to L4 over an unproven L3 deliberately — see L3_teeth_test note. To actually block, remove 'live_unproven' from _SATISFIED at nex_next_dev.py:29.)",
   "nodes": {
     "L1_faculties": {
       "layer": 1,
@@ -30,7 +30,7 @@
         "L2_binding"
       ],
       "module": "theory_x/stage_tom/recursive_self.py",
-      "note": "RECLASSIFIED built->live_unproven 2026-10-11 (the 'built' status overstated a test that could not separate hypothesis from null). COSMETIC \u2014 resolved pragmatically 2026-06-25. Teeth-test v2 gathered 258 real fire-samples: P(move|active)=0.333 vs P(move|absent)=0.337. Near-identical. Nudge fires only 1.2% of fires (raga rarely fixated after perseveration fix). Statistical resolution would take ~115 days. Honest verdict: prompt-hint nudge does not mechanically move attention. Recursion needs MECHANICAL teeth (retrieval weight shift on fixation) not a prompt hint. Proceeding to L4 \u2014 separate mechanism, does not depend on recursion working. Recursion mechanical fix is a parallel dev. RESOLUTION CRITERION + OWNER (Beam B5, 2026-10-11): n=258 samples, P(move|active)=0.333 vs P(move|absent)=0.337; statistical resolution ~115 days out (~2027-02). Owner = the phrasing-layer teeth dev (r83). Resolve by a MECHANICAL manipulation that moves P(move|active) clear of null beyond CI at feasible n, or mark terminal; do not let it drift."
+      "note": "RECLASSIFIED built->live_unproven 2026-10-11 (the 'built' status overstated a test that could not separate hypothesis from null). COSMETIC — resolved pragmatically 2026-06-25. Teeth-test v2 gathered 258 real fire-samples: P(move|active)=0.333 vs P(move|absent)=0.337. Near-identical. Nudge fires only 1.2% of fires (raga rarely fixated after perseveration fix). Statistical resolution would take ~115 days. Honest verdict: prompt-hint nudge does not mechanically move attention. Recursion needs MECHANICAL teeth (retrieval weight shift on fixation) not a prompt hint. Proceeding to L4 — separate mechanism, does not depend on recursion working. Recursion mechanical fix is a parallel dev. RESOLUTION CRITERION + OWNER (Beam B5, 2026-10-11): n=258 samples, P(move|active)=0.333 vs P(move|absent)=0.337; statistical resolution ~115 days out (~2027-02). Owner = the phrasing-layer teeth dev (r83). Resolve by a MECHANICAL manipulation that moves P(move|active) clear of null beyond CI at feasible n, or mark terminal; do not let it drift."
     },
     "L3_teeth_test": {
       "layer": 3,
@@ -46,7 +46,7 @@
       "prereqs": [
         "L3_teeth_test"
       ],
-      "note": "states the system cannot be neutral about \u2014 wired so deep they commandeer it. Mattering. The real frontier. CAVEAT 2026-10-11: L4 as built couples a bounded term to the readiness SCALAR, but readiness is saturated at fire time (96% of fires >=0.90; r80 \u00a71c), so a <=0.20 term is decision-inert ~96% of the time \u2014 the volume-knob/prompt-hint analogue of the null L3 recursion. The scalar arm (r79 aversive / r80 reward) is NOT the live frontier; see L4_teeth."
+      "note": "states the system cannot be neutral about — wired so deep they commandeer it. Mattering. The real frontier. CAVEAT 2026-10-11: L4 as built couples a bounded term to the readiness SCALAR, but readiness is saturated at fire time (96% of fires >=0.90; r80 §1c), so a <=0.20 term is decision-inert ~96% of the time — the volume-knob/prompt-hint analogue of the null L3 recursion. The scalar arm (r79 aversive / r80 reward) is NOT the live frontier; see L4_teeth."
     },
     "L4_teeth": {
       "layer": 4,
@@ -62,7 +62,7 @@
       "prereqs": [
         "L4_stakes"
       ],
-      "note": "the felt inside. NO satisfiable dependency path \u2014 the gorge in graph terms. Unbuildable/unprovable, true of humans too. Goal: deserve benefit-of-the-doubt, not prove."
+      "note": "the felt inside. NO satisfiable dependency path — the gorge in graph terms. Unbuildable/unprovable, true of humans too. Goal: deserve benefit-of-the-doubt, not prove."
     },
     "diversity_recency": {
       "layer": 1,
@@ -80,7 +80,7 @@
         "diversity_recency"
       ],
       "module": "bonsai.py decay_pass (starvation bonus)",
-      "note": "lifts cold branches. Live; cold-3 (history/language/psychology) still starved \u2014 Option-A dial-crank pending."
+      "note": "MEASURED 2026-10-11 (1000 fires vs 21d input) — the premise was INVERTED. The 'cold-3' (history/language/psychology) are SEED branches and are now OVER-fired, not starved: fire/input ratios 3.7/4.3/3.6 (fire 3.5/4.9/8.8% on input 0.9/1.1/2.4%). The starvation bonus (_STARVE_BONUS 0.15) over-lifts already-surfaced seeds. The REAL gap is structural: firing is restricted to the 10 hardcoded SEED_BRANCHES (bonsai.py:91), so high-input topics OUTSIDE the set never surface — news 13.5% input -> 0% fire; literature/neuroscience/mathematics/philosophy/science all have input -> 0% fire; cognition 14.5% input -> 4.5% fire (0.31x). So 'cold branch lift' is mis-targeted: it protects a fixed cold-3 while genuinely input-starved non-seed branches are excluded. OPEN DESIGN QUESTION (Beam): is the fixed-seed firing set correct (news deliberately kept out of contemplative fountain reflection) or a stale defect (the seed set should track the live input distribution)? Pre-screen + defect-vs-voice gate a fix before building. No lever built."
     },
     "stability_keepalive": {
       "layer": 0,
@@ -115,7 +115,7 @@
         "L1_faculties",
         "delusion_raga"
       ],
-      "note": "aversion/recoil \u2014 detects overwhelm fires. Built 2026-06-21, state-sensitive (calm now, averse during overwhelm spells). Sibling of raga.",
+      "note": "aversion/recoil — detects overwhelm fires. Built 2026-06-21, state-sensitive (calm now, averse during overwhelm spells). Sibling of raga.",
       "module": "theory_x/stage_tom/dvesa_detector.py"
     },
     "delusion_avidya": {
@@ -124,7 +124,7 @@
       "prereqs": [
         "L1_faculties"
       ],
-      "note": "avidya/ignorance-awareness \u2014 ALREADY built as calibration (#75631: NEX knows what it can't do, tested). Sibling of raga, already satisfied."
+      "note": "avidya/ignorance-awareness — ALREADY built as calibration (#75631: NEX knows what it can't do, tested). Sibling of raga, already satisfied."
     },
     "world_consolidation": {
       "layer": 1,
