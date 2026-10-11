@@ -95,17 +95,19 @@ class ReadinessEvaluator:
         # 2026-05-30 — genius rate modulation (subtractive, opt-in)
         total -= self._genius_modulation()
 
-        # L4 stakes (NEX5_STAKES, default OFF): a stake going badly — drift from
-        # world contact into template — subtracts a BOUNDED cost, so readiness is
-        # partly ABOUT a stake, not only a clock. Welfare (SENTIENCE_PROGRAM §5a):
-        # clamped (<=0.20), non-compounding, disable-able, logged (non-zero only),
-        # never narrated as suffering. Direction/magnitude provisional — measured
-        # before it defaults on.
+        # L4 stakes (NEX5_STAKES, default OFF): a stake going badly — a RISE in
+        # grooming (template-repetition bursts, via diversity/groove.py) — subtracts
+        # a BOUNDED cost, so readiness is partly ABOUT a stake, not only a clock.
+        # Sourced from the live groove detector (appraise_groove), not the inert
+        # drift ratio (r79 §2). Welfare (SENTIENCE_PROGRAM §5a): clamped (<=0.20),
+        # non-compounding, disable-able, logged (non-zero only), never narrated as
+        # suffering. Direction/magnitude provisional — r79 measures before it
+        # defaults on.
         if os.environ.get("NEX5_STAKES") == "1":
             try:
                 from theory_x.stage_tom.stakes_appraisal import (
-                    appraise, readiness_penalty)
-                _ap = appraise()
+                    appraise_groove, readiness_penalty)
+                _ap = appraise_groove()
                 _pen = readiness_penalty(_ap["cost"])
                 if _pen < 0.0:
                     total += _pen
@@ -113,7 +115,7 @@ class ReadinessEvaluator:
                         import errors as _err
                         _err.record(
                             f"stakes cost {_ap['cost']} -> readiness {_pen:+.3f} "
-                            f"(drift ratio {_ap['ratio']})",
+                            f"(groove rate {_ap['rate_per_hour']}/hr)",
                             source="stakes", level="INFO",
                         )
                     except Exception:

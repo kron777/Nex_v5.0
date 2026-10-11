@@ -1,26 +1,30 @@
 # R79 — PRE-REGISTRATION: L4_stakes, the bounded self-referent cost (`NEX5_STAKES`)
 
-## 0. Status — Step-0 feasibility is MEASURED, and it GATES the round
+## 0. Status — feasibility MEASURED; fork RESOLVED to Path A (built); ready to arm
 
-This is **not yet a runnable effect-round.** As built, the stakes cost is **inert on the live
-instrument**: the signal it reads never approaches the threshold that would make the cost
-non-zero. Measured 2026-10-11 against the live data dir (§2). So the first thing this document
-does is freeze that feasibility baseline and pre-register the **fork** that must be resolved
-before `NEX5_STAKES` is ever armed — then (§4–§8) the full effect-round protocol for the case
-where the mechanism *can* fire, locked now so no choice is improvised against a result.
+Writing the pre-registration first did its job. The cost **as first built** (drift ratio ≥ 0.55)
+is **inert on the live instrument** — the signal never approaches 0.55 (§2). Rather than silently
+lower the threshold, the fork (§3) was resolved openly to **Path A: re-source the cost from the
+live groove detector's alert RATE**, which was then **built and feasibility-checked PASS** (§2b):
+simulated over the 14-day history the onset-cost rests at 0 in 65% of evaluations and bites
+(bounded) on the burstiest 35% — targeted, not a brake, not inert. **The round is now runnable.**
+What remains is the maintainer's to do: deploy and arm `NEX5_STAKES=1` on the live launcher.
 
-Pre-registration order: this is sequenced **after r77 (chat arbiter) and r78 (`self_present`)** —
-one variable at a time. `NEX5_STAKES` is held OFF during r77/r78 (it joins their confound set).
+Pre-registration order: sequenced **after r77 (chat arbiter) and r78 (`self_present`)** — one
+variable at a time. `NEX5_STAKES` is held OFF during r77/r78 (it joins their confound set).
 
 ## 1. The change under test
 
 **`NEX5_STAKES` (default OFF).** When armed, `readiness.score` subtracts
-`readiness_penalty(appraise()["cost"])`, where `cost = clamp(ratio − 0.55)` bounded to ≤ 0.20,
-and `ratio` = the fraction of the last `_SAMPLE_N=8` substantive fires that
-`stakes_monitor._is_template` flags. Code: `theory_x/stage_tom/stakes_appraisal.py`,
-`theory_x/stage6_fountain/readiness.py:104`. OFF ⇒ readiness byte-identical. ANALOGUE — no claim
-of a felt cost. Welfare envelope (`SENTIENCE_PROGRAM.md §5a`): bounded, non-compounding,
-disable-able, logged, never narrated as suffering.
+`readiness_penalty(appraise_groove()["cost"])`, where the cost is the **grooming-onset** signal:
+`cost = clamp01((rate_1h − onset)/(sat − onset)) · 0.20`, `rate_1h` = `template_repetition` alerts
+in the trailing hour from `beliefs.db:groove_alerts`, `onset = 2.0/hr`, `sat = 6.0/hr` (frozen,
+`observation_reports/r79_baselines/groove_rate.json`). Below onset ⇒ 0 (no brake at rest); a burst
+⇒ bounded cost toward 0.20. The drift-ratio `appraise()` is retained as an inert instrument, **not**
+wired. Code: `theory_x/stage_tom/stakes_appraisal.py` (`appraise_groove`),
+`theory_x/stage6_fountain/readiness.py`. OFF ⇒ readiness byte-identical. ANALOGUE — no claim of a
+felt cost. Welfare envelope (`SENTIENCE_PROGRAM.md §5a`): bounded, non-compounding, disable-able,
+logged, never narrated as suffering.
 
 ## 2. Step 0 — FEASIBILITY (measured, frozen)
 
@@ -49,16 +53,31 @@ template detector, `theory_x/diversity/groove.py` (`_detect_template_repetition`
 live-data reason the §7 "disconnected groove detector" finding matters here — not the problem-
 promotion reason Beam gave.)
 
-## 3. The pre-registered FORK — resolve BEFORE any arming (one of A/B/C, chosen openly, not post-hoc)
+### 2b. Path-A feasibility (the re-sourced onset cost) — MEASURED, PASS
 
-- **A — re-source the cost from `groove_alerts`.** Drive `appraise().cost` from the live-calibrated
-  groove detector instead of `stakes_monitor`'s 8-fire ratio. **Caveat locked now:** template
-  severity is pinned at ~0.99 nearly always, so a cost proportional to raw severity would be a
-  *perpetual brake* (constant readiness depression = global slowdown, not a targeted signal), which
-  **fails the §5 over-suppression guardrail by construction**. Path A is therefore specifically: the
-  cost responds to the **rate or onset/delta** of `template_repetition` alerts (e.g. a rise above
-  the per-hour baseline), never to the ever-present severity level. Requires a small rebuild +
-  a re-frozen baseline on the new signal, then the §4–§8 round.
+The onset cost (§1) reads the `template_repetition` alert RATE, not the ratio. Frozen baseline
+(`observation_reports/r79_baselines/groove_rate.json`), live, 14 days: ~49.7 alerts/day; hourly
+rate mean 2.06 / p90 6.0 / max 13; 57% of hours have zero alerts (bursty). Simulating the cost
+over that history (1h window slid every 10 min, 2007 evaluations):
+
+| cost outcome | share | meaning |
+|---|---|---|
+| `cost == 0` | **65%** | at rest → no brake (the severity-brake failure mode is avoided) |
+| `0 < cost < 0.20` | 20% | responding to moderate bursts |
+| `cost == 0.20` | **15%** | saturated only in the burstiest hours |
+| mean cost (all evals) | **0.05** | small average readiness drag |
+
+→ **Feasibility PASSES.** Unlike the 0.55 ratio (inert) and unlike a severity-proportional cost (a
+perpetual brake), the onset cost fires on grooming bursts and rests at zero otherwise. The round
+can test a real effect.
+
+## 3. The fork — RESOLVED to Path A (built); B/C retained as the pre-registered fallbacks
+
+- **A — re-source the cost from `groove_alerts` ✅ CHOSEN + BUILT.** The cost now reads the
+  **rate/onset** of `template_repetition` alerts (`appraise_groove`, §1), never the ever-present
+  ~0.99 severity — so the perpetual-brake failure mode is avoided by construction, and the §2b
+  simulation confirms it (rests at 0 in 65% of evals). Baseline re-frozen (§2b). This is the arm-ready
+  mechanism; §4–§8 apply to it.
 - **B — recalibrate `stakes_monitor`'s threshold** to a value the 8-fire ratio actually reaches.
   Weak: the 8-fire ratio sits near 0 even when grooving (§2), so lowering 0.55 barely helps and
   risks tripping on 1-of-8 noise. A dominates B unless there is a reason to keep the ratio source.
@@ -68,9 +87,10 @@ promotion reason Beam gave.)
   If A's rebuild cannot clear the §6 mechanical falsifier, **C is the welfare-correct default**:
   revert `NEX5_STAKES`, keep the appraisal module as instrumentation only (no readiness coupling).
 
-**This fork is a decision for the maintainer, not a silent substitution** (round protocol: when a
+**The fork was resolved openly, not by a silent substitution** (round protocol: when a
 pre-registered predicate fails its own tripwire, ask — don't swap the threshold to manufacture an
-effect). Nothing downstream of §4 runs until the fork is resolved and a baseline re-frozen.
+effect). It resolved to A with a re-frozen baseline (§2b); B/C remain the pre-registered fallbacks
+if the §6 mechanical falsifier is not met during the live round.
 
 ## 4. Hypothesis + primary metric (for A or B, once the mechanism can fire)
 
