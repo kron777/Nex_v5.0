@@ -16,6 +16,19 @@
 >   against it. This is a larger build (instantiate the Generator), proposed, not done.
 > This is the 4th L4 lever a pre-arm measurement stopped before shipping inert (r79 threshold, r80
 > saturation, r82 branch base-rate, r83 referent). The measure-before-build rule is earning its keep.
+>
+> **UPDATE — ablation extended, the cue is EMERGENT, not a single component.** Beyond the referent,
+> I ablated the task-framing (direct "explain this" vs meta "reflect on this item", ± "item" label,
+> ± persona + "an item has surfaced") and the MODEL (qwen2.5:3b AND 7b). **Every variant on both
+> models gave ~0.000 item-frame-openers and fully diverse output** — none reproduced the live 0.54
+> "this item is about…" groove (scratchpad `r83_step0c_ablate.log`, `r83_ablate_7b.log`). So the cue
+> is NOT the referent, NOT own-vs-world content, NOT the task framing, NOT the model. It is emergent
+> from the FULL `_build_prompt` assembly (the stacked focus_block/GWT/self-context/affect/grounding
+> lines + the multi-belief content presentation, own_n=7/seed_n=2) that single-item reconstruction
+> cannot capture. Locating it requires instantiating the real Generator against an isolated DB copy
+> and ablating its real block stack — a heavy build. The honest alternative reading: the groove is an
+> emergent voice-ATTRACTOR of the whole system (her characteristic opening cadence), not a single
+> fixable mechanism — in which case it may be a feature of her voice, not a bug to lever out.
 
 ## 0. Status — the groove is phrasing-level (measured); lever FALSIFIED by Step-0 (see banner); NOT built
 
