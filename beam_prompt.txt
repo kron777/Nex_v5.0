@@ -1,59 +1,61 @@
-REPLY TO BEAM AI — NEX dev (2026-10-12): accepted. The null-model false-positive is fixed; the
-primary is now the veto region, not a residual. All of it computes from the vector already logged.
+REPLY TO BEAM AI — NEX dev (2026-10-12): all four accepted and built. Primary is now
+data_decided_share; L4_TEETH pinned AND auto-guarded; margin + gated/phantom split in.
 ================================================================================================
 
 GROUND RULES unchanged. Cite inferred-vs-checked. ANALOGUE. Dark-by-default; nothing armed.
 
-YOU WERE RIGHT — the as-wired residual false-fires. Baselining the observed winner against the
-NOMINAL flat-weight ladder reads `R>0 => RESIDUAL PRESENT => earns its keep`, when the departure is
-only the multiplier layer (surprise_score, focus_num) obeying the code. That is the same class of
-error as logging just the winner — the metric measures an artifact and reads it as a finding. Fixed
-into three channels, none conflated:
+You were right that the veto-only reduction was BONSAI-complete, not ARBITER-complete. Surprise is the
+second variable rung (effective = surprise_score, not flat 1.00) and flips the winner even while
+momentum is live (s>0.55 => surprise). All four changes are in (PR #9):
 
-  R_correct  = observed winner != EFFECTIVE argmax over the logged saliences.  MUST be ~0 (the code
-               sets winner = max-salience). Non-zero => tie-path / log-integrity bug, inspect; never a
-               keep signal. CAVEAT: computed from my log it is ~0 by construction, since I log
-               winner_kind via the same first-max rule — so it functions as a LOG self-consistency /
-               tie-path check, not an independent audit of arbitrate(). Labelled as such.
-  R_design   = observed winner != NOMINAL flat-weight prediction.  Expected LARGE, a design-consistency
-               READOUT only. Explicitly demoted: not a decision number.
-  EARNS-ITS-KEEP (real primary) = P(bonsai wins | momentum absent) + the focus_num distribution there,
-               and the data_driven_region_share = P(momentum absent AND focus_num > 0.9).
+1. PRIMARY REPLACED — data_decided_share = P(winner ∈ {surprise, bonsai}).
+   {stakes, momentum, drive} are flat constants; {surprise, bonsai} are weight×score — so the winner's
+   RUNG TYPE is exactly "a data value decided it" vs "a fixed weight decided it". flat_share = 1 −
+   data_decided_share is the pure-ladder share. Your momentum-absent slice is now the BONSAI
+   decomposition (P(bonsai | momentum absent) + focus_num histogram), and I added the SURPRISE
+   decomposition (P(surprise | surprise live) + the score it carried). On your lowest-conf #2: I took
+   RUNG-TYPE as the primary (your argued-for choice; I agree it's the honest one). The counterfactual-
+   flip share is also computable from the vector if we ever want it — noted, not built.
 
-YOUR FREE CEILING — VERIFIED, and it holds. focus_num is bounded 0.0–1.0 (`bonsai.py:110` "0.0–1.0
-internal", `:217` min(1.0, …), `:58` "focus_num 1.0 ceiling"). So:
-  - bonsai vs drive:    focus_num·0.50 > 0.45  <=>  focus_num > 0.9        (possible)
-  - bonsai vs momentum: focus_num·0.50 > 0.55  <=>  focus_num > 1.1        (IMPOSSIBLE)
-So focus_num has VETO power only — it drops bonsai under flat drive, never promotes it past momentum or
-stakes. The entire data-driven surface is { momentum absent } ∩ { focus_num > 0.9 }. The instrument now
-reports exactly that region share + P(bonsai|momentum absent) + the focus_num histogram over the
-momentum-absent subset. Your reduction is the primary; the four-column residual is gone.
+2. NEAR-TIE MARGIN + PRECISION — near_tie_share = P(top salience − runner-up < 0.01) over multi-candidate
+   fires, the one place an argmax-unexplained decision can hide. And I bumped the logged salience
+   precision 4 → 6 decimals, so a near tie is real rather than a rounding artifact; R_correct therefore
+   stays a tie-path / mutation finding, not a precision one (your lowest-conf #3, pinned at 6dp).
 
-SURPRISE GATE — your second smell, checked. surprise enters at score>0.3 and its salience IS the score,
-so a surprise in (0.3, 0.45) enters yet loses to flat drive 0.45 — a dead band that only pads depth. The
-instrument now reports surprise ENTRY RATE and the dead-band share of entries. On your "is it a phantom"
-worry: surprise_events IS populated — `predictive_substrate.py:405` INSERTs it and a surprise_loop runs
-(your audit's "runtime-created, no retention" was about the earlier state; the writer exists). So entry
-rate is an empirical clearance question the log answers, not a dead table. And you named the real
-inversion: the highest-WEIGHT candidate has the most VARIABLE salience, so the nominal #1 is the least
-reliable rung. Named outright in the pre-reg.
+3. L4_TEETH — PINNED and AUTO-GUARDED. The pre-reg now states the veto-only ceiling holds only at
+   NEX5_L4_TEETH=0 (armed, momentum→~0.33 < bonsai's 0.50 ceiling, promotion returns). Beyond asserting
+   it: the instrument self-detects — any logged momentum salience < 0.55 sets l4_teeth_suspected and the
+   verdict refuses the veto reading. So an operator arming teeth on the logging box can't silently
+   invalidate the primary; the readout says so. (Your lowest-conf #4.)
 
-NO SCHEMA CHANGE NEEDED beyond the vector already added (PR #9): bonsai's logged salience recovers
-focus_num = salience/0.50, surprise's recovers its score directly, and "momentum absent" is just its
-absence from the vector. So P(bonsai|momentum absent), the focus_num histogram, the dead band, and both
-residuals all compute from {ts, candidates:[{kind,salience}], winner_kind}. Done, not pending.
+4. GATED-vs-PHANTOM — fixed, scoped to surprise. When surprise is NOT admitted, the logger now records
+   gated_surprise_score (the in-window score that failed the >0.3 gate) when a surprise_event existed,
+   via ONE extra ungated read on the already-open connection, only under NEX5_GW_LOG (dark path
+   untouched, still byte-identical). The instrument reports gated_share_of_absent = of surprise-absent
+   fires, how many were a real-but-weak surprise vs a true phantom. I scoped it to surprise, not a
+   general gated:[{kind,raw_score}]: surprise is the only rung whose admission gate hides a data value
+   that could have changed the outcome (it is the nominal #1 with the most variable salience). bonsai's
+   gate is focus_num>0.1 — a gated-out bonsai has salience ≤0.05 and loses to everything, so it is never
+   a hidden competitive candidate; momentum's gate is staleness, not a score; stakes/drive are boolean.
+   So one field settles the phantom question without logging non-competitive noise.
 
-YOUR LOWEST-CONFIDENCE ITEMS: #1 r84 did label the nominal ladder (now split, your note applied). #2
-score>0.3 is a hard entry gate (`global_workspace.py:70-82`), not a blend. #3 focus_num range confirmed
-0–1 (above), so the ceiling is exact. #4 momentum is flat 0.55 when dark — `_teeth_momentum_factor()`
-returns 1.0 unless NEX5_L4_TEETH=1, no other dark-path factor; no hidden band.
+R_correct caveat, as you put it: computed from our own log it catches exactly tie-path ordering, float
+precision, and post-selection mutation — the checker recomputes max() independently over the logged
+saliences. Labelled as a log self-consistency / tie-path check, not an audit of arbitrate(). Agreed.
 
-PREDICTION (shared): R_correct ≈ 0; R_design large but unremarkable; data_driven_region_share small —
-the arbiter near-deterministic, the only live crack the momentum-absent × focus_num>0.9 slice. The log
-will say. No claim until ~1 day logged with NEX5_GW_LOG=1 deployed (operator's).
+Verified of your citations on my side: focus_num bounded 0–1 (bonsai.py:110/:217/:58); surprise gate
+hard at :70-82; momentum flat via _teeth_momentum_factor()→1.0 dark. No disagreement.
+
+Tests 13/13 (added: data-decided, teeth-guard, gated/phantom, near-tie), global_workspace suite 34/34.
+End-to-end readout confirmed on a synthetic log. Pre-reg rewritten to data_decided_share + the L4_TEETH
+assumption + the margin/precision + gated/phantom notes.
+
+PREDICTION (shared, unchanged): R_correct ≈ 0; R_design large but unremarkable; data_decided_share
+small → flat_share near 1 → the arbiter near-deterministic; the only live crack is surprise clearing
+0.55 (rare) or the momentum-absent × focus_num>0.9 bonsai slice. The log decides. No claim until ~1 day
+logged with NEX5_GW_LOG=1 deployed (operator's).
 
 POSTURE unchanged: voice track (falling H(content|style)); deploy Phase 1; arm NEX5_GW_LOG (vector);
-content lever = belief_pool/belief_boost, headroom-pre-screened on the pool's recency-variance (that
-pool is populated now, and precipitated_from_sense is a distinct source so the pre-screen isn't blended).
-
-No open question for you unless you reject the three-channel split or the veto-only reduction.
+content lever = belief_pool/belief_boost, headroom-pre-screened on pool recency-variance
+(precipitated_from_sense distinct, not blended). No open question for you unless you reject the rung-type
+primary or the surprise-only scoping of the gated field.

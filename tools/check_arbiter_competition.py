@@ -57,7 +57,11 @@ except Exception:
 
 _W_BONSAI = _LADDER.get("bonsai", 0.50)
 _W_DRIVE = _LADDER.get("drive", 0.45)
+_W_MOMENTUM = _LADDER.get("momentum", 0.55)
 _VETO_THR = _W_DRIVE / _W_BONSAI if _W_BONSAI else 0.9   # focus_num above which bonsai beats drive
+_VARIABLE_RUNGS = {"surprise", "bonsai"}                 # weight×score; the rest are flat constants
+_NEAR_TIE_EPS = 0.01                                     # margins below this are "near ties"
+_GW_LOG_PRECISION_HINT = 6                               # decimals the logger rounds salience to
 
 
 def _default_path() -> str:
@@ -126,9 +130,13 @@ def measure(path: str, window: int = 5000, days: float | None = None) -> dict:
     depth_c = collections.Counter()
     present_c = collections.Counter()
     r_correct = r_design = 0
+    data_decided = 0                         # winner is a VARIABLE rung (surprise/bonsai)
+    surprise_live = surprise_win = surprise_dead = 0
+    surprise_absent = surprise_gated = 0     # absent split: gated-out (score logged) vs phantom (none)
     mom_absent = bonsai_win_ma = 0
     fn_hist = collections.Counter()          # focus_num over momentum-absent, bonsai-present fires
-    surprise_entry = surprise_dead = 0
+    margin_computable = near_tie = 0
+    teeth_suspected = False
 
     for r in rows:
         cand = r.get("candidates") or []
@@ -143,35 +151,59 @@ def measure(path: str, window: int = 5000, days: float | None = None) -> dict:
             r_correct += 1
         if obs != _nominal_predicted(kinds):
             r_design += 1
+        if obs in _VARIABLE_RUNGS:
+            data_decided += 1
+        if "momentum" in sal and sal["momentum"] < _W_MOMENTUM * 0.99:
+            teeth_suspected = True           # demoted momentum => L4_TEETH armed => veto ceiling broken
+        if "surprise" in sal:
+            surprise_live += 1
+            if obs == "surprise":
+                surprise_win += 1
+            if sal["surprise"] < _W_DRIVE:   # enters but cannot beat flat drive -> dead band
+                surprise_dead += 1
+        else:
+            surprise_absent += 1
+            if r.get("gated_surprise_score") is not None:
+                surprise_gated += 1          # a surprise existed in-window but was gated out
         if "momentum" not in kinds:
             mom_absent += 1
             if obs == "bonsai":
                 bonsai_win_ma += 1
             if "bonsai" in sal and _W_BONSAI:
                 fn_hist[_fn_bucket(sal["bonsai"] / _W_BONSAI)] += 1
-        if "surprise" in sal:
-            surprise_entry += 1
-            if sal["surprise"] < _W_DRIVE:      # enters but cannot beat flat drive -> dead band
-                surprise_dead += 1
+        if len(cand) >= 2:
+            margin_computable += 1
+            top2 = sorted((c.get("salience", 0.0) for c in cand), reverse=True)[:2]
+            if top2[0] - top2[1] < _NEAR_TIE_EPS:
+                near_tie += 1
 
     fn_total = sum(fn_hist.values())
     return {
         "n": n,
-        "R_correct": round(r_correct / n, 4),        # TRIPWIRE: must be ~0
-        "R_design": round(r_design / n, 4),          # READOUT: expected large, not a keep signal
-        "earns_keep": {
-            "momentum_absent_share": round(mom_absent / n, 3),
-            "p_bonsai_win_given_momentum_absent": (
-                round(bonsai_win_ma / mom_absent, 3) if mom_absent else None),
-            "focus_num_hist_momentum_absent": {k: round(v / fn_total, 3)
-                                               for k, v in fn_hist.most_common()} if fn_total else {},
-            "data_driven_region_share": round(fn_hist.get(f">{_VETO_THR:g}", 0) / n, 4),
+        "data_decided_share": round(data_decided / n, 4),     # PRIMARY: winner is a variable rung
+        "flat_share": round(1 - data_decided / n, 4),         # won by a constant weight (pure ladder)
+        "R_correct": round(r_correct / n, 4),                 # TRIPWIRE: must be ~0
+        "R_design": round(r_design / n, 4),                   # READOUT: expected large, not a keep signal
+        "l4_teeth_suspected": teeth_suspected,                # if true the veto-only reduction is invalid
+        "decomposition": {
+            "p_surprise_win": round(winner_c.get("surprise", 0) / n, 4),
+            "p_bonsai_win": round(winner_c.get("bonsai", 0) / n, 4),
         },
         "surprise": {
-            "entry_rate": round(surprise_entry / n, 3),
-            "dead_band_share_of_entries": (
-                round(surprise_dead / surprise_entry, 3) if surprise_entry else None),
+            "entry_rate": round(surprise_live / n, 3),
+            "win_given_live": round(surprise_win / surprise_live, 3) if surprise_live else None,
+            "dead_band_share_of_entries": round(surprise_dead / surprise_live, 3) if surprise_live else None,
+            "gated_share_of_absent": round(surprise_gated / surprise_absent, 3) if surprise_absent else None,
         },
+        "bonsai": {
+            "momentum_absent_share": round(mom_absent / n, 3),
+            "p_bonsai_win_given_momentum_absent": round(bonsai_win_ma / mom_absent, 3) if mom_absent else None,
+            "focus_num_hist_momentum_absent": {k: round(v / fn_total, 3)
+                                               for k, v in fn_hist.most_common()} if fn_total else {},
+            "veto_region_share": round(fn_hist.get(f">{_VETO_THR:g}", 0) / n, 4),
+        },
+        "near_tie_share": round(near_tie / margin_computable, 4) if margin_computable else None,
+        "logged_salience_precision": _GW_LOG_PRECISION_HINT,
         "winner_distribution": {k: round(v / n, 3) for k, v in winner_c.most_common()},
         "winner_entropy": round(_entropy(winner_c), 4),
         "mean_candidates": round(sum(d * c for d, c in depth_c.items()) / n, 3),
@@ -180,19 +212,22 @@ def measure(path: str, window: int = 5000, days: float | None = None) -> dict:
 
 
 def _verdict(m: dict) -> str:
+    pre = ""
+    if m.get("l4_teeth_suspected"):
+        pre = ("L4_TEETH SUSPECTED (momentum salience < 0.55 in-log) — the veto-only ceiling is "
+               "INVALID here; re-run with L4_TEETH=0 or read the demoted ceiling. | ")
     if m.get("R_correct", 0.0) > 0.001:
-        return (f"CORRECTNESS ALERT (R_correct={m['R_correct']:.4f} > 0 — winner != max-salience; "
-                f"inspect the tie path / log integrity, do NOT read as the arbiter deciding)")
-    ek = m["earns_keep"]
-    ddr = ek["data_driven_region_share"]
-    if ddr < 0.02:
-        return (f"NEAR-DETERMINISTIC (data-driven region {ddr:.4f} of fires — the outcome is "
-                f"~fully fixed by flat weights + liveness; focus_num's veto almost never bites; "
-                f"'earns its keep' = no). R_design={m['R_design']:.3f} is the expected multiplier "
-                f"readout, NOT a decision.")
-    return (f"DATA-DRIVEN REGION PRESENT ({ddr:.4f} of fires sit in momentum-absent x focus_num>"
-            f"{_VETO_THR:g}, where focus_num actually decides bonsai-vs-drive). Read "
-            f"p_bonsai_win_given_momentum_absent and the focus_num histogram.")
+        return (pre + f"CORRECTNESS ALERT (R_correct={m['R_correct']:.4f} > 0 — winner != max-salience; "
+                f"inspect tie path / log precision ({m.get('logged_salience_precision')}dp), "
+                f"not the arbiter deciding)")
+    dd = m["data_decided_share"]
+    if dd < 0.02:
+        return (pre + f"NEAR-DETERMINISTIC (data_decided_share={dd:.4f}; flat_share={m['flat_share']:.4f} "
+                f"~1 — the winner is a fixed weight ~always; the arbiter earns ~nothing). R_design="
+                f"{m['R_design']:.3f} is the expected multiplier readout, NOT a decision.")
+    return (pre + f"DATA-DECIDED (data_decided_share={dd:.4f}; a variable rung won — decompose: surprise "
+            f"{m['decomposition']['p_surprise_win']:.4f} vs bonsai {m['decomposition']['p_bonsai_win']:.4f}). "
+            f"The outcome is genuinely input-driven; read the surprise/bonsai conditionals.")
 
 
 def main(argv):
@@ -212,17 +247,18 @@ def main(argv):
     if "error" in m:
         print("  " + m["error"])
         return 1
-    ek = m["earns_keep"]
-    print(f"  R_correct (tripwire, ~0) : {m['R_correct']:.4f}")
-    print(f"  R_design  (readout, big) : {m['R_design']:.4f}   (nominal-ladder departure; expected)")
+    s, b = m["surprise"], m["bonsai"]
+    print(f"  DATA-DECIDED share (primary): {m['data_decided_share']:.4f}   "
+          f"flat_share {m['flat_share']:.4f}  (winner is a variable vs constant rung)")
     print(f"  VERDICT                  : {_verdict(m)}")
-    print("  -- earns-its-keep (the real primary) --")
-    print(f"    momentum-absent share          : {ek['momentum_absent_share']:.3f}")
-    print(f"    P(bonsai win | momentum absent) : {ek['p_bonsai_win_given_momentum_absent']}")
-    print(f"    focus_num hist (mom-absent)     : {ek['focus_num_hist_momentum_absent']}")
-    print(f"    data-driven region share        : {ek['data_driven_region_share']:.4f}")
-    print(f"  surprise entry rate      : {m['surprise']['entry_rate']:.3f}   "
-          f"dead-band share of entries {m['surprise']['dead_band_share_of_entries']}")
+    print(f"  R_correct (tripwire, ~0) : {m['R_correct']:.4f}    "
+          f"R_design (readout, big) : {m['R_design']:.4f}    near-tie share: {m['near_tie_share']}")
+    print(f"  decomposition            : surprise-win {m['decomposition']['p_surprise_win']:.4f}  "
+          f"bonsai-win {m['decomposition']['p_bonsai_win']:.4f}")
+    print(f"  surprise rung (nominal #1): entry {s['entry_rate']:.3f}  win|live {s['win_given_live']}  "
+          f"dead-band|entries {s['dead_band_share_of_entries']}  gated|absent {s['gated_share_of_absent']}")
+    print(f"  bonsai (veto) rung       : P(win|mom-absent) {b['p_bonsai_win_given_momentum_absent']}  "
+          f"veto-region share {b['veto_region_share']:.4f}  focus_num {b['focus_num_hist_momentum_absent']}")
     print(f"  winner distribution      : {m['winner_distribution']}  (entropy {m['winner_entropy']:.3f} b)")
     print(f"  kinds-present rate       : {m['kinds_present_rate']}   mean cand {m['mean_candidates']:.3f}")
 
@@ -235,14 +271,12 @@ def main(argv):
         with open(args.baseline) as f:
             base = json.load(f)
         print(f"\n  DRIFT vs {base.get('frozen_at','?')}:")
-        for key, cur in (("R_correct", m["R_correct"]), ("R_design", m["R_design"]),
-                         ("data_driven_region_share", ek["data_driven_region_share"])):
-            b = base.get(key) if key != "data_driven_region_share" else \
-                base.get("earns_keep", {}).get(key)
-            if b is not None:
-                d = cur - b
+        for key in ("data_decided_share", "flat_share", "R_correct", "R_design"):
+            cur, was = m.get(key), base.get(key)
+            if cur is not None and was is not None:
+                d = cur - was
                 flag = "  ** DRIFT **" if abs(d) > 0.05 else ""
-                print(f"    {key:<26s}: {cur:.4f}  (was {b:.4f}, {d:+.4f}){flag}")
+                print(f"    {key:<22s}: {cur:.4f}  (was {was:.4f}, {d:+.4f}){flag}")
     return 0
 
 

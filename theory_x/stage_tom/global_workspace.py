@@ -191,18 +191,38 @@ def _decisions_path() -> str:
     return _os.path.join(_os.path.dirname(str(_DYNAMIC_DB)), "arbiter_decisions.jsonl")
 
 
+_GW_LOG_PRECISION = 6   # decimals on logged salience — fine enough that near-ties are real,
+#                         not a rounding artifact (the margin/near-tie check relies on this).
+
+
+def _latest_surprise_score(con) -> Optional[float]:
+    """The most recent in-window surprise_score REGARDLESS of the 0.3 admission gate, or None if
+    there was no surprise_event at all in the window. Lets the log separate a surprise that was
+    GATED OUT (computed, score<=0.3) from one that was NEVER COMPUTED (absent) — otherwise both
+    present as absence. Read-only, fail-safe; only called when NEX5_GW_LOG=1."""
+    try:
+        row = con.execute(
+            "SELECT surprise_score FROM surprise_events WHERE triggered_at > ? "
+            "ORDER BY triggered_at DESC LIMIT 1",
+            (time.time() - _SURPRISE_WINDOW,)
+        ).fetchone()
+        return float(row[0]) if row and row[0] is not None else None
+    except Exception:
+        return None
+
+
 def _maybe_log_decision(candidates: "list[tuple[float, str]]",
-                        kinds: "list[str]") -> None:
+                        kinds: "list[str]",
+                        gated_surprise: "Optional[float]" = None) -> None:
     """Append this fire's arbiter decision when NEX5_GW_LOG=1; never raises, never
     blocks a fire. No-op (no file touched) when the flag is off or there was no
     competition, so the default path is byte-identical to the pre-log behaviour.
 
-    Logs the full candidate VECTOR [{kind, salience}], not just the winner — the
-    EFFECTIVE salience each candidate actually carried this fire. This is what lets
-    the LADDER RESIDUAL be computed offline (observed winner vs the one the static
-    weight-ladder would predict): salience is weight×score for surprise/bonsai but a
-    flat weight for momentum/stakes/drive, so the two can diverge, and only the vector
-    records by how much. winner index uses the same first-max rule as arbitrate_candidates()."""
+    Logs the full candidate VECTOR [{kind, salience}] (the EFFECTIVE salience each candidate
+    carried — weight×score for surprise/bonsai, flat weight for momentum/stakes/drive) plus
+    the winner and, when surprise did NOT clear its gate, the gated raw score. That is enough
+    to compute offline: data_decided_share (winner is a variable rung), the near-tie margin, and
+    the gated-vs-phantom split for surprise. winner index uses arbitrate_candidates()'s first-max rule."""
     if os.environ.get("NEX5_GW_LOG") != "1" or not candidates:
         return
     try:
@@ -210,10 +230,12 @@ def _maybe_log_decision(candidates: "list[tuple[float, str]]",
         wi = max(range(len(candidates)), key=lambda i: candidates[i][0])
         rec = {
             "ts": round(time.time(), 3),
-            "candidates": [{"kind": kinds[i], "salience": round(float(candidates[i][0]), 4)}
+            "candidates": [{"kind": kinds[i], "salience": round(float(candidates[i][0]), _GW_LOG_PRECISION)}
                            for i in range(len(candidates))],
             "winner_kind": kinds[wi],
         }
+        if "surprise" not in kinds and gated_surprise is not None:
+            rec["gated_surprise_score"] = round(gated_surprise, _GW_LOG_PRECISION)
         with open(_decisions_path(), "a") as f:
             f.write(_json.dumps(rec) + "\n")
     except Exception:
@@ -234,6 +256,10 @@ def arbitrate(status: dict, stakes_active: bool = False,
         s = _surprise_candidate(con)
         if s:
             candidates.append(s); kinds.append("surprise")
+        # NEX5_GW_LOG only: one extra ungated read on the already-open connection, so the log
+        # can tell a gated-out surprise from one that was never computed. Dark path untouched.
+        _gated_surprise = (_latest_surprise_score(con)
+                           if os.environ.get("NEX5_GW_LOG") == "1" and not s else None)
         m = _momentum_candidate(con)
         if m:
             # L4_teeth: demote the groove-continuer so a novel candidate can lead.
@@ -257,7 +283,7 @@ def arbitrate(status: dict, stakes_active: bool = False,
 
         # Competition: highest salience wins and is broadcast as the frame.
         line = arbitrate_candidates(candidates)
-        _maybe_log_decision(candidates, kinds)   # NEX5_GW_LOG (default OFF); fail-safe
+        _maybe_log_decision(candidates, kinds, gated_surprise=_gated_surprise)  # NEX5_GW_LOG; fail-safe
         return line
     except Exception:
         return ""
