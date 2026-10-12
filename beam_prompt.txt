@@ -1,0 +1,57 @@
+QUESTIONS FOR BEAM AI — NEX dev (2026-10-12): the belief_boost HEADROOM pre-screen is built; four
+design questions before anyone arms a content lever.
+================================================================================================
+
+GROUND RULES unchanged. Cite inferred-vs-checked. ANALOGUE. Dark-by-default; nothing armed. Take my
+file reads / numbers as given. Your snapshot lacks the live fetch; I read it.
+
+CONTEXT — what we settled, and what's now built
+- The one reorder-free content path is the belief pool: the fountain fetch
+  (_retrieve_context_beliefs) is RECENCY-ordered (top own_n=12 by eff recency, per-branch cap 2), NOT
+  focus-gated. sense already enters as precipitated_from_sense beliefs on recency. So the only
+  reorder-free content lever is belief_boost, which raises a belief's effective recency:
+      eff = created_at + (boost_value - 1.0) * BOOST_TIME_BONUS_SECONDS   (3.5 days)
+  Boost REPLACES (ON CONFLICT UPDATE), does not stack, and DECAYS 0.02/day (removed at boost_value<=1.05).
+  Empirical grade ~0.42 => a boost buys ~1.47 days of effective recency.
+- BUILT (read-only, no flag): tools/check_belief_headroom.py — the E4 HEADROOM pre-screen. A below-
+  cutoff belief is promotable iff created_at + max_grade*3.5d > eff[cutoff]. It reports promotable_count,
+  grade_to_promote_marginal, swap_zone density, and a SENSE read (precipitated_from_sense in_pool /
+  in_fetch / below_cutoff / promotable). Go/no-go: promotable_count 0 => HEADROOM ABSENT (a boost cannot
+  change the fetch — the saturated-gate analogue, do NOT build); >=3 => PRESENT; a SENSE-dead/inert
+  override fires when sense material is absent or unreachable. (The arbiter instrument froze at PR #9;
+  this is the separate content-lever pre-screen.)
+- NOTE I cannot run it live from here (no live beliefs.db in my worktree); the operator runs it on the
+  live DB. So these are design questions, decided before the number comes back.
+
+Q1 (PRIMARY). Is `promotable_count` (generic own-content) the right headroom primary, or should the
+SENSE-specific `sense.promotable` be primary? The lever's PURPOSE is sense->content, and a synthetic run
+already showed the split can diverge: generic HEADROOM PRESENT (8 promotable) while sense.promotable=0
+(sense beliefs sat older than the cutoff). My lean: report both, but gate the GO decision on
+sense.promotable (or sense.in_fetch>0), since generic headroom that can't move sense is headroom for the
+wrong thing. Agree, or is generic movability the honest first gate with sense as a second?
+
+Q2 (DECAY — the dimension the snapshot omits). Headroom is a SNAPSHOT: it says a boost CAN cross the
+cutoff now. But boost decays 0.02/day and is removed at 1.05, and fresh fountain_insight writes push the
+cutoff younger every fire. So a one-shot boost's promotion is transient — a boosted belief likely falls
+back out within days as newer content arrives. Two questions: (a) does the pre-screen need a PERSISTENCE
+term — e.g., how many fires a single max boost keeps a belief in-fetch given the live write cadence — or
+is transient surfacing the intended behaviour (boost = "earn a window, then displaced", per boost.py's
+own design note)? (b) If a durable effect is wanted, is that a re-apply loop (re-boost each fire) rather
+than one-shot — and does that cross from "content lever" into a standing rule we'd have to pre-register
+separately?
+
+Q3 (LOCUS — is this a real lever or a re-grading?). belief_boost already exists and is driven by
+apply_boost(grade) from a source_grade (Helper 5). A sense/surprise content lever would route a
+sense-or-surprise signal into that grade. Is that the HONEST locus — a new driver on an existing
+retrieval knob — or does it merely re-weight the existing grading pipeline (i.e., the signal already
+influences grade indirectly, and we'd be double-counting)? What single read establishes whether
+sense/surprise is ALREADY in the grade that feeds apply_boost, before we add a second path to it?
+
+Q4 (OUTCOME — what would license arming, if headroom passes). If the live pre-screen returns HEADROOM
+PRESENT with sense promotable, what is the PRIMARY outcome measure for the lever itself? My candidate:
+an A/B on whether boosting sense-derived beliefs measurably shifts the fetched content's topic mix
+toward sense WITHOUT collapsing the voice (tie to the G3 voice track: H(content|style) must not fall).
+Is topic-mix-shift the right outcome, or would you measure it on the belief side (what surfaces) only,
+leaving voice as a guard rather than a co-primary?
+
+Same ground rules. Q1 is the one I need first: generic vs sense-promotable as the GO gate.
