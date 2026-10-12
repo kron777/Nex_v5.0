@@ -155,6 +155,35 @@ class TestArbiterMeasure(unittest.TestCase):
         self.assertEqual(m["variable_competitive_share"], 0.0)
         self.assertTrue(_verdict(m).startswith("DATA ADMITTED BUT NON-COMPETITIVE"))
 
+    def test_empty_flat_stratum_no_div_zero(self):
+        # only variable rungs live (no flat): competitive by default, carried to won -> no 0/0, no drop
+        from tools.check_arbiter_competition import measure
+        r = self._row("surprise", ("surprise", 0.70), ("bonsai", 0.40))
+        path = self._write([r] * 40)
+        try:
+            m = measure(path, window=5000)
+        finally:
+            os.unlink(path)
+        self.assertEqual(m["variable_live_share"], 1.0)
+        self.assertEqual(m["variable_competitive_share"], 1.0)   # nothing to beat -> trivially competitive
+        self.assertEqual(m["data_decided_share"], 1.0)
+        self.assertEqual(m["won_of_competitive"], 1.0)           # not None / not a division error
+
+    def test_win_bar_and_blocker(self):
+        # surprise clears drive (0.45) but loses to stakes (0.90): blocker = stakes; it never clears 0.90
+        from tools.check_arbiter_competition import measure
+        r = self._row("stakes", ("surprise", 0.60), ("drive", 0.45), ("stakes", 0.90))
+        path = self._write([r] * 40)
+        try:
+            m = measure(path, window=5000)
+        finally:
+            os.unlink(path)
+        sd = m["rung_detail"]["surprise"]
+        self.assertEqual(sd["live_n"], 40)
+        self.assertEqual(sd["cleared_flat_bar_rate"], 0.0)       # 0.60 never clears the 0.90 bar
+        self.assertEqual(sd["median_win_bar"], 0.90)
+        self.assertEqual(sd["blocker_hist"], {"stakes": 40})     # names the constant to re-tune
+
     def test_bonsai_veto_region(self):
         from tools.check_arbiter_competition import measure
         hi = self._row("bonsai", ("bonsai", 0.50), ("drive", 0.45))   # focus_num 1.0 -> wins

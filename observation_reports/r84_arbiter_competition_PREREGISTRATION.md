@@ -4,6 +4,10 @@
 > operator's.** This round does not change a fire. It builds the missing EXPOSURE so the arbiter can be
 > measured at all, then reads it. It is the arbiter sibling of the G3 voice instrument and of Phase-1 for
 > `self_state_history`: you cannot pre-screen what isn't recorded.
+>
+> **DESIGN FROZEN 2026-10-12** after five rounds of adversarial review (Beam Q-arb). Every remaining
+> question — is data in the room, what blocks it, is it near-tie — is now answered by the LOG, not by
+> more design. Next step is **arm `NEX5_GW_LOG=1` + deploy + one day of fires**, not round 6.
 
 ## Why this round exists (the H-series conclusion, verified)
 
@@ -67,9 +71,13 @@ measurement-of-what error this round guards against ([[nex5-measurement-of-what]
       cadence. STRUCTURAL; question closes; do not reorder.
     - `variable_competitive_share < 0.02` → **DATA ADMITTED BUT NON-COMPETITIVE**: admissions sit in the
       dead band below the lowest live flat weight; threshold mis-calibration, not determinism.
-    - `won_of_competitive < 0.10` → **DATA STRUCTURALLY OUTRANKED**: data is in the room and *could* win
-      but the weight layout near-always beats it — a **weight/threshold calibration fact, not
-      near-determinism**; the lever is re-tuning, not acceptance.
+    - `won_of_competitive < 0.10` → **DATA STRUCTURALLY OUTRANKED**: data clears the weakest live constant
+      but a **higher** constant near-always outranks it — a **weight/threshold calibration fact, not
+      near-determinism**; the lever is re-tuning, not acceptance. **NB the label:** "competitive" means
+      *beats the weakest live constant* (not dead), NOT "could have won"; `won_of_competitive` is "of data
+      that clears the weakest live constant, how much ALSO cleared the strongest". `rung_detail.blocker_hist`
+      names *which* constant did the outranking (the one to re-tune); `win_bar` / `win_bar_quantile` give
+      where that bar sits in the rung's own score CDF (quantile ≈ 1 ⇒ the rung essentially never clears it).
     - else → **DATA-DECIDED**: a variable rung genuinely drives the outcome; decompose which:
       - **surprise rung:** `P(surprise wins | surprise live)` + score (the nominal #1 and least reliable
         rung, since surprise loses to flat stakes whenever `score ≤ 0.90`).

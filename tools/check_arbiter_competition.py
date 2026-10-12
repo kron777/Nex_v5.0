@@ -65,6 +65,14 @@ _NEAR_TIE_EPS = 0.01                                     # margins below this ar
 _GW_LOG_PRECISION_HINT = 6                               # decimals the logger rounds salience to
 
 
+def _median(xs) -> float | None:
+    s = sorted(xs)
+    if not s:
+        return None
+    m = len(s) // 2
+    return s[m] if len(s) % 2 else (s[m - 1] + s[m]) / 2
+
+
 def _margin_bucket(d: float) -> str:
     if d < 0.01:
         return "<0.01"
@@ -150,6 +158,13 @@ def measure(path: str, window: int = 5000, days: float | None = None) -> dict:
     margin_computable = near_tie = 0
     margin_hist = collections.Counter()
     teeth_suspected = False
+    # per variable rung: salience samples when live, per-fire flat "win bar", and the blocker that
+    # beat it when it was competitive-but-lost (Beam Q-arb r5 — names the constant to re-tune).
+    rung_sals: dict = {k: [] for k in _VARIABLE_RUNGS}
+    rung_win_bars: dict = {k: [] for k in _VARIABLE_RUNGS}
+    rung_live_n: dict = {k: 0 for k in _VARIABLE_RUNGS}
+    rung_cleared_bar: dict = {k: 0 for k in _VARIABLE_RUNGS}
+    blocker_hist: dict = {k: collections.Counter() for k in _VARIABLE_RUNGS}
 
     for r in rows:
         cand = r.get("candidates") or []
@@ -169,14 +184,31 @@ def measure(path: str, window: int = 5000, days: float | None = None) -> dict:
         # three nested competitiveness reads (Beam Q-arb r4): rung-type counts when data WON;
         # the decisive variable is often the LOSER's score (surprise 0.50 < flat momentum 0.55
         # => momentum wins BECAUSE surprise scored low). Separate admitted / competitive / won.
+        # NOTE "competitive" == BEATS THE WEAKEST LIVE CONSTANT (not dead), NOT "could have won":
+        # a rung can clear the lowest flat yet be outranked by a higher flat (Beam Q-arb r5).
         var_sals = [sal[k] for k in _VARIABLE_RUNGS if k in sal]
         flat_sals = [sal[k] for k in _FLAT_RUNGS if k in sal]
         if var_sals:
             variable_live += 1
-            # competitive = a data candidate exceeds the LOWEST live flat weight (can beat >=1 flat
-            # rung). No flat rung live => a variable rung necessarily wins, so trivially competitive.
+            # No flat rung live => a variable rung necessarily wins, so trivially competitive.
             if (not flat_sals) or (max(var_sals) > min(flat_sals)):
                 variable_competitive += 1
+        for rk in _VARIABLE_RUNGS:                         # per-rung win-bar / blocker detail
+            if rk not in sal:
+                continue
+            rsal = sal[rk]
+            rung_live_n[rk] += 1
+            rung_sals[rk].append(rsal)
+            if flat_sals:
+                bar = max(flat_sals)                       # the flat salience the rung must clear
+                rung_win_bars[rk].append(bar)
+                if rsal > bar:
+                    rung_cleared_bar[rk] += 1
+                # competitive (clears lowest flat) but LOST this fire -> record the blocker (winner)
+                if rsal > min(flat_sals) and obs != rk:
+                    blocker_hist[rk][obs] += 1
+            else:
+                rung_cleared_bar[rk] += 1                  # nothing to clear
         if "momentum" in sal and sal["momentum"] < _W_MOMENTUM * 0.99:
             teeth_suspected = True           # demoted momentum => L4_TEETH armed => veto ceiling broken
         if "surprise" in sal:
@@ -206,13 +238,31 @@ def measure(path: str, window: int = 5000, days: float | None = None) -> dict:
     fn_total = sum(fn_hist.values())
     vcs = variable_competitive / n
     dds = data_decided / n
+    rung_detail = {}
+    for rk in _VARIABLE_RUNGS:
+        live = rung_live_n[rk]
+        if not live:
+            continue
+        bars = rung_win_bars[rk]
+        med_bar = _median(bars) if bars else None
+        # where the typical flat bar sits in the rung's OWN salience CDF; high => rarely clears => rarely wins
+        wbq = (sum(1 for s in rung_sals[rk] if s <= med_bar) / live) if med_bar is not None else None
+        rung_detail[rk] = {
+            "live_n": live,
+            "cleared_flat_bar_rate": round(rung_cleared_bar[rk] / live, 4),
+            "median_win_bar": round(med_bar, 4) if med_bar is not None else None,
+            "win_bar_quantile": round(wbq, 4) if wbq is not None else None,
+            "blocker_hist": {k: v for k, v in blocker_hist[rk].most_common()},
+        }
     return {
         "n": n,
         "data_decided_share": round(dds, 4),                  # headline: winner is a variable rung
         "variable_live_share": round(variable_live / n, 4),   # data admitted
-        "variable_competitive_share": round(vcs, 4),          # admitted AND able to beat a live flat rung
-        "won_of_competitive": round(dds / vcs, 4) if vcs else None,  # of data that COULD win, how much DID
+        "variable_competitive_share": round(vcs, 4),          # clears the WEAKEST live constant (not dead)
+        # of data that clears the weakest live constant, how much ALSO cleared the strongest (= won):
+        "won_of_competitive": round(dds / vcs, 4) if vcs else None,
         "flat_share": round(1 - dds, 4),
+        "rung_detail": rung_detail,                           # win-bar / blocker per variable rung
         "R_correct": round(r_correct / n, 4),                 # TRIPWIRE: must be ~0
         "R_design": round(r_design / n, 4),                   # READOUT: expected large, not a keep signal
         "l4_teeth_suspected": teeth_suspected,                # if true the veto-only reduction is invalid
@@ -268,9 +318,9 @@ def _verdict(m: dict) -> str:
                 f"cannot beat anything; threshold mis-calibration, not determinism).")
     if woc is not None and woc < 0.10:
         return (pre + f"DATA STRUCTURALLY OUTRANKED (competitive={vcs:.4f} but won_of_competitive={woc:.4f} "
-                f"— data is in the room and COULD win, yet the weight layout near-always beats it. This is "
-                f"a WEIGHT/THRESHOLD CALIBRATION fact, NOT near-determinism; re-tuning is the lever, not "
-                f"acceptance).")
+                f"— data clears the weakest live constant yet a HIGHER constant near-always outranks it. "
+                f"A WEIGHT/THRESHOLD CALIBRATION fact, NOT near-determinism; see rung_detail.blocker_hist "
+                f"for which constant to re-tune).")
     return (pre + f"DATA-DECIDED (data_decided_share={dds:.4f}, won_of_competitive={woc} — a variable rung "
             f"genuinely drives the outcome; decompose surprise {m['decomposition']['p_surprise_win']:.4f} "
             f"vs bonsai {m['decomposition']['p_bonsai_win']:.4f}).")
@@ -294,8 +344,8 @@ def main(argv):
         print("  " + m["error"])
         return 1
     s, b = m["surprise"], m["bonsai"]
-    print(f"  competitiveness ladder   : live {m['variable_live_share']:.4f} -> competitive "
-          f"{m['variable_competitive_share']:.4f} -> won {m['data_decided_share']:.4f}   "
+    print(f"  competitiveness ladder   : live {m['variable_live_share']:.4f} -> competitive(beats weakest "
+          f"flat) {m['variable_competitive_share']:.4f} -> won {m['data_decided_share']:.4f}   "
           f"(won|competitive = {m['won_of_competitive']})")
     print(f"  VERDICT                  : {_verdict(m)}")
     print(f"  R_correct (tripwire, ~0) : {m['R_correct']:.4f}    R_design (readout, big) : {m['R_design']:.4f}")
@@ -304,6 +354,9 @@ def main(argv):
           f"dead-band|entries {s['dead_band_share_of_entries']}  gated|absent {s['gated_share_of_absent']}")
     print(f"  bonsai (veto) rung       : P(win|mom-absent) {b['p_bonsai_win_given_momentum_absent']}  "
           f"veto-region share {b['veto_region_share']:.4f}  focus_num {b['focus_num_hist_momentum_absent']}")
+    for rk, d in m.get("rung_detail", {}).items():
+        print(f"  win-bar [{rk:<8s}]       : cleared {d['cleared_flat_bar_rate']}  median-bar {d['median_win_bar']}"
+              f"  bar-quantile {d['win_bar_quantile']}  blockers {d['blocker_hist']}")
     print(f"  winner distribution      : {m['winner_distribution']}  (entropy {m['winner_entropy']:.3f} b)")
     print(f"  kinds-present rate       : {m['kinds_present_rate']}   mean cand {m['mean_candidates']:.3f}")
 
