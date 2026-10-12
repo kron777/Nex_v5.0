@@ -132,11 +132,13 @@ def measure(db: str, own_n: int = 12, max_grade: float = 0.42, days: float | Non
             b["eff"] = saved
         return out
 
+    # promotable_effective ⊆ clears (a belief that can't clear the rank cutoff can't be admitted under
+    # caps either), so only re-simulate the clears set — keeps this O(clears·N), not O(below·N).
     clears = _clears_cutoff(below)
-    prom_eff = _promotable_effective(below)
+    prom_eff = _promotable_effective(clears)
     sense_below = [b for b in below if b["source"] == _SENSE_SOURCE]
     sense_clears = _clears_cutoff(sense_below)
-    sense_prom_eff = _promotable_effective(sense_below)
+    sense_prom_eff = _promotable_effective(sense_clears)
     sense_in_fetch = sum(1 for b in fetched_beliefs if b["source"] == _SENSE_SOURCE)
 
     top_below = max(below, key=lambda b: b["created_at"])
