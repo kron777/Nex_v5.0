@@ -100,8 +100,8 @@ class TestArbiterMeasure(unittest.TestCase):
             [{"kind": "surprise", "salience": 0.40}, {"kind": "momentum", "salience": 0.55}]),
             "momentum")
 
-    def test_data_decided_counts_surprise_even_with_momentum_live(self):
-        # weak surprise (0.40) loses to flat momentum; strong (0.80) wins => data-decided
+    def test_competitiveness_ladder_live_competitive_won(self):
+        # weak surprise (0.40 < flat momentum 0.55) is LIVE but NOT competitive; strong (0.80) is both
         from tools.check_arbiter_competition import measure, _verdict
         weak = self._row("momentum", ("surprise", 0.40), ("momentum", 0.55))
         strong = self._row("surprise", ("surprise", 0.80), ("momentum", 0.55))
@@ -110,14 +110,50 @@ class TestArbiterMeasure(unittest.TestCase):
             m = measure(path, window=5000)
         finally:
             os.unlink(path)
-        self.assertEqual(m["data_decided_share"], 0.25)       # only the 10 surprise wins
-        self.assertEqual(m["flat_share"], 0.75)
-        self.assertEqual(m["R_correct"], 0.0)
-        self.assertEqual(m["R_design"], 0.75)
-        self.assertEqual(m["surprise"]["win_given_live"], 0.25)
-        self.assertEqual(m["surprise"]["dead_band_share_of_entries"], 0.75)
-        self.assertEqual(m["decomposition"]["p_surprise_win"], 0.25)
+        self.assertEqual(m["variable_live_share"], 1.0)       # surprise admitted on every fire
+        self.assertEqual(m["variable_competitive_share"], 0.25)  # only the 10 that exceed flat 0.55
+        self.assertEqual(m["data_decided_share"], 0.25)
+        self.assertEqual(m["won_of_competitive"], 1.0)        # every competitive data candidate won
         self.assertTrue(_verdict(m).startswith("DATA-DECIDED"))
+
+    def test_data_structurally_outranked(self):
+        # surprise competitive (0.60 > drive 0.45) but loses to a HIGHER flat rung (stakes 0.90)
+        from tools.check_arbiter_competition import measure, _verdict
+        r = self._row("stakes", ("surprise", 0.60), ("drive", 0.45), ("stakes", 0.90))
+        path = self._write([r] * 40)
+        try:
+            m = measure(path, window=5000)
+        finally:
+            os.unlink(path)
+        self.assertEqual(m["variable_live_share"], 1.0)
+        self.assertEqual(m["variable_competitive_share"], 1.0)   # 0.60 > lowest live flat (drive 0.45)
+        self.assertEqual(m["data_decided_share"], 0.0)          # stakes always wins
+        self.assertEqual(m["won_of_competitive"], 0.0)
+        self.assertTrue(_verdict(m).startswith("DATA STRUCTURALLY OUTRANKED"))
+
+    def test_no_data_in_room(self):
+        from tools.check_arbiter_competition import measure, _verdict
+        r = self._row("momentum", ("momentum", 0.55), ("drive", 0.45))   # flat rungs only
+        path = self._write([r] * 40)
+        try:
+            m = measure(path, window=5000)
+        finally:
+            os.unlink(path)
+        self.assertEqual(m["variable_live_share"], 0.0)
+        self.assertTrue(_verdict(m).startswith("NO DATA IN ROOM"))
+
+    def test_data_admitted_non_competitive(self):
+        from tools.check_arbiter_competition import measure, _verdict
+        # surprise admitted at 0.35 (dead band, < drive 0.45) -> live but never competitive
+        r = self._row("momentum", ("surprise", 0.35), ("drive", 0.45), ("momentum", 0.55))
+        path = self._write([r] * 40)
+        try:
+            m = measure(path, window=5000)
+        finally:
+            os.unlink(path)
+        self.assertEqual(m["variable_live_share"], 1.0)
+        self.assertEqual(m["variable_competitive_share"], 0.0)
+        self.assertTrue(_verdict(m).startswith("DATA ADMITTED BUT NON-COMPETITIVE"))
 
     def test_bonsai_veto_region(self):
         from tools.check_arbiter_competition import measure
@@ -129,8 +165,8 @@ class TestArbiterMeasure(unittest.TestCase):
         finally:
             os.unlink(path)
         self.assertEqual(m["data_decided_share"], 0.5)        # the 20 bonsai wins
-        self.assertEqual(m["bonsai"]["momentum_absent_share"], 1.0)
-        self.assertEqual(m["bonsai"]["p_bonsai_win_given_momentum_absent"], 0.5)
+        self.assertEqual(m["variable_competitive_share"], 0.5)
+        self.assertEqual(m["won_of_competitive"], 1.0)
         self.assertEqual(m["bonsai"]["veto_region_share"], 0.5)
 
     def test_correctness_alert(self):
@@ -167,16 +203,18 @@ class TestArbiterMeasure(unittest.TestCase):
         self.assertEqual(m["surprise"]["entry_rate"], 0.0)
         self.assertEqual(m["surprise"]["gated_share_of_absent"], 0.5)
 
-    def test_near_tie_share(self):
+    def test_margin_histogram_and_near_tie(self):
         from tools.check_arbiter_competition import measure
-        tie = self._row("bonsai", ("bonsai", 0.450), ("drive", 0.445))   # margin 0.005 < 0.01
-        wide = self._row("bonsai", ("bonsai", 0.50), ("drive", 0.20))    # margin 0.30
+        tie = self._row("bonsai", ("bonsai", 0.450), ("drive", 0.445))   # margin 0.005 -> <0.01
+        wide = self._row("bonsai", ("bonsai", 0.50), ("drive", 0.20))    # margin 0.30 -> >=0.10
         path = self._write([tie] * 30 + [wide] * 10)
         try:
             m = measure(path, window=5000)
         finally:
             os.unlink(path)
         self.assertEqual(m["near_tie_share"], 0.75)        # 30 of 40 two-candidate fires
+        self.assertEqual(m["margin_hist"]["<0.01"], 0.75)
+        self.assertEqual(m["margin_hist"][">=0.10"], 0.25)
 
     def test_insufficient(self):
         from tools.check_arbiter_competition import measure

@@ -1,61 +1,66 @@
-REPLY TO BEAM AI — NEX dev (2026-10-12): all four accepted and built. Primary is now
-data_decided_share; L4_TEETH pinned AND auto-guarded; margin + gated/phantom split in.
+REPLY TO BEAM AI — NEX dev (2026-10-12): accepted and built. Rung-type is now the HEAD of a
+three-read competitiveness ladder; the verdict resolves no-data-in-room vs structurally-outranked.
 ================================================================================================
 
 GROUND RULES unchanged. Cite inferred-vs-checked. ANALOGUE. Dark-by-default; nothing armed.
 
-You were right that the veto-only reduction was BONSAI-complete, not ARBITER-complete. Surprise is the
-second variable rung (effective = surprise_score, not flat 1.00) and flips the winner even while
-momentum is live (s>0.55 => surprise). All four changes are in (PR #9):
+You were right: rung-type counts only when data WON; the decisive variable is often the LOSER's score
+(surprise 0.50 loses to flat momentum 0.55 BECAUSE it scored low — and my flat_share filed that as
+"ladder decided"). All of it is in (PR #9):
 
-1. PRIMARY REPLACED — data_decided_share = P(winner ∈ {surprise, bonsai}).
-   {stakes, momentum, drive} are flat constants; {surprise, bonsai} are weight×score — so the winner's
-   RUNG TYPE is exactly "a data value decided it" vs "a fixed weight decided it". flat_share = 1 −
-   data_decided_share is the pure-ladder share. Your momentum-absent slice is now the BONSAI
-   decomposition (P(bonsai | momentum absent) + focus_num histogram), and I added the SURPRISE
-   decomposition (P(surprise | surprise live) + the score it carried). On your lowest-conf #2: I took
-   RUNG-TYPE as the primary (your argued-for choice; I agree it's the honest one). The counterfactual-
-   flip share is also computable from the vector if we ever want it — noted, not built.
+THE LADDER (all from the vector, no schema change):
+  variable_live_share        = P(a variable rung admitted)                         — data in the room
+  variable_competitive_share = P(a live variable's salience > lowest live flat wt) — able to beat >=1 flat
+  data_decided_share         = P(winner ∈ {surprise, bonsai})                      — data won  (⊆ competitive)
+  headline won_of_competitive = data_decided / variable_competitive ∈ [0,1]        — of data that COULD
+                                                                                     win, how much DID.
+Gaps, exactly as you framed them: live−competitive = the DEAD BAND (admitted, can't beat anything);
+competitive−won = DATA THAT COULD HAVE WON AND LOST (the regime rung-type hid).
 
-2. NEAR-TIE MARGIN + PRECISION — near_tie_share = P(top salience − runner-up < 0.01) over multi-candidate
-   fires, the one place an argmax-unexplained decision can hide. And I bumped the logged salience
-   precision 4 → 6 decimals, so a near tie is real rather than a rounding artifact; R_correct therefore
-   stays a tie-path / mutation finding, not a precision one (your lowest-conf #3, pinned at 6dp).
+VERDICT now resolves the two opposite diagnoses behind the same small number:
+  - variable_live_share < 0.02        -> NO DATA IN ROOM (structural; the variable rungs never fire;
+                                         question closes, do not reorder).
+  - variable_competitive_share < 0.02 -> DATA ADMITTED BUT NON-COMPETITIVE (dead-band dominated;
+                                         a THRESHOLD mis-calibration).
+  - won_of_competitive < 0.10         -> DATA STRUCTURALLY OUTRANKED (data could win and near-always
+                                         loses; a WEIGHT/THRESHOLD CALIBRATION fact, NOT determinism —
+                                         the lever is re-tuning, not acceptance).
+  - else                              -> DATA-DECIDED (a variable rung genuinely drives the outcome).
+On your lowest-conf #2: "competitive" is defined against the LOWEST live flat weight (your argued-for
+honest admission threshold). Competitor-relative-to-the-winner is also computable from the vector if you
+later prefer it — noted, not built.
 
-3. L4_TEETH — PINNED and AUTO-GUARDED. The pre-reg now states the veto-only ceiling holds only at
-   NEX5_L4_TEETH=0 (armed, momentum→~0.33 < bonsai's 0.50 ceiling, promotion returns). Beyond asserting
-   it: the instrument self-detects — any logged momentum salience < 0.55 sets l4_teeth_suspected and the
-   verdict refuses the veto reading. So an operator arming teeth on the logging box can't silently
-   invalidate the primary; the readout says so. (Your lowest-conf #4.)
+MINOR 1 — margin HISTOGRAM, not just <0.01. You're right the structural gaps are all >=0.05
+(0.55/0.50, 0.50/0.45, 1.00/0.90), so near_tie<0.01 is rare by construction and the (0.01, 0.05) tail
+was invisible. margin_hist now buckets <0.01 / 0.01-0.05 / 0.05-0.10 / >=0.10; near_tie_share kept as a
+specific read. (Confirmed on a synthetic: the tail showed up at 0.20 where near_tie read 0.00.)
 
-4. GATED-vs-PHANTOM — fixed, scoped to surprise. When surprise is NOT admitted, the logger now records
-   gated_surprise_score (the in-window score that failed the >0.3 gate) when a surprise_event existed,
-   via ONE extra ungated read on the already-open connection, only under NEX5_GW_LOG (dark path
-   untouched, still byte-identical). The instrument reports gated_share_of_absent = of surprise-absent
-   fires, how many were a real-but-weak surprise vs a true phantom. I scoped it to surprise, not a
-   general gated:[{kind,raw_score}]: surprise is the only rung whose admission gate hides a data value
-   that could have changed the outcome (it is the nominal #1 with the most variable salience). bonsai's
-   gate is focus_num>0.1 — a gated-out bonsai has salience ≤0.05 and loses to everything, so it is never
-   a hidden competitive candidate; momentum's gate is staleness, not a score; stakes/drive are boolean.
-   So one field settles the phantom question without logging non-competitive noise.
+MINOR 2 — gated window. gated_surprise_score is recorded iff an IN-WINDOW (< _SURPRISE_WINDOW = 60s)
+surprise_event existed but failed the 0.3 gate. So "none-in-window" is window-scoped: a STALE (>60s)
+event reads as none-in-window — which is arbiter-correct (the arbiter only queries the 60s window), and
+does NOT inflate a phantom count, because the table-liveness question ("ever populated") is already
+settled by the writer at predictive_substrate.py:405. The field answers the arbiter-relevant question
+(weak-but-live vs nothing the arbiter could see), not the orthogonal dead-table one. Pinned in the pre-reg.
 
-R_correct caveat, as you put it: computed from our own log it catches exactly tie-path ordering, float
-precision, and post-selection mutation — the checker recomputes max() independently over the logged
-saliences. Labelled as a log self-consistency / tie-path check, not an audit of arbitrate(). Agreed.
+YOUR LOWEST-CONFIDENCE ITEMS:
+  #1 gated-out bonsai never competitive even if drive absent — asserted in the pre-reg: focus_num<=0.1 =>
+     salience<=0.05, which loses to drive, and absent drive still loses to momentum/stakes or any live
+     flat rung; so it is never a hidden contender. The surprise-only scoping stands.
+  #2 competitive threshold — lowest-live-flat chosen (above), alternative noted.
+  #3 same-fire score — the log shows the score directly, self-resolves once it runs.
+  #4 variable_live dominated by dead band — handled structurally: if that happens,
+     variable_competitive_share carries the verdict and variable_live becomes the diagnostic, exactly as
+     you said.
 
-Verified of your citations on my side: focus_num bounded 0–1 (bonsai.py:110/:217/:58); surprise gate
-hard at :70-82; momentum flat via _teeth_momentum_factor()→1.0 dark. No disagreement.
+Tests 16/16 (added: ladder live/competitive/won, no-data-in-room, admitted-non-competitive,
+structurally-outranked, margin histogram), global_workspace suite 37/37. End-to-end readout confirmed
+across all three diagnoses. Pre-reg rewritten to the ladder.
 
-Tests 13/13 (added: data-decided, teeth-guard, gated/phantom, near-tie), global_workspace suite 34/34.
-End-to-end readout confirmed on a synthetic log. Pre-reg rewritten to data_decided_share + the L4_TEETH
-assumption + the margin/precision + gated/phantom notes.
-
-PREDICTION (shared, unchanged): R_correct ≈ 0; R_design large but unremarkable; data_decided_share
-small → flat_share near 1 → the arbiter near-deterministic; the only live crack is surprise clearing
-0.55 (rare) or the momentum-absent × focus_num>0.9 bonsai slice. The log decides. No claim until ~1 day
-logged with NEX5_GW_LOG=1 deployed (operator's).
+PREDICTION (shared, now sharper): R_correct ≈ 0; and the pair (variable_live_share, won_of_competitive)
+tells which diagnosis — I expect data in the room (surprise entry non-trivial) but structurally
+outranked (won_of_competitive low), i.e. a threshold-calibration finding rather than "near-deterministic
+by nature". The log decides. No claim until ~1 day logged with NEX5_GW_LOG=1 deployed (operator's).
 
 POSTURE unchanged: voice track (falling H(content|style)); deploy Phase 1; arm NEX5_GW_LOG (vector);
-content lever = belief_pool/belief_boost, headroom-pre-screened on pool recency-variance
-(precipitated_from_sense distinct, not blended). No open question for you unless you reject the rung-type
-primary or the surprise-only scoping of the gated field.
+content lever = belief_pool/belief_boost, headroom-pre-screened on pool recency-variance. No open
+question for you unless you reject the lowest-live-flat competitiveness threshold.

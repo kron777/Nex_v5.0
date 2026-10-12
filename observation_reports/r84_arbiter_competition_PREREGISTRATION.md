@@ -48,33 +48,52 @@ measurement-of-what error this round guards against ([[nex5-measurement-of-what]
 - **`R_design` (DESIGN READOUT, expected LARGE, not a keep signal):** observed winner ≠ the nominal
   flat-weight prediction. This just measures how far the multiplier layer re-orders the intended
   priority. Report it; do **not** interpret it as decision content.
-- **EARNS-ITS-KEEP = `data_decided_share` (THE PRIMARY):** `{stakes, momentum, drive}` are flat
-  constants and `{surprise, bonsai}` are weight×score, so the winner's *rung type* IS "a data value
-  decided it" vs "a fixed weight decided it". **`data_decided_share = P(winner ∈ {surprise, bonsai})`;
-  `flat_share = 1 − data_decided_share`.** (Beam Q-arb r3: a bonsai-only region is *bonsai-complete, not
-  arbiter-complete* — surprise is the second variable rung and flips the winner even when momentum is
-  live, `s > 0.55 → surprise`, so it must be counted.)
-  - `flat_share ≈ 1` (`data_decided_share < 0.02`) → **NEAR-DETERMINISTIC**: a fixed weight wins ~always;
-    the arbiter earns ~nothing; keep it (fail-safe), stop investing, do not reorder.
-  - `data_decided_share` large → **DATA-DECIDED**: the outcome is genuinely input-driven; the question
-    becomes *which* input, via the two decompositions:
-    - **surprise rung:** `P(surprise wins | surprise live)` + the score histogram (the nominal #1 and
-      the least reliable rung, since its effective salience is the most variable).
-    - **bonsai (veto) rung:** `P(bonsai wins | momentum absent)` + the `focus_num` histogram.
-      `focus_num` has **veto power only** (drops bonsai under flat drive when `focus_num < 0.9`; it can
-      NEVER promote bonsai past momentum — `focus_num·0.50 > 0.55` needs `focus_num > 1.1`, impossible
-      at the 0–1 ceiling). `veto_region_share = P(momentum absent ∧ focus_num > 0.9)` is where sense_events
-      (→ bonsai) actually reaches the frame.
-- **SURPRISE ENTRY RATE + GATED/PHANTOM split (exposure diagnostic):** surprise enters at `score > 0.3`
-  and its salience *is* the score, so a surprise in `(0.3, 0.45)` enters yet loses to flat drive — a dead
-  band that pads depth, never wins. `surprise_events` IS populated (`predictive_substrate.py:405`). When
-  surprise is absent the log records `gated_surprise_score` (the in-window score that failed the 0.3
-  gate) when one existed, so `gated_share_of_absent` separates a **gated-out** surprise (real but weak)
-  from a **phantom** (no event at all) — otherwise both present as absence.
-- **NEAR-TIE margin (`near_tie_share`):** once weights and multipliers are known the outcome is `argmax`,
-  deterministic except where two candidates sit within ε (default 0.01). That near-tie band is the only
-  place an *unexplained* decision can hide; logged salience precision is `6dp`, fine enough that a near
-  tie is real, not a rounding artifact (so `R_correct` stays a tie-path finding, not a precision one).
+- **EARNS-ITS-KEEP = the COMPETITIVENESS LADDER (THE PRIMARY).** `{stakes, momentum, drive}` are flat
+  constants and `{surprise, bonsai}` are weight×score. Rung-type alone (`P(winner ∈ {surprise, bonsai})`)
+  counts only when data *won* — but the decisive variable is often the **loser's** score (a surprise at
+  0.50 loses to flat momentum 0.55 *because* it scored low; filed wrongly under "ladder decided"). So
+  report three nested reads, all from the vector (Beam Q-arb r4):
+  - **`variable_live_share`** = P(a variable rung is in the vector) — data **admitted**.
+  - **`variable_competitive_share`** = P(a live variable rung's salience > the **lowest live flat weight**)
+    — admitted **and able to beat ≥1 live flat rung** (no flat rung live ⇒ a variable necessarily wins ⇒
+    trivially competitive).
+  - **`data_decided_share`** = P(winner ∈ {surprise, bonsai}) — data **won** (⊆ competitive by argmax).
+  - **Headline `won_of_competitive = data_decided_share / variable_competitive_share` ∈ [0,1]** — of the
+    data candidates that *could* have won, how many did. The two gaps are the whole story: `live −
+    competitive` = the **dead band** (admitted but can't beat anything), `competitive − won` = **data that
+    could have won and lost**.
+  - **Verdict resolves to three distinct diagnoses** (same small `data_decided_share`, opposite meaning):
+    - `variable_live_share < 0.02` → **NO DATA IN ROOM**: variable rungs never fire; a fixed ladder by
+      cadence. STRUCTURAL; question closes; do not reorder.
+    - `variable_competitive_share < 0.02` → **DATA ADMITTED BUT NON-COMPETITIVE**: admissions sit in the
+      dead band below the lowest live flat weight; threshold mis-calibration, not determinism.
+    - `won_of_competitive < 0.10` → **DATA STRUCTURALLY OUTRANKED**: data is in the room and *could* win
+      but the weight layout near-always beats it — a **weight/threshold calibration fact, not
+      near-determinism**; the lever is re-tuning, not acceptance.
+    - else → **DATA-DECIDED**: a variable rung genuinely drives the outcome; decompose which:
+      - **surprise rung:** `P(surprise wins | surprise live)` + score (the nominal #1 and least reliable
+        rung, since surprise loses to flat stakes whenever `score ≤ 0.90`).
+      - **bonsai (veto) rung:** `P(bonsai wins | momentum absent)` + `focus_num` histogram. `focus_num`
+        has **veto power only** (drops bonsai under flat drive when `focus_num < 0.9`; can NEVER promote
+        past momentum — needs `focus_num > 1.1`, impossible at the 0–1 ceiling). `veto_region_share =
+        P(momentum absent ∧ focus_num > 0.9)` is where sense_events (→ bonsai) reaches the frame.
+- **SURPRISE ENTRY RATE + GATED split (exposure diagnostic):** surprise enters at `score > 0.3` and its
+  salience *is* the score, so a surprise in `(0.3, 0.45)` enters yet loses to flat drive — a dead band
+  that pads depth, never wins. `surprise_events` IS populated (`predictive_substrate.py:405`). When
+  surprise is **absent**, the log records `gated_surprise_score` iff an **in-window** (`< _SURPRISE_WINDOW`
+  = 60s) event existed but failed the 0.3 gate, so `gated_share_of_absent` separates a **gated-out** weak
+  surprise from **none-in-window**. NB: "none-in-window" is window-scoped — a stale (>60s) event reads as
+  none-in-window, which is arbiter-correct (the arbiter ignores it); the table-liveness ("ever
+  populated") question is separately settled by the writer at `:405`, so this is not conflated.
+  *Scoped to surprise:* surprise is the only rung whose admission gate hides an outcome-relevant data
+  value. A gated-out bonsai (`focus_num ≤ 0.1 ⇒ salience ≤ 0.05`) loses to drive (0.45) — and, even were
+  drive absent, to momentum/stakes or any live flat rung — so it is **never** a hidden competitive
+  candidate; momentum's gate is staleness (no score); stakes/drive are boolean. One field suffices.
+- **NEAR-TIE margin — HISTOGRAM, not just `< ε`.** The structural weight gaps are all ≥ 0.05
+  (0.55/0.50, 0.50/0.45, 1.00/0.90), so `near_tie_share (< 0.01)` is rare *by construction* and the
+  interesting tail `(0.01, 0.05)` is invisible without buckets. `margin_hist` reports `<0.01 / 0.01–0.05
+  / 0.05–0.10 / ≥0.10`. Logged salience precision is `6dp`, fine enough that a near tie is real, not a
+  rounding artifact (so `R_correct` stays a tie-path finding, not a precision one).
 
 ## Binding assumption — `NEX5_L4_TEETH = 0`
 

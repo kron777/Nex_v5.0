@@ -60,8 +60,19 @@ _W_DRIVE = _LADDER.get("drive", 0.45)
 _W_MOMENTUM = _LADDER.get("momentum", 0.55)
 _VETO_THR = _W_DRIVE / _W_BONSAI if _W_BONSAI else 0.9   # focus_num above which bonsai beats drive
 _VARIABLE_RUNGS = {"surprise", "bonsai"}                 # weight×score; the rest are flat constants
+_FLAT_RUNGS = {"stakes", "momentum", "drive"}            # fixed weights, no per-fire data
 _NEAR_TIE_EPS = 0.01                                     # margins below this are "near ties"
 _GW_LOG_PRECISION_HINT = 6                               # decimals the logger rounds salience to
+
+
+def _margin_bucket(d: float) -> str:
+    if d < 0.01:
+        return "<0.01"
+    if d < 0.05:
+        return "0.01-0.05"
+    if d < 0.10:
+        return "0.05-0.10"
+    return ">=0.10"
 
 
 def _default_path() -> str:
@@ -131,11 +142,13 @@ def measure(path: str, window: int = 5000, days: float | None = None) -> dict:
     present_c = collections.Counter()
     r_correct = r_design = 0
     data_decided = 0                         # winner is a VARIABLE rung (surprise/bonsai)
+    variable_live = variable_competitive = 0  # data admitted / data able to beat a live flat rung
     surprise_live = surprise_win = surprise_dead = 0
-    surprise_absent = surprise_gated = 0     # absent split: gated-out (score logged) vs phantom (none)
+    surprise_absent = surprise_gated = 0     # absent split: gated-out (score logged) vs none-in-window
     mom_absent = bonsai_win_ma = 0
     fn_hist = collections.Counter()          # focus_num over momentum-absent, bonsai-present fires
     margin_computable = near_tie = 0
+    margin_hist = collections.Counter()
     teeth_suspected = False
 
     for r in rows:
@@ -153,6 +166,17 @@ def measure(path: str, window: int = 5000, days: float | None = None) -> dict:
             r_design += 1
         if obs in _VARIABLE_RUNGS:
             data_decided += 1
+        # three nested competitiveness reads (Beam Q-arb r4): rung-type counts when data WON;
+        # the decisive variable is often the LOSER's score (surprise 0.50 < flat momentum 0.55
+        # => momentum wins BECAUSE surprise scored low). Separate admitted / competitive / won.
+        var_sals = [sal[k] for k in _VARIABLE_RUNGS if k in sal]
+        flat_sals = [sal[k] for k in _FLAT_RUNGS if k in sal]
+        if var_sals:
+            variable_live += 1
+            # competitive = a data candidate exceeds the LOWEST live flat weight (can beat >=1 flat
+            # rung). No flat rung live => a variable rung necessarily wins, so trivially competitive.
+            if (not flat_sals) or (max(var_sals) > min(flat_sals)):
+                variable_competitive += 1
         if "momentum" in sal and sal["momentum"] < _W_MOMENTUM * 0.99:
             teeth_suspected = True           # demoted momentum => L4_TEETH armed => veto ceiling broken
         if "surprise" in sal:
@@ -164,7 +188,7 @@ def measure(path: str, window: int = 5000, days: float | None = None) -> dict:
         else:
             surprise_absent += 1
             if r.get("gated_surprise_score") is not None:
-                surprise_gated += 1          # a surprise existed in-window but was gated out
+                surprise_gated += 1          # a surprise existed IN-WINDOW but was gated out
         if "momentum" not in kinds:
             mom_absent += 1
             if obs == "bonsai":
@@ -174,14 +198,21 @@ def measure(path: str, window: int = 5000, days: float | None = None) -> dict:
         if len(cand) >= 2:
             margin_computable += 1
             top2 = sorted((c.get("salience", 0.0) for c in cand), reverse=True)[:2]
-            if top2[0] - top2[1] < _NEAR_TIE_EPS:
+            d = top2[0] - top2[1]
+            margin_hist[_margin_bucket(d)] += 1
+            if d < _NEAR_TIE_EPS:
                 near_tie += 1
 
     fn_total = sum(fn_hist.values())
+    vcs = variable_competitive / n
+    dds = data_decided / n
     return {
         "n": n,
-        "data_decided_share": round(data_decided / n, 4),     # PRIMARY: winner is a variable rung
-        "flat_share": round(1 - data_decided / n, 4),         # won by a constant weight (pure ladder)
+        "data_decided_share": round(dds, 4),                  # headline: winner is a variable rung
+        "variable_live_share": round(variable_live / n, 4),   # data admitted
+        "variable_competitive_share": round(vcs, 4),          # admitted AND able to beat a live flat rung
+        "won_of_competitive": round(dds / vcs, 4) if vcs else None,  # of data that COULD win, how much DID
+        "flat_share": round(1 - dds, 4),
         "R_correct": round(r_correct / n, 4),                 # TRIPWIRE: must be ~0
         "R_design": round(r_design / n, 4),                   # READOUT: expected large, not a keep signal
         "l4_teeth_suspected": teeth_suspected,                # if true the veto-only reduction is invalid
@@ -203,6 +234,8 @@ def measure(path: str, window: int = 5000, days: float | None = None) -> dict:
             "veto_region_share": round(fn_hist.get(f">{_VETO_THR:g}", 0) / n, 4),
         },
         "near_tie_share": round(near_tie / margin_computable, 4) if margin_computable else None,
+        "margin_hist": {k: round(v / margin_computable, 3)
+                        for k, v in margin_hist.most_common()} if margin_computable else {},
         "logged_salience_precision": _GW_LOG_PRECISION_HINT,
         "winner_distribution": {k: round(v / n, 3) for k, v in winner_c.most_common()},
         "winner_entropy": round(_entropy(winner_c), 4),
@@ -220,14 +253,27 @@ def _verdict(m: dict) -> str:
         return (pre + f"CORRECTNESS ALERT (R_correct={m['R_correct']:.4f} > 0 — winner != max-salience; "
                 f"inspect tie path / log precision ({m.get('logged_salience_precision')}dp), "
                 f"not the arbiter deciding)")
-    dd = m["data_decided_share"]
-    if dd < 0.02:
-        return (pre + f"NEAR-DETERMINISTIC (data_decided_share={dd:.4f}; flat_share={m['flat_share']:.4f} "
-                f"~1 — the winner is a fixed weight ~always; the arbiter earns ~nothing). R_design="
-                f"{m['R_design']:.3f} is the expected multiplier readout, NOT a decision.")
-    return (pre + f"DATA-DECIDED (data_decided_share={dd:.4f}; a variable rung won — decompose: surprise "
-            f"{m['decomposition']['p_surprise_win']:.4f} vs bonsai {m['decomposition']['p_bonsai_win']:.4f}). "
-            f"The outcome is genuinely input-driven; read the surprise/bonsai conditionals.")
+    vls = m["variable_live_share"]
+    vcs = m["variable_competitive_share"]
+    dds = m["data_decided_share"]
+    woc = m["won_of_competitive"]
+    # Three-level diagnosis (Beam r4): the SAME small dds means opposite things.
+    if vls < 0.02:
+        return (pre + f"NO DATA IN ROOM (variable_live_share={vls:.4f} — surprise/bonsai almost never "
+                f"fire; the arbiter is a fixed ladder by cadence, not by design. STRUCTURAL; question "
+                f"closes).")
+    if vcs < 0.02:
+        return (pre + f"DATA ADMITTED BUT NON-COMPETITIVE (variable_live={vls:.4f}, competitive={vcs:.4f} "
+                f"— admitted data candidates sit in the dead band below the lowest live flat weight and "
+                f"cannot beat anything; threshold mis-calibration, not determinism).")
+    if woc is not None and woc < 0.10:
+        return (pre + f"DATA STRUCTURALLY OUTRANKED (competitive={vcs:.4f} but won_of_competitive={woc:.4f} "
+                f"— data is in the room and COULD win, yet the weight layout near-always beats it. This is "
+                f"a WEIGHT/THRESHOLD CALIBRATION fact, NOT near-determinism; re-tuning is the lever, not "
+                f"acceptance).")
+    return (pre + f"DATA-DECIDED (data_decided_share={dds:.4f}, won_of_competitive={woc} — a variable rung "
+            f"genuinely drives the outcome; decompose surprise {m['decomposition']['p_surprise_win']:.4f} "
+            f"vs bonsai {m['decomposition']['p_bonsai_win']:.4f}).")
 
 
 def main(argv):
@@ -248,13 +294,12 @@ def main(argv):
         print("  " + m["error"])
         return 1
     s, b = m["surprise"], m["bonsai"]
-    print(f"  DATA-DECIDED share (primary): {m['data_decided_share']:.4f}   "
-          f"flat_share {m['flat_share']:.4f}  (winner is a variable vs constant rung)")
+    print(f"  competitiveness ladder   : live {m['variable_live_share']:.4f} -> competitive "
+          f"{m['variable_competitive_share']:.4f} -> won {m['data_decided_share']:.4f}   "
+          f"(won|competitive = {m['won_of_competitive']})")
     print(f"  VERDICT                  : {_verdict(m)}")
-    print(f"  R_correct (tripwire, ~0) : {m['R_correct']:.4f}    "
-          f"R_design (readout, big) : {m['R_design']:.4f}    near-tie share: {m['near_tie_share']}")
-    print(f"  decomposition            : surprise-win {m['decomposition']['p_surprise_win']:.4f}  "
-          f"bonsai-win {m['decomposition']['p_bonsai_win']:.4f}")
+    print(f"  R_correct (tripwire, ~0) : {m['R_correct']:.4f}    R_design (readout, big) : {m['R_design']:.4f}")
+    print(f"  margin histogram         : {m['margin_hist']}   (near-tie <0.01: {m['near_tie_share']})")
     print(f"  surprise rung (nominal #1): entry {s['entry_rate']:.3f}  win|live {s['win_given_live']}  "
           f"dead-band|entries {s['dead_band_share_of_entries']}  gated|absent {s['gated_share_of_absent']}")
     print(f"  bonsai (veto) rung       : P(win|mom-absent) {b['p_bonsai_win_given_momentum_absent']}  "
