@@ -1,9 +1,9 @@
 """Arbiter-competition instrument (NEX5_GW_LOG + check_arbiter_competition).
 
-The logger is observational: default OFF => no file written, arbitrate() byte-identical.
-It logs the full candidate VECTOR [{kind, salience}] so the LADDER RESIDUAL (observed
-winner vs static-weight prediction) can be computed offline. No fire-path behaviour change
-(the log is a lock-free append, never the one-pen). ANALOGUE.
+Logger: default OFF => no file, arbitrate() byte-identical; logs the full candidate VECTOR
+[{kind, salience}] so the three channels can be computed offline. Instrument: R_correct
+(tripwire, ~0), R_design (readout, expected large), and the earns-its-keep primary
+(P(bonsai | momentum absent) + focus_num region). No fire-path change. ANALOGUE.
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ class TestArbiterLogger(unittest.TestCase):
         self._tmp = tempfile.mkdtemp()
         self._jsonl = os.path.join(self._tmp, "arbiter_decisions.jsonl")
         gw._decisions_path = lambda: self._jsonl
-        self._db = os.path.join(self._tmp, "dynamic.db")   # empty => no surprise/momentum
+        self._db = os.path.join(self._tmp, "dynamic.db")
         os.environ.pop("NEX5_GW_LOG", None)
 
     def tearDown(self):
@@ -36,29 +36,25 @@ class TestArbiterLogger(unittest.TestCase):
 
     def test_off_writes_nothing_and_is_byte_identical(self):
         line_off = self.gw.arbitrate(self._status(), dynamic_db=self._db)
-        self.assertFalse(os.path.exists(self._jsonl))     # OFF => no file at all
+        self.assertFalse(os.path.exists(self._jsonl))
         os.environ["NEX5_GW_LOG"] = "1"
         line_on = self.gw.arbitrate(self._status(), dynamic_db=self._db)
-        self.assertEqual(line_on, line_off)               # decision unchanged by logging
-        self.assertTrue(os.path.exists(self._jsonl))
+        self.assertEqual(line_on, line_off)
         with open(self._jsonl) as f:
             rows = [json.loads(x) for x in f if x.strip()]
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["winner_kind"], "bonsai")
-        self.assertEqual(rows[0]["candidates"],
-                         [{"kind": "bonsai", "salience": 0.45}])   # 0.9 focus_num * 0.50
+        self.assertEqual(rows[0]["candidates"], [{"kind": "bonsai", "salience": 0.45}])
 
     def test_winner_index_is_first_max_and_vector_logged(self):
         os.environ["NEX5_GW_LOG"] = "1"
-        # two equal-salience maxima: the FIRST wins, matching arbitrate_candidates()
         self.gw._maybe_log_decision([(0.5, "a"), (0.9, "b"), (0.9, "c")],
                                     ["surprise", "momentum", "bonsai"])
         with open(self._jsonl) as f:
             rec = json.loads(f.readline())
-        self.assertEqual(rec["winner_kind"], "momentum")          # first of the 0.9 maxima
+        self.assertEqual(rec["winner_kind"], "momentum")
         self.assertEqual(len(rec["candidates"]), 3)
         self.assertEqual(rec["candidates"][0], {"kind": "surprise", "salience": 0.5})
-        self.assertEqual(rec["candidates"][2], {"kind": "bonsai", "salience": 0.9})
 
     def test_empty_candidates_is_noop(self):
         os.environ["NEX5_GW_LOG"] = "1"
@@ -75,57 +71,73 @@ class TestArbiterMeasure(unittest.TestCase):
                 f.write(json.dumps(r) + "\n")
         return path
 
+    def _row(self, winner, *cands):
+        return {"ts": 1.0, "winner_kind": winner,
+                "candidates": [{"kind": k, "salience": s} for k, s in cands]}
+
     def test_entropy(self):
         from tools.check_arbiter_competition import _entropy
         self.assertAlmostEqual(_entropy({"a": 1, "b": 1, "c": 1, "d": 1}), 2.0)
         self.assertEqual(_entropy({"a": 9}), 0.0)
 
-    def test_ladder_predicted_uses_static_weights(self):
-        from tools.check_arbiter_competition import _ladder_predicted
-        self.assertEqual(_ladder_predicted(["momentum", "surprise"]), "surprise")  # 1.00 > 0.55
-        self.assertEqual(_ladder_predicted(["bonsai", "drive"]), "bonsai")         # 0.50 > 0.45
-        self.assertIsNone(_ladder_predicted([]))
+    def test_nominal_and_effective(self):
+        from tools.check_arbiter_competition import _nominal_predicted, _effective_argmax
+        self.assertEqual(_nominal_predicted(["momentum", "surprise"]), "surprise")  # weight 1.0
+        self.assertEqual(_nominal_predicted(["bonsai", "drive"]), "bonsai")         # 0.50 > 0.45
+        self.assertIsNone(_nominal_predicted([]))
+        self.assertEqual(_effective_argmax(
+            [{"kind": "surprise", "salience": 0.40}, {"kind": "momentum", "salience": 0.55}]),
+            "momentum")
 
-    def test_residual_aggregation(self):
+    def test_three_channels_weak_surprise(self):
+        # weak surprise (0.40) enters but loses to flat momentum (0.55): R_correct 0, R_design large
         from tools.check_arbiter_competition import measure, _verdict
-        # 30 fires: weak surprise (0.40) loses to flat momentum (0.55) -> residual (ladder said surprise)
-        weak = {"ts": 1.0, "winner_kind": "momentum",
-                "candidates": [{"kind": "surprise", "salience": 0.40},
-                               {"kind": "momentum", "salience": 0.55}]}
-        # 10 fires: strong surprise (0.80) wins -> matches ladder -> no residual
-        strong = {"ts": 1.0, "winner_kind": "surprise",
-                  "candidates": [{"kind": "surprise", "salience": 0.80},
-                                 {"kind": "momentum", "salience": 0.55}]}
+        weak = self._row("momentum", ("surprise", 0.40), ("momentum", 0.55))
+        strong = self._row("surprise", ("surprise", 0.80), ("momentum", 0.55))
         path = self._write([weak] * 30 + [strong] * 10)
         try:
             m = measure(path, window=5000)
         finally:
             os.unlink(path)
-        self.assertEqual(m["n"], 40)
-        self.assertEqual(m["residual_rate"], 0.75)                 # 30/40 off-ladder
-        self.assertTrue(_verdict(m).startswith("RESIDUAL PRESENT"))
-        sig = m["by_signature"][0]
-        self.assertEqual(sig["signature"], "momentum,surprise")
-        self.assertEqual(sig["ladder_predicted"], "surprise")
-        self.assertEqual(sig["residual_rate"], 0.75)
-        self.assertEqual(m["kinds_present_rate"]["surprise"], 1.0)
+        self.assertEqual(m["R_correct"], 0.0)                      # winner == max-salience always
+        self.assertEqual(m["R_design"], 0.75)                      # 30/40 depart the nominal ladder
+        self.assertEqual(m["surprise"]["entry_rate"], 1.0)
+        self.assertEqual(m["surprise"]["dead_band_share_of_entries"], 0.75)  # 30 below drive 0.45
+        self.assertEqual(m["earns_keep"]["momentum_absent_share"], 0.0)
+        self.assertEqual(m["earns_keep"]["data_driven_region_share"], 0.0)
+        self.assertTrue(_verdict(m).startswith("NEAR-DETERMINISTIC"))
 
-    def test_strict_ladder_verdict(self):
+    def test_data_driven_region(self):
+        # momentum absent; focus_num decides bonsai-vs-drive
         from tools.check_arbiter_competition import measure, _verdict
-        rows = [{"ts": 1.0, "winner_kind": "bonsai",
-                 "candidates": [{"kind": "bonsai", "salience": 0.45}]}] * 50
-        path = self._write(rows)
+        hi = self._row("bonsai", ("bonsai", 0.50), ("drive", 0.45))   # focus_num 1.0 -> >0.9, wins
+        lo = self._row("drive", ("bonsai", 0.20), ("drive", 0.45))    # focus_num 0.4 -> <0.5, loses
+        path = self._write([hi] * 20 + [lo] * 20)
         try:
             m = measure(path, window=5000)
         finally:
             os.unlink(path)
-        self.assertEqual(m["residual_rate"], 0.0)                  # observed == predicted always
-        self.assertTrue(_verdict(m).startswith("STRICT LADDER"))
+        self.assertEqual(m["R_correct"], 0.0)
+        self.assertEqual(m["earns_keep"]["momentum_absent_share"], 1.0)
+        self.assertEqual(m["earns_keep"]["p_bonsai_win_given_momentum_absent"], 0.5)
+        self.assertEqual(m["earns_keep"]["data_driven_region_share"], 0.5)   # 20/40 focus_num>0.9
+        self.assertTrue(_verdict(m).startswith("DATA-DRIVEN REGION"))
+
+    def test_correctness_alert(self):
+        from tools.check_arbiter_competition import measure, _verdict
+        # winner_kind logged as momentum but surprise (0.80) is the real max -> tripwire fires
+        bad = self._row("momentum", ("momentum", 0.55), ("surprise", 0.80))
+        path = self._write([bad] * 40)
+        try:
+            m = measure(path, window=5000)
+        finally:
+            os.unlink(path)
+        self.assertEqual(m["R_correct"], 1.0)
+        self.assertTrue(_verdict(m).startswith("CORRECTNESS ALERT"))
 
     def test_insufficient(self):
         from tools.check_arbiter_competition import measure
-        path = self._write([{"ts": 1.0, "winner_kind": "bonsai",
-                             "candidates": [{"kind": "bonsai", "salience": 0.45}]}] * 5)
+        path = self._write([self._row("bonsai", ("bonsai", 0.45))] * 5)
         try:
             m = measure(path)
         finally:

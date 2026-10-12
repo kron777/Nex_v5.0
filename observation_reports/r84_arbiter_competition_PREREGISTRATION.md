@@ -34,37 +34,47 @@ nowhere (`git grep` arbiter_decisions → 0). This round fixes that, and nothing
   winner distribution/entropy, candidate depth, per-kind eligibility (cadence). `--freeze`/`--baseline`
   for drift, like G3.
 
-## PRIMARY (pre-registered) — LADDER RESIDUAL
+## PRIMARY — three channels, never conflated (Beam Q-arb round 2)
 
-The salience weights form a static ladder: `surprise 1.00 > stakes 0.90 > momentum 0.55 > bonsai 0.50 >
-drive 0.45`. A naive "override rate" just reads out *which* candidates were live (cadence), not whether
-the arbiter decided anything. The decision content is the **residual**:
+A single "ladder residual" against the **nominal flat-weight** ladder (`surprise 1.00 > stakes 0.90 >
+momentum 0.55 > bonsai 0.50 > drive 0.45`) **false-fires**: the variable multipliers (`surprise_score`,
+`focus_num`) re-order the intended priority *by construction*, so that residual is large whenever
+`surprise_score < 0.90` or `focus_num < 0.9` — reading it as "the arbiter decided something" is the exact
+measurement-of-what error this round guards against ([[nex5-measurement-of-what]]). Split it:
 
-> **residual rate** = fraction of fires where the observed winner ≠ the winner the **static weight
-> ladder** predicts from that fire's live kinds, reported as a four-column readout stratified by
-> liveness signature (signature → n → ladder-predicted → observed dist → residual).
-
-- **≈ 0 → STRICT LADDER.** The arbiter picks the top-priority *available* line and decides nothing beyond
-  priority order. "Earns its keep" = no; the question closes as cleanly as diversity_starvation did.
-  Keep it (fail-safe), stop investing, do not reorder.
-- **> 0 → RESIDUAL PRESENT.** Something re-ranks candidates. It can only be the two **variable**
-  multipliers (momentum/stakes/drive are *constant* weights, so they never move the ladder): a weak
-  surprise (`surprise_score·1.00`, score ∈ (0.3, 0.55)) falling **below** flat momentum 0.55, or a
-  low-focus bonsai (`focus_num·0.50`) falling **below** flat drive 0.45. The residual therefore localizes
-  to `surprise_score` and `focus_num` — and `focus_num` comes from `sense_events → bonsai`, closing the
-  loop back to the sense_events selector. *That* localized residual is the answer.
+- **`R_correct` (CORRECTNESS TRIPWIRE, must be ≈ 0):** observed winner ≠ the **effective argmax** over
+  the logged saliences. The code sets `winner = max-salience`, so any departure is a tie-path / log-
+  integrity bug — inspect it, never read it as "keep". `R_correct > 0` ⇒ STOP and inspect.
+- **`R_design` (DESIGN READOUT, expected LARGE, not a keep signal):** observed winner ≠ the nominal
+  flat-weight prediction. This just measures how far the multiplier layer re-orders the intended
+  priority. Report it; do **not** interpret it as decision content.
+- **EARNS-ITS-KEEP (the real primary):** the arbiter's data-driven surface is provably tiny.
+  `focus_num ≤ 1.0` and momentum is flat 0.55, so bonsai (`focus_num·0.50 ≤ 0.50`) can **never** beat
+  momentum (needs `focus_num > 1.1`); `focus_num` has **veto power only** — it drops bonsai under flat
+  drive (0.45) when `focus_num < 0.9`, never promotes it. So the question reduces to
+  **`P(bonsai wins | momentum absent)` + the `focus_num` distribution there**, and the only genuinely
+  data-driven region is `{momentum absent} ∩ {focus_num > 0.9}` (`data_driven_region_share`).
+  - region share **< 0.02 → NEAR-DETERMINISTIC**: outcome ~fully fixed by flat weights + liveness;
+    "earns its keep" = no; keep it (fail-safe), stop investing, do not reorder.
+  - region share **≥ 0.02 → DATA-DRIVEN REGION PRESENT**: `focus_num` (from `sense_events → bonsai`)
+    actually decides bonsai-vs-drive in that slice — the one place sense_events reaches the frame.
+- **SURPRISE ENTRY RATE (exposure diagnostic):** surprise enters at `score > 0.3` but its salience *is*
+  the score, so a surprise in `(0.3, 0.45)` enters yet loses to flat drive — a dead band that pads depth
+  and never wins. `surprise_events` IS populated (`predictive_substrate.py:405`), so this measures live
+  *clearance*: if the entry rate is ~0 or the dead-band share ~1, the nominal #1 is effectively a
+  phantom and the arbiter is a 4-way with `focus_num` its only data term.
 
 ## Tripwire / measurement-of-what guard (binding)
 
-1. **The residual measures FRAME variation, not content selection.** The fetch is fixed before the
-   arbiter; it can never license a fetch reorder. State this on every citation.
-2. **Do not report the raw override/winner distribution as the primary** — it is a cadence readout
-   (P(kind live)), exactly the groove-alert "readiness is a volume knob" error
-   ([[nex5-readiness-is-a-volume-knob]]). The residual *subtracts* the ladder (the cadence) and is the
-   only non-cadence number. If the residual cannot be computed from the logged vector (e.g. a schema
-   regression drops saliences), **STOP and fix the schema**, do not substitute override rate
-   ([[nex5-round-protocol]]).
-3. **Exposure gate.** No claim until ≥ ~1 day of live fires are logged with `NEX5_GW_LOG=1` deployed.
+1. **Everything here measures FRAME variation, not content selection.** The fetch is fixed before the
+   arbiter; no number here can license a fetch reorder. State this on every citation.
+2. **Never promote `R_design`, override rate, or winner distribution to the primary** — all are cadence
+   readouts (P(kind live) + the multiplier layer obeying the code), the "readiness is a volume knob"
+   error ([[nex5-readiness-is-a-volume-knob]]). Only the earns-its-keep region share and `R_correct` are
+   decision/ correctness claims.
+3. If a channel cannot be computed from the logged vector (e.g. a schema regression drops saliences),
+   **STOP and fix the schema**, do not substitute a weaker number ([[nex5-round-protocol]]).
+4. **Exposure gate.** No claim until ≥ ~1 day of live fires are logged with `NEX5_GW_LOG=1` deployed.
    Until then the instrument prints "insufficient / is NEX5_GW_LOG armed?" by design.
 
 ## E4 pre-screen status (the five predicates)
