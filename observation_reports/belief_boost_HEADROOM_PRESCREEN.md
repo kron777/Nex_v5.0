@@ -26,34 +26,58 @@ Can a within-range boost actually change *which* beliefs are fetched? A below-cu
 promotable iff `created_at + max_grade·3.5d > eff[cutoff]` (boost replaces, so its max reachable recency
 is `created_at + max lift`). The pre-screen (`tools/check_belief_headroom.py`) reports:
 
-- **`promotable_count`** — below-cutoff own-content beliefs a max boost could lift into the top `own_n`.
-- **`grade_to_promote_marginal`** — the grade the single most-recent below-cutoff belief would need
-  (vs `max_grade`).
-- **`swap_zone_count`** — density of beliefs whose `created_at` is within one max-lift of the cutoff.
-- **SENSE read** — the same restricted to `precipitated_from_sense` (`in_pool / in_fetch / below_cutoff
-  / promotable`): the lever's *purpose* is sense→content, so sense material must be present and
-  promotable, not just generic content.
+The fetch applies BOTH caps in recency order — per-source (max 3, `precipitated_from_sense` → **5**) AND
+per-branch (**2**) — so the pre-screen is **cap-aware**: a belief can clear the rank cutoff yet be locked
+out because its branch or source is already full. `promotable_effective` re-runs the real capped
+admission with the candidate boosted and checks it actually lands in the top `own_n` (Beam Q1b — without
+this the pre-screen would return a FALSE GO for structurally locked-out beliefs, the worst direction).
 
-### Go / no-go
+- **`sense.promotable_effective`** — cap-aware count of `precipitated_from_sense` beliefs a max boost
+  lands in the fetch. **This is the GO gate** (Beam Q1: the lever acts on sense, so gate on the sense
+  count; generic `promotable_effective` is a *substrate* diagnostic — gating on it is the readiness-gate
+  mistake, measuring the room not the lever).
+- **`sense.cap_blocked`** = clears the rank cutoff but a cap locks it out (the false-GOs now excluded).
+- **SENSE breakdown** `in_pool / in_fetch / below_cutoff / clears / promotable_effective / cap_blocked`
+  — names *why* a NO: `in_pool = 0` is upstream EXPOSURE (fix precipitation, not boost); `in_pool > 0,
+  promotable_effective = 0` is a reach/cap/calibration problem. `in_fetch > 0` is a **ceiling REDUCER**
+  (less marginal room), **not** a GO signal.
+- generic `promotable_effective` / `clears_cutoff` / `cap_blocked` + `grade_to_promote_marginal` —
+  diagnostics only.
 
-- **HEADROOM ABSENT** (`promotable_count = 0`, or `grade_to_promote_marginal > max_grade`): the cutoff
-  gap exceeds any feasible boost — a boost **cannot** change the fetched set. `belief_boost` is
-  decision-**inert** here, the direct analogue of the readiness gate saturated at fire. **DO NOT build
-  the lever.**
-- **HEADROOM THIN** (1–2 promotable): design with caution, re-measure before arming.
-- **HEADROOM PRESENT** (≥3 promotable): a boost genuinely re-orders the fetch; the lever has range.
-- **SENSE PATH DEAD / INERT** overrides: even with generic headroom, if no `precipitated_from_sense`
-  belief is in the pool (DEAD) or none is in-fetch-or-promotable (INERT), the sense→content path itself
-  is inert — the lever would only re-weight own-fire content, not route sense.
+### Go / no-go (gate = `sense.promotable_effective`)
+
+- **NO-GO / SENSE PATH DEAD** (`sense.in_pool = 0`): upstream exposure problem, not a boost problem.
+- **NO-GO / HEADROOM ABSENT** (`sense.promotable_effective = 0`): no sense belief is cap-aware-promotable
+  (cutoff gap too large, or all cap-blocked). `belief_boost` is decision-**inert** for the sense path —
+  the readiness-gate analogue. **DO NOT build.**
+- **THIN** (1–2): design with caution, re-measure.
+- **GO / HEADROOM PRESENT** (≥3): a boost genuinely lands sense content in the fetch; the lever has range.
+
+## Resolved design (Beam Q2–Q4) — gated behind a GO
+
+- **Q2 — transience is intended, not a defect; do NOT add a persistence gate.** The pool is a recency
+  self-feedback loop; durable promotion would *freeze* its turnover into a standing priority — a
+  different system. The window is an **effect-size read**: `effect_window` reports the static decay clock
+  (`(B−1.05)/0.02` days) and the pool's own-write/day; the **binding RACE clock** (fresh writes push the
+  cutoff younger) needs the live inter-fire cadence and is flagged as not-computable-offline. A *durable*
+  effect would require re-applying the boost each fire — a **standing rule**, its own node and pre-reg,
+  not this one-shot lever.
+- **Q3 — locus is REAL (definitional-coupling check passes), and bigger than assumed.** `apply_boost` has
+  **no live caller** (only a test/export); the grade that would feed it is the *collision-novelty* grader
+  (`grader.py`: embedding input/output distance + rarity) with **no sense/surprise input**. So a
+  sense→boost path is not double-counting an existing driver — `belief_boost` is **dormant in
+  production**, and the lever would be its first live writer. Scope = *activate and drive a dormant
+  channel*, not *add a knob to a running one*.
+- **Q4 — topic-mix-toward-sense is a MANIPULATION CHECK, not the primary** (it is true by construction).
+  The two **co-primaries are the prices**: (1) voice non-inferiority — `H(content|style)` must not fall
+  below the G3 bound (baseline 3.21, n=2091); (2) sense-content **distinctness** — boosted items must be
+  *new* sense beliefs, not the same ones re-surfaced every fire (a boost channel is itself a new fixation
+  generator). **Design: randomize within-fire** (boost a random subset of sense beliefs each fire) for a
+  per-fire paired boosted-vs-non-boosted read, keeping cutoff/cadence confounds common across arms.
 
 ## Tripwire / what it does NOT measure (binding)
 
-1. **It measures FETCH-SET MOVABILITY, not the lever's effect on the voice.** A passing headroom says a
-   boost *can* swap content in; whether doing so changes what she writes (the outcome) is a separate,
-   voice-track question ([[nex5-lever-prescreen-and-voice]]), not this pre-screen.
-2. **Decay is not yet in the predicate.** Headroom is a snapshot; a boost decays 0.02/day and is removed
-   at ≤1.05, so a one-shot boost's promotion is transient (~days). If headroom passes, the next question
-   (open, for Beam) is whether a one-shot boost persists long enough to matter or must be re-applied.
-3. **Run it live, on ≥ a representative pool.** The snapshot depends on the recent write burst; read it
-   on the live `beliefs.db` over a normal window, not a quiet one. `precipitated_from_sense` is a
-   distinct `source`, so the sense read is never blended with own-fire content.
+1. **It measures FETCH-SET MOVABILITY, not the lever's effect on the voice.** A GO says a boost *can*
+   land sense content; whether that changes what she writes is the Q4 co-primaries, not this pre-screen.
+2. **Run it live, on a representative window.** The snapshot depends on the recent write burst; read the
+   live `beliefs.db` over a normal window. `precipitated_from_sense` is a distinct `source`, never blended.
