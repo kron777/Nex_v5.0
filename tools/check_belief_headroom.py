@@ -163,9 +163,11 @@ def measure(db: str, own_n: int = 12, max_grade: float = 0.42, days: float | Non
         "sense": {
             "in_pool": src_pool.get(_SENSE_SOURCE, 0),
             "in_fetch": sense_in_fetch,
+            "cap": _source_cap(_SENSE_SOURCE),
+            "cap_saturated": sense_in_fetch >= _source_cap(_SENSE_SOURCE),  # => reorder-only, net adds 0
             "below_cutoff": len(sense_below),
             "promotable_clears_cutoff": len(sense_clears),
-            "promotable_effective": len(sense_prom_eff),   # the GO gate
+            "promotable_effective": len(sense_prom_eff),   # the GO gate (reorder pool when saturated)
             "cap_blocked": len(sense_clears) - len(sense_prom_eff),
         },
         "effect_window": {
@@ -192,15 +194,26 @@ def _verdict(m: dict) -> str:
                        if s["cap_blocked"] > 0 else "the cutoff gap exceeds any feasible boost")
         return (f"NO-GO / HEADROOM ABSENT for sense: 0 sense beliefs cap-aware-promotable ({reason}). "
                 f"belief_boost is decision-INERT for the sense path — do NOT build.")
-    tag = (f"GO / HEADROOM PRESENT: {spe} sense beliefs cap-aware-promotable" if spe >= 3
-           else f"THIN: only {spe} sense belief(s) cap-aware-promotable — design with caution, re-measure")
-    note = ""
+    strong = spe >= 3
+    if s.get("cap_saturated"):
+        # the sense slot is full (in_fetch == cap), so a boost cannot ADD sense — only REORDER within
+        # the allocation: each promotable belief enters by EVICTING an incumbent. Relabel honestly
+        # (Beam QC): headroom != deficiency; whether recency is a bad selector is a separate read.
+        tag = (f"GO / REORDER HEADROOM PRESENT: {spe} sense beliefs cap-aware-promotable" if strong
+               else f"THIN REORDER HEADROOM: only {spe} promotable")
+        tag += (f" — sense fills its source cap ({s['in_fetch']}/{s['cap']}), so NET additions = 0: each "
+                f"entrant EVICTS an incumbent sense belief. Headroom != deficiency — whether recency is a "
+                f"worse selector than a boost grade (DRIVER DIVERGENCE) is UNMEASURED; arm on the Stage-A "
+                f"channel-liveness/divergence read, not on this.")
+    else:
+        tag = (f"GO / HEADROOM PRESENT: {spe} sense beliefs cap-aware-promotable" if strong
+               else f"THIN: only {spe} sense belief(s) cap-aware-promotable — design with caution")
+        if s["in_fetch"] > 0:
+            tag += (f" | NB sense already in-fetch ({s['in_fetch']}/{s['cap']}): a ceiling REDUCER, not "
+                    f"extra headroom")
     if s["cap_blocked"] > 0:
-        note += f" | {s['cap_blocked']} sense belief(s) cap-blocked (rank-clear but source/branch full)"
-    if s["in_fetch"] > 0:
-        note += (f" | NB sense already in-fetch ({s['in_fetch']}): a ceiling REDUCER (less marginal "
-                 f"room), not extra headroom")
-    return tag + note + f". (generic promotable_effective={m['promotable_effective']}, diagnostic only.)"
+        tag += f" | {s['cap_blocked']} sense cap-blocked (rank-clear but source/branch full)"
+    return tag + f". (generic promotable_effective={m['promotable_effective']}, diagnostic only.)"
 
 
 def main(argv):

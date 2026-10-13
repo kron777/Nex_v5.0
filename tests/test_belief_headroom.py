@@ -117,6 +117,26 @@ class TestBeliefHeadroom(unittest.TestCase):
         self.assertEqual(m["sense"]["in_fetch"], 1)
         self.assertIn("ceiling REDUCER", _verdict(m))
 
+    def test_reorder_label_when_sense_cap_saturated(self):
+        # sense fills its source cap (5/5) in the fetch -> net additions 0 -> REORDER, not ADD (Beam QC)
+        from tools.check_belief_headroom import measure, _verdict
+        fetched = [("precipitated_from_sense", 0.00, "sa"), ("precipitated_from_sense", 0.01, "sa"),
+                   ("precipitated_from_sense", 0.02, "sb"), ("precipitated_from_sense", 0.03, "sb"),
+                   ("precipitated_from_sense", 0.04, "sc"), ("fountain_insight", 0.05, "f1")]
+        below = [("precipitated_from_sense", 0.3, "sd"), ("precipitated_from_sense", 0.4, "se"),
+                 ("precipitated_from_sense", 0.5, "sf")]
+        path = self._db(fetched + below)
+        try:
+            m = measure(path, own_n=6, max_grade=0.42)
+        finally:
+            os.unlink(path)
+        self.assertEqual(m["sense"]["in_fetch"], 5)
+        self.assertTrue(m["sense"]["cap_saturated"])
+        self.assertGreaterEqual(m["sense"]["promotable_effective"], 3)
+        v = _verdict(m)
+        self.assertIn("REORDER HEADROOM PRESENT", v)
+        self.assertIn("EVICTS", v)
+
     def test_boost_lifts_effective_recency(self):
         from tools.check_belief_headroom import measure
         beliefs = [("fountain_insight", 0.1, "b1"), ("fountain_insight", 0.2, "b2"),
