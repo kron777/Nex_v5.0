@@ -252,6 +252,17 @@ _MIGRATIONS: dict[str, list[str]] = {
         # separate, dry-run-default step gated behind NEX5_AFFINITY_PROVENANCE=on.
         "ALTER TABLE beliefs ADD COLUMN affinity_model TEXT",
         "ALTER TABLE beliefs ADD COLUMN affinity_legacy REAL",
+        # Schema drift (surfaced by the generalized INSERT guard): the spectrum
+        # seed asserts these and both it and probe_runner read them back, but no
+        # schema/migration created them -- live-DB-only. Formalise as plain
+        # nullable INTEGERs: parent_belief_id holds sentinel markers (-2 process
+        # cluster, -99 probe exclusion), NOT real parent ids, so NO foreign key
+        # (it would reject the sentinels and any orphaned parent) and NO index at
+        # this row count. A unique on (parent_belief_id, variant_index) is
+        # deliberately NOT added here -- it can fail on existing live data; measure
+        # first, add in a follow-up.
+        "ALTER TABLE beliefs ADD COLUMN parent_belief_id INTEGER",
+        "ALTER TABLE beliefs ADD COLUMN variant_index INTEGER",
         # Phase 34 — Belief uniqueness guard: closes structural gap where only
         # tier=1 locked keystones had a unique constraint; all other tiers could
         # silently accumulate duplicate content via INSERT OR IGNORE.

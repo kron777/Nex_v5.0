@@ -200,10 +200,15 @@ class ProbeRunner:
             now = time.time()
             for i, text in enumerate(seeds):
                 cur = conn.execute(
+                    # updated_at removed: beliefs has no such column
+                    # (ground_self_belief.py documents the invariant); it was
+                    # write-only here and would raise "no such column" on a DB
+                    # matching the real schema. Column and its value dropped as a
+                    # pair to keep the list/VALUES lengths aligned.
                     """INSERT INTO beliefs
-                       (content, source, created_at, updated_at, parent_belief_id)
-                       VALUES (?, 'fountain_insight', ?, ?, -99)""",
-                    (text, now - (len(seeds) - i) * 60, now),
+                       (content, source, created_at, parent_belief_id)
+                       VALUES (?, 'fountain_insight', ?, -99)""",
+                    (text, now - (len(seeds) - i) * 60),
                 )
                 self._injected_ids.append(cur.lastrowid)
             conn.commit()

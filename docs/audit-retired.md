@@ -46,18 +46,21 @@ salience weights, optionally `NEX5_SELF_PRESENT=1`. A per-turn measurement line
 whether the assembled prompt ever approaches the model context window; only then is
 a hard token clamp worth adding.
 
-## Open drift (surfaced by the generalized schema guard, NOT yet resolved)
+## Drift surfaced by the generalized schema guard — RESOLVED
 
 `tests/test_schema_indexes.py::TestBeliefsInsertColumnsExist` found three columns
-used in `INSERT INTO beliefs` but absent from the central schema/migrations. They
-are allow-listed in that test (so it still catches *new* drift) and left for an
-owner decision:
+used in `INSERT INTO beliefs` but absent from the central schema/migrations. All
+three are now resolved (the test's allow-list is empty again):
 
-- `parent_belief_id`, `variant_index` — asserted and used by
-  `substrate/spectrumizer_process.py` (spectrum seed) and read by
-  `decryption/probe_runner.py`. Present in the live DB out-of-band. Either formalise
-  them in a migration (as was done for `affinity` / `affinity_updated_at`) or scope
-  them to the seed path.
-- `updated_at` — inserted by `decryption/probe_runner.py`, but
-  `ground_self_belief.py:190` states beliefs has no `updated_at` column. That INSERT
-  is a latent bug (would raise `no such column`), not a column to add.
+- `parent_belief_id`, `variant_index` — formalised as plain nullable `INTEGER`
+  columns in `_MIGRATIONS["beliefs"]`. No FK (`parent_belief_id` holds sentinel
+  markers `-2`/`-99`, not real parent ids), no index at this row count, and no
+  partial UNIQUE (that can fail on existing data — measure first, follow-up).
+- `updated_at` — removed from `decryption/probe_runner.py`'s INSERT (column and
+  value dropped together). It was write-only, unread, and `ground_self_belief.py:190`
+  documents that beliefs has no `updated_at` column.
+
+Follow-up (optional, not drift): the sentinels `-2` (process cluster) / `-99`
+(probe exclusion) are magic numbers duplicated across those two modules; a shared
+named constant would be cleaner. Left out of the drift fix to avoid parameterising
+SQL in a possibly-experimental `decryption/` path.

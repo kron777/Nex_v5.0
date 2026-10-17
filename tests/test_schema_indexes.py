@@ -155,23 +155,16 @@ class TestBeliefsInsertColumnsExist(unittest.TestCase):
                     if ident.match(c):
                         referenced.setdefault(c, str(py.relative_to(root)))
         self.assertTrue(referenced, "found no INSERT INTO beliefs column lists")
-        # Pre-existing drift this test surfaced on first run, allow-listed so it
-        # guards against NEW drift while these are tracked for the owner to decide:
-        #   parent_belief_id, variant_index -- asserted + used by
-        #     substrate/spectrumizer_process.py (spectrum seed) and read by
-        #     decryption/probe_runner.py; present in the live DB out-of-band but
-        #     not in the central schema. Formalise in a migration, or scope to
-        #     the seed path -- owner's call.
-        #   updated_at -- inserted by decryption/probe_runner.py, but
-        #     ground_self_belief.py:190 documents that beliefs has NO updated_at
-        #     column, so that INSERT is a latent bug (would raise no-such-column),
-        #     NOT a column to add.
-        known_drift = {"parent_belief_id", "variant_index", "updated_at"}
+        # Allow-list is empty: the drift this test first surfaced is resolved --
+        # parent_belief_id and variant_index were added to the migration, and the
+        # updated_at INSERT (a no-such-column bug) was fixed in probe_runner. Any
+        # entry appearing here now is fresh drift and must fail.
+        known_drift: set = set()
         cols = self._migrated_columns()
         missing = {c: w for c, w in referenced.items()
                    if c not in cols and c not in known_drift}
         self.assertEqual(missing, {},
-                         f"NEW columns used in INSERT but absent from schema: {missing}")
+                         f"columns used in INSERT but absent from schema: {missing}")
 
 
 class TestDynamicSchemaNoDupes(unittest.TestCase):
