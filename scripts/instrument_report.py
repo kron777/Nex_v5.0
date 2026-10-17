@@ -24,12 +24,12 @@ from __future__ import annotations
 
 import argparse
 import datetime
-import sqlite3
+from substrate import connect, Row, Connection
 import statistics
 import sys
 from pathlib import Path
 
-REPO = Path("/home/rr/Desktop/Desktop/nex5")
+REPO = Path(__file__).resolve().parents[1]
 CONV_DB = REPO / "data" / "conversations.db"
 DYNAMIC_DB = REPO / "data" / "dynamic.db"
 BELIEFS_DB = REPO / "data" / "beliefs.db"
@@ -47,9 +47,9 @@ GENIUS_WINDOW_SECONDS = 3600       # matches the live HUD's rolling window
 GENIUS_SMOOTH_SECONDS = 6 * 3600   # secondary, steadier trend line
 
 
-def _ro(path: Path) -> sqlite3.Connection:
-    c = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
-    c.row_factory = sqlite3.Row
+def _ro(path: Path) -> Connection:
+    c = connect(f"file:{path}?mode=ro", uri=True)
+    c.row_factory = Row
     return c
 
 

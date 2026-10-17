@@ -20,7 +20,7 @@ from __future__ import annotations
 import argparse
 import os
 import random
-import sqlite3
+from substrate import connect, Row
 import sys
 import time
 
@@ -43,7 +43,7 @@ SEED = 39  # frozen; changing it would redraw the sample
 
 
 def _connect_rw():
-    c = sqlite3.connect(CONV, timeout=30)
+    c = connect(CONV, timeout=30)
     c.execute(
         "CREATE TABLE IF NOT EXISTS genius_labels ("
         "  fountain_event_id INTEGER PRIMARY KEY,"
@@ -147,8 +147,8 @@ def spot_draw(set_id: int = 1) -> int:
 def spot() -> int:
     """Jon's 5-minute second pass. Claude's label is hidden until after."""
     c = _connect_rw()
-    dyn = sqlite3.connect(f"file:{DYN}?mode=ro", uri=True)
-    dyn.row_factory = sqlite3.Row
+    dyn = connect(f"file:{DYN}?mode=ro", uri=True)
+    dyn.row_factory = Row
     # Round 43: pick the HIGHEST set overall, not the highest unanswered one.
     # The old rule selected set 1 -- fully unanswered because it was RETIRED
     # after its ratio was leaked (R41) -- in preference to set 2, which was
@@ -235,8 +235,8 @@ def status() -> int:
 
 def label() -> int:
     c = _connect_rw()
-    dyn = sqlite3.connect(f"file:{DYN}?mode=ro", uri=True)
-    dyn.row_factory = sqlite3.Row
+    dyn = connect(f"file:{DYN}?mode=ro", uri=True)
+    dyn.row_factory = Row
     todo = c.execute(
         "SELECT fountain_event_id, band, score FROM genius_labels "
         "WHERE label IS NULL ORDER BY RANDOM()"

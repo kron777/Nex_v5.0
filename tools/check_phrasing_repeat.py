@@ -28,7 +28,7 @@ import argparse
 import collections
 import json
 import re
-import sqlite3
+from substrate import connect
 import statistics as st
 import sys
 import time
@@ -59,7 +59,7 @@ def _first_sentence_grams(t: str, k: int = _JACCARD_K) -> set:
 
 def measure(window: int = 2000, days: float | None = None) -> dict:
     db = str(db_paths()["dynamic"])
-    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=5)
+    con = connect(f"file:{db}?mode=ro", uri=True, timeout=5)
     try:
         if days is not None:
             rows = con.execute(

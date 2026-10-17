@@ -28,3 +28,12 @@ scipy>=1.11,<1.17
 # though the model itself is only needed at runtime (tests mock embed()).
 # Pulls torch + scikit-learn transitively.
 sentence-transformers>=2.2
+
+# ---------------------------------------------------------------------------
+# Optional extras live in their own files so this core set stays minimal:
+#   speech / TTS (kokoro, sounddevice, huggingface_hub):
+#       pip install -r requirements-speech.txt
+#   PyYAML is needed only by scripts/seed_identity_beliefs.py; see that file.
+# All of the above are imported lazily (inside the functions that use them),
+# so the core HUD runs without them. Listed here only so the imports are no
+# longer silently undeclared (audit Y3).

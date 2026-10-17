@@ -23,19 +23,20 @@ READ-ONLY: opens every DB with mode=ro; writes nothing; safe to run repeatedly.
 Usage:  .venv/bin/python3 tools/measure_confab.py [WINDOW_HOURS]   (default 24)
 """
 from __future__ import annotations
+from substrate.paths import db_paths
 
 import json
 import os
 import re
-import sqlite3
+from substrate import connect, Row, Connection
 import sys
 import time
 
 # Run from anywhere: put the repo root on the path so project imports resolve.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-BELIEFS_DB = "/home/rr/Desktop/Desktop/nex5/data/beliefs.db"
-CONV_DB = "/home/rr/Desktop/Desktop/nex5/data/conversations.db"
+BELIEFS_DB = str(db_paths()["beliefs"])
+CONV_DB = str(db_paths()["conversations"])
 
 # Reuse the project's own definitions — do not re-hardcode.
 from theory_x.signals.signal_to_problem import _entity_has_substance, _extract_entity
@@ -44,9 +45,9 @@ _TITLE_ENTITY = re.compile(r"investigate '([^']+)'")
 _BRANCH_TAG = re.compile(r"signal:\d+_branch")
 
 
-def _ro(path: str) -> sqlite3.Connection:
-    con = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=5)
-    con.row_factory = sqlite3.Row
+def _ro(path: str) -> Connection:
+    con = connect(f"file:{path}?mode=ro", uri=True, timeout=5)
+    con.row_factory = Row
     return con
 
 

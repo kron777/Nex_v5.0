@@ -235,6 +235,34 @@ _MIGRATIONS: dict[str, list[str]] = {
         "ALTER TABLE arc_closers ADD COLUMN closure_type TEXT NOT NULL DEFAULT 'template'",
         # Phase 25b — CounterfactualNode: links accepted beliefs to source problem
         "ALTER TABLE beliefs ADD COLUMN problem_id INTEGER",
+        # affinity / affinity_updated_at were read and written by
+        # theory_x/life/affinity_loop.py but defined in NO schema file or
+        # migration -- they exist only in the live DB (added out-of-band), so a
+        # fresh init_all() produced a beliefs table without them and the first
+        # affinity_tick raised "no such column: affinity". Added here; both
+        # nullable (affinity IS NULL is the "not yet rated" state the loop's
+        # SELECT depends on). Idempotent: skipped on the live DB that already has
+        # them, created on a fresh one.
+        "ALTER TABLE beliefs ADD COLUMN affinity REAL",
+        "ALTER TABLE beliefs ADD COLUMN affinity_updated_at REAL",
+        # D-A (affinity provenance): columns for the forward-only migration. Both
+        # nullable, nothing reads them yet -- affinity_model stamps which scorer
+        # wrote a row ('prov_v1'), affinity_legacy preserves the old llm value so
+        # a rollback can COALESCE(affinity_legacy, affinity). Backfill is a
+        # separate, dry-run-default step gated behind NEX5_AFFINITY_PROVENANCE=on.
+        "ALTER TABLE beliefs ADD COLUMN affinity_model TEXT",
+        "ALTER TABLE beliefs ADD COLUMN affinity_legacy REAL",
+        # Schema drift (surfaced by the generalized INSERT guard): the spectrum
+        # seed asserts these and both it and probe_runner read them back, but no
+        # schema/migration created them -- live-DB-only. Formalise as plain
+        # nullable INTEGERs: parent_belief_id holds sentinel markers (-2 process
+        # cluster, -99 probe exclusion), NOT real parent ids, so NO foreign key
+        # (it would reject the sentinels and any orphaned parent) and NO index at
+        # this row count. A unique on (parent_belief_id, variant_index) is
+        # deliberately NOT added here -- it can fail on existing live data; measure
+        # first, add in a follow-up.
+        "ALTER TABLE beliefs ADD COLUMN parent_belief_id INTEGER",
+        "ALTER TABLE beliefs ADD COLUMN variant_index INTEGER",
         # Phase 34 — Belief uniqueness guard: closes structural gap where only
         # tier=1 locked keystones had a unique constraint; all other tiers could
         # silently accumulate duplicate content via INSERT OR IGNORE.

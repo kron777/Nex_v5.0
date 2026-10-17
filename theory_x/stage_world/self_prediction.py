@@ -42,7 +42,7 @@ import os
 import sys
 import time
 import random
-import sqlite3
+from substrate import connect, Row
 import argparse
 import logging
 import urllib.request
@@ -83,8 +83,8 @@ def _db_path() -> str:
 
 
 def _connect(db_path: str):
-    conn = sqlite3.connect(db_path, timeout=10)
-    conn.row_factory = sqlite3.Row
+    conn = connect(db_path, timeout=10)
+    conn.row_factory = Row
     return conn
 
 
@@ -171,7 +171,7 @@ def _fired_between(t0: float, t1: float) -> bool:
     Restart-proof, unlike the in-memory total_fires counter.
     """
     try:
-        conn = sqlite3.connect(f"file:{DYNAMIC_DB}?mode=ro", uri=True, timeout=5.0)
+        conn = connect(f"file:{DYNAMIC_DB}?mode=ro", uri=True, timeout=5.0)
     except Exception as e:
         logger.warning("self_pred: fire-log open failed (%s)", e)
         return None

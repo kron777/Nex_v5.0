@@ -22,7 +22,7 @@ Fail-safe throughout — returns "" on any error, leaving prior behavior intact.
 """
 from __future__ import annotations
 import os
-import sqlite3
+from substrate import connect
 import time
 from typing import Optional
 
@@ -186,7 +186,7 @@ def arbitrate(status: dict, stakes_active: bool = False,
     try:
         candidates: list[tuple[float, str]] = []
 
-        con = sqlite3.connect(dynamic_db, timeout=3)
+        con = connect(dynamic_db, timeout=3)
         s = _surprise_candidate(con)
         if s:
             candidates.append(s)

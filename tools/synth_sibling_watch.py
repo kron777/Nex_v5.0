@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import argparse
 import os
-import sqlite3
+from substrate import connect, Row
 import statistics as st
 import subprocess
 import sys
@@ -29,8 +29,8 @@ D = 86400.0
 
 
 def _ro(name):
-    c = sqlite3.connect(f"file:{os.path.join(ROOT, 'data', name)}?mode=ro", uri=True, timeout=10)
-    c.row_factory = sqlite3.Row
+    c = connect(f"file:{os.path.join(ROOT, 'data', name)}?mode=ro", uri=True, timeout=10)
+    c.row_factory = Row
     return c
 
 

@@ -27,9 +27,10 @@ READ-ONLY: mode=ro on every DB; writes nothing; safe to re-run.
 Usage:  .venv/bin/python3 tools/measure_attrib.py [WINDOW_HOURS] [RESTART_EPOCH]
 """
 from __future__ import annotations
+from substrate.paths import db_paths
 
 import os
-import sqlite3
+from substrate import connect, Row
 import sys
 import time
 
@@ -39,12 +40,12 @@ from theory_x.stage3_world_model.attribution_marker import (
     contested_snippet, marker_in_tags, detect_attribution,
 )
 
-BELIEFS_DB = "/home/rr/Desktop/Desktop/nex5/data/beliefs.db"
+BELIEFS_DB = str(db_paths()["beliefs"])
 
 
 def _ro(path):
-    con = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=5)
-    con.row_factory = sqlite3.Row
+    con = connect(f"file:{path}?mode=ro", uri=True, timeout=5)
+    con.row_factory = Row
     return con
 
 
@@ -63,7 +64,7 @@ def _rate(n, d):
     return f"{(100.0 * n / d):.1f}%" if d else "n/a"
 
 
-DYNAMIC_DB = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+DYNAMIC_DB = str(db_paths()["dynamic"])
 
 
 def measure_crystallization(cutoff):

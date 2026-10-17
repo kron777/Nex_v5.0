@@ -4,7 +4,7 @@
 written to NEX's graph.
 
 Write-freedom is ENFORCED in-process, not assumed:
-  * sqlite3.connect raises unless the target is a mode=ro URI (every live
+  * connect raises unless the target is a mode=ro URI (every live
     Reader opens mode=ro);
   * substrate.Writer cannot be constructed;
   * the synergizer's writer is a RecordingWriter (captures, returns fake ids);
@@ -27,7 +27,7 @@ import argparse
 import json
 import os
 import re
-import sqlite3
+from substrate import connect
 import sys
 import time
 
@@ -35,7 +35,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 # ── hard write guards (installed before anything opens a db) ────────────────
-_real_connect = sqlite3.connect
+_real_connect = connect
 REFUSED = []
 
 
@@ -47,7 +47,7 @@ def _ro_only_connect(database, *a, **k):
     raise RuntimeError(f"DRY GUARD: refused non-read-only sqlite connect to {db!r}")
 
 
-sqlite3.connect = _ro_only_connect
+connect = _ro_only_connect
 
 import substrate  # noqa: E402
 import substrate.writer as _sw  # noqa: E402

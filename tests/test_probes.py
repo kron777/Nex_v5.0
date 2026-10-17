@@ -68,9 +68,6 @@ class TestProbeRunnerValidation(unittest.TestCase):
     def setUp(self):
         self.probes_path, self.tmp = _make_probe_env()
 
-    def tearDown(self):
-        shutil.rmtree(self.tmp, ignore_errors=True)
-
     def _make_runner(self):
         from substrate import Writer, Reader
         from theory_x.probes.probe_runner import ProbeRunner

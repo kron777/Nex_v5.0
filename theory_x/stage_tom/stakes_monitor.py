@@ -1,7 +1,7 @@
 """L4_stakes — world-contact monitor."""
 from __future__ import annotations
 import re
-import sqlite3
+from substrate import connect
 
 # Loose patterns — match the ACTUAL phrasing from live fires, not idealized versions.
 # Using word-level patterns with flexible connectors.
@@ -74,7 +74,7 @@ def _is_template(thought: str) -> bool:
 def check_world_contact(dynamic_db: str) -> bool:
     """True (stakes_active) when recent fires are template-dominated."""
     try:
-        con = sqlite3.connect(dynamic_db, timeout=3)
+        con = connect(dynamic_db, timeout=3)
         rows = con.execute(
             "SELECT thought FROM fountain_events ORDER BY ts DESC LIMIT ?",
             (_SAMPLE_N,)

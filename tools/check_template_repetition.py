@@ -38,7 +38,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import sqlite3
+from substrate import connect, Connection, Error
 import sys
 from pathlib import Path
 
@@ -62,8 +62,8 @@ def _jaccard(a: frozenset, b: frozenset) -> float:
     return (len(a & b) / union) if union else 0.0
 
 
-def _ro(path: str) -> sqlite3.Connection:
-    return sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+def _ro(path: str) -> Connection:
+    return connect(f"file:{path}?mode=ro", uri=True)
 
 
 def _db(name: str) -> str:
@@ -148,7 +148,7 @@ def semantic_repeat_reject_rate(span_start: float, span_end: float) -> dict:
         days = max((span_end - span_start) / 86400.0, 1e-9)
         if span_end > span_start:
             out["per_day"] = round(sr / days, 3)
-    except sqlite3.Error:
+    except Error:
         pass  # table absent on a fresh DB — leave available-ish but counts None
     finally:
         con.close()

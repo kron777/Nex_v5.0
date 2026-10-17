@@ -32,7 +32,7 @@ import collections
 import json
 import math
 import re
-import sqlite3
+from substrate import connect
 import sys
 import time
 
@@ -90,7 +90,7 @@ def _mutual_info(joint) -> float:
 
 def measure(window: int = 3000, days: float | None = None) -> dict:
     db = str(db_paths()["dynamic"])
-    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=5)
+    con = connect(f"file:{db}?mode=ro", uri=True, timeout=5)
     try:
         if days is not None:
             rows = con.execute(

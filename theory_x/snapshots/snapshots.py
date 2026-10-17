@@ -23,6 +23,7 @@ All functions accept Reader/Writer (substrate.reader.Reader,
 substrate.writer.Writer) for dynamic.db.
 """
 from __future__ import annotations
+from substrate import connect, Row
 
 import json
 import logging
@@ -112,11 +113,10 @@ def _lookup_coherence(fire_ts, window_s: float = 360.0):
     in the async scoring/backfill pass — never on the fountain hot path.
     """
     try:
-        import sqlite3
         from substrate.paths import db_paths
         cpath = db_paths()["conversations"]
-        con = sqlite3.connect(f"file:{cpath}?mode=ro", uri=True, timeout=5.0)
-        con.row_factory = sqlite3.Row
+        con = connect(f"file:{cpath}?mode=ro", uri=True, timeout=5.0)
+        con.row_factory = Row
         try:
             row = con.execute(
                 "SELECT total, pair_scores, ABS(ts - ?) AS dt "

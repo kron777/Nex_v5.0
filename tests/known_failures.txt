@@ -6,13 +6,12 @@
 #
 # One pytest node id per line; blank lines and # comments ignored.
 #
-# ── The one-pen compliance ratchet ────────────────────────────────────────────
-# Deliberately un-masked: ~90 non-substrate modules still import sqlite3
-# directly, bypassing the Reader/Writer layer. These stay RED until the
-# substrate connect()-factory migration lands; they are the signal, not a bug.
-tests/test_dynamic.py::TestArchitectureCompliance::test_no_direct_sqlite3_outside_substrate
-tests/test_edges.py::TestNoDirectSqlite::test_no_direct_sqlite3_outside_substrate
-tests/test_fountain.py::TestFountainCompliance::test_no_direct_sqlite3_outside_substrate
-tests/test_membrane.py::TestMembraneCompliance::test_no_direct_sqlite3_outside_substrate
-tests/test_sense.py::TestAdapterBase::test_no_direct_sqlite3_outside_substrate
-tests/test_world_model.py::TestPhase4Compliance::test_no_direct_sqlite3_outside_substrate
+# ── The one-pen compliance ratchet — RETIRED 2026-10-17 ───────────────────────
+# The substrate connect()-factory migration has landed: every module outside
+# substrate/ now opens databases through substrate.connect() (re-exporting Row,
+# IntegrityError, etc.), except the two standalone DB-maintenance tools
+# (nex_db_reaper.py, nex_db_backup.py), which the compliance tests now allow by
+# name. The six test_no_direct_sqlite3_outside_substrate tests are therefore
+# removed from this allowlist and enforce the invariant in CI from now on.
+#
+# (Empty: no intentional failures remain.)

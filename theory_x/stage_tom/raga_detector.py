@@ -36,7 +36,7 @@ USAGE (from nex5 root):
 from __future__ import annotations
 
 import sys
-import sqlite3
+from substrate import connect, Row
 import argparse
 from collections import Counter
 
@@ -53,8 +53,8 @@ def _db(name: str) -> str:
 
 def _recent_thoughts(n: int = 15) -> list[str]:
     try:
-        c = sqlite3.connect(_db("dynamic"), timeout=10)
-        c.row_factory = sqlite3.Row
+        c = connect(_db("dynamic"), timeout=10)
+        c.row_factory = Row
         rows = c.execute(
             "SELECT thought FROM fountain_events WHERE thought NOT LIKE '[%' "
             "ORDER BY id DESC LIMIT ?", (n,)
@@ -86,8 +86,8 @@ def _branch_dominance(window_s: int = 43200) -> tuple[float, str]:
     """Is one belief-branch swallowing recent attention? Returns
     (dominance_fraction, dominant_branch). High = fixation on one territory."""
     try:
-        c = sqlite3.connect(_db("beliefs"), timeout=10)
-        c.row_factory = sqlite3.Row
+        c = connect(_db("beliefs"), timeout=10)
+        c.row_factory = Row
         rows = c.execute(
             "SELECT branch_id FROM beliefs "
             "WHERE created_at > strftime('%s','now')-? AND branch_id IS NOT NULL",
@@ -108,8 +108,8 @@ def _problem_perseveration() -> tuple[int, str]:
     """Is NEX returning to the same problem repeatedly? Returns (max_repeats,
     problem_title). High repeats on one problem = perseveration."""
     try:
-        c = sqlite3.connect(_db("conversations"), timeout=10)
-        c.row_factory = sqlite3.Row
+        c = connect(_db("conversations"), timeout=10)
+        c.row_factory = Row
         rows = c.execute(
             "SELECT title, COUNT(*) n FROM open_problems "
             "WHERE COALESCE(updated_at, created_at, ts, 0) > strftime('%s','now')-1800 "
@@ -129,10 +129,10 @@ def _groove_severity(window_s: int = 900) -> tuple[float, str]:
     ngram/template repetition signal the design named. Returns (severity, pattern)
     or (0.0, '') on any error. Window default 15min so a stale alert doesn't
     pin fixation forever."""
-    import sqlite3, time as _t
+    import time as _t
     try:
-        c = sqlite3.connect(_db("beliefs"), timeout=10)
-        c.row_factory = sqlite3.Row
+        c = connect(_db("beliefs"), timeout=10)
+        c.row_factory = Row
         row = c.execute(
             "SELECT severity, pattern FROM groove_alerts "
             "WHERE detected_at > ? ORDER BY detected_at DESC LIMIT 1",

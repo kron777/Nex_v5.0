@@ -32,7 +32,7 @@ USAGE (from nex5 root):
 from __future__ import annotations
 
 import sys
-import sqlite3
+from substrate import connect, Row
 import argparse
 
 # Reuse the exact validated classifier — single source of truth.
@@ -81,8 +81,8 @@ def ensure_column(conn) -> None:
 
 
 def backfill(min_score: float = 0.0, only_striking: bool = True, relabel: bool = True) -> dict:
-    conv = sqlite3.connect(_conv_db())
-    conv.row_factory = sqlite3.Row
+    conv = connect(_conv_db())
+    conv.row_factory = Row
     ensure_column(conv)
     conv.execute(f"ATTACH '{_dyn_db()}' AS dyn")
 
@@ -123,8 +123,8 @@ def backfill(min_score: float = 0.0, only_striking: bool = True, relabel: bool =
 
 
 def report() -> None:
-    conv = sqlite3.connect(_conv_db())
-    conv.row_factory = sqlite3.Row
+    conv = connect(_conv_db())
+    conv.row_factory = Row
     cols = [r[1] for r in conv.execute("PRAGMA table_info(genius_tags)").fetchall()]
     if "provenance" not in cols:
         print("No provenance column yet — run --backfill first.")
@@ -143,7 +143,7 @@ def report() -> None:
 
 
 def undo() -> None:
-    conv = sqlite3.connect(_conv_db())
+    conv = connect(_conv_db())
     conv.execute("UPDATE genius_tags SET provenance=NULL")
     conv.commit()
     conv.close()

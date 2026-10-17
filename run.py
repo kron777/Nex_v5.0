@@ -1,4 +1,4 @@
-#!/home/rr/Desktop/Desktop/nex5/.venv/bin/python3
+#!/usr/bin/env python3
 """NEX 5.0 — unified boot.
 
 Starts the full stack in order:
@@ -21,7 +21,7 @@ import os
 import signal
 import time as _time
 
-import errors as error_channel
+import nex_config
 from alpha import ALPHA
 from substrate import Reader, Writer, db_paths
 from substrate.init_db import init_all
@@ -44,12 +44,15 @@ from voice.llm import VoiceClient
 
 
 def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(name)s %(levelname)s %(message)s",
-    )
-    error_channel.install_handler()
+    # One authority for logging (D-C): root INFO, third-party quieted, central
+    # error handler installed. Replaces the old basicConfig + install_handler.
+    nex_config.setup_logging()
     log = logging.getLogger("nex5.boot")
+
+    # Surface mistyped / unparsable NEX5_* flags at boot. Warn-only by default
+    # (a typo'd flag is otherwise silently ignored, doing nothing); set
+    # NEX5_CONFIG_STRICT=1 to make these fatal instead.
+    nex_config.validate()
 
     log.info("NEX 5.0 booting")
     log.info("Alpha: %s", ALPHA.lines[0])

@@ -15,7 +15,7 @@ import json
 import logging
 import random
 import re
-import sqlite3
+from substrate import connect, IntegrityError
 import threading
 import time
 from pathlib import Path
@@ -56,7 +56,7 @@ def _strip_html(html):
 
 
 def _pick_url():
-    s_cx = sqlite3.connect(SENSE_DB, timeout=10)
+    s_cx = connect(SENSE_DB, timeout=10)
     try:
         rows = s_cx.execute(
             "SELECT payload FROM sense_events "
@@ -148,7 +148,7 @@ def _compose_response(voice, url, title, body):
 
 
 def fetch_tick(voice):
-    cx = sqlite3.connect(BELIEFS_DB, timeout=15)
+    cx = connect(BELIEFS_DB, timeout=15)
     try:
         if _daily_count(cx) >= DAILY_CAP:
             return {"skipped": "daily_cap"}
@@ -177,7 +177,7 @@ def fetch_tick(voice):
             cx.commit()
             log.info("fetch_loop: %s -> %s", url[:60], response[:80])
             return {"fetched": True, "url": url[:80], "text": response[:120]}
-        except sqlite3.IntegrityError:
+        except IntegrityError:
             return {"skipped": "duplicate_content"}
     finally:
         cx.close()

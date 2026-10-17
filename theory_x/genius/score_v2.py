@@ -18,21 +18,22 @@ Writes: genius_score_weights.json with weights + bias + threshold.
 Run: .venv/bin/python3 -m theory_x.genius.score_v2
 """
 from __future__ import annotations
+from substrate.paths import data_dir
 
 import json
 import math
 import os
 import re
-import sqlite3
+from substrate import connect, Row
 import statistics
 import time
 from pathlib import Path
 
-DATA = Path("/home/rr/Desktop/Desktop/nex5/data")
+DATA = Path(str(data_dir()))
 DYN = DATA / "dynamic.db"
 CONV = DATA / "conversations.db"
 BEL = DATA / "beliefs.db"
-WEIGHTS_PATH = Path("/home/rr/Desktop/Desktop/nex5/genius_score_weights.json")
+WEIGHTS_PATH = data_dir().parent / "genius_score_weights.json"
 # F2-V2 (NEX5_SCORE_F2_V2, default OFF): the live 3-gram-mean anti_template is
 # ceiling-saturated (57-61% of fires >=0.95, 17.7% ==1.0) -> a near-constant the
 # fit degenerated to weight -1.577. V2 replaces the metric with 1 - MAX content-
@@ -41,7 +42,7 @@ WEIGHTS_PATH = Path("/home/rr/Desktop/Desktop/nex5/genius_score_weights.json")
 # no sign flip. Requires its OWN refit weights (applying the old -1.577 to V2's
 # spread would catastrophically penalise novelty), kept in a separate file so
 # the live score_v2 is untouched until the swap is approved.
-WEIGHTS_PATH_V2 = Path("/home/rr/Desktop/Desktop/nex5/genius_score_weights_v2.json")
+WEIGHTS_PATH_V2 = data_dir().parent / "genius_score_weights_v2.json"
 
 
 def _f2v2_score_active() -> bool:
@@ -206,7 +207,7 @@ def feat_unprompted(branch):
 
 def load_training():
     """Returns list of (fountain_event_id, striking_int)."""
-    with sqlite3.connect(f"file:{CONV}?mode=ro", uri=True) as c:
+    with connect(f"file:{CONV}?mode=ro", uri=True) as c:
         rows = c.execute(
             "SELECT fountain_event_id, striking FROM genius_training"
         ).fetchall()
@@ -214,8 +215,8 @@ def load_training():
 
 
 def load_fire_by_id(fid):
-    with sqlite3.connect(f"file:{DYN}?mode=ro", uri=True) as c:
-        c.row_factory = sqlite3.Row
+    with connect(f"file:{DYN}?mode=ro", uri=True) as c:
+        c.row_factory = Row
         r = c.execute(
             "SELECT id, ts, thought, hot_branch, anchor_belief_id "
             "FROM fountain_events WHERE id = ?", (fid,)
@@ -226,8 +227,8 @@ def load_fire_by_id(fid):
 def load_all_fires_window(hours=336):
     """All fires in past 14 days, ordered ts asc, for context."""
     cutoff = time.time() - hours * 3600
-    with sqlite3.connect(f"file:{DYN}?mode=ro", uri=True) as c:
-        c.row_factory = sqlite3.Row
+    with connect(f"file:{DYN}?mode=ro", uri=True) as c:
+        c.row_factory = Row
         rows = c.execute(
             "SELECT id, ts, thought, hot_branch "
             "FROM fountain_events WHERE ts > ? ORDER BY ts ASC", (cutoff,)
@@ -237,8 +238,8 @@ def load_all_fires_window(hours=336):
 
 def load_t6_beliefs():
     cutoff = time.time() - 14 * 86400
-    with sqlite3.connect(f"file:{BEL}?mode=ro", uri=True) as c:
-        c.row_factory = sqlite3.Row
+    with connect(f"file:{BEL}?mode=ro", uri=True) as c:
+        c.row_factory = Row
         rows = c.execute(
             "SELECT id, content, tier, created_at FROM beliefs "
             "WHERE tier = 6 AND created_at > ?", (cutoff,)

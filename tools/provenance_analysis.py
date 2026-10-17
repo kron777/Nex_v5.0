@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import sqlite3
+from substrate import connect, Row
 import sys
 from pathlib import Path
 
@@ -81,8 +81,8 @@ def harness_turns() -> set:
 
 
 def load_pairs(source: str, min_reply: int, keep_synthetic: bool) -> list:
-    c = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
-    c.row_factory = sqlite3.Row
+    c = connect(f"file:{DB}?mode=ro", uri=True)
+    c.row_factory = Row
     rows = c.execute("""
         SELECT p.*, (SELECT m.content FROM messages m
                      WHERE m.session_id = p.session_id AND m.role = 'nex'

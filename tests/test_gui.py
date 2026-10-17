@@ -38,6 +38,13 @@ class TestGuiEndpoints(unittest.TestCase):
             voice=VoiceClient(request_fn=_mock_req),
         )
         cls.app = create_app(cls.state)
+
+        # A route that raises, wired before the first request, so the global
+        # error handler's 500 path is exercisable.
+        def _boom():
+            raise RuntimeError("boom")
+        cls.app.add_url_rule("/__boom__", "__boom__", _boom)
+
         cls.client = cls.app.test_client()
 
     @classmethod
@@ -66,6 +73,14 @@ class TestGuiEndpoints(unittest.TestCase):
             set(r.get_json().keys()),
             {"beliefs", "sense", "dynamic", "intel", "conversations", "probes"},
         )
+
+    def test_health_ok(self):
+        r = self.client.get("/api/health")
+        self.assertEqual(r.status_code, 200)
+        data = r.get_json()
+        self.assertEqual(data["status"], "ok")
+        self.assertIn("beliefs", data["dbs"])
+        self.assertTrue(all(v == "ok" for v in data["dbs"].values()), data["dbs"])
 
     def test_admin_flow(self):
         r = self.client.get("/api/admin/status")
@@ -108,6 +123,48 @@ class TestGuiEndpoints(unittest.TestCase):
         # Verify persistence: each chat writes user + nex rows.
         n = self.readers["conversations"].count("messages")
         self.assertGreaterEqual(n, 4)
+
+    def test_unknown_path_returns_json_404(self):
+        r = self.client.get("/api/definitely-not-a-route")
+        self.assertEqual(r.status_code, 404)
+        self.assertEqual(r.get_json()["error"], "not found")
+
+    def test_wrong_method_returns_json_405(self):
+        # /api/admin/login is POST-only; a GET must be a JSON 405, not HTML.
+        r = self.client.get("/api/admin/login")
+        self.assertEqual(r.status_code, 405)
+        self.assertIn("error", r.get_json())
+
+    def test_unhandled_exception_returns_json_500(self):
+        # The global handler must turn an unhandled error into a JSON 500,
+        # never a bare HTML traceback (/__boom__ is wired in setUpClass).
+        r = self.client.get("/__boom__")
+        self.assertEqual(r.status_code, 500)
+        self.assertEqual(r.get_json()["error"], "internal error")
+
+    def test_auth_gate_covers_every_mutating_route(self):
+        # C1 regression lock: EVERY mutating route except the small public
+        # allowlist must 403 for an unauthenticated caller. Introspects the
+        # url_map so a future route added without the gate fails this test.
+        import re as _re
+        public = {"api_admin_login", "api_admin_logout", "api_chat", "static",
+                  "__boom__"}
+        mutating = {"POST", "PUT", "PATCH", "DELETE"}
+        anon = self.app.test_client()  # fresh client, no admin session
+        checked = 0
+        for rule in self.app.url_map.iter_rules():
+            methods = (rule.methods or set()) & mutating
+            if not methods or rule.endpoint in public:
+                continue
+            path = _re.sub(r"<[^>]+>", "1", rule.rule)  # fill path params
+            method = "POST" if "POST" in methods else sorted(methods)[0]
+            r = anon.open(path, method=method, json={})
+            self.assertEqual(
+                r.status_code, 403,
+                f"{method} {path} ({rule.endpoint}) not gated -> {r.status_code}",
+            )
+            checked += 1
+        self.assertGreater(checked, 20, "expected a real mutating surface")
 
 
 if __name__ == "__main__":

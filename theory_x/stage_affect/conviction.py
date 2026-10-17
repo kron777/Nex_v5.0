@@ -50,6 +50,8 @@ warrant. Kept as the record; nothing imports this live.
 """
 from __future__ import annotations
 
+from substrate.paths import db_paths
+
 import math
 import re
 import time
@@ -57,7 +59,7 @@ import time
 __all__ = ["regroup", "order_by_support", "signatures", "support",
            "HELD_HEADER", "UNSETTLED_HEADER"]
 
-_BELIEFS_DB = "/home/rr/Desktop/Desktop/nex5/data/beliefs.db"
+_BELIEFS_DB = str(db_paths()["beliefs"])
 
 # Calibrated 2026-09-26 on the chat-retrieval population — 98 non-test user turns
 # re-retrieved read-only, 196 sets, 472 beliefs (tools/conviction_harness.py

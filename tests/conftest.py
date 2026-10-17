@@ -74,6 +74,24 @@ sqlite3.dbapi2.connect = sqlite3.connect
 builtins.open = _wrap_open(builtins.open)
 io.open = builtins.open
 
+# Deterministic RNG state per test (M7). The suite was already run-to-run
+# stable, but nothing pinned the seeds, so any future flake would be
+# unreproducible. Reseed stdlib random (and numpy if present) before each test
+# to a fixed value, so a failure reproduces on the next run. A test that needs
+# its own seed can still call random.seed()/np.random.seed() in setUp.
+_RNG_SEED = 1729
+
+
+def _seed_rng():
+    import random as _random
+    _random.seed(_RNG_SEED)
+    try:
+        import numpy as _np
+        _np.random.seed(_RNG_SEED)
+    except Exception:
+        pass
+
+
 try:
     import pytest
 
@@ -89,5 +107,11 @@ try:
         if hits:
             pytest.fail("TEST HYGIENE: test touched live nex5/data "
                         f"({len(hits)}x): {hits[:3]}", pytrace=False)
+
+    @pytest.fixture(autouse=True)
+    def _seeded_rng():
+        """Pin RNG state before every test so failures reproduce (M7)."""
+        _seed_rng()
+        yield
 except ImportError:  # plain unittest run: the guard above still refuses live access
     pass

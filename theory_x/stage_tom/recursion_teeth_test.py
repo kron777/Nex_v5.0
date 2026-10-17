@@ -32,7 +32,7 @@ USAGE (from nex5 root, after a soak):
 """
 from __future__ import annotations
 import sys
-import sqlite3
+from substrate import connect, Row
 import argparse
 
 sys.path.insert(0, ".")
@@ -48,8 +48,8 @@ def _db(name: str) -> str:
 
 def _fires(window_s: int) -> list[dict]:
     """Recent fires with their hot_branch, in time order."""
-    c = sqlite3.connect(_db("dynamic"), timeout=10)
-    c.row_factory = sqlite3.Row
+    c = connect(_db("dynamic"), timeout=10)
+    c.row_factory = Row
     rows = c.execute(
         "SELECT id, ts, hot_branch, substr(thought,1,60) AS thought "
         "FROM fountain_events "

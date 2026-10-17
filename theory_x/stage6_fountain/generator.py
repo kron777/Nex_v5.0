@@ -4,6 +4,9 @@ Assembles self-directed prompts, calls the voice layer, and writes
 fountain events to sense.db and dynamic.db.
 """
 from __future__ import annotations
+from substrate import connect
+
+from substrate.paths import data_dir, db_paths
 
 import json
 import logging
@@ -77,11 +80,10 @@ def _stale_cluster_tokens():
     return its content-token set (so its items can be excluded); else None.
     Reads dynamic.db via db_paths (respects NEX5_DATA_DIR). Fail-safe None."""
     try:
-        import sqlite3 as _s3
         from collections import Counter
         from substrate import db_paths
         _dp = str(db_paths()["dynamic"])
-        _c = _s3.connect(f"file:{_dp}?mode=ro", uri=True, timeout=5)
+        _c = connect(f"file:{_dp}?mode=ro", uri=True, timeout=5)
         rows = _c.execute(
             "SELECT focal_item FROM fountain_events "
             "WHERE ts > ? AND focal_item IS NOT NULL AND focal_item != '' "
@@ -229,11 +231,10 @@ def _fixation_teeth(sorted_branches, pick, dynamic_db=None):
     returns `pick` on any error (incl. no history / absent table) — never distorts a fire
     beyond falling back to the true pick."""
     try:
-        import sqlite3 as _sq
         if dynamic_db is None:
-            from substrate.paths import db_paths as _dbp
+            from substrate.paths import data_dir, db_paths, db_paths as _dbp
             dynamic_db = str(_dbp()["dynamic"])
-        con = _sq.connect(f"file:{dynamic_db}?mode=ro", uri=True, timeout=3)
+        con = connect(f"file:{dynamic_db}?mode=ro", uri=True, timeout=3)
         try:
             row = con.execute(
                 "SELECT branch FROM recursion_attrib ORDER BY ts DESC LIMIT 1").fetchone()
@@ -478,13 +479,12 @@ def _valence_reach():
     outside that zone it cannot pick 'negative' material. FAIL-SAFE: 1.0 on any
     error (no bias, current behaviour)."""
     try:
-        import sqlite3 as _s3
         try:
             from substrate.paths import db_paths as _dbp
             _cdb = str(_dbp()["conversations"])
         except Exception:
-            _cdb = "/home/rr/Desktop/Desktop/nex5/data/conversations.db"
-        con = _s3.connect(f"file:{_cdb}?mode=ro", uri=True, timeout=3)
+            _cdb = str(db_paths()["conversations"])
+        con = connect(f"file:{_cdb}?mode=ro", uri=True, timeout=3)
         row = con.execute(
             "SELECT valence, arousal FROM affect_state WHERE id = 1"
         ).fetchone()
@@ -524,18 +524,17 @@ def _stakes_pick(items):
     FAIL-SAFE: any error returns None (defer to the ordinary pick).
     """
     try:
-        import sqlite3 as _s3
         from theory_x.stage6_fountain.crystallizer import _fidelity_tokens
         try:
             from substrate.paths import db_paths as _dbp
             _cdb = str(_dbp()["conversations"]); _bdb = str(_dbp()["beliefs"])
         except Exception:
-            _base = "/home/rr/Desktop/Desktop/nex5/data"
+            _base = str(data_dir())
             _cdb = _base + "/conversations.db"; _bdb = _base + "/beliefs.db"
         # 1) the held drive
         topic = None; strength = 0.0
         try:
-            ccon = _s3.connect(f"file:{_cdb}?mode=ro", uri=True, timeout=3)
+            ccon = connect(f"file:{_cdb}?mode=ro", uri=True, timeout=3)
             row = ccon.execute(
                 "SELECT topic, drive_strength FROM drives WHERE id = 1"
             ).fetchone()
@@ -594,13 +593,12 @@ _ALOBHA_R_MED = 0.1108
 def _alobha_context():
     """(token union of her last 20 focal items, her repetition score r). Read from
     fountain_events; a separate function so a probe can supply its own history."""
-    import sqlite3 as _s3
     try:
         from substrate.paths import db_paths as _dbp
         _ddb = str(_dbp()["dynamic"])
     except Exception:
-        _ddb = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
-    con = _s3.connect(_ddb, timeout=3)
+        _ddb = str(db_paths()["dynamic"])
+    con = connect(_ddb, timeout=3)
     try:
         focal = [r[0] for r in con.execute(
             "SELECT focal_item FROM fountain_events WHERE focal_item IS NOT NULL "
@@ -635,20 +633,20 @@ def _curiosity_pick(items):
     import random as _r
     try:
         from theory_x.stage6_fountain.crystallizer import _fidelity_tokens
-        import sqlite3 as _s3, time as _t
+        import time as _t
         try:
             from substrate.paths import db_paths as _dbp
             _ddb = str(_dbp()["dynamic"]); _bdb = str(_dbp()["beliefs"])
             _cdb = str(_dbp()["conversations"])
         except Exception:
-            _base = "/home/rr/Desktop/Desktop/nex5/data"
+            _base = str(data_dir())
             _ddb = _base + "/dynamic.db"; _bdb = _base + "/beliefs.db"
             _cdb = _base + "/conversations.db"
         now = _t.time()
 
         surprise_toks, unfinished_toks, building_toks = set(), set(), set()
         try:
-            dcon = _s3.connect(_ddb, timeout=3)
+            dcon = connect(_ddb, timeout=3)
             for (ac,) in dcon.execute(
                     "SELECT actual_content FROM surprise_events "
                     "WHERE triggered_at > ? AND surprise_score > 0.3 "
@@ -684,7 +682,7 @@ def _curiosity_pick(items):
         except Exception:
             pass
         try:
-            bcon = _s3.connect(_bdb, timeout=3)
+            bcon = connect(_bdb, timeout=3)
             for (content,) in bcon.execute(
                     "SELECT content FROM signal_cooldown WHERE cooldown_until > ?",
                     (now,)):
@@ -697,7 +695,7 @@ def _curiosity_pick(items):
         # ---- scale by live Curiosity + Exploration drive weights (neutral 1.0) ----
         drive_scale = 1.0
         try:
-            ccon = _s3.connect(_cdb, timeout=3)
+            ccon = connect(_cdb, timeout=3)
             _dr = ccon.execute(
                 "SELECT curiosity, exploration FROM drives_competing "
                 "ORDER BY rowid DESC LIMIT 1"
@@ -770,9 +768,8 @@ def _select_wide_mode(seeds, drift_fallback_prob=0.30):
     items = []
     if True:
         try:
-            import sqlite3 as _s3
             from substrate.paths import db_paths as _dbp_wm
-            _c = _s3.connect(str(_dbp_wm()["beliefs"]), timeout=5)
+            _c = connect(str(_dbp_wm()["beliefs"]), timeout=5)
             _rows = _c.execute(
                 "SELECT content FROM beliefs WHERE source='precipitated_from_sense' "
                 "AND length(content) > 25 ORDER BY rowid DESC LIMIT 40").fetchall()
@@ -964,8 +961,8 @@ class FountainGenerator:
                     _p = _dbp_sn()
                     _ddb = str(_p["dynamic"]); _bdb = str(_p["beliefs"])
                 except Exception:
-                    _ddb = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
-                    _bdb = "/home/rr/Desktop/Desktop/nex5/data/beliefs.db"
+                    _ddb = str(db_paths()["dynamic"])
+                    _bdb = str(db_paths()["beliefs"])
                 self._self_narrative = SelfNarrative(_ddb, _bdb)
             except Exception:
                 pass
@@ -1940,13 +1937,13 @@ class FountainGenerator:
         # teeth-test v2: ONE sample per REAL fire (fail-safe — never stalls a fire).
         # Compares this fire's branch to previous fire's branch for real movement signal.
         try:
-            import sqlite3 as _sq2, time as _tt2
+            import time as _tt2
             try:
                 from substrate.paths import db_paths as _dbp2
                 _adb2 = str(_dbp2()["dynamic"])
             except Exception:
-                _adb2 = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
-            _acon = _sq2.connect(_adb2, timeout=3)
+                _adb2 = str(db_paths()["dynamic"])
+            _acon = connect(_adb2, timeout=3)
             _acon.execute("""CREATE TABLE IF NOT EXISTS recursion_attrib
                 (ts REAL PRIMARY KEY, nudge_active INTEGER,
                  branch TEXT, branch_prev TEXT, moved INTEGER)""")
@@ -1972,7 +1969,7 @@ class FountainGenerator:
                     from substrate.paths import db_paths as _dbp_l4
                     _ddb = str(_dbp_l4()["dynamic"])
                 except Exception:
-                    _ddb = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+                    _ddb = str(db_paths()["dynamic"])
                 self._stakes_active = check_world_contact(_ddb)
                 if self._stakes_active:
                     import sys as _sys_l4
@@ -2030,7 +2027,7 @@ class FountainGenerator:
                     from substrate.paths import db_paths as _dbp_hot
                     _bdb_hot = str(_dbp_hot()["beliefs"])
                 except Exception:
-                    _bdb_hot = "/home/rr/Desktop/Desktop/nex5/data/beliefs.db"
+                    _bdb_hot = str(db_paths()["beliefs"])
                 _hot_obs(thought or "", _carry_branch or "", _bdb_hot)
             except Exception:
                 pass  # never stall a fire
@@ -2191,16 +2188,15 @@ class FountainGenerator:
         # after each quiescent cycle.  Never collides with quiescent, fires ~20% of the time.
         if self._total_fires % 5 == 1 and self._beliefs_writer is not None:
             try:
-                import sqlite3 as _sqlite3
                 from theory_x.substrate.renderer import render_substrate_fire
                 from theory_x.substrate.activation import get_top_activated
-                _bel_conn = _sqlite3.connect(
+                _bel_conn = connect(
                     f"file:{self._beliefs_writer.db_path}?mode=ro",
                     uri=True,
                     isolation_level=None,
                     check_same_thread=False,
                 )
-                _dyn_conn = _sqlite3.connect(
+                _dyn_conn = connect(
                     f"file:{self._dynamic_writer.db_path}?mode=ro",
                     uri=True,
                     isolation_level=None,
@@ -3477,9 +3473,8 @@ class FountainGenerator:
         # in continuity. The comparison "earlier I said X" with "now I am Y" is
         # the substrate of felt continuity.
         try:
-            import sqlite3 as _sql_id
             from substrate.paths import db_paths as _dbp_id
-            _id_cx = _sql_id.connect(str(_dbp_id()["dynamic"]), timeout=5)
+            _id_cx = connect(str(_dbp_id()["dynamic"]), timeout=5)
             _id_row = _id_cx.execute(
                 "SELECT statement, composed_at FROM identity_log "
                 "ORDER BY composed_at DESC LIMIT 1"

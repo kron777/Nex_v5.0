@@ -30,7 +30,13 @@ import sqlite3
 import sys
 import time
 
-DATA = "/home/rr/Desktop/Desktop/nex5/data"
+try:
+    from substrate.paths import data_dir
+    DATA = str(data_dir())
+except Exception:
+    # Standalone fallback (this script lives at the repo root; data/ beside it)
+    # so the reaper still resolves even if run before the package is importable.
+    DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 LOG = os.path.expanduser("~/.nex/reaper.log")
 
 RETENTION_DAYS = 30
@@ -57,6 +63,19 @@ TARGETS = [
     # written but never digested or bounded. Default 30d window.
     ("dynamic.db",       "self_state_history",    "bound_at"),
     ("conversations.db", "meta_cognition_events", "created_at"),
+    # Pure observability logs — append-only, never referenced by another table,
+    # so age-pruning them cannot orphan anything (readers surveyed, not guessed):
+    #   drive_emergence_log — write-only diagnostic; no reader anywhere in the
+    #     codebase. Default 30d.
+    #   substrate_coherence — read only as a recent trajectory (harmonic panel:
+    #     last 144 rows) or a near-fire lookup that already tolerates a miss
+    #     (snapshots.py), so a generous 90d window never starves a live reader.
+    # Deliberately NOT added: fountain_events (read for lifetime COUNT(*) and
+    # for all coin/ghost-tagged thoughts — curated history, needs a tier-aware
+    # scheme like substrate_snapshots, not an age window), messages and
+    # belief_lineage (conversation/lineage history kept by design).
+    ("conversations.db", "drive_emergence_log",   "tick_at"),
+    ("conversations.db", "substrate_coherence",   "ts", 90),
 ]
 
 
