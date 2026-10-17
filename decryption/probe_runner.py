@@ -38,7 +38,7 @@ from __future__ import annotations
 
 import json
 import logging
-import sqlite3
+from substrate import connect
 import time
 from pathlib import Path
 from typing import Optional
@@ -195,7 +195,7 @@ class ProbeRunner:
             log.info("  [DRY RUN] Would inject %d prior seeds for %s", len(seeds), prior_context)
             return
 
-        conn = sqlite3.connect(str(self._beliefs_path))
+        conn = connect(str(self._beliefs_path))
         try:
             now = time.time()
             for i, text in enumerate(seeds):
@@ -219,7 +219,7 @@ class ProbeRunner:
             self._injected_ids.clear()
             return
 
-        conn = sqlite3.connect(str(self._beliefs_path))
+        conn = connect(str(self._beliefs_path))
         try:
             placeholders = ",".join("?" * len(self._injected_ids))
             conn.execute(
@@ -233,7 +233,7 @@ class ProbeRunner:
             self._injected_ids.clear()
 
     def _get_max_belief_id(self) -> int:
-        conn = sqlite3.connect(str(self._beliefs_path))
+        conn = connect(str(self._beliefs_path))
         try:
             row = conn.execute(
                 "SELECT MAX(id) FROM beliefs WHERE source='fountain_insight'"
@@ -249,7 +249,7 @@ class ProbeRunner:
         """
         deadline = time.time() + FIRE_WAIT_TIMEOUT_S
         while time.time() < deadline:
-            conn = sqlite3.connect(str(self._beliefs_path))
+            conn = connect(str(self._beliefs_path))
             try:
                 row = conn.execute(
                     """SELECT id, content, source, created_at
@@ -307,7 +307,7 @@ class ProbeRunner:
 
     def _get_max_real_id(self) -> int:
         """Max id of genuine (non-injected) fountain_insight beliefs."""
-        conn = sqlite3.connect(str(self._beliefs_path))
+        conn = connect(str(self._beliefs_path))
         try:
             row = conn.execute(
                 """SELECT MAX(id) FROM beliefs

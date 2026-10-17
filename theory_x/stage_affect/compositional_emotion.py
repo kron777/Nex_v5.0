@@ -34,7 +34,7 @@ USAGE (from nex5 root):
 from __future__ import annotations
 
 import sys
-import sqlite3
+from substrate import connect, Row
 import argparse
 
 sys.path.insert(0, ".")
@@ -54,8 +54,8 @@ def _read_affect() -> dict | None:
     from substrate.paths import DbPath
     for db in (_affect_db(), str(DbPath("conversations")), str(DbPath("dynamic"))):
         try:
-            conn = sqlite3.connect(db, timeout=10)
-            conn.row_factory = sqlite3.Row
+            conn = connect(db, timeout=10)
+            conn.row_factory = Row
             row = conn.execute(
                 "SELECT valence, arousal, stability, mood_label "
                 "FROM affect_state WHERE id=1"

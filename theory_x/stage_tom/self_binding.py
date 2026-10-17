@@ -42,7 +42,7 @@ from __future__ import annotations
 import sys
 import json
 import time
-import sqlite3
+from substrate import connect, Row
 
 sys.path.insert(0, ".")
 
@@ -74,8 +74,8 @@ def _read_raga() -> dict:
 def _read_dominant_drive() -> str:
     # drives_competing stores each drive as its own column, not a JSON blob.
     try:
-        c = sqlite3.connect(_db("conversations"), timeout=10)
-        c.row_factory = sqlite3.Row
+        c = connect(_db("conversations"), timeout=10)
+        c.row_factory = Row
         row = c.execute(
             "SELECT coherence, exploration, integration, "
             "self_preservation, curiosity FROM drives_competing WHERE id=1"
@@ -97,8 +97,8 @@ def _read_substrate() -> dict:
     import json as _json
     out = {"cpu": 0.0, "tone": ""}
     try:
-        c = sqlite3.connect(_db("sense"), timeout=10)
-        c.row_factory = sqlite3.Row
+        c = connect(_db("sense"), timeout=10)
+        c.row_factory = Row
         r = c.execute(
             "SELECT payload FROM sense_events "
             "WHERE stream='internal.proprioception' "
@@ -123,8 +123,8 @@ def _read_substrate() -> dict:
 def _read_attention() -> dict:
     out = {"thought": "", "readiness": 0.0, "problem": ""}
     try:
-        c = sqlite3.connect(_db("dynamic"), timeout=10)
-        c.row_factory = sqlite3.Row
+        c = connect(_db("dynamic"), timeout=10)
+        c.row_factory = Row
         r = c.execute(
             "SELECT thought, readiness FROM fountain_events "
             "WHERE thought NOT LIKE '[%' ORDER BY id DESC LIMIT 1"
@@ -136,8 +136,8 @@ def _read_attention() -> dict:
     except Exception:
         pass
     try:
-        c = sqlite3.connect(_db("conversations"), timeout=10)
-        c.row_factory = sqlite3.Row
+        c = connect(_db("conversations"), timeout=10)
+        c.row_factory = Row
         r = c.execute(
             "SELECT title FROM open_problems WHERE state!='closed' "
             "ORDER BY id DESC LIMIT 1"
@@ -151,7 +151,7 @@ def _read_attention() -> dict:
 
 
 def _ensure_table():
-    c = sqlite3.connect(_db("dynamic"), timeout=10)
+    c = connect(_db("dynamic"), timeout=10)
     c.execute(
         "CREATE TABLE IF NOT EXISTS self_state ("
         "id INTEGER PRIMARY KEY CHECK (id=1), bound_at REAL, "
@@ -236,7 +236,7 @@ def bind() -> dict:
     components_json = json.dumps(components)
     readiness = att.get("readiness", 0.0)
 
-    c = sqlite3.connect(_db("dynamic"), timeout=10)
+    c = connect(_db("dynamic"), timeout=10)
     c.execute(
         "INSERT OR REPLACE INTO self_state "
         "(id, bound_at, emotion, raga, drive, drift, readiness, synthesis, components) "
@@ -266,8 +266,8 @@ def format_for_prompt() -> str:
     """The bound self-state, one line, for NEX to read as it thinks.
     (Layer 3 will feed this back so reading it changes the next state.)"""
     try:
-        c = sqlite3.connect(_db("dynamic"), timeout=10)
-        c.row_factory = sqlite3.Row
+        c = connect(_db("dynamic"), timeout=10)
+        c.row_factory = Row
         r = c.execute("SELECT synthesis FROM self_state WHERE id=1").fetchone()
         c.close()
         return r["synthesis"] if r and r["synthesis"] else ""

@@ -21,7 +21,7 @@ from substrate.paths import db_paths
 
 import os
 import re
-import sqlite3
+from substrate import connect, Row
 
 import errors as error_channel
 
@@ -53,8 +53,8 @@ def _best_supported_relevant(message: str):
     if len(mtok) < 1:
         return None
     try:
-        con = sqlite3.connect(f"file:{_BELIEFS_DB}?mode=ro", uri=True, timeout=5)
-        con.row_factory = sqlite3.Row
+        con = connect(f"file:{_BELIEFS_DB}?mode=ro", uri=True, timeout=5)
+        con.row_factory = Row
         # candidate pool: T6+, live (not retired/paused), containing a turn token
         toks = list(mtok)[:8]
         like = " OR ".join(["content LIKE ?"] * len(toks))

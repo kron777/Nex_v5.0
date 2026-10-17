@@ -12,7 +12,7 @@ Together they form a proper self-model — knowledge of both the moment
 and the pattern.
 """
 from __future__ import annotations
-import sqlite3
+from substrate import connect, Row
 import re
 import time
 from pathlib import Path
@@ -43,8 +43,8 @@ def aggregate_self_model(beliefs_db: str | None = None,
     try:
         db = beliefs_db or str(_BELIEFS_DB)
         cutoff = time.time() - lookback_secs
-        con = sqlite3.connect(db, timeout=5)
-        con.row_factory = sqlite3.Row
+        con = connect(db, timeout=5)
+        con.row_factory = Row
         rows = con.execute(
             "SELECT content, created_at FROM beliefs "
             "WHERE source='hot_observer' AND created_at > ? "

@@ -23,7 +23,7 @@ from __future__ import annotations
 import math
 import random
 import re
-import sqlite3
+from substrate import connect, Row
 import statistics
 import sys
 import time
@@ -102,8 +102,8 @@ def compute_v1_score(thought, recent_thoughts, norms):
 
 def load_all_fires():
     cutoff = time.time() - 7 * 86400
-    with sqlite3.connect(f"file:{DYN}?mode=ro", uri=True) as c:
-        c.row_factory = sqlite3.Row
+    with connect(f"file:{DYN}?mode=ro", uri=True) as c:
+        c.row_factory = Row
         rows = c.execute(
             "SELECT id, ts, thought, hot_branch, anchor_belief_id "
             "FROM fountain_events WHERE ts > ? ORDER BY ts ASC", (cutoff,)
@@ -112,7 +112,7 @@ def load_all_fires():
 
 
 def load_already_flagged():
-    with sqlite3.connect(f"file:{CONV}?mode=ro", uri=True) as c:
+    with connect(f"file:{CONV}?mode=ro", uri=True) as c:
         rows = c.execute("SELECT fountain_event_id FROM genius_training").fetchall()
     return {r[0] for r in rows}
 
@@ -120,8 +120,8 @@ def load_already_flagged():
 def load_striking_by_pattern():
     """Pull fires matching known-striking patterns regardless of time."""
     out = []
-    with sqlite3.connect(f"file:{DYN}?mode=ro", uri=True) as c:
-        c.row_factory = sqlite3.Row
+    with connect(f"file:{DYN}?mode=ro", uri=True) as c:
+        c.row_factory = Row
         for pat in STRIKING_PATTERNS:
             rows = c.execute(
                 "SELECT id, ts, thought, hot_branch, anchor_belief_id "
@@ -199,7 +199,7 @@ def build_candidates(all_fires, already_flagged):
 
 
 def write_flag(event_id, striking, notes=""):
-    with sqlite3.connect(CONV) as c:
+    with connect(CONV) as c:
         c.execute(
             "INSERT OR REPLACE INTO genius_training "
             "(fountain_event_id, striking, flagged_at, flagged_by, notes) "
@@ -210,7 +210,7 @@ def write_flag(event_id, striking, notes=""):
 
 
 def delete_flag(event_id):
-    with sqlite3.connect(CONV) as c:
+    with connect(CONV) as c:
         c.execute("DELETE FROM genius_training WHERE fountain_event_id = ?", (event_id,))
         c.commit()
 
@@ -309,7 +309,7 @@ def main():
             print("  (unknown command; use y/n/s/b/q)")
 
     # Summary
-    with sqlite3.connect(f"file:{CONV}?mode=ro", uri=True) as c:
+    with connect(f"file:{CONV}?mode=ro", uri=True) as c:
         s = c.execute("SELECT COUNT(*) FROM genius_training WHERE striking=1").fetchone()[0]
         o = c.execute("SELECT COUNT(*) FROM genius_training WHERE striking=0").fetchone()[0]
     print()

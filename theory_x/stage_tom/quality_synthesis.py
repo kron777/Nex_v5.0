@@ -19,7 +19,7 @@ from substrate.paths import data_dir
 
 import json
 import logging
-import sqlite3
+from substrate import connect, Row
 import time
 from pathlib import Path
 
@@ -46,8 +46,8 @@ def _db(name: str) -> str:
 def compute_branch_quality(window_secs: int = _WINDOW_SECS) -> dict:
     cutoff = time.time() - window_secs
     try:
-        c_con = sqlite3.connect(_db("conversations"), timeout=5)
-        c_con.row_factory = sqlite3.Row
+        c_con = connect(_db("conversations"), timeout=5)
+        c_con.row_factory = Row
         tags = c_con.execute(
             "SELECT fountain_event_id, score FROM genius_tags "
             "WHERE tagged_at > ? ORDER BY tagged_at DESC", (cutoff,)
@@ -56,8 +56,8 @@ def compute_branch_quality(window_secs: int = _WINDOW_SECS) -> dict:
         if not tags:
             return {}
 
-        d_con = sqlite3.connect(_db("dynamic"), timeout=5)
-        d_con.row_factory = sqlite3.Row
+        d_con = connect(_db("dynamic"), timeout=5)
+        d_con.row_factory = Row
         fids = [t["fountain_event_id"] for t in tags]
         placeholders = ",".join("?" * len(fids))
         events = d_con.execute(

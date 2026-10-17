@@ -37,6 +37,7 @@ so it is governed:
     in the bound, not in a claim about experience.
 """
 from __future__ import annotations
+from substrate import connect
 
 _COST_CLAMP = 0.20     # the aversive signal can NEVER exceed this (welfare bound)
 _THRESHOLD = 0.55      # ratio-instrument threshold (same as stakes_monitor._THRESHOLD)
@@ -55,11 +56,10 @@ def appraise(dynamic_db: str | None = None) -> dict:
     """
     try:
         from theory_x.stage_tom import stakes_monitor as _sm
-        import sqlite3
         if dynamic_db is None:
             from substrate.paths import db_paths
             dynamic_db = str(db_paths()["dynamic"])
-        con = sqlite3.connect(f"file:{dynamic_db}?mode=ro", uri=True, timeout=3)
+        con = connect(f"file:{dynamic_db}?mode=ro", uri=True, timeout=3)
         try:
             rows = con.execute(
                 "SELECT thought FROM fountain_events ORDER BY ts DESC LIMIT ?",
@@ -122,11 +122,10 @@ def appraise_groove(beliefs_db: str | None = None, now: float | None = None) -> 
         if c["val"] is not None and (now - c["at"]) < _GROOVE_CACHE_TTL:
             return c["val"]
     try:
-        import sqlite3
         if beliefs_db is None:
             from substrate.paths import db_paths
             beliefs_db = str(db_paths()["beliefs"])
-        con = sqlite3.connect(f"file:{beliefs_db}?mode=ro", uri=True, timeout=3)
+        con = connect(f"file:{beliefs_db}?mode=ro", uri=True, timeout=3)
         try:
             n = con.execute(
                 "SELECT COUNT(*) FROM groove_alerts "

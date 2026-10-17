@@ -23,7 +23,8 @@ USAGE:
     python3 train_curator.py --db beliefs.db --report   # stats only, no write
 """
 from __future__ import annotations
-import sqlite3, json, re, sys, argparse, hashlib
+import json, re, sys, argparse, hashlib
+from substrate import connect, Row
 
 # --- filters: the same discipline world-consolidation + mana use ---
 # introspection / self-story patterns (training-toxic — must be excluded)
@@ -94,7 +95,7 @@ def _dedupe(beliefs: list[dict], sim_threshold: float = 0.6) -> list[dict]:
     return kept
 
 def pull(db: str) -> list[dict]:
-    con = sqlite3.connect(db); con.row_factory = sqlite3.Row
+    con = connect(db); con.row_factory = Row
     rows = con.execute(
         "SELECT id, content FROM beliefs WHERE tier <= 6 AND tier >= 1 "
         "ORDER BY last_promoted_at DESC").fetchall()

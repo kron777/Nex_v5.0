@@ -28,7 +28,7 @@ from substrate.paths import db_paths
 import json
 import os
 import re
-import sqlite3
+from substrate import connect, Row, Connection
 import sys
 import time
 
@@ -45,9 +45,9 @@ _TITLE_ENTITY = re.compile(r"investigate '([^']+)'")
 _BRANCH_TAG = re.compile(r"signal:\d+_branch")
 
 
-def _ro(path: str) -> sqlite3.Connection:
-    con = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=5)
-    con.row_factory = sqlite3.Row
+def _ro(path: str) -> Connection:
+    con = connect(f"file:{path}?mode=ro", uri=True, timeout=5)
+    con.row_factory = Row
     return con
 
 

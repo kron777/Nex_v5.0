@@ -16,7 +16,7 @@ Most recent identity statement gets injected into fountain prompt
 from __future__ import annotations
 import json
 import logging
-import sqlite3
+from substrate import connect, IntegrityError
 import threading
 import time
 from datetime import datetime
@@ -40,7 +40,7 @@ COMPOSE_HOURS = {0, 6, 12, 18}
 
 
 def _ensure_identity_log():
-    cx = sqlite3.connect(DYNAMIC_DB, timeout=15)
+    cx = connect(DYNAMIC_DB, timeout=15)
     try:
         cx.execute("""
             CREATE TABLE IF NOT EXISTS identity_log (
@@ -68,7 +68,7 @@ def _gather_metrics(now):
 
     # New beliefs in last 6h
     try:
-        b = sqlite3.connect(BELIEFS_DB, timeout=10)
+        b = connect(BELIEFS_DB, timeout=10)
         row = b.execute(
             "SELECT COUNT(*) FROM beliefs WHERE created_at > ?",
             (six_hours_ago,)
@@ -96,14 +96,14 @@ def _gather_metrics(now):
 
     # Current focus
     try:
-        d = sqlite3.connect(DYNAMIC_DB, timeout=10)
+        d = connect(DYNAMIC_DB, timeout=10)
         row = d.execute(
             "SELECT problem_id FROM current_focus WHERE id=1"
         ).fetchone()
         focus_pid = row[0] if row else None
         d.close()
         if focus_pid:
-            c = sqlite3.connect(CONVERSATIONS_DB, timeout=10)
+            c = connect(CONVERSATIONS_DB, timeout=10)
             row = c.execute(
                 "SELECT title FROM open_problems WHERE id=?", (focus_pid,)
             ).fetchone()
@@ -114,7 +114,7 @@ def _gather_metrics(now):
 
     # Last big surprise
     try:
-        d = sqlite3.connect(DYNAMIC_DB, timeout=10)
+        d = connect(DYNAMIC_DB, timeout=10)
         row = d.execute(
             "SELECT actual_content, surprise_score FROM surprise_events "
             "WHERE big_surprise=1 AND actual_content IS NOT NULL AND actual_content != '' "
@@ -130,7 +130,7 @@ def _gather_metrics(now):
 
     # Fountain fires in last 6h
     try:
-        d = sqlite3.connect(DYNAMIC_DB, timeout=10)
+        d = connect(DYNAMIC_DB, timeout=10)
         row = d.execute(
             "SELECT COUNT(*) FROM fountain_events "
             "WHERE thought != '' AND ts > ?",
@@ -155,7 +155,7 @@ def _gather_metrics(now):
     try:
         import os
         if os.environ.get("NEX_TAG_FEEDBACK_ON") == "1":
-            d = sqlite3.connect(DYNAMIC_DB, timeout=10)
+            d = connect(DYNAMIC_DB, timeout=10)
             row = d.execute(
                 "SELECT tag, COUNT(*) FROM fountain_events "
                 "WHERE tag IS NOT NULL AND ts > ? "
@@ -239,7 +239,7 @@ def identity_tick():
     if hour not in COMPOSE_HOURS:
         return {"skipped": "not_compose_hour", "hour": hour}
 
-    d_cx = sqlite3.connect(DYNAMIC_DB, timeout=15)
+    d_cx = connect(DYNAMIC_DB, timeout=15)
     try:
         # Already composed for this date+hour?
         row = d_cx.execute(
@@ -263,7 +263,7 @@ def identity_tick():
         
         # Write as Tier-6 belief
         try:
-            b_cx = sqlite3.connect(BELIEFS_DB, timeout=10)
+            b_cx = connect(BELIEFS_DB, timeout=10)
             b_cx.execute(
                 "INSERT INTO beliefs "
                 "(content, tier, confidence, created_at, source, branch_id, tags) "
@@ -272,7 +272,7 @@ def identity_tick():
             )
             b_cx.commit()
             b_cx.close()
-        except sqlite3.IntegrityError:
+        except IntegrityError:
             pass
         except Exception as e:
             log.warning("identity belief write failed: %s", e)

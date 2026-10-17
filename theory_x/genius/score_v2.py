@@ -24,7 +24,7 @@ import json
 import math
 import os
 import re
-import sqlite3
+from substrate import connect, Row
 import statistics
 import time
 from pathlib import Path
@@ -207,7 +207,7 @@ def feat_unprompted(branch):
 
 def load_training():
     """Returns list of (fountain_event_id, striking_int)."""
-    with sqlite3.connect(f"file:{CONV}?mode=ro", uri=True) as c:
+    with connect(f"file:{CONV}?mode=ro", uri=True) as c:
         rows = c.execute(
             "SELECT fountain_event_id, striking FROM genius_training"
         ).fetchall()
@@ -215,8 +215,8 @@ def load_training():
 
 
 def load_fire_by_id(fid):
-    with sqlite3.connect(f"file:{DYN}?mode=ro", uri=True) as c:
-        c.row_factory = sqlite3.Row
+    with connect(f"file:{DYN}?mode=ro", uri=True) as c:
+        c.row_factory = Row
         r = c.execute(
             "SELECT id, ts, thought, hot_branch, anchor_belief_id "
             "FROM fountain_events WHERE id = ?", (fid,)
@@ -227,8 +227,8 @@ def load_fire_by_id(fid):
 def load_all_fires_window(hours=336):
     """All fires in past 14 days, ordered ts asc, for context."""
     cutoff = time.time() - hours * 3600
-    with sqlite3.connect(f"file:{DYN}?mode=ro", uri=True) as c:
-        c.row_factory = sqlite3.Row
+    with connect(f"file:{DYN}?mode=ro", uri=True) as c:
+        c.row_factory = Row
         rows = c.execute(
             "SELECT id, ts, thought, hot_branch "
             "FROM fountain_events WHERE ts > ? ORDER BY ts ASC", (cutoff,)
@@ -238,8 +238,8 @@ def load_all_fires_window(hours=336):
 
 def load_t6_beliefs():
     cutoff = time.time() - 14 * 86400
-    with sqlite3.connect(f"file:{BEL}?mode=ro", uri=True) as c:
-        c.row_factory = sqlite3.Row
+    with connect(f"file:{BEL}?mode=ro", uri=True) as c:
+        c.row_factory = Row
         rows = c.execute(
             "SELECT id, content, tier, created_at FROM beliefs "
             "WHERE tier = 6 AND created_at > ?", (cutoff,)

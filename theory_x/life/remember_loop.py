@@ -13,7 +13,7 @@ Output written as Tier-6 belief, source='remember_loop'.
 from __future__ import annotations
 import logging
 import random
-import sqlite3
+from substrate import connect, IntegrityError
 import threading
 import time
 from pathlib import Path
@@ -92,7 +92,7 @@ def _compose_link(voice, old, recent):
 
 
 def remember_tick(voice):
-    cx = sqlite3.connect(BELIEFS_DB, timeout=15)
+    cx = connect(BELIEFS_DB, timeout=15)
     try:
         if _daily_count(cx) >= DAILY_CAP:
             return {"skipped": "daily_cap"}
@@ -119,7 +119,7 @@ def remember_tick(voice):
                      old["id"], recent["id"], link_text[:80])
             return {"linked": True, "old_id": old["id"], "recent_id": recent["id"],
                     "text": link_text[:120]}
-        except sqlite3.IntegrityError:
+        except IntegrityError:
             return {"skipped": "duplicate_content"}
     finally:
         cx.close()

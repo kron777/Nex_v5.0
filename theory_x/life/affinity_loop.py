@@ -74,7 +74,7 @@ This builds preference: she now has favourites among her own beliefs.
 from __future__ import annotations
 import logging
 import math
-import sqlite3
+from substrate import connect
 import threading
 import time
 from pathlib import Path
@@ -205,7 +205,7 @@ def _self_rate(voice, content):
 
 
 def affinity_tick(voice):
-    cx = sqlite3.connect(BELIEFS_DB, timeout=30)
+    cx = connect(BELIEFS_DB, timeout=30)
     try:
         candidates = _pick_candidates(cx, BATCH_LLM_CALLS)
         if not candidates:

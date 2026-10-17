@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import os
 import re
-import sqlite3
+from substrate import connect
 import time
 
 import errors as error_channel
@@ -51,7 +51,7 @@ def _hard_thread() -> str:
     """The topic of her current worked focus (the open problem she picked), or ''.
     Fail-safe ''."""
     try:
-        con = sqlite3.connect(f"file:{_DYNAMIC_DB}?mode=ro", uri=True, timeout=5)
+        con = connect(f"file:{_DYNAMIC_DB}?mode=ro", uri=True, timeout=5)
         row = con.execute("SELECT problem_id FROM current_focus WHERE id=1").fetchone()
         con.close()
         if not row:
@@ -76,7 +76,7 @@ def _drift_fraction(thread_text: str) -> float:
         ttok = _tokens(thread_text)
         if not ttok:
             return 0.0
-        con = sqlite3.connect(f"file:{_DYNAMIC_DB}?mode=ro", uri=True, timeout=5)
+        con = connect(f"file:{_DYNAMIC_DB}?mode=ro", uri=True, timeout=5)
         rows = con.execute(
             "SELECT thought FROM fountain_events WHERE ts > ? AND thought IS NOT NULL "
             "ORDER BY id DESC LIMIT 30", (time.time() - _RECENT_WINDOW_S,)).fetchall()

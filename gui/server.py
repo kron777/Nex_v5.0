@@ -74,6 +74,7 @@ it with mock Writers/Readers and a mock VoiceClient.
 See SPECIFICATION.md §8 — Full Observability.
 """
 from __future__ import annotations
+from substrate import connect, Row
 
 import atexit
 import json
@@ -2621,9 +2622,8 @@ def create_app(state: AppState) -> Flask:
         status = state.fountain.status()
         # Merge in last_id + last_tag for the FOUNTAIN tag buttons
         try:
-            import sqlite3 as _sq
             from substrate.paths import db_paths as _dbp_tag
-            cx = _sq.connect(str(_dbp_tag()["dynamic"]), timeout=5)
+            cx = connect(str(_dbp_tag()["dynamic"]), timeout=5)
             row = cx.execute(
                 "SELECT id, tag FROM fountain_events "
                 "WHERE thought != '' AND thought NOT LIKE '[%' "
@@ -2648,13 +2648,12 @@ def create_app(state: AppState) -> Flask:
         column can render an inline badge per fire.
         """
         from flask import request
-        import sqlite3
         limit = int(request.args.get("limit", "20"))
         dyn_db = _DYN_DB
         conv_db = _CONV_DB
         try:
-            cx = sqlite3.connect(dyn_db, timeout=10)
-            cx.row_factory = sqlite3.Row
+            cx = connect(dyn_db, timeout=10)
+            cx.row_factory = Row
             # Get last N fountain_event_ids that have words
             fids = cx.execute(
                 "SELECT DISTINCT fountain_event_id FROM word_contexts "
@@ -2688,8 +2687,8 @@ def create_app(state: AppState) -> Flask:
                 try:
                     fire_ids = tuple(int(o["fid"]) for o in out)
                     ph = ",".join("?" * len(fire_ids))
-                    cv = sqlite3.connect(conv_db, timeout=5)
-                    cv.row_factory = sqlite3.Row
+                    cv = connect(conv_db, timeout=5)
+                    cv.row_factory = Row
                     score_rows = cv.execute(
                         f"SELECT fountain_event_id, score, class, weights_version "
                         f"FROM genius_tags WHERE fountain_event_id IN ({ph}) "
@@ -2724,12 +2723,11 @@ def create_app(state: AppState) -> Flask:
     def api_decoder_top():
         """Top words by frequency."""
         from flask import request
-        import sqlite3
         limit = int(request.args.get("limit", "50"))
         dyn_db = _DYN_DB
         try:
-            cx = sqlite3.connect(dyn_db, timeout=10)
-            cx.row_factory = sqlite3.Row
+            cx = connect(dyn_db, timeout=10)
+            cx.row_factory = Row
             rows = cx.execute(
                 "SELECT word, COUNT(*) AS n FROM word_contexts "
                 "GROUP BY word ORDER BY n DESC LIMIT ?",
@@ -2745,14 +2743,13 @@ def create_app(state: AppState) -> Flask:
         """Substrate fingerprint for a single word.
         Returns: count, avg/min/max aperture, avg_hour, avg_secs_daemon,
         avg_secs_feed, top hot_branches, top tags."""
-        import sqlite3
         dyn_db = _DYN_DB
         word = word.lower().strip()
         if not word or len(word) > 50:
             return jsonify({"error": "invalid word"}), 400
         try:
-            cx = sqlite3.connect(dyn_db, timeout=10)
-            cx.row_factory = sqlite3.Row
+            cx = connect(dyn_db, timeout=10)
+            cx.row_factory = Row
             agg = cx.execute(
                 "SELECT COUNT(*) AS n, "
                 "AVG(aperture) AS avg_ap, MIN(aperture) AS min_ap, MAX(aperture) AS max_ap, "
@@ -2815,7 +2812,7 @@ def create_app(state: AppState) -> Flask:
     @app.post("/api/decoder/word_tag")
     def api_decoder_word_tag():
         """Tag a word globally as key/noise/unsure. Or untag (pass tag=null)."""
-        import sqlite3, time
+        import time
         from flask import request
         payload = request.get_json(silent=True) or {}
         word = (payload.get("word") or "").strip().lower()
@@ -2827,7 +2824,7 @@ def create_app(state: AppState) -> Flask:
             return jsonify({"error": "tag must be key/noise/unsure or null"}), 400
         dyn_db = _DYN_DB
         try:
-            cx = sqlite3.connect(dyn_db, timeout=10)
+            cx = connect(dyn_db, timeout=10)
             if tag is None:
                 cx.execute("DELETE FROM word_tags WHERE word=?", (word,))
             else:
@@ -2846,10 +2843,9 @@ def create_app(state: AppState) -> Flask:
     @app.get("/api/decoder/word_tags")
     def api_decoder_word_tags():
         """Return {word: tag} map for all tagged words. UI uses this to badge chips."""
-        import sqlite3
         dyn_db = _DYN_DB
         try:
-            cx = sqlite3.connect(dyn_db, timeout=10)
+            cx = connect(dyn_db, timeout=10)
             rows = cx.execute("SELECT word, tag, note FROM word_tags").fetchall()
             cx.close()
             tags = {r[0]: {"tag": r[1], "note": r[2]} for r in rows}
@@ -2865,7 +2861,7 @@ def create_app(state: AppState) -> Flask:
         Also auto-scores any open hypotheses.
         """
         from flask import request
-        import sqlite3, time, json
+        import time, json
         from theory_x.coincidence.context_capture import capture_and_persist
         body = request.get_json(silent=True) or {}
         fid = body.get("fountain_event_id")
@@ -2874,7 +2870,7 @@ def create_app(state: AppState) -> Flask:
             return jsonify({"error": "fountain_event_id and tag in (coin,maybe,non) required"}), 400
         dyn_db = _DYN_DB
         try:
-            cx = sqlite3.connect(dyn_db, timeout=10)
+            cx = connect(dyn_db, timeout=10)
             row = cx.execute(
                 "SELECT thought, ts FROM fountain_events WHERE id=?", (fid,)
             ).fetchone()
@@ -2919,7 +2915,7 @@ def create_app(state: AppState) -> Flask:
         Body: {fountain_event_id: int, reason: str (optional)}
         """
         from flask import request
-        import sqlite3, time
+        import time
         body = request.get_json(silent=True) or {}
         fid = body.get("fountain_event_id")
         reason = (body.get("reason") or "").strip()
@@ -2927,7 +2923,7 @@ def create_app(state: AppState) -> Flask:
             return jsonify({"error": "fountain_event_id required"}), 400
         dyn_db = _DYN_DB
         try:
-            cx = sqlite3.connect(dyn_db, timeout=10)
+            cx = connect(dyn_db, timeout=10)
             # Verify fire exists
             row = cx.execute(
                 "SELECT thought, ts FROM fountain_events WHERE id=?", (fid,)
@@ -2956,14 +2952,13 @@ def create_app(state: AppState) -> Flask:
     def api_ghost_unflag():
         """Remove a ghost flag (toggle-off behaviour)."""
         from flask import request
-        import sqlite3
         body = request.get_json(silent=True) or {}
         fid = body.get("fountain_event_id")
         if not fid:
             return jsonify({"error": "fountain_event_id required"}), 400
         dyn_db = _DYN_DB
         try:
-            cx = sqlite3.connect(dyn_db, timeout=10)
+            cx = connect(dyn_db, timeout=10)
             cx.execute("DELETE FROM ghost_flags WHERE fountain_event_id=?", (fid,))
             cx.commit()
             cx.close()
@@ -2976,11 +2971,10 @@ def create_app(state: AppState) -> Flask:
     @app.get("/api/ghost/flags")
     def api_ghost_flags():
         """Return all ghost flags (for HUD reload — knows which fires are flagged)."""
-        import sqlite3
         dyn_db = _DYN_DB
         try:
-            cx = sqlite3.connect(dyn_db, timeout=10)
-            cx.row_factory = sqlite3.Row
+            cx = connect(dyn_db, timeout=10)
+            cx.row_factory = Row
             rows = cx.execute(
                 "SELECT fountain_event_id, ts, reason FROM ghost_flags "
                 "ORDER BY ts DESC LIMIT 500"
@@ -2996,11 +2990,11 @@ def create_app(state: AppState) -> Flask:
     @app.get("/api/coincidence/stats")
     def api_coincidence_stats():
         """Counts, totals, hit rate trend, time-of-day distribution."""
-        import sqlite3, time, datetime
+        import time, datetime
         dyn_db = _DYN_DB
         try:
-            cx = sqlite3.connect(dyn_db, timeout=10)
-            cx.row_factory = sqlite3.Row
+            cx = connect(dyn_db, timeout=10)
+            cx.row_factory = Row
             counts = cx.execute(
                 "SELECT tag, COUNT(*) AS n FROM fountain_events "
                 "WHERE tag IS NOT NULL GROUP BY tag"
@@ -3057,11 +3051,11 @@ def create_app(state: AppState) -> Flask:
     @app.get("/api/coincidence/analytics")
     def api_coincidence_analytics():
         """Branch correlation, aperture distribution, condition fingerprint."""
-        import sqlite3, json
+        import json
         dyn_db = _DYN_DB
         try:
-            cx = sqlite3.connect(dyn_db, timeout=10)
-            cx.row_factory = sqlite3.Row
+            cx = connect(dyn_db, timeout=10)
+            cx.row_factory = Row
             # Hot_branch correlation: which branch produces most coins/maybes?
             by_branch = cx.execute(
                 "SELECT hot_branch, tag, COUNT(*) AS n FROM fountain_events "
@@ -3141,10 +3135,9 @@ def create_app(state: AppState) -> Flask:
     @app.get("/api/coincidence/tags")
     def api_coincidence_tags():
         """Map fountain_event_id -> tag for UI marking."""
-        import sqlite3
         dyn_db = _DYN_DB
         try:
-            cx = sqlite3.connect(dyn_db, timeout=10)
+            cx = connect(dyn_db, timeout=10)
             rows = cx.execute(
                 "SELECT id, tag FROM fountain_events "
                 "WHERE tag IS NOT NULL ORDER BY ts DESC LIMIT 500"
@@ -3158,7 +3151,7 @@ def create_app(state: AppState) -> Flask:
     def api_hypothesis_create():
         """Create a new hypothesis to test against coincidence data."""
         from flask import request
-        import sqlite3, time
+        import time
         body = request.get_json(silent=True) or {}
         claim = (body.get("claim") or "").strip()
         keywords = (body.get("keywords") or "").strip()  # comma-separated
@@ -3166,7 +3159,7 @@ def create_app(state: AppState) -> Flask:
         if not claim:
             return jsonify({"error": "claim required"}), 400
         dyn_db = _DYN_DB
-        cx = sqlite3.connect(dyn_db, timeout=10)
+        cx = connect(dyn_db, timeout=10)
         cur = cx.execute(
             "INSERT INTO hypotheses (created_at, claim, keywords, time_window) "
             "VALUES (?, ?, ?, ?)",
@@ -3180,10 +3173,9 @@ def create_app(state: AppState) -> Flask:
     @app.get("/api/hypothesis")
     def api_hypothesis_list():
         """List all hypotheses with current support/contradiction counts."""
-        import sqlite3
         dyn_db = _DYN_DB
-        cx = sqlite3.connect(dyn_db, timeout=10)
-        cx.row_factory = sqlite3.Row
+        cx = connect(dyn_db, timeout=10)
+        cx.row_factory = Row
         rows = cx.execute(
             "SELECT * FROM hypotheses ORDER BY created_at DESC"
         ).fetchall()
@@ -3194,14 +3186,14 @@ def create_app(state: AppState) -> Flask:
     def api_hypothesis_update(hid):
         """Update status or notes on a hypothesis."""
         from flask import request
-        import sqlite3, time
+        import time
         body = request.get_json(silent=True) or {}
         status = body.get("status")
         notes = body.get("notes")
         if status and status not in ("open", "confirmed", "refuted", "abandoned"):
             return jsonify({"error": "invalid status"}), 400
         dyn_db = _DYN_DB
-        cx = sqlite3.connect(dyn_db, timeout=10)
+        cx = connect(dyn_db, timeout=10)
         sets, vals = [], []
         if status:
             sets.append("status=?")
@@ -3229,10 +3221,10 @@ def create_app(state: AppState) -> Flask:
           - tag='non' on a matching thought  = contradicting
           - tag='maybe' = no count change
         """
-        import sqlite3, datetime
+        import datetime
         dyn_db = _DYN_DB
-        cx = sqlite3.connect(dyn_db, timeout=10)
-        cx.row_factory = sqlite3.Row
+        cx = connect(dyn_db, timeout=10)
+        cx.row_factory = Row
         hyps = cx.execute(
             "SELECT id, keywords, time_window FROM hypotheses WHERE status='open'"
         ).fetchall()

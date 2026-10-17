@@ -13,7 +13,7 @@ Commands:
 from __future__ import annotations
 
 import argparse
-import sqlite3
+from substrate import connect, Row
 import sys
 from pathlib import Path
 
@@ -22,8 +22,8 @@ BELIEFS = ROOT / "data" / "beliefs.db"
 
 
 def _open_ro():
-    c = sqlite3.connect(f"file:{BELIEFS}?mode=ro", uri=True)
-    c.row_factory = sqlite3.Row
+    c = connect(f"file:{BELIEFS}?mode=ro", uri=True)
+    c.row_factory = Row
     return c
 
 

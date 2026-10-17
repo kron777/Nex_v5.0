@@ -35,7 +35,7 @@ USAGE (from nex5 root):
 from __future__ import annotations
 
 import sys
-import sqlite3
+from substrate import connect
 import argparse
 
 sys.path.insert(0, ".")
@@ -71,7 +71,7 @@ def classify_stream(stream: str) -> str:
 
 
 def stream_map() -> dict:
-    conn = sqlite3.connect(_db("sense"))
+    conn = connect(_db("sense"))
     rows = conn.execute(
         "SELECT stream, COUNT(*) n FROM sense_events GROUP BY stream ORDER BY n DESC"
     ).fetchall()
@@ -117,7 +117,7 @@ def backfill() -> None:
     """Stamp beliefs with their origin KIND by matching content to sense_events.
     Additive column source_kind; reversible. Conservative: only stamps beliefs
     whose content is found verbatim in a sense_event payload."""
-    bdb = sqlite3.connect(_db("beliefs"))
+    bdb = connect(_db("beliefs"))
     cols = [r[1] for r in bdb.execute("PRAGMA table_info(beliefs)").fetchall()]
     if "source_kind" not in cols:
         bdb.execute("ALTER TABLE beliefs ADD COLUMN source_kind TEXT")

@@ -122,10 +122,12 @@ class Writer:
     # --- worker -----------------------------------------------------------
 
     def _open(self) -> sqlite3.Connection:
-        # isolation_level=None (no implicit BEGIN — we drive txns), WAL,
-        # synchronous=NORMAL, busy_timeout and foreign_keys=ON all come from
-        # the shared factory; see substrate/db.py.
-        return connect(self.db_path, busy_timeout_ms=self._busy_timeout_ms)
+        # isolation_level=None (no implicit BEGIN — we drive txns explicitly),
+        # plus WAL, synchronous=NORMAL, busy_timeout and foreign_keys=ON from
+        # the shared factory; see substrate/db.py. (The factory default is "";
+        # the Writer is the one caller that needs None.)
+        return connect(self.db_path, busy_timeout_ms=self._busy_timeout_ms,
+                       isolation_level=None)
 
     def _run(self) -> None:
         try:

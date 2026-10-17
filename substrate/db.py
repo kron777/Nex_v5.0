@@ -24,6 +24,19 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+# Re-exported so callers can `from substrate import connect, Row, ...` and drop
+# their own `import sqlite3` (the one-pen compliance ratchet forbids importing
+# sqlite3 outside this package).
+from sqlite3 import (  # noqa: F401
+    Connection,
+    Cursor,
+    DatabaseError,
+    Error,
+    IntegrityError,
+    OperationalError,
+    Row,
+)
+
 THEORY_X_STAGE = None
 
 DEFAULT_BUSY_TIMEOUT_MS = 5000
@@ -35,26 +48,46 @@ def connect(
     read_only: bool = False,
     busy_timeout_ms: int = DEFAULT_BUSY_TIMEOUT_MS,
     row_factory: Optional[Callable[[sqlite3.Cursor, Any], Any]] = None,
+    timeout: Optional[float] = None,
+    uri: bool = False,
+    isolation_level: Optional[str] = "",
+    check_same_thread: bool = False,
 ) -> sqlite3.Connection:
-    """Open a SQLite connection with NEX's standard pragmas.
+    """Open a SQLite connection with NEX's standard pragmas (WAL on read-write,
+    busy_timeout, foreign_keys=ON).
 
-    read_only opens via the `mode=ro` URI so an accidental write fails loudly
-    rather than silently taking a write lock. isolation_level is None on every
-    connection: callers drive transactions explicitly (BEGIN IMMEDIATE/COMMIT)
-    so the library never auto-begins and holds the WAL write lock across
-    statement boundaries (the 4.0 contention post-mortem — see writer.py).
+    Also a drop-in for the sqlite3.connect call shapes used across the codebase,
+    so the connect()-factory migration is a mechanical swap:
+      * a pre-formed `file:...?mode=ro` URI (with uri=True) is accepted as-is,
+        and `mode=ro` is recognised as read-only;
+      * `timeout` (seconds) overrides the busy_timeout-derived default;
+      * `isolation_level` defaults to "" — sqlite3's own default (implicit
+        deferred transactions), so a migrated raw caller behaves exactly as it
+        did on sqlite3.connect. The Writer passes isolation_level=None to get
+        the autocommit/explicit-BEGIN mode its one-pen txn control needs (the
+        4.0 contention post-mortem, see writer.py).
     """
-    if read_only:
-        target, uri = f"file:{db_path}?mode=ro", True
+    s = str(db_path)
+    if uri or s.startswith("file:"):
+        target, use_uri = s, True
+        if "mode=ro" in s:
+            read_only = True
+    elif read_only:
+        target, use_uri = f"file:{s}?mode=ro", True
     else:
-        target, uri = str(db_path), False
+        target, use_uri = s, False
+
+    if timeout is None:
+        timeout = busy_timeout_ms / 1000.0
+    else:
+        busy_timeout_ms = int(float(timeout) * 1000)
 
     conn = sqlite3.connect(
         target,
-        uri=uri,
-        isolation_level=None,
-        check_same_thread=False,
-        timeout=busy_timeout_ms / 1000.0,
+        uri=use_uri,
+        isolation_level=isolation_level,
+        check_same_thread=check_same_thread,
+        timeout=timeout,
     )
     if row_factory is not None:
         conn.row_factory = row_factory

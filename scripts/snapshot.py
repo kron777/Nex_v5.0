@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import re
-import sqlite3
+from substrate import connect, Row
 import sys
 import time
 from collections import Counter
@@ -49,12 +49,12 @@ def take_snapshot():
         "process": {},
     }
 
-    conv = sqlite3.connect("file:" + str(CONV_DB) + "?mode=ro", uri=True)
-    conv.row_factory = sqlite3.Row
-    dyn = sqlite3.connect("file:" + str(DYNAMIC_DB) + "?mode=ro", uri=True)
-    dyn.row_factory = sqlite3.Row
-    bel = sqlite3.connect("file:" + str(BELIEFS_DB) + "?mode=ro", uri=True)
-    bel.row_factory = sqlite3.Row
+    conv = connect("file:" + str(CONV_DB) + "?mode=ro", uri=True)
+    conv.row_factory = Row
+    dyn = connect("file:" + str(DYNAMIC_DB) + "?mode=ro", uri=True)
+    dyn.row_factory = Row
+    bel = connect("file:" + str(BELIEFS_DB) + "?mode=ro", uri=True)
+    bel.row_factory = Row
 
     drow = conv.execute("SELECT * FROM drives_competing WHERE id = 1").fetchone()
     if drow:

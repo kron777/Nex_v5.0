@@ -1,6 +1,7 @@
 """Higher-Order Thought Observer — NEX's self-awareness loop."""
 from __future__ import annotations
-import re, sqlite3, time, logging
+import re, time, logging
+from substrate import connect, Row
 from pathlib import Path
 
 log = logging.getLogger("theory_x.hot_observer")
@@ -72,7 +73,7 @@ def observe(thought: str, hot_branch: str = "",
         is_tmpl = _is_template(thought)
         meta    = _compose_meta_belief(thought, hot_branch, is_tmpl)
         db_path = beliefs_db or str(_BELIEFS_DB)
-        con = sqlite3.connect(db_path, timeout=5)
+        con = connect(db_path, timeout=5)
         con.execute(
             "INSERT INTO beliefs "
             "(content, tier, confidence, created_at, branch_id, source, "
@@ -111,8 +112,8 @@ if __name__ == "__main__":
     _state["counter"] = 2
     print("Grounded fire:", observe(g_fire, "crypto"))
 
-    con = sqlite3.connect(str(_BELIEFS_DB))
-    con.row_factory = sqlite3.Row
+    con = connect(str(_BELIEFS_DB))
+    con.row_factory = Row
     rows = con.execute(
         "SELECT content FROM beliefs WHERE source='hot_observer' "
         "ORDER BY id DESC LIMIT 2"

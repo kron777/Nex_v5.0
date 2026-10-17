@@ -12,7 +12,7 @@ instead of starting fresh every 2 minutes.
 from __future__ import annotations
 import json
 import logging
-import sqlite3
+from substrate import connect
 import threading
 import time
 from pathlib import Path
@@ -227,9 +227,9 @@ def _surface_to_chat(cv_cx, problem_id: int, title: str) -> None:
 
 
 def focus_tick() -> dict:
-    b_cx = sqlite3.connect(BELIEFS_DB, timeout=15)
-    cv_cx = sqlite3.connect(CONVERSATIONS_DB, timeout=15)
-    d_cx = sqlite3.connect(DYNAMIC_DB, timeout=15)
+    b_cx = connect(BELIEFS_DB, timeout=15)
+    cv_cx = connect(CONVERSATIONS_DB, timeout=15)
+    d_cx = connect(DYNAMIC_DB, timeout=15)
     try:
         pick = _pick_focus(b_cx, cv_cx)
         if not pick:

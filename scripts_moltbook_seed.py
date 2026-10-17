@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-import sqlite3
+from substrate import connect
 import sys
 import time
 import urllib.request
@@ -37,7 +37,7 @@ MAX_OPENER_CHARS = 350
 
 def get_approved() -> dict[str, str]:
     """Return {conversation_id: agent_name} from local DB."""
-    cx = sqlite3.connect(DB)
+    cx = connect(DB)
     rows = cx.execute(
         "SELECT conversation_id, with_agent FROM moltbook_dms WHERE approved=1"
     ).fetchall()

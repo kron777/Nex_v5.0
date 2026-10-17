@@ -60,7 +60,7 @@ import json
 import math
 import os
 import random
-import sqlite3
+from substrate import connect, Row
 import statistics
 import sys
 import time
@@ -201,8 +201,8 @@ def main():
     a = ap.parse_args()
 
     T = lambda s: datetime.fromisoformat(s).replace(tzinfo=timezone.utc).timestamp()
-    dyn = sqlite3.connect(f"file:{DATA}dynamic.db?mode=ro", uri=True); dyn.row_factory = sqlite3.Row
-    bel = sqlite3.connect(f"file:{DATA}beliefs.db?mode=ro", uri=True); bel.row_factory = sqlite3.Row
+    dyn = connect(f"file:{DATA}dynamic.db?mode=ro", uri=True); dyn.row_factory = Row
+    bel = connect(f"file:{DATA}beliefs.db?mode=ro", uri=True); bel.row_factory = Row
 
     fires = [dict(r) for r in dyn.execute(
         "SELECT id, ts, thought, mode, focal_item FROM fountain_events "

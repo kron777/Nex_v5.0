@@ -19,7 +19,7 @@ Hofstadter: strange loops fold back. Higher level modifies lower.
 from __future__ import annotations
 from substrate.paths import db_paths
 import logging
-import sqlite3
+from substrate import connect, IntegrityError, OperationalError
 import threading
 import time
 from datetime import datetime
@@ -57,7 +57,7 @@ def _previous_patterns(d_cx, n=2):
             (n,)
         ).fetchall()
         return [(r[0], r[1]) for r in rows]
-    except sqlite3.OperationalError:
+    except OperationalError:
         # pattern_log doesn't exist yet
         return []
 
@@ -93,7 +93,7 @@ def witness_tick(voice, force=False):
     date_local = local.strftime("%Y-%m-%d")
     if not force and hour != COMPOSE_HOUR:
         return {"skipped": "not_compose_hour", "hour": hour}
-    d_cx = sqlite3.connect(DYNAMIC_DB, timeout=15)
+    d_cx = connect(DYNAMIC_DB, timeout=15)
     try:
         _ensure_witness_log(d_cx)
         if not force:
@@ -115,7 +115,7 @@ def witness_tick(voice, force=False):
         )
         d_cx.commit()
         try:
-            b_cx = sqlite3.connect(BELIEFS_DB, timeout=10)
+            b_cx = connect(BELIEFS_DB, timeout=10)
             b_cx.execute(
                 "INSERT INTO beliefs "
                 "(content, tier, confidence, created_at, source, branch_id, tags) "
@@ -124,7 +124,7 @@ def witness_tick(voice, force=False):
             )
             b_cx.commit()
             b_cx.close()
-        except sqlite3.IntegrityError:
+        except IntegrityError:
             pass
         log.info("witness_loop: composed blind-spot observation: %s", witness_text[:120])
         return {"composed": True, "text": witness_text[:160]}

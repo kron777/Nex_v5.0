@@ -31,7 +31,7 @@ from __future__ import annotations
 import os
 import re
 import sys
-import sqlite3
+from substrate import connect, Row
 import argparse
 
 
@@ -105,8 +105,8 @@ def classify(thought: str) -> str:
 
 
 def run(min_score: float = 0.7, show_samples: bool = False) -> dict:
-    conv = sqlite3.connect(_conv_db())
-    conv.row_factory = sqlite3.Row
+    conv = connect(_conv_db())
+    conv.row_factory = Row
     conv.execute(f"ATTACH '{_dyn_db()}' AS dyn")
     rows = conv.execute(
         "SELECT f.thought AS thought, g.score AS score "

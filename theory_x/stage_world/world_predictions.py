@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import json
 import os
-import sqlite3
+from substrate import connect, Row, Connection
 import time
 import urllib.request
 import urllib.error
@@ -75,9 +75,9 @@ _IDX = (
 )
 
 
-def _connect(db_path: str) -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path, timeout=10.0, isolation_level=None)
-    conn.row_factory = sqlite3.Row
+def _connect(db_path: str) -> Connection:
+    conn = connect(db_path, timeout=10.0, isolation_level=None)
+    conn.row_factory = Row
     conn.execute("PRAGMA busy_timeout=10000")
     return conn
 

@@ -19,6 +19,7 @@ Per §0 doctrine: substrate computes; LLM speaks.
 Per DOCTRINE §4 SentienceNode: name, tick, decay, state.
 """
 from __future__ import annotations
+from substrate import connect, Row
 from substrate.paths import db_paths
 
 import json
@@ -275,9 +276,8 @@ class CompetingDrives:
         Falls back to 0.5 if unreadable.
         """
         try:
-            import sqlite3
-            con = sqlite3.connect(str(db_paths()["sense"]))
-            con.row_factory = sqlite3.Row
+            con = connect(str(db_paths()["sense"]))
+            con.row_factory = Row
             row = con.execute("""
                 WITH recent AS (
                   SELECT substr(payload, 1, 200) AS prefix

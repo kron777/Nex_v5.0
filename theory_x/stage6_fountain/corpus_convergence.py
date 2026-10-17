@@ -50,7 +50,7 @@ from substrate.paths import db_paths
 import json
 import os
 import re
-import sqlite3
+from substrate import connect
 from collections import Counter
 from typing import Optional
 
@@ -105,7 +105,7 @@ def recent_crystallized(db_path: str = _DEFAULT_DB, window: int = WINDOW) -> lis
     `crystallization_category`), i.e. exactly the beliefs this pipeline minted.
     Opened read-only: this must never be able to touch live state.
     """
-    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=10)
+    conn = connect(f"file:{db_path}?mode=ro", uri=True, timeout=10)
     try:
         rows = conn.execute(
             "SELECT id, created_at, content FROM beliefs "
@@ -192,7 +192,7 @@ def _main(argv: list) -> int:
         f"{t} {s*100:.0f}%" for t, _c, s in r["top"][1:]))
 
     if args.history > 0:
-        conn = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True, timeout=10)
+        conn = connect(f"file:{args.db}?mode=ro", uri=True, timeout=10)
         try:
             rows = conn.execute(
                 "SELECT created_at, content FROM beliefs "

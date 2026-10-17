@@ -34,7 +34,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
-import sqlite3
+from substrate import connect, Row, Connection
 import sys
 import time
 from pathlib import Path
@@ -59,9 +59,9 @@ CONCENTRATION_WINDOW_HOURS = 24.0
 CONCENTRATION_TRIPWIRE = 0.40
 
 
-def _ro(path: Path) -> sqlite3.Connection:
-    c = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
-    c.row_factory = sqlite3.Row
+def _ro(path: Path) -> Connection:
+    c = connect(f"file:{path}?mode=ro", uri=True)
+    c.row_factory = Row
     return c
 
 
@@ -69,7 +69,7 @@ def _fmt_ts(ts: float) -> str:
     return datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
 
-def _load_problems(now: float) -> list[sqlite3.Row]:
+def _load_problems(now: float) -> list[Row]:
     with _ro(CONV_DB) as c:
         return c.execute(
             "SELECT id, title, description, observations, created_at "
@@ -101,7 +101,7 @@ def _injection_events(observations_json: str, now: float) -> list[dict]:
     return events
 
 
-def _feed_mentioned_recently(beliefs_conn: sqlite3.Connection, keywords: set[str],
+def _feed_mentioned_recently(beliefs_conn: Connection, keywords: set[str],
                               event_ts: float, window_min: float) -> bool:
     """True if a precipitated_from_sense belief mentioning >=1 keyword landed
     within window_min of event_ts -- attributes the reference to the feed

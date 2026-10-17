@@ -13,7 +13,7 @@ Returns a confidence value in [_MIN_CONF, _MAX_CONF].
 """
 from __future__ import annotations
 import logging
-import sqlite3
+from substrate import connect
 import time
 from pathlib import Path
 
@@ -45,7 +45,7 @@ def confidence_for_fire(dynamic_db: str | None = None) -> tuple[float, float]:
     try:
         db = dynamic_db or str(_DYNAMIC_DB)
         cutoff = time.time() - _LOOKBACK_SECS
-        con = sqlite3.connect(db, timeout=3)
+        con = connect(db, timeout=3)
         row = con.execute(
             "SELECT surprise_score, surprise_flag, big_surprise "
             "FROM surprise_events "
@@ -71,7 +71,7 @@ if __name__ == "__main__":
     conf, score = confidence_for_fire()
     print(f"current confidence-for-fire: {conf:.3f} (surprise={score:.3f})")
     # also show the recent surprises landscape
-    con = sqlite3.connect(str(_DYNAMIC_DB))
+    con = connect(str(_DYNAMIC_DB))
     rows = con.execute(
         "SELECT triggered_at, surprise_score, big_surprise "
         "FROM surprise_events ORDER BY triggered_at DESC LIMIT 5"

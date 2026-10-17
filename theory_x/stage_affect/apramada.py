@@ -27,7 +27,7 @@ from substrate.paths import db_paths
 
 import os
 import re
-import sqlite3
+from substrate import connect
 
 import errors as error_channel
 
@@ -58,7 +58,7 @@ def _held_threads() -> list:
     held = []
     # momentum — the actively-carried unfinished thread
     try:
-        con = sqlite3.connect(f"file:{_DYNAMIC_DB}?mode=ro", uri=True, timeout=5)
+        con = connect(f"file:{_DYNAMIC_DB}?mode=ro", uri=True, timeout=5)
         row = con.execute(
             "SELECT thought_fragment, carry_count, COALESCE(resolved,0) "
             "FROM momentum WHERE id=1").fetchone()

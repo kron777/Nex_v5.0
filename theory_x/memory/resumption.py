@@ -23,7 +23,7 @@ from __future__ import annotations
 import json
 import logging
 import shutil
-import sqlite3
+from substrate import connect
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -136,7 +136,7 @@ class ResumptionSeeder:
         try:
             now = int(time.time())
             placeholders = ",".join("?" * len(belief_ids))
-            with sqlite3.connect(self._beliefs_db, timeout=5) as conn:
+            with connect(self._beliefs_db, timeout=5) as conn:
                 cursor = conn.execute(
                     f"UPDATE beliefs SET created_at = ? WHERE id IN ({placeholders})",
                     (now - 1, *belief_ids),
@@ -156,7 +156,7 @@ class ResumptionSeeder:
         reissued = 0
         try:
             now = time.time()
-            with sqlite3.connect(self._probes_db, timeout=5) as conn:
+            with connect(self._probes_db, timeout=5) as conn:
                 for probe in pending:
                     probe_id = probe.get("id")
                     if probe_id is None:

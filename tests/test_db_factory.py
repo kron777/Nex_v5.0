@@ -64,6 +64,7 @@ class TestConnectFactory(unittest.TestCase):
         seed = connect(self.path)
         seed.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)")
         seed.execute("INSERT INTO t (id, v) VALUES (1, 'x')")
+        seed.commit()  # factory default isolation_level="" -> commit to persist
         seed.close()
 
         ro = connect(self.path, read_only=True, row_factory=sqlite3.Row)

@@ -17,7 +17,7 @@ from __future__ import annotations
 from substrate.paths import db_paths
 import logging
 import re
-import sqlite3
+from substrate import connect, Row, Connection, OperationalError
 import threading
 import time
 from datetime import datetime, timezone, timedelta
@@ -61,7 +61,7 @@ def _local_hour_dow(fire_ts: float) -> tuple[int, int]:
     return local.hour, local.weekday()
 
 
-def _read_tree_snapshot(cx: sqlite3.Connection, fire_ts: float) -> tuple[float | None, int | None]:
+def _read_tree_snapshot(cx: Connection, fire_ts: float) -> tuple[float | None, int | None]:
     """Return (aperture, active_branch_count) from nearest tree_snapshot at-or-before fire_ts."""
     try:
         row = cx.execute(
@@ -78,7 +78,7 @@ def _read_tree_snapshot(cx: sqlite3.Connection, fire_ts: float) -> tuple[float |
     return None, None
 
 
-def _read_state_counts(cx: sqlite3.Connection, fire_ts: float) -> dict:
+def _read_state_counts(cx: Connection, fire_ts: float) -> dict:
     out = {
         "surprises_30min": 0, "daemons_5min": 0, "belief_delta_1h": 0,
         "seconds_since_daemon": None,
@@ -121,7 +121,7 @@ def _read_state_counts(cx: sqlite3.Connection, fire_ts: float) -> dict:
                 if r[1] is not None:
                     if most_recent_daemon is None or r[1] > most_recent_daemon:
                         most_recent_daemon = r[1]
-        except sqlite3.OperationalError:
+        except OperationalError:
             continue
     out["daemons_5min"] = daemon_total
     if most_recent_daemon is not None:
@@ -138,7 +138,7 @@ def _read_state_counts(cx: sqlite3.Connection, fire_ts: float) -> dict:
     return out
 
 
-def _read_seconds_since_feed(sense_cx: sqlite3.Connection, fire_ts: float) -> float | None:
+def _read_seconds_since_feed(sense_cx: Connection, fire_ts: float) -> float | None:
     """Time since the most recent EXTERNAL (non-internal) sense event."""
     try:
         row = sense_cx.execute(
@@ -153,7 +153,7 @@ def _read_seconds_since_feed(sense_cx: sqlite3.Connection, fire_ts: float) -> fl
     return None
 
 
-def _get_last_fid(cx: sqlite3.Connection) -> int:
+def _get_last_fid(cx: Connection) -> int:
     try:
         row = cx.execute(
             "SELECT value FROM daemon_kv WHERE key=?", (KV_KEY,)
@@ -165,7 +165,7 @@ def _get_last_fid(cx: sqlite3.Connection) -> int:
     return 0
 
 
-def _set_last_fid(cx: sqlite3.Connection, fid: int) -> None:
+def _set_last_fid(cx: Connection, fid: int) -> None:
     cx.execute(
         "INSERT INTO daemon_kv (key, value) VALUES (?, ?) "
         "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
@@ -174,9 +174,9 @@ def _set_last_fid(cx: sqlite3.Connection, fid: int) -> None:
 
 
 def decoder_tick() -> dict:
-    cx = sqlite3.connect(DYN_DB, timeout=10)
-    cx.row_factory = sqlite3.Row
-    sense_cx = sqlite3.connect(SENSE_DB, timeout=10)
+    cx = connect(DYN_DB, timeout=10)
+    cx.row_factory = Row
+    sense_cx = connect(SENSE_DB, timeout=10)
     try:
         last_fid = _get_last_fid(cx)
         rows = cx.execute(

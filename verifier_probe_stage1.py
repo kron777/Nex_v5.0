@@ -20,7 +20,7 @@ below if different.
 
 import json
 import re
-import sqlite3
+from substrate import connect, Row
 import sys
 
 BELIEFS_DB = "data/beliefs.db"
@@ -59,14 +59,14 @@ def _looks_factual(content):
 
 def main():
     try:
-        bcx = sqlite3.connect(BELIEFS_DB)
-        bcx.row_factory = sqlite3.Row
+        bcx = connect(BELIEFS_DB)
+        bcx.row_factory = Row
     except Exception as e:
         print(f"cannot open {BELIEFS_DB}: {e}")
         sys.exit(1)
     try:
-        scx = sqlite3.connect(SENSE_DB)
-        scx.row_factory = sqlite3.Row
+        scx = connect(SENSE_DB)
+        scx.row_factory = Row
     except Exception as e:
         print(f"cannot open {SENSE_DB}: {e}")
         sys.exit(1)

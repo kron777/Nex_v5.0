@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import math
 import re
-import sqlite3
+from substrate import connect, Row
 import statistics
 import time
 from pathlib import Path
@@ -74,8 +74,8 @@ def percentile(values, p):
 
 def load_fountain_fires(hours=168):
     cutoff = time.time() - hours * 3600
-    with sqlite3.connect(f"file:{DATA_DIR / 'dynamic.db'}?mode=ro", uri=True) as conn:
-        conn.row_factory = sqlite3.Row
+    with connect(f"file:{DATA_DIR / 'dynamic.db'}?mode=ro", uri=True) as conn:
+        conn.row_factory = Row
         rows = conn.execute(
             "SELECT id, ts, hot_branch, thought, anchor_belief_id "
             "FROM fountain_events WHERE ts > ? ORDER BY ts ASC", (cutoff,)).fetchall()
@@ -84,8 +84,8 @@ def load_fountain_fires(hours=168):
 
 def load_drive_activations(hours=168):
     cutoff = time.time() - hours * 3600
-    with sqlite3.connect(f"file:{DATA_DIR / 'conversations.db'}?mode=ro", uri=True) as conn:
-        conn.row_factory = sqlite3.Row
+    with connect(f"file:{DATA_DIR / 'conversations.db'}?mode=ro", uri=True) as conn:
+        conn.row_factory = Row
         rows = conn.execute(
             "SELECT * FROM drive_activations WHERE timestamp > ? ORDER BY timestamp ASC",
             (cutoff,)).fetchall()
@@ -93,16 +93,16 @@ def load_drive_activations(hours=168):
 
 
 def load_substrate_coherence():
-    with sqlite3.connect(f"file:{DATA_DIR / 'conversations.db'}?mode=ro", uri=True) as conn:
-        conn.row_factory = sqlite3.Row
+    with connect(f"file:{DATA_DIR / 'conversations.db'}?mode=ro", uri=True) as conn:
+        conn.row_factory = Row
         rows = conn.execute("SELECT * FROM substrate_coherence ORDER BY ts ASC").fetchall()
     return [dict(r) for r in rows]
 
 
 def load_t6_beliefs():
     cutoff = time.time() - 168 * 3600
-    with sqlite3.connect(f"file:{DATA_DIR / 'beliefs.db'}?mode=ro", uri=True) as conn:
-        conn.row_factory = sqlite3.Row
+    with connect(f"file:{DATA_DIR / 'beliefs.db'}?mode=ro", uri=True) as conn:
+        conn.row_factory = Row
         rows = conn.execute(
             "SELECT id, content, tier, created_at FROM beliefs "
             "WHERE tier = 6 AND created_at > ?", (cutoff,)).fetchall()

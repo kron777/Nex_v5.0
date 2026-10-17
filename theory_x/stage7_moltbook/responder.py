@@ -14,7 +14,7 @@ from __future__ import annotations
 from substrate.paths import db_paths
 import logging
 import re
-import sqlite3
+from substrate import connect, Row
 import threading
 import time
 from pathlib import Path
@@ -117,8 +117,8 @@ class DMResponder:
     # -- main --
 
     def tick(self):
-        cx = sqlite3.connect(self.dynamic_db, timeout=15)
-        cx.row_factory = sqlite3.Row
+        cx = connect(self.dynamic_db, timeout=15)
+        cx.row_factory = Row
         try:
             pending = cx.execute(
                 "SELECT id, conversation_id, message_id, content, from_agent, needs_human "
@@ -135,7 +135,7 @@ class DMResponder:
         for row in pending:
             self._handle_one(row)
 
-    def _handle_one(self, row: sqlite3.Row):
+    def _handle_one(self, row: Row):
         if row["needs_human"]:
             self._mark(row["id"], "awaiting_human")
             return
@@ -194,7 +194,7 @@ class DMResponder:
     # -- helpers --
 
     def _mark(self, rid: int, status: str, err: str | None = None):
-        cx = sqlite3.connect(self.dynamic_db, timeout=15)
+        cx = connect(self.dynamic_db, timeout=15)
         try:
             cx.execute(
                 "UPDATE moltbook_pending_replies SET status=? WHERE id=?",
@@ -231,7 +231,7 @@ class DMResponder:
         toks = set(re.findall(r"[a-z][a-z\-]+", (text or "").lower()))
         if not toks:
             return []
-        cx = sqlite3.connect(self.beliefs_db, timeout=15)
+        cx = connect(self.beliefs_db, timeout=15)
         try:
             # Sample from spectrum (her voice) + recent sense (her substrate)
             rows = cx.execute(

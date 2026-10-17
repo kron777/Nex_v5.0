@@ -11,7 +11,7 @@ from __future__ import annotations
 from substrate.paths import db_paths
 import json
 import logging
-import sqlite3
+from substrate import connect, Connection
 import threading
 import time
 from pathlib import Path
@@ -152,7 +152,7 @@ class DMListenLoop:
             reqs = reqs_block.get("items") or []
         if not reqs:
             return
-        cx = sqlite3.connect(self.dynamic_db, timeout=15)
+        cx = connect(self.dynamic_db, timeout=15)
         try:
             for req in reqs:
                 if not isinstance(req, dict):
@@ -193,8 +193,8 @@ class DMListenLoop:
         except MoltbookError as e:
             log.warning("dm_list_conversations failed: %s", e)
             return
-        cx_dyn = sqlite3.connect(self.dynamic_db, timeout=15)
-        cx_sense = sqlite3.connect(self.sense_db, timeout=15)
+        cx_dyn = connect(self.dynamic_db, timeout=15)
+        cx_sense = connect(self.sense_db, timeout=15)
         try:
             for conv in convs:
                 if not isinstance(conv, dict):
@@ -225,8 +225,8 @@ class DMListenLoop:
             cx_sense.close()
 
     def _read_conversation(self, conv_id: str,
-                           cx_dyn: sqlite3.Connection,
-                           cx_sense: sqlite3.Connection):
+                           cx_dyn: Connection,
+                           cx_sense: Connection):
         try:
             full = self.client.dm_read(conv_id)
         except MoltbookError as e:

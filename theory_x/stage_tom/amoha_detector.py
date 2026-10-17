@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import os
 import sys
-import sqlite3
+from substrate import connect, Row
 import argparse
 
 sys.path.insert(0, ".")
@@ -91,8 +91,8 @@ def clouded_salience(text: str) -> float:
 
 def _recent_thoughts(n: int = 15) -> list[str]:
     try:
-        con = sqlite3.connect(_db("dynamic"), timeout=10)
-        con.row_factory = sqlite3.Row
+        con = connect(_db("dynamic"), timeout=10)
+        con.row_factory = Row
         rows = con.execute(
             "SELECT thought FROM fountain_events WHERE thought NOT LIKE '[%' "
             "ORDER BY id DESC LIMIT ?", (n,)

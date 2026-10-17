@@ -31,7 +31,7 @@ import math
 import os
 import random
 import re
-import sqlite3
+from substrate import connect
 import statistics as st
 import sys
 import time
@@ -49,7 +49,7 @@ HEADER = "Her current beliefs relevant to this topic:"
 
 
 def _ro(path):
-    return sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=10)
+    return connect(f"file:{path}?mode=ro", uri=True, timeout=10)
 
 
 def test_turns():

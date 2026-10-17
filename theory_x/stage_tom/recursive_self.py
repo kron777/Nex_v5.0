@@ -49,6 +49,7 @@ injection (~1806), add:
         prompt_parts.append("")
 """
 from __future__ import annotations
+from substrate import connect, Row
 
 import sys
 import time
@@ -77,10 +78,9 @@ def _starved_branch() -> str:
     direction to push toward. This is the diversity fix: turning away from a
     fixation only relocates it (CPU-groove -> hum-groove) unless we name where
     to turn TO. Returns the most-starved branch, or '' if can't compute."""
-    import sqlite3
     try:
-        c = sqlite3.connect(_db_dynamic(), timeout=10)
-        c.row_factory = sqlite3.Row
+        c = connect(_db_dynamic(), timeout=10)
+        c.row_factory = Row
         # last-fire time per branch in recent window
         rows = c.execute(
             "SELECT hot_branch, MAX(ts) AS last_ts FROM fountain_events "

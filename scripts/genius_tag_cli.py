@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import sqlite3
+from substrate import connect, Row
 import sys
 import time
 from pathlib import Path
@@ -49,14 +49,14 @@ def _load_weights():
 
 
 def _open_ro(p):
-    c = sqlite3.connect(f"file:{p}?mode=ro", uri=True)
-    c.row_factory = sqlite3.Row
+    c = connect(f"file:{p}?mode=ro", uri=True)
+    c.row_factory = Row
     return c
 
 
 def _open_rw(p):
-    c = sqlite3.connect(p)
-    c.row_factory = sqlite3.Row
+    c = connect(p)
+    c.row_factory = Row
     return c
 
 

@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import json
 import re
-import sqlite3
+from substrate import connect, Row
 import sys
 import time
 from collections import Counter
@@ -216,12 +216,12 @@ def extract_anti_patterns():
 
 def extract_runtime_state():
     """Quick read of drives_competing, voice_profile, fountain 24h, gate 24h."""
-    conv = sqlite3.connect(f"file:{DATA}/conversations.db?mode=ro", uri=True)
-    conv.row_factory = sqlite3.Row
-    dyn = sqlite3.connect(f"file:{DATA}/dynamic.db?mode=ro", uri=True)
-    dyn.row_factory = sqlite3.Row
-    bel = sqlite3.connect(f"file:{DATA}/beliefs.db?mode=ro", uri=True)
-    bel.row_factory = sqlite3.Row
+    conv = connect(f"file:{DATA}/conversations.db?mode=ro", uri=True)
+    conv.row_factory = Row
+    dyn = connect(f"file:{DATA}/dynamic.db?mode=ro", uri=True)
+    dyn.row_factory = Row
+    bel = connect(f"file:{DATA}/beliefs.db?mode=ro", uri=True)
+    bel.row_factory = Row
     now = time.time()
 
     state = {}

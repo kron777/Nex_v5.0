@@ -30,7 +30,7 @@ from __future__ import annotations
 from substrate.paths import db_paths
 
 import os
-import sqlite3
+from substrate import connect, Row
 import sys
 import time
 
@@ -44,8 +44,8 @@ BELIEFS_DB = str(db_paths()["beliefs"])
 
 
 def _ro(path):
-    con = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=5)
-    con.row_factory = sqlite3.Row
+    con = connect(f"file:{path}?mode=ro", uri=True, timeout=5)
+    con.row_factory = Row
     return con
 
 

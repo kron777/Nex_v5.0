@@ -36,7 +36,7 @@ from __future__ import annotations
 from substrate.paths import db_paths
 
 import math
-import sqlite3
+from substrate import connect
 from typing import Optional
 
 from theory_x.stage6_fountain.crystallizer import _fidelity_tokens
@@ -131,7 +131,7 @@ def recent_fires(db_path: str = _DEFAULT_DB, window: int = WINDOW,
 
     `days` overrides `window` for a wall-clock window instead of a fire count.
     """
-    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=10)
+    conn = connect(f"file:{db_path}?mode=ro", uri=True, timeout=10)
     try:
         if days is not None:
             import time
@@ -255,7 +255,7 @@ def _main(argv: list) -> int:
               f"  mean={d['mean_recall']:.3f}")
 
     if args.history > 0:
-        conn = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True, timeout=10)
+        conn = connect(f"file:{args.db}?mode=ro", uri=True, timeout=10)
         try:
             rows = conn.execute(
                 "SELECT ts, mode, thought, focal_item FROM fountain_events "

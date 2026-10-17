@@ -15,7 +15,7 @@ Level 1's next composition.
 from __future__ import annotations
 from substrate.paths import db_paths
 import logging
-import sqlite3
+from substrate import connect, IntegrityError
 import threading
 import time
 from datetime import datetime
@@ -90,7 +90,7 @@ def pattern_tick(voice, force=False):
     date_local = local.strftime("%Y-%m-%d")
     if not force and hour not in COMPOSE_HOURS:
         return {"skipped": "not_compose_hour", "hour": hour}
-    d_cx = sqlite3.connect(DYNAMIC_DB, timeout=15)
+    d_cx = connect(DYNAMIC_DB, timeout=15)
     try:
         if not force and _already_composed_today(d_cx, date_local, hour):
             return {"skipped": "already_composed"}
@@ -107,7 +107,7 @@ def pattern_tick(voice, force=False):
         )
         d_cx.commit()
         try:
-            b_cx = sqlite3.connect(BELIEFS_DB, timeout=10)
+            b_cx = connect(BELIEFS_DB, timeout=10)
             b_cx.execute(
                 "INSERT INTO beliefs "
                 "(content, tier, confidence, created_at, source, branch_id, tags) "
@@ -116,7 +116,7 @@ def pattern_tick(voice, force=False):
             )
             b_cx.commit()
             b_cx.close()
-        except sqlite3.IntegrityError:
+        except IntegrityError:
             pass
         log.info("pattern_loop: composed pattern observation: %s", pattern_text[:120])
         return {"composed": True, "text": pattern_text[:160]}

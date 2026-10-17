@@ -9,7 +9,7 @@ Both safe to call repeatedly. Idempotent on thought_id.
 from __future__ import annotations
 import logging
 import re
-import sqlite3
+from substrate import connect, Row, IntegrityError
 import threading
 import time
 from pathlib import Path
@@ -151,16 +151,16 @@ class PostLoop:
         openers, no long feed-entity summaries), deduped by theme against recent
         queue/post history. Tracks a belief-id high-water mark in daemon_kv so
         nothing re-queues; never backfills beliefs older than the lookback."""
-        cx = sqlite3.connect(self.db_path, timeout=15)   # dynamic.db (queue + kv)
-        cx.row_factory = sqlite3.Row
+        cx = connect(self.db_path, timeout=15)   # dynamic.db (queue + kv)
+        cx.row_factory = Row
         try:
             # high-water mark: init to current-max on first run (post going
             # forward, not replay history), then advance monotonically.
             hw_row = cx.execute(
                 "SELECT value FROM daemon_kv WHERE key=?", (_HWM_KEY,)
             ).fetchone()
-            bx = sqlite3.connect(f"file:{BELIEFS_DB}?mode=ro", uri=True, timeout=15)
-            bx.row_factory = sqlite3.Row
+            bx = connect(f"file:{BELIEFS_DB}?mode=ro", uri=True, timeout=15)
+            bx.row_factory = Row
             try:
                 if hw_row is None:
                     cur_max = bx.execute(
@@ -216,7 +216,7 @@ class PostLoop:
                     )
                     inserted += 1
                     recent_sets.append(toks)   # dedup within this batch too
-                except sqlite3.IntegrityError:
+                except IntegrityError:
                     pass
             # advance the high-water mark past everything we examined
             cx.execute(
@@ -233,8 +233,8 @@ class PostLoop:
 
     def post_tick(self):
         """If 30 min since last successful post, pick best & post."""
-        cx = sqlite3.connect(self.db_path, timeout=15)
-        cx.row_factory = sqlite3.Row
+        cx = connect(self.db_path, timeout=15)
+        cx.row_factory = Row
         try:
             last_post_ts = cx.execute(
                 "SELECT COALESCE(MAX(ts), 0) FROM moltbook_posts WHERE status='posted'"
@@ -324,7 +324,7 @@ class PostLoop:
 
     # -- helpers --
 
-    def _pick_best(self, candidates: list[sqlite3.Row]) -> sqlite3.Row:
+    def _pick_best(self, candidates: list[Row]) -> Row:
         """Among pending in-window, pick the best.
 
         Heuristic order:

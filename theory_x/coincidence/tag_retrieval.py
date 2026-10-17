@@ -15,7 +15,7 @@ from __future__ import annotations
 from substrate.paths import db_paths
 import json
 import os
-import sqlite3
+from substrate import connect, Row, Connection
 from typing import Any
 
 DYN_DB = str(db_paths()["dynamic"])
@@ -27,10 +27,10 @@ def feedback_enabled() -> bool:
     return os.environ.get(FLAG_VAR, "0") == "1"
 
 
-def _connect() -> sqlite3.Connection | None:
+def _connect() -> Connection | None:
     try:
-        cx = sqlite3.connect(DYN_DB, timeout=5)
-        cx.row_factory = sqlite3.Row
+        cx = connect(DYN_DB, timeout=5)
+        cx.row_factory = Row
         return cx
     except Exception:
         return None
