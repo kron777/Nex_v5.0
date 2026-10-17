@@ -38,6 +38,7 @@ KNOWN_FLAGS: dict[str, str] = {
     "NEX5_ABSTAIN_CLOSE": "bool",
     "NEX5_ADMIN_HASH_FILE": "str",
     "NEX5_AFFECT_CARRY": "bool",
+    "NEX5_AFFINITY_PROVENANCE": "str",  # off|shadow|on (affinity_loop D-A)
     "NEX5_AFFLICTIONS": "bool",
     "NEX5_ALOBHA": "bool",
     "NEX5_AMOHA": "bool",
