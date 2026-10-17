@@ -223,6 +223,14 @@ def _assemble_chat_blocks(ordered: "list[tuple[str, str]]", session_id=None,
                 pass  # fall back to this-turn salience
         cands = [(sal.get(kind, _CHAT_BLOCK_SALIENCE.get(kind, 0.4)), text,
                   kind in _CHAT_BLOCK_EXEMPT) for kind, text in ordered]
+        # If the never-evicted safety blocks already fill the budget, the flag is
+        # silently a no-op beyond safety — surface it so a mis-tuned budget shows.
+        exempt_chars = sum(len(t) for kind, t in ordered
+                           if kind in _CHAT_BLOCK_EXEMPT)
+        if exempt_chars >= budget:
+            logger.info("chat workspace: exempt blocks alone (%d chars) meet/exceed "
+                        "budget %d; no non-exempt block admitted",
+                        exempt_chars, budget)
         return "".join(select_within_budget(cands, budget))
     except Exception:
         return "".join(texts)  # never break the chat turn
@@ -2010,6 +2018,11 @@ def create_app(state: AppState) -> Flask:
                 voice_prompt = (
                     f"{_blocks_concat}{prompt}" if _blocks_concat else prompt
                 )
+            # M5 measurement (D-C item 1): one line per chat turn so the owner can
+            # see whether the assembled prompt approaches the model's context
+            # window before deciding a hard token clamp is ever needed.
+            logger.info("chat prompt chars: blocks=%d voice_prompt=%d",
+                        len(_blocks_concat), len(voice_prompt))
 
         if text is None:
             # PROVENANCE (NEX5_PROVENANCE, admin-scoped) — snapshot what she holds
