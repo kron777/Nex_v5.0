@@ -850,6 +850,39 @@ def create_app(state: AppState) -> Flask:
     # server restarts during development without requiring re-auth every process.
     app.secret_key = _ensure_secret()
 
+    # -- auth gate: deny-by-default for state-changing requests --------------
+    # Each mutating route was historically expected to re-check session["admin"]
+    # itself; most never did, leaving the write surface (mode/voice/strikes/
+    # goals/probes/sense/...) reachable by any caller on the loopback bind
+    # alone. One gate now enforces it centrally: any POST/PUT/PATCH/DELETE to a
+    # matched route requires an authenticated admin session, except the small
+    # allowlist below — the login/logout lifecycle and the deliberately public
+    # chat endpoint. Read (GET/HEAD) endpoints are unaffected.
+    _PUBLIC_MUTATIONS = frozenset({
+        "api_admin_login",   # the login itself
+        "api_admin_logout",  # clearing a session is always safe
+        "api_chat",          # public chat is a designed capability
+        "static",            # Flask's static-file endpoint
+    })
+    _MUTATING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+    @app.before_request
+    def _require_admin_for_mutations():
+        if request.method not in _MUTATING_METHODS:
+            return None
+        # Unmatched path -> let routing raise its own 404; nothing to guard.
+        if request.endpoint is None or request.endpoint in _PUBLIC_MUTATIONS:
+            return None
+        if session.get("admin"):
+            return None
+        if not admin_is_configured():
+            return jsonify({
+                "error": "admin required",
+                "detail": "no admin password configured; set one via "
+                          "admin.auth.set_password() to enable write endpoints",
+            }), 403
+        return jsonify({"error": "admin required"}), 403
+
     # Register membrane-owned SentienceNodes (Model A — process-lifetime).
     # Must run here (not module level) because both nodes require DB readers
     # that are only available after build_state().
@@ -946,8 +979,6 @@ def create_app(state: AppState) -> Flask:
 
     @app.post("/api/voice_mode")
     def api_voice_mode():
-        if not session.get("admin"):
-            return jsonify({"error": "admin required"}), 403
         payload = request.get_json(silent=True) or {}
         mode = payload.get("mode", "")
         if mode not in ("use_llm", "use_substrate"):
@@ -2437,8 +2468,6 @@ def create_app(state: AppState) -> Flask:
         """Speak one line NOW in her own voice (Kokoro), through the box's
         speakers — the read-aloud button. Reuses the queue consumer's backend and
         player; her speech_queue is not touched. Admin-scoped."""
-        if not session.get("admin"):
-            return jsonify({"error": "admin required"}), 403
         payload = request.get_json(silent=True) or {}
         text = payload.get("text")
         consumer = state.speech_consumer
@@ -2460,8 +2489,6 @@ def create_app(state: AppState) -> Flask:
     def api_speech_stop():
         """Cut playback now. flush() only marks PENDING queue rows skipped — it
         cannot stop audio already in the speakers; sounddevice.stop() can."""
-        if not session.get("admin"):
-            return jsonify({"error": "admin required"}), 403
         try:
             from speech import on_demand
             return jsonify({"stopped": on_demand.stop(),

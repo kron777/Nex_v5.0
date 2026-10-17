@@ -284,6 +284,8 @@ class TestSenseGUIEndpoints(unittest.TestCase):
         )
         cls.app = create_app(cls.state)
         cls.client = cls.app.test_client()
+        # Mutating GUI endpoints now require an authenticated admin session.
+        cls.client.post("/api/admin/login", json={"password": "sense-test-pw"})
 
     @classmethod
     def tearDownClass(cls):
