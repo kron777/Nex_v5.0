@@ -38,6 +38,20 @@ PIDFILE = os.path.join(NEX_DIR, "nex.pid")   # written by nex_keepalive.sh
 HOST = "127.0.0.1"
 PORT = 8766
 
+# This control plane can SIGTERM NEX, so a cross-site POST or a DNS-rebound
+# page must never reach do_POST. We bind loopback AND verify Host (defeats DNS
+# rebinding, where the attacker's page resolves its own name to 127.0.0.1) and
+# Origin (defeats the "any page you visit" CSRF), and scope CORS to the real
+# callers instead of the former wildcard. The HUD runs on 8765 by default but
+# honours NEX5_GUI_PORT, so we mirror that here.
+_HUD_PORT = os.environ.get("NEX5_GUI_PORT", "8765")
+ALLOWED_ORIGINS = frozenset(
+    f"http://{h}:{p}"
+    for h in ("127.0.0.1", "localhost")
+    for p in (str(PORT), _HUD_PORT)
+)
+ALLOWED_HOSTS = frozenset(f"{h}:{PORT}" for h in ("127.0.0.1", "localhost"))
+
 
 def state() -> str:
     return "off" if os.path.exists(STANDBY) else "on"
@@ -146,11 +160,34 @@ poll();setInterval(poll,2000);
 
 
 class Handler(BaseHTTPRequestHandler):
+    def _origin(self) -> str | None:
+        return self.headers.get("Origin")
+
+    def _host_ok(self) -> bool:
+        # Host is attacker-controlled under DNS rebinding; pin it to loopback.
+        return (self.headers.get("Host") or "") in ALLOWED_HOSTS
+
+    def _deny(self, why: str):
+        # Security-relevant: record rejected control attempts (this process was
+        # silent before). stdout is captured by the supervisor's power log.
+        print(
+            f"[power_switch] 403 {why} "
+            f"host={self.headers.get('Host')!r} origin={self.headers.get('Origin')!r} "
+            f"from={self.client_address[0]}",
+            flush=True,
+        )
+        self._json({"error": "forbidden"}, 403)
+
     def _cors(self):
-        # loopback-only tool; let the cockpit HUD (8765) post here too
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        # Reflect only a known loopback origin (the HUD, or our own page).
+        # No wildcard: a page you merely visit must not be able to drive this
+        # switch, and the reflected value never widens beyond the allowlist.
+        origin = self._origin()
+        if origin in ALLOWED_ORIGINS:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
     def _json(self, obj, code=200):
         body = json.dumps(obj).encode()
@@ -183,6 +220,16 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path.split("?")[0] != "/power":
             self._json({"error": "not found"}, 404)
+            return
+        # This POST can put NEX to sleep: shut out CSRF and DNS rebinding before
+        # we act. A missing Origin is allowed (local CLI tools like curl send
+        # none); a *present* but unlisted Origin is a cross-site caller.
+        if not self._host_ok():
+            self._deny("bad host")
+            return
+        origin = self._origin()
+        if origin is not None and origin not in ALLOWED_ORIGINS:
+            self._deny("bad origin")
             return
         length = int(self.headers.get("Content-Length") or 0)
         raw = self.rfile.read(length) if length else b""
