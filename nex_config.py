@@ -117,8 +117,6 @@ KNOWN_FLAGS: dict[str, str] = {
     "NEX5_PRASRABDHI": "bool",
     "NEX5_PROBE_SNAPSHOT_WINDOW_SEC": "int",
     "NEX5_PROBLEM_SELF_GATE": "bool",
-    "NEX5_PROMPT_BUDGET": "str",  # off|on (prompt_budget D-B); honored only if PROMPT_CTX>0
-    "NEX5_PROMPT_CTX": "int",     # model context window; 0 = unset (D-B stays off)
     "NEX5_PROVENANCE": "bool",
     "NEX5_QUALITY_SYNTH": "bool",
     "NEX5_QUIET_HOURS": "str",
