@@ -134,6 +134,30 @@ class TestGuiEndpoints(unittest.TestCase):
         self.assertEqual(r.status_code, 500)
         self.assertEqual(r.get_json()["error"], "internal error")
 
+    def test_auth_gate_covers_every_mutating_route(self):
+        # C1 regression lock: EVERY mutating route except the small public
+        # allowlist must 403 for an unauthenticated caller. Introspects the
+        # url_map so a future route added without the gate fails this test.
+        import re as _re
+        public = {"api_admin_login", "api_admin_logout", "api_chat", "static",
+                  "__boom__"}
+        mutating = {"POST", "PUT", "PATCH", "DELETE"}
+        anon = self.app.test_client()  # fresh client, no admin session
+        checked = 0
+        for rule in self.app.url_map.iter_rules():
+            methods = (rule.methods or set()) & mutating
+            if not methods or rule.endpoint in public:
+                continue
+            path = _re.sub(r"<[^>]+>", "1", rule.rule)  # fill path params
+            method = "POST" if "POST" in methods else sorted(methods)[0]
+            r = anon.open(path, method=method, json={})
+            self.assertEqual(
+                r.status_code, 403,
+                f"{method} {path} ({rule.endpoint}) not gated -> {r.status_code}",
+            )
+            checked += 1
+        self.assertGreater(checked, 20, "expected a real mutating surface")
+
 
 if __name__ == "__main__":
     unittest.main()
