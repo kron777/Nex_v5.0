@@ -111,6 +111,69 @@ class TestAffinityColumns(unittest.TestCase):
                 conn.close()
 
 
+class TestBeliefsInsertColumnsExist(unittest.TestCase):
+    """Generalise the affinity drift fix: every column named in any static
+    `INSERT INTO beliefs (...)` across the codebase must exist in the migrated
+    beliefs table. Two columns drifted once; this closes the class for inserts."""
+
+    def _migrated_columns(self):
+        from substrate.init_db import _MIGRATIONS
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = connect(str(Path(tmp) / "beliefs.db"))
+            try:
+                conn.executescript((_SCHEMA / "beliefs.sql").read_text())
+                for stmt in _MIGRATIONS["beliefs"]:
+                    try:
+                        conn.execute(stmt)
+                    except Exception:
+                        pass
+                return {r[1] for r in conn.execute("PRAGMA table_info(beliefs)")}
+            finally:
+                conn.close()
+
+    def test_insert_columns_are_a_subset_of_schema(self):
+        import re
+        root = Path(__file__).resolve().parent.parent
+        pat = re.compile(r"INSERT\s+INTO\s+beliefs\s*\(([^)]*)\)",
+                         re.IGNORECASE | re.DOTALL)
+        ident = re.compile(r"^[a-z_][a-z0-9_]*$")
+        referenced = {}
+        for py in root.rglob("*.py"):
+            s = str(py)
+            if "/tests/" in s or py.name.startswith("test_"):
+                continue
+            text = py.read_text(errors="ignore")
+            if "INSERT INTO beliefs" not in text:
+                continue
+            stripped = text.replace('"', "").replace("'", "")
+            for m in pat.finditer(stripped):
+                collist = m.group(1)
+                if "{" in collist or "%" in collist:
+                    continue  # dynamically-built column list — can't check statically
+                for tok in collist.split(","):
+                    c = tok.strip()
+                    if ident.match(c):
+                        referenced.setdefault(c, str(py.relative_to(root)))
+        self.assertTrue(referenced, "found no INSERT INTO beliefs column lists")
+        # Pre-existing drift this test surfaced on first run, allow-listed so it
+        # guards against NEW drift while these are tracked for the owner to decide:
+        #   parent_belief_id, variant_index -- asserted + used by
+        #     substrate/spectrumizer_process.py (spectrum seed) and read by
+        #     decryption/probe_runner.py; present in the live DB out-of-band but
+        #     not in the central schema. Formalise in a migration, or scope to
+        #     the seed path -- owner's call.
+        #   updated_at -- inserted by decryption/probe_runner.py, but
+        #     ground_self_belief.py:190 documents that beliefs has NO updated_at
+        #     column, so that INSERT is a latent bug (would raise no-such-column),
+        #     NOT a column to add.
+        known_drift = {"parent_belief_id", "variant_index", "updated_at"}
+        cols = self._migrated_columns()
+        missing = {c: w for c, w in referenced.items()
+                   if c not in cols and c not in known_drift}
+        self.assertEqual(missing, {},
+                         f"NEW columns used in INSERT but absent from schema: {missing}")
+
+
 class TestDynamicSchemaNoDupes(unittest.TestCase):
     def test_substrate_snapshots_single_definition(self):
         with tempfile.TemporaryDirectory() as tmp:
