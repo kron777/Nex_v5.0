@@ -2671,30 +2671,41 @@ def create_app(state: AppState) -> Flask:
         try:
             cx = connect(dyn_db, timeout=10)
             cx.row_factory = Row
-            # Get last N fountain_event_ids that have words
-            fids = cx.execute(
+            # Last N fountain_event_ids that have words, newest first.
+            fids = [f["fountain_event_id"] for f in cx.execute(
                 "SELECT DISTINCT fountain_event_id FROM word_contexts "
                 "ORDER BY fountain_event_id DESC LIMIT ?",
                 (limit,),
-            ).fetchall()
+            ).fetchall()]
             out = []
-            for f in fids:
-                fid = f["fountain_event_id"]
-                row = cx.execute(
-                    "SELECT id, ts, thought, tag FROM fountain_events WHERE id=?", (fid,)
-                ).fetchone()
-                words = cx.execute(
-                    "SELECT word FROM word_contexts WHERE fountain_event_id=? ORDER BY word",
-                    (fid,),
-                ).fetchall()
-                if row:
-                    out.append({
-                        "fid": row["id"],
-                        "ts": row["ts"],
-                        "thought": row["thought"],
-                        "tag": row["tag"],
-                        "words": [w["word"] for w in words],
-                    })
+            if fids:
+                # This is a 2s-poll live ticker. Batch the per-fire lookups into
+                # two IN (...) queries instead of 2*N point queries (41 -> 3 at
+                # limit=20); same data, same newest-first order.
+                ph = ",".join("?" * len(fids))
+                params = tuple(fids)
+                rows = {
+                    r["id"]: r for r in cx.execute(
+                        f"SELECT id, ts, thought, tag FROM fountain_events "
+                        f"WHERE id IN ({ph})", params,
+                    ).fetchall()
+                }
+                words_by_fid: dict = {}
+                for w in cx.execute(
+                    f"SELECT fountain_event_id, word FROM word_contexts "
+                    f"WHERE fountain_event_id IN ({ph}) ORDER BY word", params,
+                ).fetchall():
+                    words_by_fid.setdefault(w["fountain_event_id"], []).append(w["word"])
+                for fid in fids:  # preserve the newest-first order of the id list
+                    row = rows.get(fid)
+                    if row:
+                        out.append({
+                            "fid": row["id"],
+                            "ts": row["ts"],
+                            "thought": row["thought"],
+                            "tag": row["tag"],
+                            "words": words_by_fid.get(fid, []),
+                        })
             cx.close()
 
             # Enrich with genius scores from conversations.db (cross-DB,

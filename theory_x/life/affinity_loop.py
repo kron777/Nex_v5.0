@@ -245,10 +245,10 @@ def affinity_tick(voice):
                     "UPDATE beliefs SET affinity=?, affinity_updated_at=? WHERE id=?",
                     (final, time.time(), c["id"])
                 )
-                cx.commit()
                 scored += 1
             except Exception as e:
                 log.warning("affinity write failed for #%s: %s", c["id"], e)
+        cx.commit()  # one commit for the whole batch (was one fsync per row)
         log.info("affinity_loop: scored %d, unrated %d, of %d candidates",
                  scored, skipped, len(candidates))
         return {"scored": scored, "unrated": skipped, "candidates": len(candidates)}
