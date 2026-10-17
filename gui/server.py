@@ -883,6 +883,33 @@ def create_app(state: AppState) -> Flask:
             }), 403
         return jsonify({"error": "admin required"}), 403
 
+    # -- global error handling ----------------------------------------------
+    # Without a catch-all, any unhandled exception became a bare Werkzeug HTML
+    # 500 (and could leak a traceback if debug ever slipped on), and an unknown
+    # path returned HTML instead of the JSON every /api consumer expects. Route
+    # unexpected errors through error_channel and always answer in JSON.
+    @app.errorhandler(404)
+    def _not_found(_e):
+        return jsonify({"error": "not found", "path": request.path}), 404
+
+    @app.errorhandler(405)
+    def _method_not_allowed(_e):
+        return jsonify({"error": "method not allowed",
+                        "method": request.method}), 405
+
+    @app.errorhandler(Exception)
+    def _unhandled(e):
+        # Flask funnels HTTPExceptions here too (abort(400) etc.); preserve
+        # their status and don't treat them as server faults.
+        from werkzeug.exceptions import HTTPException
+        if isinstance(e, HTTPException):
+            return jsonify({"error": (e.name or "error").lower()}), e.code
+        error_channel.record(
+            f"unhandled error on {request.method} {request.path}: {e}",
+            source="gui.server", exc=e,
+        )
+        return jsonify({"error": "internal error"}), 500
+
     # Register membrane-owned SentienceNodes (Model A — process-lifetime).
     # Must run here (not module level) because both nodes require DB readers
     # that are only available after build_state().

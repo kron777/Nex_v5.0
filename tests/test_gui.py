@@ -38,6 +38,13 @@ class TestGuiEndpoints(unittest.TestCase):
             voice=VoiceClient(request_fn=_mock_req),
         )
         cls.app = create_app(cls.state)
+
+        # A route that raises, wired before the first request, so the global
+        # error handler's 500 path is exercisable.
+        def _boom():
+            raise RuntimeError("boom")
+        cls.app.add_url_rule("/__boom__", "__boom__", _boom)
+
         cls.client = cls.app.test_client()
 
     @classmethod
@@ -108,6 +115,24 @@ class TestGuiEndpoints(unittest.TestCase):
         # Verify persistence: each chat writes user + nex rows.
         n = self.readers["conversations"].count("messages")
         self.assertGreaterEqual(n, 4)
+
+    def test_unknown_path_returns_json_404(self):
+        r = self.client.get("/api/definitely-not-a-route")
+        self.assertEqual(r.status_code, 404)
+        self.assertEqual(r.get_json()["error"], "not found")
+
+    def test_wrong_method_returns_json_405(self):
+        # /api/admin/login is POST-only; a GET must be a JSON 405, not HTML.
+        r = self.client.get("/api/admin/login")
+        self.assertEqual(r.status_code, 405)
+        self.assertIn("error", r.get_json())
+
+    def test_unhandled_exception_returns_json_500(self):
+        # The global handler must turn an unhandled error into a JSON 500,
+        # never a bare HTML traceback (/__boom__ is wired in setUpClass).
+        r = self.client.get("/__boom__")
+        self.assertEqual(r.status_code, 500)
+        self.assertEqual(r.get_json()["error"], "internal error")
 
 
 if __name__ == "__main__":
