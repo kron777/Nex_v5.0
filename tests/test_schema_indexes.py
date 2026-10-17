@@ -45,6 +45,32 @@ class TestFirePathIndexes(unittest.TestCase):
         self.assertNotIn("TEMP B-TREE FOR ORDER BY", plan.upper())
 
 
+class TestAffinityProvenanceColumns(unittest.TestCase):
+    """D-A: affinity_model/affinity_legacy are registered, additive, nullable."""
+
+    def test_columns_registered_in_migrations(self):
+        from substrate.init_db import _MIGRATIONS
+        beliefs = " ".join(_MIGRATIONS["beliefs"])
+        self.assertIn("ADD COLUMN affinity_model", beliefs)
+        self.assertIn("ADD COLUMN affinity_legacy", beliefs)
+
+    def test_columns_are_nullable_adds(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = connect(str(Path(tmp) / "beliefs.db"))
+            try:
+                conn.executescript((_SCHEMA / "beliefs.sql").read_text())
+                conn.execute("ALTER TABLE beliefs ADD COLUMN affinity_model TEXT")
+                conn.execute("ALTER TABLE beliefs ADD COLUMN affinity_legacy REAL")
+                cols = {r[1]: r for r in conn.execute("PRAGMA table_info(beliefs)")}
+                self.assertIn("affinity_model", cols)
+                self.assertIn("affinity_legacy", cols)
+                # notnull flag (index 3) must be 0 — nullable, no default needed.
+                self.assertEqual(cols["affinity_model"][3], 0)
+                self.assertEqual(cols["affinity_legacy"][3], 0)
+            finally:
+                conn.close()
+
+
 class TestDynamicSchemaNoDupes(unittest.TestCase):
     def test_substrate_snapshots_single_definition(self):
         with tempfile.TemporaryDirectory() as tmp:

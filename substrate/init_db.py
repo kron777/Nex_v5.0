@@ -235,6 +235,13 @@ _MIGRATIONS: dict[str, list[str]] = {
         "ALTER TABLE arc_closers ADD COLUMN closure_type TEXT NOT NULL DEFAULT 'template'",
         # Phase 25b — CounterfactualNode: links accepted beliefs to source problem
         "ALTER TABLE beliefs ADD COLUMN problem_id INTEGER",
+        # D-A (affinity provenance): columns for the forward-only migration. Both
+        # nullable, nothing reads them yet -- affinity_model stamps which scorer
+        # wrote a row ('prov_v1'), affinity_legacy preserves the old llm value so
+        # a rollback can COALESCE(affinity_legacy, affinity). Backfill is a
+        # separate, dry-run-default step gated behind NEX5_AFFINITY_PROVENANCE=on.
+        "ALTER TABLE beliefs ADD COLUMN affinity_model TEXT",
+        "ALTER TABLE beliefs ADD COLUMN affinity_legacy REAL",
         # Phase 34 — Belief uniqueness guard: closes structural gap where only
         # tier=1 locked keystones had a unique constraint; all other tiers could
         # silently accumulate duplicate content via INSERT OR IGNORE.
