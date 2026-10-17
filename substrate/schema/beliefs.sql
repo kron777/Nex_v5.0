@@ -24,6 +24,15 @@ CREATE TABLE IF NOT EXISTS beliefs (
 
 CREATE INDEX IF NOT EXISTS idx_beliefs_tier   ON beliefs(tier);
 CREATE INDEX IF NOT EXISTS idx_beliefs_branch ON beliefs(branch_id);
+-- Fire-path retrieval (generator._retrieve_context_beliefs and the seed /
+-- hot-observer samplers). created_at serves the recency pool's
+-- "ORDER BY created_at DESC LIMIT"; (source, created_at) serves the
+-- source-filtered candidate scans that feed ORDER BY RANDOM(), turning a
+-- full scan of the belief table into an index range scan over the candidate
+-- set. The random sampling itself is left intact -- the fountain's selection
+-- diversity depends on it; only the scan that feeds it is made cheaper.
+CREATE INDEX IF NOT EXISTS idx_beliefs_created_at     ON beliefs(created_at);
+CREATE INDEX IF NOT EXISTS idx_beliefs_source_created ON beliefs(source, created_at);
 
 -- Locked keystone rows are unique by content within tier 1; INSERT OR IGNORE
 -- at reseed time relies on this partial unique index.
