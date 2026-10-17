@@ -45,28 +45,44 @@ class TestFirePathIndexes(unittest.TestCase):
         self.assertNotIn("TEMP B-TREE FOR ORDER BY", plan.upper())
 
 
-class TestAffinityProvenanceColumns(unittest.TestCase):
-    """D-A: affinity_model/affinity_legacy are registered, additive, nullable."""
+class TestAffinityColumns(unittest.TestCase):
+    """D-A: affinity columns are registered as migrations, additive, nullable.
+
+    Also pins the fresh-init fix: affinity / affinity_updated_at were read and
+    written by affinity_loop but created in no schema or migration, so a fresh
+    beliefs table lacked them and affinity_tick raised 'no such column'.
+    """
+
+    _AFFINITY_COLS = ("affinity", "affinity_updated_at",
+                      "affinity_model", "affinity_legacy")
+
+    def _affinity_alters(self):
+        from substrate.init_db import _MIGRATIONS
+        return [s for s in _MIGRATIONS["beliefs"]
+                if "ADD COLUMN affinity" in s]
 
     def test_columns_registered_in_migrations(self):
-        from substrate.init_db import _MIGRATIONS
-        beliefs = " ".join(_MIGRATIONS["beliefs"])
-        self.assertIn("ADD COLUMN affinity_model", beliefs)
-        self.assertIn("ADD COLUMN affinity_legacy", beliefs)
+        alters = " ".join(self._affinity_alters())
+        for col in self._AFFINITY_COLS:
+            self.assertIn(f"ADD COLUMN {col} ", alters + " ")
 
-    def test_columns_are_nullable_adds(self):
+    def test_columns_created_nullable_and_query_works(self):
         with tempfile.TemporaryDirectory() as tmp:
             conn = connect(str(Path(tmp) / "beliefs.db"))
             try:
                 conn.executescript((_SCHEMA / "beliefs.sql").read_text())
-                conn.execute("ALTER TABLE beliefs ADD COLUMN affinity_model TEXT")
-                conn.execute("ALTER TABLE beliefs ADD COLUMN affinity_legacy REAL")
+                for stmt in self._affinity_alters():
+                    conn.execute(stmt)
                 cols = {r[1]: r for r in conn.execute("PRAGMA table_info(beliefs)")}
-                self.assertIn("affinity_model", cols)
-                self.assertIn("affinity_legacy", cols)
-                # notnull flag (index 3) must be 0 — nullable, no default needed.
-                self.assertEqual(cols["affinity_model"][3], 0)
-                self.assertEqual(cols["affinity_legacy"][3], 0)
+                for col in self._AFFINITY_COLS:
+                    self.assertIn(col, cols)
+                    self.assertEqual(cols[col][3], 0, f"{col} should be nullable")
+                # The affinity_loop SELECT must not raise 'no such column' now.
+                conn.execute(
+                    "SELECT id, affinity, affinity_updated_at, affinity_model, "
+                    "affinity_legacy FROM beliefs "
+                    "WHERE affinity IS NULL OR affinity_updated_at < ?", (0,)
+                ).fetchall()
             finally:
                 conn.close()
 

@@ -235,6 +235,16 @@ _MIGRATIONS: dict[str, list[str]] = {
         "ALTER TABLE arc_closers ADD COLUMN closure_type TEXT NOT NULL DEFAULT 'template'",
         # Phase 25b — CounterfactualNode: links accepted beliefs to source problem
         "ALTER TABLE beliefs ADD COLUMN problem_id INTEGER",
+        # affinity / affinity_updated_at were read and written by
+        # theory_x/life/affinity_loop.py but defined in NO schema file or
+        # migration -- they exist only in the live DB (added out-of-band), so a
+        # fresh init_all() produced a beliefs table without them and the first
+        # affinity_tick raised "no such column: affinity". Added here; both
+        # nullable (affinity IS NULL is the "not yet rated" state the loop's
+        # SELECT depends on). Idempotent: skipped on the live DB that already has
+        # them, created on a fresh one.
+        "ALTER TABLE beliefs ADD COLUMN affinity REAL",
+        "ALTER TABLE beliefs ADD COLUMN affinity_updated_at REAL",
         # D-A (affinity provenance): columns for the forward-only migration. Both
         # nullable, nothing reads them yet -- affinity_model stamps which scorer
         # wrote a row ('prov_v1'), affinity_legacy preserves the old llm value so
