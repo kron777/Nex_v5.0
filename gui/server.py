@@ -94,12 +94,20 @@ from admin.auth import is_configured as admin_is_configured
 from admin.auth import verify_password
 from alpha import ALPHA
 from substrate import Reader, Writer, db_paths
+from substrate.paths import DbPath
 from voice.llm import VoiceClient, VoiceRequest
 from voice.registers import by_name, classify, default_register
 
 THEORY_X_STAGE = None
 
 logger = logging.getLogger("gui.server")
+
+# Resolved DB paths for the HUD's direct-sqlite endpoints. DbPath resolves via
+# db_paths() at use time (honours NEX5_DATA_DIR; same <repo>/data in
+# production), replacing the former hardcoded /home/rr/.../data/<name>.db
+# literals so these endpoints work wherever the repo actually lives.
+_DYN_DB = DbPath("dynamic")
+_CONV_DB = DbPath("conversations")
 
 # FocalSet — Layer 1 attention (log-only; no behavior change yet)
 try:
@@ -134,7 +142,7 @@ _WM_LOG = "/tmp/nex5_working_memory.log"
 try:
     from theory_x.conversation_memory import ConversationMemory as _ConversationMemory
     _conversation_memory = _ConversationMemory(
-        db_path="/home/rr/Desktop/Desktop/nex5/data/conversations.db",
+        db_path=_CONV_DB,
         n_turns=8,
     )
 except Exception:
@@ -2642,8 +2650,8 @@ def create_app(state: AppState) -> Flask:
         from flask import request
         import sqlite3
         limit = int(request.args.get("limit", "20"))
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
-        conv_db = "/home/rr/Desktop/Desktop/nex5/data/conversations.db"
+        dyn_db = _DYN_DB
+        conv_db = _CONV_DB
         try:
             cx = sqlite3.connect(dyn_db, timeout=10)
             cx.row_factory = sqlite3.Row
@@ -2718,7 +2726,7 @@ def create_app(state: AppState) -> Flask:
         from flask import request
         import sqlite3
         limit = int(request.args.get("limit", "50"))
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        dyn_db = _DYN_DB
         try:
             cx = sqlite3.connect(dyn_db, timeout=10)
             cx.row_factory = sqlite3.Row
@@ -2738,7 +2746,7 @@ def create_app(state: AppState) -> Flask:
         Returns: count, avg/min/max aperture, avg_hour, avg_secs_daemon,
         avg_secs_feed, top hot_branches, top tags."""
         import sqlite3
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        dyn_db = _DYN_DB
         word = word.lower().strip()
         if not word or len(word) > 50:
             return jsonify({"error": "invalid word"}), 400
@@ -2817,7 +2825,7 @@ def create_app(state: AppState) -> Flask:
             return jsonify({"error": "invalid word"}), 400
         if tag is not None and tag not in ("key", "noise", "unsure"):
             return jsonify({"error": "tag must be key/noise/unsure or null"}), 400
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        dyn_db = _DYN_DB
         try:
             cx = sqlite3.connect(dyn_db, timeout=10)
             if tag is None:
@@ -2839,7 +2847,7 @@ def create_app(state: AppState) -> Flask:
     def api_decoder_word_tags():
         """Return {word: tag} map for all tagged words. UI uses this to badge chips."""
         import sqlite3
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        dyn_db = _DYN_DB
         try:
             cx = sqlite3.connect(dyn_db, timeout=10)
             rows = cx.execute("SELECT word, tag, note FROM word_tags").fetchall()
@@ -2864,7 +2872,7 @@ def create_app(state: AppState) -> Flask:
         tag = body.get("tag")
         if not fid or tag not in ("coin", "maybe", "non"):
             return jsonify({"error": "fountain_event_id and tag in (coin,maybe,non) required"}), 400
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        dyn_db = _DYN_DB
         try:
             cx = sqlite3.connect(dyn_db, timeout=10)
             row = cx.execute(
@@ -2917,7 +2925,7 @@ def create_app(state: AppState) -> Flask:
         reason = (body.get("reason") or "").strip()
         if not fid:
             return jsonify({"error": "fountain_event_id required"}), 400
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        dyn_db = _DYN_DB
         try:
             cx = sqlite3.connect(dyn_db, timeout=10)
             # Verify fire exists
@@ -2953,7 +2961,7 @@ def create_app(state: AppState) -> Flask:
         fid = body.get("fountain_event_id")
         if not fid:
             return jsonify({"error": "fountain_event_id required"}), 400
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        dyn_db = _DYN_DB
         try:
             cx = sqlite3.connect(dyn_db, timeout=10)
             cx.execute("DELETE FROM ghost_flags WHERE fountain_event_id=?", (fid,))
@@ -2969,7 +2977,7 @@ def create_app(state: AppState) -> Flask:
     def api_ghost_flags():
         """Return all ghost flags (for HUD reload — knows which fires are flagged)."""
         import sqlite3
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        dyn_db = _DYN_DB
         try:
             cx = sqlite3.connect(dyn_db, timeout=10)
             cx.row_factory = sqlite3.Row
@@ -2989,7 +2997,7 @@ def create_app(state: AppState) -> Flask:
     def api_coincidence_stats():
         """Counts, totals, hit rate trend, time-of-day distribution."""
         import sqlite3, time, datetime
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        dyn_db = _DYN_DB
         try:
             cx = sqlite3.connect(dyn_db, timeout=10)
             cx.row_factory = sqlite3.Row
@@ -3050,7 +3058,7 @@ def create_app(state: AppState) -> Flask:
     def api_coincidence_analytics():
         """Branch correlation, aperture distribution, condition fingerprint."""
         import sqlite3, json
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        dyn_db = _DYN_DB
         try:
             cx = sqlite3.connect(dyn_db, timeout=10)
             cx.row_factory = sqlite3.Row
@@ -3134,7 +3142,7 @@ def create_app(state: AppState) -> Flask:
     def api_coincidence_tags():
         """Map fountain_event_id -> tag for UI marking."""
         import sqlite3
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        dyn_db = _DYN_DB
         try:
             cx = sqlite3.connect(dyn_db, timeout=10)
             rows = cx.execute(
@@ -3157,7 +3165,7 @@ def create_app(state: AppState) -> Flask:
         time_window = body.get("time_window")  # e.g. "21:00-23:00" or null
         if not claim:
             return jsonify({"error": "claim required"}), 400
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        dyn_db = _DYN_DB
         cx = sqlite3.connect(dyn_db, timeout=10)
         cur = cx.execute(
             "INSERT INTO hypotheses (created_at, claim, keywords, time_window) "
@@ -3173,7 +3181,7 @@ def create_app(state: AppState) -> Flask:
     def api_hypothesis_list():
         """List all hypotheses with current support/contradiction counts."""
         import sqlite3
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        dyn_db = _DYN_DB
         cx = sqlite3.connect(dyn_db, timeout=10)
         cx.row_factory = sqlite3.Row
         rows = cx.execute(
@@ -3192,7 +3200,7 @@ def create_app(state: AppState) -> Flask:
         notes = body.get("notes")
         if status and status not in ("open", "confirmed", "refuted", "abandoned"):
             return jsonify({"error": "invalid status"}), 400
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        dyn_db = _DYN_DB
         cx = sqlite3.connect(dyn_db, timeout=10)
         sets, vals = [], []
         if status:
@@ -3222,7 +3230,7 @@ def create_app(state: AppState) -> Flask:
           - tag='maybe' = no count change
         """
         import sqlite3, datetime
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        dyn_db = _DYN_DB
         cx = sqlite3.connect(dyn_db, timeout=10)
         cx.row_factory = sqlite3.Row
         hyps = cx.execute(
