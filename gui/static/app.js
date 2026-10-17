@@ -42,8 +42,13 @@ async function apiFetch(url, options = {}) {
 }
 
 function esc(s) {
+  // Escapes for BOTH HTML body and quoted-attribute contexts. Many sinks
+  // interpolate esc(...) inside title="..."/data-*="..." attributes, where an
+  // unescaped " would break out and inject an event handler; escaping quotes
+  // too closes that with no visible change in body text (C4 hardening).
   return String(s ?? "")
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 function fmtTs(sec) {

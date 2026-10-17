@@ -401,9 +401,12 @@
     var el = document.getElementById('probes-history');
     if (!el) return;
     el.innerHTML = probes.slice(0, 5).map(function(p) {
-      var cat = p.category.replace('_', ' ');
-      var q = (p.probe_text || '').slice(0, 50);
-      var a = (p.response_text || '').slice(0, 60);
+      // esc() (app.js, loaded above) — probe_text is user input and
+      // response_text is model output; both must be escaped before innerHTML
+      // or a '<script>'/'<img onerror>' in either executes in the HUD (C4).
+      var cat = esc(p.category.replace('_', ' '));
+      var q = esc((p.probe_text || '').slice(0, 50));
+      var a = esc((p.response_text || '').slice(0, 60));
       return '<div style="border-top:1px solid var(--border);padding:2px 0;">' +
         '<span style="color:var(--fg3)">[' + cat + ']</span> ' + q +
         '<br><span style="color:var(--fg2)">' + a + '</span></div>';
