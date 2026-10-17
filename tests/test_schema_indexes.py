@@ -86,6 +86,30 @@ class TestAffinityColumns(unittest.TestCase):
             finally:
                 conn.close()
 
+    def test_affinity_loop_real_queries_run_on_migrated_db(self):
+        """Generalise the drift fix: build a beliefs DB via the real migration
+        list and run affinity_loop's actual SELECT and UPDATE. A column that any
+        schema/migration forgot surfaces here, not on the next fresh deploy."""
+        from substrate.init_db import _MIGRATIONS
+        from theory_x.life import affinity_loop
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = connect(str(Path(tmp) / "beliefs.db"))
+            try:
+                conn.executescript((_SCHEMA / "beliefs.sql").read_text())
+                for stmt in _MIGRATIONS["beliefs"]:
+                    try:
+                        conn.execute(stmt)
+                    except Exception:
+                        pass  # CREATE IF NOT EXISTS / duplicate ALTER — idempotent
+                conn.commit()
+                # The candidate SELECT reads every affinity-path column.
+                affinity_loop._pick_candidates(conn, 5)          # must not raise
+                # The write path's columns must exist too.
+                conn.execute("UPDATE beliefs SET affinity=?, affinity_updated_at=? "
+                             "WHERE id=?", (0.5, 0.0, -1))
+            finally:
+                conn.close()
+
 
 class TestDynamicSchemaNoDupes(unittest.TestCase):
     def test_substrate_snapshots_single_definition(self):
