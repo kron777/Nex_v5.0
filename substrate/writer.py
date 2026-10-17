@@ -29,6 +29,8 @@ from typing import Any, Iterable, Optional, Sequence
 
 import errors as error_channel
 
+from .db import connect
+
 THEORY_X_STAGE = None
 
 logger = logging.getLogger("substrate.writer")
@@ -120,17 +122,10 @@ class Writer:
     # --- worker -----------------------------------------------------------
 
     def _open(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(
-            self.db_path,
-            isolation_level=None,          # no implicit BEGIN — we drive txns
-            check_same_thread=False,
-            timeout=self._busy_timeout_ms / 1000.0,
-        )
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA synchronous=NORMAL")
-        conn.execute(f"PRAGMA busy_timeout={self._busy_timeout_ms}")
-        conn.execute("PRAGMA foreign_keys=ON")
-        return conn
+        # isolation_level=None (no implicit BEGIN — we drive txns), WAL,
+        # synchronous=NORMAL, busy_timeout and foreign_keys=ON all come from
+        # the shared factory; see substrate/db.py.
+        return connect(self.db_path, busy_timeout_ms=self._busy_timeout_ms)
 
     def _run(self) -> None:
         try:
