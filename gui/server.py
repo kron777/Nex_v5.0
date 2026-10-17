@@ -984,6 +984,23 @@ def create_app(state: AppState) -> Flask:
         events = error_channel.recent(limit=max(1, min(limit, 500)))
         return jsonify({"events": [e.to_dict() for e in events]})
 
+    @app.get("/api/health")
+    def api_health():
+        """Liveness/readiness probe for supervisors and monitors: 200 when the
+        process is up and every DB reader answers a trivial query, 503 if any
+        reader is unreachable. Unauthenticated and cheap by design."""
+        dbs: dict[str, str] = {}
+        ok = True
+        for name, reader in state.readers.items():
+            try:
+                reader.read_one("SELECT 1 AS one")
+                dbs[name] = "ok"
+            except Exception as e:  # pragma: no cover - exercised via a broken reader
+                dbs[name] = f"error: {e}"
+                ok = False
+        return jsonify({"status": "ok" if ok else "degraded", "dbs": dbs}), (
+            200 if ok else 503)
+
     # -- admin ---------------------------------------------------------------
 
     @app.get("/api/admin/status")

@@ -74,6 +74,14 @@ class TestGuiEndpoints(unittest.TestCase):
             {"beliefs", "sense", "dynamic", "intel", "conversations", "probes"},
         )
 
+    def test_health_ok(self):
+        r = self.client.get("/api/health")
+        self.assertEqual(r.status_code, 200)
+        data = r.get_json()
+        self.assertEqual(data["status"], "ok")
+        self.assertIn("beliefs", data["dbs"])
+        self.assertTrue(all(v == "ok" for v in data["dbs"].values()), data["dbs"])
+
     def test_admin_flow(self):
         r = self.client.get("/api/admin/status")
         self.assertTrue(r.get_json()["configured"])
