@@ -22,7 +22,7 @@ class TestProvenanceAffinity(unittest.TestCase):
         # Equal usage: only provenance differs. This is the bug being fixed.
         for usage in (0.0, 0.3, 0.7, 1.0):
             authored = A._provenance_affinity("fountain_insight", usage)
-            witnessed = A._provenance_affinity("surprise", usage)
+            witnessed = A._provenance_affinity("witness_loop", usage)
             received = A._provenance_affinity("identity_loop", usage)
             self.assertGreater(authored, witnessed, f"usage={usage}")
             self.assertGreater(witnessed, received, f"usage={usage}")
@@ -49,6 +49,13 @@ class TestProvenanceAffinity(unittest.TestCase):
         self.assertAlmostEqual(A._provenance_affinity("pattern_loop", 1.0), 0.45, 6)
         self.assertAlmostEqual(A._provenance_affinity("identity_loop", 0.0), 0.225, 6)
         self.assertAlmostEqual(A._provenance_affinity("identity_loop", 1.0), 0.30, 6)
+
+    def test_surprise_is_authored(self):
+        # Owner's call: a surprise is hers, same band as her own synthesis.
+        for u in (0.0, 0.5, 1.0):
+            self.assertAlmostEqual(
+                A._provenance_affinity("surprise", u),
+                A._provenance_affinity("fountain_insight", u), 6)
 
     def test_unknown_source_is_received(self):
         unknown = A._provenance_affinity("brand_new_source_xyz", 0.5)

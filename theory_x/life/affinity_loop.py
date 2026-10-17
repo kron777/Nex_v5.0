@@ -118,9 +118,9 @@ PROVENANCE_BASE: dict[str, float] = {
     "remember_loop": _AUTHORED,
     "wonder_loop": _AUTHORED,
     "hot_observer": _AUTHORED,
+    "surprise": _AUTHORED,       # owner's call: a surprise is hers, not observed
     "witness_loop": _WITNESSED,
     "pattern_loop": _WITNESSED,
-    "surprise": _WITNESSED,
     "identity_loop": _RECEIVED,
 }
 
