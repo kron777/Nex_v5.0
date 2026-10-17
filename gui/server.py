@@ -114,8 +114,9 @@ try:
     if _focal_set is not None:
         from theory_x import register as _tx_register
         _tx_register(_focal_set)
-except Exception:
-    pass
+except Exception as e:
+    error_channel.log_and_continue(
+        e, source="gui.server", context="FocalSet node registration")
 
 _FOCAL_LOG = "/tmp/nex5_focal.log"
 
@@ -150,8 +151,9 @@ try:
     try:
         from theory_x import register as _tx_register_ec
         _tx_register_ec(_executive)
-    except Exception:
-        pass
+    except Exception as e:
+        error_channel.log_and_continue(
+            e, source="gui.server", context="ExecutiveControl node registration")
 except Exception:
     _executive = None  # type: ignore[assignment]
 
@@ -920,8 +922,9 @@ def create_app(state: AppState) -> Flask:
                 _tx_register_membrane(state.membrane.self_model)
             if state.membrane.behavioural is not None:
                 _tx_register_membrane(state.membrane.behavioural)
-        except Exception:
-            pass
+        except Exception as e:
+            error_channel.log_and_continue(
+                e, source="gui.server", context="membrane node registration")
 
     # -- pages ---------------------------------------------------------------
 
