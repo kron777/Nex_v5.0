@@ -22,6 +22,7 @@ import signal
 import time as _time
 
 import errors as error_channel
+import nex_config
 from alpha import ALPHA
 from substrate import Reader, Writer, db_paths
 from substrate.init_db import init_all
@@ -50,6 +51,11 @@ def main() -> None:
     )
     error_channel.install_handler()
     log = logging.getLogger("nex5.boot")
+
+    # Surface mistyped / unparsable NEX5_* flags at boot. Warn-only by default
+    # (a typo'd flag is otherwise silently ignored, doing nothing); set
+    # NEX5_CONFIG_STRICT=1 to make these fatal instead.
+    nex_config.validate()
 
     log.info("NEX 5.0 booting")
     log.info("Alpha: %s", ALPHA.lines[0])
