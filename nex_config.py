@@ -278,3 +278,46 @@ def get_float(name: str, default: float, env: Optional[dict] = None) -> float:
 
 def get_str(name: str, default: str = "", env: Optional[dict] = None) -> str:
     return _env(env).get(name, default)
+
+
+# -- logging setup (D-C PR 1): one authority for the running process ----------
+# The app logs through 8 named namespaces with NO root-level logging, so root
+# stays at INFO -- a stricter root would silently drop seven of them from the
+# soak log. Only known-noisy third-party loggers are quieted, and ONLY via
+# setLevel: never propagate=False, which would stop their WARNING+ records
+# reaching errors.py's health counter and make the metric read falsely clean.
+
+_LOG_FORMAT = "%(asctime)s %(name)s %(levelname)s %(message)s"
+
+# App logger namespaces (kept at INFO via root). Used by the test, not to set
+# levels -- they inherit root, so a new namespace is INFO by default too.
+APP_LOG_NAMESPACES = ("theory_x", "nex5", "substrate", "stage6_fountain",
+                      "stage1_sense", "server", "seed", "gui")
+
+NOISY_THIRD_PARTY = ("werkzeug", "urllib3", "httpx", "httpcore",
+                     "sentence_transformers", "transformers",
+                     "huggingface_hub", "filelock", "asyncio", "matplotlib")
+
+_log_configured = False
+
+
+def setup_logging(level: int = logging.INFO) -> None:
+    """Configure process logging once. Idempotent. Root at `level` (INFO);
+    third-party noise quieted to WARNING; errors.py's central handler installed."""
+    global _log_configured
+    if _log_configured:
+        return
+    root = logging.getLogger()
+    root.setLevel(level)
+    if not any(isinstance(h, logging.StreamHandler) for h in root.handlers):
+        h = logging.StreamHandler()
+        h.setFormatter(logging.Formatter(_LOG_FORMAT))
+        root.addHandler(h)
+    for name in NOISY_THIRD_PARTY:
+        logging.getLogger(name).setLevel(logging.WARNING)
+    try:
+        import errors
+        errors.install_handler(root)
+    except Exception:
+        pass
+    _log_configured = True
