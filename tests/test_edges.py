@@ -358,7 +358,17 @@ class TestNoDirectSqlite(unittest.TestCase):
             capture_output=True, text=True,
             cwd=Path(__file__).parent.parent,
         )
-        KNOWN_EXCEPTIONS = {"./strikes/catalogue.py"}
+        # strikes/catalogue.py's read path predates the substrate abstraction.
+        # nex_db_reaper.py / nex_db_backup.py are standalone DB-maintenance
+        # tools that legitimately use low-level sqlite3 (WAL-safe batched
+        # deletes; journal-mode control of the backup artifact and the online
+        # backup API) rather than the Reader/Writer, so they are intentional
+        # exceptions, not part of the migration the rest of this list guards.
+        KNOWN_EXCEPTIONS = {
+            "./strikes/catalogue.py",
+            "./nex_db_reaper.py",
+            "./nex_db_backup.py",
+        }
         matches = [
             line for line in result.stdout.splitlines()
             if line and line not in KNOWN_EXCEPTIONS
