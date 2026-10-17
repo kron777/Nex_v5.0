@@ -29,7 +29,7 @@ import statistics
 import sys
 from pathlib import Path
 
-REPO = Path("/home/rr/Desktop/Desktop/nex5")
+REPO = Path(__file__).resolve().parents[1]
 CONV_DB = REPO / "data" / "conversations.db"
 DYNAMIC_DB = REPO / "data" / "dynamic.db"
 BELIEFS_DB = REPO / "data" / "beliefs.db"

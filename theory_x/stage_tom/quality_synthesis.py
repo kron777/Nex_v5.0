@@ -15,6 +15,7 @@ The loop:
 Runs every 30 min via background thread started in generator.__init__.
 """
 from __future__ import annotations
+from substrate.paths import data_dir
 
 import json
 import logging
@@ -33,11 +34,11 @@ _LOW_GENIUS   = 0.25
 _MAX_DAMPENED_BRANCHES = 2  # never dampen more than 2 branches at once —
                             # protects diversity when many thin branches
                             # simultaneously look bad on small samples
-_SIGNAL_FILE  = Path("/home/rr/Desktop/Desktop/nex5/data/quality_signal.json")
+_SIGNAL_FILE  = data_dir() / "quality_signal.json"
 
 
 def _db(name: str) -> str:
-    base = Path("/home/rr/Desktop/Desktop/nex5/data")
+    base = Path(str(data_dir()))
     return str({"conversations": base / "conversations.db",
                 "dynamic":       base / "dynamic.db"}[name])
 

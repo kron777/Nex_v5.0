@@ -23,6 +23,7 @@ Graded LIGHT / FULL. Gated by NEX5_APRAMADA (default OFF). Fail-safe: '' on any
 error or flag off.
 """
 from __future__ import annotations
+from substrate.paths import db_paths
 
 import os
 import re
@@ -31,7 +32,7 @@ import sqlite3
 import errors as error_channel
 
 _LOG_SOURCE = "apramada"
-_DYNAMIC_DB = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+_DYNAMIC_DB = str(db_paths()["dynamic"])
 
 _MAX_CARRY = 2          # carry_count <= this = still held; beyond = let go (anti-nag)
 _OVERLAP_MIN = 0.12     # token overlap below this = turn not attending the thread

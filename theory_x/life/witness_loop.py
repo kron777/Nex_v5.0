@@ -17,6 +17,7 @@ identity_loop's NEXT composition (Level 1). The strange loop:
 Hofstadter: strange loops fold back. Higher level modifies lower.
 """
 from __future__ import annotations
+from substrate.paths import db_paths
 import logging
 import sqlite3
 import threading
@@ -27,8 +28,8 @@ from zoneinfo import ZoneInfo
 
 log = logging.getLogger("theory_x.life.witness_loop")
 
-BELIEFS_DB = Path("/home/rr/Desktop/Desktop/nex5/data/beliefs.db")
-DYNAMIC_DB = Path("/home/rr/Desktop/Desktop/nex5/data/dynamic.db")
+BELIEFS_DB = Path(str(db_paths()["beliefs"]))
+DYNAMIC_DB = Path(str(db_paths()["dynamic"]))
 TZ = ZoneInfo("Europe/Amsterdam")
 TICK_SECONDS = 1800
 SOURCE = "witness_loop"

@@ -31,7 +31,7 @@ import sys
 import time
 from pathlib import Path
 
-ROOT = Path("/home/rr/Desktop/Desktop/nex5")
+ROOT = Path(__file__).resolve().parents[1]
 WEIGHTS = ROOT / "genius_score_weights.json"
 CONV = ROOT / "data" / "conversations.db"
 

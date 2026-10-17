@@ -18,6 +18,7 @@ Writes: genius_score_weights.json with weights + bias + threshold.
 Run: .venv/bin/python3 -m theory_x.genius.score_v2
 """
 from __future__ import annotations
+from substrate.paths import data_dir
 
 import json
 import math
@@ -28,11 +29,11 @@ import statistics
 import time
 from pathlib import Path
 
-DATA = Path("/home/rr/Desktop/Desktop/nex5/data")
+DATA = Path(str(data_dir()))
 DYN = DATA / "dynamic.db"
 CONV = DATA / "conversations.db"
 BEL = DATA / "beliefs.db"
-WEIGHTS_PATH = Path("/home/rr/Desktop/Desktop/nex5/genius_score_weights.json")
+WEIGHTS_PATH = data_dir().parent / "genius_score_weights.json"
 # F2-V2 (NEX5_SCORE_F2_V2, default OFF): the live 3-gram-mean anti_template is
 # ceiling-saturated (57-61% of fires >=0.95, 17.7% ==1.0) -> a near-constant the
 # fit degenerated to weight -1.577. V2 replaces the metric with 1 - MAX content-
@@ -41,7 +42,7 @@ WEIGHTS_PATH = Path("/home/rr/Desktop/Desktop/nex5/genius_score_weights.json")
 # no sign flip. Requires its OWN refit weights (applying the old -1.577 to V2's
 # spread would catastrophically penalise novelty), kept in a separate file so
 # the live score_v2 is untouched until the swap is approved.
-WEIGHTS_PATH_V2 = Path("/home/rr/Desktop/Desktop/nex5/genius_score_weights_v2.json")
+WEIGHTS_PATH_V2 = data_dir().parent / "genius_score_weights_v2.json"
 
 
 def _f2v2_score_active() -> bool:

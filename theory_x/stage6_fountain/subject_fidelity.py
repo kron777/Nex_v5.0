@@ -33,6 +33,7 @@ voice) bind no subject by design and are EXCLUDED from the denominator --
 counting them would make the metric a measure of mode mix, not of fidelity.
 """
 from __future__ import annotations
+from substrate.paths import db_paths
 
 import math
 import sqlite3
@@ -40,7 +41,7 @@ from typing import Optional
 
 from theory_x.stage6_fountain.crystallizer import _fidelity_tokens
 
-_DEFAULT_DB = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+_DEFAULT_DB = str(db_paths()["dynamic"])
 
 # Rolling window, in fires, matched to corpus_convergence.WINDOW so the two
 # instruments describe comparable stretches of history.

@@ -11,6 +11,7 @@ Critical anti-hum hedge: the prompt instructs short, direct replies, not
 contemplative monologue. Spectrum belief retrieval is OPTIONAL grounding.
 """
 from __future__ import annotations
+from substrate.paths import db_paths
 import logging
 import re
 import sqlite3
@@ -25,8 +26,8 @@ from theory_x.stage7_moltbook.client import (
 
 log = logging.getLogger("theory_x.stage7_moltbook.responder")
 
-DYNAMIC_DB = Path("/home/rr/Desktop/Desktop/nex5/data/dynamic.db")
-BELIEFS_DB = Path("/home/rr/Desktop/Desktop/nex5/data/beliefs.db")
+DYNAMIC_DB = Path(str(db_paths()["dynamic"]))
+BELIEFS_DB = Path(str(db_paths()["beliefs"]))
 TICK_SECONDS = 300         # 5 min
 BATCH_PER_TICK = 3         # don't blast through queue
 MAX_REPLY_CHARS = 600      # moltbook DMs can be longer; cap for tone

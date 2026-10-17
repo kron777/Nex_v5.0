@@ -45,6 +45,7 @@ USAGE
     python3 -m theory_x.stage6_fountain.corpus_convergence --history 40
 """
 from __future__ import annotations
+from substrate.paths import db_paths
 
 import json
 import os
@@ -62,7 +63,7 @@ from theory_x.stage6_fountain.crystallizer import _fidelity_tokens
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _REGISTER_PATH = os.path.join(_HERE, "register_exclusion.json")
-_DEFAULT_DB = "/home/rr/Desktop/Desktop/nex5/data/beliefs.db"
+_DEFAULT_DB = str(db_paths()["beliefs"])
 
 WINDOW = 50
 THRESHOLD = 0.25

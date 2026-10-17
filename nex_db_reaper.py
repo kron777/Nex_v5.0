@@ -30,7 +30,13 @@ import sqlite3
 import sys
 import time
 
-DATA = "/home/rr/Desktop/Desktop/nex5/data"
+try:
+    from substrate.paths import data_dir
+    DATA = str(data_dir())
+except Exception:
+    # Standalone fallback (this script lives at the repo root; data/ beside it)
+    # so the reaper still resolves even if run before the package is importable.
+    DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 LOG = os.path.expanduser("~/.nex/reaper.log")
 
 RETENTION_DAYS = 30

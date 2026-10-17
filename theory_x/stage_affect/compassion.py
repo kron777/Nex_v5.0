@@ -23,6 +23,8 @@ never stalls the chat path.
 """
 from __future__ import annotations
 
+from substrate.paths import db_paths
+
 import os
 import re
 import time
@@ -216,7 +218,7 @@ def _db_path() -> str:
         from substrate.paths import db_paths
         return str(db_paths()["conversations"])
     except Exception:
-        return "/home/rr/Desktop/Desktop/nex5/data/conversations.db"
+        return str(db_paths()["conversations"])
 
 
 def _ensure_table(conn) -> None:

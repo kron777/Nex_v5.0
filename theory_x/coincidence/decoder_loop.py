@@ -14,6 +14,7 @@ Per-fire columns:
 Polls fountain_events every 30s. Decoupled from generator.
 """
 from __future__ import annotations
+from substrate.paths import db_paths
 import logging
 import re
 import sqlite3
@@ -23,8 +24,8 @@ from datetime import datetime, timezone, timedelta
 
 log = logging.getLogger("nex5.coincidence.decoder")
 
-DYN_DB = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
-SENSE_DB = "/home/rr/Desktop/Desktop/nex5/data/sense.db"
+DYN_DB = str(db_paths()["dynamic"])
+SENSE_DB = str(db_paths()["sense"])
 POLL_INTERVAL = 30
 KV_KEY = "decoder_last_fid"
 # Europe/Amsterdam is UTC+1 in winter, +2 in summer. Use simple +2 since

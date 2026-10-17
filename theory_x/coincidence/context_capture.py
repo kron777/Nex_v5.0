@@ -9,6 +9,7 @@ All reads are best-effort: any individual failure returns None for that field
 rather than failing the whole capture.
 """
 from __future__ import annotations
+from substrate.paths import db_paths
 import json
 import sqlite3
 import time
@@ -16,8 +17,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-DYN_DB = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
-BELIEFS_DB = "/home/rr/Desktop/Desktop/nex5/data/beliefs.db"
+DYN_DB = str(db_paths()["dynamic"])
+BELIEFS_DB = str(db_paths()["beliefs"])
 DYNAMIC_STATUS_URL = "http://localhost:8765/api/dynamic/status"
 
 

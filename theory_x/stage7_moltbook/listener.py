@@ -8,6 +8,7 @@ Three jobs per tick:
        - moltbook_pending_replies (so the responder daemon can answer it)
 """
 from __future__ import annotations
+from substrate.paths import db_paths
 import json
 import logging
 import sqlite3
@@ -22,8 +23,8 @@ from theory_x.stage7_moltbook.client import (
 
 log = logging.getLogger("theory_x.stage7_moltbook.listener")
 
-DYNAMIC_DB = Path("/home/rr/Desktop/Desktop/nex5/data/dynamic.db")
-SENSE_DB   = Path("/home/rr/Desktop/Desktop/nex5/data/sense.db")
+DYNAMIC_DB = Path(str(db_paths()["dynamic"]))
+SENSE_DB   = Path(str(db_paths()["sense"]))
 TICK_SECONDS = 300   # 5 min
 
 

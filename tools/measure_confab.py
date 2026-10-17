@@ -23,6 +23,7 @@ READ-ONLY: opens every DB with mode=ro; writes nothing; safe to run repeatedly.
 Usage:  .venv/bin/python3 tools/measure_confab.py [WINDOW_HOURS]   (default 24)
 """
 from __future__ import annotations
+from substrate.paths import db_paths
 
 import json
 import os
@@ -34,8 +35,8 @@ import time
 # Run from anywhere: put the repo root on the path so project imports resolve.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-BELIEFS_DB = "/home/rr/Desktop/Desktop/nex5/data/beliefs.db"
-CONV_DB = "/home/rr/Desktop/Desktop/nex5/data/conversations.db"
+BELIEFS_DB = str(db_paths()["beliefs"])
+CONV_DB = str(db_paths()["conversations"])
 
 # Reuse the project's own definitions — do not re-hardcode.
 from theory_x.signals.signal_to_problem import _entity_has_substance, _extract_entity

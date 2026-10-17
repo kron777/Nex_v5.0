@@ -26,9 +26,10 @@ import sqlite3
 import time
 
 import errors as error_channel
+from substrate.paths import db_paths
 
 _LOG_SOURCE = "virya"
-_DYNAMIC_DB = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+_DYNAMIC_DB = str(db_paths()["dynamic"])
 
 _VIRYA_CAP = 1.0          # hard ceiling on effort signal (anti-mania)
 _DRIFT_MIN = 0.55         # drift fraction above this = clearly fleeing the thread

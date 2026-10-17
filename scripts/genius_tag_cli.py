@@ -30,7 +30,7 @@ import time
 from pathlib import Path
 
 # Repo root on Jon's machine
-ROOT = Path("/home/rr/Desktop/Desktop/nex5")
+ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data"
 DYN = DATA / "dynamic.db"
 BEL = DATA / "beliefs.db"

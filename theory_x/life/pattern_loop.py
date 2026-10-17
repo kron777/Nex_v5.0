@@ -13,6 +13,7 @@ in Level 2). Closed loop: Level 3's output also enters retrieval, modifying
 Level 1's next composition.
 """
 from __future__ import annotations
+from substrate.paths import db_paths
 import logging
 import sqlite3
 import threading
@@ -23,8 +24,8 @@ from zoneinfo import ZoneInfo
 
 log = logging.getLogger("theory_x.life.pattern_loop")
 
-BELIEFS_DB = Path("/home/rr/Desktop/Desktop/nex5/data/beliefs.db")
-DYNAMIC_DB = Path("/home/rr/Desktop/Desktop/nex5/data/dynamic.db")
+BELIEFS_DB = Path(str(db_paths()["beliefs"]))
+DYNAMIC_DB = Path(str(db_paths()["dynamic"]))
 TZ = ZoneInfo("Europe/Amsterdam")
 TICK_SECONDS = 600
 SOURCE = "pattern_loop"

@@ -5,6 +5,8 @@ fountain events to sense.db and dynamic.db.
 """
 from __future__ import annotations
 
+from substrate.paths import data_dir, db_paths
+
 import json
 import logging
 import os
@@ -231,7 +233,7 @@ def _fixation_teeth(sorted_branches, pick, dynamic_db=None):
     try:
         import sqlite3 as _sq
         if dynamic_db is None:
-            from substrate.paths import db_paths as _dbp
+            from substrate.paths import data_dir, db_paths, db_paths as _dbp
             dynamic_db = str(_dbp()["dynamic"])
         con = _sq.connect(f"file:{dynamic_db}?mode=ro", uri=True, timeout=3)
         try:
@@ -483,7 +485,7 @@ def _valence_reach():
             from substrate.paths import db_paths as _dbp
             _cdb = str(_dbp()["conversations"])
         except Exception:
-            _cdb = "/home/rr/Desktop/Desktop/nex5/data/conversations.db"
+            _cdb = str(db_paths()["conversations"])
         con = _s3.connect(f"file:{_cdb}?mode=ro", uri=True, timeout=3)
         row = con.execute(
             "SELECT valence, arousal FROM affect_state WHERE id = 1"
@@ -530,7 +532,7 @@ def _stakes_pick(items):
             from substrate.paths import db_paths as _dbp
             _cdb = str(_dbp()["conversations"]); _bdb = str(_dbp()["beliefs"])
         except Exception:
-            _base = "/home/rr/Desktop/Desktop/nex5/data"
+            _base = str(data_dir())
             _cdb = _base + "/conversations.db"; _bdb = _base + "/beliefs.db"
         # 1) the held drive
         topic = None; strength = 0.0
@@ -599,7 +601,7 @@ def _alobha_context():
         from substrate.paths import db_paths as _dbp
         _ddb = str(_dbp()["dynamic"])
     except Exception:
-        _ddb = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        _ddb = str(db_paths()["dynamic"])
     con = _s3.connect(_ddb, timeout=3)
     try:
         focal = [r[0] for r in con.execute(
@@ -641,7 +643,7 @@ def _curiosity_pick(items):
             _ddb = str(_dbp()["dynamic"]); _bdb = str(_dbp()["beliefs"])
             _cdb = str(_dbp()["conversations"])
         except Exception:
-            _base = "/home/rr/Desktop/Desktop/nex5/data"
+            _base = str(data_dir())
             _ddb = _base + "/dynamic.db"; _bdb = _base + "/beliefs.db"
             _cdb = _base + "/conversations.db"
         now = _t.time()
@@ -964,8 +966,8 @@ class FountainGenerator:
                     _p = _dbp_sn()
                     _ddb = str(_p["dynamic"]); _bdb = str(_p["beliefs"])
                 except Exception:
-                    _ddb = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
-                    _bdb = "/home/rr/Desktop/Desktop/nex5/data/beliefs.db"
+                    _ddb = str(db_paths()["dynamic"])
+                    _bdb = str(db_paths()["beliefs"])
                 self._self_narrative = SelfNarrative(_ddb, _bdb)
             except Exception:
                 pass
@@ -1945,7 +1947,7 @@ class FountainGenerator:
                 from substrate.paths import db_paths as _dbp2
                 _adb2 = str(_dbp2()["dynamic"])
             except Exception:
-                _adb2 = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+                _adb2 = str(db_paths()["dynamic"])
             _acon = _sq2.connect(_adb2, timeout=3)
             _acon.execute("""CREATE TABLE IF NOT EXISTS recursion_attrib
                 (ts REAL PRIMARY KEY, nudge_active INTEGER,
@@ -1972,7 +1974,7 @@ class FountainGenerator:
                     from substrate.paths import db_paths as _dbp_l4
                     _ddb = str(_dbp_l4()["dynamic"])
                 except Exception:
-                    _ddb = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+                    _ddb = str(db_paths()["dynamic"])
                 self._stakes_active = check_world_contact(_ddb)
                 if self._stakes_active:
                     import sys as _sys_l4
@@ -2030,7 +2032,7 @@ class FountainGenerator:
                     from substrate.paths import db_paths as _dbp_hot
                     _bdb_hot = str(_dbp_hot()["beliefs"])
                 except Exception:
-                    _bdb_hot = "/home/rr/Desktop/Desktop/nex5/data/beliefs.db"
+                    _bdb_hot = str(db_paths()["beliefs"])
                 _hot_obs(thought or "", _carry_branch or "", _bdb_hot)
             except Exception:
                 pass  # never stall a fire

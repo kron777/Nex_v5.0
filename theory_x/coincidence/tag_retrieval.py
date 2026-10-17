@@ -12,12 +12,13 @@ with NEX_TAG_FEEDBACK_ON=1 in the run.py env.
 All reads best-effort. Never raises — returns empty list/dict on any failure.
 """
 from __future__ import annotations
+from substrate.paths import db_paths
 import json
 import os
 import sqlite3
 from typing import Any
 
-DYN_DB = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+DYN_DB = str(db_paths()["dynamic"])
 FLAG_VAR = "NEX_TAG_FEEDBACK_ON"
 
 
