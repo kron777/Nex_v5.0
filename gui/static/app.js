@@ -1179,9 +1179,9 @@ pollSpeech();
 refreshProblems();
 
 // Intervals
-setInterval(pollFast,        2000);
-setInterval(pollMedium,      5000);
-setInterval(pollSlow,       10000);
+setInterval(pollFast,        2000);   // live sense/pipeline stream
+setInterval(pollMedium,     10000);   // agent state (beliefs/bonsai/fountain/membrane/drives) — 30-min-tick data; was 5s
+setInterval(pollSlow,       10000);   // subsystem dots + stillness pill — kept fast so a down subsystem shows quickly
 setInterval(pollAgi,        30000);
 setInterval(pollSpeech,      5000);
 setInterval(refreshProblems, 30000);
