@@ -711,6 +711,16 @@ def make_selfdesc_prediction(db_path: Optional[str] = None,
     stat = selfdesc_stationarity(dynamic_db)     # diagnostic only, never branched on
     logger.info("self_pred selfdesc branch=%s eff_n=%.1f stationarity=%s",
                 branch, eff, stat)
+    # Q8 point 6: if we fell back AND this arm is structurally unreachable (its observed
+    # share caps its achievable eff_n below the threshold), say so loudly -- that is a
+    # permanent no-op from an uneven split, not a transient "not enough data yet".
+    if branch == "pooled_low_eff_n" and isinstance(stat, dict):
+        _arm = stat.get("prev_differ" if last_label == "differ" else "prev_same", {})
+        if _arm.get("reachable") is False:
+            logger.warning(
+                "self_pred selfdesc arm=%s UNREACHABLE: achievable_cap=%.1f < min_eff_n=%s "
+                "(uneven split, permanent pooled fallback -- not a data-volume issue)",
+                last_label, _arm.get("achievable_cap", 0.0), _SELFDESC_MIN_EFF_N)
     # persist the learned parameter for inspection (monitor)
     try:
         ensure_params_schema(db_path)
@@ -780,16 +790,30 @@ def selfdesc_stationarity(dynamic_db: Optional[str] = None) -> dict:
 
     z_dd, z_ds = _z(f_dd, f_nd, s_dd, s_nd), _z(f_ds, f_ns, s_ds, s_ns)
     sig = lambda z: z is not None and abs(z) > 1.96
+    # Q8 point 6: per_state_cap = 1/(2(1-lambda)) assumes an EVEN state split; on an
+    # uneven split one arm silently falls below the threshold while overall eff_n looks
+    # healthy. Derive each arm's achievable decayed cap from its OBSERVED share, and
+    # flag reachability -- so inertness cannot recur in a form the even-split guard waves
+    # through. (Raw split is ~even today, so nothing is broken now; this is the guard.)
+    total_eff = 1.0 / (1.0 - _SELFDESC_DECAY)
+    nd_tot, ns_tot = f_nd + s_nd, f_ns + s_ns
+    tot = nd_tot + ns_tot or 1
+    cap_d = (nd_tot / tot) * total_eff
+    cap_s = (ns_tot / tot) * total_eff
     return {
         "raw_unweighted": True,   # halves are raw transition counts, not decay-weighted
         "prev_differ": {"first": [round(f_dd, 3) if f_dd is not None else None, f_nd],
                         "second": [round(s_dd, 3) if s_dd is not None else None, s_nd],
                         "z": round(z_dd, 2) if z_dd is not None else None,
-                        "significant": sig(z_dd)},
+                        "significant": sig(z_dd),
+                        "achievable_cap": round(cap_d, 1),
+                        "reachable": cap_d >= _SELFDESC_MIN_EFF_N},
         "prev_same": {"first": [round(f_ds, 3) if f_ds is not None else None, f_ns],
                       "second": [round(s_ds, 3) if s_ds is not None else None, s_ns],
                       "z": round(z_ds, 2) if z_ds is not None else None,
-                      "significant": sig(z_ds)},
+                      "significant": sig(z_ds),
+                      "achievable_cap": round(cap_s, 1),
+                      "reachable": cap_s >= _SELFDESC_MIN_EFF_N},
         "significant_drift": sig(z_dd) or sig(z_ds),
     }
 
