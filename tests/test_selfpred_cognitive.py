@@ -58,7 +58,12 @@ class TestSelfPredCognitive(unittest.TestCase):
         self.assertAlmostEqual(sc["minority_recall"], 0.5, places=6)
         # lift = precision / minority_base = 1.0 / 0.02 = 50x
         self.assertAlmostEqual(sc["minority_lift"], 50.0, places=4)
-        self.assertIsNotNone(sc["brier_skill"])
+        # recall/precision carry Wilson CIs (Q2)
+        self.assertEqual(len(sc["minority_recall_ci95"]), 2)
+        # Brier is held out; 100 rows < 2*min_test so it is withheld, not fabricated
+        self.assertIn("brier_skill_holdout", sc)
+        self.assertIsNone(sc["brier_skill_holdout"]["skill"])
+        self.assertIn("reason", sc["brier_skill_holdout"])
 
     def test_adapt_threshold_learns_from_curve(self):
         # readiness < 0.5 -> mostly nofire; >= 0.5 -> mostly fire. A balanced gate
@@ -76,6 +81,32 @@ class TestSelfPredCognitive(unittest.TestCase):
         self.assertLessEqual(upd["threshold"], 0.8)
         # and it persisted -> _current_threshold returns the learned value
         self.assertAlmostEqual(SP._current_threshold(self.db), upd["threshold"], places=6)
+
+    def test_fire_scorecard_unaffected_by_other_kinds(self):
+        # Q1 mixed-kind fixture: fire + both new kinds share the table. The fire
+        # scorecard count and the fire gate monitor must be unchanged by non-fire rows.
+        _seed(self.db, [("fire", 0.95, "fire")] * 20 + [("nofire", 0.1, "nofire")] * 2)
+        base = SP.scorecard_detailed(self.db)
+        thr_base = SP.adapt_threshold(self.db, operating_p=0.5)["threshold"]
+        # inject authored_30m + selfdesc_novel rows with count/len-valued "readiness"
+        conn = SP._connect(self.db)
+        now = time.time()
+        for kind, pred, sig, act in [("authored_30m", "yes", 7.0, "yes"),
+                                     ("authored_30m", "no", 0.0, "no"),
+                                     ("selfdesc_novel", "differ", 42.0, "differ")]:
+            conn.execute(
+                "INSERT INTO self_predictions (made_at, source, kind, predicted, readiness, "
+                "baseline_fires, resolve_at, resolved_at, actual, outcome) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (now, "self", kind, pred, sig, 0, now, now, act, "correct"),
+            )
+        conn.commit(); conn.close()
+        after = SP.scorecard_detailed(self.db)
+        thr_after = SP.adapt_threshold(self.db, operating_p=0.5)["threshold"]
+        self.assertEqual(after["resolved"], base["resolved"],
+                         "non-fire rows must not enter the fire scorecard")
+        self.assertEqual(thr_after, thr_base,
+                         "non-fire rows must not move the fire gate monitor")
 
     def test_current_threshold_falls_back_to_constant(self):
         # no params table yet -> static constant, never raises

@@ -98,6 +98,36 @@ class TestSelfdescTarget(unittest.TestCase):
         out = SP.make_selfdesc_prediction(self.conv, self.dyn)
         self.assertEqual(out.get("error"), "insufficient_history")
 
+    def test_adaptive_persists_when_persistent(self):
+        # every statement adds a NEW token -> every transition is 'differ' -> the
+        # persistence estimate is high -> predict 'differ' (persist the last label).
+        base = time.time() - 1000
+        # all tokens >=5 chars so each one is a genuine new distinctive token
+        words = "alpha gamma delta sigma omega theta kappa flora prism grove".split()
+        acc = []
+        for i, w in enumerate(words):
+            acc.append(w)
+            self._add("mind holds " + " ".join(acc), base + i)
+        pers = SP.selfdesc_persistence(self.dyn)
+        self.assertGreater(pers["persistence"], 0.5)
+        out = SP.make_selfdesc_prediction(self.conv, self.dyn)
+        self.assertEqual(out["self"], "differ")  # last label 'differ', p>0.5 -> persist
+
+    def test_adaptive_can_flip_when_antipersistent(self):
+        # labels alternate differ/same -> transitions never persist -> p < 0.5 ->
+        # predict the OPPOSITE of the last label (a fixed persistence baseline could not).
+        base = time.time() - 1000
+        seqs = ["aaaaa bbbbb", "aaaaa bbbbb ccccc", "aaaaa bbbbb ccccc",
+                "aaaaa bbbbb ccccc ddddd", "aaaaa bbbbb ccccc ddddd",
+                "aaaaa bbbbb ccccc ddddd eeeee", "aaaaa bbbbb ccccc ddddd eeeee"]
+        for i, s in enumerate(seqs):
+            self._add("i am " + s, base + i)
+        pers = SP.selfdesc_persistence(self.dyn)
+        self.assertLess(pers["persistence"], 0.5)
+        out = SP.make_selfdesc_prediction(self.conv, self.dyn)
+        # last statement repeated the previous -> last_label 'same'; p<0.5 -> flip to 'differ'
+        self.assertEqual(out["self"], "differ")
+
 
 if __name__ == "__main__":
     unittest.main()

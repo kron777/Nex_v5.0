@@ -140,13 +140,22 @@ def make_self_prediction(db_path: Optional[str] = None, horizon: int = HORIZON) 
     readiness = float(status.get("readiness_score", 0.0) or 0.0)
     baseline_fires = int(status.get("total_fires", 0) or 0)
 
-    # NEX's OWN call, from its OWN self-read -- against the LEARNED threshold
-    # (3c: the predictor's own error moves its own gate), falling back to the
-    # static constant until enough outcomes exist to calibrate.
-    threshold = _current_threshold(db_path)
-    self_pred = "fire" if readiness >= threshold else "nofire"
+    # NEX's OWN call, from its OWN self-read, at the STATIC threshold.
+    # Q3: the fire target has no variance (P(fire)=0.992), so a learned gate only
+    # tracks the lowest populated readiness bin and cannot move -- feeding it back
+    # would be a vacuous "update" (item 4's trap in new plumbing). The fire gate is
+    # NOT adapted; adapt_threshold runs as a LOGGED MONITOR only (see its docstring).
+    # The real predict->observe->error->UPDATE loop lives on selfdesc_novel.
+    self_pred = "fire" if readiness >= FIRE_THRESHOLD else "nofire"
     # The control: a coin flip, no self-knowledge at all.
     coin_pred = random.choice(["fire", "nofire"])
+
+    # Q1 write-time guard: the fire path OWNS the meaning of its generic columns.
+    # readiness must be a probability-like self-read, actual∈{fire,nofire}. A count-
+    # valued readiness (a new-kind signal) in a fire row must be impossible, not
+    # merely filtered out downstream.
+    if not (0.0 <= readiness <= 1.0):
+        return {"error": f"fire readiness out of [0,1]: {readiness}"}
 
     now = time.time()
     resolve_at = now + horizon
@@ -155,8 +164,8 @@ def make_self_prediction(db_path: Optional[str] = None, horizon: int = HORIZON) 
         for src, pred in (("self", self_pred), ("random", coin_pred)):
             conn.execute(
                 "INSERT INTO self_predictions "
-                "(made_at, source, predicted, readiness, baseline_fires, resolve_at) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
+                "(made_at, source, kind, predicted, readiness, baseline_fires, resolve_at) "
+                "VALUES (?, ?, 'fire', ?, ?, ?, ?)",
                 (now, src, pred, readiness, baseline_fires, resolve_at),
             )
         conn.commit()
@@ -216,7 +225,8 @@ def resolve_due(db_path: Optional[str] = None, now: Optional[float] = None) -> i
     try:
         due = conn.execute(
             "SELECT id, predicted, made_at, resolve_at FROM self_predictions "
-            "WHERE resolved_at IS NULL AND resolve_at <= ?",
+            "WHERE resolved_at IS NULL AND resolve_at <= ? "
+            "AND COALESCE(kind,'fire')='fire'",   # fire resolver: fire rows only
             (now,),
         ).fetchall()
         for row in due:
@@ -247,7 +257,7 @@ def scorecard(db_path: Optional[str] = None) -> dict:
             "COUNT(*) FILTER (WHERE outcome IS NOT NULL) AS resolved, "
             "COUNT(*) FILTER (WHERE outcome='correct') AS correct, "
             "COUNT(*) FILTER (WHERE outcome IS NULL) AS pending "
-            "FROM self_predictions GROUP BY source"
+            "FROM self_predictions WHERE COALESCE(kind,'fire')='fire' GROUP BY source"
         ).fetchall()
     finally:
         conn.close()
@@ -317,7 +327,8 @@ def calibration_curve(db_path: Optional[str] = None, n: int = 500,
     try:
         rows = conn.execute(
             "SELECT readiness, actual FROM self_predictions "
-            "WHERE source='self' AND readiness IS NOT NULL AND actual IS NOT NULL "
+            "WHERE source='self' AND COALESCE(kind,'fire')='fire' "
+            "AND readiness IS NOT NULL AND actual IS NOT NULL "
             "ORDER BY resolved_at DESC LIMIT ?",
             (n,),
         ).fetchall()
@@ -336,10 +347,13 @@ def calibration_curve(db_path: Optional[str] = None, n: int = 500,
 
 def adapt_threshold(db_path: Optional[str] = None, kind: str = "fire",
                     n: int = 500, operating_p: float = 0.5, bins: int = 10) -> Optional[dict]:
-    """3(c): set the gate from recent outcomes -- the lowest readiness bin whose
-    empirical P(fire) >= operating_p -- and persist it. operating_p encodes what
-    'nofire' means: lower it to favour recall (catch missed fires), raise it to
-    favour precision (trust a quiet window)."""
+    """MONITOR ONLY (Q3). Computes the would-be gate from recent outcomes -- the
+    lowest readiness bin whose empirical P(fire) >= operating_p -- and persists it for
+    inspection. It does NOT feed make_self_prediction: at P(fire)=0.992 the learned
+    threshold only tracks the lowest populated readiness bin and cannot move, so
+    wiring it to the gate would be a vacuous 'update' (item 4's trap). The real
+    predict->observe->error->UPDATE loop is on selfdesc_novel. Kept to log the
+    threshold the fire target WOULD learn, and to show it standing still."""
     db_path = db_path or _db_path()
     curve = calibration_curve(db_path, n=n, bins=bins)
     if not curve:
@@ -374,7 +388,7 @@ def scorecard_detailed(db_path: Optional[str] = None) -> dict:
     try:
         rows = conn.execute(
             "SELECT predicted, readiness, actual FROM self_predictions "
-            "WHERE source='self' AND actual IS NOT NULL"
+            "WHERE source='self' AND COALESCE(kind,'fire')='fire' AND actual IS NOT NULL"
         ).fetchall()
     finally:
         conn.close()
@@ -393,30 +407,81 @@ def scorecard_detailed(db_path: Optional[str] = None) -> dict:
     precision = (tp / len(pred_min)) if pred_min else None
     recall = (tp / actual_min) if actual_min else None
     lift = (precision / base_min) if (precision is not None and base_min > 0) else None
-    curve = calibration_curve(db_path, n=n, bins=10)
-    binmap = {int(round(b["readiness_lo"] * 10)): b["p_fire"] for b in curve}
 
-    def _pf(readiness):
-        if readiness is None:
-            return base_fire
-        return binmap.get(min(int(float(readiness) * 10), 9), base_fire)
+    # Q2: Brier skill is quoted ONLY out-of-sample. Fit calibration bins on the OLDER
+    # half, score the NEWER half (rows are in made_at/rowid order). A climatology
+    # forecast at a 0.992 base rate is hard to beat, so an in-sample number is mostly
+    # fit; a temporal holdout + bootstrap CI is the honest version. Returns None (with
+    # a reason) when there is too little held-out data to quote it.
+    def _round3(x):
+        return round(x, 3) if isinstance(x, float) else x
+    brier = _holdout_brier_skill(rows, bins=10)
 
-    brier_model = sum((_pf(r["readiness"]) - (1 if r["actual"] == "fire" else 0)) ** 2
-                      for r in rows) / n
-    brier_clim = sum((base_fire - (1 if r["actual"] == "fire" else 0)) ** 2
-                     for r in rows) / n
-    skill = (1 - brier_model / brier_clim) if brier_clim > 0 else None
+    rec_ci = _wilson(tp, actual_min) if actual_min else (None, None)
+    prec_ci = _wilson(tp, len(pred_min)) if pred_min else (None, None)
     return {
         "resolved": n,
-        "base_rate_fire": base_fire,
-        "accuracy": acc, "majority_floor": majority,
-        "accuracy_rel_lift_over_floor": (acc - majority) / majority if majority else None,
-        "minority_class": minority, "minority_base_rate": base_min,
-        "minority_precision": precision, "minority_recall": recall,
-        "minority_lift": lift,
-        "brier_model": brier_model, "brier_climatology": brier_clim,
-        "brier_skill": skill,
+        "base_rate_fire": round(base_fire, 4),
+        "accuracy": round(acc, 4), "majority_floor": round(majority, 4),
+        "accuracy_rel_lift_over_floor": round((acc - majority) / majority, 4) if majority else None,
+        "minority_class": minority, "minority_base_rate": round(base_min, 4),
+        "minority_precision": _round3(precision),
+        "minority_precision_ci95": [_round3(prec_ci[0]), _round3(prec_ci[1])],
+        "minority_recall": _round3(recall),
+        "minority_recall_ci95": [_round3(rec_ci[0]), _round3(rec_ci[1])],
+        "minority_events": actual_min,
+        "minority_lift": round(lift, 2) if lift else None,
+        "brier_skill_holdout": brier,   # {skill, ci95, n_test} or {skill: None, reason}
     }
+
+
+def _holdout_brier_skill(rows, bins: int = 10, min_test: int = 200, boots: int = 300):
+    """Temporal-holdout Brier skill with a bootstrap 95% CI. rows in time order;
+    fit empirical P(fire) bins on the older half, score the newer half vs a
+    climatology forecast (the older half's base rate). Monotone-safe: a bin unseen
+    in the fit half falls back to the fit base rate rather than overfitting."""
+    import random as _r
+    n = len(rows)
+    if n < 2 * min_test:
+        return {"skill": None, "reason": f"need >= {2*min_test} resolved, have {n}"}
+    cut = n // 2
+    fit, test = rows[:cut], rows[cut:]
+    base = sum(1 for x in fit if x["actual"] == "fire") / len(fit)
+    buckets = {}
+    for x in fit:
+        rd = x["readiness"]
+        if rd is None:
+            continue
+        k = min(int(float(rd) * bins), bins - 1)
+        b = buckets.setdefault(k, [0, 0])
+        b[0] += 1 if x["actual"] == "fire" else 0
+        b[1] += 1
+    binp = {k: (f / t) for k, (f, t) in buckets.items() if t >= 10}
+
+    def pf(rd):
+        if rd is None:
+            return base
+        return binp.get(min(int(float(rd) * bins), bins - 1), base)
+
+    def skill_of(sample):
+        y = [1 if x["actual"] == "fire" else 0 for x in sample]
+        bm = sum((pf(x["readiness"]) - yi) ** 2 for x, yi in zip(sample, y)) / len(sample)
+        bc = sum((base - yi) ** 2 for yi in y) / len(sample)
+        return (1 - bm / bc) if bc > 0 else None
+
+    point = skill_of(test)
+    # bootstrap CI over the test set
+    skills = []
+    for _ in range(boots):
+        samp = [test[_r.randrange(len(test))] for _ in range(len(test))]
+        s = skill_of(samp)
+        if s is not None:
+            skills.append(s)
+    skills.sort()
+    ci = ([round(skills[int(0.025 * len(skills))], 3),
+           round(skills[int(0.975 * len(skills))], 3)] if skills else [None, None])
+    return {"skill": round(point, 3) if point is not None else None,
+            "ci95": ci, "n_test": len(test)}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -560,14 +625,64 @@ def make_selfdesc_prediction(db_path: Optional[str] = None,
         return {"error": "insufficient_history"}
     prev, cur = _distinctive_tokens(st[-2][0]), _distinctive_tokens(st[-1][0])
     last_was_novel = bool(cur - prev)
-    self_pred = "differ" if last_was_novel else "same"
+    last_label = "differ" if last_was_novel else "same"
+    # 3(c) THE UPDATE, on the learnable target (C' confirmed conditional structure).
+    # A recency-decayed Beta-Bernoulli over persistence p = P(next label == prev
+    # label). Predict the majority posterior: persist if p>=0.5, else flip. The
+    # parameter is re-estimated from observed transitions each prediction, so the
+    # predictor's own error moves its own call -- and it can LEARN TO ANTI-PERSIST if
+    # the world flips, which a fixed persistence baseline never could.
+    pers = selfdesc_persistence(dynamic_db)
+    p = pers.get("persistence", 0.5)
+    opposite = "same" if last_label == "differ" else "differ"
+    self_pred = last_label if p >= 0.5 else opposite
     coin = random.choice(["differ", "same"])
+    # persist the learned parameter for inspection (monitor)
+    try:
+        ensure_params_schema(db_path)
+        _c = _connect(db_path)
+        try:
+            _c.execute(
+                "INSERT INTO self_pred_params (kind, threshold, updated_at, n, operating_p) "
+                "VALUES ('selfdesc_novel', ?, ?, ?, 0.5) ON CONFLICT(kind) DO UPDATE SET "
+                "threshold=excluded.threshold, updated_at=excluded.updated_at, n=excluded.n",
+                (p, time.time(), pers.get("n", 0)),
+            )
+            _c.commit()
+        finally:
+            _c.close()
+    except Exception:
+        pass
     # resolves when the next statement appears; horizon is advisory only.
     _insert_pred(db_path, "selfdesc_novel",
                  [("self", self_pred), ("random", coin)],
                  time.time() + 86400, signal=float(len(cur)))
     return {"kind": "selfdesc_novel", "self": self_pred, "coin": coin,
-            "last_was_novel": last_was_novel}
+            "last_was_novel": last_was_novel, "persistence": round(p, 4)}
+
+
+def selfdesc_persistence(dynamic_db: Optional[str] = None, decay: float = 0.98,
+                         prior: float = 1.0) -> dict:
+    """Recency-decayed Beta-Bernoulli estimate of persistence p = P(next transition
+    label == previous one), from identity_log. Newer transitions weigh more (decay
+    per step back). This is the one learned parameter of the selfdesc_novel update."""
+    dynamic_db = dynamic_db or DYNAMIC_DB
+    try:
+        st = _identity_statements(dynamic_db)
+    except Exception:
+        return {"persistence": 0.5, "n": 0, "error": "unreadable"}
+    toks = [_distinctive_tokens(s["statement"]) for s in st]
+    labels = [bool(toks[i] - toks[i - 1]) for i in range(1, len(toks))]
+    persist_obs = [labels[i] == labels[i - 1] for i in range(1, len(labels))]
+    a = b = prior
+    w = 1.0
+    for persisted in reversed(persist_obs):   # newest first, decay going back
+        if persisted:
+            a += w
+        else:
+            b += w
+        w *= decay
+    return {"persistence": a / (a + b), "alpha": a, "beta": b, "n": len(persist_obs)}
 
 
 def resolve_selfdesc(db_path: Optional[str] = None,
@@ -605,6 +720,55 @@ def resolve_selfdesc(db_path: Optional[str] = None,
     finally:
         conn.close()
     return resolved
+
+
+def _wilson(k: int, n: int, z: float = 1.96):
+    """95% Wilson score interval for a proportion k/n."""
+    if n == 0:
+        return (None, None)
+    import math
+    p = k / n
+    d = 1 + z * z / n
+    centre = p + z * z / (2 * n)
+    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))
+    return ((centre - half) / d, (centre + half) / d)
+
+
+def selfdesc_structure(dynamic_db: Optional[str] = None) -> dict:
+    """Rule C' for selfdesc_novel: variance is necessary but not sufficient. Does the
+    NEXT transition's label depend on the PREVIOUS one? Compare P(differ|prev differ)
+    vs P(differ|prev same) with a 95% CI on the difference (normal approx). If the
+    interval straddles 0 the process is ~i.i.d. -- maximum variance, zero conditional
+    structure -- and an adaptive persistence learner would fit noise, not grip."""
+    import math
+    dynamic_db = dynamic_db or DYNAMIC_DB
+    st = _identity_statements(dynamic_db)
+    toks = [_distinctive_tokens(s["statement"]) for s in st]
+    labels = [bool(toks[i] - toks[i - 1]) for i in range(1, len(toks))]  # True=differ
+    # condition transition i+1 on transition i
+    nd = ns = 0          # denom: prev=differ / prev=same
+    kd = ks = 0          # numer: next=differ given prev
+    for i in range(1, len(labels)):
+        prev, nxt = labels[i - 1], labels[i]
+        if prev:
+            nd += 1; kd += 1 if nxt else 0
+        else:
+            ns += 1; ks += 1 if nxt else 0
+    if nd == 0 or ns == 0:
+        return {"error": "insufficient_transitions", "n_transitions": len(labels)}
+    p_dd = kd / nd       # P(differ | prev differ)
+    p_sd = ks / ns       # P(differ | prev same)
+    diff = p_dd - p_sd
+    se = math.sqrt(p_dd * (1 - p_dd) / nd + p_sd * (1 - p_sd) / ns)
+    lo, hi = diff - 1.96 * se, diff + 1.96 * se
+    has_structure = not (lo <= 0 <= hi)
+    return {
+        "n_transitions": len(labels),
+        "p_differ_given_prev_differ": round(p_dd, 4), "n_prev_differ": nd,
+        "p_differ_given_prev_same": round(p_sd, 4), "n_prev_same": ns,
+        "difference": round(diff, 4), "ci95": [round(lo, 4), round(hi, 4)],
+        "has_conditional_structure": has_structure,
+    }
 
 
 def scorecard_by_kind(db_path: Optional[str] = None) -> dict:
@@ -667,14 +831,15 @@ class SelfPredictionLoop:
                 logger.info("self_pred resolved=%d", r)
         except Exception as e:
             logger.warning("self_pred resolve error: %s", e)
-        # 3(c): close the loop — recalibrate the gate from the outcomes just resolved.
+        # fire gate MONITOR (Q3): log the threshold the fire target would learn, to
+        # show it standing still at P(fire)=0.992. Does NOT set the live gate.
         try:
             upd = adapt_threshold(operating_p=self.operating_p)
             if upd:
-                logger.info("self_pred threshold -> %.2f (op=%.2f, n=%d)",
+                logger.info("self_pred fire-gate MONITOR -> %.2f (op=%.2f, n=%d; not wired)",
                             upd["threshold"], upd["operating_p"], upd["n"])
         except Exception as e:
-            logger.warning("self_pred adapt error: %s", e)
+            logger.warning("self_pred monitor error: %s", e)
         try:
             out = make_self_prediction(horizon=self.horizon)
             if "error" not in out:
@@ -723,10 +888,15 @@ if __name__ == "__main__":
                     help="recalibrate the gate from recent outcomes (3c update)")
     ap.add_argument("--by-kind", action="store_true",
                     help="base-rate-aware scorecard per target kind (3b)")
+    ap.add_argument("--structure", action="store_true",
+                    help="rule C' conditional-structure test for selfdesc_novel")
     ap.add_argument("--loop", type=int, metavar="SECONDS", help="run standalone loop")
     args = ap.parse_args()
 
-    if args.by_kind:
+    if args.structure:
+        import json as _j
+        print(_j.dumps(selfdesc_structure(), indent=2))
+    elif args.by_kind:
         import json as _j
         print(_j.dumps(scorecard_by_kind(), indent=2))
     elif args.honest:
