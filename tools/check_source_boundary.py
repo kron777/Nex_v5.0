@@ -30,7 +30,7 @@ AUTHORED = {"fountain_insight", "synergized", "counterfactual_node", "remember_l
 RECEIVED_SENSE = "precipitated_from_sense"
 
 
-def run(db: str) -> int:
+def run(db: str, max_b: int = 17) -> int:
     cx = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     by: dict[str, list] = defaultdict(list)
     for content, source, created in cx.execute(
@@ -60,13 +60,23 @@ def run(db: str) -> int:
     for s, n in r_to_a.most_common():
         print(f"       {n:4d}  into {s}")
     fail_a = len(a_to_r)
+    b_total = sum(r_to_a.values())
     print()
     print("VERDICT A (self/world boundary):",
           "CLEAN" if fail_a == 0 else f"FAILURE x{fail_a}")
-    return 0 if fail_a == 0 else 1
+    # Ratchet gate (Q4): A=0 is the claim that must never regress silently; B is a
+    # countdown that ratchets down as the source_kind class fix lands. Run this
+    # wherever the live DB lives (scheduled check), not unit CI, which has no DB.
+    fail = (fail_a > 0) or (b_total > max_b)
+    if fail:
+        print(f"RATCHET FAIL: A={fail_a} (must be 0), B={b_total} (must be <= {max_b})")
+    return 1 if fail else 0
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", default="data/beliefs.db")
-    raise SystemExit(run(ap.parse_args().db))
+    ap.add_argument("--max-b", type=int, default=17,
+                    help="ratchet ceiling for Direction B (lower it as it is fixed)")
+    args = ap.parse_args()
+    raise SystemExit(run(args.db, max_b=args.max_b))
