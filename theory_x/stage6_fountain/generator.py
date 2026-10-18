@@ -3482,9 +3482,43 @@ class FountainGenerator:
             _id_cx.close()
             if _id_row:
                 _id_mins = int((now - _id_row[1]) / 60)
-                prompt_parts.append(f"This is who you said you are ({_id_mins} min ago):")
-                prompt_parts.append(f"  {_id_row[0]}")
-                prompt_parts.append("")
+                # self-as-cause experiment gate (step 1). File-based condition (no
+                # restart -> can interleave within one store epoch); 'normal' is
+                # byte-identical to the original 3-append block (idempotent); 'drop'
+                # replaces it with length-matched filler, 'swap' with a length-matched
+                # non-identity belief. Identity is NOT exempt -- it is under test.
+                _iab_mode = "normal"
+                try:
+                    from theory_x.stage_tom import identity_ablation as _iab
+                    _iab_mode = _iab.current_condition()
+                except Exception:
+                    _iab_mode = "normal"
+                if _iab_mode == "normal":
+                    prompt_parts.append(f"This is who you said you are ({_id_mins} min ago):")
+                    prompt_parts.append(f"  {_id_row[0]}")
+                    prompt_parts.append("")
+                else:
+                    _normal_block = (f"This is who you said you are ({_id_mins} min ago):\n"
+                                     f"  {_id_row[0]}\n")
+                    _sub = None
+                    if _iab_mode == "swap" and self._beliefs_reader is not None:
+                        try:
+                            _sr = self._beliefs_reader.read(
+                                "SELECT content FROM beliefs WHERE source IN "
+                                "('fountain_insight','synergized') AND content IS NOT NULL "
+                                "ORDER BY RANDOM() LIMIT 1")
+                            _sub = _sr[0]["content"] if _sr else None
+                        except Exception:
+                            _sub = None
+                    try:
+                        prompt_parts.append(
+                            _iab.apply_to_identity_block(_normal_block, substitute=_sub,
+                                                         mode=_iab_mode))
+                        prompt_parts.append("")
+                    except Exception:   # fail-safe -> the real block
+                        prompt_parts.append(f"This is who you said you are ({_id_mins} min ago):")
+                        prompt_parts.append(f"  {_id_row[0]}")
+                        prompt_parts.append("")
         except Exception:
             pass
 
