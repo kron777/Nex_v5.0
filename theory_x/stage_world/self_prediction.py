@@ -695,19 +695,22 @@ def make_selfdesc_prediction(db_path: Optional[str] = None,
     eff = cond["eff_n_differ"] if last_label == "differ" else cond["eff_n_same"]
     p_cond = (cond["p_differ_given_differ"] if last_label == "differ"
               else cond["p_differ_given_same"])
-    stat = selfdesc_stationarity(dynamic_db)
-    # Use the per-state conditional ONLY when it has enough effective N AND the target
-    # is stationary; otherwise the pooled marginal (Q8: a drifting target makes the
-    # per-state estimate falsely precise -- see selfdesc_stationarity).
-    if p_cond is not None and eff >= _SELFDESC_MIN_EFF_N and stat.get("stationary"):
+    # Branch on EFFECTIVE N ONLY (Q8 final): the coupled threshold (0.6*per_state_cap)
+    # already makes the conditional path reachable, so the gate's whole job is done by
+    # eff_n. Stationarity is NOT a branch condition -- a runtime switch driven by an
+    # underpowered two-sample test is a coin flip that makes the emitted probability
+    # history-order-dependent noise and re-creates the inertness it was meant to avoid
+    # (the retired +/-2% gate's shape). It is computed and LOGGED as a diagnostic only.
+    if p_cond is not None and eff >= _SELFDESC_MIN_EFF_N:
         p_differ, branch = p_cond, "conditional"
     else:
-        p_differ = cond["p_differ_pooled"]
-        branch = ("pooled_nonstationary" if not stat.get("stationary")
-                  else "pooled_low_eff_n")
+        p_differ, branch = cond["p_differ_pooled"], "pooled_low_eff_n"
     self_pred = "differ" if p_differ >= 0.5 else "same"   # argmax
     p = p_differ                                 # emitted probability (for Brier)
     coin = random.choice(["differ", "same"])
+    stat = selfdesc_stationarity(dynamic_db)     # diagnostic only, never branched on
+    logger.info("self_pred selfdesc branch=%s eff_n=%.1f stationarity=%s",
+                branch, eff, stat)
     # persist the learned parameter for inspection (monitor)
     try:
         ensure_params_schema(db_path)
@@ -731,21 +734,25 @@ def make_selfdesc_prediction(db_path: Optional[str] = None,
     return {"kind": "selfdesc_novel", "self": self_pred, "coin": coin,
             "last_was_novel": last_was_novel, "p_differ": round(p, 4),
             "branch": branch, "eff_n": round(eff, 1),
-            "min_eff_n": _SELFDESC_MIN_EFF_N, "stationary": stat.get("stationary")}
+            "min_eff_n": _SELFDESC_MIN_EFF_N}
 
 
 def selfdesc_stationarity(dynamic_db: Optional[str] = None) -> dict:
-    """Q8: is the conditional target stationary enough for per-state resolution? Split
-    the transition history in half and compare the two conditional rates. DRIFT =
-    either rate crosses the 0.5 decision boundary between halves (so the per-state
-    LABEL would flip regime). Live: P(differ|prev same) 0.561 -> 0.371 crosses 0.5 =>
-    non-stationary, so the predictor falls back to pooled rather than a long-window
-    per-state estimate that averages over the shift."""
+    """DIAGNOSTIC ONLY -- never a branch condition (Q8 final). Split the RAW (unweighted)
+    transition history in half and compare each conditional rate across halves with its
+    per-cell n and a two-proportion z-test. Reported and logged so drift can be WATCHED
+    as transitions accrue; it does NOT switch the live estimator. Two reasons: (1) an
+    underpowered two-sample test wired into a decision path is a coin flip (the retired
+    +/-2% gate's shape); (2) a rate merely sitting NEAR 0.5 flips its label on a few
+    observations and that is not drift -- only |z|>1.96 is called significant. If drift
+    ever becomes real at higher n, the fix is a shorter decay or state-in-the-model, not
+    a per-tick estimator switch."""
+    import math
     dynamic_db = dynamic_db or DYNAMIC_DB
     try:
         st = _identity_statements(dynamic_db)
     except Exception:
-        return {"stationary": False, "reason": "unreadable"}
+        return {"reason": "unreadable", "raw_unweighted": True}
     toks = [_distinctive_tokens(s["statement"]) for s in st]
     labels = [bool(toks[i] - toks[i - 1]) for i in range(1, len(toks))]
 
@@ -760,16 +767,31 @@ def selfdesc_stationarity(dynamic_db: Optional[str] = None) -> dict:
         return (kd / nd if nd else None, ks / ns if ns else None, nd, ns)
 
     if len(labels) < 40:
-        return {"stationary": False, "reason": f"only {len(labels)} transitions"}
+        return {"reason": f"only {len(labels)} transitions", "raw_unweighted": True}
     h = len(labels) // 2
-    f_dd, f_ds, _, _ = rates(labels[:h])
-    s_dd, s_ds, _, _ = rates(labels[h:])
-    def _crosses(a, b):
-        return a is not None and b is not None and (a - 0.5) * (b - 0.5) < 0
-    drift = _crosses(f_dd, s_dd) or _crosses(f_ds, s_ds)
-    return {"stationary": not drift,
-            "first": [round(f_dd, 3) if f_dd else None, round(f_ds, 3) if f_ds else None],
-            "second": [round(s_dd, 3) if s_dd else None, round(s_ds, 3) if s_ds else None]}
+    f_dd, f_ds, f_nd, f_ns = rates(labels[:h])
+    s_dd, s_ds, s_nd, s_ns = rates(labels[h:])
+
+    def _z(p1, n1, p2, n2):
+        if None in (p1, p2) or not n1 or not n2:
+            return None
+        se = math.sqrt(p1 * (1 - p1) / n1 + p2 * (1 - p2) / n2)
+        return ((p1 - p2) / se) if se > 0 else None
+
+    z_dd, z_ds = _z(f_dd, f_nd, s_dd, s_nd), _z(f_ds, f_ns, s_ds, s_ns)
+    sig = lambda z: z is not None and abs(z) > 1.96
+    return {
+        "raw_unweighted": True,   # halves are raw transition counts, not decay-weighted
+        "prev_differ": {"first": [round(f_dd, 3) if f_dd is not None else None, f_nd],
+                        "second": [round(s_dd, 3) if s_dd is not None else None, s_nd],
+                        "z": round(z_dd, 2) if z_dd is not None else None,
+                        "significant": sig(z_dd)},
+        "prev_same": {"first": [round(f_ds, 3) if f_ds is not None else None, f_ns],
+                      "second": [round(s_ds, 3) if s_ds is not None else None, s_ns],
+                      "z": round(z_ds, 2) if z_ds is not None else None,
+                      "significant": sig(z_ds)},
+        "significant_drift": sig(z_dd) or sig(z_ds),
+    }
 
 
 def selfdesc_conditional(dynamic_db: Optional[str] = None, decay: float = _SELFDESC_DECAY) -> dict:

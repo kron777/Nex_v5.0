@@ -115,13 +115,13 @@ class TestSelfdescTarget(unittest.TestCase):
         out = SP.make_selfdesc_prediction(self.conv, self.dyn)
         self.assertEqual(out["self"], "differ")  # last label 'differ', p>0.5 -> persist
 
-    def test_conditional_branch_engages_on_stationary_history(self):
+    def test_conditional_branch_engages_on_effective_n(self):
         # Q8 addition #3: assert the BRANCH, not just the output -- correct output from
-        # the wrong (pooled) branch is how the no-op shipped. Build a long STATIONARY
-        # strict-alternation history (>=40 transitions, rates constant) so the
-        # conditional path is reachable and stationarity passes.
-        base = time.time() - 10000
-        words = [chr(97 + i) * 5 for i in range(25)]   # aaaaa, bbbbb, ... (all >=5 chars)
+        # the wrong (pooled) branch is how the no-op shipped. Production-realistic
+        # history, NO threshold patch: enough transitions that eff_n per state clears
+        # the coupled threshold, so the conditional path is taken on its own.
+        base = time.time() - 50000
+        words = [chr(97 + i % 26) * 4 + chr(97 + i // 26) for i in range(40)]  # 40 distinct >=5-char
         acc = [words[0]]
         self._add("base " + " ".join(acc), base)
         t = 1
@@ -129,21 +129,36 @@ class TestSelfdescTarget(unittest.TestCase):
             acc.append(w)
             self._add("base " + " ".join(acc), base + t); t += 1   # differ (+w)
             self._add("base " + " ".join(acc), base + t); t += 1   # same (repeat)
-        cond = SP.selfdesc_conditional(self.dyn)
-        self.assertLess(cond["p_differ_given_differ"], 0.5)    # after differ -> same
-        self.assertGreater(cond["p_differ_given_same"], 0.5)   # after same -> differ
-        self.assertTrue(SP.selfdesc_stationarity(self.dyn)["stationary"])
-        with mock.patch.object(SP, "_SELFDESC_MIN_EFF_N", 1):
-            out = SP.make_selfdesc_prediction(self.conv, self.dyn)
-        self.assertEqual(out["branch"], "conditional")   # THE PATH, not just the label
+        out = SP.make_selfdesc_prediction(self.conv, self.dyn)
+        self.assertEqual(out["branch"], "conditional")            # THE PATH
+        self.assertGreaterEqual(out["eff_n"], SP._SELFDESC_MIN_EFF_N)
 
-    def test_nonstationary_falls_back_to_pooled(self):
-        # too little / drifting history -> conditional path NOT taken, pooled instead.
+    def test_low_eff_n_falls_back_to_pooled(self):
+        # too little history -> eff_n below the coupled threshold -> pooled fallback.
+        # Branch depends on eff_n ONLY, never on stationarity (Q8 final).
         base = time.time() - 1000
         for i in range(6):
             self._add("i am " + "x" * (5 + i), base + i)   # few transitions
         out = SP.make_selfdesc_prediction(self.conv, self.dyn)
-        self.assertIn(out["branch"], ("pooled_nonstationary", "pooled_low_eff_n"))
+        self.assertEqual(out["branch"], "pooled_low_eff_n")
+
+    def test_stationarity_is_diagnostic_only(self):
+        # selfdesc_stationarity reports per-cell n + z-tests and is RAW-unweighted;
+        # it must never gate the branch (that is the retired-+/-2%-gate failure mode).
+        base = time.time() - 50000
+        words = [chr(97 + i % 26) * 4 + chr(97 + i // 26) for i in range(40)]
+        acc = [words[0]]; self._add("base " + " ".join(acc), base); t = 1
+        for w in words[1:]:
+            acc.append(w)
+            self._add("base " + " ".join(acc), base + t); t += 1
+            self._add("base " + " ".join(acc), base + t); t += 1
+        diag = SP.selfdesc_stationarity(self.dyn)
+        self.assertTrue(diag["raw_unweighted"])
+        self.assertIn("significant", diag["prev_same"])
+        self.assertEqual(len(diag["prev_same"]["first"]), 2)   # [rate, n] per cell per half
+        # make() does not return a 'stationary' decision field -- not branched on
+        out = SP.make_selfdesc_prediction(self.conv, self.dyn)
+        self.assertNotIn("stationary", out)
 
 
 if __name__ == "__main__":
