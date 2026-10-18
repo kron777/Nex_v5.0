@@ -545,6 +545,9 @@ def _holdout_brier_skill(rows, bins: int = 10, boots: int = 300):
 _SELFDESC_DECAY = 0.98
 _SELFDESC_PER_STATE_CAP = 1.0 / (2.0 * (1.0 - _SELFDESC_DECAY))
 _SELFDESC_MIN_EFF_N = round(0.6 * _SELFDESC_PER_STATE_CAP)
+# De-dup for the unreachable-arm warning so it fires once per distinct fact, never
+# per tick (a per-tick WARNING would inflate the soak line-rate health metric).
+_selfdesc_unreachable_warned: set = set()
 
 # Startup sanity guard: an unreachable conditional path is a loud config error, not a
 # silent permanent fallback.
@@ -711,16 +714,22 @@ def make_selfdesc_prediction(db_path: Optional[str] = None,
     stat = selfdesc_stationarity(dynamic_db)     # diagnostic only, never branched on
     logger.info("self_pred selfdesc branch=%s eff_n=%.1f stationarity=%s",
                 branch, eff, stat)
-    # Q8 point 6: if we fell back AND this arm is structurally unreachable (its observed
-    # share caps its achievable eff_n below the threshold), say so loudly -- that is a
-    # permanent no-op from an uneven split, not a transient "not enough data yet".
+    # Q8 point 6: if we fell back AND this arm is unreachable AT THE CURRENT SPLIT (its
+    # observed share caps achievable eff_n below the threshold), flag it -- a structural
+    # no-op from an uneven split, not a transient "not enough data yet". It recovers on
+    # its own if the split rebalances. De-duped (Beam's fix): warn ONCE per distinct
+    # fact so this can't become a per-tick emitter inflating the soak line-rate.
     if branch == "pooled_low_eff_n" and isinstance(stat, dict):
         _arm = stat.get("prev_differ" if last_label == "differ" else "prev_same", {})
         if _arm.get("reachable") is False:
-            logger.warning(
-                "self_pred selfdesc arm=%s UNREACHABLE: achievable_cap=%.1f < min_eff_n=%s "
-                "(uneven split, permanent pooled fallback -- not a data-volume issue)",
-                last_label, _arm.get("achievable_cap", 0.0), _SELFDESC_MIN_EFF_N)
+            _key = (last_label, round(_arm.get("achievable_cap", 0.0), 1), _SELFDESC_MIN_EFF_N)
+            if _key not in _selfdesc_unreachable_warned:
+                _selfdesc_unreachable_warned.add(_key)
+                logger.warning(
+                    "self_pred selfdesc arm=%s unreachable at current split: "
+                    "achievable_cap=%.1f < min_eff_n=%s (structural pooled fallback, "
+                    "recovers if the split rebalances) -- logged once per fact",
+                    last_label, _arm.get("achievable_cap", 0.0), _SELFDESC_MIN_EFF_N)
     # persist the learned parameter for inspection (monitor)
     try:
         ensure_params_schema(db_path)
