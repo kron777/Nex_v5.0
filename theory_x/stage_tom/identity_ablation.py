@@ -1,44 +1,48 @@
 """Identity-block ablation for the self-as-cause experiment (sentience round, step 1).
 
-The identity anchor (generator.py) reads the most recent self-description into the
-fountain prompt. Does that block do causal work, or is it decoration? This gates the
-block so the experiment can run with selfdesc_novel Brier as the outcome.
+THE CONFOUND THIS AVOIDS (Beam SEV-1): the identity block CONTAINS the previous
+self-description, and the outcome (selfdesc_novel) asks whether the NEXT self-
+description's distinctive token differs from THAT SAME TEXT. So removing the block
+removes the information that determines the outcome -- the removal arm cannot fail, and
+a CI excluding zero would mean nothing. The experiment must hold the tokens constant
+and vary ONLY the identity CLAIM:
 
-Three design constraints, each from a real failure mode:
+    A  normal   "This is who you said you are (N min ago):" + <prev selfdesc>
+                info present, framing = IDENTITY
+    B  reframe  "Earlier output, for context:"              + <prev selfdesc>
+                info IDENTICAL (same tokens, length-matched), framing = NONE
+    C  filler   length-matched neutral filler
+                info absent, framing absent -- DESCRIPTIVE ONLY, confounded by the
+                metric's own definition; interpret nothing, pre-registered as such.
 
-  FILE-BASED, not an env var. Switching condition off the process environment needs a
-  RESTART, and a restart is a treatment -- it writes a self_downtime belief, bumps
-  boot_count, and reloads the static tier-6 pool. The arms would then differ by
-  (block) AND (restart history). The condition is read from a FILE, re-read per call
-  with an mtime check (one stat per fire), so conditions change with NO restart and the
-  experiment can interleave (24h on / 24h off) within one store epoch rather than run
-  sequentially across the measured drift.
+A vs B is THE experiment (isolates the claim). A vs C removes information and is
+reported descriptive-only. The old drop/swap modes were both confounded (each removed
+the previous self-description) and are gone.
 
-  DROP = FILLER, not empty. Removing content can change the output for length reasons
-  alone, and the swap arm needs length control anyway. Drop replaces the identity block
-  with neutral, non-self-referential filler of matched length; swap replaces it with a
-  length-matched NON-identity substitute. Build both; the run enables DROP first (a null
-  there makes the swap unnecessary).
+Design constraints (each a real failure mode):
+  FILE-BASED condition (mtime-cached, one stat/call) -- NOT an env var, because an env
+  switch needs a restart and a restart is a treatment (self_downtime + boot_count +
+  static tier-6 reload). The file lets conditions INTERLEAVE within one store epoch.
+  LENGTH-MATCHED: reframe and filler are padded to the normal block's length so only
+  the framing varies, never length/position.
+  IDEMPOTENT: 'normal' is byte-identical to the original block.
+Fail-safe is the CALLER's job for this experiment: on any error the caller must emit
+arm A (control) and log, never silently drop to treatment.
 
-  IDEMPOTENT. No file / mode 'normal' -> the block is byte-identical to the original.
-
-Fail-safe throughout: any error returns the real identity block (never alters a fire
-on an experiment's account). The identity block is NOT exempt -- it is the thing under
-test.
-
-Condition file (JSON): {"mode": "normal"|"drop"|"swap"}. Default normal.
+Condition file (JSON): {"mode": "normal"|"reframe"|"filler"}. Default normal.
 """
 from __future__ import annotations
 
 import json
 import os
-import time
-from typing import Optional
-
 import logging
+from typing import Optional
 
 logger = logging.getLogger("nex5.identity_ablation")
 
+_MODES = ("normal", "reframe", "filler")
+_NORMAL_HEADER = "This is who you said you are ({m} min ago):"
+_REFRAME_HEADER = "Earlier output, for context:"
 _FILLER_UNIT = "The hour is unremarkable and the room holds its usual quiet. "
 _cache: dict = {"mtime": None, "mode": "normal", "logged": None}
 
@@ -52,8 +56,9 @@ def _condition_path() -> str:
 
 
 def current_condition() -> str:
-    """Read the active mode from the file, re-reading only when its mtime changes
-    (one stat per call). Returns 'normal' | 'drop' | 'swap'. Fail-safe -> 'normal'."""
+    """Active mode from the file, re-read only when its mtime changes. Fail-safe ->
+    'normal'. Logged once per distinct condition (never per call -- a per-call emitter
+    would inflate the soak line-rate)."""
     path = _condition_path()
     try:
         mtime = os.path.getmtime(path)
@@ -64,46 +69,86 @@ def current_condition() -> str:
             mode = str(json.loads(open(path, encoding="utf-8").read()).get("mode", "normal"))
         except Exception:
             mode = "normal"
-        if mode not in ("normal", "drop", "swap"):
+        if mode not in _MODES:
             mode = "normal"
         _cache["mtime"] = mtime
         _cache["mode"] = mode
-        if _cache["logged"] != mode:   # once per distinct condition, never per call
+        if _cache["logged"] != mode:
             _cache["logged"] = mode
-            logger.warning("identity ablation condition -> %s (experiment; self-labels "
-                           "outcome rows via current_condition())", mode)
+            logger.warning("identity ablation condition -> %s (experiment; arm is stamped "
+                           "on each identity_log row)", mode)
     return _cache["mode"]
 
 
 def _filler(n_chars: int) -> str:
     if n_chars <= 0:
         return ""
-    reps = (n_chars // len(_FILLER_UNIT)) + 1
-    return (_FILLER_UNIT * reps)[:n_chars]
+    return (_FILLER_UNIT * ((n_chars // len(_FILLER_UNIT)) + 1))[:n_chars]
 
 
-def apply_to_identity_block(identity_text: str,
-                            substitute: Optional[str] = None,
-                            mode: Optional[str] = None) -> str:
-    """Return the text to emit for the identity block under the active condition.
+def _normal_block(statement: str, minutes_ago: int) -> str:
+    # No trailing newline: the caller appends this as one prompt_part plus a "" part,
+    # and prompt_parts is joined with "\n" -- so [block, ""] reproduces the original
+    # 3-append "header\n  statement\n" exactly (byte-identical in normal mode).
+    return _NORMAL_HEADER.format(m=minutes_ago) + "\n  " + statement
 
-    normal -> identity_text unchanged (idempotent).
-    drop   -> neutral filler of the same length (content removed, length held).
-    swap   -> `substitute` (a non-identity belief) fit to the same length; falls back to
-              filler if no substitute supplied.
+
+def block_for(statement: str, minutes_ago: int, mode: Optional[str] = None) -> str:
+    """The identity-block text under the active (or given) condition, WITHOUT a trailing
+    newline (the caller adds the "" part).
+
+    normal  -> byte-identical original block.
+    reframe -> same statement, neutral header, length-matched to the normal block.
+    filler  -> neutral filler of the normal block's length (no statement, no header).
     """
+    mode = mode or current_condition()
+    normal = _normal_block(statement, minutes_ago)
+    if mode == "normal" or not statement:
+        return normal
+    if mode == "reframe":
+        rf = _REFRAME_HEADER + "\n  " + statement
+        if len(rf) < len(normal):
+            return rf + _filler(len(normal) - len(rf))
+        return rf[:len(normal)]
+    if mode == "filler":
+        return _filler(len(normal))
+    return normal
+
+
+_gate_warned: set = set()
+
+
+def _warn_once(exc) -> None:
+    key = ("iab_gate", type(exc).__name__)
+    if key not in _gate_warned:
+        _gate_warned.add(key)
+        logger.warning("identity ablation gate error -> defaulting to CONTROL (arm A): "
+                       "%r (logged once)", exc)
+
+
+def append_block(prompt_parts: list, statement: str, minutes_ago: int) -> str:
+    """Append the identity block for the active arm and return the arm applied.
+
+    normal keeps the original 3-part append (byte-identical). reframe/filler append one
+    length-matched part + "". FAIL-SAFE DEFAULTS TO CONTROL (arm A), logged once per
+    error kind -- an experiment fail-safe must never silently convert a control tick
+    into a treatment tick.
+    """
+    def _control():
+        prompt_parts.append("This is who you said you are (%d min ago):" % minutes_ago)
+        prompt_parts.append("  %s" % statement)
+        prompt_parts.append("")
+
     try:
-        mode = mode or current_condition()
-        if mode == "normal" or not identity_text:
-            return identity_text
-        target = len(identity_text)
-        if mode == "drop":
-            return _filler(target)
-        if mode == "swap":
-            if not substitute:
-                return _filler(target)
-            s = substitute
-            return s[:target] if len(s) >= target else s + _filler(target - len(s))
-        return identity_text
-    except Exception:
-        return identity_text   # never alter a fire on an experiment's account
+        mode = current_condition()
+        if mode == "normal":
+            _control()
+            return "normal"
+        prompt_parts.append(block_for(statement, minutes_ago, mode))
+        prompt_parts.append("")
+        return mode
+    except Exception as exc:
+        _warn_once(exc)
+        # strip any partial append from a mid-way failure, then emit clean control
+        _control()
+        return "normal"

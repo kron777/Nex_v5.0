@@ -56,6 +56,12 @@ def _ensure_identity_log():
         cx.execute(
             "CREATE INDEX IF NOT EXISTS idx_identity_composed ON identity_log(composed_at DESC)"
         )
+        # self-as-cause experiment (step 1): the arm ACTIVE when this self-description
+        # was generated, stamped on the OUTCOME row by the generating path -- the
+        # schedule file is intent, the row is fact. Without it a failed/flipped/restarted
+        # tick mislabels the analysis invisibly. Additive, nullable.
+        if "ablation_arm" not in {r[1] for r in cx.execute("PRAGMA table_info(identity_log)")}:
+            cx.execute("ALTER TABLE identity_log ADD COLUMN ablation_arm TEXT")
         cx.commit()
     finally:
         cx.close()
@@ -253,11 +259,16 @@ def identity_tick():
         metrics = _gather_metrics(now)
         statement = _compose_statement(metrics, previous)
 
-        # Write to identity_log
+        # Write to identity_log, stamping the active ablation arm onto the outcome row.
+        try:
+            from theory_x.stage_tom.identity_ablation import current_condition as _iab_cond
+            _arm = _iab_cond()
+        except Exception:
+            _arm = "normal"
         d_cx.execute(
-            "INSERT INTO identity_log (composed_at, date_local, hour_local, statement, metrics_json) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (now, date_local, hour, statement, json.dumps(metrics))
+            "INSERT INTO identity_log (composed_at, date_local, hour_local, statement, "
+            "metrics_json, ablation_arm) VALUES (?, ?, ?, ?, ?, ?)",
+            (now, date_local, hour, statement, json.dumps(metrics), _arm)
         )
         d_cx.commit()
         
