@@ -387,8 +387,9 @@ def scorecard_detailed(db_path: Optional[str] = None) -> dict:
     conn = _connect(db_path)
     try:
         rows = conn.execute(
-            "SELECT predicted, readiness, actual FROM self_predictions "
-            "WHERE source='self' AND COALESCE(kind,'fire')='fire' AND actual IS NOT NULL"
+            "SELECT predicted, readiness, actual, made_at FROM self_predictions "
+            "WHERE source='self' AND COALESCE(kind,'fire')='fire' AND actual IS NOT NULL "
+            "ORDER BY made_at, id"   # Q5: deterministic temporal order (made_at is REAL)
         ).fetchall()
     finally:
         conn.close()
@@ -435,17 +436,16 @@ def scorecard_detailed(db_path: Optional[str] = None) -> dict:
     }
 
 
-def _holdout_brier_skill(rows, bins: int = 10, min_test: int = 200, boots: int = 300):
-    """Temporal-holdout Brier skill with a bootstrap 95% CI. rows in time order;
-    fit empirical P(fire) bins on the older half, score the newer half vs a
-    climatology forecast (the older half's base rate). Monotone-safe: a bin unseen
-    in the fit half falls back to the fit base rate rather than overfitting."""
+def _brier_at_cut(rows, cutoff, bins: int = 10, boots: int = 300):
+    """One PINNED-cutoff holdout (Q5.3): fit bins on made_at <= cutoff, score the rest.
+    Pinning to a made_at VALUE (not a moving index) makes the number reproducible, so
+    0.067 becomes a citable figure. Reports cutoff + fit_n + score_n + minority_n."""
     import random as _r
-    n = len(rows)
-    if n < 2 * min_test:
-        return {"skill": None, "reason": f"need >= {2*min_test} resolved, have {n}"}
-    cut = n // 2
-    fit, test = rows[:cut], rows[cut:]
+    fit = [x for x in rows if x["made_at"] <= cutoff]
+    test = [x for x in rows if x["made_at"] > cutoff]
+    if len(fit) < 200 or len(test) < 200:
+        return {"skill": None, "reason": f"fit={len(fit)} test={len(test)} (<200 each)",
+                "cutoff": round(cutoff, 3)}
     base = sum(1 for x in fit if x["actual"] == "fire") / len(fit)
     buckets = {}
     for x in fit:
@@ -459,9 +459,7 @@ def _holdout_brier_skill(rows, bins: int = 10, min_test: int = 200, boots: int =
     binp = {k: (f / t) for k, (f, t) in buckets.items() if t >= 10}
 
     def pf(rd):
-        if rd is None:
-            return base
-        return binp.get(min(int(float(rd) * bins), bins - 1), base)
+        return base if rd is None else binp.get(min(int(float(rd) * bins), bins - 1), base)
 
     def skill_of(sample):
         y = [1 if x["actual"] == "fire" else 0 for x in sample]
@@ -470,7 +468,6 @@ def _holdout_brier_skill(rows, bins: int = 10, min_test: int = 200, boots: int =
         return (1 - bm / bc) if bc > 0 else None
 
     point = skill_of(test)
-    # bootstrap CI over the test set
     skills = []
     for _ in range(boots):
         samp = [test[_r.randrange(len(test))] for _ in range(len(test))]
@@ -480,8 +477,33 @@ def _holdout_brier_skill(rows, bins: int = 10, min_test: int = 200, boots: int =
     skills.sort()
     ci = ([round(skills[int(0.025 * len(skills))], 3),
            round(skills[int(0.975 * len(skills))], 3)] if skills else [None, None])
-    return {"skill": round(point, 3) if point is not None else None,
-            "ci95": ci, "n_test": len(test)}
+    minority_n = (sum(1 for x in test if x["actual"] != "fire") if base >= 0.5
+                  else sum(1 for x in test if x["actual"] == "fire"))
+    return {"skill": round(point, 3) if point is not None else None, "ci95": ci,
+            "cutoff": round(cutoff, 3), "fit_n": len(fit), "score_n": len(test),
+            "minority_n": minority_n}
+
+
+def _holdout_brier_skill(rows, bins: int = 10, boots: int = 300):
+    """Q5: run the pinned-cutoff holdout at THREE cut points (40/50/60%). A thin lower
+    bound (0.024) could land near zero on a different split, so a claim requires
+    positive skill at ALL three; a flip at one is disclosed, not hidden. Stamped with
+    measurement time (the table resolves live)."""
+    import time as _t
+    stamp = _t.strftime("%Y-%m-%dT%H:%M:%SZ", _t.gmtime())
+    n = len(rows)
+    if n < 500:
+        return {"skill": None, "reason": f"need >= 500 resolved, have {n}", "measured_at": stamp}
+    cuts = [{"frac": frac, **_brier_at_cut(rows, rows[int(frac * n)]["made_at"], bins, boots)}
+            for frac in (0.4, 0.5, 0.6)]
+    skills = [c["skill"] for c in cuts if c.get("skill") is not None]
+    all_pos = bool(skills) and all(s > 0 for s in skills)
+    any_neg = any(s <= 0 for s in skills)
+    verdict = ("skill positive at all 3 cuts" if all_pos
+               else "flips sign across cuts -- do not claim" if any_neg
+               else "insufficient held-out data")
+    return {"cuts": cuts, "all_cuts_positive": all_pos, "verdict": verdict,
+            "measured_at": stamp}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -494,6 +516,8 @@ def _holdout_brier_skill(rows, bins: int = 10, min_test: int = 200, boots: int =
 #                  current one lacks? (live base rate ~0.51)  predictor = persistence
 #                  on the last transition. A coin control runs beside each.
 # ─────────────────────────────────────────────────────────────────────────────
+
+_SELFDESC_MIN_EFF_N = 30   # below this effective N for a prev-state, use pooled fallback
 
 AUTHORED_SOURCES = (
     "fountain_insight", "synergized", "counterfactual_node", "remember_loop",
@@ -626,16 +650,20 @@ def make_selfdesc_prediction(db_path: Optional[str] = None,
     prev, cur = _distinctive_tokens(st[-2][0]), _distinctive_tokens(st[-1][0])
     last_was_novel = bool(cur - prev)
     last_label = "differ" if last_was_novel else "same"
-    # 3(c) THE UPDATE, on the learnable target (C' confirmed conditional structure).
-    # A recency-decayed Beta-Bernoulli over persistence p = P(next label == prev
-    # label). Predict the majority posterior: persist if p>=0.5, else flip. The
-    # parameter is re-estimated from observed transitions each prediction, so the
-    # predictor's own error moves its own call -- and it can LEARN TO ANTI-PERSIST if
-    # the world flips, which a fixed persistence baseline never could.
-    pers = selfdesc_persistence(dynamic_db)
-    p = pers.get("persistence", 0.5)
-    opposite = "same" if last_label == "differ" else "differ"
-    self_pred = last_label if p >= 0.5 else opposite
+    # 3(c) THE UPDATE on the learnable target. Q6: use the CONDITIONAL model C'
+    # actually validated -- P(next differ | prev = last_label), estimated per prev
+    # state with recency decay -- not a pooled symmetric persistence (the two agree on
+    # the LABEL by luck but differ on the PROBABILITY, which Brier consumes). Fall back
+    # to the pooled marginal when a state's effective N < 30 (two posteriors split one
+    # sample). Reduces to symmetric as the rates converge, so strictly more general.
+    cond = selfdesc_conditional(dynamic_db)
+    eff = cond["eff_n_differ"] if last_label == "differ" else cond["eff_n_same"]
+    p_differ = (cond["p_differ_given_differ"] if last_label == "differ"
+                else cond["p_differ_given_same"])
+    if p_differ is None or eff < _SELFDESC_MIN_EFF_N:
+        p_differ = cond["p_differ_pooled"]      # pooled fallback
+    self_pred = "differ" if p_differ >= 0.5 else "same"   # argmax
+    p = p_differ                                 # emitted probability (for Brier)
     coin = random.choice(["differ", "same"])
     # persist the learned parameter for inspection (monitor)
     try:
@@ -646,7 +674,7 @@ def make_selfdesc_prediction(db_path: Optional[str] = None,
                 "INSERT INTO self_pred_params (kind, threshold, updated_at, n, operating_p) "
                 "VALUES ('selfdesc_novel', ?, ?, ?, 0.5) ON CONFLICT(kind) DO UPDATE SET "
                 "threshold=excluded.threshold, updated_at=excluded.updated_at, n=excluded.n",
-                (p, time.time(), pers.get("n", 0)),
+                (p, time.time(), cond.get("n", 0)),
             )
             _c.commit()
         finally:
@@ -658,7 +686,40 @@ def make_selfdesc_prediction(db_path: Optional[str] = None,
                  [("self", self_pred), ("random", coin)],
                  time.time() + 86400, signal=float(len(cur)))
     return {"kind": "selfdesc_novel", "self": self_pred, "coin": coin,
-            "last_was_novel": last_was_novel, "persistence": round(p, 4)}
+            "last_was_novel": last_was_novel, "p_differ": round(p, 4),
+            "model": "conditional" if eff >= 30 else "pooled_fallback"}
+
+
+def selfdesc_conditional(dynamic_db: Optional[str] = None, decay: float = 0.98) -> dict:
+    """Recency-decayed P(next differ | prev transition label), estimated separately for
+    prev=differ and prev=same, plus the pooled marginal P(next differ). This is the
+    conditional model rule C' validated (Q6); the pooled marginal is the fallback when
+    a state's effective N is too small to trust its own rate."""
+    dynamic_db = dynamic_db or DYNAMIC_DB
+    try:
+        st = _identity_statements(dynamic_db)
+    except Exception:
+        st = []
+    toks = [_distinctive_tokens(s["statement"]) for s in st]
+    labels = [bool(toks[i] - toks[i - 1]) for i in range(1, len(toks))]  # True=differ
+    ed = sm = 0.0   # effective N for prev=differ / prev=same
+    kd = ks = 0.0   # weighted count of next=differ, given prev
+    tot = totd = 0.0
+    w = 1.0
+    for i in range(len(labels) - 1, 0, -1):   # newest transition first
+        prev, nxt = labels[i - 1], labels[i]
+        if prev:
+            ed += w; kd += w if nxt else 0.0
+        else:
+            sm += w; ks += w if nxt else 0.0
+        tot += w; totd += w if nxt else 0.0
+        w *= decay
+    return {
+        "p_differ_given_differ": (kd / ed) if ed > 0 else None, "eff_n_differ": ed,
+        "p_differ_given_same": (ks / sm) if sm > 0 else None, "eff_n_same": sm,
+        "p_differ_pooled": (totd / tot) if tot > 0 else 0.5,
+        "n": max(len(labels) - 1, 0),
+    }
 
 
 def selfdesc_persistence(dynamic_db: Optional[str] = None, decay: float = 0.98,

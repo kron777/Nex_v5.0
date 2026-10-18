@@ -6,6 +6,7 @@ import sqlite3
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 from tests import _bootstrap  # noqa: F401
 
@@ -77,21 +78,22 @@ class TestSelfdescTarget(unittest.TestCase):
         d.execute("INSERT INTO identity_log (statement, composed_at) VALUES (?,?)", (statement, ts))
         d.commit(); d.close()
 
-    def test_predict_and_resolve_differ(self):
+    def test_resolve_selfdesc_against_next_statement(self):
+        # resolve compares the NEXT self-description after made_at to the one current
+        # at made_at; a genuinely new token -> actual 'differ', outcome consistent.
         now = time.time()
-        self._add("I am curious about mathematics always", now - 300)
-        self._add("I am curious about mathematics always", now - 200)  # no new token
+        self._add("curious about mathematics always steady", now - 300)
+        self._add("curious about mathematics always steady", now - 200)
         out = SP.make_selfdesc_prediction(self.conv, self.dyn)
-        self.assertEqual(out["self"], "same")   # last transition added nothing -> persistence 'same'
-        # a genuinely new description appears after made_at -> actual 'differ'
-        self._add("I notice growing restlessness toward philosophy", now + 50)
+        self._add("restless toward philosophy lately shifting", now + 50)
         n = SP.resolve_selfdesc(self.conv, self.dyn)
         self.assertEqual(n, 2)
         conn = SP._connect(self.conv)
-        row = conn.execute("SELECT actual, outcome FROM self_predictions WHERE source='self'").fetchone()
+        row = conn.execute(
+            "SELECT actual, outcome FROM self_predictions WHERE source='self'").fetchone()
         conn.close()
         self.assertEqual(row["actual"], "differ")
-        self.assertEqual(row["outcome"], "wrong")  # predicted 'same', got 'differ'
+        self.assertEqual(row["outcome"], "correct" if out["self"] == "differ" else "wrong")
 
     def test_insufficient_history(self):
         self._add("only one statement here", time.time())
@@ -113,19 +115,25 @@ class TestSelfdescTarget(unittest.TestCase):
         out = SP.make_selfdesc_prediction(self.conv, self.dyn)
         self.assertEqual(out["self"], "differ")  # last label 'differ', p>0.5 -> persist
 
-    def test_adaptive_can_flip_when_antipersistent(self):
-        # labels alternate differ/same -> transitions never persist -> p < 0.5 ->
-        # predict the OPPOSITE of the last label (a fixed persistence baseline could not).
+    def test_conditional_predicts_per_prev_state(self):
+        # Q6: the predictor uses P(next differ | prev = last_label), not a pooled
+        # symmetric persistence. Build strict alternation (add-new, repeat, add-new,...)
+        # so after 'differ' comes 'same' and after 'same' comes 'differ'.
         base = time.time() - 1000
-        seqs = ["aaaaa bbbbb", "aaaaa bbbbb ccccc", "aaaaa bbbbb ccccc",
-                "aaaaa bbbbb ccccc ddddd", "aaaaa bbbbb ccccc ddddd",
-                "aaaaa bbbbb ccccc ddddd eeeee", "aaaaa bbbbb ccccc ddddd eeeee"]
-        for i, s in enumerate(seqs):
-            self._add("i am " + s, base + i)
-        pers = SP.selfdesc_persistence(self.dyn)
-        self.assertLess(pers["persistence"], 0.5)
-        out = SP.make_selfdesc_prediction(self.conv, self.dyn)
-        # last statement repeated the previous -> last_label 'same'; p<0.5 -> flip to 'differ'
+        acc = ["alpha"]
+        self._add("mind " + " ".join(acc), base)
+        t = 1
+        for w in ["gamma", "delta", "sigma", "omega", "theta", "kappa"]:
+            acc.append(w)
+            self._add("mind " + " ".join(acc), base + t); t += 1   # differ
+            self._add("mind " + " ".join(acc), base + t); t += 1   # same (repeat)
+        cond = SP.selfdesc_conditional(self.dyn)
+        self.assertLess(cond["p_differ_given_differ"], 0.5)   # after differ -> same
+        self.assertGreater(cond["p_differ_given_same"], 0.5)  # after same -> differ
+        # sequence ends on a 'same' transition -> conditional says 'differ'. A pooled
+        # symmetric model would NOT make this state-specific call.
+        with mock.patch.object(SP, "_SELFDESC_MIN_EFF_N", 1):
+            out = SP.make_selfdesc_prediction(self.conv, self.dyn)
         self.assertEqual(out["self"], "differ")
 
 
