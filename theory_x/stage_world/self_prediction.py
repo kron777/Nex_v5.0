@@ -133,8 +133,11 @@ def make_self_prediction(db_path: Optional[str] = None, horizon: int = HORIZON) 
     readiness = float(status.get("readiness_score", 0.0) or 0.0)
     baseline_fires = int(status.get("total_fires", 0) or 0)
 
-    # NEX's OWN call, from its OWN self-read.
-    self_pred = "fire" if readiness >= FIRE_THRESHOLD else "nofire"
+    # NEX's OWN call, from its OWN self-read -- against the LEARNED threshold
+    # (3c: the predictor's own error moves its own gate), falling back to the
+    # static constant until enough outcomes exist to calibrate.
+    threshold = _current_threshold(db_path)
+    self_pred = "fire" if readiness >= threshold else "nofire"
     # The control: a coin flip, no self-knowledge at all.
     coin_pred = random.choice(["fire", "nofire"])
 
@@ -254,11 +257,170 @@ def scorecard(db_path: Optional[str] = None) -> dict:
     return out
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Round 11, item 3 — make the metric honest (3a) and close the loop (3c).
+#
+# 3(a) HONEST SCORECARD. Accuracy against a 0.8%-minority target is dominated by
+# the majority class and reports fake grip. Report three numbers: accuracy vs the
+# majority FLOOR; the minority-class lift/recall/precision (the real signal); and a
+# Brier score vs the constant climatological forecast, read straight off the
+# readiness column we already record.
+#
+# 3(c) THE UPDATE. The loop was predict -> observe -> error -> STORE (a sensor).
+# adapt_threshold closes it: predict -> observe -> error -> UPDATE, by setting the
+# fire/nofire gate from recent outcomes at the readiness where empirical P(fire)
+# crosses the operating point. The predictor's own error now moves its own gate.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def ensure_params_schema(db_path: str) -> None:
+    conn = _connect(db_path)
+    try:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS self_pred_params ("
+            "kind TEXT PRIMARY KEY, threshold REAL NOT NULL, "
+            "updated_at REAL NOT NULL, n INTEGER, operating_p REAL)"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _current_threshold(db_path: str, kind: str = "fire") -> float:
+    """The learned gate for `kind`, or the static constant until one is calibrated."""
+    try:
+        ensure_params_schema(db_path)
+        conn = _connect(db_path)
+        try:
+            r = conn.execute(
+                "SELECT threshold FROM self_pred_params WHERE kind=?", (kind,)
+            ).fetchone()
+            return float(r["threshold"]) if r else FIRE_THRESHOLD
+        finally:
+            conn.close()
+    except Exception:
+        return FIRE_THRESHOLD
+
+
+def calibration_curve(db_path: Optional[str] = None, n: int = 500,
+                      bins: int = 10) -> list:
+    """Empirical P(fire) by readiness bin over the last n resolved self rows.
+    This IS the calibration curve, from data already recorded."""
+    db_path = db_path or _db_path()
+    conn = _connect(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT readiness, actual FROM self_predictions "
+            "WHERE source='self' AND readiness IS NOT NULL AND actual IS NOT NULL "
+            "ORDER BY resolved_at DESC LIMIT ?",
+            (n,),
+        ).fetchall()
+    finally:
+        conn.close()
+    buckets: dict[int, list] = {}
+    for r in rows:
+        k = min(int(float(r["readiness"]) * bins), bins - 1)
+        b = buckets.setdefault(k, [0, 0])
+        b[0] += 1 if r["actual"] == "fire" else 0
+        b[1] += 1
+    return [{"readiness_lo": k / bins, "readiness_hi": (k + 1) / bins,
+             "p_fire": fires / tot, "n": tot}
+            for k, (fires, tot) in sorted(buckets.items())]
+
+
+def adapt_threshold(db_path: Optional[str] = None, kind: str = "fire",
+                    n: int = 500, operating_p: float = 0.5, bins: int = 10) -> Optional[dict]:
+    """3(c): set the gate from recent outcomes -- the lowest readiness bin whose
+    empirical P(fire) >= operating_p -- and persist it. operating_p encodes what
+    'nofire' means: lower it to favour recall (catch missed fires), raise it to
+    favour precision (trust a quiet window)."""
+    db_path = db_path or _db_path()
+    curve = calibration_curve(db_path, n=n, bins=bins)
+    if not curve:
+        return None
+    thr = next((b["readiness_lo"] for b in curve if b["p_fire"] >= operating_p), 1.0)
+    try:
+        ensure_params_schema(db_path)
+        conn = _connect(db_path)
+        try:
+            conn.execute(
+                "INSERT INTO self_pred_params (kind, threshold, updated_at, n, operating_p) "
+                "VALUES (?,?,?,?,?) ON CONFLICT(kind) DO UPDATE SET "
+                "threshold=excluded.threshold, updated_at=excluded.updated_at, "
+                "n=excluded.n, operating_p=excluded.operating_p",
+                (kind, thr, time.time(), sum(b["n"] for b in curve), operating_p),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.warning("self_pred adapt_threshold persist failed: %s", e)
+    return {"threshold": thr, "operating_p": operating_p,
+            "n": sum(b["n"] for b in curve)}
+
+
+def scorecard_detailed(db_path: Optional[str] = None) -> dict:
+    """3(a): the honest read. Accuracy vs the majority floor is reported but is NOT
+    the verdict for an imbalanced target; the minority-class lift and the Brier
+    skill are."""
+    db_path = db_path or _db_path()
+    conn = _connect(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT predicted, readiness, actual FROM self_predictions "
+            "WHERE source='self' AND actual IS NOT NULL"
+        ).fetchall()
+    finally:
+        conn.close()
+    n = len(rows)
+    if not n:
+        return {"resolved": 0}
+    actual_fire = sum(1 for r in rows if r["actual"] == "fire")
+    base_fire = actual_fire / n
+    majority = max(base_fire, 1 - base_fire)
+    acc = sum(1 for r in rows if r["predicted"] == r["actual"]) / n
+    minority = "nofire" if base_fire >= 0.5 else "fire"
+    base_min = 1 - majority
+    pred_min = [r for r in rows if r["predicted"] == minority]
+    actual_min = sum(1 for r in rows if r["actual"] == minority)
+    tp = sum(1 for r in pred_min if r["actual"] == minority)
+    precision = (tp / len(pred_min)) if pred_min else None
+    recall = (tp / actual_min) if actual_min else None
+    lift = (precision / base_min) if (precision is not None and base_min > 0) else None
+    curve = calibration_curve(db_path, n=n, bins=10)
+    binmap = {int(round(b["readiness_lo"] * 10)): b["p_fire"] for b in curve}
+
+    def _pf(readiness):
+        if readiness is None:
+            return base_fire
+        return binmap.get(min(int(float(readiness) * 10), 9), base_fire)
+
+    brier_model = sum((_pf(r["readiness"]) - (1 if r["actual"] == "fire" else 0)) ** 2
+                      for r in rows) / n
+    brier_clim = sum((base_fire - (1 if r["actual"] == "fire" else 0)) ** 2
+                     for r in rows) / n
+    skill = (1 - brier_model / brier_clim) if brier_clim > 0 else None
+    return {
+        "resolved": n,
+        "base_rate_fire": base_fire,
+        "accuracy": acc, "majority_floor": majority,
+        "accuracy_rel_lift_over_floor": (acc - majority) / majority if majority else None,
+        "minority_class": minority, "minority_base_rate": base_min,
+        "minority_precision": precision, "minority_recall": recall,
+        "minority_lift": lift,
+        "brier_model": brier_model, "brier_climatology": brier_clim,
+        "brier_skill": skill,
+    }
+
+
 # Optional: standalone daemon loop, mirrors WorldPredictionLoop idiom.
 class SelfPredictionLoop:
-    def __init__(self, interval: int = 900, horizon: int = HORIZON):
+    def __init__(self, interval: int = 900, horizon: int = HORIZON,
+                 operating_p: float = 0.5):
         self.interval = interval
         self.horizon = horizon
+        # operating point for the learned gate (3c). 0.5 = balanced; lower favours
+        # recall on the rare 'nofire', higher favours precision.
+        self.operating_p = float(os.environ.get("NEX5_SELFPRED_OPERATING_P", operating_p))
         self._alive = False
 
     def tick(self):
@@ -268,6 +430,14 @@ class SelfPredictionLoop:
                 logger.info("self_pred resolved=%d", r)
         except Exception as e:
             logger.warning("self_pred resolve error: %s", e)
+        # 3(c): close the loop — recalibrate the gate from the outcomes just resolved.
+        try:
+            upd = adapt_threshold(operating_p=self.operating_p)
+            if upd:
+                logger.info("self_pred threshold -> %.2f (op=%.2f, n=%d)",
+                            upd["threshold"], upd["operating_p"], upd["n"])
+        except Exception as e:
+            logger.warning("self_pred adapt error: %s", e)
         try:
             out = make_self_prediction(horizon=self.horizon)
             if "error" not in out:
@@ -300,10 +470,20 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--once", action="store_true", help="resolve due + make one prediction")
     ap.add_argument("--scorecard", action="store_true", help="print self-vs-coin scorecard")
+    ap.add_argument("--honest", action="store_true",
+                    help="print the 3-number honest scorecard (floor/minority-lift/Brier)")
+    ap.add_argument("--adapt", action="store_true",
+                    help="recalibrate the gate from recent outcomes (3c update)")
     ap.add_argument("--loop", type=int, metavar="SECONDS", help="run standalone loop")
     args = ap.parse_args()
 
-    if args.scorecard:
+    if args.honest:
+        import json as _j
+        print(_j.dumps(scorecard_detailed(), indent=2))
+    elif args.adapt:
+        import json as _j
+        print(_j.dumps(adapt_threshold(), indent=2))
+    elif args.scorecard:
         import json as _j
         print(_j.dumps(scorecard(), indent=2))
     elif args.loop:
