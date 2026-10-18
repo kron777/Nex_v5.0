@@ -121,7 +121,30 @@ PROVENANCE_BASE: dict[str, float] = {
     "surprise": _AUTHORED,       # owner's call: a surprise is hers, not observed
     "witness_loop": _WITNESSED,
     "pattern_loop": _WITNESSED,
-    "identity_loop": _RECEIVED,
+    "identity_loop": _WITNESSED,   # seeded, so cannot outrank what she authored, but
+                                   # must not rank below things she merely read (received)
+    # --- D-A go-live: the 11 eligible sources that were falling through to the
+    # _RECEIVED default. Classified explicitly (owner-approved) so none is scored
+    # by accident -- an unmapped eligible source is a hard STOP in the backfill's
+    # GO/STOP rule, precisely because a silent default is not a decision.
+    # authored (0.60) -- self-originated
+    "fountain": _AUTHORED,
+    "emergent_drive": _AUTHORED,
+    # witnessed (0.45) -- self-observation / from her own internal state
+    "behavioural_observation": _WITNESSED,
+    "precipitated_from_dynamic": _WITNESSED,
+    "self_rut_notice": _WITNESSED,
+    # received (0.30) -- external input / suspect / experimental; deny authored credit.
+    # precipitated_from_sense is the author's own framing (header, line 47:
+    # "precipitated_from_sense is a headline she read") -- external, not hers. It is
+    # 27 sense streams flattened into one bucket; per-kind tiering via source_kind
+    # (source_identity.py) is a tracked follow-up, not part of this go-live.
+    "precipitated_from_sense": _RECEIVED,
+    "fetch_loop": _RECEIVED,                    # reads external URLs
+    "fountain_insight_quarantined": _RECEIVED,  # quarantined/suspect fountain insight
+    "drive_probe": _RECEIVED,                   # experimental probe injection
+    "auto_probe": _RECEIVED,                    # experimental probe injection
+    "throw_net.gate_reject": _RECEIVED,         # rejected content
 }
 
 # Unknown sources are counted once per process (not per row) so a new source

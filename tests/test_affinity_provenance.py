@@ -23,14 +23,15 @@ class TestProvenanceAffinity(unittest.TestCase):
         for usage in (0.0, 0.3, 0.7, 1.0):
             authored = A._provenance_affinity("fountain_insight", usage)
             witnessed = A._provenance_affinity("witness_loop", usage)
-            received = A._provenance_affinity("identity_loop", usage)
+            # identity_loop is witnessed now; use a genuinely-received source.
+            received = A._provenance_affinity("fetch_loop", usage)
             self.assertGreater(authored, witnessed, f"usage={usage}")
             self.assertGreater(witnessed, received, f"usage={usage}")
 
     def test_envelope_preserved(self):
         # Old score ranged llm_rating*(0.75+0.25u), llm in {0.3,0.6} -> union
         # [0.225, 0.60]. New min = received@u=0, new max = authored@u=1.
-        lo = A._provenance_affinity("identity_loop", 0.0)
+        lo = A._provenance_affinity("fetch_loop", 0.0)
         hi = A._provenance_affinity("fountain_insight", 1.0)
         self.assertAlmostEqual(lo, 0.225, places=6)
         self.assertAlmostEqual(hi, 0.600, places=6)
@@ -47,8 +48,8 @@ class TestProvenanceAffinity(unittest.TestCase):
         self.assertAlmostEqual(A._provenance_affinity("synergized", 1.0), 0.60, 6)
         self.assertAlmostEqual(A._provenance_affinity("pattern_loop", 0.0), 0.3375, 6)
         self.assertAlmostEqual(A._provenance_affinity("pattern_loop", 1.0), 0.45, 6)
-        self.assertAlmostEqual(A._provenance_affinity("identity_loop", 0.0), 0.225, 6)
-        self.assertAlmostEqual(A._provenance_affinity("identity_loop", 1.0), 0.30, 6)
+        self.assertAlmostEqual(A._provenance_affinity("fetch_loop", 0.0), 0.225, 6)
+        self.assertAlmostEqual(A._provenance_affinity("fetch_loop", 1.0), 0.30, 6)
 
     def test_surprise_is_authored(self):
         # Owner's call: a surprise is hers, same band as her own synthesis.
@@ -59,7 +60,7 @@ class TestProvenanceAffinity(unittest.TestCase):
 
     def test_unknown_source_is_received(self):
         unknown = A._provenance_affinity("brand_new_source_xyz", 0.5)
-        received = A._provenance_affinity("identity_loop", 0.5)
+        received = A._provenance_affinity("fetch_loop", 0.5)
         self.assertAlmostEqual(unknown, received, 6)
 
     def test_mode_defaults_off_and_parses(self):
