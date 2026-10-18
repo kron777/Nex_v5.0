@@ -55,6 +55,17 @@ class TestBoundaryRatchet(unittest.TestCase):
                         ("shared text", "precipitated_from_sense", 2)])
         self.assertEqual(CSB.run(p, max_b=999), 1)
 
+    def test_class_detector_flags_cross_band_source(self):
+        # same content under counterfactual_node (authored) and precipitated_from_sense
+        # (received) -> the source spans two bands -> flagged by the class detector.
+        p = self._make([("echoed headline", "precipitated_from_sense", 1),
+                        ("echoed headline", "counterfactual_node", 2),
+                        ("her own thought", "fountain_insight", 3)])
+        cd = CSB.class_detector(p)
+        self.assertEqual(cd.get("counterfactual_node"), 1)
+        self.assertEqual(cd.get("precipitated_from_sense"), 1)
+        self.assertNotIn("fountain_insight", cd)   # single-band, not flagged
+
     def test_direction_B_ratchet(self):
         # received FIRST (t=1) then authored (t=2) -> Direction B = 1
         p = self._make([("a headline", "precipitated_from_sense", 1),
