@@ -64,3 +64,19 @@ Follow-up (optional, not drift): the sentinels `-2` (process cluster) / `-99`
 (probe exclusion) are magic numbers duplicated across those two modules; a shared
 named constant would be cleaner. Left out of the drift fix to avoid parameterising
 SQL in a possibly-experimental `decryption/` path.
+
+## R9 affinity-reserve 20-tick composition tripwire — RETIRED
+
+Specced during the PR #13 (`NEX5_INTAKE_T6_RESERVE`) rollout to watch the
+standing-voice identity share over 20 ticks post-enable. Retired before it ever
+ran, by its own author (Beam, round 10):
+
+> R9 20-tick identity-share tripwire — RETIRED. The tier-6 standing-points pool
+> recomposes only at load (`intake_resonance._load_standing_points`, prewarm),
+> so draw composition cannot drift mid-session — a 20-tick draw-composition
+> sample would read the same static number twenty times and call it stability.
+> Replaced by (1) a load-time re-measurement at the next pool reload (natural
+> restart or 72h), and (2) three live signals that can actually change: crash/
+> exception, `affinity_loop` liveness, and soak line-rate parity (±2%).
+
+Recorded so it is not reinvented and re-run later.
