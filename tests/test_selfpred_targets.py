@@ -115,26 +115,35 @@ class TestSelfdescTarget(unittest.TestCase):
         out = SP.make_selfdesc_prediction(self.conv, self.dyn)
         self.assertEqual(out["self"], "differ")  # last label 'differ', p>0.5 -> persist
 
-    def test_conditional_predicts_per_prev_state(self):
-        # Q6: the predictor uses P(next differ | prev = last_label), not a pooled
-        # symmetric persistence. Build strict alternation (add-new, repeat, add-new,...)
-        # so after 'differ' comes 'same' and after 'same' comes 'differ'.
-        base = time.time() - 1000
-        acc = ["alpha"]
-        self._add("mind " + " ".join(acc), base)
+    def test_conditional_branch_engages_on_stationary_history(self):
+        # Q8 addition #3: assert the BRANCH, not just the output -- correct output from
+        # the wrong (pooled) branch is how the no-op shipped. Build a long STATIONARY
+        # strict-alternation history (>=40 transitions, rates constant) so the
+        # conditional path is reachable and stationarity passes.
+        base = time.time() - 10000
+        words = [chr(97 + i) * 5 for i in range(25)]   # aaaaa, bbbbb, ... (all >=5 chars)
+        acc = [words[0]]
+        self._add("base " + " ".join(acc), base)
         t = 1
-        for w in ["gamma", "delta", "sigma", "omega", "theta", "kappa"]:
+        for w in words[1:]:
             acc.append(w)
-            self._add("mind " + " ".join(acc), base + t); t += 1   # differ
-            self._add("mind " + " ".join(acc), base + t); t += 1   # same (repeat)
+            self._add("base " + " ".join(acc), base + t); t += 1   # differ (+w)
+            self._add("base " + " ".join(acc), base + t); t += 1   # same (repeat)
         cond = SP.selfdesc_conditional(self.dyn)
-        self.assertLess(cond["p_differ_given_differ"], 0.5)   # after differ -> same
-        self.assertGreater(cond["p_differ_given_same"], 0.5)  # after same -> differ
-        # sequence ends on a 'same' transition -> conditional says 'differ'. A pooled
-        # symmetric model would NOT make this state-specific call.
+        self.assertLess(cond["p_differ_given_differ"], 0.5)    # after differ -> same
+        self.assertGreater(cond["p_differ_given_same"], 0.5)   # after same -> differ
+        self.assertTrue(SP.selfdesc_stationarity(self.dyn)["stationary"])
         with mock.patch.object(SP, "_SELFDESC_MIN_EFF_N", 1):
             out = SP.make_selfdesc_prediction(self.conv, self.dyn)
-        self.assertEqual(out["self"], "differ")
+        self.assertEqual(out["branch"], "conditional")   # THE PATH, not just the label
+
+    def test_nonstationary_falls_back_to_pooled(self):
+        # too little / drifting history -> conditional path NOT taken, pooled instead.
+        base = time.time() - 1000
+        for i in range(6):
+            self._add("i am " + "x" * (5 + i), base + i)   # few transitions
+        out = SP.make_selfdesc_prediction(self.conv, self.dyn)
+        self.assertIn(out["branch"], ("pooled_nonstationary", "pooled_low_eff_n"))
 
 
 if __name__ == "__main__":

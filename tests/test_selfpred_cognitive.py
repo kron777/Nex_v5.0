@@ -108,6 +108,14 @@ class TestSelfPredCognitive(unittest.TestCase):
         self.assertEqual(thr_after, thr_base,
                          "non-fire rows must not move the fire gate monitor")
 
+    def test_selfdesc_config_conditional_path_reachable(self):
+        # Q8 startup guard: an unreachable conditional path (MIN_EFF_N >= per_state_cap)
+        # is a config error, not a silent permanent fallback. For the shipped decay it
+        # must be reachable.
+        self.assertLess(SP._SELFDESC_MIN_EFF_N, SP._SELFDESC_PER_STATE_CAP)
+        self.assertAlmostEqual(SP._SELFDESC_PER_STATE_CAP,
+                               1.0 / (2.0 * (1.0 - SP._SELFDESC_DECAY)), places=6)
+
     def test_current_threshold_falls_back_to_constant(self):
         # no params table yet -> static constant, never raises
         self.assertAlmostEqual(SP._current_threshold(self.db), SP.FIRE_THRESHOLD, places=6)

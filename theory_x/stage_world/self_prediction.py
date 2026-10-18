@@ -496,6 +496,21 @@ def _holdout_brier_skill(rows, bins: int = 10, boots: int = 300):
         return {"skill": None, "reason": f"need >= 500 resolved, have {n}", "measured_at": stamp}
     cuts = [{"frac": frac, **_brier_at_cut(rows, rows[int(frac * n)]["made_at"], bins, boots)}
             for frac in (0.4, 0.5, 0.6)]
+    # Q9: Brier is gated on minority EVENTS, not rows. At P(fire)=0.992 a ~1000-row
+    # window holds ~1-8 minority events; the "skill" is then one row plus rounding, so
+    # a positive number is arithmetic, not evidence -- and a caveated vacuous number
+    # gets quoted without the caveat. Require >= 30 minority events per cut, else the
+    # verdict is "not measurable" and NO skill number is claimed.
+    MIN_MINORITY = 30
+    thin = [c for c in cuts if (c.get("minority_n") or 0) < MIN_MINORITY]
+    if thin:
+        worst = max((c.get("minority_n") or 0) for c in cuts)
+        return {"cuts": cuts, "all_cuts_positive": None,
+                "verdict": (f"NOT MEASURABLE by holdout -- minority events too few "
+                            f"(max {worst} per cut, need >= {MIN_MINORITY}); deferred, "
+                            f"not failed. Evidence for this target is full-sample "
+                            f"lift/recall, not Brier."),
+                "measured_at": stamp}
     skills = [c["skill"] for c in cuts if c.get("skill") is not None]
     all_pos = bool(skills) and all(s > 0 for s in skills)
     any_neg = any(s <= 0 for s in skills)
@@ -517,7 +532,27 @@ def _holdout_brier_skill(rows, bins: int = 10, boots: int = 300):
 #                  on the last transition. A coin control runs beside each.
 # ─────────────────────────────────────────────────────────────────────────────
 
-_SELFDESC_MIN_EFF_N = 30   # below this effective N for a prev-state, use pooled fallback
+# Q8: the decay and the conditional-path threshold are COUPLED, so they cannot
+# silently disagree (an independent magic MIN_EFF_N is exactly how one knob moved and
+# the other didn't). per_state_cap ~= 1/(2*(1-decay)); require eff_n >= 0.6*cap.
+#
+# Decay is NOT raised to 0.995 (4-day memory). The mandated stationarity check on the
+# LIVE identity_log showed the conditional rates DRIFT -- P(differ|prev same) falls
+# 0.561 -> 0.371 across halves, crossing the 0.5 decision boundary -- so a long window
+# would average over a regime shift. Per-state resolution is gated on stationarity
+# (selfdesc_stationarity); when the target is non-stationary the predictor uses the
+# pooled estimate rather than a falsely-precise per-state one.
+_SELFDESC_DECAY = 0.98
+_SELFDESC_PER_STATE_CAP = 1.0 / (2.0 * (1.0 - _SELFDESC_DECAY))
+_SELFDESC_MIN_EFF_N = round(0.6 * _SELFDESC_PER_STATE_CAP)
+
+# Startup sanity guard: an unreachable conditional path is a loud config error, not a
+# silent permanent fallback.
+if _SELFDESC_MIN_EFF_N >= _SELFDESC_PER_STATE_CAP:
+    logger.error(
+        "self_pred CONFIG: selfdesc conditional path UNREACHABLE -- MIN_EFF_N=%s >= "
+        "per_state_cap=%.1f for decay=%.3f", _SELFDESC_MIN_EFF_N,
+        _SELFDESC_PER_STATE_CAP, _SELFDESC_DECAY)
 
 AUTHORED_SOURCES = (
     "fountain_insight", "synergized", "counterfactual_node", "remember_loop",
@@ -658,10 +693,18 @@ def make_selfdesc_prediction(db_path: Optional[str] = None,
     # sample). Reduces to symmetric as the rates converge, so strictly more general.
     cond = selfdesc_conditional(dynamic_db)
     eff = cond["eff_n_differ"] if last_label == "differ" else cond["eff_n_same"]
-    p_differ = (cond["p_differ_given_differ"] if last_label == "differ"
-                else cond["p_differ_given_same"])
-    if p_differ is None or eff < _SELFDESC_MIN_EFF_N:
-        p_differ = cond["p_differ_pooled"]      # pooled fallback
+    p_cond = (cond["p_differ_given_differ"] if last_label == "differ"
+              else cond["p_differ_given_same"])
+    stat = selfdesc_stationarity(dynamic_db)
+    # Use the per-state conditional ONLY when it has enough effective N AND the target
+    # is stationary; otherwise the pooled marginal (Q8: a drifting target makes the
+    # per-state estimate falsely precise -- see selfdesc_stationarity).
+    if p_cond is not None and eff >= _SELFDESC_MIN_EFF_N and stat.get("stationary"):
+        p_differ, branch = p_cond, "conditional"
+    else:
+        p_differ = cond["p_differ_pooled"]
+        branch = ("pooled_nonstationary" if not stat.get("stationary")
+                  else "pooled_low_eff_n")
     self_pred = "differ" if p_differ >= 0.5 else "same"   # argmax
     p = p_differ                                 # emitted probability (for Brier)
     coin = random.choice(["differ", "same"])
@@ -687,10 +730,49 @@ def make_selfdesc_prediction(db_path: Optional[str] = None,
                  time.time() + 86400, signal=float(len(cur)))
     return {"kind": "selfdesc_novel", "self": self_pred, "coin": coin,
             "last_was_novel": last_was_novel, "p_differ": round(p, 4),
-            "model": "conditional" if eff >= 30 else "pooled_fallback"}
+            "branch": branch, "eff_n": round(eff, 1),
+            "min_eff_n": _SELFDESC_MIN_EFF_N, "stationary": stat.get("stationary")}
 
 
-def selfdesc_conditional(dynamic_db: Optional[str] = None, decay: float = 0.98) -> dict:
+def selfdesc_stationarity(dynamic_db: Optional[str] = None) -> dict:
+    """Q8: is the conditional target stationary enough for per-state resolution? Split
+    the transition history in half and compare the two conditional rates. DRIFT =
+    either rate crosses the 0.5 decision boundary between halves (so the per-state
+    LABEL would flip regime). Live: P(differ|prev same) 0.561 -> 0.371 crosses 0.5 =>
+    non-stationary, so the predictor falls back to pooled rather than a long-window
+    per-state estimate that averages over the shift."""
+    dynamic_db = dynamic_db or DYNAMIC_DB
+    try:
+        st = _identity_statements(dynamic_db)
+    except Exception:
+        return {"stationary": False, "reason": "unreadable"}
+    toks = [_distinctive_tokens(s["statement"]) for s in st]
+    labels = [bool(toks[i] - toks[i - 1]) for i in range(1, len(toks))]
+
+    def rates(labs):
+        nd = ns = kd = ks = 0
+        for i in range(1, len(labs)):
+            prev, nxt = labs[i - 1], labs[i]
+            if prev:
+                nd += 1; kd += 1 if nxt else 0
+            else:
+                ns += 1; ks += 1 if nxt else 0
+        return (kd / nd if nd else None, ks / ns if ns else None, nd, ns)
+
+    if len(labels) < 40:
+        return {"stationary": False, "reason": f"only {len(labels)} transitions"}
+    h = len(labels) // 2
+    f_dd, f_ds, _, _ = rates(labels[:h])
+    s_dd, s_ds, _, _ = rates(labels[h:])
+    def _crosses(a, b):
+        return a is not None and b is not None and (a - 0.5) * (b - 0.5) < 0
+    drift = _crosses(f_dd, s_dd) or _crosses(f_ds, s_ds)
+    return {"stationary": not drift,
+            "first": [round(f_dd, 3) if f_dd else None, round(f_ds, 3) if f_ds else None],
+            "second": [round(s_dd, 3) if s_dd else None, round(s_ds, 3) if s_ds else None]}
+
+
+def selfdesc_conditional(dynamic_db: Optional[str] = None, decay: float = _SELFDESC_DECAY) -> dict:
     """Recency-decayed P(next differ | prev transition label), estimated separately for
     prev=differ and prev=same, plus the pooled marginal P(next differ). This is the
     conditional model rule C' validated (Q6); the pooled marginal is the fallback when
@@ -722,7 +804,7 @@ def selfdesc_conditional(dynamic_db: Optional[str] = None, decay: float = 0.98) 
     }
 
 
-def selfdesc_persistence(dynamic_db: Optional[str] = None, decay: float = 0.98,
+def selfdesc_persistence(dynamic_db: Optional[str] = None, decay: float = _SELFDESC_DECAY,
                          prior: float = 1.0) -> dict:
     """Recency-decayed Beta-Bernoulli estimate of persistence p = P(next transition
     label == previous one), from identity_log. Newer transitions weigh more (decay
