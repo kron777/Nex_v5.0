@@ -27,6 +27,7 @@ class TestIdentityAblation(unittest.TestCase):
         self._patch.start()
         IA._cache.update({"mtime": None, "mode": "normal", "logged": None})
         IA._gate_warned.clear()
+        IA._flip.update({"current": None, "flips": 0, "prev_stamp_arm": "normal"})
 
     def tearDown(self):
         self._patch.stop()
@@ -56,6 +57,35 @@ class TestIdentityAblation(unittest.TestCase):
         self.assertNotIn(_STMT, c)                     # content absent
         self.assertNotIn("who you said you are", c)    # framing absent (block absent, not just content)
         self.assertNotIn("curious", c)
+
+    def test_filler_is_non_instructional_and_shared(self):
+        # Verify item: filler must be non-instructional (it sits after the statement in
+        # prompt position 3) and the SAME string padding arm B and filling arm C.
+        f = IA._FILLER_UNIT.lower()
+        self.assertNotIn("you", f)                      # no second person
+        for bad in ("continue", "respond", "write", "describe", "you are", "remember",
+                    "imagine", "pretend", "note that", "please"):
+            self.assertNotIn(bad, f)                    # no imperative / self-reference
+        # arm B's pad region and arm C both draw from the same _FILLER_UNIT
+        rf = IA.block_for(_STMT, _MIN, "reframe")
+        c = IA.block_for(_STMT, _MIN, "filler")
+        self.assertTrue(rf.endswith(IA._FILLER_UNIT[:5]) or IA._FILLER_UNIT[:5] in rf)
+        self.assertTrue(c.startswith(IA._FILLER_UNIT[:5]))
+
+    def test_flip_stamp_three_fields(self):
+        # Q11: arm / arm_prev / flips, reset per stamp. Primary analysis filters flips==0.
+        self._set("normal"); IA.current_condition()
+        s0 = IA.stamp_fields()
+        self.assertEqual((s0["arm"], s0["arm_prev"], s0["flips"]), ("normal", "normal", 0))
+        self._set("reframe"); IA.current_condition()
+        self._set("filler"); IA.current_condition()
+        s1 = IA.stamp_fields()
+        self.assertEqual(s1["arm"], "filler")
+        self.assertEqual(s1["arm_prev"], "normal")      # arm at the previous stamp
+        self.assertEqual(s1["flips"], 2)                # normal->reframe->filler
+        s2 = IA.stamp_fields()
+        self.assertEqual(s2["flips"], 0)                # counter reset after stamp
+        self.assertEqual(s2["arm_prev"], "filler")
 
     # ---- file-based condition --------------------------------------------
     def test_file_change_without_restart(self):

@@ -43,8 +43,17 @@ logger = logging.getLogger("nex5.identity_ablation")
 _MODES = ("normal", "reframe", "filler")
 _NORMAL_HEADER = "This is who you said you are ({m} min ago):"
 _REFRAME_HEADER = "Earlier output, for context:"
-_FILLER_UNIT = "The hour is unremarkable and the room holds its usual quiet. "
+# Filler is used BOTH to pad arm B and to fill arm C -- it must be the SAME string in
+# both (else A-vs-C has two differences), and NON-INSTRUCTIONAL: it sits in prompt
+# position 3 after the statement, so an imperative or a self-reference would make it a
+# treatment and turn arm B into a hybrid. Neutral noun phrases only: no imperative
+# mood, no "you", no verbs of self-reference. Asserted in tests, not just here.
+_FILLER_UNIT = "grey light along the far wall, the low hum of a fan, an unmarked afternoon, dust on the sill, "
 _cache: dict = {"mtime": None, "mode": "normal", "logged": None}
+# Q11 seam guard: count condition CHANGES between identity ticks so the primary
+# analysis can filter rows where the arm flipped mid-interval (start-arm == end-arm
+# would otherwise hide an A->B->A flip). Rows are stamped, never dropped.
+_flip: dict = {"current": None, "flips": 0, "prev_stamp_arm": "normal"}
 
 
 def _condition_path() -> str:
@@ -77,7 +86,29 @@ def current_condition() -> str:
             _cache["logged"] = mode
             logger.warning("identity ablation condition -> %s (experiment; arm is stamped "
                            "on each identity_log row)", mode)
-    return _cache["mode"]
+    mode = _cache["mode"]
+    # Q11 flip accounting (observed on every call; the fountain calls this per fire, so
+    # flips BETWEEN the rarer identity ticks are captured). The first observation sets
+    # the baseline and is not a flip.
+    if _flip["current"] is None:
+        _flip["current"] = mode
+        _flip["prev_stamp_arm"] = mode
+    elif mode != _flip["current"]:
+        _flip["flips"] += 1
+        _flip["current"] = mode
+    return mode
+
+
+def stamp_fields() -> dict:
+    """Three-field arm stamp for the OUTCOME row (Q11). arm = in force now; arm_prev =
+    in force at the previous stamp (interval start); flips = condition CHANGES observed
+    since. Primary analysis filters flips==0; other rows are kept and reported as
+    excluded-n, never dropped. Resets the interval counters."""
+    arm = current_condition()
+    out = {"arm": arm, "arm_prev": _flip["prev_stamp_arm"], "flips": _flip["flips"]}
+    _flip["prev_stamp_arm"] = arm
+    _flip["flips"] = 0
+    return out
 
 
 def _filler(n_chars: int) -> str:

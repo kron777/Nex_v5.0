@@ -60,8 +60,11 @@ def _ensure_identity_log():
         # was generated, stamped on the OUTCOME row by the generating path -- the
         # schedule file is intent, the row is fact. Without it a failed/flipped/restarted
         # tick mislabels the analysis invisibly. Additive, nullable.
-        if "ablation_arm" not in {r[1] for r in cx.execute("PRAGMA table_info(identity_log)")}:
-            cx.execute("ALTER TABLE identity_log ADD COLUMN ablation_arm TEXT")
+        _cols = {r[1] for r in cx.execute("PRAGMA table_info(identity_log)")}
+        for _c in ("ablation_arm", "ablation_arm_prev", "ablation_flips"):
+            if _c not in _cols:
+                cx.execute(f"ALTER TABLE identity_log ADD COLUMN {_c} "
+                           f"{'INTEGER' if _c == 'ablation_flips' else 'TEXT'}")
         cx.commit()
     finally:
         cx.close()
@@ -259,16 +262,20 @@ def identity_tick():
         metrics = _gather_metrics(now)
         statement = _compose_statement(metrics, previous)
 
-        # Write to identity_log, stamping the active ablation arm onto the outcome row.
+        # Write to identity_log, stamping the three-field ablation arm onto the outcome
+        # row (Q11): arm now, arm at the previous tick, and flips observed in between --
+        # so the primary analysis can filter rows whose arm flipped mid-interval.
         try:
-            from theory_x.stage_tom.identity_ablation import current_condition as _iab_cond
-            _arm = _iab_cond()
+            from theory_x.stage_tom.identity_ablation import stamp_fields as _iab_stamp
+            _s = _iab_stamp()
+            _arm, _arm_prev, _flips = _s["arm"], _s["arm_prev"], _s["flips"]
         except Exception:
-            _arm = "normal"
+            _arm, _arm_prev, _flips = "normal", "normal", 0
         d_cx.execute(
             "INSERT INTO identity_log (composed_at, date_local, hour_local, statement, "
-            "metrics_json, ablation_arm) VALUES (?, ?, ?, ?, ?, ?)",
-            (now, date_local, hour, statement, json.dumps(metrics), _arm)
+            "metrics_json, ablation_arm, ablation_arm_prev, ablation_flips) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (now, date_local, hour, statement, json.dumps(metrics), _arm, _arm_prev, _flips)
         )
         d_cx.commit()
         
