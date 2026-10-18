@@ -64,6 +64,25 @@ class TestT6Reserve(unittest.TestCase):
             src[r["source"]] = src.get(r["source"], 0) + 1
         return src, len(ir._standing_ids)
 
+    def test_self_downtime_excluded_from_standing_voice(self):
+        # self_downtime is tier-6 + witnessed, so without the exclusion it would win
+        # a reserved slot (and accrue one row per restart, diluting identity share).
+        # Give it a HIGH affinity so it would otherwise top the non-authored reserve;
+        # assert it is absent from the standing-points even with the reserve on.
+        cx = _make_beliefs(10, 2)
+        cx.execute(
+            "INSERT INTO beliefs VALUES (99, 'I was offline for 2h (clean). boot #7', "
+            "6, 'self_downtime', 0.44, 0)"  # higher than any identity belief
+        )
+        cx.commit()
+        with mock.patch.object(IR, "_STRIKING_T6_LIMIT", 5):
+            os.environ["NEX5_INTAKE_T6_RESERVE"] = "3"
+            src, _ = self._standing_sources(cx)
+        self.assertEqual(src.get("self_downtime", 0), 0,
+                         "self_downtime must never enter the standing voice")
+        self.assertGreater(src.get("identity_loop", 0), 0,
+                           "the reserved slots go to real non-authored voice instead")
+
     def test_default_off_authored_saturates(self):
         # LIMIT 5, 10 authored + 4 identity: top-5 is all authored, identity evicted.
         with mock.patch.object(IR, "_STRIKING_T6_LIMIT", 5):
