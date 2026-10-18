@@ -121,7 +121,8 @@ PROVENANCE_BASE: dict[str, float] = {
     "surprise": _AUTHORED,       # owner's call: a surprise is hers, not observed
     "witness_loop": _WITNESSED,
     "pattern_loop": _WITNESSED,
-    "identity_loop": _RECEIVED,
+    "identity_loop": _WITNESSED,   # seeded, so cannot outrank what she authored, but
+                                   # must not rank below things she merely read (received)
     # --- D-A go-live: the 11 eligible sources that were falling through to the
     # _RECEIVED default. Classified explicitly (owner-approved) so none is scored
     # by accident -- an unmapped eligible source is a hard STOP in the backfill's
