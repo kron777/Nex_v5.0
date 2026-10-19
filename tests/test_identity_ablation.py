@@ -95,6 +95,44 @@ class TestIdentityAblation(unittest.TestCase):
         # no row strictly earlier -> excluded (None)
         self.assertIsNone(IA.arm_for_outcome(rows, 100.0))
 
+    def test_join_accepts_non_subscriptable_rows(self):
+        # the advertised guard: a row that is NOT subscriptable (plain object with a
+        # .composed_at attribute) must join via the same rule, not raise.
+        class _R:
+            def __init__(self, ts, arm):
+                self.composed_at = ts
+                self.arm = arm
+        rows = [_R(100.0, "normal"), _R(101.0, "reframe")]
+        self.assertEqual(IA.arm_for_outcome(rows, 101.5).arm, "reframe")
+        self.assertEqual(IA.arm_for_outcome(rows, 100.5).arm, "normal")
+
+    def test_token_parity_exact_by_construction(self):
+        # Beam item 2: parity must hold by CONSTRUCTION, not repeat-and-trim -- so prove
+        # it across the real domain: m up to a multi-day outage, statements min..max.
+        for m in (0, 1, 59, 100, 9999, 99999):
+            for stmt in ("x", "a short line here",
+                         " ".join(["word%d" % i for i in range(200)])):
+                n = len(IA.block_for(stmt, m, "normal").split())
+                self.assertEqual(len(IA.block_for(stmt, m, "reframe").split()), n,
+                                 f"reframe m={m} words={stmt.count(' ')+1}")
+                self.assertEqual(len(IA.block_for(stmt, m, "filler").split()), n,
+                                 f"filler m={m} words={stmt.count(' ')+1}")
+
+    def test_identity_log_composed_at_is_real_epoch(self):
+        # timestamp type/unit: the join compares identity_log.composed_at to the outcome
+        # ts; both live writers use time.time() REAL epoch (identity_loop + self_pred).
+        # Assert the identity_log side here (self_predictions.made_at REAL is on #16).
+        import importlib
+        il = importlib.import_module("theory_x.life.identity_loop")
+        tmp = os.path.join(self._tmp.name, "dyn.db")
+        with mock.patch.object(il, "DYNAMIC_DB", tmp):
+            il._ensure_identity_log()
+        import sqlite3
+        cx = sqlite3.connect(tmp)
+        typ = {r[1]: r[2] for r in cx.execute("PRAGMA table_info(identity_log)")}
+        cx.close()
+        self.assertEqual(typ["composed_at"], "REAL")
+
     def test_flip_stamp_three_fields_with_restart_sentinel(self):
         # Q11 + CRIT-2: first stamp after process start -> flips=-1 (UNKNOWN), never a
         # fabricated flips=0; subsequent stamps carry real counts and reset per stamp.

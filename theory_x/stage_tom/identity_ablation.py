@@ -122,17 +122,28 @@ def stamp_fields() -> dict:
     return out
 
 
+def _ts(row) -> float:
+    """composed_at from a row of any shape (sqlite3.Row, dict, or plain object). Row
+    shape is known in ONE place; everything else compares the extracted float -- a
+    driver detail must not be hardcoded into the analysis join."""
+    return float(row["composed_at"] if hasattr(row, "__getitem__") else row.composed_at)
+
+
 def arm_for_outcome(identity_rows, outcome_ts: float):
     """CRIT-1: pin the analysis join. An outcome event is attributed to the identity_log
     row with the GREATEST composed_at STRICTLY LESS THAN outcome_ts -- the arm that
     actually ACTED, not one that had not yet acted. A tie (composed_at == outcome_ts) is
-    excluded (returns None). `identity_rows` = iterable of rows with composed_at + the
-    ablation fields. Returns the chosen row or None."""
-    best = None
+    excluded. Returns the chosen row or None.
+
+    CONTRACT: outcome_ts and row composed_at must be the SAME unit -- REAL epoch seconds.
+    Both live writers use time.time() (identity_log.composed_at, self_predictions.made_at),
+    so the comparison is valid; a unit mismatch would silently attribute to the wrong row.
+    """
+    best, best_ts = None, None
     for r in identity_rows:
-        ts = r["composed_at"] if hasattr(r, "__getitem__") else r.composed_at
-        if ts < outcome_ts and (best is None or ts > (best["composed_at"])):
-            best = r
+        ts = _ts(r)
+        if ts < outcome_ts and (best_ts is None or ts > best_ts):
+            best, best_ts = r, ts
     return best
 
 
