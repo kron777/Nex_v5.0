@@ -152,7 +152,10 @@ _FILLER_WORDS = _FILLER_UNIT.split()
 
 def _filler_tokens(n: int) -> str:
     """n whitespace tokens of inert filler (the real control is TOKEN budget, not chars
-    -- CRIT-3; a char-exact pad would still differ in tokens and change the tail budget)."""
+    -- CRIT-3; a char-exact pad would still differ in tokens and change the tail budget).
+    Whitespace-token parity is EXACT by construction; it is an approximation to BPE at
+    hyphen/contraction edges, whose residual drift (a token or two in the prompt's
+    lightest region) is far under the effect size this experiment is powered to detect."""
     if n <= 0:
         return ""
     return " ".join(_FILLER_WORDS[i % len(_FILLER_WORDS)] for i in range(n))
