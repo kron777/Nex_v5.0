@@ -3482,9 +3482,17 @@ class FountainGenerator:
             _id_cx.close()
             if _id_row:
                 _id_mins = int((now - _id_row[1]) / 60)
-                prompt_parts.append(f"This is who you said you are ({_id_mins} min ago):")
-                prompt_parts.append(f"  {_id_row[0]}")
-                prompt_parts.append("")
+                # self-as-cause experiment gate (step 1): A=normal (byte-identical),
+                # B=reframe (same statement, neutral header -- isolates the identity
+                # CLAIM), C=filler (descriptive-only). File-based condition (no restart
+                # -> interleaves within one store epoch); fail-safe DEFAULTS TO CONTROL.
+                try:
+                    from theory_x.stage_tom import identity_ablation as _iab
+                    _iab.append_block(prompt_parts, _id_row[0], _id_mins)
+                except Exception:   # import failure etc. -> the real control block
+                    prompt_parts.append(f"This is who you said you are ({_id_mins} min ago):")
+                    prompt_parts.append(f"  {_id_row[0]}")
+                    prompt_parts.append("")
         except Exception:
             pass
 
