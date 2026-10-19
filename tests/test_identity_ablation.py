@@ -27,7 +27,8 @@ class TestIdentityAblation(unittest.TestCase):
         self._patch.start()
         IA._cache.update({"mtime": None, "mode": "normal", "logged": None})
         IA._gate_warned.clear()
-        IA._flip.update({"current": None, "flips": 0, "prev_stamp_arm": "normal"})
+        IA._flip.update({"current": None, "flips": 0, "prev_stamp_arm": "normal",
+                         "first_stamp": True})
 
     def tearDown(self):
         self._patch.stop()
@@ -43,46 +44,69 @@ class TestIdentityAblation(unittest.TestCase):
         self.assertEqual(IA.block_for(_STMT, _MIN, "normal"),
                          f"This is who you said you are ({_MIN} min ago):\n  {_STMT}")
 
-    def test_reframe_same_statement_neutral_header_length_matched(self):
+    def test_reframe_token_parity_exact(self):
+        # CRIT-3: the length control IS arm B's whole point, and the budget the model
+        # sees is TOKENS -> assert EXACT token-count parity (the real control).
         normal = IA.block_for(_STMT, _MIN, "normal")
         rf = IA.block_for(_STMT, _MIN, "reframe")
-        self.assertIn(_STMT, rf)                       # SAME statement (the point)
-        self.assertNotIn("who you said you are", rf)   # identity CLAIM removed
-        self.assertEqual(len(rf), len(normal))         # length held -> only claim varies
+        self.assertIn(_STMT, rf)                               # SAME statement
+        self.assertNotIn("who you said you are", rf)           # identity CLAIM removed
+        self.assertEqual(len(rf.split()), len(normal.split())) # EXACT token parity
 
-    def test_filler_absent_info_and_framing_length_matched(self):
+    def test_filler_token_parity_exact_and_absent(self):
         normal = IA.block_for(_STMT, _MIN, "normal")
         c = IA.block_for(_STMT, _MIN, "filler")
-        self.assertEqual(len(c), len(normal))
-        self.assertNotIn(_STMT, c)                     # content absent
-        self.assertNotIn("who you said you are", c)    # framing absent (block absent, not just content)
+        self.assertEqual(len(c.split()), len(normal.split()))  # EXACT token parity
+        self.assertNotIn(_STMT, c)                             # content absent
+        self.assertNotIn("who you said you are", c)            # framing absent
         self.assertNotIn("curious", c)
 
-    def test_filler_is_non_instructional_and_shared(self):
-        # Verify item: filler must be non-instructional (it sits after the statement in
-        # prompt position 3) and the SAME string padding arm B and filling arm C.
+    def test_filler_non_instructional_inert_and_shared(self):
+        # Verify item + MINOR-2: filler must be non-instructional AND semantically inert
+        # (no concrete nouns / spatial / sensory anchors -- else it reads as world-state,
+        # not padding), and the SAME string for arm B's pad and arm C.
         f = IA._FILLER_UNIT.lower()
-        self.assertNotIn("you", f)                      # no second person
-        for bad in ("continue", "respond", "write", "describe", "you are", "remember",
-                    "imagine", "pretend", "note that", "please"):
-            self.assertNotIn(bad, f)                    # no imperative / self-reference
-        # arm B's pad region and arm C both draw from the same _FILLER_UNIT
-        rf = IA.block_for(_STMT, _MIN, "reframe")
+        self.assertNotIn("you", f)
+        for bad in ("continue", "respond", "write", "describe", "remember", "imagine",
+                    "pretend", "please"):
+            self.assertNotIn(bad, f)                    # non-instructional
+        for concrete in ("wall", "light", "fan", "dust", "room", "sill", "afternoon",
+                          "hum", "window", "floor", "sound", "colour", "color"):
+            self.assertNotIn(concrete, f)               # inert: no concrete/sensory/spatial
+        # same filler words drive arm B's pad and arm C
+        first = IA._FILLER_WORDS[0]
         c = IA.block_for(_STMT, _MIN, "filler")
-        self.assertTrue(rf.endswith(IA._FILLER_UNIT[:5]) or IA._FILLER_UNIT[:5] in rf)
-        self.assertTrue(c.startswith(IA._FILLER_UNIT[:5]))
+        self.assertIn(first, c)
+        rf = IA.block_for(_STMT, _MIN, "reframe")
+        self.assertIn(first, rf)                         # B is padded from the same filler
+        self.assertIn("\n\n", rf)                        # ...delimited into its own paragraph
 
-    def test_flip_stamp_three_fields(self):
-        # Q11: arm / arm_prev / flips, reset per stamp. Primary analysis filters flips==0.
+    def test_join_rule_picks_strictly_earlier_row(self):
+        # CRIT-1: outcome attributed to the identity_log row with greatest composed_at
+        # STRICTLY LESS THAN the outcome ts; a tie is excluded.
+        rows = [{"composed_at": 100.0, "ablation_arm": "normal"},
+                {"composed_at": 101.0, "ablation_arm": "reframe"}]  # 1s apart
+        # outcome after both -> the later (the arm that ACTED)
+        self.assertEqual(IA.arm_for_outcome(rows, 101.5)["ablation_arm"], "reframe")
+        # outcome between -> the earlier
+        self.assertEqual(IA.arm_for_outcome(rows, 100.5)["ablation_arm"], "normal")
+        # tie with the later row -> that row excluded (strictly-less-than), earlier wins
+        self.assertEqual(IA.arm_for_outcome(rows, 101.0)["ablation_arm"], "normal")
+        # no row strictly earlier -> excluded (None)
+        self.assertIsNone(IA.arm_for_outcome(rows, 100.0))
+
+    def test_flip_stamp_three_fields_with_restart_sentinel(self):
+        # Q11 + CRIT-2: first stamp after process start -> flips=-1 (UNKNOWN), never a
+        # fabricated flips=0; subsequent stamps carry real counts and reset per stamp.
         self._set("normal"); IA.current_condition()
         s0 = IA.stamp_fields()
-        self.assertEqual((s0["arm"], s0["arm_prev"], s0["flips"]), ("normal", "normal", 0))
+        self.assertEqual((s0["arm"], s0["arm_prev"], s0["flips"]), ("normal", "normal", -1))
         self._set("reframe"); IA.current_condition()
         self._set("filler"); IA.current_condition()
         s1 = IA.stamp_fields()
         self.assertEqual(s1["arm"], "filler")
         self.assertEqual(s1["arm_prev"], "normal")      # arm at the previous stamp
-        self.assertEqual(s1["flips"], 2)                # normal->reframe->filler
+        self.assertEqual(s1["flips"], 2)                # normal->reframe->filler, real count
         s2 = IA.stamp_fields()
         self.assertEqual(s2["flips"], 0)                # counter reset after stamp
         self.assertEqual(s2["arm_prev"], "filler")

@@ -36,6 +36,7 @@ from __future__ import annotations
 import json
 import os
 import logging
+import threading
 from typing import Optional
 
 logger = logging.getLogger("nex5.identity_ablation")
@@ -44,16 +45,21 @@ _MODES = ("normal", "reframe", "filler")
 _NORMAL_HEADER = "This is who you said you are ({m} min ago):"
 _REFRAME_HEADER = "Earlier output, for context:"
 # Filler is used BOTH to pad arm B and to fill arm C -- it must be the SAME string in
-# both (else A-vs-C has two differences), and NON-INSTRUCTIONAL: it sits in prompt
-# position 3 after the statement, so an imperative or a self-reference would make it a
-# treatment and turn arm B into a hybrid. Neutral noun phrases only: no imperative
-# mood, no "you", no verbs of self-reference. Asserted in tests, not just here.
-_FILLER_UNIT = "grey light along the far wall, the low hum of a fan, an unmarked afternoon, dust on the sill, "
+# both (else A-vs-C has two differences), NON-INSTRUCTIONAL, and SEMANTICALLY INERT.
+# MINOR-2: the old sensory/spatial filler ("grey light on the wall...") reads as world
+# STATE a fountain prompt may treat as situational context, not padding -- and in arm B
+# it sits right after the statement. So: referent-free near-tautological function words,
+# no concrete nouns, no spatial/sensory anchors, no imperative, no "you". In arm B it is
+# also DELIMITED into its own paragraph so it can't parse as a continuation of the
+# statement. Asserted in tests.
+_FILLER_UNIT = "and so it was, and so it remains, as it is and as it was, much the same, and thus, "
 _cache: dict = {"mtime": None, "mode": "normal", "logged": None}
-# Q11 seam guard: count condition CHANGES between identity ticks so the primary
-# analysis can filter rows where the arm flipped mid-interval (start-arm == end-arm
-# would otherwise hide an A->B->A flip). Rows are stamped, never dropped.
-_flip: dict = {"current": None, "flips": 0, "prev_stamp_arm": "normal"}
+_lock = threading.Lock()   # MINOR-1: _flip is mutated from the fountain and tick threads
+# Q11 seam guard: count condition CHANGES between identity ticks so the primary analysis
+# can filter rows where the arm flipped mid-interval. first_stamp emits flips=-1 (UNKNOWN)
+# for the first stamp after process start (CRIT-2): _flip resets at import, so a restart
+# would otherwise fabricate a "stable" (flips=0) row with a hardcoded prev_stamp_arm.
+_flip: dict = {"current": None, "flips": 0, "prev_stamp_arm": "normal", "first_stamp": True}
 
 
 def _condition_path() -> str:
@@ -89,32 +95,56 @@ def current_condition() -> str:
     mode = _cache["mode"]
     # Q11 flip accounting (observed on every call; the fountain calls this per fire, so
     # flips BETWEEN the rarer identity ticks are captured). The first observation sets
-    # the baseline and is not a flip.
-    if _flip["current"] is None:
-        _flip["current"] = mode
-        _flip["prev_stamp_arm"] = mode
-    elif mode != _flip["current"]:
-        _flip["flips"] += 1
-        _flip["current"] = mode
+    # the baseline and is not a flip. Locked (MINOR-1): read-modify-write across threads.
+    with _lock:
+        if _flip["current"] is None:
+            _flip["current"] = mode
+            _flip["prev_stamp_arm"] = mode
+        elif mode != _flip["current"]:
+            _flip["flips"] += 1
+            _flip["current"] = mode
     return mode
 
 
 def stamp_fields() -> dict:
     """Three-field arm stamp for the OUTCOME row (Q11). arm = in force now; arm_prev =
     in force at the previous stamp (interval start); flips = condition CHANGES observed
-    since. Primary analysis filters flips==0; other rows are kept and reported as
-    excluded-n, never dropped. Resets the interval counters."""
+    since (or -1 = UNKNOWN for the first stamp after process start, CRIT-2 -- excluded
+    from primary, never a fabricated flips=0). Primary analysis filters flips==0; other
+    rows kept and reported as excluded-n, never dropped. Resets the interval counters."""
     arm = current_condition()
-    out = {"arm": arm, "arm_prev": _flip["prev_stamp_arm"], "flips": _flip["flips"]}
-    _flip["prev_stamp_arm"] = arm
-    _flip["flips"] = 0
+    with _lock:
+        flips = -1 if _flip["first_stamp"] else _flip["flips"]
+        out = {"arm": arm, "arm_prev": _flip["prev_stamp_arm"], "flips": flips}
+        _flip["prev_stamp_arm"] = arm
+        _flip["flips"] = 0
+        _flip["first_stamp"] = False
     return out
 
 
-def _filler(n_chars: int) -> str:
-    if n_chars <= 0:
+def arm_for_outcome(identity_rows, outcome_ts: float):
+    """CRIT-1: pin the analysis join. An outcome event is attributed to the identity_log
+    row with the GREATEST composed_at STRICTLY LESS THAN outcome_ts -- the arm that
+    actually ACTED, not one that had not yet acted. A tie (composed_at == outcome_ts) is
+    excluded (returns None). `identity_rows` = iterable of rows with composed_at + the
+    ablation fields. Returns the chosen row or None."""
+    best = None
+    for r in identity_rows:
+        ts = r["composed_at"] if hasattr(r, "__getitem__") else r.composed_at
+        if ts < outcome_ts and (best is None or ts > (best["composed_at"])):
+            best = r
+    return best
+
+
+_FILLER_WORDS = _FILLER_UNIT.split()
+
+
+def _filler_tokens(n: int) -> str:
+    """n whitespace tokens of inert filler (the real control is TOKEN budget, not chars
+    -- CRIT-3; a char-exact pad would still differ in tokens and change the tail budget)."""
+    if n <= 0:
         return ""
-    return (_FILLER_UNIT * ((n_chars // len(_FILLER_UNIT)) + 1))[:n_chars]
+    return " ".join(_FILLER_WORDS[i % len(_FILLER_WORDS)] for i in range(n))
 
 
 def _normal_block(statement: str, minutes_ago: int) -> str:
@@ -136,13 +166,15 @@ def block_for(statement: str, minutes_ago: int, mode: Optional[str] = None) -> s
     normal = _normal_block(statement, minutes_ago)
     if mode == "normal" or not statement:
         return normal
+    target = len(normal.split())   # match the TOKEN budget (CRIT-3), not char length
     if mode == "reframe":
         rf = _REFRAME_HEADER + "\n  " + statement
-        if len(rf) < len(normal):
-            return rf + _filler(len(normal) - len(rf))
-        return rf[:len(normal)]
+        need = target - len(rf.split())
+        # delimit the filler into its own paragraph so it can't parse as a continuation
+        # of the statement (the "\n\n" is whitespace -> contributes no token).
+        return rf + ("\n\n" + _filler_tokens(need)) if need > 0 else rf
     if mode == "filler":
-        return _filler(len(normal))
+        return _filler_tokens(target)
     return normal
 
 
