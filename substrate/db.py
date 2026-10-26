@@ -110,6 +110,17 @@ class _TripwireConnection(sqlite3.Connection):
             raise
 
 
+def table_exists(conn, name: str) -> bool:
+    """True if `name` is a table in conn's main database. Lets a caller skip a
+    query against an optional integration's tables (e.g. moltbook) instead of
+    raising -- and tripping NEX5_SCHEMA_TRIPWIRE -- when it isn't installed.
+    Accepts a sqlite3.Connection or a substrate Reader."""
+    sql = "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?"
+    if hasattr(conn, "read_one"):
+        return conn.read_one(sql, (name,)) is not None
+    return conn.execute(sql, (name,)).fetchone() is not None
+
+
 def connect(
     db_path: str | Path,
     *,

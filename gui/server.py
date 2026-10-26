@@ -3476,12 +3476,18 @@ def create_app(state: AppState) -> Flask:
         if reader is None:
             return jsonify({"events": []}), 503
         try:
+            from substrate import table_exists
+            # moltbook is optional: its tables exist only once the integration
+            # has been set up. The HUD polls this every few seconds, so query
+            # only what is there instead of failing (and logging) each poll.
+            has_posts = table_exists(reader, "moltbook_posts")
+            has_replies = table_exists(reader, "moltbook_pending_replies")
             events = []
             # Outgoing posts
             for r in reader.read(
                 "SELECT id, ts, submolt, status, post_id, thought_id "
                 "FROM moltbook_posts ORDER BY id DESC LIMIT 30"
-            ):
+            ) if has_posts else ():
                 # Pull the actual thought text
                 content = ""
                 try:
@@ -3506,7 +3512,7 @@ def create_app(state: AppState) -> Flask:
             for r in reader.read(
                 "SELECT id, created_at, from_agent, content, status "
                 "FROM moltbook_pending_replies ORDER BY id DESC LIMIT 30"
-            ):
+            ) if has_replies else ():
                 events.append({
                     "id": f"in_{r['id']}",
                     "ts": r["created_at"],

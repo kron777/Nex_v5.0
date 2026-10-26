@@ -19,7 +19,7 @@ fired today but hasn't.
 from __future__ import annotations
 import json
 import logging
-from substrate import connect
+from substrate import connect, table_exists
 import threading
 import time
 from datetime import datetime
@@ -129,11 +129,13 @@ def _state_snapshot() -> dict:
 
     try:
         d_cx = connect(DYNAMIC_DB, timeout=10)
+        # moltbook is optional; without its table there were no posts. Querying
+        # it anyway raised and skipped the focus/fire reads below.
         row = d_cx.execute(
             "SELECT COUNT(*) FROM moltbook_posts "
             "WHERE status='posted' AND ts > ?",
             (time.time() - 86400,)
-        ).fetchone()
+        ).fetchone() if table_exists(d_cx, "moltbook_posts") else (0,)
         out["moltbook_posts_24h"] = row[0] if row else 0
 
         row = d_cx.execute(
@@ -213,7 +215,7 @@ def _activity_outreach(slot: str, date_local: str) -> str:
         rows = d_cx.execute(
             "SELECT conversation_id, with_agent FROM moltbook_dms "
             "WHERE approved=1 LIMIT 8"
-        ).fetchall()
+        ).fetchall() if table_exists(d_cx, "moltbook_dms") else []
         d_cx.close()
     except Exception as e:
         msg = f"outreach {slot}: db error ({e})"
