@@ -43,16 +43,17 @@ sys.path.insert(0, ".")
 def _affect_db() -> str:
     try:
         from substrate.paths import db_paths  # type: ignore
-        # affect_state lives in dynamic.db in nex5
-        return str(db_paths()["dynamic"])
+        # affect_state lives in conversations.db (substrate/init_db.py). This
+        # used to say dynamic.db, so every read failed once before falling back.
+        return str(db_paths()["conversations"])
     except Exception:
-        return "data/dynamic.db"
+        return "data/conversations.db"
 
 
 def _read_affect() -> dict | None:
     """Read NEX's current real affect signals (the dimensional substrate)."""
     from substrate.paths import DbPath
-    for db in (_affect_db(), str(DbPath("conversations")), str(DbPath("dynamic"))):
+    for db in (_affect_db(), str(DbPath("dynamic"))):
         try:
             conn = connect(db, timeout=10)
             conn.row_factory = Row

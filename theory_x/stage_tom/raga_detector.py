@@ -112,7 +112,7 @@ def _problem_perseveration() -> tuple[int, str]:
         c.row_factory = Row
         rows = c.execute(
             "SELECT title, COUNT(*) n FROM open_problems "
-            "WHERE COALESCE(updated_at, created_at, ts, 0) > strftime('%s','now')-1800 "
+            "WHERE COALESCE(last_touched_at, created_at) > strftime('%s','now')-1800 "
             "GROUP BY title ORDER BY n DESC LIMIT 1"
         ).fetchall()
         c.close()
