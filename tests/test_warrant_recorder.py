@@ -118,6 +118,25 @@ class TestRecorder(unittest.TestCase):
         self.r.use_cycle(now=_T0 + 21 * _DAY)
         self.assertEqual(self._q("SELECT days FROM belief_use_days WHERE belief_id=5")[0][0], 3)
 
+    def test_identity_block_retrievals_are_not_use(self):
+        # The guaranteed identity block shows its beliefs every fire by
+        # construction; that is not reliance, so it must not earn use days.
+        c = sqlite3.connect(self.ddb)
+        c.executemany("INSERT INTO fountain_retrieval_log VALUES (?,?,?,?,?)",
+                      [(3, 2, 9, "identity_block", _T0 + 1 * _DAY),
+                       (4, 3, 9, "identity_block", _T0 + 2 * _DAY),
+                       (5, 4, 9, "identity_block", _T0 + 3 * _DAY)])
+        c.commit(); c.close()
+        self.r.use_cycle(now=_T0 + 4 * _DAY)
+        self.assertEqual(self._q("SELECT days FROM belief_use_days WHERE belief_id=9"), [])
+        # the cursor moved past them: a later ordinary retrieval still counts once
+        c = sqlite3.connect(self.ddb)
+        c.execute("INSERT INTO fountain_retrieval_log VALUES (6, 5, 9, 'seed', ?)",
+                  (_T0 + 5 * _DAY,))
+        c.commit(); c.close()
+        self.r.use_cycle(now=_T0 + 6 * _DAY)
+        self.assertEqual(self._q("SELECT days FROM belief_use_days WHERE belief_id=9")[0][0], 1)
+
     def test_write_batch_prefers_write_many(self):
         calls = []
 

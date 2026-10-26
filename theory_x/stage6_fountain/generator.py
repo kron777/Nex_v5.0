@@ -3468,6 +3468,16 @@ class FountainGenerator:
                 pass
         # ───────────────────────────────────────────────────────────────────
 
+        # NEX5_IDENTITY_BLOCK (default OFF): a standing identity block that always
+        # assembles, so continuity is guaranteed rather than won by an affinity
+        # draw. Affinity scales how much surfaces, not whether. See identity_block.
+        if os.environ.get("NEX5_IDENTITY_BLOCK") == "1":
+            try:
+                from theory_x.stage6_fountain import identity_block as _idb
+                _idb.append(prompt_parts, retrieval_manifest, self._beliefs_reader)
+            except Exception:
+                pass
+
         # 2026-05-16: Identity — most recent self-description from identity_loop.
         # She sees who she said she was, so the next thing she speaks is grounded
         # in continuity. The comparison "earlier I said X" with "now I am Y" is
@@ -3482,11 +3492,35 @@ class FountainGenerator:
             _id_cx.close()
             if _id_row:
                 _id_mins = int((now - _id_row[1]) / 60)
-                prompt_parts.append(f"This is who you said you are ({_id_mins} min ago):")
-                prompt_parts.append(f"  {_id_row[0]}")
-                prompt_parts.append("")
+                # self-as-cause experiment gate (step 1): A=normal (byte-identical),
+                # B=reframe (same statement, neutral header -- isolates the identity
+                # CLAIM), C=filler (descriptive-only). File-based condition (no restart
+                # -> interleaves within one store epoch); fail-safe DEFAULTS TO CONTROL.
+                try:
+                    from theory_x.stage_tom import identity_ablation as _iab
+                    _iab.append_block(prompt_parts, _id_row[0], _id_mins)
+                except Exception:   # import failure etc. -> the real control block
+                    prompt_parts.append(f"This is who you said you are ({_id_mins} min ago):")
+                    prompt_parts.append(f"  {_id_row[0]}")
+                    prompt_parts.append("")
         except Exception:
             pass
+
+        # round 11 (item 1): downtime neighbourhood — the most recent self_downtime
+        # record, so the standing self-description is continuous ACROSS the gap, not
+        # only within a session. She can represent that she was OFF, and for how long.
+        if self._beliefs_reader is not None:
+            try:
+                _dt = self._beliefs_reader.read(
+                    "SELECT content, created_at FROM beliefs "
+                    "WHERE source='self_downtime' ORDER BY created_at DESC LIMIT 1"
+                )
+                if _dt:
+                    prompt_parts.append("Before now, there was a gap:")
+                    prompt_parts.append(f"  {_dt[0]['content']}")
+                    prompt_parts.append("")
+            except Exception:
+                pass
 
         # 2026-05-16: Recent surprise (from PredictiveSubstrate) — feed her
         # the gap between what she expected and what came. This is what makes

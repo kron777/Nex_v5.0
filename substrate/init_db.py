@@ -285,6 +285,60 @@ _MIGRATIONS: dict[str, list[str]] = {
         "CREATE INDEX IF NOT EXISTS idx_residue_unconsumed_recent "
         "ON residue(created_at DESC) "
         "WHERE consumed_at IS NULL",
+        # Substrate-voice anchor rotation (generator: least-recently-voiced T<=2
+        # anchor) and provenance's recency fallback both read this; it was set by
+        # an UPDATE but created in no schema, so on a fresh store the groove
+        # breaker's anchor query failed silently and never fired.
+        "ALTER TABLE beliefs ADD COLUMN last_voiced_at REAL",
+        # Carryx §8 Step 1 — intake resonance probe.
+        # Logs the cosine similarity between each newly-crystallized
+        # belief and her existing standing-points (T1-T3 keystones + top T6).
+        # Pure observation; does not change tier yet. Foundation for §8
+        # Step 2 (tier mapping by resonance). Lives in beliefs.db: the probe
+        # writes it through the beliefs Writer and intake_resonance_cli joins it
+        # against beliefs (it was once mis-filed under dynamic, so a fresh
+        # beliefs.db lacked it and every intake write failed).
+        "CREATE TABLE IF NOT EXISTS intake_resonance_log ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "content TEXT NOT NULL, "
+        "resonance REAL NOT NULL, "
+        "top_match_belief_id INTEGER, "
+        "ts REAL NOT NULL)",
+        "CREATE INDEX IF NOT EXISTS idx_intake_resonance_ts "
+        "ON intake_resonance_log(ts DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_intake_resonance_score "
+        "ON intake_resonance_log(resonance DESC)",
+        # Groove-breaker probe queue (theory_x/auto_probe/groove_breaker.py).
+        # created_at defaults to insert time: competing_drives._probe_rate
+        # filters on it while the breaker itself writes only ts.
+        "CREATE TABLE IF NOT EXISTS auto_probe_log ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "groove_alert_id INTEGER, "
+        "groove_severity REAL, "
+        "dominant_opcode TEXT, "
+        "sustained_fires INTEGER, "
+        "selected_category TEXT, "
+        "selected_probe_text TEXT, "
+        "status TEXT NOT NULL DEFAULT 'observation', "
+        "ts REAL NOT NULL, "
+        "delivered_at REAL, "
+        "created_at REAL NOT NULL "
+        "DEFAULT ((julianday('now') - 2440587.5) * 86400.0))",
+        "CREATE INDEX IF NOT EXISTS idx_auto_probe_log_ts "
+        "ON auto_probe_log(ts DESC)",
+        # World-bridge selection log (theory_x/world_bridge/selector.py): which
+        # sense events were injected into a fire.
+        "CREATE TABLE IF NOT EXISTS world_bridge_log ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "ts REAL NOT NULL, "
+        "fountain_event_id INTEGER, "
+        "selected_events_json TEXT NOT NULL DEFAULT '[]', "
+        "selection_count INTEGER NOT NULL DEFAULT 0, "
+        "streams_seen TEXT, "
+        "injected INTEGER NOT NULL DEFAULT 0, "
+        "notes TEXT)",
+        "CREATE INDEX IF NOT EXISTS idx_world_bridge_log_ts "
+        "ON world_bridge_log(ts DESC)",
     ],
     "dynamic": [
         "CREATE TABLE IF NOT EXISTS harmonizer_events ("
@@ -414,21 +468,87 @@ _MIGRATIONS: dict[str, list[str]] = {
         "tags TEXT NOT NULL DEFAULT '[]')",
         "CREATE INDEX IF NOT EXISTS idx_social_presence_taken_at "
         "ON social_presence_snapshots(taken_at DESC)",
-        # Carryx §8 Step 1 — intake resonance probe.
-        # Logs the cosine similarity between each newly-crystallized
-        # belief and her existing standing-points (T1-T3 keystones + top T6).
-        # Pure observation; does not change tier yet. Foundation for §8
-        # Step 2 (tier mapping by resonance).
-        "CREATE TABLE IF NOT EXISTS intake_resonance_log ("
+        # Daily-life schedule (theory_x/life/daily_life.py): each activity fires
+        # at most once per local calendar day -- INSERT OR IGNORE relies on the
+        # (activity, date_local) key. Previously created in no schema, so a
+        # fresh store failed every daily_loop tick with 'no such table'.
+        "CREATE TABLE IF NOT EXISTS daily_activities ("
+        "activity TEXT NOT NULL, "
+        "date_local TEXT NOT NULL, "
+        "fired_at REAL NOT NULL, "
+        "details TEXT NOT NULL DEFAULT '', "
+        "PRIMARY KEY (activity, date_local))",
+        # Coincidence tag (coin/maybe/non) written by /api/coincidence/tag and
+        # read by the decoder loop. Was never added by any migration, so on a
+        # fresh store every decoder_tick failed with 'no such column: tag'.
+        "ALTER TABLE fountain_events ADD COLUMN tag TEXT",
+        # The open problem she is currently working (theory_x/sustained/
+        # focus_loop.py): a single row, id=1; problem_id -> open_problems.id in
+        # conversations.db. Read by daily_life, identity_loop, virya, provenance.
+        "CREATE TABLE IF NOT EXISTS current_focus ("
+        "id INTEGER PRIMARY KEY CHECK (id = 1), "
+        "problem_id INTEGER NOT NULL, "
+        "picked_at REAL NOT NULL, "
+        "observations_at_pick INTEGER NOT NULL DEFAULT 0)",
+        # Coincidence module (theory_x/coincidence/): the substrate context
+        # frozen when a fire is tagged coin/maybe/non, one row per fire.
+        "CREATE TABLE IF NOT EXISTS coincidence_context ("
+        "fountain_event_id INTEGER PRIMARY KEY, "
+        "tagged_at REAL NOT NULL, "
+        "tag TEXT, "
+        "aperture REAL, "
+        "hot_branch TEXT, "
+        "branch_activations TEXT, "
+        "recent_fountain TEXT, "
+        "recent_surprises TEXT, "
+        "recent_daemons TEXT, "
+        "belief_delta_1h INTEGER, "
+        "groove_alerts TEXT, "
+        "last_identity TEXT, "
+        "last_pattern TEXT, "
+        "last_witness TEXT, "
+        "full_snapshot TEXT)",
+        # Per-word decoder rows (theory_x/coincidence/decoder_loop.py), one per
+        # word of each fire, with the substrate state at that fire.
+        "CREATE TABLE IF NOT EXISTS word_contexts ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-        "content TEXT NOT NULL, "
-        "resonance REAL NOT NULL, "
-        "top_match_belief_id INTEGER, "
-        "ts REAL NOT NULL)",
-        "CREATE INDEX IF NOT EXISTS idx_intake_resonance_ts "
-        "ON intake_resonance_log(ts DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_intake_resonance_score "
-        "ON intake_resonance_log(resonance DESC)",
+        "word TEXT NOT NULL, "
+        "fountain_event_id INTEGER NOT NULL, "
+        "ts REAL, "
+        "aperture REAL, "
+        "hot_branch TEXT, "
+        "surprises_30min INTEGER, "
+        "daemons_5min INTEGER, "
+        "belief_delta_1h INTEGER, "
+        "fountain_tag TEXT, "
+        "hour_of_day INTEGER, "
+        "day_of_week INTEGER, "
+        "seconds_since_feed REAL, "
+        "seconds_since_daemon REAL, "
+        "active_branch_count INTEGER, "
+        "groove_active INTEGER)",
+        "CREATE INDEX IF NOT EXISTS idx_word_contexts_word "
+        "ON word_contexts(word)",
+        "CREATE INDEX IF NOT EXISTS idx_word_contexts_event "
+        "ON word_contexts(fountain_event_id)",
+        # Operator word tags (key/noise/unsure) and coincidence hypotheses,
+        # both written from the GUI (gui/server.py).
+        "CREATE TABLE IF NOT EXISTS word_tags ("
+        "word TEXT PRIMARY KEY, "
+        "tag TEXT NOT NULL, "
+        "tagged_at REAL NOT NULL, "
+        "note TEXT)",
+        "CREATE TABLE IF NOT EXISTS hypotheses ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "created_at REAL NOT NULL, "
+        "claim TEXT NOT NULL, "
+        "keywords TEXT, "
+        "time_window TEXT, "
+        "status TEXT NOT NULL DEFAULT 'open', "
+        "supporting INTEGER NOT NULL DEFAULT 0, "
+        "contradicting INTEGER NOT NULL DEFAULT 0, "
+        "closed_at REAL, "
+        "notes TEXT)",
     ],
     "conversations": [
         # NEX5_PROVENANCE — what she held going INTO a turn, written before the
@@ -614,6 +734,51 @@ _MIGRATIONS: dict[str, list[str]] = {
         "ALTER TABLE world_predictions ADD COLUMN trust_level TEXT",
         "ALTER TABLE world_predictions ADD COLUMN trust_gap REAL",
         "ALTER TABLE world_predictions ADD COLUMN trust_n INTEGER",
+        # Competing drives (theory_x/stage_drives/competing_drives.py): one live
+        # row (id=1) of drive weights, plus a per-tick history the synergizer
+        # and fountain read back. Previously created in no schema, so a fresh
+        # store silently never persisted drive state.
+        "CREATE TABLE IF NOT EXISTS drives_competing ("
+        "id INTEGER PRIMARY KEY, "
+        "coherence REAL NOT NULL, "
+        "exploration REAL NOT NULL, "
+        "integration REAL NOT NULL, "
+        "self_preservation REAL NOT NULL, "
+        "curiosity REAL NOT NULL, "
+        "tension_pairs TEXT NOT NULL DEFAULT '[]', "
+        "computed_at REAL NOT NULL)",
+        "CREATE TABLE IF NOT EXISTS drives_competing_log ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "tick_at REAL NOT NULL, "
+        "weights_json TEXT NOT NULL, "
+        "inputs_json TEXT, "
+        "tension_active INTEGER NOT NULL DEFAULT 0)",
+        "CREATE INDEX IF NOT EXISTS idx_drives_competing_log_tick "
+        "ON drives_competing_log(tick_at DESC)",
+        # Per-fire drive activation and the per-drive-pair voice profile
+        # (competing_drives.compute_now / drive_history). DDL as recorded in
+        # journal/JOURNAL_2026-05-19.md (commit 8a348c5); it was applied to the
+        # live DB by hand and never registered here.
+        "CREATE TABLE IF NOT EXISTS drive_activations ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "fountain_event_id INTEGER, "
+        "timestamp REAL NOT NULL, "
+        "coherence_weight REAL NOT NULL, "
+        "exploration_weight REAL NOT NULL, "
+        "integration_weight REAL NOT NULL, "
+        "self_preservation_weight REAL NOT NULL, "
+        "curiosity_weight REAL NOT NULL, "
+        "active_conflicts TEXT, "
+        "resolution_summary TEXT)",
+        "CREATE INDEX IF NOT EXISTS idx_drive_activations_ts "
+        "ON drive_activations(timestamp)",
+        "CREATE TABLE IF NOT EXISTS voice_profile ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "drive_pair TEXT NOT NULL UNIQUE, "
+        "resolution_pattern TEXT, "
+        "frequency INTEGER NOT NULL DEFAULT 1, "
+        "signature_vocabulary TEXT, "
+        "updated_at REAL NOT NULL)",
     ],
 }
 

@@ -89,7 +89,7 @@ def _read_state_counts(cx: Connection, fire_ts: float) -> dict:
     try:
         row = cx.execute(
             "SELECT COUNT(*) FROM surprise_events "
-            "WHERE ts > ? AND ts <= ? AND surprise_flag = 1",
+            "WHERE triggered_at > ? AND triggered_at <= ? AND surprise_flag = 1",
             (thirty_min, fire_ts),
         ).fetchone()
         out["surprises_30min"] = row[0] if row else 0
