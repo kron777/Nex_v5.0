@@ -76,6 +76,21 @@ TARGETS = [
     # belief_lineage (conversation/lineage history kept by design).
     ("conversations.db", "drive_emergence_log",   "tick_at"),
     ("conversations.db", "substrate_coherence",   "ts", 90),
+    # fountain_retrieval_log — append-only (fire_id, belief_id, slot, rank, ts),
+    # ~per-belief-per-fire, 77k rows and unbounded. Readers surveyed, all tolerant of
+    # age-pruning: the live dedup check reads only the last 3 fires
+    # (generator._check_retrieval_duplicate), the warrant recorder is cursor-based
+    # (WHERE id > ?), and only a diagnostic tool lifetime-scans it. 30d default is far
+    # beyond any live need.
+    ("dynamic.db",       "fountain_retrieval_log", "ts"),
+    # Deliberately NOT added: substrate_snapshots. It already carries a TIER-AWARE
+    # retention scheme (retention_tier + pinned, snapshots.py:prune_snapshots =
+    # "WHERE retention_tier=? AND ts<? AND pinned=0"), which a flat `ts < cutoff`
+    # reaper would override -- deleting genius/moment/pinned snapshots the scheme
+    # exists to keep. It IS growing unbounded (38k rows, 99% retention_tier=NULL)
+    # because score_pending_snapshots/prune_snapshots are wired only into
+    # tools/snapshots.py (manual CLI), never scheduled. The fix is to WIRE that
+    # tier-aware pipeline, not to age-prune here. Tracked separately.
 ]
 
 
