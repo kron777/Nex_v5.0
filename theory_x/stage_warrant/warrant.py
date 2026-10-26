@@ -156,7 +156,12 @@ def compute_all(beliefs_db: str = None, dynamic_db: str = None,
                 "SELECT walk_anchor_id, ts FROM substrate_snapshots "
                 "WHERE walk_anchor_id IS NOT NULL"):
             use_ts[bid].append(ts)
-        for bid, ts in d.execute("SELECT belief_id, ts FROM fountain_retrieval_log"):
+        # identity_block rows are excluded: the guaranteed identity block
+        # (NEX5_IDENTITY_BLOCK) shows those beliefs every fire BY CONSTRUCTION,
+        # so their retrieval says nothing about being relied on.
+        for bid, ts in d.execute(
+                "SELECT belief_id, ts FROM fountain_retrieval_log "
+                "WHERE slot IS NOT 'identity_block'"):
             use_ts[bid].append(ts)
         for a, c in d.execute(
                 "SELECT belief_id_a, belief_id_b FROM harmonizer_events "

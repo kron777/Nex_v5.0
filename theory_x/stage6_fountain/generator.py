@@ -3468,6 +3468,16 @@ class FountainGenerator:
                 pass
         # ───────────────────────────────────────────────────────────────────
 
+        # NEX5_IDENTITY_BLOCK (default OFF): a standing identity block that always
+        # assembles, so continuity is guaranteed rather than won by an affinity
+        # draw. Affinity scales how much surfaces, not whether. See identity_block.
+        if os.environ.get("NEX5_IDENTITY_BLOCK") == "1":
+            try:
+                from theory_x.stage6_fountain import identity_block as _idb
+                _idb.append(prompt_parts, retrieval_manifest, self._beliefs_reader)
+            except Exception:
+                pass
+
         # 2026-05-16: Identity — most recent self-description from identity_loop.
         # She sees who she said she was, so the next thing she speaks is grounded
         # in continuity. The comparison "earlier I said X" with "now I am Y" is
