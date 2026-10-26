@@ -58,9 +58,11 @@ def _compose_sentence(voice: dict, random: dict) -> str:
     """The exact words that go onto the shelf. Plain, honest, self-stated."""
     v_res = voice.get("resolved", 0)
     v_cor = voice.get("correct", 0)
-    v_rate = voice.get("hit_rate", 0.0)
+    # hit_rate is None until something resolves (scorecard_by_source); with
+    # resolved == 0 the n-gates below route to "not enough data" regardless.
+    v_rate = voice.get("hit_rate") or 0.0
     r_res = random.get("resolved", 0)
-    r_rate = random.get("hit_rate", 0.0)
+    r_rate = random.get("hit_rate") or 0.0
 
     # If the gap is small, NEX states it as "no better than chance".
     # If voice pulls genuinely ahead OR genuinely behind at large n, the
