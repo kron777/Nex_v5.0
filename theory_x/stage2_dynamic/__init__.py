@@ -674,9 +674,31 @@ def build_dynamic(writers: dict, readers: dict, coherence_gate=None) -> DynamicS
         )
     # --- end moltbook ---
 
+    threads = []
     for fn, name in loops:
         t = threading.Thread(target=fn, args=(state, stop), name=name, daemon=True)
         t.start()
+        threads.append(t)
 
     state._stop = stop  # type: ignore[attr-defined]
+    state._threads = threads  # type: ignore[attr-defined]
     return state
+
+
+def stop_dynamic(state: DynamicState, timeout: float = 30.0) -> list:
+    """Stop build_dynamic's daemon loops AND wait for them to finish the tick in
+    progress. Setting the event alone is not enough: a loop mid-tick keeps
+    running, and paths resolved at use time (substrate.paths.DbPath) can then
+    point somewhere else -- in tests, at the live data/ dir once a fixture has
+    removed its temp NEX5_DATA_DIR. Returns the names of loops still alive after
+    `timeout` seconds (empty when all stopped)."""
+    stop = getattr(state, "_stop", None)
+    if stop is not None:
+        stop.set()
+    deadline = time.monotonic() + timeout
+    alive = []
+    for t in getattr(state, "_threads", ()):
+        t.join(max(0.0, deadline - time.monotonic()))
+        if t.is_alive():
+            alive.append(t.name)
+    return alive
