@@ -482,6 +482,23 @@ _MIGRATIONS: dict[str, list[str]] = {
         # read by the decoder loop. Was never added by any migration, so on a
         # fresh store every decoder_tick failed with 'no such column: tag'.
         "ALTER TABLE fountain_events ADD COLUMN tag TEXT",
+        # pattern_loop / witness_loop create these on their first compose-hour
+        # tick; until then the decoder's daemon counts queried tables that did
+        # not exist (surfaced by NEX5_SCHEMA_TRIPWIRE on the fresh store).
+        # Same DDL as the loops.
+        "CREATE TABLE IF NOT EXISTS pattern_log ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "composed_at REAL NOT NULL, "
+        "date_local TEXT NOT NULL, "
+        "hour_local INTEGER NOT NULL, "
+        "statement TEXT NOT NULL, "
+        "UNIQUE(date_local, hour_local))",
+        "CREATE TABLE IF NOT EXISTS witness_log ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "composed_at REAL NOT NULL, "
+        "date_local TEXT NOT NULL, "
+        "statement TEXT NOT NULL, "
+        "UNIQUE(date_local))",
         # The open problem she is currently working (theory_x/sustained/
         # focus_loop.py): a single row, id=1; problem_id -> open_problems.id in
         # conversations.db. Read by daily_life, identity_loop, virya, provenance.

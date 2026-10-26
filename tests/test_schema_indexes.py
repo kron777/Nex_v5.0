@@ -383,7 +383,10 @@ class TestEveryStaticStatementCompilesOnFreshInit(unittest.TestCase):
             except SyntaxError:
                 continue
             for lit in self._literals(tree):
-                if self._DYN in lit or "%s" in lit or "%(" in lit:
+                # %-formatting placeholders mark a dynamic statement -- but only
+                # outside quoted SQL strings: strftime('%s', ...) is plain SQL.
+                bare = re.sub(r"'[^']*'", "''", lit)
+                if self._DYN in lit or "%s" in bare or "%(" in bare:
                     continue
                 if create.search(lit) or alter.match(lit):
                     ddl.append(lit)
