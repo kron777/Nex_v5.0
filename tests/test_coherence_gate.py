@@ -251,21 +251,32 @@ class TestGatePerformance(unittest.TestCase):
         _cleanup(self.writers, self.tmp)
 
     def test_latency_under_10ms(self):
-        """Gate adds < 10ms typical latency (averaged over 10 calls)."""
+        """Gate adds < 10ms typical latency.
+
+        Asserted on robust statistics, not the mean: a mean over a handful of
+        wall-clock samples fails on one scheduler/IO stall on a loaded runner
+        (measured: typical ~3ms per call, yet the 10-sample mean flaked under
+        full-suite load). Median under the real 10ms budget, and >= 90% of calls
+        under it, so a genuine slowdown still fails while one stall cannot.
+        """
+        import statistics
         from theory_x.stage_gate.coherence_gate import ThoughtPacket
-        thoughts = [
-            f"Novel observation about consciousness and time variant {i}."
-            for i in range(10)
-        ]
-        total_ms = 0.0
-        for thought in thoughts:
-            packet = ThoughtPacket(content=thought, source_node="fountain",
-                                   confidence=0.70)
-            decision = self.gate.check(packet)
-            total_ms += decision.latency_ms
-        avg_ms = total_ms / len(thoughts)
-        self.assertLess(avg_ms, 10.0,
-                        f"Average gate latency {avg_ms:.2f}ms exceeded 10ms budget")
+
+        def _check(i):
+            packet = ThoughtPacket(
+                content=f"Novel observation about consciousness and time variant {i}.",
+                source_node="fountain", confidence=0.70)
+            return self.gate.check(packet).latency_ms
+
+        for i in range(2):                       # warm-up: page cache, stmt cache
+            _check(-1 - i)
+        lat = [_check(i) for i in range(50)]
+        median = statistics.median(lat)
+        within = sum(ms < 10.0 for ms in lat) / len(lat)
+        summary = (f"median {median:.2f}ms, {within:.0%} under 10ms, "
+                   f"max {max(lat):.2f}ms over {len(lat)} calls")
+        self.assertLess(median, 10.0, f"typical gate latency over budget: {summary}")
+        self.assertGreaterEqual(within, 0.90, f"too many slow gate calls: {summary}")
 
 
 class TestGateLogging(unittest.TestCase):
