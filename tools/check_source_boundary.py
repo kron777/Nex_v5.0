@@ -21,8 +21,9 @@ Direction is decided by which copy was created first. Usage:
 from __future__ import annotations
 
 import argparse
-import sqlite3
 from collections import Counter, defaultdict
+
+from substrate import connect
 
 # Mirrors the authored tier of affinity_loop.PROVENANCE_BASE.
 AUTHORED = {"fountain_insight", "synergized", "counterfactual_node", "remember_loop",
@@ -43,7 +44,7 @@ def class_detector(db: str):
     overlap; this catches the whole class -- a source tiered once by NAME but carrying
     mixed per-row provenance (the pattern behind 'I am nex'@0.973,
     precipitated_from_sense, counterfactual_node). Returns {source: cross_band_rows}."""
-    cx = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    cx = connect(f"file:{db}?mode=ro", uri=True)
     content_bands: dict[str, set] = defaultdict(set)
     pairs = []
     for content, source in cx.execute(
@@ -58,7 +59,7 @@ def class_detector(db: str):
 
 
 def run(db: str, max_b: int = 17) -> int:
-    cx = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    cx = connect(f"file:{db}?mode=ro", uri=True)
     by: dict[str, list] = defaultdict(list)
     for content, source, created in cx.execute(
         "SELECT content, source, created_at FROM beliefs WHERE content IS NOT NULL"
