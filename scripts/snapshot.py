@@ -167,9 +167,9 @@ def take_snapshot():
         snap["throw_net"] = {"error": str(e)[:80]}
 
     try:
-        pm_rows = dyn.execute(
-            "SELECT id, title, status FROM problems "
-            "WHERE status = 'open' ORDER BY id DESC LIMIT 10"
+        pm_rows = conv.execute(
+            "SELECT id, title, state AS status FROM open_problems "
+            "WHERE state = 'open' ORDER BY id DESC LIMIT 10"
         ).fetchall()
         snap["open_problems"] = [
             {"id": r["id"], "title": r["title"], "status": r["status"]}

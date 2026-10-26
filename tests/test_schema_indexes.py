@@ -182,5 +182,148 @@ class TestDynamicSchemaNoDupes(unittest.TestCase):
                 conn.close()
 
 
+class TestFreshInitLazyTables(unittest.TestCase):
+    """Fresh-store boot: tables/columns that live code writes but that existed
+    only in the long-lived production DB. A boot against an empty data dir
+    logged 'no such table' for each of these; init_all() must now create them
+    in the database their producer actually writes to."""
+
+    def test_init_all_creates_them_where_producers_write(self):
+        import os
+        from unittest import mock
+        from substrate.init_db import init_all
+        from substrate.paths import db_paths
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.dict(os.environ, {"NEX5_DATA_DIR": tmp}):
+            init_all()
+            paths = db_paths()
+            # The producers' own statements, verbatim shapes.
+            writes = {
+                "beliefs": [(
+                    "INSERT INTO intake_resonance_log "
+                    "(content, resonance, top_match_belief_id, ts) "
+                    "VALUES (?, ?, ?, ?)", ("x", 0.5, None, 1.0))],
+                "conversations": [(
+                    "INSERT OR REPLACE INTO drives_competing "
+                    "(id, coherence, exploration, integration, "
+                    " self_preservation, curiosity, tension_pairs, computed_at) "
+                    "VALUES (1, ?, ?, ?, ?, ?, ?, ?)",
+                    (0.2, 0.2, 0.2, 0.2, 0.2, "[]", 1.0)), (
+                    "INSERT INTO drives_competing_log "
+                    "(tick_at, weights_json, inputs_json, tension_active) "
+                    "VALUES (?, ?, ?, ?)", (1.0, "{}", "{}", 0))],
+                "dynamic": [(
+                    "INSERT OR IGNORE INTO daily_activities "
+                    "(activity, date_local, fired_at, details) VALUES (?, ?, ?, ?)",
+                    ("walk", "2026-10-26", 1.0, "")), (
+                    "INSERT OR IGNORE INTO daily_activities "
+                    "(activity, date_local, fired_at, details) VALUES (?, ?, ?, ?)",
+                    ("walk", "2026-10-26", 2.0, "dup"))],
+            }
+            for db, stmts in writes.items():
+                conn = connect(str(paths[db]))
+                try:
+                    for sql, params in stmts:
+                        conn.execute(sql, params)
+                    conn.commit()
+                finally:
+                    conn.close()
+            conn = connect(str(paths["dynamic"]))
+            try:
+                # once-per-day: the duplicate (activity, date_local) is ignored
+                self.assertEqual(conn.execute(
+                    "SELECT COUNT(*) FROM daily_activities").fetchone()[0], 1)
+                # decoder_loop's read of the coincidence tag
+                conn.execute("SELECT id, ts, thought, hot_branch, tag "
+                             "FROM fountain_events").fetchall()
+            finally:
+                conn.close()
+
+
+class TestEveryReferencedTableExistsOnFreshInit(unittest.TestCase):
+    """Generalise the fresh-init fix to the whole class: every table named by a
+    SQL statement in live code must exist after init_all() on an empty data dir,
+    or be created lazily by some module (CREATE TABLE IF NOT EXISTS). A dozen
+    tables once existed only in the long-lived production DB; a fresh store
+    then failed their writes silently. This turns the next one red in CI."""
+
+    # Tables whose schema is owned by an integration not wired into run.py.
+    # stage7_moltbook (external social posting, dry-run by default) creates
+    # its own store when launched; its readers elsewhere fail soft.
+    _NOT_BOOTED = {"moltbook_dms", "moltbook_pending_replies",
+                   "moltbook_post_queue", "moltbook_posts"}
+
+    def test_referenced_tables_exist_or_have_a_lazy_creator(self):
+        import ast
+        import os
+        import re
+        from unittest import mock
+        from substrate.init_db import init_all
+        from substrate.paths import db_paths
+
+        # SQL in this codebase is upper-case; matching the verb case-sensitively
+        # keeps docstrings ("Update the ...") out.
+        sql_start = re.compile(r"^\s*(SELECT|INSERT|UPDATE|DELETE|WITH|REPLACE)\b")
+        ref = re.compile(
+            r"\b(?:INSERT(?:\s+OR\s+\w+)?\s+INTO\s+([a-z_]\w*)\s*\("
+            r"|UPDATE(?:\s+OR\s+\w+)?\s+([a-z_]\w*)\s+SET\b"
+            r"|FROM\s+([a-z_]\w*)(?![\w.(])"
+            r"|JOIN\s+([a-z_]\w*)(?![\w.(]))", re.I)
+        cte = re.compile(r"\b([a-z_]\w*)\s+AS\s*\(", re.I)
+        create = re.compile(r"CREATE\s+(?:VIRTUAL\s+)?TABLE\s+"
+                            r"(?:IF\s+NOT\s+EXISTS\s+)?([a-z_]\w*)", re.I)
+
+        def literals(tree):
+            for n in ast.walk(tree):
+                if isinstance(n, ast.Constant) and isinstance(n.value, str):
+                    yield n.value
+                elif isinstance(n, ast.JoinedStr):
+                    # an interpolated {table} is dynamic -- leave a non-identifier
+                    yield "".join(v.value if isinstance(v, ast.Constant) else "{}"
+                                  for v in n.values)
+
+        root = Path(__file__).resolve().parent.parent
+        referenced, lazy = {}, set()
+        for py in root.rglob("*.py"):
+            s = str(py)
+            if any(k in s for k in ("/.venv/", "/venv/", "/tests/", "/archive/")) \
+                    or py.name.startswith("test_"):
+                continue
+            try:
+                tree = ast.parse(py.read_text(errors="ignore"))
+            except SyntaxError:
+                continue
+            for lit in literals(tree):
+                lazy.update(m.lower() for m in create.findall(lit))
+                if not sql_start.match(lit):
+                    continue
+                ctes = {c.lower() for c in cte.findall(lit)}
+                for m in ref.finditer(lit):
+                    name = next(g for g in m.groups() if g).lower()
+                    if name not in ctes:
+                        referenced.setdefault(name, str(py.relative_to(root)))
+        self.assertTrue(referenced, "found no SQL table references")
+
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.dict(os.environ, {"NEX5_DATA_DIR": tmp}):
+            init_all()
+            created = set()
+            for path in db_paths().values():
+                conn = connect(str(path))
+                try:
+                    created.update(r[0].lower() for r in conn.execute(
+                        "SELECT name FROM sqlite_master "
+                        "WHERE type IN ('table', 'view')"))
+                finally:
+                    conn.close()
+
+        missing = {t: where for t, where in referenced.items()
+                   if t not in created and t not in lazy
+                   and not t.startswith("sqlite_")  # SQLite's own catalogue
+                   and t not in self._NOT_BOOTED}
+        self.assertEqual(missing, {},
+                         f"tables used in SQL but created nowhere: {missing}")
+
+
 if __name__ == "__main__":
     unittest.main()
