@@ -3496,6 +3496,22 @@ class FountainGenerator:
         except Exception:
             pass
 
+        # round 11 (item 1): downtime neighbourhood — the most recent self_downtime
+        # record, so the standing self-description is continuous ACROSS the gap, not
+        # only within a session. She can represent that she was OFF, and for how long.
+        if self._beliefs_reader is not None:
+            try:
+                _dt = self._beliefs_reader.read(
+                    "SELECT content, created_at FROM beliefs "
+                    "WHERE source='self_downtime' ORDER BY created_at DESC LIMIT 1"
+                )
+                if _dt:
+                    prompt_parts.append("Before now, there was a gap:")
+                    prompt_parts.append(f"  {_dt[0]['content']}")
+                    prompt_parts.append("")
+            except Exception:
+                pass
+
         # 2026-05-16: Recent surprise (from PredictiveSubstrate) — feed her
         # the gap between what she expected and what came. This is what makes
         # surprise FELT rather than just logged.

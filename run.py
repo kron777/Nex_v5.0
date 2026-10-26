@@ -561,6 +561,20 @@ def main() -> None:
     except Exception as e:
         log.warning("Resumption boot failed: %s", e)
 
+    # round 11 (item 1): record this boot's downtime as a WITNESSED belief, so the
+    # identity anchor can represent that NEX was OFF (continuity across the gap, not
+    # just within a session). Fail-safe: never blocks boot.
+    try:
+        from theory_x.memory import downtime as _downtime
+        _dt_res = _downtime.record_boot(
+            beliefs_writer=writers["beliefs"],
+            data_dir=str(paths["beliefs"].parent),
+            snapshot_path=str(paths["beliefs"].parent / "state_snapshot.json"),
+        )
+        log.info("Downtime: %s", _dt_res)
+    except Exception as e:
+        log.warning("Downtime record failed: %s", e)
+
     # Phase A: state snapshot writer (Memory Layers v0.2)
     snapshot_writer = StateSnapshotWriter(
         beliefs_db_path=str(paths["beliefs"]),
@@ -749,6 +763,14 @@ def main() -> None:
     # dies mid-write because Writer.close() drains its queue whole-request.
     def _graceful_standby(signum, frame):
         log.warning("SIGTERM received -> STANDBY: finishing writes, releasing GPU/VRAM")
+        # round 11 (item 1): stamp a precise clean-shutdown marker so the NEXT boot
+        # reads this as a clean STANDBY (exact offline_from) rather than falling back
+        # to the snapshot mtime and labelling it unclean.
+        try:
+            from theory_x.memory import downtime as _downtime
+            _downtime.mark_clean_shutdown(str(paths["beliefs"].parent))
+        except Exception:
+            pass
         try:
             _time.sleep(1.5)  # window for a current fire to enqueue its writes
         except Exception:
