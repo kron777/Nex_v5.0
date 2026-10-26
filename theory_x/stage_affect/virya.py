@@ -60,7 +60,7 @@ def _hard_thread() -> str:
         from substrate import Reader, db_paths
         pr = Reader(db_paths()["conversations"])
         r = pr.read_one(
-            "SELECT title, description FROM problems WHERE id=?", (pid,))
+            "SELECT title, description FROM open_problems WHERE id=?", (pid,))
         if not r:
             return ""
         return f"{r['title']} {r.get('description','') or ''}".strip()
