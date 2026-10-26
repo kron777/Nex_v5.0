@@ -20,6 +20,8 @@ so it picks up the same guarantees.
 """
 from __future__ import annotations
 
+import logging
+import os
 import sqlite3
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -40,6 +42,72 @@ from sqlite3 import (  # noqa: F401
 THEORY_X_STAGE = None
 
 DEFAULT_BUSY_TIMEOUT_MS = 5000
+
+_tripwire_log = logging.getLogger("substrate.schema_tripwire")
+_SCHEMA_ERRORS = ("no such table", "no such column", "has no column named")
+
+
+def _trip(exc: sqlite3.OperationalError, sql: str) -> None:
+    msg = str(exc)
+    if any(m in msg for m in _SCHEMA_ERRORS):
+        _tripwire_log.error("SCHEMA TRIPWIRE: %s | sql: %s", msg,
+                            " ".join(str(sql).split())[:300])
+
+
+class _TripwireCursor(sqlite3.Cursor):
+    def execute(self, sql, *args):
+        try:
+            return super().execute(sql, *args)
+        except sqlite3.OperationalError as e:
+            _trip(e, sql)
+            raise
+
+    def executemany(self, sql, *args):
+        try:
+            return super().executemany(sql, *args)
+        except sqlite3.OperationalError as e:
+            _trip(e, sql)
+            raise
+
+    def executescript(self, sql):
+        try:
+            return super().executescript(sql)
+        except sqlite3.OperationalError as e:
+            _trip(e, sql)
+            raise
+
+
+class _TripwireConnection(sqlite3.Connection):
+    """NEX5_SCHEMA_TRIPWIRE=1: log every schema error (unknown table/column)
+    with its SQL at the moment it is raised, then re-raise it unchanged. Many
+    callers swallow these errors, so a missing column otherwise fails without
+    a trace. Observation only: control flow is identical with it on or off.
+    Connection.execute/executemany do NOT route through cursor() (CPython
+    builds the cursor in C), so each entry point is wrapped explicitly."""
+
+    def cursor(self, factory=_TripwireCursor):
+        return super().cursor(factory)
+
+    def execute(self, sql, *args):
+        try:
+            return super().execute(sql, *args)
+        except sqlite3.OperationalError as e:
+            _trip(e, sql)
+            raise
+
+    def executemany(self, sql, *args):
+        try:
+            return super().executemany(sql, *args)
+        except sqlite3.OperationalError as e:
+            _trip(e, sql)
+            raise
+
+    def executescript(self, sql):
+        try:
+            return super().executescript(sql)
+        except sqlite3.OperationalError as e:
+            _trip(e, sql)
+            raise
 
 
 def connect(
@@ -82,12 +150,16 @@ def connect(
     else:
         busy_timeout_ms = int(float(timeout) * 1000)
 
+    extra = {}
+    if os.environ.get("NEX5_SCHEMA_TRIPWIRE") == "1":
+        extra["factory"] = _TripwireConnection
     conn = sqlite3.connect(
         target,
         uri=use_uri,
         isolation_level=isolation_level,
         check_same_thread=check_same_thread,
         timeout=timeout,
+        **extra,
     )
     if row_factory is not None:
         conn.row_factory = row_factory
