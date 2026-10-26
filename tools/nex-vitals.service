@@ -1,0 +1,12 @@
+[Unit]
+Description=NEX vitals snapshot (READ-ONLY; appends one row to logs/vitals_log.jsonl)
+Documentation=file:nex_vitals_monitor_spec.txt
+After=network-online.target
+
+[Service]
+# Oneshot: run the read-only instrument once and exit. The ONLY write is the
+# opt-in --log append (one JSON line); it never touches a NEX database.
+Type=oneshot
+WorkingDirectory=/home/rr/Desktop/Desktop/nex5
+ExecStart=/home/rr/Desktop/Desktop/nex5/.venv/bin/python3 tools/nex_vitals.py --log
+Nice=10

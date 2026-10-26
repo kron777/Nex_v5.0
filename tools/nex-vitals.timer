@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly NEX vitals snapshot (read-only longitudinal series)
+
+[Timer]
+# Nightly at 03:30 local. Persistent=true fires a missed run (laptop asleep)
+# on next wake, so the series does not gap silently.
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

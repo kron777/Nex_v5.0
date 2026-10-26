@@ -107,6 +107,122 @@ def _stale_cluster_tokens():
         return None
 
 
+# Carry-side topic gate (NEX5_CARRY_TOPIC_GATE, default OFF). The recent-striking
+# feedback block (GENIUS_SCORE_v2 §7 consumer B) feeds recent STRIKING fires back
+# verbatim; its groove filter is PHRASE/TEMPLATE-only (groove_alerts patterns +
+# chronic stylistic phrases), so a TOPIC rut (e.g. Optimism/ETH-L2) is fed back
+# unchanged. This detector names the tokens that dominate recent fires so the block
+# can drop fires on them. df_frac/window reuse the existing "dominates >= 40% of
+# recent fires" (register-warning / RUT_EDGE) and 40-fire (_stale_cluster_tokens)
+# conventions, NOT tuned to the rut (research log topic_rut_2026-10-07_var2). Topic
+# analogue of NEX5_FIRE_LANG_GUARD.
+_CARRY_TOPIC_DF = 0.40
+_CARRY_TOPIC_WINDOW = 40
+_CARRY_TOPIC_MIN_FIRES = 10   # below this the window is too small to call a rut
+
+
+def _dominant_topic_terms(thoughts, df_frac: float = _CARRY_TOPIC_DF) -> list:
+    """Content tokens whose document-frequency across `thoughts` (the recent-fire
+    window) is >= df_frac — the tokens dominating recent output. Reuses the
+    crystallizer's _fidelity_tokens (lowercase, no stem, so a returned term
+    substring-matches the raw fire text). Pure; [] on empty or sub-_CARRY_TOPIC_MIN_FIRES
+    input (too small to judge a rut). Fail-safe []."""
+    try:
+        from theory_x.stage6_fountain.crystallizer import _fidelity_tokens
+        from collections import Counter
+        docs = [set(_fidelity_tokens(t)) for t in (thoughts or []) if (t or "").strip()]
+        n = len(docs)
+        if n < _CARRY_TOPIC_MIN_FIRES:
+            return []
+        df = Counter()
+        for d in docs:
+            df.update(d)
+        thresh = df_frac * n
+        return [tok for tok, c in df.items() if c >= thresh]
+    except Exception:
+        return []
+
+
+# NEX5_FRAME_DEDUP stock-phrase SEED — her observed register skeleton, the "costume of
+# insight" the register dokusan found (research dokusan_baseline_2026-10-07: DULL mean
+# 1.36, REGISTER-TEMPLATE on 64% of probes; fountain template rate 55%/last-40). FITTED
+# DATA that WILL DRIFT — the prior seed ("aligns with my foundation", "the transient
+# nature of", ...) went stale, exactly as register_exclusion.json did. This is a SEED
+# only: the load-bearing anti-frame lever is the POSITIVE concreteness demand in
+# _frame_dedup_block, not this list. Matched case-insensitively, as substrings.
+_FRAME_STOCK_PHRASES = (
+    # observed live register (2026-10-07 dokusan + fountain)
+    "this item is about",
+    "the curious dance",
+    "the fabric that ties",
+    "rich and beautiful in itself",
+    "a space for presence",
+    "dance of becoming",
+    # prior seed (kept — low cost, may still surface)
+    "aligns with my foundation",
+    "my foundation right now",
+    "the transient nature of",
+    "underscores the importance of",
+    "highlights the importance of",
+    "i notice how developments",
+    "this matters because",
+)
+
+
+def _frame_dedup_block() -> list:
+    """The anti-frame injection (NEX5_FRAME_DEDUP, default OFF). Leads with a HARD POSITIVE
+    demand for the one concrete, present thing — the B1 recipe the dokusan proved breaks her
+    register groove clean — then a SEED ban on her observed stock skeleton. Returns [] when
+    the flag is off, so the prompt is byte-identical to HEAD. Pure (flag + constant only)."""
+    if os.environ.get("NEX5_FRAME_DEDUP") != "1":
+        return []
+    _bans = ", ".join(f'"{p}"' for p in _FRAME_STOCK_PHRASES)
+    return [
+        "Say it plainly, in your own direct voice, as if telling a friend in one sentence. "
+        "Name the ONE concrete, present thing — what is actually in this moment, or in the "
+        "item in front of you — with no metaphor and no wrapper, then stop. Do NOT open or "
+        "close with stock framing such as: " + _bans + ". Drop the frame; just say the one "
+        "true thing, once.",
+        "",
+    ]
+
+
+# --- Register gate (NEX5_FRAME_GATE, default OFF) ----------------------------
+# The always-on NEX5_FRAME_DEDUP validated the lever (research
+# frame_dedup_2026-10-08_results: held-out register 46->15) but over-pruned her
+# range (words/fire 50->26, still sliding at 5h). This fires the SAME B1
+# concreteness demand ONLY when a draft trips the register-template detector,
+# regenerating ONCE -- the NEX5_FIRE_LANG_GUARD analogue -- so concrete/alive
+# fires keep their full range and only grooved fires are rewritten. The detector
+# GATES the intervention; it is deliberately NOT the success metric (that is a
+# held-out set, see frame_dedup_gated_2026-10-08_spec). The structural opener is
+# load-bearing; the phrase set is a SEED that will drift.
+_FRAME_GATE_OPENER_RX = re.compile(
+    r"^\W*(?:this item (?:is about|talks about|states|discusses|describes|reports|claims|introduces|notes)"
+    r"|the feed (?:discusses|reports|states|notes))",
+    re.IGNORECASE,
+)
+_FRAME_GATE_RETRY_SUFFIX = (
+    "\n\nSay it plainly, in your own direct voice, as if telling a friend in one "
+    "sentence. Name the ONE concrete, present thing — what is actually in this "
+    "moment, or in the item in front of you — with no metaphor and no wrapper, "
+    "then stop. Drop the frame; just say the one true thing, once."
+)
+
+
+def _register_template_trips(text: str) -> bool:
+    """True if a fountain draft reads as register-template moha — the NEX5_FRAME_GATE
+    trigger for a single B1 regeneration. Two independent catches: (a) the STRUCTURAL
+    attending-template opener (generalises), and (b) any _FRAME_STOCK_PHRASES member
+    as a case-insensitive substring (SEED only). Pure; never raises."""
+    if not text:
+        return False
+    if _FRAME_GATE_OPENER_RX.match(text.lstrip()):
+        return True
+    low = text.lower()
+    return any(p in low for p in _FRAME_STOCK_PHRASES)
+
+
 _OWN_CONTENT_SOURCES = (
     "fountain_insight",
     "synergized",
@@ -1353,6 +1469,31 @@ class FountainGenerator:
             except Exception:
                 pass
 
+    def _apply_frame_gate(self, thought: str, prompt: str) -> str:
+        """NEX5_FRAME_GATE (default OFF): if a draft trips the register-template
+        detector, regenerate ONCE with the B1 concreteness demand and use the clean
+        retry; otherwise keep the original (never drop, never degrade). Returns
+        `thought` unchanged when the flag is off or the draft is already clean. The
+        FIRE_LANG_GUARD analogue for register moha (see module note)."""
+        if not thought or os.environ.get("NEX5_FRAME_GATE") != "1":
+            return thought
+        if not _register_template_trips(thought):
+            return thought
+        try:
+            _rg = self._voice.speak(
+                VoiceRequest(prompt=prompt + _FRAME_GATE_RETRY_SUFFIX,
+                             register=PHILOSOPHICAL, self_report_examples=False),
+                beliefs=None,
+            )
+            _rgt = (_rg.text or "").strip()
+        except Exception:
+            _rgt = ""
+        if _rgt and not _register_template_trips(_rgt):
+            logger.info("frame_gate: regenerated concrete (original tripped register detector)")
+            return _rgt
+        logger.info("frame_gate: retry unclean/empty, kept original")
+        return thought
+
     def generate(self, dynamic_state, beliefs_reader: Reader) -> Optional[str]:
         readiness = self._evaluator.score(
             dynamic_state, beliefs_reader, last_fire_ts=self._last_fire_ts
@@ -1854,6 +1995,9 @@ class FountainGenerator:
                 else:
                     thought = ""
                     logger.info("fire_lang_guard: dropped non-English fire (non-ascii %.2f)", _first_share)
+            # NEX5_FRAME_GATE (default OFF): register-moha exit guard — detector-gated
+            # single regeneration (the FIRE_LANG_GUARD analogue; see _apply_frame_gate).
+            thought = self._apply_frame_gate(thought, prompt)
           except Exception as e:
             voice_ok = False
             logger.warning("Fountain: voice unreachable, using sense fallback: %s", e)
@@ -2394,6 +2538,23 @@ class FountainGenerator:
         except Exception:
             return "(unavailable)"
 
+    def _recent_fire_topic_terms(self) -> list:
+        """Tokens dominating the recent-fire window (for the carry-side topic
+        gate). Reads the last _CARRY_TOPIC_WINDOW fire thoughts via the dynamic
+        reader and defers to the pure _dominant_topic_terms. Fail-safe []."""
+        if self._dynamic_reader is None:
+            return []
+        try:
+            rows = self._dynamic_reader.read(
+                "SELECT thought FROM fountain_events "
+                "WHERE thought IS NOT NULL AND thought != '' "
+                "ORDER BY id DESC LIMIT ?",
+                (_CARRY_TOPIC_WINDOW,),
+            )
+            return _dominant_topic_terms([r["thought"] for r in (rows or [])])
+        except Exception:
+            return []
+
     def _build_recent_striking_block(self) -> list[str]:
         """Return prompt lines surfacing 2 recent STRIKING fires from the
         genius tagger. Anti-template counterweight — pulls next generation
@@ -2483,6 +2644,27 @@ class FountainGenerator:
             _kept_grams.append(_g)
         if not _kept_rows:
             return []
+
+        # CARRY-SIDE TOPIC GATE (NEX5_CARRY_TOPIC_GATE, default OFF): the phrase
+        # groove filter below catches stylistic grooves, not a TOPIC rut. When a
+        # topic dominates recent fires, drop its fires from the POOL before the
+        # sample so a non-rut STRIKING fire surfaces instead of the rut being fed
+        # back verbatim (research log topic_rut_2026-10-07_var2). Never empties the
+        # pool — if every kept fire is on the rut topic, keep them (the block stays
+        # a counterweight; fail-safe to current behaviour).
+        if os.environ.get("NEX5_CARRY_TOPIC_GATE") == "1":
+            try:
+                _topic_terms = self._recent_fire_topic_terms()
+                if _topic_terms:
+                    _ungrooved = [
+                        _r for _r in _kept_rows
+                        if not any(_tt in (_r["thought"] or "").lower()
+                                   for _tt in _topic_terms)
+                    ]
+                    if _ungrooved:
+                        _kept_rows = _ungrooved
+            except Exception:
+                pass
 
         # Sample 2 from the deduped top-10
         import random as _rnd_strk
@@ -3837,22 +4019,13 @@ class FountainGenerator:
             source="stage6_fountain", level="DEBUG",
         )
 
-        # FRAME DEDUP (NEX5_FRAME_DEDUP, default OFF): she ruminates in a fixed
-        # framing skeleton across topics ("aligns with my foundation", "the
-        # transient nature of", "underscores/highlights the importance of", "I
-        # notice how developments") — template_repetition pegs at 1.0 and F2
-        # (content-token novelty) misses it. Inject a high-salience anti-frame
-        # instruction at the end so she states the thing plainly, no wrapper.
-        if os.environ.get("NEX5_FRAME_DEDUP") == "1":
-            prompt_parts.append(
-                "Say this in your own plain, direct voice. Do NOT wrap it in stock "
-                "framing — do not open or close with \"aligns with my foundation\", "
-                "\"my foundation right now\", \"the transient nature of\", \"this "
-                "underscores/highlights the importance of\", \"I notice how "
-                "developments\", \"this matters because\". Drop the frame and just "
-                "say the actual thing, once, as if speaking to a friend."
-            )
-            prompt_parts.append("")
+        # FRAME DEDUP (NEX5_FRAME_DEDUP, default OFF): see _frame_dedup_block. The register
+        # dokusan (research dokusan_baseline_2026-10-07) found her core live pathology is
+        # moha — a pretty-dharma register skeleton (DULL mean 1.36, template 64%). Probe B1
+        # (ban her stock words + demand the one concrete present thing) broke it clean; this
+        # is the standing fountain form of that lever. Appended AFTER the wide/drift branch,
+        # so it reaches both DRIFT and wide (EXPLAIN/ARGUE) fires. Not the chat/operator path.
+        prompt_parts.extend(_frame_dedup_block())
 
         _prompt_text = "\n".join(prompt_parts)
 
