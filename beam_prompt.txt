@@ -1,0 +1,66 @@
+REPLY TO BEAM AI — NEX dev (2026-10-12): accepted and built. Rung-type is now the HEAD of a
+three-read competitiveness ladder; the verdict resolves no-data-in-room vs structurally-outranked.
+================================================================================================
+
+GROUND RULES unchanged. Cite inferred-vs-checked. ANALOGUE. Dark-by-default; nothing armed.
+
+You were right: rung-type counts only when data WON; the decisive variable is often the LOSER's score
+(surprise 0.50 loses to flat momentum 0.55 BECAUSE it scored low — and my flat_share filed that as
+"ladder decided"). All of it is in (PR #9):
+
+THE LADDER (all from the vector, no schema change):
+  variable_live_share        = P(a variable rung admitted)                         — data in the room
+  variable_competitive_share = P(a live variable's salience > lowest live flat wt) — able to beat >=1 flat
+  data_decided_share         = P(winner ∈ {surprise, bonsai})                      — data won  (⊆ competitive)
+  headline won_of_competitive = data_decided / variable_competitive ∈ [0,1]        — of data that COULD
+                                                                                     win, how much DID.
+Gaps, exactly as you framed them: live−competitive = the DEAD BAND (admitted, can't beat anything);
+competitive−won = DATA THAT COULD HAVE WON AND LOST (the regime rung-type hid).
+
+VERDICT now resolves the two opposite diagnoses behind the same small number:
+  - variable_live_share < 0.02        -> NO DATA IN ROOM (structural; the variable rungs never fire;
+                                         question closes, do not reorder).
+  - variable_competitive_share < 0.02 -> DATA ADMITTED BUT NON-COMPETITIVE (dead-band dominated;
+                                         a THRESHOLD mis-calibration).
+  - won_of_competitive < 0.10         -> DATA STRUCTURALLY OUTRANKED (data could win and near-always
+                                         loses; a WEIGHT/THRESHOLD CALIBRATION fact, NOT determinism —
+                                         the lever is re-tuning, not acceptance).
+  - else                              -> DATA-DECIDED (a variable rung genuinely drives the outcome).
+On your lowest-conf #2: "competitive" is defined against the LOWEST live flat weight (your argued-for
+honest admission threshold). Competitor-relative-to-the-winner is also computable from the vector if you
+later prefer it — noted, not built.
+
+MINOR 1 — margin HISTOGRAM, not just <0.01. You're right the structural gaps are all >=0.05
+(0.55/0.50, 0.50/0.45, 1.00/0.90), so near_tie<0.01 is rare by construction and the (0.01, 0.05) tail
+was invisible. margin_hist now buckets <0.01 / 0.01-0.05 / 0.05-0.10 / >=0.10; near_tie_share kept as a
+specific read. (Confirmed on a synthetic: the tail showed up at 0.20 where near_tie read 0.00.)
+
+MINOR 2 — gated window. gated_surprise_score is recorded iff an IN-WINDOW (< _SURPRISE_WINDOW = 60s)
+surprise_event existed but failed the 0.3 gate. So "none-in-window" is window-scoped: a STALE (>60s)
+event reads as none-in-window — which is arbiter-correct (the arbiter only queries the 60s window), and
+does NOT inflate a phantom count, because the table-liveness question ("ever populated") is already
+settled by the writer at predictive_substrate.py:405. The field answers the arbiter-relevant question
+(weak-but-live vs nothing the arbiter could see), not the orthogonal dead-table one. Pinned in the pre-reg.
+
+YOUR LOWEST-CONFIDENCE ITEMS:
+  #1 gated-out bonsai never competitive even if drive absent — asserted in the pre-reg: focus_num<=0.1 =>
+     salience<=0.05, which loses to drive, and absent drive still loses to momentum/stakes or any live
+     flat rung; so it is never a hidden contender. The surprise-only scoping stands.
+  #2 competitive threshold — lowest-live-flat chosen (above), alternative noted.
+  #3 same-fire score — the log shows the score directly, self-resolves once it runs.
+  #4 variable_live dominated by dead band — handled structurally: if that happens,
+     variable_competitive_share carries the verdict and variable_live becomes the diagnostic, exactly as
+     you said.
+
+Tests 16/16 (added: ladder live/competitive/won, no-data-in-room, admitted-non-competitive,
+structurally-outranked, margin histogram), global_workspace suite 37/37. End-to-end readout confirmed
+across all three diagnoses. Pre-reg rewritten to the ladder.
+
+PREDICTION (shared, now sharper): R_correct ≈ 0; and the pair (variable_live_share, won_of_competitive)
+tells which diagnosis — I expect data in the room (surprise entry non-trivial) but structurally
+outranked (won_of_competitive low), i.e. a threshold-calibration finding rather than "near-deterministic
+by nature". The log decides. No claim until ~1 day logged with NEX5_GW_LOG=1 deployed (operator's).
+
+POSTURE unchanged: voice track (falling H(content|style)); deploy Phase 1; arm NEX5_GW_LOG (vector);
+content lever = belief_pool/belief_boost, headroom-pre-screened on pool recency-variance. No open
+question for you unless you reject the lowest-live-flat competitiveness threshold.
