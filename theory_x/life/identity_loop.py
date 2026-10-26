@@ -16,7 +16,7 @@ Most recent identity statement gets injected into fountain prompt
 from __future__ import annotations
 import json
 import logging
-import sqlite3
+from substrate import connect, IntegrityError
 import threading
 import time
 from datetime import datetime
@@ -40,7 +40,7 @@ COMPOSE_HOURS = {0, 6, 12, 18}
 
 
 def _ensure_identity_log():
-    cx = sqlite3.connect(DYNAMIC_DB, timeout=15)
+    cx = connect(DYNAMIC_DB, timeout=15)
     try:
         cx.execute("""
             CREATE TABLE IF NOT EXISTS identity_log (
@@ -56,6 +56,15 @@ def _ensure_identity_log():
         cx.execute(
             "CREATE INDEX IF NOT EXISTS idx_identity_composed ON identity_log(composed_at DESC)"
         )
+        # self-as-cause experiment (step 1): the arm ACTIVE when this self-description
+        # was generated, stamped on the OUTCOME row by the generating path -- the
+        # schedule file is intent, the row is fact. Without it a failed/flipped/restarted
+        # tick mislabels the analysis invisibly. Additive, nullable.
+        _cols = {r[1] for r in cx.execute("PRAGMA table_info(identity_log)")}
+        for _c in ("ablation_arm", "ablation_arm_prev", "ablation_flips"):
+            if _c not in _cols:
+                cx.execute(f"ALTER TABLE identity_log ADD COLUMN {_c} "
+                           f"{'INTEGER' if _c == 'ablation_flips' else 'TEXT'}")
         cx.commit()
     finally:
         cx.close()
@@ -68,7 +77,7 @@ def _gather_metrics(now):
 
     # New beliefs in last 6h
     try:
-        b = sqlite3.connect(BELIEFS_DB, timeout=10)
+        b = connect(BELIEFS_DB, timeout=10)
         row = b.execute(
             "SELECT COUNT(*) FROM beliefs WHERE created_at > ?",
             (six_hours_ago,)
@@ -96,14 +105,14 @@ def _gather_metrics(now):
 
     # Current focus
     try:
-        d = sqlite3.connect(DYNAMIC_DB, timeout=10)
+        d = connect(DYNAMIC_DB, timeout=10)
         row = d.execute(
             "SELECT problem_id FROM current_focus WHERE id=1"
         ).fetchone()
         focus_pid = row[0] if row else None
         d.close()
         if focus_pid:
-            c = sqlite3.connect(CONVERSATIONS_DB, timeout=10)
+            c = connect(CONVERSATIONS_DB, timeout=10)
             row = c.execute(
                 "SELECT title FROM open_problems WHERE id=?", (focus_pid,)
             ).fetchone()
@@ -114,7 +123,7 @@ def _gather_metrics(now):
 
     # Last big surprise
     try:
-        d = sqlite3.connect(DYNAMIC_DB, timeout=10)
+        d = connect(DYNAMIC_DB, timeout=10)
         row = d.execute(
             "SELECT actual_content, surprise_score FROM surprise_events "
             "WHERE big_surprise=1 AND actual_content IS NOT NULL AND actual_content != '' "
@@ -130,7 +139,7 @@ def _gather_metrics(now):
 
     # Fountain fires in last 6h
     try:
-        d = sqlite3.connect(DYNAMIC_DB, timeout=10)
+        d = connect(DYNAMIC_DB, timeout=10)
         row = d.execute(
             "SELECT COUNT(*) FROM fountain_events "
             "WHERE thought != '' AND ts > ?",
@@ -155,7 +164,7 @@ def _gather_metrics(now):
     try:
         import os
         if os.environ.get("NEX_TAG_FEEDBACK_ON") == "1":
-            d = sqlite3.connect(DYNAMIC_DB, timeout=10)
+            d = connect(DYNAMIC_DB, timeout=10)
             row = d.execute(
                 "SELECT tag, COUNT(*) FROM fountain_events "
                 "WHERE tag IS NOT NULL AND ts > ? "
@@ -239,7 +248,7 @@ def identity_tick():
     if hour not in COMPOSE_HOURS:
         return {"skipped": "not_compose_hour", "hour": hour}
 
-    d_cx = sqlite3.connect(DYNAMIC_DB, timeout=15)
+    d_cx = connect(DYNAMIC_DB, timeout=15)
     try:
         # Already composed for this date+hour?
         row = d_cx.execute(
@@ -253,17 +262,26 @@ def identity_tick():
         metrics = _gather_metrics(now)
         statement = _compose_statement(metrics, previous)
 
-        # Write to identity_log
+        # Write to identity_log, stamping the three-field ablation arm onto the outcome
+        # row (Q11): arm now, arm at the previous tick, and flips observed in between --
+        # so the primary analysis can filter rows whose arm flipped mid-interval.
+        try:
+            from theory_x.stage_tom.identity_ablation import stamp_fields as _iab_stamp
+            _s = _iab_stamp()
+            _arm, _arm_prev, _flips = _s["arm"], _s["arm_prev"], _s["flips"]
+        except Exception:
+            _arm, _arm_prev, _flips = "normal", "normal", 0
         d_cx.execute(
-            "INSERT INTO identity_log (composed_at, date_local, hour_local, statement, metrics_json) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (now, date_local, hour, statement, json.dumps(metrics))
+            "INSERT INTO identity_log (composed_at, date_local, hour_local, statement, "
+            "metrics_json, ablation_arm, ablation_arm_prev, ablation_flips) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (now, date_local, hour, statement, json.dumps(metrics), _arm, _arm_prev, _flips)
         )
         d_cx.commit()
         
         # Write as Tier-6 belief
         try:
-            b_cx = sqlite3.connect(BELIEFS_DB, timeout=10)
+            b_cx = connect(BELIEFS_DB, timeout=10)
             b_cx.execute(
                 "INSERT INTO beliefs "
                 "(content, tier, confidence, created_at, source, branch_id, tags) "
@@ -272,7 +290,7 @@ def identity_tick():
             )
             b_cx.commit()
             b_cx.close()
-        except sqlite3.IntegrityError:
+        except IntegrityError:
             pass
         except Exception as e:
             log.warning("identity belief write failed: %s", e)

@@ -21,7 +21,8 @@ USAGE:
     .venv/bin/python3 theory_x/stage_tom/mana_detector.py --watch
 """
 from __future__ import annotations
-import sqlite3, sys, os, re
+import sys, os, re
+from substrate import connect, Row
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 def _db(name):
@@ -38,7 +39,7 @@ _SELF = re.compile(r"\b(i am|my|myself|i notice|i sense|i feel|i exist|my own)\b
 
 def _recent_deep(n=20):
     try:
-        con = sqlite3.connect(_db("beliefs")); con.row_factory = sqlite3.Row
+        con = connect(_db("beliefs")); con.row_factory = Row
         rows = con.execute(
             "SELECT content FROM beliefs WHERE tier<=6 ORDER BY rowid DESC LIMIT ?", (n,)).fetchall()
         con.close()

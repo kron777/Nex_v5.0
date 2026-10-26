@@ -35,7 +35,7 @@ from __future__ import annotations
 import logging
 import os
 import re
-import sqlite3
+from substrate import connect, Connection, OperationalError
 import time
 from typing import Optional
 
@@ -62,7 +62,7 @@ _STOPWORDS = {
 }
 
 
-def _ensure_table(con: sqlite3.Connection) -> None:
+def _ensure_table(con: Connection) -> None:
     con.execute(
         "CREATE TABLE IF NOT EXISTS momentum ("
         " id INTEGER PRIMARY KEY CHECK (id = 1),"
@@ -78,14 +78,14 @@ def _ensure_table(con: sqlite3.Connection) -> None:
     # Migration for tables created before carry_count existed.
     try:
         con.execute("ALTER TABLE momentum ADD COLUMN carry_count INTEGER DEFAULT 1")
-    except sqlite3.OperationalError:
+    except OperationalError:
         pass  # column already exists — fine
     # Migration: episodic resolution outcome (NEX5_CARRYOVER). Nullable, no
     # default -> NULL for existing rows, so momentum-only mode reads fine with
     # it absent. Additive + idempotent.
     try:
         con.execute("ALTER TABLE momentum ADD COLUMN resolved INTEGER")
-    except sqlite3.OperationalError:
+    except OperationalError:
         pass  # column already exists — fine
 
 
@@ -109,7 +109,7 @@ def capture_momentum(thought: str, branch: str,
     try:
         if not thought or len(thought.split()) < 6:
             return False
-        con = sqlite3.connect(dynamic_db, timeout=3)
+        con = connect(dynamic_db, timeout=3)
         _ensure_table(con)
 
         # Read the PRIOR thread before overwriting, to judge continuity.
@@ -172,7 +172,7 @@ def stamp_resolution(resolved: bool, dynamic_db: str = _DYNAMIC_DB) -> bool:
     i.e. already silenced). Caller gates on NEX5_CARRYOVER, so with the flag off
     this is never called and momentum's writes are byte-identical to before."""
     try:
-        con = sqlite3.connect(dynamic_db, timeout=3)
+        con = connect(dynamic_db, timeout=3)
         _ensure_table(con)
         row = con.execute(
             "SELECT carry_count FROM momentum WHERE id = 1"
@@ -197,7 +197,7 @@ def stamp_resolution(resolved: bool, dynamic_db: str = _DYNAMIC_DB) -> bool:
 def read_momentum(dynamic_db: str = _DYNAMIC_DB) -> Optional[str]:
     """Return the carried-thread line, or None if cold/absent/EXHAUSTED."""
     try:
-        con = sqlite3.connect(dynamic_db, timeout=3)
+        con = connect(dynamic_db, timeout=3)
         _ensure_table(con)
         row = con.execute(
             "SELECT updated_at, branch, thought_fragment, surprise_score, "

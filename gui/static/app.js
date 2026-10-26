@@ -42,8 +42,13 @@ async function apiFetch(url, options = {}) {
 }
 
 function esc(s) {
+  // Escapes for BOTH HTML body and quoted-attribute contexts. Many sinks
+  // interpolate esc(...) inside title="..."/data-*="..." attributes, where an
+  // unescaped " would break out and inject an event handler; escaping quotes
+  // too closes that with no visible change in body text (C4 hardening).
   return String(s ?? "")
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 function fmtTs(sec) {
@@ -1174,9 +1179,9 @@ pollSpeech();
 refreshProblems();
 
 // Intervals
-setInterval(pollFast,        2000);
-setInterval(pollMedium,      5000);
-setInterval(pollSlow,       10000);
+setInterval(pollFast,        2000);   // live sense/pipeline stream
+setInterval(pollMedium,     10000);   // agent state (beliefs/bonsai/fountain/membrane/drives) — 30-min-tick data; was 5s
+setInterval(pollSlow,       10000);   // subsystem dots + stillness pill — kept fast so a down subsystem shows quickly
 setInterval(pollAgi,        30000);
 setInterval(pollSpeech,      5000);
 setInterval(refreshProblems, 30000);

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import datetime
 import logging
-import sqlite3
+from substrate import connect, Row
 from typing import Any, Optional
 
 __all__ = ["ConversationMemory"]
@@ -64,8 +64,8 @@ class ConversationMemory:
 
         turns: list[dict] = []
         try:
-            con = sqlite3.connect(self._db_path, timeout=2.0)
-            con.row_factory = sqlite3.Row
+            con = connect(self._db_path, timeout=2.0)
+            con.row_factory = Row
             rows = con.execute(
                 "SELECT role, content, register, timestamp "
                 "FROM messages "

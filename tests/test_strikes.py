@@ -447,6 +447,8 @@ class TestStrikesGUIEndpoints(unittest.TestCase):
         )
         cls.app = create_app(cls.state)
         cls.client = cls.app.test_client()
+        # Mutating GUI endpoints now require an authenticated admin session.
+        cls.client.post("/api/admin/login", json={"password": "strikes-test-pw"})
 
     @classmethod
     def tearDownClass(cls):
@@ -508,12 +510,24 @@ class TestStrikesGUIEndpoints(unittest.TestCase):
             voice=_mock_voice(),
         )
         app2 = create_app(state2)
-        r = app2.test_client().post(
+        client2 = app2.test_client()
+        client2.post("/api/admin/login", json={"password": "strikes-test-pw"})
+        r = client2.post(
             "/api/strikes/fire",
             json={"strike_type": "NOVEL"},
             content_type="application/json",
         )
         self.assertEqual(r.status_code, 503)
+
+    def test_strikes_fire_requires_admin(self):
+        # Deny-by-default gate: an unauthenticated client cannot fire a strike.
+        anon = self.app.test_client()
+        r = anon.post(
+            "/api/strikes/fire",
+            json={"strike_type": "NOVEL"},
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 403)
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ This module initialises the schema if absent and provides typed read/write.
 """
 from __future__ import annotations
 
-import sqlite3
+from substrate import connect, Row
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -84,8 +84,8 @@ class ProbesDB:
 
     def __init__(self, db_path: Path = DB_PATH):
         self._path = db_path
-        self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
-        self._conn.row_factory = sqlite3.Row
+        self._conn = connect(str(db_path), check_same_thread=False)
+        self._conn.row_factory = Row
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA busy_timeout=5000")
         self._conn.executescript(SCHEMA)
@@ -138,18 +138,18 @@ class ProbesDB:
         self._conn.commit()
         return cur.lastrowid
 
-    def fetch_condition_results(self, condition_hash: str) -> list[sqlite3.Row]:
+    def fetch_condition_results(self, condition_hash: str) -> list[Row]:
         return self._conn.execute(
             "SELECT * FROM probe_runs WHERE condition_hash = ? ORDER BY fired_at",
             (condition_hash,),
         ).fetchall()
 
-    def fetch_all_results(self) -> list[sqlite3.Row]:
+    def fetch_all_results(self) -> list[Row]:
         return self._conn.execute(
             "SELECT * FROM probe_runs ORDER BY fired_at"
         ).fetchall()
 
-    def template_counts_by_condition(self) -> list[sqlite3.Row]:
+    def template_counts_by_condition(self) -> list[Row]:
         return self._conn.execute(
             """SELECT condition_hash, mode, sense_pattern, prior_context,
                       prompt_framing, foundation_type,

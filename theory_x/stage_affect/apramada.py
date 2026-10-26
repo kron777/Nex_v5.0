@@ -23,15 +23,16 @@ Graded LIGHT / FULL. Gated by NEX5_APRAMADA (default OFF). Fail-safe: '' on any
 error or flag off.
 """
 from __future__ import annotations
+from substrate.paths import db_paths
 
 import os
 import re
-import sqlite3
+from substrate import connect
 
 import errors as error_channel
 
 _LOG_SOURCE = "apramada"
-_DYNAMIC_DB = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+_DYNAMIC_DB = str(db_paths()["dynamic"])
 
 _MAX_CARRY = 2          # carry_count <= this = still held; beyond = let go (anti-nag)
 _OVERLAP_MIN = 0.12     # token overlap below this = turn not attending the thread
@@ -57,7 +58,7 @@ def _held_threads() -> list:
     held = []
     # momentum — the actively-carried unfinished thread
     try:
-        con = sqlite3.connect(f"file:{_DYNAMIC_DB}?mode=ro", uri=True, timeout=5)
+        con = connect(f"file:{_DYNAMIC_DB}?mode=ro", uri=True, timeout=5)
         row = con.execute(
             "SELECT thought_fragment, carry_count, COALESCE(resolved,0) "
             "FROM momentum WHERE id=1").fetchone()

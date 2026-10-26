@@ -22,7 +22,7 @@ Fail-safe throughout — returns "" on any error, leaving prior behavior intact.
 """
 from __future__ import annotations
 import os
-import sqlite3
+from substrate import connect
 import time
 from typing import Optional
 
@@ -177,6 +177,71 @@ def _teeth_momentum_factor() -> float:
     return max(0.01, min(1.0, _W_MOMENTUM_TEETH_FACTOR))
 
 
+# --- NEX5_GW_LOG: observational arbiter-decision log (default OFF) -----------
+# The arbiter's winner is otherwise unrecorded anywhere, so whether it EARNS ITS
+# KEEP — how often a non-bonsai candidate overrides the routine baseline — cannot
+# be measured (the arbiter analogue of an undeployed history table). Under
+# NEX5_GW_LOG, append one JSON line per fire to a lock-free sibling of the dynamic
+# DB. Deliberately NOT the one-pen substrate: a plain append never contends with
+# the single writer and cannot stall a fire. Read-only consumer:
+# tools/check_arbiter_competition.py. ANALOGUE. OFF => no file written, arbitrate()
+# byte-identical.
+def _decisions_path() -> str:
+    import os as _os
+    return _os.path.join(_os.path.dirname(str(_DYNAMIC_DB)), "arbiter_decisions.jsonl")
+
+
+_GW_LOG_PRECISION = 6   # decimals on logged salience — fine enough that near-ties are real,
+#                         not a rounding artifact (the margin/near-tie check relies on this).
+
+
+def _latest_surprise_score(con) -> Optional[float]:
+    """The most recent in-window surprise_score REGARDLESS of the 0.3 admission gate, or None if
+    there was no surprise_event at all in the window. Lets the log separate a surprise that was
+    GATED OUT (computed, score<=0.3) from one that was NEVER COMPUTED (absent) — otherwise both
+    present as absence. Read-only, fail-safe; only called when NEX5_GW_LOG=1."""
+    try:
+        row = con.execute(
+            "SELECT surprise_score FROM surprise_events WHERE triggered_at > ? "
+            "ORDER BY triggered_at DESC LIMIT 1",
+            (time.time() - _SURPRISE_WINDOW,)
+        ).fetchone()
+        return float(row[0]) if row and row[0] is not None else None
+    except Exception:
+        return None
+
+
+def _maybe_log_decision(candidates: "list[tuple[float, str]]",
+                        kinds: "list[str]",
+                        gated_surprise: "Optional[float]" = None) -> None:
+    """Append this fire's arbiter decision when NEX5_GW_LOG=1; never raises, never
+    blocks a fire. No-op (no file touched) when the flag is off or there was no
+    competition, so the default path is byte-identical to the pre-log behaviour.
+
+    Logs the full candidate VECTOR [{kind, salience}] (the EFFECTIVE salience each candidate
+    carried — weight×score for surprise/bonsai, flat weight for momentum/stakes/drive) plus
+    the winner and, when surprise did NOT clear its gate, the gated raw score. That is enough
+    to compute offline: data_decided_share (winner is a variable rung), the near-tie margin, and
+    the gated-vs-phantom split for surprise. winner index uses arbitrate_candidates()'s first-max rule."""
+    if os.environ.get("NEX5_GW_LOG") != "1" or not candidates:
+        return
+    try:
+        import json as _json
+        wi = max(range(len(candidates)), key=lambda i: candidates[i][0])
+        rec = {
+            "ts": round(time.time(), 3),
+            "candidates": [{"kind": kinds[i], "salience": round(float(candidates[i][0]), _GW_LOG_PRECISION)}
+                           for i in range(len(candidates))],
+            "winner_kind": kinds[wi],
+        }
+        if "surprise" not in kinds and gated_surprise is not None:
+            rec["gated_surprise_score"] = round(gated_surprise, _GW_LOG_PRECISION)
+        with open(_decisions_path(), "a") as f:
+            f.write(_json.dumps(rec) + "\n")
+    except Exception:
+        pass
+
+
 def arbitrate(status: dict, stakes_active: bool = False,
               drive_line: str = "", dynamic_db: str = _DYNAMIC_DB) -> str:
     """
@@ -185,33 +250,41 @@ def arbitrate(status: dict, stakes_active: bool = False,
     """
     try:
         candidates: list[tuple[float, str]] = []
+        kinds: list[str] = []            # parallel kind labels, for NEX5_GW_LOG only
 
-        con = sqlite3.connect(dynamic_db, timeout=3)
+        con = connect(dynamic_db, timeout=3)
         s = _surprise_candidate(con)
         if s:
-            candidates.append(s)
+            candidates.append(s); kinds.append("surprise")
+        # NEX5_GW_LOG only: one extra ungated read on the already-open connection, so the log
+        # can tell a gated-out surprise from one that was never computed. Dark path untouched.
+        _gated_surprise = (_latest_surprise_score(con)
+                           if os.environ.get("NEX5_GW_LOG") == "1" and not s else None)
         m = _momentum_candidate(con)
         if m:
             # L4_teeth: demote the groove-continuer so a novel candidate can lead.
-            candidates.append((m[0] * _teeth_momentum_factor(), m[1]))
+            candidates.append((m[0] * _teeth_momentum_factor(), m[1])); kinds.append("momentum")
         con.close()
 
         b = _bonsai_candidate(status)
         if b:
-            candidates.append(b)
+            candidates.append(b); kinds.append("bonsai")
 
         if stakes_active:
             candidates.append((_W_STAKES,
                 "you have been mapping items onto your own attending rather "
                 "than engaging them. The most important thing right now is to "
                 "meet the world directly — one concrete fact, not reflection."))
+            kinds.append("stakes")
 
         if drive_line:
             # drive_line is already-formatted text; give it baseline salience
-            candidates.append((_W_DRIVE, drive_line.strip()))
+            candidates.append((_W_DRIVE, drive_line.strip())); kinds.append("drive")
 
         # Competition: highest salience wins and is broadcast as the frame.
-        return arbitrate_candidates(candidates)
+        line = arbitrate_candidates(candidates)
+        _maybe_log_decision(candidates, kinds, gated_surprise=_gated_surprise)  # NEX5_GW_LOG; fail-safe
+        return line
     except Exception:
         return ""
 

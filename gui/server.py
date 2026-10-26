@@ -74,6 +74,7 @@ it with mock Writers/Readers and a mock VoiceClient.
 See SPECIFICATION.md §8 — Full Observability.
 """
 from __future__ import annotations
+from substrate import connect, Row
 
 import atexit
 import json
@@ -94,12 +95,20 @@ from admin.auth import is_configured as admin_is_configured
 from admin.auth import verify_password
 from alpha import ALPHA
 from substrate import Reader, Writer, db_paths
+from substrate.paths import DbPath
 from voice.llm import VoiceClient, VoiceRequest
 from voice.registers import by_name, classify, default_register
 
 THEORY_X_STAGE = None
 
 logger = logging.getLogger("gui.server")
+
+# Resolved DB paths for the HUD's direct-sqlite endpoints. DbPath resolves via
+# db_paths() at use time (honours NEX5_DATA_DIR; same <repo>/data in
+# production), replacing the former hardcoded /home/rr/.../data/<name>.db
+# literals so these endpoints work wherever the repo actually lives.
+_DYN_DB = DbPath("dynamic")
+_CONV_DB = DbPath("conversations")
 
 # FocalSet — Layer 1 attention (log-only; no behavior change yet)
 try:
@@ -114,8 +123,9 @@ try:
     if _focal_set is not None:
         from theory_x import register as _tx_register
         _tx_register(_focal_set)
-except Exception:
-    pass
+except Exception as e:
+    error_channel.log_and_continue(
+        e, source="gui.server", context="FocalSet node registration")
 
 _FOCAL_LOG = "/tmp/nex5_focal.log"
 
@@ -133,7 +143,7 @@ _WM_LOG = "/tmp/nex5_working_memory.log"
 try:
     from theory_x.conversation_memory import ConversationMemory as _ConversationMemory
     _conversation_memory = _ConversationMemory(
-        db_path="/home/rr/Desktop/Desktop/nex5/data/conversations.db",
+        db_path=_CONV_DB,
         n_turns=8,
     )
 except Exception:
@@ -150,8 +160,9 @@ try:
     try:
         from theory_x import register as _tx_register_ec
         _tx_register_ec(_executive)
-    except Exception:
-        pass
+    except Exception as e:
+        error_channel.log_and_continue(
+            e, source="gui.server", context="ExecutiveControl node registration")
 except Exception:
     _executive = None  # type: ignore[assignment]
 
@@ -182,6 +193,9 @@ _CHAT_BLOCK_SALIENCE = {
 # Never evicted: the distress/moral-response blocks (dropping them could harm a
 # reply to a distressed user). Everything else competes for the budget.
 _CHAT_BLOCK_EXEMPT = {"compassion", "compass"}
+# De-dup for the ablation warning: once per distinct (dropped, refused) set, never
+# per tick (a per-tick emitter would inflate the soak line-rate health metric).
+_chat_ablation_logged: set = set()
 
 
 def _assemble_chat_blocks(ordered: "list[tuple[str, str]]", session_id=None,
@@ -196,6 +210,30 @@ def _assemble_chat_blocks(ordered: "list[tuple[str, str]]", session_id=None,
     across turns (theory_x.stage_tom.self_present) so attention has continuity
     rather than a fresh recomputation. Fail-safe: any error falls back to the
     full concatenation."""
+    # Step-0 ablation instrument (Beam "synthesize sentience" round): the assembly is
+    # the least-instrumented path and may be where integration lives or dies.
+    # NEX5_CHAT_ABLATE=<comma kinds> drops those blocks so their contribution to
+    # self-description coherence / selfdesc_novel can be measured by A/B. Default off =
+    # zero change. Exempt (safety) blocks are never droppable. Logged ONCE per distinct
+    # ablation set -- never per tick (a per-tick emitter would inflate the soak
+    # line-rate health metric). Fail-safe: any error leaves `ordered` untouched.
+    _ablate = os.environ.get("NEX5_CHAT_ABLATE", "").strip()
+    if _ablate:
+        try:
+            drop = {k.strip() for k in _ablate.split(",") if k.strip()}
+            dropped = [k for k, _ in ordered if k in drop and k not in _CHAT_BLOCK_EXEMPT]
+            refused = sorted(drop & _CHAT_BLOCK_EXEMPT)
+            if dropped or refused:
+                _key = (tuple(sorted(set(dropped))), tuple(refused))
+                if _key not in _chat_ablation_logged:
+                    _chat_ablation_logged.add(_key)
+                    logger.warning("chat ablation ACTIVE: dropped=%s refused_exempt=%s "
+                                   "(experiment flag; logged once)", sorted(set(dropped)),
+                                   refused)
+            ordered = [(k, t) for k, t in ordered
+                       if not (k in drop and k not in _CHAT_BLOCK_EXEMPT)]
+        except Exception:
+            pass  # never break the chat turn over an experiment flag
     texts = [t for _, t in ordered]
     if os.environ.get("NEX5_CHAT_WORKSPACE") != "1":
         return "".join(texts)
@@ -212,6 +250,14 @@ def _assemble_chat_blocks(ordered: "list[tuple[str, str]]", session_id=None,
                 pass  # fall back to this-turn salience
         cands = [(sal.get(kind, _CHAT_BLOCK_SALIENCE.get(kind, 0.4)), text,
                   kind in _CHAT_BLOCK_EXEMPT) for kind, text in ordered]
+        # If the never-evicted safety blocks already fill the budget, the flag is
+        # silently a no-op beyond safety — surface it so a mis-tuned budget shows.
+        exempt_chars = sum(len(t) for kind, t in ordered
+                           if kind in _CHAT_BLOCK_EXEMPT)
+        if exempt_chars >= budget:
+            logger.info("chat workspace: exempt blocks alone (%d chars) meet/exceed "
+                        "budget %d; no non-exempt block admitted",
+                        exempt_chars, budget)
         return "".join(select_within_budget(cands, budget))
     except Exception:
         return "".join(texts)  # never break the chat turn
@@ -850,6 +896,66 @@ def create_app(state: AppState) -> Flask:
     # server restarts during development without requiring re-auth every process.
     app.secret_key = _ensure_secret()
 
+    # -- auth gate: deny-by-default for state-changing requests --------------
+    # Each mutating route was historically expected to re-check session["admin"]
+    # itself; most never did, leaving the write surface (mode/voice/strikes/
+    # goals/probes/sense/...) reachable by any caller on the loopback bind
+    # alone. One gate now enforces it centrally: any POST/PUT/PATCH/DELETE to a
+    # matched route requires an authenticated admin session, except the small
+    # allowlist below — the login/logout lifecycle and the deliberately public
+    # chat endpoint. Read (GET/HEAD) endpoints are unaffected.
+    _PUBLIC_MUTATIONS = frozenset({
+        "api_admin_login",   # the login itself
+        "api_admin_logout",  # clearing a session is always safe
+        "api_chat",          # public chat is a designed capability
+        "static",            # Flask's static-file endpoint
+    })
+    _MUTATING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+    @app.before_request
+    def _require_admin_for_mutations():
+        if request.method not in _MUTATING_METHODS:
+            return None
+        # Unmatched path -> let routing raise its own 404; nothing to guard.
+        if request.endpoint is None or request.endpoint in _PUBLIC_MUTATIONS:
+            return None
+        if session.get("admin"):
+            return None
+        if not admin_is_configured():
+            return jsonify({
+                "error": "admin required",
+                "detail": "no admin password configured; set one via "
+                          "admin.auth.set_password() to enable write endpoints",
+            }), 403
+        return jsonify({"error": "admin required"}), 403
+
+    # -- global error handling ----------------------------------------------
+    # Without a catch-all, any unhandled exception became a bare Werkzeug HTML
+    # 500 (and could leak a traceback if debug ever slipped on), and an unknown
+    # path returned HTML instead of the JSON every /api consumer expects. Route
+    # unexpected errors through error_channel and always answer in JSON.
+    @app.errorhandler(404)
+    def _not_found(_e):
+        return jsonify({"error": "not found", "path": request.path}), 404
+
+    @app.errorhandler(405)
+    def _method_not_allowed(_e):
+        return jsonify({"error": "method not allowed",
+                        "method": request.method}), 405
+
+    @app.errorhandler(Exception)
+    def _unhandled(e):
+        # Flask funnels HTTPExceptions here too (abort(400) etc.); preserve
+        # their status and don't treat them as server faults.
+        from werkzeug.exceptions import HTTPException
+        if isinstance(e, HTTPException):
+            return jsonify({"error": (e.name or "error").lower()}), e.code
+        error_channel.record(
+            f"unhandled error on {request.method} {request.path}: {e}",
+            source="gui.server", exc=e,
+        )
+        return jsonify({"error": "internal error"}), 500
+
     # Register membrane-owned SentienceNodes (Model A — process-lifetime).
     # Must run here (not module level) because both nodes require DB readers
     # that are only available after build_state().
@@ -860,8 +966,9 @@ def create_app(state: AppState) -> Flask:
                 _tx_register_membrane(state.membrane.self_model)
             if state.membrane.behavioural is not None:
                 _tx_register_membrane(state.membrane.behavioural)
-        except Exception:
-            pass
+        except Exception as e:
+            error_channel.log_and_continue(
+                e, source="gui.server", context="membrane node registration")
 
     # -- pages ---------------------------------------------------------------
 
@@ -912,6 +1019,23 @@ def create_app(state: AppState) -> Flask:
         events = error_channel.recent(limit=max(1, min(limit, 500)))
         return jsonify({"events": [e.to_dict() for e in events]})
 
+    @app.get("/api/health")
+    def api_health():
+        """Liveness/readiness probe for supervisors and monitors: 200 when the
+        process is up and every DB reader answers a trivial query, 503 if any
+        reader is unreachable. Unauthenticated and cheap by design."""
+        dbs: dict[str, str] = {}
+        ok = True
+        for name, reader in state.readers.items():
+            try:
+                reader.read_one("SELECT 1 AS one")
+                dbs[name] = "ok"
+            except Exception as e:  # pragma: no cover - exercised via a broken reader
+                dbs[name] = f"error: {e}"
+                ok = False
+        return jsonify({"status": "ok" if ok else "degraded", "dbs": dbs}), (
+            200 if ok else 503)
+
     # -- admin ---------------------------------------------------------------
 
     @app.get("/api/admin/status")
@@ -946,8 +1070,6 @@ def create_app(state: AppState) -> Flask:
 
     @app.post("/api/voice_mode")
     def api_voice_mode():
-        if not session.get("admin"):
-            return jsonify({"error": "admin required"}), 403
         payload = request.get_json(silent=True) or {}
         mode = payload.get("mode", "")
         if mode not in ("use_llm", "use_substrate"):
@@ -1923,6 +2045,11 @@ def create_app(state: AppState) -> Flask:
                 voice_prompt = (
                     f"{_blocks_concat}{prompt}" if _blocks_concat else prompt
                 )
+            # M5 measurement (D-C item 1): one line per chat turn so the owner can
+            # see whether the assembled prompt approaches the model's context
+            # window before deciding a hard token clamp is ever needed.
+            logger.info("chat prompt chars: blocks=%d voice_prompt=%d",
+                        len(_blocks_concat), len(voice_prompt))
 
         if text is None:
             # PROVENANCE (NEX5_PROVENANCE, admin-scoped) — snapshot what she holds
@@ -2437,8 +2564,6 @@ def create_app(state: AppState) -> Flask:
         """Speak one line NOW in her own voice (Kokoro), through the box's
         speakers — the read-aloud button. Reuses the queue consumer's backend and
         player; her speech_queue is not touched. Admin-scoped."""
-        if not session.get("admin"):
-            return jsonify({"error": "admin required"}), 403
         payload = request.get_json(silent=True) or {}
         text = payload.get("text")
         consumer = state.speech_consumer
@@ -2460,8 +2585,6 @@ def create_app(state: AppState) -> Flask:
     def api_speech_stop():
         """Cut playback now. flush() only marks PENDING queue rows skipped — it
         cannot stop audio already in the speakers; sounddevice.stop() can."""
-        if not session.get("admin"):
-            return jsonify({"error": "admin required"}), 403
         try:
             from speech import on_demand
             return jsonify({"stopped": on_demand.stop(),
@@ -2556,9 +2679,8 @@ def create_app(state: AppState) -> Flask:
         status = state.fountain.status()
         # Merge in last_id + last_tag for the FOUNTAIN tag buttons
         try:
-            import sqlite3 as _sq
             from substrate.paths import db_paths as _dbp_tag
-            cx = _sq.connect(str(_dbp_tag()["dynamic"]), timeout=5)
+            cx = connect(str(_dbp_tag()["dynamic"]), timeout=5)
             row = cx.execute(
                 "SELECT id, tag FROM fountain_events "
                 "WHERE thought != '' AND thought NOT LIKE '[%' "
@@ -2583,37 +2705,47 @@ def create_app(state: AppState) -> Flask:
         column can render an inline badge per fire.
         """
         from flask import request
-        import sqlite3
         limit = int(request.args.get("limit", "20"))
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
-        conv_db = "/home/rr/Desktop/Desktop/nex5/data/conversations.db"
+        dyn_db = _DYN_DB
+        conv_db = _CONV_DB
         try:
-            cx = sqlite3.connect(dyn_db, timeout=10)
-            cx.row_factory = sqlite3.Row
-            # Get last N fountain_event_ids that have words
-            fids = cx.execute(
+            cx = connect(dyn_db, timeout=10)
+            cx.row_factory = Row
+            # Last N fountain_event_ids that have words, newest first.
+            fids = [f["fountain_event_id"] for f in cx.execute(
                 "SELECT DISTINCT fountain_event_id FROM word_contexts "
                 "ORDER BY fountain_event_id DESC LIMIT ?",
                 (limit,),
-            ).fetchall()
+            ).fetchall()]
             out = []
-            for f in fids:
-                fid = f["fountain_event_id"]
-                row = cx.execute(
-                    "SELECT id, ts, thought, tag FROM fountain_events WHERE id=?", (fid,)
-                ).fetchone()
-                words = cx.execute(
-                    "SELECT word FROM word_contexts WHERE fountain_event_id=? ORDER BY word",
-                    (fid,),
-                ).fetchall()
-                if row:
-                    out.append({
-                        "fid": row["id"],
-                        "ts": row["ts"],
-                        "thought": row["thought"],
-                        "tag": row["tag"],
-                        "words": [w["word"] for w in words],
-                    })
+            if fids:
+                # This is a 2s-poll live ticker. Batch the per-fire lookups into
+                # two IN (...) queries instead of 2*N point queries (41 -> 3 at
+                # limit=20); same data, same newest-first order.
+                ph = ",".join("?" * len(fids))
+                params = tuple(fids)
+                rows = {
+                    r["id"]: r for r in cx.execute(
+                        f"SELECT id, ts, thought, tag FROM fountain_events "
+                        f"WHERE id IN ({ph})", params,
+                    ).fetchall()
+                }
+                words_by_fid: dict = {}
+                for w in cx.execute(
+                    f"SELECT fountain_event_id, word FROM word_contexts "
+                    f"WHERE fountain_event_id IN ({ph}) ORDER BY word", params,
+                ).fetchall():
+                    words_by_fid.setdefault(w["fountain_event_id"], []).append(w["word"])
+                for fid in fids:  # preserve the newest-first order of the id list
+                    row = rows.get(fid)
+                    if row:
+                        out.append({
+                            "fid": row["id"],
+                            "ts": row["ts"],
+                            "thought": row["thought"],
+                            "tag": row["tag"],
+                            "words": words_by_fid.get(fid, []),
+                        })
             cx.close()
 
             # Enrich with genius scores from conversations.db (cross-DB,
@@ -2623,8 +2755,8 @@ def create_app(state: AppState) -> Flask:
                 try:
                     fire_ids = tuple(int(o["fid"]) for o in out)
                     ph = ",".join("?" * len(fire_ids))
-                    cv = sqlite3.connect(conv_db, timeout=5)
-                    cv.row_factory = sqlite3.Row
+                    cv = connect(conv_db, timeout=5)
+                    cv.row_factory = Row
                     score_rows = cv.execute(
                         f"SELECT fountain_event_id, score, class, weights_version "
                         f"FROM genius_tags WHERE fountain_event_id IN ({ph}) "
@@ -2659,12 +2791,11 @@ def create_app(state: AppState) -> Flask:
     def api_decoder_top():
         """Top words by frequency."""
         from flask import request
-        import sqlite3
         limit = int(request.args.get("limit", "50"))
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        dyn_db = _DYN_DB
         try:
-            cx = sqlite3.connect(dyn_db, timeout=10)
-            cx.row_factory = sqlite3.Row
+            cx = connect(dyn_db, timeout=10)
+            cx.row_factory = Row
             rows = cx.execute(
                 "SELECT word, COUNT(*) AS n FROM word_contexts "
                 "GROUP BY word ORDER BY n DESC LIMIT ?",
@@ -2680,14 +2811,13 @@ def create_app(state: AppState) -> Flask:
         """Substrate fingerprint for a single word.
         Returns: count, avg/min/max aperture, avg_hour, avg_secs_daemon,
         avg_secs_feed, top hot_branches, top tags."""
-        import sqlite3
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        dyn_db = _DYN_DB
         word = word.lower().strip()
         if not word or len(word) > 50:
             return jsonify({"error": "invalid word"}), 400
         try:
-            cx = sqlite3.connect(dyn_db, timeout=10)
-            cx.row_factory = sqlite3.Row
+            cx = connect(dyn_db, timeout=10)
+            cx.row_factory = Row
             agg = cx.execute(
                 "SELECT COUNT(*) AS n, "
                 "AVG(aperture) AS avg_ap, MIN(aperture) AS min_ap, MAX(aperture) AS max_ap, "
@@ -2750,7 +2880,7 @@ def create_app(state: AppState) -> Flask:
     @app.post("/api/decoder/word_tag")
     def api_decoder_word_tag():
         """Tag a word globally as key/noise/unsure. Or untag (pass tag=null)."""
-        import sqlite3, time
+        import time
         from flask import request
         payload = request.get_json(silent=True) or {}
         word = (payload.get("word") or "").strip().lower()
@@ -2760,9 +2890,9 @@ def create_app(state: AppState) -> Flask:
             return jsonify({"error": "invalid word"}), 400
         if tag is not None and tag not in ("key", "noise", "unsure"):
             return jsonify({"error": "tag must be key/noise/unsure or null"}), 400
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        dyn_db = _DYN_DB
         try:
-            cx = sqlite3.connect(dyn_db, timeout=10)
+            cx = connect(dyn_db, timeout=10)
             if tag is None:
                 cx.execute("DELETE FROM word_tags WHERE word=?", (word,))
             else:
@@ -2781,10 +2911,9 @@ def create_app(state: AppState) -> Flask:
     @app.get("/api/decoder/word_tags")
     def api_decoder_word_tags():
         """Return {word: tag} map for all tagged words. UI uses this to badge chips."""
-        import sqlite3
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        dyn_db = _DYN_DB
         try:
-            cx = sqlite3.connect(dyn_db, timeout=10)
+            cx = connect(dyn_db, timeout=10)
             rows = cx.execute("SELECT word, tag, note FROM word_tags").fetchall()
             cx.close()
             tags = {r[0]: {"tag": r[1], "note": r[2]} for r in rows}
@@ -2800,16 +2929,16 @@ def create_app(state: AppState) -> Flask:
         Also auto-scores any open hypotheses.
         """
         from flask import request
-        import sqlite3, time, json
+        import time, json
         from theory_x.coincidence.context_capture import capture_and_persist
         body = request.get_json(silent=True) or {}
         fid = body.get("fountain_event_id")
         tag = body.get("tag")
         if not fid or tag not in ("coin", "maybe", "non"):
             return jsonify({"error": "fountain_event_id and tag in (coin,maybe,non) required"}), 400
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        dyn_db = _DYN_DB
         try:
-            cx = sqlite3.connect(dyn_db, timeout=10)
+            cx = connect(dyn_db, timeout=10)
             row = cx.execute(
                 "SELECT thought, ts FROM fountain_events WHERE id=?", (fid,)
             ).fetchone()
@@ -2854,15 +2983,15 @@ def create_app(state: AppState) -> Flask:
         Body: {fountain_event_id: int, reason: str (optional)}
         """
         from flask import request
-        import sqlite3, time
+        import time
         body = request.get_json(silent=True) or {}
         fid = body.get("fountain_event_id")
         reason = (body.get("reason") or "").strip()
         if not fid:
             return jsonify({"error": "fountain_event_id required"}), 400
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        dyn_db = _DYN_DB
         try:
-            cx = sqlite3.connect(dyn_db, timeout=10)
+            cx = connect(dyn_db, timeout=10)
             # Verify fire exists
             row = cx.execute(
                 "SELECT thought, ts FROM fountain_events WHERE id=?", (fid,)
@@ -2891,14 +3020,13 @@ def create_app(state: AppState) -> Flask:
     def api_ghost_unflag():
         """Remove a ghost flag (toggle-off behaviour)."""
         from flask import request
-        import sqlite3
         body = request.get_json(silent=True) or {}
         fid = body.get("fountain_event_id")
         if not fid:
             return jsonify({"error": "fountain_event_id required"}), 400
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        dyn_db = _DYN_DB
         try:
-            cx = sqlite3.connect(dyn_db, timeout=10)
+            cx = connect(dyn_db, timeout=10)
             cx.execute("DELETE FROM ghost_flags WHERE fountain_event_id=?", (fid,))
             cx.commit()
             cx.close()
@@ -2911,11 +3039,10 @@ def create_app(state: AppState) -> Flask:
     @app.get("/api/ghost/flags")
     def api_ghost_flags():
         """Return all ghost flags (for HUD reload — knows which fires are flagged)."""
-        import sqlite3
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        dyn_db = _DYN_DB
         try:
-            cx = sqlite3.connect(dyn_db, timeout=10)
-            cx.row_factory = sqlite3.Row
+            cx = connect(dyn_db, timeout=10)
+            cx.row_factory = Row
             rows = cx.execute(
                 "SELECT fountain_event_id, ts, reason FROM ghost_flags "
                 "ORDER BY ts DESC LIMIT 500"
@@ -2931,11 +3058,11 @@ def create_app(state: AppState) -> Flask:
     @app.get("/api/coincidence/stats")
     def api_coincidence_stats():
         """Counts, totals, hit rate trend, time-of-day distribution."""
-        import sqlite3, time, datetime
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        import time, datetime
+        dyn_db = _DYN_DB
         try:
-            cx = sqlite3.connect(dyn_db, timeout=10)
-            cx.row_factory = sqlite3.Row
+            cx = connect(dyn_db, timeout=10)
+            cx.row_factory = Row
             counts = cx.execute(
                 "SELECT tag, COUNT(*) AS n FROM fountain_events "
                 "WHERE tag IS NOT NULL GROUP BY tag"
@@ -2992,11 +3119,11 @@ def create_app(state: AppState) -> Flask:
     @app.get("/api/coincidence/analytics")
     def api_coincidence_analytics():
         """Branch correlation, aperture distribution, condition fingerprint."""
-        import sqlite3, json
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        import json
+        dyn_db = _DYN_DB
         try:
-            cx = sqlite3.connect(dyn_db, timeout=10)
-            cx.row_factory = sqlite3.Row
+            cx = connect(dyn_db, timeout=10)
+            cx.row_factory = Row
             # Hot_branch correlation: which branch produces most coins/maybes?
             by_branch = cx.execute(
                 "SELECT hot_branch, tag, COUNT(*) AS n FROM fountain_events "
@@ -3076,10 +3203,9 @@ def create_app(state: AppState) -> Flask:
     @app.get("/api/coincidence/tags")
     def api_coincidence_tags():
         """Map fountain_event_id -> tag for UI marking."""
-        import sqlite3
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+        dyn_db = _DYN_DB
         try:
-            cx = sqlite3.connect(dyn_db, timeout=10)
+            cx = connect(dyn_db, timeout=10)
             rows = cx.execute(
                 "SELECT id, tag FROM fountain_events "
                 "WHERE tag IS NOT NULL ORDER BY ts DESC LIMIT 500"
@@ -3093,15 +3219,15 @@ def create_app(state: AppState) -> Flask:
     def api_hypothesis_create():
         """Create a new hypothesis to test against coincidence data."""
         from flask import request
-        import sqlite3, time
+        import time
         body = request.get_json(silent=True) or {}
         claim = (body.get("claim") or "").strip()
         keywords = (body.get("keywords") or "").strip()  # comma-separated
         time_window = body.get("time_window")  # e.g. "21:00-23:00" or null
         if not claim:
             return jsonify({"error": "claim required"}), 400
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
-        cx = sqlite3.connect(dyn_db, timeout=10)
+        dyn_db = _DYN_DB
+        cx = connect(dyn_db, timeout=10)
         cur = cx.execute(
             "INSERT INTO hypotheses (created_at, claim, keywords, time_window) "
             "VALUES (?, ?, ?, ?)",
@@ -3115,10 +3241,9 @@ def create_app(state: AppState) -> Flask:
     @app.get("/api/hypothesis")
     def api_hypothesis_list():
         """List all hypotheses with current support/contradiction counts."""
-        import sqlite3
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
-        cx = sqlite3.connect(dyn_db, timeout=10)
-        cx.row_factory = sqlite3.Row
+        dyn_db = _DYN_DB
+        cx = connect(dyn_db, timeout=10)
+        cx.row_factory = Row
         rows = cx.execute(
             "SELECT * FROM hypotheses ORDER BY created_at DESC"
         ).fetchall()
@@ -3129,14 +3254,14 @@ def create_app(state: AppState) -> Flask:
     def api_hypothesis_update(hid):
         """Update status or notes on a hypothesis."""
         from flask import request
-        import sqlite3, time
+        import time
         body = request.get_json(silent=True) or {}
         status = body.get("status")
         notes = body.get("notes")
         if status and status not in ("open", "confirmed", "refuted", "abandoned"):
             return jsonify({"error": "invalid status"}), 400
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
-        cx = sqlite3.connect(dyn_db, timeout=10)
+        dyn_db = _DYN_DB
+        cx = connect(dyn_db, timeout=10)
         sets, vals = [], []
         if status:
             sets.append("status=?")
@@ -3164,10 +3289,10 @@ def create_app(state: AppState) -> Flask:
           - tag='non' on a matching thought  = contradicting
           - tag='maybe' = no count change
         """
-        import sqlite3, datetime
-        dyn_db = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
-        cx = sqlite3.connect(dyn_db, timeout=10)
-        cx.row_factory = sqlite3.Row
+        import datetime
+        dyn_db = _DYN_DB
+        cx = connect(dyn_db, timeout=10)
+        cx.row_factory = Row
         hyps = cx.execute(
             "SELECT id, keywords, time_window FROM hypotheses WHERE status='open'"
         ).fetchall()

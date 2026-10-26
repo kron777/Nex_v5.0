@@ -17,15 +17,16 @@ Graded LIGHT / FULL. Gated by NEX5_SRADDHA (default OFF). Fail-safe: '' on any
 error or flag off.
 """
 from __future__ import annotations
+from substrate.paths import db_paths
 
 import os
 import re
-import sqlite3
+from substrate import connect, Row
 
 import errors as error_channel
 
 _LOG_SOURCE = "sraddha"
-_BELIEFS_DB = "/home/rr/Desktop/Desktop/nex5/data/beliefs.db"
+_BELIEFS_DB = str(db_paths()["beliefs"])
 
 # Support thresholds (above the live T6+ distribution).
 _EDGE_FULL = 15      # top-~10% connectivity
@@ -52,8 +53,8 @@ def _best_supported_relevant(message: str):
     if len(mtok) < 1:
         return None
     try:
-        con = sqlite3.connect(f"file:{_BELIEFS_DB}?mode=ro", uri=True, timeout=5)
-        con.row_factory = sqlite3.Row
+        con = connect(f"file:{_BELIEFS_DB}?mode=ro", uri=True, timeout=5)
+        con.row_factory = Row
         # candidate pool: T6+, live (not retired/paused), containing a turn token
         toks = list(mtok)[:8]
         like = " OR ".join(["content LIKE ?"] * len(toks))

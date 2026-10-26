@@ -1,0 +1,13 @@
+# Optional speech / TTS stack. Not needed to run the core HUD — the imports
+# are lazy and guarded, so these only matter when the voice feature is on.
+#   pip install -r requirements-speech.txt
+#
+# Pre-download the Kokoro weights once after installing:
+#   python speech/download_model.py
+#
+#   kokoro          speech/kokoro_backend.py        TTS synthesis
+#   sounddevice     speech/player.py, on_demand.py  audio playback (PortAudio)
+#   huggingface_hub speech/download_model.py         one-time model-weight fetch
+kokoro>=0.9
+sounddevice>=0.4
+huggingface_hub>=0.20

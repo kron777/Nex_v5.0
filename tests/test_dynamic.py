@@ -399,12 +399,15 @@ class TestDynamicGUIEndpoints(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        try:
-            cls.dynamic._stop.set()  # type: ignore[attr-defined]
-        except Exception:
-            pass
+        # Join the life loops BEFORE removing the temp data dir: a loop still
+        # mid-tick would otherwise resolve its DB paths against whatever
+        # NEX5_DATA_DIR is next (once, the live data/ dir -> TEST HYGIENE).
+        from theory_x.stage2_dynamic import stop_dynamic
+        alive = stop_dynamic(cls.dynamic)
         cls.state.close()
         _cleanup(cls.writers, cls.tmp)
+        if alive:
+            raise AssertionError(f"life loops still running after stop: {alive}")
 
     def test_dynamic_status_200(self):
         r = self.client.get("/api/dynamic/status")
@@ -447,27 +450,66 @@ class TestDynamicGUIEndpoints(unittest.TestCase):
 
 # ---- Architecture compliance -------------------------------------------------
 
+class TestStopDynamicJoinsLoops(unittest.TestCase):
+    """stop_dynamic must wait for a loop's in-flight tick, not just signal it.
+    Deterministic: a scheduled daily activity (hour 0, so always due) blocks
+    until released; stop_dynamic is called while it is in flight."""
+
+    def test_stop_waits_for_in_flight_tick(self):
+        import threading
+        from theory_x.life import daily_life as dl
+        from theory_x.stage2_dynamic import build_dynamic, stop_dynamic
+
+        started, release, finished = (threading.Event() for _ in range(3))
+
+        def _probe(_date):
+            started.set()
+            release.wait(10)
+            finished.set()
+            return "probe"
+
+        writers, readers, tmp = _make_env()
+        saved = (dict(dl.SCHEDULE), dict(dl._ACTIVITY_FUNCS))
+        dl.SCHEDULE.clear(); dl.SCHEDULE[0] = "probe"
+        dl._ACTIVITY_FUNCS["probe"] = _probe
+        try:
+            state = build_dynamic(writers, readers)
+            self.assertTrue(started.wait(30), "daily_loop never ran its first tick")
+            threading.Timer(0.5, release.set).start()   # tick still busy at stop
+            alive = stop_dynamic(state, timeout=30)
+            self.assertTrue(finished.is_set(),
+                            "stop_dynamic returned while a tick was still running")
+            self.assertEqual(alive, [])
+        finally:
+            release.set()
+            dl.SCHEDULE.clear(); dl.SCHEDULE.update(saved[0])
+            dl._ACTIVITY_FUNCS.clear(); dl._ACTIVITY_FUNCS.update(saved[1])
+            _cleanup(writers, tmp)
+
+
 class TestArchitectureCompliance(unittest.TestCase):
     def test_no_direct_sqlite3_outside_substrate(self):
+        # One-pen ratchet: every module outside substrate/ must open databases
+        # through substrate.connect(), not raw sqlite3. The two standalone
+        # DB-maintenance tools are the deliberate exceptions -- they need
+        # low-level control (the reaper must not touch journal_mode; backups
+        # must stay self-contained, non-WAL).
+        import subprocess
+        from pathlib import Path as _P
+        root = _P(__file__).resolve().parent.parent
         result = subprocess.run(
-            [
-                "grep", "-r", "sqlite3.connect",
-                "/home/rr/Desktop/Desktop/nex5",
-                "--include=*.py",
-                "--exclude-dir=.venv",
-                "--exclude-dir=substrate",
-                "--exclude-dir=tests",
-                "--exclude-dir=strikes",
-                "--exclude-dir=__pycache__",
-            ],
-            capture_output=True,
-            text=True,
+            ["grep", "-rl", "import sqlite3", "--include=*.py",
+             "--exclude-dir=substrate", "--exclude-dir=tests",
+             "--exclude-dir=.venv", "--exclude-dir=__pycache__", str(root)],
+            capture_output=True, text=True,
         )
-        self.assertEqual(
-            result.stdout.strip(), "",
-            f"Direct sqlite3.connect found outside substrate/:\n{result.stdout}",
+        exceptions = {"nex_db_reaper.py", "nex_db_backup.py"}
+        violators = sorted(
+            ln for ln in result.stdout.splitlines()
+            if ln and _P(ln).name not in exceptions
         )
-
+        self.assertEqual(violators, [],
+                         f"Direct sqlite3 outside substrate/: {violators}")
     def test_theory_x_stage_2_in_all_dynamic_modules(self):
         modules = [
             "theory_x.stage2_dynamic.bonsai",

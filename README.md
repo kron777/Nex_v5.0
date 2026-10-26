@@ -68,7 +68,7 @@ Every feedback loop in NEX is built to fail safe, to require real evidence befor
 
 - **Continuously running** on local hardware, respawned by a supervisor if the environment kills it.
 - **~32,600 beliefs** accumulated in the store, tiered by depth.
-- **380+ commits** of iterative, evidence-driven development.
+- **Hundreds of commits** of iterative, evidence-driven development.
 - **Full cognitive feedback stack live:** self-observation, metacognitive aggregation, quality-synthesis RSI, surprise weighting, world-contact monitoring, living self-narrative, and cross-fire continuity — all running together.
 - **Breadth restored and honest:** NEX ranges across science, geopolitics, technology, health, security, culture and more, with no single topic dominating.
 

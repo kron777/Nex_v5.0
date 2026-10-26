@@ -22,13 +22,14 @@ from __future__ import annotations
 
 import os
 import re
-import sqlite3
+from substrate import connect
 import time
 
 import errors as error_channel
+from substrate.paths import db_paths
 
 _LOG_SOURCE = "virya"
-_DYNAMIC_DB = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+_DYNAMIC_DB = str(db_paths()["dynamic"])
 
 _VIRYA_CAP = 1.0          # hard ceiling on effort signal (anti-mania)
 _DRIFT_MIN = 0.55         # drift fraction above this = clearly fleeing the thread
@@ -50,7 +51,7 @@ def _hard_thread() -> str:
     """The topic of her current worked focus (the open problem she picked), or ''.
     Fail-safe ''."""
     try:
-        con = sqlite3.connect(f"file:{_DYNAMIC_DB}?mode=ro", uri=True, timeout=5)
+        con = connect(f"file:{_DYNAMIC_DB}?mode=ro", uri=True, timeout=5)
         row = con.execute("SELECT problem_id FROM current_focus WHERE id=1").fetchone()
         con.close()
         if not row:
@@ -59,7 +60,7 @@ def _hard_thread() -> str:
         from substrate import Reader, db_paths
         pr = Reader(db_paths()["conversations"])
         r = pr.read_one(
-            "SELECT title, description FROM problems WHERE id=?", (pid,))
+            "SELECT title, description FROM open_problems WHERE id=?", (pid,))
         if not r:
             return ""
         return f"{r['title']} {r.get('description','') or ''}".strip()
@@ -75,7 +76,7 @@ def _drift_fraction(thread_text: str) -> float:
         ttok = _tokens(thread_text)
         if not ttok:
             return 0.0
-        con = sqlite3.connect(f"file:{_DYNAMIC_DB}?mode=ro", uri=True, timeout=5)
+        con = connect(f"file:{_DYNAMIC_DB}?mode=ro", uri=True, timeout=5)
         rows = con.execute(
             "SELECT thought FROM fountain_events WHERE ts > ? AND thought IS NOT NULL "
             "ORDER BY id DESC LIMIT 30", (time.time() - _RECENT_WINDOW_S,)).fetchall()

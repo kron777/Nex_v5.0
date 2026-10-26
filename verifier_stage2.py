@@ -31,7 +31,7 @@ Reversible: delete data/verification.db to undo entirely.
 
 import json
 import re
-import sqlite3
+from substrate import connect, Row
 import sys
 import time
 
@@ -92,7 +92,7 @@ def _ensure_schema(vcx):
 def main():
     report_only = "--report" in sys.argv
 
-    vcx = sqlite3.connect(VERIFY_DB)
+    vcx = connect(VERIFY_DB)
     _ensure_schema(vcx)
 
     if report_only:
@@ -105,8 +105,8 @@ def main():
             print(f"  {verdict:12s} {n:5d} ({n/max(1,total):.0%})")
         return
 
-    bcx = sqlite3.connect(BELIEFS_DB); bcx.row_factory = sqlite3.Row
-    scx = sqlite3.connect(SENSE_DB); scx.row_factory = sqlite3.Row
+    bcx = connect(BELIEFS_DB); bcx.row_factory = Row
+    scx = connect(SENSE_DB); scx.row_factory = Row
 
     sense_rows = scx.execute(
         "SELECT id, stream, payload, provenance FROM sense_events "

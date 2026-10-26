@@ -14,7 +14,7 @@ dynamic.db and never reach her felt experience.
 from __future__ import annotations
 import json
 import logging
-import sqlite3
+from substrate import connect, Row, IntegrityError
 import threading
 import time
 from pathlib import Path
@@ -84,9 +84,9 @@ def _surprise_to_belief(surprise_row):
 
 
 def surprise_tick():
-    d_cx = sqlite3.connect(DYNAMIC_DB, timeout=15)
-    b_cx = sqlite3.connect(BELIEFS_DB, timeout=15)
-    d_cx.row_factory = sqlite3.Row
+    d_cx = connect(DYNAMIC_DB, timeout=15)
+    b_cx = connect(BELIEFS_DB, timeout=15)
+    d_cx.row_factory = Row
     try:
         _ensure_kv_table(d_cx)
         since = _last_promoted_ts(d_cx)
@@ -118,7 +118,7 @@ def surprise_tick():
                 )
                 b_cx.commit()
                 promoted += 1
-            except sqlite3.IntegrityError:
+            except IntegrityError:
                 # duplicate content — skip
                 pass
             except Exception as e:

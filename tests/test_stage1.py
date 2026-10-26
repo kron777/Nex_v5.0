@@ -73,7 +73,12 @@ class TestGovernor(unittest.TestCase):
 
     def test_respects_min_gap(self):
         from speech.governor import SpeechGovernor
-        g = SpeechGovernor(min_gap_seconds=60, base_speak_probability=1.0)
+        # quiet_hours_damping=1.0 so this test is deterministic regardless of the
+        # wall-clock hour: it exercises the min-gap, not the quiet-hours
+        # probability path (which would otherwise damp base_prob to 0.3 between
+        # 22:00-07:00 local and, under the seeded RNG, flip the first decide).
+        g = SpeechGovernor(min_gap_seconds=60, base_speak_probability=1.0,
+                           quiet_hours_damping=1.0)
         d1 = g.decide("test belief")
         self.assertTrue(d1.speak)
         # Immediately after: gap blocks

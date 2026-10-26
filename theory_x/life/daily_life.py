@@ -19,7 +19,7 @@ fired today but hasn't.
 from __future__ import annotations
 import json
 import logging
-import sqlite3
+from substrate import connect
 import threading
 import time
 from datetime import datetime
@@ -82,7 +82,7 @@ def _record_fired(cx, activity: str, date_local: str, details: str = "") -> None
 
 
 def _write_chat(content: str, register: str = "Daily") -> None:
-    cv_cx = sqlite3.connect(CONVERSATIONS_DB, timeout=10)
+    cv_cx = connect(CONVERSATIONS_DB, timeout=10)
     try:
         cv_cx.execute(
             "INSERT INTO sessions (id, started_at, admin, user_label) "
@@ -103,7 +103,7 @@ def _state_snapshot() -> dict:
     """Snapshot of how she is right now."""
     out = {}
     try:
-        b_cx = sqlite3.connect(BELIEFS_DB, timeout=10)
+        b_cx = connect(BELIEFS_DB, timeout=10)
         row = b_cx.execute(
             "SELECT COUNT(*) FROM beliefs WHERE created_at > ?",
             (time.time() - 86400,)
@@ -114,7 +114,7 @@ def _state_snapshot() -> dict:
         out["new_beliefs_24h"] = "?"
 
     try:
-        cv_cx = sqlite3.connect(CONVERSATIONS_DB, timeout=10)
+        cv_cx = connect(CONVERSATIONS_DB, timeout=10)
         row = cv_cx.execute(
             "SELECT COUNT(*) FROM open_problems WHERE state='open'"
         ).fetchone()
@@ -129,7 +129,7 @@ def _state_snapshot() -> dict:
         out["open_problems"] = "?"
 
     try:
-        d_cx = sqlite3.connect(DYNAMIC_DB, timeout=10)
+        d_cx = connect(DYNAMIC_DB, timeout=10)
         row = d_cx.execute(
             "SELECT COUNT(*) FROM moltbook_posts "
             "WHERE status='posted' AND ts > ?",
@@ -173,7 +173,7 @@ def _activity_morning(date_local: str) -> str:
 def _activity_reading(slot: str, date_local: str) -> str:
     """Pick one recent feed item. Surface it for engagement."""
     try:
-        s_cx = sqlite3.connect(SENSE_DB, timeout=10)
+        s_cx = connect(SENSE_DB, timeout=10)
         row = s_cx.execute(
             "SELECT stream, payload FROM sense_events "
             "WHERE stream NOT LIKE 'internal.%' "
@@ -210,7 +210,7 @@ def _activity_outreach(slot: str, date_local: str) -> str:
         _write_chat(msg, "Outreach")
         return msg
     try:
-        d_cx = sqlite3.connect(DYNAMIC_DB, timeout=10)
+        d_cx = connect(DYNAMIC_DB, timeout=10)
         rows = d_cx.execute(
             "SELECT conversation_id, with_agent FROM moltbook_dms "
             "WHERE approved=1 LIMIT 8"
@@ -265,7 +265,7 @@ def daily_tick() -> dict:
     now = _now_local()
     hour = now.hour
     date_local = _date_str(now)
-    d_cx = sqlite3.connect(DYNAMIC_DB, timeout=10)
+    d_cx = connect(DYNAMIC_DB, timeout=10)
     try:
         # Fire any scheduled activity whose hour has been reached today
         fired = []

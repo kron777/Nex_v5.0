@@ -23,7 +23,8 @@ USAGE:
     .venv/bin/python3 theory_x/stage_tom/recursion_attribution.py --verdict   # read result
 """
 from __future__ import annotations
-import sqlite3, time, sys, os
+import time, sys, os
+from substrate import connect, Row
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 def _db(name):
@@ -34,7 +35,7 @@ def _db(name):
         return f"data/{name}.db"
 
 def _ensure_table():
-    con = sqlite3.connect(_db("dynamic"))
+    con = connect(_db("dynamic"))
     con.execute("""CREATE TABLE IF NOT EXISTS recursion_attrib (
         ts REAL PRIMARY KEY, nudge_active INTEGER, branch TEXT, branch_prev TEXT, moved INTEGER)""")
     con.commit(); con.close()
@@ -50,7 +51,7 @@ def _nudge_active() -> bool:
 def _current_branch() -> str:
     """Hot branch right now, from fountain fires (same signal the teeth-test uses)."""
     try:
-        con = sqlite3.connect(_db("dynamic")); con.row_factory = sqlite3.Row
+        con = connect(_db("dynamic")); con.row_factory = Row
         row = con.execute("SELECT hot_branch FROM fountain_events ORDER BY ts DESC LIMIT 1").fetchone()
         con.close()
         return str(row["hot_branch"]) if row and row["hot_branch"] else ""
@@ -60,7 +61,7 @@ def _current_branch() -> str:
 def sample():
     """Record one observation: was the nudge active, and did the branch move?"""
     _ensure_table()
-    con = sqlite3.connect(_db("dynamic")); con.row_factory = sqlite3.Row
+    con = connect(_db("dynamic")); con.row_factory = Row
     prev = con.execute("SELECT branch FROM recursion_attrib ORDER BY ts DESC LIMIT 1").fetchone()
     branch_prev = prev["branch"] if prev else ""
     branch = _current_branch()
@@ -75,7 +76,7 @@ def sample():
 
 def verdict():
     _ensure_table()
-    con = sqlite3.connect(_db("dynamic")); con.row_factory = sqlite3.Row
+    con = connect(_db("dynamic")); con.row_factory = Row
     rows = con.execute("SELECT nudge_active, moved FROM recursion_attrib WHERE branch_prev != ''").fetchall()
     con.close()
     act = [r["moved"] for r in rows if r["nudge_active"] == 1]
