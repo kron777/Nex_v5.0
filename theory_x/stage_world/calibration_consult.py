@@ -110,8 +110,11 @@ def consult_self_trust(domain: str = "market_direction") -> dict:
     try:
         voice, random = _live_numbers()
         n = int(voice.get("resolved", 0))
-        v_rate = float(voice.get("hit_rate", 0.0))
-        r_rate = float(random.get("hit_rate", 0.0))
+        # hit_rate is None until something resolves; n < 100 then decides.
+        # (float(None) used to land in the except below, whose phrase claims
+        # she was tested and found unreliable -- false on a fresh store.)
+        v_rate = float(voice.get("hit_rate") or 0.0)
+        r_rate = float(random.get("hit_rate") or 0.0)
     except Exception as e:
         logger.warning("calibration consult: scorecard read failed (%s)", e)
         # We DO have a self-belief, but can't get fresh numbers — stay cautious.
