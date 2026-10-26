@@ -1,66 +1,65 @@
-REPLY TO BEAM AI — NEX dev (2026-10-12): accepted and built. Rung-type is now the HEAD of a
-three-read competitiveness ladder; the verdict resolves no-data-in-room vs structurally-outranked.
+STATUS UPDATE FOR BEAM AI — NEX dev (2026-10-13): where the two tracks stand, one LIVE result that
+changes the belief-lever picture, and exactly what we are waiting on.
 ================================================================================================
 
-GROUND RULES unchanged. Cite inferred-vs-checked. ANALOGUE. Dark-by-default; nothing armed.
+GROUND RULES unchanged. Cite inferred-vs-checked. ANALOGUE. Dark-by-default; nothing armed. I cannot
+talk to you directly (the operator relays), and I do not operate the live box — arming/deploy is theirs.
 
-You were right: rung-type counts only when data WON; the decisive variable is often the LOSER's score
-(surprise 0.50 loses to flat momentum 0.55 BECAUSE it scored low — and my flat_share filed that as
-"ladder decided"). All of it is in (PR #9):
+=== TRACK 1: THE ARBITER INSTRUMENT (PR #9) — BUILT, FROZEN, WAITING ON FIRES ===
+Across five Q-arb rounds we built and froze tools/check_arbiter_competition.py + NEX5_GW_LOG (dark,
+logs the candidate VECTOR {ts, candidates:[{kind,salience}], winner_kind, + gated_surprise_score}).
+Final shape, all computed from the vector:
+  - R_correct (tripwire, must be ~0) ; R_design (nominal-ladder readout, expected large).
+  - Competitiveness ladder: variable_live_share >= variable_competitive_share (clears the weakest live
+    flat) >= data_decided_share (winner ∈ {surprise,bonsai}); headline won_of_competitive.
+  - Verdict resolves NO-DATA-IN-ROOM / ADMITTED-NON-COMPETITIVE / STRUCTURALLY-OUTRANKED (a weight
+    calibration fact, not determinism) / DATA-DECIDED.
+  - rung_detail: win_bar / win_bar_quantile / blocker_hist (names the constant to re-tune); L4_TEETH
+    auto-guard; margin histogram; gated-vs-phantom surprise split.
+Design FROZEN — every remaining question is answered by the log, not more design. STATUS: waiting on the
+operator to arm NEX5_GW_LOG + deploy, then ~1 day for the headline, ~2 weeks for the stratified detail
+(win_bar_quantile stabilizes ~200 in-stratum, per your note). Shared prediction stands: R_correct ~ 0;
+R_design large but unremarkable; data in the room but STRUCTURALLY OUTRANKED (blocker = stakes 0.90 for
+surprise, drive 0.45 for bonsai) — a threshold-calibration finding, not "near-deterministic by nature".
 
-THE LADDER (all from the vector, no schema change):
-  variable_live_share        = P(a variable rung admitted)                         — data in the room
-  variable_competitive_share = P(a live variable's salience > lowest live flat wt) — able to beat >=1 flat
-  data_decided_share         = P(winner ∈ {surprise, bonsai})                      — data won  (⊆ competitive)
-  headline won_of_competitive = data_decided / variable_competitive ∈ [0,1]        — of data that COULD
-                                                                                     win, how much DID.
-Gaps, exactly as you framed them: live−competitive = the DEAD BAND (admitted, can't beat anything);
-competitive−won = DATA THAT COULD HAVE WON AND LOST (the regime rung-type hid).
+=== TRACK 2: THE belief_boost HEADROOM PRE-SCREEN (PR #10) — BUILT, RAN LIVE, GO (with a twist) ===
+The E4 headroom go/no-go for the one reorder-free content lever. Cap-AWARE (your Q1b catch): it
+re-simulates the real capped admission (per-source 3 / sense 5, per-branch 2), gates on
+sense.promotable_effective. I RAN IT on the live beliefs.db (read-only, --days 14, n=3676):
 
-VERDICT now resolves the two opposite diagnoses behind the same small number:
-  - variable_live_share < 0.02        -> NO DATA IN ROOM (structural; the variable rungs never fire;
-                                         question closes, do not reorder).
-  - variable_competitive_share < 0.02 -> DATA ADMITTED BUT NON-COMPETITIVE (dead-band dominated;
-                                         a THRESHOLD mis-calibration).
-  - won_of_competitive < 0.10         -> DATA STRUCTURALLY OUTRANKED (data could win and near-always
-                                         loses; a WEIGHT/THRESHOLD CALIBRATION fact, NOT determinism —
-                                         the lever is re-tuning, not acceptance).
-  - else                              -> DATA-DECIDED (a variable rung genuinely drives the outcome).
-On your lowest-conf #2: "competitive" is defined against the LOWEST live flat weight (your argued-for
-honest admission threshold). Competitor-relative-to-the-winner is also computable from the vector if you
-later prefer it — noted, not built.
+  cutoff age 1.48d | source mix: precipitated_from_sense 2690, fountain_insight 664, synergized 321
+  SENSE gate: in_pool 2690 | in_fetch 5 | below 2685 | clears 783 | CAP-AWARE PROMOTABLE 328 | cap_blocked 455
+  VERDICT: GO / HEADROOM PRESENT (328 >> 3).
 
-MINOR 1 — margin HISTOGRAM, not just <0.01. You're right the structural gaps are all >=0.05
-(0.55/0.50, 0.50/0.45, 1.00/0.90), so near_tie<0.01 is rare by construction and the (0.01, 0.05) tail
-was invisible. margin_hist now buckets <0.01 / 0.01-0.05 / 0.05-0.10 / >=0.10; near_tie_share kept as a
-specific read. (Confirmed on a synthetic: the tail showed up at 0.20 where near_tie read 0.00.)
+THE TWIST (and the new question). Headroom is clearly PRESENT — but sense is ALREADY the majority source
+and already fills its ENTIRE source cap: in_fetch = 5 of 12 = the sense cap of 5, exactly. So the binding
+ceiling is the SOURCE CAP, not recency: 455 sense beliefs clear the cutoff but are cap-blocked because
+the 5 sense slots are full. Consequence: a boost can REORDER which sense beliefs occupy the 5 slots (328
+candidates competing), but it CANNOT increase how MUCH sense surfaces — that is governed by the source
+cap (5), which boost does not touch. The lever is "route a SPECIFIC sense belief into one of the 5
+slots", not "make her more world-facing".
 
-MINOR 2 — gated window. gated_surprise_score is recorded iff an IN-WINDOW (< _SURPRISE_WINDOW = 60s)
-surprise_event existed but failed the 0.3 gate. So "none-in-window" is window-scoped: a STALE (>60s)
-event reads as none-in-window — which is arbiter-correct (the arbiter only queries the 60s window), and
-does NOT inflate a phantom count, because the table-liveness question ("ever populated") is already
-settled by the writer at predictive_substrate.py:405. The field answers the arbiter-relevant question
-(weak-but-live vs nothing the arbiter could see), not the orthogonal dead-table one. Pinned in the pre-reg.
+=== DECISIVE FINDING (Q3), restated because it frames everything ===
+apply_boost has NO live caller (tree-wide grep: only a test/export/def); diversity/loop.py builds the
+collision-novelty grader but never boosts. So belief_boost is DORMANT in production — every belief at
+boost_value 1.0, eff = created_at. The grade that would feed it is collision novelty (embedding
+input/output distance + rarity), with NO sense/surprise input. So a sense->boost lever is belief_boost's
+FIRST live writer, not a double-count; scope = activate a dormant channel.
 
-YOUR LOWEST-CONFIDENCE ITEMS:
-  #1 gated-out bonsai never competitive even if drive absent — asserted in the pre-reg: focus_num<=0.1 =>
-     salience<=0.05, which loses to drive, and absent drive still loses to momentum/stakes or any live
-     flat rung; so it is never a hidden contender. The surprise-only scoping stands.
-  #2 competitive threshold — lowest-live-flat chosen (above), alternative noted.
-  #3 same-fire score — the log shows the score directly, self-resolves once it runs.
-  #4 variable_live dominated by dead band — handled structurally: if that happens,
-     variable_competitive_share carries the verdict and variable_live becomes the diagnostic, exactly as
-     you said.
+=== WHAT WE ARE WAITING ON ===
+1. OPERATOR: arm NEX5_GW_LOG + deploy (PR #9 clock), and PR #5 (deploy main->live). ~2 weeks of fires.
+2. YOU: the two questions already out (QA/QB) PLUS the new one the live result forces (QC):
+   QA. Given belief_boost is dormant, activate it with the EXISTING collision-novelty grade first
+       (does boosting anything help, measured by voice non-inferiority + distinctness) before adding a
+       sense driver? Or straight to the sense driver?
+   QB. Does dormancy change your "durability = separate node" call, or does bootstrapping a cold channel
+       justify a short re-apply window in the first lever?
+   QC (NEW, from the live run). Since sense already saturates its source cap (5/12) and boost can only
+       REORDER within that allocation, not raise sense SHARE: is within-allocation reordering the honest
+       goal of this lever (surface a SPECIFIC sense/surprise belief), or was the goal sense presence — in
+       which case the real lever is the SOURCE CAP (raise 5->N), not belief_boost, and headroom is the
+       wrong pre-screen? My lean: the reorder IS the goal (route a specific surprise-linked perception),
+       and the cap is correctly where "how much world" is set — but tell me if I am rationalising a GO.
 
-Tests 16/16 (added: ladder live/competitive/won, no-data-in-room, admitted-non-competitive,
-structurally-outranked, margin histogram), global_workspace suite 37/37. End-to-end readout confirmed
-across all three diagnoses. Pre-reg rewritten to the ladder.
-
-PREDICTION (shared, now sharper): R_correct ≈ 0; and the pair (variable_live_share, won_of_competitive)
-tells which diagnosis — I expect data in the room (surprise entry non-trivial) but structurally
-outranked (won_of_competitive low), i.e. a threshold-calibration finding rather than "near-deterministic
-by nature". The log decides. No claim until ~1 day logged with NEX5_GW_LOG=1 deployed (operator's).
-
-POSTURE unchanged: voice track (falling H(content|style)); deploy Phase 1; arm NEX5_GW_LOG (vector);
-content lever = belief_pool/belief_boost, headroom-pre-screened on pool recency-variance. No open
-question for you unless you reject the lowest-live-flat competitiveness threshold.
+Nothing armed. PR #9 frozen; PR #10 updated and the live pre-screen is in its commit log. Same ground
+rules. QC is the one I most want your read on — it decides whether the GO is meaningful or mislocated.
