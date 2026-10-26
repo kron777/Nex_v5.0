@@ -31,12 +31,12 @@ from __future__ import annotations
 
 import argparse
 import collections
-import sqlite3
 import sys
 import time
 
 sys.path.insert(0, __file__.rsplit("/tools/", 1)[0])
 
+from substrate import OperationalError, connect  # noqa: E402
 from substrate.paths import db_paths  # noqa: E402
 from theory_x.diversity.boost import BOOST_TIME_BONUS_SECONDS  # noqa: E402
 
@@ -82,8 +82,8 @@ def _capped_fetch(pool: list, own_n: int) -> set:
 
 def _fetch_pool(db: str, days: float | None) -> list:
     try:
-        con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=5)
-    except sqlite3.OperationalError:
+        con = connect(f"file:{db}?mode=ro", uri=True, timeout=5)
+    except OperationalError:
         return []                                   # beliefs.db absent / unreadable -> empty pool
     try:
         ph = ",".join("?" * len(_OWN_CONTENT_SOURCES))
@@ -95,7 +95,7 @@ def _fetch_pool(db: str, days: float | None) -> list:
             q += " AND b.created_at > ?"
             args.append(time.time() - days * _DAY)
         rows = con.execute(q, args).fetchall()
-    except sqlite3.OperationalError:
+    except OperationalError:
         return []                                   # schema missing (no beliefs table yet)
     finally:
         con.close()
