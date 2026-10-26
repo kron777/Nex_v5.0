@@ -134,6 +134,7 @@ PROVENANCE_BASE: dict[str, float] = {
     "behavioural_observation": _WITNESSED,
     "precipitated_from_dynamic": _WITNESSED,
     "self_rut_notice": _WITNESSED,
+    "self_downtime": _WITNESSED,   # r11: observed about itself (it was OFF), not authored
     # received (0.30) -- external input / suspect / experimental; deny authored credit.
     # precipitated_from_sense is the author's own framing (header, line 47:
     # "precipitated_from_sense is a headline she read") -- external, not hers. It is

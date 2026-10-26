@@ -104,10 +104,18 @@ class IntakeResonance:
                     "remember_loop", "wonder_loop", "hot_observer", "surprise",
                     "fountain", "emergent_drive",
                 )
+                # self_downtime is tier-6 + witnessed (a non-authored T6 belief), so
+                # it would be a reserve candidate -- and one row is added per restart.
+                # Over weeks that dilutes the calibrated identity share and would
+                # surface at the reload re-measure as a FAKE identity drop (an
+                # instrumentation artefact, not affinity drift). Exclude it from the
+                # standing-voice load; the identity anchor reads it by explicit
+                # source query already (generator.py), so continuity is unaffected.
                 _t6_plain = (
                     "SELECT id, content FROM beliefs "
                     "WHERE tier = 6 AND content IS NOT NULL "
                     "AND length(content) > 8 "
+                    "AND source != 'self_downtime' "
                     "ORDER BY COALESCE(affinity, 0) DESC, "
                     "         COALESCE(reinforce_count, 0) DESC "
                     "LIMIT ?"
@@ -127,6 +135,7 @@ class IntakeResonance:
                                 "SELECT id, content FROM beliefs "
                                 "WHERE tier = 6 AND content IS NOT NULL "
                                 "AND length(content) > 8 "
+                                "AND source != 'self_downtime' "
                                 f"AND source NOT IN ({_ph}) "
                                 "ORDER BY COALESCE(affinity, 0) DESC, "
                                 "         COALESCE(reinforce_count, 0) DESC "
