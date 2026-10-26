@@ -24,13 +24,12 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
+from nex_config import local_tz
 
 log = logging.getLogger("theory_x.life.witness_loop")
 
 BELIEFS_DB = Path(str(db_paths()["beliefs"]))
 DYNAMIC_DB = Path(str(db_paths()["dynamic"]))
-TZ = ZoneInfo("Europe/Amsterdam")
 TICK_SECONDS = 1800
 SOURCE = "witness_loop"
 COMPOSE_HOUR = 4  # once a day, deep night, off-cycle from pattern (3,15) and identity (0,6,12,18)
@@ -88,7 +87,7 @@ def _compose_witness(voice, patterns):
 
 def witness_tick(voice, force=False):
     now = time.time()
-    local = datetime.fromtimestamp(now, TZ)
+    local = datetime.fromtimestamp(now, local_tz())
     hour = local.hour
     date_local = local.strftime("%Y-%m-%d")
     if not force and hour != COMPOSE_HOUR:

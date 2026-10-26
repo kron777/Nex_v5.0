@@ -5,7 +5,7 @@ Per-fire columns:
   - hot_branch (from fountain_events row)
   - surprises_30min, daemons_5min, belief_delta_1h (counts in pre-fire windows)
   - fountain_tag (from fountain_events row)
-  - hour_of_day, day_of_week (local time, Europe/Amsterdam)
+  - hour_of_day, day_of_week (NEX's local time, NEX5_TZ)
   - seconds_since_feed (gap to most recent EXTERNAL sense event)
   - seconds_since_daemon (gap to most recent daemon firing)
   - active_branch_count (from tree_snapshots)
@@ -20,7 +20,7 @@ import re
 from substrate import connect, Row, Connection, OperationalError
 import threading
 import time
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
 
 log = logging.getLogger("nex5.coincidence.decoder")
 
@@ -28,9 +28,6 @@ DYN_DB = str(db_paths()["dynamic"])
 SENSE_DB = str(db_paths()["sense"])
 POLL_INTERVAL = 30
 KV_KEY = "decoder_last_fid"
-# Europe/Amsterdam is UTC+1 in winter, +2 in summer. Use simple +2 since
-# we're in May (CEST). For full correctness use zoneinfo later.
-TZ_OFFSET_HOURS = 2
 
 _STOPWORDS = frozenset("""
 a an the and or but if then else of in on at to for from with by as is am are was were
@@ -56,8 +53,9 @@ def _tokenize(thought: str) -> list[str]:
 
 
 def _local_hour_dow(fire_ts: float) -> tuple[int, int]:
-    """Return (hour_of_day, day_of_week) in Europe/Amsterdam local time."""
-    local = datetime.fromtimestamp(fire_ts, tz=timezone(timedelta(hours=TZ_OFFSET_HOURS)))
+    """Return (hour_of_day, day_of_week) in NEX's local time (NEX5_TZ)."""
+    from nex_config import local_dt
+    local = local_dt(fire_ts)
     return local.hour, local.weekday()
 
 

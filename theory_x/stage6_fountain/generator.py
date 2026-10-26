@@ -3222,7 +3222,8 @@ class FountainGenerator:
         import datetime
         from theory_x.modes.modes import get_mode
         now = time.time()
-        time_str = datetime.datetime.now().strftime("%H:%M")
+        from nex_config import local_now as _local_now
+        time_str = _local_now().strftime("%H:%M")
 
         retrieval_manifest = []
         # Session 40: reset every call so a candidate selected (or not) on a

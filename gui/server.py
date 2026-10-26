@@ -3072,10 +3072,13 @@ def create_app(state: AppState) -> Flask:
                 "SELECT COUNT(*) AS n FROM fountain_events WHERE thought != ''"
             ).fetchone()["n"]
             # Hit rate by hour-of-day
+            from nex_config import local_utc_offset_seconds
+            _off = local_utc_offset_seconds()   # NEX's zone, not the machine's
             by_hour = cx.execute(
-                "SELECT CAST(strftime('%H', ts, 'unixepoch', 'localtime') AS INTEGER) AS hour, "
+                "SELECT CAST(strftime('%H', ts + ?, 'unixepoch') AS INTEGER) AS hour, "
                 "tag, COUNT(*) AS n FROM fountain_events "
-                "WHERE tag IS NOT NULL GROUP BY hour, tag"
+                "WHERE tag IS NOT NULL GROUP BY hour, tag",
+                (_off,),
             ).fetchall()
             hour_buckets = {}
             for r in by_hour:
@@ -3087,11 +3090,11 @@ def create_app(state: AppState) -> Flask:
             now = time.time()
             week_ago = now - 7 * 86400
             by_day = cx.execute(
-                "SELECT date(ts, 'unixepoch', 'localtime') AS d, "
+                "SELECT date(ts + ?, 'unixepoch') AS d, "
                 "tag, COUNT(*) AS n FROM fountain_events "
                 "WHERE tag IS NOT NULL AND ts > ? "
                 "GROUP BY d, tag ORDER BY d",
-                (week_ago,),
+                (_off, week_ago),
             ).fetchall()
             day_buckets = {}
             for r in by_day:
@@ -3297,7 +3300,8 @@ def create_app(state: AppState) -> Flask:
             "SELECT id, keywords, time_window FROM hypotheses WHERE status='open'"
         ).fetchall()
         thought_lc = (thought or "").lower()
-        hour = datetime.datetime.fromtimestamp(thought_ts).hour
+        from nex_config import local_dt
+        hour = local_dt(thought_ts).hour
         for h in hyps:
             kws = [k.strip().lower() for k in (h["keywords"] or "").split(",") if k.strip()]
             kw_match = (not kws) or any(k in thought_lc for k in kws)

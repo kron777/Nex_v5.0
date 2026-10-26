@@ -24,6 +24,7 @@ validate() only logs by default. Pass strict=True, or set NEX5_CONFIG_STRICT=1
 """
 from __future__ import annotations
 
+import functools
 import logging
 import os
 from typing import Optional
@@ -156,6 +157,7 @@ KNOWN_FLAGS: dict[str, str] = {
     "NEX5_SYNTH_KEEP": "bool",
     "NEX5_THROWNET": "bool",
     "NEX5_TIER_CLIMB": "bool",
+    "NEX5_TZ": "str",
     "NEX5_VALENCE_DRIVE": "bool",
     "NEX5_VIRYA": "bool",
     "NEX5_VOICE_MODEL": "str",
@@ -297,6 +299,56 @@ NOISY_THIRD_PARTY = ("werkzeug", "urllib3", "httpx", "httpcore",
                      "huggingface_hub", "filelock", "asyncio", "matplotlib")
 
 _log_configured = False
+
+
+# ── NEX's clock ──────────────────────────────────────────────────────────────
+# One zone for everything that shapes HER sense of time: scheduled daily
+# activities, quarter-day identity/witness/pattern ticks, the time she reads in
+# her prompt, her temporal sense, hour-of-day features. Before this, five
+# modules hardcoded Europe/Amsterdam, the decoder used a fixed "+2 (May, CEST)"
+# offset, and the rest followed the machine's zone -- three clocks at once.
+# Operator log-line timestamps are not her clock and are left alone.
+DEFAULT_TZ = "Africa/Johannesburg"   # the owner's zone (SAST, UTC+2, no DST)
+
+
+@functools.lru_cache(maxsize=8)
+def _zone(name: str):
+    from zoneinfo import ZoneInfo
+    try:
+        return ZoneInfo(name)
+    except Exception:
+        logger.warning("NEX5_TZ=%r is not a valid IANA zone; using %s",
+                       name, DEFAULT_TZ)
+        return ZoneInfo(DEFAULT_TZ)
+
+
+def local_tz():
+    """NEX's timezone: NEX5_TZ (an IANA name), default Africa/Johannesburg.
+    Resolved once per distinct value."""
+    return _zone(os.environ.get("NEX5_TZ") or DEFAULT_TZ)
+
+
+def local_now():
+    """Aware datetime in NEX's timezone."""
+    import datetime
+    return datetime.datetime.now(local_tz())
+
+
+def local_dt(ts: float):
+    """Aware datetime in NEX's timezone for a unix timestamp."""
+    import datetime
+    return datetime.datetime.fromtimestamp(ts, local_tz())
+
+
+def local_utc_offset_seconds(ts: Optional[float] = None) -> int:
+    """NEX's zone's UTC offset at ts (default now), for SQL that buckets unix
+    timestamps by local hour/day: strftime(..., ts + ?, 'unixepoch') instead of
+    SQLite's 'localtime', which follows the machine's zone. One offset for the
+    whole query is exact for a zone without DST (SAST); with DST it can shift
+    rows within an hour of a transition."""
+    import time as _time
+    off = local_dt(_time.time() if ts is None else ts).utcoffset()
+    return int(off.total_seconds()) if off is not None else 0
 
 
 def setup_logging(level: int = logging.INFO) -> None:

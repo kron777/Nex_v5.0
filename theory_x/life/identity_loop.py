@@ -4,7 +4,7 @@ No LLM. The substrate IS the being; its metrics ARE the identity. Each
 tick assembles a sentence from current state and compares to the previous
 tick. The comparison is what creates felt continuity.
 
-Schedule (Europe/Amsterdam): 00:00, 06:00, 12:00, 18:00 — once-per-quarter-day.
+Schedule (NEX's local time, NEX5_TZ): 00:00, 06:00, 12:00, 18:00 — once-per-quarter-day.
 
 Each identity statement is stored as:
   - a row in identity_log table (full record)
@@ -21,17 +21,16 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 log = logging.getLogger("theory_x.life.identity_loop")
 
 from substrate.paths import DbPath  # resolves NEX5_DATA_DIR at use time (test hygiene)
+from nex_config import local_tz
 BELIEFS_DB = DbPath("beliefs")
 DYNAMIC_DB = DbPath("dynamic")
 CONVERSATIONS_DB = DbPath("conversations")
 SENSE_DB = DbPath("sense")
 
-TZ = ZoneInfo("Europe/Amsterdam")
 TICK_SECONDS = 300
 SOURCE = "identity_loop"
 
@@ -241,7 +240,7 @@ def _previous_statement(d_cx):
 
 def identity_tick():
     now = time.time()
-    local = datetime.fromtimestamp(now, TZ)
+    local = datetime.fromtimestamp(now, local_tz())
     hour = local.hour
     date_local = local.strftime("%Y-%m-%d")
 
