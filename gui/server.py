@@ -193,6 +193,9 @@ _CHAT_BLOCK_SALIENCE = {
 # Never evicted: the distress/moral-response blocks (dropping them could harm a
 # reply to a distressed user). Everything else competes for the budget.
 _CHAT_BLOCK_EXEMPT = {"compassion", "compass"}
+# De-dup for the ablation warning: once per distinct (dropped, refused) set, never
+# per tick (a per-tick emitter would inflate the soak line-rate health metric).
+_chat_ablation_logged: set = set()
 
 
 def _assemble_chat_blocks(ordered: "list[tuple[str, str]]", session_id=None,
@@ -207,6 +210,30 @@ def _assemble_chat_blocks(ordered: "list[tuple[str, str]]", session_id=None,
     across turns (theory_x.stage_tom.self_present) so attention has continuity
     rather than a fresh recomputation. Fail-safe: any error falls back to the
     full concatenation."""
+    # Step-0 ablation instrument (Beam "synthesize sentience" round): the assembly is
+    # the least-instrumented path and may be where integration lives or dies.
+    # NEX5_CHAT_ABLATE=<comma kinds> drops those blocks so their contribution to
+    # self-description coherence / selfdesc_novel can be measured by A/B. Default off =
+    # zero change. Exempt (safety) blocks are never droppable. Logged ONCE per distinct
+    # ablation set -- never per tick (a per-tick emitter would inflate the soak
+    # line-rate health metric). Fail-safe: any error leaves `ordered` untouched.
+    _ablate = os.environ.get("NEX5_CHAT_ABLATE", "").strip()
+    if _ablate:
+        try:
+            drop = {k.strip() for k in _ablate.split(",") if k.strip()}
+            dropped = [k for k, _ in ordered if k in drop and k not in _CHAT_BLOCK_EXEMPT]
+            refused = sorted(drop & _CHAT_BLOCK_EXEMPT)
+            if dropped or refused:
+                _key = (tuple(sorted(set(dropped))), tuple(refused))
+                if _key not in _chat_ablation_logged:
+                    _chat_ablation_logged.add(_key)
+                    logger.warning("chat ablation ACTIVE: dropped=%s refused_exempt=%s "
+                                   "(experiment flag; logged once)", sorted(set(dropped)),
+                                   refused)
+            ordered = [(k, t) for k, t in ordered
+                       if not (k in drop and k not in _CHAT_BLOCK_EXEMPT)]
+        except Exception:
+            pass  # never break the chat turn over an experiment flag
     texts = [t for _, t in ordered]
     if os.environ.get("NEX5_CHAT_WORKSPACE") != "1":
         return "".join(texts)
