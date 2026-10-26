@@ -92,7 +92,8 @@ def _fmt_dur(s: float) -> str:
 
 
 def _fmt_ts(ts: float) -> str:
-    return time.strftime("%Y-%m-%d %H:%M", time.localtime(ts))
+    from nex_config import local_dt
+    return local_dt(ts).strftime("%Y-%m-%d %H:%M")
 
 
 def record_boot(beliefs_writer, data_dir, snapshot_path, now: float | None = None) -> dict:

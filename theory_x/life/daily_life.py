@@ -1,6 +1,6 @@
 """Daily life daemon — gives her a day-shape, not just continuous fire.
 
-Activities scheduled by local time (Europe/Amsterdam):
+Activities scheduled by NEX's local time (nex_config.local_tz, NEX5_TZ):
 
   06:00 — morning entry (date, state, what is here)
   10:00 — reading session 1 (pick one feed, respond)
@@ -24,17 +24,16 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 log = logging.getLogger("theory_x.life.daily_life")
 
 from substrate.paths import DbPath  # resolves NEX5_DATA_DIR at use time (test hygiene)
+from nex_config import local_tz
 DYNAMIC_DB = DbPath("dynamic")
 CONVERSATIONS_DB = DbPath("conversations")
 BELIEFS_DB = DbPath("beliefs")
 SENSE_DB = DbPath("sense")
 
-TZ = ZoneInfo("Europe/Amsterdam")
 TICK_SECONDS = 60
 SESSION_ID = "internal_daily_life"
 
@@ -53,7 +52,7 @@ SLEEP_END_HOUR   = 6
 
 
 def _now_local() -> datetime:
-    return datetime.now(TZ)
+    return datetime.now(local_tz())
 
 
 def _date_str(dt: datetime) -> str:
@@ -288,7 +287,7 @@ def daily_tick() -> dict:
 
 def daily_loop(state, stop: threading.Event) -> None:
     log.info("daily_loop started (tz=%s, %d activities)",
-             TZ.key, len(SCHEDULE))
+             local_tz().key, len(SCHEDULE))
     while not stop.is_set():
         try:
             stats = daily_tick()

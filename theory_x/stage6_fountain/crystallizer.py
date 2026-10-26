@@ -702,7 +702,8 @@ class FountainCrystallizer:
                     or last_any[0]["last_ts"] is None
                     or (now - last_any[0]["last_ts"]) > 1800
                 )
-                hour = time.localtime(now).tm_hour
+                from nex_config import local_dt
+                hour = local_dt(now).hour
                 user_asleep = (hour >= 23 or hour < 6) and no_recent
         except Exception:
             pass
