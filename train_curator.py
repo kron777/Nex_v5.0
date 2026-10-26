@@ -101,7 +101,7 @@ def pull(db: str) -> list[dict]:
         "ORDER BY last_promoted_at DESC").fetchall()
     edges = {}
     try:
-        for e in con.execute("SELECT src, dst, kind FROM belief_edges").fetchall():
+        for e in con.execute("SELECT source_id AS src, target_id AS dst, edge_type AS kind FROM belief_edges").fetchall():
             edges.setdefault(e["src"], []).append(e["dst"])
     except Exception:
         pass

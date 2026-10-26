@@ -57,12 +57,12 @@ def _recent_fountain(cx: Connection, exclude_fid: int, limit: int = 5) -> list[d
 @_safe
 def _recent_surprises(cx: Connection, since_ts: float) -> list[dict]:
     rows = cx.execute(
-        "SELECT id, ts, prediction_error, predicted_content, actual_content "
+        "SELECT id, triggered_at, surprise_score, predicted_content, actual_content "
         "FROM surprise_events "
-        "WHERE ts > ? AND surprise_flag = 1 "
+        "WHERE triggered_at > ? AND surprise_flag = 1 "
         "AND predicted_content IS NOT NULL AND actual_content IS NOT NULL "
         "AND predicted_content != '' AND actual_content != '' "
-        "ORDER BY ts DESC LIMIT 10",
+        "ORDER BY triggered_at DESC LIMIT 10",
         (since_ts,),
     ).fetchall()
     return [

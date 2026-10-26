@@ -285,6 +285,11 @@ _MIGRATIONS: dict[str, list[str]] = {
         "CREATE INDEX IF NOT EXISTS idx_residue_unconsumed_recent "
         "ON residue(created_at DESC) "
         "WHERE consumed_at IS NULL",
+        # Substrate-voice anchor rotation (generator: least-recently-voiced T<=2
+        # anchor) and provenance's recency fallback both read this; it was set by
+        # an UPDATE but created in no schema, so on a fresh store the groove
+        # breaker's anchor query failed silently and never fired.
+        "ALTER TABLE beliefs ADD COLUMN last_voiced_at REAL",
         # Carryx §8 Step 1 — intake resonance probe.
         # Logs the cosine similarity between each newly-crystallized
         # belief and her existing standing-points (T1-T3 keystones + top T6).
