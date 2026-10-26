@@ -13,14 +13,14 @@ from __future__ import annotations
 
 import json
 import re
-import sqlite3
+from substrate import connect, Row
 import sys
 import time
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
-REPO = Path("/home/rr/Desktop/Desktop/nex5")
+REPO = Path(__file__).resolve().parents[1]
 CONV_DB = REPO / "data" / "conversations.db"
 DYNAMIC_DB = REPO / "data" / "dynamic.db"
 BELIEFS_DB = REPO / "data" / "beliefs.db"
@@ -49,12 +49,12 @@ def take_snapshot():
         "process": {},
     }
 
-    conv = sqlite3.connect("file:" + str(CONV_DB) + "?mode=ro", uri=True)
-    conv.row_factory = sqlite3.Row
-    dyn = sqlite3.connect("file:" + str(DYNAMIC_DB) + "?mode=ro", uri=True)
-    dyn.row_factory = sqlite3.Row
-    bel = sqlite3.connect("file:" + str(BELIEFS_DB) + "?mode=ro", uri=True)
-    bel.row_factory = sqlite3.Row
+    conv = connect("file:" + str(CONV_DB) + "?mode=ro", uri=True)
+    conv.row_factory = Row
+    dyn = connect("file:" + str(DYNAMIC_DB) + "?mode=ro", uri=True)
+    dyn.row_factory = Row
+    bel = connect("file:" + str(BELIEFS_DB) + "?mode=ro", uri=True)
+    bel.row_factory = Row
 
     drow = conv.execute("SELECT * FROM drives_competing WHERE id = 1").fetchone()
     if drow:
@@ -167,9 +167,9 @@ def take_snapshot():
         snap["throw_net"] = {"error": str(e)[:80]}
 
     try:
-        pm_rows = dyn.execute(
-            "SELECT id, title, status FROM problems "
-            "WHERE status = 'open' ORDER BY id DESC LIMIT 10"
+        pm_rows = conv.execute(
+            "SELECT id, title, state AS status FROM open_problems "
+            "WHERE state = 'open' ORDER BY id DESC LIMIT 10"
         ).fetchall()
         snap["open_problems"] = [
             {"id": r["id"], "title": r["title"], "status": r["status"]}

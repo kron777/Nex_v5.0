@@ -15,10 +15,11 @@ The loop:
 Runs every 30 min via background thread started in generator.__init__.
 """
 from __future__ import annotations
+from substrate.paths import data_dir
 
 import json
 import logging
-import sqlite3
+from substrate import connect, Row
 import time
 from pathlib import Path
 
@@ -33,11 +34,11 @@ _LOW_GENIUS   = 0.25
 _MAX_DAMPENED_BRANCHES = 2  # never dampen more than 2 branches at once —
                             # protects diversity when many thin branches
                             # simultaneously look bad on small samples
-_SIGNAL_FILE  = Path("/home/rr/Desktop/Desktop/nex5/data/quality_signal.json")
+_SIGNAL_FILE  = data_dir() / "quality_signal.json"
 
 
 def _db(name: str) -> str:
-    base = Path("/home/rr/Desktop/Desktop/nex5/data")
+    base = Path(str(data_dir()))
     return str({"conversations": base / "conversations.db",
                 "dynamic":       base / "dynamic.db"}[name])
 
@@ -45,8 +46,8 @@ def _db(name: str) -> str:
 def compute_branch_quality(window_secs: int = _WINDOW_SECS) -> dict:
     cutoff = time.time() - window_secs
     try:
-        c_con = sqlite3.connect(_db("conversations"), timeout=5)
-        c_con.row_factory = sqlite3.Row
+        c_con = connect(_db("conversations"), timeout=5)
+        c_con.row_factory = Row
         tags = c_con.execute(
             "SELECT fountain_event_id, score FROM genius_tags "
             "WHERE tagged_at > ? ORDER BY tagged_at DESC", (cutoff,)
@@ -55,8 +56,8 @@ def compute_branch_quality(window_secs: int = _WINDOW_SECS) -> dict:
         if not tags:
             return {}
 
-        d_con = sqlite3.connect(_db("dynamic"), timeout=5)
-        d_con.row_factory = sqlite3.Row
+        d_con = connect(_db("dynamic"), timeout=5)
+        d_con.row_factory = Row
         fids = [t["fountain_event_id"] for t in tags]
         placeholders = ",".join("?" * len(fids))
         events = d_con.execute(

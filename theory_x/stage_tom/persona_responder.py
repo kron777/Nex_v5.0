@@ -48,7 +48,7 @@ import re
 import sys
 import json
 import time
-import sqlite3
+from substrate import connect, Row
 import argparse
 import logging
 import urllib.request
@@ -112,8 +112,8 @@ def _db(name: str) -> str:
 
 def _recent_thoughts(n: int = READ_N) -> list[str]:
     """Read NEX's most recent fountain thoughts — what the persona responds to."""
-    conn = sqlite3.connect(_db("dynamic"))
-    conn.row_factory = sqlite3.Row
+    conn = connect(_db("dynamic"))
+    conn.row_factory = Row
     try:
         rows = conn.execute(
             "SELECT thought FROM fountain_events "
@@ -293,7 +293,7 @@ def _write_persona_reject(reason: str, reply: str, matched_pattern: str, jaccard
     crystallization_rejects pattern, not repeated blind this time.
     Telemetry; must never break the loop."""
     try:
-        conn = sqlite3.connect(_db("dynamic"), timeout=10)
+        conn = connect(_db("dynamic"), timeout=10)
         try:
             conn.execute(
                 "INSERT INTO persona_rejects "
@@ -311,7 +311,7 @@ def _write_persona_reject(reason: str, reply: str, matched_pattern: str, jaccard
 def _write_other_mind(text: str) -> bool:
     """Write the persona's reply to sense_events as external.other_mind —
     exactly the row shape NEX's Layer 4 reads."""
-    conn = sqlite3.connect(_db("sense"), timeout=10)
+    conn = connect(_db("sense"), timeout=10)
     try:
         conn.execute(
             "INSERT INTO sense_events (stream, payload, provenance, timestamp) "
@@ -349,7 +349,7 @@ def _ensure_interlocutor_table(conn) -> None:
 def _load_interlocutor_state() -> dict:
     """Current model of the other, or a neutral init. Fail-safe -> neutral."""
     try:
-        conn = sqlite3.connect(_db("conversations"), timeout=10)
+        conn = connect(_db("conversations"), timeout=10)
         try:
             _ensure_interlocutor_table(conn)
             row = conn.execute(
@@ -410,7 +410,7 @@ def _evolve_interlocutor_state(prev: dict, reply: str) -> dict:
         nudge = 0.1 if "?" in (reply or "") else -0.02
         mood = max(-1.0, min(1.0, 0.85 * float(prev.get("mood", 0.0)) + nudge))
         turn = int(prev.get("turn_count", 0)) + 1
-        conn = sqlite3.connect(_db("conversations"), timeout=10)
+        conn = connect(_db("conversations"), timeout=10)
         try:
             _ensure_interlocutor_table(conn)
             conn.execute(

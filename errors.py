@@ -170,6 +170,28 @@ def record(
     _to_disk(ev)
 
 
+def log_and_continue(
+    exc: BaseException,
+    *,
+    source: str = "unknown",
+    context: str = "",
+    level: str = "WARNING",
+) -> None:
+    """Record a swallowed exception instead of silently dropping it.
+
+    The intended replacement for the `except Exception: pass` pattern where the
+    failure is genuinely non-fatal but should still be visible. Defaults to
+    WARNING so it reaches the durable disk log, not just the in-memory ring;
+    pass level="DEBUG" at a hot or benign site to keep it out of the WARNING+
+    sink. Never raises -- observability must not become a new failure path.
+    """
+    try:
+        msg = f"{context}: {exc}" if context else f"{type(exc).__name__}: {exc}"
+        record(msg, source=source, level=level, exc=exc)
+    except Exception:
+        pass
+
+
 def recent(limit: int = 100) -> list[ErrorEvent]:
     with _lock:
         return list(_events)[-limit:]

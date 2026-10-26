@@ -22,6 +22,9 @@ FAIL-SAFE: any error (embeddings down, DB busy) -> distress 0 / no stance;
 never stalls the chat path.
 """
 from __future__ import annotations
+from substrate import connect
+
+from substrate.paths import db_paths
 
 import os
 import re
@@ -216,7 +219,7 @@ def _db_path() -> str:
         from substrate.paths import db_paths
         return str(db_paths()["conversations"])
     except Exception:
-        return "/home/rr/Desktop/Desktop/nex5/data/conversations.db"
+        return str(db_paths()["conversations"])
 
 
 def _ensure_table(conn) -> None:
@@ -229,8 +232,7 @@ def _ensure_table(conn) -> None:
 
 def _load_level() -> float:
     try:
-        import sqlite3
-        conn = sqlite3.connect(f"file:{_db_path()}?mode=ro", uri=True, timeout=3)
+        conn = connect(f"file:{_db_path()}?mode=ro", uri=True, timeout=3)
         try:
             row = conn.execute(
                 "SELECT compassion_level FROM compassion_state WHERE id=1"
@@ -251,8 +253,7 @@ def _advance_level(salience: float) -> float:
     risen = salience * (_GAIN + _ETHICAL_BIAS)
     level = max(0.0, min(1.0, max(decayed, risen)))
     try:
-        import sqlite3
-        conn = sqlite3.connect(_db_path(), timeout=5)
+        conn = connect(_db_path(), timeout=5)
         try:
             _ensure_table(conn)
             conn.execute(

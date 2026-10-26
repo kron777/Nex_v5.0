@@ -14,7 +14,7 @@ import json
 import logging
 import random
 import re
-import sqlite3
+from substrate import connect, IntegrityError
 import threading
 import time
 from pathlib import Path
@@ -55,7 +55,7 @@ def _extract_entities(text):
 
 
 def _pick_entity():
-    s_cx = sqlite3.connect(SENSE_DB, timeout=10)
+    s_cx = connect(SENSE_DB, timeout=10)
     try:
         rows = s_cx.execute(
             "SELECT payload FROM sense_events "
@@ -110,7 +110,7 @@ def _compose_question(voice, entity, context_snippet):
 
 def _context_for(entity):
     """Pull one recent sense snippet containing the entity."""
-    s_cx = sqlite3.connect(SENSE_DB, timeout=10)
+    s_cx = connect(SENSE_DB, timeout=10)
     try:
         rows = s_cx.execute(
             "SELECT payload FROM sense_events "
@@ -133,7 +133,7 @@ def _context_for(entity):
 
 
 def wonder_tick(voice):
-    cx = sqlite3.connect(BELIEFS_DB, timeout=15)
+    cx = connect(BELIEFS_DB, timeout=15)
     try:
         if _daily_count(cx) >= DAILY_CAP:
             return {"skipped": "daily_cap"}
@@ -158,7 +158,7 @@ def wonder_tick(voice):
             cx.commit()
             log.info("wonder_loop: %s -> %s", entity, question[:80])
             return {"wondered": True, "entity": entity, "text": question[:140]}
-        except sqlite3.IntegrityError:
+        except IntegrityError:
             return {"skipped": "duplicate"}
     finally:
         cx.close()

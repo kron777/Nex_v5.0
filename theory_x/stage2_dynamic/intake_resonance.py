@@ -87,16 +87,83 @@ class IntakeResonance:
                 for r in (rows or []):
                     self._standing_ids.append(int(r["id"]))
                     self._standing_content[int(r["id"])] = r["content"]
-                # Also include T6 beliefs with high affinity (her crystallized voice)
-                t6_rows = [] if _tight else self._beliefs_reader.read(
+                # Also include T6 beliefs with high affinity (her crystallized voice).
+                #
+                # r? (2026-10-18): the provenance affinity go-live lifted AUTHORED
+                # beliefs to 0.45-0.60, saturating this fixed top-N pool and evicting
+                # identity_loop + all witnessed tier-6 beliefs entirely (measured:
+                # identity 13.5% -> 0% of the standing voice -- a band collapse).
+                # NEX5_INTAKE_T6_RESERVE (int, default 0 = old behaviour) guarantees
+                # that many of the _STRIKING_T6_LIMIT slots to the highest-affinity
+                # NON-AUTHORED tier-6 beliefs, so authored lift governs HOW MUCH
+                # non-authored voice surfaces, not WHETHER it does. The reserved rows
+                # displace only the lowest-ranked of the top-N; the pool stays the
+                # same size. Fail-safe: any error falls back to the plain top-N.
+                _T6_AUTHORED = (  # the authored tier of PROVENANCE_BASE (affinity_loop)
+                    "fountain_insight", "synergized", "counterfactual_node",
+                    "remember_loop", "wonder_loop", "hot_observer", "surprise",
+                    "fountain", "emergent_drive",
+                )
+                # self_downtime is tier-6 + witnessed (a non-authored T6 belief), so
+                # it would be a reserve candidate -- and one row is added per restart.
+                # Over weeks that dilutes the calibrated identity share and would
+                # surface at the reload re-measure as a FAKE identity drop (an
+                # instrumentation artefact, not affinity drift). Exclude it from the
+                # standing-voice load; the identity anchor reads it by explicit
+                # source query already (generator.py), so continuity is unaffected.
+                _t6_plain = (
                     "SELECT id, content FROM beliefs "
                     "WHERE tier = 6 AND content IS NOT NULL "
                     "AND length(content) > 8 "
+                    "AND source != 'self_downtime' "
                     "ORDER BY COALESCE(affinity, 0) DESC, "
                     "         COALESCE(reinforce_count, 0) DESC "
-                    "LIMIT ?",
-                    (_STRIKING_T6_LIMIT,),
+                    "LIMIT ?"
                 )
+                if _tight:
+                    t6_rows = []
+                else:
+                    try:
+                        _reserve = int(_os.environ.get("NEX5_INTAKE_T6_RESERVE", "0") or "0")
+                    except Exception:
+                        _reserve = 0
+                    t6_rows = []
+                    if _reserve > 0:
+                        try:
+                            _ph = ",".join("?" * len(_T6_AUTHORED))
+                            _reserved = self._beliefs_reader.read(
+                                "SELECT id, content FROM beliefs "
+                                "WHERE tier = 6 AND content IS NOT NULL "
+                                "AND length(content) > 8 "
+                                "AND source != 'self_downtime' "
+                                f"AND source NOT IN ({_ph}) "
+                                "ORDER BY COALESCE(affinity, 0) DESC, "
+                                "         COALESCE(reinforce_count, 0) DESC "
+                                "LIMIT ?",
+                                (*_T6_AUTHORED, _reserve),
+                            ) or []
+                            _base = self._beliefs_reader.read(
+                                _t6_plain, (_STRIKING_T6_LIMIT,)
+                            ) or []
+                            _seen: set = set()
+                            for r in list(_reserved) + list(_base):
+                                _i = int(r["id"])
+                                if _i in _seen:
+                                    continue
+                                _seen.add(_i)
+                                t6_rows.append(r)
+                                if len(t6_rows) >= _STRIKING_T6_LIMIT:
+                                    break
+                        except Exception as _exc:
+                            log.warning(
+                                "intake_resonance: T6 reserve failed, plain top-N: %s",
+                                _exc,
+                            )
+                            t6_rows = []
+                    if not t6_rows:
+                        t6_rows = self._beliefs_reader.read(
+                            _t6_plain, (_STRIKING_T6_LIMIT,)
+                        )
                 for r in (t6_rows or []):
                     self._standing_ids.append(int(r["id"]))
                     self._standing_content[int(r["id"])] = r["content"]

@@ -343,28 +343,24 @@ class TestGuiEdgeStats(unittest.TestCase):
 
 class TestNoDirectSqlite(unittest.TestCase):
     def test_no_direct_sqlite3_outside_substrate(self):
-        """No file outside substrate/ should import sqlite3 directly.
-
-        strikes/catalogue.py is the known intentional exception (its own
-        read path pre-dates the substrate abstraction).
-        """
+        # One-pen ratchet: every module outside substrate/ must open databases
+        # through substrate.connect(), not raw sqlite3. The two standalone
+        # DB-maintenance tools are the deliberate exceptions -- they need
+        # low-level control (the reaper must not touch journal_mode; backups
+        # must stay self-contained, non-WAL).
+        import subprocess
+        from pathlib import Path as _P
+        root = _P(__file__).resolve().parent.parent
         result = subprocess.run(
-            ["grep", "-rl", "import sqlite3",
-             "--include=*.py",
-             "--exclude-dir=substrate",
-             "--exclude-dir=.venv",
-             "--exclude-dir=tests",
-             "."],
+            ["grep", "-rl", "import sqlite3", "--include=*.py",
+             "--exclude-dir=substrate", "--exclude-dir=tests",
+             "--exclude-dir=.venv", "--exclude-dir=__pycache__", str(root)],
             capture_output=True, text=True,
-            cwd=Path(__file__).parent.parent,
         )
-        KNOWN_EXCEPTIONS = {"./strikes/catalogue.py"}
-        matches = [
-            line for line in result.stdout.splitlines()
-            if line and line not in KNOWN_EXCEPTIONS
-        ]
-        self.assertEqual(matches, [], f"Direct sqlite3 imports found: {matches}")
-
-
-if __name__ == "__main__":
-    unittest.main()
+        exceptions = {"nex_db_reaper.py", "nex_db_backup.py"}
+        violators = sorted(
+            ln for ln in result.stdout.splitlines()
+            if ln and _P(ln).name not in exceptions
+        )
+        self.assertEqual(violators, [],
+                         f"Direct sqlite3 outside substrate/: {violators}")

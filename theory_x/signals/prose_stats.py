@@ -18,6 +18,7 @@ shreds into "world"/"cup", both scoring high as fragments. Harmless because
 multi-word entities short-circuit as substantive before this check runs.
 """
 from __future__ import annotations
+from substrate import connect, Row, Connection
 
 import re
 import time
@@ -120,7 +121,7 @@ def build(beliefs_writer, beliefs_reader, source: str = "precipitated_from_sense
 def prose_cap_count(cx, token: str) -> int | None:
     """Mid-sentence prose capitalizations for token, via an open connection.
 
-    Takes the caller's existing sqlite3.Connection (the tick already holds
+    Takes the caller's existing Connection (the tick already holds
     one on BELIEFS_DB) rather than opening its own -- no contention, no
     timeout under live write load.
 
@@ -154,11 +155,10 @@ def prose_cap_count(cx, token: str) -> int | None:
 
 def build_direct(db_path) -> int:
     """Rebuild using a plain connection. For callers without Writer/Reader."""
-    import sqlite3
     from collections import Counter
     try:
-        cx = sqlite3.connect(str(db_path), timeout=15)
-        cx.row_factory = sqlite3.Row
+        cx = connect(str(db_path), timeout=15)
+        cx.row_factory = Row
     except Exception as exc:
         logger.warning("prose_stats connect failed: %s", exc)
         return 0

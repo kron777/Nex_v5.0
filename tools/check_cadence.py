@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import sqlite3
+from substrate import connect, Connection
 import statistics
 import sys
 from pathlib import Path
@@ -35,8 +35,8 @@ from pathlib import Path
 _PAUSE_GAP_S = 6 * 3600.0   # a gap longer than this is treated as a pause, not a cadence
 
 
-def _ro(path: str) -> sqlite3.Connection:
-    return sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+def _ro(path: str) -> Connection:
+    return connect(f"file:{path}?mode=ro", uri=True)
 
 
 def _db(name: str) -> str:

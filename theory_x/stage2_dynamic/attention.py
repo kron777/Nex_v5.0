@@ -8,13 +8,15 @@ from __future__ import annotations
 import json
 from typing import Any, Optional
 
+from substrate.paths import data_dir
+
 THEORY_X_STAGE = 2
 
 # ── Quality synthesis signal ─────────────────────────────────────────────────
 # Loaded from data/quality_signal.json written by quality_synthesis.py.
 # High-genius branches get amplified attention; low-genius get dampened.
 import json as _json_qs
-_QS_FILE = "/home/rr/Desktop/Desktop/nex5/data/quality_signal.json"
+_QS_FILE = str(data_dir() / "quality_signal.json")
 _QS_CACHE: dict = {}
 _QS_LOADED_AT: float = 0.0
 _QS_RELOAD_INTERVAL = 300.0  # reload every 5 min

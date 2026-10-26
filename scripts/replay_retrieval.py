@@ -60,13 +60,13 @@ import json
 import math
 import os
 import random
-import sqlite3
+from substrate import connect, Row
 import statistics
 import sys
 import time
 from datetime import datetime, timezone
 
-sys.path.insert(0, "/home/rr/Desktop/Desktop/nex5")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Live predicates — imported, never reimplemented (GENIUS_FIDELITY_BASELINE rule:
 # the predicate has ONE definition).
@@ -78,7 +78,7 @@ from theory_x.stage6_fountain.generator import (
     _MODE_EXPLAIN, _MODE_ARGUE, _OWN_CONTENT_SOURCES,
 )
 
-DATA = "/home/rr/Desktop/Desktop/nex5/data/"
+DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data") + "/"
 VOICE_URL = os.environ.get("NEX5_VOICE_URL", "http://localhost:11434/v1/chat/completions")
 MODEL = os.environ.get("NEX5_VOICE_MODEL", "qwen2.5:3b")
 U = lambda t: datetime.fromtimestamp(t, timezone.utc)
@@ -201,8 +201,8 @@ def main():
     a = ap.parse_args()
 
     T = lambda s: datetime.fromisoformat(s).replace(tzinfo=timezone.utc).timestamp()
-    dyn = sqlite3.connect(f"file:{DATA}dynamic.db?mode=ro", uri=True); dyn.row_factory = sqlite3.Row
-    bel = sqlite3.connect(f"file:{DATA}beliefs.db?mode=ro", uri=True); bel.row_factory = sqlite3.Row
+    dyn = connect(f"file:{DATA}dynamic.db?mode=ro", uri=True); dyn.row_factory = Row
+    bel = connect(f"file:{DATA}beliefs.db?mode=ro", uri=True); bel.row_factory = Row
 
     fires = [dict(r) for r in dyn.execute(
         "SELECT id, ts, thought, mode, focal_item FROM fountain_events "

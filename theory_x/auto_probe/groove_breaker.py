@@ -26,7 +26,7 @@ functional; to re-enable, set ENABLED=True and restore the removed wiring
 
 import logging
 import re
-import sqlite3
+from substrate import connect, Row
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -115,7 +115,7 @@ class GrooveBreaker:
     def _initialize_cooldown(self):
         """Load most recent log entry ts to seed cooldown on restart."""
         try:
-            conn = sqlite3.connect(self._beliefs_db, timeout=5)
+            conn = connect(self._beliefs_db, timeout=5)
             cursor = conn.execute("SELECT MAX(ts) FROM auto_probe_log")
             row = cursor.fetchone()
             if row and row[0]:
@@ -190,8 +190,8 @@ class GrooveBreaker:
         """Fetch most recent groove alert at or above severity threshold."""
         cutoff = now - GROOVE_FRESHNESS_WINDOW
         try:
-            conn = sqlite3.connect(self._beliefs_db, timeout=5)
-            conn.row_factory = sqlite3.Row
+            conn = connect(self._beliefs_db, timeout=5)
+            conn.row_factory = Row
             cursor = conn.execute(
                 """
                 SELECT id, detected_at, alert_type, severity, pattern,
@@ -214,7 +214,7 @@ class GrooveBreaker:
     def _count_sustained_fires(self, alert_ts: float) -> int:
         """Count non-fallback fountain fires since the alert was detected."""
         try:
-            conn = sqlite3.connect(self._dynamic_db, timeout=5)
+            conn = connect(self._dynamic_db, timeout=5)
             cursor = conn.execute(
                 """
                 SELECT COUNT(*) FROM fountain_events
@@ -232,7 +232,7 @@ class GrooveBreaker:
 
     def _has_pending_approval(self) -> bool:
         try:
-            conn = sqlite3.connect(self._beliefs_db, timeout=5)
+            conn = connect(self._beliefs_db, timeout=5)
             cursor = conn.execute(
                 "SELECT 1 FROM auto_probe_log WHERE status='pending_approval' LIMIT 1"
             )
@@ -258,7 +258,7 @@ class GrooveBreaker:
 
         # Fallback: classify most recent real fountain fire
         try:
-            conn = sqlite3.connect(self._dynamic_db, timeout=5)
+            conn = connect(self._dynamic_db, timeout=5)
             cursor = conn.execute(
                 """
                 SELECT thought FROM fountain_events
@@ -283,7 +283,7 @@ class GrooveBreaker:
         """
         try:
             now = time.time()
-            with sqlite3.connect(self._probes_db, timeout=5) as conn:
+            with connect(self._probes_db, timeout=5) as conn:
                 row = conn.execute(
                     """
                     SELECT id, probe_text
@@ -301,7 +301,7 @@ class GrooveBreaker:
                     )
                     return row[1]
             # Category not found — fall back to any available probe
-            with sqlite3.connect(self._probes_db, timeout=5) as conn:
+            with connect(self._probes_db, timeout=5) as conn:
                 row = conn.execute(
                     "SELECT id, probe_text FROM probes ORDER BY COALESCE(asked_at, 0) ASC LIMIT 1"
                 ).fetchone()
@@ -324,8 +324,8 @@ class GrooveBreaker:
         Phase B: called by FountainGenerator to inject into the prompt.
         """
         try:
-            conn = sqlite3.connect(self._beliefs_db, timeout=2)
-            conn.row_factory = sqlite3.Row
+            conn = connect(self._beliefs_db, timeout=2)
+            conn.row_factory = Row
             row = conn.execute(
                 """
                 SELECT id, selected_probe_text
@@ -356,7 +356,7 @@ class GrooveBreaker:
 
     def _write_observation_log(self, ctx: GrooveContext, ts: float) -> None:
         try:
-            conn = sqlite3.connect(self._beliefs_db, timeout=5)
+            conn = connect(self._beliefs_db, timeout=5)
             conn.execute(
                 """
                 INSERT INTO auto_probe_log (

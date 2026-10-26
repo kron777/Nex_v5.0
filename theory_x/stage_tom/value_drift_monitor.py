@@ -38,7 +38,7 @@ import os
 import sys
 import json
 import time
-import sqlite3
+from substrate import connect, Row
 import argparse
 import urllib.request
 
@@ -59,15 +59,15 @@ def _db(name: str) -> str:
 
 
 def _beliefs_conn():
-    conn = sqlite3.connect(_db("beliefs"), timeout=10)
-    conn.row_factory = sqlite3.Row
+    conn = connect(_db("beliefs"), timeout=10)
+    conn.row_factory = Row
     return conn
 
 
 def _log_conn():
     # drift log lives in conversations.db beside the other sidecar tables
-    conn = sqlite3.connect(_db("conversations"), timeout=10)
-    conn.row_factory = sqlite3.Row
+    conn = connect(_db("conversations"), timeout=10)
+    conn.row_factory = Row
     conn.execute(
         "CREATE TABLE IF NOT EXISTS value_drift_log ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, checked_at REAL NOT NULL, "

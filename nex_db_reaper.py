@@ -30,7 +30,13 @@ import sqlite3
 import sys
 import time
 
-DATA = "/home/rr/Desktop/Desktop/nex5/data"
+try:
+    from substrate.paths import data_dir
+    DATA = str(data_dir())
+except Exception:
+    # Standalone fallback (this script lives at the repo root; data/ beside it)
+    # so the reaper still resolves even if run before the package is importable.
+    DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 LOG = os.path.expanduser("~/.nex/reaper.log")
 
 RETENTION_DAYS = 30
@@ -57,6 +63,34 @@ TARGETS = [
     # written but never digested or bounded. Default 30d window.
     ("dynamic.db",       "self_state_history",    "bound_at"),
     ("conversations.db", "meta_cognition_events", "created_at"),
+    # Pure observability logs — append-only, never referenced by another table,
+    # so age-pruning them cannot orphan anything (readers surveyed, not guessed):
+    #   drive_emergence_log — write-only diagnostic; no reader anywhere in the
+    #     codebase. Default 30d.
+    #   substrate_coherence — read only as a recent trajectory (harmonic panel:
+    #     last 144 rows) or a near-fire lookup that already tolerates a miss
+    #     (snapshots.py), so a generous 90d window never starves a live reader.
+    # Deliberately NOT added: fountain_events (read for lifetime COUNT(*) and
+    # for all coin/ghost-tagged thoughts — curated history, needs a tier-aware
+    # scheme like substrate_snapshots, not an age window), messages and
+    # belief_lineage (conversation/lineage history kept by design).
+    ("conversations.db", "drive_emergence_log",   "tick_at"),
+    ("conversations.db", "substrate_coherence",   "ts", 90),
+    # fountain_retrieval_log — append-only (fire_id, belief_id, slot, rank, ts),
+    # ~per-belief-per-fire, 77k rows and unbounded. Readers surveyed, all tolerant of
+    # age-pruning: the live dedup check reads only the last 3 fires
+    # (generator._check_retrieval_duplicate), the warrant recorder is cursor-based
+    # (WHERE id > ?), and only a diagnostic tool lifetime-scans it. 30d default is far
+    # beyond any live need.
+    ("dynamic.db",       "fountain_retrieval_log", "ts"),
+    # Deliberately NOT added: substrate_snapshots. It already carries a TIER-AWARE
+    # retention scheme (retention_tier + pinned, snapshots.py:prune_snapshots =
+    # "WHERE retention_tier=? AND ts<? AND pinned=0"), which a flat `ts < cutoff`
+    # reaper would override -- deleting genius/moment/pinned snapshots the scheme
+    # exists to keep. It IS growing unbounded (38k rows, 99% retention_tier=NULL)
+    # because score_pending_snapshots/prune_snapshots are wired only into
+    # tools/snapshots.py (manual CLI), never scheduled. The fix is to WIRE that
+    # tier-aware pipeline, not to age-prune here. Tracked separately.
 ]
 
 

@@ -24,7 +24,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-import sqlite3
+from substrate import connect, Row
 import time
 from collections import defaultdict, deque
 from typing import Any, Dict, List, Optional
@@ -147,8 +147,8 @@ class WorldBridgeSelector:
         cadences = self._compute_stream_cadences(now)
 
         try:
-            with sqlite3.connect(self._sense_db, timeout=5) as conn:
-                conn.row_factory = sqlite3.Row
+            with connect(self._sense_db, timeout=5) as conn:
+                conn.row_factory = Row
                 rows = conn.execute(
                     """
                     SELECT stream, MAX(timestamp) AS last_ts
@@ -193,7 +193,7 @@ class WorldBridgeSelector:
         Returns mean inter-event gap per stream over last hour.
         """
         try:
-            with sqlite3.connect(self._sense_db, timeout=5) as conn:
+            with connect(self._sense_db, timeout=5) as conn:
                 rows = conn.execute(
                     """
                     SELECT stream, timestamp
@@ -249,8 +249,8 @@ class WorldBridgeSelector:
 
         events: List[Dict[str, Any]] = []
         try:
-            with sqlite3.connect(self._sense_db, timeout=5) as conn:
-                conn.row_factory = sqlite3.Row
+            with connect(self._sense_db, timeout=5) as conn:
+                conn.row_factory = Row
                 for s in selected:
                     row = conn.execute(
                         """
@@ -454,7 +454,7 @@ class WorldBridgeSelector:
         notes: str,
     ) -> None:
         try:
-            with sqlite3.connect(self._beliefs_db, timeout=5) as conn:
+            with connect(self._beliefs_db, timeout=5) as conn:
                 conn.execute(
                     """
                     INSERT INTO world_bridge_log

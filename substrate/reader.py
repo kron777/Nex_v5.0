@@ -19,6 +19,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator, Optional, Sequence
 
+from .db import connect
+
 THEORY_X_STAGE = None
 
 
@@ -28,16 +30,12 @@ class Reader:
         self._busy_timeout_ms = busy_timeout_ms
 
     def _open(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(
-            f"file:{self.db_path}?mode=ro",
-            uri=True,
-            isolation_level=None,
-            check_same_thread=False,
-            timeout=self._busy_timeout_ms / 1000.0,
+        return connect(
+            self.db_path,
+            read_only=True,
+            busy_timeout_ms=self._busy_timeout_ms,
+            row_factory=sqlite3.Row,
         )
-        conn.row_factory = sqlite3.Row
-        conn.execute(f"PRAGMA busy_timeout={self._busy_timeout_ms}")
-        return conn
 
     @contextmanager
     def connection(self) -> Iterator[sqlite3.Connection]:

@@ -28,7 +28,7 @@ from __future__ import annotations
 import collections
 import datetime as dt
 import math
-import sqlite3
+from substrate import connect
 import sys
 import time
 
@@ -56,7 +56,7 @@ def _driver_context(token: str, window_days: int = 30) -> dict:
     """Burst ratio (max/median daily DF share) + normalized branch entropy for a
     token over the recent crystallized corpus. R73's attractor discriminator."""
     cut = time.time() - window_days * 86400
-    con = sqlite3.connect(f"file:{_BELIEFS}?mode=ro", uri=True)
+    con = connect(f"file:{_BELIEFS}?mode=ro", uri=True)
     try:
         rows = con.execute(
             "SELECT content, created_at, branch_id FROM beliefs "

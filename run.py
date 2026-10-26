@@ -1,4 +1,4 @@
-#!/home/rr/Desktop/Desktop/nex5/.venv/bin/python3
+#!/usr/bin/env python3
 """NEX 5.0 — unified boot.
 
 Starts the full stack in order:
@@ -21,7 +21,7 @@ import os
 import signal
 import time as _time
 
-import errors as error_channel
+import nex_config
 from alpha import ALPHA
 from substrate import Reader, Writer, db_paths
 from substrate.init_db import init_all
@@ -44,12 +44,15 @@ from voice.llm import VoiceClient
 
 
 def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(name)s %(levelname)s %(message)s",
-    )
-    error_channel.install_handler()
+    # One authority for logging (D-C): root INFO, third-party quieted, central
+    # error handler installed. Replaces the old basicConfig + install_handler.
+    nex_config.setup_logging()
     log = logging.getLogger("nex5.boot")
+
+    # Surface mistyped / unparsable NEX5_* flags at boot. Warn-only by default
+    # (a typo'd flag is otherwise silently ignored, doing nothing); set
+    # NEX5_CONFIG_STRICT=1 to make these fatal instead.
+    nex_config.validate()
 
     log.info("NEX 5.0 booting")
     log.info("Alpha: %s", ALPHA.lines[0])
@@ -558,6 +561,20 @@ def main() -> None:
     except Exception as e:
         log.warning("Resumption boot failed: %s", e)
 
+    # round 11 (item 1): record this boot's downtime as a WITNESSED belief, so the
+    # identity anchor can represent that NEX was OFF (continuity across the gap, not
+    # just within a session). Fail-safe: never blocks boot.
+    try:
+        from theory_x.memory import downtime as _downtime
+        _dt_res = _downtime.record_boot(
+            beliefs_writer=writers["beliefs"],
+            data_dir=str(paths["beliefs"].parent),
+            snapshot_path=str(paths["beliefs"].parent / "state_snapshot.json"),
+        )
+        log.info("Downtime: %s", _dt_res)
+    except Exception as e:
+        log.warning("Downtime record failed: %s", e)
+
     # Phase A: state snapshot writer (Memory Layers v0.2)
     snapshot_writer = StateSnapshotWriter(
         beliefs_db_path=str(paths["beliefs"]),
@@ -746,6 +763,14 @@ def main() -> None:
     # dies mid-write because Writer.close() drains its queue whole-request.
     def _graceful_standby(signum, frame):
         log.warning("SIGTERM received -> STANDBY: finishing writes, releasing GPU/VRAM")
+        # round 11 (item 1): stamp a precise clean-shutdown marker so the NEXT boot
+        # reads this as a clean STANDBY (exact offline_from) rather than falling back
+        # to the snapshot mtime and labelling it unclean.
+        try:
+            from theory_x.memory import downtime as _downtime
+            _downtime.mark_clean_shutdown(str(paths["beliefs"].parent))
+        except Exception:
+            pass
         try:
             _time.sleep(1.5)  # window for a current fire to enqueue its writes
         except Exception:

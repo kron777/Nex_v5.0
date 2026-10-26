@@ -9,15 +9,16 @@ All reads are best-effort: any individual failure returns None for that field
 rather than failing the whole capture.
 """
 from __future__ import annotations
+from substrate.paths import db_paths
 import json
-import sqlite3
+from substrate import connect, Connection, OperationalError
 import time
 import urllib.request
 from pathlib import Path
 from typing import Any
 
-DYN_DB = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
-BELIEFS_DB = "/home/rr/Desktop/Desktop/nex5/data/beliefs.db"
+DYN_DB = str(db_paths()["dynamic"])
+BELIEFS_DB = str(db_paths()["beliefs"])
 DYNAMIC_STATUS_URL = "http://localhost:8765/api/dynamic/status"
 
 
@@ -39,7 +40,7 @@ def _read_dynamic_status() -> dict | None:
 
 
 @_safe
-def _recent_fountain(cx: sqlite3.Connection, exclude_fid: int, limit: int = 5) -> list[dict]:
+def _recent_fountain(cx: Connection, exclude_fid: int, limit: int = 5) -> list[dict]:
     rows = cx.execute(
         "SELECT id, ts, thought, hot_branch, tag "
         "FROM fountain_events "
@@ -54,14 +55,14 @@ def _recent_fountain(cx: sqlite3.Connection, exclude_fid: int, limit: int = 5) -
 
 
 @_safe
-def _recent_surprises(cx: sqlite3.Connection, since_ts: float) -> list[dict]:
+def _recent_surprises(cx: Connection, since_ts: float) -> list[dict]:
     rows = cx.execute(
-        "SELECT id, ts, prediction_error, predicted_content, actual_content "
+        "SELECT id, triggered_at, surprise_score, predicted_content, actual_content "
         "FROM surprise_events "
-        "WHERE ts > ? AND surprise_flag = 1 "
+        "WHERE triggered_at > ? AND surprise_flag = 1 "
         "AND predicted_content IS NOT NULL AND actual_content IS NOT NULL "
         "AND predicted_content != '' AND actual_content != '' "
-        "ORDER BY ts DESC LIMIT 10",
+        "ORDER BY triggered_at DESC LIMIT 10",
         (since_ts,),
     ).fetchall()
     return [
@@ -77,7 +78,7 @@ def _recent_surprises(cx: sqlite3.Connection, since_ts: float) -> list[dict]:
 
 
 @_safe
-def _recent_daemon_fires(cx: sqlite3.Connection, since_ts: float) -> list[dict]:
+def _recent_daemon_fires(cx: Connection, since_ts: float) -> list[dict]:
     """Which daemon log tables fired recently? Returns timestamp + table name."""
     fires = []
     for table, ts_col in [
@@ -97,14 +98,14 @@ def _recent_daemon_fires(cx: sqlite3.Connection, since_ts: float) -> list[dict]:
             ).fetchone()
             if row:
                 fires.append({"daemon": table, "ts": row[0]})
-        except sqlite3.OperationalError:
+        except OperationalError:
             continue
     fires.sort(key=lambda x: x["ts"], reverse=True)
     return fires
 
 
 @_safe
-def _belief_delta(cx_dyn: sqlite3.Connection, since_ts: float) -> int | None:
+def _belief_delta(cx_dyn: Connection, since_ts: float) -> int | None:
     """Count of fountain fires in last hour as a proxy for substrate churn."""
     row = cx_dyn.execute(
         "SELECT COUNT(*) FROM fountain_events WHERE ts > ?", (since_ts,)
@@ -113,7 +114,7 @@ def _belief_delta(cx_dyn: sqlite3.Connection, since_ts: float) -> int | None:
 
 
 @_safe
-def _last_identity(cx: sqlite3.Connection) -> dict | None:
+def _last_identity(cx: Connection) -> dict | None:
     row = cx.execute(
         "SELECT composed_at, statement, metrics_json FROM identity_log "
         "ORDER BY composed_at DESC LIMIT 1"
@@ -128,7 +129,7 @@ def _last_identity(cx: sqlite3.Connection) -> dict | None:
 
 
 @_safe
-def _last_pattern(cx: sqlite3.Connection) -> dict | None:
+def _last_pattern(cx: Connection) -> dict | None:
     row = cx.execute(
         "SELECT composed_at, statement FROM pattern_log "
         "ORDER BY composed_at DESC LIMIT 1"
@@ -139,7 +140,7 @@ def _last_pattern(cx: sqlite3.Connection) -> dict | None:
 
 
 @_safe
-def _last_witness(cx: sqlite3.Connection) -> dict | None:
+def _last_witness(cx: Connection) -> dict | None:
     row = cx.execute(
         "SELECT composed_at, statement FROM witness_log "
         "ORDER BY composed_at DESC LIMIT 1"
@@ -175,7 +176,7 @@ def capture(fountain_event_id: int, tag: str) -> dict[str, Any]:
         for b in branches
     ]
 
-    cx_dyn = sqlite3.connect(DYN_DB, timeout=5)
+    cx_dyn = connect(DYN_DB, timeout=5)
 
     recent_fountain = _recent_fountain(cx_dyn, fountain_event_id) or []
     recent_surprises = _recent_surprises(cx_dyn, thirty_min_ago) or []
@@ -226,7 +227,7 @@ def capture(fountain_event_id: int, tag: str) -> dict[str, Any]:
 
 def persist(snapshot: dict[str, Any]) -> bool:
     """Upsert the snapshot into coincidence_context."""
-    cx = sqlite3.connect(DYN_DB, timeout=5)
+    cx = connect(DYN_DB, timeout=5)
     try:
         cx.execute(
             "INSERT INTO coincidence_context "

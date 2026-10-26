@@ -10,6 +10,7 @@ Nothing is written: compute_all() reads through Reader (mode=ro); the retriever
 is built without an edges_writer.
 """
 from __future__ import annotations
+from substrate import connect
 
 import json
 import math
@@ -33,8 +34,7 @@ COMPONENTS = ("survival", "sustain", "indep", "xsynth")
 
 
 def _ro(path):
-    import sqlite3
-    return sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=10)
+    return connect(f"file:{path}?mode=ro", uri=True, timeout=10)
 
 
 def auc(pos, neg):

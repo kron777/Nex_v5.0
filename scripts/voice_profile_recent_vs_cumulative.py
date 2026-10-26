@@ -20,12 +20,12 @@ from __future__ import annotations
 
 import json
 import re
-import sqlite3
+from substrate import connect, Row
 import sys
 from collections import Counter
 from pathlib import Path
 
-REPO = Path("/home/rr/Desktop/Desktop/nex5")
+REPO = Path(__file__).resolve().parents[1]
 CONV_DB = REPO / "data" / "conversations.db"
 DYNAMIC_DB = REPO / "data" / "dynamic.db"
 DRIVE_PAIR_LIKE = "%integration%self_preservation%"
@@ -60,8 +60,8 @@ def main(hours: int = 9) -> int:
     window_s = hours * 3600
 
     # Get IDs of recent fires under the drive-pair from conversations.db
-    conv = sqlite3.connect(f"file:{CONV_DB}?mode=ro", uri=True)
-    conv.row_factory = sqlite3.Row
+    conv = connect(f"file:{CONV_DB}?mode=ro", uri=True)
+    conv.row_factory = Row
     rows = conv.execute(
         "SELECT fountain_event_id FROM drive_activations "
         "WHERE active_conflicts LIKE ? "
@@ -78,8 +78,8 @@ def main(hours: int = 9) -> int:
     print(f"ID range: {min(ids)} to {max(ids)}\n")
 
     # Read pair thoughts + background from dynamic.db
-    dyn = sqlite3.connect(f"file:{DYNAMIC_DB}?mode=ro", uri=True)
-    dyn.row_factory = sqlite3.Row
+    dyn = connect(f"file:{DYNAMIC_DB}?mode=ro", uri=True)
+    dyn.row_factory = Row
     placeholders = ",".join("?" * len(ids))
 
     pair_rows = dyn.execute(

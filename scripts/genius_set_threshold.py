@@ -26,12 +26,12 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
-import sqlite3
+from substrate import connect, Row
 import sys
 import time
 from pathlib import Path
 
-ROOT = Path("/home/rr/Desktop/Desktop/nex5")
+ROOT = Path(__file__).resolve().parents[1]
 WEIGHTS = ROOT / "genius_score_weights.json"
 CONV = ROOT / "data" / "conversations.db"
 
@@ -45,8 +45,8 @@ def show_current():
     print(f"Weights version:   {w['version']}")
     print(f"Training accuracy: {w.get('training_accuracy', 0):.1%}")
     print()
-    with sqlite3.connect(f"file:{CONV}?mode=ro", uri=True) as c:
-        c.row_factory = sqlite3.Row
+    with connect(f"file:{CONV}?mode=ro", uri=True) as c:
+        c.row_factory = Row
         rows = c.execute(
             "SELECT class, COUNT(*) AS n FROM genius_tags GROUP BY class"
         ).fetchall()
@@ -56,7 +56,7 @@ def show_current():
               f"{striking/max(1,total):.1%})")
     print()
     # Score distribution histogram around the cutoff
-    with sqlite3.connect(f"file:{CONV}?mode=ro", uri=True) as c:
+    with connect(f"file:{CONV}?mode=ro", uri=True) as c:
         bins = [
             (0.0, 0.20), (0.20, 0.30), (0.30, 0.40), (0.40, 0.50),
             (0.50, 0.60), (0.60, 0.70), (0.70, 0.80), (0.80, 0.90),
@@ -86,8 +86,8 @@ def set_threshold(new_threshold: float, dry_run: bool = False):
     print(f"Threshold change: {old} → {new_threshold}")
 
     # Predict what re-classification will do
-    with sqlite3.connect(f"file:{CONV}?mode=ro", uri=True) as c:
-        c.row_factory = sqlite3.Row
+    with connect(f"file:{CONV}?mode=ro", uri=True) as c:
+        c.row_factory = Row
         total = c.execute("SELECT COUNT(*) FROM genius_tags").fetchone()[0]
         striking_old = c.execute(
             "SELECT COUNT(*) FROM genius_tags WHERE class='STRIKING'"
@@ -120,7 +120,7 @@ def set_threshold(new_threshold: float, dry_run: bool = False):
     if will_demote:
         print()
         print("Examples of fires that would be demoted (10 closest to cutoff):")
-        with sqlite3.connect(f"file:{CONV}?mode=ro", uri=True) as c:
+        with connect(f"file:{CONV}?mode=ro", uri=True) as c:
             c.execute(f"ATTACH '{ROOT}/data/dynamic.db' AS dyn")
             rows = c.execute(
                 "SELECT g.score, f.thought FROM genius_tags g "
@@ -159,7 +159,7 @@ def set_threshold(new_threshold: float, dry_run: bool = False):
     print(f"Wrote {WEIGHTS} (new threshold {new_threshold})")
 
     # Re-classify existing rows (score unchanged, class flips)
-    with sqlite3.connect(CONV) as c:
+    with connect(CONV) as c:
         cur = c.execute(
             "UPDATE genius_tags SET class='STRIKING' "
             "WHERE score >= ? AND class != 'STRIKING'",
@@ -176,7 +176,7 @@ def set_threshold(new_threshold: float, dry_run: bool = False):
     print(f"Reclassified: {n_up} → STRIKING, {n_down} → ordinary")
 
     # Verify
-    with sqlite3.connect(f"file:{CONV}?mode=ro", uri=True) as c:
+    with connect(f"file:{CONV}?mode=ro", uri=True) as c:
         striking_after = c.execute(
             "SELECT COUNT(*) FROM genius_tags WHERE class='STRIKING'"
         ).fetchone()[0]

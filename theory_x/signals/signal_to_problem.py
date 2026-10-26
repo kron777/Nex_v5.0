@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-import sqlite3
+from substrate import connect, Row, Connection, Error
 import threading
 import os
 import time
@@ -74,7 +74,7 @@ def _warn_unpromotable_branch_type(b_cx, cutoff: float) -> None:
             "WHERE detected_at > ? AND signal_type LIKE '%_branch'",
             (cutoff,)
         ).fetchall()
-    except sqlite3.Error:
+    except Error:
         return
     for (st,) in seen:
         if st in _PROMOTABLE_TYPES or st in _warned_branch_types:
@@ -86,7 +86,7 @@ def _warn_unpromotable_branch_type(b_cx, cutoff: float) -> None:
         )
 
 
-def _ensure_actioned_column(cx: sqlite3.Connection) -> None:
+def _ensure_actioned_column(cx: Connection) -> None:
     """Add 'actioned' column to signals table if missing.
     Lets us mark signals we've converted, avoiding re-processing.
     """
@@ -282,7 +282,7 @@ def _compose_description(signal_type: str, payload: dict, sig_id: int) -> str:
     )
 
 
-def _has_recent_dupe(cv_cx: sqlite3.Connection, entity: str, window_days: int) -> bool:
+def _has_recent_dupe(cv_cx: Connection, entity: str, window_days: int) -> bool:
     """Only block re-open if a non-closed problem already covers this entity.
     2026-05-16: previously matched closed problems too, starving new opens
     after stale test problems accumulated."""
@@ -300,7 +300,7 @@ def _has_recent_dupe(cv_cx: sqlite3.Connection, entity: str, window_days: int) -
     return row is not None
 
 
-def _count_recent_opens(cv_cx: sqlite3.Connection, hours: int = 24) -> int:
+def _count_recent_opens(cv_cx: Connection, hours: int = 24) -> int:
     cutoff = time.time() - hours * 3600
     row = cv_cx.execute(
         "SELECT COUNT(*) FROM open_problems WHERE created_at > ?",
@@ -311,10 +311,10 @@ def _count_recent_opens(cv_cx: sqlite3.Connection, hours: int = 24) -> int:
 
 def signal_to_problem_tick() -> dict:
     """One pass. Convert eligible recent signals into open problems."""
-    b_cx = sqlite3.connect(BELIEFS_DB, timeout=15)
-    b_cx.row_factory = sqlite3.Row
-    cv_cx = sqlite3.connect(CONVERSATIONS_DB, timeout=15)
-    cv_cx.row_factory = sqlite3.Row
+    b_cx = connect(BELIEFS_DB, timeout=15)
+    b_cx.row_factory = Row
+    cv_cx = connect(CONVERSATIONS_DB, timeout=15)
+    cv_cx.row_factory = Row
 
     try:
         _ensure_actioned_column(b_cx)
@@ -418,7 +418,7 @@ def signal_to_problem_tick() -> dict:
                         log.debug("drift_gate: an advancements_drift problem is already open")
                         skipped += 1
                         continue
-                except sqlite3.Error:
+                except Error:
                     pass  # fail-open: if the check errors, allow it through
 
             if _has_recent_dupe(cv_cx, entity, DEDUPE_WINDOW_DAYS):
@@ -489,7 +489,7 @@ def signal_to_problem_tick() -> dict:
                     "opened problem from signal %s (%s, conf=%.2f): %s",
                     sig["id"], sig["signal_type"], sig["confidence"], title[:80]
                 )
-            except sqlite3.Error as e:
+            except Error as e:
                 log.warning("INSERT open_problem failed for sig %s: %s",
                             sig["id"], e)
                 skipped += 1

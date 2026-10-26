@@ -10,7 +10,7 @@ Idempotent via UNIQUE(source_id, target_id, edge_type) in belief_edges.
 from __future__ import annotations
 import logging
 import re
-import sqlite3
+from substrate import connect, Row, IntegrityError
 import threading
 import time
 from pathlib import Path
@@ -46,8 +46,8 @@ def _should_skip(content: str | None) -> bool:
 
 def edge_builder_tick(db_path: Path = BELIEFS_DB) -> dict:
     """One pass. Returns stats dict for logging."""
-    cx = sqlite3.connect(db_path, timeout=15)
-    cx.row_factory = sqlite3.Row
+    cx = connect(db_path, timeout=15)
+    cx.row_factory = Row
     try:
         # Find beliefs with fewer than MIN_EDGES_PER_BELIEF outgoing edges.
         # Prefer newer beliefs (created_at DESC).
@@ -126,7 +126,7 @@ def edge_builder_tick(db_path: Path = BELIEFS_DB) -> dict:
                     )
                     if cx.total_changes > 0:
                         wrote += 1
-                except sqlite3.IntegrityError:
+                except IntegrityError:
                     pass
 
         cx.commit()

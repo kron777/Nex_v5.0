@@ -1,6 +1,6 @@
 """Strike catalogue — Jon's observation notebook.
 
-Uses direct sqlite3.connect() intentionally. Strike records are observation
+Uses direct connect() intentionally. Strike records are observation
 data, not operational substrate. The one-pen rule applies to NEX's operational
 databases; this catalogue is separate.
 
@@ -8,7 +8,7 @@ The DB lives at <data_dir>/strikes_catalogue.db.
 """
 from __future__ import annotations
 
-import sqlite3
+from substrate import connect, Row, Connection
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -62,9 +62,9 @@ class StrikeCatalogue:
         self._path = str(db_path) if db_path else str(_catalogue_path())
         self._init()
 
-    def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self._path, isolation_level=None)
-        conn.row_factory = sqlite3.Row
+    def _connect(self) -> Connection:
+        conn = connect(self._path, isolation_level=None)
+        conn.row_factory = Row
         return conn
 
     def _init(self) -> None:

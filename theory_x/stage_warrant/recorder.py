@@ -174,6 +174,8 @@ class WarrantRecorder:
         c = self._cursor("use_retrieval_id")
         take("use_retrieval_id", self._dr.read(
             "SELECT id, belief_id, ts FROM fountain_retrieval_log WHERE id > ? "
+            # guaranteed identity-block retrievals are not use (see warrant.py)
+            "AND slot IS NOT 'identity_block' "
             "ORDER BY id LIMIT ?", (int(c), _USE_BATCH)), "id", ("belief_id",), "ts")
         c = self._cursor("use_anchor_id")
         take("use_anchor_id", self._dr.read(

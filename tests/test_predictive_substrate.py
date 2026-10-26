@@ -257,20 +257,31 @@ class TestVerification(unittest.TestCase):
     def tearDown(self):
         _cleanup(self.writers, self.tmp)
 
-    def _insert_prediction(self, pred_type, centroid, window_end_offset=-1):
+    def _insert_prediction(self, pred_type, centroid):
+        """Insert a prediction whose (closed) 299s window ends 1s before the
+        earliest belief already in the store, so the window is EMPTY by
+        construction. A wall-clock window (now-300 .. now-1) was not: init_all()
+        seeds keystones/koans at setUp time (keystone truncates to int seconds),
+        and once >~1s passed before this insert those seeds fell inside it --
+        the empty-window tests then failed ~1 run in 8. Returns (start, end)."""
         now = time.time()
-        tags = json.dumps([])
-        return self.writers["dynamic"].write(
+        row = self.readers["beliefs"].read_one(
+            "SELECT MIN(created_at) AS t FROM beliefs")
+        earliest = row["t"] if row and row["t"] is not None else now
+        end = min(now, earliest) - 1
+        start = end - 299
+        self.writers["dynamic"].write(
             "INSERT INTO predictions "
             "(made_at, target_window_end, prediction_type, centroid_embedding, "
             "representative_content, tags) VALUES (?, ?, ?, ?, ?, ?)",
-            (now - 300, now + window_end_offset, pred_type,
-             centroid.astype(np.float32).tobytes(), "test content", tags),
+            (start, end, pred_type,
+             centroid.astype(np.float32).tobytes(), "test content", json.dumps([])),
         )
+        return start, end
 
     def test_verify_empty_window_scores_1(self):
         centroid = _fake_emb(seed=1)
-        self._insert_prediction("internal_belief", centroid, window_end_offset=-1)
+        self._insert_prediction("internal_belief", centroid)
         ps = _make_ps(self.writers, self.readers)
         ps._verify()
         rows = self.readers["dynamic"].read("SELECT * FROM surprise_events")
@@ -279,15 +290,13 @@ class TestVerification(unittest.TestCase):
 
     def test_verify_surprise_flag_fires_above_threshold(self):
         centroid = _fake_emb(seed=42)
-        self._insert_prediction("internal_belief", centroid, window_end_offset=-1)
-        now = time.time()
+        start, _end = self._insert_prediction("internal_belief", centroid)
         # Seed a belief in the window with orthogonal content
         self.writers["beliefs"].write(
             "INSERT INTO beliefs (content, tier, confidence, source, created_at) "
             "VALUES (?, 6, 0.7, 'fountain_insight', ?)",
-            ("completely different topic about weather", now - 200),
+            ("completely different topic about weather", start + 100),
         )
-        time.sleep(0.05)
         ps = _make_ps(self.writers, self.readers)
         ps._verify()
         rows = self.readers["dynamic"].read("SELECT * FROM surprise_events")
@@ -296,7 +305,7 @@ class TestVerification(unittest.TestCase):
 
     def test_verify_big_surprise_flag(self):
         centroid = _fake_emb(seed=7)
-        self._insert_prediction("internal_belief", centroid, window_end_offset=-1)
+        self._insert_prediction("internal_belief", centroid)
         ps = _make_ps(self.writers, self.readers)
         ps._verify()
         rows = self.readers["dynamic"].read("SELECT * FROM surprise_events")
@@ -306,7 +315,7 @@ class TestVerification(unittest.TestCase):
 
     def test_verify_idempotent(self):
         centroid = _fake_emb(seed=3)
-        self._insert_prediction("internal_belief", centroid, window_end_offset=-1)
+        self._insert_prediction("internal_belief", centroid)
         ps = _make_ps(self.writers, self.readers)
         ps._verify()
         ps._verify()  # second call: no unverified rows remain

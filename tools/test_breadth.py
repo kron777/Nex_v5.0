@@ -12,9 +12,12 @@ also significant, the breadth result is flagged as possibly tempo-confounded.
 
 Run: .venv/bin/python3 -m tools.test_breadth
 """
-import sqlite3, statistics as st, math, sys
+import statistics as st, math, sys
+from substrate import connect, Row
 
-DB = "/home/rr/Desktop/Desktop/nex5/data/dynamic.db"
+from substrate.paths import db_paths
+
+DB = str(db_paths()["dynamic"])
 MIN_GENIUS_N = 30
 CONFIRM_P, CONFIRM_D = 0.05, 0.40
 DENY_P, DENY_D = 0.20, 0.20
@@ -44,7 +47,7 @@ def cohens_d(xs, ys):
     return (st.mean(xs)-st.mean(ys))/pooled
 
 def main():
-    con = sqlite3.connect(DB); con.row_factory = sqlite3.Row
+    con = connect(DB); con.row_factory = Row
     fires = [{"ts": float(f["ts"]), "hot_branch": f["hot_branch"]}
              for f in con.execute("SELECT ts, hot_branch FROM fountain_events WHERE ts IS NOT NULL")]
     def breadth(t):

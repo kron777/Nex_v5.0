@@ -16,7 +16,7 @@ import atexit
 import json
 import logging
 import signal
-import sqlite3
+from substrate import connect, Row
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -108,7 +108,7 @@ class StateSnapshotWriter:
             except Exception:
                 pass
         try:
-            with sqlite3.connect(self._beliefs_db, timeout=5) as conn:
+            with connect(self._beliefs_db, timeout=5) as conn:
                 row = conn.execute(
                     "SELECT value FROM config WHERE key='current_mode'"
                 ).fetchone()
@@ -118,7 +118,7 @@ class StateSnapshotWriter:
 
     def _fetch_voice(self) -> str:
         try:
-            with sqlite3.connect(self._beliefs_db, timeout=5) as conn:
+            with connect(self._beliefs_db, timeout=5) as conn:
                 row = conn.execute(
                     "SELECT value FROM config WHERE key='current_voice'"
                 ).fetchone()
@@ -128,8 +128,8 @@ class StateSnapshotWriter:
 
     def _fetch_active_branches(self) -> List[Dict[str, Any]]:
         try:
-            with sqlite3.connect(self._dynamic_db, timeout=5) as conn:
-                conn.row_factory = sqlite3.Row
+            with connect(self._dynamic_db, timeout=5) as conn:
+                conn.row_factory = Row
                 rows = conn.execute(
                     """
                     SELECT name, curiosity_weight, last_attended_at
@@ -145,8 +145,8 @@ class StateSnapshotWriter:
 
     def _fetch_recent_fires(self) -> List[Dict[str, Any]]:
         try:
-            with sqlite3.connect(self._dynamic_db, timeout=5) as conn:
-                conn.row_factory = sqlite3.Row
+            with connect(self._dynamic_db, timeout=5) as conn:
+                conn.row_factory = Row
                 rows = conn.execute(
                     """
                     SELECT id, ts, hot_branch, thought, word_count
@@ -169,8 +169,8 @@ class StateSnapshotWriter:
 
     def _fetch_groove_alerts(self) -> List[Dict[str, Any]]:
         try:
-            with sqlite3.connect(self._beliefs_db, timeout=5) as conn:
-                conn.row_factory = sqlite3.Row
+            with connect(self._beliefs_db, timeout=5) as conn:
+                conn.row_factory = Row
                 rows = conn.execute(
                     """
                     SELECT id, detected_at, alert_type, severity,
@@ -190,8 +190,8 @@ class StateSnapshotWriter:
         """Per Design v0.2 Section 5b — probes that need re-issue on restart."""
         try:
             cutoff = time.time() - PENDING_PROBE_RECENCY_SECONDS
-            with sqlite3.connect(self._probes_db, timeout=5) as conn:
-                conn.row_factory = sqlite3.Row
+            with connect(self._probes_db, timeout=5) as conn:
+                conn.row_factory = Row
                 rows = conn.execute(
                     """
                     SELECT id, asked_at, category, response_mode, probe_text, notes
@@ -212,7 +212,7 @@ class StateSnapshotWriter:
     def _fetch_recent_belief_ids(self) -> List[int]:
         """Belief IDs that Layer B will promote on restart."""
         try:
-            with sqlite3.connect(self._beliefs_db, timeout=5) as conn:
+            with connect(self._beliefs_db, timeout=5) as conn:
                 rows = conn.execute(
                     """
                     SELECT id FROM beliefs

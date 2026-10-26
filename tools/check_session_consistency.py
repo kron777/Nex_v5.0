@@ -30,7 +30,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import sqlite3
+from substrate import connect, Connection
 import statistics
 import sys
 from collections import Counter, defaultdict
@@ -53,8 +53,8 @@ def _jaccard(a: frozenset, b: frozenset) -> float:
     return (len(a & b) / u) if u else 0.0
 
 
-def _ro(path: str) -> sqlite3.Connection:
-    return sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+def _ro(path: str) -> Connection:
+    return connect(f"file:{path}?mode=ro", uri=True)
 
 
 def _db(name: str) -> str:

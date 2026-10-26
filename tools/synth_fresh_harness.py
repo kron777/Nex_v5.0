@@ -20,7 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sqlite3
+from substrate import connect, Row
 import statistics as st
 import sys
 from collections import Counter, defaultdict
@@ -40,12 +40,12 @@ D = 86400.0
 
 
 def _ro(p):
-    return sqlite3.connect(f"file:{p}?mode=ro", uri=True, timeout=10)
+    return connect(f"file:{p}?mode=ro", uri=True, timeout=10)
 
 
 def load(cache_path):
     con = _ro(BEL_DB)
-    con.row_factory = sqlite3.Row
+    con.row_factory = Row
     srcs = tuple(_BS._ANCHOR_SOURCES | _BS._FRESH_SOURCES)
     rows = [dict(r) for r in con.execute(
         f"SELECT id, content, branch_id, confidence, created_at, source FROM beliefs "

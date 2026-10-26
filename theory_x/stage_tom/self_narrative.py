@@ -14,7 +14,7 @@ HOT observation lands FIRST in the composed narrative — she reads her own
 most recent self-observation as the opening line of who she is right now.
 """
 from __future__ import annotations
-import sqlite3
+from substrate import connect
 import time
 import re
 from typing import Optional
@@ -31,7 +31,7 @@ _SELF_RX = re.compile(
 def _real_fires(dynamic_db: str, n: int = 6) -> list[str]:
     """Last N substantive fires — no JSON, no pure drift."""
     try:
-        con = sqlite3.connect(dynamic_db, timeout=3)
+        con = connect(dynamic_db, timeout=3)
         rows = con.execute(
             "SELECT thought, hot_branch FROM fountain_events "
             "WHERE thought IS NOT NULL AND length(thought) > 20 "
@@ -57,7 +57,7 @@ def _real_fires(dynamic_db: str, n: int = 6) -> list[str]:
 def _recent_t6(beliefs_db: str, n: int = 3) -> list[str]:
     """Most recently promoted T6 deep beliefs."""
     try:
-        con = sqlite3.connect(beliefs_db, timeout=3)
+        con = connect(beliefs_db, timeout=3)
         rows = con.execute(
             "SELECT content FROM beliefs WHERE tier=6 "
             "AND content NOT LIKE '[%' "
@@ -78,7 +78,7 @@ def _recent_t6(beliefs_db: str, n: int = 3) -> list[str]:
 def _active_branches(dynamic_db: str) -> list[str]:
     """Currently hot branches from recent fires."""
     try:
-        con = sqlite3.connect(dynamic_db, timeout=3)
+        con = connect(dynamic_db, timeout=3)
         rows = con.execute(
             "SELECT hot_branch, COUNT(*) n FROM fountain_events "
             "WHERE ts > ? AND hot_branch IS NOT NULL AND hot_branch != '' "
@@ -102,7 +102,7 @@ def _recent_hot(beliefs_db: str) -> Optional[str]:
     that.
     """
     try:
-        con = sqlite3.connect(beliefs_db, timeout=3)
+        con = connect(beliefs_db, timeout=3)
         row = con.execute(
             "SELECT content FROM beliefs WHERE source='hot_observer' "
             "AND tier < 8 ORDER BY created_at DESC LIMIT 1"

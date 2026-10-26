@@ -74,7 +74,7 @@ import sys
 import time
 from pathlib import Path
 
-REPO = Path("/home/rr/Desktop/Desktop/nex5")
+REPO = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = REPO / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
