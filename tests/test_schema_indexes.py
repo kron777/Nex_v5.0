@@ -247,9 +247,10 @@ class TestEveryReferencedTableExistsOnFreshInit(unittest.TestCase):
     tables once existed only in the long-lived production DB; a fresh store
     then failed their writes silently. This turns the next one red in CI."""
 
-    # Tables whose schema is owned by an integration not wired into run.py.
-    # stage7_moltbook (external social posting, dry-run by default) creates
-    # its own store when launched; its readers elsewhere fail soft.
+    # stage7_moltbook's tables. Its loops are started by build_dynamic but
+    # disable themselves when the credentials file is absent (the case on a
+    # fresh install), and no module defines their schema. OPEN OWNER DECISION:
+    # define it before the integration is given credentials again.
     _NOT_BOOTED = {"moltbook_dms", "moltbook_pending_replies",
                    "moltbook_post_queue", "moltbook_posts"}
 
@@ -323,6 +324,115 @@ class TestEveryReferencedTableExistsOnFreshInit(unittest.TestCase):
                    and t not in self._NOT_BOOTED}
         self.assertEqual(missing, {},
                          f"tables used in SQL but created nowhere: {missing}")
+
+
+class TestEveryStaticStatementCompilesOnFreshInit(unittest.TestCase):
+    """Column-level fresh-init guard. Every static SQL statement in live code is
+    compiled (EXPLAIN) against a fresh init_all() store with every lazy
+    CREATE TABLE / ADD COLUMN found in the code applied, and must compile in at
+    least one database. SQLite resolves every table and column in every clause,
+    so this catches what the table-level guard cannot: a column a schema was
+    inferred without, or a query naming a column that never existed. Both fail
+    silently at runtime (callers swallow the error), which is how
+    beliefs.last_voiced_at, arcs.closed_at and surprise_events.ts went
+    unnoticed."""
+
+    # Statements built with an f-string or %-formatting are dynamic; a sentinel
+    # that cannot occur in SQL marks interpolations ('{}' can: DEFAULT '{}').
+    _DYN = "\x00dyn\x00"
+    _ALLOWED = {
+        # see TestEveryReferencedTableExistsOnFreshInit._NOT_BOOTED
+        "moltbook_dms", "moltbook_pending_replies", "moltbook_post_queue",
+        "moltbook_posts",
+        # added by identity_loop's schema init in an f-string ALTER loop
+        # (ablation_arm / _prev / _flips), which a static scan cannot apply
+        "ablation_arm",
+    }
+
+    def _literals(self, tree):
+        import ast
+        for n in ast.walk(tree):
+            if isinstance(n, ast.Constant) and isinstance(n.value, str):
+                yield n.value
+            elif isinstance(n, ast.JoinedStr):
+                yield "".join(v.value if isinstance(v, ast.Constant) else self._DYN
+                              for v in n.values)
+
+    def test_static_sql_compiles_against_fresh_schema(self):
+        import ast
+        import os
+        import re
+        import sqlite3
+        from unittest import mock
+        from substrate.init_db import init_all
+        from substrate.paths import db_paths
+
+        verb = re.compile(r"^\s*(SELECT|INSERT|UPDATE|DELETE|WITH|REPLACE)\b")
+        create = re.compile(r"CREATE\s+(?:VIRTUAL\s+)?TABLE", re.I)
+        alter = re.compile(r"^\s*ALTER\s+TABLE\s+\w+\s+ADD\s+COLUMN", re.I)
+        named = re.compile(r"[:@$]([a-z_]\w*)", re.I)
+        root = Path(__file__).resolve().parent.parent
+        stmts, ddl = [], []
+        for py in root.rglob("*.py"):
+            s = str(py)
+            if any(k in s for k in ("/.venv/", "/venv/", "/tests/", "/archive/")) \
+                    or py.name.startswith("test_"):
+                continue
+            try:
+                tree = ast.parse(py.read_text(errors="ignore"))
+            except SyntaxError:
+                continue
+            for lit in self._literals(tree):
+                if self._DYN in lit or "%s" in lit or "%(" in lit:
+                    continue
+                if create.search(lit) or alter.match(lit):
+                    ddl.append(lit)
+                elif verb.match(lit):
+                    stmts.append((lit, str(py.relative_to(root))))
+        self.assertGreater(len(stmts), 500, "SQL scan found suspiciously little")
+
+        failures = {}
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.dict(os.environ, {"NEX5_DATA_DIR": tmp}):
+            init_all()
+            conns = [sqlite3.connect(str(p)) for p in db_paths().values()]
+            try:
+                for _ in range(3):  # lazy DDL may depend on other lazy DDL
+                    for sql in ddl:
+                        for c in conns:
+                            try:
+                                c.executescript(sql) if ";" in sql.strip().rstrip(";") \
+                                    else c.execute(sql)
+                            except sqlite3.Error:
+                                pass
+                for sql, where in stmts:
+                    names = named.findall(sql)
+                    params = {k: None for k in names} if names and "?" not in sql \
+                        else (None,) * sql.count("?")
+                    errors = []
+                    for c in conns:
+                        try:
+                            c.execute("EXPLAIN " + sql, params)
+                            break
+                        except sqlite3.ProgrammingError:
+                            break   # compiled; only the bindings did not match
+                        except sqlite3.Error as e:
+                            errors.append(str(e))
+                    else:
+                        missing = [e for e in errors if e.startswith("no such column")
+                                   or e.startswith("no such table")
+                                   or " has no column named " in e]
+                        if not missing:
+                            continue  # a fragment, not a whole statement
+                        name = missing[0].split()[-1]
+                        if "." in name or name in self._ALLOWED:
+                            continue  # ATTACH-qualified, or allowed above
+                        failures.setdefault(missing[0], set()).add(where)
+            finally:
+                for c in conns:
+                    c.close()
+        self.assertEqual(failures, {},
+                         f"static SQL that does not compile on a fresh store: {failures}")
 
 
 if __name__ == "__main__":
