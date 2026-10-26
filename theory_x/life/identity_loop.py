@@ -16,7 +16,7 @@ Most recent identity statement gets injected into fountain prompt
 from __future__ import annotations
 import json
 import logging
-from substrate import connect, IntegrityError
+from substrate import connect, IntegrityError, table_exists
 import threading
 import time
 from datetime import datetime
@@ -151,7 +151,7 @@ def _gather_metrics(now):
             "SELECT COUNT(*) FROM moltbook_posts "
             "WHERE status='posted' AND ts > ?",
             (six_hours_ago,)
-        ).fetchone()
+        ).fetchone() if table_exists(d, "moltbook_posts") else (0,)  # optional
         m["moltbook_6h"] = row[0] if row else 0
         d.close()
     except Exception:

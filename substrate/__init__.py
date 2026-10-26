@@ -15,6 +15,7 @@ from .db import (
     OperationalError,
     Row,
     connect,
+    table_exists,
 )
 from .paths import data_dir, db_paths
 from .reader import Reader
@@ -27,6 +28,7 @@ __all__ = [
     "WriteRequest",
     "Reader",
     "connect",
+    "table_exists",
     "Row",
     "Connection",
     "Cursor",
