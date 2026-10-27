@@ -274,3 +274,16 @@ tree.** ("Commitment un-quiets B" was claimed, checked, and retracted: no breach
 writes to the belief graph, so commitments exercise band 3 and do not feed B.
 B's activation waits on organic contradiction pressure; time-to-first-organic-
 valence is unbounded and tracked by the belief-undo divergence canary, not awaited.)
+
+**Band ceilings are a design claim, not a calibration.** Valence scales by
+band/4: linear and *unfitted* — "weight, not gate" means "not a gate", not
+"calibrated" (band 2 vs 3 measured −0.5 / −0.75, synthetic). The band-3 ceiling
+(0.75) is deliberately below band 4 (1.0): a relational breach (a broken promise to
+Jon) is designed to weigh less than a self-constitutive violation — a broken promise
+damages a relationship; a self-belief violation damages the substrate.
+
+**Every dark flag carries an observable flip condition and an "ever fired" line**
+(has it ever produced a non-zero, admitted, organic event?), so a dead flag can be
+told from a quiet store instead of guessed at after months. Learning's flip
+condition is subtractability: every learning delta logged with basis provenance,
+and authored confidence reconstructable with external-basis contributions removed.

@@ -524,6 +524,7 @@ class TestAffectCoupling(_Store):
         off, on = self._tick(False), self._tick(True)
         self.assertLess(on, off)
         self.assertGreaterEqual(on - off, -X.MOOD_CAP - 1e-9)
+        self.assertTrue(X.ever_fired()["mood"]["fired"])      # the applied nudge is recorded
 
 
 class TestFalsifiability(_Store):
