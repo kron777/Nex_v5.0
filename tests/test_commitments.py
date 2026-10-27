@@ -324,7 +324,10 @@ class TestCanaries(_Store):
         r = C.release_rate()
         self.assertEqual((r["terminal"], r["released"], r["flag"]), (10, 6, True))
 
-    def test_divergence_pending_then_build_undo_log(self):
+    def test_divergence_is_per_belief_and_unmeasurable_without_coverage(self):
+        # The graph-wide-vs-per-belief trigger is withdrawn (different populations;
+        # it would fire for a legitimate confirmation). Graph-wide undos alone say
+        # nothing: the canary stays UNMEASURABLE until an owned window is covered.
         now = time.time()
         cx = connect(self.bel)
         a = cx.execute("INSERT INTO beliefs (content, tier, confidence, created_at, source) "
@@ -336,13 +339,8 @@ class TestCanaries(_Store):
         cx.commit(); cx.close()
         u = X.belief_undo_divergence(now)
         self.assertFalse(u["diverged"])
-        self.assertTrue(u["status"].startswith("pending"))
-        with mock.patch.object(X, "falsifiability", return_value={
-                "resolved": 5, "exercised": 0, "rate": None, "status": "UNEXERCISED (5 resolved)",
-                "escalate": False}):
-            u = X.belief_undo_divergence(now)
-        self.assertTrue(u["diverged"])
-        self.assertTrue(u["status"].startswith("BUILD UNDO-LOG: 1 belief undos"))
+        self.assertTrue(u["status"].startswith("UNMEASURABLE"))
+        self.assertNotIn("BUILD", u["status"])
 
     def test_canaries_report_both_new_entries(self):
         names = [c[0] for c in X.canaries()]

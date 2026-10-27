@@ -12,7 +12,8 @@ captured at made_at so the reconciler compares against the frozen claim:
     not paused        the harmonizer pauses both sides of a contradiction
     tier not weaker   decay_pass and decisive_contradiction demote (tier +1/+2;
                       a higher tier number is weaker); harmonizer moves to 8
-    erosion unchanged erosion advances erosion_stage
+(erosion_stage is captured but is not part of "holds": erosion.py advances a
+belief toward nex_core as it becomes hers -- assimilation, not an undo.)
 The reconciler (build B PR2) judges this at resolve_at; producers write 'open'.
 
 Selection is UNIFORM over eligible beliefs (authored, unlocked, unpaused,

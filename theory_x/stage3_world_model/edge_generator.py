@@ -13,6 +13,7 @@ import re
 import threading
 import time
 from typing import Optional
+from theory_x.stage3_world_model.undo_log import log_undo
 
 log = logging.getLogger("theory_x.edge_generator")
 
@@ -194,6 +195,11 @@ class EdgeGenerator:
                 "VALUES (?, ?, ?, ?, ?)",
                 (source_id, target_id, edge_type, weight, now),
             )
+            if edge_type == "opposes":
+                # The second opposes writer (besides promotion.write_edge): log
+                # the raise even when INSERT OR IGNORE keeps an existing edge.
+                log_undo(self._writer, "contradiction_raised", (source_id, target_id),
+                         cause_ref=f"edge_generator:{source_id}->{target_id}", at=now)
         return len(edges)
 
 

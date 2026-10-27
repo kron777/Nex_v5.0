@@ -11,6 +11,7 @@ import time
 from typing import Optional
 
 import errors
+from theory_x.stage3_world_model.undo_log import log_undo
 from substrate import Writer, Reader
 
 THEORY_X_STAGE = 3
@@ -79,6 +80,12 @@ class BeliefPromoter:
             )
         except Exception as exc:
             errors.record(f"write_edge error: {exc}", source=_LOG_SOURCE, exc=exc)
+            return
+        if edge_type == "opposes":
+            # Every raise is an event, even when the upsert leaves the edge's
+            # created_at untouched (the re-raise the edge table can't show).
+            log_undo(self._writer, "contradiction_raised", (source_id, target_id),
+                     cause_ref=f"opposes:{source_id}->{target_id}", at=now)
 
     def _write_corroboration_edge(self, belief_id: int, content: str) -> None:
         """Find highest-confidence peer belief with content overlap and write a supports edge."""
@@ -267,6 +274,8 @@ class BeliefPromoter:
                      row["id"]),
                 )
                 count += 1
+                log_undo(self._writer, "demoted", (row["id"],),
+                         cause_ref=f"decay_pass:{row['tier']}->{new_tier}", at=now)
             except Exception as exc:
                 errors.record(f"decay_pass write error: {exc}", source=_LOG_SOURCE, exc=exc)
 
@@ -303,6 +312,8 @@ class BeliefPromoter:
              json.dumps({"event": "decisive_contradiction", "from": current, "to": new_tier, "ts": now}),
              belief_id),
         )
+        log_undo(self._writer, "demoted", (belief_id,),
+                 cause_ref=f"decisive_contradiction:{current}->{new_tier}", at=now)
         # Write opposes edges to high-overlap beliefs
         self._write_contradiction_edges(belief_id, row["content"] or "")
         errors.record(

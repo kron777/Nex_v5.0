@@ -45,16 +45,17 @@ CANARIES (nightly, expectation_canary_log):
     overall_confirmation_rate  logged; NO evidential weight, never flags on its
         own -- on a young store nothing undoes an authored belief, so ~1.0 is
         arithmetic, and it prints the same number as a gaming selector would.
-    falsifiability  violation rate among owned-belief windows that contained an
-        undo-eligible event: a NEW 'opposes' edge on the belief, or a demotion
-        (last_demoted_at), in (made_at, resolve_at] -- or the violation itself.
+    falsifiability  violation rate among owned-belief windows whose subject
+        belief has >= 1 row in the append-only undo log (undo_events, written at
+        each transition site) in [made_at, resolved_at].
         Denominator 0 -> UNEXERCISED (not a rate). At >= 50 resolutions with 0
         such windows -> "UNDO MECHANISMS UNEXERCISED": a store where nothing undoes
         a belief is indistinguishable from undo machinery that never fires; that
         gets instrumented, never the predicate sharpened.
-        Blind spots: a contradiction re-raised on an already-opposed pair (the
-        upsert keeps the original created_at; last_traversed_at is also stamped
-        by activation, so it can't stand in), and a pause undone within the window.
+        The log closes the two blind spots of the old column check (a re-raised
+        contradiction on an existing pair; a pause undone in-window).
+    belief_undo_divergence  per belief: covered windows whose undo events the
+        old column check could not see. UNMEASURABLE until a window is covered.
     stakes_gate, unresolved_rate, confidence_drift  as named.
     external_drift  |delta confidence| on AUTHORED beliefs from learning, split by
         the expectation's basis (owned vs external). Learning is deliberately not
@@ -320,8 +321,9 @@ def _evidence_owned(cx, row_id):
     else:
         observed = {"exists": True, "tier": b["tier"], "paused": b["paused"],
                     "erosion_stage": b["erosion_stage"]}
-        holds = (not b["paused"] and b["tier"] <= claimed["tier"]
-                 and b["erosion_stage"] == claimed["erosion_stage"])
+        # Erosion is NOT an undo here (it is the belief becoming hers), so an
+        # advanced erosion_stage still holds; it is recorded in observed_state.
+        holds = not b["paused"] and b["tier"] <= claimed["tier"]
     return (0.0 if holds else 1.0), observed
 
 
@@ -397,31 +399,53 @@ def reconcile(now: Optional[float] = None) -> dict:
     return stats
 
 
-def _undo_events(e, state) -> dict:
-    """Undo-eligible events on an owned-belief's subject in (made_at, horizon_at]:
-    a NEW opposes edge to/from it, a demotion, or the violation itself."""
+# Kinds that undo (or attempt to undo) a belief. 'eroded' is logged but is NOT one:
+# erosion.py advances external -> nex_core as a belief becomes hers (+0.02
+# confidence) -- assimilation, not undoing (owner's ruling; flagged for Beam).
+UNDO_KINDS = ("contradiction_raised", "contradiction_cleared", "paused", "unpaused",
+              "demoted")
+
+
+def undo_log_installed_at(bx) -> Optional[float]:
+    r = bx.execute("SELECT installed_at FROM undo_log_meta WHERE id = 1").fetchone()
+    return r[0] if r else None
+
+
+def _undo_events(e, state, now) -> dict:
+    """Undo events on an owned-belief's subject in [made_at, resolved_at], read
+    PER BELIEF from the append-only undo log (written at each transition site).
+    This catches what the edge/demotion columns can't: a re-raised contradiction
+    and a raise-then-clear. Windows opened before the log went live are only
+    partially covered. The old heuristic is kept alongside, for the per-belief
+    divergence canary."""
     bid = json.loads(e["claimed_state"])["belief_id"]
-    lo, hi = e["made_at"], e["horizon_at"]
+    lo, hi = e["made_at"], now
     bx = connect(f"file:{_db('beliefs')}?mode=ro", uri=True, timeout=30)
     try:
+        kinds = dict(bx.execute(
+            "SELECT kind, COUNT(*) FROM undo_events WHERE belief_id = ? AND at >= ? "
+            "AND at <= ? GROUP BY kind", (bid, lo, hi)).fetchall())
+        installed = undo_log_installed_at(bx)
         opposes = bx.execute(
             "SELECT COUNT(*) FROM belief_edges WHERE edge_type = 'opposes' "
             "AND (source_id = ? OR target_id = ?) AND created_at > ? AND created_at <= ?",
-            (bid, bid, lo, hi)).fetchone()[0]
+            (bid, bid, lo, e["horizon_at"])).fetchone()[0]
         demoted = bx.execute("SELECT last_demoted_at FROM beliefs WHERE id = ?",
                              (bid,)).fetchone()
     finally:
         bx.close()
-    demoted_in = bool(demoted and demoted[0] is not None and lo < demoted[0] <= hi)
-    return {"opposes_edges": opposes, "demoted": demoted_in,
+    demoted_in = bool(demoted and demoted[0] is not None and lo < demoted[0] <= e["horizon_at"])
+    return {"log_rows": sum(n for k, n in kinds.items() if k in UNDO_KINDS), "kinds": kinds,
+            "coverage": "full" if installed is not None and lo >= installed else "partial",
+            "legacy_heuristic": bool(opposes or demoted_in),
             "violated": state == "violated"}
 
 
 def _resolve(cx, e, state, now, d, ratio, sal, evidence):
     undo, eligible = None, None
     if e["producer"] == "owned_belief_expectations" and state in ("confirmed", "violated"):
-        undo = _undo_events(e, state)
-        eligible = int(bool(undo["opposes_edges"] or undo["demoted"] or undo["violated"]))
+        undo = _undo_events(e, state, now)
+        eligible = int(undo["log_rows"] > 0)     # denominator: >= 1 logged undo event
     cx.execute("UPDATE expectations SET state=?, resolved_at=?, resolved_by=?, discrepancy=?, "
                "ratio=?, salience=?, evidence=?, undo_eligible=?, undo_events=? WHERE id=?",
                (state, now, RECONCILER, d, ratio, sal, json.dumps(evidence), eligible,
@@ -593,42 +617,41 @@ def canaries(now: Optional[float] = None, window_s: float = 86400) -> list:
     out.append(("release_rate", r["rate"], r["terminal"], r["flag"],
                 "high = breach never fires = band 3 decorative"))
     u = belief_undo_divergence(now, window_s, falsifiability_status=f)
-    out.append(("belief_undo_divergence", float(u["overall_undo"]), u["owned_resolved"],
+    out.append(("belief_undo_divergence", float(u["blind_spot_hits"]), u["covered"],
                 u["diverged"], u["status"]))
     return out
 
 
+UNMEASURABLE = "UNMEASURABLE"
+
+
 def belief_undo_divergence(now: Optional[float] = None, window_s: float = 86400,
                            falsifiability_status: Optional[dict] = None) -> dict:
-    """Overall belief-undo signal -- NEW 'opposes' edges and demotions across the
-    WHOLE belief graph in the window -- against owned-belief falsifiability.
-    Undos happening while falsifiability still reads UNEXERCISED (with owned
-    windows resolved) = the blind spots biting: the trigger to BUILD the undo-log.
-    Also the tracker for time-to-first-organic-valence."""
-    now = time.time() if now is None else now
-    f = falsifiability_status or falsifiability()
-    bx = connect(f"file:{_db('beliefs')}?mode=ro", uri=True, timeout=10)
+    """PER BELIEF: among resolved owned-belief windows FULLY covered by the undo
+    log, how many held undo events the old window check (new opposes edge /
+    last_demoted_at) could not see -- the two blind spots, measured instead of
+    inferred. Until one such window exists this reads UNMEASURABLE. (The earlier
+    graph-wide-vs-per-belief comparison is withdrawn: different populations.)"""
+    cx = connect(f"file:{_db('conversations')}?mode=ro", uri=True, timeout=10)
     try:
-        opposes = bx.execute("SELECT COUNT(*) FROM belief_edges WHERE edge_type='opposes' "
-                             "AND created_at > ? AND created_at <= ?",
-                             (now - window_s, now)).fetchone()[0]
-        demoted = bx.execute("SELECT COUNT(*) FROM beliefs WHERE last_demoted_at > ? "
-                             "AND last_demoted_at <= ?", (now - window_s, now)).fetchone()[0]
+        rows = [json.loads(r[0]) for r in cx.execute(
+            "SELECT undo_events FROM expectations WHERE producer = 'owned_belief_expectations' "
+            "AND undo_events IS NOT NULL")]
     finally:
-        bx.close()
-    overall = opposes + demoted
-    unexercised = f["exercised"] == 0
-    diverged = bool(overall and unexercised and f["resolved"])
-    if diverged:
-        status = (f"BUILD UNDO-LOG: {overall} belief undos in window (opposes={opposes}, "
-                  f"demoted={demoted}) while falsifiability UNEXERCISED over "
-                  f"{f['resolved']} owned resolutions")
-    elif unexercised and not f["resolved"]:
-        status = f"pending: {overall} undos in window, no owned window resolved yet"
-    else:
-        status = f"{overall} undos in window; falsifiability {f['status']}"
-    return {"overall_undo": overall, "opposes": opposes, "demoted": demoted,
-            "owned_resolved": f["resolved"], "diverged": diverged, "status": status}
+        cx.close()
+    covered = [r for r in rows if r.get("coverage") == "full"]
+    partial = len(rows) - len(covered)
+    if not covered:
+        return {"covered": 0, "partial": partial, "with_undo": 0, "blind_spot_hits": 0,
+                "diverged": False,
+                "status": f"{UNMEASURABLE}: no owned window fully covered by the undo log yet "
+                          f"({partial} partially covered)"}
+    with_undo = sum(1 for r in covered if r.get("log_rows"))
+    hits = sum(1 for r in covered if r.get("log_rows") and not r.get("legacy_heuristic"))
+    return {"covered": len(covered), "partial": partial, "with_undo": with_undo,
+            "blind_spot_hits": hits, "diverged": False,
+            "status": (f"{len(covered)} covered windows; {with_undo} with undo events; "
+                       f"{hits} invisible to the old window check")}
 
 
 ESCALATION_N = 50
@@ -641,21 +664,26 @@ def falsifiability(db_path=None) -> dict:
     Denominator 0 is UNEXERCISED -- not a rate, not 'confirmed', not 'quiet'."""
     cx = connect(f"file:{db_path or _db('conversations')}?mode=ro", uri=True, timeout=10)
     try:
-        resolved, exercised, violated = cx.execute(
+        resolved, exercised, violated, unlogged = cx.execute(
             "SELECT COUNT(*), COALESCE(SUM(undo_eligible = 1), 0), "
-            "COALESCE(SUM(undo_eligible = 1 AND state = 'violated'), 0) "
+            "COALESCE(SUM(undo_eligible = 1 AND state = 'violated'), 0), "
+            "COALESCE(SUM(COALESCE(undo_eligible, 0) = 0 AND state = 'violated'), 0) "
             "FROM expectations WHERE producer = 'owned_belief_expectations' "
             "AND state IN ('confirmed', 'violated')").fetchone()
     finally:
         cx.close()
+    # A violation with no logged undo (e.g. a deletion -- not a logged kind -- or a
+    # window opened before the log) is a coverage gap, reported, not hidden.
+    gap = f"; {unlogged} violations with no logged undo" if unlogged else ""
     if exercised:
-        status = f"{violated}/{exercised} undo-eligible windows violated"
+        status = f"{violated}/{exercised} undo-eligible windows violated{gap}"
         return {"resolved": resolved, "exercised": exercised, "rate": violated / exercised,
-                "status": status, "escalate": False}
+                "status": status, "escalate": False, "violated_unlogged": unlogged}
     escalate = resolved >= ESCALATION_N
     return {"resolved": resolved, "exercised": 0, "rate": None, "escalate": escalate,
+            "violated_unlogged": unlogged,
             "status": (f"{UNDO_UNEXERCISED}: 0 undo-eligible windows in {resolved} resolutions"
-                       if escalate else f"{UNEXERCISED} ({resolved} resolved)")}
+                       if escalate else f"{UNEXERCISED} ({resolved} resolved)") + gap}
 
 
 def external_drift(now: Optional[float] = None, window_s: float = 86400) -> dict:

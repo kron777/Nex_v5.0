@@ -566,19 +566,29 @@ class TestFalsifiability(_Store):
         self.assertTrue(got["falsifiability"][3])
         self.assertFalse(got["overall_confirmation_rate"][3])
 
-    def test_tested_confirmations_and_violations_form_the_denominator(self):
-        survived = self._owned(T0, opposes_at=T0 + 100)          # contradicted, still holds
-        demoted = self._owned(T0 + 1, demoted_at=T0 + 200)       # demoted in-window
-        outside = self._owned(T0 + 2, opposes_at=T0 - 50)        # contradiction predates it
-        broke = self._owned(T0 + 3, broken=True)                 # the undo succeeded
+    def test_the_undo_log_forms_the_denominator(self):
+        # The column heuristic (new opposes edge / last_demoted_at) is replaced by
+        # the per-belief undo log; a violation with no logged undo is a reported gap.
+        from substrate import Writer
+        from theory_x.stage3_world_model.undo_log import log_undo
+        w = Writer(self.bel, name="beliefs")
+        self.addCleanup(w.close)
+        tested = self._owned(T0)                    # contradicted (logged), still holds
+        legacy_only = self._owned(T0 + 1, opposes_at=T0 + 100)   # edge, but no log row
+        broke = self._owned(T0 + 2, broken=True)    # paused directly: no log row
+        cx = connect(self.conv)
+        ids = dict(cx.execute("SELECT id, belief_id FROM owned_belief_expectations").fetchall())
+        cx.close()
+        log_undo(w, "contradiction_raised", [ids[tested]], at=T0 + 50)
         X.reconcile(now=T0 + 2 * DAY)
         cx = connect(self.conv)
         elig = dict(cx.execute("SELECT producer_row_id, undo_eligible FROM expectations "
                                "WHERE producer='owned_belief_expectations'").fetchall())
         cx.close()
-        self.assertEqual([elig[r] for r in (survived, demoted, outside, broke)], [1, 1, 0, 1])
+        self.assertEqual([elig[r] for r in (tested, legacy_only, broke)], [1, 0, 0])
         f = X.falsifiability()
-        self.assertEqual((f["exercised"], f["rate"]), (3, 1 / 3))
+        self.assertEqual((f["exercised"], f["rate"], f["violated_unlogged"]), (1, 0.0, 1))
+        self.assertIn("1 violations with no logged undo", f["status"])
 
 
 class TestExternalDrift(_Store):
