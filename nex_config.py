@@ -59,6 +59,8 @@ KNOWN_FLAGS: dict[str, str] = {
     "NEX5_CHAT_MEMORY": "bool",
     "NEX5_CHAT_WORKSPACE": "str",
     "NEX5_CHAT_WORKSPACE_BUDGET": "int",
+    "NEX5_COMMITMENTS": "bool",
+    "NEX5_COMMITMENT_VALENCE": "bool",
     "NEX5_COMMIT_CLOSE": "bool",
     "NEX5_COMPASS": "bool",
     "NEX5_COMPASSION": "bool",

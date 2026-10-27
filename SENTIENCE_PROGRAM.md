@@ -268,3 +268,9 @@ young store *and* what a gaming selector would print, so it is logged without
 evidential weight; the evidential number is falsifiability (violations among
 windows in which an undo was attempted), and its zero-denominator state is
 reported as UNEXERCISED, never as a rate.
+
+**A claimed causal path is not a design premise until it is checked against the
+tree.** ("Commitment un-quiets B" was claimed, checked, and retracted: no breach
+writes to the belief graph, so commitments exercise band 3 and do not feed B.
+B's activation waits on organic contradiction pressure; time-to-first-organic-
+valence is unbounded and tracked by the belief-undo divergence canary, not awaited.)

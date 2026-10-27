@@ -188,11 +188,13 @@ class TestGuards(_Store):
         finally:
             cx.close()
 
-    def test_deferred_subjects_rejected_and_logged(self):
-        for subject in ("commitment", "goal"):
-            with self.assertLogs("substrate.guard", "ERROR"):
-                with self.assertRaisesRegex(sqlite3.IntegrityError, "deferred subject"):
-                    self._header(subject=subject, producer_row_id=hash(subject) % 1000)
+    def test_goal_rejected_commitment_allowed(self):
+        # commitment has its faculty now; goal stays deferred (its milestone IS a
+        # commitment, so a goal never resolves).
+        with self.assertLogs("substrate.guard", "ERROR"):
+            with self.assertRaisesRegex(sqlite3.IntegrityError, "deferred subject"):
+                self._header(subject="goal", producer_row_id=7)
+        self._header(subject="commitment", producer="commitments", producer_row_id=8)
 
     def test_producers_write_open_only(self):
         with self.assertLogs("substrate.guard", "ERROR"):

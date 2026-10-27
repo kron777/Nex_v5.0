@@ -19,8 +19,12 @@ module is the ONE place a claim is adjudicated:
 
 The schema enforces the single writer: a header can only be inserted 'open',
 and any state change whose resolved_by isn't 'reconciler' aborts and logs
-(nex_guard). commitment and goal subjects are rejected the same way until those
-faculties exist (a goal expectation must be about a MILESTONE, never the goal).
+(nex_guard). The goal subject is rejected the same way: a goal never resolves,
+its milestone IS a commitment (stage_world/commitments.py), which resolves to
+confirmed | breached (positive evidence only) | released (hers or the named
+counterparty's act) | unresolved (uncheckable, or no opportunity). Commitment
+valence (bands 2/3) sits behind NEX5_COMMITMENT_VALENCE; a commitment never
+writes to the belief graph.
 
 Scope (Beam, final): one valence-capable producer (owned-belief), surprise
 admissible in principle, self/world learning-only. Bands 2-3 untested here.
@@ -81,10 +85,10 @@ BELIEFS_DB = DbPath("beliefs")
 
 RECONCILER = "reconciler"
 SUBJECTS = ("self", "world", "surprise", "commitment", "goal")
-DEFERRED_SUBJECTS = ("commitment", "goal")
+DEFERRED_SUBJECTS = ("goal",)     # a goal's milestone IS a commitment
 STATES = ("open", "confirmed", "violated", "unresolved", "withdrawn", "superseded",
           "breached", "released")
-LABEL_BASES = ("exact_label", "strict_direction")   # R2: magnitude-free kinds
+LABEL_BASES = ("exact_label", "strict_direction", "deadline")   # R2: magnitude-free
 OWNED_KINDS = ("authored", "self")                  # authored + witnessed (D's kinds)
 EVIDENCE_GRACE_S = 2 * 3600       # horizon passed this long with no evidence -> unresolved
 CONFIRM_POSITIVE = 0.05           # a confirm at band >= 1: small, never paid for the easy
@@ -100,7 +104,11 @@ PRODUCERS = {
     "world_predictions": ("conversations", "world", "timer"),
     "predictions": ("dynamic", "surprise", "window"),
     "owned_belief_expectations": ("conversations", "self", "timer"),
+    "commitments": ("conversations", "commitment", "deadline"),
 }
+# Rows of a producer that are expectations at all (an intention has no
+# resolution point and is never headered).
+PRODUCER_FILTER = {"commitments": " AND kind = 'commitment'"}
 
 
 def learning_on() -> bool:
@@ -113,6 +121,11 @@ def mood_on() -> bool:
 
 def reconciler_on() -> bool:
     return os.environ.get("NEX5_RECONCILER") == "1"
+
+
+def commitment_valence_on() -> bool:
+    """Band 2/3 valence from commitments (OFF until the phase-2 controls pass)."""
+    return os.environ.get("NEX5_COMMITMENT_VALENCE") == "1"
 
 
 def _db(name):
@@ -156,8 +169,8 @@ def adjudicate(tolerance_basis: str, tolerance, salience_k, discrepancy: float):
 def valence(state, salience, cost_band, own, confidence_basis, confidence):
     """(event_valence, admitted, reason). Admission is a gate, never a weight on
     confidence (R3); stakes = cost band; band 0 is exactly 0."""
-    if state not in ("confirmed", "violated"):
-        return 0.0, 0, "no_verdict"
+    if state not in ("confirmed", "violated", "breached"):
+        return 0.0, 0, "no_verdict"      # incl. released: an act, never a betrayal
     if cost_band is None:          # made before cost bands were recorded
         return 0.0, 0, "band_unrecorded"
     if not cost_band:
@@ -167,8 +180,8 @@ def valence(state, salience, cost_band, own, confidence_basis, confidence):
     if own < 0.5:
         return 0.0, 0, "external_basis"
     band = cost_band / 4.0
-    if state == "violated":
-        return -1.0 * salience * band * own, 1, "violated"
+    if state in ("violated", "breached"):
+        return -1.0 * salience * band * own, 1, state
     return CONFIRM_POSITIVE * band * own, 1, "confirmed_not_info_weighted"
 
 
@@ -182,7 +195,7 @@ def _claimed(table, r) -> dict:
                 "baseline_price": r["baseline_price"], "arm": r["source"]}
     if table == "predictions":
         return {"prediction_type": r["prediction_type"], "within_distance": r["tolerance"]}
-    return json.loads(r["claimed_state"])
+    return json.loads(r["claimed_state"])   # owned-belief, commitments: frozen as stated
 
 
 def _stream(table, r) -> str:
@@ -192,6 +205,8 @@ def _stream(table, r) -> str:
         return f"world_prediction.{r['source']}"
     if table == "predictions":
         return f"predictive_substrate.{r['prediction_type']}"
+    if table == "commitments":
+        return f"commitment.{r['source']}"
     return "owned_belief"
 
 
@@ -215,8 +230,9 @@ def ingest(now: Optional[float] = None) -> int:
             try:
                 if not _has_table(src, table):
                     continue
-                rows = src.execute(f"SELECT * FROM {table} WHERE id > ? AND frozen = 'at_made' "
-                                   "ORDER BY id", (last,)).fetchall()
+                rows = src.execute(f"SELECT * FROM {table} WHERE id > ? AND frozen = 'at_made'"
+                                   + PRODUCER_FILTER.get(table, "") + " ORDER BY id",
+                                   (last,)).fetchall()
             finally:
                 if src is not cx:
                     src.close()
@@ -330,6 +346,19 @@ def reconcile(now: Optional[float] = None) -> dict:
                 d, ev = _evidence_world(cx, rid)
             elif table == "predictions":
                 d, ev = _evidence_surprise(rid)
+            elif table == "commitments":
+                from theory_x.stage_world import commitments as _cm
+                d, ev = _cm.evidence(cx, rid)
+                if d == "released":
+                    _resolve(cx, e, "released", now, None, None, None, ev)
+                    stats["released"] = stats.get("released", 0) + 1
+                    cx.execute("INSERT INTO event_valence (expectation_id, ts, valence, "
+                               "admitted, reason, state, salience, cost_band, ownership) "
+                               "VALUES (?,?,0.0,0,'released','released',NULL,?,?)",
+                               (e["id"], now, e["cost_band"], e["ownership"]))
+                    continue
+                if d is None:      # the deadline's window is complete: no more evidence
+                    ev["sentinel"] = True
             else:
                 d, ev = _evidence_owned(cx, rid)
             if d is None:
@@ -339,10 +368,14 @@ def reconcile(now: Optional[float] = None) -> dict:
                 continue
             state, ratio, sal = adjudicate(e["tolerance_basis"], e["tolerance"],
                                            e["salience_k"], d)
+            if table == "commitments" and state == "violated":
+                state = "breached"          # its own terminal: positive evidence, unmet
             _resolve(cx, e, state, now, d, ratio, sal, ev)
-            stats[state] += 1
+            stats[state] = stats.get(state, 0) + 1
             v, admitted, reason = valence(state, sal, e["cost_band"], e["ownership"],
                                           e["confidence_basis"], e["confidence"])
+            if table == "commitments" and admitted and not commitment_valence_on():
+                v, admitted, reason = 0.0, 0, "commitment_valence_off"
             cx.execute("INSERT INTO event_valence (expectation_id, ts, valence, admitted, "
                        "reason, state, salience, cost_band, ownership) "
                        "VALUES (?,?,?,?,?,?,?,?,?)",
@@ -393,8 +426,8 @@ def _resolve(cx, e, state, now, d, ratio, sal, evidence):
                "ratio=?, salience=?, evidence=?, undo_eligible=?, undo_events=? WHERE id=?",
                (state, now, RECONCILER, d, ratio, sal, json.dumps(evidence), eligible,
                 None if undo is None else json.dumps(undo), e["id"]))
-    if e["producer"] == "owned_belief_expectations":
-        cx.execute("UPDATE owned_belief_expectations SET state=?, resolved_at=?, "
+    if e["producer"] in ("owned_belief_expectations", "commitments"):
+        cx.execute(f"UPDATE {e['producer']} SET state=?, resolved_at=?, "
                    "resolved_by=?, observed_state=? WHERE id=?",
                    (state, now, RECONCILER, json.dumps(evidence), e["producer_row_id"]))
 
@@ -406,6 +439,11 @@ def _learn(cx, e, state, sal, now) -> int:
 
     Ownership deliberately does NOT scale the step here: it would zero learning
     on an external basis, which R7 and the three-cell test require to move."""
+    # HARD NEVER: a commitment writes nothing to the belief graph -- a breach is
+    # adjudicated against its own discharge condition, not turned into a
+    # contradiction so a metric has inputs.
+    if e["producer"] == "commitments":
+        return 0
     basis = json.loads(e["basis_snapshot"] or "[]")
     if not basis or state not in ("confirmed", "violated"):
         return 0
@@ -550,7 +588,47 @@ def canaries(now: Optional[float] = None, window_s: float = 86400) -> list:
                 "mean authored confidence; 5 straight falls = learning step too large"))
     x = external_drift(now, window_s)
     out.append(("external_drift", x["external"], x["rows"], x["dominates"], json.dumps(x)))
+    from theory_x.stage_world.commitments import release_rate
+    r = release_rate()
+    out.append(("release_rate", r["rate"], r["terminal"], r["flag"],
+                "high = breach never fires = band 3 decorative"))
+    u = belief_undo_divergence(now, window_s, falsifiability_status=f)
+    out.append(("belief_undo_divergence", float(u["overall_undo"]), u["owned_resolved"],
+                u["diverged"], u["status"]))
     return out
+
+
+def belief_undo_divergence(now: Optional[float] = None, window_s: float = 86400,
+                           falsifiability_status: Optional[dict] = None) -> dict:
+    """Overall belief-undo signal -- NEW 'opposes' edges and demotions across the
+    WHOLE belief graph in the window -- against owned-belief falsifiability.
+    Undos happening while falsifiability still reads UNEXERCISED (with owned
+    windows resolved) = the blind spots biting: the trigger to BUILD the undo-log.
+    Also the tracker for time-to-first-organic-valence."""
+    now = time.time() if now is None else now
+    f = falsifiability_status or falsifiability()
+    bx = connect(f"file:{_db('beliefs')}?mode=ro", uri=True, timeout=10)
+    try:
+        opposes = bx.execute("SELECT COUNT(*) FROM belief_edges WHERE edge_type='opposes' "
+                             "AND created_at > ? AND created_at <= ?",
+                             (now - window_s, now)).fetchone()[0]
+        demoted = bx.execute("SELECT COUNT(*) FROM beliefs WHERE last_demoted_at > ? "
+                             "AND last_demoted_at <= ?", (now - window_s, now)).fetchone()[0]
+    finally:
+        bx.close()
+    overall = opposes + demoted
+    unexercised = f["exercised"] == 0
+    diverged = bool(overall and unexercised and f["resolved"])
+    if diverged:
+        status = (f"BUILD UNDO-LOG: {overall} belief undos in window (opposes={opposes}, "
+                  f"demoted={demoted}) while falsifiability UNEXERCISED over "
+                  f"{f['resolved']} owned resolutions")
+    elif unexercised and not f["resolved"]:
+        status = f"pending: {overall} undos in window, no owned window resolved yet"
+    else:
+        status = f"{overall} undos in window; falsifiability {f['status']}"
+    return {"overall_undo": overall, "opposes": opposes, "demoted": demoted,
+            "owned_resolved": f["resolved"], "diverged": diverged, "status": status}
 
 
 ESCALATION_N = 50
