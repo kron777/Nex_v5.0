@@ -49,6 +49,11 @@ import urllib.request
 import json
 from typing import Optional
 
+from theory_x.stage_world.frozen_at_made import (
+    COIN, FROZEN_INSERT_COLS, FROZEN_PLACEHOLDERS,
+    ensure_frozen_columns, frozen_values, snapshot_stakes,
+)
+
 logger = logging.getLogger("nex5.self_pred")
 
 # How NEX reads its own state — same endpoint the dashboard uses.
@@ -102,7 +107,11 @@ def ensure_schema(db_path: str) -> None:
             "resolve_at REAL NOT NULL, "
             "resolved_at REAL, "
             "actual TEXT, "                     # 'fire' or 'nofire'
-            "outcome TEXT)"                     # 'correct' or 'wrong'
+            "outcome TEXT, "                    # 'correct' or 'wrong'
+            # build B phase 0, frozen at made_at (= frozen_at_made.FROZEN_COLUMNS)
+            "confidence REAL, confidence_basis TEXT, tolerance REAL, tolerance_basis TEXT, "
+            "stakes_at_made REAL, stakes_active_at_made INTEGER, groove_cost_at_made REAL, "
+            "frozen TEXT)"
         )
         # 3(b): generalise to multiple prediction KINDS. Default 'fire' for the
         # existing rows so the original scorecard is unchanged.
@@ -111,6 +120,7 @@ def ensure_schema(db_path: str) -> None:
             conn.execute(
                 "ALTER TABLE self_predictions ADD COLUMN kind TEXT NOT NULL DEFAULT 'fire'"
             )
+        ensure_frozen_columns(conn, "self_predictions")
         conn.commit()
     finally:
         conn.close()
@@ -159,14 +169,21 @@ def make_self_prediction(db_path: Optional[str] = None, horizon: int = HORIZON) 
 
     now = time.time()
     resolve_at = now + horizon
+    stakes = snapshot_stakes()
     conn = _connect(db_path)
     try:
         for src, pred in (("self", self_pred), ("random", coin_pred)):
+            # readiness is a self-read against a threshold, not a probability:
+            # the fire arm states no confidence, so none is recorded.
+            frozen = (frozen_values(None, "none_stated", 0.0, "exact_label", stakes)
+                      if src == "self"
+                      else frozen_values(COIN, "coin", 0.0, "exact_label", stakes))
             conn.execute(
                 "INSERT INTO self_predictions "
-                "(made_at, source, kind, predicted, readiness, baseline_fires, resolve_at) "
-                "VALUES (?, ?, 'fire', ?, ?, ?, ?)",
-                (now, src, pred, readiness, baseline_fires, resolve_at),
+                "(made_at, source, kind, predicted, readiness, baseline_fires, resolve_at, "
+                + FROZEN_INSERT_COLS + ") "
+                "VALUES (?, ?, 'fire', ?, ?, ?, ?, " + FROZEN_PLACEHOLDERS + ")",
+                (now, src, pred, readiness, baseline_fires, resolve_at, *frozen),
             )
         conn.commit()
     finally:
@@ -577,17 +594,26 @@ def _distinctive_tokens(s: str) -> set:
     return set(re.findall(r"[a-z]{5,}", (s or "").lower()))
 
 
-def _insert_pred(db_path, kind, rows, resolve_at, signal=None):
-    """rows: list of (source, predicted). signal stored in the readiness column."""
+def _insert_pred(db_path, kind, rows, resolve_at, signal=None, confidence=None):
+    """rows: list of (source, predicted). signal stored in the readiness column.
+    confidence: the 'self' row's stated P(predicted), or None if it states none."""
+    stakes = snapshot_stakes()
     conn = _connect(db_path)
     now = time.time()
     try:
         for src, pred in rows:
+            if src == "random":
+                frozen = frozen_values(COIN, "coin", 0.0, "exact_label", stakes)
+            elif confidence is not None:
+                frozen = frozen_values(confidence, "stated_p", 0.0, "exact_label", stakes)
+            else:
+                frozen = frozen_values(None, "none_stated", 0.0, "exact_label", stakes)
             conn.execute(
                 "INSERT INTO self_predictions "
-                "(made_at, source, kind, predicted, readiness, baseline_fires, resolve_at) "
-                "VALUES (?,?,?,?,?,?,?)",
-                (now, src, kind, pred, signal, 0, resolve_at),
+                "(made_at, source, kind, predicted, readiness, baseline_fires, resolve_at, "
+                + FROZEN_INSERT_COLS + ") "
+                "VALUES (?,?,?,?,?,?,?, " + FROZEN_PLACEHOLDERS + ")",
+                (now, src, kind, pred, signal, 0, resolve_at, *frozen),
             )
         conn.commit()
     finally:
@@ -749,7 +775,8 @@ def make_selfdesc_prediction(db_path: Optional[str] = None,
     # resolves when the next statement appears; horizon is advisory only.
     _insert_pred(db_path, "selfdesc_novel",
                  [("self", self_pred), ("random", coin)],
-                 time.time() + 86400, signal=float(len(cur)))
+                 time.time() + 86400, signal=float(len(cur)),
+                 confidence=p if self_pred == "differ" else 1.0 - p)
     return {"kind": "selfdesc_novel", "self": self_pred, "coin": coin,
             "last_was_novel": last_was_novel, "p_differ": round(p, 4),
             "branch": branch, "eff_n": round(eff, 1),
