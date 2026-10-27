@@ -22,6 +22,7 @@ from typing import Optional
 
 import errors
 from substrate import Writer, Reader
+from substrate.source_kind import classify_stream
 from .bonsai import BonsaiTree, _aggregate_texture_num, _CADENCE_REFRESH_TICKS
 from .membrane import Membrane
 from .pipeline import run_pipeline
@@ -167,6 +168,23 @@ def _is_near_duplicate(beliefs_reader, title: str, cutoff: int) -> bool:
         return False
 
 
+def _write_sense_belief(beliefs_writer, title: str, stream: str,
+                        created_at: int, branch_id: str) -> None:
+    """Crystallize one sense title, carrying the stream that produced it.
+
+    The stream is in hand only here; once the row exists it can't be
+    recovered, so it is stamped onto the row (source_stream) with its kind.
+    """
+    beliefs_writer.write(
+        "INSERT INTO beliefs "
+        "(content, tier, confidence, created_at, branch_id, source, locked, "
+        "source_stream, source_kind) "
+        "VALUES (?, 7, 0.7, ?, ?, ?, 0, ?, ?)",
+        (title, created_at, branch_id, _DISTILL_SOURCE,
+         stream, classify_stream(stream)),
+    )
+
+
 def _sense_distillation_loop(state: DynamicState, stop: threading.Event) -> None:
     """Promote titled sense events to precipitated_from_sense beliefs (every 60s).
 
@@ -248,13 +266,9 @@ def _sense_distillation_loop(state: DynamicState, stop: threading.Event) -> None
                                     else row["stream"]
                                 )
                                 try:
-                                    beliefs_writer.write(
-                                        "INSERT INTO beliefs "
-                                        "(content, tier, confidence, created_at, "
-                                        "branch_id, source, locked) "
-                                        "VALUES (?, 7, 0.7, ?, ?, ?, 0)",
-                                        (title, int(row["timestamp"]),
-                                         branch_id, _DISTILL_SOURCE),
+                                    _write_sense_belief(
+                                        beliefs_writer, title, row["stream"],
+                                        int(row["timestamp"]), branch_id,
                                     )
                                     written += 1
                                 except Exception:

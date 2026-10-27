@@ -141,6 +141,7 @@ KNOWN_FLAGS: dict[str, str] = {
     "NEX5_SIG_QUALITY": "bool",
     "NEX5_SOCIAL_DEPTH": "bool",
     "NEX5_SOCIAL_N": "str",
+    "NEX5_SOURCE_KIND": "bool",
     "NEX5_SPEECH_ENABLED": "str",
     "NEX5_SPEECH_MIN_GAP": "float",
     "NEX5_SPEECH_PROB": "float",
