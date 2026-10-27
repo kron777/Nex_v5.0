@@ -261,6 +261,8 @@ def _activity_source_audit(date_local: str) -> str:
 
 def _activity_expectation_canaries(date_local: str) -> str:
     from theory_x.stage_world.expectations import record_canaries
+    from theory_x.stage_world import learning_guards
+    learning_guards.run()          # G2 action tier + attribution rule (each flag-gated)
     return record_canaries()
 
 

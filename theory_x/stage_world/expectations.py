@@ -431,6 +431,11 @@ def reconcile(now: Optional[float] = None) -> dict:
         cx.commit()
     finally:
         cx.close()
+    try:                     # G2/G4 evaluation tick: read-only metrics, own table
+        from theory_x.stage_world import learning_guards as _lg
+        _lg.record_tick(now)
+    except Exception as exc:
+        log.warning("learning guard tick failed: %s", exc)
     if any(stats[k] for k in ("confirmed", "violated", "unresolved")):
         log.info("reconciler: %s", stats)
     return stats
@@ -545,8 +550,17 @@ def _learn(cx, e, state, sal, now) -> int:
         n = len(rows)
         factor = (1.0 - LEARN_VIOLATE * sal / n) if state == "violated" \
             else (1.0 + LEARN_CONFIRM / n)
+        from theory_x.stage_world import learning_guards as _lg
         for bid, before, skind in rows:
             after = max(CONF_FLOOR, min(CONF_CEIL, before * factor))
+            # G1 (NEX5_LEARN_CAP): a magnitude STOP before the standard step --
+            # skipped whole, never clipped; logged as a skipped no-op row.
+            if _lg.cap_blocks(cx, e, bid, skind, after - before, now):
+                cx.execute("INSERT INTO expectation_learning_log (expectation_id, belief_id, ts, "
+                           "before, after, basis_kind, source_kind, factor, skipped) "
+                           "VALUES (?,?,?,?,?,?,?,NULL,1)",
+                           (e["id"], bid, now, before, before, e["basis_kind"], skind))
+                continue
             bx.execute("UPDATE beliefs SET confidence=? WHERE id=?", (after, bid))
             # Self-describing: the FROZEN basis kind of the expectation, the
             # belief's own kind now, and the factor (after/before is lossy at
@@ -561,40 +575,61 @@ def _learn(cx, e, state, sal, now) -> int:
         bx.close()
 
 
-def reconstruct_without_external(belief_id: int, current: float, db_path=None) -> dict:
-    """What this belief's confidence would be had no EXTERNAL-basis learning
-    delta ever applied -- learning's flip condition (subtractability).
-
-    Replays the belief's logged deltas in order from the first `before`:
-    owned-basis deltas re-applied with their recorded factor (and the same
-    clamps); external/none-basis deltas skipped; every change that happened
-    BETWEEN deltas (not learning: erosion, edits) carried through as-is, and
-    the change since the last delta likewise. Requires provenance on every
-    row; a legacy row (no basis_kind/factor) makes the belief unreconstructable."""
+def replay(belief_id: int, current: float, exclude, add_back_subtractions: bool,
+           db_path=None) -> dict:
+    """Replay a belief's logged learning deltas from the first `before`,
+    re-applying every delta NOT excluded with its recorded factor and clamps,
+    and carrying through every change between deltas (erosion, edits, prior
+    subtractions). add_back_subtractions=True treats prior subtractions as NOT
+    having happened (for a full counterfactual that already excludes what they
+    removed -- otherwise the same contribution is removed twice).
+    exclude(row) gets {id, ts, basis_kind}."""
     cx = connect(f"file:{db_path or _db('conversations')}?mode=ro", uri=True, timeout=10)
     try:
-        rows = cx.execute("SELECT before, after, basis_kind, factor FROM expectation_learning_log "
+        rows = cx.execute("SELECT id, ts, before, after, basis_kind, factor, "
+                          "COALESCE(skipped, 0) FROM expectation_learning_log "
                           "WHERE belief_id = ? ORDER BY id", (belief_id,)).fetchall()
+        subs = []
+        if add_back_subtractions and _has_table(cx, "learning_subtractions"):
+            for ts, before, after, reverted in cx.execute(
+                    "SELECT ts, before, after, reverted_at FROM learning_subtractions "
+                    "WHERE belief_id = ?", (belief_id,)):
+                subs.append((ts, before - after))          # undo the subtraction...
+                if reverted is not None:
+                    subs.append((reverted, after - before))  # ...unless it was reverted
     finally:
         cx.close()
     if not rows:
         return {"reconstructable": True, "confidence": current, "deltas": 0, "subtracted": 0}
-    if any(r[2] is None or r[3] is None for r in rows):
+    if any(r[4] is None or (r[5] is None and not r[6]) for r in rows):
         return {"reconstructable": False, "confidence": None, "deltas": len(rows),
                 "subtracted": None, "why": "legacy rows without provenance"}
-    conf = rows[0][0]
-    prev_after = rows[0][0]
-    subtracted = 0
-    for before, after, kind, factor in rows:
-        conf += before - prev_after                 # exogenous change since the last delta
-        if kind == "owned":
-            conf = max(CONF_FLOOR, min(CONF_CEIL, conf * factor))
+
+    def adj(lo, hi):
+        return sum(a for t, a in subs if lo < t <= hi)
+    conf = rows[0][2]
+    prev_after, prev_ts = rows[0][2], float("-inf")
+    skipped = 0
+    for rid, ts, before, after, kind, factor, cap_skipped in rows:
+        conf += (before - prev_after) + adj(prev_ts, ts)   # exogenous change since last delta
+        if cap_skipped:
+            pass                                            # G1 skip: a no-op, never applied
+        elif exclude({"id": rid, "ts": ts, "basis_kind": kind}):
+            skipped += 1
         else:
-            subtracted += 1
-        prev_after = after
-    conf += current - prev_after                     # exogenous change since the last delta
+            conf = max(CONF_FLOOR, min(CONF_CEIL, conf * factor))
+        prev_after, prev_ts = after, ts
+    conf += (current - prev_after) + adj(prev_ts, float("inf"))
     return {"reconstructable": True, "confidence": conf, "deltas": len(rows),
-            "subtracted": subtracted}
+            "subtracted": skipped}
+
+
+def reconstruct_without_external(belief_id: int, current: float, db_path=None) -> dict:
+    """What this belief's confidence would be had no EXTERNAL-basis learning
+    delta ever applied -- learning's flip condition (subtractability). Owned
+    deltas re-applied, external skipped, everything else carried through; any
+    subtraction already applied is added back (it removed external only)."""
+    return replay(belief_id, current, lambda r: r["basis_kind"] != "owned", True, db_path)
 
 
 # --------------------------------------------------------------- mood channel --
@@ -708,9 +743,11 @@ def canaries(now: Optional[float] = None, window_s: float = 86400) -> list:
     out.append(("confidence_drift", mean, len(seq), falling,
                 "mean authored confidence; 5 straight falls = learning step too large"))
     x = external_drift(now, window_s)
-    # Any external-basis drift on an authored belief is a finding (the silent-coup
-    # mode), not only when it dominates.
-    out.append(("external_drift", x["external"], x["rows"], x["external"] > 0, json.dumps(x)))
+    # Retired as a guard (external > owned compares populations of different
+    # size); kept as a quantity. The guards are G1-G4 in learning_guards.
+    out.append(("external_drift", x["external"], x["rows"], False, json.dumps(x)))
+    from theory_x.stage_world import learning_guards as _lg
+    out.extend(_lg.canary_rows(now))
     from theory_x.stage_world.commitments import release_rate
     r = release_rate()
     out.append(("release_rate", r["rate"], r["terminal"], r["flag"],
@@ -848,7 +885,9 @@ def falsifiability(db_path=None) -> dict:
     # reported apart); so a violation with no logged undo here is a belief that
     # is ALIVE and changed with no logged undo -- a genuine gap / possible silent undo.
     gap = f"; {unlogged} alive-belief violations with no logged undo (FINDING)" if unlogged else ""
-    gap += "".join(f"; {n} {k}" for k, n in sorted(side.items()))
+    labels = {"undone": "known-undone (censored)", "indeterminate": "indeterminate (censored)",
+              "voided": "voided"}
+    gap += "".join(f"; {n} {labels[k]}" for k, n in sorted(side.items()))
     if exercised:
         status = f"{violated}/{exercised} undo-eligible windows violated{gap}"
         return {"resolved": resolved, "exercised": exercised, "rate": violated / exercised,

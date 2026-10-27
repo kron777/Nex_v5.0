@@ -291,6 +291,16 @@ _MIGRATIONS: dict[str, list[str]] = {
         # an UPDATE but created in no schema, so on a fresh store the groove
         # breaker's anchor query failed silently and never fired.
         "ALTER TABLE beliefs ADD COLUMN last_voiced_at REAL",
+        # The 0.5 ownership gate is a WALL only while provenance can't be rewritten:
+        # once set, source_kind is immutable (filling a NULL is allowed -- D's
+        # insert stamping and its backfill only ever do that). RAISE only, no
+        # nex_guard(): the insert-stamping trigger's UPDATE compiles this one, so
+        # a function dependency here would break EVERY beliefs insert on any
+        # connection that lacks it. The abort still reaches the caller.
+        "CREATE TRIGGER IF NOT EXISTS trg_beliefs_source_kind_immutable "
+        "BEFORE UPDATE OF source_kind ON beliefs "
+        "WHEN OLD.source_kind IS NOT NULL AND NEW.source_kind IS NOT OLD.source_kind "
+        "BEGIN SELECT RAISE(ABORT, 'beliefs: source_kind is immutable once set'); END",
         # Undo log (theory_x/stage3_world_model/undo_log.py): every transition
         # that undoes (or could undo) a belief, written AT the transition site,
         # one row per affected belief. Append-only, guarded against UPDATE and
@@ -693,6 +703,24 @@ _MIGRATIONS: dict[str, list[str]] = {
         # the mood channel's "ever fired" line reads.
         "CREATE TABLE IF NOT EXISTS mood_nudge_applied ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL NOT NULL, nudge REAL NOT NULL)",
+        # Learning guards (theory_x/stage_world/learning_guards.py). A subtraction
+        # removes an exact external-basis contribution from a belief, review-
+        # required and reversible; cap hits are findings.
+        "CREATE TABLE IF NOT EXISTS learning_subtractions ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL NOT NULL, belief_id INTEGER NOT NULL, "
+        "window_start REAL NOT NULL, window_end REAL NOT NULL, window_id TEXT NOT NULL, "
+        "trigger TEXT NOT NULL, before REAL NOT NULL, after REAL NOT NULL, "
+        "delta_ids TEXT NOT NULL, review_required INTEGER NOT NULL DEFAULT 1, reverted_at REAL, "
+        "UNIQUE (window_id, belief_id))",
+        # G2's evaluation ticks (one per reconciler pass) and G4's sampling pool.
+        "CREATE TABLE IF NOT EXISTS learning_guard_ticks ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL NOT NULL, external REAL NOT NULL, "
+        "owned REAL NOT NULL, pool_external_share REAL)",
+        # A cap-skipped delta is logged as skipped (no factor): replay treats it as a no-op.
+        "ALTER TABLE expectation_learning_log ADD COLUMN skipped INTEGER",
+        "CREATE TABLE IF NOT EXISTS learning_cap_hits ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL NOT NULL, belief_id INTEGER NOT NULL, "
+        "expectation_id INTEGER NOT NULL, contribution REAL NOT NULL)",
         "CREATE TABLE IF NOT EXISTS affect_nudges ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, "
         "expectation_id INTEGER NOT NULL UNIQUE REFERENCES expectations(id), "
