@@ -24,6 +24,43 @@ faculties exist (a goal expectation must be about a MILESTONE, never the goal).
 
 Scope (Beam, final): one valence-capable producer (owned-belief), surprise
 admissible in principle, self/world learning-only. Bands 2-3 untested here.
+
+ADMISSIBILITY PRINCIPLE (standing design rule for every valence-capable producer):
+    A valence-capable claim's violation must be caused by a SUBSTANTIVE event --
+    an undo of her model (pause, demotion, erosion, deletion). NOT a bookkeeping
+    delta (the learning step, a rank shuffle, confidence drift), and NOT silence
+    (the absence of an event).
+  This is why the tempting alternatives are rejected on principle:
+    "X will be REINFORCED by T" -- violation = nothing happened: the empty-window
+        class (R6) transposed, manufacturing -1.0 from absence.
+    "X still OUTRANKS Y" -- violation = bookkeeping: learning alone reorders
+        beliefs, so valence would accrue from the ledger's own arithmetic (the
+        coupling R7 closed).
+
+CANARIES (nightly, expectation_canary_log):
+    overall_confirmation_rate  logged; NO evidential weight, never flags on its
+        own -- on a young store nothing undoes an authored belief, so ~1.0 is
+        arithmetic, and it prints the same number as a gaming selector would.
+    falsifiability  violation rate among owned-belief windows that contained an
+        undo-eligible event: a NEW 'opposes' edge on the belief, or a demotion
+        (last_demoted_at), in (made_at, resolve_at] -- or the violation itself.
+        Denominator 0 -> UNEXERCISED (not a rate). At >= 50 resolutions with 0
+        such windows -> "UNDO MECHANISMS UNEXERCISED": a store where nothing undoes
+        a belief is indistinguishable from undo machinery that never fires; that
+        gets instrumented, never the predicate sharpened.
+        Blind spots: a contradiction re-raised on an already-opposed pair (the
+        upsert keeps the original created_at; last_traversed_at is also stamped
+        by activation, so it can't stand in), and a pause undone within the window.
+    stakes_gate, unresolved_rate, confidence_drift  as named.
+    external_drift  |delta confidence| on AUTHORED beliefs from learning, split by
+        the expectation's basis (owned vs external). Learning is deliberately not
+        ownership-scaled (R7), so external-basis expectations can move her own
+        beliefs with no valence trace; this makes that drift visible. Flags when
+        external drift dominates.
+
+Confirmation valence (+0.05 at band >= 1) is NOT information-weighted: at a base
+rate ~1.0 a confirm carries ~0 bits. Surprisal weighting (-log(1-p)) is a
+separate, deferred build. Rows say so in their reason.
 """
 from __future__ import annotations
 
@@ -132,7 +169,7 @@ def valence(state, salience, cost_band, own, confidence_basis, confidence):
     band = cost_band / 4.0
     if state == "violated":
         return -1.0 * salience * band * own, 1, "violated"
-    return CONFIRM_POSITIVE * band * own, 1, "confirmed"
+    return CONFIRM_POSITIVE * band * own, 1, "confirmed_not_info_weighted"
 
 
 # ------------------------------------------------------------------- ingest --
@@ -327,10 +364,35 @@ def reconcile(now: Optional[float] = None) -> dict:
     return stats
 
 
+def _undo_events(e, state) -> dict:
+    """Undo-eligible events on an owned-belief's subject in (made_at, horizon_at]:
+    a NEW opposes edge to/from it, a demotion, or the violation itself."""
+    bid = json.loads(e["claimed_state"])["belief_id"]
+    lo, hi = e["made_at"], e["horizon_at"]
+    bx = connect(f"file:{_db('beliefs')}?mode=ro", uri=True, timeout=30)
+    try:
+        opposes = bx.execute(
+            "SELECT COUNT(*) FROM belief_edges WHERE edge_type = 'opposes' "
+            "AND (source_id = ? OR target_id = ?) AND created_at > ? AND created_at <= ?",
+            (bid, bid, lo, hi)).fetchone()[0]
+        demoted = bx.execute("SELECT last_demoted_at FROM beliefs WHERE id = ?",
+                             (bid,)).fetchone()
+    finally:
+        bx.close()
+    demoted_in = bool(demoted and demoted[0] is not None and lo < demoted[0] <= hi)
+    return {"opposes_edges": opposes, "demoted": demoted_in,
+            "violated": state == "violated"}
+
+
 def _resolve(cx, e, state, now, d, ratio, sal, evidence):
+    undo, eligible = None, None
+    if e["producer"] == "owned_belief_expectations" and state in ("confirmed", "violated"):
+        undo = _undo_events(e, state)
+        eligible = int(bool(undo["opposes_edges"] or undo["demoted"] or undo["violated"]))
     cx.execute("UPDATE expectations SET state=?, resolved_at=?, resolved_by=?, discrepancy=?, "
-               "ratio=?, salience=?, evidence=? WHERE id=?",
-               (state, now, RECONCILER, d, ratio, sal, json.dumps(evidence), e["id"]))
+               "ratio=?, salience=?, evidence=?, undo_eligible=?, undo_events=? WHERE id=?",
+               (state, now, RECONCILER, d, ratio, sal, json.dumps(evidence), eligible,
+                None if undo is None else json.dumps(undo), e["id"]))
     if e["producer"] == "owned_belief_expectations":
         cx.execute("UPDATE owned_belief_expectations SET state=?, resolved_at=?, "
                    "resolved_by=?, observed_state=? WHERE id=?",
@@ -378,6 +440,30 @@ def _learn(cx, e, state, sal, now) -> int:
 
 # --------------------------------------------------------------- mood channel --
 
+_mood_gate_logged = {"at": 0.0}
+MOOD_GATE_LOG_EVERY_S = 3600
+
+
+def mood_eligible(db_path=None) -> bool:
+    """Mood may take effect only once organic valence has been seen with BOTH
+    signs (admitted rows). One-sided positive valence plus mood = a monotone
+    inflation mechanism; the term must be seen opening AND blocking first."""
+    cx = connect(f"file:{db_path or _db('conversations')}?mode=ro", uri=True, timeout=10)
+    try:
+        pos, neg = cx.execute(
+            "SELECT COALESCE(SUM(valence > 0), 0), COALESCE(SUM(valence < 0), 0) "
+            "FROM event_valence WHERE admitted = 1").fetchone()
+    finally:
+        cx.close()
+    if pos and neg:
+        return True
+    now = time.time()
+    if now - _mood_gate_logged["at"] >= MOOD_GATE_LOG_EVERY_S:
+        _mood_gate_logged["at"] = now
+        log.info("mood gated: organic valence one-sided (pos=%d neg=%d)", pos, neg)
+    return False
+
+
 def mood_nudge(since: float, until: float, db_path=None) -> float:
     """The capped affect-valence nudge from event_valence in (since, until].
     One-way: this is read BY affect_state; nothing here reads mood."""
@@ -411,15 +497,27 @@ def canaries(now: Optional[float] = None, window_s: float = 86400) -> list:
     now = time.time() if now is None else now
     from theory_x.stage_world.owned_belief import confirmation_rate_canary
     c = confirmation_rate_canary()
-    out = [("confirmation_rate", c["rate"], c["resolved"], c["flag"], "owned-belief")]
+    out = [("overall_confirmation_rate", c["rate"], c["resolved"], False,
+            "owned-belief; logged only, no evidential weight at base rate ~1.0")]
+    f = falsifiability()
+    out.append(("falsifiability", f["rate"], f["exercised"], f["escalate"], f["status"]))
 
+    # The band is the deciding gate only on rows that cleared admission (R3, R4):
+    # those resolve as 'band_0' (blocked) or with a verdict reason (opened).
+    # Rows with no recorded band, or blocked earlier, say nothing about it.
     h = stakes_histogram()
-    band0_leak = sum(v["valence_nonzero"] for b, v in h.items() if not b)
-    opened = sum(v["valence_nonzero"] for b, v in h.items() if b)
-    total = sum(v["resolved"] for v in h.values())
-    out.append(("stakes_gate", float(opened), total,
-                bool(band0_leak or (total >= 20 and not opened)),
-                json.dumps({"histogram": h, "band0_nonzero": band0_leak})))
+    cx = connect(f"file:{_db('conversations')}?mode=ro", uri=True, timeout=10)
+    try:
+        blocked, opened, band0_leak = cx.execute(
+            "SELECT COALESCE(SUM(reason = 'band_0' AND ownership >= 0.5), 0), "
+            "COALESCE(SUM(admitted = 1 AND cost_band >= 1 AND valence != 0), 0), "
+            "COALESCE(SUM(cost_band = 0 AND valence != 0), 0) FROM event_valence").fetchone()
+    finally:
+        cx.close()
+    out.append(("stakes_gate", float(opened), blocked + opened, bool(band0_leak),
+                json.dumps({"opened": opened, "blocked_band0_owned": blocked,
+                            "band0_nonzero": band0_leak, "histogram": h,
+                            "seen_both_ways": bool(opened and blocked)})))
 
     cx = connect(f"file:{_db('conversations')}?mode=ro", uri=True, timeout=10)
     try:
@@ -450,7 +548,74 @@ def canaries(now: Optional[float] = None, window_s: float = 86400) -> list:
     falling = len(seq) >= 5 and all(b < a for a, b in zip(seq, seq[1:]))
     out.append(("confidence_drift", mean, len(seq), falling,
                 "mean authored confidence; 5 straight falls = learning step too large"))
+    x = external_drift(now, window_s)
+    out.append(("external_drift", x["external"], x["rows"], x["dominates"], json.dumps(x)))
     return out
+
+
+ESCALATION_N = 50
+UNEXERCISED = "UNEXERCISED"
+UNDO_UNEXERCISED = "UNDO MECHANISMS UNEXERCISED"
+
+
+def falsifiability(db_path=None) -> dict:
+    """Violation rate among owned-belief windows in which an undo was attempted.
+    Denominator 0 is UNEXERCISED -- not a rate, not 'confirmed', not 'quiet'."""
+    cx = connect(f"file:{db_path or _db('conversations')}?mode=ro", uri=True, timeout=10)
+    try:
+        resolved, exercised, violated = cx.execute(
+            "SELECT COUNT(*), COALESCE(SUM(undo_eligible = 1), 0), "
+            "COALESCE(SUM(undo_eligible = 1 AND state = 'violated'), 0) "
+            "FROM expectations WHERE producer = 'owned_belief_expectations' "
+            "AND state IN ('confirmed', 'violated')").fetchone()
+    finally:
+        cx.close()
+    if exercised:
+        status = f"{violated}/{exercised} undo-eligible windows violated"
+        return {"resolved": resolved, "exercised": exercised, "rate": violated / exercised,
+                "status": status, "escalate": False}
+    escalate = resolved >= ESCALATION_N
+    return {"resolved": resolved, "exercised": 0, "rate": None, "escalate": escalate,
+            "status": (f"{UNDO_UNEXERCISED}: 0 undo-eligible windows in {resolved} resolutions"
+                       if escalate else f"{UNEXERCISED} ({resolved} resolved)")}
+
+
+def external_drift(now: Optional[float] = None, window_s: float = 86400) -> dict:
+    """|delta confidence| on AUTHORED beliefs from the learning channel, attributed
+    to the basis of the expectation that caused it. Read-only."""
+    now = time.time() if now is None else now
+    cx = connect(f"file:{_db('conversations')}?mode=ro", uri=True, timeout=10)
+    try:
+        rows = cx.execute(
+            "SELECT l.belief_id, l.before, l.after, e.basis_kind FROM expectation_learning_log l "
+            "JOIN expectations e ON e.id = l.expectation_id WHERE l.ts > ?",
+            (now - window_s,)).fetchall()
+    finally:
+        cx.close()
+    ids = sorted({r[0] for r in rows})
+    authored = set()
+    if ids:
+        bx = connect(f"file:{_db('beliefs')}?mode=ro", uri=True, timeout=10)
+        try:
+            for i in range(0, len(ids), 500):
+                chunk = ids[i:i + 500]
+                authored |= {r[0] for r in bx.execute(
+                    "SELECT id FROM beliefs WHERE source_kind = 'authored' AND id IN "
+                    f"({','.join('?' * len(chunk))})", chunk)}
+        finally:
+            bx.close()
+    ext = own = 0.0
+    n = 0
+    for bid, before, after, kind in rows:
+        if bid not in authored:
+            continue
+        n += 1
+        if kind == "owned":
+            own += abs(after - before)
+        else:
+            ext += abs(after - before)
+    return {"rows": n, "external": round(ext, 6), "owned": round(own, 6),
+            "dominates": ext > 0 and ext > own}
 
 
 def record_canaries(now: Optional[float] = None) -> str:

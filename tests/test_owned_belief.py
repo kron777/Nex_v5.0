@@ -243,22 +243,19 @@ class TestConfirmationRateCanary(_Store):
         cx.commit(); cx.close()
         return ob.confirmation_rate_canary()
 
-    def test_fires_above_ninety_percent(self):
+    def test_logged_only_never_flags(self):
+        # Retired as a flag (Beam): ~1.0 at base rate is arithmetic, and prints the
+        # same number as a gaming selector. Logged, no evidential weight.
         c = self._resolved(19, 1)
-        self.assertEqual((c["resolved"], c["flag"]), (20, True))
+        self.assertEqual((c["resolved"], c["rate"], c["flag"]), (20, 0.95, False))
+        self.assertFalse(self._resolved(0, 30)["flag"])
 
-    def test_quiet_when_real_or_too_few(self):
-        self.assertFalse(self._resolved(17, 3)["flag"])
-
-    def test_too_few_never_flags(self):
-        self.assertEqual(self._resolved(10, 0)["flag"], False)
-
-    def test_nightly_activity_reports_it(self):
+    def test_nightly_activity_reports_it_without_weight(self):
         from theory_x.life import daily_life as dl
         self._resolved(19, 1)
-        with self.assertLogs("theory_x.stage_world.expectations", "WARNING"):
-            msg = dl._ACTIVITY_FUNCS["expectation_canaries"]("2026-10-27")
-        self.assertIn("CANARY", msg)
+        msg = dl._ACTIVITY_FUNCS["expectation_canaries"]("2026-10-27")
+        self.assertIn("overall_confirmation_rate=0.95", msg)
+        self.assertIn("falsifiability=n/a", msg)
 
 
 if __name__ == "__main__":
