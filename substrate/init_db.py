@@ -620,10 +620,15 @@ _MIGRATIONS: dict[str, list[str]] = {
         "ALTER TABLE expectations ADD COLUMN undo_events TEXT",
         "CREATE INDEX IF NOT EXISTS idx_expectations_state_horizon "
         "ON expectations(state, horizon_at)",
-        "CREATE TRIGGER IF NOT EXISTS trg_expectations_deferred_subject "
+        # commitment has its faculty now (stage_world/commitments.py); goal stays
+        # deferred -- a goal's milestone IS a commitment, so goals never resolve.
+        # Dropped and recreated so an aged store loses the old two-subject body.
+        "DROP TRIGGER IF EXISTS trg_expectations_deferred_subject",
+        "CREATE TRIGGER trg_expectations_deferred_subject "
         "BEFORE INSERT ON expectations "
-        "WHEN NEW.subject IN ('commitment','goal') "
-        "BEGIN SELECT nex_guard('expectations: deferred subject (no faculty)'); SELECT RAISE(ABORT, 'expectations: deferred subject (no faculty)'); END",
+        "WHEN NEW.subject = 'goal' "
+        "BEGIN SELECT nex_guard('expectations: deferred subject (no faculty)'); "
+        "SELECT RAISE(ABORT, 'expectations: deferred subject (no faculty)'); END",
         "CREATE TRIGGER IF NOT EXISTS trg_expectations_open_only_on_insert "
         "BEFORE INSERT ON expectations "
         "WHEN NEW.state != 'open' OR NEW.resolved_by IS NOT NULL "

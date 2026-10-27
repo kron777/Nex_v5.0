@@ -1097,6 +1097,14 @@ class SelfPredictionLoop:
                 _ob.make_owned_belief_expectation()
         except Exception as e:
             logger.warning("self_pred owned_belief error: %s", e)
+        # Commitments (dark; NEX5_COMMITMENTS): read her new utterances for stated
+        # obligations, intentions and releases. Writes only its own table.
+        try:
+            from theory_x.stage_world import commitments as _cm
+            if _cm.enabled():
+                _cm.scan()
+        except Exception as e:
+            logger.warning("self_pred commitments error: %s", e)
         # Build B: the single reconciler (NEX5_RECONCILER). Writes only the
         # ledger tables; learning and mood stay behind their own flags.
         try:
