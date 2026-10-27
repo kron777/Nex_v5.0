@@ -34,6 +34,11 @@ import urllib.parse
 from pathlib import Path
 from typing import Optional
 
+from theory_x.stage_world.frozen_at_made import (
+    COIN, FROZEN_INSERT_COLS, FROZEN_PLACEHOLDERS,
+    ensure_frozen_columns, frozen_values,
+)
+
 
 # --- DB path: matches the project convention (NEX5_DATA_DIR override) ---------
 def _default_db_path() -> str:
@@ -67,7 +72,11 @@ _SCHEMA = (
     # at create time (the ALTERs are skipped while the table is still absent).
     "trust_level TEXT, "
     "trust_gap REAL, "
-    "trust_n INTEGER)"
+    "trust_n INTEGER, "
+    # build B phase 0, frozen at made_at (= frozen_at_made.FROZEN_COLUMNS)
+    "confidence REAL, confidence_basis TEXT, tolerance REAL, tolerance_basis TEXT, "
+    "stakes_at_made REAL, stakes_active_at_made INTEGER, groove_cost_at_made REAL, "
+    "frozen TEXT)"
 )
 _IDX = (
     "CREATE INDEX IF NOT EXISTS idx_wp_resolve "
@@ -88,6 +97,7 @@ def ensure_schema(db_path: Optional[str] = None) -> None:
     try:
         conn.execute(_SCHEMA)
         conn.execute(_IDX)
+        ensure_frozen_columns(conn, "world_predictions")
     finally:
         conn.close()
 
@@ -122,6 +132,7 @@ def make_prediction(
     horizon_seconds: int = 3600,
     db_path: Optional[str] = None,
     source: str = "manual",
+    confidence: Optional[float] = None,
 ) -> Optional[int]:
     """Record a claim: `asset` will be `direction` (up/down) vs now, in
     `horizon_seconds`. Captures the real baseline price now. Returns row id,
@@ -134,15 +145,22 @@ def make_prediction(
     baseline = fetch_price(asset)
     if baseline is None:
         return None  # cannot make a falsifiable claim without a real baseline
+    if source == "random":
+        frozen = frozen_values(COIN, "coin", 0.0, "strict_direction")
+    elif confidence is not None:
+        frozen = frozen_values(confidence, "stated_p", 0.0, "strict_direction")
+    else:   # the voice answers one word, UP or DOWN: no probability is stated
+        frozen = frozen_values(None, "none_stated", 0.0, "strict_direction")
     now = time.time()
     conn = _connect(db_path)
     try:
         cur = conn.execute(
             "INSERT INTO world_predictions "
             "(made_at, asset, baseline_price, direction, horizon_seconds, "
-            "resolve_at, source) VALUES (?,?,?,?,?,?,?)",
+            "resolve_at, source, " + FROZEN_INSERT_COLS + ") "
+            "VALUES (?,?,?,?,?,?,?, " + FROZEN_PLACEHOLDERS + ")",
             (now, asset, baseline, direction, int(horizon_seconds),
-             now + horizon_seconds, source),
+             now + horizon_seconds, source, *frozen),
         )
         return int(cur.lastrowid)
     finally:
