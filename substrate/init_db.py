@@ -582,6 +582,83 @@ _MIGRATIONS: dict[str, list[str]] = {
         "notes TEXT)",
     ],
     "conversations": [
+        # ---- Build B: the expectations ledger (theory_x/stage_world/expectations.py).
+        # One header per expectation; producers keep their rich bodies and are
+        # linked by (producer, producer_row_id). All five subjects are declared;
+        # commitment and goal are deferred (no faculty) and REJECTED on insert.
+        # breached/released are declared, unreachable until commitments ship, so
+        # withdrawal can never be collapsed into betrayal later.
+        "CREATE TABLE IF NOT EXISTS expectations ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "subject TEXT NOT NULL CHECK (subject IN "
+        "('self','world','surprise','commitment','goal')), "
+        "producer TEXT NOT NULL, "
+        "producer_row_id INTEGER NOT NULL, "
+        "made_at REAL NOT NULL, "
+        "claimed_state TEXT NOT NULL, "
+        "confidence REAL, confidence_basis TEXT, "
+        "tolerance REAL, tolerance_basis TEXT, salience_k REAL, "
+        "cost_band INTEGER, basis_snapshot TEXT, "
+        "ownership REAL NOT NULL, "
+        "basis_kind TEXT NOT NULL, "
+        "producer_stream TEXT, "
+        "horizon_at REAL NOT NULL, "
+        "horizon_kind TEXT NOT NULL, "
+        "state TEXT NOT NULL DEFAULT 'open' CHECK (state IN "
+        "('open','confirmed','violated','unresolved','withdrawn','superseded',"
+        "'breached','released')), "
+        "resolved_at REAL, "
+        "resolved_by TEXT, "
+        "discrepancy REAL, "
+        "ratio REAL, "
+        "salience REAL, "
+        "evidence TEXT, "
+        "UNIQUE (producer, producer_row_id))",
+        "CREATE INDEX IF NOT EXISTS idx_expectations_state_horizon "
+        "ON expectations(state, horizon_at)",
+        "CREATE TRIGGER IF NOT EXISTS trg_expectations_deferred_subject "
+        "BEFORE INSERT ON expectations "
+        "WHEN NEW.subject IN ('commitment','goal') "
+        "BEGIN SELECT nex_guard('expectations: deferred subject (no faculty)'); SELECT RAISE(ABORT, 'expectations: deferred subject (no faculty)'); END",
+        "CREATE TRIGGER IF NOT EXISTS trg_expectations_open_only_on_insert "
+        "BEFORE INSERT ON expectations "
+        "WHEN NEW.state != 'open' OR NEW.resolved_by IS NOT NULL "
+        "BEGIN SELECT nex_guard('expectations: producers write open only'); SELECT RAISE(ABORT, 'expectations: producers write open only'); END",
+        "CREATE TRIGGER IF NOT EXISTS trg_expectations_single_reconciler "
+        "BEFORE UPDATE OF state, resolved_at, resolved_by ON expectations "
+        "WHEN NEW.resolved_by IS NOT 'reconciler' "
+        "BEGIN SELECT nex_guard('expectations: resolution not from the reconciler'); SELECT RAISE(ABORT, 'expectations: resolution not from the reconciler'); END",
+        "CREATE TABLE IF NOT EXISTS event_valence ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "expectation_id INTEGER NOT NULL UNIQUE REFERENCES expectations(id), "
+        "ts REAL NOT NULL, "
+        "valence REAL NOT NULL, "
+        "admitted INTEGER NOT NULL, "
+        "reason TEXT NOT NULL, "
+        "state TEXT NOT NULL, "
+        "salience REAL, "
+        "cost_band INTEGER, "
+        "ownership REAL)",
+        "CREATE TABLE IF NOT EXISTS expectation_learning_log ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "expectation_id INTEGER NOT NULL REFERENCES expectations(id), "
+        "belief_id INTEGER NOT NULL, "
+        "ts REAL NOT NULL, "
+        "before REAL NOT NULL, "
+        "after REAL NOT NULL)",
+        "CREATE TABLE IF NOT EXISTS affect_nudges ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "expectation_id INTEGER NOT NULL UNIQUE REFERENCES expectations(id), "
+        "ts REAL NOT NULL, "
+        "valence REAL NOT NULL)",
+        "CREATE TABLE IF NOT EXISTS expectation_canary_log ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "ts REAL NOT NULL, "
+        "name TEXT NOT NULL, "
+        "value REAL, "
+        "n INTEGER, "
+        "flag INTEGER NOT NULL, "
+        "detail TEXT)",
         # NEX5_PROVENANCE — what she held going INTO a turn, written before the
         # reply is composed, so reply provenance can be scored against a small
         # pre-turn set later instead of the whole belief graph.

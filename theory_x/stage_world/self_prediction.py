@@ -1097,6 +1097,14 @@ class SelfPredictionLoop:
                 _ob.make_owned_belief_expectation()
         except Exception as e:
             logger.warning("self_pred owned_belief error: %s", e)
+        # Build B: the single reconciler (NEX5_RECONCILER). Writes only the
+        # ledger tables; learning and mood stay behind their own flags.
+        try:
+            from theory_x.stage_world import expectations as _ex
+            if _ex.reconciler_on():
+                _ex.reconcile()
+        except Exception as e:
+            logger.warning("self_pred reconciler error: %s", e)
 
     def start_loop(self):
         import threading

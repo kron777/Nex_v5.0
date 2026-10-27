@@ -126,6 +126,14 @@ class _Store(unittest.TestCase):
         from substrate.paths import db_paths
         p = db_paths()
         self.bel, self.sense, self.dyn = str(p["beliefs"]), str(p["sense"]), str(p["dynamic"])
+        # As boot does (stage5 SelfLocationCommitment): the identity block's floor.
+        from substrate import Reader, Writer
+        from theory_x.stage5_self_location.commitment import SelfLocationCommitment
+        _w = Writer(self.bel, name="beliefs")
+        try:
+            SelfLocationCommitment().commit(_w, Reader(self.bel))
+        finally:
+            _w.close()
         quiet = self.assertNoLogs("substrate.schema_tripwire", "ERROR")
         quiet.__enter__()
         self.addCleanup(quiet.__exit__, None, None, None)
@@ -373,6 +381,31 @@ class TestIdentityFloor(_Store):
         for t in ("I am inclined to support that.", "I'm not sure.", "Nexus of trade",
                   "I am the one who noticed", None):
             self.assertFalse(c(t), t)
+
+
+class TestSeededGuard(_Store):
+    """Not affinity-scored and not retrievable are different facts."""
+
+    def test_fresh_store_seeds_unscored_and_retrievable(self):
+        from theory_x.stage_tom.source_kind_audit import seeded_guard
+        g = seeded_guard()
+        self.assertGreater(g["seeded_rows"], 0)
+        self.assertEqual((g["not_scored"], g["retrievable"]), (True, True))
+
+    def test_each_failure_is_seen_separately(self):
+        from theory_x.stage_tom.source_kind_audit import seeded_guard, audit
+        cx = connect(self.bel)
+        cx.execute("UPDATE beliefs SET affinity = 0.6 WHERE source = 'koan'")  # scored, still there
+        cx.commit(); cx.close()
+        g = seeded_guard()
+        self.assertEqual((g["not_scored"], g["retrievable"]), (False, True))
+        self.assertFalse(audit()["ok"])
+        cx = connect(self.bel)
+        cx.execute("UPDATE beliefs SET affinity = NULL")
+        cx.execute("UPDATE beliefs SET content = '' WHERE source IN ('identity','self_location')")
+        cx.commit(); cx.close()
+        g = seeded_guard()
+        self.assertEqual((g["not_scored"], g["retrievable"]), (True, False))
 
 
 class TestBackfill(_Store):

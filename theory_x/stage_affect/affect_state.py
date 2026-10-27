@@ -206,6 +206,15 @@ class AffectState:
         now = time.time()
 
         valence_delta   = self._compute_valence_delta()
+        # Build B two-channel coupling (NEX5_EXPECT_MOOD, OFF by default): mood may
+        # be nudged by event_valence, hard-capped per tick. One-way only.
+        from theory_x.stage_world import expectations as _ex
+        if _ex.mood_on():
+            try:
+                valence_delta += _ex.mood_nudge(self._last_updated, now)
+            except Exception as _me:
+                errors.record(f"AffectState mood nudge read failed: {_me}",
+                              source=_LOG_SOURCE)
         arousal_delta   = self._compute_arousal_delta()
         stability_target = self._compute_stability()
 
@@ -315,9 +324,14 @@ class AffectState:
 
     def _compute_valence_delta(self) -> float:
         """Confidence-weighted polarity of top-N high-tier beliefs → valence delta."""
+        # Build B (NEX5_EXPECT_MOOD): mood is never moved by the polarity of
+        # beliefs she merely read -- only her own (authored/witnessed/seeded).
+        from theory_x.stage_world.expectations import mood_on
+        own_only = (" AND source_kind IN ('authored','self','seeded')"
+                    if mood_on() else "")
         rows = self._br.read(
             "SELECT content, confidence FROM beliefs "
-            "WHERE tier >= 5 AND confidence > 0 "
+            "WHERE tier >= 5 AND confidence > 0" + own_only + " "
             "ORDER BY confidence DESC LIMIT ?",
             (_VALENCE_BELIEF_LIMIT,),
         )

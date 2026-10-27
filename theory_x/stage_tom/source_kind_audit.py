@@ -19,6 +19,9 @@ the beliefs retrieved into that fire -- only by identity-claim rows that are
 authored or seeded. "I am nex, the intelligence" arriving as a headline and
 being voiced as self is the failure this counts.
 
+Seeded guard: her founding claims are out of affinity scoring AND still
+retrievable by the identity block -- two facts, never conflated.
+
 Runs daily from daily_life (03:00) and records one row in
 source_kind_audit_log; also runnable by hand:
     PYTHONPATH=. .venv/bin/python -m theory_x.stage_tom.source_kind_audit
@@ -123,20 +126,46 @@ def identity_floor(beliefs_db=None, dynamic_db=None) -> dict:
     return out
 
 
+def seeded_guard(beliefs_db=None) -> dict:
+    """Seeded rows (her founding claims) are a provenance label OUT of affinity
+    scoring -- and must never become unretrievable because of it. Two separate
+    facts, checked separately so they can't be conflated:
+        not_scored    no seeded row carries an affinity score
+        retrievable   the identity block still finds its floor (it reads
+                      seeded rows by source, never by affinity)"""
+    from substrate import Reader
+    from theory_x.stage6_fountain import identity_block
+    path = str(beliefs_db or BELIEFS_DB)
+    cx = connect(path, timeout=30)
+    try:
+        seeded, scored = cx.execute(
+            "SELECT COUNT(*), SUM(affinity IS NOT NULL) FROM beliefs "
+            "WHERE source_kind = 'seeded'").fetchone()
+    finally:
+        cx.close()
+    floor = identity_block.select(Reader(path))
+    return {"seeded_rows": seeded, "seeded_affinity_scored": scored or 0,
+            "not_scored": not scored, "retrievable": bool(floor),
+            "floor_id": floor[0]["id"] if floor else None}
+
+
 def audit(beliefs_db=None, dynamic_db=None) -> dict:
     t = tier_audit(beliefs_db)
     f = identity_floor(beliefs_db, dynamic_db)
-    return {"tier": t, "identity_floor": f,
-            "ok": t["mismatches"] == 0 and t["unstamped"] == 0 and f["violations"] == 0}
+    g = seeded_guard(beliefs_db)
+    return {"tier": t, "identity_floor": f, "seeded": g,
+            "ok": (t["mismatches"] == 0 and t["unstamped"] == 0 and f["violations"] == 0
+                   and g["not_scored"] and g["retrievable"])}
 
 
 def run_and_record() -> str:
     """The nightly entry point: audit, log, append one row to the audit log."""
     r = audit()
-    t, f = r["tier"], r["identity_floor"]
+    t, f, g = r["tier"], r["identity_floor"], r["seeded"]
     summary = (f"rows={t['rows']} stream={t['with_stream']} mismatch={t['mismatches']} "
                f"unstamped={t['unstamped']} id_claims={f['claim_fires']} "
-               f"id_violations={f['violations']}")
+               f"id_violations={f['violations']} seeded_scored={g['seeded_affinity_scored']} "
+               f"floor_retrievable={g['retrievable']}")
     (log.info if r["ok"] else log.warning)("source_kind audit %s: %s",
                                            "PASS" if r["ok"] else "FAIL", summary)
     cx = connect(str(DYNAMIC_DB), timeout=30)
@@ -149,7 +178,7 @@ def run_and_record() -> str:
              f["claim_fires"], f["claim_support"], f["violations"], int(r["ok"]),
              json.dumps({"mismatch_ids": t["mismatch_ids"],
                          "unstamped_ids": t["unstamped_ids"],
-                         "violation_ids": f["violation_ids"]})))
+                         "violation_ids": f["violation_ids"], "seeded": g})))
         cx.commit()
     finally:
         cx.close()
