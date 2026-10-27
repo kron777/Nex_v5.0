@@ -589,7 +589,7 @@ class TestFalsifiability(_Store):
         self.assertEqual([elig[r] for r in (tested, legacy_only, broke)], [1, 0, 0])
         f = X.falsifiability()
         self.assertEqual((f["exercised"], f["rate"], f["violated_unlogged"]), (1, 0.0, 1))
-        self.assertIn("1 violations with no logged undo", f["status"])
+        self.assertIn("1 alive-belief violations with no logged undo (FINDING)", f["status"])
 
 
 class TestExternalDrift(_Store):

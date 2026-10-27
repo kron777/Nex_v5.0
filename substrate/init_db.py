@@ -300,7 +300,7 @@ _MIGRATIONS: dict[str, list[str]] = {
         "seq INTEGER PRIMARY KEY AUTOINCREMENT, "
         "belief_id INTEGER NOT NULL, "
         "kind TEXT NOT NULL CHECK (kind IN ('contradiction_raised','contradiction_cleared',"
-        "'paused','unpaused','demoted','eroded')), "
+        "'paused','unpaused','demoted','eroded','belief_deleted')), "
         "at REAL NOT NULL, "
         "cause_ref TEXT)",
         "CREATE INDEX IF NOT EXISTS idx_undo_events_belief_at ON undo_events(belief_id, at)",
@@ -630,7 +630,7 @@ _MIGRATIONS: dict[str, list[str]] = {
         "horizon_kind TEXT NOT NULL, "
         "state TEXT NOT NULL DEFAULT 'open' CHECK (state IN "
         "('open','confirmed','violated','unresolved','withdrawn','superseded',"
-        "'breached','released')), "
+        "'breached','released','undone','indeterminate','voided')), "
         "resolved_at REAL, "
         "resolved_by TEXT, "
         "discrepancy REAL, "
@@ -642,6 +642,10 @@ _MIGRATIONS: dict[str, list[str]] = {
         # (falsifiability canary's denominator; owned-belief rows only)
         "ALTER TABLE expectations ADD COLUMN undo_eligible INTEGER",
         "ALTER TABLE expectations ADD COLUMN undo_events TEXT",
+        # Left-censoring: a window opened before the undo log went live is only
+        # partially covered from coverage_start. Stamped on every owned window.
+        "ALTER TABLE expectations ADD COLUMN coverage TEXT",
+        "ALTER TABLE expectations ADD COLUMN coverage_start REAL",
         "CREATE INDEX IF NOT EXISTS idx_expectations_state_horizon "
         "ON expectations(state, horizon_at)",
         # commitment has its faculty now (stage_world/commitments.py); goal stays
@@ -1004,6 +1008,75 @@ def _apply_migrations(writers: dict[str, Writer]) -> None:
                 pass  # CREATE IF NOT EXISTS etc. are idempotent; swallow any remainder
 
 
+# CHECK constraints can't be altered in SQLite: a table whose CHECK predates a
+# widened value list is rebuilt (copy, drop, rename; indexes and triggers
+# re-created from their stored SQL). Keys: (db, table) -> (old list, new list).
+_CHECK_WIDENINGS = {
+    ("beliefs", "undo_events"): (
+        "'paused','unpaused','demoted','eroded')",
+        "'paused','unpaused','demoted','eroded','belief_deleted')"),
+    ("conversations", "expectations"): (
+        "'breached','released')",
+        "'breached','released','undone','indeterminate','voided')"),
+}
+
+# Deletion is logged losslessly (a bookkeeping act, not an undo): one trigger at
+# the transition itself catches every path, raw SQL included.
+_BELIEF_DELETED_TRIGGER = (
+    "CREATE TRIGGER IF NOT EXISTS trg_beliefs_deleted_log AFTER DELETE ON beliefs "
+    "BEGIN INSERT INTO undo_events (belief_id, kind, at, cause_ref) VALUES "
+    "(OLD.id, 'belief_deleted', (julianday('now') - 2440587.5) * 86400.0, "
+    "'delete:' || COALESCE(OLD.source, '')); END"
+)
+
+
+def _widen_checks(paths) -> None:
+    # The deletion trigger lives on beliefs but writes undo_events: drop it while
+    # undo_events is rebuilt (a dangling reference blocks the rename); re-created below.
+    cx = connect(str(paths["beliefs"]), timeout=30)
+    try:
+        cx.execute("DROP TRIGGER IF EXISTS trg_beliefs_deleted_log")
+        cx.commit()
+    finally:
+        cx.close()
+    for (dbname, table), (old, new) in _CHECK_WIDENINGS.items():
+        cx = connect(str(paths[dbname]), timeout=30, isolation_level=None)
+        try:
+            row = cx.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name=?",
+                             (table,)).fetchone()
+            if row is None or old not in row[0]:
+                continue
+            extras = [r[0] for r in cx.execute(
+                "SELECT sql FROM sqlite_master WHERE tbl_name=? AND type IN ('index','trigger') "
+                "AND sql IS NOT NULL", (table,))]
+            create_new = re.sub(rf"^CREATE TABLE (IF NOT EXISTS )?{table}\b",
+                                f"CREATE TABLE {table}__new", row[0].replace(old, new), count=1)
+            cx.execute("PRAGMA foreign_keys=OFF")
+            cx.execute("BEGIN IMMEDIATE")
+            try:
+                cx.execute(create_new)
+                cx.execute(f"INSERT INTO {table}__new SELECT * FROM {table}")
+                cx.execute(f"DROP TABLE {table}")
+                cx.execute(f"ALTER TABLE {table}__new RENAME TO {table}")
+                for sql in extras:
+                    cx.execute(sql)
+                cx.execute("COMMIT")
+            except Exception:
+                cx.execute("ROLLBACK")
+                raise
+            finally:
+                cx.execute("PRAGMA foreign_keys=ON")
+            logger.info("Widened CHECK on %s.%s", dbname, table)
+        finally:
+            cx.close()
+    cx = connect(str(paths["beliefs"]), timeout=30)
+    try:
+        cx.execute(_BELIEF_DELETED_TRIGGER)
+        cx.commit()
+    finally:
+        cx.close()
+
+
 def init_all() -> None:
     data_dir().mkdir(parents=True, exist_ok=True)
     paths = db_paths()
@@ -1018,6 +1091,8 @@ def init_all() -> None:
 
         # Apply additive column migrations for existing DBs (idempotent)
         _apply_migrations(writers)
+
+        _widen_checks(paths)
 
         # Build B: frozen-at-made fields on the surprise producer's rows
         # (predictions is created here, not lazily; old rows -> legacy_unfrozen).

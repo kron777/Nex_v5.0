@@ -88,7 +88,10 @@ RECONCILER = "reconciler"
 SUBJECTS = ("self", "world", "surprise", "commitment", "goal")
 DEFERRED_SUBJECTS = ("goal",)     # a goal's milestone IS a commitment
 STATES = ("open", "confirmed", "violated", "unresolved", "withdrawn", "superseded",
-          "breached", "released")
+          "breached", "released",
+          # owned-belief windows: left-censored (opened before the undo log) ->
+          # undone | indeterminate, never confirmed; subject belief deleted -> voided
+          "undone", "indeterminate", "voided")
 LABEL_BASES = ("exact_label", "strict_direction", "deadline")   # R2: magnitude-free
 OWNED_KINDS = ("authored", "self")                  # authored + witnessed (D's kinds)
 EVIDENCE_GRACE_S = 2 * 3600       # horizon passed this long with no evidence -> unresolved
@@ -316,8 +319,18 @@ def _evidence_owned(cx, row_id):
     finally:
         bx.close()
     if b is None:
-        observed = {"exists": False}
-        holds = False
+        # Deletion is bookkeeping, not a contradiction: the window is VOIDED
+        # (zero valence, never breached/violated), with the deletion's log ref.
+        lx = connect(f"file:{_db('beliefs')}?mode=ro", uri=True, timeout=30)
+        try:
+            d = lx.execute("SELECT seq, at, cause_ref FROM undo_events WHERE belief_id = ? AND "
+                           "kind = 'belief_deleted' ORDER BY seq DESC LIMIT 1",
+                           (r["belief_id"],)).fetchone()
+        finally:
+            lx.close()
+        return "voided", {"exists": False, "why": "belief_deleted",
+                          "event_seq": d[0] if d else None, "deleted_at": d[1] if d else None,
+                          "cause_ref": d[2] if d else None}
     else:
         observed = {"exists": True, "tier": b["tier"], "paused": b["paused"],
                     "erosion_stage": b["erosion_stage"]}
@@ -338,6 +351,7 @@ def reconcile(now: Optional[float] = None) -> dict:
     stats = {"ingested": ingested, "confirmed": 0, "violated": 0, "unresolved": 0,
              "valence_nonzero": 0, "learned": 0}
     try:
+        _stamp_coverage(cx)
         due = cx.execute("SELECT * FROM expectations WHERE state = 'open' AND horizon_at <= ? "
                          "ORDER BY id", (now,)).fetchall()
         for e in due:
@@ -363,6 +377,14 @@ def reconcile(now: Optional[float] = None) -> dict:
                     ev["sentinel"] = True
             else:
                 d, ev = _evidence_owned(cx, rid)
+                if d == "voided":
+                    _resolve(cx, e, "voided", now, None, None, None, ev)
+                    stats["voided"] = stats.get("voided", 0) + 1
+                    cx.execute("INSERT INTO event_valence (expectation_id, ts, valence, "
+                               "admitted, reason, state, salience, cost_band, ownership) "
+                               "VALUES (?,?,0.0,0,'voided','voided',NULL,?,?)",
+                               (e["id"], now, e["cost_band"], e["ownership"]))
+                    continue
             if d is None:
                 if ev.get("sentinel") or now >= e["horizon_at"] + EVIDENCE_GRACE_S:
                     _resolve(cx, e, "unresolved", now, None, None, None, ev)
@@ -372,6 +394,21 @@ def reconcile(now: Optional[float] = None) -> dict:
                                            e["salience_k"], d)
             if table == "commitments" and state == "violated":
                 state = "breached"          # its own terminal: positive evidence, unmet
+            if table == "owned_belief_expectations" and e["coverage"] == "partial":
+                # LEFT-CENSORED: an undo seen in the covered span counts; no undo
+                # seen is indeterminate, never confirmed (the uncovered span may
+                # hold one). No valence, no learning, out of falsifiability's rate.
+                verdict = state
+                undo = _undo_events(e, verdict, now)
+                state = "undone" if (undo["log_rows"] or verdict == "violated") \
+                    else "indeterminate"
+                _resolve(cx, e, state, now, d, ratio, sal, ev, verdict=verdict)
+                stats[state] = stats.get(state, 0) + 1
+                cx.execute("INSERT INTO event_valence (expectation_id, ts, valence, admitted, "
+                           "reason, state, salience, cost_band, ownership) "
+                           "VALUES (?,?,0.0,0,'partial_coverage',?,?,?,?)",
+                           (e["id"], now, state, sal, e["cost_band"], e["ownership"]))
+                continue
             _resolve(cx, e, state, now, d, ratio, sal, ev)
             stats[state] = stats.get(state, 0) + 1
             v, admitted, reason = valence(state, sal, e["cost_band"], e["ownership"],
@@ -441,10 +478,29 @@ def _undo_events(e, state, now) -> dict:
             "violated": state == "violated"}
 
 
-def _resolve(cx, e, state, now, d, ratio, sal, evidence):
+def _stamp_coverage(cx) -> None:
+    """Stamp every owned-belief window's undo-log coverage, once: 'full' if it
+    opened after the log went live, else 'partial' from installed_at. Done for
+    open windows too, so the accounting never has to be reconstructed later."""
+    bx = connect(f"file:{_db('beliefs')}?mode=ro", uri=True, timeout=30)
+    try:
+        installed = undo_log_installed_at(bx)
+    finally:
+        bx.close()
+    if installed is None:
+        return
+    cx.execute("UPDATE expectations SET "
+               "coverage = CASE WHEN made_at >= ? THEN 'full' ELSE 'partial' END, "
+               "coverage_start = CASE WHEN made_at >= ? THEN made_at ELSE ? END "
+               "WHERE producer = 'owned_belief_expectations' AND coverage IS NULL",
+               (installed, installed, installed))
+
+
+def _resolve(cx, e, state, now, d, ratio, sal, evidence, verdict=None):
     undo, eligible = None, None
-    if e["producer"] == "owned_belief_expectations" and state in ("confirmed", "violated"):
-        undo = _undo_events(e, state, now)
+    if e["producer"] == "owned_belief_expectations" and state in (
+            "confirmed", "violated", "undone", "indeterminate"):
+        undo = _undo_events(e, verdict or state, now)
         eligible = int(undo["log_rows"] > 0)     # denominator: >= 1 logged undo event
     cx.execute("UPDATE expectations SET state=?, resolved_at=?, resolved_by=?, discrepancy=?, "
                "ratio=?, salience=?, evidence=?, undo_eligible=?, undo_events=? WHERE id=?",
@@ -652,7 +708,9 @@ def canaries(now: Optional[float] = None, window_s: float = 86400) -> list:
     out.append(("confidence_drift", mean, len(seq), falling,
                 "mean authored confidence; 5 straight falls = learning step too large"))
     x = external_drift(now, window_s)
-    out.append(("external_drift", x["external"], x["rows"], x["dominates"], json.dumps(x)))
+    # Any external-basis drift on an authored belief is a finding (the silent-coup
+    # mode), not only when it dominates.
+    out.append(("external_drift", x["external"], x["rows"], x["external"] > 0, json.dumps(x)))
     from theory_x.stage_world.commitments import release_rate
     r = release_rate()
     out.append(("release_rate", r["rate"], r["terminal"], r["flag"],
@@ -660,6 +718,7 @@ def canaries(now: Optional[float] = None, window_s: float = 86400) -> list:
     u = belief_undo_divergence(now, window_s, falsifiability_status=f)
     out.append(("belief_undo_divergence", float(u["blind_spot_hits"]), u["covered"],
                 u["diverged"], u["status"]))
+    out.extend(_watch_quantities(now, window_s))
     for channel, r in ever_fired().items():
         out.append((f"ever_fired.{channel}", float(r["count"]), r["count"], False,
                     "FIRED" if r["fired"] else "never fired"))
@@ -667,6 +726,40 @@ def canaries(now: Optional[float] = None, window_s: float = 86400) -> list:
 
 
 UNMEASURABLE = "UNMEASURABLE"
+
+
+def _watch_quantities(now, window_s) -> list:
+    """Run-and-watch rows: findings (flag) and first-class quantities (no flag)."""
+    cx = connect(f"file:{_db('conversations')}?mode=ro", uri=True, timeout=10)
+    try:
+        partial = cx.execute("SELECT COUNT(*) FROM expectations WHERE state IN "
+                             "('undone','indeterminate')").fetchone()[0]
+        voided = cx.execute("SELECT COUNT(*) FROM expectations WHERE state = 'voided'"
+                            ).fetchone()[0]
+        stated = (cx.execute("SELECT COUNT(*) FROM commitments WHERE kind = 'commitment'")
+                  .fetchone()[0] if _has_table(cx, "commitments") else 0)
+    finally:
+        cx.close()
+    bx = connect(f"file:{_db('beliefs')}?mode=ro", uri=True, timeout=10)
+    try:
+        eroded = bx.execute("SELECT COUNT(*) FROM undo_events WHERE kind = 'eroded' AND at > ?",
+                            (now - window_s,)).fetchone()[0]
+        saturated, authored = bx.execute(
+            "SELECT COALESCE(SUM(confidence >= 0.985), 0), COUNT(*) FROM beliefs "
+            "WHERE source_kind = 'authored' AND locked = 0").fetchone()
+    finally:
+        bx.close()
+    return [
+        ("partial_window_terminals", float(partial), partial, partial > 0,
+         "left-censored owned windows resolved undone/indeterminate (never confirmed)"),
+        ("voided_windows", float(voided), voided, False, "subject belief deleted: lifecycle"),
+        ("commitments_stated", float(stated), stated, stated > 0,
+         "her unhedged 'I will X by T' -- the band-3 wake"),
+        ("assimilation", float(eroded), eroded, False,
+         "erosion advances in window: destroys the external/owned distinction; not an undo"),
+        ("confidence_saturation", float(saturated), authored, False,
+         "authored beliefs at >= 0.985: no damping term, the 0.99 clamp is the ceiling"),
+    ]
 
 
 def ever_fired(db_path=None) -> dict:
@@ -685,8 +778,14 @@ def ever_fired(db_path=None) -> dict:
         return {
             "owned_belief_valence": first(valence_sql, "owned_belief_expectations"),
             "commitment_valence": first(valence_sql, "commitments"),
-            "learning": first("SELECT COUNT(*), MIN(ts) FROM expectation_learning_log "
-                              "WHERE after != before"),
+            # Two populations, never collapsed: the mechanism (owned basis) and
+            # the risk mode it was held for (external basis moving an AUTHORED belief).
+            "learning_owned_basis": first(
+                "SELECT COUNT(*), MIN(ts) FROM expectation_learning_log "
+                "WHERE after != before AND basis_kind = 'owned'"),
+            "learning_external_on_authored": first(
+                "SELECT COUNT(*), MIN(ts) FROM expectation_learning_log "
+                "WHERE after != before AND basis_kind != 'owned' AND source_kind = 'authored'"),
             "mood": first("SELECT COUNT(*), MIN(ts) FROM mood_nudge_applied WHERE nudge != 0"),
         }
     finally:
@@ -738,18 +837,26 @@ def falsifiability(db_path=None) -> dict:
             "COALESCE(SUM(COALESCE(undo_eligible, 0) = 0 AND state = 'violated'), 0) "
             "FROM expectations WHERE producer = 'owned_belief_expectations' "
             "AND state IN ('confirmed', 'violated')").fetchone()
+        side = dict(cx.execute(
+            "SELECT state, COUNT(*) FROM expectations WHERE producer = "
+            "'owned_belief_expectations' AND state IN ('undone','indeterminate','voided') "
+            "GROUP BY state").fetchall())
     finally:
         cx.close()
-    # A violation with no logged undo (e.g. a deletion -- not a logged kind -- or a
-    # window opened before the log) is a coverage gap, reported, not hidden.
-    gap = f"; {unlogged} violations with no logged undo" if unlogged else ""
+    # Only fully covered windows reach 'confirmed'/'violated', so the rate is
+    # computed over those alone. A deleted subject is VOIDED (lifecycle noise,
+    # reported apart); so a violation with no logged undo here is a belief that
+    # is ALIVE and changed with no logged undo -- a genuine gap / possible silent undo.
+    gap = f"; {unlogged} alive-belief violations with no logged undo (FINDING)" if unlogged else ""
+    gap += "".join(f"; {n} {k}" for k, n in sorted(side.items()))
     if exercised:
         status = f"{violated}/{exercised} undo-eligible windows violated{gap}"
         return {"resolved": resolved, "exercised": exercised, "rate": violated / exercised,
-                "status": status, "escalate": False, "violated_unlogged": unlogged}
+                "status": status, "escalate": False, "violated_unlogged": unlogged,
+                "censored": side}
     escalate = resolved >= ESCALATION_N
     return {"resolved": resolved, "exercised": 0, "rate": None, "escalate": escalate,
-            "violated_unlogged": unlogged,
+            "violated_unlogged": unlogged, "censored": side,
             "status": (f"{UNDO_UNEXERCISED}: 0 undo-eligible windows in {resolved} resolutions"
                        if escalate else f"{UNEXERCISED} ({resolved} resolved)") + gap}
 

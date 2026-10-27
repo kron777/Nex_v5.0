@@ -280,10 +280,31 @@ band/4: linear and *unfitted* — "weight, not gate" means "not a gate", not
 "calibrated" (band 2 vs 3 measured −0.5 / −0.75, synthetic). The band-3 ceiling
 (0.75) is deliberately below band 4 (1.0): a relational breach (a broken promise to
 Jon) is designed to weigh less than a self-constitutive violation — a broken promise
-damages a relationship; a self-belief violation damages the substrate.
+damages a relationship; a self-belief violation damages the substrate. It is a
+**declaration, not a measurement**: unfitted, and testable only once organic band-2/3
+events exist.
 
 **Every dark flag carries an observable flip condition and an "ever fired" line**
 (has it ever produced a non-zero, admitted, organic event?), so a dead flag can be
 told from a quiet store instead of guessed at after months. Learning's flip
 condition is subtractability: every learning delta logged with basis provenance,
 and authored confidence reconstructable with external-basis contributions removed.
+
+**Erosion is not evidence of contradiction and must never be scored as one; it is
+also the only process that destroys the external/owned distinction, so it is logged
+losslessly and reported as a first-class count** (assimilation), a quantity, not an
+undo.
+
+**Confidence is never evidence of testing.** It moves from at least three causes —
+learning, assimilation (erosion +0.02), harmonizer tier changes — so no inference
+of the form "confidence rose, so she was confirmed" is admissible. Learning has **no
+damping term**: confirmations multiply confidence up, bounded only by exposure (a
+surprise basis is the ten most recent beliefs; an owned-belief claim recurs at most
+once per 48h per belief) and by the 0.99 clamp. Long-lived, repeatedly confirmed
+beliefs therefore **saturate by construction**; at the clamp, confidence measures
+time-in-system, not evidence. Saturation is reported as a count.
+
+**Left-censored windows are never confirmed.** A window opened before its evidence
+log existed resolves only *undone* (an undo seen in the covered span) or
+*indeterminate*; absence of a row in the uncovered span is not evidence of absence.
+A window whose subject belief was deleted is *voided* (bookkeeping, zero valence).
