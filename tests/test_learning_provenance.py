@@ -158,14 +158,18 @@ class TestEverFired(_Store):
         got = X.ever_fired()
         self.assertEqual({k: v["fired"] for k, v in got.items()},
                          {"owned_belief_valence": False, "commitment_valence": False,
-                          "learning": False, "mood": False})
+                          "learning_owned_basis": False, "learning_external_on_authored": False,
+                          "mood": False})
         mine = self._belief("moves")
         self._learn([mine], "owned", "violated")
         cx = connect(self.conv)
         cx.execute("INSERT INTO mood_nudge_applied (ts, nudge) VALUES (1, -0.05)")
         cx.commit(); cx.close()
         got = X.ever_fired()
-        self.assertTrue(got["learning"]["fired"])
+        self.assertTrue(got["learning_owned_basis"]["fired"])
+        self.assertFalse(got["learning_external_on_authored"]["fired"])   # risk mode: not yet
+        self._learn([mine], "external", "violated")
+        self.assertTrue(X.ever_fired()["learning_external_on_authored"]["fired"])
         self.assertTrue(got["mood"]["fired"])
         self.assertFalse(got["owned_belief_valence"]["fired"])
         names = [c[0] for c in X.canaries()]
