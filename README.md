@@ -91,6 +91,25 @@ Each of these is buildable. L5 remains the gorge. We keep building the near side
 
 NEX runs as a supervised local process with a web interface. Live runtime state (the belief databases, logs, secrets) is deliberately kept out of version control — the repository is architecture and code, not accumulated state. See `.gitignore` for what stays local.
 
+### After a reinstall / fresh machine
+
+Three things live outside git and must be re-established by hand. Each one fails quietly when it is missing, so go through the whole list rather than waiting for something to break.
+
+1. **Ollama and her model (her LLM voice).** Install Ollama (needs sudo), then run `ollama pull qwen2.5:3b`. Don't start her without the model loaded.
+2. **The speech stack (her voice, Kokoro `af_sarah`; see `SPEECH.md`).**
+   ```
+   .venv/bin/pip install -r requirements-speech.txt   # kokoro, sounddevice
+   .venv/bin/python speech/download_model.py          # Kokoro-82M; its spaCy model is fetched on first load
+   sudo apt install libportaudio2                     # PortAudio for sounddevice
+   ```
+   espeak-ng is **not** needed, because Kokoro bundles its own. If this step is missing, boot logs `Kokoro load failed` and she is silent.
+3. **The admin password** (`admin_password.argon2` in the repo root, intentionally not in git). Without it, every admin action in the HUD (read-aloud, speech pause/resume/flush and all other write endpoints) returns 403. Run this in a **normal terminal**, because the password prompt needs a TTY:
+   ```
+   cd ~/Desktop/Desktop/nex5 && .venv/bin/python -c \
+     "import getpass; from admin.auth import set_password; set_password(getpass.getpass('admin password: '))"
+   ```
+   It takes effect live; no restart is needed.
+
 ---
 
 *Build the aspects of mind that can be built. Measure them honestly. Claim nothing about the parts that can't be. Watch for what emerges.*
