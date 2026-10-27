@@ -336,6 +336,7 @@ class TestFalsifierAndStakesGate(_Store):
         lo = self._expect([b], band=0, target=b)
         X.reconcile(now=T0 + DAY + 1)
         self.assertEqual(self._valence_of(hi)["valence"], X.CONFIRM_POSITIVE)
+        self.assertEqual(self._valence_of(hi)["reason"], "confirmed_not_info_weighted")
         self.assertEqual(self._valence_of(lo)["valence"], 0.0)
 
 
@@ -447,6 +448,21 @@ class TestCanaries(_Store):
         self.assertTrue(got["unresolved_rate"][3])
         self.assertTrue(got["stakes_gate"][3])               # band 0 leaked valence
 
+    def test_stakes_gate_ignores_rows_the_band_did_not_decide(self):
+        cx = connect(self.conv)
+        for i in range(1, 43):
+            cx.execute("INSERT INTO expectations (subject, producer, producer_row_id, made_at, "
+                       "claimed_state, ownership, basis_kind, horizon_at, horizon_kind) "
+                       "VALUES ('self', 'self_predictions', ?, 0, '{}', 0, 'none', 0, 'timer')",
+                       (i,))
+            cx.execute("INSERT INTO event_valence (expectation_id, ts, valence, admitted, reason, "
+                       "state, cost_band, ownership) VALUES (?, 0, 0.0, 0, 'band_unrecorded', "
+                       "'violated', NULL, 0)", (i,))
+        cx.commit(); cx.close()
+        got = {c[0]: c for c in X.canaries(now=T0)}
+        self.assertFalse(got["stakes_gate"][3])
+        self.assertEqual(got["stakes_gate"][2], 0)       # nothing the band decided yet
+
     def test_confidence_drift_flags_five_straight_falls(self):
         mine = self._belief("drifting", "wonder_loop", conf=0.9)
         cx = connect(self.conv)
@@ -477,17 +493,108 @@ class TestAffectCoupling(_Store):
         a._background_tick()
         return a._valence
 
-    def test_flag_gates_the_nudge(self):
+    def _seed(self, signs):
         cx = connect(self.conv)
-        cx.execute("INSERT INTO expectations (subject, producer, producer_row_id, made_at, "
-                   "claimed_state, ownership, basis_kind, horizon_at, horizon_kind) "
-                   "VALUES ('self', 'owned_belief_expectations', 1, 0, '{}', 1, 'owned', 0, 'timer')")
+        for i, v in enumerate(signs, start=1):
+            cx.execute("INSERT INTO expectations (subject, producer, producer_row_id, made_at, "
+                       "claimed_state, ownership, basis_kind, horizon_at, horizon_kind) "
+                       "VALUES ('self', 'owned_belief_expectations', ?, 0, '{}', 1, 'owned', 0, "
+                       "'timer')", (i,))
+            cx.execute("INSERT INTO event_valence (expectation_id, ts, valence, admitted, reason, "
+                       "state) VALUES (?, 0, ?, 1, 'x', 'violated')", (i, v))
         cx.execute("INSERT INTO affect_nudges (expectation_id, ts, valence) VALUES (1, ?, -1.0)",
                    (time.time() - 30,))
         cx.commit(); cx.close()
+
+    def test_one_sided_organic_valence_keeps_mood_at_zero(self):
+        self._seed([-1.0, -0.5])                 # negative only
+        X._mood_gate_logged["at"] = 0.0
+        with self.assertLogs("theory_x.stage_world.expectations", "INFO") as cm:
+            on = self._tick(True)
+        off = self._tick(False)
+        self.assertEqual(on, off)                # zero nudge applied
+        self.assertTrue(any("mood gated: organic valence one-sided (pos=0 neg=2)" in m
+                            for m in cm.output))
+
+    def test_both_signs_open_the_gate(self):
+        self._seed([-1.0, 0.05])
+        self.assertTrue(X.mood_eligible())
         off, on = self._tick(False), self._tick(True)
         self.assertLess(on, off)
         self.assertGreaterEqual(on - off, -X.MOOD_CAP - 1e-9)
+
+
+class TestFalsifiability(_Store):
+
+    def _owned(self, made, broken=False, opposes_at=None, demoted_at=None):
+        bid = self._belief(f"mine at {made}", "wonder_loop")
+        rid = self._expect([bid], band=4, made=made)
+        cx = connect(self.bel)
+        if opposes_at is not None:
+            other = cx.execute("INSERT INTO beliefs (content, tier, confidence, created_at, "
+                               "source) VALUES (?, 6, 0.7, ?, 'synergized')",
+                               (f"against {bid}", int(made))).lastrowid
+            cx.execute("INSERT INTO belief_edges (source_id, target_id, edge_type, weight, "
+                       "created_at) VALUES (?, ?, 'opposes', 0.6, ?)", (other, bid, opposes_at))
+        if demoted_at is not None:
+            cx.execute("UPDATE beliefs SET last_demoted_at=? WHERE id=?", (demoted_at, bid))
+        if broken:
+            cx.execute("UPDATE beliefs SET paused=1 WHERE id=?", (bid,))
+        cx.commit(); cx.close()
+        return rid
+
+    def test_unexercised_at_zero_denominator(self):
+        for i in range(3):
+            self._owned(T0 + i)
+        X.reconcile(now=T0 + 2 * DAY)
+        f = X.falsifiability()
+        self.assertEqual((f["resolved"], f["exercised"], f["rate"]), (3, 0, None))
+        self.assertTrue(f["status"].startswith("UNEXERCISED"))
+        self.assertFalse(f["escalate"])
+
+    def test_escalates_at_fifty(self):
+        for i in range(50):
+            self._owned(T0 + i)
+        X.reconcile(now=T0 + 2 * DAY)
+        f = X.falsifiability()
+        self.assertTrue(f["escalate"])
+        self.assertEqual(f["status"],
+                         "UNDO MECHANISMS UNEXERCISED: 0 undo-eligible windows in 50 resolutions")
+        got = {c[0]: c for c in X.canaries(now=T0 + 2 * DAY)}
+        self.assertTrue(got["falsifiability"][3])
+        self.assertFalse(got["overall_confirmation_rate"][3])
+
+    def test_tested_confirmations_and_violations_form_the_denominator(self):
+        survived = self._owned(T0, opposes_at=T0 + 100)          # contradicted, still holds
+        demoted = self._owned(T0 + 1, demoted_at=T0 + 200)       # demoted in-window
+        outside = self._owned(T0 + 2, opposes_at=T0 - 50)        # contradiction predates it
+        broke = self._owned(T0 + 3, broken=True)                 # the undo succeeded
+        X.reconcile(now=T0 + 2 * DAY)
+        cx = connect(self.conv)
+        elig = dict(cx.execute("SELECT producer_row_id, undo_eligible FROM expectations "
+                               "WHERE producer='owned_belief_expectations'").fetchall())
+        cx.close()
+        self.assertEqual([elig[r] for r in (survived, demoted, outside, broke)], [1, 1, 0, 1])
+        f = X.falsifiability()
+        self.assertEqual((f["exercised"], f["rate"]), (3, 1 / 3))
+
+
+class TestExternalDrift(_Store):
+
+    def test_external_basis_learning_on_authored_beliefs_is_attributed(self):
+        os.environ["NEX5_EXPECT_LEARN"] = "1"
+        mine = self._belief("an authored belief", "wonder_loop")
+        news = self._belief("a headline", "fetch_loop")
+        news2 = self._belief("another headline", "fetch_loop")
+        # external-basis expectation (2 of 3 rows external) that includes her belief
+        self._expect([news, news2, mine], band=0, target=news)
+        self._break(news)
+        X.reconcile(now=T0 + DAY + 1)
+        x = X.external_drift(now=T0 + DAY + 2)
+        self.assertEqual(x["rows"], 1)                      # only the AUTHORED row counts
+        self.assertAlmostEqual(x["external"], 0.7 * X.LEARN_VIOLATE / 3, places=6)
+        self.assertEqual(x["owned"], 0.0)
+        self.assertTrue(x["dominates"])
 
 
 if __name__ == "__main__":

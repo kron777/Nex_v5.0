@@ -614,6 +614,10 @@ _MIGRATIONS: dict[str, list[str]] = {
         "salience REAL, "
         "evidence TEXT, "
         "UNIQUE (producer, producer_row_id))",
+        # Tightening: was an undo of the subject belief even attempted in-window?
+        # (falsifiability canary's denominator; owned-belief rows only)
+        "ALTER TABLE expectations ADD COLUMN undo_eligible INTEGER",
+        "ALTER TABLE expectations ADD COLUMN undo_events TEXT",
         "CREATE INDEX IF NOT EXISTS idx_expectations_state_horizon "
         "ON expectations(state, horizon_at)",
         "CREATE TRIGGER IF NOT EXISTS trg_expectations_deferred_subject "

@@ -249,3 +249,22 @@ visible-failure instrumentation (Phase 0) are in place.
 *This program is the engineering plan; `DESIGN_MINDEDNESS.md` is its argument and the
 "default-OFF ≠ latent" correction it rests on. Neither claims, nor is intended to approach, a
 verdict on sentience.*
+
+## 7. Standing design rules
+
+**Admissibility of valence-capable claims** (build B, Beam). A valence-capable
+claim's violation must be caused by a *substantive* event — an undo of her model
+(pause, demotion, erosion, deletion). Not a bookkeeping delta (the learning step,
+a rank shuffle, confidence drift), and not silence (the absence of an event).
+So "X will be reinforced by T" is inadmissible (violation = nothing happened: the
+empty-window class, manufacturing −1.0 from absence), and "X still outranks Y" is
+inadmissible (violation = bookkeeping: learning alone reorders beliefs, so valence
+would accrue from the ledger's own arithmetic). Every future valence-capable
+producer is held to this; see `theory_x/stage_world/expectations.py`.
+
+**A guard that fires is a finding only if it can't print the same number for a
+different cause.** The owned-belief confirmation rate at ~1.0 is arithmetic on a
+young store *and* what a gaming selector would print, so it is logged without
+evidential weight; the evidential number is falsifiability (violations among
+windows in which an undo was attempted), and its zero-denominator state is
+reported as UNEXERCISED, never as a rate.

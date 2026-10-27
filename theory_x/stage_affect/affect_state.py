@@ -211,7 +211,9 @@ class AffectState:
         from theory_x.stage_world import expectations as _ex
         if _ex.mood_on():
             try:
-                valence_delta += _ex.mood_nudge(self._last_updated, now)
+                # Hard gate: no effect until organic valence has both signs.
+                if _ex.mood_eligible():
+                    valence_delta += _ex.mood_nudge(self._last_updated, now)
             except Exception as _me:
                 errors.record(f"AffectState mood nudge read failed: {_me}",
                               source=_LOG_SOURCE)

@@ -17,9 +17,8 @@ The reconciler (build B PR2) judges this at resolve_at; producers write 'open'.
 
 Selection is UNIFORM over eligible beliefs (authored, unlocked, unpaused,
 use_count >= N, not already under an open expectation) -- the producer never
-picks easy ones. The confirmation-rate canary below is how picking easy ones,
-or a store where nothing can fail, shows up: a rate settling above 90% means
-the expectations are decorative.
+picks easy ones. Whether the claims are ever actually tested is measured by
+expectations.falsifiability(), not by the raw confirmation rate.
 
 Dark by default: runs only with NEX5_OWNED_BELIEF=1. It writes only its own table.
 """
@@ -47,8 +46,6 @@ BELIEFS_DB = DbPath("beliefs")
 MIN_OBSERVATIONS = int(os.environ.get("NEX5_OWNED_BELIEF_MIN_OBS", "3"))
 HORIZON_S = int(os.environ.get("NEX5_OWNED_BELIEF_HORIZON_S", str(48 * 3600)))
 EVERY_S = int(os.environ.get("NEX5_OWNED_BELIEF_EVERY_S", "3600"))
-CANARY_MAX_CONFIRM = 0.90
-CANARY_MIN_N = 20
 
 _SCHEMA = (
     "CREATE TABLE IF NOT EXISTS owned_belief_expectations ("
@@ -165,9 +162,12 @@ def due(db_path=None, now: Optional[float] = None) -> bool:
 
 def confirmation_rate_canary(db_path=None) -> dict:
     """Fraction of resolved owned-belief expectations that were confirmed.
-    flag=True when it settles above 90% over >= 20 resolutions: the selector is
-    picking easy beliefs, or nothing in this store can fail -- either way the
-    valence channel is decorative."""
+
+    LOGGED ONLY -- flag is always False. At a base rate ~1.0 (nothing undoes an
+    authored belief on a young store) a high rate is arithmetic, and it prints
+    the same number a gaming selector would: an ambiguity, not a finding. The
+    evidential number is expectations.falsifiability() (violations among windows
+    in which an undo was actually attempted)."""
     db_path = str(db_path or CONVERSATIONS_DB)
     ensure_schema(db_path)
     cx = connect(db_path, timeout=10)
@@ -180,4 +180,4 @@ def confirmation_rate_canary(db_path=None) -> dict:
     n = sum(rows.values())
     rate = rows.get("confirmed", 0) / n if n else None
     return {"resolved": n, "confirmed": rows.get("confirmed", 0), "rate": rate,
-            "flag": bool(n >= CANARY_MIN_N and rate > CANARY_MAX_CONFIRM)}
+            "flag": False}
