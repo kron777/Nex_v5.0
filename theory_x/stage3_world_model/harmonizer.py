@@ -18,6 +18,7 @@ import threading
 from typing import Any, Optional
 
 import errors
+from theory_x.stage3_world_model.undo_log import log_undo
 from substrate import Writer, Reader
 from .retrieval import _tokenize
 from .promotion import BeliefPromoter
@@ -220,6 +221,8 @@ class Harmonizer:
             "UPDATE beliefs SET paused = 1 WHERE id IN (?, ?)",
             (belief_id_a, belief_id_b),
         )
+        log_undo(self._beliefs_writer, "paused", (belief_id_a, belief_id_b),
+                 cause_ref=f"harmonizer_resolve:{belief_id_a},{belief_id_b}")
 
         # Seek synthesis: a third belief bridging both
         tokens_a = _tokenize(row_a["content"])
@@ -249,6 +252,7 @@ class Harmonizer:
                 ("UPDATE beliefs SET tier = 8, locked = 0, paused = 0, "
                  "content = ? WHERE id = ?", (retired_b, belief_id_b)),
             ])
+            self._log_retired(belief_id_a, belief_id_b, "synthesized")
             self._dynamic_writer.write(
                 "INSERT INTO harmonizer_events "
                 "(ts, belief_id_a, belief_id_b, resolution, synthesis_belief_id) "
@@ -273,6 +277,7 @@ class Harmonizer:
                  "content = ? WHERE id = ?",
                  (f"[RETIRED] {row_b['content']}", belief_id_b)),
             ])
+            self._log_retired(belief_id_a, belief_id_b, "both_deleted")
             self._dynamic_writer.write(
                 "INSERT INTO harmonizer_events "
                 "(ts, belief_id_a, belief_id_b, resolution) "
@@ -284,6 +289,13 @@ class Harmonizer:
                 source=_LOG_SOURCE, level="INFO",
             )
             return "both_deleted"
+
+    def _log_retired(self, a: int, b: int, how: str) -> None:
+        """Retirement unpauses both and moves them to tier 8 (the weakest) -- a
+        demotion that never stamps last_demoted_at, so only the log sees it."""
+        ref = f"harmonizer_retire:{how}:{a},{b}"
+        log_undo(self._beliefs_writer, "unpaused", (a, b), cause_ref=ref)
+        log_undo(self._beliefs_writer, "demoted", (a, b), cause_ref=ref)
 
     def _check_paradox_entry(
         self, a_id: int, b_id: int

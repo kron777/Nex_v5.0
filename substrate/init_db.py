@@ -291,6 +291,30 @@ _MIGRATIONS: dict[str, list[str]] = {
         # an UPDATE but created in no schema, so on a fresh store the groove
         # breaker's anchor query failed silently and never fired.
         "ALTER TABLE beliefs ADD COLUMN last_voiced_at REAL",
+        # Undo log (theory_x/stage3_world_model/undo_log.py): every transition
+        # that undoes (or could undo) a belief, written AT the transition site,
+        # one row per affected belief. Append-only, guarded against UPDATE and
+        # DELETE. A raised-then-cleared pause or a re-raised contradiction
+        # otherwise leaves no trace, and a closed window's evidence is gone.
+        "CREATE TABLE IF NOT EXISTS undo_events ("
+        "seq INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "belief_id INTEGER NOT NULL, "
+        "kind TEXT NOT NULL CHECK (kind IN ('contradiction_raised','contradiction_cleared',"
+        "'paused','unpaused','demoted','eroded')), "
+        "at REAL NOT NULL, "
+        "cause_ref TEXT)",
+        "CREATE INDEX IF NOT EXISTS idx_undo_events_belief_at ON undo_events(belief_id, at)",
+        "CREATE TRIGGER IF NOT EXISTS trg_undo_events_no_update BEFORE UPDATE ON undo_events "
+        "BEGIN SELECT nex_guard('undo_events: append-only (UPDATE refused)'); "
+        "SELECT RAISE(ABORT, 'undo_events: append-only (UPDATE refused)'); END",
+        "CREATE TRIGGER IF NOT EXISTS trg_undo_events_no_delete BEFORE DELETE ON undo_events "
+        "BEGIN SELECT nex_guard('undo_events: append-only (DELETE refused)'); "
+        "SELECT RAISE(ABORT, 'undo_events: append-only (DELETE refused)'); END",
+        # When the log went live: windows opened before this are only partially covered.
+        "CREATE TABLE IF NOT EXISTS undo_log_meta ("
+        "id INTEGER PRIMARY KEY CHECK (id = 1), installed_at REAL NOT NULL)",
+        "INSERT OR IGNORE INTO undo_log_meta (id, installed_at) "
+        "VALUES (1, (julianday('now') - 2440587.5) * 86400.0)",
         # Carryx §8 Step 1 — intake resonance probe.
         # Logs the cosine similarity between each newly-crystallized
         # belief and her existing standing-points (T1-T3 keystones + top T6).

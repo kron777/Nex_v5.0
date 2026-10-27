@@ -11,6 +11,7 @@ from __future__ import annotations
 import time
 
 import errors
+from theory_x.stage3_world_model.undo_log import log_undo
 from substrate import Writer, Reader
 
 THEORY_X_STAGE = 3
@@ -97,6 +98,8 @@ class ProvenanceErosion:
                     "confidence = MIN(1.0, confidence + 0.02) WHERE id = ?",
                     (new_stage, belief_id),
                 )
+                log_undo(self._writer, "eroded", (belief_id,),
+                         cause_ref=f"erosion_check:{stage}->{new_stage}")
                 errors.record(
                     f"belief {belief_id} eroded to stage '{new_stage}'",
                     source=_LOG_SOURCE, level="INFO",
@@ -134,6 +137,8 @@ class ProvenanceErosion:
                         (new_stage, row["id"]),
                     )
                     advanced += 1
+                    log_undo(self._writer, "eroded", (row["id"],),
+                             cause_ref=f"erosion_pass:{stage}->{new_stage}")
                 except Exception:
                     pass
 
