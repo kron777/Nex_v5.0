@@ -39,6 +39,7 @@ SESSION_ID = "internal_daily_life"
 
 # Schedule: hour (0-23) -> activity name
 SCHEDULE = {
+    3:  "source_audit",     # housekeeping, not an activity of hers: provenance audit
     6:  "morning",
     10: "reading_1",
     12: "outreach_1",
@@ -252,6 +253,11 @@ def _activity_journal(date_local: str) -> str:
     return msg[:200]
 
 
+def _activity_source_audit(date_local: str) -> str:
+    from theory_x.stage_tom.source_kind_audit import run_and_record
+    return run_and_record()
+
+
 _ACTIVITY_FUNCS = {
     "morning":    lambda d: _activity_morning(d),
     "reading_1":  lambda d: _activity_reading("1", d),
@@ -259,6 +265,7 @@ _ACTIVITY_FUNCS = {
     "outreach_1": lambda d: _activity_outreach("1", d),
     "outreach_2": lambda d: _activity_outreach("2", d),
     "journal":    lambda d: _activity_journal(d),
+    "source_audit": lambda d: _activity_source_audit(d),
 }
 
 

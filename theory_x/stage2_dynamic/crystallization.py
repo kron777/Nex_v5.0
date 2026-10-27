@@ -90,7 +90,7 @@ class Crystallizer:
     def _crystallize(self, node, ts: float) -> bool:
         """Precipitate one Tier 7 belief. Returns True if written."""
         branch_id = node.branch_id
-        content = self._extract_content(branch_id)
+        content, stream = self._extract_content_and_stream(branch_id)
         if content is None:
             return False
 
@@ -109,7 +109,7 @@ class Crystallizer:
             return False
 
         # Write belief to beliefs.db
-        belief_id = self._write_belief(belief_content, branch_id, ts)
+        belief_id = self._write_belief(belief_content, branch_id, ts, stream=stream)
 
         # Log crystallization event to dynamic.db
         self._dynamic_writer.write(
@@ -125,8 +125,12 @@ class Crystallizer:
         )
         return True
 
-    def _extract_content(self, branch_id: str) -> Optional[str]:
-        """Get the most prominent content from recent pipeline events for this branch."""
+    def _extract_content_and_stream(self, branch_id: str):
+        """The most prominent content from recent pipeline events for this
+        branch, as (content, stream). stream is set only when the content IS a sensed
+        item's title -- then the belief carries that item's origin. A note of
+        sustained attention on a branch/feed is her own observation: no stream.
+        """
         try:
             rows = self._dynamic_reader.read(
                 "SELECT sensation_source, meta, magnitude FROM pipeline_events "
@@ -135,10 +139,10 @@ class Crystallizer:
             )
         except Exception as exc:
             errors.record(f"crystallization read error: {exc}", source=_LOG_SOURCE, exc=exc)
-            return None
+            return None, None
 
         if not rows:
-            return f"sustained attention on {branch_id}"
+            return f"sustained attention on {branch_id}", None
 
         best_row = rows[0]
         meta_str = best_row["meta"]
@@ -146,10 +150,10 @@ class Crystallizer:
             try:
                 meta = json.loads(meta_str)
                 if isinstance(meta, dict) and meta.get("title"):
-                    return meta["title"]
+                    return meta["title"], meta.get("stream")
             except (json.JSONDecodeError, TypeError):
                 pass
-        return best_row["sensation_source"] or f"sustained attention on {branch_id}"
+        return best_row["sensation_source"] or f"sustained attention on {branch_id}", None
 
     def _is_blacklisted(self, content: str) -> bool:
         if self._beliefs_reader is None:
@@ -174,7 +178,8 @@ class Crystallizer:
             errors.record(f"crystallization dedup error: {exc}", source=_LOG_SOURCE, exc=exc)
             return False
 
-    def _write_belief(self, content: str, branch_id: str, ts: float) -> Optional[int]:
+    def _write_belief(self, content: str, branch_id: str, ts: float,
+                      stream: Optional[str] = None) -> Optional[int]:
         """Write Tier 7 Impression to beliefs.db. Returns rowid or None."""
         # Phase 22 — Coherence Gate (before INSERT)
         if self._gate is not None:
@@ -213,9 +218,10 @@ class Crystallizer:
         try:
             rowid = self._beliefs_writer.write(
                 "INSERT INTO beliefs "
-                "(content, tier, confidence, created_at, branch_id, source, locked) "
-                "VALUES (?, 7, 0.15, ?, ?, 'precipitated_from_dynamic', 0)",
-                (content, int(ts), branch_id),
+                "(content, tier, confidence, created_at, branch_id, source, locked, "
+                "source_stream) "
+                "VALUES (?, 7, 0.15, ?, ?, 'precipitated_from_dynamic', 0, ?)",
+                (content, int(ts), branch_id, stream),
             )
             return rowid
         except Exception as exc:

@@ -128,8 +128,8 @@ class TestCrystallizerBlacklist(unittest.TestCase):
             branch_id = "ai_research"
             focus_num = 0.9
             focus_increment = "g"
-        # Override _extract_content to return blacklisted string
-        c._extract_content = lambda bid: "BLOCKED_TEST_CONTENT here"
+        # Override content extraction to return blacklisted string
+        c._extract_content_and_stream = lambda bid: ("BLOCKED_TEST_CONTENT here", None)
         did = c._crystallize(MockNode(), time.time())
         self.assertFalse(did)
 

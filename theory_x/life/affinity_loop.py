@@ -138,8 +138,8 @@ PROVENANCE_BASE: dict[str, float] = {
     # received (0.30) -- external input / suspect / experimental; deny authored credit.
     # precipitated_from_sense is the author's own framing (header, line 47:
     # "precipitated_from_sense is a headline she read") -- external, not hers. It is
-    # 27 sense streams flattened into one bucket; per-kind tiering via source_kind
-    # (source_identity.py) is a tracked follow-up, not part of this go-live.
+    # 27 sense streams flattened into one bucket; per-kind tiering via
+    # source_kind is KIND_BASE below (NEX5_SOURCE_KIND).
     "precipitated_from_sense": _RECEIVED,
     "fetch_loop": _RECEIVED,                    # reads external URLs
     "fountain_insight_quarantined": _RECEIVED,  # quarantined/suspect fountain insight
@@ -148,14 +148,48 @@ PROVENANCE_BASE: dict[str, float] = {
     "throw_net.gate_reject": _RECEIVED,         # rejected content
 }
 
+# Per-STREAM provenance (substrate/source_kind.py): every row carries a
+# source_kind stamped at write time from the stream that produced it (or, with
+# no stream, from its producer's name). Same three bases -- nothing new is
+# invented, the band is just decided per row instead of per producer name.
+# other_mind is received: a mind's text she read is not hers.
+KIND_BASE: dict[str, float] = {
+    "authored": _AUTHORED,
+    "self": _WITNESSED,
+    "seeded": _RECEIVED,
+    "world": _RECEIVED,
+    "other_mind": _RECEIVED,
+    "received": _RECEIVED,
+}
+
+
+def _source_kind_on():
+    """NEX5_SOURCE_KIND=1 tiers by source_kind first. Off (default) = by
+    source name only, exactly as before."""
+    try:
+        import nex_config
+        return nex_config.get_bool("NEX5_SOURCE_KIND", False)
+    except Exception:
+        return False
+
+
+def provenance_base(source, source_kind=None):
+    """The band base for a row: its source_kind's when given and known, else
+    its source name's (unknown names -> received)."""
+    if source_kind in KIND_BASE:
+        return KIND_BASE[source_kind]
+    return PROVENANCE_BASE.get(source, _RECEIVED)
+
+
 # Unknown sources are counted once per process (not per row) so a new source
 # value shows up in the log without spamming it.
 _unknown_sources: set = set()
 
 
-def _provenance_affinity(source, usage_score):
-    """Provenance base lifted by usage, same multiplier as the old formula."""
-    base = PROVENANCE_BASE.get(source)
+def _provenance_affinity(source, usage_score, source_kind=None):
+    """Provenance base lifted by usage, same multiplier as the old formula.
+    source_kind is passed only when NEX5_SOURCE_KIND is on."""
+    base = KIND_BASE.get(source_kind) or PROVENANCE_BASE.get(source)
     if base is None:
         base = _RECEIVED
         if source not in _unknown_sources:
@@ -229,7 +263,7 @@ def _pick_candidates(cx, limit):
     rescore_cutoff = now - RESCORE_AFTER_DAYS * 86400
     rows = cx.execute(
         """
-        SELECT b.id, b.content, b.tier, b.source,
+        SELECT b.id, b.content, b.tier, b.source, b.source_kind,
                COALESCE(b.reinforce_count, 0) AS reinforce,
                COALESCE(b.use_count, 0) AS use_count,
                b.last_referenced_at, b.affinity, b.affinity_updated_at,
@@ -259,12 +293,12 @@ def _pick_candidates(cx, limit):
     ).fetchall()
     out = []
     for r in rows:
-        last_ref = r[6]
+        last_ref = r[7]
         hours_since = ((now - last_ref) / 3600) if last_ref else None
-        usage = _usage_score(r[5], r[9], hours_since)
+        usage = _usage_score(r[6], r[10], hours_since)
         out.append({
             "id": r[0], "content": r[1], "tier": r[2], "source": r[3],
-            "usage_score": usage,
+            "source_kind": r[4], "usage_score": usage,
         })
     return out
 
@@ -313,6 +347,7 @@ def _affinity_mode():
 def affinity_tick(voice):
     cx = connect(BELIEFS_DB, timeout=30)
     mode = _affinity_mode()
+    by_kind = _source_kind_on()
     try:
         candidates = _pick_candidates(cx, BATCH_LLM_CALLS)
         if not candidates:
@@ -324,7 +359,9 @@ def affinity_tick(voice):
             if mode == "on":
                 # Provenance drives the write; no LLM call. beliefs.source
                 # already records ownership, so there is nothing to ask.
-                final = _provenance_affinity(c["source"], c["usage_score"])
+                final = _provenance_affinity(
+                    c["source"], c["usage_score"],
+                    c["source_kind"] if by_kind else None)
             else:
                 llm_rating = _self_rate(voice, c["content"])
                 if llm_rating is None:
@@ -357,7 +394,9 @@ def affinity_tick(voice):
                     # Old score still written; record how far provenance would
                     # move it, to be reviewed before trusting (prov - llm).
                     shadow_deltas.append(
-                        _provenance_affinity(c["source"], c["usage_score"]) - final
+                        _provenance_affinity(
+                            c["source"], c["usage_score"],
+                            c["source_kind"] if by_kind else None) - final
                     )
             try:
                 cx.execute(

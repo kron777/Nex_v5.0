@@ -493,6 +493,19 @@ _MIGRATIONS: dict[str, list[str]] = {
         "hour_local INTEGER NOT NULL, "
         "statement TEXT NOT NULL, "
         "UNIQUE(date_local, hour_local))",
+        # Nightly provenance audit (theory_x/stage_tom/source_kind_audit.py).
+        "CREATE TABLE IF NOT EXISTS source_kind_audit_log ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "ts REAL NOT NULL, "
+        "rows INTEGER NOT NULL, "
+        "with_stream INTEGER NOT NULL, "
+        "mismatches INTEGER NOT NULL, "
+        "unstamped INTEGER NOT NULL, "
+        "identity_claim_fires INTEGER NOT NULL, "
+        "identity_support INTEGER NOT NULL, "
+        "identity_violations INTEGER NOT NULL, "
+        "ok INTEGER NOT NULL, "
+        "detail TEXT)",
         "CREATE TABLE IF NOT EXISTS witness_log ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, "
         "composed_at REAL NOT NULL, "
@@ -798,6 +811,13 @@ _MIGRATIONS: dict[str, list[str]] = {
         "updated_at REAL NOT NULL)",
     ],
 }
+
+
+# Per-stream provenance (substrate/source_kind.py): columns, index and the
+# stamping triggers, rendered from one rules table.
+from .source_kind import migrations as _source_kind_migrations  # noqa: E402
+for _db, _stmts in _source_kind_migrations().items():
+    _MIGRATIONS.setdefault(_db, []).extend(_stmts)
 
 
 _ALTER_COL_RE = re.compile(
