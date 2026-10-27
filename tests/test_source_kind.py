@@ -308,6 +308,8 @@ class TestAuditPositiveControl(_Store):
                          stream="news.bbc", kind="authored")
         b = self._insert("headline 0", "counterfactual_node", problem_id=7)
         cx = connect(self.bel)
+        # a pre-D store had no immutability trigger: simulate it for this row
+        cx.execute("DROP TRIGGER trg_beliefs_source_kind_immutable")
         cx.execute("UPDATE beliefs SET source_kind=NULL WHERE id=?", (b,))
         cx.commit(); cx.close()
         r = self._audit()
@@ -425,6 +427,7 @@ class TestBackfill(_Store):
         # Rows written before D: no trigger, no columns filled.
         cx = connect(self.bel)
         cx.execute(f"DROP TRIGGER {BELIEFS_TRIGGER}")
+        cx.execute("DROP TRIGGER trg_beliefs_source_kind_immutable")   # pre-D store
         cx.execute("UPDATE beliefs SET source_kind=NULL")
         rows = [(title, ts, "precipitated_from_sense", None),
                 (title, ts, "counterfactual_node", 7),

@@ -280,9 +280,11 @@ band/4: linear and *unfitted* — "weight, not gate" means "not a gate", not
 "calibrated" (band 2 vs 3 measured −0.5 / −0.75, synthetic). The band-3 ceiling
 (0.75) is deliberately below band 4 (1.0): a relational breach (a broken promise to
 Jon) is designed to weigh less than a self-constitutive violation — a broken promise
-damages a relationship; a self-belief violation damages the substrate. It is a
-**declaration, not a measurement**: unfitted, and testable only once organic band-2/3
-events exist.
+damages a relationship; a self-belief violation damages the substrate. It is
+testable in principle precisely because commitment-valence is now ON and bands 2 and 3
+are simultaneously reachable for the first time — so the ordering is falsifiable on
+real data. Until then it is a declaration, not a measurement, and it is revisable. It
+is a claim about her, not a constant.
 
 **Every dark flag carries an observable flip condition and an "ever fired" line**
 (has it ever produced a non-zero, admitted, organic event?), so a dead flag can be
@@ -308,3 +310,11 @@ time-in-system, not evidence. Saturation is reported as a count.
 log existed resolves only *undone* (an undo seen in the covered span) or
 *indeterminate*; absence of a row in the uncovered span is not evidence of absence.
 A window whose subject belief was deleted is *voided* (bookkeeping, zero valence).
+
+**A verified reading is not a design premise until a test fails when the structure
+changes.** Two are pinned: detection timing is symmetric (surprise verification and
+reconciler resolution both land at window end), and the 0.5 ownership gate is a wall
+(ownership reads source_kind, which erosion never writes and which is immutable once
+set — enforced by trigger). Learning's external-basis mode is guarded by G1–G4
+(`theory_x/stage_world/learning_guards.py`); the 0.02 per-belief cap is a backstop,
+not the answer to a population-level drift, which only the composition metric sees.
