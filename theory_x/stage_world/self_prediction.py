@@ -54,6 +54,10 @@ from theory_x.stage_world.frozen_at_made import (
     ensure_frozen_columns, frozen_values, snapshot_stakes,
 )
 
+# Build B: the cost band every row of this producer is written with.
+# self probes: no belief basis, nothing follows -> band 0. No belief basis ([]): ownership 0, learning-only, never valence.
+_COST_BAND = 0
+
 logger = logging.getLogger("nex5.self_pred")
 
 # How NEX reads its own state — same endpoint the dashboard uses.
@@ -111,6 +115,7 @@ def ensure_schema(db_path: str) -> None:
             # build B phase 0, frozen at made_at (= frozen_at_made.FROZEN_COLUMNS)
             "confidence REAL, confidence_basis TEXT, tolerance REAL, tolerance_basis TEXT, "
             "stakes_at_made REAL, stakes_active_at_made INTEGER, groove_cost_at_made REAL, "
+            "basis_snapshot TEXT, cost_band INTEGER, salience_k REAL, "
             "frozen TEXT)"
         )
         # 3(b): generalise to multiple prediction KINDS. Default 'fire' for the
@@ -175,9 +180,9 @@ def make_self_prediction(db_path: Optional[str] = None, horizon: int = HORIZON) 
         for src, pred in (("self", self_pred), ("random", coin_pred)):
             # readiness is a self-read against a threshold, not a probability:
             # the fire arm states no confidence, so none is recorded.
-            frozen = (frozen_values(None, "none_stated", 0.0, "exact_label", stakes)
+            frozen = (frozen_values(None, "none_stated", 0.0, "exact_label", stakes, cost_band=_COST_BAND)
                       if src == "self"
-                      else frozen_values(COIN, "coin", 0.0, "exact_label", stakes))
+                      else frozen_values(COIN, "coin", 0.0, "exact_label", stakes, cost_band=_COST_BAND))
             conn.execute(
                 "INSERT INTO self_predictions "
                 "(made_at, source, kind, predicted, readiness, baseline_fires, resolve_at, "
@@ -603,11 +608,11 @@ def _insert_pred(db_path, kind, rows, resolve_at, signal=None, confidence=None):
     try:
         for src, pred in rows:
             if src == "random":
-                frozen = frozen_values(COIN, "coin", 0.0, "exact_label", stakes)
+                frozen = frozen_values(COIN, "coin", 0.0, "exact_label", stakes, cost_band=_COST_BAND)
             elif confidence is not None:
-                frozen = frozen_values(confidence, "stated_p", 0.0, "exact_label", stakes)
+                frozen = frozen_values(confidence, "stated_p", 0.0, "exact_label", stakes, cost_band=_COST_BAND)
             else:
-                frozen = frozen_values(None, "none_stated", 0.0, "exact_label", stakes)
+                frozen = frozen_values(None, "none_stated", 0.0, "exact_label", stakes, cost_band=_COST_BAND)
             conn.execute(
                 "INSERT INTO self_predictions "
                 "(made_at, source, kind, predicted, readiness, baseline_fires, resolve_at, "
@@ -1084,6 +1089,14 @@ class SelfPredictionLoop:
                 _make()
             except Exception as e:
                 logger.warning("self_pred %s error: %s", _name, e)
+        # Build B: owned-belief expectations (dark; NEX5_OWNED_BELIEF=1), at most
+        # one per NEX5_OWNED_BELIEF_EVERY_S. Writes only its own table.
+        try:
+            from theory_x.stage_world import owned_belief as _ob
+            if _ob.enabled() and _ob.due():
+                _ob.make_owned_belief_expectation()
+        except Exception as e:
+            logger.warning("self_pred owned_belief error: %s", e)
 
     def start_loop(self):
         import threading

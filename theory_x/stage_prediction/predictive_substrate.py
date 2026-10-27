@@ -186,7 +186,8 @@ class PredictiveSubstrate:
     def _predict_internal(self) -> int:
         """§4.1 — internal_belief prediction from beliefs + problems + drive."""
         beliefs = self._br.read(
-            "SELECT id, content FROM beliefs ORDER BY created_at DESC LIMIT ?",
+            "SELECT id, content, source_kind, confidence FROM beliefs "
+            "ORDER BY created_at DESC LIMIT ?",
             (self._RECENT_BELIEF_COUNT,),
         )
         if len(beliefs) < self._MIN_CONTEXT_SIZE:
@@ -218,7 +219,10 @@ class PredictiveSubstrate:
 
         centroid = self._normalize(centroid)
         rep = self._nearest_content(centroid, beliefs)
-        self._write_prediction("internal_belief", centroid, rep)
+        from theory_x.stage_world.frozen_at_made import basis_entry
+        basis = [basis_entry(b["id"], b["source_kind"], b["confidence"]) for b in beliefs]
+        # Its basis beliefs get revised when it misses -> band 1.
+        self._write_prediction("internal_belief", centroid, rep, basis=basis, cost_band=1)
         return 1
 
     def _predict_external(self) -> int:
@@ -253,7 +257,8 @@ class PredictiveSubstrate:
                 "SELECT id, content FROM beliefs ORDER BY created_at DESC LIMIT 20"
             )
             rep = self._nearest_content(centroid, belief_rows)
-        self._write_prediction("external_input", centroid, rep)
+        # Sense events and chat, not beliefs: no belief basis, nothing revised -> band 0.
+        self._write_prediction("external_input", centroid, rep, basis=[], cost_band=0)
         return 1
 
     def _nearest_content(
@@ -297,18 +302,27 @@ class PredictiveSubstrate:
         prediction_type: str,
         centroid: np.ndarray,
         rep_content: Optional[str],
+        basis: list = (),
+        cost_band: int = 0,
     ) -> None:
+        # Build B: frozen at made_at. The verdict threshold is the tolerance (the
+        # same 0.5 surprise_flag uses); the substrate states no probability.
+        from theory_x.stage_world.frozen_at_made import (
+            FROZEN_INSERT_COLS, FROZEN_PLACEHOLDERS, frozen_values,
+        )
+        frozen = frozen_values(None, "none_stated", self._SURPRISE_THRESHOLD, "distance",
+                               basis=basis, cost_band=cost_band)
         now = time.time()
         tags = json.dumps(_generate_tags(rep_content or ""))
         self._dw.write(
             "INSERT INTO predictions "
             "(made_at, target_window_end, prediction_type, centroid_embedding, "
-            "representative_content, tags) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "representative_content, tags, " + FROZEN_INSERT_COLS + ") "
+            "VALUES (?, ?, ?, ?, ?, ?, " + FROZEN_PLACEHOLDERS + ")",
             (now, now + self._interval,
              prediction_type,
              centroid.astype(np.float32).tobytes(),
-             rep_content, tags),
+             rep_content, tags, *frozen),
         )
 
     # ── Verification ──────────────────────────────────────────────────────────

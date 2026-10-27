@@ -19,6 +19,7 @@ import sys
 from pathlib import Path
 
 from .paths import data_dir, db_paths
+from .db import connect
 from .writer import Writer
 
 THEORY_X_STAGE = None
@@ -897,6 +898,16 @@ def init_all() -> None:
 
         # Apply additive column migrations for existing DBs (idempotent)
         _apply_migrations(writers)
+
+        # Build B: frozen-at-made fields on the surprise producer's rows
+        # (predictions is created here, not lazily; old rows -> legacy_unfrozen).
+        from theory_x.stage_world.frozen_at_made import ensure_frozen_columns
+        _cx = connect(str(paths["dynamic"]), timeout=30)
+        try:
+            ensure_frozen_columns(_cx, "predictions")
+            _cx.commit()
+        finally:
+            _cx.close()
 
         # Seed Tier 1 keystones into beliefs.db.
         from keystone import reseed as keystone_reseed

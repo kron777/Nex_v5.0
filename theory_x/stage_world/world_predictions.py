@@ -40,6 +40,10 @@ from theory_x.stage_world.frozen_at_made import (
 )
 
 
+# Build B: world: her scorecard belief is revised -> band 1. No belief basis ([]): ownership 0, learning-only.
+_COST_BAND = 1
+
+
 # --- DB path: matches the project convention (NEX5_DATA_DIR override) ---------
 def _default_db_path() -> str:
     override = os.environ.get("NEX5_DATA_DIR")
@@ -76,6 +80,7 @@ _SCHEMA = (
     # build B phase 0, frozen at made_at (= frozen_at_made.FROZEN_COLUMNS)
     "confidence REAL, confidence_basis TEXT, tolerance REAL, tolerance_basis TEXT, "
     "stakes_at_made REAL, stakes_active_at_made INTEGER, groove_cost_at_made REAL, "
+    "basis_snapshot TEXT, cost_band INTEGER, salience_k REAL, "
     "frozen TEXT)"
 )
 _IDX = (
@@ -146,11 +151,11 @@ def make_prediction(
     if baseline is None:
         return None  # cannot make a falsifiable claim without a real baseline
     if source == "random":
-        frozen = frozen_values(COIN, "coin", 0.0, "strict_direction")
+        frozen = frozen_values(COIN, "coin", 0.0, "strict_direction", cost_band=_COST_BAND)
     elif confidence is not None:
-        frozen = frozen_values(confidence, "stated_p", 0.0, "strict_direction")
+        frozen = frozen_values(confidence, "stated_p", 0.0, "strict_direction", cost_band=_COST_BAND)
     else:   # the voice answers one word, UP or DOWN: no probability is stated
-        frozen = frozen_values(None, "none_stated", 0.0, "strict_direction")
+        frozen = frozen_values(None, "none_stated", 0.0, "strict_direction", cost_band=_COST_BAND)
     now = time.time()
     conn = _connect(db_path)
     try:

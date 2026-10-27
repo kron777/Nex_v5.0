@@ -40,6 +40,7 @@ SESSION_ID = "internal_daily_life"
 # Schedule: hour (0-23) -> activity name
 SCHEDULE = {
     3:  "source_audit",     # housekeeping, not an activity of hers: provenance audit
+    4:  "expectation_canaries",   # housekeeping: build B canaries
     6:  "morning",
     10: "reading_1",
     12: "outreach_1",
@@ -258,6 +259,16 @@ def _activity_source_audit(date_local: str) -> str:
     return run_and_record()
 
 
+def _activity_expectation_canaries(date_local: str) -> str:
+    from theory_x.stage_world.owned_belief import confirmation_rate_canary
+    c = confirmation_rate_canary()
+    rate = "n/a" if c["rate"] is None else f"{c['rate']:.2f}"
+    msg = (f"owned-belief confirmation rate={rate} over {c['resolved']} resolved"
+           + (" -- CANARY: above 90%, valence is decorative" if c["flag"] else ""))
+    (log.warning if c["flag"] else log.info)("expectation canaries: %s", msg)
+    return msg
+
+
 _ACTIVITY_FUNCS = {
     "morning":    lambda d: _activity_morning(d),
     "reading_1":  lambda d: _activity_reading("1", d),
@@ -266,6 +277,7 @@ _ACTIVITY_FUNCS = {
     "outreach_2": lambda d: _activity_outreach("2", d),
     "journal":    lambda d: _activity_journal(d),
     "source_audit": lambda d: _activity_source_audit(d),
+    "expectation_canaries": lambda d: _activity_expectation_canaries(d),
 }
 
 
