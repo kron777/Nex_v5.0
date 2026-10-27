@@ -679,6 +679,16 @@ _MIGRATIONS: dict[str, list[str]] = {
         "ts REAL NOT NULL, "
         "before REAL NOT NULL, "
         "after REAL NOT NULL)",
+        # Learning-delta provenance: each delta self-describing without a join,
+        # so external-basis contributions can be subtracted later (learning's
+        # flip condition). Old rows stay NULL (legacy).
+        "ALTER TABLE expectation_learning_log ADD COLUMN basis_kind TEXT",
+        "ALTER TABLE expectation_learning_log ADD COLUMN source_kind TEXT",
+        "ALTER TABLE expectation_learning_log ADD COLUMN factor REAL",
+        # Mood nudges actually APPLIED by affect_state (not merely available): what
+        # the mood channel's "ever fired" line reads.
+        "CREATE TABLE IF NOT EXISTS mood_nudge_applied ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL NOT NULL, nudge REAL NOT NULL)",
         "CREATE TABLE IF NOT EXISTS affect_nudges ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, "
         "expectation_id INTEGER NOT NULL UNIQUE REFERENCES expectations(id), "

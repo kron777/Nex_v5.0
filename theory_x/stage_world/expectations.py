@@ -479,25 +479,66 @@ def _learn(cx, e, state, sal, now) -> int:
         for b in basis:
             if b.get("source_kind") == "seeded":
                 continue
-            live = bx.execute("SELECT confidence, locked FROM beliefs WHERE id=?",
+            live = bx.execute("SELECT confidence, locked, source_kind FROM beliefs WHERE id=?",
                               (b["belief_id"],)).fetchone()
             if live is None or live[1]:
                 continue
-            rows.append((b["belief_id"], live[0]))
+            rows.append((b["belief_id"], live[0], live[2]))
         if not rows:
             return 0
         n = len(rows)
         factor = (1.0 - LEARN_VIOLATE * sal / n) if state == "violated" \
             else (1.0 + LEARN_CONFIRM / n)
-        for bid, before in rows:
+        for bid, before, skind in rows:
             after = max(CONF_FLOOR, min(CONF_CEIL, before * factor))
             bx.execute("UPDATE beliefs SET confidence=? WHERE id=?", (after, bid))
+            # Self-describing: the FROZEN basis kind of the expectation, the
+            # belief's own kind now, and the factor (after/before is lossy at
+            # the clamps) -- what reconstruct_without_external() replays.
             cx.execute("INSERT INTO expectation_learning_log (expectation_id, belief_id, ts, "
-                       "before, after) VALUES (?,?,?,?,?)", (e["id"], bid, now, before, after))
+                       "before, after, basis_kind, source_kind, factor) "
+                       "VALUES (?,?,?,?,?,?,?,?)",
+                       (e["id"], bid, now, before, after, e["basis_kind"], skind, factor))
         bx.commit()
         return n
     finally:
         bx.close()
+
+
+def reconstruct_without_external(belief_id: int, current: float, db_path=None) -> dict:
+    """What this belief's confidence would be had no EXTERNAL-basis learning
+    delta ever applied -- learning's flip condition (subtractability).
+
+    Replays the belief's logged deltas in order from the first `before`:
+    owned-basis deltas re-applied with their recorded factor (and the same
+    clamps); external/none-basis deltas skipped; every change that happened
+    BETWEEN deltas (not learning: erosion, edits) carried through as-is, and
+    the change since the last delta likewise. Requires provenance on every
+    row; a legacy row (no basis_kind/factor) makes the belief unreconstructable."""
+    cx = connect(f"file:{db_path or _db('conversations')}?mode=ro", uri=True, timeout=10)
+    try:
+        rows = cx.execute("SELECT before, after, basis_kind, factor FROM expectation_learning_log "
+                          "WHERE belief_id = ? ORDER BY id", (belief_id,)).fetchall()
+    finally:
+        cx.close()
+    if not rows:
+        return {"reconstructable": True, "confidence": current, "deltas": 0, "subtracted": 0}
+    if any(r[2] is None or r[3] is None for r in rows):
+        return {"reconstructable": False, "confidence": None, "deltas": len(rows),
+                "subtracted": None, "why": "legacy rows without provenance"}
+    conf = rows[0][0]
+    prev_after = rows[0][0]
+    subtracted = 0
+    for before, after, kind, factor in rows:
+        conf += before - prev_after                 # exogenous change since the last delta
+        if kind == "owned":
+            conf = max(CONF_FLOOR, min(CONF_CEIL, conf * factor))
+        else:
+            subtracted += 1
+        prev_after = after
+    conf += current - prev_after                     # exogenous change since the last delta
+    return {"reconstructable": True, "confidence": conf, "deltas": len(rows),
+            "subtracted": subtracted}
 
 
 # --------------------------------------------------------------- mood channel --
@@ -619,10 +660,37 @@ def canaries(now: Optional[float] = None, window_s: float = 86400) -> list:
     u = belief_undo_divergence(now, window_s, falsifiability_status=f)
     out.append(("belief_undo_divergence", float(u["blind_spot_hits"]), u["covered"],
                 u["diverged"], u["status"]))
+    for channel, r in ever_fired().items():
+        out.append((f"ever_fired.{channel}", float(r["count"]), r["count"], False,
+                    "FIRED" if r["fired"] else "never fired"))
     return out
 
 
 UNMEASURABLE = "UNMEASURABLE"
+
+
+def ever_fired(db_path=None) -> dict:
+    """Per dark/quiet channel: has it EVER produced a non-zero, admitted, organic
+    event? Separates a dead flag from a quiet store (every dark flag carries an
+    observable flip condition and this line). Synthetic tests never write here."""
+    cx = connect(f"file:{db_path or _db('conversations')}?mode=ro", uri=True, timeout=10)
+    try:
+        def first(sql, *a):
+            r = cx.execute(sql, a).fetchone()
+            return {"fired": bool(r and r[0]), "count": (r[0] or 0) if r else 0,
+                    "first_at": r[1] if r else None}
+        valence_sql = ("SELECT COUNT(*), MIN(v.ts) FROM event_valence v JOIN expectations e "
+                       "ON e.id = v.expectation_id WHERE v.admitted = 1 AND v.valence != 0 "
+                       "AND e.producer = ?")
+        return {
+            "owned_belief_valence": first(valence_sql, "owned_belief_expectations"),
+            "commitment_valence": first(valence_sql, "commitments"),
+            "learning": first("SELECT COUNT(*), MIN(ts) FROM expectation_learning_log "
+                              "WHERE after != before"),
+            "mood": first("SELECT COUNT(*), MIN(ts) FROM mood_nudge_applied WHERE nudge != 0"),
+        }
+    finally:
+        cx.close()
 
 
 def belief_undo_divergence(now: Optional[float] = None, window_s: float = 86400,

@@ -213,7 +213,11 @@ class AffectState:
             try:
                 # Hard gate: no effect until organic valence has both signs.
                 if _ex.mood_eligible():
-                    valence_delta += _ex.mood_nudge(self._last_updated, now)
+                    _nudge = _ex.mood_nudge(self._last_updated, now)
+                    valence_delta += _nudge
+                    if _nudge:
+                        self._cw.write("INSERT INTO mood_nudge_applied (ts, nudge) "
+                                       "VALUES (?, ?)", (now, _nudge))
             except Exception as _me:
                 errors.record(f"AffectState mood nudge read failed: {_me}",
                               source=_LOG_SOURCE)
