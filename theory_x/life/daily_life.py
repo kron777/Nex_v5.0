@@ -260,13 +260,8 @@ def _activity_source_audit(date_local: str) -> str:
 
 
 def _activity_expectation_canaries(date_local: str) -> str:
-    from theory_x.stage_world.owned_belief import confirmation_rate_canary
-    c = confirmation_rate_canary()
-    rate = "n/a" if c["rate"] is None else f"{c['rate']:.2f}"
-    msg = (f"owned-belief confirmation rate={rate} over {c['resolved']} resolved"
-           + (" -- CANARY: above 90%, valence is decorative" if c["flag"] else ""))
-    (log.warning if c["flag"] else log.info)("expectation canaries: %s", msg)
-    return msg
+    from theory_x.stage_world.expectations import record_canaries
+    return record_canaries()
 
 
 _ACTIVITY_FUNCS = {

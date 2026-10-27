@@ -44,6 +44,17 @@ THEORY_X_STAGE = None
 DEFAULT_BUSY_TIMEOUT_MS = 5000
 
 _tripwire_log = logging.getLogger("substrate.schema_tripwire")
+_guard_log = logging.getLogger("substrate.guard")
+
+
+def _nex_guard(message):
+    """SQL function nex_guard(msg): log a guard-trigger violation, return NULL.
+    Guard triggers call it just before RAISE(ABORT), so an enforced rule is LOUD
+    even when the caller swallows the IntegrityError (the tripwire only sees
+    schema errors). A connection opened without substrate.connect has no
+    nex_guard, so the trigger fails there with 'no such function' -- also loud."""
+    _guard_log.error("GUARD: %s", message)
+    return None
 _SCHEMA_ERRORS = ("no such table", "no such column", "has no column named")
 
 
@@ -181,4 +192,5 @@ def connect(
         conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute(f"PRAGMA busy_timeout={int(busy_timeout_ms)}")
     conn.execute("PRAGMA foreign_keys=ON")
+    conn.create_function("nex_guard", 1, _nex_guard)
     return conn

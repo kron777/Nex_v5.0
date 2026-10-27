@@ -256,7 +256,7 @@ class TestConfirmationRateCanary(_Store):
     def test_nightly_activity_reports_it(self):
         from theory_x.life import daily_life as dl
         self._resolved(19, 1)
-        with self.assertLogs("theory_x.life.daily_life", "WARNING"):
+        with self.assertLogs("theory_x.stage_world.expectations", "WARNING"):
             msg = dl._ACTIVITY_FUNCS["expectation_canaries"]("2026-10-27")
         self.assertIn("CANARY", msg)
 
