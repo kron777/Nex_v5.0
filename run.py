@@ -548,6 +548,29 @@ def main() -> None:
     # time it was still being wired up here; every method it exposes has
     # been a no-op since. File itself is untouched -- flip ENABLED=True and
     # restore this wiring (recoverable at commit edbddff) to re-enable.
+    # round 11 (item 1): record this boot's downtime as a WITNESSED belief, so the
+    # identity anchor can represent that NEX was OFF (continuity across the gap, not
+    # just within a session). Fail-safe: never blocks boot.
+    #
+    # MUST run before the resumption seeder below: both read the same
+    # state_snapshot.json, but the seeder *consumes* it (renames to
+    # .consumed) as part of its own run(). Read-before-consume was
+    # verified live (R1 drill, 2026-10-31) to matter: with the seeder
+    # first, record_boot()'s unclean fallback always hit a missing file
+    # and silently fell through to "first_boot" / no row at all -- the
+    # unclean branch was dead code on every boot that had a snapshot to
+    # resume from, which is the normal case.
+    try:
+        from theory_x.memory import downtime as _downtime
+        _dt_res = _downtime.record_boot(
+            beliefs_writer=writers["beliefs"],
+            data_dir=str(paths["beliefs"].parent),
+            snapshot_path=str(paths["beliefs"].parent / "state_snapshot.json"),
+        )
+        log.info("Downtime: %s", _dt_res)
+    except Exception as e:
+        log.warning("Downtime record failed: %s", e)
+
     # Phase B: resumption seeder (Memory Layers v0.2)
     # Runs once on boot, promotes prior beliefs if snapshot is recent
     try:
@@ -560,20 +583,6 @@ def main() -> None:
         log.info("Resumption: %s", resume_result)
     except Exception as e:
         log.warning("Resumption boot failed: %s", e)
-
-    # round 11 (item 1): record this boot's downtime as a WITNESSED belief, so the
-    # identity anchor can represent that NEX was OFF (continuity across the gap, not
-    # just within a session). Fail-safe: never blocks boot.
-    try:
-        from theory_x.memory import downtime as _downtime
-        _dt_res = _downtime.record_boot(
-            beliefs_writer=writers["beliefs"],
-            data_dir=str(paths["beliefs"].parent),
-            snapshot_path=str(paths["beliefs"].parent / "state_snapshot.json"),
-        )
-        log.info("Downtime: %s", _dt_res)
-    except Exception as e:
-        log.warning("Downtime record failed: %s", e)
 
     # Phase A: state snapshot writer (Memory Layers v0.2)
     snapshot_writer = StateSnapshotWriter(
