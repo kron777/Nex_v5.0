@@ -5,7 +5,9 @@
 # mutually kill each other's child and crash-loop forever. Fixed:
 #   - flock single-instance: a 2nd keepalive exits instead of fighting.
 #   - only ever kill OUR child ($NEX_PID), never a global pkill.
-#   - exit trap kills our child on shutdown (no orphans).
+#   - exit trap stops our child on shutdown (no orphans), gracefully (v3:
+#     SIGTERM first, so a deliberate stop/restart is recorded as clean
+#     downtime rather than reading as a crash -- see theory_x/memory/downtime.py).
 set -u
 cd /home/rr/Desktop/Desktop/nex5 || { echo "FATAL: cannot cd to nex5 dir"; exit 1; }
 
@@ -37,7 +39,6 @@ if [ "${LOCK_ACQUIRED}" -ne 1 ]; then
 fi
 
 PORT=8765
-SOAK_LOG=/tmp/nex5_soak.log
 VENV=.venv/bin/python3
 RESTART_COUNT=0
 NEX_PID=""
@@ -48,10 +49,76 @@ NEX_PID=""
 NEX_DIR=/home/rr/.nex
 STANDBY="${NEX_DIR}/STANDBY"
 PIDFILE="${NEX_DIR}/nex.pid"     # NEX pid, for the switch to SIGTERM
+IDENTITY_FILE="${NEX_DIR}/nex.pid.identity"   # "pid:starttime:boot_id" for the SAME launch as PIDFILE
 POWER_PORT=8766
-POWER_LOG=/tmp/nex5_power.log
 POWER_PID=""
 mkdir -p "${NEX_DIR}"
+# both moved off /tmp: systemd-tmpfiles can clear /tmp across a reboot, which
+# would destroy the one artifact (the boot-sequence log) a reboot test most
+# needs. Same reasoning now applies to POWER_LOG as already applied to
+# SOAK_LOG; both just append, same as before the move -- no rotation here,
+# matching this script's existing convention for its other runtime logs.
+SOAK_LOG="${NEX_DIR}/nex5_soak.log"
+POWER_LOG="${NEX_DIR}/nex5_power.log"
+
+# --- crash-loop detection (two independent triggers; see notes below) ---
+FAST_RESTART_WINDOW_SEC=300    # a launch that dies before surviving this long counts as "fast"
+FAST_RESTART_LIMIT=3           # this many fast deaths IN A ROW -> give up
+FAST_RESTART_STREAK=0
+LAST_LAUNCH_TS=0
+DEATH_LOG="${NEX_DIR}/death_log"        # file-backed: survives the supervisor itself restarting
+DEATH_RATE_WINDOW_SEC=86400
+DEATH_RATE_LIMIT=6             # this many deaths in a rolling 24h -> give up, even if each
+                                #   individual uptime looked healthy (the churn case).
+                                #   Set well above FAST_RESTART_LIMIT: with both at the
+                                #   same value, every fast death is also a death inside
+                                #   the 24h window, so the rate counter always reaches its
+                                #   limit no later than the streak does and the streak
+                                #   branch can never be the one that trips (verified live,
+                                #   2026-10-31 — fast_streak sat at 2/3 when rate hit 3/3).
+                                #   6 gives the streak real headroom for a genuine fast
+                                #   boot loop while keeping the 24h net for chronic,
+                                #   spaced-out churn.
+FAILED_MARKER="${NEX_DIR}/KEEPALIVE_FAILED"
+GIVEUP_EXIT_CODE=3             # reserved for "giveup, marker written" ONLY —
+                                #   not 1, which set -e / missing venv / a lost
+                                #   flock race would also return, and which
+                                #   would then get stuck `failed` with no
+                                #   marker to explain why. Paired with
+                                #   RestartPreventExitStatus=3 in the unit, so
+                                #   `failed` means exactly this and nothing else.
+KEEPALIVE_EXIT_CODE=0          # trap exits with this; only giveup sets it to GIVEUP_EXIT_CODE
+POWER_SWITCH_OWNER_LOGGED=0    # one-shot flag for ensure_power_switch()'s owner log line
+
+# Field 22 of /proc/<pid>/stat -- starttime in clock ticks since boot.
+# comm (field 2) is parenthesised and may itself contain ')' or spaces, so
+# this splits on the LAST ') ' rather than on whitespace; field 22 is then
+# the 20th token of what follows it (see power_switch.py's _proc_starttime
+# for the Python twin of this parse -- both must agree on the same pid).
+proc_starttime() {
+  local pid="$1" stat rest
+  stat=$(cat "/proc/${pid}/stat" 2>/dev/null) || return 1
+  rest="${stat##*") "}"
+  set -- ${rest}
+  [ "$#" -ge 20 ] || return 1
+  echo "${20}"
+}
+
+boot_id() {
+  cat /proc/sys/kernel/random/boot_id 2>/dev/null
+}
+
+# Companion to PIDFILE so power_switch.py (a separate, longer-lived process)
+# can tell "this pid number" apart from "this specific NEX instance" --
+# without it, a stale pidfile surviving a reboot or a recycled pid would
+# read as "alive" to a bare existence check. No identity file written means
+# no identity to trust; power_switch.py already fails open to "not running".
+write_pid_identity() {
+  local pid="$1" st bid
+  st=$(proc_starttime "${pid}") && bid=$(boot_id) && [ -n "${bid}" ] \
+    && echo "${pid}:${st}:${bid}" > "${IDENTITY_FILE}" \
+    || rm -f "${IDENTITY_FILE}"
+}
 
 # kill ONLY our child, then free the port if still held by it
 stop_my_child() {
@@ -60,37 +127,67 @@ stop_my_child() {
   fi
 }
 
-# graceful stop for STANDBY: SIGTERM so run.py's trap flushes the dbs and
-# releases the GPU, then escalate to SIGKILL ONLY if she refuses. Never a
-# plain -9 here -- that is what would lose a mid-write.
+# Graceful stop, SIGTERM first so run.py's handler stamps a clean-shutdown
+# marker (theory_x/memory/downtime.py) and flushes dbs/GPU, escalating to
+# SIGKILL ONLY if she refuses. Never a plain -9 here -- that is what would
+# lose a mid-write AND leave the next boot's downtime record reading this
+# as an unexplained crash instead of the deliberate stop it was. $1 is a
+# label for the log lines only (STANDBY, or whoever else is calling this).
 graceful_stop_child() {
+  local label="${1:-STANDBY}"
   if [ -z "${NEX_PID}" ] || ! kill -0 "${NEX_PID}" 2>/dev/null; then
-    NEX_PID=""; rm -f "${PIDFILE}"; return
+    NEX_PID=""; rm -f "${PIDFILE}" "${IDENTITY_FILE}"; return
   fi
-  echo "$(date '+%F %T') STANDBY: SIGTERM -> NEX pid=${NEX_PID} (graceful; flush dbs, release GPU)"
+  echo "$(date '+%F %T') ${label}: SIGTERM -> NEX pid=${NEX_PID} (graceful; flush dbs, release GPU)"
   kill -TERM "${NEX_PID}" 2>/dev/null
   for _i in $(seq 1 30); do            # wait up to ~15s
     kill -0 "${NEX_PID}" 2>/dev/null || break
     sleep 0.5
   done
   if kill -0 "${NEX_PID}" 2>/dev/null; then
-    echo "$(date '+%F %T') STANDBY: NEX ignored SIGTERM after 15s -> SIGKILL"
+    echo "$(date '+%F %T') ${label}: NEX ignored SIGTERM after 15s -> SIGKILL"
     kill -9 "${NEX_PID}" 2>/dev/null
   fi
   fuser -k ${PORT}/tcp 2>/dev/null
   NEX_PID=""
-  rm -f "${PIDFILE}"
-  echo "$(date '+%F %T') STANDBY: NEX down, GPU/VRAM released"
+  rm -f "${PIDFILE}" "${IDENTITY_FILE}"
+  echo "$(date '+%F %T') ${label}: NEX down, GPU/VRAM released"
 }
 
 # keep the always-on power control plane up (GPU-free; survives standby).
 ensure_power_switch() {
-  if ss -tlnp 2>/dev/null | grep -q ":${POWER_PORT} "; then return; fi
+  if ss -tlnp 2>/dev/null | grep -q ":${POWER_PORT} "; then
+    if [ -z "${POWER_PID}" ] && [ "${POWER_SWITCH_OWNER_LOGGED}" -eq 0 ]; then
+      echo "$(date '+%F %T') power switch already up on :${POWER_PORT} — owned externally (nex5-power-switch.service, presumably). Not starting our own."
+      POWER_SWITCH_OWNER_LOGGED=1
+    fi
+    return
+  fi
   ${VENV} power_switch.py >> ${POWER_LOG} 2>&1 &
   POWER_PID=$!
-  echo "$(date '+%F %T') power switch up -> http://127.0.0.1:${POWER_PORT} pid=${POWER_PID}"
+  POWER_SWITCH_OWNER_LOGGED=1
+  echo "$(date '+%F %T') power switch up -> http://127.0.0.1:${POWER_PORT} pid=${POWER_PID} — started BY THIS SCRIPT. nex5-power-switch.service doesn't seem to own :${POWER_PORT} — check it's enabled."
 }
-trap 'echo "$(date "+%F %T") KEEPALIVE EXITING — killing child ${NEX_PID} + power switch ${POWER_PID}"; stop_my_child; [ -n "${POWER_PID}" ] && kill "${POWER_PID}" 2>/dev/null; exit 0' INT TERM EXIT
+
+# POWER_LOG is normally written by nex5-power-switch.service's own
+# StandardOutput=append: redirect -- a long-lived, Restart=always process
+# that outlives this script and is never rotated, so it grows unbounded.
+# copytruncate (not mv/rename): rewriting the same inode in place means
+# an existing O_APPEND writer (ours or the service's) just recalculates
+# its offset to the new EOF on its next write -- no lost lines, no fd
+# left pointing at a renamed-away file.
+POWER_LOG_MAX_BYTES=262144   # 256KB
+trim_power_log() {
+  [ -f "${POWER_LOG}" ] || return
+  local _sz
+  _sz=$(stat -c%s "${POWER_LOG}" 2>/dev/null || echo 0)
+  if [ "${_sz}" -gt "${POWER_LOG_MAX_BYTES}" ]; then
+    tail -n 1000 "${POWER_LOG}" > "${POWER_LOG}.tmp" 2>/dev/null \
+      && cat "${POWER_LOG}.tmp" > "${POWER_LOG}" \
+      && rm -f "${POWER_LOG}.tmp"
+  fi
+}
+trap 'trap - INT TERM EXIT; echo "$(date "+%F %T") KEEPALIVE EXITING (code ${KEEPALIVE_EXIT_CODE}) — stopping child ${NEX_PID} gracefully (SIGTERM first, so this reads as a clean stop, not a crash); power switch is now its own systemd unit and is left running"; graceful_stop_child "SUPERVISOR EXIT"; exit ${KEEPALIVE_EXIT_CODE}' INT TERM EXIT
 
 launch_nex() {
   # kill only the previous child WE launched (scoped, not global)
@@ -112,7 +209,9 @@ launch_nex() {
   NEX5_WORLD_PRED=1 NEX5_SELF_PRED=1 NEX5_SOCIAL_N=1 NEX5_PORT=${PORT} \
   NEX5_INTAKE_RESONANCE_OFF=1 NEX5_WORLD_CONSOLIDATE=1 NEX5_L4_STAKES=1 NEX5_SELF_NARRATIVE=1 NEX5_QUALITY_SYNTH=1 NEX5_HOT_OBSERVER=1 NEX5_MOMENTUM=1 NEX5_PERSONA_RESPONDER=1 NEX5_GLOBAL_WORKSPACE=1 NEX5_SURPRISE_WEIGHT=1 NEX5_WIDE_MODES=1 NEX5_METACOG_VOICE=1 NEX5_CARRYOVER=1 NEX5_TIER_CLIMB=1 NEX5_MOOD=1 NEX5_ATTRIB_CRYSTALLIZE=1 NEX5_BRANCH_TEMP=0.35 NEX5_ASSOC_RECALL=1 NEX5_STAKES_DEEP=1 NEX5_DRIVE_CONTENT=1 NEX5_SOCIAL_DEPTH=1 NEX5_PERSONA_LANG_GUARD=1 NEX5_OPERATOR_MODEL=1 NEX5_CHAT_MEMORY=1 NEX5_COMPASS=1 NEX5_BESTOFCLUSTER=1 MOLTBOOK_DRY_RUN=1 NEX5_FOUNTAIN_DEDUP=1 NEX5_COMPASS_TRIM=1 NEX5_EQUANIMITY=1 NEX5_APRAMADA=1 NEX5_AFFECT_CARRY=1 NEX5_SCORE_F2_V2=1 NEX5_FOCUS_ROTATE=1 NEX5_FRAME_DEDUP=0 NEX5_FRAME_GATE=0 NEX5_OPERATOR_ANCHOR=1 NEX5_CHAT_ANTIECHO=1 NEX5_PROVENANCE=1 NEX5_WARRANT_RECORD=1 NEX5_SYNTH_FRESH=1 NEX5_SYNTH_FRESH_SIBLING=1 NEX5_SELF_MAINTAIN_SHADOW=1 NEX5_GW_SURPRISE_NONEMPTY=1 NEX5_AFFINITY_PROVENANCE=on NEX5_INTAKE_T6_RESERVE=50 NEX5_IDENTITY_BLOCK=1 NEX5_SOURCE_KIND=1 NEX5_OWNED_BELIEF=1 NEX5_RECONCILER=1 NEX5_COMMITMENTS=1 NEX5_COMMITMENT_VALENCE=1 NEX5_EXPECT_LEARN=1 ${VENV} run.py >> ${SOAK_LOG} 2>&1 &
   NEX_PID=$!
+  LAST_LAUNCH_TS=$(date +%s)
   echo "${NEX_PID}" > "${PIDFILE}"
+  write_pid_identity "${NEX_PID}"
 }
 
 is_alive() {
@@ -124,9 +223,13 @@ ensure_power_switch
 
 # Honour STANDBY at boot: if she was put to sleep, do NOT launch her -- the
 # power pill on :${POWER_PORT} is what brings her back.
-if [ -e "${STANDBY}" ]; then
+if [ -e "${FAILED_MARKER}" ]; then
+  echo "$(date '+%F %T') KEEPALIVE_FAILED present at startup — refusing to launch NEX and exiting (power switch is a separate unit; unaffected). Clear with: rm ${FAILED_MARKER}, then: systemctl --user start nex5-keepalive"
+  KEEPALIVE_EXIT_CODE=${GIVEUP_EXIT_CODE}
+  exit ${GIVEUP_EXIT_CODE}
+elif [ -e "${STANDBY}" ]; then
   echo "$(date '+%F %T') STANDBY present at boot — NOT launching NEX (OFF). Wake her from the power pill on :${POWER_PORT}."
-  rm -f "${PIDFILE}"
+  rm -f "${PIDFILE}" "${IDENTITY_FILE}"
 else
   launch_nex
   echo "$(date '+%F %T') launched NEX pid=${NEX_PID}"
@@ -160,11 +263,18 @@ fi
 # source of truth: STANDBY present => ensure stopped, never respawn.
 while true; do
   ensure_power_switch          # power plane stays up regardless of NEX state
+  trim_power_log               # bound POWER_LOG's size regardless of who's writing it
 
   if [ -e "${STANDBY}" ]; then
     # OFF: make sure she is down, and do NOT respawn.
     if [ -n "${NEX_PID}" ] && kill -0 "${NEX_PID}" 2>/dev/null; then
       graceful_stop_child
+    elif [ -n "${NEX_PID}" ]; then
+      # Already dead -- e.g. power_switch.py SIGTERM'd her directly,
+      # bypassing us entirely. Still clear our bookkeeping instead of
+      # leaving a stale pid+identity file on disk for however long
+      # STANDBY persists (found live 2026-10-31: sat stale ~2.5h).
+      NEX_PID=""; rm -f "${PIDFILE}" "${IDENTITY_FILE}"
     fi
     sleep 5
     continue
@@ -173,6 +283,49 @@ while true; do
   # ON: respawn if she has died (or was just woken).
   if ! is_alive; then
     RESTART_COUNT=$((RESTART_COUNT + 1))
+
+    # Only count this as a DEATH if NEX_PID still holds a pid — i.e. she was
+    # believed alive and now isn't. A fresh boot or a wake from STANDBY both
+    # leave NEX_PID empty (its init value, or graceful_stop_child() having
+    # just cleared it), so that case launches normally below WITHOUT being
+    # counted here. Without this guard, every ordinary power-pill OFF/ON
+    # cycle writes a death_log entry indistinguishable from a real crash,
+    # and 3 legitimate cycles would trigger a false giveup.
+    if [ -n "${NEX_PID}" ]; then
+      NOW_TS=$(date +%s)
+      _alive_for=$(( NOW_TS - LAST_LAUNCH_TS ))
+
+      # death-rate trigger: append + prune to a rolling 24h window, file-backed
+      # so it survives this supervisor script itself being restarted (unlike
+      # RESTART_COUNT, which is a plain shell var and resets to 0 every time).
+      echo "${NOW_TS}" >> "${DEATH_LOG}"
+      awk -v cutoff="$(( NOW_TS - DEATH_RATE_WINDOW_SEC ))" '$1>=cutoff' "${DEATH_LOG}" > "${DEATH_LOG}.tmp" 2>/dev/null && mv "${DEATH_LOG}.tmp" "${DEATH_LOG}"
+      _death_rate_count=$(wc -l < "${DEATH_LOG}" 2>/dev/null || echo 0)
+
+      # fast-crash-loop trigger: N deaths in a row, each before surviving
+      # FAST_RESTART_WINDOW_SEC. LAST_LAUNCH_TS=0 on the very first iteration
+      # guards against a false positive on cold start.
+      if [ "${LAST_LAUNCH_TS}" -gt 0 ] && [ "${_alive_for}" -lt "${FAST_RESTART_WINDOW_SEC}" ]; then
+        FAST_RESTART_STREAK=$((FAST_RESTART_STREAK + 1))
+      else
+        FAST_RESTART_STREAK=0   # she ran for a real while — not part of a crash loop
+      fi
+
+      if [ "${FAST_RESTART_STREAK}" -ge "${FAST_RESTART_LIMIT}" ] || [ "${_death_rate_count}" -ge "${DEATH_RATE_LIMIT}" ]; then
+        {
+          echo "$(date '+%F %T') KEEPALIVE GIVING UP — fast_streak=${FAST_RESTART_STREAK} (limit ${FAST_RESTART_LIMIT}) death_rate_24h=${_death_rate_count} (limit ${DEATH_RATE_LIMIT})"
+          echo "last ${SOAK_LOG} tail:"
+          tail -20 "${SOAK_LOG}" 2>/dev/null
+        } > "${FAILED_MARKER}" 2>&1
+        KEEPALIVE_EXIT_CODE=${GIVEUP_EXIT_CODE}
+        echo "$(date '+%F %T') FAILED marker written to ${FAILED_MARKER} — exiting ${GIVEUP_EXIT_CODE} so systemd shows failed (and stays failed — RestartPreventExitStatus=3). Power switch unaffected (separate unit)."
+        exit ${GIVEUP_EXIT_CODE}
+      fi
+    else
+      FAST_RESTART_STREAK=0
+      echo "$(date '+%F %T') NEX not up (fresh boot or wake from STANDBY, NEX_PID was empty) — launching, not counted as a death."
+    fi
+
     echo "$(date '+%F %T') RESTART #${RESTART_COUNT} — NEX not up, launching. Last log tail:"
     tail -5 ${SOAK_LOG} 2>/dev/null | sed 's/^/    /'
     launch_nex
