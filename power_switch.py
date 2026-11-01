@@ -35,6 +35,11 @@ HOME = os.path.expanduser("~")
 NEX_DIR = os.path.join(HOME, ".nex")
 STANDBY = os.path.join(NEX_DIR, "STANDBY")
 PIDFILE = os.path.join(NEX_DIR, "nex.pid")   # written by nex_keepalive.sh
+# companion to PIDFILE: "pid:starttime:boot_id" for the SAME launch, also
+# written by nex_keepalive.sh. PIDFILE itself stays a bare int (tools/
+# nex_vitals.py reads it directly), so the identity triple lives alongside
+# it rather than replacing it.
+IDENTITY_FILE = os.path.join(NEX_DIR, "nex.pid.identity")
 HOST = "127.0.0.1"
 PORT = 8766
 
@@ -54,17 +59,94 @@ ALLOWED_HOSTS = frozenset(f"{h}:{PORT}" for h in ("127.0.0.1", "localhost"))
 
 
 def state() -> str:
-    return "off" if os.path.exists(STANDBY) else "on"
+    """"on" whenever the sentinel says ON. When it says OFF, this still
+    checks the verified pid rather than trusting the sentinel alone: a
+    just-signalled NEX can take a few seconds to actually exit, and during
+    that window the sentinel is already written. Reporting a bare "off"
+    then would be a lie the HUD pill repeats on every 2s poll, not just in
+    the one POST response that triggered it -- "stopping" falls through
+    the frontend's on/off switch to its existing neutral "wait" pill, no
+    JS change needed."""
+    if os.path.exists(STANDBY):
+        return "off" if _read_pid() is None else "stopping"
+    return "on"
+
+
+def _boot_id() -> str | None:
+    try:
+        with open("/proc/sys/kernel/random/boot_id") as f:
+            return f.read().strip()
+    except OSError:
+        return None
+
+
+def _proc_starttime(pid: int) -> int | None:
+    """Field 22 of /proc/<pid>/stat -- starttime in clock ticks since boot.
+    comm (field 2) is parenthesised and may itself contain ')' or spaces, so
+    this splits on the LAST ') ' rather than whitespace; field 22 is then
+    token 20 (index 19) of what follows it."""
+    try:
+        with open(f"/proc/{pid}/stat") as f:
+            raw = f.read()
+        rest = raw.rsplit(") ", 1)[1]
+        return int(rest.split()[19])
+    except (OSError, IndexError, ValueError):
+        return None
+
+
+def _read_identity() -> tuple[int, int, str] | None:
+    try:
+        with open(IDENTITY_FILE) as f:
+            pid_s, starttime_s, boot_id = f.read().strip().split(":", 2)
+        return int(pid_s), int(starttime_s), boot_id
+    except (OSError, ValueError):
+        return None
 
 
 def _read_pid() -> int | None:
+    """The live NEX pid, verified against the (pid, starttime, boot_id)
+    nex_keepalive.sh recorded at launch -- not just "does this pid exist".
+    A bare existence check also "succeeds" on a stale pidfile whenever that
+    pid number gets reused by an unrelated process (pids recycle) or by a
+    NEW NEX launch after a reboot; starttime pins it to one process
+    instance, boot_id catches the reboot case specifically. Any mismatch,
+    missing field, or unreadable file is treated as "not running" -- fail
+    open toward treating her as dead (supervisor relaunches) rather than
+    toward silently acting on the wrong process.
+    """
     try:
         with open(PIDFILE) as f:
             pid = int(f.read().strip())
-        os.kill(pid, 0)          # exists?
-        return pid
     except (OSError, ValueError):
         return None
+    if pid <= 1:
+        # 0 is this process's own pgid as a kill() target, -1 is "every
+        # process we're allowed to signal", 1 is init. A corrupt or
+        # adversarial pidfile could contain any of these; nothing
+        # downstream should ever reach os.kill with one. Belt-and-braces
+        # alongside the identity match below, which in practice already
+        # excludes them (no real launch's $! is ever <= 1).
+        return None
+
+    identity = _read_identity()
+    if identity is None or identity[0] != pid:
+        return None
+    _, rec_starttime, rec_boot_id = identity
+
+    if not os.path.isdir(f"/proc/{pid}"):
+        return None
+    try:
+        if os.stat(f"/proc/{pid}").st_uid != os.getuid():
+            return None
+    except OSError:
+        return None
+
+    if _proc_starttime(pid) != rec_starttime:
+        return None
+    if _boot_id() != rec_boot_id:
+        return None
+
+    return pid
 
 
 def _sigterm_nex() -> dict:
@@ -92,7 +174,11 @@ def go_off() -> dict:
     with open(STANDBY, "w") as f:
         f.write(f"off since {time.strftime('%F %T')}\n")
     term = _sigterm_nex()
-    return {"state": "off", "term": term}
+    # Not a hardcoded "off": if term["exited"] is False she's still
+    # finishing her shutdown (or ignored the signal and needs the
+    # supervisor's SIGKILL escalation), and state() will correctly say
+    # "stopping" until a verified-dead read confirms otherwise.
+    return {"state": state(), "term": term}
 
 
 def go_on() -> dict:
@@ -251,6 +337,7 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     os.makedirs(NEX_DIR, exist_ok=True)
     httpd = ThreadingHTTPServer((HOST, PORT), Handler)
+    print(f"[power_switch] start boot_id={_boot_id()}", flush=True)
     print(f"[power_switch] listening on http://{HOST}:{PORT}  state={state()}", flush=True)
     try:
         httpd.serve_forever()
