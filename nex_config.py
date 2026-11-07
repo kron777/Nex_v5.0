@@ -146,6 +146,7 @@ KNOWN_FLAGS: dict[str, str] = {
     "NEX5_RETRIEVAL_TEETH": "bool",
     "NEX5_RUT_EDGE": "bool",
     "NEX5_RUT_MIRROR_OFF": "str",
+    "NEX5_SALIENT_SELF_OBS": "bool",
     "NEX5_SCORE_F2_V2": "bool",
     "NEX5_SELFPRED_HORIZON": "int",
     "NEX5_SELFPRED_THRESHOLD": "float",

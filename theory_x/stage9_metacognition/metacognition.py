@@ -150,6 +150,19 @@ _DIGEST_PHRASE = {
     "value_drift_abandonment": "my deepest beliefs keep barely surfacing in my recent thinking",
 }
 
+# ── Candidate 4 (2026-11-07 round) — salience-weighted self-observation ────
+# Dark by default: NEX5_SALIENT_SELF_OBS=1 to arm. OFF reproduces today's
+# exact behaviour (ORDER BY created_at DESC LIMIT 3, recent[0] always wins —
+# see _refresh_recent_cache()). ON widens the candidate pool to
+# _SALIENT_CANDIDATE_LIMIT and re-ranks by severity*decay instead of raw
+# recency. See observation_reports/salienceSelfObs_DESIGN_AND_PREREGISTRATION.md
+# for the exposure check and design rationale. Decay reuses _STALE_DAYS as
+# its horizon on purpose: a salience-weighted score reaches zero exactly
+# when decay() would have auto-resolved the event anyway, not on some
+# separately invented constant that could drift out of sync with it.
+_SALIENT_SELF_OBS_FLAG = "NEX5_SALIENT_SELF_OBS"
+_SALIENT_CANDIDATE_LIMIT = 10
+
 
 class Metacognition:
     name: str = "metacognition"
@@ -239,7 +252,7 @@ class Metacognition:
 
         with self._lock:
             if self._cached_recent is None or (now - self._cache_ts) > _CACHE_TTL:
-                self._cached_recent = self.get_recent(limit=3)
+                self._cached_recent = self._refresh_recent_cache(now)
                 self._cache_ts = now
 
         return self.state(now=now)
@@ -278,6 +291,33 @@ class Metacognition:
             (limit,),
         )
         return [dict(r) for r in rows]
+
+    def _refresh_recent_cache(self, now: float) -> list[dict]:
+        """Candidate 4 (NEX5_SALIENT_SELF_OBS). OFF: today's exact pick --
+        the 3 most recent unresolved events, recent[0] always wins. ON: a
+        wider candidate pool, re-ranked by severity*decay (see
+        _rank_by_salience) instead of raw recency."""
+        if os.environ.get(_SALIENT_SELF_OBS_FLAG) != "1":
+            return self.get_recent(limit=3)
+        candidates = self.get_recent(limit=_SALIENT_CANDIDATE_LIMIT)
+        return self._rank_by_salience(candidates, now)
+
+    def _rank_by_salience(self, rows: list[dict], now: float) -> list[dict]:
+        """score = severity * decay(age), decay = max(0, 1 - (age/_STALE_DAYS)^2).
+        Quadratic rather than linear on purpose: a severe event should hold
+        most of its weight while still fresh-ish, then fall off faster as
+        it nears the point decay() would auto-resolve it anyway -- a linear
+        curve discounts a 9-day-old severity-1.0 event almost as hard as a
+        brand-new severity-0.37 one, which nearly re-creates the exact
+        starvation this is meant to fix (checked against the live numbers
+        in the Step-0 exposure check before picking this curve, not just
+        assumed). Reuses _STALE_DAYS as the zero-point on purpose, same
+        reasoning as the comment block above. Ties broken by recency."""
+        def _score(r: dict) -> float:
+            age_days = max(0.0, (now - r["created_at"]) / 86400.0)
+            decay = max(0.0, 1.0 - (age_days / _STALE_DAYS) ** 2)
+            return float(r.get("severity") or 0.0) * decay
+        return sorted(rows, key=lambda r: (_score(r), r["created_at"]), reverse=True)
 
     def format_for_prompt(self) -> str:
         """1-2 lines for belief_text injection. Empty when nothing notable."""
