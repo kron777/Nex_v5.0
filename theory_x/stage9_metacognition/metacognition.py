@@ -33,6 +33,7 @@ Implements SentienceNode protocol (DOCTRINE §4):
 from __future__ import annotations
 
 import json
+import os
 import string
 import threading
 import time
@@ -99,6 +100,44 @@ _VALUE_DRIFT_STOPWORDS = frozenset({
     "may", "might", "shall", "should", "than", "so", "if", "as", "into",
 })
 
+# ── SENTIENCE_PROGRAM Phase M — stateful metacognition (second-order) ───────
+# Dark by default: NEX5_METACOG_DIGEST=1 to arm. Every byte below this
+# comment that can touch meta_cognition_events is reached ONLY through
+# _detect_digest(), which checks the flag first and returns [] otherwise —
+# so with the flag unset, this phase writes nothing and format_for_prompt()
+# can never see a digest row (none exist to see). No other call site
+# (generator.py, gui/server.py) needed a change: both already call
+# format_for_prompt() unconditionally or behind their OWN existing flag, and
+# a digest row just rides whichever of those paths is already live, exactly
+# as any other event_type does today.
+#
+# PROVISIONAL (not yet measured against live cadence — same status as the
+# other "set 2026-07-10 against dirty data" constants in this file): a
+# recurring pattern is _DIGEST_PATTERN_MIN_COUNT+ events of the SAME
+# event_type within the last _DIGEST_LOOKBACK_S, checked at most once per
+# _DIGEST_COOLDOWN_S per event_type so a sustained pattern doesn't re-digest
+# itself every tick once it crosses threshold. Re-derive once r77-style live
+# data exists on how often meta_cognition_events actually recurs.
+_DIGEST_EVENT_TYPE = "metacog_digest"
+_DIGEST_LOOKBACK_S = 24 * 3600      # 1 day
+_DIGEST_PATTERN_MIN_COUNT = 3       # >=N same-type events in the lookback => a pattern
+_DIGEST_COOLDOWN_S = 3600           # don't re-digest the same event_type more than hourly
+
+# First-order event_type -> the phrase a second-order digest line names it
+# by. Reuses format_for_prompt()'s own voice (below) so a digest line reads
+# as the same self continuing to notice, not a different register.
+_DIGEST_PHRASE = {
+    "groove": "I keep returning to repeated patterns in my recent thinking",
+    "goal_drift": "I keep drifting from my active goal",
+    "topic_diversity_collapse": "I keep narrowing in topic range",
+    "vocab_narrowing": "my vocabulary keeps growing less distinctive",
+    "attention_groove": "the same themes keep recurring across my attention",
+    "uncertainty_stagnation": "my open problems keep holding or growing, unresolved",
+    "value_drift_distance": "my recent thoughts keep moving away from my deepest beliefs",
+    "value_drift_contradiction": "I keep rejecting more thoughts that conflict with my anchors",
+    "value_drift_abandonment": "my deepest beliefs keep barely surfacing in my recent thinking",
+}
+
 
 class Metacognition:
     name: str = "metacognition"
@@ -127,6 +166,10 @@ class Metacognition:
         self._keystone_matrix = None      # numpy (N, 384) — built on first use
         self._keystone_tokens: Optional[frozenset] = None  # word tokens from all keystones
         self._distance_history: deque = deque(maxlen=_VALUE_DRIFT_DISTANCE_DEQUE_LEN)
+        # Phase M digest cooldown, per first-order event_type (in-memory;
+        # resets on restart, which only means an extra digest row is possible
+        # right after a restart — never a missed one, never a loop).
+        self._last_digest_at: dict = {}
 
     # ── SentienceNode protocol ────────────────────────────────────────────────
 
@@ -174,6 +217,12 @@ class Metacognition:
         # Phase 40 — substrate-history drift signals
         drift_findings = self._detect_drift()
         for finding in drift_findings:
+            self._write_event(finding, now)
+
+        # Phase M — second-order digest (dark unless NEX5_METACOG_DIGEST=1;
+        # _detect_digest() checks the flag itself and returns [] when unset).
+        digest_findings = self._detect_digest(now)
+        for finding in digest_findings:
             self._write_event(finding, now)
 
         with self._lock:
@@ -226,6 +275,13 @@ class Metacognition:
             return ""
         top = recent[0]
         etype = top["event_type"]
+        if etype == _DIGEST_EVENT_TYPE:
+            # Second-order: surface the digest's own description verbatim --
+            # it is already the one line Phase M writes, no re-derivation.
+            # Only ever reachable with NEX5_METACOG_DIGEST=1, because with it
+            # unset _detect_digest() never writes a row of this event_type
+            # for get_recent() to find.
+            return f"Self-observation: {top['description']}"
         if etype == "groove":
             return "Self-observation: I notice repeated patterns in my recent thinking."
         if etype == "goal_drift":
@@ -478,6 +534,58 @@ class Metacognition:
         # Phase 41 value-drift signals
         findings.extend(self._detect_value_drift())
 
+        return findings
+
+    # ── Phase M — second-order digest ────────────────────────────────────────
+
+    def _detect_digest(self, now: float) -> list[dict]:
+        """A pattern IN the first-order monitoring itself ("I keep flagging
+        drift on topic X"), not a single event. Dark unless
+        NEX5_METACOG_DIGEST=1 — checked first, below this nothing runs.
+
+        Reads meta_cognition_events grouped by event_type over the lookback
+        window, EXCLUDING this digest's own event_type from the count. That
+        exclusion is the only loop-prevention this needs: a digest row can
+        never itself be counted toward triggering another digest, so
+        second-order events cannot feed the first-order count (the failure
+        mode SENTIENCE_PROGRAM Phase M names). Per-event_type cooldown keeps
+        a sustained pattern from re-digesting itself every tick.
+        """
+        if os.environ.get("NEX5_METACOG_DIGEST") != "1":
+            return []
+
+        try:
+            cutoff = now - _DIGEST_LOOKBACK_S
+            rows = self._reader.read(
+                "SELECT event_type, COUNT(*) AS n FROM meta_cognition_events "
+                "WHERE created_at > ? AND event_type != ? "
+                "GROUP BY event_type HAVING n >= ?",
+                (cutoff, _DIGEST_EVENT_TYPE, _DIGEST_PATTERN_MIN_COUNT),
+            )
+        except Exception as exc:
+            errors.record(f"digest read failed: {exc}", source=_LOG_SOURCE, exc=exc)
+            return []
+
+        findings: list[dict] = []
+        for row in rows:
+            etype = row["event_type"]
+            n = int(row["n"])
+            last = self._last_digest_at.get(etype, 0.0)
+            if now - last < _DIGEST_COOLDOWN_S:
+                continue
+            self._last_digest_at[etype] = now
+            phrase = _DIGEST_PHRASE.get(etype, f"I keep flagging {etype}")
+            lookback_h = _DIGEST_LOOKBACK_S / 3600.0
+            findings.append({
+                "event_type": _DIGEST_EVENT_TYPE,
+                "description": (
+                    f"Digest: {phrase} — {n} {etype} events in the last "
+                    f"{lookback_h:.0f}h (a pattern in the monitoring itself, "
+                    f"not a single event)."
+                ),
+                "severity": float(min(1.0, n / (_DIGEST_PATTERN_MIN_COUNT * 2))),
+                "source": f"{_LOG_SOURCE}/digest",
+            })
         return findings
 
     # ── Phase 41 value-drift detection ───────────────────────────────────────
