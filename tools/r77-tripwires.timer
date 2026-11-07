@@ -1,0 +1,16 @@
+[Unit]
+Description=r77 revert-tripwire watch, every 6h for the r77 measurement window
+
+[Timer]
+# Every 6h. r77's window is >=200 chat turns or 14 days -- a breach sitting
+# unnoticed for even a full day was the thing being fixed, so this checks
+# more often than nex-vitals' nightly cadence. Persistent=true fires a missed
+# run (machine asleep/rebooted) on next wake, so a gap doesn't go unchecked.
+# THIS TIMER IS SCOPED TO THE r77 WINDOW: disable it once r77 resolves
+# (`systemctl --user disable --now r77-tripwires.timer`) -- it has no
+# purpose once the flag is reverted or the round is written up.
+OnCalendar=*-*-* 00,06,12,18:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

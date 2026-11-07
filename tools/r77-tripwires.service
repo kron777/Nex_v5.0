@@ -1,0 +1,16 @@
+[Unit]
+Description=r77 revert-tripwire watch (READ-ONLY; logs/r77_tripwire_log.jsonl)
+Documentation=file:///home/rr/Desktop/Desktop/nex5/observation_reports/r77_PREREGISTRATION.md
+After=network-online.target
+
+[Service]
+# Oneshot: run the read-only watch once and exit. Never touches a NEX
+# database and never reverts NEX5_CHAT_WORKSPACE -- it only reports (loudly,
+# via a flag file + desktop notification + a non-zero exit) and logs. The
+# non-zero exit on breach is deliberate: it leaves this unit "failed" until
+# the next scheduled run clears it, so `systemctl --user list-units --failed`
+# surfaces a live breach even if the notification is missed.
+Type=oneshot
+WorkingDirectory=/home/rr/Desktop/Desktop/nex5
+ExecStart=/home/rr/Desktop/Desktop/nex5/.venv/bin/python3 tools/r77_tripwires.py --log
+Nice=10
