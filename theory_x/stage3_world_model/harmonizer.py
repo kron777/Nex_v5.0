@@ -326,17 +326,15 @@ class Harmonizer:
 
         return self._retire_both_or_synthesize(belief_id_a, belief_id_b, row_a, row_b)
 
-    def _retire_both_or_synthesize(
+    def _find_synthesis_candidate(
         self, belief_id_a: int, belief_id_b: int, row_a: Any, row_b: Any
-    ) -> str:
-        """The original resolve() body, unchanged: seek a synthesis bridge,
-        else retire both. Called when NEX5_HELD_TENSION is unset, and as the
-        held-tension path's own cap-exceeded fallback (see _hold_as_tension)."""
-        # Seek synthesis: a third belief bridging both
+    ) -> Optional[int]:
+        """Seek a third belief bridging both -- extracted out of
+        _retire_both_or_synthesize unchanged, so retry_bridge_for_tensions()
+        (Phase D's periodic re-attempt) can reuse the exact same search
+        against a held tension instead of duplicating it."""
         tokens_a = _tokenize(row_a["content"])
         tokens_b = _tokenize(row_b["content"])
-        synthesis_id: Optional[int] = None
-
         try:
             candidates = self._beliefs_reader.read(
                 "SELECT id, content, tier FROM beliefs "
@@ -346,35 +344,53 @@ class Harmonizer:
             for c in candidates:
                 c_tokens = _tokenize(c["content"])
                 if len(c_tokens & tokens_a) >= 2 and len(c_tokens & tokens_b) >= 2:
-                    synthesis_id = c["id"]
-                    break
+                    return int(c["id"])
         except Exception as exc:
             errors.record(f"harmonizer synthesis search error: {exc}", source=_LOG_SOURCE, exc=exc)
+        return None
+
+    def _apply_synthesis(
+        self, belief_id_a: int, belief_id_b: int, row_a: Any, row_b: Any, synthesis_id: int,
+    ) -> None:
+        """Retire both originals to tier 8, point them at the bridging
+        belief via edges, log the event. Extracted out of
+        _retire_both_or_synthesize unchanged, same reuse reason as
+        _find_synthesis_candidate."""
+        retired_a = f"[RETIRED] {row_a['content']}"
+        retired_b = f"[RETIRED] {row_b['content']}"
+        self._beliefs_writer.write_many([
+            ("UPDATE beliefs SET tier = 8, locked = 0, paused = 0, "
+             "content = ? WHERE id = ?", (retired_a, belief_id_a)),
+            ("UPDATE beliefs SET tier = 8, locked = 0, paused = 0, "
+             "content = ? WHERE id = ?", (retired_b, belief_id_b)),
+        ])
+        self._log_retired(belief_id_a, belief_id_b, "synthesized")
+        self._dynamic_writer.write(
+            "INSERT INTO harmonizer_events "
+            "(ts, belief_id_a, belief_id_b, resolution, synthesis_belief_id) "
+            "VALUES (?, ?, ?, 'synthesized', ?)",
+            (time.time(), belief_id_a, belief_id_b, synthesis_id),
+        )
+        self._promoter.write_edge(belief_id_a, synthesis_id, "synthesises", 0.7)
+        self._promoter.write_edge(belief_id_b, synthesis_id, "synthesises", 0.7)
+        self._promoter.decisive_contradiction(belief_id_b)
+        errors.record(
+            f"harmonizer synthesized ({belief_id_a}, {belief_id_b}) "
+            f"via belief {synthesis_id}",
+            source=_LOG_SOURCE, level="INFO",
+        )
+
+    def _retire_both_or_synthesize(
+        self, belief_id_a: int, belief_id_b: int, row_a: Any, row_b: Any
+    ) -> str:
+        """The original resolve() body, unchanged in effect: seek a
+        synthesis bridge, else retire both. Called when NEX5_HELD_TENSION is
+        unset, and as the held-tension path's own cap-exceeded fallback (see
+        _hold_as_tension)."""
+        synthesis_id = self._find_synthesis_candidate(belief_id_a, belief_id_b, row_a, row_b)
 
         if synthesis_id is not None:
-            retired_a = f"[RETIRED] {row_a['content']}"
-            retired_b = f"[RETIRED] {row_b['content']}"
-            self._beliefs_writer.write_many([
-                ("UPDATE beliefs SET tier = 8, locked = 0, paused = 0, "
-                 "content = ? WHERE id = ?", (retired_a, belief_id_a)),
-                ("UPDATE beliefs SET tier = 8, locked = 0, paused = 0, "
-                 "content = ? WHERE id = ?", (retired_b, belief_id_b)),
-            ])
-            self._log_retired(belief_id_a, belief_id_b, "synthesized")
-            self._dynamic_writer.write(
-                "INSERT INTO harmonizer_events "
-                "(ts, belief_id_a, belief_id_b, resolution, synthesis_belief_id) "
-                "VALUES (?, ?, ?, 'synthesized', ?)",
-                (time.time(), belief_id_a, belief_id_b, synthesis_id),
-            )
-            self._promoter.write_edge(belief_id_a, synthesis_id, "synthesises", 0.7)
-            self._promoter.write_edge(belief_id_b, synthesis_id, "synthesises", 0.7)
-            self._promoter.decisive_contradiction(belief_id_b)
-            errors.record(
-                f"harmonizer synthesized ({belief_id_a}, {belief_id_b}) "
-                f"via belief {synthesis_id}",
-                source=_LOG_SOURCE, level="INFO",
-            )
+            self._apply_synthesis(belief_id_a, belief_id_b, row_a, row_b, synthesis_id)
             return "synthesized"
         else:
             self._beliefs_writer.write_many([
@@ -493,6 +509,57 @@ class Harmonizer:
                 self._resolve_tension(r["id"], "stale_retention")
                 resolved += 1
         return resolved
+
+    def retry_bridge_for_tensions(self, now: Optional[float] = None) -> int:
+        """Candidate 3 (2026-11-07 round): a held tension previously only
+        closed two ways -- its basis left the pool, or it aged past
+        _TENSION_STALE_DAYS (see sweep_resolved_tensions) -- neither of
+        which ever looks for a bridging belief the way the normal
+        escalation path (_retire_both_or_synthesize) does. The belief pool
+        can grow after a tension opens, so a bridge that didn't exist then
+        may exist now. Re-runs the same synthesis search
+        (_find_synthesis_candidate) against every still-eligible open
+        tension; on a hit, applies the same treatment a normal synthesis
+        gets (_apply_synthesis: retire both originals to tier 8, point them
+        at the bridge via edges) and resolves the tension with reason
+        'bridge_found' rather than leaving it open or closing it with no
+        outcome. Call this AFTER sweep_resolved_tensions in the same pass
+        so a tension whose basis already left the pool isn't wastefully
+        searched. Not currently invoked by any live loop -- see decay()'s
+        docstring, same status as sweep_resolved_tensions."""
+        now = now if now is not None else time.time()
+        try:
+            rows = self._dynamic_reader.read(
+                "SELECT id, belief_id_a, belief_id_b FROM held_tensions "
+                "WHERE resolved_at IS NULL"
+            )
+        except Exception as exc:
+            errors.record(f"retry_bridge_for_tensions read error: {exc}",
+                          source=_LOG_SOURCE, exc=exc)
+            return 0
+        bridged = 0
+        for r in rows:
+            a_id, b_id = r["belief_id_a"], r["belief_id_b"]
+            if not (self._still_eligible(a_id) and self._still_eligible(b_id)):
+                continue  # sweep_resolved_tensions' job, not this one's
+            try:
+                row_a = self._beliefs_reader.read_one(
+                    "SELECT id, content, tier, confidence FROM beliefs WHERE id = ?", (a_id,))
+                row_b = self._beliefs_reader.read_one(
+                    "SELECT id, content, tier, confidence FROM beliefs WHERE id = ?", (b_id,))
+            except Exception as exc:
+                errors.record(f"retry_bridge_for_tensions belief read error: {exc}",
+                              source=_LOG_SOURCE, exc=exc)
+                continue
+            if row_a is None or row_b is None:
+                continue
+            synthesis_id = self._find_synthesis_candidate(a_id, b_id, row_a, row_b)
+            if synthesis_id is None:
+                continue
+            self._apply_synthesis(a_id, b_id, row_a, row_b, synthesis_id)
+            self._resolve_tension(r["id"], "bridge_found")
+            bridged += 1
+        return bridged
 
     def _log_retired(self, a: int, b: int, how: str) -> None:
         """Retirement unpauses both and moves them to tier 8 (the weakest) -- a
@@ -752,12 +819,15 @@ class Harmonizer:
         2026-11-07) -- _harmonizer_loop calls run_scan_and_resolve()/tick()
         only, same as before this change. Filling this in does not make it
         reachable from the live process; it only gives the Phase D retention
-        sweep (sweep_resolved_tensions(), see held_tensions) somewhere to
-        live via the generic SentienceNode interface, for a test or a future,
-        separately-decided wiring to call. Background loop otherwise manages
-        its own timing."""
+        sweep (sweep_resolved_tensions()) and the Candidate 3 bridge retry
+        (retry_bridge_for_tensions()) somewhere to live via the generic
+        SentienceNode interface, for a test or a future, separately-decided
+        wiring to call. Sweep runs first so a tension whose basis already
+        left the pool isn't wastefully searched for a bridge. Background
+        loop otherwise manages its own timing."""
         try:
             self.sweep_resolved_tensions(now=now)
+            self.retry_bridge_for_tensions(now=now)
         except Exception as exc:
             errors.record(f"harmonizer decay error: {exc}", source=_LOG_SOURCE, exc=exc)
 
