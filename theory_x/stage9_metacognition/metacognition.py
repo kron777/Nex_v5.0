@@ -114,12 +114,24 @@ _VALUE_DRIFT_STOPWORDS = frozenset({
 # PROVISIONAL (not yet measured against live cadence — same status as the
 # other "set 2026-07-10 against dirty data" constants in this file): a
 # recurring pattern is _DIGEST_PATTERN_MIN_COUNT+ events of the SAME
-# event_type within the last _DIGEST_LOOKBACK_S, checked at most once per
+# event_type within the lookback window, checked at most once per
 # _DIGEST_COOLDOWN_S per event_type so a sustained pattern doesn't re-digest
 # itself every tick once it crosses threshold. Re-derive once r77-style live
 # data exists on how often meta_cognition_events actually recurs.
+#
+# RE-SCOPED 2026-11-08 (Beam/Jon, after the Step-0 exposure check in
+# observation_reports/phaseM_PREREGISTRATION.md found the original fixed
+# 24h window had never fired once in the table's entire history — 6 rows,
+# ever). The lookback is now adaptive: _DIGEST_LOOKBACK_CAP_S (7 days), OR
+# tight enough to hold exactly _DIGEST_LOOKBACK_MIN_ROWS, whichever is
+# reached SOONER (i.e. the shorter of the two) — see _digest_cutoff(). At
+# today's volume this is just a flat 7-day window (nowhere near 100 rows
+# exist); the row-count cap exists so the window self-tightens instead of
+# growing unbounded if event volume later increases a lot. This is a window
+# re-scope only — still dark behind NEX5_METACOG_DIGEST, still unarmed.
 _DIGEST_EVENT_TYPE = "metacog_digest"
-_DIGEST_LOOKBACK_S = 24 * 3600      # 1 day
+_DIGEST_LOOKBACK_CAP_S = 7 * 86400  # 7 days, hard cap on the window
+_DIGEST_LOOKBACK_MIN_ROWS = 100     # tighten the window once this many rows exist within the cap
 _DIGEST_PATTERN_MIN_COUNT = 3       # >=N same-type events in the lookback => a pattern
 _DIGEST_COOLDOWN_S = 3600           # don't re-digest the same event_type more than hourly
 
@@ -538,6 +550,29 @@ class Metacognition:
 
     # ── Phase M — second-order digest ────────────────────────────────────────
 
+    def _digest_cutoff(self, now: float) -> float:
+        """Adaptive lookback cutoff: 7 days (_DIGEST_LOOKBACK_CAP_S), or tight
+        enough to hold exactly _DIGEST_LOOKBACK_MIN_ROWS non-digest rows,
+        whichever is reached SOONER (the later/larger of the two candidate
+        cutoff timestamps -- a tighter window means a more recent cutoff).
+        Finds the _DIGEST_LOOKBACK_MIN_ROWS-th most recent row's created_at;
+        if that row is more recent than the 7-day cap, the 100-row bound
+        was reached within less than 7 days, so use it (self-tightening as
+        volume grows). If fewer than that many rows exist at all, or the
+        Nth row is older than the cap, the flat 7-day cap applies."""
+        cap_cutoff = now - _DIGEST_LOOKBACK_CAP_S
+        try:
+            row = self._reader.read_one(
+                "SELECT created_at FROM meta_cognition_events "
+                "WHERE event_type != ? ORDER BY created_at DESC LIMIT 1 OFFSET ?",
+                (_DIGEST_EVENT_TYPE, _DIGEST_LOOKBACK_MIN_ROWS - 1),
+            )
+        except Exception:
+            return cap_cutoff
+        if row is None or row["created_at"] is None:
+            return cap_cutoff
+        return max(cap_cutoff, row["created_at"])
+
     def _detect_digest(self, now: float) -> list[dict]:
         """A pattern IN the first-order monitoring itself ("I keep flagging
         drift on topic X"), not a single event. Dark unless
@@ -555,7 +590,7 @@ class Metacognition:
             return []
 
         try:
-            cutoff = now - _DIGEST_LOOKBACK_S
+            cutoff = self._digest_cutoff(now)
             rows = self._reader.read(
                 "SELECT event_type, COUNT(*) AS n FROM meta_cognition_events "
                 "WHERE created_at > ? AND event_type != ? "
@@ -575,7 +610,7 @@ class Metacognition:
                 continue
             self._last_digest_at[etype] = now
             phrase = _DIGEST_PHRASE.get(etype, f"I keep flagging {etype}")
-            lookback_h = _DIGEST_LOOKBACK_S / 3600.0
+            lookback_h = (now - cutoff) / 3600.0
             findings.append({
                 "event_type": _DIGEST_EVENT_TYPE,
                 "description": (

@@ -214,5 +214,68 @@ class TestDigestNoRunaway(unittest.TestCase):
         self.assertIn("groove", findings[0]["description"])
 
 
+class TestAdaptiveLookbackWindow(unittest.TestCase):
+    """Re-scoped 2026-11-08: the lookback is 7 days capped, tightening once
+    _DIGEST_LOOKBACK_MIN_ROWS rows exist within that cap -- not the original
+    fixed 24h window that never fired once in the live table's history."""
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+        self.mc = _build_mc(self.writers, self.readers)
+        os.environ[_FLAG] = "1"
+
+    def tearDown(self):
+        os.environ.pop(_FLAG, None)
+        _cleanup(self.writers, self.tmp)
+
+    def test_event_3_days_old_now_included(self):
+        """Would have been excluded by the old fixed 24h window; the 7-day
+        cap now covers it."""
+        for _ in range(3):
+            _seed_event(self.writers, "groove", days_ago=3.0)
+        findings = self.mc._detect_digest(time.time())
+        self.assertEqual(len(findings), 1)
+        self.assertIn("groove", findings[0]["description"])
+
+    def test_event_beyond_7_day_cap_excluded(self):
+        for _ in range(3):
+            _seed_event(self.writers, "groove", days_ago=8.0)
+        findings = self.mc._detect_digest(time.time())
+        self.assertEqual(findings, [])
+
+    def test_cutoff_falls_back_to_7_day_cap_when_row_count_is_low(self):
+        """Today's live reality: nowhere near 100 rows exist, so the cutoff
+        is the flat 7-day cap -- confirmed directly, not just inferred from
+        behaviour."""
+        from theory_x.stage9_metacognition.metacognition import _DIGEST_LOOKBACK_CAP_S
+        for _ in range(3):
+            _seed_event(self.writers, "groove", days_ago=1.0)
+        now = time.time()
+        cutoff = self.mc._digest_cutoff(now)
+        self.assertAlmostEqual(cutoff, now - _DIGEST_LOOKBACK_CAP_S, delta=2.0)
+
+    def test_window_self_tightens_once_100_rows_exist_within_the_cap(self):
+        """100 recent filler rows should pull the cutoff in tight enough
+        that a real pattern sitting just outside that tighter window (but
+        still inside the old flat 7-day cap) is correctly excluded --
+        proving the window tightens rather than growing unbounded."""
+        for i in range(100):
+            _seed_event(self.writers, "goal_drift", days_ago=i / 1440.0)  # 0..99 minutes ago
+        for _ in range(3):
+            _seed_event(self.writers, "groove", days_ago=3.0)  # well outside the tightened window
+        findings = self.mc._detect_digest(time.time())
+        descriptions = " ".join(f["description"] for f in findings)
+        self.assertNotIn("groove", descriptions,
+                          "the 3-day-old pattern must fall outside the self-tightened window")
+
+    def test_description_reports_the_actual_lookback_used_not_a_hardcoded_24h(self):
+        for _ in range(3):
+            _seed_event(self.writers, "groove", days_ago=3.0)
+        findings = self.mc._detect_digest(time.time())
+        self.assertEqual(len(findings), 1)
+        self.assertNotIn("24h", findings[0]["description"])
+        self.assertIn("168h", findings[0]["description"])  # 7 days, flat cap in effect
+
+
 if __name__ == "__main__":
     unittest.main()
