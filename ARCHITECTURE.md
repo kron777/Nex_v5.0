@@ -6,6 +6,19 @@ Living document. Updated as the build progresses.
 conversations; tools (web_fetch, python_exec, beliefs_query) selected heuristically by ToolCaller.
 189 tests passing.
 
+**SENTIENCE_PROGRAM track (separate numbering from Phases 1-9 above — see
+`SENTIENCE_PROGRAM.md` for the full phase list and falsifier discipline):**
+r77 (`NEX5_CHAT_WORKSPACE`, the chat attention arbiter) is armed and mid-
+measurement on the live process as of 2026-11-07. §9 below covers what
+shipped in this track through the 2026-11-07/08 session specifically. The
+earlier SENTIENCE_PROGRAM work this doc never caught up on — stage8_goal_manager,
+stage9_metacognition's pre-2026-11-07 pieces, stage10_imagination,
+stage_affect, stage_drives, stage_self_narrative, stage_tom, theory_x/memory/
+(outside episodic.py), theory_x/diversity/ (embeddings), theory_x/harmonic/,
+theory_x/genius/ — is **not** retroactively documented here; that gap predates
+this update and is called out rather than implied-covered. 1987 tests passing
+as of the 2026-11-07/08 session (was 189 at Phase 9).
+
 ---
 
 ## 1. Layout
@@ -30,9 +43,9 @@ theory_x/
     consolidation.py    consolidation_pass(), _external_quiet()
     __init__.py     build_dynamic() factory — 7 daemon loops, DynamicState
   stage3_world_model/
-    retrieval.py    BeliefRetriever — activation-blend retrieval; always includes reification_recognition on INSIDE queries
+    retrieval.py    BeliefRetriever — activation-blend retrieval; always includes reification_recognition on INSIDE queries. 2026-11-07/08: semantic fallback via embedding cosine when keyword overlap is zero (NEX5_SEMANTIC_RETRIEVAL, see §9)
     promotion.py    BeliefPromoter — corroborate(), survive_challenge(), decay_pass(), decisive_contradiction(), write_edge(), is_blacklisted(), add_to_blacklist()
-    harmonizer.py   Harmonizer — conflict detection (Tier 4+), synthesis/retirement, detect_cross_domain() (6h); records disturbance on WorldModelState
+    harmonizer.py   Harmonizer — conflict detection (Tier 4+), synthesis/retirement, detect_cross_domain() (6h); records disturbance on WorldModelState. 2026-11-07/08: semantic conflict detection via embedding cosine (NEX5_SEMANTIC_CONFLICT); Phase D held-tension path as a third resolve() outcome (NEX5_HELD_TENSION) with a periodic bridge retry (retry_bridge_for_tensions); two correctness fixes to the pre-existing escalation/count logic (both flag-gated, see §9)
     activation.py   ActivationEngine — activate(seed_ids, hops, decay), epistemic_temperature(), typed_roles()
     erosion.py      ProvenanceErosion — record_use(), record_reinforce(), erosion_check(), erosion_pass(); external→nex_core over 10/30/80 reinforcements
     pipeline_hooks.py   PipelineHooks — high-magnitude events corroborate matching beliefs
@@ -79,6 +92,25 @@ voice/              register-aware llama-server client
 gui/                Flask observability cockpit + chat column
 strikes/            Phase 8 scaffolding, empty
 tests/              stdlib unittest smoke tests (159 total)
+
+# SENTIENCE_PROGRAM track additions, 2026-11-07/08 session only (see §9) —
+# everything else the track built in earlier sessions is NOT listed here.
+theory_x/stage9_metacognition/
+  metacognition.py  Metacognition — groove/goal-drift/value-drift detectors; Phase M stateful
+                    digest (NEX5_METACOG_DIGEST); Candidate 4 salience-weighted self-observation
+                    (NEX5_SALIENT_SELF_OBS) re-ranks severity*decay instead of raw recency
+tools/
+  metacog_digest.py Phase M1 — LLM reflective digest over salience peaks (NEX5_METACOG_REFLECT);
+                    not wired into any chat-block path
+theory_x/memory/
+  episodic.py       Phase E — episodic memory (NEX5_EPISODIC): episodes table binds "what
+                    happened" (ghost flags, meta-cognitive events, surprise>0.8, held tensions)
+                    to the nearest affect snapshot; reconstruct_episode() composes one account
+substrate/schema/
+  conversations.sql + metacog_summaries table (Phase M1)
+  dynamic.sql       + held_tensions table (Phase D), + episodes table (Phase E)
+gui/server.py       + GET /api/harmonizer/tensions, GET /api/episodic/episodes (read-only,
+                    deployed live); fixed unclosed-connection leak across 18 routes
 ```
 
 `THEORY_X_STAGE = None` is declared at the top of every Phase-1 module.
@@ -505,6 +537,78 @@ New endpoints:
 
 **Schema addition (conversations.db):** `open_problems` table (title, description, state, created_at, last_touched_at, plan, observations JSON, resolved_at). `ALTER TABLE messages ADD COLUMN tool_used TEXT`.
 
+## 9. SENTIENCE_PROGRAM track — 2026-11-07/08 session
+
+Separate track from Phases 1-9 above; governed by `SENTIENCE_PROGRAM.md`'s
+own discipline, not `SPECIFICATION.md`. Every mechanism here ships dark
+(flag default off) and is proven, by a paired flag-off/flag-on test suite,
+to leave existing behaviour byte-identical when its flag is unset. Arming
+any of these on the live process is a separate, explicit decision from
+building them — see `observation_reports/` for the pre-registrations. This
+section covers what this session shipped; it is not a history of the whole
+track (see the Layout-tree note above).
+
+**r77 (`NEX5_CHAT_WORKSPACE`)** — armed on the live process 2026-11-07,
+mid-measurement. The chat turn's faculty blocks are arbitrated by budget
+instead of concatenated unconditionally. `gui/server.py`'s
+`_assemble_chat_blocks`, `theory_x.stage_tom.global_workspace.select_within_budget`.
+
+**Phase M / M1 — metacognition digest** (`theory_x/stage9_metacognition/metacognition.py`,
+`tools/metacog_digest.py`). `NEX5_METACOG_DIGEST`: a recurring first-order
+`meta_cognition_events` pattern writes one second-order digest row back into
+the same table, surfaced via the existing `format_for_prompt()`. Lookback
+window is adaptive — 7-day cap, or tight enough to hold 100 rows, whichever
+is sooner — re-scoped after the original fixed 24h window was found to have
+never fired once in the table's history. `NEX5_METACOG_REFLECT`: a separate,
+LLM-backed reflective digest over salience peaks; not wired into any
+chat-block path.
+
+**Phase D — held tension** (`theory_x/stage3_world_model/harmonizer.py`).
+`NEX5_HELD_TENSION`: at escalation, `resolve()` can keep both contradicting
+beliefs instead of retiring/synthesizing — records the pair in a new
+`held_tensions` table (capped at 50 open). Three refinements, same file,
+same session: a correctness fix to the pre-existing (unflagged) escalation
+starvation bug (`NEX5_HARMONIZER_PARADOX_FIX` — the 200-belief sample never
+reached tiers 5-7's 3,000+ beliefs, so re-escalation needed vanishingly
+unlikely odds); a correctness fix to the pre-existing (unflagged)
+`active_paradox` count that `format_for_prompt()`'s "Holding N unresolved
+tensions" line reads (`NEX5_HARMONIZER_TENSION_COUNT_FIX` — was counting
+all-time paradox rows, not currently-open ones); and a periodic bridge
+retry (`retry_bridge_for_tensions()`, reuses `NEX5_HELD_TENSION`, no new
+flag) that re-runs the normal escalation path's synthesis search against
+open tensions, since the belief pool can grow after a tension opens.
+
+**Phase E — episodic memory** (`theory_x/memory/episodic.py`). `NEX5_EPISODIC`:
+an episode binds "what happened" (a ghost flag, meta-cognitive event,
+surprise > 0.8, or held tension — all pre-existing signals, nothing newly
+invented) to the nearest `self_state_history` affect snapshot, copied in at
+write time. `reconstruct_episode()` composes one account instead of
+returning raw rows.
+
+**Semantic retrieval + conflict detection** (`harmonizer.py`, `retrieval.py`).
+`NEX5_SEMANTIC_CONFLICT` / `NEX5_SEMANTIC_RETRIEVAL`: both purely additive,
+only tried when the existing token/keyword path finds nothing. Reuses the
+`sentence-transformers` model already loaded elsewhere
+(`theory_x/diversity/embeddings.py`) rather than loading a second one.
+
+**Candidate 4 — salience-weighted self-observation** (`metacognition.py`).
+`NEX5_SALIENT_SELF_OBS`: `format_for_prompt()` previously always surfaced
+the newest unresolved `meta_cognition_events` row, ignoring the `severity`
+column it already selected. Re-ranks by `severity * decay(age)` instead —
+decay quadratic to zero at the same 14-day horizon the existing `decay()`
+auto-resolve already uses.
+
+**Read-only HUD** (`gui/server.py`). `GET /api/harmonizer/tensions`,
+`GET /api/episodic/episodes` — pure reads, no admin gate needed (matches
+the existing `/api/ghost/flags` pattern). Deployed live (these two routes
+needed no flag and no measurement window — confirmed 100% read-only before
+deploying).
+
 ### What comes next
 
-Phase 10 — Iterative Tuning. See `SPECIFICATION.md §10` for the full phase sequence.
+Phases 1-9 above: Phase 10 — Iterative Tuning. See `SPECIFICATION.md §10`.
+
+SENTIENCE_PROGRAM track: r77's window closes at ≥200 chat turns or 14 days
+from 2026-11-07, whichever first. Nothing in this track arms or restarts
+the live process before then. See `observation_reports/` for the
+pre-registrations and `SENTIENCE_PROGRAM.md` for the full phase list.
