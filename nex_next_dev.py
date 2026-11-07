@@ -26,7 +26,7 @@ import os
 
 DAG_PATH = os.path.join(os.path.dirname(__file__), "sentience_dag.json")
 
-_SATISFIED = ("built", "live_unproven")
+_SATISFIED = ("built", "live_unproven", "terminal")
 
 
 def load() -> dict:
@@ -61,7 +61,7 @@ def topo_sort(nodes: dict) -> list[str]:
 def classify(nodes: dict) -> dict:
     """Apply the buildable-now rule to every node."""
     out = {"buildable_now": [], "blocked": [], "built": [],
-           "live_unproven": [], "gorge": []}
+           "live_unproven": [], "terminal": [], "gorge": []}
     for n, d in nodes.items():
         st = d.get("status")
         prereqs = d.get("prereqs", [])
@@ -69,16 +69,22 @@ def classify(nodes: dict) -> dict:
             out["built"].append(n)
         elif st == "live_unproven":
             out["live_unproven"].append(n)
+        elif st == "terminal":
+            out["terminal"].append(n)
         elif st == "gorge":
             out["gorge"].append(n)
         elif st == "gap":
             # buildable iff all prereqs satisfied
             prereq_status = [nodes[p]["status"] for p in prereqs if p in nodes]
             if all(s in _SATISFIED for s in prereq_status):
-                # but flag if it leans on an UNPROVEN prereq
+                # flag if it leans on an UNPROVEN prereq, or rests on one
+                # settled TERMINAL-null (resolved, not open, but still worth
+                # surfacing so it doesn't read as plain "built")
                 unproven = [p for p in prereqs
                             if p in nodes and nodes[p]["status"] == "live_unproven"]
-                out["buildable_now"].append((n, unproven))
+                terminal_null = [p for p in prereqs
+                                  if p in nodes and nodes[p]["status"] == "terminal"]
+                out["buildable_now"].append((n, unproven, terminal_null))
             else:
                 missing = [p for p in prereqs
                            if p in nodes and nodes[p]["status"] not in _SATISFIED]
@@ -97,9 +103,14 @@ def report(dag: dict) -> None:
     print("\n>>> BUILDABLE NOW (prereqs satisfied, node is a gap):")
     if not c["buildable_now"]:
         print("    (none)")
-    for n, unproven in c["buildable_now"]:
+    for n, unproven, terminal_null in c["buildable_now"]:
         note = nodes[n].get("note", "")[:70]
-        flag = f"  [LEANS ON UNPROVEN: {', '.join(unproven)}]" if unproven else ""
+        flags = []
+        if unproven:
+            flags.append(f"LEANS ON UNPROVEN: {', '.join(unproven)}")
+        if terminal_null:
+            flags.append(f"RESTS ON TERMINAL NULL: {', '.join(terminal_null)}")
+        flag = f"  [{'; '.join(flags)}]" if flags else ""
         print(f"  • {n}{flag}")
         print(f"      {note}")
 
@@ -112,6 +123,10 @@ def report(dag: dict) -> None:
 
     print("\n>>> LIVE BUT UNPROVEN (the gates — prove these to advance):")
     for n in c["live_unproven"]:
+        print(f"  • {n} — {nodes[n].get('note','')[:70]}")
+
+    print("\n>>> TERMINAL (investigated to a dead end; resting state, not a park):")
+    for n in c["terminal"]:
         print(f"  • {n} — {nodes[n].get('note','')[:70]}")
 
     print("\n>>> GORGE (no satisfiable path — the hard problem):")
