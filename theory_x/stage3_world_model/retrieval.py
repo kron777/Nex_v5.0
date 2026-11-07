@@ -21,6 +21,29 @@ THEORY_X_STAGE = 3
 _BOILERPLATE_SOURCES = ("hot_observer", "counterfactual_node")
 _BOILERPLATE_WEIGHT = 0.15
 
+# 2026-11-08 (dark): retrieve()'s main loop does `if overlap == 0: continue` --
+# a belief sharing zero literal words with the query is invisible to scoring
+# no matter how relevant it actually is (a synonym, a paraphrase). Reuses
+# the sentence-transformer model already loaded elsewhere in the codebase
+# (theory_x/diversity/embeddings.py, cached by belief id) as a fallback for
+# exactly those zero-overlap beliefs -- never touches anything that already
+# scored via keyword overlap. Pure addition: a belief already in
+# keyword_scores is never re-scored or overridden by the semantic path.
+_SEMANTIC_RETRIEVAL_FLAG = "NEX5_SEMANTIC_RETRIEVAL"
+# PROVISIONAL (no live measurement yet, same status as this file's other
+# guessed constants): capped at 200 zero-overlap candidates per call so a
+# cold embedding cache can't turn one retrieve() call into hundreds of
+# synchronous model.encode() calls on the live chat/fire latency path --
+# re-derive (or measure actual latency) before trusting this number.
+_SEMANTIC_RETRIEVAL_POOL = 200
+# embeddings.cosine() is normalised to [0,1] (0.5 = orthogonal). 0.65 is a
+# guess at "clearly relevant," not measured.
+_SEMANTIC_RETRIEVAL_THRESHOLD = 0.65
+# A semantic-only hit is deliberately discounted so it can surface when
+# keyword hits are sparse, but can't outrank a real keyword match that has
+# never been measured against it.
+_SEMANTIC_RETRIEVAL_DISCOUNT = 0.5
+
 _LOG_SOURCE = "retrieval"
 _STOPWORDS = {"the", "and", "for", "are", "was", "has", "had", "not", "but",
               "its", "that", "this", "with", "from", "they", "have", "been",
@@ -50,6 +73,31 @@ def format_beliefs_for_prompt(beliefs: list[dict]) -> str:
         role_str = f" | {role}" if role else ""
         lines.append(f"- [Tier {tier} | {conf:.2f}{role_str}] {content}")
     return "\n".join(lines)
+
+
+def _semantic_fallback_scores(query: str, candidates: list) -> dict[int, float]:
+    """Dark behind NEX5_SEMANTIC_RETRIEVAL. Scores candidate beliefs (which
+    the caller has already confirmed share zero tokens with the query)
+    against the query by embedding similarity instead. Returns {} when the
+    flag is off, the candidate list is empty, or anything errors -- never
+    raises into the retrieve() path."""
+    if os.environ.get(_SEMANTIC_RETRIEVAL_FLAG) != "1" or not candidates:
+        return {}
+    try:
+        from theory_x.diversity.embeddings import embed, embed_belief, cosine
+        q_vec = embed(query)
+    except Exception as exc:
+        errors.record(f"semantic retrieval embed error: {exc}", source=_LOG_SOURCE, exc=exc)
+        return {}
+    out: dict[int, float] = {}
+    for row in candidates:
+        try:
+            sim = cosine(q_vec, embed_belief(row["id"], row["content"]))
+        except Exception:
+            continue
+        if sim >= _SEMANTIC_RETRIEVAL_THRESHOLD:
+            out[row["id"]] = sim * row["confidence"] * _SEMANTIC_RETRIEVAL_DISCOUNT
+    return out
 
 
 class BeliefRetriever:
@@ -157,10 +205,15 @@ class BeliefRetriever:
         keyword_scores: dict[int, float] = {}
         row_map: dict[int, dict] = {}
 
+        _semantic_on = os.environ.get(_SEMANTIC_RETRIEVAL_FLAG) == "1"
+        semantic_candidates: list = []
+
         for row in rows:
             content_tokens = _tokenize(row["content"])
             overlap = len(query_tokens & content_tokens)
             if overlap == 0:
+                if _semantic_on and len(semantic_candidates) < _SEMANTIC_RETRIEVAL_POOL:
+                    semantic_candidates.append(row)
                 continue
             score = (overlap / max(1, len(query_tokens))) * row["confidence"]
             if row["branch_id"] in hints:
@@ -170,6 +223,23 @@ class BeliefRetriever:
 
             keyword_scores[row["id"]] = score
             row_map[row["id"]] = dict(row)
+
+        # Semantic fallback (dark): only for beliefs the keyword loop above
+        # skipped entirely (zero token overlap) -- never touches, re-scores,
+        # or overrides anything already in keyword_scores.
+        if _semantic_on and semantic_candidates:
+            sem_scores = _semantic_fallback_scores(query, semantic_candidates)
+            for row in semantic_candidates:
+                bid = row["id"]
+                if bid in keyword_scores or bid not in sem_scores:
+                    continue
+                score = sem_scores[bid]
+                if row["branch_id"] in hints:
+                    score *= 1.5
+                if _deboil and row["source"] in _BOILERPLATE_SOURCES:
+                    score *= _BOILERPLATE_WEIGHT
+                keyword_scores[bid] = score
+                row_map[bid] = dict(row)
 
         if not keyword_scores:
             return []

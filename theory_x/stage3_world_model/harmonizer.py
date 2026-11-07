@@ -48,6 +48,27 @@ _PARADOX_FIX_FLAG = "NEX5_HARMONIZER_PARADOX_FIX"
 # beliefs and record the contradiction as a held tension instead of
 # retiring/synthesizing them. See resolve()/_hold_as_tension().
 _HELD_TENSION_FLAG = "NEX5_HELD_TENSION"
+
+# 2026-11-08 (dark): _conflict_score() requires >=1-2 SHARED TOKENS before it
+# will ever flag a conflict -- two beliefs that are genuinely opposed but
+# share no literal words (paraphrase, synonym) are invisible to it,
+# structurally, regardless of how clearly opposed they are. NEX5_SEMANTIC_CONFLICT
+# (default OFF) adds a second path, tried ONLY when the token path finds
+# nothing (score == 0.0), using the sentence-embedding model already loaded
+# elsewhere in the codebase (theory_x/diversity/embeddings.py, cached by
+# belief id) instead of token overlap to establish "same topic," then the
+# SAME negation-sign-disagreement signal the token path already uses
+# (_has_negation, which never needed token overlap in the first place). Pure
+# addition: never runs when the token path already found something, so it
+# cannot change any score or conflict the token path already catches; flag
+# off is byte-identical to today.
+_SEMANTIC_CONFLICT_FLAG = "NEX5_SEMANTIC_CONFLICT"
+# PROVISIONAL (no live measurement yet): embeddings.cosine() is normalised
+# to [0,1] (0.5 = orthogonal, 1.0 = identical). 0.65 is a guess at "clearly
+# the same topic," not a measured bar -- re-derive once there is a live
+# round to check it against, same status as this file's other guessed
+# constants (PARADOX_INCUBATION_SECONDS, _TENSION_CAP).
+_SEMANTIC_CONFLICT_TOPIC_THRESHOLD = 0.65
 # PROVISIONAL (no live measurement yet): cap on concurrently OPEN held
 # tensions. Beyond the cap, a new escalation falls back to the original
 # retire/synthesize path rather than growing the open set unbounded --
@@ -129,6 +150,29 @@ def _conflict_score(tokens_a: set[str], text_a: str,
     return 0.0
 
 
+def _semantic_conflict_score(id_a: int, text_a: str, id_b: int, text_b: str) -> float:
+    """Dark behind NEX5_SEMANTIC_CONFLICT. Catches a conflict _conflict_score
+    cannot see by construction: two beliefs opposed in meaning but sharing
+    no tokens at all (paraphrase, synonym, zero literal overlap). Embedding
+    cosine similarity stands in for "same topic" (what token overlap does
+    in the token path); _has_negation (text-level, no token overlap needed)
+    still carries the polarity signal. Same-topic + same-polarity is
+    agreement, not conflict, and correctly scores 0.0."""
+    if os.environ.get(_SEMANTIC_CONFLICT_FLAG) != "1":
+        return 0.0
+    try:
+        from theory_x.diversity.embeddings import embed_belief, cosine
+        sim = cosine(embed_belief(id_a, text_a), embed_belief(id_b, text_b))
+    except Exception as exc:
+        errors.record(f"semantic conflict score error: {exc}", source=_LOG_SOURCE, exc=exc)
+        return 0.0
+    if sim < _SEMANTIC_CONFLICT_TOPIC_THRESHOLD:
+        return 0.0  # not even the same topic -- unrelated, not opposed
+    if _has_negation(text_a) == _has_negation(text_b):
+        return 0.0  # same topic, same polarity -- agreement
+    return sim
+
+
 class Harmonizer:
     name: str = "harmonizer"
 
@@ -185,6 +229,12 @@ class Harmonizer:
                     token_cache[a["id"]], a["content"],
                     token_cache[b["id"]], b["content"],
                 )
+                if score == 0.0:
+                    # Only tried when the token path found nothing -- never
+                    # overrides or changes a score the token path produced.
+                    score = _semantic_conflict_score(
+                        a["id"], a["content"], b["id"], b["content"],
+                    )
                 if score >= 0.15:
                     conflicts.append((a["id"], b["id"]))
 
