@@ -84,6 +84,7 @@ import re
 import secrets
 import time
 import uuid
+from contextlib import closing
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
@@ -2680,13 +2681,12 @@ def create_app(state: AppState) -> Flask:
         # Merge in last_id + last_tag for the FOUNTAIN tag buttons
         try:
             from substrate.paths import db_paths as _dbp_tag
-            cx = connect(str(_dbp_tag()["dynamic"]), timeout=5)
-            row = cx.execute(
-                "SELECT id, tag FROM fountain_events "
-                "WHERE thought != '' AND thought NOT LIKE '[%' "
-                "ORDER BY id DESC LIMIT 1"
-            ).fetchone()
-            cx.close()
+            with closing(connect(str(_dbp_tag()["dynamic"]), timeout=5)) as cx:
+                row = cx.execute(
+                    "SELECT id, tag FROM fountain_events "
+                    "WHERE thought != '' AND thought NOT LIKE '[%' "
+                    "ORDER BY id DESC LIMIT 1"
+                ).fetchone()
             if row:
                 status["last_id"] = row[0]
                 status["last_tag"] = row[1]
@@ -2709,44 +2709,43 @@ def create_app(state: AppState) -> Flask:
         dyn_db = _DYN_DB
         conv_db = _CONV_DB
         try:
-            cx = connect(dyn_db, timeout=10)
-            cx.row_factory = Row
-            # Last N fountain_event_ids that have words, newest first.
-            fids = [f["fountain_event_id"] for f in cx.execute(
-                "SELECT DISTINCT fountain_event_id FROM word_contexts "
-                "ORDER BY fountain_event_id DESC LIMIT ?",
-                (limit,),
-            ).fetchall()]
-            out = []
-            if fids:
-                # This is a 2s-poll live ticker. Batch the per-fire lookups into
-                # two IN (...) queries instead of 2*N point queries (41 -> 3 at
-                # limit=20); same data, same newest-first order.
-                ph = ",".join("?" * len(fids))
-                params = tuple(fids)
-                rows = {
-                    r["id"]: r for r in cx.execute(
-                        f"SELECT id, ts, thought, tag FROM fountain_events "
-                        f"WHERE id IN ({ph})", params,
-                    ).fetchall()
-                }
-                words_by_fid: dict = {}
-                for w in cx.execute(
-                    f"SELECT fountain_event_id, word FROM word_contexts "
-                    f"WHERE fountain_event_id IN ({ph}) ORDER BY word", params,
-                ).fetchall():
-                    words_by_fid.setdefault(w["fountain_event_id"], []).append(w["word"])
-                for fid in fids:  # preserve the newest-first order of the id list
-                    row = rows.get(fid)
-                    if row:
-                        out.append({
-                            "fid": row["id"],
-                            "ts": row["ts"],
-                            "thought": row["thought"],
-                            "tag": row["tag"],
-                            "words": words_by_fid.get(fid, []),
-                        })
-            cx.close()
+            with closing(connect(dyn_db, timeout=10)) as cx:
+                cx.row_factory = Row
+                # Last N fountain_event_ids that have words, newest first.
+                fids = [f["fountain_event_id"] for f in cx.execute(
+                    "SELECT DISTINCT fountain_event_id FROM word_contexts "
+                    "ORDER BY fountain_event_id DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()]
+                out = []
+                if fids:
+                    # This is a 2s-poll live ticker. Batch the per-fire lookups into
+                    # two IN (...) queries instead of 2*N point queries (41 -> 3 at
+                    # limit=20); same data, same newest-first order.
+                    ph = ",".join("?" * len(fids))
+                    params = tuple(fids)
+                    rows = {
+                        r["id"]: r for r in cx.execute(
+                            f"SELECT id, ts, thought, tag FROM fountain_events "
+                            f"WHERE id IN ({ph})", params,
+                        ).fetchall()
+                    }
+                    words_by_fid: dict = {}
+                    for w in cx.execute(
+                        f"SELECT fountain_event_id, word FROM word_contexts "
+                        f"WHERE fountain_event_id IN ({ph}) ORDER BY word", params,
+                    ).fetchall():
+                        words_by_fid.setdefault(w["fountain_event_id"], []).append(w["word"])
+                    for fid in fids:  # preserve the newest-first order of the id list
+                        row = rows.get(fid)
+                        if row:
+                            out.append({
+                                "fid": row["id"],
+                                "ts": row["ts"],
+                                "thought": row["thought"],
+                                "tag": row["tag"],
+                                "words": words_by_fid.get(fid, []),
+                            })
 
             # Enrich with genius scores from conversations.db (cross-DB,
             # so a separate connection). Skip silently if anything goes
@@ -2755,15 +2754,14 @@ def create_app(state: AppState) -> Flask:
                 try:
                     fire_ids = tuple(int(o["fid"]) for o in out)
                     ph = ",".join("?" * len(fire_ids))
-                    cv = connect(conv_db, timeout=5)
-                    cv.row_factory = Row
-                    score_rows = cv.execute(
-                        f"SELECT fountain_event_id, score, class, weights_version "
-                        f"FROM genius_tags WHERE fountain_event_id IN ({ph}) "
-                        f"ORDER BY tagged_at DESC",
-                        fire_ids,
-                    ).fetchall()
-                    cv.close()
+                    with closing(connect(conv_db, timeout=5)) as cv:
+                        cv.row_factory = Row
+                        score_rows = cv.execute(
+                            f"SELECT fountain_event_id, score, class, weights_version "
+                            f"FROM genius_tags WHERE fountain_event_id IN ({ph}) "
+                            f"ORDER BY tagged_at DESC",
+                            fire_ids,
+                        ).fetchall()
                     # First-wins on ORDER BY tagged_at DESC = most recent tag
                     score_map = {}
                     for r in score_rows:
@@ -2794,14 +2792,13 @@ def create_app(state: AppState) -> Flask:
         limit = int(request.args.get("limit", "50"))
         dyn_db = _DYN_DB
         try:
-            cx = connect(dyn_db, timeout=10)
-            cx.row_factory = Row
-            rows = cx.execute(
-                "SELECT word, COUNT(*) AS n FROM word_contexts "
-                "GROUP BY word ORDER BY n DESC LIMIT ?",
-                (limit,),
-            ).fetchall()
-            cx.close()
+            with closing(connect(dyn_db, timeout=10)) as cx:
+                cx.row_factory = Row
+                rows = cx.execute(
+                    "SELECT word, COUNT(*) AS n FROM word_contexts "
+                    "GROUP BY word ORDER BY n DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
             return jsonify({"top": [dict(r) for r in rows]})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -2816,47 +2813,45 @@ def create_app(state: AppState) -> Flask:
         if not word or len(word) > 50:
             return jsonify({"error": "invalid word"}), 400
         try:
-            cx = connect(dyn_db, timeout=10)
-            cx.row_factory = Row
-            agg = cx.execute(
-                "SELECT COUNT(*) AS n, "
-                "AVG(aperture) AS avg_ap, MIN(aperture) AS min_ap, MAX(aperture) AS max_ap, "
-                "AVG(hour_of_day) AS avg_hour, "
-                "AVG(seconds_since_daemon) AS avg_secs_daemon, "
-                "AVG(seconds_since_feed) AS avg_secs_feed, "
-                "AVG(active_branch_count) AS avg_active_branches, "
-                "AVG(daemons_5min) AS avg_daemons_5min, "
-                "AVG(belief_delta_1h) AS avg_fires_1h "
-                "FROM word_contexts WHERE word=?",
-                (word,),
-            ).fetchone()
-            if not agg or not agg["n"]:
-                cx.close()
-                return jsonify({"error": "word not found", "word": word}), 404
-            branches = cx.execute(
-                "SELECT hot_branch, COUNT(*) AS n FROM word_contexts "
-                "WHERE word=? AND hot_branch IS NOT NULL "
-                "GROUP BY hot_branch ORDER BY n DESC LIMIT 5",
-                (word,),
-            ).fetchall()
-            tags = cx.execute(
-                "SELECT fountain_tag, COUNT(*) AS n FROM word_contexts "
-                "WHERE word=? AND fountain_tag IS NOT NULL "
-                "GROUP BY fountain_tag ORDER BY n DESC",
-                (word,),
-            ).fetchall()
-            sample = cx.execute(
-                "SELECT fe.thought FROM word_contexts wc "
-                "JOIN fountain_events fe ON fe.id = wc.fountain_event_id "
-                "WHERE wc.word=? ORDER BY wc.ts DESC LIMIT 5",
-                (word,),
-            ).fetchall()
-            # word-level tag (if any)
-            tag_row = cx.execute(
-                "SELECT tag, note FROM word_tags WHERE word=?", (word,)
-            ).fetchone()
-            word_tag = dict(tag_row) if tag_row else None
-            cx.close()
+            with closing(connect(dyn_db, timeout=10)) as cx:
+                cx.row_factory = Row
+                agg = cx.execute(
+                    "SELECT COUNT(*) AS n, "
+                    "AVG(aperture) AS avg_ap, MIN(aperture) AS min_ap, MAX(aperture) AS max_ap, "
+                    "AVG(hour_of_day) AS avg_hour, "
+                    "AVG(seconds_since_daemon) AS avg_secs_daemon, "
+                    "AVG(seconds_since_feed) AS avg_secs_feed, "
+                    "AVG(active_branch_count) AS avg_active_branches, "
+                    "AVG(daemons_5min) AS avg_daemons_5min, "
+                    "AVG(belief_delta_1h) AS avg_fires_1h "
+                    "FROM word_contexts WHERE word=?",
+                    (word,),
+                ).fetchone()
+                if not agg or not agg["n"]:
+                    return jsonify({"error": "word not found", "word": word}), 404
+                branches = cx.execute(
+                    "SELECT hot_branch, COUNT(*) AS n FROM word_contexts "
+                    "WHERE word=? AND hot_branch IS NOT NULL "
+                    "GROUP BY hot_branch ORDER BY n DESC LIMIT 5",
+                    (word,),
+                ).fetchall()
+                tags = cx.execute(
+                    "SELECT fountain_tag, COUNT(*) AS n FROM word_contexts "
+                    "WHERE word=? AND fountain_tag IS NOT NULL "
+                    "GROUP BY fountain_tag ORDER BY n DESC",
+                    (word,),
+                ).fetchall()
+                sample = cx.execute(
+                    "SELECT fe.thought FROM word_contexts wc "
+                    "JOIN fountain_events fe ON fe.id = wc.fountain_event_id "
+                    "WHERE wc.word=? ORDER BY wc.ts DESC LIMIT 5",
+                    (word,),
+                ).fetchall()
+                # word-level tag (if any)
+                tag_row = cx.execute(
+                    "SELECT tag, note FROM word_tags WHERE word=?", (word,)
+                ).fetchone()
+                word_tag = dict(tag_row) if tag_row else None
             def fmt(v):
                 return round(v, 3) if isinstance(v, (int, float)) else v
             return jsonify({
@@ -2892,18 +2887,17 @@ def create_app(state: AppState) -> Flask:
             return jsonify({"error": "tag must be key/noise/unsure or null"}), 400
         dyn_db = _DYN_DB
         try:
-            cx = connect(dyn_db, timeout=10)
-            if tag is None:
-                cx.execute("DELETE FROM word_tags WHERE word=?", (word,))
-            else:
-                cx.execute(
-                    "INSERT INTO word_tags (word, tag, tagged_at, note) VALUES (?, ?, ?, ?) "
-                    "ON CONFLICT(word) DO UPDATE SET tag=excluded.tag, "
-                    "tagged_at=excluded.tagged_at, note=excluded.note",
-                    (word, tag, time.time(), note),
-                )
-            cx.commit()
-            cx.close()
+            with closing(connect(dyn_db, timeout=10)) as cx:
+                if tag is None:
+                    cx.execute("DELETE FROM word_tags WHERE word=?", (word,))
+                else:
+                    cx.execute(
+                        "INSERT INTO word_tags (word, tag, tagged_at, note) VALUES (?, ?, ?, ?) "
+                        "ON CONFLICT(word) DO UPDATE SET tag=excluded.tag, "
+                        "tagged_at=excluded.tagged_at, note=excluded.note",
+                        (word, tag, time.time(), note),
+                    )
+                cx.commit()
             return jsonify({"ok": True, "word": word, "tag": tag})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -2913,9 +2907,8 @@ def create_app(state: AppState) -> Flask:
         """Return {word: tag} map for all tagged words. UI uses this to badge chips."""
         dyn_db = _DYN_DB
         try:
-            cx = connect(dyn_db, timeout=10)
-            rows = cx.execute("SELECT word, tag, note FROM word_tags").fetchall()
-            cx.close()
+            with closing(connect(dyn_db, timeout=10)) as cx:
+                rows = cx.execute("SELECT word, tag, note FROM word_tags").fetchall()
             tags = {r[0]: {"tag": r[1], "note": r[2]} for r in rows}
             return jsonify({"tags": tags, "count": len(tags)})
         except Exception as e:
@@ -2938,21 +2931,19 @@ def create_app(state: AppState) -> Flask:
             return jsonify({"error": "fountain_event_id and tag in (coin,maybe,non) required"}), 400
         dyn_db = _DYN_DB
         try:
-            cx = connect(dyn_db, timeout=10)
-            row = cx.execute(
-                "SELECT thought, ts FROM fountain_events WHERE id=?", (fid,)
-            ).fetchone()
-            if not row:
-                cx.close()
-                return jsonify({"error": "fountain_event_id not found"}), 404
-            thought, thought_ts = row
-            # Write tag onto fountain row (substrate-visible)
-            cx.execute("UPDATE fountain_events SET tag=? WHERE id=?", (tag, fid))
-            # Propagate tag to word_contexts for every word from this fire
-            # (so decoder analytics see the tag immediately, not after stale rewrite)
-            cx.execute("UPDATE word_contexts SET fountain_tag=? WHERE fountain_event_id=?", (tag, fid))
-            cx.commit()
-            cx.close()
+            with closing(connect(dyn_db, timeout=10)) as cx:
+                row = cx.execute(
+                    "SELECT thought, ts FROM fountain_events WHERE id=?", (fid,)
+                ).fetchone()
+                if not row:
+                    return jsonify({"error": "fountain_event_id not found"}), 404
+                thought, thought_ts = row
+                # Write tag onto fountain row (substrate-visible)
+                cx.execute("UPDATE fountain_events SET tag=? WHERE id=?", (tag, fid))
+                # Propagate tag to word_contexts for every word from this fire
+                # (so decoder analytics see the tag immediately, not after stale rewrite)
+                cx.execute("UPDATE word_contexts SET fountain_tag=? WHERE fountain_event_id=?", (tag, fid))
+                cx.commit()
             # Capture context snapshot (heavy, async-safe)
             try:
                 capture_and_persist(fid, tag)
@@ -2991,24 +2982,22 @@ def create_app(state: AppState) -> Flask:
             return jsonify({"error": "fountain_event_id required"}), 400
         dyn_db = _DYN_DB
         try:
-            cx = connect(dyn_db, timeout=10)
-            # Verify fire exists
-            row = cx.execute(
-                "SELECT thought, ts FROM fountain_events WHERE id=?", (fid,)
-            ).fetchone()
-            if not row:
-                cx.close()
-                return jsonify({"error": "fountain_event_id not found"}), 404
-            # Upsert: if already flagged, update the reason and ts
-            cx.execute(
-                "INSERT INTO ghost_flags (fountain_event_id, ts, reason) "
-                "VALUES (?, ?, ?) "
-                "ON CONFLICT(fountain_event_id) DO UPDATE SET "
-                "ts = excluded.ts, reason = excluded.reason",
-                (fid, time.time(), reason or None),
-            )
-            cx.commit()
-            cx.close()
+            with closing(connect(dyn_db, timeout=10)) as cx:
+                # Verify fire exists
+                row = cx.execute(
+                    "SELECT thought, ts FROM fountain_events WHERE id=?", (fid,)
+                ).fetchone()
+                if not row:
+                    return jsonify({"error": "fountain_event_id not found"}), 404
+                # Upsert: if already flagged, update the reason and ts
+                cx.execute(
+                    "INSERT INTO ghost_flags (fountain_event_id, ts, reason) "
+                    "VALUES (?, ?, ?) "
+                    "ON CONFLICT(fountain_event_id) DO UPDATE SET "
+                    "ts = excluded.ts, reason = excluded.reason",
+                    (fid, time.time(), reason or None),
+                )
+                cx.commit()
             return jsonify({"ok": True, "fountain_event_id": fid,
                             "reason": reason, "thought": row[0]})
         except Exception as e:
@@ -3026,10 +3015,9 @@ def create_app(state: AppState) -> Flask:
             return jsonify({"error": "fountain_event_id required"}), 400
         dyn_db = _DYN_DB
         try:
-            cx = connect(dyn_db, timeout=10)
-            cx.execute("DELETE FROM ghost_flags WHERE fountain_event_id=?", (fid,))
-            cx.commit()
-            cx.close()
+            with closing(connect(dyn_db, timeout=10)) as cx:
+                cx.execute("DELETE FROM ghost_flags WHERE fountain_event_id=?", (fid,))
+                cx.commit()
             return jsonify({"ok": True, "fountain_event_id": fid})
         except Exception as e:
             error_channel.record(f"ghost unflag failed: {e}",
@@ -3041,13 +3029,12 @@ def create_app(state: AppState) -> Flask:
         """Return all ghost flags (for HUD reload — knows which fires are flagged)."""
         dyn_db = _DYN_DB
         try:
-            cx = connect(dyn_db, timeout=10)
-            cx.row_factory = Row
-            rows = cx.execute(
-                "SELECT fountain_event_id, ts, reason FROM ghost_flags "
-                "ORDER BY ts DESC LIMIT 500"
-            ).fetchall()
-            cx.close()
+            with closing(connect(dyn_db, timeout=10)) as cx:
+                cx.row_factory = Row
+                rows = cx.execute(
+                    "SELECT fountain_event_id, ts, reason FROM ghost_flags "
+                    "ORDER BY ts DESC LIMIT 500"
+                ).fetchall()
             return jsonify({"flags": {
                 r["fountain_event_id"]: {"ts": r["ts"], "reason": r["reason"]}
                 for r in rows
@@ -3061,52 +3048,51 @@ def create_app(state: AppState) -> Flask:
         import time, datetime
         dyn_db = _DYN_DB
         try:
-            cx = connect(dyn_db, timeout=10)
-            cx.row_factory = Row
-            counts = cx.execute(
-                "SELECT tag, COUNT(*) AS n FROM fountain_events "
-                "WHERE tag IS NOT NULL GROUP BY tag"
-            ).fetchall()
-            total_tagged = sum(r["n"] for r in counts)
-            total_fountain = cx.execute(
-                "SELECT COUNT(*) AS n FROM fountain_events WHERE thought != ''"
-            ).fetchone()["n"]
-            # Hit rate by hour-of-day
-            from nex_config import local_utc_offset_seconds
-            _off = local_utc_offset_seconds()   # NEX's zone, not the machine's
-            by_hour = cx.execute(
-                "SELECT CAST(strftime('%H', ts + ?, 'unixepoch') AS INTEGER) AS hour, "
-                "tag, COUNT(*) AS n FROM fountain_events "
-                "WHERE tag IS NOT NULL GROUP BY hour, tag",
-                (_off,),
-            ).fetchall()
-            hour_buckets = {}
-            for r in by_hour:
-                h = r["hour"]
-                if h not in hour_buckets:
-                    hour_buckets[h] = {"coin": 0, "maybe": 0, "non": 0}
-                hour_buckets[h][r["tag"]] = r["n"]
-            # 7-day rolling hit rate (coin / total_tagged per day)
-            now = time.time()
-            week_ago = now - 7 * 86400
-            by_day = cx.execute(
-                "SELECT date(ts + ?, 'unixepoch') AS d, "
-                "tag, COUNT(*) AS n FROM fountain_events "
-                "WHERE tag IS NOT NULL AND ts > ? "
-                "GROUP BY d, tag ORDER BY d",
-                (_off, week_ago),
-            ).fetchall()
-            day_buckets = {}
-            for r in by_day:
-                d = r["d"]
-                if d not in day_buckets:
-                    day_buckets[d] = {"coin": 0, "maybe": 0, "non": 0}
-                day_buckets[d][r["tag"]] = r["n"]
-            recent = cx.execute(
-                "SELECT id, ts, thought, tag FROM fountain_events "
-                "WHERE tag IS NOT NULL ORDER BY ts DESC LIMIT 50"
-            ).fetchall()
-            cx.close()
+            with closing(connect(dyn_db, timeout=10)) as cx:
+                cx.row_factory = Row
+                counts = cx.execute(
+                    "SELECT tag, COUNT(*) AS n FROM fountain_events "
+                    "WHERE tag IS NOT NULL GROUP BY tag"
+                ).fetchall()
+                total_tagged = sum(r["n"] for r in counts)
+                total_fountain = cx.execute(
+                    "SELECT COUNT(*) AS n FROM fountain_events WHERE thought != ''"
+                ).fetchone()["n"]
+                # Hit rate by hour-of-day
+                from nex_config import local_utc_offset_seconds
+                _off = local_utc_offset_seconds()   # NEX's zone, not the machine's
+                by_hour = cx.execute(
+                    "SELECT CAST(strftime('%H', ts + ?, 'unixepoch') AS INTEGER) AS hour, "
+                    "tag, COUNT(*) AS n FROM fountain_events "
+                    "WHERE tag IS NOT NULL GROUP BY hour, tag",
+                    (_off,),
+                ).fetchall()
+                hour_buckets = {}
+                for r in by_hour:
+                    h = r["hour"]
+                    if h not in hour_buckets:
+                        hour_buckets[h] = {"coin": 0, "maybe": 0, "non": 0}
+                    hour_buckets[h][r["tag"]] = r["n"]
+                # 7-day rolling hit rate (coin / total_tagged per day)
+                now = time.time()
+                week_ago = now - 7 * 86400
+                by_day = cx.execute(
+                    "SELECT date(ts + ?, 'unixepoch') AS d, "
+                    "tag, COUNT(*) AS n FROM fountain_events "
+                    "WHERE tag IS NOT NULL AND ts > ? "
+                    "GROUP BY d, tag ORDER BY d",
+                    (_off, week_ago),
+                ).fetchall()
+                day_buckets = {}
+                for r in by_day:
+                    d = r["d"]
+                    if d not in day_buckets:
+                        day_buckets[d] = {"coin": 0, "maybe": 0, "non": 0}
+                    day_buckets[d][r["tag"]] = r["n"]
+                recent = cx.execute(
+                    "SELECT id, ts, thought, tag FROM fountain_events "
+                    "WHERE tag IS NOT NULL ORDER BY ts DESC LIMIT 50"
+                ).fetchall()
             return jsonify({
                 "counts": {r["tag"]: r["n"] for r in counts},
                 "total_tagged": total_tagged,
@@ -3125,75 +3111,74 @@ def create_app(state: AppState) -> Flask:
         import json
         dyn_db = _DYN_DB
         try:
-            cx = connect(dyn_db, timeout=10)
-            cx.row_factory = Row
-            # Hot_branch correlation: which branch produces most coins/maybes?
-            by_branch = cx.execute(
-                "SELECT hot_branch, tag, COUNT(*) AS n FROM fountain_events "
-                "WHERE tag IS NOT NULL AND hot_branch IS NOT NULL "
-                "GROUP BY hot_branch, tag"
-            ).fetchall()
-            branch_buckets = {}
-            for r in by_branch:
-                b = r["hot_branch"]
-                if b not in branch_buckets:
-                    branch_buckets[b] = {"coin": 0, "maybe": 0, "non": 0}
-                branch_buckets[b][r["tag"]] = r["n"]
-            # Aperture distribution: avg aperture for each tag class
-            apertures = cx.execute(
-                "SELECT cc.tag, cc.aperture FROM coincidence_context cc "
-                "WHERE cc.aperture IS NOT NULL"
-            ).fetchall()
-            aperture_by_tag = {"coin": [], "maybe": [], "non": []}
-            for r in apertures:
-                aperture_by_tag[r["tag"]].append(r["aperture"])
-            aperture_summary = {
-                t: {"n": len(v),
-                    "mean": sum(v) / len(v) if v else None,
-                    "min": min(v) if v else None,
-                    "max": max(v) if v else None}
-                for t, v in aperture_by_tag.items()
-            }
-            # Content trigram clusters: which 3-word phrases recur in coins?
-            coin_thoughts = cx.execute(
-                "SELECT thought FROM fountain_events WHERE tag='coin' AND thought != ''"
-            ).fetchall()
-            trigram_counts = {}
-            for r in coin_thoughts:
-                words = r["thought"].lower().split()
-                for i in range(len(words) - 2):
-                    tri = " ".join(words[i:i+3])
-                    if len(tri) > 8:  # skip junk
-                        trigram_counts[tri] = trigram_counts.get(tri, 0) + 1
-            top_trigrams = sorted(trigram_counts.items(), key=lambda x: -x[1])[:15]
-            # Condition fingerprint: when coin landed, what was the substrate doing?
-            coin_contexts = cx.execute(
-                "SELECT aperture, hot_branch, belief_delta_1h, "
-                "recent_daemons, recent_surprises FROM coincidence_context "
-                "WHERE tag='coin'"
-            ).fetchall()
-            fingerprint = {"n": len(coin_contexts)}
-            if coin_contexts:
-                apertures_c = [r["aperture"] for r in coin_contexts if r["aperture"] is not None]
-                deltas = [r["belief_delta_1h"] for r in coin_contexts if r["belief_delta_1h"] is not None]
-                branches_c = [r["hot_branch"] for r in coin_contexts if r["hot_branch"]]
-                # Most common daemon firing within 5min of coins
-                daemon_freq = {}
-                for r in coin_contexts:
-                    try:
-                        ds = json.loads(r["recent_daemons"] or "[]")
-                        for d in ds:
-                            daemon_freq[d.get("daemon")] = daemon_freq.get(d.get("daemon"), 0) + 1
-                    except Exception:
-                        continue
-                fingerprint.update({
-                    "avg_aperture": sum(apertures_c) / len(apertures_c) if apertures_c else None,
-                    "avg_belief_delta_1h": sum(deltas) / len(deltas) if deltas else None,
-                    "branch_freq": {b: branches_c.count(b) for b in set(branches_c)},
-                    "common_recent_daemons": sorted(daemon_freq.items(),
-                                                    key=lambda x: -x[1])[:5],
-                })
-            cx.close()
+            with closing(connect(dyn_db, timeout=10)) as cx:
+                cx.row_factory = Row
+                # Hot_branch correlation: which branch produces most coins/maybes?
+                by_branch = cx.execute(
+                    "SELECT hot_branch, tag, COUNT(*) AS n FROM fountain_events "
+                    "WHERE tag IS NOT NULL AND hot_branch IS NOT NULL "
+                    "GROUP BY hot_branch, tag"
+                ).fetchall()
+                branch_buckets = {}
+                for r in by_branch:
+                    b = r["hot_branch"]
+                    if b not in branch_buckets:
+                        branch_buckets[b] = {"coin": 0, "maybe": 0, "non": 0}
+                    branch_buckets[b][r["tag"]] = r["n"]
+                # Aperture distribution: avg aperture for each tag class
+                apertures = cx.execute(
+                    "SELECT cc.tag, cc.aperture FROM coincidence_context cc "
+                    "WHERE cc.aperture IS NOT NULL"
+                ).fetchall()
+                aperture_by_tag = {"coin": [], "maybe": [], "non": []}
+                for r in apertures:
+                    aperture_by_tag[r["tag"]].append(r["aperture"])
+                aperture_summary = {
+                    t: {"n": len(v),
+                        "mean": sum(v) / len(v) if v else None,
+                        "min": min(v) if v else None,
+                        "max": max(v) if v else None}
+                    for t, v in aperture_by_tag.items()
+                }
+                # Content trigram clusters: which 3-word phrases recur in coins?
+                coin_thoughts = cx.execute(
+                    "SELECT thought FROM fountain_events WHERE tag='coin' AND thought != ''"
+                ).fetchall()
+                trigram_counts = {}
+                for r in coin_thoughts:
+                    words = r["thought"].lower().split()
+                    for i in range(len(words) - 2):
+                        tri = " ".join(words[i:i+3])
+                        if len(tri) > 8:  # skip junk
+                            trigram_counts[tri] = trigram_counts.get(tri, 0) + 1
+                top_trigrams = sorted(trigram_counts.items(), key=lambda x: -x[1])[:15]
+                # Condition fingerprint: when coin landed, what was the substrate doing?
+                coin_contexts = cx.execute(
+                    "SELECT aperture, hot_branch, belief_delta_1h, "
+                    "recent_daemons, recent_surprises FROM coincidence_context "
+                    "WHERE tag='coin'"
+                ).fetchall()
+                fingerprint = {"n": len(coin_contexts)}
+                if coin_contexts:
+                    apertures_c = [r["aperture"] for r in coin_contexts if r["aperture"] is not None]
+                    deltas = [r["belief_delta_1h"] for r in coin_contexts if r["belief_delta_1h"] is not None]
+                    branches_c = [r["hot_branch"] for r in coin_contexts if r["hot_branch"]]
+                    # Most common daemon firing within 5min of coins
+                    daemon_freq = {}
+                    for r in coin_contexts:
+                        try:
+                            ds = json.loads(r["recent_daemons"] or "[]")
+                            for d in ds:
+                                daemon_freq[d.get("daemon")] = daemon_freq.get(d.get("daemon"), 0) + 1
+                        except Exception:
+                            continue
+                    fingerprint.update({
+                        "avg_aperture": sum(apertures_c) / len(apertures_c) if apertures_c else None,
+                        "avg_belief_delta_1h": sum(deltas) / len(deltas) if deltas else None,
+                        "branch_freq": {b: branches_c.count(b) for b in set(branches_c)},
+                        "common_recent_daemons": sorted(daemon_freq.items(),
+                                                        key=lambda x: -x[1])[:5],
+                    })
             return jsonify({
                 "by_branch": branch_buckets,
                 "aperture_summary": aperture_summary,
@@ -3208,12 +3193,11 @@ def create_app(state: AppState) -> Flask:
         """Map fountain_event_id -> tag for UI marking."""
         dyn_db = _DYN_DB
         try:
-            cx = connect(dyn_db, timeout=10)
-            rows = cx.execute(
-                "SELECT id, tag FROM fountain_events "
-                "WHERE tag IS NOT NULL ORDER BY ts DESC LIMIT 500"
-            ).fetchall()
-            cx.close()
+            with closing(connect(dyn_db, timeout=10)) as cx:
+                rows = cx.execute(
+                    "SELECT id, tag FROM fountain_events "
+                    "WHERE tag IS NOT NULL ORDER BY ts DESC LIMIT 500"
+                ).fetchall()
             return jsonify({"tags": {r[0]: r[1] for r in rows}})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -3230,27 +3214,25 @@ def create_app(state: AppState) -> Flask:
         if not claim:
             return jsonify({"error": "claim required"}), 400
         dyn_db = _DYN_DB
-        cx = connect(dyn_db, timeout=10)
-        cur = cx.execute(
-            "INSERT INTO hypotheses (created_at, claim, keywords, time_window) "
-            "VALUES (?, ?, ?, ?)",
-            (time.time(), claim, keywords, time_window),
-        )
-        hid = cur.lastrowid
-        cx.commit()
-        cx.close()
+        with closing(connect(dyn_db, timeout=10)) as cx:
+            cur = cx.execute(
+                "INSERT INTO hypotheses (created_at, claim, keywords, time_window) "
+                "VALUES (?, ?, ?, ?)",
+                (time.time(), claim, keywords, time_window),
+            )
+            hid = cur.lastrowid
+            cx.commit()
         return jsonify({"ok": True, "id": hid})
 
     @app.get("/api/hypothesis")
     def api_hypothesis_list():
         """List all hypotheses with current support/contradiction counts."""
         dyn_db = _DYN_DB
-        cx = connect(dyn_db, timeout=10)
-        cx.row_factory = Row
-        rows = cx.execute(
-            "SELECT * FROM hypotheses ORDER BY created_at DESC"
-        ).fetchall()
-        cx.close()
+        with closing(connect(dyn_db, timeout=10)) as cx:
+            cx.row_factory = Row
+            rows = cx.execute(
+                "SELECT * FROM hypotheses ORDER BY created_at DESC"
+            ).fetchall()
         return jsonify({"hypotheses": [dict(r) for r in rows]})
 
     @app.patch("/api/hypothesis/<int:hid>")
@@ -3264,24 +3246,22 @@ def create_app(state: AppState) -> Flask:
         if status and status not in ("open", "confirmed", "refuted", "abandoned"):
             return jsonify({"error": "invalid status"}), 400
         dyn_db = _DYN_DB
-        cx = connect(dyn_db, timeout=10)
-        sets, vals = [], []
-        if status:
-            sets.append("status=?")
-            vals.append(status)
-            if status != "open":
-                sets.append("closed_at=?")
-                vals.append(time.time())
-        if notes is not None:
-            sets.append("notes=?")
-            vals.append(notes)
-        if not sets:
-            cx.close()
-            return jsonify({"error": "nothing to update"}), 400
-        vals.append(hid)
-        cx.execute(f"UPDATE hypotheses SET {', '.join(sets)} WHERE id=?", vals)
-        cx.commit()
-        cx.close()
+        with closing(connect(dyn_db, timeout=10)) as cx:
+            sets, vals = [], []
+            if status:
+                sets.append("status=?")
+                vals.append(status)
+                if status != "open":
+                    sets.append("closed_at=?")
+                    vals.append(time.time())
+            if notes is not None:
+                sets.append("notes=?")
+                vals.append(notes)
+            if not sets:
+                return jsonify({"error": "nothing to update"}), 400
+            vals.append(hid)
+            cx.execute(f"UPDATE hypotheses SET {', '.join(sets)} WHERE id=?", vals)
+            cx.commit()
         return jsonify({"ok": True})
 
     def _hypothesis_autoscore(fid, thought, thought_ts, tag):
@@ -3294,38 +3274,37 @@ def create_app(state: AppState) -> Flask:
         """
         import datetime
         dyn_db = _DYN_DB
-        cx = connect(dyn_db, timeout=10)
-        cx.row_factory = Row
-        hyps = cx.execute(
-            "SELECT id, keywords, time_window FROM hypotheses WHERE status='open'"
-        ).fetchall()
-        thought_lc = (thought or "").lower()
-        from nex_config import local_dt
-        hour = local_dt(thought_ts).hour
-        for h in hyps:
-            kws = [k.strip().lower() for k in (h["keywords"] or "").split(",") if k.strip()]
-            kw_match = (not kws) or any(k in thought_lc for k in kws)
-            tw = h["time_window"]
-            tw_match = True
-            if tw and "-" in tw:
-                try:
-                    start_h, end_h = [int(x.split(":")[0]) for x in tw.split("-")]
-                    if start_h <= end_h:
-                        tw_match = start_h <= hour <= end_h
-                    else:
-                        tw_match = hour >= start_h or hour <= end_h
-                except Exception:
-                    tw_match = True
-            if not (kw_match and tw_match):
-                continue
-            if tag == "coin":
-                cx.execute("UPDATE hypotheses SET supporting=supporting+1 WHERE id=?",
-                           (h["id"],))
-            elif tag == "non":
-                cx.execute("UPDATE hypotheses SET contradicting=contradicting+1 WHERE id=?",
-                           (h["id"],))
-        cx.commit()
-        cx.close()
+        with closing(connect(dyn_db, timeout=10)) as cx:
+            cx.row_factory = Row
+            hyps = cx.execute(
+                "SELECT id, keywords, time_window FROM hypotheses WHERE status='open'"
+            ).fetchall()
+            thought_lc = (thought or "").lower()
+            from nex_config import local_dt
+            hour = local_dt(thought_ts).hour
+            for h in hyps:
+                kws = [k.strip().lower() for k in (h["keywords"] or "").split(",") if k.strip()]
+                kw_match = (not kws) or any(k in thought_lc for k in kws)
+                tw = h["time_window"]
+                tw_match = True
+                if tw and "-" in tw:
+                    try:
+                        start_h, end_h = [int(x.split(":")[0]) for x in tw.split("-")]
+                        if start_h <= end_h:
+                            tw_match = start_h <= hour <= end_h
+                        else:
+                            tw_match = hour >= start_h or hour <= end_h
+                    except Exception:
+                        tw_match = True
+                if not (kw_match and tw_match):
+                    continue
+                if tag == "coin":
+                    cx.execute("UPDATE hypotheses SET supporting=supporting+1 WHERE id=?",
+                               (h["id"],))
+                elif tag == "non":
+                    cx.execute("UPDATE hypotheses SET contradicting=contradicting+1 WHERE id=?",
+                               (h["id"],))
+            cx.commit()
 
     @app.get("/api/fountain/recent")
     def api_fountain_recent():
