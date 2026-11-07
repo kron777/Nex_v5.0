@@ -19,25 +19,16 @@ file. Covers:
   new to tag" and "already tagged" short-circuits
 - tick(): backfill runs exactly once, then switches to _tag_window();
   never raises even when weights are missing
-- FINDING (not fixed, flagged per instruction): this class's decay() and
-  state() do NOT match the SentienceNode protocol every sibling module in
-  this codebase implements (metacognition.py, harmonizer.py,
-  substrate_harmonic.py, competing_drives.py, self_mind_view.py all use
-  `decay(self, now)` and a callable `state(self, now=None)`). Here,
-  `decay(self)` takes no `now` argument, and `state` is a @property, not a
-  method. theory_x/__init__.py's own SentienceNode Protocol declares
-  `decay(self, now: float) -> None` and `state(self, now=None) -> dict`
-  explicitly. This is currently DORMANT, not live-breaking: grepped every
-  call site -- nothing outside this module's own tick()/start_loop() ever
-  calls .decay(now) or .state(now) on a GeniusTagger instance, and
-  theory_x.all_nodes() (the registry this instance is registered into via
-  run.py) has zero external callers anywhere in the codebase today. But if
-  a generic cross-node sweep is ever built -- which is literally what
-  theory_x/__init__.py's own docstring says the registry is for
-  ("future cross-node orchestration") -- calling .decay(now) on this node
-  specifically would raise TypeError, and .state(now) would try to call a
-  dict. Tests below prove the gap directly rather than asserting a crash
-  blindly, so the exact mismatch is pinned down.
+- FIXED 2026-11-08 (was a flagged finding in this file's first version,
+  2026-11-08 earlier same day): decay() and state now match the
+  SentienceNode protocol every sibling module in this codebase implements
+  -- decay(self, now) instead of decay(self), and a callable
+  state(self, now=None) instead of a @property. TestSentienceNodeProtocol
+  below proves the fix through the ACTUAL generic registry round-trip
+  (theory_x.register() + theory_x.all_nodes(), calling .decay(now)/
+  .state(now) on whatever the registry hands back), not just a direct call
+  on the instance -- so the mismatch can't silently come back without this
+  test failing, even if some future refactor only touches the registry side.
 """
 from __future__ import annotations
 
@@ -385,11 +376,14 @@ class TestTick(unittest.TestCase):
                 self.fail(f"tick() propagated instead of swallowing: {exc}")
 
 
-class TestSentienceNodeProtocolGap(unittest.TestCase):
-    """FINDING, not a fix: pins down the exact mismatch between GeniusTagger
-    and the SentienceNode protocol every sibling module implements. See the
-    module docstring above for the full explanation and why this is
-    currently dormant rather than live-breaking."""
+class TestSentienceNodeProtocol(unittest.TestCase):
+    """2026-11-08: decay() and state now match the protocol every sibling
+    module implements. These tests go through the ACTUAL generic
+    SentienceNode interface -- theory_x.register() + theory_x.all_nodes(),
+    then calling .decay(now)/.state(now) on whatever the registry hands
+    back -- not a direct call on the `self.tagger` instance, so the
+    mismatch can't silently come back even if some future refactor only
+    touches the registry/wiring side rather than this test file."""
 
     def setUp(self):
         self.writers, self.readers, self.tmp = _make_env()
@@ -398,35 +392,48 @@ class TestSentienceNodeProtocolGap(unittest.TestCase):
 
     def tearDown(self):
         _cleanup(self.writers, self.tmp)
+        # theory_x._registered_nodes is a shared, module-level list with no
+        # public unregister() -- pop anything this test added so it doesn't
+        # leak into other test files that also touch the registry.
+        import theory_x
+        theory_x._registered_nodes[:] = [
+            n for n in theory_x._registered_nodes if n is not self.tagger
+        ]
 
-    def test_decay_takes_no_now_argument_unlike_every_sibling_node(self):
-        self.tagger.decay()  # works
-        with self.assertRaises(TypeError):
-            self.tagger.decay(time.time())  # the protocol-conformant call shape
+    def test_decay_accepts_now_like_every_sibling_node(self):
+        self.tagger.decay(time.time())  # must not raise
+        self.tagger.decay(now=time.time())  # keyword form too
 
-    def test_state_is_a_property_not_a_callable_method(self):
-        snapshot = self.tagger.state  # property access, no parens -- works
+    def test_state_is_a_callable_method_like_every_sibling_node(self):
+        snapshot = self.tagger.state()
         self.assertIsInstance(snapshot, dict)
-        with self.assertRaises(TypeError):
-            self.tagger.state(time.time())  # the protocol-conformant call shape
+        self.assertEqual(snapshot, self.tagger.state(time.time()))
+
+    def test_registered_node_survives_a_generic_decay_and_state_sweep(self):
+        """The actual regression guard: register this tagger the same way
+        run.py does, pull it back out via all_nodes() (the generic
+        registry, not self.tagger directly), and drive it exactly the way
+        a hypothetical cross-node sweep would -- tick(), then decay(now),
+        then state(now) -- on every node the registry returns. Must not
+        raise for this node specifically."""
+        import theory_x
+        theory_x.register(self.tagger)
+        now = time.time()
+        found = False
+        for node in theory_x.all_nodes():
+            if node is not self.tagger:
+                continue
+            found = True
+            node.tick({})
+            node.decay(now)
+            snapshot = node.state(now)
+            self.assertIsInstance(snapshot, dict)
+            self.assertIn("tagged_total", snapshot)
+        self.assertTrue(found, "registered tagger was not returned by all_nodes()")
 
     def test_isinstance_check_against_the_declared_protocol_still_passes(self):
-        """Python's runtime_checkable Protocol isinstance check only verifies
-        attribute PRESENCE, not signature -- so registration itself
-        (run.py's theory_x.register(_genius_tagger)) does not raise despite
-        the shape mismatch above. Confirmed directly rather than assumed."""
         from theory_x import SentienceNode
         self.assertIsInstance(self.tagger, SentienceNode)
-
-    def test_all_nodes_registry_has_no_external_consumers_today(self):
-        """Confirms the mismatch is currently dormant: the registry
-        GeniusTagger is registered into has no call site anywhere in the
-        codebase that reads it back and drives .decay(now)/.state(now)
-        generically (verified separately by grep; this just confirms the
-        registry function itself still exists and is import-safe, so a
-        future consumer wiring it up is the realistic trigger path)."""
-        from theory_x import all_nodes
-        self.assertIsInstance(all_nodes(), list)
 
 
 if __name__ == "__main__":

@@ -133,12 +133,24 @@ class GeniusTagger:
             )
         return self._stats()
 
-    def decay(self) -> None:
-        """SentienceNode protocol stub — no decay state to maintain."""
+    def decay(self, now: float) -> None:
+        """SentienceNode protocol stub — no decay state to maintain.
+
+        2026-11-08: brought in line with the protocol every sibling node
+        implements (theory_x/__init__.py's SentienceNode declares
+        `decay(self, now: float) -> None`) -- previously took no `now`
+        argument at all, which would raise TypeError the moment a generic
+        cross-node sweep called it the same way it calls every other node.
+        Zero behaviour risk: `now` is accepted and ignored, same as this
+        method's own prior no-op body."""
         return None
 
-    @property
-    def state(self) -> dict[str, Any]:
+    def state(self, now: Optional[float] = None) -> dict[str, Any]:
+        """2026-11-08: was a @property; converted to a callable method to
+        match the protocol every sibling node implements (same reasoning as
+        decay() above). Confirmed no call site anywhere in the codebase
+        accessed `.state` as a bare attribute before this change (grepped),
+        so there is nothing to update at any call site."""
         return self._stats()
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
