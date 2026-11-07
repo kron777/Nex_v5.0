@@ -1,6 +1,6 @@
 [Unit]
 Description=NEX vitals snapshot (READ-ONLY; appends one row to logs/vitals_log.jsonl)
-Documentation=file:nex_vitals_monitor_spec.txt
+Documentation=file:///home/rr/Desktop/Desktop/nex5/tools/NEX_VITALS_CRON.md
 After=network-online.target
 
 [Service]
