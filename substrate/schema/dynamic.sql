@@ -158,6 +158,31 @@ CREATE TABLE IF NOT EXISTS held_tensions (
 );
 CREATE INDEX IF NOT EXISTS idx_held_tensions_open ON held_tensions(resolved_at);
 
+-- SENTIENCE_PROGRAM Phase E 2026-11-07: episodic memory, distinct from the
+-- belief graph. Built dark behind NEX5_EPISODIC (theory_x/memory/episodic.py).
+-- An episode is "what happened" (a notable event already flagged elsewhere
+-- in the system -- a ghost flag, a metacognitive event, a surprise, a held
+-- tension) plus "with what affect" (a denormalized snapshot of the nearest
+-- self_state_history row, copied at write time so a later reap of that
+-- table can't retroactively blank an episode's remembered affect).
+-- source_kind+source_id is UNIQUE so re-running the scan never duplicates
+-- an episode for the same underlying event. Reversion: drop this table +
+-- theory_x/memory/episodic.py; nothing else references it.
+CREATE TABLE IF NOT EXISTS episodes (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at        REAL NOT NULL,
+    source_kind       TEXT NOT NULL,
+    source_id         INTEGER NOT NULL,
+    what              TEXT NOT NULL,
+    salience          REAL NOT NULL DEFAULT 0.5,
+    affect_bound_at   REAL,
+    affect_synthesis  TEXT,
+    recorded_at       REAL NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_episodes_source ON episodes(source_kind, source_id);
+CREATE INDEX IF NOT EXISTS idx_episodes_created_at ON episodes(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_episodes_salience ON episodes(salience DESC);
+
 -- Emergent drive proposals (Build 6)
 CREATE TABLE IF NOT EXISTS drive_proposals (
     id                     INTEGER PRIMARY KEY AUTOINCREMENT,

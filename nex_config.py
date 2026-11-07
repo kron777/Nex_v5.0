@@ -78,6 +78,7 @@ KNOWN_FLAGS: dict[str, str] = {
     "NEX5_DRIVE_CONTENT": "bool",
     "NEX5_DYNAMIC_DB": "str",
     "NEX5_EDGE_WEIGHTED_FOUNTAIN": "bool",
+    "NEX5_EPISODIC": "bool",
     "NEX5_EQUANIMITY": "bool",
     "NEX5_EWF_W_EDGE": "str",
     "NEX5_EWF_W_RECENCY": "str",
