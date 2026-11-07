@@ -108,6 +108,7 @@ KNOWN_FLAGS: dict[str, str] = {
     "NEX5_LEARN_CAP": "bool",
     "NEX5_LEARN_RATIO_SUBTRACT": "bool",
     "NEX5_METACOG_DIGEST": "bool",
+    "NEX5_METACOG_REFLECT": "bool",
     "NEX5_METACOG_VOICE": "bool",
     "NEX5_MOMENTUM": "str",
     "NEX5_MOOD": "bool",

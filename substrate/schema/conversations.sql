@@ -50,3 +50,20 @@ CREATE TABLE IF NOT EXISTS meta_cognition_events (
 CREATE INDEX IF NOT EXISTS idx_mcog_type ON meta_cognition_events(event_type);
 CREATE INDEX IF NOT EXISTS idx_mcog_ts   ON meta_cognition_events(created_at DESC);
 
+-- PHASE M1 2026-11-07: LLM-generated reflective self-critique, built dark
+-- behind NEX5_METACOG_REFLECT (tools/metacog_digest.py). Reads salience peaks
+-- from meta_cognition_events + surprise_events; NOT wired into any chat-block
+-- assembly or arbitration path -- that wiring is explicitly deferred until
+-- after r77 closes (see tools/metacog_digest.py module docstring). Reversion:
+-- drop this table + tools/metacog_digest.py; nothing else references it.
+CREATE TABLE IF NOT EXISTS metacog_summaries (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at         REAL NOT NULL,
+    window_start       REAL NOT NULL,
+    window_end         REAL NOT NULL,
+    peak_count         INTEGER NOT NULL,
+    reflective_text    TEXT NOT NULL,
+    model              TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_msum_ts ON metacog_summaries(created_at DESC);
+
