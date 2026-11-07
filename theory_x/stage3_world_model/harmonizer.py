@@ -81,6 +81,21 @@ _TENSION_CAP = 50
 # and by whoever later wires decay() into _harmonizer_loop.
 _TENSION_STALE_DAYS = 30
 
+# 2026-11-08 (dark): tick()'s "active_paradox" counts ALL-TIME rows with
+# resolution='paradox', including pairs that have SINCE escalated to
+# synthesized/both_deleted/held_tension -- a later row for the same pair
+# doesn't remove or supersede the earlier count. Measured live 2026-11-07:
+# 73 all-time vs 40 actually still open. This directly feeds the already-
+# live, unflagged format_for_prompt() line ("Holding N unresolved tensions
+# in the belief graph"), so the number she can surface in chat is wrong
+# right now. NEX5_HARMONIZER_TENSION_COUNT_FIX (default OFF) swaps in
+# _open_paradox_pairs()'s correct "latest event per pair is still paradox"
+# count. Flagged rather than left unflagged for the same reason as the
+# LIMIT-200 fix: this feeds live, unflagged chat-surfaced text, so an
+# unflagged fix would change that text on ANY future restart, including an
+# unplanned one, not just a deliberate one made after r77 closes.
+_ACTIVE_COUNT_FIX_FLAG = "NEX5_HARMONIZER_TENSION_COUNT_FIX"
+
 # Polar vocabulary pairs — frozensets of word forms.
 # One belief must contain a word from pole_a, the other from pole_b,
 # with neither belief containing both poles simultaneously (that's a
@@ -708,11 +723,14 @@ class Harmonizer:
         # Cheap read — only update cache if dynamic_reader available
         if self._dynamic_reader is not None:
             try:
-                row = self._dynamic_reader.read_one(
-                    "SELECT COUNT(*) AS n FROM harmonizer_events "
-                    "WHERE resolution = 'paradox'"
-                )
-                active = int(row["n"]) if row else 0
+                if os.environ.get(_ACTIVE_COUNT_FIX_FLAG) == "1":
+                    active = len(self._open_paradox_pairs())
+                else:
+                    row = self._dynamic_reader.read_one(
+                        "SELECT COUNT(*) AS n FROM harmonizer_events "
+                        "WHERE resolution = 'paradox'"
+                    )
+                    active = int(row["n"]) if row else 0
                 total_row = self._dynamic_reader.read_one(
                     "SELECT COUNT(*) AS n, MAX(ts) AS last_ts FROM harmonizer_events"
                 )
