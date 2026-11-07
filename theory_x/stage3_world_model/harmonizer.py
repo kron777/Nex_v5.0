@@ -12,6 +12,7 @@ Resolution modes (per DOCTRINE §2):
 """
 from __future__ import annotations
 
+import os
 import re as _re
 import time
 import threading
@@ -30,6 +31,34 @@ _LOG_SOURCE = "harmonizer"
 # Incubation: pairs marked 'paradox' escalate to synthesize/delete only
 # after this many seconds (~8 disturbance cycles at 2h harmonizer interval).
 PARADOX_INCUBATION_SECONDS = 16 * 3600
+
+# 2026-11-07: scan_for_conflicts() samples LIMIT 200 of a pool that has grown
+# to 3,700+ (tier 3 alone is 600+, tiers 5-7 are never reached at all).
+# Escalation depends on the SAME pair being re-detected on a LATER scan --
+# as the pool outgrew the window, that became vanishingly unlikely, and
+# escalation silently stalled (measured live: 40 pairs stuck at 'paradox'
+# for up to 277h against the 16h threshold). NEX5_HARMONIZER_PARADOX_FIX
+# (default OFF) adds a SEPARATE pass that re-checks already-flagged pairs
+# directly by id, independent of whether the capped scan resamples them.
+# Does not change scan_for_conflicts() or resolve() themselves, and flag-off
+# reproduces run_scan_and_resolve()'s exact existing behaviour.
+_PARADOX_FIX_FLAG = "NEX5_HARMONIZER_PARADOX_FIX"
+
+# SENTIENCE_PROGRAM Phase D 2026-11-07 (dark): at escalation, keep both
+# beliefs and record the contradiction as a held tension instead of
+# retiring/synthesizing them. See resolve()/_hold_as_tension().
+_HELD_TENSION_FLAG = "NEX5_HELD_TENSION"
+# PROVISIONAL (no live measurement yet): cap on concurrently OPEN held
+# tensions. Beyond the cap, a new escalation falls back to the original
+# retire/synthesize path rather than growing the open set unbounded --
+# the spec's own named failure mode ("tensions accumulate... clog
+# retrieval"). Re-derive once there is a live rate to measure against.
+_TENSION_CAP = 50
+# PROVISIONAL: an open tension older than this is auto-resolved by decay()
+# as a retention fallback, even with no other resolution. Not currently
+# invoked by any live loop (see decay()'s docstring) -- exercised by tests
+# and by whoever later wires decay() into _harmonizer_loop.
+_TENSION_STALE_DAYS = 30
 
 # Polar vocabulary pairs — frozensets of word forms.
 # One belief must contain a word from pole_a, the other from pole_b,
@@ -193,12 +222,12 @@ class Harmonizer:
         return "paradox"
 
     def resolve(self, belief_id_a: int, belief_id_b: int) -> str:
-        """Escalated resolution — synthesize or retire both beliefs.
+        """Escalated resolution.
 
         Called only after PARADOX_INCUBATION_SECONDS has elapsed since the
         pair was first marked paradox.
 
-        Returns: 'synthesized', 'both_deleted', or 'error'.
+        Returns: 'synthesized', 'both_deleted', 'held_tension', or 'error'.
         """
         try:
             row_a = self._beliefs_reader.read_one(
@@ -224,6 +253,20 @@ class Harmonizer:
         log_undo(self._beliefs_writer, "paused", (belief_id_a, belief_id_b),
                  cause_ref=f"harmonizer_resolve:{belief_id_a},{belief_id_b}")
 
+        # SENTIENCE_PROGRAM Phase D (dark, NEX5_HELD_TENSION): instead of
+        # retiring/synthesizing, keep both beliefs and record the
+        # contradiction as a held tension. Flag unset -> unchanged below.
+        if os.environ.get(_HELD_TENSION_FLAG) == "1":
+            return self._hold_as_tension(belief_id_a, belief_id_b)
+
+        return self._retire_both_or_synthesize(belief_id_a, belief_id_b, row_a, row_b)
+
+    def _retire_both_or_synthesize(
+        self, belief_id_a: int, belief_id_b: int, row_a: Any, row_b: Any
+    ) -> str:
+        """The original resolve() body, unchanged: seek a synthesis bridge,
+        else retire both. Called when NEX5_HELD_TENSION is unset, and as the
+        held-tension path's own cap-exceeded fallback (see _hold_as_tension)."""
         # Seek synthesis: a third belief bridging both
         tokens_a = _tokenize(row_a["content"])
         tokens_b = _tokenize(row_b["content"])
@@ -289,6 +332,102 @@ class Harmonizer:
                 source=_LOG_SOURCE, level="INFO",
             )
             return "both_deleted"
+
+    # ── Phase D: held tension (dark, NEX5_HELD_TENSION) ────────────────────────
+
+    def _open_tension_count(self) -> int:
+        try:
+            row = self._dynamic_reader.read_one(
+                "SELECT COUNT(*) AS n FROM held_tensions WHERE resolved_at IS NULL"
+            )
+            return int(row["n"]) if row else 0
+        except Exception as exc:
+            errors.record(f"_open_tension_count error: {exc}", source=_LOG_SOURCE, exc=exc)
+            return 0
+
+    def _hold_as_tension(self, belief_id_a: int, belief_id_b: int) -> str:
+        """Both beliefs survive: unpause them (undoing resolve()'s transient
+        pause), change nothing else about them, and record the contradiction
+        as an open held_tensions row. Falls back to the original
+        retire/synthesize path if the cap is already reached, so a pair is
+        never left in limbo with no outcome at all."""
+        if self._open_tension_count() >= _TENSION_CAP:
+            errors.record(
+                f"held-tension cap ({_TENSION_CAP}) reached; falling back to "
+                f"retire/synthesize for ({belief_id_a}, {belief_id_b})",
+                source=_LOG_SOURCE, level="WARNING",
+            )
+            try:
+                row_a = self._beliefs_reader.read_one(
+                    "SELECT id, content, tier, confidence FROM beliefs WHERE id = ?",
+                    (belief_id_a,))
+                row_b = self._beliefs_reader.read_one(
+                    "SELECT id, content, tier, confidence FROM beliefs WHERE id = ?",
+                    (belief_id_b,))
+            except Exception as exc:
+                errors.record(f"held-tension fallback read error: {exc}",
+                              source=_LOG_SOURCE, exc=exc)
+                return "error"
+            if row_a is None or row_b is None:
+                return "error"
+            return self._retire_both_or_synthesize(belief_id_a, belief_id_b, row_a, row_b)
+
+        self._beliefs_writer.write(
+            "UPDATE beliefs SET paused = 0 WHERE id IN (?, ?)",
+            (belief_id_a, belief_id_b),
+        )
+        log_undo(self._beliefs_writer, "unpaused", (belief_id_a, belief_id_b),
+                 cause_ref=f"harmonizer_held_tension:{belief_id_a},{belief_id_b}")
+        self._dynamic_writer.write(
+            "INSERT INTO held_tensions (belief_id_a, belief_id_b, created_at) "
+            "VALUES (?, ?, ?)",
+            (min(belief_id_a, belief_id_b), max(belief_id_a, belief_id_b), time.time()),
+        )
+        self._dynamic_writer.write(
+            "INSERT INTO harmonizer_events "
+            "(ts, belief_id_a, belief_id_b, resolution) "
+            "VALUES (?, ?, ?, 'held_tension')",
+            (time.time(), belief_id_a, belief_id_b),
+        )
+        errors.record(
+            f"harmonizer held tension ({belief_id_a}, {belief_id_b}) -- both survive",
+            source=_LOG_SOURCE, level="INFO",
+        )
+        return "held_tension"
+
+    def _resolve_tension(self, tension_id: int, reason: str) -> None:
+        self._dynamic_writer.write(
+            "UPDATE held_tensions SET resolved_at = ?, resolved_reason = ? WHERE id = ?",
+            (time.time(), reason, tension_id),
+        )
+
+    def sweep_resolved_tensions(self, now: Optional[float] = None) -> int:
+        """Auto-resolve open held tensions whose basis has gone away: either
+        side left the live pool (promoted to keystone or already retired by
+        another path -- 'belief_left_pool'), or the tension has simply aged
+        past _TENSION_STALE_DAYS with no other resolution ('stale_retention').
+        Returns count resolved. Not currently invoked by any live loop --
+        see decay()'s docstring."""
+        now = now if now is not None else time.time()
+        try:
+            rows = self._dynamic_reader.read(
+                "SELECT id, belief_id_a, belief_id_b, created_at FROM held_tensions "
+                "WHERE resolved_at IS NULL"
+            )
+        except Exception as exc:
+            errors.record(f"sweep_resolved_tensions read error: {exc}",
+                          source=_LOG_SOURCE, exc=exc)
+            return 0
+        resolved = 0
+        stale_cutoff = _TENSION_STALE_DAYS * 86400
+        for r in rows:
+            if not (self._still_eligible(r["belief_id_a"]) and self._still_eligible(r["belief_id_b"])):
+                self._resolve_tension(r["id"], "belief_left_pool")
+                resolved += 1
+            elif now - r["created_at"] >= stale_cutoff:
+                self._resolve_tension(r["id"], "stale_retention")
+                resolved += 1
+        return resolved
 
     def _log_retired(self, a: int, b: int, how: str) -> None:
         """Retirement unpauses both and moves them to tier 8 (the weakest) -- a
@@ -379,6 +518,72 @@ class Harmonizer:
                     )
             # else: still incubating — skip
 
+        acted += self._escalate_stale_paradoxes()
+        return acted
+
+    # ── Direct re-check of already-flagged pairs (the LIMIT-200 fix) ───────────
+
+    def _open_paradox_pairs(self) -> list[tuple[int, int, float]]:
+        """(belief_id_a, belief_id_b, paradox_ts) for every unordered pair whose
+        MOST RECENT harmonizer_events row is 'paradox' -- i.e. flagged but not
+        yet escalated or superseded. Computed directly from the event log, not
+        from scan_for_conflicts()'s capped sample."""
+        if self._dynamic_reader is None:
+            return []
+        try:
+            rows = self._dynamic_reader.read(
+                "SELECT belief_id_a, belief_id_b, resolution, ts "
+                "FROM harmonizer_events ORDER BY ts"
+            )
+        except Exception as exc:
+            errors.record(f"_open_paradox_pairs read error: {exc}", source=_LOG_SOURCE, exc=exc)
+            return []
+        latest: dict[tuple[int, int], tuple[str, float]] = {}
+        for r in rows:
+            key = (r["belief_id_a"], r["belief_id_b"])
+            key = (min(key), max(key))
+            latest[key] = (r["resolution"], r["ts"])
+        return [(k[0], k[1], v[1]) for k, v in latest.items() if v[0] == "paradox"]
+
+    def _still_eligible(self, belief_id: int) -> bool:
+        """Same liveness test scan_for_conflicts() applies -- tier 3-7,
+        unlocked, unpaused. A pair found via _open_paradox_pairs() may have
+        had one side promoted to a keystone, or already retired by another
+        path, since it was marked; such a pair is no longer a live tension
+        and must NOT be force-resolved here."""
+        try:
+            row = self._beliefs_reader.read_one(
+                "SELECT tier, locked, paused FROM beliefs WHERE id = ?", (belief_id,)
+            )
+        except Exception:
+            return False
+        if row is None:
+            return False
+        return 3 <= row["tier"] <= 7 and not row["locked"] and not row["paused"]
+
+    def _escalate_stale_paradoxes(self) -> int:
+        """Dark by default (_PARADOX_FIX_FLAG). Escalates every open paradox
+        pair past incubation regardless of whether scan_for_conflicts()
+        resampled it this pass -- see the flag's module-level comment for why
+        that resampling can no longer be relied on. Flag unset: no-op, exact
+        prior behaviour."""
+        if os.environ.get(_PARADOX_FIX_FLAG) != "1":
+            return 0
+        acted = 0
+        now = time.time()
+        for a_id, b_id, ts in self._open_paradox_pairs():
+            if now - ts < PARADOX_INCUBATION_SECONDS:
+                continue
+            if not (self._still_eligible(a_id) and self._still_eligible(b_id)):
+                continue  # no longer a live tension; leave it be
+            result = self.resolve(a_id, b_id)
+            if result != "error":
+                acted += 1
+                errors.record(
+                    f"harmonizer direct-escalated ({a_id}, {b_id}) → {result} "
+                    f"after {(now - ts)/3600:.1f}h (paradox-fix pass)",
+                    source=_LOG_SOURCE, level="INFO",
+                )
         return acted
 
     def detect_cross_domain(self) -> int:
@@ -475,7 +680,18 @@ class Harmonizer:
         return self.state(now)
 
     def decay(self, now: float) -> None:
-        pass  # Background loop manages its own timing
+        """Nothing currently calls Harmonizer.decay() (verified by grep,
+        2026-11-07) -- _harmonizer_loop calls run_scan_and_resolve()/tick()
+        only, same as before this change. Filling this in does not make it
+        reachable from the live process; it only gives the Phase D retention
+        sweep (sweep_resolved_tensions(), see held_tensions) somewhere to
+        live via the generic SentienceNode interface, for a test or a future,
+        separately-decided wiring to call. Background loop otherwise manages
+        its own timing."""
+        try:
+            self.sweep_resolved_tensions(now=now)
+        except Exception as exc:
+            errors.record(f"harmonizer decay error: {exc}", source=_LOG_SOURCE, exc=exc)
 
     def state(self, now: Optional[float] = None) -> dict:
         with self._lock:
@@ -487,12 +703,50 @@ class Harmonizer:
                 "cache_age_s": round((now or time.time()) - self._cache_ts, 1),
             }
 
+    def _content_specific_tension_line(self) -> str:
+        """Phase D (NEX5_HELD_TENSION): name the actual held beliefs instead
+        of a bare count. '' if the flag is off or no open tension exists --
+        callers fall through to the pre-existing generic line unchanged."""
+        if os.environ.get(_HELD_TENSION_FLAG) != "1":
+            return ""
+        try:
+            row = self._dynamic_reader.read_one(
+                "SELECT belief_id_a, belief_id_b FROM held_tensions "
+                "WHERE resolved_at IS NULL ORDER BY created_at DESC LIMIT 1"
+            )
+        except Exception as exc:
+            errors.record(f"_content_specific_tension_line read error: {exc}",
+                          source=_LOG_SOURCE, exc=exc)
+            return ""
+        if row is None:
+            return ""
+        try:
+            row_a = self._beliefs_reader.read_one(
+                "SELECT content FROM beliefs WHERE id = ?", (row["belief_id_a"],))
+            row_b = self._beliefs_reader.read_one(
+                "SELECT content FROM beliefs WHERE id = ?", (row["belief_id_b"],))
+        except Exception:
+            return ""
+        if row_a is None or row_b is None:
+            return ""
+
+        def _clip(text: str, n: int = 90) -> str:
+            text = text.strip()
+            return text if len(text) <= n else text[:n].rsplit(" ", 1)[0] + "…"
+
+        return (f"I notice I hold both: \"{_clip(row_a['content'])}\" "
+                f"and \"{_clip(row_b['content'])}\".")
+
     def format_for_prompt(self) -> str:
         """Return brief summary of active tensions for INSIDE route injection.
 
         Returns '' when quiet — no false 'look at me' output.
         Only speaks when there is something meaningful to surface.
         """
+        tension_line = self._content_specific_tension_line()
+        if tension_line:
+            return tension_line
+
         with self._lock:
             active = self._cached["active_paradox"]
             last_ts = self._cached["last_event_ts"]

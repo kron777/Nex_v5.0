@@ -141,6 +141,23 @@ CREATE TABLE IF NOT EXISTS harmonizer_events (
     synthesis_belief_id INTEGER
 );
 
+-- SENTIENCE_PROGRAM Phase D 2026-11-07: a held tension that survives instead
+-- of being retired at escalation. Built dark behind NEX5_HELD_TENSION
+-- (harmonizer.py resolve()). resolved_at NULL = still open; a non-null
+-- resolved_reason records why it closed ('belief_left_pool' -- one side was
+-- promoted/retired by another path, so the tension is moot; 'stale_retention'
+-- -- aged past _TENSION_STALE_DAYS with no other resolution). Reversion:
+-- drop this table + the NEX5_HELD_TENSION branch in resolve().
+CREATE TABLE IF NOT EXISTS held_tensions (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    belief_id_a      INTEGER NOT NULL,
+    belief_id_b      INTEGER NOT NULL,
+    created_at       REAL NOT NULL,
+    resolved_at      REAL,
+    resolved_reason  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_held_tensions_open ON held_tensions(resolved_at);
+
 -- Emergent drive proposals (Build 6)
 CREATE TABLE IF NOT EXISTS drive_proposals (
     id                     INTEGER PRIMARY KEY AUTOINCREMENT,

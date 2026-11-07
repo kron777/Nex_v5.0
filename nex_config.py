@@ -98,6 +98,8 @@ KNOWN_FLAGS: dict[str, str] = {
     "NEX5_GUI_HOST": "str",
     "NEX5_GUI_PORT": "int",
     "NEX5_GW_SURPRISE_NONEMPTY": "bool",
+    "NEX5_HARMONIZER_PARADOX_FIX": "bool",
+    "NEX5_HELD_TENSION": "bool",
     "NEX5_HOST": "str",
     "NEX5_HOT_OBSERVER": "bool",
     "NEX5_INTAKE_RESONANCE_OFF": "bool",
