@@ -3042,6 +3042,66 @@ def create_app(state: AppState) -> Flask:
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+    # -- HUD read-only visibility for Phase D / Phase E (2026-11-08) ---------
+    # Both new tables (held_tensions, episodes) had zero GUI presence --
+    # only raw SQL showed what was in them. GET only, no write path, no new
+    # table, no admin gate needed (matches every other GET here -- the
+    # before_request mutation gate only checks _MUTATING_METHODS). Dark in
+    # the sense that NEX5_HELD_TENSION/NEX5_EPISODIC are unarmed, so both
+    # tables are empty on the live store today; these just expose whatever
+    # is there, now or once armed.
+
+    @app.get("/api/harmonizer/tensions")
+    def api_harmonizer_tensions():
+        """Held tensions (Phase D, NEX5_HELD_TENSION) -- open ones first,
+        each with the two beliefs' own content for readability."""
+        dyn_db = _DYN_DB
+        try:
+            with closing(connect(dyn_db, timeout=10)) as cx:
+                cx.row_factory = Row
+                rows = cx.execute(
+                    "SELECT id, belief_id_a, belief_id_b, created_at, "
+                    "resolved_at, resolved_reason FROM held_tensions "
+                    "ORDER BY resolved_at IS NULL DESC, created_at DESC LIMIT 200"
+                ).fetchall()
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+        beliefs_reader = state.readers.get("beliefs")
+        out = []
+        for r in rows:
+            entry = dict(r)
+            if beliefs_reader is not None:
+                try:
+                    a = beliefs_reader.read_one(
+                        "SELECT content FROM beliefs WHERE id = ?", (r["belief_id_a"],))
+                    b = beliefs_reader.read_one(
+                        "SELECT content FROM beliefs WHERE id = ?", (r["belief_id_b"],))
+                    entry["belief_a_content"] = a["content"] if a else None
+                    entry["belief_b_content"] = b["content"] if b else None
+                except Exception:
+                    pass
+            out.append(entry)
+        open_count = sum(1 for e in out if e["resolved_at"] is None)
+        return jsonify({"tensions": out, "open_count": open_count})
+
+    @app.get("/api/episodic/episodes")
+    def api_episodic_episodes():
+        """Episodic memory (Phase E, NEX5_EPISODIC) -- most salient first,
+        then most recent; matches reconstruct_episode()'s own ordering."""
+        dyn_db = _DYN_DB
+        try:
+            with closing(connect(dyn_db, timeout=10)) as cx:
+                cx.row_factory = Row
+                rows = cx.execute(
+                    "SELECT id, created_at, source_kind, source_id, what, salience, "
+                    "affect_bound_at, affect_synthesis, recorded_at FROM episodes "
+                    "ORDER BY created_at DESC LIMIT 200"
+                ).fetchall()
+            return jsonify({"episodes": [dict(r) for r in rows]})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
     @app.get("/api/coincidence/stats")
     def api_coincidence_stats():
         """Counts, totals, hit rate trend, time-of-day distribution."""
