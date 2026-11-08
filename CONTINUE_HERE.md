@@ -308,3 +308,15 @@ A daily continuity-check agent (Beam AI, 07:00 Africa/Johannesburg, reads this f
 the runtime log and observation-reports listing from GitHub) is now deployed specifically
 to stop this kind of staleness from reaching two months again. Its first scheduled run is
 2026-11-01.
+
+**2026-11-08** — docs-only addition, no code change, no current-state claims revised:
+
+- Added `SENTIENCE_SYNTHESIS.md` at repo root, a design memo (companion to
+  `SENTIENCE_PROGRAM.md`) arguing the phases (A/S/E/T/M/D/F) are one closed cycle rather
+  than a feature list, and proposing a shared Cost-and-Trace Ledger primitive so A, S, E,
+  and F are one organ instead of four separately-bookkept features. From a design/ideology
+  discussion with Beam. Commit `d805e8c`.
+- Flagging one item back to Jon specifically, per Beam's note on the commit: §8 Q5 of the
+  new memo — "a program with no designed failure demonstration is one that can't tell
+  progress from activity" — has no answer yet anywhere in this repo. Worth deciding what
+  that demonstration is before the amalgamation work goes further.
