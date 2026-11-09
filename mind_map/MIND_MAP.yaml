@@ -526,7 +526,7 @@ nodes:
         - "theory_x/stage_finitude/budget_shadow.py:1-134"
         - "theory_x/stage_tom/global_workspace.py:144-166"
         - "gui/server.py:243"
-    last_verified: 2026-11-09
+    last_verified: 2026-11-10
     notes: >
       UNBLOCK 2026-11-21 -- r77 freeze close. Real ceiling found and already
       enforced+priced live: NEX5_CHAT_WORKSPACE_BUDGET (gui/server.py:243, default 1400 chars),
@@ -568,7 +568,7 @@ nodes:
         - "substrate/schema/dynamic.sql:144-159"
         - "tests/test_held_tension.py:1-40"
         - "SENTIENCE_SYNTHESIS.md:247-274"
-    last_verified: 2026-11-09
+    last_verified: 2026-11-10
     notes: >
       MAJOR CORRECTION, 2026-11-09: Phase D is already built, not "the next build." This map's own
       first draft (and the task that commissioned this pass) both assumed it was still open --
@@ -588,6 +588,10 @@ nodes:
       an unrelated belief-support-scoring module, not a dissonance mechanism -- as if it were the
       Phase D implementation. That citation was simply wrong and has been corrected in the same
       pass as the episodic line-35 fix.
+
+      2026-11-10: re-verified after the ledger-primitives schema extension touched dynamic.sql --
+      this node's cited range (144-159, the held_tensions table itself) sits before that
+      extension's insertion point and is unchanged; content and citation both still accurate.
 
       What is NOT built: SENTIENCE_SYNTHESIS.md §9's forced-tradeoff trial is scoped one level up,
       against the Cost-and-Trace Ledger's commit/spend/refuse/consolidate/recall primitives, which
@@ -636,10 +640,10 @@ nodes:
         - "theory_x/memory/episodic.py:168-229"
         - "tests/test_episodic.py:1-18"
         - "tests/test_episodic_falsifier.py:1-30"
-        - "substrate/schema/dynamic.sql:161-182"
+        - "substrate/schema/dynamic.sql:172-193"
         - "nex_config.py:84"
         - "SENTIENCE_PROGRAM.md:148-157"
-    last_verified: 2026-11-09
+    last_verified: 2026-11-10
     notes: >
       Built, tested, dark, now measured. SENTIENCE_PROGRAM.md:35 called this not-built and cited
       only resumption.py + snapshot_writer.py; :148-157 specifies Phase E and ARCHITECTURE.md:106,581
@@ -655,6 +659,11 @@ nodes:
       belief content (held_tension) still composes an account that names the tension ("I held
       both: X and Y") rather than flatly asserting either belief. Both pass — retrieval does
       separate "happened" from "believe." Flag stays OFF; nothing wired into the live loop.
+
+      2026-11-10: re-verified after the ledger-primitives schema extension inserted ~11 comment
+      lines into dynamic.sql ahead of this table — content unchanged, but the old
+      dynamic.sql:161-182 citation was shifted stale by the insertion itself; corrected to
+      172-193 here, same pass that caused the shift.
 
 constraints:
   - { from: p13_finitude,     to: prices,  label: "caps the budget" }
