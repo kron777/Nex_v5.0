@@ -46,6 +46,8 @@ REQUIRED = ("id", "label", "layer", "role_note", "evidence", "dark",
             "blocked", "falsifier_status", "source", "last_verified")
 # Matches "path", "path:N", or "path:N-M"
 REF_RE = re.compile(r"^(?P<path>[^:]+)(?::(?P<a>\d+)(?:-(?P<b>\d+))?)?$")
+# A shadow/stand-in's self-declared wiring deadline, e.g. "UNBLOCK 2026-11-21".
+UNBLOCK_RE = re.compile(r"UNBLOCK:?\s*(\d{4}-\d{2}-\d{2})")
 
 
 # ─────────────────────────────── loading ───────────────────────────────
@@ -169,6 +171,14 @@ def check(doc: dict, verify_absent: bool = False) -> tuple[list, list]:
                     warns.append(
                         f"{nid}: STALE — {rel} changed "
                         f"{datetime.fromtimestamp(ts):%Y-%m-%d} after last_verified {lv}")
+
+        # UNBLOCK: a shadow/stand-in's own self-set deadline for being wired
+        # into the live path. Only a PAST-due one is a warning (the failure
+        # `dark` exists to make visible: a shadow quietly gone permanent) --
+        # a future-dated one is listed (see --check output) but not warned.
+        for m in UNBLOCK_RE.finditer(str(n.get("notes") or "")):
+            if date.fromisoformat(m.group(1)) < date.today():
+                warns.append(f"{nid}: UNBLOCK {m.group(1)} PAST DUE")
 
     node_ids = {n["id"] for n in doc.get("nodes", [])}
     targets = node_ids | arm_ids
@@ -319,6 +329,11 @@ def main() -> int:
             print(f"  warn  {w}")
         for e in errs:
             print(f"  ERROR {e}")
+        for n in nodes:
+            for m in UNBLOCK_RE.finditer(str(n.get("notes") or "")):
+                print(f"  unblock  {n['id']}: {m.group(1)}"
+                      + (" (past due — see warn above)"
+                         if date.fromisoformat(m.group(1)) < date.today() else ""))
         if doc["meta"].get("bootstrap") is False and unver:
             errs.append("bootstrap is false but unverified nodes remain")
             print(f"  ERROR bootstrap is false but {unver} nodes are still unverified")
