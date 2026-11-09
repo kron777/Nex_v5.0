@@ -102,6 +102,21 @@ class Budget:
     def remaining(self) -> int:
         return self.capacity - self._spent
 
+    def check_capacity(self, amount: int) -> None:
+        """Pure check, no mutation: raises if `amount` can't be drawn right
+        now. Factored out of spend() so a second writer (ledger_primitives.
+        refuse()) can reuse the exact same capacity rule while writing its
+        own row into its own table, in its own transaction, rather than
+        going through spend()'s shadow_budget_spend write. Shared check,
+        independent writes -- see ledger_primitives.py's module docstring
+        for why spend()'s own target table didn't move."""
+        if amount <= 0:
+            raise ValueError(f"spend amount must be > 0, got {amount}")
+        if amount > self.remaining:
+            raise InsufficientBudget(
+                f"moment {self.moment_id}: cannot spend {amount}, "
+                f"only {self.remaining} remaining of capacity {self.capacity}")
+
     def spend(self, amount: int) -> Receipt:
         """Write one immutable ledger entry AND decrement `remaining`, as one
         unit: the entry is written first; `_spent` only advances if that
@@ -109,12 +124,7 @@ class Budget:
         and a successful decrement never happens without a row to show for
         it (test_shadow_atomicity).
         """
-        if amount <= 0:
-            raise ValueError(f"spend amount must be > 0, got {amount}")
-        if amount > self.remaining:
-            raise InsufficientBudget(
-                f"moment {self.moment_id}: cannot spend {amount}, "
-                f"only {self.remaining} remaining of capacity {self.capacity}")
+        self.check_capacity(amount)
         remaining_after = self.remaining - amount
         entry_id = self._writer.write(
             "INSERT INTO shadow_budget_spend "
