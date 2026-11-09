@@ -58,3 +58,6 @@ jobs:
           HF_HUB_OFFLINE: "1"
           TRANSFORMERS_OFFLINE: "1"
         run: python scripts/check_test_baseline.py
+
+      - name: Mind map stays sourced (no stale status claims)
+        run: python mind_map/mind_map.py --check --verify
