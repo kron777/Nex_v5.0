@@ -320,3 +320,11 @@ to stop this kind of staleness from reaching two months again. Its first schedul
   new memo — "a program with no designed failure demonstration is one that can't tell
   progress from activity" — has no answer yet anywhere in this repo. Worth deciding what
   that demonstration is before the amalgamation work goes further.
+
+**2026-11-09** — docs-only addition, no code change, answering the Q5 flag above:
+
+- Added §9 to `SENTIENCE_SYNTHESIS.md` — a concrete, pre-registered failure demonstration
+  (the "forced-tradeoff trial") proposed as the answer to §8 Q5. It is a test design, not a
+  result: it presupposes the ledger (§4) exists with `commit`/`spend`/`refuse`/`consolidate`
+  wired to real balance, which nothing in the codebase has shipped yet. Stated now so the
+  pass/fail bar can't move once something is built to run it against.

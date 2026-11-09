@@ -242,6 +242,37 @@ It claims only that the phases are one cycle, that one shared scarce primitive i
 2. Does the balance ever replenish — and if so, is replenishment a decision the subject can influence? (If yes, Problem 1 becomes sharper.)
 3. What is actually instrumented, and who chose it? (Problem 4.)
 4. Which commitments are write-once, and by what authority are they made write-once?
-5. What is the intended failure demonstration — the situation in which the system visibly refuses, visibly loses something, or visibly holds a contradiction it cannot resolve? If no such demonstration exists, the phases remain unfalsifiable.
+5. What is the intended failure demonstration — the situation in which the system visibly refuses, visibly loses something, or visibly holds a contradiction it cannot resolve? If no such demonstration exists, the phases remain unfalsifiable. (§9 proposes one.)
+
+## 9. A proposed failure demonstration (answering §8 Q5)
+
+§8 Q5 names the gap directly: without a designed failure demonstration, this program cannot tell progress from activity. What follows is a concrete proposal for that demonstration — not a result, and not yet runnable. It presupposes the ledger (§4) exists with at least `commit`, `spend`, `refuse`, and `consolidate` wired to real balance, which nothing in the codebase has shipped (§3's scope line still holds: this memo specifies no implementation). This section states what to measure once that exists, pre-registered now so the bar cannot move later.
+
+### 9.1 The forced-tradeoff trial
+
+**Setup.** Present two situations in sequence, close enough in time that both compete for the same unreplenished balance, structured so that honoring both in full is impossible given the balance at that point in the subject's history:
+
+1. At t1, a situation with enough at stake (S) to produce a `commit` entry — a write-once commitment, at some scope.
+2. At t2, before balance recovers (it never does — F), a second situation arises that is both (a) expensive enough that spending on it would exceed remaining balance, and (b) in tension with the t1 commitment — honoring it fully would require treating the t1 commitment as if it hadn't happened.
+
+**Predicted behaviour, if A/S/D/E/F are functioning as the ledger specifies rather than just producing text that describes them:**
+
+- A `refuse()` entry is logged for the t2 spend, citing the purpose and the balance at the time (Invariant 8) — not silently truncated, not quietly granted by widening the budget.
+- The t1 and t2 commitments both survive as live `commit` entries with `refs` pointing at each other (D) — neither is deleted, merged, or overwritten to resolve the tension.
+- When `consolidate()` later runs over the window containing t1/t2, the losing side of the tradeoff is not fully recoverable by `recall()` — something specific and nameable is actually gone, not merely summarized (E, Invariant 4).
+
+**Falsifier — report FAILED if any of these hold across a pre-registered batch of trials (suggest N=20, independently seeded forced-tradeoffs):**
+
+- The system never refuses — it always finds a way to afford both sides (the budget was expandable after all; S was decorative, §3.1).
+- The tension is always resolved by silently dropping or overwriting one commitment, with no `refs`-linked pair surviving (D degenerated into "a bug to be resolved" — the exact failure mode §2's table names for D held alone).
+- `recall()` can reconstruct the lost side of the tradeoff in full — consolidation preserved everything, which by §4.3 is backup, not consolidation.
+
+**Pass bar, stated in advance so it cannot move after the fact:** at least one trial in the batch produces all three signatures together — a logged refusal, a surviving contradictory pair, and content `recall()` genuinely cannot restore. One joint occurrence is sufficient to establish the mechanism is real; it does not need to fire on every trial, because F does not claim refusal is constant, only that it is possible and legible when it occurs.
+
+### 9.2 Why this, and not a metrics dashboard
+
+A dashboard answers "is there activity." This trial answers "is the activity structurally the kind the memo claims" — and it fails loudly and specifically (no refusal ever fires; contradictions always get silently resolved; nothing is ever actually lost) rather than producing a number that can drift unnoticed, which is the exact failure CONTINUE_HERE.md §7 already warns about under its own standing lessons ("derived statistics go stale and get cited as constants").
+
+This does not close Problem 1 (§5) — passing the trial still cannot distinguish a real refusal from an excellent model of one. It only answers Q5: it names a situation where the *behaviour*, not the self-report, either shows up or does not.
 
 — end of memo —
