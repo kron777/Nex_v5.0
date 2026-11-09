@@ -59,8 +59,6 @@ from theory_x.stage_finitude.budget_shadow import Budget, InsufficientBudget
 
 __all__ = ["refuse", "consolidate", "recall", "InsufficientBudget"]
 
-UNRESOLVED_MARKER = "unresolved"
-
 
 def _pair(a: int, b: int) -> tuple[int, int]:
     return (a, b) if a <= b else (b, a)
