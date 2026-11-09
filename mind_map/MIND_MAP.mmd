@@ -1,0 +1,121 @@
+%% GENERATED from MIND_MAP.yaml -- do not edit by hand
+flowchart LR
+  classDef c_measured_00 fill:#1b5e20,color:#ffffff,stroke-width:1px,stroke:#455a64
+  classDef c_measured_01 fill:#1b5e20,color:#ffffff,stroke-width:3px,stroke:#c62828
+  classDef c_measured_10 fill:#1b5e20,color:#ffffff,stroke-width:1px,stroke:#455a64,stroke-dasharray:5 3
+  classDef c_measured_11 fill:#1b5e20,color:#ffffff,stroke-width:3px,stroke:#c62828,stroke-dasharray:5 3
+  classDef c_implemented_00 fill:#66bb6a,color:#0b1d0d,stroke-width:1px,stroke:#455a64
+  classDef c_implemented_01 fill:#66bb6a,color:#0b1d0d,stroke-width:3px,stroke:#c62828
+  classDef c_implemented_10 fill:#66bb6a,color:#0b1d0d,stroke-width:1px,stroke:#455a64,stroke-dasharray:5 3
+  classDef c_implemented_11 fill:#66bb6a,color:#0b1d0d,stroke-width:3px,stroke:#c62828,stroke-dasharray:5 3
+  classDef c_static_00 fill:#90caf9,color:#0b1d2f,stroke-width:1px,stroke:#455a64
+  classDef c_static_01 fill:#90caf9,color:#0b1d2f,stroke-width:3px,stroke:#c62828
+  classDef c_static_10 fill:#90caf9,color:#0b1d2f,stroke-width:1px,stroke:#455a64,stroke-dasharray:5 3
+  classDef c_static_11 fill:#90caf9,color:#0b1d2f,stroke-width:3px,stroke:#c62828,stroke-dasharray:5 3
+  classDef c_inferred_00 fill:#cfd8dc,color:#1b2227,stroke-width:1px,stroke:#455a64
+  classDef c_inferred_01 fill:#cfd8dc,color:#1b2227,stroke-width:3px,stroke:#c62828
+  classDef c_inferred_10 fill:#cfd8dc,color:#1b2227,stroke-width:1px,stroke:#455a64,stroke-dasharray:5 3
+  classDef c_inferred_11 fill:#cfd8dc,color:#1b2227,stroke-width:3px,stroke:#c62828,stroke-dasharray:5 3
+  classDef c_unknown_00 fill:#ffffff,color:#1b2227,stroke-width:1px,stroke:#455a64
+  classDef c_unknown_01 fill:#ffffff,color:#1b2227,stroke-width:3px,stroke:#c62828
+  classDef c_unknown_10 fill:#ffffff,color:#1b2227,stroke-width:1px,stroke:#455a64,stroke-dasharray:5 3
+  classDef c_unknown_11 fill:#ffffff,color:#1b2227,stroke-width:3px,stroke:#c62828,stroke-dasharray:5 3
+  subgraph arm_prices["Prices"]
+    direction TB
+    n_amoha["[dark] amoha — discernment / non-delusion<br/><i>measured</i>"]
+    n_karuna["[dark] karuṇā — compassion<br/><i>measured</i>"]
+    n_upeksa["upekṣā — equanimity<br/><i>measured</i>"]
+    n_apramada["apramāda — conscientiousness<br/><i>measured</i>"]
+    n_alobha["[dark] alobha — non-attachment<br/><i>implemented</i>"]
+    n_vedana["[dark] vedanā — feeling-tone<br/><i>static</i>"]
+    n_mana["māna — self-conceit<br/><i>static</i>"]
+    n_vicikitsa["vicikitsā — doubt<br/><i>unknown</i>"]
+    n_drsti["dṛṣṭi — fixed view<br/><i>unknown</i>"]
+  end
+  subgraph arm_writes["Writes"]
+    direction TB
+    n_smrti["smṛti — retention<br/><i>unknown</i>"]
+    n_virya["[dark] vīrya — joyous effort<br/><i>implemented</i>"]
+    n_prasrabdhi["[dark] praśrabdhi — pliancy<br/><i>implemented</i>"]
+    n_sraddha["[dark] śraddhā — confidence<br/><i>implemented</i>"]
+  end
+  subgraph arm_readers["Readers"]
+    direction TB
+    n_p5_second_order["5 · Second-order monitoring (prajñā)<br/><i>static</i>"]
+    n_kaukratya["kaukṛtya — regret<br/><i>static</i>"]
+  end
+  subgraph arm_consumers["Consumers"]
+    direction TB
+    n_p6_unified_present["6 · A unified present (manaskāra)<br/><i>static</i>"]
+    n_vitarka["vitarka — applied thought<br/><i>static</i>"]
+    n_vicara["vicāra — sustained thought<br/><i>static</i>"]
+  end
+  subgraph arm_scope["Scope markers"]
+    direction TB
+    arm_scope_void["(empty) no 51 factor"]:::c_unknown_00
+  end
+  subgraph grp_straddle["straddles Writes <-> Readers"]
+    direction TB
+    n_p8_episodic["[dark] 8 · Episodic / autobiographical memory<br/><i>implemented</i>"]
+  end
+  subgraph grp_boundary["Boundary -- adjacent only"]
+    direction TB
+    n_p9_dissonance["[dark] 9 · Dissonance (vicikitsā's degenerate form)<br/><i>implemented</i>"]
+    n_hri_apatrapya["[blocked] hṛī / apatrāpya — shame / dread of blame<br/><i>static</i>"]
+  end
+  subgraph grp_ring["Substrate -- no 51-factor slot"]
+    direction TB
+    n_p1_continuity["1 · Continuity of self<br/><i>static</i>"]
+    n_p2_train["2 · Train of thought across restart<br/><i>static</i>"]
+    n_p3_stakes["3 · Stakes<br/><i>static</i>"]
+    n_p4_interoception["4 · Honest interoception<br/><i>static</i>"]
+    n_p7_valence["7 · Intentional valence<br/><i>static</i>"]
+    n_p10_thickness["10 · Temporal thickness<br/><i>static</i>"]
+    n_p11_agency["11 · Agency / authorship<br/><i>static</i>"]
+    n_p12_selfreport["[blocked] 12 · Self-report that can be unflattering<br/><i>static</i>"]
+    n_p13_finitude["13 · Finitude<br/><i>static</i>"]
+  end
+  n_p13_finitude -->|caps the budget| arm_prices
+  n_p3_stakes -->|is the pricing function| arm_prices
+  n_p7_valence -->|aboutness of what is priced| arm_prices
+  n_p1_continuity -->|append-only, no rewind| arm_writes
+  n_p2_train -->|persistence across restart| arm_writes
+  n_p10_thickness -->|reader over the sequence| arm_readers
+  n_p4_interoception -->|reads own substrate| arm_readers
+  n_p12_selfreport -->|must be able to return negative| arm_readers
+  n_p11_agency -->|mine vs happened-to-me| arm_scope
+  n_p8_episodic -->|what happened →| arm_writes
+  n_p8_episodic -->|→ read back as mine| arm_readers
+  n_p9_dissonance -->|held contradiction must persist| arm_writes
+  n_p9_dissonance -.->|resurfacing needs retrieval| n_p8_episodic
+  n_p12_selfreport <-->|"?"| n_hri_apatrapya
+  class n_amoha c_measured_10
+  class n_karuna c_measured_10
+  class n_upeksa c_measured_00
+  class n_apramada c_measured_00
+  class n_alobha c_implemented_10
+  class n_vedana c_static_10
+  class n_mana c_static_00
+  class n_vicikitsa c_unknown_00
+  class n_drsti c_unknown_00
+  class n_smrti c_unknown_00
+  class n_virya c_implemented_10
+  class n_prasrabdhi c_implemented_10
+  class n_sraddha c_implemented_10
+  class n_p5_second_order c_static_00
+  class n_kaukratya c_static_00
+  class n_p6_unified_present c_static_00
+  class n_vitarka c_static_00
+  class n_vicara c_static_00
+  class n_p1_continuity c_static_00
+  class n_p2_train c_static_00
+  class n_p3_stakes c_static_00
+  class n_p4_interoception c_static_00
+  class n_p7_valence c_static_00
+  class n_p10_thickness c_static_00
+  class n_p11_agency c_static_00
+  class n_p12_selfreport c_static_01
+  class n_p13_finitude c_static_00
+  class n_p9_dissonance c_implemented_10
+  class n_hri_apatrapya c_static_01
+  class n_p8_episodic c_implemented_10

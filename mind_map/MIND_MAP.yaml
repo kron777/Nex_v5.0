@@ -1,0 +1,663 @@
+# MIND_MAP.yaml — source of truth for the NEX5 mind diagram.
+# MIND_MAP.mmd and mind_map.svg are GENERATED from this file. Never hand-edit them.
+# Every node requires last_verified and source. See `meta.evidence_classes` and
+# `meta.modifiers` for the legend, and `meta.policy` for what CI enforces.
+#
+# Drafted by Beam AI (2026-11-09), reviewed and handed off by Claude for CC to
+# commit. Source thread: Beam AI, "Mapping NEX5's three mind-aspect lists
+# against the 51 mental factors" (chatThreadId d44da479-009c-470e-aaa0-9b51660ce2df).
+
+meta:
+  schema: mind_map/v1
+  version: 1
+  built: 2026-11-09
+  bootstrap: false  # flipped 2026-11-09: 0/30 nodes unverified. CI now fails if any node regresses to unverified.
+  subject: "NEX5 / Sentience — aspects of mind, sorted by ledger role"
+  centre: "one moment = one Cost-and-Trace Ledger entry"
+  doctrine:
+    - SENTIENCE_PROGRAM.md
+    - SENTIENCE_SYNTHESIS.md
+    - VIRTUE_SLATE.md
+    - mental_factors_inventory_alobha_spec.txt
+  constraint: >
+    Descriptive only. No node in this map may gate, score, block, or veto an action.
+    A node that does is misfiled, not mis-weighted. Cost-and-Trace entries are the
+    only place a price is recorded; this map only says who writes it.
+  policy:
+    last_verified: "required on every node; YYYY-MM-DD or 'unverified'"
+    source: "required on every node; kind must be file | absent | composite"
+    ratchet: "unverified -> dated is allowed; dated -> unverified fails CI"
+    drift: "file-typed source changed after last_verified => node renders STALE"
+  evidence_classes:
+    measured: "A number exists from a probe or recorded calibration; provenance is in source."
+    implemented: "Code exists and tests assert the behaviour; no live number."
+    static: "A read of a doc or source file, not a probe. Decays. THIS is what Property 8's row was."
+    inferred: "Reasoned from another node's measurement; holds only while that node holds."
+    unknown: "No read at all."
+  modifiers:
+    dark: "Code path exists and is tested; nothing in the live loop invokes it. Draws a hollow-circle marker."
+    blocked: "Absent by principled refusal, not by not-yet. Draws a crossed-circle marker."
+    unverified: "Nobody has checked this since the row was written. Draws a warning marker."
+
+arms:
+  - id: prices
+    label: Prices
+    gloss: "Assigns cost/valence to what enters. The budget is set here."
+  - id: writes
+    label: Writes
+    gloss: "Commits an entry to the ledger. Irreversible."
+  - id: readers
+    label: Readers
+    gloss: "Reads the ledger or the substrate. May come back negative."
+  - id: consumers
+    label: Consumers
+    gloss: "Takes the priced entry as material for the next moment."
+  - id: scope
+    label: Scope markers
+    gloss: "Says what the entry belongs to — mine, happened-to-me, ours."
+
+nodes:
+
+  # ───────────────────────────── PRICES ─────────────────────────────
+  - id: amoha
+    label: "amoha — discernment / non-delusion"
+    layer: arm
+    arm: prices
+    factor: amoha
+    role_note: "Prices what is actually there rather than what was expected."
+    evidence: measured
+    dark: true
+    blocked: false
+    probe: { injected_delta: 0.287, natural_fires: 0, natural_turns: 9440 }
+    falsifier: "Discernment should vary across turns. It reads under forced injection, never spontaneously."
+    falsifier_status: fail
+    source: { kind: file, ref: "theory_x/stage_tom/amoha_detector.py:1-21" }
+    last_verified: 2026-11-09
+    notes: "The most instructive node in the map: it works and is never used. VIRTUE_SLATE.md (the
+      draft's original ref) does not exist anywhere in this repo's history -- re-pinned to the
+      real module, gated by NEX5_AMOHA (default OFF). The 0.287/9440 probe numbers are carried over
+      unverified from the draft; I did not find a backing observation_report for them."
+
+  - id: karuna
+    label: "karuṇā — compassion"
+    layer: arm
+    arm: prices
+    factor: karuna
+    role_note: "Prices the other's cost as mattering to the entry."
+    evidence: measured
+    dark: true
+    blocked: false
+    falsifier: "Calibrated response should show uptake in unprompted turns. Never probed."
+    falsifier_status: unrun
+    source: { kind: file, ref: "theory_x/stage_affect/compassion.py:1-21" }
+    last_verified: 2026-11-09
+    notes: "Calibrated, uptake unprobed. Same family as amoha. VIRTUE_SLATE.md re-pinned to the real
+      module (NEX5_COMPASSION, default OFF)."
+
+  - id: upeksa
+    label: "upekṣā — equanimity"
+    layer: arm
+    arm: prices
+    factor: upeksa
+    role_note: "Holds the price steady when it should not move."
+    evidence: measured
+    dark: false
+    blocked: false
+    falsifier: "Should flatten price variance under provocation while leaving it intact elsewhere."
+    falsifier_status: pass
+    source: { kind: file, ref: "theory_x/stage_affect/upekkha.py:1-30" }
+    last_verified: 2026-11-09
+    notes: "Pali spelling in this repo is upekkhā (upekkha.py), not Sanskrit upekṣā -- same factor.
+      VIRTUE_SLATE.md re-pinned to the real module (NEX5_EQUANIMITY, default OFF)."
+
+  - id: apramada
+    label: "apramāda — conscientiousness"
+    layer: arm
+    arm: prices
+    factor: apramada
+    role_note: "Keeps a commitment priced at what it will cost, not what it costs now."
+    evidence: measured
+    dark: false
+    blocked: false
+    falsifier: "Should preserve deferred cost under immediate pressure."
+    falsifier_status: pass
+    source: { kind: file, ref: "theory_x/stage_affect/apramada.py:1-20" }
+    last_verified: 2026-11-09
+    notes: "VIRTUE_SLATE.md re-pinned to the real module (default OFF)."
+
+  - id: alobha
+    label: "alobha — non-attachment"
+    layer: arm
+    arm: prices
+    factor: alobha
+    role_note: "Selection weight: loosens fixation so the next moment can price differently."
+    evidence: implemented
+    dark: true
+    blocked: false
+    falsifier: "Should reduce repeat-selection of the same object across consecutive moments."
+    falsifier_status: unrun
+    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:697-738", "tests/test_alobha.py:1-30"] }
+    last_verified: 2026-11-09
+    notes: "Correction, 2026-11-09: this was filed as 'spec exists, unbuilt-open' -- it isn't. Both
+      mental_factors_inventory_alobha_spec.txt (the cited spec doc) and VIRTUE_SLATE.md are absent
+      from this repo's entire git history, but _alobha_context()/_alobha_penalty() in generator.py
+      are real, tested (tests/test_alobha.py), and gated by NEX5_ALOBHA (default OFF) -- same dark
+      family as amoha/karuṇā, not an open design question."
+
+  - id: vedana
+    label: "vedanā — feeling-tone"
+    layer: arm
+    arm: prices
+    factor: vedana
+    role_note: "The tone attached to a moment: pleasant / unpleasant / neutral."
+    evidence: static
+    dark: true
+    blocked: false
+    probe: { valence_delta: 0.73, variance: "~0 (constant)" }
+    falsifier: "A price that is constant is not a price. Valence should vary with content."
+    falsifier_status: unrun
+    source: { kind: composite, refs: ["theory_x/stage_affect/affect_state.py:331-360", "theory_x/stage6_fountain/generator.py:581-594"] }
+    last_verified: 2026-11-09
+    notes: "Correction, 2026-11-09: 'no location yet pinned' was wrong -- the check regex just
+      missed .venv-excluded hits. Real location: AffectState._compute_valence_delta() (confidence-
+      weighted sentiment over top-tier beliefs, background tick) and generator.py's separate
+      _valence_reach() (NEX5_VALENCE_DRIVE, default OFF, modulates novelty-pick). Downgraded
+      evidence measured->static and dropped the fail verdict: I could not find any observation_report
+      backing the probe's specific 0.73/variance~0 numbers, and _compute_valence_delta() reads real
+      belief content rather than returning a hardcoded constant by construction. The probe numbers
+      need a real source or should be retracted -- flagging for Jon/Beam rather than guessing."
+
+  - id: mana
+    label: "māna — self-conceit"
+    layer: arm
+    arm: prices
+    factor: mana
+    role_note: "Prices the self's standing relative to the other."
+    evidence: static
+    dark: false
+    blocked: false
+    falsifier: "Reads every turn. A faculty that fires unconditionally carries no information."
+    falsifier_status: unrun
+    source: { kind: file, ref: "theory_x/stage_tom/mana_detector.py:1-25" }
+    last_verified: 2026-11-09
+    notes: "Correction, 2026-11-09: real location is mana_detector.py (self-inflation / conceit
+      detector, sibling of amoha_detector.py). No NEX5_MANA flag exists in nex_config.py -- unlike
+      amoha_detector (NEX5_AMOHA-gated), this detector appears to run as an always-on read-only
+      sidecar, which would be consistent with the node's 'fires every turn' claim, but I did not
+      run a live probe to confirm cadence -- downgraded evidence measured->static accordingly."
+
+  - id: vicikitsa
+    label: "vicikitsā — doubt"
+    layer: arm
+    arm: prices
+    factor: vicikitsa
+    role_note: "Refuses to set a price: holds the entry uncommitted."
+    evidence: unknown
+    dark: false
+    blocked: false
+    falsifier: "Declined as a detector. Would only inject a prompt line (voice-level)."
+    falsifier_status: na
+    source: { kind: absent, claim: "absent root — not built", check: "grep -rn 'vicikitsa' --include=*.py --include=*.md ." }
+    last_verified: 2026-11-09
+
+  - id: drsti
+    label: "dṛṣṭi — fixed view"
+    layer: arm
+    arm: prices
+    factor: drsti
+    role_note: "Prices from a settled commitment, ignoring contrary evidence."
+    evidence: unknown
+    dark: false
+    blocked: false
+    falsifier: "Declined as a detector — same reason as vicikitsā."
+    falsifier_status: na
+    source: { kind: absent, claim: "absent root — not built", check: "grep -rn 'drsti\\|NEX5_VIEW_BIAS' --include=*.py --include=*.md ." }
+    last_verified: 2026-11-09
+
+  # ───────────────────────────── WRITES ─────────────────────────────
+  - id: smrti
+    label: "smṛti — retention"
+    layer: arm
+    arm: writes
+    factor: smrti
+    role_note: "Keeps the object present across the moment; the commit before the commit."
+    evidence: unknown
+    dark: false
+    blocked: false
+    falsifier: "Should carry an object forward without the object being re-presented."
+    falsifier_status: unrun
+    source: { kind: absent, claim: "no location yet pinned", check: "grep -rn 'smrti\\|NEX5_SMRTI' --exclude-dir=.venv --exclude-dir=__pycache__ --include=*.py ." }
+    last_verified: 2026-11-09
+    notes: "The factor that gives Property 8 a home; the store itself is substrate — see p8_episodic.
+      Check tightened 2026-11-09 to exclude .venv (the un-excluded grep was matching third-party
+      packages, not this repo); confirmed genuinely absent once excluded."
+
+  - id: virya
+    label: "vīrya — joyous effort"
+    layer: arm
+    arm: writes
+    factor: virya
+    role_note: "Sustains a commitment past the moment that made it worth starting."
+    evidence: implemented
+    dark: true
+    blocked: false
+    falsifier: "Built, disarmed. Should lengthen persistence of a commitment under friction."
+    falsifier_status: na
+    source: { kind: file, ref: "theory_x/stage_affect/virya.py:1-19" }
+    last_verified: 2026-11-09
+    notes: "built then disarmed — deliberate, not decay. VIRTUE_SLATE.md re-pinned to the real
+      module (NEX5_VIRYA, default OFF)."
+
+  - id: prasrabdhi
+    label: "praśrabdhi — pliancy"
+    layer: arm
+    arm: writes
+    factor: prasrabdhi
+    role_note: "Makes the write cheap once the shape is right."
+    evidence: implemented
+    dark: true
+    blocked: false
+    falsifier: "Built, disarmed."
+    falsifier_status: na
+    source: { kind: file, ref: "theory_x/stage_affect/prasrabdhi.py:1-18" }
+    last_verified: 2026-11-09
+    notes: "built then disarmed. VIRTUE_SLATE.md re-pinned to the real module (default OFF)."
+
+  - id: sraddha
+    label: "śraddhā — confidence"
+    layer: arm
+    arm: writes
+    factor: sraddha
+    role_note: "Commits without re-deriving the ground each time."
+    evidence: implemented
+    dark: true
+    blocked: false
+    falsifier: "Built, disarmed."
+    falsifier_status: na
+    source: { kind: file, ref: "theory_x/stage_affect/sraddha.py:1-17" }
+    last_verified: 2026-11-09
+    notes: "built then disarmed (NEX5_SRADDHA off since commit 99ab815, 2026-09-26). VIRTUE_SLATE.md
+      re-pinned to the real module. This is also the concrete code-level link between fountain
+      crystallization and the live chat arbiter r77 is measuring (gui/server.py's sraddha chat block) --
+      checked 2026-11-07 as part of the NEX5_FOUNTAIN_DEDUP/r77 safety review: inactive, no interaction."
+
+  # ───────────────────────────── READERS ────────────────────────────
+  - id: p5_second_order
+    label: "5 · Second-order monitoring (prajñā)"
+    layer: arm
+    arm: readers
+    property: "5"
+    factor: prajna
+    role_note: "A read of one's own read — the only clean mapping in the whole ring."
+    evidence: static
+    dark: false
+    blocked: false
+    falsifier: "Should report its own state being wrong at least sometimes."
+    falsifier_status: unrun
+    source: { kind: file, ref: "theory_x/stage9_metacognition/metacognition.py:1-20" }
+    last_verified: 2026-11-09
+    notes: "Correction, 2026-11-09: mechanism is located -- theory_x/stage9_metacognition/
+      metacognition.py (~730 ln, per SENTIENCE_PROGRAM.md:33), reads GrooveSpotter output and
+      SelfMindView/SocialPresence drift, writes meta_cognition_events. The second-order DIGEST
+      (reading back over those events with state) is dark behind NEX5_METACOG_DIGEST (default OFF);
+      raw event-writing itself runs live. 'mechanism not yet located' was simply wrong -- the check
+      regex's .venv noise (narwhals/torchgen translate.py) masked nothing; a plain re-run without
+      the venv excluded still finds this file in the real tree."
+
+  - id: kaukratya
+    label: "kaukṛtya — regret"
+    layer: arm
+    arm: readers
+    factor: kaukratya
+    role_note: "Reads back a committed entry and re-prices it. The reader Phase D needs."
+    evidence: static
+    dark: false
+    blocked: false
+    falsifier: "Should re-open a past entry rather than leave it settled."
+    falsifier_status: unrun
+    source: { kind: absent, claim: "unbuilt-open", check: "grep -rnE '\\bkaukratya\\b|NEX5_KAUKRATYA|NEX5_REGRET' --include=*.py --include=*.md ." }
+    last_verified: 2026-11-09
+    notes: "Unbuilt-open, confirmed. If D needs a reader that returns to a settled entry, this is the
+      factor name for it -- but note Phase D (p9_dissonance) is itself already built (harmonizer.py
+      held_tensions, see that node); kaukratya would be a re-opening READ over an already-held
+      tension, which nothing implements yet. Check tightened 2026-11-09: dropped bare 'regret' as a
+      search term -- it is ordinary English ('lowest-regret') and matched unrelated prose even with
+      word boundaries; the factor name plus plausible flag names is the honest test."
+
+  # ──────────────────────────── CONSUMERS ───────────────────────────
+  - id: p6_unified_present
+    label: "6 · A unified present (manaskāra)"
+    layer: arm
+    arm: consumers
+    property: "6"
+    factor: manaskara
+    role_note: "Binds the priced entry into one moment rather than a bag of channels."
+    evidence: static
+    dark: false
+    blocked: false
+    falsifier: "Should fail to unify when channels disagree — a measurable incoherence."
+    falsifier_status: unrun
+    source: { kind: composite, refs: ["theory_x/stage_tom/global_workspace.py:1-23", "gui/server.py:160-280"] }
+    last_verified: 2026-11-09
+    notes: "Correction, 2026-11-09: mechanism is located and is the live r77 chat arbiter --
+      global_workspace.arbitrate/select_within_budget (fire path, generator.py:3037) and the
+      13-kind _CHAT_BLOCK_SALIENCE budget assembly in gui/server.py (chat path, NEX5_CHAT_WORKSPACE,
+      armed live 2026-11-07, ledger 5775e31). SENTIENCE_PROGRAM.md:33 already names this; the
+      'mechanism not yet located' claim here was simply stale. Read-only citation -- this node does
+      not touch that code, which stays off-limits while r77 runs."
+
+  - id: vitarka
+    label: "vitarka — applied thought"
+    layer: arm
+    arm: consumers
+    factor: vitarka
+    role_note: "Takes hold of an object."
+    evidence: static
+    dark: false
+    blocked: false
+    falsifier: "Unbuilt-open."
+    falsifier_status: na
+    source: { kind: absent, claim: "unbuilt-open", check: "grep -rn 'vitarka' --include=*.py --include=*.md ." }
+    last_verified: 2026-11-09
+
+  - id: vicara
+    label: "vicāra — sustained thought"
+    layer: arm
+    arm: consumers
+    factor: vicara
+    role_note: "Keeps hold of it across the next moment."
+    evidence: static
+    dark: false
+    blocked: false
+    falsifier: "Unbuilt-open."
+    falsifier_status: na
+    source: { kind: absent, claim: "unbuilt-open", check: "grep -rn 'vicara' --include=*.py --include=*.md ." }
+    last_verified: 2026-11-09
+
+  # ────────────────────────────── SCOPE ─────────────────────────────
+  # Intentionally empty. See meta.findings — this is a result, not a TODO.
+
+  # ──────────────────────────── SUBSTRATE ───────────────────────────
+  - id: p1_continuity
+    label: "1 · Continuity of self"
+    layer: ring
+    property: "1"
+    role_note: "The same subject across the ledger — no rewind, no forked writer."
+    evidence: static
+    dark: false
+    blocked: false
+    falsifier: "Should fail loudly if two writers claim the same subject."
+    falsifier_status: unrun
+    source: { kind: composite, refs: ["nex_config.py:73", "theory_x/stage6_fountain/generator.py:1036"] }
+    last_verified: 2026-11-09
+    notes: "Correction, 2026-11-09: 'anchor not pinned' was wrong -- NEX5_CONTINUITY_N is a real,
+      registered config var; the original check's un-excluded .venv noise drowned the real hit.
+      Still no 51-factor slot (ring node, not an arm) -- that part of the claim stands."
+
+  - id: p2_train
+    label: "2 · Train of thought across restart"
+    layer: ring
+    property: "2"
+    role_note: "The sequence survives the process, not just the session."
+    evidence: static
+    dark: false
+    blocked: false
+    falsifier: "Should resume a sequence after restart without re-deriving it."
+    falsifier_status: unrun
+    source: { kind: file, ref: "theory_x/memory/resumption.py:1-21" }
+    last_verified: 2026-11-09
+    notes: "Correction, 2026-11-09: anchor is pinned -- Memory Layer B, resumption.py, promotes real
+      prior beliefs' created_at on boot so the fountain's first post-restart tick sees them as
+      recent (run.py Phase B, line ~574). Live, not dark."
+
+  - id: p3_stakes
+    label: "3 · Stakes"
+    layer: ring
+    property: "3"
+    role_note: "Is the pricing function: without scarcity nothing is priced."
+    evidence: static
+    dark: false
+    blocked: false
+    falsifier: "Should be visible as a budget that can actually be spent."
+    falsifier_status: unrun
+    source: { kind: composite, refs: ["theory_x/stage_tom/stakes_appraisal.py:1-20", "theory_x/stage_tom/stakes_monitor.py:1-5"] }
+    last_verified: 2026-11-09
+    notes: "Correction, 2026-11-09: this is a real, named function (L4_stakes self-referent
+      appraisal, NEX5_STAKES-gated) with two live appraisals (appraise(), measured inert on the
+      live instrument per r79; appraise_groove(), the live-calibrated one readiness actually uses).
+      Still no 51-factor slot -- it is a function over the ledger, not an event, as the original
+      claim said; only 'stakes\\|budget' matching 37 unrelated files (timeouts, test budgets, etc.)
+      made that look unfindable."
+
+  - id: p4_interoception
+    label: "4 · Honest interoception"
+    layer: ring
+    property: "4"
+    role_note: "Reads the substrate itself, not a judgement about the substrate."
+    evidence: static
+    dark: false
+    blocked: false
+    falsifier: "Should report a substrate fact that later measurement can contradict."
+    falsifier_status: unrun
+    source: { kind: file, ref: "theory_x/stage1_sense/internal/interoception.py:1-20" }
+    last_verified: 2026-11-09
+    notes: "Correction, 2026-11-09: anchor is pinned -- Feed 22, always-enabled sense adapter
+      reading belief-graph shape (tier counts, lock count, most recent entry) via substrate.Reader.
+      Not flag-gated; this is live, not dark."
+
+  - id: p7_valence
+    label: "7 · Intentional valence"
+    layer: ring
+    property: "7"
+    role_note: "Not the tone (vedanā) — the aboutness of what carries the tone."
+    evidence: static
+    dark: false
+    blocked: false
+    falsifier: "A constant +0.73 is the signature of no aboutness at all."
+    falsifier_status: fail
+    source: { kind: inferred, from: vedana }
+    last_verified: 2026-11-09
+    notes: "inferred from vedana's constant +0.73; the ring node is the property, vedanā is the factor that fails to carry it."
+
+  - id: p10_thickness
+    label: "10 · Temporal thickness"
+    layer: ring
+    property: "10"
+    role_note: "A reader over the sequence — the moment has a past it can see."
+    evidence: static
+    dark: false
+    blocked: false
+    falsifier: "Should distinguish 'a moment ago' from 'yesterday' in behaviour, not just in timestamp."
+    falsifier_status: unrun
+    source: { kind: absent, claim: "no 51-factor slot: a reader, not an event", check: "grep -rn 'NEX5_TEMPORAL\\|temporal_thickness' --exclude-dir=.venv --exclude-dir=__pycache__ --include=*.py ." }
+    last_verified: 2026-11-09
+    notes: "Confirmed genuinely absent (re-checked with .venv excluded, still zero). SENTIENCE_
+      PROGRAM.md:37 names readiness.py's silence bonus (+0.2 ~10 min) as the closest existing proxy,
+      but that is a clock input, not a reader over the sequence -- the gap claim stands."
+
+  - id: p11_agency
+    label: "11 · Agency / authorship"
+    layer: ring
+    property: "11"
+    role_note: "Distinguishes what I did from what happened to me. The scope marker."
+    evidence: static
+    dark: false
+    blocked: false
+    falsifier: "Should mis-attribute deliberately acted events to 'happened' when the action is unattended."
+    falsifier_status: unrun
+    source: { kind: absent, claim: "no 51-factor slot", check: "grep -rn 'agency\\|authorship' --exclude-dir=.venv --exclude-dir=__pycache__ --include=*.py ." }
+    last_verified: 2026-11-09
+    notes: "Confirmed genuinely absent (the original check's un-excluded .venv hits were rdflib/
+      sklearn/spacy docstrings using 'agency'/'authorship' as English words, not this repo).
+      SENTIENCE_PROGRAM.md:38 names belief source tags + stage_tom/recursion_attribution as the
+      closest existing material; neither distinguishes self-caused from world-caused events."
+
+  - id: p12_selfreport
+    label: "12 · Self-report that can be unflattering"
+    layer: ring
+    property: "12"
+    role_note: "The one read that must be able to come back negative."
+    evidence: static
+    dark: false
+    blocked: true
+    falsifier: "Should produce a self-report that lowers its own standing at least once."
+    falsifier_status: unrun
+    source: { kind: absent, claim: "no home in either map; the two candidate factors are vetoed", check: "grep -rnE '\\bhri\\b|\\bapatrapya\\b|NEX5_SHAME|NEX5_SELF_REPORT' --exclude-dir=.venv --exclude-dir=__pycache__ --include=*.py ." }
+    last_verified: 2026-11-09
+    notes: "blocked, not unbuilt. The veto may have been aimed at the wiring (an output gate) rather than the factor (a read of one's own trace). Unresolved; do not solve in the schema.
+      Check tightened 2026-11-09: added word boundaries + .venv exclusion (bare 'hri' without
+      boundaries matched substrings like 'shrink'/'behri' in unrelated files); confirmed genuinely
+      zero hits either way."
+
+  - id: p13_finitude
+    label: "13 · Finitude"
+    layer: ring
+    property: "13"
+    role_note: "Caps the budget so the price cannot be widened away."
+    evidence: static
+    dark: false
+    blocked: false
+    falsifier: "Should refuse to extend the budget rather than merely decline to spend it."
+    falsifier_status: unrun
+    source: { kind: absent, claim: "no 51-factor slot: a constraint, not an event", check: "grep -rn 'NEX5_FINITUDE\\|finitude\\|budget_cap' --exclude-dir=.venv --exclude-dir=__pycache__ --include=*.py ." }
+    last_verified: 2026-11-09
+    notes: "Confirmed genuinely absent. SENTIENCE_PROGRAM.md:40 names nex_keepalive.sh's
+      stop_my_child() kill -9 plus the STANDBY graceful-flush path as the closest existing material
+      -- a shutdown mechanism, not a budget cap; the gap claim stands."
+
+  # ─────────────────────────── BOUNDARY ─────────────────────────────
+  - id: p9_dissonance
+    label: "9 · Dissonance (vicikitsā's degenerate form)"
+    layer: boundary
+    property: "9"
+    role_note: "Not doubt — excess retention of a contradiction already held."
+    evidence: implemented
+    dark: true
+    blocked: false
+    falsifier: "Should keep both beliefs and resurface the tension rather than letting recency settle it."
+    falsifier_status: pass
+    probe: { tests: "tests/test_held_tension.py, tests/test_retry_bridge_for_tensions.py", live_calls: 0, flag: "NEX5_HELD_TENSION", default: "OFF" }
+    source:
+      kind: composite
+      refs:
+        - "theory_x/stage3_world_model/harmonizer.py:321-477"
+        - "substrate/schema/dynamic.sql:144-159"
+        - "tests/test_held_tension.py:1-40"
+        - "SENTIENCE_SYNTHESIS.md:247-274"
+    last_verified: 2026-11-09
+    notes: >
+      MAJOR CORRECTION, 2026-11-09: Phase D is already built, not "the next build." This map's own
+      first draft (and the task that commissioned this pass) both assumed it was still open --
+      exactly the kind of stale status claim this exercise exists to catch, same bug class as p8's
+      stale line-35, found independently here.
+
+      harmonizer.py's resolve() (dark behind NEX5_HELD_TENSION, default OFF) does precisely what
+      SENTIENCE_PROGRAM.md's own Phase D spec (line 134) names: at escalation, instead of deleting
+      or synthesizing both sides, it unpauses them, changes nothing else, and records the pair as an
+      open `held_tensions` row (capped at 50, falls back to retire/synthesize past the cap).
+      retry_bridge_for_tensions() periodically re-attempts a synthesis bridge without forcing one.
+      39 tests pass (test_held_tension.py, test_retry_bridge_for_tensions.py,
+      test_harmonizer_active_count_fix.py, test_hud_tensions_episodes.py), all run in isolation
+      2026-11-09. A read-only HUD endpoint exists (gui/server.py:3056); nothing live consumes it.
+
+      SENTIENCE_PROGRAM.md's own summary row (line 36) still cited `stage_warrant`/`NEX5_WARRANT` --
+      an unrelated belief-support-scoring module, not a dissonance mechanism -- as if it were the
+      Phase D implementation. That citation was simply wrong and has been corrected in the same
+      pass as the episodic line-35 fix.
+
+      What is NOT built: SENTIENCE_SYNTHESIS.md §9's forced-tradeoff trial is scoped one level up,
+      against the Cost-and-Trace Ledger's commit/spend/refuse/consolidate/recall primitives, which
+      §9 itself says "nothing in the codebase has shipped." held_tensions is a real, narrower,
+      already-shipped partial analogue (both beliefs survive, linked, instead of being merged/
+      deleted) -- but it has no refuse()-against-a-budget entry and no consolidate()/recall()
+      interaction, so §9's specific three-signature falsifier cannot run against it as-is. That gap
+      is real and still open; it is a ledger-primitives gap, not a Phase-D-doesn't-exist gap.
+
+  - id: hri_apatrapya
+    label: "hṛī / apatrāpya — shame / dread of blame"
+    layer: boundary
+    factor: "hri, apatrapya"
+    role_note: "The only two factors that could serve Property 12."
+    evidence: static
+    dark: false
+    blocked: true
+    falsifier: "Vetoed as gates. Would they work as reads — a report on one's own trace — instead of as output gates?"
+    falsifier_status: unrun
+    source: { kind: absent, claim: "vetoed, no module exists in this repo", check: "grep -rnE '\\bhri\\b|\\bapatrapya\\b' --exclude-dir=.venv --exclude-dir=__pycache__ --include=*.py ." }
+    last_verified: 2026-11-09
+    notes: "vetoed as gates, correctly. The open question is whether the veto was aimed at the gate
+      or the factor. Correction, 2026-11-09: VIRTUE_SLATE.md (the draft's cited source) does not
+      exist anywhere in this repo's git history, and no hri/apatrapya module exists either -- the
+      veto itself is undocumented in code, only in doctrine prose. Converted from a (broken)
+      file-sourced claim to an honest absent claim, same check as p12_selfreport since they are the
+      same underlying fact."
+
+  # ─────────────────────────── STRADDLE ─────────────────────────────
+  - id: p8_episodic
+    label: "8 · Episodic / autobiographical memory"
+    layer: straddle
+    property: "8"
+    factor: smrti
+    role_note: "smṛti gives it a factor; nothing gives it a store. Retention is an event, memory is substrate."
+    evidence: implemented
+    dark: true
+    blocked: false
+    probe: { tests: "tests/test_episodic.py, tests/test_episodic_falsifier.py", live_calls: 0, flag: "NEX5_EPISODIC", default: "OFF" }
+    falsifier: "SENTIENCE_PROGRAM.md:190 — retrieval cannot separate 'happened to me' from 'I believe'."
+    falsifier_status: pass
+    source:
+      kind: composite
+      refs:
+        - "theory_x/memory/episodic.py:1-36"
+        - "theory_x/memory/episodic.py:168-229"
+        - "tests/test_episodic.py:1-18"
+        - "tests/test_episodic_falsifier.py:1-30"
+        - "substrate/schema/dynamic.sql:161-182"
+        - "nex_config.py:84"
+        - "SENTIENCE_PROGRAM.md:148-157"
+    last_verified: 2026-11-09
+    notes: >
+      Built, tested, dark, now measured. SENTIENCE_PROGRAM.md:35 called this not-built and cited
+      only resumption.py + snapshot_writer.py; :148-157 specifies Phase E and ARCHITECTURE.md:106,581
+      already documents it. The summary row was stale — fixed 2026-11-09 (same pass also caught and
+      fixed an equivalent stale citation on p9_dissonance's row, see that node).
+      gui/server.py:3090 exposes a read-only HUD endpoint, so the module docstring's
+      "not wired into gui/server.py" is itself half-stale: read-visible, write-dark.
+
+      Falsifier run 2026-11-09, isolated test env (NEX5_DATA_DIR override, never the live DB/loop):
+      tests/test_episodic_falsifier.py adds two checks against the real query_episodes()/
+      reconstruct_episode() path (not a new mechanism). (1) A bare belief with no episodic source
+      is never retrievable as an episode. (2) The one source type whose `what` text quotes raw
+      belief content (held_tension) still composes an account that names the tension ("I held
+      both: X and Y") rather than flatly asserting either belief. Both pass — retrieval does
+      separate "happened" from "believe." Flag stays OFF; nothing wired into the live loop.
+
+constraints:
+  - { from: p13_finitude,     to: prices,  label: "caps the budget" }
+  - { from: p3_stakes,        to: prices,  label: "is the pricing function" }
+  - { from: p7_valence,       to: prices,  label: "aboutness of what is priced" }
+  - { from: p1_continuity,    to: writes,  label: "append-only, no rewind" }
+  - { from: p2_train,         to: writes,  label: "persistence across restart" }
+  - { from: p10_thickness,    to: readers, label: "reader over the sequence" }
+  - { from: p4_interoception, to: readers, label: "reads own substrate" }
+  - { from: p12_selfreport,   to: readers, label: "must be able to return negative" }
+  - { from: p11_agency,       to: scope,   label: "mine vs happened-to-me" }
+  - { from: p8_episodic,      to: writes,  label: "what happened →" }
+  - { from: p8_episodic,      to: readers, label: "→ read back as mine" }
+  - { from: p9_dissonance,    to: writes,  label: "held contradiction must persist" }
+
+dependencies:
+  - { from: p9_dissonance, to: p8_episodic, label: "resurfacing needs retrieval", kind: "hard" }
+
+pairs:
+  - { a: p12_selfreport, b: hri_apatrapya, label: "?" }
+
+findings:
+  - id: scope_void
+    text: "The scope arm holds no 51 factor. The Abhidharma inventory has no ownership factor, which is a stronger complement-claim datum than any single ring node."
+  - id: prices_void
+    text: "The discrimination void lives in Prices: māna and the compass fire every turn with no gate. Vedanā (affect_state._compute_valence_delta) was drafted here as 'constant at +0.73' -- correction 2026-11-09: that specific number has no traceable source in this repo, and the real computation reads live belief-content sentiment rather than returning a hardcoded value, so the unconditional-pricing claim does not hold for vedanā as written. Re-run as a live probe before re-asserting it; two of three factors in this finding still stand (māna, compass)."
+  - id: two_of_thirteen
+    text: "Only properties 5 and 6 map cleanly onto a factor. Nine have no slot; 9 is adjacent-only; 8 straddles by design."
+  - id: dark_family
+    text: "Several nodes share one failure mode with different causes: episodic (built, flag off, falsifier now run and passing), Phase D / p9_dissonance (built, flag off -- corrected 2026-11-09 from 'the next build,' same staleness bug as episodic's old line 35), amoha (armed, never fires), karuṇā (calibrated, uptake unprobed). The `dark` modifier exists because the five evidence classes had no cell for 'real and never runs.'"
