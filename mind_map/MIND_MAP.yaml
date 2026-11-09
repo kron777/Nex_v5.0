@@ -542,6 +542,12 @@ nodes:
       open until the post-freeze swap. Drop `dark` in the SAME commit that wires it.
       Fourth member of the dark family alongside p8_episodic, amoha, karuṇā: real, tested,
       nothing in the live loop calls it.
+      2026-11-10: this node now has a dependent -- refuse() (theory_x/stage3_world_model/
+      ledger_primitives.py) checks capacity against this same shadow Budget before committing
+      a tension_held row, so the shadow's `dark` status is no longer inert bookkeeping: a real
+      downstream primitive's behaviour depends on this exact mechanism today. Still `dark` --
+      the live loop still does not call it; a dependent that is itself unwired does not wire
+      the thing it depends on.
 
   # ─────────────────────────── BOUNDARY ─────────────────────────────
   - id: p9_dissonance
