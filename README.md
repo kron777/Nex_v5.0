@@ -76,6 +76,18 @@ The underlying language model is a small (3B) local model. Much of the architect
 
 ---
 
+## The mind map
+
+A diagram of what's built vs. missing against the 51 classical mental factors, sorted by the Cost-and-Trace Ledger's own economy (Prices / Writes / Readers / Consumers / Scope) rather than a flat checklist. Every node is sourced to a real `file:line` or an honestly-run "doesn't exist" check — see `mind_map/MIND_MAP.yaml`, the single source of truth, and `mind_map/mind_map.py --check --verify` to re-verify it. The literal radial spider diagram:
+
+<p align="center">
+  <img src="mind_map/mind_map.svg" alt="NEX5 mind map — 51 mental factors by ledger role" width="100%">
+</p>
+
+The diffable, CI-checkable version is `mind_map/MIND_MAP.mmd` (Mermaid).
+
+---
+
 ## Where this goes next
 
 - **Weight-baking (QLoRA):** once NEX has accumulated enough clean, world-grounded output, retrain the model on it so grounded engagement becomes its default rather than something the architecture has to enforce.
