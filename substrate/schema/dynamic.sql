@@ -158,6 +158,17 @@ CREATE TABLE IF NOT EXISTS held_tensions (
 );
 CREATE INDEX IF NOT EXISTS idx_held_tensions_open ON held_tensions(resolved_at);
 
+-- Ledger primitives (refuse/consolidate/recall), 2026-11-10: this table is
+-- the shared store refuse() writes into -- not a second, separate one --
+-- so "one entry, one transaction" is literally one row, not two tables
+-- kept in sync. kind/cost/irreversibility/seq/provenance are added via
+-- migration (see substrate/init_db.py _MIGRATIONS["dynamic"]; SQLite ALTER
+-- TABLE can't be expressed idempotently in a schema file, see that file's
+-- own comment). refs reuses belief_id_a/belief_id_b (already an
+-- unordered -- min/max-ordered at write time -- pair) rather than adding a
+-- column that would duplicate it. See theory_x/stage3_world_model/
+-- ledger_primitives.py.
+
 -- SENTIENCE_PROGRAM Phase E 2026-11-07: episodic memory, distinct from the
 -- belief graph. Built dark behind NEX5_EPISODIC (theory_x/memory/episodic.py).
 -- An episode is "what happened" (a notable event already flagged elsewhere

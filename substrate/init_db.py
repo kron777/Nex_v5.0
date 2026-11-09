@@ -614,6 +614,20 @@ _MIGRATIONS: dict[str, list[str]] = {
         "contradicting INTEGER NOT NULL DEFAULT 0, "
         "closed_at REAL, "
         "notes TEXT)",
+        # Ledger primitives (refuse/consolidate/recall), 2026-11-10: held_tensions
+        # becomes the one shared table these write into -- see
+        # theory_x/stage3_world_model/ledger_primitives.py and the comment on
+        # held_tensions in schema/dynamic.sql. kind defaults to 'tension_held'
+        # for every pre-existing row too -- they really are tension-hold
+        # records, just written before this column existed. cost is nullable:
+        # no cost was ever paid for a tension held before any budget existed
+        # to spend from (pre-2026-11-10 rows).
+        "ALTER TABLE held_tensions ADD COLUMN kind TEXT NOT NULL DEFAULT 'tension_held'",
+        "ALTER TABLE held_tensions ADD COLUMN cost INTEGER",
+        "ALTER TABLE held_tensions ADD COLUMN irreversibility INTEGER NOT NULL DEFAULT 1",
+        "ALTER TABLE held_tensions ADD COLUMN seq INTEGER NOT NULL DEFAULT 1",
+        "ALTER TABLE held_tensions ADD COLUMN provenance TEXT NOT NULL DEFAULT 'live'",
+        "CREATE INDEX IF NOT EXISTS idx_held_tensions_kind ON held_tensions(kind)",
     ],
     "conversations": [
         # ---- Build B: the expectations ledger (theory_x/stage_world/expectations.py).
