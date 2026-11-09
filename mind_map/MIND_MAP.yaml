@@ -514,16 +514,34 @@ nodes:
     layer: ring
     property: "13"
     role_note: "Caps the budget so the price cannot be widened away."
-    evidence: static
-    dark: false
+    evidence: implemented
+    dark: true
     blocked: false
+    probe: { tests: "tests/test_shadow_budget.py", corpus: "200 synthetic moments (13 real chat-block kinds, jittered)", binding_fraction: 1.0 }
     falsifier: "Should refuse to extend the budget rather than merely decline to spend it."
     falsifier_status: unrun
-    source: { kind: absent, claim: "no 51-factor slot: a constraint, not an event", check: "grep -rn 'NEX5_FINITUDE\\|finitude\\|budget_cap' --exclude-dir=.venv --exclude-dir=__pycache__ --include=*.py ." }
+    source:
+      kind: composite
+      refs:
+        - "theory_x/stage_finitude/budget_shadow.py:1-134"
+        - "theory_x/stage_tom/global_workspace.py:144-166"
+        - "gui/server.py:243"
     last_verified: 2026-11-09
-    notes: "Confirmed genuinely absent. SENTIENCE_PROGRAM.md:40 names nex_keepalive.sh's
-      stop_my_child() kill -9 plus the STANDBY graceful-flush path as the closest existing material
-      -- a shutdown mechanism, not a budget cap; the gap claim stands."
+    notes: >
+      UNBLOCK 2026-11-21 -- r77 freeze close. Real ceiling found and already
+      enforced+priced live: NEX5_CHAT_WORKSPACE_BUDGET (gui/server.py:243, default 1400 chars),
+      read by the real, pure select_within_budget (global_workspace.py:144-166), which already
+      admits candidates by descending salience until the budget is exhausted. Both gui/server.py
+      and selector.py are inside the r77 freeze and were not touched (verified empty
+      `git diff --stat` on both). budget_shadow.py is a shadow: it delegates to the real
+      select_within_budget (not a duplicate -- that function is pure, so every selection
+      measurement is evidence about the real mechanism), but adds its own persisted-spend
+      ledger (shadow_budget_spend) and its own per-moment Balance object, neither of which the
+      live caller uses yet. What this does NOT establish: that gui/server.py's live caller
+      passes select_within_budget a `remaining` actually debited by real spend()s -- that stays
+      open until the post-freeze swap. Drop `dark` in the SAME commit that wires it.
+      Fourth member of the dark family alongside p8_episodic, amoha, karuṇā: real, tested,
+      nothing in the live loop calls it.
 
   # ─────────────────────────── BOUNDARY ─────────────────────────────
   - id: p9_dissonance

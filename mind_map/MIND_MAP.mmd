@@ -73,7 +73,7 @@ flowchart LR
     n_p10_thickness["10 · Temporal thickness<br/><i>static</i>"]
     n_p11_agency["11 · Agency / authorship<br/><i>static</i>"]
     n_p12_selfreport["[blocked] 12 · Self-report that can be unflattering<br/><i>static</i>"]
-    n_p13_finitude["13 · Finitude<br/><i>static</i>"]
+    n_p13_finitude["[dark] 13 · Finitude<br/><i>implemented</i>"]
   end
   n_p13_finitude -->|caps the budget| arm_prices
   n_p3_stakes -->|is the pricing function| arm_prices
@@ -115,7 +115,7 @@ flowchart LR
   class n_p10_thickness c_static_00
   class n_p11_agency c_static_00
   class n_p12_selfreport c_static_01
-  class n_p13_finitude c_static_00
+  class n_p13_finitude c_implemented_10
   class n_p9_dissonance c_implemented_10
   class n_hri_apatrapya c_static_01
   class n_p8_episodic c_implemented_10
