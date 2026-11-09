@@ -168,6 +168,7 @@ KNOWN_FLAGS: dict[str, str] = {
     "NEX5_SEMANTIC_CONFLICT": "bool",
     "NEX5_SEMANTIC_RETRIEVAL": "bool",
     "NEX5_SENSE_OVERWHELM_N": "str",
+    "NEX5_SHADOW_BUDGET_CAPACITY": "int",
     "NEX5_SIG_QUALITY": "bool",
     "NEX5_SOCIAL_DEPTH": "bool",
     "NEX5_SOCIAL_N": "str",

@@ -234,3 +234,19 @@ CREATE TABLE IF NOT EXISTS ghost_flags (
 );
 CREATE INDEX IF NOT EXISTS idx_ghost_flags_ts ON ghost_flags(ts);
 CREATE INDEX IF NOT EXISTS idx_ghost_flags_fire ON ghost_flags(fountain_event_id);
+
+-- Shadow budget ledger (p13_finitude shadow, theory_x/stage_finitude/budget_shadow.py).
+-- SHADOW MODULE -- NOT IN THE LIVE PATH. Nothing in gui/server.py or selector.py
+-- writes here. One immutable row per spend() draw against a per-moment Budget
+-- (the Budget's `remaining` balance itself is NOT persisted -- only the fact
+-- that a draw happened is. See Step 1/Step 3 of the shadow-budget build prompt:
+-- a balance that survives a restart would be a lifetime quota, not a price).
+-- Wiring target: 2026-11-21 (r77 close). See MIND_MAP.yaml p13_finitude.
+CREATE TABLE IF NOT EXISTS shadow_budget_spend (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    moment_id        TEXT NOT NULL,
+    amount           INTEGER NOT NULL,
+    remaining_after  INTEGER NOT NULL,
+    created_at       REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_shadow_budget_spend_moment ON shadow_budget_spend(moment_id);
