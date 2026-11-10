@@ -89,6 +89,14 @@ def check(doc: dict, verify_absent: bool = False) -> tuple[list, list]:
     seen: set[str] = set()
     node_ids_all = {n["id"] for n in doc.get("nodes", []) if "id" in n}
 
+    # meta.doctrine lists the source documents the map's claims are drawn from.
+    # A doctrine file that doesn't exist is how a never-wired "veto" (cited only
+    # in notes prose, never as a node's own source.ref) slips past every other
+    # check -- see hri_apatrapya's VIRTUE_SLATE.md correction, 2026-11-10.
+    for rel in doc.get("meta", {}).get("doctrine", []):
+        if not (ROOT / rel).exists():
+            warns.append(f"meta.doctrine: cited file missing: {rel}")
+
     for n in doc.get("nodes", []):
         nid = n.get("id", "<missing id>")
         if nid in seen:
