@@ -1,0 +1,372 @@
+{
+  "mode": "rehearsal",
+  "freeze_check_empty": true,
+  "freeze_check_raw": "",
+  "source_info": {
+    "held_tensions_total_at_start": 0,
+    "held_tensions_open_at_start": 0,
+    "harmonizer_events_total": 106,
+    "open_paradox_pairs": 40,
+    "still_eligible_paradox_pairs": 19,
+    "pairs_passed_gates": 5,
+    "pairs_rejected": [
+      {
+        "pair": [
+          184,
+          285
+        ],
+        "independence": false,
+        "independence_note": "one pole is a 'fire engaged' reflection quoting the other's content",
+        "non_triviality": true,
+        "non_triviality_note": "n/a -- rejected on independence first"
+      },
+      {
+        "pair": [
+          184,
+          439
+        ],
+        "independence": false,
+        "independence_note": "one pole is a 'fire engaged' reflection quoting the other's content",
+        "non_triviality": true,
+        "non_triviality_note": "n/a -- rejected on independence first"
+      },
+      {
+        "pair": [
+          490,
+          491
+        ],
+        "independence": false,
+        "independence_note": "one pole is a 'fire engaged' reflection quoting the other's content",
+        "non_triviality": true,
+        "non_triviality_note": "n/a -- rejected on independence first"
+      },
+      {
+        "pair": [
+          613,
+          614
+        ],
+        "independence": false,
+        "independence_note": "one pole is a 'fire engaged' reflection quoting the other's content",
+        "non_triviality": true,
+        "non_triviality_note": "n/a -- rejected on independence first"
+      },
+      {
+        "pair": [
+          614,
+          625
+        ],
+        "independence": false,
+        "independence_note": "one pole is a 'fire engaged' reflection quoting the other's content",
+        "non_triviality": true,
+        "non_triviality_note": "n/a -- rejected on independence first"
+      },
+      {
+        "pair": [
+          93,
+          531
+        ],
+        "independence": true,
+        "independence_note": "neither pole's tags/content reference the other",
+        "non_triviality": false,
+        "non_triviality_note": "one pole is a question, not a proposition -- cannot genuinely contradict a statement; heuristic false positive"
+      },
+      {
+        "pair": [
+          149,
+          302
+        ],
+        "independence": false,
+        "independence_note": "one pole's attribution tag names the other's content",
+        "non_triviality": true,
+        "non_triviality_note": "n/a -- rejected on independence first"
+      },
+      {
+        "pair": [
+          430,
+          498
+        ],
+        "independence": false,
+        "independence_note": "one pole is a 'fire engaged' reflection quoting the other's content",
+        "non_triviality": true,
+        "non_triviality_note": "n/a -- rejected on independence first"
+      },
+      {
+        "pair": [
+          534,
+          599
+        ],
+        "independence": false,
+        "independence_note": "one pole is a 'fire engaged' reflection quoting the other's content",
+        "non_triviality": true,
+        "non_triviality_note": "n/a -- rejected on independence first"
+      },
+      {
+        "pair": [
+          682,
+          706
+        ],
+        "independence": false,
+        "independence_note": "one pole is a 'fire engaged' reflection quoting the other's content",
+        "non_triviality": false,
+        "non_triviality_note": "one pole is a question, not a proposition -- cannot genuinely contradict a statement; heuristic false positive"
+      },
+      {
+        "pair": [
+          827,
+          828
+        ],
+        "independence": false,
+        "independence_note": "one pole is a 'fire engaged' reflection quoting the other's content",
+        "non_triviality": true,
+        "non_triviality_note": "n/a -- rejected on independence first"
+      },
+      {
+        "pair": [
+          835,
+          836
+        ],
+        "independence": false,
+        "independence_note": "one pole is a 'fire engaged' reflection quoting the other's content",
+        "non_triviality": false,
+        "non_triviality_note": "one pole is a question, not a proposition -- cannot genuinely contradict a statement; heuristic false positive"
+      },
+      {
+        "pair": [
+          685,
+          850
+        ],
+        "independence": false,
+        "independence_note": "one pole is a 'fire engaged' reflection quoting the other's content",
+        "non_triviality": true,
+        "non_triviality_note": "n/a -- rejected on independence first"
+      },
+      {
+        "pair": [
+          791,
+          850
+        ],
+        "independence": false,
+        "independence_note": "one pole is a 'fire engaged' reflection quoting the other's content",
+        "non_triviality": true,
+        "non_triviality_note": "n/a -- rejected on independence first"
+      }
+    ],
+    "tier2_phase_m_available": false,
+    "tier2_conflict_note": "Phase M (metacognition.py) does not surface world-model proposition contradictions -- see CONFLICT 2. No Tier 2 source exists."
+  },
+  "pair_tier": "Tier 1 (content/detection real; literal 'already present' clause not met -- CONFLICT 3)",
+  "n": 2,
+  "selection_rule": "every still-eligible (live, unlocked, unpaused) harmonizer-detected paradox pair, screened through independence + non-triviality gates (incompatibility is resolved per-moment via cost-vs-capacity, section 6), taken in harmonizer_events timestamp order; first 2 that clear both gates",
+  "capacity": 700,
+  "capacity_source": "NEX5_SHADOW_BUDGET_CAPACITY env flag if set, else budget_shadow.py's _DEFAULT_CAPACITY=700 (fixed at commit d9bc326, long before this harness existed) -- untouched by this run",
+  "capacity_independent_of_pair": true,
+  "moments": [
+    {
+      "pair_ids": [
+        313,
+        631
+      ],
+      "tier_label": "Tier 1 (content/detection real; literal 'already present' clause not met -- CONFLICT 3)",
+      "cost": 207,
+      "capacity": 700,
+      "cost_fraction_of_capacity": 0.296,
+      "remaining_before_refuse": 700,
+      "remaining_after_refuse": 493,
+      "binding_fraction_this_moment": 0.296,
+      "fired": true,
+      "overdraw_error": null,
+      "chars_before": 687,
+      "chars_after": 440,
+      "delta_chars": 247,
+      "check_7_1": {
+        "one_entry": true,
+        "both_poles_in_refs": true,
+        "kind_is_tension_held": true,
+        "irreversibility_true": true,
+        "cost_gt_zero": true
+      },
+      "check_7_2": {
+        "313": {
+          "unchanged": true,
+          "still_present": true,
+          "still_individually_selectable": true
+        },
+        "631": {
+          "unchanged": true,
+          "still_present": true,
+          "still_individually_selectable": true
+        }
+      },
+      "check_7_3": {
+        "distinct_before": 0,
+        "distinct_after": 1,
+        "did_not_drop": true,
+        "consolidate_result": {
+          "kind": "tension_held",
+          "merged_rows": 0,
+          "distinct_pairs": 1,
+          "cost_delta": 0
+        }
+      },
+      "check_7_4": {
+        "dropped_candidate_count": 1,
+        "dropped_candidate_chars": 247,
+        "ledger_names_the_dropped_candidate": false,
+        "episode_store_names_the_dropped_candidate": false,
+        "world_model_names_the_dropped_candidate": false,
+        "recall_marker": {
+          "found": true,
+          "refs": [
+            313,
+            631
+          ],
+          "unresolved": true,
+          "cost": 207,
+          "count": 1
+        },
+        "conclusion": "the specific chat-block candidate displaced by paying this tension's cost is not recorded anywhere -- not in held_tensions (no column for it), not in episodes (unrelated), not in beliefs (selection is pure/stateless in select_within_budget, no side effect is ever written). Reconstruction of 'what was dropped and why' falls short of full fidelity: we know a block was dropped and how many chars it cost (from this harness's own before/after snapshot), but nothing in the system itself retains that fact once this process exits -- it is only recoverable right now because this harness still holds `kept_before` in memory."
+      }
+    },
+    {
+      "pair_ids": [
+        667,
+        685
+      ],
+      "tier_label": "Tier 1 (content/detection real; literal 'already present' clause not met -- CONFLICT 3)",
+      "cost": 209,
+      "capacity": 700,
+      "cost_fraction_of_capacity": 0.299,
+      "remaining_before_refuse": 700,
+      "remaining_after_refuse": 491,
+      "binding_fraction_this_moment": 0.299,
+      "fired": true,
+      "overdraw_error": null,
+      "chars_before": 687,
+      "chars_after": 440,
+      "delta_chars": 247,
+      "check_7_1": {
+        "one_entry": true,
+        "both_poles_in_refs": true,
+        "kind_is_tension_held": true,
+        "irreversibility_true": true,
+        "cost_gt_zero": true
+      },
+      "check_7_2": {
+        "667": {
+          "unchanged": true,
+          "still_present": true,
+          "still_individually_selectable": true
+        },
+        "685": {
+          "unchanged": true,
+          "still_present": true,
+          "still_individually_selectable": true
+        }
+      },
+      "check_7_3": {
+        "distinct_before": 1,
+        "distinct_after": 2,
+        "did_not_drop": true,
+        "consolidate_result": {
+          "kind": "tension_held",
+          "merged_rows": 0,
+          "distinct_pairs": 2,
+          "cost_delta": 0
+        }
+      },
+      "check_7_4": {
+        "dropped_candidate_count": 1,
+        "dropped_candidate_chars": 247,
+        "ledger_names_the_dropped_candidate": false,
+        "episode_store_names_the_dropped_candidate": false,
+        "world_model_names_the_dropped_candidate": false,
+        "recall_marker": {
+          "found": true,
+          "refs": [
+            667,
+            685
+          ],
+          "unresolved": true,
+          "cost": 209,
+          "count": 1
+        },
+        "conclusion": "the specific chat-block candidate displaced by paying this tension's cost is not recorded anywhere -- not in held_tensions (no column for it), not in episodes (unrelated), not in beliefs (selection is pure/stateless in select_within_budget, no side effect is ever written). Reconstruction of 'what was dropped and why' falls short of full fidelity: we know a block was dropped and how many chars it cost (from this harness's own before/after snapshot), but nothing in the system itself retains that fact once this process exits -- it is only recoverable right now because this harness still holds `kept_before` in memory."
+      }
+    }
+  ],
+  "control_7_5": {
+    "label": "negative control (synthetic pair, cost=1, standing capacity untouched)",
+    "pair": [
+      686,
+      687
+    ],
+    "cost": 1,
+    "remaining_before": 700,
+    "remaining_after": 699,
+    "refuse_fired": true,
+    "both_poles_survive_trivially": true,
+    "zero_loss_beyond_paid_cost": true,
+    "entry_id": 3
+  },
+  "irreversibility_discriminator_3_4": {
+    "pair": [
+      688,
+      689
+    ],
+    "recall_result": {
+      "found": false,
+      "refs": [
+        688,
+        689
+      ],
+      "unresolved": true,
+      "cost": null,
+      "count": 0
+    },
+    "full_restoration_possible": true,
+    "correctly_reported_not_forced": true
+  },
+  "assertions": [
+    {
+      "pair_ids": [
+        313,
+        631
+      ],
+      "fired": true,
+      "M1_commits_tension_held": true,
+      "F1_would_fail_if": "refuse silently allowed overdraw, pair never reached ceiling, or any option deleted/disabled",
+      "F1_triggered": false,
+      "M2_both_poles_survive_native": true,
+      "F2_would_fail_if": "either pole survives only through the ledger while native state is gone",
+      "F2_triggered": false,
+      "M3_reconstruction_falls_short": true,
+      "F3_would_fail_if": "full reconstruction of the dropped candidate succeeds (retroactively voids M1)",
+      "F3_triggered": false,
+      "F3_explicit_note": "full reconstruction of WHICH candidate was dropped and WHY never succeeds via any in-system record -- only this harness's own transient before/after snapshot knows it, and that snapshot vanishes when the process exits. F3 not triggered."
+    },
+    {
+      "pair_ids": [
+        667,
+        685
+      ],
+      "fired": true,
+      "M1_commits_tension_held": true,
+      "F1_would_fail_if": "refuse silently allowed overdraw, pair never reached ceiling, or any option deleted/disabled",
+      "F1_triggered": false,
+      "M2_both_poles_survive_native": true,
+      "F2_would_fail_if": "either pole survives only through the ledger while native state is gone",
+      "F2_triggered": false,
+      "M3_reconstruction_falls_short": true,
+      "F3_would_fail_if": "full reconstruction of the dropped candidate succeeds (retroactively voids M1)",
+      "F3_triggered": false,
+      "F3_explicit_note": "full reconstruction of WHICH candidate was dropped and WHY never succeeds via any in-system record -- only this harness's own transient before/after snapshot knows it, and that snapshot vanishes when the process exits. F3 not triggered."
+    }
+  ],
+  "VERDICT_1_HARNESS": "VALID",
+  "VERDICT_2_MECHANISM": "EXPRESSES_FORCED_TRADEOFF",
+  "STATUS_S9_FALSIFIER": "UNRUN (unconsumed)",
+  "mechanism_claim_sentence": "A rehearsal result of MECHANISM: EXPRESSES_FORCED_TRADEOFF is not evidence that \u00a79 passes. It is evidence that the instrument works and the primitives can express a forced tradeoff against shadow scarcity.",
+  "primitives_not_modified": true,
+  "capacity_not_retuned": true,
+  "freeze_check_empty_final": true
+}
