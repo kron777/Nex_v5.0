@@ -638,6 +638,44 @@ _MIGRATIONS: dict[str, list[str]] = {
         "ALTER TABLE held_tensions ADD COLUMN seq INTEGER NOT NULL DEFAULT 1",
         "ALTER TABLE held_tensions ADD COLUMN provenance TEXT NOT NULL DEFAULT 'live'",
         "CREATE INDEX IF NOT EXISTS idx_held_tensions_kind ON held_tensions(kind)",
+        # held_tensions schema fix, 2026-11-10: belief_id_a/belief_id_b assumed
+        # every pole was a beliefs.db row id -- true for every tension Phase D
+        # itself ever held, but not true for apatrapya (its pole is a
+        # conversations.db apatrapya_ratings row, a different kind of thing
+        # entirely). gui/server.py's api_harmonizer_tensions() (frozen, ~line
+        # 3055-3084) does two independent per-row `SELECT content FROM beliefs
+        # WHERE id = ?` lookups against belief_id_a/belief_id_b -- NOT a SQL
+        # JOIN -- so a non-matching id already resolves safely to
+        # belief_*_content: None (confirmed by direct read and by tracing the
+        # code); the real risk this fix closes is a *coincidental* id
+        # collision with an unrelated real belief silently showing wrong
+        # content on that live, frozen read path. The fix: belief_id_a/b stay
+        # untouched in meaning (only ever populated when that side really is a
+        # belief) and a non-belief pole leaves them NULL -- so the live HUD's
+        # existing per-id lookup simply finds nothing, the documented-safe
+        # case, instead of a collision. pole_*_kind is a closed enum enforced
+        # by a CHECK that ALSO enforces the invariant itself (tested directly
+        # against sqlite 3.45.1, which this repo runs: a CHECK added via ADD
+        # COLUMN CAN reference a pre-existing column, despite SQLite's docs
+        # describing only same-column CHECKs as officially supported) --
+        # kind='belief' iff that side's belief_id column is non-null, in one
+        # constraint, not just a comment. subject is new: no existing column
+        # recorded what a tension is actually ABOUT (checked ledger_
+        # primitives.py and forced_tradeoff_harness.py; only kind/cost/
+        # irreversibility/seq/provenance exist, none of which is a subject) --
+        # genuinely missing per Step 1.3, added here rather than deferred.
+        "ALTER TABLE held_tensions ADD COLUMN pole_a_kind TEXT "
+        "CHECK (pole_a_kind IS NULL OR (pole_a_kind IN ('belief','rating','action') "
+        "AND (pole_a_kind = 'belief') = (belief_id_a IS NOT NULL)))",
+        "ALTER TABLE held_tensions ADD COLUMN pole_a_ref TEXT",
+        "ALTER TABLE held_tensions ADD COLUMN pole_b_kind TEXT "
+        "CHECK (pole_b_kind IS NULL OR (pole_b_kind IN ('belief','rating','action') "
+        "AND (pole_b_kind = 'belief') = (belief_id_b IS NOT NULL)))",
+        "ALTER TABLE held_tensions ADD COLUMN pole_b_ref TEXT",
+        "ALTER TABLE held_tensions ADD COLUMN subject TEXT",
+        "UPDATE held_tensions SET pole_a_kind = 'belief', "
+        "pole_a_ref = CAST(belief_id_a AS TEXT), pole_b_kind = 'belief', "
+        "pole_b_ref = CAST(belief_id_b AS TEXT) WHERE pole_a_kind IS NULL",
     ],
     "conversations": [
         # ---- Build B: the expectations ledger (theory_x/stage_world/expectations.py).

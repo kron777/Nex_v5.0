@@ -174,16 +174,42 @@ def detect_tension(beliefs_reader: Any, conv_reader: Any, output_ref: int) -> di
 
 
 def commit_tension(*_args: Any, **_kwargs: Any) -> int:
-    """NOT IMPLEMENTED -- see module docstring's T6 CONFLICT section. Reusing
-    refuse() here would require either fabricating a beliefs.db row for
-    apatrapya's side (forbidden) or risking a live-path display corruption in
-    gui/server.py's api_harmonizer_tensions() (frozen, read-only, but its own
-    read of held_tensions.belief_id_b would resolve to the wrong thing). This
-    is reported as a blocking conflict, not silently worked around."""
+    """NOT IMPLEMENTED -- see module docstring's T6 CONFLICT section.
+
+    UPDATE, 2026-11-10 held_tensions schema fix: held_tensions now carries
+    pole_a_kind/pole_a_ref/pole_b_kind/pole_b_ref/subject, so a non-belief
+    pole is representable in principle. It is still not writable today, for
+    two independent, now CONFIRMED (not speculative) reasons:
+
+    1. refuse() (theory_x/stage3_world_model/ledger_primitives.py) takes
+       `pole_a: int, pole_b: int` and writes them straight into
+       belief_id_a/belief_id_b -- it has no parameter for pole_*_kind/
+       pole_*_ref/subject at all. It is frozen from structural modification
+       by this build's own constraints, so it cannot be extended to accept
+       them from here.
+    2. Even bypassing refuse() and inserting directly: belief_id_a and
+       belief_id_b are NOT NULL at the live table level (confirmed via
+       PRAGMA table_info against the real data/dynamic.db, and by actually
+       attempting the insert inside a rolled-back transaction -- see
+       tests/test_apatrapya_channel.py::LedgerPricingBlockedPrototypeTests.
+       test_non_belief_pole_insert_blocked_by_not_null). A 'rating'-kind
+       pole cannot leave belief_id_a/b NULL, which is what "only populated
+       when that side is a belief" requires -- the column itself forbids it.
+
+    Resolving this needs one of: (a) relax belief_id_a/belief_id_b to
+    nullable via a full table rebuild (copy/drop/rename, same heavier
+    category as substrate/init_db.py's _CHECK_WIDENINGS), or (b) a reserved
+    sentinel value, which was never authorized by the build spec and
+    reintroduces exactly the kind of column-meaning ambiguity this whole
+    fix exists to avoid. Neither is decided here -- reported as a sharper,
+    now-concrete version of the same schema-identity question already
+    escalated once."""
     raise NotImplementedError(
-        "commit_tension is deliberately unimplemented: held_tensions.belief_id_a/b "
-        "are read elsewhere (gui/server.py:3055-3084, episodic.py) as real "
-        "beliefs.db row ids. apatrapya's pole is a conversations.db rating id, not "
-        "a belief -- writing it into belief_id_b would risk corrupting a live-path "
-        "read. See this module's docstring, CONFLICTS in the build report."
+        "commit_tension is still unimplemented after the held_tensions schema fix: "
+        "refuse()'s fixed two-integer signature cannot carry pole_*_kind/pole_*_ref, "
+        "and belief_id_a/belief_id_b remain NOT NULL at the table level (confirmed "
+        "directly, not assumed) -- a non-belief pole cannot be committed without "
+        "either relaxing that constraint (table rebuild) or a sentinel value "
+        "(unauthorized). See this module's docstring and the build report's "
+        "CONFLICTS section."
     )

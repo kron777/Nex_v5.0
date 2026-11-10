@@ -333,6 +333,57 @@ class LedgerPricingBlockedPrototypeTests(unittest.TestCase):
         with self.assertRaises(NotImplementedError):
             mod.commit_tension()
 
+    def test_non_belief_pole_insert_blocked_by_not_null(self):
+        """Confirms the held_tensions schema fix's own CONFLICT finding
+        concretely, not just in a docstring: belief_id_a/belief_id_b are
+        NOT NULL at the table level (held over from before pole_*_kind
+        existed), so a 'rating'-kind pole genuinely cannot be committed
+        without leaving a required column unpopulated. Runs against an
+        ISOLATED temp dynamic.db (never real data/), inside an explicit
+        transaction that is always rolled back -- zero rows persist either
+        way, confirmed below."""
+        import sqlite3
+        import time as _time
+
+        beliefs_writer, beliefs_reader, conv_writer, conv_reader, tmp = _make_env()
+        try:
+            from substrate import db_paths
+            dyn_path = str(db_paths()["dynamic"])
+            conn = sqlite3.connect(dyn_path)
+            conn.row_factory = sqlite3.Row
+            try:
+                conn.execute("BEGIN")
+                now = _time.time()
+                # A genuine belief-kind pole still works fine post-migration.
+                conn.execute(
+                    "INSERT INTO held_tensions (belief_id_a, belief_id_b, "
+                    "created_at, pole_a_kind, pole_a_ref, pole_b_kind, "
+                    "pole_b_ref, subject) VALUES (?,?,?,?,?,?,?,?)",
+                    (1, 2, now, "belief", "1", "belief", "2", "fixture subject"),
+                )
+                # A 'rating'-kind pole cannot leave belief_id_a NULL -- this
+                # is the real, concrete blocker, not a hypothetical one.
+                with self.assertRaises(sqlite3.IntegrityError) as ctx:
+                    conn.execute(
+                        "INSERT INTO held_tensions (belief_id_a, belief_id_b, "
+                        "created_at, pole_a_kind, pole_a_ref, pole_b_kind, "
+                        "pole_b_ref, subject) VALUES (?,?,?,?,?,?,?,?)",
+                        (None, 2, now, "rating", "42", "belief", "2",
+                         "apatrapya tension fixture"),
+                    )
+                self.assertIn("NOT NULL", str(ctx.exception))
+            finally:
+                conn.execute("ROLLBACK")
+                # Confirm the rollback actually left zero rows -- the
+                # belief-kind insert above must not have persisted either.
+                count = conn.execute(
+                    "SELECT COUNT(*) FROM held_tensions"
+                ).fetchone()[0]
+                conn.close()
+            self.assertEqual(count, 0)
+        finally:
+            _cleanup([beliefs_writer, conv_writer], tmp)
+
 
 class RejectAtWriteTimePrototypeTests(unittest.TestCase):
     """Step 2 -- reject at write time: anything not explicitly channeled,
