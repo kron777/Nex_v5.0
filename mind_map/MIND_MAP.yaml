@@ -606,12 +606,13 @@ nodes:
     layer: boundary
     factor: "hri, apatrapya"
     role_note: "The only two factors that could serve Property 12."
-    evidence: static
-    dark: false
+    evidence: implemented
+    dark: true
     blocked: true
-    falsifier: "Vetoed as gates. Would they work as reads — a report on one's own trace — instead of as output gates?"
+    probe: { tests: "tests/test_apatrapya_channel.py", corpus: "29 fixture-based tests in an isolated temp env (independence/ablation, concordance/divergence, a deliberately-broken degenerate control, append-only retention, grep-based structural guards)", binding_fraction: null }
+    falsifier: "Vetoed as gates. Would they work as reads — a report on one's own trace — instead of as output gates? ANSWERED, 2026-11-10: yes, as reads. See commit 7ad9942."
     falsifier_status: unrun
-    source: { kind: absent, claim: "vetoed, no module exists in this repo", check: "grep -rnE '\\bhri\\b|\\bapatrapya\\b' --exclude-dir=.venv --exclude-dir=__pycache__ --include=*.py ." }
+    source: { kind: composite, claim: "a real, tested, flag-gated (NEX5_APATRAPYA_CHANNEL, default OFF) prototype now exists -- commit 7ad9942", refs: ["theory_x/stage_tom/apatrapya_channel.py:135", "theory_x/stage_tom/hri_apatrapya_prototype.py:90-176"] }
     last_verified: 2026-11-10
     notes: "vetoed as gates, correctly. The open question is whether the veto was aimed at the gate
       or the factor. Correction, 2026-11-09: VIRTUE_SLATE.md (the draft's cited source) does not
@@ -625,7 +626,21 @@ nodes:
       position behind apatrapya's unclaimed status is theory_x/stage_tom/source_identity.py:23
       ('This is NOT \"NEX models what others think\" (that's the gorge -- not claimed)') -- a
       docstring statement, not a gate, filter, or check that runs anywhere. Confirmed during the
-      hri/apatrapya prototype build's Step-0 BLOCKED finding the same day."
+      hri/apatrapya prototype build's Step-0 BLOCKED finding the same day.
+      Build, 2026-11-10 (commit 7ad9942): hri_verdict() (reads locked Tier-1 keystone beliefs) and
+      apatrapya_verdict() (reads the new, real, Jon-only rating channel) are built and pass 29
+      fixture tests including a degenerate control (T7) and structural anti-reward-signal guards.
+      dark:true, not false -- this is the SAME failure class p13_finitude's shadow budget already
+      names: real, tested, never runs in the live path. STILL BLOCKED on two independent grounds:
+      (1) T6 ledger pricing is a deliberate NotImplementedError -- held_tensions.belief_id_a/b are
+      read as real beliefs.db ids elsewhere, including gui/server.py's own live
+      api_harmonizer_tensions() endpoint (frozen, read-only, but would resolve a rating id as if it
+      were a belief and could display wrong content) -- reusing refuse() as specced risks corrupting
+      that live-path read without touching a frozen byte. Reported as a conflict, not built around.
+      (2) zero real Jon ratings exist yet (MILESTONES in apatrapya_channel.py starts at '0'); the
+      actual empirical question this prototype exists to answer -- GENUINE_PAIR vs NO_PAIR vs
+      DEGENERATE -- cannot be answered until that changes. UNBLOCK: no fixed date set; gated on data,
+      not a deadline, per Jon/Beam's explicit 'don't move the milestones' instruction."
 
   # ─────────────────────────── STRADDLE ─────────────────────────────
   - id: p8_episodic
