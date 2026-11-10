@@ -612,13 +612,20 @@ nodes:
     falsifier: "Vetoed as gates. Would they work as reads — a report on one's own trace — instead of as output gates?"
     falsifier_status: unrun
     source: { kind: absent, claim: "vetoed, no module exists in this repo", check: "grep -rnE '\\bhri\\b|\\bapatrapya\\b' --exclude-dir=.venv --exclude-dir=__pycache__ --include=*.py ." }
-    last_verified: 2026-11-09
+    last_verified: 2026-11-10
     notes: "vetoed as gates, correctly. The open question is whether the veto was aimed at the gate
       or the factor. Correction, 2026-11-09: VIRTUE_SLATE.md (the draft's cited source) does not
       exist anywhere in this repo's git history, and no hri/apatrapya module exists either -- the
       veto itself is undocumented in code, only in doctrine prose. Converted from a (broken)
       file-sourced claim to an honest absent claim, same check as p12_selfreport since they are the
-      same underlying fact."
+      same underlying fact.
+      Governance correction, 2026-11-10: 'vetoed' above is DOCTRINE-ONLY prose, not a code
+      enforcement site -- apply the rule from the mind_map.py validator fix the same day (a status
+      must either cite a real enforcement site or be marked doctrine-only). The actual design
+      position behind apatrapya's unclaimed status is theory_x/stage_tom/source_identity.py:23
+      ('This is NOT \"NEX models what others think\" (that's the gorge -- not claimed)') -- a
+      docstring statement, not a gate, filter, or check that runs anywhere. Confirmed during the
+      hri/apatrapya prototype build's Step-0 BLOCKED finding the same day."
 
   # ─────────────────────────── STRADDLE ─────────────────────────────
   - id: p8_episodic
