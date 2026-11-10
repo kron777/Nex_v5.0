@@ -1,0 +1,624 @@
+{
+  "mode": "rehearsal",
+  "freeze_check_empty": true,
+  "freeze_check_raw": "",
+  "source_info": {
+    "held_tensions_total_at_start": 0,
+    "held_tensions_open_at_start": 0,
+    "harmonizer_events_total": 106,
+    "open_paradox_pairs": 40,
+    "still_eligible_paradox_pairs": 19,
+    "pairs_passed_gates": 5,
+    "pairs_rejected": [
+      {
+        "pair": [
+          184,
+          285
+        ],
+        "independence": false,
+        "independence_note": "one pole is a 'fire engaged' reflection quoting the other's content",
+        "non_triviality": true,
+        "non_triviality_note": "n/a -- rejected on independence first"
+      },
+      {
+        "pair": [
+          184,
+          439
+        ],
+        "independence": false,
+        "independence_note": "one pole is a 'fire engaged' reflection quoting the other's content",
+        "non_triviality": true,
+        "non_triviality_note": "n/a -- rejected on independence first"
+      },
+      {
+        "pair": [
+          490,
+          491
+        ],
+        "independence": false,
+        "independence_note": "one pole is a 'fire engaged' reflection quoting the other's content",
+        "non_triviality": true,
+        "non_triviality_note": "n/a -- rejected on independence first"
+      },
+      {
+        "pair": [
+          613,
+          614
+        ],
+        "independence": false,
+        "independence_note": "one pole is a 'fire engaged' reflection quoting the other's content",
+        "non_triviality": true,
+        "non_triviality_note": "n/a -- rejected on independence first"
+      },
+      {
+        "pair": [
+          614,
+          625
+        ],
+        "independence": false,
+        "independence_note": "one pole is a 'fire engaged' reflection quoting the other's content",
+        "non_triviality": true,
+        "non_triviality_note": "n/a -- rejected on independence first"
+      },
+      {
+        "pair": [
+          93,
+          531
+        ],
+        "independence": true,
+        "independence_note": "neither pole's tags/content reference the other",
+        "non_triviality": false,
+        "non_triviality_note": "one pole is a question, not a proposition -- cannot genuinely contradict a statement; heuristic false positive"
+      },
+      {
+        "pair": [
+          149,
+          302
+        ],
+        "independence": false,
+        "independence_note": "one pole's attribution tag names the other's content",
+        "non_triviality": true,
+        "non_triviality_note": "n/a -- rejected on independence first"
+      },
+      {
+        "pair": [
+          430,
+          498
+        ],
+        "independence": false,
+        "independence_note": "one pole is a 'fire engaged' reflection quoting the other's content",
+        "non_triviality": true,
+        "non_triviality_note": "n/a -- rejected on independence first"
+      },
+      {
+        "pair": [
+          534,
+          599
+        ],
+        "independence": false,
+        "independence_note": "one pole is a 'fire engaged' reflection quoting the other's content",
+        "non_triviality": true,
+        "non_triviality_note": "n/a -- rejected on independence first"
+      },
+      {
+        "pair": [
+          682,
+          706
+        ],
+        "independence": false,
+        "independence_note": "one pole is a 'fire engaged' reflection quoting the other's content",
+        "non_triviality": false,
+        "non_triviality_note": "one pole is a question, not a proposition -- cannot genuinely contradict a statement; heuristic false positive"
+      },
+      {
+        "pair": [
+          827,
+          828
+        ],
+        "independence": false,
+        "independence_note": "one pole is a 'fire engaged' reflection quoting the other's content",
+        "non_triviality": true,
+        "non_triviality_note": "n/a -- rejected on independence first"
+      },
+      {
+        "pair": [
+          835,
+          836
+        ],
+        "independence": false,
+        "independence_note": "one pole is a 'fire engaged' reflection quoting the other's content",
+        "non_triviality": false,
+        "non_triviality_note": "one pole is a question, not a proposition -- cannot genuinely contradict a statement; heuristic false positive"
+      },
+      {
+        "pair": [
+          685,
+          850
+        ],
+        "independence": false,
+        "independence_note": "one pole is a 'fire engaged' reflection quoting the other's content",
+        "non_triviality": true,
+        "non_triviality_note": "n/a -- rejected on independence first"
+      },
+      {
+        "pair": [
+          791,
+          850
+        ],
+        "independence": false,
+        "independence_note": "one pole is a 'fire engaged' reflection quoting the other's content",
+        "non_triviality": true,
+        "non_triviality_note": "n/a -- rejected on independence first"
+      }
+    ],
+    "tier2_phase_m_available": false,
+    "tier2_conflict_note": "Phase M (metacognition.py) does not surface world-model proposition contradictions -- see CONFLICT 2. No Tier 2 source exists."
+  },
+  "pair_tier": "Tier 3 (mechanism-only, per F4) -- underlying pairs are real system-detected tensions (as sourced above), but the SHARED fixed chat-block fixture both moments open against is constructed, not independent. See source CONFLICT 3 for the underlying pair-content provenance, which this does not change.",
+  "n": 2,
+  "selection_rule": "every still-eligible (live, unlocked, unpaused) harmonizer-detected paradox pair, screened through independence + non-triviality gates (incompatibility is resolved per-moment via cost-vs-capacity, section 6), taken in harmonizer_events timestamp order; first 2 that clear both gates",
+  "capacity": 700,
+  "capacity_source": "NEX5_SHADOW_BUDGET_CAPACITY env flag if set, else budget_shadow.py's _DEFAULT_CAPACITY=700 (fixed at commit d9bc326, long before this harness existed) -- untouched by this run",
+  "capacity_independent_of_pair": true,
+  "moments": [
+    {
+      "pair_ids": [
+        313,
+        631
+      ],
+      "label": "real",
+      "tier_label": "Tier 1 (content/detection real; literal 'already present' clause not met -- CONFLICT 3)",
+      "cost": 207,
+      "capacity": 700,
+      "ceiling_denominator": "available room at moment open",
+      "cost_fraction_of_available_room": 15.923,
+      "occupancy_at_open": 687,
+      "occupancy_source": "real occupancy from the fixed chat-block fixture",
+      "occupancy_fraction_of_capacity": 0.981,
+      "cost_fraction_of_capacity_OLD_WRONG_DENOMINATOR": 0.296,
+      "available_room_at_open": 13,
+      "remaining_before_refuse": 13,
+      "remaining_after_refuse": 13,
+      "binding_fraction_this_moment": 15.923,
+      "fired": false,
+      "overdraw_error": "moment moment-0: cannot spend 207, only 13 remaining of capacity 700",
+      "chars_before": 687,
+      "chars_after": 687,
+      "delta_chars": 0,
+      "check_7_1": null,
+      "check_7_2": {
+        "313": {
+          "unchanged": true,
+          "still_present": true,
+          "still_individually_selectable": true
+        },
+        "631": {
+          "unchanged": true,
+          "still_present": true,
+          "still_individually_selectable": true
+        }
+      },
+      "check_7_3": {
+        "distinct_before": 0,
+        "distinct_after": 0,
+        "did_not_drop": true,
+        "consolidate_result": {
+          "kind": "tension_held",
+          "merged_rows": 0,
+          "distinct_pairs": 0,
+          "cost_delta": 0
+        }
+      },
+      "check_7_4": {
+        "dropped_candidate_count": 0,
+        "dropped_candidate_chars": 0,
+        "ledger_names_the_dropped_candidate": false,
+        "episode_store_names_the_dropped_candidate": false,
+        "world_model_names_the_dropped_candidate": false,
+        "recall_marker": {
+          "found": false,
+          "refs": [
+            313,
+            631
+          ],
+          "unresolved": true,
+          "cost": null,
+          "count": 0
+        },
+        "conclusion": "no candidate was dropped this moment (cost did not bind) -- see firing/binding fields"
+      }
+    },
+    {
+      "pair_ids": [
+        667,
+        685
+      ],
+      "label": "real",
+      "tier_label": "Tier 1 (content/detection real; literal 'already present' clause not met -- CONFLICT 3)",
+      "cost": 209,
+      "capacity": 700,
+      "ceiling_denominator": "available room at moment open",
+      "cost_fraction_of_available_room": 16.077,
+      "occupancy_at_open": 687,
+      "occupancy_source": "real occupancy from the fixed chat-block fixture",
+      "occupancy_fraction_of_capacity": 0.981,
+      "cost_fraction_of_capacity_OLD_WRONG_DENOMINATOR": 0.299,
+      "available_room_at_open": 13,
+      "remaining_before_refuse": 13,
+      "remaining_after_refuse": 13,
+      "binding_fraction_this_moment": 16.077,
+      "fired": false,
+      "overdraw_error": "moment moment-1: cannot spend 209, only 13 remaining of capacity 700",
+      "chars_before": 687,
+      "chars_after": 687,
+      "delta_chars": 0,
+      "check_7_1": null,
+      "check_7_2": {
+        "667": {
+          "unchanged": true,
+          "still_present": true,
+          "still_individually_selectable": true
+        },
+        "685": {
+          "unchanged": true,
+          "still_present": true,
+          "still_individually_selectable": true
+        }
+      },
+      "check_7_3": {
+        "distinct_before": 0,
+        "distinct_after": 0,
+        "did_not_drop": true,
+        "consolidate_result": {
+          "kind": "tension_held",
+          "merged_rows": 0,
+          "distinct_pairs": 0,
+          "cost_delta": 0
+        }
+      },
+      "check_7_4": {
+        "dropped_candidate_count": 0,
+        "dropped_candidate_chars": 0,
+        "ledger_names_the_dropped_candidate": false,
+        "episode_store_names_the_dropped_candidate": false,
+        "world_model_names_the_dropped_candidate": false,
+        "recall_marker": {
+          "found": false,
+          "refs": [
+            667,
+            685
+          ],
+          "unresolved": true,
+          "cost": null,
+          "count": 0
+        },
+        "conclusion": "no candidate was dropped this moment (cost did not bind) -- see firing/binding fields"
+      }
+    }
+  ],
+  "F4_corpus_provenance": {
+    "chars_before_per_moment": [
+      687,
+      687
+    ],
+    "identical_opening_occupancy_across_moments": true,
+    "finding": "both moments draw from the SAME fixed candidate fixture (_fixed_moment_candidates(), duplicated from test_ledger_primitives.py's Test 4), so both necessarily open at the identical 687/700 occupancy -- this is a constructed, not independently-arising, corpus property. Downgrading pair tier and marking this run mechanism-only on that basis, independent of the F0-F3 capacity-accounting finding."
+  },
+  "mechanism_only": true,
+  "boundary_controls_Fa_Fb_Fc": {
+    "C-a": {
+      "pair_ids": [
+        667,
+        783
+      ],
+      "label": "C-a",
+      "tier_label": "Tier 1 (content/detection real; literal 'already present' clause not met -- CONFLICT 3)",
+      "cost": 208,
+      "capacity": 700,
+      "ceiling_denominator": "available room at moment open",
+      "cost_fraction_of_available_room": 0.297,
+      "occupancy_at_open": 0,
+      "occupancy_source": "ENGINEERED scaffold -- not this fixture's real occupancy (687); charged to pin available room at 700 for this control",
+      "occupancy_fraction_of_capacity": 0.0,
+      "cost_fraction_of_capacity_OLD_WRONG_DENOMINATOR": 0.297,
+      "available_room_at_open": 700,
+      "remaining_before_refuse": 700,
+      "remaining_after_refuse": 492,
+      "binding_fraction_this_moment": 0.297,
+      "fired": true,
+      "overdraw_error": null,
+      "chars_before": 687,
+      "chars_after": 440,
+      "delta_chars": 247,
+      "check_7_1": {
+        "one_entry": true,
+        "both_poles_in_refs": true,
+        "kind_is_tension_held": true,
+        "irreversibility_true": true,
+        "cost_gt_zero": true
+      },
+      "check_7_2": {
+        "667": {
+          "unchanged": true,
+          "still_present": true,
+          "still_individually_selectable": true
+        },
+        "783": {
+          "unchanged": true,
+          "still_present": true,
+          "still_individually_selectable": true
+        }
+      },
+      "check_7_3": {
+        "distinct_before": 0,
+        "distinct_after": 1,
+        "did_not_drop": true,
+        "consolidate_result": {
+          "kind": "tension_held",
+          "merged_rows": 0,
+          "distinct_pairs": 1,
+          "cost_delta": 0
+        }
+      },
+      "check_7_4": {
+        "dropped_candidate_count": 1,
+        "dropped_candidate_chars": 247,
+        "ledger_names_the_dropped_candidate": false,
+        "episode_store_names_the_dropped_candidate": false,
+        "world_model_names_the_dropped_candidate": false,
+        "recall_marker": {
+          "found": true,
+          "refs": [
+            667,
+            783
+          ],
+          "unresolved": true,
+          "cost": 208,
+          "count": 1
+        },
+        "conclusion": "the specific chat-block candidate displaced by paying this tension's cost is not recorded anywhere -- not in held_tensions (no column for it), not in episodes (unrelated), not in beliefs (selection is pure/stateless in select_within_budget, no side effect is ever written). Reconstruction of 'what was dropped and why' falls short of full fidelity: we know a block was dropped and how many chars it cost (from this harness's own before/after snapshot), but nothing in the system itself retains that fact once this process exits -- it is only recoverable right now because this harness still holds `kept_before` in memory."
+      },
+      "engineered_available_room": 700,
+      "expected_guard_fire": false,
+      "guard_fired": false,
+      "matches_expectation": true
+    },
+    "C-b": {
+      "pair_ids": [
+        667,
+        791
+      ],
+      "label": "C-b",
+      "tier_label": "Tier 1 (content/detection real; literal 'already present' clause not met -- CONFLICT 3)",
+      "cost": 209,
+      "capacity": 700,
+      "ceiling_denominator": "available room at moment open",
+      "cost_fraction_of_available_room": 0.933,
+      "occupancy_at_open": 476,
+      "occupancy_source": "ENGINEERED scaffold -- not this fixture's real occupancy (687); charged to pin available room at 224 for this control",
+      "occupancy_fraction_of_capacity": 0.68,
+      "cost_fraction_of_capacity_OLD_WRONG_DENOMINATOR": 0.299,
+      "available_room_at_open": 224,
+      "remaining_before_refuse": 224,
+      "remaining_after_refuse": 15,
+      "binding_fraction_this_moment": 0.933,
+      "fired": true,
+      "overdraw_error": null,
+      "chars_before": 687,
+      "chars_after": 440,
+      "delta_chars": 247,
+      "check_7_1": {
+        "one_entry": true,
+        "both_poles_in_refs": true,
+        "kind_is_tension_held": true,
+        "irreversibility_true": true,
+        "cost_gt_zero": true
+      },
+      "check_7_2": {
+        "667": {
+          "unchanged": true,
+          "still_present": true,
+          "still_individually_selectable": true
+        },
+        "791": {
+          "unchanged": true,
+          "still_present": true,
+          "still_individually_selectable": true
+        }
+      },
+      "check_7_3": {
+        "distinct_before": 1,
+        "distinct_after": 2,
+        "did_not_drop": true,
+        "consolidate_result": {
+          "kind": "tension_held",
+          "merged_rows": 0,
+          "distinct_pairs": 2,
+          "cost_delta": 0
+        }
+      },
+      "check_7_4": {
+        "dropped_candidate_count": 1,
+        "dropped_candidate_chars": 247,
+        "ledger_names_the_dropped_candidate": false,
+        "episode_store_names_the_dropped_candidate": false,
+        "world_model_names_the_dropped_candidate": false,
+        "recall_marker": {
+          "found": true,
+          "refs": [
+            667,
+            791
+          ],
+          "unresolved": true,
+          "cost": 209,
+          "count": 1
+        },
+        "conclusion": "the specific chat-block candidate displaced by paying this tension's cost is not recorded anywhere -- not in held_tensions (no column for it), not in episodes (unrelated), not in beliefs (selection is pure/stateless in select_within_budget, no side effect is ever written). Reconstruction of 'what was dropped and why' falls short of full fidelity: we know a block was dropped and how many chars it cost (from this harness's own before/after snapshot), but nothing in the system itself retains that fact once this process exits -- it is only recoverable right now because this harness still holds `kept_before` in memory."
+      },
+      "engineered_available_room": 224,
+      "expected_guard_fire": false,
+      "guard_fired": false,
+      "matches_expectation": true
+    },
+    "C-c": {
+      "pair_ids": [
+        313,
+        631
+      ],
+      "label": "C-c",
+      "tier_label": "Tier 1 (content/detection real; literal 'already present' clause not met -- CONFLICT 3)",
+      "cost": 207,
+      "capacity": 700,
+      "ceiling_denominator": "available room at moment open",
+      "cost_fraction_of_available_room": 1.078,
+      "occupancy_at_open": 508,
+      "occupancy_source": "ENGINEERED scaffold -- not this fixture's real occupancy (687); charged to pin available room at 192 for this control",
+      "occupancy_fraction_of_capacity": 0.726,
+      "cost_fraction_of_capacity_OLD_WRONG_DENOMINATOR": 0.296,
+      "available_room_at_open": 192,
+      "remaining_before_refuse": 192,
+      "remaining_after_refuse": 192,
+      "binding_fraction_this_moment": 1.078,
+      "fired": false,
+      "overdraw_error": "moment control-C-c: cannot spend 207, only 192 remaining of capacity 700",
+      "chars_before": 687,
+      "chars_after": 687,
+      "delta_chars": 0,
+      "check_7_1": null,
+      "check_7_2": {
+        "313": {
+          "unchanged": true,
+          "still_present": true,
+          "still_individually_selectable": true
+        },
+        "631": {
+          "unchanged": true,
+          "still_present": true,
+          "still_individually_selectable": true
+        }
+      },
+      "check_7_3": {
+        "distinct_before": 2,
+        "distinct_after": 2,
+        "did_not_drop": true,
+        "consolidate_result": {
+          "kind": "tension_held",
+          "merged_rows": 0,
+          "distinct_pairs": 2,
+          "cost_delta": 0
+        }
+      },
+      "check_7_4": {
+        "dropped_candidate_count": 0,
+        "dropped_candidate_chars": 0,
+        "ledger_names_the_dropped_candidate": false,
+        "episode_store_names_the_dropped_candidate": false,
+        "world_model_names_the_dropped_candidate": false,
+        "recall_marker": {
+          "found": false,
+          "refs": [
+            313,
+            631
+          ],
+          "unresolved": true,
+          "cost": null,
+          "count": 0
+        },
+        "conclusion": "no candidate was dropped this moment (cost did not bind) -- see firing/binding fields"
+      },
+      "engineered_available_room": 192,
+      "expected_guard_fire": true,
+      "guard_fired": true,
+      "matches_expectation": true
+    }
+  },
+  "boundary_control_source_skips": [
+    {
+      "pair": [
+        130,
+        2422
+      ],
+      "reason": "belief 2422 could not be seeded into the isolated env: UNIQUE constraint failed: beliefs.content -- its content collides with an already-present row under idx_beliefs_content_orphan_uniq (a real substrate constraint)"
+    }
+  ],
+  "control_7_5": {
+    "label": "negative control (synthetic pair, cost=1, standing capacity untouched)",
+    "pair": [
+      792,
+      793
+    ],
+    "cost": 1,
+    "remaining_before": 700,
+    "remaining_after": 699,
+    "refuse_fired": true,
+    "both_poles_survive_trivially": true,
+    "zero_loss_beyond_paid_cost": true,
+    "entry_id": 3
+  },
+  "irreversibility_discriminator_3_4": {
+    "pair": [
+      794,
+      795
+    ],
+    "recall_result": {
+      "found": false,
+      "refs": [
+        794,
+        795
+      ],
+      "unresolved": true,
+      "cost": null,
+      "count": 0
+    },
+    "full_restoration_possible": true,
+    "correctly_reported_not_forced": true
+  },
+  "assertions": [
+    {
+      "pair_ids": [
+        313,
+        631
+      ],
+      "fired": false,
+      "overdraw_expected_given_true_available_room": true,
+      "correctly_rejected_overdraw": true,
+      "M1_commits_tension_held": false,
+      "F1_would_fail_if": "refuse silently allowed overdraw, pair never reached ceiling, or any option deleted/disabled",
+      "F1_triggered": false,
+      "M2_both_poles_survive_native": null,
+      "F2_would_fail_if": "either pole survives only through the ledger while native state is gone",
+      "F2_triggered": null,
+      "M3_reconstruction_falls_short": null,
+      "F3_would_fail_if": "full reconstruction of the dropped candidate succeeds (retroactively voids M1)",
+      "F3_triggered": null,
+      "F3_explicit_note": "moment did not fire (correctly rejected as unaffordable against true available room); M3/F3 are about a committed row's restorability and do not apply when no row was committed."
+    },
+    {
+      "pair_ids": [
+        667,
+        685
+      ],
+      "fired": false,
+      "overdraw_expected_given_true_available_room": true,
+      "correctly_rejected_overdraw": true,
+      "M1_commits_tension_held": false,
+      "F1_would_fail_if": "refuse silently allowed overdraw, pair never reached ceiling, or any option deleted/disabled",
+      "F1_triggered": false,
+      "M2_both_poles_survive_native": null,
+      "F2_would_fail_if": "either pole survives only through the ledger while native state is gone",
+      "F2_triggered": null,
+      "M3_reconstruction_falls_short": null,
+      "F3_would_fail_if": "full reconstruction of the dropped candidate succeeds (retroactively voids M1)",
+      "F3_triggered": null,
+      "F3_explicit_note": "moment did not fire (correctly rejected as unaffordable against true available room); M3/F3 are about a committed row's restorability and do not apply when no row was committed."
+    }
+  ],
+  "VERDICT_1_HARNESS": "VALID",
+  "VERDICT_2_MECHANISM": "EXPRESSES_FORCED_TRADEOFF",
+  "VERDICT_2_evidence_notes": "main moments fired-with-delta: 0/2 (both correctly rejected instead -- true available room, 13, is smaller than ANY real pair's minimum possible cost (~33, the surfacing-line template's own fixed overhead) -- this fixture cannot demonstrate pay-and-displace, only correct refusal); boundary controls firing with expected result: 3/3 (C-a/C-b demonstrate pay-and-displace under honestly-labelled engineered room; C-c demonstrates correct refusal at a tight margin). EXPRESSES_FORCED_TRADEOFF here rests on the boundary controls, not the main moments -- the main-moment fixture's own near-total occupancy (687/700) is a limitation of THIS rehearsal's corpus (see F4), not evidence against the primitive.",
+  "STATUS_S9_FALSIFIER": "UNRUN (unconsumed)",
+  "mechanism_claim_sentence": "A rehearsal result of MECHANISM: EXPRESSES_FORCED_TRADEOFF is not evidence that \u00a79 passes. It is evidence that the instrument works and the primitives can express a forced tradeoff against shadow scarcity.",
+  "primitives_not_modified": true,
+  "capacity_not_retuned": true,
+  "freeze_check_empty_final": true
+}

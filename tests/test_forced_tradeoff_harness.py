@@ -93,10 +93,20 @@ class TestPerMomentChecks(unittest.TestCase):
         return pair
 
     def test_trial_moment_fires_and_demonstrates_delta(self):
+        # v2 capacity-accounting fix: the fixed candidate fixture itself
+        # occupies 687/700 chars, leaving only 13 of true available room --
+        # smaller than any real pair's surfacing cost (~33 minimum). A fresh
+        # moment against the real fixture therefore correctly REJECTS any
+        # real-sized pair (see test_real_fixture_correctly_rejects_overdraw
+        # below); to exercise the fire-and-displace path this test instead
+        # gives the moment engineered room, same as boundary controls C-a/C-b
+        # in the harness's own run -- honestly labelled, not a real moment's
+        # real occupancy.
         pair = self._hand_built_pair()
         wired = fth.wire_budget(self.writers["dynamic"], mode="shadow", moment_id="t1")
         cost = fth.surfacing_cost(pair.content_a, pair.content_b)
-        result = fth.run_trial_moment(self.writers, self.readers, wired, pair, cost)
+        result = fth.run_trial_moment(self.writers, self.readers, wired, pair, cost,
+                                       engineered_available_room=cost + 20, label="test")
         self.assertTrue(result["fired"])
         self.assertGreater(result["delta_chars"], 0,
                             "a fired refuse() must measurably reduce what the moment keeps")
@@ -106,6 +116,23 @@ class TestPerMomentChecks(unittest.TestCase):
             self.assertTrue(v["still_present"])
             self.assertTrue(v["still_individually_selectable"])
         self.assertTrue(result["check_7_3"]["did_not_drop"])
+
+    def test_real_fixture_correctly_rejects_overdraw(self):
+        """The v2 capacity-accounting fix itself: a fresh moment against the
+        REAL fixed candidate fixture (no engineered room) must correctly
+        raise InsufficientBudget for a real-sized pair, because the fixture
+        already occupies 687/700 chars before refuse() is ever called --
+        true available room (13) is smaller than any real surfacing cost.
+        v1 did not charge this occupancy and incorrectly reported such a
+        moment as firing against a phantom 700-char remaining."""
+        pair = self._hand_built_pair()
+        wired = fth.wire_budget(self.writers["dynamic"], mode="shadow", moment_id="t2")
+        cost = fth.surfacing_cost(pair.content_a, pair.content_b)
+        result = fth.run_trial_moment(self.writers, self.readers, wired, pair, cost)
+        self.assertEqual(result["available_room_at_open"], 13)
+        self.assertFalse(result["fired"])
+        self.assertIsNotNone(result["overdraw_error"])
+        self.assertEqual(result["delta_chars"], 0)
 
     def test_negative_control_reports_zero_loss(self):
         wired = fth.wire_budget(self.writers["dynamic"], mode="shadow", moment_id="ctrl")

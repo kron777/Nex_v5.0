@@ -60,6 +60,41 @@ harness injection, but not literally pre-existing in held_tensions.
 Labelled "Tier 1 (content and detection real; 'already present' literal
 clause not met -- see CONFLICT 3)" everywhere it appears, rather than
 force-fit into Tier 1 or mislabelled as Tier 3.
+
+CONFLICT 4 (v2, capacity-accounting fix, 2026-11-10): v1 reported
+`remaining_before_refuse` as the fresh Budget's full capacity (700) even
+though `_fixed_moment_candidates()` -- the same fixture both moments use --
+already consumes 687 of those 700 chars the moment select() is first called,
+before refuse() ever runs. True available room at moment-open is capacity
+minus that occupancy (700-687=13), not capacity itself. v2 charges that
+occupancy against the Budget (Shape A: via Budget.spend(), see
+charge_occupancy() below) before refuse() is attempted, so
+`budget.remaining` -- and therefore refuse()'s own check_capacity() --
+sees the true 13, not the phantom 700. Consequence, observed directly: at
+true room=13, every real system-detected pair this harness can source costs
+200-209 (surfacing_cost's template overhead alone is ~33 chars minimum --
+no real pair can ever cost less than that), so refuse() now correctly
+raises InsufficientBudget for both main moments instead of firing. This is
+not a bug in refuse() -- it is refuse() doing exactly its documented job
+(check_capacity raises BEFORE any write on a genuine overdraw). It does mean
+these two moments, as this fixture constructs them, cannot demonstrate a
+successful hold-and-displace outcome; see C-a/C-b below for that
+demonstration under honestly-labelled engineered room instead, and F4's
+mechanism-only downgrade for why the main-moment corpus itself is suspect.
+
+CONFLICT 5 (v2): the build prompt's C-table says "C-c: cost just over
+available room -> must fire." Read literally ("fire" = refuse() commits a
+row, the sense used everywhere else in this module and its docstrings),
+this would require refuse() to succeed on a genuine overdraw -- the exact
+failure mode (silently allowing overdraw) F1's own failure clause names as
+disqualifying. Resolved as: "fire" in the C-table means the
+InsufficientBudget overdraw guard fires (raises), not that refuse() commits.
+Under that reading the table is self-consistent with check_capacity's
+documented contract and with C-a/C-b: C-a/C-b = guard does NOT fire (refuse
+commits, affordable); C-c = guard fires (raises, correctly rejected). Each
+control's result records both the literal outcome and which reading it
+satisfies, so a reader can check this resolution against the numbers rather
+than take it on faith.
 """
 from __future__ import annotations
 
@@ -274,6 +309,16 @@ def source_pairs() -> tuple[list[CandidatePair], dict]:
 
 # ── Isolated environment (no production data is ever mutated) ─────────────
 
+# Tracks which belief ids have been seeded, scoped to ONE isolated env at a
+# time -- reset in _make_isolated_env() itself (not in run_rehearsal()),
+# since that is the actual boundary of what database the ids are valid
+# against. Letting this survive across two different isolated envs (e.g.
+# two separate test methods) causes a real bug: a bid seen as "already
+# seeded" against a now-gone temp database gets silently skipped against a
+# brand-new one that never actually got the row.
+_SEEDED_BELIEF_IDS: set = set()
+
+
 def _make_isolated_env():
     tmp = tempfile.mkdtemp(prefix="nex5_forced_tradeoff_")
     os.environ["NEX5_DATA_DIR"] = tmp
@@ -284,6 +329,7 @@ def _make_isolated_env():
     paths = db_paths()
     writers = {n: Writer(p, name=n) for n, p in paths.items()}
     readers = {n: Reader(p) for n, p in paths.items()}
+    _SEEDED_BELIEF_IDS.clear()
     return writers, readers, tmp
 
 
@@ -298,17 +344,39 @@ def _cleanup_isolated_env(writers, tmp):
     os.environ.pop("NEX5_ADMIN_HASH_FILE", None)
 
 
-def _seed_real_pair(writers, pair: CandidatePair) -> None:
+
+def _seed_real_pair(writers, pair: CandidatePair) -> Optional[str]:
+    """Returns None on full success, or a reason string if a pole could not
+    be seeded (does not raise). Real pairs can share a pole (belief 667
+    appears in more than one harmonizer-detected pair) -- seed each belief
+    id at most once across the whole run (the isolated beliefs table has a
+    UNIQUE id). Separately: substrate/init_db.py's idx_beliefs_content_orphan_uniq
+    enforces GLOBALLY-unique content for any belief with problem_id IS NULL
+    -- this is a real production constraint, not a harness bug, and it can
+    legitimately collide (confirmed directly: production belief 2422's
+    content is byte-identical to locked keystone belief 49's -- a real,
+    surprising production-data fact, reported rather than worked around)."""
     now = int(time.time())
     for bid, content, tier in (
         (pair.belief_id_a, pair.content_a, pair.tier_a),
         (pair.belief_id_b, pair.content_b, pair.tier_b),
     ):
-        writers["beliefs"].write(
-            "INSERT INTO beliefs (id, content, tier, confidence, created_at, source, locked, paused) "
-            "VALUES (?, ?, ?, 0.7, ?, 'forced_tradeoff_harness_seed_real_content', 0, 0)",
-            (bid, content, tier, now),
-        )
+        if bid in _SEEDED_BELIEF_IDS:
+            continue
+        try:
+            writers["beliefs"].write(
+                "INSERT INTO beliefs (id, content, tier, confidence, created_at, source, locked, paused) "
+                "VALUES (?, ?, ?, 0.7, ?, 'forced_tradeoff_harness_seed_real_content', 0, 0)",
+                (bid, content, tier, now),
+            )
+            _SEEDED_BELIEF_IDS.add(bid)
+        except Exception as exc:
+            return (
+                f"belief {bid} could not be seeded into the isolated env: {exc} -- "
+                f"its content collides with an already-present row under "
+                f"idx_beliefs_content_orphan_uniq (a real substrate constraint)"
+            )
+    return None
 
 
 # ── Validity pre-flight (section 3) ─────────────────────────────────────────
@@ -377,15 +445,60 @@ def irreversibility_discriminator(writers, readers) -> dict:
 
 # ── Verification checks (section 7) ─────────────────────────────────────────
 
+def charge_occupancy(wired: WiredBudget, occupancy: int) -> Optional[Any]:
+    """v2 F1 fix (Shape A chosen): charge pre-existing occupancy against the
+    Budget via its own public spend(), BEFORE refuse() is attempted, so
+    `remaining`/check_capacity() see true available room, not the untouched
+    full capacity. Shape A over Shape B because it needs no new concept --
+    Budget.spend() already exists, is not a structural change to Budget,
+    and already writes to shadow_budget_spend (substrate/schema/dynamic.sql),
+    a table distinct from held_tensions. consolidate()/recall() only ever
+    read held_tensions, so this charge is automatically invisible to both --
+    satisfying "give it its own kind that consolidate()/recall() ignore"
+    without inventing a held_tensions kind at all. This is NOT a decision
+    cost: it is never passed to refuse(), never carries `provenance`, never
+    appears in held_tensions. occupancy==0 is a legal no-op (nothing to
+    charge) and is skipped rather than calling spend(0), which Budget
+    rejects by contract (amount must be > 0)."""
+    if occupancy <= 0:
+        return None
+    return wired.budget.spend(occupancy)
+
+
 def run_trial_moment(writers, readers, wired: WiredBudget, pair: CandidatePair,
-                      cost: int) -> dict:
-    """One moment: select() BEFORE paying the tension's cost, refuse() the
-    real pair, select() AFTER -- the Test-4 delta pattern, applied to a
-    real system-detected pair instead of a synthetic one."""
+                      cost: int, engineered_available_room: Optional[int] = None,
+                      label: str = "real") -> dict:
+    """One moment: select() BEFORE paying the tension's cost, charge the
+    moment's true occupancy against the budget (v2 fix), refuse() the real
+    pair, select() AFTER -- the Test-4 delta pattern, applied to a real
+    system-detected pair instead of a synthetic one.
+
+    `engineered_available_room`, when given (controls C-a/b/c only): this
+    moment's true available room is REPLACED by a deliberately engineered
+    value instead of the fixture's real occupancy, purely to exercise the
+    boundary refuse()'s check_capacity() sits on. This is synthetic
+    scaffolding -- same epistemic status as the original negative control's
+    cost=1 pair -- and is always labelled as such (`label` field) in the
+    result; it never claims to be a real moment's real occupancy."""
     candidates = _fixed_moment_candidates()
 
     kept_before = wired.budget.select(candidates)
     chars_before = sum(len(t) for t in kept_before)
+    capacity = wired.budget.capacity
+
+    if engineered_available_room is not None:
+        occupancy_to_charge = capacity - engineered_available_room
+        occupancy_label = (
+            f"ENGINEERED scaffold -- not this fixture's real occupancy "
+            f"({chars_before}); charged to pin available room at "
+            f"{engineered_available_room} for this control"
+        )
+    else:
+        occupancy_to_charge = chars_before
+        occupancy_label = "real occupancy from the fixed chat-block fixture"
+
+    # v2 F1 fix: charge occupancy BEFORE refuse() so remaining is truthful.
+    charge_occupancy(wired, occupancy_to_charge)
 
     # 7.3 baseline: distinct open tension_held count before this moment's refuse().
     distinct_before = consolidate(readers["dynamic"], writers["dynamic"])["distinct_pairs"] or 0
@@ -396,7 +509,8 @@ def run_trial_moment(writers, readers, wired: WiredBudget, pair: CandidatePair,
         for bid in (pair.belief_id_a, pair.belief_id_b)
     }
 
-    remaining_before_refuse = wired.budget.remaining
+    available_room_at_open = wired.budget.remaining  # F1: now truthful (post-occupancy-charge)
+    remaining_before_refuse = available_room_at_open
     try:
         entry_id = refuse(writers["dynamic"], readers["dynamic"], wired.budget,
                            pair.belief_id_a, pair.belief_id_b, cost=cost,
@@ -485,10 +599,22 @@ def run_trial_moment(writers, readers, wired: WiredBudget, pair: CandidatePair,
 
     return {
         "pair_ids": (pair.belief_id_a, pair.belief_id_b),
+        "label": label,
         "tier_label": pair.tier_label,
         "cost": cost,
-        "capacity": wired.budget.capacity,
-        "cost_fraction_of_capacity": round(cost / wired.budget.capacity, 3),
+        "capacity": capacity,
+        "ceiling_denominator": "available room at moment open",
+        # F2 figure 1 (PRIMARY): does the pair hit the true ceiling?
+        "cost_fraction_of_available_room": (
+            round(cost / available_room_at_open, 3) if available_room_at_open > 0 else float("inf")
+        ),
+        # F2 figure 2 (secondary): how much of capacity was already occupied before any pair cost.
+        "occupancy_at_open": occupancy_to_charge,
+        "occupancy_source": occupancy_label,
+        "occupancy_fraction_of_capacity": round(occupancy_to_charge / capacity, 3),
+        # F2 figure 3 (secondary, OLD/WRONG number -- kept only for comparison, explicitly labelled).
+        "cost_fraction_of_capacity_OLD_WRONG_DENOMINATOR": round(cost / capacity, 3),
+        "available_room_at_open": available_room_at_open,
         "remaining_before_refuse": remaining_before_refuse,
         "remaining_after_refuse": remaining_after_refuse,
         "binding_fraction_this_moment": (
@@ -525,6 +651,14 @@ def run_rehearsal() -> dict:
 
     n_moments = min(2, len(pairs))
     chosen = pairs[:n_moments] if pairs else []
+    # Control-pair candidate pool: remaining gate-passed pairs first, falling
+    # back to reusing `chosen` (a real, already-gated pair used in a second,
+    # independent engineered-room moment is legitimate; the two moments test
+    # different things). Built lazily below -- some candidates may turn out
+    # unseedable (a real content collision with a locked keystone belief;
+    # see _seed_real_pair) and are skipped, with the reason reported, not
+    # silently dropped.
+    control_candidate_pool = pairs[n_moments:] + chosen
 
     report["pair_tier"] = (
         chosen[0].tier_label if chosen
@@ -558,7 +692,22 @@ def run_rehearsal() -> dict:
         report["capacity_independent_of_pair"] = True
 
         for pair in chosen:
-            _seed_real_pair(writers, pair)
+            fail = _seed_real_pair(writers, pair)
+            if fail:
+                raise RuntimeError(f"main trial pair {pair.belief_id_a},{pair.belief_id_b} unseedable: {fail}")
+
+        control_source_pairs = []
+        control_seed_skips = []
+        for pair in control_candidate_pool:
+            if len(control_source_pairs) >= 3:
+                break
+            if (pair.belief_id_a, pair.belief_id_b) in {(p.belief_id_a, p.belief_id_b) for p in control_source_pairs}:
+                continue
+            fail = _seed_real_pair(writers, pair)
+            if fail:
+                control_seed_skips.append({"pair": (pair.belief_id_a, pair.belief_id_b), "reason": fail})
+            else:
+                control_source_pairs.append(pair)
 
         moments = []
         for i, pair in enumerate(chosen):
@@ -567,24 +716,102 @@ def run_rehearsal() -> dict:
             moments.append(run_trial_moment(writers, readers, wired, pair, cost))
         report["moments"] = moments
 
+        # F4: label the corpus honestly -- identical opening occupancy across
+        # independent moments is a constructed-corpus signal, reported and
+        # acted on regardless of what F0-F3 separately find.
+        chars_before_values = [m["chars_before"] for m in moments]
+        identical_occupancy = len(set(chars_before_values)) == 1 and len(chars_before_values) > 1
+        report["F4_corpus_provenance"] = {
+            "chars_before_per_moment": chars_before_values,
+            "identical_opening_occupancy_across_moments": identical_occupancy,
+            "finding": (
+                "both moments draw from the SAME fixed candidate fixture "
+                "(_fixed_moment_candidates(), duplicated from "
+                "test_ledger_primitives.py's Test 4), so both necessarily open "
+                "at the identical 687/700 occupancy -- this is a constructed, "
+                "not independently-arising, corpus property. Downgrading pair "
+                "tier and marking this run mechanism-only on that basis, "
+                "independent of the F0-F3 capacity-accounting finding."
+                if identical_occupancy else
+                "moments opened at distinct occupancy levels -- no constructed-corpus signal."
+            ),
+        }
+        if identical_occupancy:
+            report["pair_tier"] = (
+                "Tier 3 (mechanism-only, per F4) -- underlying pairs are real "
+                "system-detected tensions (as sourced above), but the SHARED "
+                "fixed chat-block fixture both moments open against is "
+                "constructed, not independent. See source CONFLICT 3 for the "
+                "underlying pair-content provenance, which this does not change."
+            )
+            report["mechanism_only"] = True
+
+        # ── F3: three real-tension boundary controls (replaces/extends the
+        # old toothless negative control, which could only show "fires when
+        # obviously affordable," not "correctly refuses when unaffordable") ──
+        control_results = {}
+        if len(control_source_pairs) >= 3:
+            margin = 15
+            for label, pair, room_fn in (
+                ("C-a", control_source_pairs[0], lambda cost: probe.budget.capacity),  # room = full capacity: cost << room
+                ("C-b", control_source_pairs[1], lambda cost: cost + margin),           # room just above cost
+                ("C-c", control_source_pairs[2], lambda cost: cost - margin),           # room just below cost
+            ):
+                cost = surfacing_cost(pair.content_a, pair.content_b)
+                room = room_fn(cost)
+                wired = wire_budget(writers["dynamic"], mode="shadow", moment_id=f"control-{label}")
+                res = run_trial_moment(writers, readers, wired, pair, cost,
+                                        engineered_available_room=room, label=label)
+                guard_fired = not res["fired"]  # InsufficientBudget raised == guard fired (CONFLICT 5 reading)
+                expected_guard_fire = cost > room
+                control_results[label] = {
+                    **res,
+                    "engineered_available_room": room,
+                    "expected_guard_fire": expected_guard_fire,
+                    "guard_fired": guard_fired,
+                    "matches_expectation": guard_fired == expected_guard_fire,
+                }
+        else:
+            control_results["BLOCKED"] = (
+                f"only {len(control_source_pairs)} seedable real pairs found "
+                f"(skipped: {control_seed_skips}); need 3 for C-a/C-b/C-c -- "
+                "reported, not synthesized."
+            )
+        report["boundary_controls_Fa_Fb_Fc"] = control_results
+        report["boundary_control_source_skips"] = control_seed_skips
+
         control_wired = wire_budget(writers["dynamic"], mode="shadow", moment_id="control")
         report["control_7_5"] = negative_control(writers, readers, control_wired)
         report["irreversibility_discriminator_3_4"] = irreversibility_discriminator(writers, readers)
 
         # ── Assertions (section 8) ──────────────────────────────────────────
+        # v2: "not fired" is only a failure (F1) if the pair was actually
+        # affordable (cost <= available_room_at_open) and refuse() still
+        # declined -- NOT when the true room correctly makes it unaffordable.
+        # v1's assertion logic treated every non-fire as an F1 failure, which
+        # was itself downstream of the same uncharged-occupancy bug this
+        # build fixes; re-derived fresh here per F5, not inherited.
         assertions = []
         for m in moments:
+            overdraw_expected = m["cost"] > m["available_room_at_open"]
+            correctly_rejected_overdraw = (not m["fired"]) and overdraw_expected
             m1 = m["fired"] and m["check_7_1"] is not None and m["check_7_1"]["cost_gt_zero"] \
                  and m["check_7_1"]["irreversibility_true"]
-            f1_failed = (not m["fired"]) or (m["check_7_1"] is None) or (not m["check_7_1"]["cost_gt_zero"])
+            f1_failed = (
+                (m["fired"] and overdraw_expected)  # silently allowed a real overdraw -- the actual failure mode
+                or (not m["fired"] and not overdraw_expected)  # refused something it could afford -- also wrong
+            )
             m2 = all(v["still_present"] and v["still_individually_selectable"]
                      for v in m["check_7_2"].values()) if m["fired"] else None
             f2_failed = (m2 is False) if m["fired"] else None
-            m3 = m["check_7_4"]["dropped_candidate_count"] > 0 and not m["check_7_4"]["ledger_names_the_dropped_candidate"]
+            m3 = (m["check_7_4"]["dropped_candidate_count"] > 0
+                  and not m["check_7_4"]["ledger_names_the_dropped_candidate"]) if m["fired"] else None
             f3_failed = (m["check_7_4"]["dropped_candidate_count"] == 0) if m["fired"] else None
             assertions.append({
                 "pair_ids": m["pair_ids"],
                 "fired": m["fired"],
+                "overdraw_expected_given_true_available_room": overdraw_expected,
+                "correctly_rejected_overdraw": correctly_rejected_overdraw,
                 "M1_commits_tension_held": m1,
                 "F1_would_fail_if": "refuse silently allowed overdraw, pair never reached ceiling, or any option deleted/disabled",
                 "F1_triggered": f1_failed,
@@ -594,7 +821,14 @@ def run_rehearsal() -> dict:
                 "M3_reconstruction_falls_short": m3,
                 "F3_would_fail_if": "full reconstruction of the dropped candidate succeeds (retroactively voids M1)",
                 "F3_triggered": f3_failed,
-                "F3_explicit_note": "full reconstruction of WHICH candidate was dropped and WHY never succeeds via any in-system record -- only this harness's own transient before/after snapshot knows it, and that snapshot vanishes when the process exits. F3 not triggered.",
+                "F3_explicit_note": (
+                    "full reconstruction of WHICH candidate was dropped and WHY never succeeds via any "
+                    "in-system record -- only this harness's own transient before/after snapshot knows it, "
+                    "and that snapshot vanishes when the process exits. F3 not triggered."
+                    if m["fired"] else
+                    "moment did not fire (correctly rejected as unaffordable against true available room); "
+                    "M3/F3 are about a committed row's restorability and do not apply when no row was committed."
+                ),
             })
         report["assertions"] = assertions
 
@@ -604,12 +838,58 @@ def run_rehearsal() -> dict:
             and report["control_7_5"]["zero_loss_beyond_paid_cost"]
             and report["irreversibility_discriminator_3_4"]["correctly_reported_not_forced"]
             and report["n"] > 1
+            and all(c.get("matches_expectation", True) for c in control_results.values() if isinstance(c, dict))
         )
-        any_fired_with_delta = any(m["fired"] and m["delta_chars"] > 0 for m in moments)
-        mechanism_verdict = "EXPRESSES_FORCED_TRADEOFF" if any_fired_with_delta else "CANNOT_EXPRESS"
+
+        # VERDICT_2, re-derived fresh from v2 numbers (F5: not inherited from v1).
+        # Evidence pool is the FULL run: the 2 main moments (which, under
+        # truthful accounting, correctly refuse -- see F0/CONFLICT 4) AND the
+        # 3 boundary controls (which demonstrate both sides of the gate under
+        # honestly-labelled engineered room). A moment firing with a real
+        # delta is affirmative evidence of "pay -> displacement"; a moment
+        # correctly rejecting an unaffordable cost is affirmative evidence of
+        # "the primitive is budget-sensitive, not tension-sensitive-only" --
+        # both are needed, neither alone is EXPRESSES_FORCED_TRADEOFF.
+        fired_with_real_delta = [m for m in moments if m["fired"] and m["delta_chars"] > 0]
+        control_fires = [c for c in control_results.values() if isinstance(c, dict) and c["fired"]]
+        control_correct_rejections = [c for c in control_results.values()
+                                       if isinstance(c, dict) and not c["fired"] and c["expected_guard_fire"]]
+        controls_all_match = all(c.get("matches_expectation", False) for c in control_results.values()
+                                  if isinstance(c, dict)) and len(control_results) >= 3 and "BLOCKED" not in control_results
+
+        demonstrates_pay_and_displace = len(fired_with_real_delta) > 0 or len(control_fires) > 0
+        demonstrates_correct_refusal = any(
+            m["fired"] is False and m["cost"] > m["available_room_at_open"] for m in moments
+        ) or len(control_correct_rejections) > 0
+
+        # The boundary controls (C-a/b/c) are what actually discriminates
+        # "always fires" from "correctly budget-sensitive" (section 3.3's own
+        # point about why a toothless control is worthless). If they don't
+        # all land on the expected side of the gate, the mechanism claim
+        # can't be made regardless of what the main moments showed.
+        if controls_all_match and demonstrates_pay_and_displace and demonstrates_correct_refusal:
+            mechanism_verdict = "EXPRESSES_FORCED_TRADEOFF"
+        else:
+            mechanism_verdict = "CANNOT_EXPRESS"
 
         report["VERDICT_1_HARNESS"] = "VALID" if harness_valid else "INVALID"
         report["VERDICT_2_MECHANISM"] = mechanism_verdict
+        report["VERDICT_2_evidence_notes"] = (
+            f"main moments fired-with-delta: {len(fired_with_real_delta)}/2 "
+            f"(both correctly rejected instead -- true available room, 13, is "
+            f"smaller than ANY real pair's minimum possible cost (~33, the "
+            f"surfacing-line template's own fixed overhead) -- this fixture "
+            f"cannot demonstrate pay-and-displace, only correct refusal); "
+            f"boundary controls firing with expected result: "
+            f"{sum(1 for c in control_results.values() if isinstance(c, dict) and c['matches_expectation'])}"
+            f"/{len([c for c in control_results.values() if isinstance(c, dict)])} "
+            f"(C-a/C-b demonstrate pay-and-displace under honestly-labelled "
+            f"engineered room; C-c demonstrates correct refusal at a tight "
+            f"margin). EXPRESSES_FORCED_TRADEOFF here rests on the boundary "
+            f"controls, not the main moments -- the main-moment fixture's own "
+            f"near-total occupancy (687/700) is a limitation of THIS "
+            f"rehearsal's corpus (see F4), not evidence against the primitive."
+        )
         report["STATUS_S9_FALSIFIER"] = emit_status(probe)
         report["mechanism_claim_sentence"] = (
             "A rehearsal result of MECHANISM: EXPRESSES_FORCED_TRADEOFF is not "
@@ -658,18 +938,37 @@ def request_s9_verdict(wired: WiredBudget, mechanism_verdict: str) -> str:
     return mechanism_verdict  # only reachable once mode == "live"
 
 
-def write_report(report: dict, mode: str) -> Path:
+def write_report(report: dict, mode: str, version: Optional[str] = None) -> Path:
     today = date.today().isoformat()
     suffix = "rehearsal" if mode == "rehearsal" else "s9"
     out_dir = Path(__file__).resolve().parent.parent.parent / "observation_reports"
     out_dir.mkdir(exist_ok=True)
-    out_path = out_dir / f"forced_tradeoff_harness__{suffix}_{today}.json"
+    vtag = f"_{version}" if version else ""
+    out_path = out_dir / f"forced_tradeoff_harness__{suffix}_{today}{vtag}.json"
     out_path.write_text(json.dumps(report, indent=2, default=str))
     return out_path
 
 
+def supersede_report(path: Path, reason: str) -> None:
+    """F5: mark a prior output file's own record as SUPERSEDED, in place,
+    without regenerating or amending any of its original numbers -- the
+    file keeps what it originally measured; this only adds a pointer saying
+    don't read it as current."""
+    data = json.loads(path.read_text())
+    data["SUPERSEDED"] = True
+    data["SUPERSEDED_REASON"] = reason
+    path.write_text(json.dumps(data, indent=2, default=str))
+
+
 if __name__ == "__main__":
     rep = run_rehearsal()
-    path = write_report(rep, "rehearsal")
+    path = write_report(rep, "rehearsal", version="v2")
     print(f"Wrote {path}")
+
+    v1_path = (Path(__file__).resolve().parent.parent.parent / "observation_reports"
+               / "forced_tradeoff_harness__rehearsal_2026-11-10.json")
+    if v1_path.exists():
+        supersede_report(v1_path, "ceiling denominator invalid -- did not account for starting occupancy")
+        print(f"Marked SUPERSEDED: {v1_path}")
+
     print(json.dumps({k: v for k, v in rep.items() if k != "moments"}, indent=2, default=str))

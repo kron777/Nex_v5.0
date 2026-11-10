@@ -368,5 +368,7 @@
   "mechanism_claim_sentence": "A rehearsal result of MECHANISM: EXPRESSES_FORCED_TRADEOFF is not evidence that \u00a79 passes. It is evidence that the instrument works and the primitives can express a forced tradeoff against shadow scarcity.",
   "primitives_not_modified": true,
   "capacity_not_retuned": true,
-  "freeze_check_empty_final": true
+  "freeze_check_empty_final": true,
+  "SUPERSEDED": true,
+  "SUPERSEDED_REASON": "ceiling denominator invalid -- did not account for starting occupancy"
 }
