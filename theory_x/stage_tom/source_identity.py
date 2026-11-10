@@ -20,10 +20,25 @@ THE FIRST BRICK (honest, limited, real):
                  aeon essays / lesswrong thinkers / lab blogs) and the explicit
                  external.other_mind persona stream.
 
-  This is NOT "NEX models what others think" (that's the gorge — not claimed).
-  It IS "NEX knows whether a belief came from itself, the impersonal world, or
-  another mind, and which specific source." That is the SUBSTRATE theory of mind
-  requires: a self/other boundary drawn in the data instead of dissolved.
+  This is NOT "NEX models what others think" in general (that's the gorge —
+  still not claimed: NEX does not infer, predict, or model an arbitrary other's
+  judgment of anything). It IS "NEX knows whether a belief came from itself,
+  the impersonal world, or another mind, and which specific source." That is
+  the SUBSTRATE theory of mind requires: a self/other boundary drawn in the
+  data instead of dissolved.
+
+  CORRECTION, 2026-11-10 (same commit that opened theory_x/stage_tom/
+  apatrapya_channel.py): the disclaimer above used to be unqualified ("NOT
+  claimed," full stop). That is no longer accurate in one narrow, explicit
+  case: Jon can now record his own explicit approve/disapprove/abstain
+  judgment of a specific NEX output via that channel (flag
+  NEX5_APATRAPYA_CHANNEL, default OFF, shadow, not wired to the live path).
+  This is NOT "NEX models what others think" even in that narrow case — NEX
+  never infers or predicts Jon's judgment; it only reads back a judgment Jon
+  typed himself, explicitly, unsolicited. The gorge (NEX forming its own model
+  of an arbitrary other's regard) remains unclaimed and unbuilt. See
+  apatrapya_channel.py's own docstring for the full contract this exception
+  operates under.
 
 READ-ONLY by default. Since build D every new belief and sense event is stamped at
 insert (substrate/source_kind.py); --backfill --apply stamps rows from before that.

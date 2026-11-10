@@ -986,6 +986,24 @@ _MIGRATIONS: dict[str, list[str]] = {
         "frequency INTEGER NOT NULL DEFAULT 1, "
         "signature_vocabulary TEXT, "
         "updated_at REAL NOT NULL)",
+        # apatrapya_ratings (2026-11-10, shadow, NEX5_APATRAPYA_CHANNEL default OFF):
+        # Jon's explicit, unsolicited rating of one of NEX's own messages. The ONLY
+        # writer is theory_x/stage_tom/apatrapya_channel.py's record_rating() --
+        # append-only, actor/channel/verdict all CHECK-constrained at write time.
+        # See that module's docstring for the full no-gradient / no-aggregation /
+        # no-inference contract this table exists under.
+        "CREATE TABLE IF NOT EXISTS apatrapya_ratings ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "actor TEXT NOT NULL CHECK (actor = 'jon'), "
+        "channel TEXT NOT NULL CHECK (channel = 'explicit'), "
+        "output_ref INTEGER NOT NULL REFERENCES messages(id), "
+        "output_fingerprint TEXT NOT NULL, "
+        "verdict TEXT NOT NULL CHECK (verdict IN ('approve','disapprove','abstain')), "
+        "reason TEXT, "
+        "supersedes INTEGER REFERENCES apatrapya_ratings(id), "
+        "created_at REAL NOT NULL)",
+        "CREATE INDEX IF NOT EXISTS idx_apatrapya_ratings_output "
+        "ON apatrapya_ratings(output_ref)",
     ],
 }
 
