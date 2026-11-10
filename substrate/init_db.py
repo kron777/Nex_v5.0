@@ -374,6 +374,16 @@ _MIGRATIONS: dict[str, list[str]] = {
         "notes TEXT)",
         "CREATE INDEX IF NOT EXISTS idx_world_bridge_log_ts "
         "ON world_bridge_log(ts DESC)",
+        # Marks opposes-edges found (on inspection) not to be a genuine opposition:
+        # 'self_referential' (one pole restates/quotes the other), 'template_boilerplate'
+        # (one pole has no distinct content), 'unrelated_non_sequitur' (independent but
+        # not actually in tension) — all known false-positive families of edge_generator's
+        # heuristic. NULL means not reviewed; existing readers filtering on
+        # edge_type='opposes' alone are unaffected (this adds visibility, it doesn't
+        # change edge_type or row counts).
+        "ALTER TABLE belief_edges ADD COLUMN review_status TEXT",
+        "CREATE INDEX IF NOT EXISTS idx_edges_review_status "
+        "ON belief_edges(review_status)",
     ],
     "dynamic": [
         "CREATE TABLE IF NOT EXISTS harmonizer_events ("
