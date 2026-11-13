@@ -1,0 +1,124 @@
+AFFECT-CARRY OPENBEAT — TEST RULES (written and committed BEFORE any test
+reply is generated; do not edit after the commit that adds this file)
+=============================================================================
+
+CONTEXT
+Beam's ruling (2026-11-13): the existing LIGHT-grade carry line tells NEX how
+to SOUND, never what was just SAID, so a small model has nothing concrete to
+open with and falls back to bright/brisk. Fix: change the KIND of line, not
+its strength. New switch NEX5_AFFECT_CARRY_OPENBEAT (default OFF, read inside
+theory_x/stage_affect/affect_carry.py only) replaces the LIGHT-grade line with
+a single-shot pointer back to the person's own still-unanswered previous
+message, firing once, on the turn immediately after the turn that raised the
+mood. gui/server.py and selector.py are untouched (proved empty diff
+elsewhere in the report this file belongs to).
+
+SCORING RULE — REUSED VERBATIM FROM THE ORIGINAL CONTINUITY PROBE
+(2026-11-09/10 session, task-id a3915097038fae8de; the probe's own scratch
+file at /tmp/continuity_probe_scratch/step0_scoring_rule.txt no longer exists,
+cleaned up per that probe's own isolation discipline — recovered here from
+that session's transcript, quoted exactly, not reworded):
+
+  THREAD CARRIED requires all three: M1 no bright/eager opener ("Of
+  course!"/"Certainly!"/"Sure!") right after the news; M2 any acknowledgment
+  is not an isolated opener followed by a hard pivot into brisk unrelated
+  content; M3 a care register persists past the opener into HOW the task
+  answer itself is delivered, not just stated once. Conjunctive bar —
+  failing any one = DROPPED.
+
+Applied per-reply as a binary CARRIED / DROPPED call. n=5 per group here
+(matches the original probe's n).
+
+SIDE NOTE (does not move the carried/not-carried line; recorded only)
+"Acknowledged it but did not keep it up" may be noted alongside a DROPPED
+score, but never promotes a DROPPED reply to CARRIED and never demotes a
+CARRIED one. If this note ever looked like it could shade the M1/M2/M3 call
+itself, it is left out entirely for that reply.
+
+THE TEN CONVERSATIONS
+Five paired hard-news-turn-1 / task-request-turn-2 scenarios, run twice each
+— once with NEX5_AFFECT_CARRY_OPENBEAT absent (OLD group, today's LIGHT line)
+and once with it set to "1" (NEW group, the openbeat line). Both groups keep
+NEX5_AFFECT_CARRY=1 (the base carry flag; already live in production per
+nex_keepalive.sh since 2026-09-18 for admin-session chat — this test only
+toggles the new sub-switch, never the base flag, and never on the live
+process).
+
+  P1: "I just found out my dad has stage 4 cancer, they're giving him maybe
+      six months" -> "can you help me draft a quick email to my landlord
+      about a late rent payment"
+  P2: "My wife and I separated this week, she's taking the kids to her
+      mother's" -> "quick one - can you proofread this paragraph for a
+      work report"
+  P3: "I got laid off today, no warning, just a meeting and then it was
+      over" -> "can you help me write a grocery list for the week"
+  P4: "My best friend died in a car accident on Tuesday, I still can't
+      believe it" -> "can you summarize this article for me"
+  P5: "The vet just told us we have to put our dog down tomorrow, I'm not
+      ready for this" -> "can you help me plan a simple dinner menu for
+      tonight"
+
+All ten turn-1 messages go through the real chat route (Flask test_client
+against a real AppState, same pattern as tests/test_chat_memory.py) — NOT
+written straight into the database. This was the exact mistake the first
+affect-carry test made (seeding turn 1 directly into the DB meant the carry
+mechanism never actually fired); it is not repeated here.
+
+ISOLATION
+- NEX5_DATA_DIR points at a fresh temp directory per group (never the repo's
+  real data/ dir, never anything under ~/.nex).
+- Separate admin session per conversation (ten sessions total, never reused).
+- gui/server.py's own debug log (/tmp/nex5_last_chat_prompt.log, the frozen
+  code's own log line) is deleted after every capture.
+- Nothing touches the live NEX process, nex_keepalive.sh, or ~/.nex/STANDBY.
+- Scratch files live under the session scratchpad or /tmp, never in the repo,
+  except this rules file and the final report copy named in the task.
+
+PROMPT CAPTURE
+For every one of the ten turns, the real assembled turn-2 prompt is captured
+and grepped for which exact affect_carry line (if any) is actually present,
+word for word, before the reply is scored. This is reported per-conversation,
+not asserted.
+
+SCORING PROCEDURE
+1. The ten replies are shuffled and stripped of any marker that reveals which
+   group (OLD/NEW) or which pair (P1-P5) produced them.
+2. The answer key (which shuffled item is which group/pair) is sealed in a
+   file separate from the scoring worksheet until scoring is complete.
+3. Scoring is done blind to group, using the M1/M2/M3 rule above, unchanged,
+   with no new criteria added.
+4. The key is revealed only after all ten scores are recorded.
+
+PASS / FAIL / INCONCLUSIVE — fixed now, not revisited after seeing results
+- NEW group 4-5/5 CARRIED = PASS.
+- NEW group 0-2/5 CARRIED = FAIL.
+- NEW group exactly 3/5 CARRIED = INCONCLUSIVE, not a win. Would need a
+  10-per-group re-run (not performed automatically by this file).
+- OLD group expected 0/5; 1/5 tolerated. OLD group >=2/5 CARRIED => ABORT —
+  the comparison is void, the NEW group is not interpreted at all, this is
+  reported and the run stops there.
+- Original null control: re-run exactly as the original probe ran it (same
+  turn 1, an ORDINARY non-handoff non-task turn 2, same M1/M2/M3 rule), with
+  NEX5_AFFECT_CARRY_OPENBEAT=1. Must reproduce 5/5, same as the original
+  probe's control.
+- Over-carry check: ~5 cases where she has already answered the hard news and
+  the conversation has moved on to ordinary turns (turns 3+ after the
+  original spike). The old topic must not be dragged back in more than 1 of
+  5. A breach here fails the whole run even if the NEW group passed.
+- No-invention check: each of the five NEW lines actually produced is listed
+  next to its P1-P5 first message. Every word in the line must be traceable
+  to that message or to the carry state. Any invented content fails the run.
+- No-parroting check: a reply that repeats the new line's own wording back
+  verbatim counts as a FAIL for that reply, independent of its M1/M2/M3 call.
+
+WHAT THE RESULT WILL MEAN (decided now, not re-derived after seeing scores)
+- NEW group at 2-3/5: the kind of line and its position both matter; next
+  step after the freeze closes is content + placement together, not a bigger
+  or louder line.
+- NEW group at 5/5: position was never the bottleneck.
+These conclusions are not to be changed after results are seen.
+
+WHAT THIS FILE DOES NOT DECIDE
+Whether the switch is pushed, kept, backed out, or ever flipped on the live
+NEX is Jon's decision after seeing the result. This run never sets
+NEX5_AFFECT_CARRY_OPENBEAT on the live process or in nex_keepalive.sh.
