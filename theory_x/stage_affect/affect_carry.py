@@ -33,6 +33,12 @@ _DECAY_KEEP = 0.7      # keep 70% of the weight above baseline each turn (a stro
 _LIGHT_MIN = 0.25      # carried weight to inject a light tone-colour
 _FULL_MIN = 0.5        # carried weight for a full one
 
+# OPENBEAT (NEX5_AFFECT_CARRY_OPENBEAT, default OFF): swaps the LIGHT-grade
+# tone-colour line for a one-shot pointer back to the person's own still-
+# unanswered previous turn. See _openbeat_* below and stance_for's ON branch.
+# Does not touch the decay, the thresholds, the FULL line, or the OFF path.
+_OPENBEAT_ENV = "NEX5_AFFECT_CARRY_OPENBEAT"
+
 
 def _cr():
     from substrate import Reader, db_paths
@@ -121,12 +127,95 @@ def update_and_carry(session_id: str, message: str) -> float:
     return carried
 
 
+def _openbeat_on() -> bool:
+    return os.environ.get(_OPENBEAT_ENV) == "1"
+
+
+def _openbeat_ensure_table(w) -> None:
+    w.write(
+        "CREATE TABLE IF NOT EXISTS affect_carry_openbeat ("
+        "session_id TEXT PRIMARY KEY, last_turn_was_spike INTEGER NOT NULL, "
+        "updated_at REAL NOT NULL)")
+
+
+def _openbeat_load_flag(session_id: str) -> bool:
+    """Was the turn immediately before this one the turn that raised the mood?"""
+    try:
+        row = _cr().read_one(
+            "SELECT last_turn_was_spike FROM affect_carry_openbeat "
+            "WHERE session_id=?", (session_id,))
+        return bool(row["last_turn_was_spike"]) if row else False
+    except Exception:
+        return False
+
+
+def _openbeat_save_flag(session_id: str, is_spike: bool) -> None:
+    try:
+        w = _cw()
+        _openbeat_ensure_table(w)
+        w.write(
+            "INSERT INTO affect_carry_openbeat "
+            "(session_id, last_turn_was_spike, updated_at) VALUES (?,?,?) "
+            "ON CONFLICT(session_id) DO UPDATE SET "
+            "last_turn_was_spike=excluded.last_turn_was_spike, "
+            "updated_at=excluded.updated_at",
+            (session_id, int(is_spike), time.time()))
+    except Exception:
+        pass   # persistence best-effort, same discipline as _save
+
+
+def _openbeat_prev_message(session_id: str) -> str:
+    """The person's own previous turn, verbatim. Relies on the (frozen) caller
+    having already inserted THIS turn's user message before calling stance_for
+    (gui/server.py does, same `prompt` value both times) so the newest 'user'
+    row is this turn's own and the second-newest is the real previous one."""
+    try:
+        rows = _cr().read(
+            "SELECT content FROM messages WHERE session_id=? AND role='user' "
+            "ORDER BY id DESC LIMIT 2", (session_id,))
+        if not rows or len(rows) < 2:
+            return ""
+        return (rows[1]["content"] or "").strip()
+    except Exception:
+        return ""
+
+
+def _openbeat_reference(prev_message: str, limit: int = 180) -> str:
+    """A trimmed, verbatim pointer to the previous message — never a paraphrase,
+    so every word is traceable to what they actually said."""
+    text = (prev_message or "").strip()
+    if not text:
+        return ""
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    sp = cut.rfind(" ")
+    if sp > 0:
+        cut = cut[:sp]
+    return cut.rstrip(" ,;:") + "..."
+
+
 def stance_for(session_id: str, message: str = "") -> str:
     """Compose-path entry: update the carry and, when it is non-trivial, return a
     tone-colour line. '' when carry is low, flag off, or on any error."""
     try:
         if os.environ.get("NEX5_AFFECT_CARRY") != "1" or not session_id:
             return ""
+        _openbeat = _openbeat_on()
+        _was_spike_last_turn = False
+        if _openbeat:
+            try:
+                _prev_w = _load(session_id)
+                _decayed_w = _BASELINE + (_prev_w - _BASELINE) * _DECAY_KEEP
+                _now_w = _this_turn_weight(message)
+                _was_spike_last_turn = _openbeat_load_flag(session_id)
+                _openbeat_save_flag(session_id, _now_w > _decayed_w)
+            except Exception as exc:
+                error_channel.record(
+                    f"affect_carry openbeat tracking failed (non-fatal): {exc}",
+                    source=_LOG_SOURCE, exc=exc,
+                )
+                _was_spike_last_turn = False
         carried = update_and_carry(session_id, message)
         if carried < _LIGHT_MIN:
             return ""
@@ -141,6 +230,25 @@ def stance_for(session_id: str, message: str = "") -> str:
                 "it be present in HOW you speak, not in what you claim about "
                 "yourself.]\n\n"
             )
+        if _openbeat:
+            try:
+                if not _was_spike_last_turn:
+                    return ""
+                reference = _openbeat_reference(_openbeat_prev_message(session_id))
+                if not reference:
+                    return ""
+                return (
+                    f"[Before the new request: they just said “{reference}"
+                    "” and you haven't replied to that yet. Meet that first, "
+                    "in your own words, before turning to what they're asking "
+                    "now.]\n\n"
+                )
+            except Exception as exc:
+                error_channel.record(
+                    f"affect_carry openbeat line failed (non-fatal): {exc}",
+                    source=_LOG_SOURCE, exc=exc,
+                )
+                return ""
         return (
             "[Carried tone: some weight from earlier is still lightly with you — "
             "let it soften your voice a little. Don't name it or announce it; just "
