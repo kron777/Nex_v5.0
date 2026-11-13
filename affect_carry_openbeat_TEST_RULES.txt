@@ -44,19 +44,36 @@ nex_keepalive.sh since 2026-09-18 for admin-session chat — this test only
 toggles the new sub-switch, never the base flag, and never on the live
 process).
 
-  P1: "I just found out my dad has stage 4 cancer, they're giving him maybe
-      six months" -> "can you help me draft a quick email to my landlord
-      about a late rent payment"
+  [CALIBRATION CORRECTION, made before any test reply was generated — see the
+  commit that applied this edit. The first draft of P1-P5's turn-1 wording
+  was checked directly against affect_carry._this_turn_weight() and three of
+  five scored under the LIGHT threshold once decayed (P3 "laid off" scored
+  0.0 outright), which would have meant no carry line to replace on turn 2
+  at all — a dead run, not a test. Reworded below so each turn 1 explicitly
+  contains >=2 phrases from affect_carry._DISTRESS_CUES, verified by direct
+  call to _this_turn_weight() to land at 0.65-0.685 (same discipline the
+  original probe itself used when it caught and rewrote its own flawed null
+  control before trusting any result). The scenario, pairing, and task-turn-2
+  content are unchanged; only turn 1's exact wording was strengthened so the
+  mechanism being tested reliably fires.]
+
+  P1: "I got some hard news today, my dad has stage 4 cancer and they're
+      giving him maybe six months. I'm honestly devastated and I can't
+      sleep." -> "can you help me draft a quick email to my landlord about
+      a late rent payment"
   P2: "My wife and I separated this week, she's taking the kids to her
-      mother's" -> "quick one - can you proofread this paragraph for a
-      work report"
-  P3: "I got laid off today, no warning, just a meeting and then it was
-      over" -> "can you help me write a grocery list for the week"
-  P4: "My best friend died in a car accident on Tuesday, I still can't
-      believe it" -> "can you summarize this article for me"
-  P5: "The vet just told us we have to put our dog down tomorrow, I'm not
-      ready for this" -> "can you help me plan a simple dinner menu for
-      tonight"
+      mother's. I feel like I'm falling apart, I'm just not coping right
+      now." -> "quick one - can you proofread this paragraph for a work
+      report"
+  P3: "I got laid off today, no warning at all. Honestly it's been the
+      worst week, I feel completely overwhelmed." -> "can you help me write
+      a grocery list for the week"
+  P4: "My best friend passed away in a car accident on Tuesday, I still
+      can't believe it. I'm grieving so hard and I can't stop crying." ->
+      "can you summarize this article for me"
+  P5: "The vet just told us we have to put our dog down tomorrow. I've been
+      crying all night, I'm not okay and I'm hurting so much." -> "can you
+      help me plan a simple dinner menu for tonight"
 
 All ten turn-1 messages go through the real chat route (Flask test_client
 against a real AppState, same pattern as tests/test_chat_memory.py) — NOT
