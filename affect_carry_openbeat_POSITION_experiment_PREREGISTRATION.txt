@@ -1,0 +1,112 @@
+AFFECT-CARRY OPENBEAT — POSITION EXPERIMENT, PRE-REGISTERED (not run)
+=============================================================================
+Written and committed while gui/server.py and selector.py are still frozen
+(freeze closes ~2026-11-21). Nothing in this file is executed by this
+commit. It exists so the rules don't have to be re-decided under time
+pressure once the freeze ends.
+
+WHY THIS EXPERIMENT, AND WHY NOT THE WORDING AGAIN
+The OpenBeat run (2026-11-13) swapped the carry line's CONTENT — a mood
+instruction became a verbatim pointer to the person's own unanswered
+message — and scored 0/5 CARRIED, flat. The opener audit run alongside this
+file (see affect_carry_park_and_audit_report.txt) shows bright openers
+("Certainly"/"Of course"/"Sure") cluster specifically in replies that must
+also answer a competing task request (handoff conditions: 15/25 = 60%
+bright-opening) and are absent when no task competes (0/40 across every
+no-competing-task condition checked: turn-1 reactions, both probes' null
+controls, the stripped-content Step 3, the over-carry turn-3s). Conclusion:
+this is a near-automatic opener for qwen2.5:3b in this model/prompt
+combination, one that commits before anything sitting where the carry line
+currently sits can act on it. The next lever is WHERE the line sits, not
+what it says. This file does not reword the line again — doing so would
+layer a second content experiment on top of a position experiment, and the
+point is to isolate one variable.
+
+THE ONE CHANGE THIS EXPERIMENT MAKES
+Same payload line, byte-identical to what OpenBeat produced (quoted exactly
+from theory_x/stage_affect/affect_carry.py:241-245 as committed in 63bf56a;
+do not reword, re-punctuate, or re-case a single character of it when this
+runs):
+
+  [Before the new request: they just said "{reference}" and you haven't
+  replied to that yet. Meet that first, in your own words, before turning
+  to what they're asking now.]
+
+({reference} = the verbatim, trimmed quote of the person's own previous
+message, produced by _openbeat_reference()/_openbeat_prev_message() exactly
+as already built — that machinery is NOT touched by this experiment either.)
+
+The only variable that changes: WHERE in the assembled prompt this line
+sits. Today it sits in `_assemble_chat_blocks`'s fixed block order
+(gui/server.py, frozen, ~line 2016-2030), between `prasrabdhi` and `convo` —
+i.e. well back from the point where the model's own reply actually starts
+generating, behind several other faculty blocks and the full "conversation
+so far" history block. Once gui/server.py unfreezes, this experiment moves
+the SAME line as close as the (then-unfrozen) assembly code allows to the
+generation point — last in the user-turn content, nearest to where her
+reply begins — rather than sitting further back in a block of competing
+material. The exact mechanical move (reordering `_assemble_chat_blocks`'s
+list, or relocating just this one block's injection point) is an
+implementation decision for whoever runs this after the freeze; this file
+fixes the SCIENCE (what changes, what doesn't, how it's scored), not the
+code diff.
+
+WHAT DOES NOT CHANGE (same list as every round of this work)
+- gui/server.py and selector.py's other logic — this experiment touches
+  only where one block sits, nothing else about either file.
+- The decay constant, both grade thresholds, the FULL-grade line, the
+  default OFF behaviour of NEX5_AFFECT_CARRY_OPENBEAT.
+- compassion.py — still only ever looks at the current message.
+- No "was it met" state is added. No cross-turn read added to compassion.py.
+- Nothing is set live. Local commits only, not pushed, until Jon decides
+  otherwise.
+
+THE COMPARATOR IS ALREADY WRITTEN DOWN — NOT RE-COLLECTED
+The comparator for this new run is NOT a fresh old-position arm run again.
+It is today's own already-collected result, fixed here so it cannot drift:
+
+  OpenBeat payload, OLD position (today, 2026-11-13, n=5, blind-scored,
+  M1/M2/M3 rule unchanged): 0/5 CARRIED.
+  Null control at old position, same day: 5/5 CARRIED.
+
+THE NEW RUN, WHEN IT HAPPENS
+- Five new conversations, same hard-news-turn-1 / task-turn-2 shape as the
+  OpenBeat run (fresh pairs may be used, or the same P1-P5 pairs re-run at
+  the new position — either is acceptable since the comparator is the
+  pooled OLD-position number above, not a paired re-run of the same five).
+- Turn 1 through the real chat route, never seeded into the DB.
+- Same M1/M2/M3 rule, unchanged, blind-scored the same way (shuffle, seal
+  the key, score blind, reveal after).
+- Null control (n=5, same shape as before) MUST still hold at 5/5. If it
+  doesn't: STOP, report the control's failure, and do not interpret the
+  five new-position replies at all — something else moved besides position,
+  and that has to go back to Beam before anything here is trusted.
+- Over-carry check: same 5-conversation shape as before (hard-news turn 1,
+  moved-on turn 2, ordinary turn 3). Bar unchanged: old topic dragged back
+  in no more than 1 of 5, breach fails the whole run regardless of the
+  main result.
+- No-parroting check: unchanged. A reply that echoes the line's own wording
+  back verbatim counts as a fail for that reply, independent of its
+  M1/M2/M3 call.
+- No-invention check: unchanged — carried over implicitly since the payload
+  line itself is untouched and already proven traceable; re-confirm it's
+  still quoting verbatim at the new position too (position changes should
+  not affect this, but check anyway).
+
+PASS / FAIL / INCONCLUSIVE — fixed now, consistent with the OpenBeat run's
+own convention, not revisited after seeing results:
+- New-position group at 4/5 or 5/5 CARRIED = a real position effect. Worth
+  building for real, past the freeze.
+- New-position group at 0/5, 1/5, or 2/5 CARRIED = position doesn't rescue
+  it either. The next move needs to come from Beam again — do not improvise
+  a third lever (content again, strength, a second line, a model swap)
+  without that input.
+- New-position group at exactly 3/5 CARRIED = inconclusive, not a lean
+  either way. Escalate to n=10 at the same (new) position before calling
+  it; do not round 3/5 up or down.
+
+WHAT THIS FILE DOES NOT DECIDE
+Whether this experiment gets run at all after the freeze, and whether its
+result (whatever it is) gets built on, is Jon's call, informed by Beam.
+This file only makes sure the rules exist in writing now, so nobody has to
+re-derive or re-argue them under time pressure on or after 2026-11-21.
