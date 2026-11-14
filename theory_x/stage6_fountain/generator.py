@@ -143,6 +143,36 @@ def _dominant_topic_terms(thoughts, df_frac: float = _CARRY_TOPIC_DF) -> list:
         return []
 
 
+# --- Topic Gate Shadow Instrument (NEX5_TOPIC_GATE_SHADOW, default OFF) -----
+# groove_facts.txt (2026-11-14) found NEX5_CARRY_TOPIC_GATE only ever looks at
+# PAST fire output (_recent_fire_topic_terms, below) -- it has no view of the
+# INPUT channels assembled for the fire about to run, including SOCIAL
+# (NEX5_SOCIAL_N, live in prod, zero dedup, re-reads sense_events fresh every
+# fire). Beam's ruling: don't bolt a check onto SOCIAL itself (local fix for a
+# global problem, contaminates SOCIAL's own live read); wire it one level up,
+# at fire assembly, where every input channel SOCIAL included is visible.
+# This is the shadow instrument ONLY -- telemetry, never a gate. It writes one
+# observation row per fire when the flag is on; it never blocks, replaces, or
+# suppresses anything, and it is a no-op (no table write, not even an import
+# of this constant) when the flag is off/absent, exactly like every other
+# shadow/log table in this file (fountain_prompt_blocks, emphasis_log).
+_TOPIC_GATE_SHADOW_ENV = "NEX5_TOPIC_GATE_SHADOW"
+# A set-containment ratio against NEX5_FOCUS_ROTATE's existing 0.30 threshold
+# shape was tried first and saturated at 1.0 on every fire in both the real
+# incident and a clean baseline alike (SOCIAL's ~15 words are almost always a
+# subset of a 700+-token pool drawn from 40+ fires, repetition or not -- see
+# _record_topic_gate_shadow below). This flag's threshold is instead compared
+# against a bounded per-fire ECHO FRACTION (what share of recent fire-outputs
+# share >=1 content token with SOCIAL's current text). NOT validated as a
+# firing threshold either -- that validation is this shadow instrument's
+# whole purpose; see topic_gate_shadow.txt Task 5 for the swept alternatives.
+_TOPIC_GATE_SHADOW_OVERLAP_THRESHOLD = 0.30
+
+
+def _topic_gate_shadow_on() -> bool:
+    return os.environ.get(_TOPIC_GATE_SHADOW_ENV) == "1"
+
+
 # NEX5_FRAME_DEDUP stock-phrase SEED — her observed register skeleton, the "costume of
 # insight" the register dokusan found (research dokusan_baseline_2026-10-07: DULL mean
 # 1.36, REGISTER-TEMPLATE on 64% of probes; fountain template rate 55%/last-40). FITTED
@@ -1040,6 +1070,16 @@ class FountainGenerator:
             self._social_n = int(_os_ovinit.environ.get('NEX5_SOCIAL_N','0'))
         except Exception:
             self._social_n = 0
+        # Topic Gate Shadow Instrument (NEX5_TOPIC_GATE_SHADOW, default OFF).
+        # Per-process history of recent SOCIAL contributions, kept SEPARATELY
+        # from fountain_events -- this is what lets the shadow's rolling view
+        # include SOCIAL (Task 3) without changing what SOCIAL itself reads
+        # or what NEX5_CARRY_TOPIC_GATE's own _recent_fire_topic_terms sees.
+        # In-memory, resets on restart (same honesty convention as groove.py's
+        # own fingerprint dedup) -- only ever read when the flag is on.
+        from collections import deque as _tgs_deque
+        self._topic_gate_shadow_social_history = _tgs_deque(maxlen=_CARRY_TOPIC_WINDOW)
+        self._topic_gate_shadow_chronic_vocab = None  # lazy, computed once
         self._evaluator = ReadinessEvaluator(
             conversations_reader=conversations_reader,
         )
@@ -1275,6 +1315,65 @@ class FountainGenerator:
                 f"fountain_prompt_blocks schema init failed: {e}",
                 source="stage6_fountain", exc=e,
             )
+
+        # Topic Gate Shadow Instrument (NEX5_TOPIC_GATE_SHADOW, default OFF).
+        # Telemetry only -- see the constants/helpers above _dominant_topic_terms
+        # and _record_topic_gate_shadow below. Table creation is unconditional
+        # (idempotent, harmless, same pattern as fountain_prompt_blocks above)
+        # but every WRITE into it is gated behind the flag, so this is a no-op
+        # in prod exactly like the rest of this file's shadow tables.
+        try:
+            self._dynamic_writer.write(
+                "CREATE TABLE IF NOT EXISTS topic_gate_shadow_log ("
+                "    id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                "    ts REAL NOT NULL,"
+                "    social_text TEXT,"
+                "    social_terms TEXT,"
+                "    rolling_terms_output_only TEXT,"
+                "    rolling_fire_count INTEGER,"
+                "    rolling_terms_with_social TEXT,"
+                "    full_context_terms TEXT,"
+                "    overlap_ratio REAL,"
+                "    would_fire INTEGER NOT NULL,"
+                "    groove_severity REAL"
+                ")"
+            )
+            self._dynamic_writer.write(
+                "CREATE INDEX IF NOT EXISTS idx_topic_gate_shadow_ts "
+                "ON topic_gate_shadow_log(ts)"
+            )
+        except Exception as e:
+            error_channel.record(
+                f"topic_gate_shadow_log schema init failed: {e}",
+                source="stage6_fountain", exc=e,
+            )
+
+        # Rare-dwell telemetry columns (groove_differential.txt, 2026-11-14;
+        # renamed from "focus-rotation shadow"/"detector_*" -- that naming
+        # read like a solved groove/repetition FIX, which 18 days of real
+        # data showed it is not, see _record_rare_dwell_telemetry's
+        # docstring), appended to the SAME topic_gate_shadow_log table from
+        # the round above rather than a new table. ADD COLUMN has no "IF NOT
+        # EXISTS" in SQLite, so each is wrapped individually and a
+        # "duplicate column" failure on restart is expected/harmless. (These
+        # column names never reached the live DB under their old names --
+        # confirmed by reading data/dynamic.db's live schema before this
+        # rename -- so this is a plain rename, not a migration.)
+        for _ddl in (
+            "ALTER TABLE topic_gate_shadow_log ADD COLUMN focal_item TEXT",
+            "ALTER TABLE topic_gate_shadow_log ADD COLUMN focal_streak INTEGER",
+            "ALTER TABLE topic_gate_shadow_log ADD COLUMN focal_repeat_rate_15 REAL",
+            "ALTER TABLE topic_gate_shadow_log ADD COLUMN rotation_stale_tokens TEXT",
+            "ALTER TABLE topic_gate_shadow_log ADD COLUMN rotation_would_trigger INTEGER",
+            "ALTER TABLE topic_gate_shadow_log ADD COLUMN rare_dwell_streak_flag INTEGER",
+            "ALTER TABLE topic_gate_shadow_log ADD COLUMN rare_dwell_rate_flag INTEGER",
+            "ALTER TABLE topic_gate_shadow_log ADD COLUMN corroboration_channel_count INTEGER",
+            "ALTER TABLE topic_gate_shadow_log ADD COLUMN rare_dwell_token_set TEXT",
+        ):
+            try:
+                self._dynamic_writer.write(_ddl)
+            except Exception:
+                pass  # column already exists from a prior start -- expected
 
     def _link_activation_to_event(self) -> None:
         """Backfill fountain_event_id on the latest drive_activations row."""
@@ -3618,6 +3717,13 @@ class FountainGenerator:
         # persona, written to sense as external.other_mind). Tests whether
         # responsive CONTACT lifts her — the engagement effect, the one robust
         # signal of the arc. Unlike continuity, this stream is NOT her own output.
+        #
+        # _social_captured_text (below): the exact text SOCIAL contributed to
+        # THIS fire, captured for the Topic Gate Shadow Instrument
+        # (NEX5_TOPIC_GATE_SHADOW) further down -- read-only observation of
+        # what SOCIAL fed in; this capture changes nothing about what SOCIAL
+        # itself reads, truncates, or injects above.
+        _social_captured_text = ""
         try:
             _soc_n = int(getattr(self, "_social_n", 0))
         except Exception:
@@ -3632,10 +3738,12 @@ class FountainGenerator:
                 )
                 if _soc_rows:
                     _soc_items = []
+                    _soc_payloads = []
                     for _r in _soc_rows:
                         _p = (_r["payload"] or "")[:200].strip().replace("\n", " ")
                         if _p:
                             _soc_items.append(f"  - {_p}")
+                            _soc_payloads.append(_p)
                     if _soc_items:
                         prompt_parts.append(
                             "SOCIAL: another mind has been responding to your recent "
@@ -3647,6 +3755,7 @@ class FountainGenerator:
                             "thinking. Compress into one thought that takes them up."
                         )
                         prompt_parts.append("")
+                        _social_captured_text = " ".join(_soc_payloads)
             except Exception:
                 pass
         # ───────────────────────────────────────────────────────────────────
@@ -4039,6 +4148,21 @@ class FountainGenerator:
         except Exception:
             self._last_prompt_blocks = []
 
+        # Topic Gate Shadow Instrument (NEX5_TOPIC_GATE_SHADOW, default OFF):
+        # read-only telemetry, recorded AFTER _prompt_text is final and BEFORE
+        # any further mutation (phrasing rotation below) -- same "observe,
+        # never alter" placement as the block-manifest capture just above.
+        self._record_topic_gate_shadow(_prompt_text, _social_captured_text)
+
+        # Rare-dwell telemetry (renamed from "focus-rotation shadow" in
+        # groove_differential.txt, 2026-11-14 -- the dwell/repetition
+        # hypothesis this measures was found NOT to separate the real
+        # incident from healthy behavior; see the method's own docstring).
+        # Read-only logging of what the EXISTING NEX5_FOCUS_ROTATE actuator
+        # independently decides for the NEXT fire. Never alters this fire.
+        # No-op when the (same) NEX5_TOPIC_GATE_SHADOW flag is off.
+        self._record_rare_dwell_telemetry()
+
         # L4 phrasing rotation (NEX5_PHRASING_ROTATE, default OFF): swap the item-referent
         # per fire so the opener frame can't lock in. OFF => _prompt_text byte-identical.
         if os.environ.get("NEX5_PHRASING_ROTATE") == "1":
@@ -4046,6 +4170,328 @@ class FountainGenerator:
                 _prompt_text, int(getattr(self, "_total_fires", 0)))
 
         return _prompt_text, retrieval_manifest
+
+    _SOCIAL_CHRONIC_DF_THRESHOLD = 0.10  # see _social_chronic_vocab's docstring
+
+    def _social_chronic_vocab(self) -> set:
+        """Content tokens appearing in >= _SOCIAL_CHRONIC_DF_THRESHOLD of
+        SOCIAL's own historical external.other_mind messages -- its persona's
+        stock conversational vocabulary ("think", "fascinating", ...), not
+        topical content. Computed once per process and cached (same
+        one-time-cost pattern as groove_breaker._initialize_cooldown);
+        read-only, queries sense_events only. Fail-safe: empty set on any
+        error, which just makes the shadow's overlap ratio equal the raw
+        (unfiltered) echo fraction again."""
+        if self._topic_gate_shadow_chronic_vocab is not None:
+            return self._topic_gate_shadow_chronic_vocab
+        vocab = set()
+        try:
+            from collections import Counter
+            from theory_x.stage6_fountain.crystallizer import _fidelity_tokens
+            rows = self._sense_reader.read(
+                "SELECT payload FROM sense_events WHERE stream = 'external.other_mind'"
+            ) if self._sense_reader is not None else []
+            n = len(rows or [])
+            if n >= 10:
+                df = Counter()
+                for r in rows:
+                    df.update(set(_fidelity_tokens((r["payload"] or "")[:200])))
+                thresh = self._SOCIAL_CHRONIC_DF_THRESHOLD * n
+                vocab = {tok for tok, c in df.items() if c >= thresh}
+        except Exception:
+            vocab = set()
+        self._topic_gate_shadow_chronic_vocab = vocab
+        return vocab
+
+    def _record_topic_gate_shadow(self, prompt_text: str, social_text: str) -> None:
+        """Topic Gate Shadow Instrument (NEX5_TOPIC_GATE_SHADOW, default OFF).
+        Read-only telemetry: records what a fire-assembly-layer topic gate
+        WOULD see and WOULD do if it had a view of every input channel for
+        this fire, SOCIAL's contribution included -- per groove_facts.txt's
+        finding that NEX5_CARRY_TOPIC_GATE's own _recent_fire_topic_terms
+        only ever sees past OUTPUT (fountain_events.thought), never the
+        INPUT blocks (SOCIAL among them) being assembled for the fire about
+        to run. Never blocks, replaces, or suppresses anything -- one INSERT,
+        same discipline as fountain_prompt_blocks/emphasis_log. No-op, not
+        even an extra query, when the flag is off."""
+        if not _topic_gate_shadow_on():
+            return
+        try:
+            from theory_x.stage6_fountain.crystallizer import _fidelity_tokens
+            now = time.time()
+
+            _rolling_rows = []
+            if self._dynamic_reader is not None:
+                _rolling_rows = self._dynamic_reader.read(
+                    "SELECT thought FROM fountain_events "
+                    "WHERE thought IS NOT NULL AND thought != '' "
+                    "ORDER BY id DESC LIMIT ?",
+                    (_CARRY_TOPIC_WINDOW,),
+                ) or []
+            _rolling_thoughts = [r["thought"] for r in _rolling_rows]
+
+            # The gate's EXISTING view: past output only, EXISTING pure
+            # function and EXISTING df>=0.40-of-40 threshold -- unchanged.
+            # Kept separately from the overlap-ratio metric below because
+            # replaying it (topic_gate_shadow.txt Task 4) found it comes back
+            # EMPTY on almost every real fire, incident included -- that
+            # threshold is tuned for a tighter, less-paraphrased rut than
+            # this one, so it is honest telemetry in its own right (shows
+            # the existing gate's own criterion, not just a new one).
+            rolling_terms_output_only = _dominant_topic_terms(_rolling_thoughts)
+
+            # Task 3: fold SOCIAL's contribution into a SEPARATE history
+            # (self._topic_gate_shadow_social_history) and recompute over
+            # output+SOCIAL combined -- the "one level up" view. Appends even
+            # an empty/unchanged read on purpose: SOCIAL repeating the same
+            # text fire after fire IS the signal this exists to surface.
+            self._topic_gate_shadow_social_history.append(social_text or "")
+            _social_hist = [t for t in self._topic_gate_shadow_social_history if t]
+            _combined_thoughts = _rolling_thoughts + _social_hist
+            rolling_terms_with_social = _dominant_topic_terms(_combined_thoughts)
+
+            _social_term_set = set(_fidelity_tokens(social_text))
+            social_terms = sorted(_social_term_set)
+            full_context_terms = sorted(set(_fidelity_tokens(prompt_text)))
+
+            # Overlap ratio for Tasks 2/4/5 -- two prior designs, both wrong,
+            # kept here as the record of why (topic_gate_shadow.txt Task 4/5
+            # has the numbers):
+            #   1. Set-containment against the full combined-window token
+            #      pool saturated at 1.0 on every fire in both the incident
+            #      and a clean baseline (SOCIAL's ~15 words are almost
+            #      always a subset of a 700+-token pool regardless of
+            #      repetition).
+            #   2. A raw per-fire echo fraction (share of the last
+            #      _CARRY_TOPIC_WINDOW fire-OUTPUTS sharing >=1 content
+            #      token with SOCIAL's text) was discriminative but
+            #      INVERTED -- it fired MORE on ordinary baseline fires than
+            #      on the real incident, because SOCIAL's persona has its
+            #      own chronic stock vocabulary ("think" in 38% of its
+            #      historical messages, "fascinating" in 27%, etc. --
+            #      queried below) that incidentally recurs in unrelated
+            #      fires just by being common English, not because
+            #      anything is actually looping. Exactly the disease
+            #      groove.py's _is_meaningful_fragment/_CHRONIC_GROOVE floor
+            #      was built to catch, applied to a freshly-found instance
+            #      of it. Fix: exclude SOCIAL's own chronic words from the
+            #      comparison before measuring echo.
+            _chronic = self._social_chronic_vocab()
+            _social_specific_terms = _social_term_set - _chronic
+            _echo_hits = 0
+            _echo_denom = 0
+            for _t in _rolling_thoughts:
+                _fire_terms = set(_fidelity_tokens(_t))
+                if not _fire_terms:
+                    continue
+                _echo_denom += 1
+                if _social_specific_terms and (_social_specific_terms & _fire_terms):
+                    _echo_hits += 1
+            overlap_ratio = (_echo_hits / _echo_denom) if _echo_denom else 0.0
+            would_fire = overlap_ratio >= _TOPIC_GATE_SHADOW_OVERLAP_THRESHOLD
+
+            groove_severity = None
+            try:
+                if self._beliefs_reader is not None:
+                    _gr = self._beliefs_reader.read_one(
+                        "SELECT MAX(severity) AS s FROM groove_alerts "
+                        "WHERE detected_at > ?",
+                        (now - 1800,),
+                    )
+                    groove_severity = (
+                        float(_gr["s"]) if _gr and _gr["s"] is not None else None
+                    )
+            except Exception:
+                groove_severity = None
+
+            self._dynamic_writer.write(
+                "INSERT INTO topic_gate_shadow_log "
+                "(ts, social_text, social_terms, rolling_terms_output_only, "
+                " rolling_fire_count, rolling_terms_with_social, "
+                " full_context_terms, overlap_ratio, would_fire, groove_severity) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (now, (social_text or "")[:300], json.dumps(social_terms),
+                 json.dumps(rolling_terms_output_only), len(_rolling_rows),
+                 json.dumps(rolling_terms_with_social),
+                 json.dumps(full_context_terms), overlap_ratio,
+                 int(would_fire), groove_severity),
+            )
+        except Exception as e:
+            error_channel.record(
+                f"topic_gate_shadow record failed: {e}",
+                source="stage6_fountain", exc=e,
+            )
+
+    # Data-derived thresholds (focus_rotation_shadow.txt Phase 1, 2026-11-14):
+    # computed from ~19 days / 4553 overlapping rolling-15-fire windows of real
+    # history. Picked from the genuinely-rare tail of THAT distribution (both
+    # occur in <7% of ordinary windows), NOT from the one investigated
+    # incident's own values (streak=4, rate=60%) -- those values turned out to
+    # be common (19.3% and 8.5% of ordinary windows respectively), so a
+    # threshold picked to match the incident would have fired constantly on
+    # healthy multi-fire engagement (e.g. a 10-fire streak on one real paper
+    # found in ordinary history). Logged honestly: these are deliberately
+    # conservative, and the real incident this investigation is about would
+    # NOT have crossed either one -- see the report's Phase 1 section.
+    _RARE_DWELL_STREAK_K = 6          # occurs in 6.4% of ordinary windows
+    _RARE_DWELL_RATE_BACKSTOP = 0.70  # occurs in 2.6% of ordinary windows
+
+    def _record_rare_dwell_telemetry(self) -> None:
+        """Rare-extreme-dwell telemetry (renamed from
+        _record_focus_rotation_shadow in groove_differential.txt,
+        2026-11-14 -- the old name read like a solved groove/repetition
+        FIX, which this is not). Read-only logging of an EXACT-identity
+        repetition measure (focal_item string match, counted once per fire
+        -- see module docstring on why no fuzzy/Jaccard/embedding measure is
+        used here) plus what the EXISTING NEX5_FOCUS_ROTATE actuator
+        (_stale_cluster_tokens, _on_stale, both unchanged) independently
+        decides for the next fire's candidate pool. Logs an observation;
+        drives nothing -- confirmed directly in this diff (not just
+        asserted): no code path anywhere in this file reads
+        rare_dwell_streak_flag, rare_dwell_rate_flag, or any other column
+        this method writes. The only thing that can ever change
+        NEX5_FOCUS_ROTATE's real candidate pool is _stale_cluster_tokens()
+        and _on_stale() themselves, both called here read-only and both
+        unmodified. This fire's own content and NEX5_FOCUS_ROTATE's live
+        flag are both untouched. No-op (no query, no write) when the flag
+        is off.
+
+        IMPORTANT, READ BEFORE ASSUMING THIS COVERS THE INCIDENT: this
+        instrument does NOT separate the 2026-11-10 incident from healthy
+        behavior. Checked against 18 days / 4553 real rolling 15-fire
+        windows (groove_differential.txt's predecessor,
+        focus_rotation_shadow.txt): the incident's own values (streak=4,
+        repeat-rate=60%) occur in 19.3% and 8.5% of ORDINARY windows
+        respectively -- common, not rare -- and the longest real streak
+        found anywhere in that history is 10 fires on one real paper, a
+        healthy deep-dive LONGER than the incident. The dwell/repetition
+        hypothesis this method measures was falsified as a fix for that
+        incident by that data, not just under-tuned. What this method DOES
+        do honestly: flag genuinely rare, extreme dwell (K=6 streak / 70%
+        rate, each occurring in <7% of ordinary windows) for its own sake,
+        which is real telemetry worth having -- just not an answer to the
+        incident that motivated building it.
+
+        Intended next step (NOT built this round, and per
+        groove_differential.txt now an open question rather than a settled
+        plan): if an item survives rotation and keeps recurring anyway,
+        that is when groove.py's existing, proven suppress-with-cooldown
+        shape might be extended to this exact-identity signal -- but see
+        groove_differential.txt for why dwell/repetition alone may be the
+        wrong axis entirely.
+        """
+        if not _topic_gate_shadow_on():
+            return
+        try:
+            current_item = getattr(self, "_last_focal_item", None)
+
+            _prior_rows = []
+            if self._dynamic_reader is not None:
+                _prior_rows = self._dynamic_reader.read(
+                    "SELECT focal_item FROM fountain_events "
+                    "WHERE hot_branch != 'quiescent' ORDER BY id DESC LIMIT 14"
+                ) or []
+            window = [current_item] + [r["focal_item"] for r in _prior_rows]
+
+            # consecutive streak ending at THIS fire (most recent first)
+            streak = 0
+            for it in window:
+                if it and it == current_item:
+                    streak += 1
+                else:
+                    break
+
+            from collections import Counter as _Counter
+            _present = [it for it in window if it]
+            if _present:
+                _top_item, _top_n = _Counter(_present).most_common(1)[0]
+                repeat_rate_15 = _top_n / len(window)
+            else:
+                repeat_rate_15 = 0.0
+
+            # What the EXISTING rotation actuator would decide -- same call
+            # the live NEX5_FOCUS_ROTATE branch makes, read-only, unchanged.
+            try:
+                _stale = _stale_cluster_tokens()
+            except Exception:
+                _stale = None
+            rotation_would_trigger = _stale is not None
+
+            rare_dwell_streak_flag = streak >= self._RARE_DWELL_STREAK_K
+            rare_dwell_rate_flag = (
+                repeat_rate_15 >= self._RARE_DWELL_RATE_BACKSTOP
+            )
+
+            # What NEX5_FOCUS_ROTATE's OWN exclusion predicate (_on_stale,
+            # unchanged) would exclude from the NEXT fire's candidate pool IF
+            # it were driven by THIS detector's decision instead of its own,
+            # much stricter, independent staleness check above -- this is
+            # "what the rotation would pick instead" in token form, since no
+            # live candidate pool is available at this logging point (that
+            # pool is built inside the separate _select_wide_mode call, which
+            # has already run for THIS fire by the time _build_prompt reaches
+            # here). Logged only when the detector actually triggers.
+            rare_dwell_token_set = None
+            if (rare_dwell_streak_flag or rare_dwell_rate_flag) and current_item:
+                rare_dwell_token_set = sorted(_dedup_tokens(current_item))
+
+            # Corroboration (Phase 1.4): does this fire's OWN item also show
+            # up, around the same time, via a second distinct tracked
+            # retrieval channel (world_bridge_log)? A fire touched by >1
+            # legitimate channel must count once, not as extra "repeats" --
+            # logged separately here, never folded into streak/rate above.
+            corroboration_channel_count = 0
+            try:
+                if current_item and self._beliefs_reader is not None:
+                    now = time.time()
+                    _wb_rows = self._beliefs_reader.read(
+                        "SELECT selected_events_json FROM world_bridge_log "
+                        "WHERE ts BETWEEN ? AND ?",
+                        (now - 600, now + 1),
+                    ) or []
+                    _key_words = [w for w in current_item.lower().split()
+                                  if len(w) > 4][:6]
+                    _streams = set()
+                    if _key_words:
+                        for _r in _wb_rows:
+                            try:
+                                _evs = json.loads(_r["selected_events_json"])
+                            except Exception:
+                                continue
+                            for _e in _evs:
+                                _txt = (_e.get("formatted_text") or "").lower()
+                                if sum(1 for w in _key_words if w in _txt) >= max(2, len(_key_words) // 2):
+                                    _streams.add(_e.get("stream"))
+                    corroboration_channel_count = len(_streams)
+            except Exception:
+                corroboration_channel_count = 0
+
+            # INSERT (not UPDATE-by-MAX(id)): this must not depend on, or be
+            # able to corrupt, whatever row _record_topic_gate_shadow did or
+            # didn't just write -- the two instruments stay independently
+            # correct even if one of them hits its own except branch.
+            # would_fire is this table's one pre-existing NOT NULL column
+            # with no default; 0 here just means "not a topic-gate-overlap
+            # row", not a real would-fire=False observation.
+            self._dynamic_writer.write(
+                "INSERT INTO topic_gate_shadow_log "
+                "(ts, would_fire, focal_item, focal_streak, focal_repeat_rate_15, "
+                " rotation_stale_tokens, rotation_would_trigger, "
+                " rare_dwell_streak_flag, rare_dwell_rate_flag, "
+                " corroboration_channel_count, rare_dwell_token_set) "
+                "VALUES (?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (time.time(), current_item, streak, repeat_rate_15,
+                 json.dumps(sorted(_stale)) if _stale else None,
+                 int(rotation_would_trigger),
+                 int(rare_dwell_streak_flag), int(rare_dwell_rate_flag),
+                 corroboration_channel_count,
+                 json.dumps(rare_dwell_token_set) if rare_dwell_token_set else None),
+            )
+        except Exception as e:
+            error_channel.record(
+                f"rare_dwell_telemetry record failed: {e}",
+                source="stage6_fountain", exc=e,
+            )
 
     @staticmethod
     def _prompt_block_manifest(prompt_text: str) -> list:
