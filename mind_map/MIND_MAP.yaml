@@ -180,14 +180,15 @@ nodes:
     arm: prices
     factor: vedana
     role_note: "The tone attached to a moment: pleasant / unpleasant / neutral."
-    build_difficulty: tractable
-    sketch: "Real mechanism exists (AffectState._compute_valence_delta, generator.py's _valence_reach) -- the original probe numbers were unsupported and were retracted. Remaining work is re-measuring valence variance for real against live content, not building new code."
-    evidence: static
-    dark: true
+    build_difficulty: shipped
+    sketch: "Falsifier run and PASSED 2026-11-15 against the real live log -- the original fabricated
+      0.73/constant claim is now definitively retracted, not just unsupported. See notes."
+    evidence: measured
+    dark: false
     blocked: false
-    probe: { valence_delta: 0.73, variance: "~0 (constant)" }
+    probe: { valence_delta_samples: 35, distinct_values: 12, min: 0.0219, max: 0.2237, source: "/tmp/nex5_affect_state.log" }
     falsifier: "A price that is constant is not a price. Valence should vary with content."
-    falsifier_status: unrun
+    falsifier_status: pass
     source: { kind: composite, refs: ["theory_x/stage_affect/affect_state.py:331-360", "theory_x/stage6_fountain/generator.py:617-652"] }
     last_verified: 2026-11-15
     notes: >
@@ -210,6 +211,18 @@ nodes:
       summary field, not the raw valence_delta this node cites, so it doesn't resolve the falsifier
       either way -- but it's the same shape of worry the original 0.73-constant claim raised, and
       worth a real dev round of its own rather than treating this citation-fix as having settled it.
+
+      Dev round, 2026-11-15 (same day, deeper): found the right signal -- /tmp/nex5_affect_state.log,
+      a dedicated log AffectState writes on every tick (affect_state.py:306), carrying the raw
+      valence_delta this node actually cites (self_state_history's "engaged joy" label was the wrong
+      field, see above). All 35 real entries: 12 DISTINCT values, ranging 0.0219 to 0.2237 -- a ~10x
+      spread, not a constant. Values repeat in blocks (e.g. five ticks at 0.0576, then a jump) before
+      shifting -- exactly the pattern expected from "confidence-weighted sentiment over the current
+      top-tier belief set": stable while that set is stable, moves when it changes. PASS. Also
+      corrects dark:true -> dark:false: the log's most recent entries are from minutes before this
+      check, so the mechanism is confirmed live right now, not merely built. The original fabricated
+      0.73/variance~0 claim is now definitively retracted by real data, not just unsupported by a
+      missing citation.
 
   - id: mana
     label: "māna — self-conceit"
@@ -480,14 +493,34 @@ nodes:
     factor: kaukratya
     role_note: "Reads back a committed entry and re-prices it. The reader Phase D needs."
     build_difficulty: tractable
-    sketch: "The substrate this needs already exists and is built: held_tensions (p9_dissonance/harmonizer.py). kaukṛtya itself would be a read that reopens an already-held entry for re-pricing -- the storage and the 'held, not settled' state already exist; what's missing is specifically the re-opening read function. Bounded build, reusing an existing data model rather than inventing one."
+    sketch: "Dev round 2026-11-15 precisely scoped what's missing. held_tensions already has three
+      resolution paths; kaukṛtya's specific contribution -- re-pricing on NEW evidence, not basis-
+      disappeared or staleness -- is the one path none of them cover. See notes for the exact gap."
     evidence: static
     dark: false
     blocked: false
     falsifier: "Should re-open a past entry rather than leave it settled."
     falsifier_status: unrun
-    source: { kind: absent, claim: "unbuilt-open", check: "grep -rnE '\\bkaukratya\\b|NEX5_KAUKRATYA|NEX5_REGRET' --include=*.py --include=*.md ." }
-    last_verified: 2026-11-09
+    source: { kind: composite, refs: ["theory_x/stage3_world_model/harmonizer.py:485-545", "substrate/schema/dynamic.sql:151-159"] }
+    last_verified: 2026-11-15
+    notes: >
+      Dev round, 2026-11-15: read harmonizer.py's actual resolution paths over held_tensions to
+      scope the gap precisely rather than leave "the read function is missing" vague. Three paths
+      exist today: sweep_resolved_tensions() closes a tension when its basis LEAVES the pool
+      ('belief_left_pool') or it simply AGES past _TENSION_STALE_DAYS ('stale_retention');
+      retry_bridge_for_tensions() periodically re-attempts a synthesis bridge ('bridge_found'). None
+      of the three re-opens a tension because NEW EVIDENCE arrived that bears on it -- all three are
+      either passive expiry or a fixed retry, not a reader triggered by incoming information. That
+      is precisely kaukṛtya's own distinction: "reads back a committed entry and re-prices it" is
+      evidence-driven re-evaluation, not time-driven cleanup.
+
+      Schema confirms nothing needs inventing: held_tensions (belief_id_a, belief_id_b, created_at,
+      resolved_at, resolved_reason) already has everything a fourth resolution path would need --
+      a kaukṛtya pass would read open tensions, check whether anything written since created_at
+      actually bears on either belief_id, and re-price (resolve, or leave open with updated
+      standing) based on that, logged as a new resolved_reason value. The hook point and the schema
+      are both ready; the trigger condition (what counts as "new evidence bearing on this tension")
+      is the one piece that still needs designing, not discovering.
     notes: "Unbuilt-open, confirmed. If D needs a reader that returns to a settled entry, this is the
       factor name for it -- but note Phase D (p9_dissonance) is itself already built (harmonizer.py
       held_tensions, see that node); kaukratya would be a re-opening READ over an already-held
@@ -745,16 +778,23 @@ nodes:
     layer: ring
     property: "7"
     role_note: "Not the tone (vedanā) — the aboutness of what carries the tone."
-    build_difficulty: tractable
-    sketch: "Inferred from vedanā; resolves automatically once vedanā's own valence-variance is re-measured for real."
-    evidence: static
+    build_difficulty: shipped
+    sketch: "Resolved 2026-11-15, inferred from vedanā's now-passed falsifier. See notes."
+    evidence: inferred
     dark: false
     blocked: false
     falsifier: "A constant +0.73 is the signature of no aboutness at all."
-    falsifier_status: fail
+    falsifier_status: pass
     source: { kind: inferred, from: vedana }
-    last_verified: 2026-11-09
-    notes: "inferred from vedana's constant +0.73; the ring node is the property, vedanā is the factor that fails to carry it."
+    last_verified: 2026-11-15
+    notes: >
+      Original verdict (fail) rested entirely on the now-retracted +0.73-constant claim.
+      vedanā's own dev round, 2026-11-15, found 12 distinct real valence_delta values (0.0219 to
+      0.2237) over 35 ticks, driven by the actual current top-tier belief set -- not just
+      non-constant, but constant SPECIFICALLY because of which beliefs are weighted in, which moves
+      when that set moves. That is aboutness: the tone is about particular belief content, not a
+      free-floating number. Flips to pass on the same evidence, inferred the same way the original
+      fail was inferred from the opposite (fabricated) claim.
 
   - id: p10_thickness
     label: "10 · Temporal thickness"
