@@ -227,10 +227,36 @@ nodes:
     falsifier: "Should carry an object forward without the object being re-presented."
     falsifier_status: unrun
     source: { kind: absent, claim: "no location yet pinned", check: "grep -rn 'smrti\\|NEX5_SMRTI' --exclude-dir=.venv --exclude-dir=__pycache__ --include=*.py ." }
-    last_verified: 2026-11-09
-    notes: "The factor that gives Property 8 a home; the store itself is substrate — see p8_episodic.
+    last_verified: 2026-11-15
+    notes: >
+      The factor that gives Property 8 a home; the store itself is substrate — see p8_episodic.
       Check tightened 2026-11-09 to exclude .venv (the un-excluded grep was matching third-party
-      packages, not this repo); confirmed genuinely absent once excluded."
+      packages, not this repo); confirmed genuinely absent once excluded.
+
+      Dev round, 2026-11-15: re-confirmed absent (grep unchanged), then traced
+      FountainGenerator.generate() (theory_x/stage6_fountain/generator.py:1596-2554, the only
+      place a candidate is selected and later committed via self._crystallizer.crystallize() at
+      :2515) looking for a real within-moment retention mechanism -- an object selected early in
+      one fire and carried, un-re-presented, to that fire's own commit.
+
+      One plausible candidate found and ruled out: self._last_focal_item (read as _fire_focal at
+      :2327, passed to crystallize() at :2521). Its own docstring (_associative_recall,
+      :2900-2904) states directly why it cannot be this fire's retention: "the current fire's
+      item is not chosen until AFTER retrieval ... so associating on the current item would need
+      a two-phase retrieval restructure." It is explicitly the PRIOR fire's focal item, carried
+      fire-to-fire (closer kin to p2_train/associative recall than to smrti) -- not this node's
+      within-moment factor. Architectural necessity, not a naming accident.
+
+      The only genuine within-moment carry found is ordinary: hot_branch (selected :2178, passed
+      unchanged to crystallize() at :2520, ~340 lines later in the same call) survives as a plain
+      local variable without being re-queried. Technically satisfies the falsifier's literal
+      wording, but it is Python scoping, not a dedicated, callable faculty the way every sibling
+      dark/implemented node in this map is (amoha, karuṇā, etc. are named modules someone built
+      for the purpose) -- calling ordinary variable lifetime "evidence" of a retention factor
+      would be exactly the kind of unconditional, uninformative claim the mana/prices_void finding
+      already warns against. Evidence stays `unknown`, still genuinely absent -- this round
+      upgrades WHY, and rules out the one candidate a future pass would otherwise re-discover and
+      re-waste time on.
 
   - id: virya
     label: "vīrya — joyous effort"
