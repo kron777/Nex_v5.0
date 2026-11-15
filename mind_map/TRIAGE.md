@@ -1,9 +1,10 @@
-## SHIPPED, CONFIRMED -- falsifier passed, the gap is actually closed (12)
+## SHIPPED, CONFIRMED -- falsifier passed, the gap is actually closed (13)
   - upekṣā — equanimity: Built, live, and the falsifier already passes. Most mature node in the prices arm.
   - apramāda — conscientiousness: Built (apramada.py), falsifier passes -- preserves deferred cost under immediate pressure.
   - alobha — non-attachment: Built and falsifier-confirmed at the unit level (test_gripped_candidate_loses). Flag is correctly off live, so this is test-verified, not live-observed.
   - vedanā — feeling-tone: Falsifier run and PASSED 2026-11-15 against the real live log -- the original fabricated 0.73/constant claim is now definitively retracted, not just unsupported. See notes.
   - dṛṣṭi — fixed view: Dev round 2026-11-15 found a real, live, unconditional mechanism -- keystone.py's locked=1 Tier-1 beliefs, systematically excluded from the reconciler/consolidation pipeline. See notes for the important scope caveat (narrow and deliberate, not broad and pathological).
+  - kaukṛtya — regret: Built, dark, tested, 2026-11-15 -- reprice_tensions_on_new_evidence() fills exactly the gap this round scoped out. No live held_tensions data exists yet (flag off), so the falsifier was proven by test, not live observation -- same status as Phase D itself at ship.
   - vitarka — applied thought: Dev round 2026-11-15 found a real, firing-confirmed mechanism: 'wide mode' explicitly records the focal item it is about to engage. Scoped to wide-mode fires only, not every fire.
   - vicāra — sustained thought: Dev round 2026-11-15 found the exact counterpart to vitarka's new finding: self._last_focal_item survives fire-to-fire and feeds real retrieval in the next one.
   - 2 · Train of thought across restart: Real, live, and confirmed working across 5 real boots. Most mature of this round's checks.
@@ -31,9 +32,8 @@
   - amoha — discernment / non-delusion: Built (amoha_detector.py). Falsifier already run and FAILED -- fires only under forced injection, never organically. Remaining work is organic-trigger tuning, not fresh design.
   - 1 · Continuity of self: The cited anchor doesn't serve this directive at all -- corrected 2026-11-15, see notes. The real protection is architectural/preventive (the supervisor's single-instance flock), not a detector, and no 'fail loudly' mechanism exists or is even consistent with the substrate's own design philosophy.
 
-## TRACTABLE -- open, mechanism sketched, hook point known (2)
+## TRACTABLE -- open, mechanism sketched, hook point known (1)
   - smṛti — retention: Directive is crisp and the hook point is known precisely (generate()'s candidate-to-crystallize() path, generator.py:1596-2554); the one plausible candidate found was ruled out for a documented reason. A real build is threading the actual selected item through unmodified to crystallize(), verifiable against a clear falsifier -- engineering work, not an unsolved design question.
-  - kaukṛtya — regret: Dev round 2026-11-15 precisely scoped what's missing. held_tensions already has three resolution paths; kaukṛtya's specific contribution -- re-pricing on NEW evidence, not basis- disappeared or staleness -- is the one path none of them cover. See notes for the exact gap.
 
 ## UNCLEAR -- open, no credible mechanism designed yet (3)
   - vicikitsā — doubt: 2026-11-15 dev round found no real within-moment commit-refusal mechanism; the one adjacent candidate (NEX5_ABSTAIN_CLOSE) serves a different, cross-moment directive. A real build needs a new 'hold this candidate uncommitted' path in the crystallizer -- does an uncommitted entry get stored provisionally, or just dropped and left re-derivable? Nobody has designed that shape yet.

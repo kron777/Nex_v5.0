@@ -561,6 +561,82 @@ class Harmonizer:
             bridged += 1
         return bridged
 
+    def reprice_tensions_on_new_evidence(self, now: Optional[float] = None) -> int:
+        """kaukṛtya dev round (2026-11-15): a held tension previously only closed
+        three ways -- its basis left the pool ('belief_left_pool'), it aged past
+        _TENSION_STALE_DAYS ('stale_retention'), or a bridge was found
+        (retry_bridge_for_tensions, 'bridge_found'). All three are time-driven or
+        a fixed retry; none of them ever looks at whether something NEW, written
+        since the tension opened, actually bears on it. That is kaukṛtya's own
+        distinction -- "reads back a committed entry and re-prices it" is
+        evidence-driven reconsideration, not expiry or retry.
+
+        Re-opens an open tension the moment a belief relevant to EITHER side
+        shows up after the tension's created_at, handing it back to ordinary
+        reconciliation on its own next pass rather than leaving it frozen until
+        it ages out or its basis vanishes. Does not compute a new verdict here
+        -- re-pricing means un-freezing, not re-deciding.
+
+        "Relevant" reuses the exact token-overlap test _find_synthesis_candidate
+        already applies (>=2 shared tokens) -- but against EITHER side rather
+        than both: a bridge must touch both beliefs, while a single new belief
+        bearing on either side of the tension is enough to warrant a re-look.
+        Resolves with reason 'new_evidence'.
+
+        Call this alongside sweep_resolved_tensions/retry_bridge_for_tensions in
+        the same pass (see decay()'s docstring). Like them, has no explicit
+        NEX5_HELD_TENSION check of its own -- with the flag off, no rows ever
+        get written to held_tensions in the first place, so there is nothing
+        for this to find regardless."""
+        now = now if now is not None else time.time()
+        try:
+            rows = self._dynamic_reader.read(
+                "SELECT id, belief_id_a, belief_id_b, created_at FROM held_tensions "
+                "WHERE resolved_at IS NULL"
+            )
+        except Exception as exc:
+            errors.record(f"reprice_tensions_on_new_evidence read error: {exc}",
+                          source=_LOG_SOURCE, exc=exc)
+            return 0
+        repriced = 0
+        for r in rows:
+            a_id, b_id, created_at = r["belief_id_a"], r["belief_id_b"], r["created_at"]
+            if not (self._still_eligible(a_id) and self._still_eligible(b_id)):
+                continue  # sweep_resolved_tensions' job, not this one's
+            try:
+                row_a = self._beliefs_reader.read_one(
+                    "SELECT content FROM beliefs WHERE id = ?", (a_id,))
+                row_b = self._beliefs_reader.read_one(
+                    "SELECT content FROM beliefs WHERE id = ?", (b_id,))
+            except Exception as exc:
+                errors.record(f"reprice_tensions_on_new_evidence belief read error: {exc}",
+                              source=_LOG_SOURCE, exc=exc)
+                continue
+            if row_a is None or row_b is None:
+                continue
+            tokens_a = _tokenize(row_a["content"])
+            tokens_b = _tokenize(row_b["content"])
+            try:
+                candidates = self._beliefs_reader.read(
+                    "SELECT id, content FROM beliefs WHERE id NOT IN (?, ?) "
+                    "AND created_at > ? AND paused = 0 AND tier <= 5 LIMIT 50",
+                    (a_id, b_id, created_at),
+                )
+            except Exception as exc:
+                errors.record(f"reprice_tensions_on_new_evidence candidate read error: {exc}",
+                              source=_LOG_SOURCE, exc=exc)
+                continue
+            new_evidence = False
+            for c in candidates:
+                c_tokens = _tokenize(c["content"])
+                if len(c_tokens & tokens_a) >= 2 or len(c_tokens & tokens_b) >= 2:
+                    new_evidence = True
+                    break
+            if new_evidence:
+                self._resolve_tension(r["id"], "new_evidence")
+                repriced += 1
+        return repriced
+
     def _log_retired(self, a: int, b: int, how: str) -> None:
         """Retirement unpauses both and moves them to tier 8 (the weakest) -- a
         demotion that never stamps last_demoted_at, so only the log sees it."""

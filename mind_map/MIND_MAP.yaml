@@ -257,11 +257,11 @@ nodes:
       is tested, nothing in the live loop invokes it). Same correction class as several 2026-11-09
       entries elsewhere in this map, just running the other direction -- there it was "absent" that
       turned out to be built; here it's "live" that turned out to be dark.
-    notes: "Correction, 2026-11-09: real location is mana_detector.py (self-inflation / conceit
-      detector, sibling of amoha_detector.py). No NEX5_MANA flag exists in nex_config.py -- unlike
-      amoha_detector (NEX5_AMOHA-gated), this detector appears to run as an always-on read-only
-      sidecar, which would be consistent with the node's 'fires every turn' claim, but I did not
-      run a live probe to confirm cadence -- downgraded evidence measured->static accordingly."
+
+      (Correction, 2026-11-09, carried forward: real location is mana_detector.py, self-inflation/
+      conceit detector, sibling of amoha_detector.py -- confirmed still accurate. No NEX5_MANA flag
+      exists in nex_config.py; the hypothesis that it ran as an always-on sidecar regardless is the
+      claim the 2026-11-15 round above tested directly and found false.)
 
   - id: vicikitsa
     label: "vicikitsā — doubt"
@@ -492,16 +492,17 @@ nodes:
     arm: readers
     factor: kaukratya
     role_note: "Reads back a committed entry and re-prices it. The reader Phase D needs."
-    build_difficulty: tractable
-    sketch: "Dev round 2026-11-15 precisely scoped what's missing. held_tensions already has three
-      resolution paths; kaukṛtya's specific contribution -- re-pricing on NEW evidence, not basis-
-      disappeared or staleness -- is the one path none of them cover. See notes for the exact gap."
-    evidence: static
-    dark: false
+    build_difficulty: shipped
+    sketch: "Built, dark, tested, 2026-11-15 -- reprice_tensions_on_new_evidence() fills exactly
+      the gap this round scoped out. No live held_tensions data exists yet (flag off), so the
+      falsifier was proven by test, not live observation -- same status as Phase D itself at ship."
+    evidence: implemented
+    dark: true
     blocked: false
     falsifier: "Should re-open a past entry rather than leave it settled."
-    falsifier_status: unrun
-    source: { kind: composite, refs: ["theory_x/stage3_world_model/harmonizer.py:485-545", "substrate/schema/dynamic.sql:151-159"] }
+    falsifier_status: pass
+    probe: { tests: "tests/test_reprice_tensions_on_new_evidence.py", new_tests: 6, regression_suite: "29 pre-existing held_tensions/harmonizer tests, unchanged" }
+    source: { kind: composite, refs: ["theory_x/stage3_world_model/harmonizer.py:485-545", "theory_x/stage3_world_model/harmonizer.py:563-634", "tests/test_reprice_tensions_on_new_evidence.py:1-30", "substrate/schema/dynamic.sql:151-159"] }
     last_verified: 2026-11-15
     notes: >
       Dev round, 2026-11-15: read harmonizer.py's actual resolution paths over held_tensions to
@@ -521,12 +522,27 @@ nodes:
       standing) based on that, logged as a new resolved_reason value. The hook point and the schema
       are both ready; the trigger condition (what counts as "new evidence bearing on this tension")
       is the one piece that still needs designing, not discovering.
-    notes: "Unbuilt-open, confirmed. If D needs a reader that returns to a settled entry, this is the
-      factor name for it -- but note Phase D (p9_dissonance) is itself already built (harmonizer.py
-      held_tensions, see that node); kaukratya would be a re-opening READ over an already-held
-      tension, which nothing implements yet. Check tightened 2026-11-09: dropped bare 'regret' as a
-      search term -- it is ordinary English ('lowest-regret') and matched unrelated prose even with
-      word boundaries; the factor name plus plausible flag names is the honest test."
+
+      (2026-11-09, search-term note carried forward: dropped bare 'regret' as a search term when
+      first confirming absence -- it is ordinary English ('lowest-regret') and matched unrelated
+      prose even with word boundaries; the factor name plus plausible flag names is the honest test.)
+
+      BUILT, 2026-11-15, same round: Harmonizer.reprice_tensions_on_new_evidence()
+      (harmonizer.py, right after retry_bridge_for_tensions) implements exactly the gap above --
+      reads open held_tensions, reuses _find_synthesis_candidate's own token-overlap test (>=2
+      shared tokens) against EITHER side (not both, since a single new belief bearing on either
+      side warrants a re-look, unlike a bridge which must touch both), restricted to beliefs with
+      created_at > the tension's own created_at so pre-existing content never counts as "new."
+      Resolves with reason 'new_evidence' -- un-freezes the tension for ordinary reconciliation
+      rather than computing a verdict itself. No new flag: same convention as its two siblings,
+      no explicit NEX5_HELD_TENSION check of its own, since nothing exists in held_tensions for it
+      to find while that flag is off. 6 new tests (tests/test_reprice_tensions_on_new_evidence.py):
+      new evidence correctly reprices; no evidence leaves it open; evidence PREDATING the tension
+      does not count (the created_at > filter, the one correctness-critical edge); multiple
+      tensions processed independently; an ineligible side is skipped, not force-resolved (that
+      stays sweep_resolved_tensions' job); flag-off is a harmless no-op. All pass, plus the full
+      pre-existing held_tensions/harmonizer suite (29 tests) re-run clean, confirming no
+      regression -- this is purely additive, no existing line changed.
 
   # ──────────────────────────── CONSUMERS ───────────────────────────
   - id: p6_unified_present
