@@ -193,13 +193,36 @@ nodes:
     arm: prices
     factor: vicikitsa
     role_note: "Refuses to set a price: holds the entry uncommitted."
+    directive: { from: "a candidate entry is about to be priced for this moment", to: "pricing is refused; the entry is held uncommitted rather than priced either way" }
     evidence: unknown
     dark: false
     blocked: false
     falsifier: "Declined as a detector. Would only inject a prompt line (voice-level)."
     falsifier_status: na
     source: { kind: absent, claim: "absent root — not built", check: "grep -rn 'vicikitsa' --include=*.py --include=*.md ." }
-    last_verified: 2026-11-09
+    last_verified: 2026-11-15
+    notes: >
+      Dev round, 2026-11-15: re-confirmed absent (grep unchanged). Traced the one
+      architecturally-adjacent, real, ARMED mechanism before concluding that: NEX5_ABSTAIN_CLOSE
+      (theory_x/stage6_fountain/generator.py:2004-2022). It pattern-matches a generated thought's
+      own text for doubt-language ("i don't know", "cannot determine", "no clear answer") and,
+      after >=10 such outputs against the same self-posed problem, calls
+      self._problem_memory.close(problem_id) -- abandons a stalled long-running question.
+
+      Ruled out as vicikitsā's home, same "right neighborhood, wrong directive" shape as smrti's
+      _last_focal_item: its A is "a long-running problem has drawn doubt-language >=10 times",
+      its B is "the problem is closed" -- a cross-moment giveup mechanism over problem_memory
+      (problem_memory.py:204's close(problem_id) takes a persistent id, not a single moment's
+      candidate). vicikitsā's own directive is about THIS moment's candidate never being priced at
+      all, win or lose -- a within-moment refusal, not a multi-moment abandonment after repeated
+      doubt. Distinct mechanisms; this one does not satisfy the falsifier's "declined as a
+      detector" framing either (it is a real, live, armed detector -- just answering a different
+      question than vicikitsā asks).
+
+      Still genuinely absent for vicikitsā's actual directive. The "declined as a detector" note is
+      itself worth keeping -- the original design call (prompt-level injection only) was never
+      implemented even at that reduced scope, and no stronger candidate surfaced in this round's
+      search.
 
   - id: drsti
     label: "dṛṣṭi — fixed view"
