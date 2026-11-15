@@ -333,13 +333,28 @@ def emit_dot(doc: dict) -> str:
 
 
 def emit_triage(doc: dict) -> str:
-    groups: dict[str, list] = {k: [] for k in BUILD_DIFFICULTY}
-    groups["untriaged"] = []
+    # "shipped" means code exists claiming the aspect -- it does NOT mean the gap between
+    # the aspect and that code is actually closed. Split by falsifier_status so a passed,
+    # confirmed node (the gap is actually closed) doesn't read the same as an unrun or
+    # failed one (the gap's status is unknown, or known still open) wearing the same label.
+    SHIPPED_SPLIT = {
+        "pass": "shipped/confirmed",
+        "fail": "shipped/contradicted",
+        "unrun": "shipped/claimed",
+        "na": "shipped/dormant",
+    }
+    groups: dict[str, list] = {}
     for n in doc["nodes"]:
-        groups.setdefault(n.get("build_difficulty") or "untriaged", []).append(n)
-    order = list(BUILD_DIFFICULTY) + ["untriaged"]
+        bd = n.get("build_difficulty") or "untriaged"
+        key = SHIPPED_SPLIT.get(n["falsifier_status"], bd) if bd == "shipped" else bd
+        groups.setdefault(key, []).append(n)
+    order = (["shipped/confirmed", "shipped/claimed", "shipped/dormant", "shipped/contradicted"]
+             + [k for k in BUILD_DIFFICULTY if k != "shipped"] + ["untriaged"])
     titles = {
-        "shipped": "SHIPPED -- built (dark or live); remaining work is arming/measuring",
+        "shipped/confirmed": "SHIPPED, CONFIRMED -- falsifier passed, the gap is actually closed",
+        "shipped/claimed": "SHIPPED, CLAIMED -- code exists, falsifier unrun, gap status unknown",
+        "shipped/dormant": "SHIPPED, DORMANT -- deliberately disarmed, no falsifier currently applicable",
+        "shipped/contradicted": "SHIPPED, CONTRADICTED -- falsifier FAILED, the gap is still open",
         "tractable": "TRACTABLE -- open, mechanism sketched, hook point known",
         "unclear": "UNCLEAR -- open, no credible mechanism designed yet",
         "gorge": "GORGE -- reasoned to have no satisfiable path",

@@ -1,13 +1,13 @@
-## SHIPPED -- built (dark or live); remaining work is arming/measuring (20)
-  - amoha — discernment / non-delusion: Built (amoha_detector.py). Falsifier already run and FAILED -- fires only under forced injection, never organically. Remaining work is organic-trigger tuning, not fresh design.
-  - karuṇā — compassion: Built (compassion.py). Falsifier unrun -- remaining work is probing uptake in unprompted turns, not building.
+## SHIPPED, CONFIRMED -- falsifier passed, the gap is actually closed (4)
   - upekṣā — equanimity: Built, live, and the falsifier already passes. Most mature node in the prices arm.
   - apramāda — conscientiousness: Built (apramada.py), falsifier passes -- preserves deferred cost under immediate pressure.
+  - 9 · Dissonance (vicikitsā's degenerate form): Built, 39 tests, harmonizer.py held_tensions. Known remaining gap is one level up (SENTIENCE_SYNTHESIS.md §9's full ledger primitives), not this node itself.
+  - 8 · Episodic / autobiographical memory: Built, falsifier run and PASSED. Most mature and best-validated of the dark-family nodes.
+
+## SHIPPED, CLAIMED -- code exists, falsifier unrun, gap status unknown (12)
+  - karuṇā — compassion: Built (compassion.py). Falsifier unrun -- remaining work is probing uptake in unprompted turns, not building.
   - alobha — non-attachment: Built (generator.py's _alobha_context/_alobha_penalty, tested). Falsifier unrun -- needs a repeat-selection probe, not a build.
   - māna — self-conceit: Real, always-on detector (mana_detector.py). Falsifier unrun -- needs a cadence probe (does it really fire every turn?), not a build.
-  - vīrya — joyous effort: Built, then deliberately disarmed -- the design work is done, re-arming is a decision, not an engineering task.
-  - praśrabdhi — pliancy: Built, then deliberately disarmed.
-  - śraddhā — confidence: Built, then deliberately disarmed; confirmed inert relative to the live r77 chat arbiter.
   - 5 · Second-order monitoring (prajñā): Real mechanism live (metacognition.py writes meta_cognition_events); the second-order digest read-back is dark behind NEX5_METACOG_DIGEST. Falsifier unrun.
   - 6 · A unified present (manaskāra): Live, real, IS the r77 chat arbiter (global_workspace.py + gui/server.py budget assembly). Off-limits to touch while r77 runs.
   - 1 · Continuity of self: Real, live anchor (NEX5_CONTINUITY_N, nex_config.py).
@@ -16,9 +16,15 @@
   - 4 · Honest interoception: Real, always-on sense adapter (interoception.py).
   - 12 · Self-report that can be unflattering: Built as reads (hri_verdict/apatrapya_verdict, 29 tests) -- see hri_apatrapya for the real build. The hard design work (read, not gate) is done; what's blocking it is two named, concrete things, not open design.
   - 13 · Finitude: Built, real ceiling enforced live (budget_shadow.py wired to the real select_within_budget). Scheduled UNBLOCK 2026-11-21, post r77-freeze.
-  - 9 · Dissonance (vicikitsā's degenerate form): Built, 39 tests, harmonizer.py held_tensions. Known remaining gap is one level up (SENTIENCE_SYNTHESIS.md §9's full ledger primitives), not this node itself.
   - hṛī / apatrāpya — shame / dread of blame: Built as reads (hri_verdict/apatrapya_verdict, 29 tests, commit 7ad9942). The hard design work is done; blocked on two named, concrete things -- a ledger-pricing type conflict, and zero real rating data yet to test the actual hypothesis -- not an unsolved design question.
-  - 8 · Episodic / autobiographical memory: Built, falsifier run and PASSED. Most mature and best-validated of the dark-family nodes.
+
+## SHIPPED, DORMANT -- deliberately disarmed, no falsifier currently applicable (3)
+  - vīrya — joyous effort: Built, then deliberately disarmed -- the design work is done, re-arming is a decision, not an engineering task.
+  - praśrabdhi — pliancy: Built, then deliberately disarmed.
+  - śraddhā — confidence: Built, then deliberately disarmed; confirmed inert relative to the live r77 chat arbiter.
+
+## SHIPPED, CONTRADICTED -- falsifier FAILED, the gap is still open (1)
+  - amoha — discernment / non-delusion: Built (amoha_detector.py). Falsifier already run and FAILED -- fires only under forced injection, never organically. Remaining work is organic-trigger tuning, not fresh design.
 
 ## TRACTABLE -- open, mechanism sketched, hook point known (4)
   - vedanā — feeling-tone: Real mechanism exists (AffectState._compute_valence_delta, generator.py's _valence_reach) -- the original probe numbers were unsupported and were retracted. Remaining work is re-measuring valence variance for real against live content, not building new code.
