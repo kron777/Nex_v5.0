@@ -87,16 +87,26 @@ nodes:
     factor: karuna
     role_note: "Prices the other's cost as mattering to the entry."
     build_difficulty: shipped
-    sketch: "Built (compassion.py). Falsifier unrun -- remaining work is probing uptake in unprompted turns, not building."
+    sketch: "Calibration logic unit-tested and correct; confirmed genuinely dark live. 'Uptake in
+      unprompted turns' can only be checked once armed -- not resolvable by more reading."
     evidence: measured
     dark: true
     blocked: false
     falsifier: "Calibrated response should show uptake in unprompted turns. Never probed."
     falsifier_status: unrun
-    source: { kind: file, ref: "theory_x/stage_affect/compassion.py:1-21" }
-    last_verified: 2026-11-09
-    notes: "Calibrated, uptake unprobed. Same family as amoha. VIRTUE_SLATE.md re-pinned to the real
-      module (NEX5_COMPASSION, default OFF)."
+    source: { kind: composite, refs: ["theory_x/stage_affect/compassion.py:1-21", "tests/test_compassion.py:52-57"] }
+    last_verified: 2026-11-15
+    notes: >
+      Calibrated, uptake unprobed. Same family as amoha. VIRTUE_SLATE.md re-pinned to the real
+      module (NEX5_COMPASSION, default OFF).
+
+      Falsifier run, 2026-11-15 (partial): confirmed NEX5_COMPASSION genuinely unset live
+      (/proc/<pid>/environ). tests/test_compassion.py:52-57 (test_level_rises_on_distress,
+      test_level_decays_without_distress) confirm the calibration math itself is real and correct.
+      But "uptake in unprompted turns" is a stronger, different claim than "the calibration
+      function computes correctly" -- it requires the mechanism actually running live and
+      surfacing in organic conversation, which is impossible to observe while dark. Left unrun
+      rather than claiming a pass the evidence doesn't support.
 
   - id: upeksa
     label: "upekṣā — equanimity"
@@ -141,19 +151,28 @@ nodes:
     factor: alobha
     role_note: "Selection weight: loosens fixation so the next moment can price differently."
     build_difficulty: shipped
-    sketch: "Built (generator.py's _alobha_context/_alobha_penalty, tested). Falsifier unrun -- needs a repeat-selection probe, not a build."
+    sketch: "Built and falsifier-confirmed at the unit level (test_gripped_candidate_loses). Flag
+      is correctly off live, so this is test-verified, not live-observed."
     evidence: implemented
     dark: true
     blocked: false
     falsifier: "Should reduce repeat-selection of the same object across consecutive moments."
-    falsifier_status: unrun
-    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:697-738", "tests/test_alobha.py:1-30"] }
-    last_verified: 2026-11-09
-    notes: "Correction, 2026-11-09: this was filed as 'spec exists, unbuilt-open' -- it isn't. Both
+    falsifier_status: pass
+    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:697-738", "tests/test_alobha.py:52-58"] }
+    last_verified: 2026-11-15
+    notes: >
+      Correction, 2026-11-09: this was filed as 'spec exists, unbuilt-open' -- it isn't. Both
       mental_factors_inventory_alobha_spec.txt (the cited spec doc) and VIRTUE_SLATE.md are absent
       from this repo's entire git history, but _alobha_context()/_alobha_penalty() in generator.py
       are real, tested (tests/test_alobha.py), and gated by NEX5_ALOBHA (default OFF) -- same dark
-      family as amoha/karuṇā, not an open design question."
+      family as amoha/karuṇā, not an open design question.
+
+      Falsifier run, 2026-11-15: confirmed NEX5_ALOBHA is genuinely unset on the live process
+      (/proc/<pid>/environ), so repeat-selection cannot be observed live -- but
+      tests/test_alobha.py:52-58 (test_gripped_candidate_loses) directly tests the claim: with a
+      strongly-gripped candidate, 40 repeated picks NEVER select it (assertNotIn). Pass, at the
+      verified-correct-mechanism level; would need re-confirming against live selection data if the
+      flag is ever armed.
 
   - id: vedana
     label: "vedanā — feeling-tone"
@@ -384,21 +403,34 @@ nodes:
     factor: prajna
     role_note: "A read of one's own read — the only clean mapping in the whole ring."
     build_difficulty: shipped
-    sketch: "Real mechanism live (metacognition.py writes meta_cognition_events); the second-order digest read-back is dark behind NEX5_METACOG_DIGEST. Falsifier unrun."
+    sketch: "Real, live, and confirmed writing real data -- but the specific 'reports being wrong'
+      falsifier isn't clearly met by what's actually been written yet. See notes."
     evidence: static
     dark: false
     blocked: false
     falsifier: "Should report its own state being wrong at least sometimes."
     falsifier_status: unrun
     source: { kind: file, ref: "theory_x/stage9_metacognition/metacognition.py:1-20" }
-    last_verified: 2026-11-09
-    notes: "Correction, 2026-11-09: mechanism is located -- theory_x/stage9_metacognition/
+    last_verified: 2026-11-15
+    notes: >
+      Correction, 2026-11-09: mechanism is located -- theory_x/stage9_metacognition/
       metacognition.py (~730 ln, per SENTIENCE_PROGRAM.md:33), reads GrooveSpotter output and
       SelfMindView/SocialPresence drift, writes meta_cognition_events. The second-order DIGEST
       (reading back over those events with state) is dark behind NEX5_METACOG_DIGEST (default OFF);
       raw event-writing itself runs live. 'mechanism not yet located' was simply wrong -- the check
       regex's .venv noise (narwhals/torchgen translate.py) masked nothing; a plain re-run without
-      the venv excluded still finds this file in the real tree."
+      the venv excluded still finds this file in the real tree.
+
+      Falsifier run, 2026-11-15 (partial): queried the real table (data/conversations.db, not
+      beliefs.db -- 19 rows, live). Confirms real, non-fabricated writing: distinct event_types are
+      `groove` and `value_drift_abandonment`, most recent 2026-11-11 (NEX5_METACOG_PATTERN,
+      armed 2026-11-15, hasn't produced rows yet as of this check). Neither existing event type
+      clearly satisfies "reports its own state being WRONG" -- both are drift/repetition
+      observations ("keystone vocabulary barely surfacing," a stuck groove), not a case of a prior
+      self-assessment being contradicted. Left `unrun` rather than forcing pass/fail: the mechanism
+      is real and live, but whether it has ever produced an actual self-contradiction event (vs.
+      just drift/repetition flags) needs a wider query or waiting for NEX5_METACOG_PATTERN's new
+      event types to accumulate, not more code reading.
 
   - id: kaukratya
     label: "kaukṛtya — regret"
@@ -490,17 +522,45 @@ nodes:
     property: "1"
     role_note: "The same subject across the ledger — no rewind, no forked writer."
     build_difficulty: shipped
-    sketch: "Real, live anchor (NEX5_CONTINUITY_N, nex_config.py)."
+    sketch: "The cited anchor doesn't serve this directive at all -- corrected 2026-11-15, see
+      notes. The real protection is architectural/preventive (the supervisor's single-instance
+      flock), not a detector, and no 'fail loudly' mechanism exists or is even consistent with the
+      substrate's own design philosophy."
     evidence: static
     dark: false
     blocked: false
     falsifier: "Should fail loudly if two writers claim the same subject."
-    falsifier_status: unrun
-    source: { kind: composite, refs: ["nex_config.py:73", "theory_x/stage6_fountain/generator.py:1036"] }
-    last_verified: 2026-11-09
-    notes: "Correction, 2026-11-09: 'anchor not pinned' was wrong -- NEX5_CONTINUITY_N is a real,
+    falsifier_status: fail
+    source: { kind: composite, refs: ["nex_keepalive.sh:14-39", "substrate/writer.py:1-16", "substrate/db.py:1-15"] }
+    last_verified: 2026-11-15
+    notes: >
+      Correction, 2026-11-09: 'anchor not pinned' was wrong -- NEX5_CONTINUITY_N is a real,
       registered config var; the original check's un-excluded .venv noise drowned the real hit.
-      Still no 51-factor slot (ring node, not an arm) -- that part of the claim stands."
+      Still no 51-factor slot (ring node, not an arm) -- that part of the claim stood.
+
+      CORRECTION, 2026-11-15 (falsifier-sweep round): NEX5_CONTINUITY_N does not serve this node's
+      directive at all. Checked its actual mechanism (generator.py ~:3677): when set >0, it feeds
+      her own past high-scoring thoughts back into the prompt for stylistic/content continuity --
+      "Layer 3: CONTINUITY stream" -- a completely different concern from "the same subject, no
+      forked writer." Live env confirms it's unset (default OFF) regardless.
+
+      Searched for a real candidate: grepped for same-subject/forked-writer/single-instance
+      enforcement across the repo -- nothing at the substrate/Writer level. What actually prevents
+      two writers is PREVENTIVE, not DETECTIVE, and lives in a different file entirely:
+      nex_keepalive.sh's single-instance flock (only one supervisor may run) plus launch_nex()
+      explicitly killing any previous child before starting a new one -- verified directly earlier
+      this session during the identity-hardening work. It stops a second writer from ever starting;
+      it does not detect or loudly fail if one somehow did.
+
+      Worse for the falsifier as worded: substrate/db.py's own design is explicitly the opposite of
+      "fail loudly" -- WAL + busy_timeout, documented as "wait on a lock instead of failing
+      immediately." Two writers contending for the same database would queue quietly, not error.
+      falsifier_status set to `fail`: the specific behavior asked for (loud failure) is not just
+      unbuilt, it contradicts this substrate's stated design philosophy. The real property (no two
+      writers ever coexist) is true by prevention, not by detection -- a different falsifier would
+      be needed to test it honestly (e.g. "does the supervisor actually refuse a second instance,"
+      which the keepalive work already demonstrated live, not "does a dual-writer event get loudly
+      flagged").
 
   - id: p2_train
     label: "2 · Train of thought across restart"
@@ -508,17 +568,26 @@ nodes:
     property: "2"
     role_note: "The sequence survives the process, not just the session."
     build_difficulty: shipped
-    sketch: "Real, live (resumption.py, Memory Layer B)."
+    sketch: "Real, live, and confirmed working across 5 real boots. Most mature of this round's checks."
     evidence: static
     dark: false
     blocked: false
     falsifier: "Should resume a sequence after restart without re-deriving it."
-    falsifier_status: unrun
+    falsifier_status: pass
+    probe: { boots_checked: 5, dates: "2026-11-13 to 2026-11-15", beliefs_promoted_per_boot: 5 }
     source: { kind: file, ref: "theory_x/memory/resumption.py:1-21" }
-    last_verified: 2026-11-09
-    notes: "Correction, 2026-11-09: anchor is pinned -- Memory Layer B, resumption.py, promotes real
+    last_verified: 2026-11-15
+    notes: >
+      Correction, 2026-11-09: anchor is pinned -- Memory Layer B, resumption.py, promotes real
       prior beliefs' created_at on boot so the fountain's first post-restart tick sees them as
-      recent (run.py Phase B, line ~574). Live, not dark."
+      recent (run.py Phase B, line ~574). Live, not dark.
+
+      Falsifier run, 2026-11-15: PASS. _promote_beliefs() (resumption.py:127-141) updates
+      created_at on the SAME real belief rows by id -- it reuses the actual prior content, never
+      regenerates it, which is exactly "without re-deriving." Confirmed with real log evidence, not
+      just code reading: 5 consecutive real boots (2026-11-13 through 2026-11-15) each log
+      "Resumption: promoted 5 beliefs" -- the mechanism has genuinely fired on every real restart
+      checked, not just in theory.
 
   - id: p3_stakes
     label: "3 · Stakes"

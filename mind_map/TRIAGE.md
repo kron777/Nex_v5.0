@@ -1,17 +1,16 @@
-## SHIPPED, CONFIRMED -- falsifier passed, the gap is actually closed (5)
+## SHIPPED, CONFIRMED -- falsifier passed, the gap is actually closed (7)
   - upekṣā — equanimity: Built, live, and the falsifier already passes. Most mature node in the prices arm.
   - apramāda — conscientiousness: Built (apramada.py), falsifier passes -- preserves deferred cost under immediate pressure.
+  - alobha — non-attachment: Built and falsifier-confirmed at the unit level (test_gripped_candidate_loses). Flag is correctly off live, so this is test-verified, not live-observed.
+  - 2 · Train of thought across restart: Real, live, and confirmed working across 5 real boots. Most mature of this round's checks.
   - 4 · Honest interoception: Real, always-on sense adapter (interoception.py).
   - 9 · Dissonance (vicikitsā's degenerate form): Built, 39 tests, harmonizer.py held_tensions. Known remaining gap is one level up (SENTIENCE_SYNTHESIS.md §9's full ledger primitives), not this node itself.
   - 8 · Episodic / autobiographical memory: Built, falsifier run and PASSED. Most mature and best-validated of the dark-family nodes.
 
-## SHIPPED, CLAIMED -- code exists, falsifier unrun, gap status unknown (10)
-  - karuṇā — compassion: Built (compassion.py). Falsifier unrun -- remaining work is probing uptake in unprompted turns, not building.
-  - alobha — non-attachment: Built (generator.py's _alobha_context/_alobha_penalty, tested). Falsifier unrun -- needs a repeat-selection probe, not a build.
-  - 5 · Second-order monitoring (prajñā): Real mechanism live (metacognition.py writes meta_cognition_events); the second-order digest read-back is dark behind NEX5_METACOG_DIGEST. Falsifier unrun.
+## SHIPPED, CLAIMED -- code exists, falsifier unrun, gap status unknown (7)
+  - karuṇā — compassion: Calibration logic unit-tested and correct; confirmed genuinely dark live. 'Uptake in unprompted turns' can only be checked once armed -- not resolvable by more reading.
+  - 5 · Second-order monitoring (prajñā): Real, live, and confirmed writing real data -- but the specific 'reports being wrong' falsifier isn't clearly met by what's actually been written yet. See notes.
   - 6 · A unified present (manaskāra): Live, real, IS the r77 chat arbiter (global_workspace.py + gui/server.py budget assembly). Off-limits to touch while r77 runs.
-  - 1 · Continuity of self: Real, live anchor (NEX5_CONTINUITY_N, nex_config.py).
-  - 2 · Train of thought across restart: Real, live (resumption.py, Memory Layer B).
   - 3 · Stakes: Real appraisal functions exist and are reachable live, but NOT via the path the prior note claimed -- corrected 2026-11-15, see notes. The 'actually spent' half of the falsifier is still open.
   - 12 · Self-report that can be unflattering: Built as reads (hri_verdict/apatrapya_verdict, 29 tests) -- see hri_apatrapya for the real build. The hard design work (read, not gate) is done; what's blocking it is two named, concrete things, not open design.
   - 13 · Finitude: Built, real ceiling enforced live (budget_shadow.py wired to the real select_within_budget). Scheduled UNBLOCK 2026-11-21, post r77-freeze.
@@ -23,8 +22,9 @@
   - praśrabdhi — pliancy: Built, then deliberately disarmed.
   - śraddhā — confidence: Built, then deliberately disarmed; confirmed inert relative to the live r77 chat arbiter.
 
-## SHIPPED, CONTRADICTED -- falsifier FAILED, the gap is still open (1)
+## SHIPPED, CONTRADICTED -- falsifier FAILED, the gap is still open (2)
   - amoha — discernment / non-delusion: Built (amoha_detector.py). Falsifier already run and FAILED -- fires only under forced injection, never organically. Remaining work is organic-trigger tuning, not fresh design.
+  - 1 · Continuity of self: The cited anchor doesn't serve this directive at all -- corrected 2026-11-15, see notes. The real protection is architectural/preventive (the supervisor's single-instance flock), not a detector, and no 'fail loudly' mechanism exists or is even consistent with the substrate's own design philosophy.
 
 ## TRACTABLE -- open, mechanism sketched, hook point known (4)
   - vedanā — feeling-tone: Real mechanism exists (AffectState._compute_valence_delta, generator.py's _valence_reach) -- the original probe numbers were unsupported and were retracted. Remaining work is re-measuring valence variance for real against live content, not building new code.
