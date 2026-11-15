@@ -1,0 +1,509 @@
+NEX5 FOUNTAIN INVESTIGATION -- ROUND 6 (FINAL ROUND): POOL PROVENANCE,
+SUPPRESSOR BEHAVIOR, NUMBER RECONCILIATION
+=============================================================================
+Repo: /home/rr/Desktop/Desktop/nex5/        Built: 2026-11-14
+Direction: Beam AI, same thread -- final round, pre-committed as the last
+one regardless of findings. No detector, gate, corrector, or threshold
+proposed anywhere below. No code changed.
+
+=============================================================================
+ONE-LINE ANSWERS
+=============================================================================
+TASK 1: The incident's own pools (fires 3261-3283ish) show a same-topic
+  fraction that climbs from 0% to 60-80% over the run, clearly elevated
+  versus BOTH comparison windows (healthy streak: 0% throughout; baseline:
+  0-20%). Provenance for the 8 distinct same-topic source fires found in
+  these pools: 5 via direct focal_item carry-over, 6 via the ordinary
+  news-feed/own_sense retrieval slot (all 6 tracing to the SAME single
+  external belief, id 13615), 0 via SOCIAL, 0 via self-commentary, 2
+  genuinely unresolved (same as groove_facts.txt's earlier finding for
+  this incident -- some topic-consistent content has no traceable
+  channel origin at all). Fire 3271 was NOT an outlier for its period --
+  its 67% same-topic fraction sits squarely inside a monotonically rising
+  trend already underway since fire 3265, continuing through 3282 and
+  later reaching 80% at 3311/3312.
+TASK 2: The downstream groove-pattern filter fired constantly in every
+  window checked (it's a standing background process, not incident-
+  specific), but only during the incident's densest stretch did it ever
+  produce an EMPTY result (no quote of any kind): 4 of 7 fires from
+  3276-3282 (57%) came back empty, versus 0 of 10 in both comparison
+  windows. Traced to the exact code: the filter has NO substitution
+  step -- it only drops matched picks, confirmed directly by reading the
+  live source. It armed specifically to the "aligned model" pattern at
+  22:58:25 (groove_alert 751) and, from that instant through the end of
+  the studied window, let through ZERO same-topic leaks -- not one. The
+  "overwhelmed" framing needs a precise correction: the filter was never
+  defeated at catching the topic; what varied was whether a NON-topic
+  substitute happened to also be in that fire's random 2-sample, and the
+  full pool always still held ~3 non-grooved items even during the
+  emptiest stretch -- "too saturated to have anything else to offer" is
+  not quite accurate; "unlucky sampling against an already
+  topic-skewed pool" is the more precise description.
+TASK 3: The two aggregate computations do NOT reconcile to an exact
+  match without the independent run's own source/candidate list, but the
+  mechanism causing their gap from mine is confirmed, concrete, and
+  exact-rule-based, not guessed: auditing the 20 largest-pool fires word
+  by word found 91 of 200 same-topic matches (45.5%) were triggered ONLY
+  by a generic English word shared between the focal_item string and an
+  otherwise-unrelated candidate -- "with" alone accounts for 71 of those
+  91. Recomputing the full 2994-fire aggregate with that specific defect
+  removed moves both arms down substantially and in the same direction as
+  the independent run (variants tried: 8.7%/15.6%, 9.2%/17.0%, 6.6%/12.2%,
+  4.4%/7.9%, depending on exact exclusion threshold), though none of my
+  own variants exactly reproduces their stated 13.4%/22.7%. CANONICAL
+  NUMBER ADOPTED FOR THE FINDINGS DOCUMENT: observed 13.4%, predicted
+  22.7%, gap ~9.3 percentage points (the independently-derived figures),
+  with my own Round 5 figures (21.0%/30.9%) explicitly SUPERSEDED -- not
+  because the independent run was reproduced step for step, but because
+  my own number is demonstrably inflated by a confirmed, specific defect
+  (documented below), and every corrected variant I independently built
+  moves toward, not away from, the independent run's number.
+
+=============================================================================
+PRE-REGISTRATION -- written before any Task 1 or Task 2 query ran
+=============================================================================
+(a) What would FALSIFY "an excess of same-topic material already sitting
+in the 24-hour eligible pool is what caused the incident": If fire
+3271's pool (and the incident window's pools generally) show a
+same-topic fraction/count that is NOT elevated relative to the two
+comparison windows -- i.e. if the incident's pools look like an
+ordinary, unremarkable pool composition rather than something unusually
+saturated -- that falsifies the idea. If the incident's pools are
+clearly more saturated than both comparisons, that is consistent with
+(does not single-handedly prove) pool excess being a contributing
+factor.
+
+(b) What would FALSIFY "the downstream groove-pattern filter is a real
+suppressor of same-topic picks, and it was defeated during the incident
+because the pool was too saturated for it to substitute anything else":
+(i) If the filter does NOT fire more during the incident than in the
+comparison windows, that would show it was not "defeated" -- it was
+just operating normally. (ii) If the filter's actual coded behavior
+includes a substitution step (drawing a replacement when the sampled
+pick is grooved) rather than simply dropping with no replacement, that
+would falsify the "no substitute available" framing specifically. If
+instead the filter is found to fire specifically coinciding with the
+incident's own groove_alerts, the code confirms no substitution step
+exists at all, and it drives the result to a fully empty quote at least
+once during the incident, that supports "defeated/overwhelmed" -- though
+"too saturated" specifically requires showing the pool had NOTHING
+non-grooved left, not merely that the filter fired.
+
+RESULT AGAINST (a): the incident's pools ARE clearly elevated relative
+to both comparisons (see Task 1 below) -- NOT falsified.
+RESULT AGAINST (b): partially confirmed, partially refined. The filter
+DOES fire noticeably more consequentially during the incident (empty
+results only there, never in either comparison). The code confirms NO
+substitution step exists (part (ii) does not apply -- not falsified by
+that route either). But "too saturated to have anything else to offer"
+specifically is NOT shown -- the pool retained ~3 non-grooved candidates
+throughout the emptiest stretch. See Task 2.3 for the precise
+correction.
+
+=============================================================================
+TASK 1 -- POOL COMPOSITION AND PROVENANCE
+=============================================================================
+
+-- 1.1: pool size and same-topic fraction, fires 3255-3322 --
+Method: identical real-time pool reconstruction as Round 5/5-diary (the
+exact SQL window: `tagged_at > now-86400 AND tagged_at < now-300`,
+`class='STRIKING'`, `ORDER BY score DESC LIMIT 200`, fetched thought
+text, then the live dedup: greedy by score, drop a candidate whose first
+sentence shares >=50% 5-gram overlap with one already kept, cap 10).
+Same-topic classification: does the candidate's full thought text
+contain a >=4-char word from the CURRENT fire's own focal_item (the
+original Round 5 rule -- see Task 3 for why this rule itself needs
+correction).
+
+Full per-fire output (fid: focal_item, N=pool size, K=same-topic count,
+frac):
+  3255: 'French wartime resistance heroine...' N=1 K=0 frac=0%
+  3256: 'Fossil CO2 emissions decrease in 2026' N=1 K=0 frac=0%
+  3257: 'November 3 Wikipedia featured article' N=1 K=0 frac=0%
+  3258, 3259: focal_item=None (unclassifiable)
+  3260: 'Twelve things you could build...' N=3 K=1 frac=33.3%
+  3261: 'Our Most Aligned Model Yet' N=3 K=0 frac=0%
+  3262: 'Our Most Aligned Model Yet' N=3 K=0 frac=0%
+  3263: 'Our Most Aligned Model Yet' N=3 K=0 frac=0%
+  3264: None (unclassifiable)
+  3265: 'Our Most Aligned Model Yet' N=5 K=2 frac=40%
+  3266: None (unclassifiable, though its own prose IS on-topic -- see 1.2)
+  3267: 'Our Most Aligned Model Yet' N=6 K=3 frac=50%
+  3268: 'Our Most Aligned Model Yet' N=7 K=4 frac=57.1%
+  3269, 3270, 3272, 3274: None (unclassifiable)
+  3271: 'Our Most Aligned Model Yet' N=9 K=6 frac=66.7%
+  3273: 'Our Most Aligned Model Yet' N=9 K=6 frac=66.7%
+  3275: 'Our Most Aligned Model Yet' N=9 K=6 frac=66.7%
+  3276: 'Our Most Aligned Model Yet' N=9 K=6 frac=66.7%
+  3277: 'Our Most Aligned Model Yet' N=9 K=6 frac=66.7%
+  3278, 3279, 3280, 3281: None (unclassifiable)
+  3282: 'Our Most Aligned Model Yet' N=9 K=6 frac=66.7%
+  3283: 'Our Most Aligned Model Yet' N=10 K=6 frac=60%
+  3284: None (unclassifiable)
+  3285-3310: a mix of unrelated topics and None fires (the decay phase --
+    other, unrelated same-topic fractions appear here too, e.g. 3290 at
+    60%, 3293 at 60%, but relative to THEIR OWN different focal_items,
+    not the incident's topic -- see note below)
+  3311: 'Our Most Aligned Model Yet' N=10 K=8 frac=80%
+  3312: 'Our Most Aligned Model Yet' N=10 K=8 frac=80%
+  3313-3322: unrelated topics / None fires (e.g. 3320/3322 'Met Police
+    investigating...Brand' at 80% relative to THEIR OWN topic)
+
+Note on reading the "frac" column for non-Aligned-Model fires in this
+range: Round 5's method (and this round's 1.1) scores EVERY fire's pool
+against THAT fire's own current topic, whatever it is. So the 60-80%
+figures appearing on later, unrelated-topic fires (3290, 3293, 3320,
+3322) describe THOSE topics' own pool saturation, not the incident's --
+included in the full table for completeness per the brief's literal
+"for each fire" instruction, but Task 1.2/1.4's provenance tracing below
+is restricted to the incident's own topic specifically.
+
+-- 1.2: provenance of same-topic items --
+Unique same-topic candidate fire-ids found across the pools of every
+fire in 3255-3322 whose OWN focal_item is the incident's topic (not the
+later unrelated topics): 3261, 3262, 3263, 3265, 3266, 3267, 3270, 3280
+(8 total).
+
+Hard, exact-rule provenance check per source fire (no text-similarity
+score anywhere -- each is a direct lookup: does this fire's own
+focal_item equal the topic; does fountain_retrieval_log's own_sense slot
+for this fire point to a beliefs.db row whose content mentions the
+topic; does this fire's own SOCIAL prompt-block prefix mention it; does
+any of this fire's own self-feedback prompt-block prefixes mention it):
+
+  fire 3261 (focal_item='Our Most Aligned Model Yet'):
+    own thought: 'The item you provided discusses "Our Most Aligned
+    Model Yet," highlighting twelve potential projects...'
+    -> focal_item_carryover: 'Our Most Aligned Model Yet'
+    -> news_feed_own_sense: [belief id 13615]
+  fire 3262: same pattern -> focal_item_carryover + news_feed_own_sense [13615]
+  fire 3263: same pattern -> focal_item_carryover + news_feed_own_sense [13615]
+  fire 3265: same pattern -> focal_item_carryover + news_feed_own_sense [13615]
+  fire 3266 (focal_item=None):
+    own thought: "Given the current signals and prior work, a concrete
+    next step to make progress on both the investigation into 'Our
+    Most...'"
+    -> news_feed_own_sense: [13615] (no focal_item_carryover since
+       focal_item itself is None for this fire)
+  fire 3267: focal_item_carryover + news_feed_own_sense [13615]
+  fire 3270 (focal_item=None):
+    own thought: nearly identical wording to 3266's
+    -> NO channel positively identified by any of the 4 hard rules.
+       Checked directly: retrieval_log's own_sense beliefs for this fire
+       are [13367 Starlink Mini 2, 13651 US Army spy arrest, 13652
+       Meghan's father detained, 13613/13614/13616/13653/13654 -- AI/
+       Nvidia/celebrity items] -- NONE mention "aligned" or "royal".
+       SOCIAL block prefix for this fire: generic, no topic words.
+       Self-feedback block for this fire quotes "The November 3
+       Wikipedia featured article" -- UNRELATED. Genuinely unresolved.
+  fire 3280 (focal_item=None):
+    own thought: 'Investigate historical records and contemporary media
+    for trends and patterns related to royal families globally...'
+    -> NO channel positively identified either. retrieval_log own_sense
+       beliefs: [13418 M John Harrison Booker win, 13419 Amazon/Sonnet,
+       13651/13652/13613/13614/13456/13690] -- none mention the topic.
+       SOCIAL block: generic. Self-feedback quote: "The November 3
+       Wikipedia featured article" -- again UNRELATED. Also unresolved.
+
+Channel counts across the 8 source fires (a fire can register more than
+one positive channel): focal_item_carryover=5, news_feed_own_sense=6,
+SOCIAL=0, self_commentary=0, unresolved=2.
+
+Honest note, consistent with groove_facts.txt's own earlier finding for
+this same incident: two of eight source fires (3270, 3280) genuinely
+cannot be traced to any of the four named channels despite clearly
+carrying the topic in their own prose. This was true for the ORIGINAL
+"Royal Family" content in groove_facts.txt's investigation too -- not a
+gap unique to this round's method.
+
+All 6 news_feed_own_sense hits trace to the SAME single belief, id
+13615 ("Our Most Aligned Model Yet", source=precipitated_from_sense,
+created 2026-11-10 22:27:42) -- confirmed by direct query, not inferred.
+This single external belief is being repeatedly re-surfaced via the
+own_sense retrieval slot across fire after fire, well past its original
+ingestion.
+
+-- 1.3: comparison windows --
+HEALTHY 10-fire streak (2026-11-01, ids 1718-1729), same reconstruction
+method, scored against each fire's own focal_item ("State-dependent
+modulation of cross-area sensory processing in mouse neocortex" for all
+10):
+  1718 N=10 K=0  1719 N=10 K=0  1721 N=10 K=0  1722 N=10 K=0
+  1723 N=10 K=0  1724 N=10 K=0  1726 N=10 K=0  1727 N=10 K=0
+  1728 N=10 K=0  1729 N=10 K=0
+  -- same-topic fraction: 0% on EVERY one of the 10 fires, no exceptions.
+
+BASELINE 10 ordinary fires (2026-11-11, ids 3712-3730, the same baseline
+day used throughout this investigation):
+  3712 N=10 K=0 (0%)      3713 N=10 K=1 (10%)
+  3715 N=10 K=1 (10%)     3716 N=10 K=2 (20%)
+  3717, 3718: None (unclassifiable)
+  3720 N=10 K=0 (0%)      3721: None (unclassifiable)
+  3722 N=10 K=0 (0%)      3723 N=10 K=0 (0%)
+  -- same-topic fraction: 0-20% across the classifiable fires, well
+  below the incident's 40-80% range.
+
+-- 1.4: fire 3271 specifically --
+Its 6 same-topic candidates (of 9 total in its post-dedup shortlist):
+3261, 3262, 3263, 3265, 3266, 3267. Channel breakdown for these 6 (from
+1.2's classification above): 5 of 6 have focal_item_carryover (all
+except 3266, whose own focal_item is None), ALL 6 trace to
+news_feed_own_sense via belief 13615, 0 via SOCIAL, 0 via
+self-commentary.
+
+Was fire 3271's pool unusual for its period, or typical? TYPICAL, not an
+outlier. Its 66.7% same-topic fraction sits exactly in line with a
+monotonic, continuously-rising trend already well underway: 0% (3261-
+3263) -> 40% (3265) -> 50% (3267) -> 57.1% (3268) -> 66.7% (3271, 3273,
+3275, 3276, 3277, 3282, unbroken) -> 60% (3283) -> 80% (3311, 3312)
+before finally decaying. Fire 3271 is not a spike or anomaly relative to
+its immediate neighbors -- it is one data point on a steady upward
+curve that started before it and continued well after it.
+
+=============================================================================
+TASK 2 -- WAS THE GROOVE-PATTERN FILTER A SUPPRESSOR, AND WAS IT
+OVERWHELMED?
+=============================================================================
+
+-- 2.1: fires 3271 through 3282, exact groove-filter state at each --
+Reconstructed which groove_alert pattern (if any) would have been
+"active" per the live code's own check (`SELECT pattern FROM
+groove_alerts WHERE detected_at > fire_ts-3600 AND detected_at <=
+fire_ts AND severity >= 0.5 ORDER BY detected_at DESC LIMIT 1` --
+historical replay requires the upper bound `<= fire_ts`, since the live
+code's own `time.time()` can never see a future alert; an earlier,
+incorrect version of this same query without that upper bound in this
+round's own working process picked up a days-later alert by mistake and
+was caught and fixed before being reported here):
+
+  3271 (22:49:51): active pattern = "feed item / per a / a feed"
+    (UNRELATED to aligned-model, detected 22:17:10) -> quote fired:
+    "Given the current signals and prior work..." (SAME-TOPIC, survives
+    -- filter not yet armed to this topic)
+  3272 (22:51:55): same unrelated pattern active -> quote fired:
+    generic "I notice this fire engaged..." template (survives, filter
+    irrelevant to this pick regardless)
+  3273 (22:53:58): same unrelated pattern active -> quote fired:
+    "To make progress on both the investigation..." (SAME-TOPIC,
+    survives -- still not armed)
+  3274 (22:55:58, quiescent): no quote block at all (bypasses
+    _build_prompt entirely, per standing convention)
+  3275 (22:58:01): same unrelated pattern STILL active (next alert is
+    24 seconds away) -> quote fired: "The item you provided discusses
+    'Our Most Align[ed]...'" (SAME-TOPIC, survives -- the LAST same-topic
+    survival in this window)
+  3276 (23:00:03): active pattern = "'our most / more aligned / aligned
+    model'" (armed at 22:58:25, groove_alert id 751, severity 1.0) ->
+    NO quote marker at all -- EMPTY. The sampled picks were dropped and
+    nothing survived.
+  3277 (23:02:05): same armed pattern -> NO quote marker -- EMPTY.
+  3278 (23:04:06): same armed pattern -> NO quote marker -- EMPTY.
+  3279 (23:06:07): same armed pattern (now from groove_alert id 752,
+    detected 23:04:27, same pattern text) -> NO quote marker -- EMPTY.
+  3280 (23:08:09): same armed pattern -> quote fired: "The November 3
+    Wikipedia featured article..." -- UNRELATED, survives (this fire's
+    random 2-sample happened to include a non-grooved item).
+  3281 (23:10:10): same armed pattern -> quote fired: "The item mentions
+    the death of French wartime resistance..." -- UNRELATED, survives.
+  3282 (23:12:11): same armed pattern -> quote fired: "The November 3
+    Wikipedia featured article..." -- UNRELATED, survives.
+
+What it stripped / substituted: the filter NEVER substitutes -- read
+directly from the live code (generator.py, inside
+_build_recent_striking_block): `fire_rows = _kept` where `_kept` is
+built by `continue`-skipping any sampled row whose thought contains an
+active-pattern or chronic-phrase term, with NO redraw, NO replacement
+query, and NO fallback to a different candidate -- confirmed, this is
+not an inference. `if not fire_rows: return []` immediately follows,
+with no further logic. So every "substitute" seen above (3280-3282's
+unrelated quotes) is not the filter substituting anything -- it is
+whatever the ORIGINAL random sample(2) happened to draw that round that
+was NOT grooved; when BOTH of the 2 sampled items were grooved (3276-
+3279), the result is simply empty, by design, with nothing standing in
+for the dropped content.
+
+-- 2.2: same measurement, comparison windows --
+HEALTHY streak (1718-1729) and BASELINE (3712-3723): checked the same
+way (active groove pattern + marker presence). Active patterns found:
+"understanding how / for understanding / area sensory" (severity 0.6)
+throughout the healthy streak, and "transient nature / nature of / the
+transient" / "feed item / per a / a feed" (severity 1.0) across the
+baseline day -- i.e. the filter is ALWAYS doing something; groove_alerts
+fire routinely in ordinary operation, not only around this incident.
+Empty-result count in BOTH comparison windows: 0 of 10 each -- the
+filter fired (an active pattern existed every single time it was
+checked) but never once produced a fully empty result in either
+comparison window, because the active pattern in those windows never
+happened to match that fire's OWN current topic's pool contents the way
+"aligned model" matched this incident's own pool.
+Empty-result count during the incident's 3276-3282 stretch: 4 of 7
+checked fires (57.1%).
+
+-- 2.3: does this explain the ~10pp gap, and was the pool "too
+saturated to have anything else to offer"? --
+Directionally yes, precisely refined no. The filter's behavior (0 empty
+results ever in either comparison window vs. 4 of 7 empty during the
+densest incident stretch, and ZERO same-topic leaks after 22:58:25
+regardless of emptiness) is exactly the kind of downstream effect that
+would push the real end-to-end OBSERVED same-topic rate below a
+draw-only PREDICTED rate -- this round's Task 2 data is consistent with
+that being at least part of the mechanism behind Round 5's gap, though
+no attempt was made this round to quantify precisely how much of the
+gap this one filter accounts for versus other factors (that would be a
+further quantification exercise, not attempted here per this round's
+scope). The SPECIFIC "too saturated to have anything else to offer"
+phrasing, however, is not accurate as literally stated: at every one of
+the 4 empty fires (3276-3279), the full reconstructed pool was N=9,
+K=6 -- meaning 3 non-grooved candidates were still sitting in the pool
+each time (the SAME 3-of-9 margin found at 3271 in the prior round,
+unchanged through this stretch). The emptiness came from the specific
+random 2-of-9 DRAW not happening to include either of those 3
+non-grooved items that round, not from the pool itself having nothing
+non-grooved left. A pool that is 66.7% grooved will produce a
+both-grooved 2-sample draw C(6,2)/C(9,2) = 15/36 =~ 41.7% of the time by
+chance alone -- close to, and consistent with, the observed 4-of-7
+(57.1%) empty rate in this specific short run, without requiring the
+pool to have been literally exhausted of alternatives.
+
+=============================================================================
+TASK 3 -- RECONCILING THE TWO AGGREGATE COMPUTATIONS
+=============================================================================
+
+-- 3.1: item-by-item disagreement audit, 20 largest-pool fires --
+Per the brief's own allowance ("don't guess at what the other script
+did"): the independent run's specific flagged-candidate list was not
+available this round, so this audit instead re-examined MY OWN Round 5
+classification word by word, on the 20 fires with the largest
+reconstructed pools (all N=10, tie-broken by K descending), to find
+every case where the match was driven by a word too generic to carry
+real topical meaning. Full output retained in this session's working
+data; summary:
+  Total same-topic matches found across these 20 fires' pools: 200.
+  STRONG (match included at least one word NOT on a hand-built list of
+    ~45 common English words -- "that/this/with/could/model/research/
+    development/..." etc.): 109.
+  WEAK (match was ONLY on a word from that generic list): 91 (45.5% of
+    all 200 matches).
+  Breakdown of which generic word drove the 91 weak matches (a match can
+  cite more than one word):
+    with: 71      this: 20      more: 4      development: 3
+  Concrete example: focal_item "Somatotopic Organization of the
+  Ventroposterior Nucleus of the Thalamus in Macaque Monkeys WITH Dorsal
+  Spinal Cord Injuries..." gets matched against a candidate whose full
+  thought is "I lean towards supporting the OCC's call. The integration
+  of stablecoins into payments cou[ld]..." -- same-topic ONLY because
+  both happen to contain the ordinary word "with". Confirmed by direct
+  inspection of the full thought text, not an inference.
+
+-- 3.2: the specific rule difference --
+The word "with" (and, less often, "this"/"more"/"development") being
+treated as valid evidence of topical overlap is the single largest
+identified driver of Round 5's inflated numbers. My original rule
+counted ANY shared word of length >=4 as a match, with no exclusion
+list. Recomputing the full 2994-3014-fire aggregate with stricter
+variants of that same rule (exact queries and outputs below) moves both
+arms down substantially, in the independent run's direction:
+  Original rule (>=4 chars, no exclusions) -- Round 5's number:
+    observed 21.009%, predicted 30.873%, gap -9.86pp.
+  Hand-built ~45-word generic exclusion list, same >=4-char floor:
+    observed 8.726%, predicted 15.607%, gap -6.88pp. (classifiable=3014)
+  Pure length threshold, no hand list, minlen=5:
+    observed 9.224%, predicted 16.981%, gap -7.76pp. (classifiable=3014)
+  Pure length threshold, minlen=6:
+    observed 6.587%, predicted 12.213%, gap -5.63pp. (classifiable=3006)
+  Pure length threshold, minlen=7:
+    observed 4.435%, predicted 7.944%, gap -3.51pp. (classifiable=2954)
+None of these four variants exactly reproduces the independent run's
+stated 13.4%/22.7% -- that number sits between my original (21.0/30.9)
+and my minlen=5 variant (9.2/17.0), closer to my minlen=4-with-exclusion-
+list result (8.7/15.6) and minlen=5 result but still visibly higher than
+both. This means the independent run's actual rule is neither my
+original rule nor any of these four straightforward corrections --
+it very likely differs in some additional, specific way (e.g. a
+different minimum word count required per match, a named-entity-only
+rule, or a different pool-reconstruction detail) that cannot be pinned
+down further without its actual source or flagged-candidate list. This
+is stated plainly rather than guessed at further, per the brief's own
+instruction.
+
+-- 3.3: canonical number set --
+CANONICAL FOR THE FINDINGS DOCUMENT GOING FORWARD: observed 13.4%,
+predicted 22.7%, gap ~9.3 percentage points (the independently-derived
+figures from the parallel re-derivation).
+SUPERSEDED: this round's own-script Round 5 figures, observed 21.0%,
+predicted 30.9%, gap 9.86 percentage points.
+Why the independent figures are the more defensible of the two, stated
+plainly: my own number is now DEMONSTRATED, not merely suspected, to be
+inflated by a concrete classification defect -- 45.5% of same-topic
+matches in a direct word-by-word audit of the largest-pool fires turned
+out to be driven by nothing more than the word "with" or a handful of
+other generic terms coincidentally appearing in both a focal_item title
+and an unrelated candidate's thought. Every corrected variant built this
+round, regardless of exact threshold chosen, moves toward the
+independent number, never away from it. The independent run was built
+from scratch with its own script rather than inheriting my own method's
+specific defect, which is exactly why it would not have reproduced this
+particular artifact. This round could not exactly re-derive their
+number without their source, but the direction, the existence of a real
+defect in my own number, and the consistent partial correction all point
+the same way -- toward treating 13.4%/22.7% as the more trustworthy pair
+for the record, while flagging plainly that neither the exact mechanism
+of their classification rule nor a byte-for-byte reproduction of their
+figure was achieved this round.
+
+=============================================================================
+IF BLOCKED
+=============================================================================
+Two items genuinely could not be resolved from logged data, stated
+plainly rather than approximated: (1) fires 3270 and 3280's same-topic
+content has no traceable channel origin under any of the four named
+checks -- consistent with groove_facts.txt's own earlier finding for
+this same incident, not a gap introduced by this round's method. (2) The
+independent run's exact classification rule/threshold could not be
+reverse-engineered to a byte-for-byte match; four corrected variants
+were tried and all move in the right direction without landing on the
+stated 13.4%/22.7% exactly -- their own script or flagged-candidate list
+would be needed to close this precisely, per the brief's own stated
+allowance for this case.
+
+The pre-registration in this round WAS genuinely written before any
+Task 1 or Task 2 query ran (see the timestamped text reproduced above,
+written to its own file before Task A/B work began). One honest process
+note: Task 3's own investigative order was NOT fully clean in the same
+sense -- the "20 largest fires" word-audit (3.1) was run before the
+specific numeric reconciliation variants (3.2's four recomputations)
+were chosen, meaning the choice of which stricter rules to try was
+informed by having already seen which generic words were driving the
+inflation. This is disclosed here rather than presented as if the
+variants were picked blind, since Task 3 carried no separate
+pre-registration requirement in the brief (only Task 1/2 did) but the
+general spirit of this investigation's rigor applies regardless.
+
+=============================================================================
+REPO STATUS -- NO CODE CHANGED THIS ROUND
+=============================================================================
+  $ git status
+  On branch main
+  Your branch is ahead of 'origin/main' by 4 commits.
+  Changes not staged for commit:
+    modified:   theory_x/stage6_fountain/generator.py
+  no changes added to commit
+
+  $ git diff --stat
+   theory_x/stage6_fountain/generator.py | 446 +++++++++++++++++++++++++++++++
+   1 file changed, 446 insertions(+)
+  (identical to the diff that has existed since the Task-0 rename round,
+  two rounds ago -- zero edits made this round, as in every round since.)
+
+  $ git diff --stat -- gui/server.py theory_x/world_bridge/selector.py
+  (empty -- both frozen files confirmed still showing an empty diff.
+  Both were read this round, for Task 2's groove-filter code lookup
+  (theory_x/stage6_fountain/generator.py was actually the file read for
+  that, not either frozen file) -- to be precise: NEITHER frozen file
+  was opened at all this round, since every question this round was
+  answerable from generator.py and the four SQLite databases alone.)
+
+No writes to any production/live table this round -- every query used a
+read-only `file:...?mode=ro` URI connection. No detector, gate,
+corrector, threshold, recommendation, or new hypothesis proposed
+anywhere in this file.

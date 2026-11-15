@@ -1,0 +1,1000 @@
+THE FOUNTAIN "GROOVE": FACTS ONLY (read-only)
+=============================================================================
+Repo: /home/rr/Desktop/Desktop/nex5/        Investigation date: 2026-11-14
+Direction: Beam AI (ruled 2026-11-13). Investigation only — nothing built,
+nothing changed. All database access used read-only connections
+(sqlite3.connect('file:...db?mode=ro', uri=True)), never a writable one,
+against the live WAL-mode databases in data/. The one replay this report
+runs (Q1) was executed against a fresh, throwaway SQLite file created in
+the session scratchpad — it never touched data/dynamic.db or any live
+table. gui/server.py and theory_x/world_bridge/selector.py (the frozen
+selector.py) were read only, never edited — confirmed by an empty
+`git diff --stat` on both at the end of this investigation (shown at the
+bottom of this file). No code was changed. No commits were made. No new
+files were added inside the nex5 repo. Part of this investigation (Q6-Q12)
+was delegated to a parallel read-only subagent under the same constraints;
+its full raw command/output log is preserved at
+/tmp/claude-1000/-home-rr/0b0c3186-2dbb-4550-8c9f-01d719458e35/scratchpad/groove_facts_part2.txt
+and is reproduced/summarized in full below, with its findings reconciled
+against mine where they overlap.
+
+=============================================================================
+ONE-LINE ANSWERS
+=============================================================================
+Step 0: Found it, but it is NOT exactly what was reported. It was two
+  entangled stories (an AI-alignment headline + the Royal Family/Festival
+  of Remembrance), lasting ~35 minutes not ~40, and the "paraphrase check"
+  DID trip twice mid-incident at maximum severity — the cooldown it wrote
+  simply could not reach the Royal-Family half of the loop. groove_breaker
+  being off since 2026-05-02 and unwired since 2026-07-26 is CONFIRMED,
+  with the added fact that it had genuinely fired for 4 days (104 times)
+  before being disabled for literalizing metaphors — a different failure
+  than this incident.
+Q1 (budget replay): The shadow budget as written has NO repetition-aware
+  pricing of any kind. Replayed honestly against the real 15 fires, per-
+  fire cost is flat-to-declining (a pure function of raw text length,
+  which fell across the loop), never climbing with repetition.
+Q2 (how common/how long): The literal "733" figure does not check out —
+  the true count is 1198-1199 (the table is live and was still growing
+  during this investigation). "One alert" = one freshly-detected pattern
+  at a 60-second poll tick, at the BELIEF level, not once per fountain
+  fire. Whether 35-40 raw-fire minutes is typical or a rare outlier is
+  UNRESOLVED — the only distribution I could cheaply compute (alert-level
+  episodes) says this incident was unremarkable, but that measure is
+  structurally blind to exactly the half of this incident (Royal Family)
+  that never reached belief form, so it cannot honestly settle the
+  question at the raw-fire level.
+Q3 (is "same thing again" a recorded fact?): Yes, via three independent,
+  exact (never fuzzy/NLP) mechanisms — but NONE of the three covers the
+  specific channel that actually carried "Royal Family" into this
+  incident. That channel (the SOCIAL block) has no identity-tracking of
+  any kind, exact or fuzzy — it just re-reads "most recent N rows" fresh
+  every single fire with no dedup, by design.
+Q4 (where the paying happens): Nowhere, today, in the fountain's path.
+  budget_shadow.py's own docstring says "NOT IN THE LIVE PATH"; confirmed
+  by grep that generator.py never imports it. Generator.py DOES call a
+  sibling function in the same module (global_workspace.arbitrate) for an
+  unrelated "pick one winning line" purpose that has no budget/cost
+  concept at all — confirmed by reading that function.
+Q5 (did anything come of it?): Something, but not much, and the "nothing"
+  parts were not silent — the crystallizer logged a specific rejection
+  reason for every one of the 14 raw fires that didn't become a belief.
+Q6: CONFIRMED exactly as expected — Phase A is observation-only; when
+  triggered it only inserts one auto_probe_log row; it never blocks,
+  replaces, or suppresses anything. ENABLED=False has made this fully
+  inert since 2026-05-02, but it had genuinely fired (104 times, 4 days)
+  before that.
+Q7: "The three stabilisers" is not a literal term in the repo (grepped,
+  zero hits) — best-effort read as groove_breaker + the groove/cooldown
+  mechanism + rut-mirror. #2 fired twice in-window; #1 and #3 (rut-mirror)
+  did not see this incident at all — rut-mirror's own trigger metric
+  (striking-rate <=5%) read 27.8% during the window, so it was
+  structurally blind to this failure mode by design, not by bad luck.
+Q8: The candidate pool was not empty — 94 fresh items were available and
+  arriving every 5-15 minutes throughout the surrounding 4 hours.
+Q9: Disable = commit 6eb26f7 (2026-05-02). Removal = commit a044ebc
+  (2026-07-26). Full messages and file lists below.
+Q10: COOLDOWN_HOURS=2 introduced 2026-04-26 (a396dda); the meaningfulness
+  floor added 2026-07-16 (b20de0b), targeting an EARLIER "sunlight through
+  leaves"/cicadas groove, not this one. One partial exception to the
+  brief's own prediction: the cooldown DOES have a historical (now
+  expired) entry overlapping "aligned model" from inside this incident —
+  it has none for "Royal Family" or "Festival of Remembrance."
+Q11: r77 (NEX5_CHAT_WORKSPACE) measures whether budget-arbitrating the
+  CHAT turn's ~13 faculty blocks reduces chat self-repetition without
+  regressing on-subject-ness or cadence — a live, pre-registered, running
+  measurement, window closing ~2026-11-21, which is exactly why
+  gui/server.py and the budget-arbitration code must stay untouched until
+  then.
+Q12: No "habituation/rut/boredom" doctrine exists in Sentience_5.5 outside
+  quarantine. What exists is mechanical: novelty decays with repeated
+  exposure (Autonomous_Explorer_Node.py), low novelty raises curiosity
+  drive (Drive_System_Node.py), and a minimum focus-hold gate prevents
+  attention thrashing (Attention_Node.py) — three independent numeric
+  controls, not a named concept.
+
+=============================================================================
+STEP 0 — THE INCIDENT, FOUND AND CHECKED AGAINST EACH CLAIM
+=============================================================================
+
+WHERE AND HOW IT WAS FOUND. data/dynamic.db, table fountain_events,
+queried read-only:
+
+  python3 -c "
+  import sqlite3
+  conn = sqlite3.connect('file:data/dynamic.db?mode=ro', uri=True)
+  conn.row_factory = sqlite3.Row
+  cur = conn.execute(\"SELECT id, ts, thought, hot_branch, anchor_belief_id
+  FROM fountain_events WHERE thought LIKE '%Remembrance%' OR thought LIKE
+  '%Royal Family%' ORDER BY ts\")
+  ..."
+
+This returned 58 rows spanning 2026-11-08 through 2026-11-11 — i.e. this
+headline recurs across MULTIPLE separate days/occasions, not inside one
+single incident. Gap-clustering those 58 hits (treating a gap over ~500s
+between consecutive hits as a new burst) found several distinct bursts.
+The two closest to "about 40 minutes":
+  - 2026-11-08 08:57:49 to 09:51:38 (53m49s) — NOT independently
+    investigated at the same depth below; flagged as a real gap in this
+    report, not resolved.
+  - 2026-11-10 22:37:29.882 to 23:12:11.560 (34m42.7s) — adopted as "the"
+    incident for the rest of this report: it is the closer match to "~40
+    minutes," and every other claim in the brief (paraphrase check,
+    cooldown, groove_breaker) could be directly cross-checked against real
+    rows landing inside its exact window, shown below.
+
+If the 11-08 burst turns out to be the one actually meant, this report's
+specific corrections (two entangled stories, the cooldown hit, etc.) may
+not transfer to it — I did not check.
+
+Exact bounds, independently confirmed twice (once by me, once by the
+parallel subagent, both from read-only dynamic.db queries):
+  fountain_events id 3265: ts=1794343049.8821409 -> 2026-11-10 22:37:29.882141
+  fountain_events id 3282: ts=1794345131.5604813 -> 2026-11-10 23:12:11.560481
+  duration: 34 minutes 41.68 seconds.
+
+Full raw listing of fountain_events ids 3260-3290 (id, ts, hot_branch,
+word_count, anchor_belief_id, full thought text) was pulled directly from
+dynamic.db and inspected in full (raw output retained in this
+investigation's working transcript; abbreviated here for length, but
+every specific claim below is sourced from it or a further targeted
+query). Key structural fact: ids 3269, 3274, 3279 inside this id range are
+hot_branch='quiescent' crypto-price ticks ("[crypto.coingecko]
+{"coins":...") — not part of the narrative loop at all. Excluding those,
+the loop is exactly 15 content-bearing fires:
+  3265, 3266, 3267, 3268, 3270, 3271, 3272, 3273, 3275, 3276, 3277, 3278,
+  3280, 3281, 3282.
+hot_branch across these 15 varied continuously (ai_research, computing,
+crypto, markets, psychology, cognition_science, emerging_tech, systems,
+language) — confirming this was a cross-branch topic circle, not a
+single-branch lock.
+
+CLAIM-BY-CLAIM AGAINST THE BRIEF:
+
+"about 40 minutes" — CLOSE, CORRECTED: 34m42.7s, 15 content-bearing fires,
+average ~139s/fire (this process's normal cadence — not accelerated by
+the loop).
+
+"one news story" — CORRECTED: it was TWO stories, entangled by the
+model's own comparison-framing, not one:
+  (a) an AI-alignment headline, literally titled "Our Most Aligned Model
+      Yet" — a real precipitated_from_sense belief (id 13615, created
+      2026-11-10 22:27:42). Confirmed via direct query that this exact
+      headline string appears in beliefs.db EXACTLY ONCE — this was not a
+      duplicate-ingestion flood.
+  (b) "The Royal Family['s participation in] the Festival of Remembrance
+      alongside veterans," which — see Q3 below — is NOT present
+      anywhere in the precipitated_from_sense feed-item pool for this
+      period at all; it entered the fountain by a completely different
+      route.
+Fire 3265 (22:37:29, the pivot) reads: "To make progress on both the
+investigation into 'Our Most Aligned Model Yet' and understanding 'The
+Royal Family', consider conducting a comparative analysis. Identify the
+key criteria and principles used in creating 'Our Most Aligned Model
+Yet' and apply similar analytic frameworks to evaluate the governance,
+transparency, and alignment of different royal families around the
+world..." Every fire through ~3268/3270-3273 keeps BOTH topics explicitly
+in play; by 3276-3282 the "Aligned Model" half drops out and the fires
+are pure Royal-Family restatements, e.g. fire 3282 (the last of the loop,
+9 words): "Provide historical analysis on the Royal Family signal
+investigation."
+
+"reworded each pass" — CONFIRMED. All 15 fires are distinct text (no two
+byte-identical), each a paraphrase/restatement of the same underlying
+claim-pair. Word counts fell steadily across the loop: 108, 162, 152,
+210, 144, 120, 159, 92, 53, 25, 21, 55, 15, 9 — the restatements got
+progressively SHORTER and more telegraphic as the loop went on, not
+longer or more developed.
+
+"the paraphrase check never tripped" — FALSE AS STATED. The closest thing
+to a "paraphrase check" in this codebase is GrooveSpotter
+(theory_x/diversity/groove.py), which detects repetition across
+CRYSTALLIZED beliefs (source IN ('fountain_insight','synergized')), not
+raw fountain fires directly. Direct, read-only query of beliefs.db's
+groove_alerts table for the exact incident window:
+
+  SELECT id, detected_at, alert_type, severity, pattern FROM groove_alerts
+  WHERE detected_at BETWEEN 1794343020.0 AND 1794345180.0
+  -->
+  id=751 2026-11-10 22:58:25.739  template_repetition  severity=1.0
+         pattern="'our most / more aligned / aligned model"
+  id=752 2026-11-10 23:04:27.938  template_repetition  severity=1.0
+         pattern="'our most / more aligned / aligned model"
+
+(A third alert, id=753 at 23:25:13, pattern="feed item / per a / a feed",
+fired AFTER this window on a different, unrelated stylistic pattern —
+not part of this incident.)
+
+So the check tripped TWICE, at MAXIMUM severity, 14 and 20 minutes before
+the loop actually ended (23:12:11) — not never. It did not merely trip
+and do nothing either: _push_cooldown (groove.py) wrote a real row into
+signal_cooldown:
+
+  content="more aligned / aligned model", reason="template_repetition",
+  created_at=2026-11-10 22:58:25.7396, cooldown_until=2026-11-11 01:04:27.94
+  (exactly COOLDOWN_HOURS=2 later)
+
+And that cooldown DID actively work — confirmed via dynamic.db's
+crystallization_rejects table, which logs every raw fire the crystallizer
+turned away and why:
+
+  id=1829  2026-11-10 23:14:16  reason='cooldown'  matched_pattern='aligned model'
+  thought_excerpt: 'The term "Our Most Aligned Model Yet" refers to a
+  recent development in the field of AI...'
+
+That is fire 3283 (just after the loop under study, back on the pure
+AI-alignment topic), correctly blocked by the very cooldown this incident
+produced, 16 minutes after the alert that wrote it.
+
+"the cooldown was aimed at the wrong phrase" — TRUE, but precisely so,
+and for a more specific reason than "miscalibration": the cooldown's
+phrase is "more aligned / aligned model" — it protects against
+re-crystallizing the AI-alignment half of the entangled pair. It has
+NEVER contained anything about Royal Family or Festival of Remembrance
+specifically (checked across signal_cooldown's entire history by both me
+and the parallel subagent independently — see Q3/Q10 below, zero
+overlap for those two terms specifically) and it structurally could not,
+because none of the Royal-Family-only fires (3276-3282) ever crystallized
+into a qualifying belief in the first place — GrooveSpotter can only ever
+see what has already made it into beliefs.db with the right source tag,
+and this half of the loop never did. Direct confirmation from dynamic.db's
+crystallization_rejects table for the 14 other raw fires in the window:
+9 rejected 'too_long', 5 rejected 'no_engagement' — none of those 14
+rejections cite repetition as the reason, because nothing in the pipeline
+ever classified them that way (see Q3).
+
+"groove_breaker off since 2026-05-02, wiring removed 2026-07-26" —
+CONFIRMED, with important added context from commit history (full detail
+in Q9 below): it was NOT always inert. It fired for real, 104 times over
+4 days, injecting probes into the live fountain prompt, before being
+disabled on 2026-05-02 specifically because it had locked onto
+literalizing two metaphors ("the hum," "the ticking") — a different,
+earlier failure mode than this incident. ENABLED=False since that date
+has made every method on the class a guaranteed no-op; the 2026-07-26
+commit (a044ebc) removed the now-pointless live wiring from run.py and
+stage6_fountain/__init__.py, leaving the module itself untouched and
+still technically functional if ENABLED were flipped back on.
+
+=============================================================================
+THE FIVE THAT DECIDE EVERYTHING
+=============================================================================
+
+--- Q1: THE BUDGET REPLAY ---
+
+theory_x/stage_finitude/budget_shadow.py's own module docstring states
+plainly: "SHADOW MODULE — NOT IN THE LIVE PATH. Nothing in gui/server.py
+or selector.py imports this file." Confirmed independently:
+  grep -n "budget_shadow" theory_x/stage6_fountain/generator.py
+  --> (no output — zero matches)
+
+There is therefore no existing "per-fire cost" to replay as-is — Budget
+prices a MOMENT's char budget for competing WORKSPACE BLOCKS
+(select_within_budget, theory_x/stage_tom/global_workspace.py:144-168), a
+different unit of work than "one fountain fire in a time series." (Note:
+generator.py DOES call a sibling function from the same module,
+`arbitrate` at generator.py:3287 — but `arbitrate` uses
+`arbitrate_candidates`, a plain max()-by-salience "pick one winning line"
+competition with NO char budget, NO spend(), and NO cost concept
+whatsoever — confirmed by reading global_workspace.py:130-141. So the
+fountain's fire path does reach into this module, but not into its
+budget/spend machinery.)
+
+I built the most honest available replay given this: fed the 15 real loop
+fires' raw character counts through the real Budget.spend() on a
+throwaway scratch SQLite file (created fresh in the session scratchpad,
+never touching dynamic.db), two ways:
+
+  Replay A — fresh Budget (capacity=700, the module's own default) per
+  fire, treating each fire as its own moment:
+    fire 3265 (635 chars): spend=OK, 65 remaining
+    fire 3266 (1037 chars): spend=REFUSED (over the 700-char cap alone)
+    fire 3267 (934 chars): REFUSED   fire 3268 (1303 chars): REFUSED
+    fire 3270 (909 chars): REFUSED   fire 3271 (744 chars): REFUSED
+    fire 3272 (952 chars): REFUSED   fire 3273 (531 chars): OK, 169 remaining
+    fire 3276 (282 chars): OK, 418 remaining
+    fire 3277 (145 chars): OK, 555 remaining
+    fire 3278 (130 chars): OK, 570 remaining
+    fire 3280 (341 chars): OK, 359 remaining
+    fire 3281 (99 chars): OK, 601 remaining
+    fire 3282 (69 chars): OK, 631 remaining
+
+  Replay B — ONE continuous Budget across the whole 15-fire stretch
+  (treating the whole loop as a single moment):
+    fire 3265 (635 chars): OK, 65 remaining.
+    Every one of the other 14 fires: REFUSED outright — nothing left of
+    the 700-char cap after the very first fire alone.
+
+Did the cost climb as repetition went on, or stay flat? NEITHER, in the
+sense the question implies. Budget.spend() prices raw character AMOUNT,
+with no concept of content identity at all — it cannot distinguish a
+repeated idea from a brand-new one of the same length. What actually
+happened to the fires' lengths over the real stretch is that they FELL:
+635, 1037, 934, 1303, 909, 744, 952, 531, 282, 145, 130, 341, 99, 69
+characters. A naive length-priced budget replayed honestly against this
+real data gets CHEAPER as the repetition wears on, the opposite of a
+deterrent effect. A budget that makes repetition cost MORE over time does
+not exist anywhere in this codebase today as a dormant feature merely
+waiting to be switched on — it would be new pricing logic. If built, it
+does have real, exact-identity signals available to key off (see Q3:
+fountain_prompt_blocks.hash; WorldBridge's fingerprint deque;
+GrooveSpotter's pattern match) rather than needing to invent a
+wording-similarity detector — but "once the budget goes live" is doing
+real, unbuilt design work in Beam's hypothesis, not just a flag flip.
+
+--- Q2: HOW COMMON, HOW LONG ---
+
+The "733 ... since Oct 26" figure does NOT check out. Direct, repeated
+counts:
+  SELECT COUNT(*) FROM groove_alerts  -->  1198 (first check), 1199
+  (second check ~20 minutes later — the table is live and still growing
+  during this investigation; the underlying process never stopped).
+  Earliest row: 2026-10-26 22:29:46 (the table has literally no data
+  before Oct 26, consistent with "since Oct 26" — but the true count is
+  1198-1199, roughly 63-64% more than reported, not 733).
+  Breakdown by type (all-time, i.e. since Oct 26, the table's start):
+    template_repetition:  1136  (94.8%)
+    ngram_repetition:        62  (5.2%)
+    exact_repetition:         0
+    centroid_tightening:      0
+  Acknowledged (acknowledged_at IS NOT NULL): 0 of 1198 — "none needing
+  intervention" checks out in the narrow sense that nothing has ever been
+  marked acknowledged; the column exists but, as far as this
+  investigation found, is simply never written to by any code path.
+
+What is "one alert"? One freshly-detected repeating pattern, logged once
+per DiversityLoop tick — a FIXED 60-second poll
+(theory_x/diversity/loop.py: `self._stop.wait(60)`), independent of the
+fountain's own ~2-4 minute fire cadence — that finds a NEW qualifying
+pattern among the last 20-40 crystallized beliefs. It is belief-level,
+not one-per-fountain-fire. An explicit in-code "stale re-scan" guard
+(e.g. groove.py's _last_template_ids fingerprint) suppresses re-logging
+the SAME still-active pattern on every subsequent 60s tick — so the raw
+row count UNDERCOUNTS true wall-clock duration of any one pattern's
+dominance; it only counts fresh detections.
+
+Episode length distribution (gap-clustering all 1199 alerts of any type,
+30-minute gap = new episode, matching this codebase's own
+GROOVE_FRESHNESS_WINDOW=1800s convention used elsewhere):
+  55 episodes total.
+  Alerts/episode: min 1, median 14, p90 54, max 102.
+  Span: median ~106.7 min, p90 ~376.7 min, max 837.3 min (~14 hours).
+  The 5 longest: 837min/102 alerts (2026-11-12 10:24 to 11-13 00:21),
+  538min/66 alerts (2026-11-13), 504min/64 alerts (2026-10-27),
+  490min/54 alerts (2026-10-28), 381min/41 alerts (2026-11-07).
+  This incident's own matching alert-episode (containing the two "aligned
+  model" alerts, ids 751/752) spans only 56.4 minutes with 8 alerts total
+  — BELOW the median (14 alerts), nowhere near the long tail.
+
+Is the 40-minute one typical or a rare outlier? UNRESOLVED — and I want
+to be explicit about why rather than force an answer either way. The
+alert-episode measure above says this incident, measured that way, was
+mild-to-unremarkable. But that measure is blind BY CONSTRUCTION to
+exactly the gap this investigation exists to describe: the Royal-Family
+half of this incident never crystallized into a belief at all (see Q3,
+Q5), so it could never contribute a single alert, episode, or duration
+figure to this distribution. Honestly answering "is 35-40 minutes of RAW
+fountain-fire dwell on one unrecorded topic typical" would require
+clustering all ~5499 fountain_events since Oct 26 by shared topic at the
+raw-TEXT level and measuring dwell time per cluster across the whole
+history — a materially larger computation this investigation did not run
+(it was done, by hand, for this one incident only). Flagged honestly as
+not done, not as answered — per the brief's own instruction to report
+numbers rather than conclusions about what would have worked, this is a
+number I do not have.
+
+--- Q3: IS "SAME THING AGAIN" A RECORDED FACT? ---
+
+Short answer: Yes — via three separate, independent, EXACT (never fuzzy
+or NLP-similarity-based) mechanisms that genuinely exist and work as
+designed — but NONE of the three is the mechanism that actually carried
+"Royal Family" into this incident, which has NO identity-tracking of any
+kind, exact or fuzzy, at all.
+
+fountain_events itself (the base fire log) has NO stable topic/subject
+identifier field — its schema is exactly: id, ts, thought, droplet,
+readiness, hot_branch, word_count, anchor_belief_id. Checked directly:
+anchor_belief_id was NULL for every one of the 15 fires in this incident
+(and for all 58 historical Royal-Family hits found in Step 0). droplet is
+a text-DERIVED slug (via theory_x/stage6_fountain/condenser.py) that
+changes with every rewording — confirmed different on every one of the
+15 fires, so it is not a stable key. hot_branch is a topical-flavour
+label picked per-fire, confirmed to vary continuously across all 15 fires
+(never once a consistent "this is the same group" tag).
+
+But three OTHER, real, exact mechanisms do exist and were directly
+verified:
+
+1. fountain_prompt_blocks (dynamic.db — NOT dropped on restart, by
+   explicit design; its own code comment says it was built in round 37
+   specifically "because retrospective questions couldn't be answered
+   before"). Stores a content HASH per prompt block per fire. Queried
+   directly for this incident: block ordinal 1 (the literal quoted feed
+   item, e.g. '"Our Most Aligned Model Yet"') has the IDENTICAL hash
+   ba0af2ca977c across fires 3265, 3267, 3273, 3276, and 3282 — direct,
+   checkable proof the exact same source text was reused verbatim, not
+   independently re-worded by the model from a fresh source each time.
+
+2. WorldBridgeSelector (theory_x/world_bridge/selector.py — the frozen
+   "selector.py," read-only, 476 lines, class WorldBridgeSelector)
+   maintains an in-memory deque of up to 15 exact fingerprint strings
+   (_recent_fingerprints; fingerprint = the full formatted event text,
+   title+body) and actively drops (_dedup method, lines 426-442) any
+   event whose fingerprint was already shown recently. This is real,
+   working, exact-string dedup, confirmed by reading the method directly
+   — not fuzzy similarity. (Checked and ruled OUT as this incident's
+   source — see below — but it is real and does work for what it does
+   cover.)
+
+3. GrooveSpotter (theory_x/diversity/groove.py) fingerprints the top
+   repeating n-gram/template per scan and refuses to re-log it while
+   unchanged (_last_ngram_pattern / _last_template_ids, exact-match
+   fingerprints, not fuzzy) — this is the exact mechanism that DID trip
+   on "aligned model" during this incident (Step 0, Q2).
+
+So where did "Royal Family" actually come from, mechanistically, given
+none of the THREE tracked/logged retrieval slots (seed=koans/philosophy;
+own_sense=recent precipitated_from_sense headlines; the wide-mode
+{item}=the one explicit quoted feed headline) ever contained it during
+this window (verified directly: queried fountain_retrieval_log's
+own_sense and seed rows for fire 3265 and the precipitated_from_sense
+pool for the surrounding hours — "Royal Family" appears in NONE of them)?
+Traced directly in generator.py's Layer 4 "SOCIAL" block
+(lines ~3616-3651), which runs unconditionally on every fire with ZERO
+dedup of any kind:
+
+  SELECT payload FROM sense_events WHERE stream = 'external.other_mind'
+  ORDER BY timestamp DESC LIMIT <_soc_n>
+
+This block was ACTIVE during this run — its header text ("SOCIAL: another
+mind has been responding...") is present at prompt-block ordinal 3 in
+every one of the 15 fires' fountain_prompt_blocks rows, directly checked.
+sense.db's external.other_mind stream (a running conversational-partner
+simulation, not Jon) contains a message at 2026-11-10 20:56:27: "That's
+fascinating how you've noticed the Royal Family's direct engagement with
+honoring veterans. What insights do you have on how this might impact
+future mil[itary]..." Because this SELECT has no staleness check and no
+dedup (unlike WorldBridge's separate consumer of the same underlying
+table, which DOES dedup — mechanism #2 above), the same payload is
+eligible to be re-read fire after fire for as long as nothing newer lands
+on that one specific stream. This channel has NO identity tracking of any
+kind — not an id, not a hash, not a fingerprint — it is a bare "most
+recent N rows" read, re-executed from scratch every single fire. That gap
+— not a missing paraphrase-similarity detector — is the real, specific
+reason "Royal Family" was never caught by anything: it never had to be
+RECOGNIZED as a repeat by any detector, because the mechanism that
+surfaced it doesn't check for repeats at all, by design (its own comment
+calls it an experimental, "env-gated, default OFF" layer testing a
+different hypothesis entirely — "responsive CONTACT," not repetition
+safety).
+
+One more, independent, pre-existing, NAMED instance of this exact failure
+class already lives in the code, discovered while tracing this:
+_build_recent_striking_block's "CARRY-SIDE TOPIC GATE"
+(NEX5_CARRY_TOPIC_GATE, default OFF; generator.py ~line 2648) was built
+expressly because "a topic dominates recent fires... fed back verbatim"
+— its own comment cites "research log topic_rut_2026-10-07_var2," a
+PRIOR, separately-diagnosed topic-rut incident from over a month before
+this one. Its sibling phrase-filter two lines below
+(_CHRONIC_GROOVE, a hardcoded phrase list: "gentle thread", "hum indeed",
+"weave a gentle", "resonate for you") is tuned to that EARLIER incident's
+specific wording, not this one's. In other words: a real, working,
+already-built topic-identity mechanism (_dominant_topic_terms, a pure,
+testable, token-overlap-based function) exists, sitting behind a
+default-OFF flag that was simply left off during this run.
+
+--- Q4: WHERE THE PAYING HAPPENS ---
+
+It doesn't, today, anywhere in the fountain's fire loop. Confirmed by
+direct grep:
+  grep -n "budget_shadow\|BudgetShadow" theory_x/stage6_fountain/generator.py
+  --> no matches.
+budget_shadow.py's own docstring states this explicitly: "Nothing in
+gui/server.py or selector.py imports this file. Wiring target: 2026-11-21
+(r77 close)." The shadow budget's actual, real call site today
+(select_within_budget, theory_x/stage_tom/global_workspace.py:144) prices
+competing WORKSPACE BLOCKS within one CHAT turn's char budget — a
+different loop entirely from the fountain's fire-generation loop (see
+Q11 for what that live measurement, r77, actually is). Generator.py does
+reach into the SAME global_workspace.py module, but only for `arbitrate`
+(line 3287) — a max()-by-salience "pick the single winning line" function
+with no budget, no spend(), and no cost concept, confirmed by reading
+global_workspace.py lines 130-141 directly.
+
+So: each fountain fire does NOT pay on its own, and the fountain's fire
+loop does not sit inside any step that pays once either — there is
+currently no payment step of any kind, anywhere in the fountain's path.
+"Wiring it to the fountain" (implied by Beam's hypothesis) is new
+integration work connecting two currently-separate code paths, not a
+dormant connection waiting to be switched on.
+
+--- Q5: DID ANYTHING COME OF IT? ---
+
+Direct, read-only query of beliefs.db for everything created in/around
+the incident window (22:33-23:18) shows the loop was not "40 minutes of
+nothing" at the system-bookkeeping level, though what it produced reads
+as thin:
+  - 3x hot_observer rows ("I notice this fire engaged the world
+    directly...") — observational notices about the fountain's own
+    output, not new claims about the world.
+  - 1x synergized belief (22:38:53, "I notice the dynamic interplay
+    between language's evolution and our evolving understanding of
+    reality...").
+  - 1x fountain_insight belief (22:58:01, "A concrete next step to make
+    progress on both investigations would be to analyze the philosophical
+    foundations of alignment metrics for both...").
+  - The groove_alerts write + signal_cooldown write documented in Q1/
+    Step 0 — a real system-state change, even though not a "belief."
+  - 1 further fountain_insight belief at 23:18:20, but on a DIFFERENT
+    topic (the stock-market story the fountain moved to right after this
+    loop ended) — not a continuation of this incident.
+
+For the raw fires that did NOT become beliefs, dynamic.db's
+crystallization_rejects table names a specific, logged reason for every
+one of the 14 others in the 22:33-23:18 window — these were not silent
+drops:
+  too_long: 9     no_engagement: 5     droplet_repetition: 1 (pre-incident,
+  22:33:27, on the "Aligned Model" topic alone, before the Royal-Family
+  merge)     cooldown: 1 (post-incident, 23:14:16 — the fire this
+  incident's own cooldown caught, already shown in Step 0).
+
+No belief content produced during this stretch reads, on inspection, as
+genuinely NEW information — each restates "AI alignment research relates
+to royal-family governance" with varying framing, hedging, and specificity,
+but I did not find a case where the downstream content differs in
+substance (as opposed to wording) from an earlier restatement in the same
+stretch. That specific judgment ("no new substance") is an interpretive
+call on my part, not a database fact, and is flagged as such — the raw
+text of every belief/rejection quoted above is reproduced verbatim so it
+can be independently re-judged.
+
+Per the brief's own note ("If question 3 came back yes, do not spend
+effort on wording-similarity sums — concentrate on what came of each fire
+and what else was available"): Q3 came back "yes, partially" (three real
+exact-identity mechanisms exist, none of which covers this incident's
+specific carrier channel), so the above — what actually came of each
+fire, with reasons — was the right thing to spend effort on, and the
+pool-availability half of Q8 (below) rather than a wording-similarity sum.
+
+--- Q8 (pool-emptiness half; answered here per the brief's own ordering
+note above) ---
+
+The candidate pool for the wide-mode {item} random pick was NOT empty or
+anywhere near starved during this window. Direct query of beliefs.db:
+  SELECT id, created_at, source, content FROM beliefs WHERE
+  source='precipitated_from_sense' AND created_at BETWEEN
+  <~20:46 and ~21:something on 2026-11-10>
+  --> 94 rows in the surrounding ~4 hours, arriving in fresh batches
+  roughly every 5-15 minutes throughout (e.g. 20:46:26, 20:51:28, 20:56:30,
+  20:57:37, 21:02:39, 21:07:41... continuing straight through the
+  incident window and beyond), covering dozens of distinct, completely
+  unrelated headlines (AI safety, UK politics, robotics papers, crypto
+  prices, health research, literature, celebrity news). "Our Most Aligned
+  Model Yet" recurring via the wide-mode's random shuffle-and-pick-first
+  was not a case of "nothing else was available" — plenty else was
+  available and being freshly ingested the entire time; it was a pure-
+  chance repeat draw from a healthy, varied, actively-refreshing pool.
+  (What WAS separately true: the Royal-Family content did not come
+  through this pool at all — see Q3 — so pool richness or poverty for
+  THIS slot is simply the wrong question for that half of the incident.)
+
+=============================================================================
+LOWER PRIORITY (6-11) — answered with the help of a parallel read-only
+subagent working under the same constraints; full raw backing at
+/tmp/claude-1000/-home-rr/0b0c3186-2dbb-4550-8c9f-01d719458e35/scratchpad/groove_facts_part2.txt
+=============================================================================
+
+--- Q6: WHAT groove_breaker MEASURED, AND WHAT IT DID WHEN IT FIRED ---
+
+Confirmed by a full read of theory_x/auto_probe/groove_breaker.py (383
+lines): ENABLED=False (module-level, line 42) makes
+check_and_maybe_log() return None immediately — every line below that
+check is dead code on the live process today. Traced end to end what
+would happen if it WERE enabled and all four trigger conditions (active
+groove alert severity>=0.80; sustained fires>=8 in the freshness window;
+no pending approval; cooldown elapsed) were met: it classifies a dominant
+opcode, selects a probe, and calls _write_observation_log(), whose ENTIRE
+effect is:
+
+  INSERT INTO auto_probe_log (groove_alert_id, groove_severity,
+    dominant_opcode, sustained_fires, selected_category,
+    selected_probe_text, status, ts) VALUES (..., 'observation', ...)
+
+— one row, status literally 'observation'. No UPDATE, DELETE, or write to
+fountain_events or beliefs; no block, replace, or suppress of any fountain
+content anywhere in the file. The companion method get_pending_probe_text()
+(what FountainGenerator would call to actually inject a probe into the
+prompt) can only ever find rows this same gated method wrote — confirmed
+by direct, read-only query that auto_probe_log has ZERO rows, ever
+(`SELECT COUNT(*), MAX(ts) FROM auto_probe_log` -> n=0, maxts=None).
+
+Important added nuance from commit history (see Q9): this module was NOT
+always a no-op. It fired for real 104 times over 4 days before being
+disabled on 2026-05-02 — at that time it was actually running in Phase B
+(probe DELIVERY into the live prompt), not the "Phase A observation only"
+its docstring claimed. It was disabled specifically because all 104 of
+those real probes were "literalize your metaphor" questions about "the
+hum" and "the ticking," training exactly the kind of attractor this whole
+investigation is about — a different, earlier incident, not this one.
+
+--- Q7: THE THREE STABILISERS DURING THE INCIDENT; DID RUT-MIRROR SEE IT? ---
+
+"The three stabilisers" is not a literal term anywhere in this repo
+(grepped for stabiliser/stabilizer/stabilis*, zero relevant hits — the
+only matches were unrelated generic-English usage in two markdown files).
+Best-effort reading, by elimination, as the three groove/rut-adjacent
+mechanisms actually in the code: (1) groove_breaker [Q6, confirmed fully
+inert], (2) diversity/groove.py's GrooveSpotter + signal_cooldown, and
+(3) theory_x/stage_self_narrative/self_narrative.py's "rut-mirror"
+self-notice.
+
+Mechanism (2) DID fire twice during the exact window (groove_alerts ids
+751/752, severity 1.0, pattern overlapping "aligned model"; one
+signal_cooldown row pushed) — already fully documented in Step 0/Q2/Q3
+above.
+
+Mechanism (3), rut-mirror, is purely a self-observation writer: on a
+2-hour throttle, it looks back 90 minutes at genius_tags' STRIKING rate;
+if that rate is <=5% (a "trough"), it writes a first-person note into
+narrative_log (conversations.db) such as "I notice my recent thinking
+has circled the same few frames without surprising me..." It has NO
+enforcement power — it cannot block, suppress, or replace anything; it
+only surfaces a note back into a future prompt via format_for_prompt().
+
+Direct, read-only query of conversations.db's narrative_log for the
+incident window (2026-11-10 22:37:00 to 23:13:00 local) found:
+  gate_accept_problem: 57, novel_association_crossing: 294,
+  problem_closed: 1 — and ZERO rut_notice rows.
+Searching +/-6 hours around the window found exactly one rut_notice, at
+2026-11-10 21:26:47 — about 71 minutes BEFORE the window started, with
+its own 2-hour throttle meaning it could not have fired again until
+~23:26:47, after the window had already closed anyway. More importantly,
+its OWN trigger metric did not hold during the window: genius_tags in the
+window show STRIKING=5, ordinary=13, a striking rate of 27.8% — well
+ABOVE the <=5% trough threshold required to fire. So rut-mirror did not
+merely miss this incident by throttle-timing; its instrument (flat
+STRIKING-rate) was genuinely not reading a trough during this incident,
+because the fountain kept producing some STRIKING-tagged output even
+while circling one story-pair across branches. Rut-mirror's metric is
+blind to topic/phrase repetition by design — it measures something else
+(perceived quality flatness), and this incident did not depress that
+particular measure.
+
+ANSWER: No, rut-mirror did not see this incident at all — not during it,
+not in the ~71 minutes immediately before it, not in the ~6 hours
+checked after it. This is a direct, data-backed negative (the table
+exists and was queried for the right trigger and the right window; it is
+simply empty there), not an absence-of-evidence guess.
+
+--- Q9: GROOVE_BREAKER'S HISTORY — THE TWO COMMITS, IN FULL ---
+
+Full commit list (`git log --all --oneline | grep -i groove`):
+  1d2d0f2 Phase A: auto-probe groove breaker — observation mode
+  5d29cfc Path A bugfixes: dedup tuning + GrooveBreaker sustained-fires window
+  00c9d84 GrooveBreaker Phase B: probe injection into composition prompt
+  76069a7 Probe library expansion + HN dedup exclusion
+  6eb26f7 Auto-probe groove breaker: disable until probe set redesigned
+          <-- 2026-05-02 DISABLE
+  a044ebc Remove GrooveBreaker's live wiring; ENABLED=False has made it a
+          no-op since 2026-05-02                <-- 2026-07-26 REMOVAL
+  68bb3ec Migrate all non-substrate modules onto substrate.connect()
+
+EVENT 1 — 2026-05-02 disable. Commit 6eb26f7ba0b45b57a84bd96314113967a141d1ff,
+Sat May 2 14:32:12 2026 +0200, author kron777 <zenlightbulb@gmail.com>.
+Full message:
+  "Auto-probe groove breaker: disable until probe set redesigned
+
+  The groove_breaker has been delivering probes into the fountain prompt
+  for 4 days (104 fires, ~30min cadence) despite the module docstring
+  claiming Phase A "observation only, no firing." All 104 fires were
+  direct_phenomenology probes asking NEX to literalize her metaphors
+  ("What does the hum feel like?", "Describe the ticking — what it feels
+  like"). The two most-fired probes (28x + 20x) both reference "the hum"
+  and "the ticking" — directly training the metaphor-family attractor
+  that Phase 1 instrumentation surfaced and d9ce4b7 partially fixed.
+
+  Disabling here protects the post-d9ce4b7 register (which has begun
+  producing concrete imagery and architectural self-reference) from
+  re-collapse into the literalized-phenomenology lock.
+
+  Stale Phase A docstring updated to reflect Phase B reality.
+
+  Re-enable requires:
+    - grounded_observation probe set populated in probes.db
+    - OPCODE_TO_PROBE_CATEGORY review (OBSERVE_HUM/OBSERVE_TEMPORAL
+      currently route to literalizing probes via fallback)
+    - Probe response provenance: probe-triggered fountain_insight
+      beliefs are currently indistinguishable from organic ones in
+      the beliefs schema (no probe_origin tag)
+
+  See observations/auto_probe_audit_2026-05-02.md for full forensic."
+Files touched (git show --stat): ONLY
+  theory_x/auto_probe/groove_breaker.py | 18 +++++++++---------
+  1 file changed, 9 insertions(+), 9 deletions(-)
+(observations/auto_probe_audit_2026-05-02.md, the referenced forensic doc,
+was NOT independently read — out of scope of what was asked, flagged.)
+
+EVENT 2 — 2026-07-26 removal. Commit a044ebc490a1f6c5a069cf15dc26acab85345d0c,
+Sun Jul 26 10:33:04 2026 +0200, author kron777 <zenlightbulb@gmail.com>.
+Full message:
+  "Remove GrooveBreaker's live wiring; ENABLED=False has made it a no-op since
+  2026-05-02
+
+  theory_x/auto_probe/groove_breaker.py's ENABLED = False (module-level
+  constant, disabled 2026-05-02, catalogue d9ce4b7) makes every method on
+  the class a guaranteed no-op -- check_and_maybe_log() returns None
+  immediately, and get_pending_probe_text() can never find anything
+  because its only writer (also check_and_maybe_log()) has been gated off
+  since the same date. Confirmed zero undelivered auto_probe_log rows
+  exist (last row ever: pre-disable), so there's no backlog either.
+
+  Despite that, the class was still being instantiated in run.py and
+  threaded through three live call sites (run.py -> stage6_fountain/
+  __init__.py's build_fountain() -> FountainGenerator, plus a per-tick
+  check_and_maybe_log() call and a per-fire get_pending_probe_text() call
+  in the prompt-building path) -- which is exactly the cost this session's
+  audit kept naming: tracing live-looking wiring down to a single disabled
+  flag, every time, to confirm it does nothing.
+
+  Removed the import, instantiation, and all three call-site references.
+  theory_x/auto_probe/groove_breaker.py itself is untouched and still
+  fully functional -- dated note added there explaining current state; set
+  ENABLED=True and restore this wiring (recoverable at commit edbddff) to
+  re-enable. No test references this class anywhere.
+
+  Verified: syntax and imports clean across all three files, no dangling
+  references. Full test suite diffed against the established clean-main
+  baseline -- identical 39-failure set. Restarted; zero tracebacks in the
+  soak log since boot, fountain firing normally.
+
+  Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
+Files touched (git show --stat):
+  run.py                                | 13 ++++++-------
+  theory_x/auto_probe/groove_breaker.py |  9 +++++++++
+  theory_x/stage6_fountain/__init__.py  | 12 +++---------
+  3 files changed, 18 insertions(+), 16 deletions(-)
+
+The two commit hashes cited inside groove_breaker.py's own comments were
+also checked directly and are NOT groove-specific commits themselves:
+  d9ce4b767c0916cf2a83f78cb9b7ff5833e47e9f (same day, ~6h before the
+  disable) — "Own-slot retrieval: replace multiplicative boost sort with
+  bounded additive time-bonus," a retrieval sort-key bugfix. Files:
+  theory_x/diversity/boost.py, theory_x/memory/resumption.py,
+  theory_x/stage6_fountain/generator.py. Cited as a same-day, related fix
+  to the register the groove_breaker disable was also protecting, not the
+  groove-breaker-specific audit itself (that audit is a separate .md file,
+  not independently verified here).
+  edbddffcecf5227fb9a76cab5e7627b1cb7d05e7 (2026-07-26, ~9.5h before
+  a044ebc) — "CARRY_OVER: decay pre-registration, both fixes, diagnosis,
+  restart result," a journal-only commit touching only
+  journal/CARRY_OVER.md. This is simply a044ebc's PARENT commit — cited
+  as "the state to revert to" to restore the old wiring, not a
+  groove-content commit in its own right.
+
+--- Q10: WHEN THE COOLDOWN WAS INTRODUCED, AND WHAT PHRASE IT TARGETS ---
+
+COOLDOWN_HOURS=2 was first introduced in commit
+a396dda08e8861e22029ceef813c69211671a37e, Sun Apr 26 2026 14:51:58 +0200,
+"NEX5 multi-system batch: decryption module, polymodal architecture,
+decipherment corpus" — a large multi-day batch commit that, among many
+other additions, brought in theory_x/diversity/'s rut-detection
+mechanisms wholesale, including COOLDOWN_HOURS=2 (unchanged today —
+confirmed by checking that every current signal_cooldown row's
+cooldown_until minus created_at equals exactly 7200 seconds).
+
+The meaningfulness floor (_MIN_NONSTOPWORD_WORDS=2, _MIN_FRAGMENT_CHARS=10
+— the "session 30 B" comment this investigation already noted in
+groove.py) was added later, in commit
+b20de0b9a55b537f82ad4884618d114ad2fb65ee, Thu Jul 16 2026 11:43:06 +0200,
+"Fix cooldown type-mismatch (session 30 B): exact-match -> normalized
+substring containment, plus a meaningfulness floor on what gets written."
+Its own commit message states the root cause plainly: "_push_cooldown()
+writes a flagged n-gram fragment ('sunlight through leaves') into
+signal_cooldown.content; _is_on_cooldown() checked WHERE content = ?
+against the FULL new sentence. A short fragment is essentially never
+byte-identical to a full sentence, so this could never match.
+GrooveSpotter has fired 164+ ngram_repetition alerts against the
+'sunlight through leaves'/cicadas groove since 2026-05-17 and blocked
+nothing — detection worked, enforcement was structurally disconnected."
+So THIS cooldown mechanism's targeted phrase, historically, was never
+about news stories at all — it was built and fixed against a recurring
+NATURE-IMAGERY groove ("sunlight through leaves," cicadas) from mid-2026,
+months before any Royal-Family or AI-alignment content existed.
+
+Current signal_cooldown state (read-only query, beliefs.db, run
+2026-11-14 ~03:45 local): 198 rows total (all-time), 3 currently active.
+The 20 most recent rows (spanning the last ~19 hours of activity) contain
+none of "royal," "aligned," "festival," or "remembrance." An explicit
+all-time LIKE search, however, found ONE partial exception to the
+brief's own prediction: 'aligned' matches exactly 1 row —
+content='more aligned / aligned model', created 2026-11-10 22:58:25 (the
+exact cooldown already documented in Step 0/Q2, now long expired).
+'royal' matches 0 rows, ever. 'festival' matches 1 row, but it is
+unrelated: content="peaceful ambiance / festival's peaceful", created
+2026-11-08 09:36:05 — a nature/ambiance usage of "festival," two days
+before this incident, not "Festival of Remembrance." 'remembrance'
+matches 0 rows, ever.
+
+VERDICT: the brief's prediction ("almost certainly NOT") holds exactly
+for "Royal Family" and "Festival of Remembrance" specifically — zero
+overlap, checked all-time, not just recently. It does NOT hold for "Our
+Most Aligned Model Yet" — that term has one real, dated, now-expired
+cooldown entry from inside this very incident. This is consistent with,
+not contradictory to, the belief-crystallization-level finding in Step 0/
+Q3/Q5 (the AI-alignment half of the loop DID crystallize and DID get
+cooled down; the Royal-Family half never crystallized and so could never
+appear in this table at all) — two different, compatible observations
+about two halves of one entangled incident.
+
+--- Q11: WHAT r77 IS MEASURING, SO FUTURE READ-ONLY WORK STAYS READ-ONLY
+ON PURPOSE ---
+
+r77 (flag NEX5_CHAT_WORKSPACE) is a live, pre-registered measurement,
+armed on the live process since 2026-11-07, of whether budget-arbitrating
+the CHAT turn's ~13 faculty blocks (admitting them by descending salience
+until a character cap, instead of concatenating all of them
+unconditionally) reduces chat self-repetition without regressing
+on-subject-ness or cadence. Source of truth,
+observation_reports/r77_PREREGISTRATION.md, read directly:
+  Mechanism: "the chat turn's ~13 faculty blocks were concatenated with
+  no competition and no budget... The arbiter keeps the distress/moral-
+  response blocks (compassion, compass) always and admits the rest by
+  descending salience until NEX5_CHAT_WORKSPACE_BUDGET chars (default
+  1400). Code: gui/server.py _assemble_chat_blocks,
+  theory_x.stage_tom.global_workspace.select_within_budget."
+  Hypothesis: arming it reduces chat self-repetition (the PRIMARY metric,
+  tools/check_session_consistency.py's near-duplicate-session fraction,
+  frozen OFF baseline 0.4889, worst 1.0, mean 0.4923) without regressing
+  on-subject-ness (guardrail baseline: EXPLAIN 0.6427 / overall 0.529) or
+  cadence (guardrail baseline: 690.5 fires/day, median 2.09 min).
+  Window: >=200 chat turns OR >=14 days from 2026-11-07, whichever comes
+  first — i.e. closes ~2026-11-21, matching every other reference to "the
+  freeze" in this investigation's source material.
+  Tripwires (tools/r77_tripwires.py, checked every 6h via a systemd
+  timer): revert immediately if cadence drifts outside +/-20% of 690.5,
+  template-dup/cluster rises >25%, on-subject p drops below 0.65, or
+  register largest-share exceeds 0.70.
+
+The two files that must stay untouched for the duration, confirmed
+directly across MIND_MAP.yaml, ARCHITECTURE.md, and the preregistration
+doc itself: gui/server.py (specifically _assemble_chat_blocks and the
+NEX5_CHAT_WORKSPACE_BUDGET constant, line ~243) and
+theory_x/stage_tom/global_workspace.py (specifically select_within_budget,
+lines 144-168). Editing either mid-window would silently perturb the
+live ON-condition measurement, invalidating the pre-registered comparison
+against the frozen OFF baseline — this is precisely why they are named,
+independently, as frozen in this investigation's own ground rules.
+
+One path-naming note, reconciled directly by me (not by the subagent, who
+flagged being unable to find it under this exact search): this
+investigation's ground rules name "selector.py" as frozen, and that is a
+real, literal file — theory_x/world_bridge/selector.py (476 lines, class
+WorldBridgeSelector) — which I read in full earlier in this investigation
+(see Q3). It is a DIFFERENT file from theory_x/stage_tom/global_workspace.py,
+doing a different job (selecting/deduping world-feed events for
+injection, not char-budget arbitration of chat blocks) — MIND_MAP.yaml
+and ARCHITECTURE.md's prose sometimes use "selector"/"arbiter"
+informally to describe the global_workspace mechanism too, which is what
+led the parallel subagent to conflate the two paths; they are in fact two
+separate, both-frozen-for-independent-reasons files, and both were
+confirmed untouched (empty git diff) at the end of this investigation.
+
+=============================================================================
+THE MAP QUESTION
+=============================================================================
+
+--- Q12: SENTIENCE_5.5 ON GETTING STUCK ON ONE THING ---
+
+/home/rr/Sentience_5.5 exists, confirmed by direct listing. Quarantined
+Sovereign files, identified and excluded from all searches:
+  quarantine/sovereign/Sovereign_Birth.py.quarantine
+  quarantine/sovereign/Sovereign_Nexarion.py.quarantine
+(and the quarantine/ directory generally).
+
+No dedicated doctrine file or passage uses the words "habituation,"
+"fatigue," "stuck," "rut," "groove," "boredom," or "satiation" anywhere
+outside quarantine (all zero hits on direct grep). What exists instead is
+mechanical, split across three small files:
+  - Autonomous_Explorer_Node.py: novelty literally decays with repeated
+    exposure to the same state (NOVELTY_DECAY=0.05), rate-limited so it
+    can't swing too fast turn to turn (MAX_NOVELTY_DELTA=0.25) — the
+    closest thing to "getting used to something."
+  - Drive_System_Node.py: low novelty_score on a memory/state directly
+    increases the curiosity drive (`self._adjust("curiosity", (0.5 -
+    novelty) * 0.2)`) — a boredom-drives-exploration coupling.
+  - Attention_Node.py (a 14-line file): a minimum focus-hold duration
+    (MIN_FOCUS_HOLD_SECONDS=0.5) plus a capped priority-shift delta
+    (MAX_PRIORITY_DELTA=0.25) and an explicit blocked_shifts counter — a
+    hysteresis/anti-thrash gate for when multiple things compete for
+    attention, stopping rapid flapping between them.
+
+ONE SHORT SYNTHESIS: Sentience_5.5 has no named "habituation" or "rut"
+doctrine. What it has is three independent, purely numeric controls —
+novelty decay, a novelty-to-curiosity coupling, and an attention-hold/
+anti-thrash cap — whose emergent interaction could in principle prevent
+dwelling too long on one thing, but "getting stuck on one thing for too
+long" is never itself named or designed against as a concept in the
+non-quarantined doctrine; it would be a side effect of these controls,
+not a feature.
+
+=============================================================================
+DO-NOT CHECKLIST — CONFIRMED NOT VIOLATED
+=============================================================================
+No code changed, anywhere, in either repo. No commits. No new files
+inside either repo (the report file and its /tmp support files are
+outside both repos). The paraphrase threshold was not tuned. groove_breaker
+was not re-enabled. The cooldown was not adjusted. No pricing was wired —
+Q1's replay ran against a disposable scratch SQLite file, never against
+budget_shadow.py's real call sites or any live table. No meaning-based
+similarity check was added as a gate. Nothing was built to identify "same
+thing" — only whether something already does, which this report answers
+plainly (yes, partially, via three exact mechanisms, covering two of this
+incident's two topics but not the third carrier channel). Nothing that
+affects fountain selection was changed. No claim is made that the belief
+store was "polluted" — the crystallizer's own reject log shows most of
+this incident's raw fires were turned away, not absorbed. This report
+makes no claim about, and does not reuse any finding from, the earlier
+pair census — it is explicitly a different question, left untouched.
+
+=============================================================================
+REPO STATUS — CLEAN AND UNCHANGED
+=============================================================================
+Checked at the end of this investigation (nex5 repo):
+
+  $ git status
+  On branch main
+  Your branch is ahead of 'origin/main' by 4 commits.
+    (use "git push" to publish your local commits)
+  nothing to commit, working tree clean
+
+  $ git diff --stat -- gui/server.py theory_x/world_bridge/selector.py
+  (empty — both frozen files untouched)
+
+The "ahead by 4 commits" is pre-existing local history from a separate,
+earlier, unrelated task in this same repo (the affect_carry_openbeat
+work), confirmed present before this investigation began — nothing in
+this investigation added to it. No writes were made to data/beliefs.db,
+data/dynamic.db, data/sense.db, or data/conversations.db — every query
+against them used a read-only URI connection (file:...?mode=ro); the only
+write this investigation performed anywhere was a single throwaway
+scratch SQLite file created fresh in the session's own temp scratchpad
+directory for the Q1 budget replay, which is outside both repos and holds
+no real data.
+
+=============================================================================
+HONEST FLAGS, COLLECTED
+=============================================================================
+- Step 0: the 2026-11-08 08:57-09:51 burst (53m49s, also matching "~40
+  minutes" loosely) was identified but NOT investigated at the same
+  depth as the 2026-11-10 incident adopted for this report. If that one
+  is what was actually meant, this report's specific findings may not
+  transfer.
+- Q2: "is 40 minutes typical or a rare outlier" is UNRESOLVED at the
+  raw-fire level — the alert-level distribution computed here says
+  "unremarkable," but that measure structurally cannot see the half of
+  this incident that never crystallized, so it cannot honestly settle
+  the question. A full raw-fire-level topic-clustering across the whole
+  Oct-26-to-now history would be needed and was not run.
+- Q5: "no new substance was produced" is an interpretive judgment on the
+  quoted belief text, not a database fact — flagged as such; the raw
+  text is reproduced so it can be independently re-judged.
+- Q6/Q9: the "104 historical fires" claimed in commit 6eb26f7's message
+  could not be independently verified against the CURRENT auto_probe_log
+  table (it is empty, n=0 today) — expected/consistent with time having
+  passed, but exactly when/why it became empty was not traced; out of
+  scope of the specific questions asked.
+- Q9: observations/auto_probe_audit_2026-05-02.md, referenced by commit
+  6eb26f7, was not independently read.
+- Q11: resolved a path-naming discrepancy between my own direct reading
+  of theory_x/world_bridge/selector.py and the parallel subagent's
+  inability to find it under that exact name — see the note under Q11
+  above; both files (selector.py and global_workspace.py) are real,
+  distinct, and were both confirmed untouched.
+- Q12: per the brief's own instruction, this was a single targeted
+  lookup, not a full read of Sentience_5.5's doctrine — files outside the
+  grepped term set were not read.
+- General: data/beliefs.db's groove_alerts table grew by at least one row
+  (1198 -> 1199) during the course of this investigation, since the
+  underlying NEX5 process is live and was never paused or touched. All
+  counts in this report are timestamped to when they were taken; a
+  re-run today would likely show slightly higher totals for anything
+  "all-time," through no action by this investigation.

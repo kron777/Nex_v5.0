@@ -1,0 +1,422 @@
+FOCAL-ITEM REPETITION -> FOCUS ROTATION (shadow-rotate, no flag flip)
+=============================================================================
+Repo: /home/rr/Desktop/Desktop/nex5/        Built: 2026-11-14
+Direction: Beam AI (ruled 2026-11-14), following groove_facts.txt and
+topic_gate_shadow.txt (both 2026-11-14).
+
+=============================================================================
+ONE-LINE ANSWERS
+=============================================================================
+0.1 (pytest/venv): The premise does NOT reproduce today -- .venv is Python
+  3.12.3, matching the system's python3.12.3 exactly; no version pin was
+  needed. Full suite run twice this round, both green: 2140 passed, 7
+  skipped, 40 subtests passed (199.12s, then re-confirmed after this
+  round's edits -- see bottom of this file for the second run's numbers).
+1.1 (corrected repeat number): UNCHANGED at 9/15 (60%). fountain_events.
+  focal_item is one value per fire row -- there is no multi-row-per-fire
+  structure to double-count in the first place, so the 60% figure was
+  never inflated. Separately: Beam's stated premise for THIS incident (a
+  second, BBC-sourced channel corroborating "Royal Family") does NOT hold
+  -- checked directly against world_bridge_log; the only matching mention
+  in a +/-2h window around the incident came via external.other_mind
+  (SOCIAL), not news.bbc. This confirms, rather than contradicts,
+  topic_gate_shadow.txt's own finding that Royal-Family content's origin
+  is unresolved/untraceable to any tracked channel.
+1.2 (consecutive streak): INCIDENT longest streak = 4 (not 9 -- the 9
+  occurrences are spread across the 15-fire window, interleaved with
+  DRIFT/null fires, not one unbroken run). BASELINE longest streak = 1;
+  its two repeats of the same item sit at positions 0 and 2 -- spread
+  apart, not adjacent.
+1.3 (2-4 week history, rolling 15-fire windows): 4553 overlapping windows
+  computed across ~19 days / 4567 real fires. IMPORTANT, HONEST CORRECTION
+  to the prior round's "60% vs 13% is a clean gap" conclusion: over the
+  real distribution, the incident's own values (streak=4, rate=60%) are
+  COMMON, not rare -- streak>=4 occurs in 19.3% of ordinary windows,
+  rate>=60% in 8.5%. Full numbers and the implication for picking K are
+  below.
+1.4 (corroboration): Across the full ~19-day history, 131 of 3139
+  focal-item fires are echoed by >=1 tracked world_bridge_log stream
+  within +/-10 min, and exactly 2 fires are echoed by >=2 DISTINCT
+  streams (true corroboration) -- fire 739 ("October 21 Wikipedia
+  featured article", via external.other_mind + history.wikipedia_featured)
+  and fire 4473 ("Nvidia shares plunge...", via emerging_tech.hn +
+  computing.tech_news). Rare but real -- the counting-once-per-fire logic
+  built below is exercised by real data, just not by the specific
+  incident this investigation is about (see 1.1).
+2.1 (detector): Built. Exact focal_item identity, one row per fire (no
+  double-count possible given the schema). Given 1.3's finding that the
+  incident's own values sit at the ~80-90th percentile of ordinary
+  variation rather than in a rare tail, K and the backstop were picked
+  from the genuinely rare tail of the REAL distribution instead of from
+  the incident's own numbers: K=6 (occurs in 6.4% of ordinary windows),
+  rate backstop=70% (occurs in 2.6%). Logged honestly: at these
+  thresholds, the real investigated incident (streak=4, rate=60%) would
+  NOT have triggered either one. See "WHAT THIS DATA STILL CAN'T TELL US"
+  below for why this isn't swept under the rug.
+2.2 (rotation decision logging): Built, and separated into two real,
+  distinct things rather than conflated into one: (a) what the EXISTING
+  NEX5_FOCUS_ROTATE actuator's OWN independent staleness check
+  (_stale_cluster_tokens, n>=18 of the last 40 non-null-focal fires within
+  68 real minutes, UNCHANGED) would have decided -- replayed against the
+  real incident and baseline below: NEVER triggers in either window (both
+  only have 34-35 total lookback fires in 68 min, with at most 9 matching
+  -- far under 18); (b) what NEX5_FOCUS_ROTATE's exclusion PREDICATE
+  (_on_stale, also unchanged) would exclude from the next fire's candidate
+  pool IF it were driven by THIS round's new detector's decision instead
+  of (a) -- logged as the detected item's dedup token set whenever the
+  detector triggers.
+2.3 Logged into the SAME topic_gate_shadow_log table from the prior round
+  (add columns, not a new table), via an INSERT independent of whatever
+  _record_topic_gate_shadow did or didn't write for the same fire (an
+  UPDATE-by-MAX(id) coupling was tried first, found fragile, and replaced
+  -- see "A BUG CAUGHT BEFORE SHIPPING" below).
+2.4 Comment left in generator.py on _record_focus_rotation_shadow's
+  docstring: next step (not built) is extending groove.py's existing,
+  proven suppress-with-cooldown shape to this exact-identity signal, ONLY
+  if an item survives rotation and keeps recurring anyway -- not a new
+  suppression mechanism of its own.
+
+=============================================================================
+PHASE 0 -- TEST-RUNNER CHECK
+=============================================================================
+.venv/pyvenv.cfg: version = 3.12.3, built via `/usr/bin/python3 -m venv`.
+System `python3 --version`: Python 3.12.3. Identical -- no mismatch to fix.
+`pytest --collect-only -q`: 2147 tests collected cleanly, 0 collection
+errors.
+
+Full run, BEFORE this round's edits:
+  $ .venv/bin/python3 -m pytest -q
+  2140 passed, 7 skipped, 40 subtests passed in 199.12s (0:03:19)
+
+Full run, AFTER this round's edits (generator.py's 412-insertion diff):
+  see "REGRESSION CHECK" at the bottom of this file for the exact
+  post-edit numbers -- run was still in flight when this file's body was
+  drafted; the final section below has the real completed output, not a
+  placeholder.
+
+So: Phase 0's stated blocker does not exist today. Nothing needed pinning.
+This does not change anything about this round's own ground rules (still
+telemetry-only, still no live flip) -- it just means a FUTURE round's live
+flip is not blocked on this.
+
+=============================================================================
+PHASE 1 -- HONEST NUMBERS, NO CODE CHANGES
+=============================================================================
+
+-- 1.1: corrected repeat number + corroboration check --
+
+Incident window (fountain_events ids 3265-3282, 15 content-bearing fires,
+2026-11-10 22:37:29-23:12:11, per groove_facts.txt/topic_gate_shadow.txt):
+  focal_item sequence: ['Our Most Aligned Model Yet', None,
+  'Our Most Aligned Model Yet', 'Our Most Aligned Model Yet', None,
+  'Our Most Aligned Model Yet', None, 'Our Most Aligned Model Yet',
+  'Our Most Aligned Model Yet', 'Our Most Aligned Model Yet',
+  'Our Most Aligned Model Yet', None, None, None,
+  'Our Most Aligned Model Yet']
+  OLD (last round's simple count): 9/15 = 60.0%
+  CORRECTED (checked for multi-channel double-counting via
+  world_bridge_log.selected_events_json within +/-10min of each fire):
+  0 corroboration events found in this window -> 9/15 = 60.0%, UNCHANGED.
+  fountain_events.focal_item is a single column, one value per fire row --
+  there was never a structural way for this specific number to be
+  double-counted; the 60% figure already was single-count-per-fire.
+
+Direct check of Beam's stated premise ("the real BBC news feed... carried
+the Royal-Family content... within the same window"):
+  Query: all world_bridge_log.selected_events_json rows in a +/-2h window
+  around the incident (1794343049-7200 to 1794345131.6+7200), scanned for
+  "royal" or "remembrance" (case-insensitive) in any formatted_text.
+  Result: exactly 1 hit --
+    2026-11-10 21:03:48 stream='external.other_mind'
+    text="[external] That's fascinating how you've noticed the Royal
+    Family's direct engagement with"
+  No news.bbc entry in this window mentions Royal Family or Festival of
+  Remembrance at all (the real news.bbc items nearby are about a UK spy
+  arrest, unrelated). VERDICT: Beam's specific claim of a second,
+  BBC-sourced corroborating channel for THIS incident does not hold --
+  the only tracked mention is via SOCIAL itself, which topic_gate_shadow.txt
+  already flagged as the one real hit it found, with Royal Family's actual
+  origin left genuinely unresolved. This is reported plainly as a
+  discrepancy between the brief and the data, per the brief's own ground
+  rule -- and the round continued past it, because the general
+  corroboration-counting LOGIC (Phase 1.4/2.3) does not depend on this one
+  incident having actually exercised it; it is built generically and IS
+  exercised by two other real fires found below.
+
+-- 1.2: consecutive streak, incident vs. baseline --
+
+INCIDENT longest consecutive streak (focal_item identical on BACK-TO-BACK
+fires, nulls break a streak): 4
+  (the run is fires 3267-3268 is 2, then interrupted by None at 3270...
+   checked programmatically: longest run = 4, not the full 9 -- the 9
+   occurrences are spread across the window with DRIFT/null fires
+   interleaved, so the real "unbroken" pressure on a human/system reading
+   consecutively is milder than the 60% rate alone suggests.)
+
+BASELINE (fountain_events ids 3712-3730, 2026-11-11 14:01:37-14:39:05, 15
+content-bearing fires):
+  items: ['SkipLane: Write-Once, Conflict-Free Accumulation for
+  Zero-Skipping CNN Engines on FPGAs', "Kraken's xStocks adds 200 UK and
+  EU shares as its assets top $1.1 billion", 'SkipLane: ...' (repeat),
+  'Early social enrichment...', None, None, 'Decoding Ediacaran fossils',
+  None, 'Home and garden : by Gertrude Jekyll', 'Nation falls silent to
+  mark Armistice Day', "Is Your Robot's Memory...", 'UGG: Unified
+  Generative Geometry Model', 'Nation falls silent to mark Armistice Day'
+  (repeat), "Kraken's xStocks..." (repeat), None]
+  longest consecutive streak: 1
+  repeat rate: 2/15 = 13.3% (item: the SkipLane paper)
+  Were the baseline's 2 repeats adjacent? NO -- positions 0 and 2, spread
+  apart, with a different item in between. Same check on the Armistice-Day
+  item (the real, legitimate Nov-11 news recurrence): also non-adjacent.
+
+-- 1.3: 2-4 week rolling-window history --
+
+4567 non-quiescent fires, 2026-10-26 21:54 to 2026-11-14 10:29 (~18.5
+days). 4553 overlapping rolling 15-fire windows computed (acknowledged:
+overlapping, not independent samples -- a single long streak contributes
+to up to 15 consecutive windows).
+
+REPEAT RATE distribution:
+  p50: 13.3%   p90: 53.3%   p95: 66.7%   p99: 80.0%   p100: 93.3%
+  mean: 24.1%
+  rate>=30%: 27.9% of windows    rate>=40%: 22.8%    rate>=50%: 12.5%
+  rate>=60%: 8.5%    rate>=70%: 2.6%    rate>=80%: 1.3%    rate>=90%: 0.07%
+
+LONGEST CONSECUTIVE STREAK distribution:
+  streak=1: 47.2%  streak=2: 19.8%  streak=3: 13.8%  streak=4: 7.9%
+  streak=5: 4.9%   streak=6: 3.4%   streak=7: 1.4%   streak=8: 1.2%
+  streak=9: 0.24%  streak=10: 0.26% (max observed anywhere: 10)
+  streak>=4: 19.3%  streak>=5: 11.4%  streak>=6: 6.4%  streak>=7: 3.1%
+  streak>=8: 1.7%   streak>=9: 0.51%  streak>=10: 0.26%
+
+HONEST HEADLINE FINDING, CORRECTING THE PRIOR ROUND: the incident's own
+measured values -- streak=4, rate=60% -- are NOT rare against this real
+distribution. streak>=4 happens in roughly 1 of every 5 ordinary 15-fire
+windows; rate>=60% happens in roughly 1 of every 12. The prior round's
+"60% vs. a 13% ceiling... a clean, well-separated gap" conclusion was
+comparing the incident against ONE specific, hand-picked clean baseline
+window, not against the real spread of ordinary variation -- once the
+real spread is in hand, that specific baseline window (13.3%, streak=1)
+turns out to be on the QUIET end of normal, not representative of
+"ordinary" as a whole. The max-streak window anywhere in this history
+(streak=10, fires starting 2026-11-01 01:29:37) is 10 CONSECUTIVE fires on
+"State-dependent modulation of cross-area sensory processing in mouse
+neocortex" -- almost certainly a healthy, sustained single-paper
+deep-dive, not a malfunction, and it is LONGER and MORE consecutive than
+the real incident this investigation exists to describe.
+
+-- 1.4: corroboration event counting --
+
+Method: for every fire with a non-null focal_item (3139 of 4567), search
+world_bridge_log.selected_events_json within +/-10 minutes for text
+sharing >=2 (or half, whichever is larger) of the item's keywords
+(words >4 chars), tracking which DISTINCT streams match.
+  Fires echoed by >=1 tracked stream: 131 of 3139 (4.2%).
+  Fires echoed by >=2 DISTINCT streams (true corroboration -- counted once,
+  logged separately, never folded into the repeat/streak numbers above):
+  2 of 3139 (0.064%):
+    fire 739  "October 21 Wikipedia featured article"
+      streams: external.other_mind, history.wikipedia_featured
+    fire 4473 "Nvidia shares plunge 10% to June 2025 levels as Jensen
+      Huang resigns"
+      streams: emerging_tech.hn, computing.tech_news
+  Neither real corroboration event falls inside the incident or baseline
+  windows studied above -- corroboration is real but rare, and (per 1.1)
+  did not occur in the specific incident this investigation is about.
+
+=============================================================================
+PHASE 2 -- DETECTOR WIRED TO THE EXISTING ROTATION ACTUATOR, LOGGING ONLY
+=============================================================================
+
+CODE CHANGE: theory_x/stage6_fountain/generator.py only (412 insertions, 0
+deletions -- git diff --stat confirmed below). Two pieces:
+
+(a) Eight ALTER TABLE ADD COLUMN statements on the EXISTING
+    topic_gate_shadow_log table (not a new table), run idempotently at
+    __init__ time (same unconditional-but-harmless pattern as the table's
+    original CREATE TABLE IF NOT EXISTS) -- each wrapped individually
+    since SQLite has no "ADD COLUMN IF NOT EXISTS"; a "duplicate column"
+    failure on every restart after the first is expected and silently
+    ignored.
+    New columns: focal_item, focal_streak, focal_repeat_rate_15,
+    rotation_stale_tokens, rotation_would_trigger, detector_streak_trigger,
+    detector_rate_backstop_trigger, corroboration_channel_count,
+    detector_exclusion_tokens.
+
+(b) A new method, _record_focus_rotation_shadow, called once per fire from
+    _build_prompt immediately after the existing _record_topic_gate_shadow
+    call (same safe placement: after _prompt_text is final, read-only,
+    never alters the fire). Gated behind the SAME NEX5_TOPIC_GATE_SHADOW
+    flag as last round's instrument (still default OFF) -- true no-op
+    (zero queries, zero writes) when absent, verified below. It:
+      1. Reads self._last_focal_item (this fire's own chosen item, already
+         set earlier in the SAME _build_prompt call) + the last 14 prior
+         non-quiescent fires' focal_item from fountain_events.
+      2. Computes the exact-identity consecutive streak and 15-fire repeat
+         rate -- single column, one value per fire, no fuzzy matching, no
+         Jaccard, no embeddings.
+      3. Calls the EXISTING, UNCHANGED _stale_cluster_tokens() (the actual
+         live body of NEX5_FOCUS_ROTATE's own staleness check) to log what
+         THAT independent mechanism would decide, read-only.
+      4. Evaluates this round's own detector at K=6 (streak) and 70%
+         (rate backstop) -- both picked from Phase 1.3's real rare tail,
+         not the incident's own values (see Phase 1 above for why).
+      5. When the detector triggers, logs the dedup token set of the
+         repeated item -- what NEX5_FOCUS_ROTATE's _on_stale predicate
+         (also unchanged) would exclude from the next fire's candidate
+         pool if driven by this detector, since no live candidate-pool
+         snapshot exists at this logging point to show directly.
+      6. Checks corroboration (Phase 1.4's method, same code) for THIS
+         fire specifically and logs the distinct-stream count.
+      7. INSERTs one new row into topic_gate_shadow_log (not an UPDATE --
+         see "A BUG CAUGHT BEFORE SHIPPING" below for why).
+
+REPLAY AGAINST THE REAL INCIDENT AND BASELINE (using the REAL,
+unmodified _stale_cluster_tokens(), imported directly from the live
+module, run against a throwaway scratch DB rebuilt per-fire from real
+dynamic.db rows + a monkeypatched time.time() -- never against the live
+DB; scratch files created and destroyed in the session scratchpad):
+
+  INCIDENT: _stale_cluster_tokens() returns None (would_trigger=False) at
+  EVERY one of the 15 fires. Reason, confirmed directly: its own lookback
+  window (last 40 non-null-focal fires within the preceding 68 real
+  minutes) only ever contains 34-35 total fires at any point in this
+  window (the fountain's real cadence is ~2 min/fire, not dense enough to
+  reach 40 within 68 min here), and at most 9 of those share the dominant
+  item -- under its own n>=18 threshold by a wide margin.
+
+  BASELINE: _stale_cluster_tokens() also returns None at every one of its
+  15 fires, for the same structural reason (34 lookback fires, max 2
+  matching).
+
+  HONEST IMPLICATION: the EXISTING NEX5_FOCUS_ROTATE actuator's OWN
+  built-in staleness check would not have engaged during the real
+  incident either -- it is calibrated (18 of 40 within 68 min) for a much
+  longer, denser rut than a 15-fire/35-minute episode can ever produce.
+  This is exactly why Phase 2 builds a SEPARATE detector (this round's
+  streak/rate check) to decide WHEN to engage rotation's exclusion
+  predicate, rather than relying on _stale_cluster_tokens' own trigger --
+  matching the brief's instruction to "give it a cleaner trigger" literally.
+
+DETECTOR SELF-TEST (isolated fixture, not the live DB): a synthetic
+6-fire run of the same item correctly produces focal_streak=7,
+focal_repeat_rate_15=1.0, detector_streak_trigger=1,
+detector_rate_backstop_trigger=1, detector_exclusion_tokens=
+["aligned","model","yet"]. A single distinct fire produces streak=1,
+both detector triggers=0, exclusion_tokens=None. Flag-off produces zero
+rows; flag-on-then-off-again leaves the row count unchanged (true no-op
+confirmed both ways).
+
+=============================================================================
+A BUG CAUGHT BEFORE SHIPPING
+=============================================================================
+The first version of _record_focus_rotation_shadow used an UPDATE keyed on
+"WHERE id = (SELECT MAX(id) FROM topic_gate_shadow_log)" to attach its
+columns onto the row _record_topic_gate_shadow had just inserted for the
+same fire. Caught on review, before any live or test run: if
+_record_topic_gate_shadow's own INSERT ever failed (it has its own
+try/except and silently no-ops on failure, same discipline as this new
+method), the UPDATE would silently corrupt a PREVIOUS fire's row instead
+of doing nothing. Fixed by making _record_focus_rotation_shadow INSERT its
+own independent row instead -- the two instruments now cannot corrupt each
+other's data even if one of them hits its own exception branch. (The
+table's one pre-existing NOT NULL column, would_fire, has no default, so
+this instrument's rows set it to 0 with a comment explaining that 0 here
+means "not a topic-gate-overlap row," not a real would-fire=False
+observation -- flagged here so a future reader querying would_fire alone
+doesn't misread these rows.)
+
+=============================================================================
+WHAT THIS DATA STILL CAN'T TELL US
+=============================================================================
+- With exactly ONE investigated incident, there is no way to statistically
+  calibrate a detection threshold against true positives/negatives -- K=6
+  and the 70% backstop were chosen because they sit in the rare tail of
+  ORDINARY variation, not because they are known to catch real problems.
+  By construction, they would NOT have caught the one real incident this
+  whole investigation started from (streak=4, rate=60%, both common).
+  Picking a K that WOULD catch the real incident (e.g. K=4) would also
+  fire on ~1 in 5 ordinary windows, including legitimate multi-fire
+  engagement with a single real paper or story (the streak=10 mouse-
+  neocortex window is the clearest real example found).
+- This means the honest state of the detector today is: good at flagging
+  genuinely rare, extreme dwell (K=6/70% catches the tail), but NOT
+  demonstrated to catch incidents shaped like the one that started this
+  investigation. Those may need a qualitatively different signal (e.g.
+  cross-branch topic entanglement, which is what actually made 11-10's
+  incident unusual per groove_facts.txt, not raw repetition count) rather
+  than a stricter version of the same repetition count.
+- How much more shadow-logging time before a live flip is justified: this
+  round's replay shows the EXISTING rotation actuator's own trigger
+  essentially never fires at the fountain's real ~2min cadence within a
+  68-minute/40-fire window unless a rut is both extreme AND dense. Getting
+  enough real triggered rows at K=6/70% to judge whether rotation's
+  candidate-pool exclusion behaves sanely in production would, at the
+  observed ~1.7-2.6% ordinary incidence, need on the order of several
+  hundred fires of real flag-on logging (roughly 1-2 weeks at current
+  cadence) before there would be enough triggered rows to look at, not
+  just zero or one.
+- The two real corroboration events found (1.4) are too few (2, neither
+  inside a repetition incident) to validate that the corroboration-count
+  column behaves correctly under real multi-channel repetition pressure,
+  as opposed to just the isolated-fixture test above.
+
+=============================================================================
+DO-NOT CHECKLIST -- CONFIRMED NOT VIOLATED
+=============================================================================
+No live-behavior flag flipped: NEX5_FOCUS_ROTATE, NEX5_CARRY_TOPIC_GATE,
+NEX5_TOPIC_GATE_SHADOW all behave exactly as before (new logging is gated
+behind the SAME flag as last round, read via the same unchanged
+_topic_gate_shadow_on(), still default OFF/absent in prod). No token-
+overlap/Jaccard/embedding approach was built or revived for repetition --
+the detector is exact focal_item identity only; the one place tokens
+appear (_dedup_tokens on the detected item, for the exclusion-token log
+column) reuses the EXISTING NEX5_FOCUS_ROTATE helper verbatim, not a new
+similarity measure. groove_breaker.py was not touched or re-enabled.
+Nothing from SOCIAL or world-bridge was suppressed or dropped -- both were
+only ever read, never written to, and only for logging. No routing of
+SOCIAL through belief formation. No double-counting of a single fire
+touched by multiple channels -- confirmed both by construction (focal_item
+is one value per row) and by the explicit corroboration check (1.1, 1.4).
+gui/server.py and theory_x/world_bridge/selector.py were read only, never
+edited -- empty git diff --stat on both, shown below.
+
+=============================================================================
+REPO STATUS
+=============================================================================
+  $ git status
+  On branch main
+  Your branch is ahead of 'origin/main' by 4 commits.
+  Changes not staged for commit:
+    modified:   theory_x/stage6_fountain/generator.py
+  no changes added to commit
+
+  $ git diff --stat
+   theory_x/stage6_fountain/generator.py | 412 ++++++++++++++++++++++++++++++
+   1 file changed, 412 insertions(+)
+
+  $ git diff --stat -- gui/server.py theory_x/world_bridge/selector.py
+  (empty -- both frozen files untouched)
+
+The "ahead by 4 commits" is pre-existing, unrelated local history
+(affect_carry_openbeat work), present before this round began. This
+round's diff is deliberately left UNCOMMITTED, per standing instruction
+(commits only on explicit request) and because this brief did not ask for
+one.
+
+=============================================================================
+REGRESSION CHECK
+=============================================================================
+  BEFORE this round's edits:
+    2140 passed, 7 skipped, 40 subtests passed in 199.12s (0:03:19)
+  AFTER this round's edits:
+    2140 passed, 7 skipped, 40 subtests passed in 203.12s (0:03:23)
+  IDENTICAL pass/skip/subtest counts, before and after. One transient
+  failure (test_build_prompt_sense_block_separate_label, an
+  inspect.getsource()-based source-string check) appeared on the FIRST
+  post-edit run and was traced to a stale __pycache__ bytecode cache left
+  over from this session's own earlier interactive re-imports of
+  generator.py during development/testing -- NOT a real code regression.
+  Confirmed by clearing __pycache__ and re-running: the single test passes
+  immediately in isolation, and the full suite re-run above (after the
+  same cache clear) is clean with no failures of any kind.

@@ -1,0 +1,517 @@
+TOPIC GATE SHADOW-INSTRUMENT (read-only telemetry, no live behavior change)
+=============================================================================
+Repo: /home/rr/Desktop/Desktop/nex5/        Built: 2026-11-14
+Direction: Beam AI (ruled 2026-11-14), following groove_facts.txt (2026-11-14).
+
+SCOPE DISCIPLINE UP FRONT: this round built ONLY read-only shadow telemetry.
+No existing default was changed. NEX5_SOCIAL_N's row-selection logic was not
+touched. NEX5_CARRY_TOPIC_GATE was not flipped. groove_breaker.py was not
+re-enabled. Nothing was routed through belief formation. No budget/pricing
+logic was built. gui/server.py and theory_x/world_bridge/selector.py were
+read only, never edited (confirmed empty `git diff --stat` on both at the
+end, shown at the bottom of this file). The new code is additive-only: `git
+diff --stat` on theory_x/stage6_fountain/generator.py shows 239 insertions,
+0 deletions. The change is NOT committed to git -- this brief did not ask
+for a commit, and per standing instruction commits are only made when asked;
+the diff is sitting in the working tree, ready to review or commit on
+request.
+
+=============================================================================
+ONE-LINE ANSWERS
+=============================================================================
+Task 1 (map the fire path): _build_prompt (generator.py:3286) assembles
+  everything; the SOCIAL block (line ~3722) runs BEFORE
+  _build_recent_striking_block (called at line 3861, containing the
+  NEX5_CARRY_TOPIC_GATE check) in execution order for the SAME fire. But
+  that ordering is beside the point: the gate's own term source
+  (_recent_fire_topic_terms, line 2613) only ever reads PAST fire OUTPUT
+  (fountain_events.thought) -- it has no code path that looks at ANY of the
+  current fire's INPUT blocks, SOCIAL included, regardless of where in the
+  assembly order it sits. This is exactly why Beam's ruling to wire a gate
+  at fire-assembly (seeing the input blocks directly) rather than patching
+  SOCIAL is architecturally correct.
+Task 2 (shadow instrumentation): Built. New flag NEX5_TOPIC_GATE_SHADOW
+  (default OFF/absent, verified no-op), new table topic_gate_shadow_log in
+  dynamic.db, one INSERT per fire when the flag is on, recorded at the end
+  of _build_prompt (line ~4136) right after _prompt_text is final. Records
+  SOCIAL's own content tokens, the gate's existing (output-only) dominant
+  terms, a SOCIAL-inclusive version of the same, the full assembled
+  context's tokens, an echo-fraction overlap ratio, a would_fire boolean,
+  and GrooveSpotter's most recent severity.
+Task 3 (SOCIAL visible to the gate's history): Built via a SEPARATE,
+  shadow-only per-process deque (self._topic_gate_shadow_social_history,
+  maxlen=40, matching the existing window), fed SOCIAL's text every fire
+  and folded into a second, SOCIAL-inclusive dominant-term computation.
+  NEX5_CARRY_TOPIC_GATE's own _recent_fire_topic_terms is untouched and
+  still output-only.
+Task 4 (replay against the real incident): Replayed. The real incident's
+  data IS replayable (sense_events + fountain_events are both intact for
+  that window) using the shadow's own pure functions directly imported from
+  the live code, run read-only against a throwaway scratch DB for the one
+  write this task made (a sandboxed pricing-free token-pool computation,
+  never against data/dynamic.db). Table below. Headline, and an important
+  correction to groove_facts.txt below it.
+Task 5 (overlap-ratio numbers, incident vs. baseline): Reported in full
+  below, across THREE different overlap-ratio designs tried in sequence --
+  the first two did not work (saturated, then inverted) and are reported
+  as real, useful negative data, not hidden. The third (chronic-vocabulary-
+  filtered echo fraction) is real, bounded, varying data -- but it ALSO
+  does not cleanly separate the incident from an ordinary baseline. A much
+  cleaner, already-recorded, EXACT signal was found along the way
+  (fountain_events.focal_item) and is reported as the stronger candidate.
+Task 6 (recommendation): Suppress-with-cooldown, same shape as the EXISTING
+  working groove.py cooldown mechanism, keyed on EXACT repeated identity
+  (focal_item string match, or the prompt-block content hash already in
+  fountain_prompt_blocks) rather than on fuzzy lexical overlap -- this
+  investigation's own data shows lexical/token-overlap measures do not
+  reliably separate the real incident from ordinary chatty content, while
+  an exact-identity measure separates them cleanly (60% vs 13%, numbers
+  below). NOT implemented this round, per the brief.
+
+=============================================================================
+TASK 1 -- MAP THE FIRE PATH
+=============================================================================
+
+Commands run:
+  grep -n "def _dominant_topic_terms\|def _recent_fire_topic_terms\|def
+  _build_recent_striking_block\|NEX5_CARRY_TOPIC_GATE\|SOCIAL: another
+  mind\|def _build_prompt\|_build_recent_striking_block()" \
+  theory_x/stage6_fountain/generator.py
+
+Result (line numbers as of the final edited file):
+  124   def _dominant_topic_terms(thoughts, df_frac=_CARRY_TOPIC_DF)  -- the
+        pure term-extraction function (df>=0.40 of a 40-thought window,
+        no stemming). Used by the real gate AND by this shadow instrument.
+  2613  def _recent_fire_topic_terms(self)  -- NEX5_CARRY_TOPIC_GATE's own
+        term source. Reads ONLY: "SELECT thought FROM fountain_events ...
+        ORDER BY id DESC LIMIT 40" -- past OUTPUT, never any input block.
+  2630  def _build_recent_striking_block(self)  -- the "Recent voice of
+        yours that landed as itself" feedback block. Contains the
+        NEX5_CARRY_TOPIC_GATE check (originally found at ~line 2655 in
+        groove_facts.txt's reading; shifted slightly by this round's own
+        edits further down the file -- unaffected, still the same code).
+  3286  def _build_prompt(self, ...)  -- THE assembly point. Single return
+        at line 4136 (confirmed: no earlier `return` anywhere in the
+        method body -- `awk` range-grep for "return " found exactly one).
+  3722  "SOCIAL: another mind has been responding..." -- the SOCIAL block's
+        prompt_parts.append call, inside _build_prompt.
+  3861  self._build_recent_striking_block()  -- the CALL SITE that invokes
+        the gate-containing method, inside _build_prompt, i.e. the SAME
+        single fire's assembly.
+  4136  return _prompt_text, retrieval_manifest  -- the only exit point.
+
+ANSWER: within ONE fire's _build_prompt call, the SOCIAL block (3722) runs
+BEFORE the call to _build_recent_striking_block (3861) -- so by the time
+the gate's own method runs, SOCIAL's text is already sitting in
+prompt_parts for the CURRENT fire. But the gate itself never reads
+prompt_parts, never reads the current fire's input blocks at all --
+_recent_fire_topic_terms (2613) only queries fountain_events, i.e. PAST
+fire OUTPUT, several fires old by the time it's read. So the ordering
+within one fire is actually irrelevant to the gap: the gate is structurally
+blind to every current-fire INPUT channel, SOCIAL included, no matter
+where in the sequence it sits. Fixing the ordering would do nothing; seeing
+the input blocks directly (Beam's ruling) is the only thing that would.
+
+=============================================================================
+TASK 2 -- THE SHADOW INSTRUMENTATION (built)
+=============================================================================
+
+New flag: NEX5_TOPIC_GATE_SHADOW (checked via os.environ.get(...) == "1",
+default OFF/absent -- see _topic_gate_shadow_on(), generator.py line ~169).
+
+New table, lazily created (idempotent CREATE TABLE IF NOT EXISTS, same
+pattern as the file's existing fountain_prompt_blocks/emphasis_log tables),
+in dynamic.db:
+
+  CREATE TABLE IF NOT EXISTS topic_gate_shadow_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ts REAL NOT NULL,
+      social_text TEXT,
+      social_terms TEXT,
+      rolling_terms_output_only TEXT,
+      rolling_fire_count INTEGER,
+      rolling_terms_with_social TEXT,
+      full_context_terms TEXT,
+      overlap_ratio REAL,
+      would_fire INTEGER NOT NULL,
+      groove_severity REAL
+  )
+
+Recording method: _record_topic_gate_shadow(self, prompt_text, social_text)
+(generator.py line ~4170), called once from the END of _build_prompt (line
+~4136, right after _prompt_text is final, same placement principle as the
+existing _prompt_block_manifest capture immediately above it). First line
+of the method: `if not _topic_gate_shadow_on(): return` -- so with the flag
+off, this is a true no-op: no DB query, no DB write, no extra import,
+nothing. Confirmed live (Task-2/4 verification script, reproduced in full
+under "VERIFICATION" below):
+
+  rows in topic_gate_shadow_log with flag OFF: 0
+  rows in topic_gate_shadow_log with flag ON:  1
+  rows in topic_gate_shadow_log after a further OFF call: 1 (unchanged)
+
+Fields recorded per fire (flag on):
+  social_text / social_terms       -- SOCIAL's own contribution to THIS
+                                       fire, captured where SOCIAL itself
+                                       builds its block (line ~3722), and
+                                       its content tokens.
+  rolling_terms_output_only        -- the EXISTING gate's own view: 40
+                                       trailing fire-OUTPUTS, same pure
+                                       _dominant_topic_terms call the real
+                                       gate uses, UNCHANGED.
+  rolling_terms_with_social        -- the same df-threshold computation,
+                                       but over output+SOCIAL combined (see
+                                       Task 3).
+  full_context_terms               -- content tokens of the ENTIRE
+                                       assembled prompt for this fire.
+  overlap_ratio / would_fire        -- see Task 5 (three designs tried;
+                                       final one documented there).
+  groove_severity                  -- MAX(severity) from groove_alerts in
+                                       the last 30 minutes as of this fire,
+                                       same convention _maybe_substrate_voice
+                                       already uses elsewhere in this file.
+
+=============================================================================
+TASK 3 -- SOCIAL MADE VISIBLE TO THE GATE'S ROLLING HISTORY
+=============================================================================
+
+NEX5_CARRY_TOPIC_GATE's OWN _recent_fire_topic_terms (line 2613) is
+UNCHANGED -- still reads only fountain_events.thought, nothing added to it,
+nothing routed into it. Per the brief: "Don't change what SOCIAL itself
+reads or does" and "Don't flip NEX5_CARRY_TOPIC_GATE" -- both held.
+
+Instead, a SEPARATE, shadow-only per-process history was added:
+
+  self._topic_gate_shadow_social_history = deque(maxlen=_CARRY_TOPIC_WINDOW)
+  (generator.py, in __init__, next to the existing self._social_n init)
+
+Every fire, _record_topic_gate_shadow appends that fire's SOCIAL text (even
+"" when SOCIAL contributed nothing) to this deque -- on purpose: SOCIAL
+repeating the same text fire after fire for lack of anything newer IS the
+signal this exists to surface, so a flat/unchanging read must still show up
+in the history, not be silently skipped. It then recomputes
+_dominant_topic_terms over (the 40 trailing fire-outputs) + (this SOCIAL
+history) combined -- rolling_terms_with_social. This is the "one level up"
+view Beam's ruling asked for: SOCIAL's contribution now sits in the SAME
+kind of rolling corpus the gate's own logic already understands, without
+touching SOCIAL's read path or the gate's own default.
+
+Caveat found and reported honestly: because the window is 40 FIRES but
+SOCIAL only changes every ~5-15 fires' worth of wall-clock time (it reads
+the single latest external.other_mind row, which arrives far less often
+than fountain fires do), SOCIAL's own text ends up appearing MANY times in
+its own 40-entry history for each time it actually changes. This inflates
+SOCIAL's own words' apparent document-frequency independent of whether the
+fountain's real output is doing anything repetitive -- a genuine confound,
+discussed further in Task 5.
+
+=============================================================================
+TASK 4 -- REPLAY AGAINST THE REAL INCIDENT
+=============================================================================
+
+The incident's data (2026-11-10 22:37:29-23:12:11, fountain_events ids
+3265-3282, 15 content-bearing fires per groove_facts.txt) IS replayable:
+fountain_events, sense_events (stream='external.other_mind'), and
+groove_alerts are all intact for that window. Replay script:
+/tmp/claude-1000/-home-rr/0b0c3186-2dbb-4550-8c9f-01d719458e35/scratchpad/topic_gate_replay.py
+(imports _dominant_topic_terms, _CARRY_TOPIC_WINDOW, and
+_TOPIC_GATE_SHADOW_OVERLAP_THRESHOLD directly from the live generator.py
+module -- the SAME functions the shadow instrument calls, not a
+reimplementation). All DB access read-only (file:...?mode=ro). NEX5_SOCIAL_N
+confirmed =1 live (grep nex_keepalive.sh:217), so SOCIAL's historical
+contribution at any past timestamp is reconstructable exactly: the single
+most recent external.other_mind row as of that fire's ts. The social-
+history deque was seeded from the 40 real fires immediately preceding the
+window (not left artificially empty), so the replay's view of "recent
+SOCIAL history" matches what a live deque would actually have held.
+
+IMPORTANT CORRECTION TO groove_facts.txt, found while building this replay:
+groove_facts.txt's Q3 section asserted SOCIAL's zero-dedup re-read was how
+"Royal Family" specifically entered the 22:37-23:12 loop. This replay's own
+data contradicts that specific claim. Reconstructing SOCIAL's actual
+single-row (_soc_n=1) payload AS OF fire 3265's generation time
+(22:37:29.88) gives: "That's fascinating how different fields can
+intersect, isn't it? In a way, it mirrors how we ourselves integrate
+various perspectives..." -- a generic cross-domain-comparison nudge, NOT
+the Royal-Family message (sense_events id 235366, 20:56:27) that
+groove_facts.txt quoted. That message was already 1h41m stale by 22:37:29
+-- several newer external.other_mind rows (21:17:46, 21:37:48, 21:47:48,
+21:57:49, 22:27:51) had superseded it by then, and with _soc_n=1 only the
+single most recent one is ever read. Having found this, I checked every
+other tracked channel exhaustively for fire 3265 (identity_block, own_sense,
+seed slots via fountain_retrieval_log; the wide-mode {item} and its
+focal_item column; world_bridge_log's nearest-timestamp selection; real
+chat messages in conversations.db; an exhaustive LIKE-scan for "Royal"
+across every TEXT column in all four databases) and found "Royal" in NONE
+of them before 22:37:29 on 2026-11-10. The specific origin of "Royal
+Family" in fire 3265 is, as far as this investigation can trace it, NOT
+attributable to any NEX5 retrieval/injection channel -- it is left
+genuinely UNRESOLVED, flagged honestly rather than forced to fit the prior
+claim. (One plausible, unproven account: the base LLM's own general world
+knowledge, cued by the real calendar date -- Nov 10 sits immediately before
+real-world Remembrance Sunday -- combined with SOCIAL's generic
+"compare-different-things" nudge; the WIDE_MODE templates explicitly
+instruct "do NOT invent facts... events that are not stated," so if this
+account is right, fire 3265 is a case of the model violating that
+instruction, not a retrieval bug. Not verified; reported as a hypothesis,
+not a finding.) SOCIAL's own zero-dedup design IS real and independently
+verified from the code (Task 1 above, and groove_facts.txt's Q3) -- what
+was wrong was pinning THIS specific incident's content on it. Once the
+Royal-Family topic entered the fountain's own OUTPUT (fountain_events),
+whatever the true origin, its SELF-perpetuation via the rolling-window/
+striking-block feedback mechanisms groove_facts.txt already documented is
+unaffected by this correction.
+
+Per-fire replay table, INCIDENT WINDOW (overlap_ratio is the FINAL,
+chronic-vocabulary-filtered echo-fraction design -- see Task 5 for why):
+
+fire_id | local time | social_text (80 chars)                                    | rolling_fires | overlap_ratio | would_fire@0.30 | groove_severity
+3265    | 22:37:29   | "fascinating how different fields can intersect..."       | 40            | 0.350          | True             | 1.0
+3266    | 22:39:34   | "fascinating how different fields can intersect..."       | 40            | 0.350          | True             | 1.0
+3267    | 22:41:38   | "fascinating how different fields can intersect..."       | 40            | 0.375          | True             | 1.0
+3268    | 22:43:43   | "fascinating how different fields can intersect..."       | 40            | 0.400          | True             | 1.0
+3270    | 22:47:47   | "fascinating how different fields can intersect..."       | 40            | 0.425          | True             | None
+3271    | 22:49:51   | "fascinating work you're doing, NEX. Now, let's explore.."| 40            | 0.175          | False            | None
+3272    | 22:51:55   | "fascinating work you're doing, NEX. Now, let's explore.."| 40            | 0.200          | False            | None
+3273    | 22:53:58   | "fascinating work you're doing, NEX. Now, let's explore.."| 40            | 0.200          | False            | None
+3275    | 22:58:01   | "I see, those are interesting explorations. How do you..."| 40            | 0.200          | False            | None
+3276    | 23:00:03   | "I see, those are interesting explorations. How do you..."| 40            | 0.225          | False            | 1.0
+3277    | 23:02:05   | "I see, those are interesting explorations. How do you..."| 40            | 0.225          | False            | 1.0
+3278    | 23:04:06   | "I see, those are interesting explorations. How do you..."| 40            | 0.225          | False            | 1.0
+3280    | 23:08:09   | "I see, those are interesting explorations. How do you..."| 40            | 0.225          | False            | 1.0
+3281    | 23:10:10   | "I see, those are interesting explorations. How do you..."| 40            | 0.200          | False            | 1.0
+3282    | 23:12:11   | "I see, those are interesting explorations. How do you..."| 40            | 0.200          | False            | 1.0
+
+Would the gate have fired, how many fires in? At the borrowed 0.30
+threshold: YES, from the very FIRST fire (3265), continuing for 5 of the 15
+fires (3265-3270), then dropping below threshold for the rest. At 0.40:
+only 2 fires (3268, 3270) ever cross it. At 0.50: never. So under this
+specific metric, "would it have fired" is sensitive to exactly which
+threshold is picked, and the firing does NOT track the actual severity of
+the real repetition -- it tracks which of SOCIAL's own two generic
+messages happened to be live at the time, which is a confound, not a
+measure of the fountain's own behavior (see Task 5).
+
+=============================================================================
+TASK 5 -- OVERLAP-RATIO NUMBERS, INCIDENT VS. A CLEAN BASELINE
+=============================================================================
+
+Baseline window chosen: 2026-11-11 14:01:37-14:39:05 (fountain_events ids
+3712-3730, 15 content-bearing fires after excluding 4 quiescent
+crypto-ticks, matching the incident's own 15-fire count). Why this window:
+Nov 9 was a process-down day (0 fires) and Nov 10 was mostly down too (83
+fires all day, vs ~696 on a normal day) -- both ruled out as baseline
+sources. Nov 11 was a full normal day. This specific slice sits in a long
+(~22h) gap between groove_alerts clusters and was visually confirmed
+topic-diverse before being used (crypto/cognition_science/computing/
+history/markets/emerging_tech/psychology, with only mild, healthy 2-3-fire
+dwell on any one sub-topic, no sustained single-topic loop):
+
+  SELECT id, ts, hot_branch, thought FROM fountain_events WHERE ts BETWEEN
+  <2026-11-11 14:00> AND <14:40> ORDER BY id   -- 19 rows, 15 content-
+  bearing after excluding hot_branch='quiescent'.
+
+THREE OVERLAP-RATIO DESIGNS WERE TRIED, IN ORDER, AND ARE ALL REPORTED --
+the first two did not work; that is itself real data for Task 6, not a
+detour to hide:
+
+DESIGN 1 -- set-containment ratio (shared / min(len_a, len_b)) between
+SOCIAL's own tokens and the FULL token pool of the combined 40-fire+SOCIAL-
+history window (the same formula shape as the EXISTING NEX5_FOCUS_ROTATE
+convention, _on_stale, which uses 0.30). Result: overlap_ratio = 1.0 on
+EVERY SINGLE FIRE in BOTH the incident and the baseline window, with no
+exceptions. Useless -- it saturates because SOCIAL's ~15 words are almost
+always a subset of a 700+-token pool regardless of repetition. Not used.
+
+DESIGN 2 -- echo fraction: share of the 40 trailing fire-OUTPUTS that share
+>=1 content token with SOCIAL's raw text (no filtering). Result:
+  INCIDENT: mean=0.293, max=0.425, would_fire@0.30 = 5/15
+  BASELINE: mean=0.605, max=0.700, would_fire@0.30 = 15/15
+INVERTED -- the ordinary baseline fired MORE than the real incident. Root
+cause, checked directly: SOCIAL's simulated persona has its own chronic
+stock vocabulary ("think" in 38% of its 485 historical messages,
+"fascinating" in 27%, "advancements" 18%, "interesting" 15%, etc. -- full
+list and query below), which recurs in unrelated fire output just by being
+common English, not because anything is actually looping. The exact same
+disease theory_x/diversity/groove.py's _is_meaningful_fragment/
+_CHRONIC_GROOVE floor was already built to catch (session 30 B, per
+groove_facts.txt's Q10 findings) -- found again here, independently, in a
+different mechanism. Not used as the final design, but the query that
+surfaced it is kept (see Task 2/6).
+
+  $ SOCIAL chronic-vocabulary query (sense.db, read-only):
+    SELECT payload FROM sense_events WHERE stream='external.other_mind'
+    -- 485 total historical rows; document frequency of top tokens:
+    think 185 (38.1%), fascinating 133 (27.4%), advancements 87 (17.9%),
+    interesting 71 (14.6%), see 63 (13.0%), impact 62 (12.8%), future 58
+    (12.0%), potential 57 (11.8%), find 54 (11.1%), technology 51 (10.5%),
+    seems 50 (10.3%), considered 50 (10.3%), quite 48 (9.9%), tech 47
+    (9.7%), energy 45 (9.3%)...
+
+DESIGN 3 (final, live-coded) -- the same echo fraction as Design 2, but
+with SOCIAL's own chronic vocabulary (df >= 10% of its 485 historical
+messages: think/fascinating/advancements/interesting/see/impact/future/
+potential/find/technology/seems/considered) excluded before comparing.
+Result:
+  INCIDENT: mean=0.265, max=0.425, would_fire@0.30=5/15, @0.40=2/15, @0.50=0/15
+  BASELINE: mean=0.555, max=0.625, would_fire@0.30=15/15, @0.40=15/15, @0.50=11/15
+
+STILL INVERTED, barely changed by the filter. HONEST CONCLUSION: filtering
+out SOCIAL's own top chronic words was not enough -- the remaining overlap
+is still dominated by generic-but-not-quite-chronic-enough words ("insights",
+"explore", "work", self-reference to "NEX", etc.) that are common across
+ANY fountain output, incident or not. A true fix would need corpus-wide
+inverse-document-frequency weighting (down-weighting words common across
+ALL fountain output, not just SOCIAL's own messages) rather than a simple
+persona-specific stock-phrase exclusion list. That is a real, nontrivial
+design question this round did not solve, and is reported as such rather
+than papered over with a fourth attempt.
+
+A CLEANER SIGNAL, FOUND ALONG THE WAY (not lexical, not built into the live
+shadow table this round, but directly relevant to Task 6): fountain_events
+already has a focal_item column (the wide-mode {item} text, EXACT, no
+tokenization). Its repetition rate is a dramatically cleaner separator:
+
+  $ SELECT focal_item FROM fountain_events WHERE id IN (<window ids>) AND
+    hot_branch != 'quiescent'
+  INCIDENT (15 fires): 9 have a non-null focal_item; "Our Most Aligned
+    Model Yet" appears in 9 of 15 (60%) -- all of them.
+  BASELINE (15 fires): 11 have a non-null focal_item; the single
+    MOST-repeated item ("SkipLane: Write-Once, Conflict-Free Accumulation
+    for Zero-Skipping CNN Engines on FPGAs") appears in only 2 of 15 (13%);
+    every other item appears once, except "Nation falls silent to mark
+    Armistice Day" also at 2/15 (13%) -- itself a real, mild, HEALTHY
+    recurrence of actual Nov-11 Armistice-Day news, not a malfunction.
+
+60% vs. a 13% ceiling is a clean, well-separated gap -- and it is an EXACT
+string-identity measure already sitting in a column this project already
+writes to every fire, needing no new tokenization, no persona-vocabulary
+exclusion list, and no corpus-wide IDF weighting to be trustworthy.
+
+=============================================================================
+TASK 6 -- RECOMMENDATION (not implemented, per the brief)
+=============================================================================
+
+Hard suppression, down-weighting, or suppress-with-cooldown? SUPPRESS-WITH-
+COOLDOWN, keyed on EXACT repeated identity, not on a lexical overlap score.
+
+Why not hard suppression: this investigation's own data (Task 5) shows no
+lexical overlap design tried here reliably distinguishes the real incident
+from ordinary chatty content -- using any of them to hard-block a fire
+outright risks blocking normal, healthy content (the baseline window would
+have been blocked under Designs 2 and 3 at every single fire). Hard
+suppression on an unreliable signal is worse than doing nothing.
+
+Why not plain down-weighting: down-weighting (reducing salience/budget
+competitiveness without ever fully stopping repetition) assumes a
+CONTINUOUS, well-calibrated signal to weight BY -- which is exactly what
+this round's lexical attempts failed to produce. Down-weighting against
+a noisy or inverted signal just adds noise to generation without fixing
+anything, and (per groove_facts.txt's Q1 budget-replay finding) nothing
+resembling a working cost/budget mechanism exists on this path today to
+hook a weight into anyway.
+
+Why suppress-with-cooldown: it is the ONE mechanism in this codebase
+already PROVEN to work end to end on a signal of comparable exactness --
+groove.py's own cooldown, keyed on exact/near-exact n-gram and template
+matches (not fuzzy lexical overlap), already fires, already writes a real
+suppression window, and groove_facts.txt independently confirmed it
+actually blocked a real fire during the incident (fire 3283, matched_
+pattern='aligned model'). The gap groove_facts.txt found was never "this
+mechanism doesn't work" -- it was "this mechanism never got to see the
+content that needed it" (the Royal-Family half never crystallized into a
+belief, so GrooveSpotter never saw it). The fix implied by this round's own
+data is NOT a new fuzzy-overlap gate at fire-assembly; it is the SAME
+proven suppress-with-cooldown shape, keyed on the cleaner EXACT signal this
+round surfaced (focal_item repetition, or the prompt-block content hash
+already recorded in fountain_prompt_blocks), applied one level up so every
+input channel -- SOCIAL included -- is visible to it, exactly as Beam's
+ruling specified. A real threshold is already suggested by the data: 60%
+(incident) vs. a 13% ceiling (baseline, including a legitimate real-news
+recurrence) leaves wide room; something in the 25-40% band -- notably
+overlapping the SAME 0.30 already used elsewhere in this file for an
+analogous purpose (NEX5_FOCUS_ROTATE) -- is a reasonable starting point for
+the later prompt that actually wires this.
+
+This recommendation is NOT implemented in this round -- no suppression,
+weighting, or cooldown logic was added anywhere; topic_gate_shadow_log
+remains pure observation, and focal_item's cleaner signal was found and
+measured, not wired into anything live.
+
+=============================================================================
+VERIFICATION
+=============================================================================
+
+Default-identical (flag off => true no-op), isolated end-to-end check
+against a fresh throwaway substrate (tempfile.mkdtemp, NEX5_DATA_DIR
+pointed at it, never data/) --
+/tmp/claude-1000/-home-rr/0b0c3186-2dbb-4550-8c9f-01d719458e35/scratchpad/shadow_live_check.py,
+same fixture pattern as tests/test_fountain.py's own _make_env():
+
+  rows in topic_gate_shadow_log with flag OFF: 0
+  rows in topic_gate_shadow_log with flag ON:  1
+  rows in topic_gate_shadow_log after a further OFF call: 1 (unchanged)
+  recorded row (flag ON): social_text='A test interlocutor message about
+    royal matters.', social_terms=['interlocutor','matters','message',
+    'royal','test'], overlap_ratio=0.0 (no rolling history yet in this
+    fresh substrate), would_fire=False, groove_severity=None.
+
+A naive "_prompt_text identical ON vs OFF" comparison was ALSO run and
+initially FAILED (texts differed) -- traced with a diff, and the ONLY
+difference found was in the "Things you've read that sometimes come to
+mind" (koan/seed) block, picked by an SQL-level ORDER BY RANDOM() unrelated
+to Python's random module and unrelated to anything this round touched.
+Confirmed by running two back-to-back calls with the flag OFF both times
+(seeded identically via random.seed(42) beforehand): they ALSO differed,
+proving this is pre-existing, unrelated nondeterminism in _build_prompt
+itself, not something introduced by this change. The real default-identical
+guarantee rests on the code diff: 239 insertions, 0 deletions (git diff
+--stat, confirmed again at the bottom of this file), and
+_record_topic_gate_shadow receives _prompt_text as a read-only parameter
+and never reassigns it -- confirmed by reading the method, which only
+builds local variables and performs one INSERT.
+
+Full regression suite, run twice across this round (once mid-build, once
+after all edits were final):
+
+  $ .venv/bin/python -m pytest -q
+  (first run, after the initial instrumentation) 2140 passed, 7 skipped,
+  40 subtests passed in 190.67s (0:03:10)
+  (final run, after the overlap-ratio redesign and chronic-vocab filter)
+  2140 passed, 7 skipped, 40 subtests passed in 184.44s (0:03:04)
+  IDENTICAL pass/skip counts both times -- no regression introduced by any
+  version of this round's edits.
+
+=============================================================================
+REPO STATUS -- CLEAN EXCEPT THE ONE INTENDED, UNCOMMITTED CHANGE
+=============================================================================
+
+  $ git status
+  On branch main
+  Your branch is ahead of 'origin/main' by 4 commits.
+  Changes not staged for commit:
+    modified:   theory_x/stage6_fountain/generator.py
+  no changes added to commit (use "git add" and/or "git commit -a")
+
+  $ git diff --stat -- theory_x/stage6_fountain/generator.py
+   theory_x/stage6_fountain/generator.py | 239 ++++++++++++++++++++++++++++
+   1 file changed, 239 insertions(+)
+
+  $ git diff --stat -- gui/server.py theory_x/world_bridge/selector.py
+  (empty -- both frozen files untouched)
+
+The "ahead by 4 commits" is pre-existing local history from an earlier,
+unrelated task in this same repo (the affect_carry_openbeat work) --
+present before this round began, nothing added to it here. generator.py's
+239-insertion, 0-deletion diff is deliberately left UNCOMMITTED: this brief
+did not ask for a commit, and per standing instruction, commits are only
+made when explicitly requested. No other file in the repo was touched. No
+write landed in any live database table except the one new, empty-by-
+default topic_gate_shadow_log table (schema only -- it holds zero rows
+with the flag off, which is how it will sit in production). The only
+*data* this round wrote anywhere was the throwaway scratch SQLite files
+created fresh under the session scratchpad for the Task 1/4 replay and the
+Task 2 verification check, both outside the repo and both cleaned up
+(the verification script removes its own tempdir on exit; the replay
+script's throwaway DB and all intermediate scripts remain in the session
+scratchpad, not inside the repo, available for inspection if wanted).

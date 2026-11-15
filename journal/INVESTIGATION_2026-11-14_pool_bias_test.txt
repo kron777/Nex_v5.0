@@ -1,0 +1,315 @@
+ONE REAL DIAGNOSTIC: DOES THE DRAW RATE EXCEED WHAT THE POOL PREDICTS?
+=============================================================================
+Repo: /home/rr/Desktop/Desktop/nex5/        Built: 2026-11-14
+Direction: Beam AI (ruled 2026-11-14, same thread, after reviewing
+pool_exhaustion.txt). Pure diagnostic round -- no code changes, no
+detector, threshold, or recommendation anywhere below.
+
+=============================================================================
+ONE-LINE ANSWERS
+=============================================================================
+TASK A: A.1 -- the shortlist is the top-10 result of: fetch every
+  STRIKING-tagged candidate in the 24h window, sort by score DESC, then
+  greedily keep a candidate only if its FIRST SENTENCE doesn't share
+  >=50% 5-gram overlap with one already kept (surface-text dedup, not
+  topic-aware). A.2 -- YES, this step is a real, confirmed mechanical
+  pathway for topical skew to enter BEFORE any random pick happens:
+  because "distinct" is judged by first-sentence phrasing, not topic,
+  several genuinely-reworded restatements of the SAME topic can all
+  survive dedup as separate slots (confirmed directly: fire 3271's
+  reconstructed shortlist has 6 of 9 slots that are all "Aligned
+  Model"-topic restatements with different first sentences, none deduped
+  against each other).
+TASK B: Across all 2994 classifiable fires (non-null focal_item, non-
+  empty pool) where the mechanism fired, the OBSERVED same-topic draw
+  rate is 21.0% (629/2994). The rate a pool-blind random draw would
+  predict, given each fire's own real pool composition at that moment,
+  is 30.9% (924.34/2994 expected). Observed is LOWER than predicted by
+  9.86 percentage points (295 fires), not higher. This is a clean, direct
+  answer in the opposite direction from "biased toward same-topic beyond
+  pool composition": the data does not show that; if anything it shows
+  fewer same-topic draws reach the final prompt than pure chance on the
+  pool alone would produce. A plausible, disclosed (not proven further
+  this round) mechanical reason for that specific gap: this round's
+  "predicted" model only covers the random-draw stage, not the
+  downstream groove-pattern filter the real code applies afterward
+  (which specifically strips picks matching an active severe groove
+  alert or chronic phrase list) -- a filter whose entire purpose is to
+  catch repeated/same-topic content, so it would selectively remove
+  same-topic draws more than unrelated ones, which is exactly the
+  direction and rough shape of the observed shortfall.
+
+=============================================================================
+THE FALSIFYING-RESULT STATEMENT -- written before the full-scale Task B
+computation was executed
+=============================================================================
+(Disclosure: by the time this was written, one prior check HAD been run
+this round -- a single-fire validation of the shortlist-reconstruction
+method against fire 3271, done specifically to reconcile with Beam's own
+6-of-9 correction before trusting the method at scale. The statement
+below was written before the FULL 2994-fire computation ran, and was not
+adjusted after seeing its output.)
+
+"WOULD SHOW BIAS beyond pool composition: if, summed across all
+classifiable fires, the OBSERVED count of same-topic draws comes out
+MEANINGFULLY HIGHER than the EXPECTED count predicted by summing each
+fire's own hypergeometric P(at least one same-topic draw | that fire's
+actual pool size N and same-topic count K at that moment). A gap of a
+few fires out of thousands would not be meaningful; a gap large enough
+that it could not plausibly be explained by the sampling noise of running
+this many independent draws would be the signal that something beyond
+pool composition is pushing same-topic items through.
+
+WOULD SHOW NO BIAS beyond pool composition: if the observed count sits
+close to the expected count -- consistent with the mechanism behaving
+like a genuinely pool-blind random draw once each fire's own realized
+pool make-up is accounted for, exactly as Beam's correction to last
+round's fire-3271 read already predicts should be the case in general,
+not just for that one fire.
+
+I will report the real observed-vs-expected numbers against this line,
+not adjust the line after seeing them."
+
+RESULT AGAINST THIS STATEMENT: observed (629, 21.0%) is not higher than
+predicted (924.34, 30.9%) -- it is lower, by a wide and clearly
+non-trivial margin (295 fires, 9.86 points). This matches the "WOULD SHOW
+NO BIAS" branch even more cleanly than that branch anticipated (it
+anticipated "close to," not "below") -- reported exactly as found, not
+softened or re-framed as a tie.
+
+=============================================================================
+TASK A -- HOW IS THE SHORTLIST ACTUALLY BUILT?
+=============================================================================
+
+-- A.1 -- exact code, generator.py, _build_recent_striking_block() --
+
+Step 1 -- raw eligible set (lines 2682-2688):
+  now = time.time()
+  tag_rows = self._conversations_reader.read(
+      "SELECT fountain_event_id, score FROM genius_tags "
+      "WHERE class = 'STRIKING' AND tagged_at > ? AND tagged_at < ? "
+      "ORDER BY score DESC LIMIT 200",
+      (now - 24 * 3600, now - 300),
+  )
+  -- sorted by `score` DESC. `score` is whatever the genius tagger itself
+  assigned that fire at tagging time; nothing in THIS query re-weights it
+  by topic, recency-within-the-window, or frequency.
+
+Step 2 -- fetch text, re-impose order (lines 2699-2712):
+  cand_ids = tuple(int(r["fountain_event_id"]) for r in tag_rows)
+  _cand = self._dynamic_reader.read(
+      f"SELECT id, thought FROM fountain_events "
+      f"WHERE id IN ({placeholders}) "
+      f"AND thought IS NOT NULL AND length(thought) > 10",
+      cand_ids,
+  )
+  _by_id = {int(r["id"]): r for r in (_cand or [])}
+  _ranked = [_by_id[i] for i in cand_ids if i in _by_id]
+  -- a length filter only (thought must exist and be >10 chars); no topic
+  filtering here either.
+
+Step 3 -- DEDUP to top-10 "distinct" (lines 2716-2743):
+  _DEDUP_TH = 0.5
+  def _first_sentence_grams(_t):
+      _s = re.split(r"(?<=[.!?])\s+", (_t or "").strip())
+      _w = re.findall(r"[a-z0-9']+", (_s[0] if _s else "").lower())
+      return {tuple(_w[i:i+5]) for i in range(len(_w) - 4)}
+  _kept_rows, _kept_grams = [], []
+  for _r in _ranked:
+      if len(_kept_rows) >= 10:
+          break
+      _g = _first_sentence_grams(_r["thought"])
+      _dupe = False
+      for _kg in _kept_grams:
+          _u = len(_g | _kg)
+          if _u and len(_g & _kg) / _u >= _DEDUP_TH:
+              _dupe = True
+              break
+      if _dupe:
+          continue
+      _kept_rows.append(_r)
+      _kept_grams.append(_g)
+  -- greedy, highest-score-first; a candidate is dropped ONLY if its
+  FIRST SENTENCE'S 5-gram set overlaps an already-kept one by >=50%
+  (Jaccard-style ratio on 5-grams of the first sentence only, not the
+  whole thought, and not any topic/entity label). This is a SURFACE-TEXT
+  near-duplicate filter, not a topic-aware one.
+
+Step 4 (after this round's scope, but relevant to why "observed" in Task
+B can come out LOWER than a pure-draw model predicts): sample(2) from the
+deduped list, then a GROOVE FILTER (lines ~2772-2799, read but not
+re-quoted here since it was already quoted in groove_differential.txt)
+drops any of the 2 sampled picks that match an active severe groove_alert
+pattern or a hardcoded chronic-phrase list, BEFORE the quote is written
+into the prompt.
+
+-- A.2 -- plain yes/no --
+YES. The dedup step (Step 3) is a real, confirmed mechanical pathway for
+topical skew to enter the shortlist before any random pick happens,
+separate from whatever the final sample(2) does. Reasoning, not a guess:
+"distinct" there is defined purely by first-sentence 5-gram overlap. A
+topic that keeps getting freshly reworded (confirmed earlier in this
+investigation: "All 15 fires are distinct text... each a paraphrase") will
+have genuinely different first sentences each time, so its own multiple
+restatements will NOT dedupe against each other even though they are the
+same topic -- letting that one topic consume several of the 10 "distinct"
+slots simultaneously. Confirmed directly, not just reasoned about: fire
+3271's reconstructed post-dedup shortlist (query and full output below)
+has 9 surviving slots, 6 of which are all "Aligned Model"/"Royal Family"
+restatements with distinct first sentences -- none deduped against each
+other -- matching Beam's own 6-of-9 correction exactly once the dedup
+step is correctly included (last round's number, 7-of-10, had skipped
+the dedup step entirely and used the raw pre-dedup SQL result, which is
+corrected here).
+
+Validation query and real output (reconciling with Beam's 6/9 before
+trusting this method at the 2994-fire scale in Task B):
+  $ (Python, reproducing the exact SQL + dedup above with now = fire
+     3271's real ts, 1794344991.216032)
+  fire 3271 post-dedup shortlist size: 9
+    3263 same_topic=True : 'I notice this fire engaged the world directly (branch: emerging_tech):'
+    3255 same_topic=False: 'The item mentions the death of French wartime resistance heroine Solan'
+    3257 same_topic=False: 'The November 3 Wikipedia featured article discusses updates to the con'
+    3262 same_topic=True : '"This item discusses \'Our Most Aligned Model Yet,\' highlighting twelve'
+    3265 same_topic=True : "To make progress on both the investigation into 'Our Most Aligned Mode"
+    3266 same_topic=True : 'Given the current signals and prior work, a concrete next step to make'
+    3267 same_topic=True : 'Given the comparative analysis prior work, an additional next step wou'
+    3247 same_topic=False: 'The evolving nature of language fascinates me. It shapes our understan'
+    3261 same_topic=True : 'The item you provided discusses "Our Most Aligned Model Yet," highligh'
+  shortlist same-topic count: 6 of 9
+
+=============================================================================
+TASK B -- THE REAL TEST: DOES THE DRAW RATE EXCEED WHAT THE POOL PREDICTS?
+=============================================================================
+
+-- Method (B.1) --
+For every fire where the mechanism fired (identified by a
+"Recent voice of yours..." prefix in fountain_prompt_blocks), with a
+non-null focal_item (fires with no focal_item cannot be scored "same-
+topic" against anything and are excluded, same convention as prior
+rounds):
+  1. Rebuilt that fire's EXACT real-time shortlist using the identical
+     SQL window + dedup logic quoted in Task A, with `now` set to that
+     fire's own real ts (not the live clock) -- all genius_tags STRIKING
+     rows and all fountain_events thoughts were preloaded once and
+     sliced with a binary search on tagged_at for speed; this reproduces
+     the live code's query exactly, just offline and read-only.
+  2. Classified each shortlist candidate as same-topic or not by checking
+     whether its OWN full thought text contains any distinctive (>=4
+     char) word from the CURRENT fire's own focal_item -- exact substring
+     containment, not a similarity score.
+  3. N = shortlist size (post-dedup, <=10), K = same-topic count within
+     it, n = min(2, N) (the real draw size). Computed the hypergeometric
+     probability of drawing at least one same-topic item in n draws
+     without replacement from a pool of N with K same-topic:
+       P(>=1) = 1 - C(N-K, n) / C(N, n)   (= 1.0 if N-K < n)
+  4. Matched the fire's REAL stored quote (fountain_prompt_blocks prefix)
+     back to the specific shortlist candidate it came from (by matching
+     the start of the stored quote text against each candidate's own
+     thought, within that fire's own small reconstructed shortlist --
+     not a corpus-wide search, so no cross-fire ambiguity), and recorded
+     whether THAT specific candidate was same-topic -- this is the
+     OBSERVED outcome, reflecting everything that actually happened
+     end-to-end (draw + the groove filter downstream of it), not just the
+     draw in isolation.
+
+-- B.2/B.3/B.4 -- real numbers, query, and output --
+  Preload: 1663 total STRIKING-tagged rows (across the whole history),
+  5845 fountain_events rows with usable thought text.
+  Total fires where the marker fired at all: 4357.
+  Classifiable (non-null focal_item, non-empty reconstructed pool): 2994.
+  Excluded as unclassifiable (null focal_item): 1363.
+
+  Average real pool size (N) across these 2994 fires: 9.71 (i.e. dedup
+    only rarely trims the shortlist below the 10-slot cap).
+  Average same-topic count (K) within each fire's own pool: 2.20.
+  Average same-topic FRACTION of each fire's own pool: 22.68% -- this
+    alone is a real, notable base rate (roughly 1 in 4-5 shortlist slots
+    are, on average, already about whatever the current fire's own topic
+    is), separate from whether the final draw exceeds it.
+
+  OBSERVED same-topic draws (the real quote in the real prompt, traced
+  back through the reconstructed shortlist): 629 of 2994 = 21.009%.
+
+  POOL-PREDICTED (sum, across the same 2994 fires, of each one's own
+  hypergeometric P(>=1 same-topic draw | that fire's real N and K)):
+  924.34 "expected fires" of 2994 = 30.873%.
+
+  Difference: observed MINUS predicted = -295.34 fires = -9.86 percentage
+  points. Observed is LOWER than the pool-blind prediction, not higher.
+
+  Sanity check performed: of the 2994 classifiable fires, 0 had a stored
+  quote that failed to match ANY candidate in its own reconstructed
+  shortlist -- the offline reconstruction tracks the live code's real
+  selection pool with no unexplained misses.
+
+  Sample of the first 15 rows of the full per-fire table (fire_id,
+  focal_item, N, K, model P(>=1 same-topic), observed_same_topic,
+  matched_to_shortlist):
+    (6, "Sebastian Raschka's from-scratch video course...", 1, 0, 0.0, False, True)
+    (8, 'He Wants AI Benchmarking To Be a Science...', 1, 0, 0.0, False, True)
+    (9, 'See Inside Cells Like Never Before...', 1, 1, 1.0, True, True)
+    (12, 'In Leaked Audio, Flock CEO Tells Cops...', 1, 0, 0.0, False, True)
+    (14, 'Storm Boelo leaves 22,000 without power...', 1, 0, 0.0, False, True)
+    (16, 'Show HN: Hob - Open-source...', 1, 0, 0.0, False, True)
+    (17, 'Somebody please stop the spam texts', 1, 0, 0.0, False, True)
+    (19, "Sebastian Raschka's from-scratch video course...", 1, 0, 0.0, False, True)
+    (21, 'Oscar-winning producer says BBC gave her £400,000...', 1, 0, 0.0, False, True)
+    (22, 'Concerning behavior from a popular open-weight AI model', 2, 2, 1.0, True, True)
+    (23, 'Oscar-winning producer says BBC gave her £400,000...', 2, 0, 0.0, False, True)
+    (28, 'Israel and the US are both going to the polls...', 3, 1, 0.6667, False, True)
+    (29, 'Fixing Tool-Call Accuracy in vLLM', 3, 0, 0.0, False, True)
+    (32, 'Israel and the US are both going to the polls...', 3, 2, 1.0, False, True)
+    (33, 'Show HN: Hob - Open-source...', 3, 0, 0.0, False, True)
+  (full 2994-row table retained in this session's working data,
+  pool_bias_rows.json, for anyone who wants to redo or audit this
+  calculation.)
+
+-- plain statement on the gap's likely source, disclosed as unverified
+   further this round, not as a proven mechanism --
+The "predicted" number above models ONLY the random-draw stage (Step 1-3
+in Task A). It does NOT include the groove-pattern filter that the real
+code applies AFTER the draw (Task A's Step 4), which specifically removes
+picks matching an active severe groove_alert or a chronic-phrase list --
+a filter whose entire design purpose is to catch repeated/same-topic
+content. Since the OBSERVED number reflects everything including that
+downstream filter, while the PREDICTED number does not, a filter that
+disproportionately strips same-topic picks would mechanically produce
+exactly this direction and rough shape of gap (observed below a
+draw-only prediction). This is offered as the most plausible reading
+given what the filter is known to do, not as something independently
+confirmed by simulating that filter stage this round -- doing so would
+be a reasonable next check, but was not attempted here, since it is not
+needed to answer Beam's actual question (whether the draw rate EXCEEDS
+the pool-predicted rate -- it does not, by a wide and clear margin, in
+either accounting).
+
+=============================================================================
+IF BLOCKED
+=============================================================================
+Nothing blocked this round.
+
+=============================================================================
+REPO STATUS -- NO CODE CHANGED THIS ROUND
+=============================================================================
+  $ git status
+  On branch main
+  Your branch is ahead of 'origin/main' by 4 commits.
+  Changes not staged for commit:
+    modified:   theory_x/stage6_fountain/generator.py
+  no changes added to commit
+
+  $ git diff --stat
+   theory_x/stage6_fountain/generator.py | 446 +++++++++++++++++++++++++++++++
+   1 file changed, 446 insertions(+)
+  (identical to the diff that has existed since the Task-0 rename round --
+  zero edits made this round.)
+
+  $ git diff --stat -- gui/server.py theory_x/world_bridge/selector.py
+  (empty -- neither frozen file was touched or read this round; this
+  round's questions were fully answerable from generator.py and the
+  databases alone.)
+
+No writes to any production/live table this round -- every query used a
+read-only `file:...?mode=ro` URI connection. No detector, threshold, or
+recommendation proposed anywhere in this file.

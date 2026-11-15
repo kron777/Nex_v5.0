@@ -1,0 +1,323 @@
+ONE MECHANICAL TEST, ONE OPEN QUESTION, THEN THIS INVESTIGATION IS LIKELY DONE
+=============================================================================
+Repo: /home/rr/Desktop/Desktop/nex5/        Built: 2026-11-14
+Direction: Beam AI (ruled 2026-11-14, same thread, after reviewing
+echo_ordering.txt). Pure fact-finding round -- no code changes, no
+detector, threshold, or recommendation anywhere below.
+
+=============================================================================
+ONE-LINE ANSWERS
+=============================================================================
+PART A: REFUTED, by a wide margin, on the literal "window too narrow"
+  story Beam proposed. The real lookback is 24 hours (minus the most
+  recent 5 minutes), not ~10 fires/~20 minutes -- about 72x longer than
+  the observed lag. BUT a related, more precise mechanical factor IS real
+  and confirmed directly: at fire 3271's moment, only 10 fires total had
+  been tagged STRIKING in that whole 24h span (not hundreds), and 7 of
+  those 10 already happened to be about the same topic -- not because the
+  window ran out, but because the genius tagger kept re-scoring the
+  topic's own restatements as STRIKING, skewing a small pool. Critically,
+  3 non-topic candidates were STILL eligible and available at that exact
+  moment -- it did not literally run out of anything else to quote.
+PART B: The data does not contain a traceable reason for why fire 3282 (or
+  3283, which also continued the topic) was the last of the DENSE run.
+  The belief that drove the wide-mode pick ("Our Most Aligned Model Yet")
+  remained fully eligible in its 40-item recency window for roughly
+  another HOUR after 3283 -- it did not age out, get excluded by
+  rotation, or lose its source material at that point. It simply wasn't
+  randomly re-picked for about 26 fires, then resurfaced twice more
+  (fires 3311, 3312) right at the edge of finally aging out of the
+  window. Honest answer: (b) -- this is not answerable from what's
+  logged as a specific cause; the best-supported account is ordinary
+  variance in a low-probability-per-fire random draw, not a traceable
+  trigger for the stop.
+PART C: Correction entered into the written record -- fire 3273's
+  self-feedback quote traces to fire 3265's own words, not fire 3261's.
+  Independently re-verified in this round (not just taken on the
+  coordinator's word): fire 3275's quote is uniquely fire 3261 (one exact
+  match, confirmed again). Fire 3273's quote-prefix text is ambiguous
+  between fire 3225 and fire 3265 by TEXT alone (both start identically
+  for the stored ~98-char prefix) -- resolved definitively by checking
+  genius_tags: fire 3225 was tagged 'ordinary', not 'STRIKING', so it was
+  never eligible for this mechanism's candidate pool at all (which
+  requires class='STRIKING'); fire 3265 WAS tagged STRIKING (score
+  0.582). So 3265 is the only fire that could have supplied this quote.
+  Correction confirmed independently, not just accepted on say-so.
+
+=============================================================================
+THE FALSIFYING-RESULT STATEMENT -- written before re-checking the real
+window-size code in Part A below
+=============================================================================
+Disclosure, stated honestly rather than pretending to a blindness that
+isn't really available: this same mechanism (_build_recent_striking_block)
+was investigated in an earlier round of this thread (groove_differential.txt
+Part 4, finding #1), and I recalled, before writing anything below, that
+its lookback is expressed as a TIME window measured in HOURS filtered to a
+tagger-assigned class, not a raw fire-count window. What follows was
+written from that recollection, before re-deriving the exact number fresh
+via grep in Part A, and was not adjusted afterward.
+
+"CONFIRM 'ran out of material' if: the real lookback window, converted to
+fires at the incident night's ~2-min cadence, comes out close to the
+observed 10-fire / ~20-minute lag -- i.e. roughly 8-15 fires, or roughly
+15-30 minutes. If the window is THAT narrow, then by the time the topic
+had been running 10 fires, the window could plausibly contain mostly or
+only same-topic material, making 'it ran out of anything else' believable
+without needing to check anything further.
+
+REFUTE 'ran out of material' if: the real lookback window is drastically
+larger than that -- specifically, if it is measured in HOURS rather than
+minutes (my recollection says ~24 hours), that is roughly 50-100x longer
+than the observed lag, and the candidate pool at fire 3271 would still
+contain the entire preceding day's worth of eligible material, not just
+the last 20 minutes of it. A window that large being filtered down to
+same-topic content by chance is not 'ran out of anything else' -- it
+would mean plenty of other material was still reachable and something
+else (chance selection, or the topic's own STRIKING-tagging making it
+disproportionately present in the pool) picked it anyway.
+
+I will report the real number against this line, not adjust the line
+after seeing it."
+
+RESULT AGAINST THIS STATEMENT: the real window (Part A.1 below) is
+`now - 24*3600` to `now - 300` -- 24 hours minus the trailing 5 minutes.
+This matches the REFUTE branch written above exactly, as predicted before
+looking. The "window is literally too narrow" story is false. What IS
+true, and is a separate, more precise finding (Part A.4), is that the
+realized CANDIDATE POOL at that moment was small (10 items, not hundreds)
+and already topic-skewed (7/10) -- a different mechanism than "the window
+ran out," and one that still leaves genuine alternatives available, not an
+exhausted pool.
+
+=============================================================================
+PART A -- THE MECHANICAL TEST
+=============================================================================
+
+-- A.1 --
+theory_x/stage6_fountain/generator.py, _build_recent_striking_block(),
+lines 2682-2688:
+  now = time.time()
+  tag_rows = self._conversations_reader.read(
+      "SELECT fountain_event_id, score FROM genius_tags "
+      "WHERE class = 'STRIKING' AND tagged_at > ? AND tagged_at < ? "
+      "ORDER BY score DESC LIMIT 200",
+      (now - 24 * 3600, now - 300),
+  )
+Exact limit: a 24-HOUR lookback window (86400 seconds), excluding the
+most recent 300 seconds (5 minutes), filtered to genius_tags rows whose
+class is exactly 'STRIKING'. Not a fire-count window, not a tag-expiry
+field, not a magnitude -- a plain two-sided timestamp range on `tagged_at`.
+LIMIT 200 is a cap on how many rows the query can return, not the window
+itself (and, per A.4 below, the cap was never actually reached -- far
+fewer than 200 rows existed).
+
+-- A.2 --
+Converting to fires at the incident night's real cadence (fires landing
+roughly every 2 minutes around the incident, confirmed directly: fire
+3261 at 22:29:19, fire 3265 at 22:37:29, fire 3271 at 22:49:51 -- about
+2-2.1 min/fire throughout):
+  24 hours = 1440 minutes =~ 720 fires at that cadence.
+  Observed lag (topic onset at fire 3261 to first same-topic quote at
+  fire 3271): 10 fires, ~20.5 minutes (22:29:19 to 22:49:51).
+  Ratio: the real window is ~72x longer than the observed lag in both
+  fire-count and minute terms (1440/20.5 =~ 70; 720/10 = 72).
+
+-- A.3 -- verdict, stated plainly, not softened --
+NO. The window size does not land anywhere close to 10 fires / 20
+minutes. It is roughly 70-72x larger. "It simply ran out of anything else
+to quote because the window is narrow" is NOT a believable explanation
+for the finding, full stop -- the window itself is not narrow by any
+reasonable reading. This was predicted, in those terms, before this
+number was looked up (see the falsifying statement above), and the real
+number matches the REFUTE branch exactly.
+
+-- A.4 -- what was ACTUALLY eligible for fire 3271, checked directly --
+Query: the exact same SQL the mechanism itself runs, with `now` set to
+fire 3271's real ts (1794344991.216032), against the real database.
+  $ SELECT fountain_event_id, score FROM genius_tags WHERE class='STRIKING'
+    AND tagged_at > (fire_3271_ts - 86400) AND tagged_at < (fire_3271_ts
+    - 300) ORDER BY score DESC LIMIT 200
+  Result: 10 rows (not 200 -- the real constraint is simply how few fires
+  had been tagged STRIKING in that whole 24h span, not the LIMIT clause).
+  Window span checked: 2026-11-09 23:09:51 to 2026-11-10 23:04:51.
+  Of those 10 candidate fires, cross-checked against their own thought
+  text: 7 mention "aligned model" or "royal family"; 3 do NOT:
+    fire 3247: "The evolving nature of language fascinates me..."
+    fire 3255: "The item mentions the death of French wartime resistance
+      heroine Solange Alexand[re]..."
+    fire 3257: "The November 3 Wikipedia featured article discusses..."
+  So: 3 genuinely unrelated, eligible candidates were sitting in the pool
+  at that exact moment, available to be sampled. "Nothing else was left
+  to quote" is factually false for fire 3271 specifically -- there was a
+  real, non-zero chance (roughly 30% of the 10-item pool, before dedup
+  and the random sample(2) draw) of picking one of those instead, and
+  immediately afterward, fire 3272's own quote DID land on unrelated
+  (generic-template) material, confirming the pool wasn't one-topic-only
+  even one fire later.
+  What IS true and worth separating from the "window" story: the pool
+  was topic-skewed (70%) not because the window ran out, but because the
+  genius tagger had, by that point, scored 7 of the only 10 STRIKING
+  fires in the whole prior day as being about this one active topic --
+  i.e. the topic's OWN restatements were disproportionately winning the
+  STRIKING classification, which is a different and more specific
+  mechanical fact than "the lookback window is too short." This is
+  reported as a real finding, not a design conclusion -- no comment is
+  offered here on whether the tagger's scoring of restatements as
+  STRIKING is itself notable; that would be a different investigation.
+
+=============================================================================
+PART B -- WHY DID IT STOP?
+=============================================================================
+
+-- B.1 -- what's different about fire 3282 vs. 3278-3281, checked directly --
+Raw content, fires 3278-3284:
+  3278 (23:04:06, focal=None): "Investigate historical and current roles
+    of the royal families in various cultures and analyze their
+    influence on governance and societal norms." -- still clearly about
+    the same topic in substance, despite focal_item being None.
+  3279 (23:06:07, quiescent): crypto price tick, unrelated, excluded by
+    the standard convention.
+  3280 (23:08:09, focal=None): "Investigate historical records and
+    contemporary media for trends and patterns related to royal families
+    globally..." -- still same topic in substance.
+  3281 (23:10:10, focal=None): "Investigate historical precedents and
+    contemporary social interactions related to royal families..." --
+    still same topic in substance.
+  3282 (23:12:11, focal='Our Most Aligned Model Yet'): "Provide
+    historical analysis on the Royal Family signal investigation." --
+    same topic, now explicitly re-tagged with the focal_item string again
+    (the only one of 3278-3282 where the wide-mode pick landed on this
+    item specifically).
+  3283 (23:14:15, focal='Our Most Aligned Model Yet'): a full paragraph
+    continuing the SAME topic -- "The term 'Our Most Aligned Model Yet'
+    refers to a recent development..." -- i.e. the topic did NOT actually
+    stop generating content at 3282; it continued at least one more fire.
+    (3283's content was blocked from crystallizing into a new belief by
+    groove.py's existing cooldown, matched_pattern='aligned model' --
+    already established in groove_facts.txt/topic_gate_shadow.txt -- but
+    the FIRE itself still happened and was still on-topic.)
+  3284 (23:16:16, quiescent): crypto tick, unrelated.
+
+So "the run ending at 3282" is itself not quite right as a boundary --
+by raw content and even by focal_item, it continues into 3283. The real
+gap, checked next, is what happens AFTER 3283.
+
+Checked: did anything enter or leave the WIDE-MODE candidate pool (the
+mechanism that actually picks focal_item, `SELECT content FROM beliefs
+WHERE source='precipitated_from_sense' ... ORDER BY rowid DESC LIMIT 40`)
+around this time that would explain the item no longer being pickable?
+  The "Our Most Aligned Model Yet" belief is id=13615 (beliefs.db,
+  created 2026-11-10 22:27:42). Its eligibility in the wide-mode's
+  most-recent-40 window depends only on how many NEWER
+  precipitated_from_sense beliefs have landed (it drops out once 40
+  newer ones exist).
+  Newer precipitated_from_sense beliefs that had landed by each point:
+    as of fire 3271 (22:49:51): 14
+    as of fire 3282 (23:12:11): 14
+    as of fire 3283 (23:14:15): 19
+  All far below the 40 needed to age it out -- it was NOT close to
+  falling out of the recency window at 3282/3283. Computed directly when
+  it actually DOES age out: once the 40th newer precipitated_from_sense
+  belief (id 13871) lands, at created_at = 2026-11-11 00:13:27 -- almost
+  exactly one hour after fire 3283, not anywhere near it.
+  Checked whether the item reappears as focal_item in the gap between
+  3283 and the eventual age-out: YES, twice -- fire 3311 (2026-11-11
+  00:11:37, 57 minutes after 3283, STILL eligible) and fire 3312
+  (00:13:44, right at/just past the 00:13:27 age-out boundary -- close
+  enough that the exact ordering is sensitive to a few seconds of
+  rowid/timestamp bookkeeping, not cleanly resolvable further without
+  re-deriving the wide-mode query's exact tie-breaking, which was not
+  attempted this round).
+  Between fire 3283 and fire 3311 (about 57 minutes, ~26 fires at the
+  night's cadence), the item was fully eligible the entire time and
+  simply was not drawn again by the wide-mode's pick -- no structural
+  event (cooldown, rotation, aging-out, source exhaustion) was found that
+  blocks or explains that specific 26-fire gap. NEX5_FOCUS_ROTATE's own
+  staleness check (_stale_cluster_tokens, replayed directly against this
+  period in echo_ordering.txt's predecessor round) was already confirmed
+  to never trigger in this window (needs n>=18 of the last 40 fires
+  within 68 real minutes; this topic peaked at 9 occurrences) -- so
+  rotation did not cause the gap either.
+
+-- B.2 -- plain direct answer --
+(b) -- the data genuinely does not contain enough to answer why the
+dense engagement stopped specifically after 3282/3283 rather than
+continuing. What CAN be said, concretely: the belief/material that drove
+it remained fully eligible for roughly another hour; nothing is logged
+that removed it, blocked it, or diluted the pool around fire 3282 itself;
+and it DID get drawn two more times (3311, 3312) well within that same
+eligibility window before finally aging out for good near 00:13. The most
+defensible account, given what's actually logged, is that the wide-mode's
+per-fire pick is close to a random draw over its ~40-item pool, and not
+being redrawn for a stretch of ~26 fires after being drawn repeatedly is
+ordinary variance in that kind of draw, not a traceable trigger -- but
+this is stated as the best-supported reading of an absence of evidence,
+not as a proven mechanism, per the brief's own instruction not to dress
+up a guess as an answer.
+
+=============================================================================
+PART C -- CORRECTION, REPORT ONLY
+=============================================================================
+Fire 3273's self-feedback quote traces to fire 3265's own thought text,
+not fire 3261's as groove_differential.txt stated. Fire 3275's
+attribution to fire 3261 was correct as originally stated and is
+reconfirmed here.
+
+Independently re-verified this round (not simply accepted on the
+coordinator's report of their own check):
+  - Fire 3273's stored quote prefix ("...To make progress on both the
+    investigation into") matches the start of TWO fires' thought text by
+    raw string comparison alone: fire 3225 (2026-10-08's Linux-Mint/Royal-
+    Family tangent) and fire 3265 (this incident's own text). The stored
+    prefix is truncated at ~98 characters, so text alone cannot
+    distinguish them.
+  - Resolved via genius_tags, which is what the mechanism actually
+    filters on: fire 3225 is tagged class='ordinary' (score 0.565),
+    NEVER eligible for this mechanism's pool (requires class='STRIKING').
+    Fire 3265 is tagged class='STRIKING' (score 0.582), and was within
+    the live 24h/>5min window at fire 3273's time. Fire 3265 is therefore
+    the only one of the two that COULD have supplied this quote --
+    confirming the correction independently, not just adopting it.
+  - Fire 3275's quote prefix ("...The item you provided discusses 'Our
+    Most Align[ed Model Yet]'...") matches exactly one fire's thought
+    text: fire 3261. No ambiguity to resolve there.
+This does not change any conclusion already reported -- both source
+fires (3261, 3265) are same-topic, pre-incident-proper, STRIKING-tagged
+fires from this same entangled topic -- only the specific attribution for
+3273 is corrected.
+
+=============================================================================
+IF BLOCKED
+=============================================================================
+One item flagged rather than guessed: the exact ordering/tie-break at the
+~00:13:27-00:13:44 boundary (fire 3312 vs. the belief's age-out instant)
+was not resolved to the second -- re-deriving it would require re-reading
+the wide-mode query's exact execution order relative to belief-insert
+timestamps at sub-second precision, which was not attempted this round
+since it does not change the B.2 answer (the 26-fire unexplained gap
+between 3283 and 3311 is the substantive finding either way).
+
+=============================================================================
+REPO STATUS -- NO CODE CHANGED THIS ROUND
+=============================================================================
+  $ git status
+  On branch main
+  Your branch is ahead of 'origin/main' by 4 commits.
+  Changes not staged for commit:
+    modified:   theory_x/stage6_fountain/generator.py
+  no changes added to commit
+
+  $ git diff --stat
+   theory_x/stage6_fountain/generator.py | 446 +++++++++++++++++++++++++++++++
+   1 file changed, 446 insertions(+)
+  (IDENTICAL to the diff that has existed since the Task-0 rename round --
+  zero edits made this round.)
+
+  $ git diff --stat -- gui/server.py theory_x/world_bridge/selector.py
+  (empty -- neither frozen file was edited; neither was even read this
+  round, since this round's questions were fully answerable from
+  generator.py and the databases alone.)
+
+No writes to any production/live table this round -- every query used a
+read-only `file:...?mode=ro` URI connection. No detector, threshold, or
+recommendation proposed anywhere in this file.

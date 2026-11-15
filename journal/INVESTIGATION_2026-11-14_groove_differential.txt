@@ -1,0 +1,599 @@
+LABEL LAST ROUND HONESTLY, THEN FIND WHAT ACTUALLY SEPARATES THE INCIDENT
+=============================================================================
+Repo: /home/rr/Desktop/Desktop/nex5/        Built: 2026-11-14
+Direction: Beam AI (ruled 2026-11-14, same thread, after reviewing
+focus_rotation_shadow.txt). Pure investigation round -- no detector, no
+threshold, no design proposed anywhere below.
+
+=============================================================================
+ONE-LINE ANSWERS
+=============================================================================
+TASK 0: Done. Method renamed _record_focus_rotation_shadow ->
+  _record_rare_dwell_telemetry; constants and 3 of the table's columns
+  renamed off "detector_"/"rotation_"-flavoured names onto "rare_dwell_";
+  a loud docstring warning added citing the 18-day null numbers; confirmed
+  directly in the diff (0.3) that nothing this method writes is read by
+  any other code path anywhere in the repo -- it is pure logging, no
+  binding to live NEX5_FOCUS_ROTATE behavior, matching what the
+  coordinator had already found independently.
+PART 1: Done. Incident's real unbroken streak is 4 fires (ids 3273, 3275,
+  3276, 3277), not all 9 "Aligned Model" occurrences -- the 9 are spread
+  across the 15-fire window with DRIFT/null fires between most of them.
+  Healthy streak is confirmed at 10 fires (ids 1718,1719,1721,1722,1723,
+  1724,1726,1727,1728,1729), broken only by quiescent crypto-tick fires
+  (excluded by the same convention both prior rounds used), never by a
+  different real item.
+PART 2: Done, and the result is the OPPOSITE of the brief's hypothesized
+  direction, not just weak support for it: by concrete structural output
+  (new belief rows, crystallization outcomes), the INCIDENT'S 4-fire
+  streak produced MORE new structural content (1 real fountain_insight
+  belief, 1 observational hot_observer row, 2 fires with nothing) than the
+  HEALTHY 10-fire streak (0 real new beliefs, 1 observational row, 9
+  fires with nothing). "Added nothing new" rate: incident 50% (2/4),
+  healthy 90% (9/10). This is a clean, strong split -- just backwards from
+  what was hypothesized.
+PART 3: Done. Traced fire-by-fire for both windows, checking world-bridge
+  AND self-commentary/self-feedback paths (not just world-bridge, per the
+  brief's own correction of last round's narrower check). Headline: the
+  incident's repeated content was partly carried by the SAME self-feedback
+  mechanism found in Part 4 (the "striking block") actively re-quoting an
+  earlier SAME-TOPIC fire (id 3261) back into fires 3273 and 3275 --
+  traced to an exact source fire, exact genius_tags score, exact
+  timestamps. The healthy streak's self-feedback quotes, by contrast,
+  pulled in UNRELATED topics every time (confirmed by tracing 3 of them to
+  their exact source fires) -- same mechanism, opposite effect.
+PART 4: YES, in multiple places, most of them live in production RIGHT
+  NOW (checked the actual running process's environment, not just the
+  code's documented defaults). Full yes/no map with file/function below.
+PART 5: Both of the incident's two auto-opened "open problems" (Royal
+  Family; Our Most Aligned Model Yet) were eventually marked
+  state='closed' -- one of them (Royal Family) closed at the EXACT
+  timestamp of the last fire in the studied window. The healthy streak
+  was never escalated into this open-problem system at all (zero matching
+  rows, checked directly). Whether closure lines up with "added something
+  new" is murky -- see Part 5 below, reported honestly as inconclusive on
+  that specific sub-question.
+
+=============================================================================
+TASK 0 -- HONEST LABELING OF LAST ROUND'S CODE
+=============================================================================
+0.1/0.2: theory_x/stage6_fountain/generator.py --
+  _record_focus_rotation_shadow renamed to _record_rare_dwell_telemetry.
+  _FOCUS_ROTATION_SHADOW_STREAK_K / _RATE_BACKSTOP renamed to
+  _RARE_DWELL_STREAK_K / _RARE_DWELL_RATE_BACKSTOP. Table columns
+  detector_streak_trigger / detector_rate_backstop_trigger /
+  detector_exclusion_tokens renamed to rare_dwell_streak_flag /
+  rare_dwell_rate_flag / rare_dwell_token_set (rotation_would_trigger /
+  rotation_stale_tokens left as-is -- they report the EXISTING,
+  pre-existing NEX5_FOCUS_ROTATE actuator's own decision, not something
+  this round invented, so the old names were already accurate there).
+  Confirmed via `PRAGMA table_info` against the LIVE data/dynamic.db that
+  none of the old names had ever reached the live table (the running
+  process hasn't restarted since last round's edit), so this was a plain
+  rename, not a migration -- no ALTER TABLE RENAME COLUMN needed.
+  Docstring now opens with an explicit "IMPORTANT, READ BEFORE ASSUMING
+  THIS COVERS THE INCIDENT" paragraph citing the 19.3%/8.5% common-not-rare
+  numbers and the streak=10 healthy-streak-longer-than-the-incident fact.
+
+0.3: Confirmed directly, not just asserted:
+  $ grep -n "rare_dwell_streak_flag\|rare_dwell_rate_flag\|rare_dwell_token_set\|rotation_would_trigger\|rotation_stale_tokens" theory_x/stage6_fountain/generator.py gui/server.py theory_x/world_bridge/selector.py
+  -> every match is inside _record_rare_dwell_telemetry itself (the
+  columns being computed and written), zero matches anywhere else in the
+  file, zero matches in either frozen file. Nothing reads these columns
+  back into any decision. The only functions that can ever change
+  NEX5_FOCUS_ROTATE's real candidate pool are _stale_cluster_tokens() and
+  the _on_stale() predicate inside _select_wide_mode, both called here
+  read-only and both byte-for-byte unmodified. Confirms the coordinator's
+  own finding: pure logging, nothing wired to anything live.
+
+Regression check after the rename (pytest -q, full suite, cache cleared
+first since an earlier stale __pycache__ caused one spurious
+inspect.getsource() failure last round -- same false alarm checked for
+and avoided here):
+  2140 passed, 7 skipped, 40 subtests passed in 215.87s -- identical to
+  both pre-rename baselines. No behavior change, confirmed.
+
+git diff --stat: theory_x/stage6_fountain/generator.py only (this file,
+naming/comment changes only -- no new logic, no new ALTER/INSERT shape
+beyond the column renames already covered above).
+
+=============================================================================
+PART 1 -- PIN DOWN THE FIRES
+=============================================================================
+
+-- 1.1 INCIDENT --
+Method: scanned the 15 content-bearing fires of the 2026-11-10 incident
+(ids 3265-3282, excluding quiescent crypto-tick fires 3269/3274/3279/etc.,
+same exclusion convention both prior reports used) in id order; a run
+breaks on any DIFFERENT focal_item or any None/DRIFT fire. Only one run of
+length >1 reaches 4; it is unique, no tie to resolve.
+
+Full 15-fire sequence (id: focal_item):
+  3265: Our Most Aligned Model Yet   3266: None
+  3267: Our Most Aligned Model Yet   3268: Our Most Aligned Model Yet
+  3270: None                         3271: Our Most Aligned Model Yet
+  3272: None                         3273: Our Most Aligned Model Yet  <- streak starts
+  3275: Our Most Aligned Model Yet                                    <-
+  3276: Our Most Aligned Model Yet                                    <-
+  3277: Our Most Aligned Model Yet                                    <- streak ends
+  3278: None   3280: None   3281: None   3282: Our Most Aligned Model Yet
+
+LONGEST unbroken run: 4 fires, ids [3273, 3275, 3276, 3277].
+Only non-streak-member id in between is 3274, hot_branch='quiescent'
+(a crypto-price tick, same exclusion both prior reports applied) -- no
+different REAL item sneaks in anywhere inside the streak.
+
+Full rows:
+  id=3273 ts=2026-11-10 22:53:58 hot_branch=emerging_tech word_count=92
+    thought: "...develop a comprehensive framework for assessing public
+    trust and engagement in technology-driven models...particularly in
+    contexts like the royal family..."
+  id=3275 ts=2026-11-10 22:58:01 hot_branch=emerging_tech word_count=107
+    thought: "A concrete next step...would be to analyze the
+    philosophical foundations of alignment metrics for both the 'Our Most
+    Aligned Model Yet' and the 'Royal Family'..."
+  id=3276 ts=2026-11-10 23:00:03 hot_branch=ai_research word_count=53
+    thought: "Design a structured outline for the investigation of the
+    Royal Family. Conduct interviews with historians..."
+  id=3277 ts=2026-11-10 23:02:05 hot_branch=computing word_count=25
+    thought: "Investigate historical and contemporary roles of the Royal
+    Family in their respective countries..."
+anchor_belief_id is NULL on all 4 (none of these fires anchor to an
+existing belief).
+
+-- 1.2 HEALTHY --
+Method: same algorithm, run over raw ids 1695-1735 (a window wide enough
+to contain the whole run with margin), excluding hot_branch='quiescent'.
+
+LONGEST unbroken run: 10 fires, ids [1718, 1719, 1721, 1722, 1723, 1724,
+1726, 1727, 1728, 1729], focal_item = "State-dependent modulation of
+cross-area sensory processing in mouse neocortex" on every one.
+Non-streak ids in between (1720, 1725) are both hot_branch='quiescent'
+crypto ticks -- same exclusion, no different real item sneaks in.
+
+Full rows (abbreviated; all 10 have anchor_belief_id=NULL):
+  1718 ts=2026-11-01 01:41:55 ai_research   wc=125
+  1719 ts=2026-11-01 01:43:58 psychology    wc=78
+  1721 ts=2026-11-01 01:48:03 markets       wc=109
+  1722 ts=2026-11-01 01:50:07 computing     wc=124
+  1723 ts=2026-11-01 01:52:11 psychology    wc=106
+  1724 ts=2026-11-01 01:54:14 ai_research   wc=75
+  1726 ts=2026-11-01 01:58:18 computing     wc=66
+  1727 ts=2026-11-01 02:00:21 psychology    wc=49
+  1728 ts=2026-11-01 02:02:25 emerging_tech wc=123
+  1729 ts=2026-11-01 02:04:30 ai_research   wc=99
+All 10 are paraphrases of the same one-sentence finding ("state-dependent
+modulation...mouse neocortex...") with varying framing/elaboration --
+structurally identical in shape to the incident's own paraphrase pattern.
+
+-- 1.3 double-check --
+Both streaks: confirmed clean. The only "gaps" in either streak are
+quiescent crypto-tick fires (not real content, excluded by both prior
+reports' own convention); no different real focal_item appears inside
+either run at any point.
+
+=============================================================================
+PART 2 -- DID EACH FIRE ACTUALLY ADD ANYTHING?
+=============================================================================
+
+Method per fire: queried, in a +/-8s window around the fire's own ts,
+(a) dynamic.db's crystallization_rejects (reason + matched_pattern),
+(b) beliefs.db's beliefs table for a newly created row (excluding
+"fetch_loop"-sourced beliefs -- confirmed, see below, that source is a
+fully independent background URL-reading process on its own schedule,
+unrelated to any specific fountain fire, so a fetch_loop belief landing
+near a fire's ts by chance is not that fire's output),
+(c) groove_alerts, (d) signal_cooldown writes, (e) conversations.db's
+narrative_log.
+
+-- 2.1 per-fire table, INCIDENT --
+fire  | reject reason     | new belief (source)          | narrative_log
+3273  | no_engagement      | none                          | none
+3275  | none               | 13689 fountain_insight (real  | 9x gate_accept_problem
+      |                    |  new claim, this fire's own   |  ("New insight connects
+      |                    |  content crystallized)        |  to open problem...")
+3276  | too_long           | 13695 hot_observer (self-     | none
+      |                    |  observation ABOUT the fire,  |
+      |                    |  not a new world-claim)       |
+3277  | no_engagement      | none                          | none
+
+(belief 13679, source='fetch_loop', landed within the same +/-8s window
+as fire 3275 purely by coincidence of the independent fetch_loop
+background process's own schedule -- confirmed its content, "Google
+DeepMind's commitment to formal verification," has nothing to do with
+this fire's topic, and fetch_loop writes beliefs on its own tick
+unrelated to any fountain fire_id. Excluded from the count above as not
+this fire's own output.)
+
+-- 2.1 per-fire table, HEALTHY --
+fire  | reject reason | new belief (source)                  | narrative_log
+1718  | too_long       | none                                  | none
+1719  | cooldown       | none (matched_pattern="area sensory") | none
+1721  | too_long       | none                                  | none
+1722  | too_long       | none                                  | none
+1723  | too_long       | none                                  | none
+1724  | cooldown       | 9619 hot_observer (self-observation   | none
+      |                |  only, not a new claim)               |
+1726  | cooldown       | none (matched_pattern="area sensory") | none
+1727  | cooldown       | none (matched_pattern="area sensory") | none
+1728  | too_long       | none                                  | none
+1729  | no_engagement  | none                                  | none
+
+-- 2.2 counts --
+INCIDENT (4 fires): 2 produced literally nothing (3273, 3277); 1 produced
+  an observational-only row (3276); 1 produced a real new belief (3275).
+  "Zero new structural things": 2/4 = 50%.
+HEALTHY (10 fires): 9 produced literally nothing; 1 produced an
+  observational-only row (1724); 0 produced a real new belief.
+  "Zero new structural things": 9/10 = 90%.
+
+Is there a clear difference? YES, a clean one -- but BACKWARDS from the
+brief's hypothesis. The healthy streak produced LESS new structural
+content than the incident, not more. Reported exactly as found, not
+softened or rounded toward the hypothesized direction.
+
+-- 2.3 "added literally nothing" specifically --
+INCIDENT: 2 of 4 fires (3273, 3277) are reworded repeats with zero
+  recorded trace of any kind -- no new belief, no cooldown write, no
+  narrative_log row, nothing. The other 2 of 4 DID leave a trace (one real
+  crystallized claim, one self-observation row).
+HEALTHY: 9 of 10 fires are reworded repeats with zero recorded trace of
+  any kind. Only 1 of 10 left any trace at all, and that trace was purely
+  observational (a hot_observer note), never a new claim.
+
+So the specific "added nothing, ever" pattern the brief flagged as "most
+worth finding" IS present and real -- it is simply MORE common in the
+healthy streak (90%) than in the incident (50%), the opposite of the
+hypothesized direction. Reported honestly: this makes "produces nothing
+new" a real, measurable behavior in BOTH cases, but not a working
+discriminator between them as currently measured -- if anything it points
+the other way.
+
+=============================================================================
+PART 3 -- WHERE DID THE REPEATED MATERIAL ACTUALLY COME FROM?
+=============================================================================
+
+Checked for all 14 fires: fountain_retrieval_log (own_sense=external
+precipitated_from_sense beliefs, seed=koans, identity_block), AND
+world_bridge_log, AND fountain_prompt_blocks' "Recent voice of yours that
+landed as itself:" self-feedback marker (the striking block -- see Part
+4), AND narrative_log. Both the world-bridge log and the self-feedback
+path were checked for every fire, per the brief's explicit instruction
+not to repeat last round's narrower world-bridge-only check.
+
+-- 3.1 INCIDENT, fire by fire --
+3273: retrieval_log shows own_sense ids [13384,13385,13651,13652,13613,
+  13614,13616,13653,13654] (external precipitated_from_sense beliefs --
+  SAME set recurring from earlier incident fires) + seed ids [24,71].
+  world_bridge_log: no match (checked, see focus_rotation_shadow.txt's
+  Phase 1.1 corroboration method, same query shape). SELF-FEEDBACK: YES --
+  fountain_prompt_blocks ordinal 8 = "Recent voice of yours that landed
+  as itself: - To make progress on both the investigation into...",
+  traced by exact text match to fire id 3261 (ts 22:29:19, 24 min earlier,
+  genius_tags class=STRIKING score=0.569, tagged_at 22:29:41) -- an
+  EARLIER fire from the SAME entangled Aligned-Model/Royal-Family topic,
+  pulled back in by _build_recent_striking_block (see Part 4).
+3275: own_sense ids mostly identical to 3273's set + seed ids [54,16].
+  SELF-FEEDBACK: YES -- ordinal 8 = "Recent voice of yours...- The item
+  you provided discusses 'Our Most Align[ed Model Yet]'...", traced to
+  the SAME source fire 3261 (unique text match, confirmed only one fire
+  in the whole history starts that exact way).
+3276: own_sense ids [13690,13651,13652,13613,13614,13691,13692] + seed
+  [38,195]. No "Recent voice" marker found in this fire's prompt blocks --
+  SELF-FEEDBACK not present this fire (the striking block's random
+  sample(2) simply didn't draw a self-referential candidate this time).
+3277: own_sense ids overlapping 3276's + seed [36,191]. No "Recent voice"
+  marker either.
+
+So 2 of the 4 incident streak fires (3273, 3275) had the SAME-TOPIC
+earlier fire (3261) directly quoted back into their own prompt by the
+fountain's own self-feedback mechanism, not from any external channel.
+
+-- 3.2 HEALTHY, fire by fire --
+All 10 fires carry own_sense/seed retrieval ids from the SAME kind of
+external precipitated_from_sense pool (ids like 9512/9513/9605/9606/9613/
+9616, overlapping across consecutive fires the same way the incident's
+own_sense ids overlap -- this overlap pattern alone does not distinguish
+the two cases). ALL 10 of the healthy fires ALSO carry a "Recent voice of
+yours that landed as itself:" self-feedback block (confirmed directly,
+every single one) -- but traced to UNRELATED source fires:
+  1718,1719,1721,1726,1727 (and others): quote starts "I notice this fire
+    engaged the world directly (" -- a generic hot_observer-style opening
+    matched by 280+ different fires across the WHOLE ~19-day history,
+    none of them about mouse neocortex specifically.
+  1722: quote starts "The item discusses people saving money by
+    moving..." -- traced uniquely to fire 1673 (Japan's haunted houses,
+    completely unrelated topic, BEFORE this window).
+  1723, 1729: quote starts "I am the producer who received a payout of
+    £400,000..." -- traced to fire 1631 (a BBC/Anthropic story, completely
+    unrelated, BEFORE this window).
+  1724: quote matches the SAME hot_observer-template pattern as
+    1718/1719/etc.
+  1728: quote starts "The item discusses people saving money by moving"
+    (same source family as 1722).
+
+So the healthy streak's self-feedback block fired on EVERY fire (more
+often than the incident's 2-of-4), but every single time it echoed
+UNRELATED prior content, never anything about mouse neocortex. Same
+mechanism, opposite effect: in the incident it recirculated the active
+topic; in the healthy streak it diversified away from it.
+
+-- 3.3 --
+Both checks (world-bridge log and self-feedback/self-commentary) were
+run for every fire in both windows, not just world-bridge. The
+self-feedback channel is the one that actually shows a real, concrete
+difference (Part 4 below); the world-bridge channel shows nothing
+distinguishing for either window at the fire-level (no corroboration
+events land inside either specific window -- consistent with
+focus_rotation_shadow.txt's Phase 1.4 finding that real corroboration
+events are rare generally, 2 in ~19 days, and happened not to fall inside
+either window studied here).
+
+=============================================================================
+PART 4 -- DOES THE FOUNTAIN EVER LISTEN TO ITSELF?
+=============================================================================
+Answered plainly: YES, repeatedly, through several distinct mechanisms,
+several of which are confirmed ACTIVE IN PRODUCTION RIGHT NOW (checked
+the real running process's environment via /proc/<pid>/environ, pid
+2721, not just the code's documented defaults -- several of these
+mechanisms default OFF in the code comment but are explicitly turned ON
+in this specific live deployment).
+
+YES/NO MAP:
+
+1. YES -- theory_x/stage6_fountain/generator.py,
+   _build_recent_striking_block() (method starts ~line 2657; call site
+   ~line 3888 in _build_prompt). Reads fountain_events.thought (her own
+   past output), filtered to genius_tags class=STRIKING fires, >5min old,
+   within a 24h window, deduped by first-sentence 5-gram overlap, then
+   quotes up to 2 of them VERBATIM (truncated to 280 chars) into the
+   prompt under the header "Recent voice of yours that landed as itself:".
+   Active by DEFAULT (only disabled if NEX5_GENIUS_PROMPT_OFF=1 is
+   explicitly set) -- confirmed via /proc/2721/environ that this kill
+   switch is NOT set in the live process, so this mechanism is live today.
+   CONFIRMED FIRED during the actual incident (Part 3.1).
+
+2. YES -- generator.py, _build_rut_warning_block() (method ~line 2816;
+   call site ~line 3893-3899). Reads the last 40 fires' own thought text,
+   counts which of 4 hardcoded "worn register" categories dominate
+   (>=40%), and if any do, injects a TEMPLATED warning naming them (not
+   verbatim text). Gated by NEX5_RUT_EDGE=1 -- confirmed SET in the live
+   process environment (pid 2721).
+
+3. YES, the most direct case -- generator.py, the "echo-and-extend"
+   mechanism: a substrate_voice fire's own just-written output
+   (anchor_content) is captured into self._pending_echo_anchor (set
+   ~line 1499, inside the method that writes a substrate_voice fire), and
+   consumed by the VERY NEXT LLM-based fire's _build_prompt (~line
+   3409-3418), which prepends: 'You just spoke from your foundation:
+   "{anchor}"\nContinue from where this leaves off...\nDo NOT repeat or
+   paraphrase the anchor.' This is one fire's own output becoming the next
+   fire's prompt content verbatim, with NOTHING in between and NO flag
+   gate of any kind (only a None-check) -- the instruction not to
+   repeat/paraphrase it is a soft prompt instruction, not a structural
+   block.
+
+4. YES -- theory_x/stage_tom/recursive_self.py, format_for_prompt()
+   (called unconditionally, NO env flag check at all, generator.py
+   ~line 3440-3441). The module's own comment calls this "the strange
+   loop -- self-reading woven into behaviour": it reads tracked
+   attention/emotion state (derived from her own recent output pattern)
+   and injects a templated self-perturbation line ("I notice I am
+   fixated -- circling the same thing...") when warranted.
+
+5. YES -- theory_x/stage9_metacognition/metacognition.py,
+   format_for_prompt() (generator.py ~line 3455). Surfaces self-
+   observations derived from her own groove_alerts/goal-drift history as
+   a templated line ("Self-observation: I notice repeated patterns in my
+   recent thinking.") or, if NEX5_METACOG_DIGEST=1, a verbatim digest she
+   wrote herself. Gated by NEX5_METACOG_VOICE=1 -- confirmed SET in the
+   live process environment.
+
+6. YES -- generator.py, the open-problem re-injection (~line 4095-4113):
+   self._problem_memory.select_for_injection(now), capped to roughly
+   1-in-15 fires by a cooldown, injects an auto-opened "open problem"'s
+   own title + description (set when the problem was first auto-opened
+   from a cross-branch repetition signal) back into the prompt: "A
+   question you posed yourself is still open -- attend to this instead of
+   drifting: {title} {description}... One step forward." This re-anchors
+   the fountain onto a topic it ESCALATED about itself, independent of
+   any new external signal. Checked directly whether this fired during
+   the studied incident: NO marker ("question you posed yourself") found
+   in any of the 15 incident fires' prompt blocks -- this mechanism is
+   real and live but did NOT concretely drive this specific incident.
+
+7. NO, and actively guarded against by design -- theory_x/world_bridge/
+   selector.py (frozen; read only, confirmed untouched below),
+   NOISY_INTERNAL_STREAMS = {"internal.fountain"} (line 72-74), checked at
+   line 172 to EXCLUDE the fountain's own self-logged sense_events stream
+   ("internal.fountain", the one the fountain itself writes its own
+   thought into at generator.py line ~2292) from world-bridge selection.
+   A deliberate, already-existing safeguard against exactly this path.
+
+8. RELATED BUT NOT FOUNTAIN-TO-FOUNTAIN -- theory_x/stage_tom/momentum.py
+   (capture_momentum called from generator.py line 2281, default ON,
+   confirmed SET live; read_momentum called ONLY from self_narrative.py,
+   which is called ONLY from gui/server.py -- the CHAT path, never from
+   the fountain's own _build_prompt). So momentum is fountain-writes /
+   chat-reads, not a fountain-fire-to-later-fountain-fire path. Flagged
+   anyway because its own docstring documents a REAL, PRIOR, directly-
+   on-point incident (fixed 2026-07-06, commit referenced in the module
+   docstring): "a 6-fire, 2.5-hour loop bridging England/Rust/Mexico's
+   World Cup into one fake 'community resilience' narrative, each fire
+   re-triggered by momentum telling her the (bad) thread was 'still
+   live'" -- i.e. this exact architectural failure mode has happened
+   before, through a self-feedback path, and was fixed by capping
+   consecutive carries at _MAX_CARRY=3 fires.
+
+9. NO (confirmed off in this deployment) -- NEX5_CARRY_TOPIC_GATE's
+   _recent_fire_topic_terms (generator.py ~line 2613) reads her own past
+   40 fires' output to compute exclusion terms for the striking-block
+   candidate pool. Not present in the live process's environment dump
+   (/proc/2721/environ) -- confirmed OFF, matching both prior rounds'
+   finding.
+
+4.2 -- bounded or unbounded:
+Mixed, mechanism by mechanism. #3 (echo anchor) is the LEAST bounded:
+literally fire N's own output can become fire N+1's prompt verbatim with
+nothing in between, no flag, one soft instruction not to repeat it. #1
+(striking block) is bounded by age/tag/dedup but, once those conditions
+are met, is otherwise unconstrained about WHICH topic gets pulled back --
+confirmed it CAN and DID pull back a same-topic fire mid-loop (Part 3.1).
+#2, #4, #5 inject templated/derived lines, not verbatim repeats, so they
+amplify ATTENTION to a pattern without literally repeating its words. #6
+is explicitly cooldown-capped (~1-in-15 fires). #8 (momentum, chat-side)
+is capped at _MAX_CARRY=3 by an explicit historical fix after a real
+documented incident of the unbounded version.
+
+ADDITIONAL, UNASKED-FOR BUT HONEST FLAG: NEX5_FOCUS_ROTATE itself --
+the subject of the last two rounds' shadow-only telemetry -- is NOT
+actually a dormant/default-off flag in this deployment. Confirmed via
+/proc/2721/environ: NEX5_FOCUS_ROTATE=1 is SET on the live process right
+now. Both prior reports' framing ("default OFF", shadow/hypothetical)
+was accurate about the CODE's own default, but neither checked the live
+process's actual environment, so both implicitly treated the rotation
+actuator as currently inert when it is, in fact, continuously running in
+production today. This does not change the content of either prior
+report's analysis (which replayed _stale_cluster_tokens() correctly and
+found it would not have fired for this incident regardless) -- flagged
+here because it is a factual gap in two prior rounds' own framing that
+this round's broader check happened to surface.
+
+=============================================================================
+PART 5 -- DID EITHER LOOP EVER ACTUALLY END?
+=============================================================================
+
+-- 5.1 --
+INCIDENT: conversations.db's open_problems table shows BOTH entangled
+topics were auto-opened as tracked "open problems" (signal-detection:
+same entity appearing across 2+/3+ different hot_branches within 1800s):
+  id=14 "Signal: investigate 'Royal Family'" -- created 2026-11-10
+    20:59:36, state=closed, resolved_at = 2026-11-10 23:12:11.558566 --
+    this is EXACTLY fire 3282's timestamp, the LAST fire of the whole
+    15-fire incident window. Its own final accumulated observation (of
+    13 recorded) is the terse 9-word "Provide historical analysis on the
+    Royal Family signal investigation." -- matching groove_facts.txt's
+    own finding that word counts fell steadily to a telegraphic end.
+  id=15 "Signal: investigate 'Our Most Aligned Model Yet'" -- created
+    2026-11-10 22:33:36, state=closed, resolved_at = 2026-11-10
+    23:53:07.799 -- about 40 minutes AFTER the studied window ends. Its
+    final observation reads: "...without explicit guidance on what
+    constitutes alignment or past attempts at such models, there's no
+    concrete form to provide." -- an explicit, in-text admission of being
+    stuck, immediately preceding closure.
+  Neither closure reads as "resolved by producing a finished answer" --
+  both read as petering out (shortest/most hedged restatement) right
+  before the tracking system marked them closed. Whether "closed" means
+  "solved" or "gave up / went stale" was NOT determined here -- the
+  'plan' field on both rows is empty (''), and no artifact distinct from
+  the accumulated restatements themselves was found.
+
+HEALTHY: zero open_problems rows match "neocortex" or "sensory" in either
+  title or description (checked directly) -- this topic was NEVER
+  escalated into the open-problem tracking system at all. It simply ran
+  for 10 fires and then the fountain moved on (fire after id 1729 shifts
+  topic per the raw id-range dump in Part 1.2) with no tracked "resolved"
+  or "closed" event of any kind, because there was never a tracked
+  problem to close.
+
+-- 5.2 --
+Does closing line up with adding something new? INCONCLUSIVE, reported
+honestly rather than forced: the incident DID eventually close both its
+tracked problems, but the fire that coincides with problem 14's closure
+(3282) is one of the "added nothing" fires from Part 2 (no belief, no
+cooldown write, no narrative_log row) -- closure here looks like the
+auto-close criterion (probably a staleness/no-fresh-signal rule inside
+problem_memory, not independently verified in this round's scope) firing
+on its own schedule, not a causal result of that specific fire adding
+new content. The healthy streak offers no comparison point for this
+question at all, since it was never tracked as a problem to begin with --
+so Part 5's data cannot speak to whether "closing" and "adding something
+new" are related in general; it can only describe what happened to these
+two specific tracked problems.
+
+=============================================================================
+RANKED LIST -- WHAT ACTUALLY SEPARATES THE INCIDENT FROM THE HEALTHY STREAK
+=============================================================================
+(Ranked by how cleanly the real data separates the two windows. No
+recommendation, no design, no threshold -- descriptive only.)
+
+1. STRONGEST, and novel this round: WHAT the self-feedback mechanism
+   echoes. The exact same code path (_build_recent_striking_block) fired
+   in both windows, but in the incident it twice re-quoted an earlier
+   SAME-TOPIC fire (traced to an exact source id, exact STRIKING score,
+   exact timestamp), while in the healthy streak it fired on every single
+   fire but always quoted UNRELATED topics (traced 3 of 10 to exact,
+   unrelated source fires; the rest matched a 280+-fire generic template
+   family). This is concrete, structural, exact-identity evidence (which
+   fire's text got quoted into which later fire), not a similarity score.
+
+2. STRONG but BACKWARDS from the brief's hypothesis: structural output
+   per fire (Part 2). The incident produced MORE new structural content
+   (1 real belief, 1 observational row, out of 4) than the healthy streak
+   (0 real beliefs, 1 observational row, out of 10). "Added literally
+   nothing" is common in BOTH (50% vs 90%) but more common in the HEALTHY
+   case, not the incident -- so by this measure alone, the incident looks
+   LESS stuck than the healthy streak, not more.
+
+3. MODERATE, structural, but of uncertain meaning: open-problem
+   escalation (Part 5). The incident got tracked as 2 formal "open
+   problems" via a cross-branch signal detector; the healthy streak never
+   did. Whether this is a CAUSE of the incident's persistence (the
+   tracking system re-anchoring attention, per Part 4's mechanism #6) or
+   just a SYMPTOM (the cross-branch entanglement that triggered tracking
+   is itself the unusual thing, as groove_facts.txt already found) was
+   not determined this round.
+
+4. DOES NOT SEPARATE THEM, reported honestly: raw dwell/repetition
+   (streak length, repeat rate) -- already falsified by last round's
+   18-day data, reconfirmed by nothing new found this round.
+
+5. DOES NOT SEPARATE THEM, reported honestly: whether the fountain reads
+   its own prior output at all (Part 4) -- it does, constantly, via
+   multiple mechanisms, in BOTH ordinary healthy operation and the
+   incident. Self-feedback per se is not rare or unusual; it is a
+   standing, mostly-live architectural feature. Only WHAT gets echoed
+   (item 1 above) differed.
+
+=============================================================================
+WHAT THE DATA JUST ISN'T ENOUGH TO SETTLE
+=============================================================================
+- Whether item 1 above (self-feedback echoing the SAME topic) is a
+  general pattern across OTHER incidents, or a one-off coincidence of
+  fire 3261 happening to score STRIKING while the topic was already
+  active. This round traced exactly one incident in this depth; no second
+  incident was available to check against.
+- Whether the open-problem tracking system's cross-branch signal
+  detector (Part 5) is itself a cause of sustained attention or just a
+  downstream symptom of the same cross-branch entanglement groove_facts.txt
+  already flagged as unusual about this specific incident.
+- Whether "closed" in open_problems means genuinely resolved or merely
+  auto-expired/gave-up; the 'plan' column was empty on both rows checked
+  and no separate resolution-criterion code was read this round.
+- Whether metacognition's NEX5_METACOG_DIGEST=1 path (verbatim self-
+  written digest injection, as opposed to the templated line) is also
+  live -- not checked; NEX5_METACOG_VOICE=1 is confirmed live but the
+  DIGEST sub-flag's state was not checked in this round's env dump.
+
+=============================================================================
+REPO STATUS
+=============================================================================
+  $ git status
+  On branch main
+  Your branch is ahead of 'origin/main' by 4 commits.
+  Changes not staged for commit:
+    modified:   theory_x/stage6_fountain/generator.py
+  no changes added to commit
+
+  $ git diff --stat
+   theory_x/stage6_fountain/generator.py | (naming/docstring changes only,
+   same line count as before Task 0 -- renames and comment additions, no
+   new logic; see Task 0 above for the exact renames)
+
+  $ git diff --stat -- gui/server.py theory_x/world_bridge/selector.py
+  (empty -- both frozen files read only, never edited, this round and
+  last round combined)
+
+No writes to any production/live table this round (every query above used
+a read-only `file:...?mode=ro` URI connection). No new detector, threshold,
+or design proposed anywhere in this file.

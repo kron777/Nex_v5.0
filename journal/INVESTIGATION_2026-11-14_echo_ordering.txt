@@ -1,0 +1,435 @@
+RESOLVE THE LIVE FLAG, THEN TEST WHETHER THE ECHO IS A CAUSE OR JUST A MARKER
+=============================================================================
+Repo: /home/rr/Desktop/Desktop/nex5/        Built: 2026-11-14
+Direction: Beam AI (ruled 2026-11-14, same thread, after reviewing
+groove_differential.txt). Pure fact-finding round -- no code changes, no
+detector, no threshold, no recommendation anywhere below.
+
+=============================================================================
+ONE-LINE ANSWERS
+=============================================================================
+PART A: NEX5_FOCUS_ROTATE=1 is confirmed on the live process (pid 2721),
+  BUT that process started 2026-11-14 10:02:42 -- TODAY, not before the
+  2026-11-10 incident or the 2026-11-01 healthy streak. It is NOT the same
+  process instance that produced either. However, the flag's value comes
+  from nex_keepalive.sh's hardcoded launch line, which has set
+  NEX5_FOCUS_ROTATE=1 continuously, unchanged, since 2026-09-18 (commit
+  f9bfbc5) -- checked across every intervening commit to that file, no
+  removal or toggle-off found anywhere. So while the SPECIFIC process
+  differs, the CONFIGURATION almost certainly does not -- see A.4 for the
+  honest confidence level on that inference.
+PART B: Same-topic echo is RARE overall (1.6% of all times the mechanism
+  fires, across 18 days) but NOT absent before the clean streak: it first
+  appears at fire 3271 -- 2 fires before the 4-fire clean streak (3273-
+  3277) starts, but importantly AFTER the topic itself had already been
+  actively dwelling for 6 prior fires since its true origin at fire 3261
+  (not 3265, which was last round's working start-point -- corrected
+  below). The falsifying-result test (written before this was checked,
+  see its own section) reads this as consistent with symptom-of-already-
+  started-dwelling, not cause-of-onset: the topic's ORIGIN fire (3261)
+  itself got an UNRELATED quote, not a same-topic one.
+PART C: Problem 14 ("Royal Family") closed within 1.9 milliseconds of the
+  incident's own last fire (3282) -- but tracing the actual close()
+  call site shows this is not a coincidence of two independent clocks:
+  the closure is CODE-DRIVEN directly off that same fire's own thought
+  text (NEX5_COMMIT_CLOSE's artifact-detection heuristic), executing in
+  the same processing step as the fire itself. So the data supports
+  "closure is a recorded consequence of that fire's content, not an
+  independent event that caused the streak to stop" -- not the reverse,
+  and not a true coincidence either.
+PART D: The echo-anchor channel passes the FULL, untruncated text of a
+  tier<=2 belief (no length cap found anywhere in the capture or
+  consumption code) directly into the very next LLM fire's prompt, with
+  no structural limit beyond being one-shot. The commit that introduced
+  it (f677ad0, 2026-05-21) states its rationale explicitly: stopping
+  substrate-voice fires from being "islands" with no follow-through.
+
+=============================================================================
+THE FALSIFYING-RESULT STATEMENT (written before the Part B.3/B.4 full-
+history scan was run -- NOT edited afterward)
+=============================================================================
+[Exact text, unedited, as first written in this session before running the
+18-day classification scan below. It WAS written after one earlier check
+-- the fire-by-fire lead-up scan for fires 3255-3272 that answers B.1 --
+which is disclosed here rather than hidden, since that is the honest order
+operations actually happened in this session.]
+
+"What would show same-topic echo is NOT a cause (just a side-effect of
+dwelling): if the FIRST same-topic quote traces to a point in time AFTER
+the topic has already been actively dwelling for multiple fires -- i.e.,
+the echo mechanism only starts reflecting the topic back once there is
+already enough same-topic material in the 24h STRIKING-tagged candidate
+pool for it to draw on. That pattern is exactly what "symptom, not cause"
+predicts: the mechanism has nothing topic-specific to echo until the topic
+has already produced enough of its own prior output to populate the pool,
+so its first same-topic hit will necessarily lag the topic's own onset,
+not precede or coincide with it.
+
+What would count AGAINST that (i.e. support a causal/driving role): a
+same-topic quote appearing AT or BEFORE the topic's very first fire --
+which would mean the mechanism injected the topic (or reinforced it)
+before the topic had produced any of its own output for the mechanism to
+be drawing on, which the mechanism's own design (reads already-tagged,
+already-written past fires) makes structurally impossible for literally
+the FIRST fire of a brand new topic, but remains a live question for
+fires shortly after onset.
+
+I will report exactly where the first same-topic hit actually falls
+relative to the topic's own onset, without softening either way after
+seeing it."
+
+RESULT AGAINST THIS STATEMENT (see Part B below for full detail): the
+topic's true onset is fire 3261 (22:29:19), not fire 3265 as both prior
+rounds assumed. Fire 3261 itself received an UNRELATED quote. The FIRST
+same-topic quote occurs at fire 3271 (22:49:51), after 3261, 3262, 3263,
+3265, 3267, 3268 had already touched the topic (6 fires). This matches
+the statement's "symptom, not cause of onset" prediction exactly: the
+mechanism had nothing to echo back until the topic had already produced
+several of its own prior fires. Reported as written above, not softened.
+
+=============================================================================
+PART A -- THE LIVE FLAG
+=============================================================================
+
+-- A.1 --
+Checked via: `ps -p 2721 -o pid,lstart,etime,cmd` and
+`tr '\0' '\n' < /proc/2721/environ | grep NEX5_FOCUS_ROTATE`.
+Result: NEX5_FOCUS_ROTATE=1, process pid 2721, cmd ".venv/bin/python3
+run.py".
+Process start time: Sat Nov 14 10:02:42 2026 (checked twice, ~5 minutes
+apart, same answer both times -- stable, not a fluke of a process that
+just restarted mid-check).
+Is this the SAME process that produced the incident's logs? NO -- the
+incident is dated 2026-11-10, the healthy streak 2026-11-01; this process
+instance only exists since 2026-11-14 10:02:42, i.e., after both. This is
+a different process instance (the nex_keepalive.sh wrapper restarts
+run.py; pid 2721 is whichever restart happened to be running when this
+round's check ran). This directly answers CC's loose thread: no one had
+confirmed this, and in fact the EXACT process is confirmed NOT to be the
+one from the incident. See A.4 for how much that matters.
+
+-- A.2 --
+theory_x/stage6_fountain/generator.py, line 941:
+  `if os.environ.get("NEX5_FOCUS_ROTATE") == "1":`
+Plain string equality against the literal "1" -- a binary on/off switch,
+not a magnitude or 0-to-1 scale. Any other value (including "0", "true",
+or an empty string) is equivalent to OFF. Confirmed by reading the
+surrounding code: there is no further parsing, cast to float, or scaling
+of this value anywhere in the function.
+
+-- A.3 --
+Every NEX5_-prefixed environment variable set on pid 2721, dumped via
+`tr '\0' '\n' < /proc/2721/environ | grep '^NEX5_' | sort` (64 total,
+listed exactly as returned, no analysis):
+NEX5_ABSTAIN_CLOSE=1, NEX5_AFFECT_CARRY=1, NEX5_AFFINITY_PROVENANCE=on,
+NEX5_ANTILOOP=1, NEX5_APRAMADA=1, NEX5_ASSOC_RECALL=1,
+NEX5_ATTRIB_CRYSTALLIZE=1, NEX5_BESTOFCLUSTER=1, NEX5_BRANCH_TEMP=0.35,
+NEX5_CARRYOVER=1, NEX5_CHAT_ANTIECHO=1, NEX5_CHAT_MEMORY=1,
+NEX5_CHAT_WORKSPACE=1, NEX5_COMMIT_CLOSE=1, NEX5_COMMITMENTS=1,
+NEX5_COMMITMENT_VALENCE=1, NEX5_COMPASS=1, NEX5_COMPASS_TRIM=1,
+NEX5_DELIVER_N=10, NEX5_DRIVE_CONTENT=1, NEX5_EQUANIMITY=1,
+NEX5_EXPECT_LEARN=1, NEX5_FOCUS_ROTATE=1, NEX5_FOUNTAIN_DEDUP=1,
+NEX5_FRAME_DEDUP=0, NEX5_FRAME_GATE=0, NEX5_GLOBAL_WORKSPACE=1,
+NEX5_GOVERNOR_OFF=1, NEX5_GW_SURPRISE_NONEMPTY=1, NEX5_HOT_OBSERVER=1,
+NEX5_IDENTITY_BLOCK=1, NEX5_INTAKE_RESONANCE_OFF=1,
+NEX5_INTAKE_T6_RESERVE=50, NEX5_L4_STAKES=1, NEX5_METACOG_VOICE=1,
+NEX5_MOMENTUM=1, NEX5_MOOD=1, NEX5_OPERATOR_ANCHOR=1,
+NEX5_OPERATOR_MODEL=1, NEX5_OWNED_BELIEF=1, NEX5_PERSONA_LANG_GUARD=1,
+NEX5_PERSONA_RESPONDER=1, NEX5_PORT=8765, NEX5_PROBLEM_SELF_GATE=1,
+NEX5_PROVENANCE=1, NEX5_QUALITY_SYNTH=1, NEX5_RECONCILE=1,
+NEX5_RECONCILER=1, NEX5_RECONCILE_WB=1, NEX5_RUT_EDGE=1,
+NEX5_SCORE_F2_V2=1, NEX5_SELF_MAINTAIN_SHADOW=1, NEX5_SELF_NARRATIVE=1,
+NEX5_SELF_PRED=1, NEX5_SIG_QUALITY=1, NEX5_SOCIAL_DEPTH=1,
+NEX5_SOCIAL_N=1, NEX5_SOURCE_KIND=1, NEX5_STAKES_DEEP=1,
+NEX5_SURPRISE_WEIGHT=1, NEX5_SYNTH_FRESH=1, NEX5_SYNTH_FRESH_SIBLING=1,
+NEX5_TIER_CLIMB=1, NEX5_WARRANT_RECORD=1, NEX5_WIDE_MODES=1,
+NEX5_WORLD_CONSOLIDATE=1, NEX5_WORLD_PRED=1.
+
+-- A.4 --
+Plain statement, not a guess: I cannot be fully certain, but the evidence
+strongly suggests YES, both the 18-day historical data and the healthy
+10-fire streak were measured under this same configuration (NEX5_FOCUS_
+ROTATE=1 among others), not a different/default one. Reasoning, shown
+rather than asserted:
+  1. grep across nex_keepalive.sh's full git history (every commit that
+     touched the file, `git log -p --follow`) shows NEX5_FOCUS_ROTATE=1
+     present on the run.py launch line in EVERY version from the commit
+     that first added it (f9bfbc5, 2026-09-18) through the current file
+     -- checked programmatically for any commit where a "-" line without
+     it is followed by a "+" line without it (removal) or with "=0"
+     (toggle-off): zero such commits found.
+  2. 2026-09-18 is before both 2026-11-01 (healthy streak) and 2026-11-10
+     (incident), so if the ONLY way run.py is ever launched in this repo
+     is via nex_keepalive.sh's hardcoded line, both windows ran under
+     NEX5_FOCUS_ROTATE=1.
+  3. What this does NOT rule out, stated plainly: this check did not
+     verify that nex_keepalive.sh was the ACTUAL launcher in use on
+     2026-11-01 and 2026-11-10 specifically (e.g., a manual `python
+     run.py` invocation outside the keepalive wrapper, or a different
+     deployment host/checkout, would not show up in this repo's git
+     history at all). No log or process-history evidence of such an
+     alternate launch was found, but its absence was not exhaustively
+     verified either -- flagged honestly rather than treated as settled.
+Bottom line: the "off by default" framing in both prior rounds was never
+about this LIVE deployment's actual configuration (which has had it ON
+since September); it was about the CODE's own documented default when the
+env var is simply absent. That code-level default claim is still
+accurate and unaffected by this finding -- but neither prior round's
+"baseline" numbers describe a flag-off deployment, because this
+deployment has apparently never been flag-off since September.
+
+=============================================================================
+PART B -- DID THE ECHO COME BEFORE THE GROOVE, OR ONLY DURING IT?
+=============================================================================
+
+-- CORRECTION TO LAST ROUND'S OWN FRAMING, found while answering B.1 --
+groove_differential.txt (last round) treated fire 3265 as the start of
+the incident's topic. Checking fires 3255-3264 (immediately before 3265)
+shows the topic ("Our Most Aligned Model Yet") actually first appears as
+focal_item at fire 3261 (2026-11-10 22:29:19), four fires EARLIER, and
+recurs at 3262 and 3263 before a quiescent gap (3264) and then 3265. This
+is corrected here because it changes where "before the streak" has to be
+measured from.
+
+-- B.1 -- fire-by-fire lead-up table (fires 3255-3272, covering both the
+true topic origin at 3261 and the run-up to the 4-fire clean streak at
+3273) --
+  id   | ts        | focal_item                  | self-feedback fired? | what it quoted (same-topic / unrelated)
+  3255 | 22:17:01  | (news item, unrelated)       | YES (striking block)  | "The evolving nature of language fascinates me." -- UNRELATED
+  3256 | 22:19:04  | (unrelated)                   | YES                    | same as above -- UNRELATED
+  3257 | 22:21:08  | (unrelated)                   | YES                    | same as above -- UNRELATED
+  3258 | 22:23:11  | None                          | YES                    | same as above -- UNRELATED
+  3259 | 22:25:12  | None (quiescent)              | no marker              | --
+  3260 | 22:27:16  | (unrelated)                   | YES                    | same as above -- UNRELATED
+  3261 | 22:29:19  | Our Most Aligned Model Yet (ORIGIN) | YES              | "November 3 Wikipedia featured article" -- UNRELATED
+  3262 | 22:31:22  | Our Most Aligned Model Yet    | YES                    | same Nov-3-Wikipedia quote -- UNRELATED
+  3263 | 22:33:26  | Our Most Aligned Model Yet    | YES                    | "French wartime resistance heroine..." -- UNRELATED
+  3264 | 22:35:27  | None (quiescent)              | no marker              | --
+  3265 | 22:37:29  | Our Most Aligned Model Yet    | YES                    | same French-wartime quote -- UNRELATED
+  3266 | 22:39:34  | None (but thought text IS about the entangled topic) | YES | "The evolving nature of language..." -- UNRELATED
+  3267 | 22:41:38  | Our Most Aligned Model Yet    | YES                    | Nov-3-Wikipedia quote again -- UNRELATED
+  3268 | 22:43:43  | Our Most Aligned Model Yet    | YES                    | Nov-3-Wikipedia quote again -- UNRELATED
+  3269 | 22:45:44  | None (quiescent)              | no marker              | --
+  3270 | 22:47:47  | None (but thought text IS about the entangled topic) | YES | Nov-3-Wikipedia quote again -- UNRELATED
+  3271 | 22:49:51  | Our Most Aligned Model Yet    | YES                    | traced exactly to fire 3266 or 3270's own text (both entangled-topic) -- SAME-TOPIC, FIRST occurrence
+  3272 | 22:51:55  | None                          | YES                    | generic "I notice this fire engaged the world directly (" template -- UNRELATED
+  [3273-3277: the 4-fire clean streak -- 3273 and 3275 quote fire 3261 verbatim (SAME-TOPIC, already reported last round); 3276 and 3277 have no marker at all]
+
+-- B.2 -- direct answer --
+A same-topic quote DID show up before the 4-fire clean streak started --
+at fire 3271, two fires before 3273. But it did NOT show up before the
+topic's own true onset (fire 3261) or anywhere in the first 6 fires that
+touched the topic (3261,3262,3263,3265,3267,3268 all got UNRELATED
+quotes). So: same-topic echo lagged the topic's own start by 10 fires/
+~20 minutes (3261 to 3271), and preceded the officially-labeled "clean"
+4-fire streak by only 2 fires. Read plainly against the falsifying
+statement above: this is the "symptom lags onset" pattern, not the
+"echo causes onset" pattern -- the mechanism had six same-topic fires'
+worth of material to draw from before it ever actually drew on it.
+
+-- B.3 -- full 18-day classification --
+Query: every fire's own focal_item plus whatever "Recent voice of
+yours..." prefix (if any) landed in its own prompt_blocks, across all
+5808 fires.
+  Total fires: 5808.
+  Fires where the mechanism fired at all: 4346 (74.8% of all fires --
+    this is a routinely-firing mechanism, not a rare one).
+  Of those 4346: generic "I notice this fire engaged the world directly ("
+    template family: 2251 (51.8%). Current fire has no focal_item so
+    can't be classified either way: 669 (15.4%). SAME-TOPIC (quote shares
+    a distinctive word with the CURRENT fire's own focal_item -- exact
+    substring containment, not a similarity score): 69 (1.6%).
+    Unrelated-but-specific (neither generic nor same-topic): 1357 (31.2%).
+  So "quoted something unrelated" (generic + unrelated-specific combined,
+  83.0% of fired instances) is overwhelmingly the normal, everyday case.
+  Same-topic hits (1.6%) are genuinely unusual against this base rate --
+  which cuts both ways for the cause/symptom question: it means getting
+  TWO same-topic hits inside one 15-fire window (as the incident did, at
+  3271 and 3273+3275) is itself a notably above-base-rate cluster, but
+  that clustering is exactly what "symptom" predicts too, once a topic is
+  already dominating the STRIKING-tagged candidate pool it draws from --
+  this data cannot distinguish those two readings on its own (see B.5).
+  Full list of all 69 same-topic hits (fire id, ts, focal_item) is in the
+  working data pulled for this report; topics span the whole range of
+  ordinary content (research papers, crypto news, HN posts) -- NOT
+  concentrated only around groove-like incidents. Three same-topic hits
+  do land during the studied incident's own extended window (fires 3253,
+  3275, 3312 -- the first and last are OUTSIDE the 15-fire window this
+  and last round studied, meaning the same-topic clustering around this
+  incident is wider than the 15-fire window captured).
+
+-- B.4 -- healthy streak's quote breakdown --
+  fire 1718: GENERIC    fire 1719: GENERIC    fire 1721: GENERIC
+  fire 1722: OTHER (unrelated, specific) -- "people saving money by
+    moving [into Japan's haunted houses]"
+  fire 1723: OTHER (unrelated, specific) -- "I am the producer who
+    received a payout of [£400,000...]"
+  fire 1724: GENERIC    fire 1726: GENERIC    fire 1727: GENERIC
+  fire 1728: GENERIC
+  fire 1729: OTHER (unrelated, specific) -- same payout quote as 1723
+  Breakdown: 7/10 generic-family, 3/10 other-but-unrelated, 0/10
+  same-topic. So yes -- during the healthy streak, MOST (70%) of its
+  "unrelated" quoting landed in the generic template family specifically,
+  with the remaining 30% being other, still-unrelated specific material,
+  never the neocortex topic itself.
+
+-- B.5 -- what this can and cannot establish --
+CAN establish: the ORDER same-topic echo appeared in, for this one
+incident -- after onset, shortly before the clean streak. CAN establish
+the overall base rate of same-topic vs. unrelated quoting across 18 real
+days (1.6% same-topic). CANNOT establish a safe threshold, a rate at
+which same-topic echo becomes "dangerous," or whether this specific
+order-of-events generalizes to any other incident -- there is exactly
+one incident in this dataset with this depth of tracing, so "it lagged
+onset by 10 fires here" is a single data point, not a distribution.
+CANNOT rule out that same-topic echo, even if it lags onset, still plays
+a REINFORCING role in prolonging/densifying the loop once started (fires
+3271, 3273, 3275 all occur WITHIN the window the topic was already
+active, and all three precede or sit inside the densest, most repetitive
+part of the whole 15-fire sequence) -- this round's test was designed
+around ONSET causation specifically, per the falsifying statement, and
+does not speak to a reinforcement-of-an-ongoing-loop question, which
+would need a different test.
+
+=============================================================================
+PART C -- DID CLOSING THE OPEN PROBLEM END THE LOOP, OR JUST COINCIDE?
+=============================================================================
+
+-- C.1 -- exact timestamps --
+  fire 3277 (end of the 4-fire CLEAN streak): ts = 1794344525.549662
+    (2026-11-10 23:02:05.549662)
+  fire 3282 (end of the full 15-fire incident WINDOW): ts =
+    1794345131.560481 (2026-11-10 23:12:11.560481)
+  open_problems id=14 ("Royal Family") resolved_at = 1794345131.558566
+    (2026-11-10 23:12:11.558566)
+  Exact difference, resolved_at minus fire-3282.ts: -0.0019152164459228516
+    seconds -- i.e. the closure timestamp is 1.915 milliseconds BEFORE
+    fire 3282's own ts. Confirmed to the microsecond: this is the "~2
+    millisecond relationship" the brief asked to pin down, and it is
+    essentially simultaneous (same processing step), not a separate
+    earlier or later event.
+  Exact difference, resolved_at minus fire-3277.ts (the CLEAN streak's own
+    end): +606.0089037418365 seconds (10.1 minutes). So relative to the
+    narrower 4-fire clean streak, closure happens 10 minutes AFTER it
+    ends -- it only lines up precisely with the WIDER 15-fire window's
+    final fire, not the clean streak itself.
+  open_problems id=15 ("Our Most Aligned Model Yet") resolved_at =
+    1794347587.799057 -- +2456.24 seconds (40.9 minutes) after fire 3282.
+    Not close to either boundary.
+
+-- C.2 -- best read, traced through the actual code, not inferred --
+Traced the exact call site: generator.py's NEX5_RECONCILE_WB-gated block
+(NEX5_RECONCILE_WB=1, confirmed live in Part A.3) runs INSIDE the same
+fire-processing step as fire 3282 itself. Its NEX5_COMMIT_CLOSE path
+(NEX5_COMMIT_CLOSE=1, also confirmed live) closes a problem when its
+OWN just-produced thought text reads as a "concrete, non-abstain,
+non-planning artifact" (a plain substring-based heuristic: not matching
+abstain phrases, not matching planning-language markers like "develop",
+"framework", "investigate", etc., and 0 < length <= 700 chars) AND the
+problem already has >=10 prior observations AND it is the "target"
+problem for this check. Fire 3282's own text, "Provide historical
+analysis on the Royal Family signal investigation." (71 chars), passes
+every one of those conditions (it reads as a short, declarative sentence,
+which this heuristic treats as "answered" even though it is, if anything,
+the most exhausted-sounding, least substantive line of the whole streak
+-- see groove_differential.txt Part 2). So: the close() call is a DIRECT,
+same-cycle CONSEQUENCE of fire 3282's own content being short and
+non-hedging enough to trip this heuristic -- not an independent event
+that then caused the streak to stop. There is no fire after 3282 in this
+window to check whether the closure would have suppressed anything;
+the window simply ends there. Best read: closure coincided with (was
+triggered by) the streak's last fire, not the other way around.
+
+-- C.3 -- healthy streak, re-confirmed --
+Re-ran the same query this round: zero open_problems rows match
+"neocortex" or "sensory" in title or description, anywhere in the table.
+Confirmed again: NO, the healthy 10-fire streak was never tracked as an
+open problem at all.
+
+=============================================================================
+PART D -- THE UNBOUNDED SELF-QUOTE CHANNEL, FACTS ONLY
+=============================================================================
+
+-- D.1 --
+Capture (generator.py ~line 1448-1462): anchor_content is the FULL,
+stripped `content` field of a tier<=2, non-retired belief (`SELECT id,
+content FROM beliefs WHERE tier <= 2 AND erosion_stage != 'retired' ...
+ORDER BY COALESCE(last_voiced_at, 0) ASC, id ASC LIMIT 1`) -- no
+truncation applied at capture (`self._pending_echo_anchor = anchor_content`,
+full string, every character).
+Consumption (generator.py ~line 3409-3416), exact text, quoted verbatim:
+  _pending = getattr(self, "_pending_echo_anchor", None)
+  if _pending:
+      _echo_block = (
+          f'You just spoke from your foundation: "{_pending}"\n'
+          "Continue from where this leaves off, if anything follows. "
+          "Or sit in silence with it.\n"
+          "Do NOT repeat or paraphrase the anchor.\n"
+      )
+No truncation applied here either -- `_pending` is inserted whole. The
+ONLY limits found anywhere on this channel: (a) it only ever fires once
+per substrate-voice event ("One-shot consume... cleared after the first
+LLM fire reads it", per the commit message), and (b) the substrate-voice
+event that PRODUCES an anchor is itself gated by a groove-severity
+threshold and a cooldown (_SUBSTRATE_VOICE_COOLDOWN_FIRES, scaled down as
+groove severity rises) -- so the FREQUENCY of new anchors is bounded, but
+once one exists, nothing bounds its SIZE, and the one-shot consumption
+is enforced only by a Python-level flag reset, not by anything in the
+database. The soft instruction, exact wording: "Continue from where this
+leaves off, if anything follows. Or sit in silence with it.\nDo NOT
+repeat or paraphrase the anchor." -- a prompt-level instruction to the
+LLM, not a structural block; nothing in the code checks whether the next
+fire's output actually complied with it.
+
+-- D.2 --
+Found directly: commit f677ad0 ("fountain: echo-and-extend after
+substrate-voice fires", 2026-05-21, author kron777), full rationale
+quoted from the commit message:
+  "Rationale: substrate-voice fires were ISLANDS -- anchor said, then
+  next fire unrelated. Echo gives the bedrock one cycle of LLM
+  elaboration. She speaks her foundation, then continues FROM it rather
+  than back to template."
+The same commit message also includes an explicit, honest caveat about
+its own evidence: "Observed: after substrate-voice 13779 ('I attend to
+the world with wonder.'), the next two LLM fires (13781, 13784) carried
+the attending/wonder/noticing-what-already-exists arc forward. Cannot
+prove echo caused it (prompt log is open('w') per fire) but the semantic
+continuity is consistent with the patch working." No other commit,
+comment, or doc file reference to this specific mechanism's rationale was
+found beyond this one commit message and the inline comment already
+quoted in groove_differential.txt.
+
+=============================================================================
+IF BLOCKED
+=============================================================================
+Nothing blocked this round. One judgment call, disclosed rather than
+hidden: A.4's confidence about September-to-now configuration continuity
+rests on nex_keepalive.sh being the ONLY launcher ever used for this
+repo's run.py; that specific assumption was not independently verified
+beyond "no contrary evidence found in this repo's own history."
+
+=============================================================================
+REPO STATUS -- NO CODE CHANGED THIS ROUND
+=============================================================================
+  $ git status
+  On branch main
+  Your branch is ahead of 'origin/main' by 4 commits.
+  Changes not staged for commit:
+    modified:   theory_x/stage6_fountain/generator.py
+  no changes added to commit
+
+  $ git diff --stat
+   theory_x/stage6_fountain/generator.py | 446 +++++++++++++++++++++++++++++++
+   1 file changed, 446 insertions(+)
+  (IDENTICAL to the diff that existed before this round started -- this
+  round made zero edits of any kind; the 446 insertions are entirely
+  last round's Task-0 rename/docstring work, untouched here.)
+
+  $ git diff --stat -- gui/server.py theory_x/world_bridge/selector.py
+  (empty -- both frozen files were read this round, for A.2/D.1/D.2's
+  code lookups, never edited.)
+
+No writes to any production/live table this round -- every query above
+used a read-only `file:...?mode=ro` URI connection, or in Part A, a
+read-only /proc/<pid>/environ inspection and read-only `ps`. No detector,
+threshold, or recommendation proposed anywhere in this file.
