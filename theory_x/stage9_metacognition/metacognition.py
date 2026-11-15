@@ -33,11 +33,12 @@ Implements SentienceNode protocol (DOCTRINE §4):
 from __future__ import annotations
 
 import json
+import math
 import os
 import string
 import threading
 import time
-from collections import deque
+from collections import Counter, deque
 from typing import Optional
 
 import errors
@@ -163,6 +164,41 @@ _DIGEST_PHRASE = {
 _SALIENT_SELF_OBS_FLAG = "NEX5_SALIENT_SELF_OBS"
 _SALIENT_CANDIDATE_LIMIT = 10
 
+# ── self-pattern detection (NEX5_METACOG_PATTERN) ───────────────────────────
+# Dark by default: NEX5_METACOG_PATTERN=1 to arm. Three more first-order
+# event_types, all read from beliefs.branch_id -- the existing per-thread
+# identifier emergent_drives.py already groups by (theory_x/stage2_dynamic/
+# emergent_drives.py). Surfacing into the prompt rides the SAME existing gate
+# as every other event_type in this file: NEX5_METACOG_VOICE at the
+# generator.py call site. Detection (this flag) and surfacing (VOICE) are
+# already two independent gates by the existing design -- nothing extra
+# needed here for that half of the requirement.
+_SELF_CIRCLING_MIN_RUN = 3        # same branch_id this many beliefs running, back to back
+_SELF_CIRCLING_LOOKBACK_N = 10    # most recent branch-tagged beliefs examined for the run
+_SELF_CIRCLING_COOLDOWN_S = 1800
+
+# PROVISIONAL baseline, measured 2026-11-15 directly against the live
+# data/beliefs.db: per-day Shannon entropy over branch_id, same method as
+# observation_reports/r72.md §1.1 ("Branch diversity did not narrow
+# either"). 17 FULL days, 2026-10-26..2026-11-14 inclusive (2026-11-15
+# excluded on purpose: 8 rows, a few minutes after a restart, not a
+# distribution -- same "one quiet day" caution r72 names for exactly this
+# kind of number): mean=3.146 pstdev=0.359 min=2.025 max=3.540 (n=17 days,
+# 7338 branch-tagged beliefs; 3 days in the window -- 11-04, 11-05, 11-09 --
+# have zero rows and are gaps, not zero-entropy days, so they are excluded
+# rather than counted as 0.0). Threshold = mean + 2*pstdev = 3.86,
+# comfortably above the observed 17-day max (3.54), so the normal
+# by-design branch rotation does not cry wolf at this threshold. RE-DERIVE
+# once more weeks of data exist -- 17 days is a thin sample for a
+# mean+2*stdev rule, same caveat the rest of this file attaches to its own
+# provisional constants.
+_SELF_SCATTERED_LOOKBACK_N = 50
+_SELF_SCATTERED_ENTROPY_THRESHOLD = 3.86
+_SELF_SCATTERED_COOLDOWN_S = 3600
+
+_SELF_STALL_GAP_S = 2 * 3600      # PROVISIONAL: gap before a branch counts as "stalled"
+_SELF_RESOLVED_COOLDOWN_S = 1800
+
 
 class Metacognition:
     name: str = "metacognition"
@@ -195,6 +231,11 @@ class Metacognition:
         # resets on restart, which only means an extra digest row is possible
         # right after a restart — never a missed one, never a loop).
         self._last_digest_at: dict = {}
+        # self-pattern cooldowns (NEX5_METACOG_PATTERN) — in-memory, same
+        # restart behaviour as the digest cooldown above.
+        self._last_circling_at: float = 0.0
+        self._last_scattered_at: float = 0.0
+        self._last_resolved_at: float = 0.0
 
     # ── SentienceNode protocol ────────────────────────────────────────────────
 
@@ -248,6 +289,12 @@ class Metacognition:
         # _detect_digest() checks the flag itself and returns [] when unset).
         digest_findings = self._detect_digest(now)
         for finding in digest_findings:
+            self._write_event(finding, now)
+
+        # self-pattern detectors (dark unless NEX5_METACOG_PATTERN=1;
+        # _detect_self_pattern() checks the flag itself and returns [] when unset).
+        pattern_findings = self._detect_self_pattern(now)
+        for finding in pattern_findings:
             self._write_event(finding, now)
 
         with self._lock:
@@ -352,6 +399,12 @@ class Metacognition:
             return "Self-observation: I've been rejecting more thoughts that conflict with my anchors."
         if etype == "value_drift_abandonment":
             return "Self-observation: my deepest beliefs are barely surfacing in my recent thinking."
+        if etype == "self_circling":
+            return "Self-observation: I notice I keep circling the same thread."
+        if etype == "self_scattered":
+            return "Self-observation: my attention has scattered wider than usual."
+        if etype == "self_resolved_after_stall":
+            return "Self-observation: a thread of mine stalled, and has now picked back up."
         return f"Self-observation: anomaly detected ({etype})."
 
     # ── detectors ────────────────────────────────────────────────────────────
@@ -662,6 +715,131 @@ class Metacognition:
                 "source": f"{_LOG_SOURCE}/digest",
             })
         return findings
+
+    # ── self-pattern detection (NEX5_METACOG_PATTERN) ────────────────────────
+
+    def _detect_self_pattern(self, now: float) -> list[dict]:
+        """Dark unless NEX5_METACOG_PATTERN=1 — checked first, same idiom as
+        _detect_digest(): below this, nothing runs and nothing is read."""
+        if os.environ.get("NEX5_METACOG_PATTERN") != "1":
+            return []
+        findings: list[dict] = []
+        findings.extend(self._detect_self_circling(now))
+        findings.extend(self._detect_self_scattered(now))
+        findings.extend(self._detect_self_resolved_after_stall(now))
+        return findings
+
+    def _detect_self_circling(self, now: float) -> list[dict]:
+        """self_circling: the same branch_id carried forward
+        _SELF_CIRCLING_MIN_RUN+ beliefs in a row — the same thread repeating
+        rather than the rotation this component does by design."""
+        if now - self._last_circling_at < _SELF_CIRCLING_COOLDOWN_S:
+            return []
+        try:
+            rows = self._beliefs_reader.read(
+                "SELECT branch_id FROM beliefs WHERE branch_id IS NOT NULL "
+                "ORDER BY created_at DESC LIMIT ?",
+                (_SELF_CIRCLING_LOOKBACK_N,),
+            )
+        except Exception as exc:
+            errors.record(f"self_circling read failed: {exc}", source=_LOG_SOURCE, exc=exc)
+            return []
+        if not rows:
+            return []
+        run_branch = rows[0]["branch_id"]
+        run_len = 0
+        for row in rows:
+            if row["branch_id"] == run_branch:
+                run_len += 1
+            else:
+                break
+        if run_len < _SELF_CIRCLING_MIN_RUN:
+            return []
+        self._last_circling_at = now
+        return [{
+            "event_type": "self_circling",
+            "description": (
+                f"Self-circling: branch '{run_branch}' carried forward "
+                f"{run_len} beliefs in a row"
+            ),
+            "severity": float(min(1.0, run_len / (_SELF_CIRCLING_MIN_RUN * 2))),
+            "source": "self_pattern_detector",
+        }]
+
+    def _detect_self_scattered(self, now: float) -> list[dict]:
+        """self_scattered: branch-id entropy over the most recent
+        _SELF_SCATTERED_LOOKBACK_N beliefs exceeds the measured
+        normal-rotation baseline (see the constant's comment above for the
+        measurement, method, and date) — calibrated so the normal by-design
+        rotation does not fire on its own."""
+        if now - self._last_scattered_at < _SELF_SCATTERED_COOLDOWN_S:
+            return []
+        try:
+            rows = self._beliefs_reader.read(
+                "SELECT branch_id FROM beliefs WHERE branch_id IS NOT NULL "
+                "ORDER BY created_at DESC LIMIT ?",
+                (_SELF_SCATTERED_LOOKBACK_N,),
+            )
+        except Exception as exc:
+            errors.record(f"self_scattered read failed: {exc}", source=_LOG_SOURCE, exc=exc)
+            return []
+        n = len(rows)
+        if n < _SELF_SCATTERED_LOOKBACK_N:
+            return []  # not enough recent data to compare against the baseline meaningfully
+        counts = Counter(row["branch_id"] for row in rows)
+        entropy = -sum((c / n) * math.log2(c / n) for c in counts.values())
+        if entropy < _SELF_SCATTERED_ENTROPY_THRESHOLD:
+            return []
+        self._last_scattered_at = now
+        return [{
+            "event_type": "self_scattered",
+            "description": (
+                f"Self-scattered: branch entropy {entropy:.2f} over the last {n} "
+                f"beliefs ({len(counts)} distinct branches) — above the "
+                f"{_SELF_SCATTERED_ENTROPY_THRESHOLD:.2f} baseline threshold"
+            ),
+            "severity": float(min(1.0, (entropy - _SELF_SCATTERED_ENTROPY_THRESHOLD) / 1.0)),
+            "source": "self_pattern_detector",
+        }]
+
+    def _detect_self_resolved_after_stall(self, now: float) -> list[dict]:
+        """self_resolved_after_stall: the most recent belief's branch went
+        >= _SELF_STALL_GAP_S with no new belief before it, i.e. a thread that
+        stalled and has now resumed."""
+        if now - self._last_resolved_at < _SELF_RESOLVED_COOLDOWN_S:
+            return []
+        try:
+            latest = self._beliefs_reader.read_one(
+                "SELECT id, branch_id, created_at FROM beliefs "
+                "WHERE branch_id IS NOT NULL ORDER BY created_at DESC LIMIT 1",
+            )
+            if latest is None:
+                return []
+            prior = self._beliefs_reader.read_one(
+                "SELECT created_at FROM beliefs WHERE branch_id = ? AND id < ? "
+                "ORDER BY created_at DESC LIMIT 1",
+                (latest["branch_id"], latest["id"]),
+            )
+        except Exception as exc:
+            errors.record(
+                f"self_resolved_after_stall read failed: {exc}", source=_LOG_SOURCE, exc=exc
+            )
+            return []
+        if prior is None:
+            return []  # branch's first-ever belief — nothing to have stalled
+        gap = float(latest["created_at"]) - float(prior["created_at"])
+        if gap < _SELF_STALL_GAP_S:
+            return []
+        self._last_resolved_at = now
+        return [{
+            "event_type": "self_resolved_after_stall",
+            "description": (
+                f"Self-resolved-after-stall: branch '{latest['branch_id']}' "
+                f"resumed after a {gap / 3600:.1f}h gap"
+            ),
+            "severity": float(min(1.0, gap / (_SELF_STALL_GAP_S * 4))),
+            "source": "self_pattern_detector",
+        }]
 
     # ── Phase 41 value-drift detection ───────────────────────────────────────
 
