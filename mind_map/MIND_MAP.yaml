@@ -769,10 +769,23 @@ nodes:
     falsifier: "Should distinguish 'a moment ago' from 'yesterday' in behaviour, not just in timestamp."
     falsifier_status: unrun
     source: { kind: absent, claim: "no 51-factor slot: a reader, not an event", check: "grep -rn 'NEX5_TEMPORAL\\|temporal_thickness' --exclude-dir=.venv --exclude-dir=__pycache__ --include=*.py ." }
-    last_verified: 2026-11-09
-    notes: "Confirmed genuinely absent (re-checked with .venv excluded, still zero). SENTIENCE_
+    last_verified: 2026-11-15
+    notes: >
+      Confirmed genuinely absent (re-checked with .venv excluded, still zero). SENTIENCE_
       PROGRAM.md:37 names readiness.py's silence bonus (+0.2 ~10 min) as the closest existing proxy,
-      but that is a clock input, not a reader over the sequence -- the gap claim stands."
+      but that is a clock input, not a reader over the sequence -- the gap claim stands.
+
+      Dev round, 2026-11-15: broadened the search beyond the exact-name grep, looking for ANY
+      mechanism that behaves differently across multiple distinguishable timescales (not just a
+      single on/off cutoff). Checked every _STALE_DAYS/_RECENT_*/time-window constant across
+      theory_x/ (metacognition.py, novel_association.py, competing_drives.py, virya.py,
+      self_mind_view.py, poster.py) -- every one is a single binary threshold (within window /
+      outside it), the same shape as readiness.py's silence bonus, not a genuinely graded reader.
+      downtime.py's _fmt_dur() DOES bucket qualitatively (seconds/minutes/hours/days), but only for
+      narration text -- checked whether which bucket a downtime falls into ever changes downstream
+      behavior, not just wording: it doesn't, the belief row is written identically regardless of
+      bucket. No stronger candidate than the already-known gap. Stays unclear -- the shape of a real
+      mechanism genuinely isn't designed yet, not for lack of looking.
 
   - id: p11_agency
     label: "11 · Agency / authorship"
@@ -787,11 +800,30 @@ nodes:
     falsifier: "Should mis-attribute deliberately acted events to 'happened' when the action is unattended."
     falsifier_status: unrun
     source: { kind: absent, claim: "no 51-factor slot", check: "grep -rn 'agency\\|authorship' --exclude-dir=.venv --exclude-dir=__pycache__ --include=*.py ." }
-    last_verified: 2026-11-09
-    notes: "Confirmed genuinely absent (the original check's un-excluded .venv hits were rdflib/
+    last_verified: 2026-11-15
+    notes: >
+      Confirmed genuinely absent (the original check's un-excluded .venv hits were rdflib/
       sklearn/spacy docstrings using 'agency'/'authorship' as English words, not this repo).
       SENTIENCE_PROGRAM.md:38 names belief source tags + stage_tom/recursion_attribution as the
-      closest existing material; neither distinguishes self-caused from world-caused events."
+      closest existing material; neither distinguishes self-caused from world-caused events.
+
+      Dev round, 2026-11-15: verified both named candidates precisely rather than taking the
+      dismissal on faith. source_kind (substrate/source_kind.py) has categories named 'self' and
+      'authored' that look promising on the surface, but 'self' means "her sensing/observing
+      herself" (internal.* sense streams -- interoception, substrate state) and 'authored' means
+      "written by her own loop from her own material" -- both are about belief CONTENT PROVENANCE
+      (who/what produced this text), not about whether a real action was deliberately taken by her
+      vs. merely occurring to her. Genuinely a different axis, confirmed by reading the full
+      docstring, not assumed from the category names.
+
+      recursion_attribution.py is a different kind of "attribution" entirely -- a measurement-
+      methodology sidecar built to isolate whether the L3 recursion nudge causally moves branch-
+      selection rate vs. natural drift, for an R&D experiment (the L3_teeth_test investigation). It
+      has nothing to do with NEX's own first-person self-model. A naming coincidence, not a near-miss.
+
+      Both candidates now ruled out with specifics rather than in passing. Stays genuinely absent; a
+      real build would need a new signal at the actual decision point (deliberate output vs.
+      received/triggered event), which doesn't exist anywhere in the current pipeline.
 
   - id: p12_selfreport
     label: "12 · Self-report that can be unflattering"
