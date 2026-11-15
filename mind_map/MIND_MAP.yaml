@@ -526,15 +526,32 @@ nodes:
     factor: vitarka
     role_note: "Takes hold of an object."
     directive: { from: "an object is present in the field, not yet engaged", to: "attention has taken hold of that object" }
-    build_difficulty: unclear
-    sketch: "Not yet traced at code level. generator.py's own selection functions (_weighted_branch_pick, _curiosity_pick) are candidates worth checking for whether 'taking hold' is already implicit in selection -- unverified. Needs its own dev round."
-    evidence: static
+    build_difficulty: shipped
+    sketch: "Dev round 2026-11-15 found a real, firing-confirmed mechanism: 'wide mode' explicitly
+      records the focal item it is about to engage. Scoped to wide-mode fires only, not every fire."
+    evidence: implemented
     dark: false
     blocked: false
-    falsifier: "Unbuilt-open."
-    falsifier_status: na
-    source: { kind: absent, claim: "unbuilt-open", check: "grep -rn 'vitarka' --include=*.py --include=*.md ." }
-    last_verified: 2026-11-09
+    falsifier: "An object entering wide-mode focus should be explicitly recorded as taken hold of, distinguishable from objects that merely passed through retrieval unselected."
+    falsifier_status: pass
+    probe: { wide_mode_fires_logged: 2821, source: "nex5_soak.log [WIDE MODE] markers" }
+    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:3568-3580", "theory_x/stage6_fountain/generator.py:893-990"] }
+    last_verified: 2026-11-15
+    notes: >
+      Dev round, 2026-11-15: found via vicāra's paired search (see that node) -- the SET side of
+      the same mechanism vicāra reads. generator.py:3579 (self._last_focal_item = _kw.get("item"))
+      fires inside the "wide mode" branch (_select_wide_mode, NEX5_WIDE_MODES=1, confirmed armed
+      live), explicitly recording which real item (a sensed article, headline, etc.) this fire is
+      about to engage with. Confirmed actually firing, not just wired: grepped nex5_soak.log for its
+      own debug marker, "[WIDE MODE] item=...", 2821 real hits with real content ("DKIM2 -- Every
+      system that handles an email signs...", "Bitcoin ETFs Lose $2.1 Billion...").
+
+      Scope honestly limited: this is wide-mode fires only (a minority of all fires, not every
+      moment), and the code's own comment at the set site says "Observation only: no effect on
+      selection, ordering, or the prompt itself" -- the taking-hold has no immediate consequence of
+      its own in THIS moment; its payoff is entirely in the next moment, via vicāra's mechanism.
+      Marked pass against the falsifier as reformulated (a real, distinguishable recording event
+      exists) rather than the original vague "unbuilt-open," which undersold what's actually there.
 
   - id: vicara
     label: "vicāra — sustained thought"
@@ -543,15 +560,36 @@ nodes:
     factor: vicara
     role_note: "Keeps hold of it across the next moment."
     directive: { from: "an object is held in this moment", to: "the same object is still held in the next moment, not dropped" }
-    build_difficulty: unclear
-    sketch: "Not yet traced at code level. Possibly related to smrti's within-moment question from the other side (sustaining vs. initially retaining) -- worth investigating together rather than separately, but unverified either way."
-    evidence: static
+    build_difficulty: shipped
+    sketch: "Dev round 2026-11-15 found the exact counterpart to vitarka's new finding:
+      self._last_focal_item survives fire-to-fire and feeds real retrieval in the next one."
+    evidence: implemented
     dark: false
     blocked: false
-    falsifier: "Unbuilt-open."
-    falsifier_status: na
-    source: { kind: absent, claim: "unbuilt-open", check: "grep -rn 'vicara' --include=*.py --include=*.md ." }
-    last_verified: 2026-11-09
+    falsifier: "An object recorded as this fire's focal item should still be readable and used as the thread in a subsequent fire, not reset to empty."
+    falsifier_status: pass
+    probe: { gate: "NEX5_ASSOC_RECALL=1, confirmed armed live", caller_condition: "own_n > 1" }
+    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:2896-2930", "theory_x/stage6_fountain/generator.py:3000-3014", "theory_x/stage6_fountain/generator.py:3579"] }
+    last_verified: 2026-11-15
+    notes: >
+      Dev round, 2026-11-15: THIS is the real home of self._last_focal_item -- the exact mechanism
+      ruled OUT for smṛti's within-moment directive is the right fit here, read the other way
+      around. _associative_recall()'s own docstring (:2902) states it plainly: "the thread = the
+      PRIOR fire's focal item" -- precisely "the same object is still held in the next moment, not
+      dropped." Confirmed live: NEX5_ASSOC_RECALL=1 is armed on the running process, the call site
+      (:3006) gates on it plus own_n > 1 (true on nearly every fire), and the source data it reads
+      (_last_focal_item) is confirmed populated 2821 times over on real content (see vitarka).
+
+      Honest limit: fountain_retrieval_log's distinct `slot` values (identity_block, own_sense,
+      seed) don't include a separately-tagged 'assoc' row, so the actual retrieved-and-used outcome
+      isn't independently visible in that table -- the pass rests on the mechanism being wired,
+      armed, and fed real data with fail-safe design (returns [] on any issue, never stalls a fire),
+      not on seeing a labelled assoc row directly. A stronger confirmation would trace one specific
+      fire end-to-end; not done here.
+
+      Correction to the earlier smṛti citation: the "right neighborhood, wrong directive" verdict
+      there stands -- this mechanism was never a candidate for within-moment retention. It is,
+      however, now confirmed as the correct answer for THIS node, which the smṛti round didn't ask.
 
   # ────────────────────────────── SCOPE ─────────────────────────────
   # Intentionally empty. See meta.findings — this is a result, not a TODO.

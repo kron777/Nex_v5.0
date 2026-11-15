@@ -1,8 +1,10 @@
-## SHIPPED, CONFIRMED -- falsifier passed, the gap is actually closed (8)
+## SHIPPED, CONFIRMED -- falsifier passed, the gap is actually closed (10)
   - upekṣā — equanimity: Built, live, and the falsifier already passes. Most mature node in the prices arm.
   - apramāda — conscientiousness: Built (apramada.py), falsifier passes -- preserves deferred cost under immediate pressure.
   - alobha — non-attachment: Built and falsifier-confirmed at the unit level (test_gripped_candidate_loses). Flag is correctly off live, so this is test-verified, not live-observed.
   - dṛṣṭi — fixed view: Dev round 2026-11-15 found a real, live, unconditional mechanism -- keystone.py's locked=1 Tier-1 beliefs, systematically excluded from the reconciler/consolidation pipeline. See notes for the important scope caveat (narrow and deliberate, not broad and pathological).
+  - vitarka — applied thought: Dev round 2026-11-15 found a real, firing-confirmed mechanism: 'wide mode' explicitly records the focal item it is about to engage. Scoped to wide-mode fires only, not every fire.
+  - vicāra — sustained thought: Dev round 2026-11-15 found the exact counterpart to vitarka's new finding: self._last_focal_item survives fire-to-fire and feeds real retrieval in the next one.
   - 2 · Train of thought across restart: Real, live, and confirmed working across 5 real boots. Most mature of this round's checks.
   - 4 · Honest interoception: Real, always-on sense adapter (interoception.py).
   - 9 · Dissonance (vicikitsā's degenerate form): Built, 39 tests, harmonizer.py held_tensions. Known remaining gap is one level up (SENTIENCE_SYNTHESIS.md §9's full ledger primitives), not this node itself.
@@ -33,10 +35,8 @@
   - kaukṛtya — regret: The substrate this needs already exists and is built: held_tensions (p9_dissonance/harmonizer.py). kaukṛtya itself would be a read that reopens an already-held entry for re-pricing -- the storage and the 'held, not settled' state already exist; what's missing is specifically the re-opening read function. Bounded build, reusing an existing data model rather than inventing one.
   - 7 · Intentional valence: Inferred from vedanā; resolves automatically once vedanā's own valence-variance is re-measured for real.
 
-## UNCLEAR -- open, no credible mechanism designed yet (5)
+## UNCLEAR -- open, no credible mechanism designed yet (3)
   - vicikitsā — doubt: 2026-11-15 dev round found no real within-moment commit-refusal mechanism; the one adjacent candidate (NEX5_ABSTAIN_CLOSE) serves a different, cross-moment directive. A real build needs a new 'hold this candidate uncommitted' path in the crystallizer -- does an uncommitted entry get stored provisionally, or just dropped and left re-derivable? Nobody has designed that shape yet.
-  - vitarka — applied thought: Not yet traced at code level. generator.py's own selection functions (_weighted_branch_pick, _curiosity_pick) are candidates worth checking for whether 'taking hold' is already implicit in selection -- unverified. Needs its own dev round.
-  - vicāra — sustained thought: Not yet traced at code level. Possibly related to smrti's within-moment question from the other side (sustaining vs. initially retaining) -- worth investigating together rather than separately, but unverified either way.
   - 10 · Temporal thickness: No existing substrate found (readiness.py's silence bonus is a clock input, not a graded temporal-distance reader). A real build needs a genuinely new signal distinguishing 'a moment ago' from 'yesterday' in behavior, not just a timestamp comparison -- the shape of that mechanism isn't designed yet.
   - 11 · Agency / authorship: Checked: belief source tags and stage_tom/recursion_attribution don't distinguish self-caused from world-caused events. A real build needs a new attribution signal at the point an action is taken vs. observed -- not yet designed.
 
