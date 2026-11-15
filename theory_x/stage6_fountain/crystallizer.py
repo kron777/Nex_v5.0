@@ -295,6 +295,7 @@ class FountainCrystallizer:
         droplet: Optional[str] = None,
         hot_branch: Optional[str] = None,
         focal_item: Optional[str] = None,
+        retained_candidate_id: Optional[int] = None,
     ) -> Optional[int]:
         # Stillness guard — Row 9 extension. Metacognition writes a stillness_log
         # row when sustained groove exceeds threshold; we skip crystallization
@@ -499,6 +500,18 @@ class FountainCrystallizer:
             source=_LOG_SOURCE,
             level="INFO",
         )
+        # smrti dev round (2026-11-15): retained_candidate_id is the own_sense belief
+        # retrieval selected for this fire -- carried unmodified from retrieval through
+        # generate() to here, never re-fetched. Purely observational (no behavioral
+        # effect, no schema change to the live fountain_crystallizations table): logs
+        # the retention explicitly so "which object preceded this commit" is a citable,
+        # testable fact instead of an implicit property of the call chain.
+        if retained_candidate_id is not None:
+            errors.record(
+                f"smrti: retained candidate {retained_candidate_id} -> crystallized {belief_id}",
+                source=_LOG_SOURCE,
+                level="INFO",
+            )
         return belief_id
 
     # ------------------------------------------------------------------

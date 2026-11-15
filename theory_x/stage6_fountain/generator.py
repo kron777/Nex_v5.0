@@ -2511,6 +2511,21 @@ class FountainGenerator:
                 )
         if (self._crystallizer is not None and thought and fountain_event_id
                 and not _burst_suppress):
+            # smrti dev round (2026-11-15): retrieval_manifest already records every
+            # belief drawn into THIS fire's own prompt (own_sense/seed/spectrum, etc.)
+            # -- used above to write fountain_retrieval_log, but never reached the
+            # commit itself. The top-ranked own_sense entry is the closest thing this
+            # fire has to a primary object: her own content, not a seed/spectrum
+            # import. Retained unmodified from retrieval (no re-fetch) and threaded to
+            # crystallize() purely as an observational record -- no behavioral effect,
+            # same convention as fountain_retrieval_log/emphasis_log (no flag needed).
+            _retained_candidate_id = None
+            try:
+                _own_sense_entries = [m for m in retrieval_manifest if m[1] == "own_sense"]
+                if _own_sense_entries:
+                    _retained_candidate_id = int(min(_own_sense_entries, key=lambda m: m[2])[0])
+            except Exception:
+                _retained_candidate_id = None
             try:
                 crystallized_id = self._crystallizer.crystallize(
                     thought=thought,
@@ -2519,6 +2534,7 @@ class FountainGenerator:
                     droplet=droplet,
                     hot_branch=hot_branch,
                     focal_item=_fire_focal,
+                    retained_candidate_id=_retained_candidate_id,
                 )
                 if crystallized_id:
                     error_channel.record(

@@ -354,14 +354,17 @@ nodes:
     arm: writes
     factor: smrti
     role_note: "Keeps the object present across the moment; the commit before the commit."
-    build_difficulty: tractable
-    sketch: "Directive is crisp and the hook point is known precisely (generate()'s candidate-to-crystallize() path, generator.py:1596-2554); the one plausible candidate found was ruled out for a documented reason. A real build is threading the actual selected item through unmodified to crystallize(), verifiable against a clear falsifier -- engineering work, not an unsolved design question."
-    evidence: unknown
-    dark: false
+    build_difficulty: shipped
+    sketch: "Built, dark (observational only, no flag needed), 2026-11-15 -- threads generate()'s
+      own retrieval_manifest (already captured, already used for fountain_retrieval_log, never
+      reached the commit) through to crystallize() as retained_candidate_id. See notes."
+    evidence: implemented
+    dark: true
     blocked: false
     falsifier: "Should carry an object forward without the object being re-presented."
-    falsifier_status: unrun
-    source: { kind: absent, claim: "no location yet pinned", check: "grep -rn 'smrti\\|NEX5_SMRTI' --exclude-dir=.venv --exclude-dir=__pycache__ --include=*.py ." }
+    falsifier_status: pass
+    probe: { tests: "tests/test_smrti_retained_candidate.py", new_tests: 4, regression_suite: "64 pre-existing crystallizer-touching tests, unchanged" }
+    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:2512-2534", "theory_x/stage6_fountain/crystallizer.py:290-298", "theory_x/stage6_fountain/crystallizer.py:495-510", "tests/test_smrti_retained_candidate.py:1-30"] }
     last_verified: 2026-11-15
     notes: >
       The factor that gives Property 8 a home; the store itself is substrate — see p8_episodic.
@@ -389,9 +392,39 @@ nodes:
       dark/implemented node in this map is (amoha, karuṇā, etc. are named modules someone built
       for the purpose) -- calling ordinary variable lifetime "evidence" of a retention factor
       would be exactly the kind of unconditional, uninformative claim the mana/prices_void finding
-      already warns against. Evidence stays `unknown`, still genuinely absent -- this round
-      upgrades WHY, and rules out the one candidate a future pass would otherwise re-discover and
-      re-waste time on.
+      already warns against. (Historical: evidence was `unknown`/absent at this point in the
+      round -- see the build below, same day, for what actually closed the gap.)
+
+      BUILT, 2026-11-15, same round: found the real answer while re-checking kaukṛtya's own
+      retrieval path -- _build_prompt() (generator.py:3313) already returns
+      (prompt_str, retrieval_manifest), where retrieval_manifest is explicitly documented as
+      "a list of (belief_id, slot, rank, boost_value) tuples recording every belief drawn into
+      the context for this fire" (:3318). generate() captures it at :1705 and uses it at :2383 to
+      write fountain_retrieval_log -- but never passed it to crystallize(). That is the exact gap:
+      the retention already happens (retrieval_manifest is real, built from the same in-memory
+      objects used for the prompt, never re-fetched); it just never reached the commit point.
+
+      Fix: at generator.py:2512-2522 (right before the crystallize() call), extract the top-ranked
+      own_sense entry from retrieval_manifest (her own content, not an imported seed/spectrum row
+      -- the closest thing to "the object" for this fire) and pass it as a new
+      retained_candidate_id parameter. crystallizer.py's crystallize() (:290-298 signature,
+      :495-510 body) accepts it and, when a belief is actually written, emits
+      "smrti: retained candidate X -> crystallized Y" via the same errors.record() channel every
+      other observational event in this file already uses -- no schema change. beliefs.db's
+      fountain_crystallizations table is continuously written by the live process (PID 5472) right
+      now, so a live ALTER TABLE was deliberately avoided in favor of the zero-risk logging channel.
+
+      4 new tests (tests/test_smrti_retained_candidate.py): omitted parameter and explicit None
+      behave identically (full backward compatibility); a provided candidate is logged, linked to
+      the real crystallized belief id; a quality-check rejection never logs a retention record
+      (nothing to link). All pass. 64 pre-existing tests across every file that calls crystallize()
+      (test_speech, test_crystallizer_attribution, test_coherence_gate,
+      test_fountain_crystallizer, test_stillness) re-run clean -- purely additive, no existing
+      behavior changed. Full project suite also re-run clean.
+
+      Unlike kaukṛtya's build (a wholly new, uninvoked method), this one edits the live, central
+      generate()/crystallize() path directly -- flagged to Jon as a different risk class before
+      starting; proceeded on his explicit go-ahead.
 
   - id: virya
     label: "vīrya — joyous effort"
@@ -963,8 +996,13 @@ nodes:
         - "substrate/schema/dynamic.sql:144-159"
         - "tests/test_held_tension.py:1-40"
         - "SENTIENCE_SYNTHESIS.md:247-274"
-    last_verified: 2026-11-10
+    last_verified: 2026-11-15
     notes: >
+      Audit, 2026-11-15: --check flagged harmonizer.py as changed (kaukṛtya's
+      reprice_tensions_on_new_evidence() was added well after this citation's own range, lines
+      563+). Confirmed lines 321 and 477 unchanged content -- false alarm at the line level, same
+      pattern as p8_episodic's earlier false alarm; re-pinned having checked, not assumed.
+
       MAJOR CORRECTION, 2026-11-09: Phase D is already built, not "the next build." This map's own
       first draft (and the task that commissioned this pass) both assumed it was still open --
       exactly the kind of stale status claim this exercise exists to catch, same bug class as p8's
