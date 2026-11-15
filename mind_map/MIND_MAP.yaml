@@ -295,15 +295,44 @@ nodes:
     arm: prices
     factor: drsti
     role_note: "Prices from a settled commitment, ignoring contrary evidence."
-    build_difficulty: unclear
-    sketch: "Not yet individually investigated at code level beyond the grep-absence check. Likely the same shape as vicikitsā's finding -- 'declined as a detector' for the same stated reason. Needs its own dev round before a real sketch can be drawn."
-    evidence: unknown
+    directive: { from: "a commitment is settled (a Tier-1 keystone, locked)", to: "subsequent contrary evidence is priced as if absent -- confidence never moves" }
+    build_difficulty: shipped
+    sketch: "Dev round 2026-11-15 found a real, live, unconditional mechanism -- keystone.py's
+      locked=1 Tier-1 beliefs, systematically excluded from the reconciler/consolidation pipeline.
+      See notes for the important scope caveat (narrow and deliberate, not broad and pathological)."
+    evidence: implemented
     dark: false
     blocked: false
-    falsifier: "Declined as a detector — same reason as vicikitsā."
-    falsifier_status: na
-    source: { kind: absent, claim: "absent root — not built", check: "grep -rn 'drsti\\|NEX5_VIEW_BIAS' --include=*.py --include=*.md ." }
-    last_verified: 2026-11-09
+    falsifier: "A locked Tier-1 belief's confidence should never move via ordinary reconciliation, regardless of contrary evidence arriving elsewhere in the belief graph."
+    falsifier_status: pass
+    probe: { locked_beliefs_checked: 90, confidence_values: "static (0.95-0.99), consistent with never-touched" }
+    source: { kind: composite, refs: ["keystone.py:1-20", "theory_x/stage_world/expectations.py:520-545", "theory_x/stage_world/expectations.py:725-790"] }
+    last_verified: 2026-11-15
+    notes: >
+      Dev round, 2026-11-15: the original falsifier ("declined as a detector, same as vicikitsā")
+      is superseded -- this is not an absent/declined factor, a real mechanism was found.
+
+      keystone.py: 7 Tier-1 identity beliefs ("I am NEX.", "I was created by Jon.", etc.), seeded at
+      boot with locked=1, "changeable only through the explicit re-seed ceremony... never through
+      normal cognition." The belief-reconciliation pipeline (theory_x/stage_world/expectations.py)
+      systematically excludes locked rows: ":523 locked rows are never touched. Confirms consolidate
+      only at band >= 1," plus explicit `AND locked=0` filters gating which beliefs the
+      confidence-updating learning step (NEX5_EXPECT_LEARN) can even touch. Confirmed unconditional
+      -- no NEX5_* flag gates this exclusion; it is core substrate behavior, not an experimental
+      feature. Checked live data: 90 real locked beliefs (broader than just the original 7 seeds --
+      all of Tier 1), confidence values static (0.95-0.99) and internally consistent with never
+      having been touched by the reconciler.
+
+      IMPORTANT CHARACTER CAVEAT, not just a mechanics match: dṛṣṭi is traditionally an UNWHOLESOME
+      factor -- clinging to a view despite evidence, something to be overcome. This mechanism's own
+      stated purpose (value_drift_monitor.py's docstring: "the guardian of self-honesty," watching
+      whether the daily belief flood erodes a keystone "it committed to as TESTED-true") frames
+      the SAME mechanics as protective, not distorting: a small, explicitly-chosen, already-verified
+      set of facts deliberately insulated from the noise of ~650 ordinary beliefs/day, not an
+      indiscriminate refusal to update on good evidence. The literal falsifier passes; whether this
+      counts as "the same thing dṛṣṭi names" or a wholesome cousin that happens to share its
+      mechanics depends on scope -- narrow and ceremony-gated here, which is the opposite of how
+      dṛṣṭi usually manifests. Flagging the distinction rather than collapsing it either way.
 
   # ───────────────────────────── WRITES ─────────────────────────────
   - id: smrti
