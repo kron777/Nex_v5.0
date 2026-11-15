@@ -124,6 +124,18 @@ def check(doc: dict, verify_absent: bool = False) -> tuple[list, list]:
             except ValueError:
                 errs.append(f"{nid}: last_verified must be YYYY-MM-DD or 'unverified'")
 
+        # directive: an explicit A->B vector for the node (Jon, 2026-11-15) --
+        # optional for now (not retrofitted onto all 30 nodes), but any node
+        # that declares one must give both ends, non-empty.
+        directive = n.get("directive")
+        if directive is not None:
+            if not isinstance(directive, dict):
+                errs.append(f"{nid}: directive must be a mapping with `from`/`to`")
+            else:
+                for end in ("from", "to"):
+                    if not str(directive.get(end) or "").strip():
+                        errs.append(f"{nid}: directive.{end} must be a non-empty string")
+
         src = n.get("source") or {}
         kind = src.get("kind")
         if kind not in SOURCE_KINDS:
@@ -304,14 +316,16 @@ def emit_dot(doc: dict) -> str:
 
 
 def emit_md(doc: dict) -> str:
-    rows = ["| Node | Layer | Role | Evidence | Flags | Falsifier | Verified |",
-            "|---|---|---|---|---|---|---|"]
+    rows = ["| Node | Layer | Role | Evidence | Flags | Directive (A -> B) | Falsifier | Verified |",
+            "|---|---|---|---|---|---|---|---|"]
     for n in doc["nodes"]:
         flags = ", ".join(f for f, on in (("dark", n["dark"]), ("blocked", n["blocked"]),
                                            ("unverified", n["last_verified"] == "unverified")) if on) or "-"
+        d = n.get("directive")
+        directive = f'{d["from"]} -> {d["to"]}' if d else "-"
         rows.append(
             f'| {n["label"]} | {n["layer"]} | {n.get("arm") or n.get("property") or "-"} '
-            f'| {n["evidence"]} | {flags} | {n["falsifier_status"]} | {n["last_verified"]} |')
+            f'| {n["evidence"]} | {flags} | {directive} | {n["falsifier_status"]} | {n["last_verified"]} |')
     return "\n".join(rows) + "\n"
 
 

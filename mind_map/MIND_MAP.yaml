@@ -100,6 +100,7 @@ nodes:
     arm: prices
     factor: upeksa
     role_note: "Holds the price steady when it should not move."
+    directive: { from: "a provoking input would normally shift the price", to: "the price stays flat under that provocation, while still moving normally elsewhere" }
     evidence: measured
     dark: false
     blocked: false
@@ -378,6 +379,7 @@ nodes:
     arm: consumers
     factor: vitarka
     role_note: "Takes hold of an object."
+    directive: { from: "an object is present in the field, not yet engaged", to: "attention has taken hold of that object" }
     evidence: static
     dark: false
     blocked: false
@@ -392,6 +394,7 @@ nodes:
     arm: consumers
     factor: vicara
     role_note: "Keeps hold of it across the next moment."
+    directive: { from: "an object is held in this moment", to: "the same object is still held in the next moment, not dropped" }
     evidence: static
     dark: false
     blocked: false
