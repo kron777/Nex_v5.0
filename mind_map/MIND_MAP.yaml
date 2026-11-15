@@ -187,14 +187,32 @@ nodes:
     factor: mana
     role_note: "Prices the self's standing relative to the other."
     build_difficulty: shipped
-    sketch: "Real, always-on detector (mana_detector.py). Falsifier unrun -- needs a cadence probe (does it really fire every turn?), not a build."
+    sketch: "Real detector (mana_detector.py), but NOT always-on -- corrected 2026-11-15, see notes. dark:true, not false."
     evidence: static
-    dark: false
+    dark: true
     blocked: false
     falsifier: "Reads every turn. A faculty that fires unconditionally carries no information."
-    falsifier_status: unrun
-    source: { kind: file, ref: "theory_x/stage_tom/mana_detector.py:1-25" }
-    last_verified: 2026-11-09
+    falsifier_status: na
+    source: { kind: composite, refs: ["theory_x/stage_tom/mana_detector.py:1-25", "theory_x/stage_tom/self_binding.py:311-325", "theory_x/stage6_fountain/generator.py:3496-3509"] }
+    last_verified: 2026-11-15
+    notes: >
+      CORRECTION, 2026-11-15 (falsifier-sweep round): "always-on read-only sidecar" was wrong.
+      mana_detector.detect() has exactly one caller in the live path -- self_binding.py's
+      _cluster_reads(), called only from afflictions_for_prompt() -- and BOTH generator.py's own
+      import guard (:3499, "if os.environ.get('NEX5_AFFLICTIONS') == '1':") and
+      afflictions_for_prompt()'s internal guard gate it behind NEX5_AFFLICTIONS. Confirmed absent
+      from the live launcher (grep nex_keepalive.sh: no match) AND from the live process's actual
+      environment (checked /proc/<pid>/environ directly, not just the launcher script: no
+      NEX5_AFFLICTIONS). No standalone systemd timer runs mana_detector.py's own --watch CLI mode
+      either. Net: mana_detector.detect() is called on ZERO live turns, not every turn.
+
+      The falsifier itself ("fires every turn, carries no information") can't be evaluated as
+      written because its premise is false in the other direction -- it doesn't fire unconditionally,
+      it doesn't fire at all. falsifier_status set to `na` rather than `pass`/`fail` for that reason.
+      Reclassified dark:false -> dark:true (exactly the modifier's own definition: code exists and
+      is tested, nothing in the live loop invokes it). Same correction class as several 2026-11-09
+      entries elsewhere in this map, just running the other direction -- there it was "absent" that
+      turned out to be built; here it's "live" that turned out to be dark.
     notes: "Correction, 2026-11-09: real location is mana_detector.py (self-inflation / conceit
       detector, sibling of amoha_detector.py). No NEX5_MANA flag exists in nex_config.py -- unlike
       amoha_detector (NEX5_AMOHA-gated), this detector appears to run as an always-on read-only
@@ -508,20 +526,42 @@ nodes:
     property: "3"
     role_note: "Is the pricing function: without scarcity nothing is priced."
     build_difficulty: shipped
-    sketch: "Real, two live appraisal functions (stakes_appraisal.py, readiness.py's appraise_groove)."
+    sketch: "Real appraisal functions exist and are reachable live, but NOT via the path the prior
+      note claimed -- corrected 2026-11-15, see notes. The 'actually spent' half of the falsifier
+      is still open."
     evidence: static
     dark: false
     blocked: false
     falsifier: "Should be visible as a budget that can actually be spent."
     falsifier_status: unrun
-    source: { kind: composite, refs: ["theory_x/stage_tom/stakes_appraisal.py:1-20", "theory_x/stage_tom/stakes_monitor.py:1-5"] }
-    last_verified: 2026-11-09
-    notes: "Correction, 2026-11-09: this is a real, named function (L4_stakes self-referent
-      appraisal, NEX5_STAKES-gated) with two live appraisals (appraise(), measured inert on the
-      live instrument per r79; appraise_groove(), the live-calibrated one readiness actually uses).
-      Still no 51-factor slot -- it is a function over the ledger, not an event, as the original
-      claim said; only 'stakes\\|budget' matching 37 unrelated files (timeouts, test budgets, etc.)
-      made that look unfindable."
+    source: { kind: composite, refs: ["theory_x/stage_tom/stakes_appraisal.py:1-20", "theory_x/stage6_fountain/readiness.py:104-140", "theory_x/stage_world/frozen_at_made.py:100-107"] }
+    last_verified: 2026-11-15
+    notes: >
+      Correction, 2026-11-09: this is a real, named function (L4_stakes self-referent
+      appraisal) with two live appraisals (appraise(), measured inert on the live instrument per
+      r79; appraise_groove(), the groove-onset cost). Still no 51-factor slot -- it is a function
+      over the ledger, not an event.
+
+      CORRECTION, 2026-11-15 (falsifier-sweep round): "the live-calibrated one readiness actually
+      uses" was wrong for the CURRENT live process. readiness.py:130 gates appraise_groove()'s
+      effect on the readiness score behind NEX5_STAKES specifically (mutually exclusive with the
+      NEX5_APPROACH reward arm, "never arm both" per :104) -- checked the live process's actual
+      environment directly (/proc/<pid>/environ): neither NEX5_STAKES nor NEX5_APPROACH is set,
+      only the unrelated NEX5_STAKES_DEEP (a different mechanism in generator.py's "situated
+      stakes," not this one). So appraise_groove()'s cost is NOT currently subtracted from the live
+      readiness score at all -- that specific wiring is dark, not live, on this process.
+
+      It IS still genuinely called live, just for a different purpose: frozen_at_made.py's
+      snapshot_stakes() calls appraise_groove() unconditionally to freeze a groove_cost_at_made
+      value at the moment a self-prediction is recorded, and self_prediction.py calls
+      snapshot_stakes() from two sites reachable live (NEX5_SELF_PRED=1 and NEX5_WORLD_PRED=1 are
+      both armed). So the appraisal runs live and writes a real number -- just as a frozen
+      record at commitment time, not as an active readiness penalty.
+
+      Falsifier stays unrun: confirmed the appraisal is genuinely computed and recorded live, but
+      have not yet checked whether anything downstream actually reads/acts on the frozen
+      groove_cost_at_made value later (the "actually spent" half of the claim) or whether it is
+      written and never consumed.
 
   - id: p4_interoception
     label: "4 · Honest interoception"
@@ -534,12 +574,23 @@ nodes:
     dark: false
     blocked: false
     falsifier: "Should report a substrate fact that later measurement can contradict."
-    falsifier_status: unrun
+    falsifier_status: pass
+    probe: { log: "/tmp/nex5_interoception.log", polls_checked: 5, interval_s: 30 }
     source: { kind: file, ref: "theory_x/stage1_sense/internal/interoception.py:1-20" }
-    last_verified: 2026-11-09
-    notes: "Correction, 2026-11-09: anchor is pinned -- Feed 22, always-enabled sense adapter
+    last_verified: 2026-11-15
+    notes: >
+      Correction, 2026-11-09: anchor is pinned -- Feed 22, always-enabled sense adapter
       reading belief-graph shape (tier counts, lock count, most recent entry) via substrate.Reader.
-      Not flag-gated; this is live, not dark."
+      Not flag-gated; this is live, not dark.
+
+      Falsifier run, 2026-11-15: read the live poll log (/tmp/nex5_interoception.log, 268 lines).
+      Five consecutive 30s polls show total_beliefs moving 7909 -> 7909 -> 7909 -> 7910 -> 7910,
+      with beliefs_since_last_poll correctly reading 0,0,0,1,0 -- a real delta, not a static or
+      fabricated number. Cross-checked the latest logged value (7910) against an independent,
+      fresh read-only query of the live beliefs.db: exact match. Confirms the report is a genuine
+      point-in-time substrate read (an earlier poll's count is superseded by the next one, i.e. a
+      later measurement really can and does contradict/update it) rather than a cached or invented
+      value. Pass.
 
   - id: p7_valence
     label: "7 · Intentional valence"
