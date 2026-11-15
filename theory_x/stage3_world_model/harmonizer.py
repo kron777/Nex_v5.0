@@ -351,13 +351,33 @@ class Harmonizer:
         """Seek a third belief bridging both -- extracted out of
         _retire_both_or_synthesize unchanged, so retry_bridge_for_tensions()
         (Phase D's periodic re-attempt) can reuse the exact same search
-        against a held tension instead of duplicating it."""
+        against a held tension instead of duplicating it.
+
+        LIVE BUG, found and fixed 2026-11-15 (kaukṛtya round's realism check):
+        this query had no ORDER BY, so LIMIT 50 was never a sample -- SQLite's
+        default scan order returned the SAME static 50 rows (ids 3-52, the
+        system's very first day) every single call, regardless of how large
+        the pool grew. Measured live: 50 of 1,622 currently-eligible beliefs
+        (3.08%), permanently -- this function could never find a genuine
+        bridge for a tension about anything written after day one. Same bug
+        class as the already-fixed LIMIT-200 escalation starvation elsewhere
+        in this file (2026-11-07), just never caught here. This function is
+        NOT dark: _retire_both_or_synthesize calls it from resolve(), the
+        live _harmonizer_loop's own escalation path (NEX5_HELD_TENSION off,
+        today's default) -- fixed directly rather than flagged, on Jon's
+        explicit go-ahead given the severity. ORDER BY RANDOM() makes LIMIT 50
+        a genuine rotating sample instead of a frozen one; existing callers
+        (test_held_tension.py, test_retry_bridge_for_tensions.py) already
+        clear the pool down to a handful of rows before asserting a specific
+        match, so randomizing order over a small result set changes nothing
+        they check."""
         tokens_a = _tokenize(row_a["content"])
         tokens_b = _tokenize(row_b["content"])
         try:
             candidates = self._beliefs_reader.read(
                 "SELECT id, content, tier FROM beliefs "
-                "WHERE id NOT IN (?, ?) AND paused = 0 AND tier <= 5 LIMIT 50",
+                "WHERE id NOT IN (?, ?) AND paused = 0 AND tier <= 5 "
+                "ORDER BY RANDOM() LIMIT 50",
                 (belief_id_a, belief_id_b),
             )
             for c in candidates:

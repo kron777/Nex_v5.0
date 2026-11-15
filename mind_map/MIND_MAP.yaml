@@ -1021,28 +1021,38 @@ nodes:
     source:
       kind: composite
       refs:
-        - "theory_x/stage3_world_model/harmonizer.py:340-496"
+        - "theory_x/stage3_world_model/harmonizer.py:340-516"
         - "substrate/schema/dynamic.sql:144-159"
         - "tests/test_held_tension.py:1-40"
         - "SENTIENCE_SYNTHESIS.md:247-274"
     last_verified: 2026-11-15
     notes: >
-      EXPOSURE FLAGGED, 2026-11-15 (not fixed, not re-verified against live data): kaukṛtya's own
-      dev round found that _find_synthesis_candidate's token-overlap test (>=2 shared tokens, the
-      bridge-finding half of this exact mechanism) is nowhere near selective against the real
-      corpus -- 80% of live beliefs share one narration template that alone satisfies the
-      threshold regardless of actual topic; measured false-positive 72-91% under several
-      mitigations, fixed in kaukṛtya's own new code by stripping the template and switching to
-      embedding similarity, NOT applied here. This node's `pass` verdict rests entirely on
-      tests/test_held_tension.py's clean synthetic sentences (e.g. "Markets trend upward over
-      decades"), which never exercise the real corpus's narration-template homogeneity -- same
-      class of gap as this node's own history of stale citations, just on the data side rather
-      than the code side this time. retry_bridge_for_tensions likely over-fires on the real corpus
-      the same way kaukṛtya's first attempt did; not reproduced live here (zero held_tensions rows
-      currently exist, NEX5_HELD_TENSION off) and not touched -- pre-existing, already-shipped,
-      already falsifier-passed code, flagged for a decision rather than altered on this pass's own
-      authority. A real re-verification would need live held_tensions data (post-arming) or the
-      same kind of offline corpus probe kaukṛtya's round ran.
+      LIVE BUG FOUND AND FIXED, 2026-11-15 (two passes, measured both times): kaukṛtya's dev round
+      first flagged _find_synthesis_candidate's token-overlap test (>=2 shared tokens) as "likely"
+      sharing the narration-template exposure its own first design hit. Measured directly instead
+      of leaving that as speculation: called the real function against 200 random real belief
+      pairs and got only 4.0% false-bridges -- surprisingly good, which turned out to be a SECOND,
+      more severe bug masking the first. The candidate query had no ORDER BY: `LIMIT 50` wasn't a
+      sample, it was the SAME static 50 rows every call (ids 3-52, the system's first day,
+      2026-10-26) -- confirmed by direct inspection. 50 of 1,622 currently-eligible beliefs
+      (3.08%), permanently, regardless of pool growth: this function could never find a genuine
+      bridge for a tension about anything written after day one. Same bug class as the already-
+      fixed LIMIT-200 escalation starvation elsewhere in this file (2026-11-07 round), just never
+      caught here.
+
+      Not dark: _retire_both_or_synthesize calls this from resolve(), the LIVE _harmonizer_loop's
+      own escalation path (NEX5_HELD_TENSION off is today's default, so this is the active
+      production path, not a waiting flag). Fixed directly on Jon's explicit go-ahead given the
+      severity -- added ORDER BY RANDOM() so LIMIT 50 is a genuine rotating sample. Verified the
+      fix actually varies: three repeated calls now return ids spanning 12-22290, not the frozen
+      3-52 range. 57 tests across every file touching this function
+      (test_held_tension/test_retry_bridge_for_tensions/test_harmonizer_active_count_fix/
+      test_hud_tensions_episodes/test_reprice_tensions_on_new_evidence/test_world_model) re-run
+      clean, plus the full project suite. Narration-template exposure on this function's own
+      >=2-token check is still open and NOT fixed -- the random-sampling fix makes it search the
+      WHOLE pool instead of a frozen slice, which doesn't address template-driven false bridges
+      (kaukṛtya's own template-stripping fix was never applied here); a live measurement against
+      the now-randomized query would be the natural next check.
 
       Audit, 2026-11-15 (superseded same day): first checked after kaukṛtya's new method was
       added at the END of the file (lines 563+) -- confirmed this citation's then-range (321-477)
