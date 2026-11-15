@@ -188,16 +188,28 @@ nodes:
     probe: { valence_delta: 0.73, variance: "~0 (constant)" }
     falsifier: "A price that is constant is not a price. Valence should vary with content."
     falsifier_status: unrun
-    source: { kind: composite, refs: ["theory_x/stage_affect/affect_state.py:331-360", "theory_x/stage6_fountain/generator.py:581-594"] }
-    last_verified: 2026-11-09
-    notes: "Correction, 2026-11-09: 'no location yet pinned' was wrong -- the check regex just
+    source: { kind: composite, refs: ["theory_x/stage_affect/affect_state.py:331-360", "theory_x/stage6_fountain/generator.py:617-652"] }
+    last_verified: 2026-11-15
+    notes: >
+      Correction, 2026-11-09: 'no location yet pinned' was wrong -- the check regex just
       missed .venv-excluded hits. Real location: AffectState._compute_valence_delta() (confidence-
       weighted sentiment over top-tier beliefs, background tick) and generator.py's separate
       _valence_reach() (NEX5_VALENCE_DRIVE, default OFF, modulates novelty-pick). Downgraded
       evidence measured->static and dropped the fail verdict: I could not find any observation_report
       backing the probe's specific 0.73/variance~0 numbers, and _compute_valence_delta() reads real
       belief content rather than returning a hardcoded constant by construction. The probe numbers
-      need a real source or should be retracted -- flagging for Jon/Beam rather than guessing."
+      need a real source or should be retracted -- flagging for Jon/Beam rather than guessing.
+
+      Audit, 2026-11-15: citation line numbers were stale, not the claim itself -- a 446-line
+      insertion elsewhere in generator.py (commit 02d4717, unrelated telemetry) shifted
+      _valence_reach from :581-594 to :617-652; re-pinned. affect_state.py was untouched in the
+      same window, so that half of the citation still holds as-is.
+
+      While re-pinning, spot-checked self_state_history (data/dynamic.db) for real variance: the 10
+      most recent rows all show emotion="engaged joy" (raga varying mild/free). That's a narrated
+      summary field, not the raw valence_delta this node cites, so it doesn't resolve the falsifier
+      either way -- but it's the same shape of worry the original 0.73-constant claim raised, and
+      worth a real dev round of its own rather than treating this citation-fix as having settled it.
 
   - id: mana
     label: "māna — self-conceit"
@@ -897,12 +909,19 @@ nodes:
         - "substrate/schema/dynamic.sql:172-193"
         - "nex_config.py:84"
         - "SENTIENCE_PROGRAM.md:148-157"
-    last_verified: 2026-11-10
+    last_verified: 2026-11-15
     notes: >
       Built, tested, dark, now measured. SENTIENCE_PROGRAM.md:35 called this not-built and cited
       only resumption.py + snapshot_writer.py; :148-157 specifies Phase E and ARCHITECTURE.md:106,581
       already documents it. The summary row was stale — fixed 2026-11-09 (same pass also caught and
       fixed an equivalent stale citation on p9_dissonance's row, see that node).
+
+      Audit, 2026-11-15: --check flagged nex_config.py as changed since last_verified. Checked --
+      false alarm at the line level: NEX5_EPISODIC is still exactly at :84, unchanged; the
+      triggering commit (cb1ac41, metacognition self-pattern flags) added lines elsewhere in the
+      file without touching this one. Drift check is file-granularity, not line-granularity, so this
+      kind of false positive is expected and worth re-verifying rather than assuming -- re-pinned
+      last_verified having actually checked, not just to silence the warning.
       gui/server.py:3090 exposes a read-only HUD endpoint, so the module docstring's
       "not wired into gui/server.py" is itself half-stale: read-visible, write-dark.
 
