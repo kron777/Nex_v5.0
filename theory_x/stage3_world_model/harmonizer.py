@@ -370,9 +370,16 @@ class Harmonizer:
         (test_held_tension.py, test_retry_bridge_for_tensions.py) already
         clear the pool down to a handful of rows before asserting a specific
         match, so randomizing order over a small result set changes nothing
-        they check."""
-        tokens_a = _tokenize(row_a["content"])
-        tokens_b = _tokenize(row_b["content"])
+        they check.
+
+        Narration-template exposure, same round: unlike reprice_tensions_on_
+        new_evidence's EITHER-side check, this one requires overlap with BOTH
+        beliefs at once, which is naturally far more selective -- measured:
+        template-stripped, AND-based overlap>=2 on random triples gives 2.7%
+        false-positive, no embedding model needed. Stripping alone (not a
+        switch to embeddings) is the fix here."""
+        tokens_a = _tokenize(_strip_narration_template(row_a["content"]))
+        tokens_b = _tokenize(_strip_narration_template(row_b["content"]))
         try:
             candidates = self._beliefs_reader.read(
                 "SELECT id, content, tier FROM beliefs "
@@ -381,7 +388,7 @@ class Harmonizer:
                 (belief_id_a, belief_id_b),
             )
             for c in candidates:
-                c_tokens = _tokenize(c["content"])
+                c_tokens = _tokenize(_strip_narration_template(c["content"]))
                 if len(c_tokens & tokens_a) >= 2 and len(c_tokens & tokens_b) >= 2:
                     return int(c["id"])
         except Exception as exc:

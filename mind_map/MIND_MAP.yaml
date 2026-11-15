@@ -1048,11 +1048,22 @@ nodes:
       3-52 range. 57 tests across every file touching this function
       (test_held_tension/test_retry_bridge_for_tensions/test_harmonizer_active_count_fix/
       test_hud_tensions_episodes/test_reprice_tensions_on_new_evidence/test_world_model) re-run
-      clean, plus the full project suite. Narration-template exposure on this function's own
-      >=2-token check is still open and NOT fixed -- the random-sampling fix makes it search the
-      WHOLE pool instead of a frozen slice, which doesn't address template-driven false bridges
-      (kaukṛtya's own template-stripping fix was never applied here); a live measurement against
-      the now-randomized query would be the natural next check.
+      clean, plus the full project suite.
+
+      SECOND FIX, same round: narration-template exposure on this function's own >=2-token check
+      -- applied _strip_narration_template before tokenizing both the tension pair and every
+      candidate. Unlike kaukṛtya's EITHER-side check, this one requires overlap with BOTH beliefs
+      at once, naturally far more selective: template-stripped AND-based overlap on random
+      triples measured 2.7%, no embedding model needed (template-stripping alone was enough here).
+      But the FULL production function, checked against 150 real random pairs (each against its
+      own fresh 50-candidate sample), measures 12.0% false-bridge -- higher than the isolated
+      2.7%, because 50 independent chances per pair compound even a low per-candidate rate.
+      Reaching kaukṛtya's own 8% would need the same switch to embedding similarity -- not applied
+      here, since this function sits on the ALWAYS-LIVE resolve() path (not a dark feature), and
+      adding the embedding model's latency/cost to every real contradiction resolution is its own
+      decision, not a default extension of this round's go-ahead. 12.0% is still a large
+      improvement over this function effectively never searching outside 3% of the pool at all;
+      flagging the remaining gap precisely rather than calling it fully closed.
 
       Audit, 2026-11-15 (superseded same day): first checked after kaukṛtya's new method was
       added at the END of the file (lines 563+) -- confirmed this citation's then-range (321-477)
