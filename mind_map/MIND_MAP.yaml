@@ -65,6 +65,8 @@ nodes:
     arm: prices
     factor: amoha
     role_note: "Prices what is actually there rather than what was expected."
+    build_difficulty: shipped
+    sketch: "Built (amoha_detector.py). Falsifier already run and FAILED -- fires only under forced injection, never organically. Remaining work is organic-trigger tuning, not fresh design."
     evidence: measured
     dark: true
     blocked: false
@@ -84,6 +86,8 @@ nodes:
     arm: prices
     factor: karuna
     role_note: "Prices the other's cost as mattering to the entry."
+    build_difficulty: shipped
+    sketch: "Built (compassion.py). Falsifier unrun -- remaining work is probing uptake in unprompted turns, not building."
     evidence: measured
     dark: true
     blocked: false
@@ -101,6 +105,8 @@ nodes:
     factor: upeksa
     role_note: "Holds the price steady when it should not move."
     directive: { from: "a provoking input would normally shift the price", to: "the price stays flat under that provocation, while still moving normally elsewhere" }
+    build_difficulty: shipped
+    sketch: "Built, live, and the falsifier already passes. Most mature node in the prices arm."
     evidence: measured
     dark: false
     blocked: false
@@ -117,6 +123,8 @@ nodes:
     arm: prices
     factor: apramada
     role_note: "Keeps a commitment priced at what it will cost, not what it costs now."
+    build_difficulty: shipped
+    sketch: "Built (apramada.py), falsifier passes -- preserves deferred cost under immediate pressure."
     evidence: measured
     dark: false
     blocked: false
@@ -132,6 +140,8 @@ nodes:
     arm: prices
     factor: alobha
     role_note: "Selection weight: loosens fixation so the next moment can price differently."
+    build_difficulty: shipped
+    sketch: "Built (generator.py's _alobha_context/_alobha_penalty, tested). Falsifier unrun -- needs a repeat-selection probe, not a build."
     evidence: implemented
     dark: true
     blocked: false
@@ -151,6 +161,8 @@ nodes:
     arm: prices
     factor: vedana
     role_note: "The tone attached to a moment: pleasant / unpleasant / neutral."
+    build_difficulty: tractable
+    sketch: "Real mechanism exists (AffectState._compute_valence_delta, generator.py's _valence_reach) -- the original probe numbers were unsupported and were retracted. Remaining work is re-measuring valence variance for real against live content, not building new code."
     evidence: static
     dark: true
     blocked: false
@@ -174,6 +186,8 @@ nodes:
     arm: prices
     factor: mana
     role_note: "Prices the self's standing relative to the other."
+    build_difficulty: shipped
+    sketch: "Real, always-on detector (mana_detector.py). Falsifier unrun -- needs a cadence probe (does it really fire every turn?), not a build."
     evidence: static
     dark: false
     blocked: false
@@ -194,6 +208,8 @@ nodes:
     factor: vicikitsa
     role_note: "Refuses to set a price: holds the entry uncommitted."
     directive: { from: "a candidate entry is about to be priced for this moment", to: "pricing is refused; the entry is held uncommitted rather than priced either way" }
+    build_difficulty: unclear
+    sketch: "2026-11-15 dev round found no real within-moment commit-refusal mechanism; the one adjacent candidate (NEX5_ABSTAIN_CLOSE) serves a different, cross-moment directive. A real build needs a new 'hold this candidate uncommitted' path in the crystallizer -- does an uncommitted entry get stored provisionally, or just dropped and left re-derivable? Nobody has designed that shape yet."
     evidence: unknown
     dark: false
     blocked: false
@@ -230,6 +246,8 @@ nodes:
     arm: prices
     factor: drsti
     role_note: "Prices from a settled commitment, ignoring contrary evidence."
+    build_difficulty: unclear
+    sketch: "Not yet individually investigated at code level beyond the grep-absence check. Likely the same shape as vicikitsā's finding -- 'declined as a detector' for the same stated reason. Needs its own dev round before a real sketch can be drawn."
     evidence: unknown
     dark: false
     blocked: false
@@ -245,6 +263,8 @@ nodes:
     arm: writes
     factor: smrti
     role_note: "Keeps the object present across the moment; the commit before the commit."
+    build_difficulty: tractable
+    sketch: "Directive is crisp and the hook point is known precisely (generate()'s candidate-to-crystallize() path, generator.py:1596-2554); the one plausible candidate found was ruled out for a documented reason. A real build is threading the actual selected item through unmodified to crystallize(), verifiable against a clear falsifier -- engineering work, not an unsolved design question."
     evidence: unknown
     dark: false
     blocked: false
@@ -288,6 +308,8 @@ nodes:
     arm: writes
     factor: virya
     role_note: "Sustains a commitment past the moment that made it worth starting."
+    build_difficulty: shipped
+    sketch: "Built, then deliberately disarmed -- the design work is done, re-arming is a decision, not an engineering task."
     evidence: implemented
     dark: true
     blocked: false
@@ -304,6 +326,8 @@ nodes:
     arm: writes
     factor: prasrabdhi
     role_note: "Makes the write cheap once the shape is right."
+    build_difficulty: shipped
+    sketch: "Built, then deliberately disarmed."
     evidence: implemented
     dark: true
     blocked: false
@@ -319,6 +343,8 @@ nodes:
     arm: writes
     factor: sraddha
     role_note: "Commits without re-deriving the ground each time."
+    build_difficulty: shipped
+    sketch: "Built, then deliberately disarmed; confirmed inert relative to the live r77 chat arbiter."
     evidence: implemented
     dark: true
     blocked: false
@@ -339,6 +365,8 @@ nodes:
     property: "5"
     factor: prajna
     role_note: "A read of one's own read — the only clean mapping in the whole ring."
+    build_difficulty: shipped
+    sketch: "Real mechanism live (metacognition.py writes meta_cognition_events); the second-order digest read-back is dark behind NEX5_METACOG_DIGEST. Falsifier unrun."
     evidence: static
     dark: false
     blocked: false
@@ -360,6 +388,8 @@ nodes:
     arm: readers
     factor: kaukratya
     role_note: "Reads back a committed entry and re-prices it. The reader Phase D needs."
+    build_difficulty: tractable
+    sketch: "The substrate this needs already exists and is built: held_tensions (p9_dissonance/harmonizer.py). kaukṛtya itself would be a read that reopens an already-held entry for re-pricing -- the storage and the 'held, not settled' state already exist; what's missing is specifically the re-opening read function. Bounded build, reusing an existing data model rather than inventing one."
     evidence: static
     dark: false
     blocked: false
@@ -382,6 +412,8 @@ nodes:
     property: "6"
     factor: manaskara
     role_note: "Binds the priced entry into one moment rather than a bag of channels."
+    build_difficulty: shipped
+    sketch: "Live, real, IS the r77 chat arbiter (global_workspace.py + gui/server.py budget assembly). Off-limits to touch while r77 runs."
     evidence: static
     dark: false
     blocked: false
@@ -403,6 +435,8 @@ nodes:
     factor: vitarka
     role_note: "Takes hold of an object."
     directive: { from: "an object is present in the field, not yet engaged", to: "attention has taken hold of that object" }
+    build_difficulty: unclear
+    sketch: "Not yet traced at code level. generator.py's own selection functions (_weighted_branch_pick, _curiosity_pick) are candidates worth checking for whether 'taking hold' is already implicit in selection -- unverified. Needs its own dev round."
     evidence: static
     dark: false
     blocked: false
@@ -418,6 +452,8 @@ nodes:
     factor: vicara
     role_note: "Keeps hold of it across the next moment."
     directive: { from: "an object is held in this moment", to: "the same object is still held in the next moment, not dropped" }
+    build_difficulty: unclear
+    sketch: "Not yet traced at code level. Possibly related to smrti's within-moment question from the other side (sustaining vs. initially retaining) -- worth investigating together rather than separately, but unverified either way."
     evidence: static
     dark: false
     blocked: false
@@ -435,6 +471,8 @@ nodes:
     layer: ring
     property: "1"
     role_note: "The same subject across the ledger — no rewind, no forked writer."
+    build_difficulty: shipped
+    sketch: "Real, live anchor (NEX5_CONTINUITY_N, nex_config.py)."
     evidence: static
     dark: false
     blocked: false
@@ -451,6 +489,8 @@ nodes:
     layer: ring
     property: "2"
     role_note: "The sequence survives the process, not just the session."
+    build_difficulty: shipped
+    sketch: "Real, live (resumption.py, Memory Layer B)."
     evidence: static
     dark: false
     blocked: false
@@ -467,6 +507,8 @@ nodes:
     layer: ring
     property: "3"
     role_note: "Is the pricing function: without scarcity nothing is priced."
+    build_difficulty: shipped
+    sketch: "Real, two live appraisal functions (stakes_appraisal.py, readiness.py's appraise_groove)."
     evidence: static
     dark: false
     blocked: false
@@ -486,6 +528,8 @@ nodes:
     layer: ring
     property: "4"
     role_note: "Reads the substrate itself, not a judgement about the substrate."
+    build_difficulty: shipped
+    sketch: "Real, always-on sense adapter (interoception.py)."
     evidence: static
     dark: false
     blocked: false
@@ -502,6 +546,8 @@ nodes:
     layer: ring
     property: "7"
     role_note: "Not the tone (vedanā) — the aboutness of what carries the tone."
+    build_difficulty: tractable
+    sketch: "Inferred from vedanā; resolves automatically once vedanā's own valence-variance is re-measured for real."
     evidence: static
     dark: false
     blocked: false
@@ -516,6 +562,8 @@ nodes:
     layer: ring
     property: "10"
     role_note: "A reader over the sequence — the moment has a past it can see."
+    build_difficulty: unclear
+    sketch: "No existing substrate found (readiness.py's silence bonus is a clock input, not a graded temporal-distance reader). A real build needs a genuinely new signal distinguishing 'a moment ago' from 'yesterday' in behavior, not just a timestamp comparison -- the shape of that mechanism isn't designed yet."
     evidence: static
     dark: false
     blocked: false
@@ -532,6 +580,8 @@ nodes:
     layer: ring
     property: "11"
     role_note: "Distinguishes what I did from what happened to me. The scope marker."
+    build_difficulty: unclear
+    sketch: "Checked: belief source tags and stage_tom/recursion_attribution don't distinguish self-caused from world-caused events. A real build needs a new attribution signal at the point an action is taken vs. observed -- not yet designed."
     evidence: static
     dark: false
     blocked: false
@@ -549,6 +599,8 @@ nodes:
     layer: ring
     property: "12"
     role_note: "The one read that must be able to come back negative."
+    build_difficulty: shipped
+    sketch: "Built as reads (hri_verdict/apatrapya_verdict, 29 tests) -- see hri_apatrapya for the real build. The hard design work (read, not gate) is done; what's blocking it is two named, concrete things, not open design."
     evidence: static
     dark: false
     blocked: true
@@ -566,6 +618,8 @@ nodes:
     layer: ring
     property: "13"
     role_note: "Caps the budget so the price cannot be widened away."
+    build_difficulty: shipped
+    sketch: "Built, real ceiling enforced live (budget_shadow.py wired to the real select_within_budget). Scheduled UNBLOCK 2026-11-21, post r77-freeze."
     evidence: implemented
     dark: true
     blocked: false
@@ -607,6 +661,8 @@ nodes:
     layer: boundary
     property: "9"
     role_note: "Not doubt — excess retention of a contradiction already held."
+    build_difficulty: shipped
+    sketch: "Built, 39 tests, harmonizer.py held_tensions. Known remaining gap is one level up (SENTIENCE_SYNTHESIS.md §9's full ledger primitives), not this node itself."
     evidence: implemented
     dark: true
     blocked: false
@@ -658,6 +714,8 @@ nodes:
     layer: boundary
     factor: "hri, apatrapya"
     role_note: "The only two factors that could serve Property 12."
+    build_difficulty: shipped
+    sketch: "Built as reads (hri_verdict/apatrapya_verdict, 29 tests, commit 7ad9942). The hard design work is done; blocked on two named, concrete things -- a ledger-pricing type conflict, and zero real rating data yet to test the actual hypothesis -- not an unsolved design question."
     evidence: implemented
     dark: true
     blocked: true
@@ -701,6 +759,8 @@ nodes:
     property: "8"
     factor: smrti
     role_note: "smṛti gives it a factor; nothing gives it a store. Retention is an event, memory is substrate."
+    build_difficulty: shipped
+    sketch: "Built, falsifier run and PASSED. Most mature and best-validated of the dark-family nodes."
     evidence: implemented
     dark: true
     blocked: false

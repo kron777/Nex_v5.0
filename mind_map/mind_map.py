@@ -35,6 +35,16 @@ MAP = HERE / "MIND_MAP.yaml"
 EVIDENCE = ("measured", "implemented", "static", "inferred", "unknown")
 SOURCE_KINDS = ("file", "absent", "composite", "inferred")
 LAYERS = ("arm", "boundary", "ring", "straddle")
+# build_difficulty: the artist's-rough-sketch triage (Jon, 2026-11-15) -- separate from
+# `evidence` (what's true of the code today) and `dark`/`blocked` (why it doesn't run).
+# This says how hard the REMAINING work is to judge, so "already shipped, falsifier just
+# needs a re-run" and "nobody has designed a mechanism yet" don't look like the same kind
+# of open item.
+#   shipped    -- built (dark or live); what's left is arming/measuring, not designing.
+#   tractable  -- open, but a real mechanism is sketched and the hook point is known.
+#   unclear    -- open, and no credible mechanism has been designed yet.
+#   gorge      -- reasoned to have no satisfiable path at all (rare; matches DAG usage).
+BUILD_DIFFICULTY = ("shipped", "tractable", "unclear", "gorge")
 FILL = {
     "measured":    ("#1b5e20", "#ffffff"),
     "implemented": ("#66bb6a", "#0b1d0d"),
@@ -135,6 +145,13 @@ def check(doc: dict, verify_absent: bool = False) -> tuple[list, list]:
                 for end in ("from", "to"):
                     if not str(directive.get(end) or "").strip():
                         errs.append(f"{nid}: directive.{end} must be a non-empty string")
+
+        bd = n.get("build_difficulty")
+        if bd is not None and bd not in BUILD_DIFFICULTY:
+            errs.append(f"{nid}: build_difficulty must be one of {BUILD_DIFFICULTY}")
+        sketch = n.get("sketch")
+        if sketch is not None and not str(sketch).strip():
+            errs.append(f"{nid}: sketch, if present, must be non-empty")
 
         src = n.get("source") or {}
         kind = src.get("kind")
@@ -315,6 +332,32 @@ def emit_dot(doc: dict) -> str:
     return "\n".join(out) + "\n}\n"
 
 
+def emit_triage(doc: dict) -> str:
+    groups: dict[str, list] = {k: [] for k in BUILD_DIFFICULTY}
+    groups["untriaged"] = []
+    for n in doc["nodes"]:
+        groups.setdefault(n.get("build_difficulty") or "untriaged", []).append(n)
+    order = list(BUILD_DIFFICULTY) + ["untriaged"]
+    titles = {
+        "shipped": "SHIPPED -- built (dark or live); remaining work is arming/measuring",
+        "tractable": "TRACTABLE -- open, mechanism sketched, hook point known",
+        "unclear": "UNCLEAR -- open, no credible mechanism designed yet",
+        "gorge": "GORGE -- reasoned to have no satisfiable path",
+        "untriaged": "UNTRIAGED -- no build_difficulty set yet",
+    }
+    out = []
+    for key in order:
+        members = groups.get(key) or []
+        if not members:
+            continue
+        out.append(f"## {titles[key]} ({len(members)})")
+        for n in members:
+            sk = n.get("sketch")
+            out.append(f"  - {n['label']}" + (f": {sk}" if sk else ""))
+        out.append("")
+    return "\n".join(out) + "\n"
+
+
 def emit_md(doc: dict) -> str:
     rows = ["| Node | Layer | Role | Evidence | Flags | Directive (A -> B) | Falsifier | Verified |",
             "|---|---|---|---|---|---|---|---|"]
@@ -332,7 +375,7 @@ def emit_md(doc: dict) -> str:
 # ──────────────────────────────── main ─────────────────────────────────
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--format", choices=("mermaid", "dot", "md"), default="mermaid")
+    ap.add_argument("--format", choices=("mermaid", "dot", "md", "triage"), default="mermaid")
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--verify", action="store_true", help="also run source.absent checks")
     ap.add_argument("--map", type=Path, default=MAP)
@@ -366,7 +409,7 @@ def main() -> int:
     if errs:
         return 1
 
-    emit = {"mermaid": emit_mermaid, "dot": emit_dot, "md": emit_md}[args.format]
+    emit = {"mermaid": emit_mermaid, "dot": emit_dot, "md": emit_md, "triage": emit_triage}[args.format]
     sys.stdout.write(emit(doc))
     return 0
 
