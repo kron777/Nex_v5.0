@@ -165,6 +165,25 @@ def _conflict_score(tokens_a: set[str], text_a: str,
     return 0.0
 
 
+# kaukṛtya exposure check (2026-11-15): 1,299 of 1,618 live tier<=5 beliefs
+# (80%) share this one narration template verbatim, which dominates both
+# token-overlap AND embedding-cosine comparisons regardless of actual topic
+# (measured: random-pair cosine similarity on raw content has median 0.877;
+# stripped to just the quoted substantive span, median drops to 0.58, and
+# false-positives against _SEMANTIC_CONFLICT_TOPIC_THRESHOLD fall from 76.7%
+# to 8.3%). Strips the known fixed prefix/suffix, falls through to the full
+# text unchanged for anything that doesn't match this exact shape -- never
+# mangles non-templated content, never raises.
+_WORLD_CONTACT_PREFIX_RE = _re.compile(
+    r"^I notice this fire engaged the world directly \(branch: [^)]+\): '")
+_WORLD_CONTACT_SUFFIX_RE = _re.compile(r"'\.\s*That is genuine contact.*$")
+
+
+def _strip_narration_template(text: str) -> str:
+    stripped = _WORLD_CONTACT_SUFFIX_RE.sub("", _WORLD_CONTACT_PREFIX_RE.sub("", text))
+    return stripped if stripped != text else text
+
+
 def _semantic_conflict_score(id_a: int, text_a: str, id_b: int, text_b: str) -> float:
     """Dark behind NEX5_SEMANTIC_CONFLICT. Catches a conflict _conflict_score
     cannot see by construction: two beliefs opposed in meaning but sharing
@@ -577,11 +596,32 @@ class Harmonizer:
         it ages out or its basis vanishes. Does not compute a new verdict here
         -- re-pricing means un-freezing, not re-deciding.
 
-        "Relevant" reuses the exact token-overlap test _find_synthesis_candidate
-        already applies (>=2 shared tokens) -- but against EITHER side rather
-        than both: a bridge must touch both beliefs, while a single new belief
-        bearing on either side of the tension is enough to warrant a re-look.
-        Resolves with reason 'new_evidence'.
+        EXPOSURE CHECK, 2026-11-15 (two rounds): first tried the exact token-
+        overlap test _find_synthesis_candidate already applies (>=2 shared
+        tokens, EITHER side rather than both) -- broke against the real corpus
+        (random-pair false-positive 72-91% under every mitigation tried: raising
+        the threshold to 15, document-frequency filtering of common tokens).
+        Root cause: 80% of live beliefs (1299/1618) share one narration
+        template ("I notice this fire engaged the world directly..."), and even
+        raw embedding cosine similarity is equally fooled by it (median 0.877
+        between RANDOM pairs). The fix that actually works: strip the known
+        template (_strip_narration_template) before comparing, THEN use
+        embedding cosine similarity against _SEMANTIC_CONFLICT_TOPIC_THRESHOLD
+        -- the same "same topic" bar _semantic_conflict_score already uses,
+        itself marked PROVISIONAL/unmeasured until now. Measured: stripped,
+        false-positive drops to 8.3%, and the threshold's own provisional
+        status is the first live measurement it's had. "Relevant" here means
+        same topic, not necessarily conflicting -- a single new belief need
+        only bear on either side to warrant a re-look, where a bridge
+        (retry_bridge_for_tensions) must touch both. Resolves with reason
+        'new_evidence'.
+
+        _find_synthesis_candidate/_conflict_score/_semantic_conflict_score
+        remain unchanged -- pre-existing, already-shipped, already
+        falsifier-passed code; the same corpus-homogeneity exposure likely
+        affects them too (their tests use clean synthetic sentences, never the
+        real templated corpus), flagged on p9_dissonance's own mind-map node,
+        not altered here.
 
         Call this alongside sweep_resolved_tensions/retry_bridge_for_tensions in
         the same pass (see decay()'s docstring). Like them, has no explicit
@@ -596,6 +636,12 @@ class Harmonizer:
             )
         except Exception as exc:
             errors.record(f"reprice_tensions_on_new_evidence read error: {exc}",
+                          source=_LOG_SOURCE, exc=exc)
+            return 0
+        try:
+            from theory_x.diversity.embeddings import embed_belief, cosine
+        except Exception as exc:
+            errors.record(f"reprice_tensions_on_new_evidence embeddings unavailable: {exc}",
                           source=_LOG_SOURCE, exc=exc)
             return 0
         repriced = 0
@@ -614,8 +660,15 @@ class Harmonizer:
                 continue
             if row_a is None or row_b is None:
                 continue
-            tokens_a = _tokenize(row_a["content"])
-            tokens_b = _tokenize(row_b["content"])
+            text_a = _strip_narration_template(row_a["content"])
+            text_b = _strip_narration_template(row_b["content"])
+            try:
+                vec_a = embed_belief(a_id, text_a)
+                vec_b = embed_belief(b_id, text_b)
+            except Exception as exc:
+                errors.record(f"reprice_tensions_on_new_evidence embed error: {exc}",
+                              source=_LOG_SOURCE, exc=exc)
+                continue
             try:
                 candidates = self._beliefs_reader.read(
                     "SELECT id, content FROM beliefs WHERE id NOT IN (?, ?) "
@@ -628,8 +681,13 @@ class Harmonizer:
                 continue
             new_evidence = False
             for c in candidates:
-                c_tokens = _tokenize(c["content"])
-                if len(c_tokens & tokens_a) >= 2 or len(c_tokens & tokens_b) >= 2:
+                try:
+                    vec_c = embed_belief(c["id"], _strip_narration_template(c["content"]))
+                    sim_a = cosine(vec_c, vec_a)
+                    sim_b = cosine(vec_c, vec_b)
+                except Exception:
+                    continue
+                if sim_a >= _SEMANTIC_CONFLICT_TOPIC_THRESHOLD or sim_b >= _SEMANTIC_CONFLICT_TOPIC_THRESHOLD:
                     new_evidence = True
                     break
             if new_evidence:

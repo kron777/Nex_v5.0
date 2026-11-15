@@ -526,16 +526,17 @@ nodes:
     factor: kaukratya
     role_note: "Reads back a committed entry and re-prices it. The reader Phase D needs."
     build_difficulty: shipped
-    sketch: "Built, dark, tested, 2026-11-15 -- reprice_tensions_on_new_evidence() fills exactly
-      the gap this round scoped out. No live held_tensions data exists yet (flag off), so the
-      falsifier was proven by test, not live observation -- same status as Phase D itself at ship."
+    sketch: "Built, dark, tested, 2026-11-15 -- reprice_tensions_on_new_evidence() fills the gap
+      this round scoped out. First implementation (token-overlap) failed its own realism check
+      against the real corpus and was rewritten (embedding similarity + template-stripping) before
+      being counted as done -- see notes."
     evidence: implemented
     dark: true
     blocked: false
     falsifier: "Should re-open a past entry rather than leave it settled."
     falsifier_status: pass
-    probe: { tests: "tests/test_reprice_tensions_on_new_evidence.py", new_tests: 6, regression_suite: "29 pre-existing held_tensions/harmonizer tests, unchanged" }
-    source: { kind: composite, refs: ["theory_x/stage3_world_model/harmonizer.py:485-545", "theory_x/stage3_world_model/harmonizer.py:563-634", "tests/test_reprice_tensions_on_new_evidence.py:1-30", "substrate/schema/dynamic.sql:151-159"] }
+    probe: { tests: "tests/test_reprice_tensions_on_new_evidence.py", new_tests: 6, corpus_exposure_check: "random-pair false-positive measured at 8.0% on 200 real live beliefs, production code path", regression_suite: "43 pre-existing held_tensions/harmonizer/semantic-conflict tests, unchanged" }
+    source: { kind: composite, refs: ["theory_x/stage3_world_model/harmonizer.py:173-187", "theory_x/stage3_world_model/harmonizer.py:583-685", "tests/test_reprice_tensions_on_new_evidence.py:1-30", "substrate/schema/dynamic.sql:151-159"] }
     last_verified: 2026-11-15
     notes: >
       Dev round, 2026-11-15: read harmonizer.py's actual resolution paths over held_tensions to
@@ -576,6 +577,34 @@ nodes:
       stays sweep_resolved_tensions' job); flag-off is a harmless no-op. All pass, plus the full
       pre-existing held_tensions/harmonizer suite (29 tests) re-run clean, confirming no
       regression -- this is purely additive, no existing line changed.
+
+      REALISM CHECK, 2026-11-15 (same round, before calling this done): the token-overlap design
+      above does not survive contact with the real corpus. Measured directly: random-pair
+      overlap>=2 at 72-85% on a 300-belief sample; raising the threshold to 15 only brought it to
+      66%; document-frequency-filtering common tokens still gave 44-91% under honest randomized
+      testing. Root cause: 1,299 of 1,618 live tier<=5 beliefs (80%) share one narration template
+      verbatim ("I notice this fire engaged the world directly...") that alone contributes ~15
+      overlapping tokens regardless of topic. Raw embedding cosine similarity is EQUALLY fooled by
+      it (median 0.877 between random pairs) -- the fix isn't "switch signal," it's "strip the
+      template first." Rewrote to: strip the known template (_strip_narration_template,
+      harmonizer.py:173-187) then compare via embedding cosine against
+      _SEMANTIC_CONFLICT_TOPIC_THRESHOLD (0.65 -- the same "same topic" bar _semantic_conflict_score
+      already uses, itself marked PROVISIONAL/unmeasured in its own code comment until this round).
+      Measured on the actual production function against 200 real live beliefs: 8.0% false-positive,
+      an order of magnitude better. Re-ran all 6 tests plus the broader regression (43 tests
+      including test_semantic_conflict.py/test_semantic_retrieval.py) clean. One test-only bug
+      caught and fixed in the same pass: embed_belief() caches by belief id process-wide: each
+      test's fresh, small-id DB could collide with another test's cached embedding for the same
+      numeric id -- same gotcha the Nov 7 semantic-retrieval round already found once; fixed with
+      the same established _clear_embedding_cache() pattern from test_semantic_conflict.py.
+
+      Flagged, not fixed, as the larger consequence: _find_synthesis_candidate/_conflict_score/
+      _semantic_conflict_score (the already-shipped mechanisms this round's first design copied
+      from) use the identical untreated token-overlap or raw-embedding comparisons against this
+      same corpus, and their own tests use clean synthetic sentences that never exercise the real
+      narration-template homogeneity. See p9_dissonance's own node for that flag -- not altered
+      here, since it's pre-existing, already falsifier-passed code and changing it needs its own
+      explicit decision, not a side effect of this round.
 
   # ──────────────────────────── CONSUMERS ───────────────────────────
   - id: p6_unified_present
@@ -992,16 +1021,35 @@ nodes:
     source:
       kind: composite
       refs:
-        - "theory_x/stage3_world_model/harmonizer.py:321-477"
+        - "theory_x/stage3_world_model/harmonizer.py:340-496"
         - "substrate/schema/dynamic.sql:144-159"
         - "tests/test_held_tension.py:1-40"
         - "SENTIENCE_SYNTHESIS.md:247-274"
     last_verified: 2026-11-15
     notes: >
-      Audit, 2026-11-15: --check flagged harmonizer.py as changed (kaukṛtya's
-      reprice_tensions_on_new_evidence() was added well after this citation's own range, lines
-      563+). Confirmed lines 321 and 477 unchanged content -- false alarm at the line level, same
-      pattern as p8_episodic's earlier false alarm; re-pinned having checked, not assumed.
+      EXPOSURE FLAGGED, 2026-11-15 (not fixed, not re-verified against live data): kaukṛtya's own
+      dev round found that _find_synthesis_candidate's token-overlap test (>=2 shared tokens, the
+      bridge-finding half of this exact mechanism) is nowhere near selective against the real
+      corpus -- 80% of live beliefs share one narration template that alone satisfies the
+      threshold regardless of actual topic; measured false-positive 72-91% under several
+      mitigations, fixed in kaukṛtya's own new code by stripping the template and switching to
+      embedding similarity, NOT applied here. This node's `pass` verdict rests entirely on
+      tests/test_held_tension.py's clean synthetic sentences (e.g. "Markets trend upward over
+      decades"), which never exercise the real corpus's narration-template homogeneity -- same
+      class of gap as this node's own history of stale citations, just on the data side rather
+      than the code side this time. retry_bridge_for_tensions likely over-fires on the real corpus
+      the same way kaukṛtya's first attempt did; not reproduced live here (zero held_tensions rows
+      currently exist, NEX5_HELD_TENSION off) and not touched -- pre-existing, already-shipped,
+      already falsifier-passed code, flagged for a decision rather than altered on this pass's own
+      authority. A real re-verification would need live held_tensions data (post-arming) or the
+      same kind of offline corpus probe kaukṛtya's round ran.
+
+      Audit, 2026-11-15 (superseded same day): first checked after kaukṛtya's new method was
+      added at the END of the file (lines 563+) -- confirmed this citation's then-range (321-477)
+      unaffected, a genuine false alarm, same pattern as p8_episodic's. A second round of edits
+      (the _strip_narration_template helper, inserted EARLIER in the file to fix the exposure
+      above) shifted this citation for real, 321-477 -> 340-496 -- re-pinned to the new, correct
+      range at the top of this note, content re-confirmed unchanged, just relocated.
 
       MAJOR CORRECTION, 2026-11-09: Phase D is already built, not "the next build." This map's own
       first draft (and the task that commissioned this pass) both assumed it was still open --

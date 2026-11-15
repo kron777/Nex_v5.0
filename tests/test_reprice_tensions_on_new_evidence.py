@@ -10,9 +10,17 @@ kaukṛtya's own distinction is evidence-driven reconsideration, not expiry.
 
 It does not compute a new verdict -- re-pricing here means un-freezing (handing
 the tension back to ordinary reconciliation on its own next pass), not
-re-deciding the content itself. "Relevant" reuses the exact token-overlap test
-_find_synthesis_candidate already applies (>=2 shared tokens), against EITHER
-side rather than both.
+re-deciding the content itself.
+
+"Relevant" went through two designs. First tried the exact token-overlap test
+_find_synthesis_candidate already applies (>=2 shared tokens, EITHER side
+rather than both) -- broke against the real corpus (random-pair false-positive
+72-91% under every mitigation tried; 80% of live beliefs share one narration
+template that dominates the signal regardless of topic). Fixed by stripping
+that template (_strip_narration_template) and comparing via embedding cosine
+similarity against _SEMANTIC_CONFLICT_TOPIC_THRESHOLD -- the same "same topic"
+bar _semantic_conflict_score already uses. See harmonizer.py's own docstring
+for the measured numbers.
 
 Like sweep_resolved_tensions and retry_bridge_for_tensions, this has no
 explicit NEX5_HELD_TENSION check of its own -- with the flag off, no rows
@@ -101,8 +109,18 @@ _A_CONTENT = "Markets trend upward over decades"
 _B_CONTENT = "Markets do not trend upward over decades"
 
 
+def _clear_embedding_cache():
+    # embed_belief() caches by belief id, process-wide (see
+    # test_semantic_conflict.py's own note) -- each test here reuses small,
+    # fresh-DB-autoincremented ids that can collide with another test's
+    # cached embedding for the same numeric id. Clear first.
+    from theory_x.diversity import embeddings as emb_mod
+    emb_mod._cache.clear()
+
+
 class TestNewEvidenceReprices(unittest.TestCase):
     def setUp(self):
+        _clear_embedding_cache()
         self.writers, self.readers, self.tmp = _make_env()
         os.environ[_FLAG] = "1"
 
