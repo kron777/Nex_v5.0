@@ -30,7 +30,7 @@
   - śraddhā — confidence: Built, then deliberately disarmed; confirmed inert relative to the live r77 chat arbiter.
 
 ## SHIPPED, CONTRADICTED -- falsifier FAILED, the gap is still open (2)
-  - amoha — discernment / non-delusion: Built (amoha_detector.py). Falsifier already run and FAILED -- fires only under forced injection, never organically. Remaining work is organic-trigger tuning, not fresh design.
+  - amoha — discernment / non-delusion: Built (amoha_detector.py). Falsifier FAILED, now precisely measured why (2026-11-15): real thinking never comes close to the clouded-anchor territory, not just marginally under threshold. A genuine design question (recalibrate, or this is an honest trait finding), not a mechanical bug -- flagged for a decision, not silently tuned.
   - 1 · Continuity of self: The cited anchor doesn't serve this directive at all -- corrected 2026-11-15, see notes. The real protection is architectural/preventive (the supervisor's single-instance flock), not a detector, and no 'fail loudly' mechanism exists or is even consistent with the substrate's own design philosophy.
 
 ## UNCLEAR -- open, no credible mechanism designed yet (3)

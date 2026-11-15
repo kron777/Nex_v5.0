@@ -66,19 +66,43 @@ nodes:
     factor: amoha
     role_note: "Prices what is actually there rather than what was expected."
     build_difficulty: shipped
-    sketch: "Built (amoha_detector.py). Falsifier already run and FAILED -- fires only under forced injection, never organically. Remaining work is organic-trigger tuning, not fresh design."
+    sketch: "Built (amoha_detector.py). Falsifier FAILED, now precisely measured why (2026-11-15):
+      real thinking never comes close to the clouded-anchor territory, not just marginally under
+      threshold. A genuine design question (recalibrate, or this is an honest trait finding), not
+      a mechanical bug -- flagged for a decision, not silently tuned."
     evidence: measured
     dark: true
     blocked: false
-    probe: { injected_delta: 0.287, natural_fires: 0, natural_turns: 9440 }
+    probe: { thought_sample: 50, max_salience_observed: 0.191, threshold_to_count_clouded: 0.30 }
     falsifier: "Discernment should vary across turns. It reads under forced injection, never spontaneously."
     falsifier_status: fail
-    source: { kind: file, ref: "theory_x/stage_tom/amoha_detector.py:1-21" }
-    last_verified: 2026-11-09
-    notes: "The most instructive node in the map: it works and is never used. VIRTUE_SLATE.md (the
+    source: { kind: file, ref: "theory_x/stage_tom/amoha_detector.py:1-150" }
+    last_verified: 2026-11-15
+    notes: >
+      The most instructive node in the map: it works and is never used. VIRTUE_SLATE.md (the
       draft's original ref) does not exist anywhere in this repo's history -- re-pinned to the
-      real module, gated by NEX5_AMOHA (default OFF). The 0.287/9440 probe numbers are carried over
-      unverified from the draft; I did not find a backing observation_report for them."
+      real module, gated by NEX5_AMOHA (default OFF). The 0.287/9440 probe numbers were carried
+      over unverified from the draft, with no backing observation_report -- retracted below.
+
+      Dev round, 2026-11-15: measured precisely why, instead of leaving "fires only under forced
+      injection" as the whole story. detect() scores each of the last 15 real fountain_events
+      thoughts by contrastive embedding similarity to clouded vs. clear anchor phrases
+      (clouded_salience(), amoha_detector.py:74-87), classifying clouded at fraction>=_FRAC_HI
+      (0.40) of thoughts individually scoring >=_THOUGHT_HI (0.30). Ran it against 50 genuine
+      recent thoughts: the HIGHEST salience observed was 0.191 -- not marginally under the 0.30
+      per-thought bar, well under it, by a wide margin, across the whole sample. The old
+      0.287/9440 probe numbers are retracted outright: 0.287 would itself fail the same 0.30 bar,
+      and no real thought in this fresh sample came anywhere close to it.
+
+      Two honest readings, not yet resolved either way: (1) the anchor phrases/threshold are
+      miscalibrated for this corpus's actual register (observational, third-person report style
+      -- "the item discusses...", "I notice this fire engaged..." -- rather than first-person
+      assertions, which may systematically read as distant from BOTH clouded and clear anchors);
+      or (2) this is a genuine, honest finding about her real thinking style -- organically
+      hedged/observational, genuinely not prone to the false-certainty pattern amoha watches for,
+      in which case forcing it to fire by lowering the threshold would be gaming the measurement,
+      not fixing a bug. Flagged for a decision rather than silently retuned -- unlike the LIMIT-50/
+      narration-template fixes this round, this isn't a mechanical error with one correct answer.
 
   - id: karuna
     label: "karuṇā — compassion"
