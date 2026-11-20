@@ -1,0 +1,37 @@
+CC -- Jon approved BOTH: (A) the two safety fixes, and (B) the own-drive relocation. GO AHEAD. Keep the
+gates below -- they're how we honor "go ahead" without risking her DB. She's in STANDBY (off since
+2026-11-16), so the move can happen cleanly now. Report each step as you go (via a reply Jon relays, or
+I'll read your commits/PR); STOP-and-report on any precondition or verification failure -- do not push
+through a failure on the live DB.
+
+A. SAFETY FIXES -- apply now (low risk, reversible):
+  1. DISK-SPACE ALERT FIRST (it protects the move): a df threshold check that warns/logs loudly at
+     ~85% on BOTH / and the NEX drive (cron or systemd-timer one-liner is fine). Test it actually
+     fires. Do this before the move so the move itself can't silently fill a drive.
+  2. journald cap: set SystemMaxUse ~500M (currently uncapped), apply, confirm it took (frees ~1.4G too).
+  Report both applied + verified.
+
+B. OWN-DRIVE RELOCATION -- proceed in THIS order, gates intact:
+  1. MAP + PRECONDITIONS: confirm the NEX drive is healthy, big enough, not a flaky mount; which drive
+     each NEX thing is on now; and the DBs are INTACT (row counts sane, not truncated). If ANY fails ->
+     STOP + report, do not move.
+  2. VERIFIED BACKUP -- THE HARD GATE, non-negotiable: fresh backup of beliefs.db / dynamic.db /
+     conversations.db (+ anything else irreplaceable). Put it on a drive NOT being touched by the move
+     (ideally also a copy off-machine -- last incident had no backup anywhere). PROVE it restores: open
+     the backup read-only and check row counts match the live DB. Do NOT touch live data until the
+     backup is verified-restorable. This is the single thing that makes the whole move reversible.
+  3. MOVE WHILE OFF: confirm no run.py / power_switch process first (should be none -- STANDBY since
+     11-16). Relocate the data dir + logs + backups dir onto the NEX drive.
+  4. REPOINT the paths the code + keepalive + the systemd unit actually use (NEX5_DATA_DIR / config /
+     symlink from the old path) so she reads+writes the NEW location. Keep a tested rollback ready
+     (symlink back / config revert).
+  5. VERIFY before declaring done: a dry start or config check that she resolves the new paths and the
+     DBs open with the SAME row counts as the verified backup; confirm the OLD location is no longer
+     written. Keep her OFF -- do NOT do the full wake restart as part of this; the actual wake still
+     waits on the home-drive restore + Jon (sequencing unchanged).
+  Report: safety fixes done; drive map; DB-intact + backup-verified; moved; repointed; verified. If
+  anything is off, STOP there and report -- a half-done move on a live DB is the one outcome we avoid.
+
+AFTER B: the home-drive checkout restore becomes the last step (separate), now safe because her
+growing files live on her own drive and can't fill / again. Still run the round-2 forensic trails if
+you haven't -- knowing what WROTE 150GB is worth having even with the structural fix in place.
