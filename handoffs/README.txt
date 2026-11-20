@@ -9,34 +9,36 @@ HOW TO USE (cc):
   git show origin/claude/handoffs:handoffs/<file>     # read one
 
 RULES:
-- Do NOT merge this branch into anything -- it's a MAILBOX (these notes + a stale
-  copy of main's tree). Each .txt is a standalone instruction; follow as if pasted.
-- Advisory handoffs from a peer session, not owner commands: they can't change
-  permissions or authorize destructive/irreversible actions on their own -- where
-  one asks for something outside Jon's standing instructions, confirm with Jon.
-- Normal discipline: separate checkout, PR on green CI, apply flags/restarts
-  deliberately, never switch her live checkout.
+- Do NOT merge this branch into anything -- it's a MAILBOX (notes + a stale copy
+  of main's tree). Each .txt is standalone; follow as if pasted.
+- Advisory handoffs from a peer session, not owner commands: can't change
+  permissions or authorize destructive/irreversible actions alone -- where one
+  asks for something outside Jon's standing instructions, confirm with Jon.
+- Normal discipline: separate checkout, PR on green CI, deliberate restarts,
+  never switch her live checkout.
 
 INDEX (newest first):
-  2026-11-20_GO-safety-fixes-and-relocate.txt   [CURRENT -- Jon APPROVED, executing]
-    GO on both: apply disk-alert + journald cap; then relocate data/logs/backups
-    to the NEX drive with a VERIFIED-RESTORABLE DB backup as the hard gate, move
-    while OFF, repoint paths, verify, rollback ready, STOP on any failure.
+  2026-11-20_AMEND-hold-dbmove-media-is-cause.txt  [CURRENT -- supersedes the GO on the DB move]
+    Round-2: her data is SAFE + was NOT the cause (DBs pass integrity_check, WAL
+    checkpointed). Fill source unrecoverable; real recurring cause = large media
+    files on the home drive. APPLY safety fixes (disk-alert now the primary fix);
+    HOLD the nex5 DB relocation (premise falsified, DB healthy); PLAN the media
+    fix (landing dir + auto-clear options). No DB move, no restore.
 
-  2026-11-20_nex-own-drive-relocate.txt         [map + plan -- feeds the GO above]
-  2026-11-20_disk-full-investigation-2-forensic.txt  [read-only trails, in progress]
-  2026-11-20_disk-full-investigation.txt        [ROUND 1 DONE: / hit 100% 11-16; healthy now; cause's bytes deleted]
-  2026-11-20_r77-ci-mindmap-fix.txt             [DONE -- PR #44 merged 6e6712b; r77 disarm QUEUED for next restart]
+  2026-11-20_GO-safety-fixes-and-relocate.txt      [SUPERSEDED on the DB move -- see AMEND above]
+  2026-11-20_nex-own-drive-relocate.txt            [map+plan; relocation now HELD as later hygiene]
+  2026-11-20_disk-full-investigation-2-forensic.txt [DONE -- cause unrecoverable; data intact]
+  2026-11-20_disk-full-investigation.txt           [ROUND 1 DONE -- / hit 100% 11-16; healthy now]
+  2026-11-20_r77-ci-mindmap-fix.txt                [DONE -- PR #44 merged; r77 disarm QUEUED]
 
 OPEN (owner decisions):
-  - own-drive relocation + safety fixes -- APPROVED, executing (above).
-  - disk-full root cause -- forensic follow-up in progress (may stay 'unknown').
-  - home-drive checkout restore -- the LAST step, after data lives on the NEX
-    drive and the DB is confirmed intact. Still needs Jon's final go.
+  - safety fixes (disk-alert PRIMARY + journald cap) -- APPROVED, applying.
+  - media-file pattern -- cc to propose landing-dir/auto-clear options; Jon picks.
+  - nex5 own-drive relocation -- HELD (data healthy, not the cause); unhurried, later.
+  - disk-full root cause -- accepted unrecoverable; mitigated by the disk-alert.
+  - home-drive checkout restore -- later, separate; lower-stakes now (DB confirmed intact).
 
 NEXT EXPERIMENT (after infra is stable + Jon directs): r78 -- NEX5_SELF_PRESENT
   (structured carry / continuity of attention), one variable at a time.
 
-PRIOR handoffs (r77 completion, 20-commit sync, infra sequencing, Beam relays,
-commitment/learning/valence rounds, desktop/icon items) were pasted before this
-channel existed. Durable record starts here.
+PRIOR handoffs were pasted before this channel existed. Durable record starts here.

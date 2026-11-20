@@ -1,0 +1,30 @@
+CC -- your round-2 findings change the plan. Good work. The key results:
+- HER DATA IS SAFE AND WAS NOT THE CAUSE: beliefs.db / conversations.db pass PRAGMA integrity_check,
+  all -wal files 0-byte (cleanly checkpointed, not ballooning), soak log 11.5MB, keepalive_runtime
+  1.3KB -- nex5 is well-behaved and was NOT the writer.
+- The fill's exact source is genuinely UNRECOVERABLE (the crash destroyed the Nov 16 09:19-19:32 log
+  trail; journald/last/bash_history empty for the window). Accepted -- you exhausted the surviving
+  trails. (Residual: a root-owned cron you couldn't read without a password -- note it, don't chase it.)
+- The REAL, recurring cause: large MEDIA files landing on the home drive and not cleared fast enough
+  -- already needed a manual clear once, then recurred within 24h and took the disk down. A pattern,
+  not nex5.
+
+AMENDMENT to the GO handoff:
+A. SAFETY FIXES -- still GO; the disk-alert is now THE fix, not a nice-to-have:
+   - disk-space alert at ~85% on / (and on the media/NEX drive): apply + TEST it fires. Primary fix.
+   - journald cap ~500M: apply + confirm.
+B. OWN-DRIVE RELOCATION of nex5 -- HOLD execution. The premise (nex5's growth is the risk) is
+   falsified by your own findings: her DB is intact, WAL checkpointed, logs tiny -- nex5 was not the
+   writer. Moving a healthy, intact LIVE DB for isolation that doesn't address the actual cause is
+   risk without matching benefit today. If you already took the verified backup, KEEP it (useful); do
+   NOT move or repoint the live data. The relocation becomes unhurried hygiene for later, Jon's call.
+C. THE ACTUAL PATTERN -- the media files. PLAN, do NOT execute:
+   - where do the big media/video files land (which dir, which drive)? what is the 'video-relocation
+     habit' (the 2.3GB you saw) that already has to be done by hand?
+   - cheapest durable fix options, with rough sizes: point the download/landing dir at a drive WITH
+     room; or an automatic mover/cleaner with a size+age threshold; the disk-alert as the backstop.
+   Propose 2-3 options; Jon picks.
+
+REPORT: safety fixes applied + alert tested; the media-pattern plan (landing dir, drive, the manual
+habit, 2-3 fix options + sizes). HOLD the nex5 DB move. No restore yet -- later, separate, and now
+lower-stakes since her data is confirmed intact.
