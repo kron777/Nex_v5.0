@@ -5214,3 +5214,60 @@ rewriting history.
 Restart and 40-min watch for the genius scorer change to follow this
 entry.
 
+
+## 2026-11-20 ~17:55 — r77 closed (Branch C, disarm); home-drive checkout lost to a disk-full event, recovered from /mnt/games; 20 unpushed commits made durable
+
+**r77 (chat attention arbiter, `NEX5_CHAT_WORKSPACE`): BRANCH C, DISARMED.**
+`logs/r77_tripwire_log.jsonl` shows a sustained tripwire breach 2026-11-12
+04:00–2026-11-13 10:00 UTC (template near-dup/cluster >+25%, joined by
+on_subject_maxdf ≥25% for the last ~6h). `R77_TRIPWIRE_BREACH` was written
+at the 10:00:21 firing and sat unactioned for 7+ days. Pre-reg §5 has no
+clause excusing a breach that later clears, so Branch C applies regardless
+of the window never formally closing (17/200 chat turns, 9/14 days before
+STANDBY) and regardless of the current point-in-time guardrail reread
+(all five clean now — consistent with transient, not with "didn't happen").
+Primary metric read for the record anyway: 0.4889→0.75, wrong direction,
+n=4 sessions, underpowered. No r77b (Branch B's retry only). Flag removed
+from `nex_keepalive.sh` in `2803f38`, branch `r77-disarm`, PR against
+`main`. Full verdict: `observation_reports/r77.md`. Next: r78
+(`NEX5_SELF_PRESENT`), one variable at a time, per the roadmap.
+
+**Infra, separate from r77 — do not conflate the two:**
+- The live instance has been in STANDBY since 2026-11-16 10:57:13
+  (`/home/rr/.nex/STANDBY`), not running. No process, no listener on
+  8765/8766.
+- The home-drive checkout `/home/rr/Desktop/Desktop/nex5` — the path both
+  `nex5-keepalive.service` and `nex5-power-switch.service` exec against —
+  no longer exists on disk (not in Trash either). Root-caused: the root
+  filesystem went completely full 2026-11-16 19:32–19:55 SAST (`rsyslog`,
+  `nautilus`, `dconf`, `tracker` all logging `No space left on device`);
+  nothing automated on this box (no cron, no tmpfiles rule, no code in
+  `nex_db_reaper.py`) is capable of deleting a directory tree, so this was
+  most likely a manual deletion during that emergency, with nex5's ~800MB
+  of DBs an obvious large target — though the disk cleared far more than
+  that (65G/30% used now), so something else much bigger was also cleared
+  and wasn't chased down. The `Nex_v5.0-main.zip` / `NEX_AUDIT` extraction
+  on Desktop (2026-11-20 00:58–01:14) is unrelated — made 4 days later, for
+  this review, from the `/mnt/games` copy, not from the lost directory.
+- Nothing was actually lost. The live DB (`conversations.db`, `beliefs.db`,
+  etc.) survives intact on the second physical disk at
+  `/mnt/games/storage/Desktop/Desktop/nex5/data/`, last written
+  2026-11-16 10:57 — the STANDBY moment, a clean shutdown snapshot. A
+  fresh, integrity-checked backup of all six DBs was taken before touching
+  anything else: `/mnt/games/storage/nex5_emergency_backup_2026-11-20/`
+  (via `nex_db_backup.py`'s online backup API; none discarded).
+- That same `/mnt/games` copy's git repo (real `.git`, remote
+  `github.com/kron777/Nex_v5.0`) had **20 commits never pushed to GitHub**
+  — all from one session on 2026-11-15 (07:39–23:51), ending without a
+  final `git push` before STANDBY/the disk-full incident buried the gap.
+  Pushed to safety first (`safety/mnt-games-20261120-1739`, upload-only,
+  near-zero local disk risk) before touching `main`. Eyeballed: all 20 are
+  ordinary dev-round commits (mind_map falsifier sweeps, harmonizer bug
+  fixes, metacognition pattern detector, smrti/kaukratya work, a journal
+  rescue) — none WIP/dark-flag. Full suite green both before and after
+  merging origin's 1 commit (a README rewrite, no overlap): 2166 passed,
+  7 skipped, 40 subtests, 0 failures, twice. Merged and pushed — `main` is
+  now `e66f5e4`, in sync with origin.
+- Home-drive restore is intentionally **not done yet** — separate step,
+  waiting on whether the disk-full root cause (the much-bigger thing that
+  filled it) is actually resolved, not just worked around.
