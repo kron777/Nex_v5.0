@@ -1,0 +1,50 @@
+CC -- the r77 close-out is correct and verified (Branch C applied right, the disarm-commit subject
+convention exact, flag removed from nex_keepalive.sh, verdict honestly framed -- good work). ONE
+blocker before PR #44 can merge: main CI is RED, and it's NOT r77.
+
+THE FAILURE (run on main e66f5e4, and it will hit PR #44 the same way):
+  ERROR p12_selfreport: absence claim falsified --
+    grep -rnE '\\bhri\\b|\\bapatrapya\\b|NEX5_SHAME|NEX5_SELF_REPORT' --include=*.py .  returned output
+  -> Process completed with exit code 1.
+This is the MIND_MAP absence-claim verifier, not pytest. Your "2166 passed" is the test suite and is
+real; the failing CI step is the mind_map guard, a different check your local pytest run doesn't
+cover. (The dozens of "STALE ... changed 2026-11-20" WARN lines above it are noise -- a fresh CI
+clone gives every file today's mtime, so the staleness check flags everything; they're warnings, not
+the failure.)
+
+WHAT IT MEANS: the hri_apatrapya prototype code (theory_x/stage_tom/apatrapya_channel.py,
+hri_apatrapya_prototype.py, etc.) now exists in the tree, but the mind_map's p12_selfreport property
+still asserts that code is ABSENT. The grep finds hri/apatrapya -> the absence claim is falsified ->
+build fails. It is BOOKKEEPING DRIFT, not a logic or test failure, and it PREDATES r77 (main was red
+on the Nov 19 README commit c6a1572 too -- a README commit can't fix a code-presence guard, so main
+has been red independently of your sync).
+
+THE FIX (do NOT revert the hri/apatrapya code -- it's legitimate dev work; the CLAIM is what's stale):
+- Update the mind_map so p12_selfreport reflects reality: the hri/apatrapya mechanism is now at least
+  CONSTRUCTED, not absent. Reclassify the property / move it off the absence-grep (or narrow the grep
+  to what is genuinely still absent, e.g. NEX5_SHAME / NEX5_SELF_REPORT if those flags really don't
+  exist yet -- check), and bump its last_verified. Follow the mind_map's own convention for "was
+  claimed absent, is now built." Confirm the verifier passes locally after (run the SAME CI step, not
+  just pytest).
+- Land it as its OWN small change to main (unrelated to r77 -- don't fold it into PR #44 and couple
+  two things). Once main is green on it, PR #44 rebased on the fixed main goes green and can merge.
+
+SEQUENCING:
+1. Fix p12_selfreport drift -> push -> main CI green. (Check whether any OTHER of the 20-commit dev
+   rounds also added code that trips an absence claim, so you fix the mind_map ONCE, not five times.)
+2. Rebase/re-merge r77-disarm (PR #44) onto green main -> its CI goes green -> merge.
+3. The disarm stays INERT until the next deliberate restart (you noted this; she's in STANDBY anyway
+   for the infra reason) -- apply it at the NEXT CLEAN restart, AFTER the disk-full cause is
+   understood and the home-drive situation is resolved. Do not restart onto an unstable/near-full
+   disk to rush the disarm; the breach was days ago and current readings are clean, so there is no
+   safety urgency.
+4. Still open, still yours-and-Jon's: the home-drive restore and the disk-full root cause.
+
+Report: what p12_selfreport (and any sibling absence claims) needed; main CI green SHA; PR #44 CI
+result after rebase; then confirm the disarm is QUEUED for the next clean restart, not done yet.
+
+NOTE for later (not now): the mind_map gating CI is in tension with the "MIND_MAP is descriptive
+only, no node gates" principle in the morphogenesis blueprint. It's fine as a DEV-TIME accuracy guard
+(it gates the build, not her runtime actions) -- but worth a one-line note in the mind_map that this
+verifier is a CI check on the map's own honesty, distinct from runtime gating. Flag it for the
+roadmap; don't act on it now.
