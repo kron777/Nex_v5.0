@@ -1,0 +1,4 @@
+# Generated reports — regenerate with `python -m watcher recon --out watcher/reports`
+reports/
+__pycache__/
+*.pyc
