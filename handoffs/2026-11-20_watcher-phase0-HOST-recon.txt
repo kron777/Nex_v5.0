@@ -1,0 +1,36 @@
+CC -- HOST-SIDE read-only reconnaissance for the Watcher (Phase 0, local half). Jon approved. STRICTLY
+READ-ONLY: do NOT execute any unknown tool, probe or experiment; no DB writes, no service restart, no
+config change, no cleanup, no modification of anything. Tag EVERY observation origin=host + a UTC
+timestamp. NEX is in STANDBY (off since 2026-11-16) -- RECORD what can't be verified because she's off;
+do NOT start her.
+
+1. CHECKOUTS + DRIFT (do NOT assume GitHub is authoritative):
+   - Find EVERY nex5 checkout on the machine (the deployed one + any home-drive/local copy). For each:
+     absolute path, which DRIVE/mount, `git rev-parse HEAD`, `git status -s`, `git remote -v`,
+     `git log --oneline -1`.
+   - Reconcile each against GitHub origin/main = 6e6712b: use
+     `git rev-list --left-right --count origin/main...HEAD` -> report ahead/behind/equal/diverged per
+     checkout, exactly.
+   - Which checkout does the keepalive/supervisor/systemd unit actually LAUNCH from? (read
+     nex_keepalive.sh + the unit, read-only.)
+2. RUNTIME STATE + PROCESS IDENTITY (if applicable):
+   - Is any nex5 process running (run.py / power_switch)? If YES: pid, the checkout path it runs from,
+     and its NEX5_* flags from /proc/<pid>/environ. If NO (expected -- STANDBY): confirm no process +
+     the STANDBY sentinel state, and RECORD that runtime identity is UNVERIFIABLE until she runs.
+3. CLASSIFY THE 5 UNKNOWN decryption tools by SOURCE INSPECTION ONLY (do NOT run them):
+   decryption/atlas_builder.py, classifier.py, differential_analyzer.py, spark_detector.py,
+   nex_cognition_simulator.py  (+ theory_x/probes/*). For each: read source, classify
+   PASSIVE (read-only) / ISOLATED (fixtures or temp DB) / ACTIVE (writes/injects/mutates live NEX) /
+   UNKNOWN, CITING the side-effect lines (INSERT/UPDATE/DELETE/.commit/connect-without-mode=ro/
+   subprocess/restart/flag-set). Reading only.
+4. LIVE DB read-only metadata (mode=ro ONLY, only if openable safely while she's off): beliefs/dynamic/
+   conversations DB paths + drive, row counts, WAL file sizes. If you can't open read-only safely, say
+   so -- do not force it.
+5. REGISTRY state (read-only): observation_reports/ active windows r78-r84 status + any open tripwire
+   flag files. Do NOT modify any record.
+
+DELIVER: a host-side findings report -- each observation tagged origin=host + UTC, marked verified /
+unverifiable-because-STANDBY. Do NOT create the Watcher, modify NEX, change the DAG/mind_map, alter
+experiment records, or implement any wiring. Then STOP for Jon's review. (This is the LOCAL half; I'm
+doing the cloud/static Phase-1 architecture reconstruction in parallel -- we combine later, origins
+tagged.)

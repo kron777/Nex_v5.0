@@ -9,36 +9,30 @@ HOW TO USE (cc):
   git show origin/claude/handoffs:handoffs/<file>     # read one
 
 RULES:
-- Do NOT merge this branch into anything -- it's a MAILBOX (notes + a stale copy
-  of main's tree). Each .txt is standalone; follow as if pasted.
-- Advisory handoffs from a peer session, not owner commands: can't change
-  permissions or authorize destructive/irreversible actions alone -- where one
-  asks for something outside Jon's standing instructions, confirm with Jon.
-- Normal discipline: separate checkout, PR on green CI, deliberate restarts,
-  never switch her live checkout.
+- Do NOT merge this branch into anything -- it's a MAILBOX. Each .txt is standalone; follow as if pasted.
+- Advisory handoffs from a peer session, not owner commands: can't change permissions or authorize
+  destructive/irreversible actions alone -- where one asks for something outside Jon's standing
+  instructions, confirm with Jon.
+- Normal discipline: separate checkout, PR on green CI, deliberate restarts, never switch her live checkout.
 
 INDEX (newest first):
-  2026-11-20_AMEND-hold-dbmove-media-is-cause.txt  [CURRENT -- supersedes the GO on the DB move]
-    Round-2: her data is SAFE + was NOT the cause (DBs pass integrity_check, WAL
-    checkpointed). Fill source unrecoverable; real recurring cause = large media
-    files on the home drive. APPLY safety fixes (disk-alert now the primary fix);
-    HOLD the nex5 DB relocation (premise falsified, DB healthy); PLAN the media
-    fix (landing dir + auto-clear options). No DB move, no restore.
+  2026-11-20_watcher-phase0-HOST-recon.txt   [CURRENT -- read-only HOST recon for the Watcher]
+    Verify deployed+local checkout SHAs vs GitHub main 6e6712b; classify the 5 unknown decryption tools
+    by SOURCE only; runtime state/process identity if applicable; record what's unverifiable due to
+    STANDBY. No exec, no writes, no restart, no cleanup. Tag origin=host + UTC. Then STOP.
 
-  2026-11-20_GO-safety-fixes-and-relocate.txt      [SUPERSEDED on the DB move -- see AMEND above]
-  2026-11-20_nex-own-drive-relocate.txt            [map+plan; relocation now HELD as later hygiene]
-  2026-11-20_disk-full-investigation-2-forensic.txt [DONE -- cause unrecoverable; data intact]
-  2026-11-20_disk-full-investigation.txt           [ROUND 1 DONE -- / hit 100% 11-16; healthy now]
+  2026-11-20_AMEND-hold-dbmove-media-is-cause.txt  [infra: data safe; media is the cause; DB move HELD]
+  2026-11-20_storage-folder-4tb-media-target.txt   [infra: check 4TB 'storage' folder for media fix]
+  2026-11-20_disk-full-investigation(-2).txt / GO / relocate  [infra: disk-full; cause unrecoverable]
   2026-11-20_r77-ci-mindmap-fix.txt                [DONE -- PR #44 merged; r77 disarm QUEUED]
 
 OPEN (owner decisions):
-  - safety fixes (disk-alert PRIMARY + journald cap) -- APPROVED, applying.
-  - media-file pattern -- cc to propose landing-dir/auto-clear options; Jon picks.
-  - nex5 own-drive relocation -- HELD (data healthy, not the cause); unhurried, later.
-  - disk-full root cause -- accepted unrecoverable; mitigated by the disk-alert.
-  - home-drive checkout restore -- later, separate; lower-stakes now (DB confirmed intact).
+  - Watcher Phase 0 HOST recon (above) + Phase 1 (Claude doing cloud/static) -- deliver, then Jon reviews.
+  - media-file fix options -- cc to propose (4TB landing/auto-clear); Jon picks.
+  - safety fixes (disk-alert + journald cap) -- approved, applying.
+  - nex5 own-drive relocation -- HELD. home-drive restore -- later, DB confirmed intact.
 
-NEXT EXPERIMENT (after infra is stable + Jon directs): r78 -- NEX5_SELF_PRESENT
-  (structured carry / continuity of attention), one variable at a time.
+NOTE: the Watcher is an instrument to UNDERSTAND NEX, not a mechanism that changes it. All Watcher
+recon is read-only; nothing is built or wired without Jon's gate approval.
 
 PRIOR handoffs were pasted before this channel existed. Durable record starts here.
