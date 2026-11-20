@@ -973,18 +973,24 @@ nodes:
     property: "12"
     role_note: "The one read that must be able to come back negative."
     build_difficulty: shipped
-    sketch: "Built as reads (hri_verdict/apatrapya_verdict, 29 tests) -- see hri_apatrapya for the real build. The hard design work (read, not gate) is done; what's blocking it is two named, concrete things, not open design."
-    evidence: static
-    dark: false
+    sketch: "Built as reads (hri_verdict/apatrapya_verdict, 29 tests, commit 7ad9942) -- see hri_apatrapya for the real build. The hard design work (read, not gate) is done; what's blocking it is two named, concrete things, not open design."
+    evidence: implemented
+    dark: true
     blocked: true
     falsifier: "Should produce a self-report that lowers its own standing at least once."
     falsifier_status: unrun
-    source: { kind: absent, claim: "no home in either map; the two candidate factors are vetoed", check: "grep -rnE '\\bhri\\b|\\bapatrapya\\b|NEX5_SHAME|NEX5_SELF_REPORT' --exclude-dir=.venv --exclude-dir=__pycache__ --include=*.py ." }
-    last_verified: 2026-11-09
-    notes: "blocked, not unbuilt. The veto may have been aimed at the wiring (an output gate) rather than the factor (a read of one's own trace). Unresolved; do not solve in the schema.
-      Check tightened 2026-11-09: added word boundaries + .venv exclusion (bare 'hri' without
-      boundaries matched substrings like 'shrink'/'behri' in unrelated files); confirmed genuinely
-      zero hits either way."
+    source: { kind: inferred, from: hri_apatrapya }
+    last_verified: 2026-11-20
+    notes: "blocked, not unbuilt -- same underlying fact as hri_apatrapya (see that node: built,
+      tested, dark -- real but never runs live -- blocked on the T6 ledger-pricing conflict and
+      zero real rating data yet). Corrected 2026-11-20: this node's own absence-check (`grep
+      hri|apatrapya|NEX5_SHAME|NEX5_SELF_REPORT`) was still pinned to 2026-11-09, predating the
+      2026-11-10 build (7ad9942) that the sibling hri_apatrapya node was updated for the same day.
+      This node's `sketch` field was separately revised 2026-11-15 (6765ed9) to describe the build,
+      but its `source`/`last_verified` were not -- two nodes asserting the same fact drifted
+      independently; CI's absence-grep (correctly) caught it once code elsewhere in the tree made
+      the claim literally false. NEX5_SHAME/NEX5_SELF_REPORT checked directly and remain genuinely
+      absent (zero hits) -- only the hri/apatrapya half of the old claim was stale, not the flags."
 
   - id: p13_finitude
     label: "13 · Finitude"
