@@ -1,0 +1,54 @@
+CC -- DISK-FULL INVESTIGATION (READ-ONLY; do NOT delete, clean, or restore anything yet). Jon's call:
+find what filled the disk on ~2026-11-16 BEFORE the home-drive restore, so the restore doesn't just
+refill and get eaten again. Everything below is read-only (df / du / ls / find / stat / journalctl
+--disk-usage / lsof). Report findings; we decide the cleanup together, and we plug the cause BEFORE
+restoring. Leave her DB and data untouched -- this step only LOOKS.
+
+Known layout (correct me from the live machine): lost home-drive checkout was /home/rr/Desktop/Desktop/
+nex5; you're now in /mnt/games/storage/Desktop/Desktop/nex5; live data dir .../nex5/data/; ~/.nex/ holds
+STANDBY + pid. nex5 itself is ~800MB -- the question is what ELSE filled the drive.
+
+1. WHICH disk, how full (and is it still full now?):
+   df -h ; df -i          # -i = inodes, in case it's millions of tiny files rather than big ones
+   -> name the filesystem that filled (the home drive the supervisor pointed at), its size, use%, and
+      whether it is full RIGHT NOW or recovered when the checkout was lost.
+
+2. WHERE the space went on that filesystem (stay on one FS with -x):
+   sudo du -x -h --max-depth=2 <that-mount> 2>/dev/null | sort -rh | head -40
+   then drill into the biggest: sudo du -x -h --max-depth=1 <biggest-dir> | sort -rh | head -20
+
+3. The USUAL unbounded-growth suspects -- check each explicitly:
+   - SQLite WAL / scratch files (balloon if never checkpointed -- a WAL bigger than its .db is the tell):
+       find <data dir> \( -name '*.db-wal' -o -name '*.db-shm' -o -name '*.db-journal' \) -printf '%s\t%p\n' 2>/dev/null | sort -rn | head
+       ls -la <data dir>/*.db*
+   - Logs appended forever (soak log, keepalive_runtime.tsv, any *.log):
+       find <nex5 dir> "$HOME" -name '*.log' -printf '%s\t%p\n' 2>/dev/null | sort -rn | head
+   - systemd journal:  journalctl --disk-usage
+   - Backups piling up (the H7 DB backups -- rotated, or accumulating one-per-run forever?):
+       du -sh <backup dir>/* 2>/dev/null | sort -rh | head
+   - Model / caches:   du -sh "$HOME/.cache" "$HOME/.ollama" /usr/share/ollama 2>/dev/null ; check the
+       sentence-transformers + Kokoro model caches
+   - Trash & crash dumps:  du -sh "$HOME/.local/share/Trash" /var/crash /var/lib/systemd/coredump 2>/dev/null
+   - Stray duplicate checkouts / clones / lost+found on that drive
+
+4. Is anything STILL GROWING right now -- this is the ACTIVE cause, the thing that will refill a restore:
+   - biggest files by modified-time; are the top space-hogs being written to NOW?
+       find <candidate dirs> -type f -printf '%s\t%TY-%Tm-%Td %TH:%TM\t%p\n' 2>/dev/null | sort -rn | head -20
+   - DELETED-BUT-STILL-OPEN files (space not freed until the writer restarts -- the classic
+     "df says full but du finds nothing"):
+       sudo lsof +L1 2>/dev/null | head -20
+   - She's been in STANDBY since 2026-11-16, so ideally nothing nex5 is writing. If something IS
+     appending while she's off, that is very likely the finding -- identify the writer.
+
+5. TIMELINE around the incident (what grew on 2026-11-15/16):
+   sudo find <mount> -xdev -type f -newermt '2026-11-15' ! -newermt '2026-11-17' -printf '%s\t%TY-%Tm-%Td %TH:%TM\t%p\n' 2>/dev/null | sort -rn | head -20
+
+REPORT BACK (NO cleanup yet):
+  a. which filesystem filled -- size, current use%, full-now-or-recovered;
+  b. the top 5-10 space consumers (path + size);
+  c. whether any is STILL growing, or is a deleted-but-open file (and which process holds it);
+  d. the single most likely cause, one line;
+  e. your proposed MINIMAL, reversible fix (checkpoint a WAL / rotate+cap a log / trim old backups /
+     restart the process holding a deleted file) -- but do NOT run it yet. We cap the cause first,
+     confirm the drive has healthy free space, THEN do the home-drive restore as a separate step.
+Keep nex5's DB + data untouched. Looking only.

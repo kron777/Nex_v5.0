@@ -24,21 +24,26 @@ RULES:
   flags/restarts deliberately, never switch her live checkout.
 
 INDEX (newest first):
+  2026-11-20_disk-full-investigation.txt   [CURRENT -- read-only, awaiting cc's findings]
+    Before the home-drive restore: find what filled the disk on ~2026-11-16 so
+    the restore can't refill and get eaten again. READ-ONLY scan (df/du, WAL,
+    logs, journald, backups, caches, deleted-but-open files, what's still
+    growing, timeline). NO cleanup, NO restore yet -- report findings, then we
+    plug the cause, confirm free space, and restore as a separate step.
+
   2026-11-20_r77-ci-mindmap-fix.txt   [DONE 2026-11-20 -- verified against GitHub]
-    Fix the p12_selfreport mind_map absence-claim drift -> green main -> merge
-    PR #44 (r77 disarm) -> queue the disarm for the next clean restart.
-    OUTCOME: p12_selfreport fixed (ecf9c43; source -> inferred-from-hri_apatrapya;
-    NEX5_SHAME / NEX5_SELF_REPORT confirmed genuinely absent). Main green. PR #44
-    merged (6e6712b). The rebase changed the disarm SHA 7039ced -> 2803f38 and cc
-    corrected the self-references in r77.md / DEPLOY_LEDGER.tsv / CARRY_OVER.md.
-    r77 DISARM IS QUEUED, not applied -- flag removed from main's nex_keepalive.sh,
-    no restart, instance off since 2026-11-16. Applies at the next clean restart.
+    Fixed the p12_selfreport mind_map absence-claim drift (ecf9c43); main green;
+    PR #44 merged (6e6712b); disarm SHA corrected 7039ced->2803f38 in the docs.
+    r77 DISARM IS QUEUED, not applied (flag removed from main's keepalive, no
+    restart, instance off since 2026-11-16). Applies at the next clean restart.
 
-OPEN (owner decisions -- not a cc instruction yet, waiting on Jon):
-  - home-drive checkout restore (waits on the disk-full root cause being understood)
-  - what actually filled the disk beyond nex5's ~800MB
+OPEN (owner decisions):
+  - disk-full root cause -- UNDER INVESTIGATION now (handoff above). Must be
+    understood + capped before the restore.
+  - home-drive checkout restore -- BLOCKED on the disk-full cause. Separate step,
+    after free space is confirmed healthy.
 
-NEXT EXPERIMENT (when infra is stable and Jon directs it):
+NEXT EXPERIMENT (after infra is stable and Jon directs it):
   r78 -- NEX5_SELF_PRESENT (structured carry / continuity of attention across
   turns), one variable at a time, pre-registered after r77. Falsifier: the carried
   winner must change when the salience vector changes and reach the composed
