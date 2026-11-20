@@ -24,12 +24,18 @@ RULES:
   flags/restarts deliberately, never switch her live checkout.
 
 INDEX (newest first):
-  2026-11-20_disk-full-investigation.txt   [CURRENT -- read-only, awaiting cc's findings]
-    Before the home-drive restore: find what filled the disk on ~2026-11-16 so
-    the restore can't refill and get eaten again. READ-ONLY scan (df/du, WAL,
-    logs, journald, backups, caches, deleted-but-open files, what's still
-    growing, timeline). NO cleanup, NO restore yet -- report findings, then we
-    plug the cause, confirm free space, and restore as a separate step.
+  2026-11-20_disk-full-investigation-2-forensic.txt   [CURRENT -- read-only, awaiting findings]
+    Round 1 found the drive healthy now but the bulk consumer deleted ("cause
+    unknown"). This pushes on the trails that SURVIVE deletion -- log lead-up,
+    shell/root history, cron/timers, nex5's own logs, and DB location+integrity
+    -- to find what WROTE 150GB before we accept unknown. Still read-only.
+
+  2026-11-20_disk-full-investigation.txt   [ROUND 1 DONE -- findings in; see follow-up above]
+    Read-only scan. Result: /dev/nvme0n1p2 (/, 228G, the home drive) hit 100%
+    ~19:32-19:55 SAST 2026-11-16; healthy now (30%, 152G free, nothing leaking,
+    no deleted-but-open files). Bulk consumer was deleted in the emergency
+    (likely alongside the nex5 checkout), so not visible to du/find. cc proposed
+    two safety nets (journald cap + disk-space alert) -- held for Jon's OK.
 
   2026-11-20_r77-ci-mindmap-fix.txt   [DONE 2026-11-20 -- verified against GitHub]
     Fixed the p12_selfreport mind_map absence-claim drift (ecf9c43); main green;
@@ -38,10 +44,12 @@ INDEX (newest first):
     restart, instance off since 2026-11-16). Applies at the next clean restart.
 
 OPEN (owner decisions):
-  - disk-full root cause -- UNDER INVESTIGATION now (handoff above). Must be
-    understood + capped before the restore.
-  - home-drive checkout restore -- BLOCKED on the disk-full cause. Separate step,
-    after free space is confirmed healthy.
+  - disk-full root cause -- forensic follow-up IN PROGRESS (round 2 above).
+  - two safety fixes (journald cap + disk-space alert) -- recommended, awaiting
+    Jon's OK to apply.
+  - home-drive checkout restore -- drive is mechanically healthy now, but held
+    as a SEPARATE last step until the cause is found-or-accepted and the DB is
+    confirmed safe.
 
 NEXT EXPERIMENT (after infra is stable and Jon directs it):
   r78 -- NEX5_SELF_PRESENT (structured carry / continuity of attention across

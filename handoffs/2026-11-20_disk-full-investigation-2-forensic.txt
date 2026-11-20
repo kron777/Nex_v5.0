@@ -1,0 +1,42 @@
+CC -- good round-1 pass. Agreed: drive is healthy now (30%, 152G free, nothing leaking) and the deleted
+bytes are gone. But "cause unknown" isn't settled -- the deleted DATA is unrecoverable, yet what WROTE
+150+GB usually leaves a trail that OUTLIVES the deletion. One more READ-ONLY pass on those trails before
+we accept "unknown", because an unexplained 150GB fill can recur and the disk-alert only warns us AFTER
+it starts again.
+
+Separate two events:
+  (1) THE FILL -- something wrote ~150GB and filled / (the ROOT cause we want). The errors you found
+      (rsyslog/nautilus/tracker "No space left") are SYMPTOMS of (1), not the cause.
+  (2) THE EMERGENCY DELETION -- a human/script freed space by deleting things (incl. the nex5 checkout).
+We want (1). Check the trails that survive (2):
+
+1. The LEAD-UP, not the error storm. journalctl for the hour BEFORE 19:32 SAST 2026-11-16 -- what was
+   writing heavily just before 100%?
+     journalctl --since '2026-11-16 18:00' --until '2026-11-16 19:35' 2>/dev/null | grep -ivE 'no space|tracker|dconf|nautilus' | tail -200
+   Look for a heavy writer, a crash loop, a download, a backup job, a model pull.
+2. SHELL / COMMAND HISTORY around Nov 15-16 (where a one-off fill OR the deletion usually shows):
+     grep -nE '2026-11-1[56]' "$HOME/.bash_history" 2>/dev/null ; tail -300 "$HOME/.bash_history"
+     sudo tail -300 /root/.bash_history 2>/dev/null
+   Look for a big download / dd / cp / tar, a runaway script, OR the rm/deletion that freed space and
+   WHAT it targeted. Your own cc session logs from that day count too.
+3. SCHEDULED JOBS that could have misfired on Nov 16:
+     crontab -l ; sudo crontab -l 2>/dev/null ; systemctl --user list-timers ; systemctl list-timers
+   and the backup job especially (the H7 DB backup -- is it writing an UNCOMPRESSED dump per run with
+   no rotation? that's a classic silent slow-fill that then tips over).
+4. NEX5's OWN logs / data around Nov 16: the soak log, journal/keepalive_runtime.tsv, DEPLOY_LEDGER.tsv,
+   and the DB sizes -- did a nex5 process write a lot on Nov 15-16 (a runaway loop, a WAL that
+   ballooned, an unbounded table, a re-download of the sentence-transformers/Kokoro/ollama models)?
+   The 20-commit dev session was Nov 15 07:39-23:51 -- did any of that round generate large data?
+5. CONFIRM her DB + data: where do beliefs.db / dynamic.db / conversations.db actually live (which
+   drive), and are they INTACT (sane row counts, not truncated)? The fill may have BEEN her own data,
+   and we must know the DB is safe before any restore regardless. This is the most important check.
+
+If this finds the writer -> we fix it at the source (cap the log / checkpoint the WAL / fix the backup
+rotation / stop the loop). If it finds NOTHING -> we accept "root cause unrecoverable" honestly and
+lean on the disk-alert as the mitigation. Either way: still READ-ONLY, report back, no cleanup, no
+restore.
+
+Your two proposed fixes -- BOTH are good; Jon is deciding on them now, so HOLD applying them:
+  - disk-space alert (df threshold -> loud warning at ~85%): the real protection; strongly yes.
+  - journald cap (SystemMaxUse ~500M): good hygiene -- but note it AMPLIFIED the fill, didn't cause it.
+The forensic pass above is read-only; run it now. The config changes wait for Jon's go.
