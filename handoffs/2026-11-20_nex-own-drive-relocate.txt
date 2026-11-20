@@ -1,0 +1,39 @@
+CC -- Jon's key add: NEX HAS ITS OWN DRIVE on the PC. Map the drives and plan moving NEX's growing
+files onto the NEX drive, so a NEX runaway can NEVER fill the SYSTEM drive (/) and cause another
+emergency-delete. This is the STRUCTURAL fix for the whole incident class -- better than an alarm; it's
+a wall. READ-ONLY mapping + a move PLAN first. The actual move is a separate, deliberate step with the
+DB backed up and Jon's OK. (This subsumes the DB-location check in the round-2 forensic handoff -- do
+this one; still do the round-2 history/log trails too.)
+
+1. MAP THE DRIVES (read-only):
+   lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,LABEL
+   df -hT
+   -> list every physical drive: size, filesystem, mount point, free space. Identify:
+      - the SYSTEM/home drive that filled (nvme0n1p2, mounted /, 228G);
+      - the dedicated NEX drive Jon means -- device, size, free, mount, label. Is it /mnt/games (where
+        your working copy already is)? Say so explicitly.
+
+2. WHERE DOES NEX LIVE NOW (resolve each path -> device with `df <path>`):
+   - the checkout(s): /home/rr/Desktop/Desktop/nex5 (lost) and /mnt/games/.../nex5 -- which drive each?
+   - the DATA dir + DBs (beliefs.db / dynamic.db / conversations.db): which drive, which path?
+   - the LOGS that grow when she runs (soak log, keepalive_runtime.tsv), BACKUPS, model caches: which
+     drive?
+   KEY QUESTION: when she runs, do her growing files (DB+WAL, logs, data, backups) write to the SYSTEM
+   drive (/) or to the NEX drive? Anything that grows on / is the structural risk to move off.
+   Also confirm the DBs are INTACT (sane row counts, not truncated) -- most important single check.
+
+3. DESIGN THE MOVE (do NOT execute -- plan it):
+   - Is the NEX drive big enough + healthy (free space, FS type, not near full, not a flaky mount)?
+   - Which exact paths move (data dir, logs, backups), and HOW are they wired -- hard-coded in config/
+     env (NEX5_DATA_DIR and friends), in nex_keepalive.sh, in the systemd unit? A move MUST repoint the
+     paths the code + keepalive actually use, or she writes to the old place or fails to start.
+   - Safest mechanism: relocate the data dir (+ logs + backups) onto the NEX drive and point
+     NEX5_DATA_DIR / config / keepalive / the unit at the new path (or a symlink from the old path).
+   - HARD SAFETY: moving a live DB mid-write corrupts it. She's in STANDBY now, so safe -- but the move
+     happens while she is OFF, with a FRESH verified DB backup taken first, and a tested rollback
+     (symlink back / config revert). One-way risk otherwise.
+
+REPORT BACK: the drive map (lsblk/df output); which drive each NEX thing is on now; whether her growing
+files currently hit the system drive; DB integrity; and a concrete MINIMAL move plan (exact paths +
+how they're wired + the backup/restart/rollback steps). Do NOT move anything yet -- Jon decides, and it
+runs as a deliberate step while she's OFF with the DB backed up. Still read-only here; looking + planning.

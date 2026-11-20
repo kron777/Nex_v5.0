@@ -24,38 +24,36 @@ RULES:
   flags/restarts deliberately, never switch her live checkout.
 
 INDEX (newest first):
-  2026-11-20_disk-full-investigation-2-forensic.txt   [CURRENT -- read-only, awaiting findings]
-    Round 1 found the drive healthy now but the bulk consumer deleted ("cause
-    unknown"). This pushes on the trails that SURVIVE deletion -- log lead-up,
-    shell/root history, cron/timers, nex5's own logs, and DB location+integrity
-    -- to find what WROTE 150GB before we accept unknown. Still read-only.
+  2026-11-20_nex-own-drive-relocate.txt   [CURRENT -- read-only map + move PLAN]
+    NEX has its own drive. Map drives (lsblk/df), find which drive each NEX thing
+    lives on, confirm her growing files + DBs, and PLAN moving data/logs/backups
+    onto the NEX drive so a runaway can't fill / again. The structural fix. No
+    move yet -- plan it; do it later while she's OFF with the DB backed up.
 
-  2026-11-20_disk-full-investigation.txt   [ROUND 1 DONE -- findings in; see follow-up above]
-    Read-only scan. Result: /dev/nvme0n1p2 (/, 228G, the home drive) hit 100%
-    ~19:32-19:55 SAST 2026-11-16; healthy now (30%, 152G free, nothing leaking,
-    no deleted-but-open files). Bulk consumer was deleted in the emergency
-    (likely alongside the nex5 checkout), so not visible to du/find. cc proposed
-    two safety nets (journald cap + disk-space alert) -- held for Jon's OK.
+  2026-11-20_disk-full-investigation-2-forensic.txt   [read-only, in progress]
+    Push on the trails that survive deletion (log lead-up, shell/root history,
+    cron/timers, nex5 logs) to find what WROTE 150GB before accepting "unknown".
 
-  2026-11-20_r77-ci-mindmap-fix.txt   [DONE 2026-11-20 -- verified against GitHub]
-    Fixed the p12_selfreport mind_map absence-claim drift (ecf9c43); main green;
-    PR #44 merged (6e6712b); disarm SHA corrected 7039ced->2803f38 in the docs.
-    r77 DISARM IS QUEUED, not applied (flag removed from main's keepalive, no
-    restart, instance off since 2026-11-16). Applies at the next clean restart.
+  2026-11-20_disk-full-investigation.txt   [ROUND 1 DONE]
+    / (nvme0n1p2, 228G) hit 100% ~19:32-19:55 SAST 2026-11-16; healthy now (30%,
+    152G free, nothing leaking). Bulk consumer deleted in the emergency, not
+    visible to du/find. Proposed journald cap + disk-space alert -- held for Jon.
+
+  2026-11-20_r77-ci-mindmap-fix.txt   [DONE -- verified]
+    p12_selfreport mind_map fix (ecf9c43); main green; PR #44 merged (6e6712b);
+    disarm SHA corrected 7039ced->2803f38. r77 disarm QUEUED (flag off main's
+    keepalive, no restart, instance off since 2026-11-16). Applies at next restart.
 
 OPEN (owner decisions):
-  - disk-full root cause -- forensic follow-up IN PROGRESS (round 2 above).
-  - two safety fixes (journald cap + disk-space alert) -- recommended, awaiting
-    Jon's OK to apply.
-  - home-drive checkout restore -- drive is mechanically healthy now, but held
-    as a SEPARATE last step until the cause is found-or-accepted and the DB is
-    confirmed safe.
+  - NEX own-drive relocation -- map + plan IN PROGRESS (above); the structural fix.
+  - disk-full root cause -- forensic follow-up in progress (may stay 'unknown').
+  - two safety fixes (journald cap + disk-space alert) -- recommended, awaiting Jon's OK.
+  - home-drive checkout restore -- drive healthy now; held as the LAST step until
+    the data lives safely on the NEX drive and the DB is confirmed intact.
 
 NEXT EXPERIMENT (after infra is stable and Jon directs it):
-  r78 -- NEX5_SELF_PRESENT (structured carry / continuity of attention across
-  turns), one variable at a time, pre-registered after r77. Falsifier: the carried
-  winner must change when the salience vector changes and reach the composed
-  prompt; turn_count advancing while winner_kind is frozen = decorative.
+  r78 -- NEX5_SELF_PRESENT (structured carry / continuity of attention), one
+  variable at a time, pre-registered after r77.
 
 PRIOR handoffs (r77 completion, the 20-commit sync, infra sequencing, the Beam
 relays, the commitment/learning/valence dev rounds, the desktop/icon items)
