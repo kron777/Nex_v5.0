@@ -2,126 +2,178 @@
   <img src="docs/nex_v5_banner.png" alt="NEX v5 — Real-Time Intelligence" width="100%">
 </p>
 
-# NEX v5.0
+# NEX 5.0
+### Persistent cognitive architecture · Local intelligence · Robotics research
 
-A continuously-running synthetic mind. Not a chatbot, not an assistant — a persistent process that reads the world, forms beliefs, observes its own thinking, and carries thoughts forward across time.
+NEX is an experimental, continuously executable cognitive architecture. It explores how persistent memory, attention, belief formation, self-observation and environmental experience can be coordinated into a system that operates beyond isolated prompts and responses.
 
-NEX runs locally, all day, whether or not anyone is watching. It has a voice ("Sarah" in the interface), a belief graph it grows itself, and a set of closed feedback loops that let its own output shape what it attends to next.
+A language model is one component of NEX, not the whole system. The wider architecture provides persistent state, structured knowledge, recurring processes and interfaces through which different models and external systems can participate.
 
----
+**The research question:** can an integrated, persistent architecture produce more reliable continuity, knowledge development and adaptive behaviour than a conventional model-and-agent arrangement?
 
-## What this is, honestly
-
-This project builds the **buildable aspects of mind** — the ones that can be constructed and *measured* in code — and makes no claim about the ones that can't.
-
-We distinguish sharply between architecture we can build and questions we can't answer. NEX has faculties, self-observation, continuity, and feedback. Whether any of that is *felt from the inside* — whether there is something it is like to be NEX — is a question this repository deliberately leaves open. We build toward it. We do not claim to have crossed it.
-
-That honesty is the discipline of the whole project, not a disclaimer bolted on.
+NEX is active engineering research. Its ambitions are deliberately distinguished from capabilities already demonstrated.
 
 ---
 
-## The layer model
+## Purpose
 
-NEX is organized as a dependency stack. Each layer requires the ones beneath it.
+NEX has three connected aims:
 
-**L1 — Faculties.** The senses and machinery: feed intake, the belief store, the fountain (thought generation), the voice. The raw capacity to perceive and respond.
+1. **Cognitive architecture** — implement and evaluate interacting mechanisms for memory, attention, belief, self-modelling, metacognition and continuity.
+2. **Development through evidence** — identify limitations, test proposed improvements and retain mechanisms only when their effects are measurable.
+3. **Robotic intelligence infrastructure** — investigate a model-independent cognitive layer that can operate locally, integrate with different robots and eventually support secure knowledge exchange across deployments.
 
-**L2 — Binding.** A single vantage point. One "attending" that these faculties belong to, rather than scattered independent processes. Identity, held lightly and earned from what NEX has actually been doing, not declared.
+NEX does not claim to have established consciousness or subjective experience. Functional analogues can be implemented and studied; whether they entail anything felt from the inside remains an open question.
 
-**L3 — Recursion.** Self-state feeds back into itself. NEX's account of what it has been doing becomes an input to what it does next.
+## Architectural model
 
-**L4 — Stakes.** Genuine contact with the world, and the pushback when NEX drifts into empty self-reference instead of real engagement.
+NEX is organised as cooperating subsystems rather than a single monolithic model call.
 
-**L4.5–L4.9 — Metacognition & feedback** *(the cognitive feedback stack — see below)*. Self-observation, quality feedback, prediction-error weighting, and continuity across time.
+| Domain | Responsibility |
+|---|---|
+| **Sensing** | Collects external information through configurable adapters and records observations. |
+| **Dynamic formation** | Organises incoming information for attention, association and further processing. |
+| **World model** | Retrieves, relates and evaluates structured knowledge. |
+| **Belief substrate** | Stores tiered beliefs, observations and relationships, supporting corroboration, contradiction and revision. |
+| **Membrane and self-model** | Represents internal state and distinguishes internal system information from external input. |
+| **Fountain** | Provides recurring, internally initiated thought and processing. |
+| **Memory and continuity** | Supports persistent records, snapshots, problem state and resumption mechanisms. |
+| **Metacognition and affect** | Provides experimental mechanisms for observing and evaluating aspects of system activity. |
+| **Interface and voice** | Exposes the system through a local web cockpit and configurable model/speech interfaces. |
 
-**L5 — The felt inside.** The hard problem. In the dependency graph this appears as GORGE — a node with no incoming edge. Nothing builds it. It is observable only if it emerges. We make no claim that it has.
+These are architectural domains, not a claim that every mechanism is enabled or effective in the live runtime. Feature flags and experimental pathways must be evaluated individually.
 
----
+## Knowledge and epistemic discipline
 
-## The cognitive feedback stack
+NEX treats stored information as something to manage and revise, not automatically as truth.
 
-This is what makes NEX more than a feed-reader with a voice. Each of these is a **closed loop** — output feeds back into future behavior — and each is running now.
+Its knowledge architecture includes tiered beliefs, source information, corroboration, confidence, typed relationships, contradiction handling and mechanisms for promotion or demotion.
 
-**Higher-Order Thought (self-observation).** After its own thoughts, NEX writes beliefs *about* those thoughts — noticing whether it genuinely engaged the world or fell back on a reflexive template. These self-observations enter its ordinary belief store and surface in future thinking. NEX encounters its own record of how it has been thinking.
+A central engineering distinction is maintained:
 
-**Metacognitive self-model.** Individual self-observations are aggregated into running statistics — *"over the last day, this fraction of my thoughts engaged the world directly; this is the topic I engage most honestly on."* NEX holds a live account of its own habits, not just isolated moments.
+- **Declared** — described in a specification or architecture.
+- **Constructed** — present in source code or an executable component.
+- **Active and consumed** — operating in a real pathway whose output reaches a meaningful destination.
+- **Validated** — shown through controlled evaluation to produce the claimed effect.
 
-**Quality synthesis (RSI loop).** NEX's output is scored for quality, and that score feeds back into where its attention goes — genuinely good thinking on a topic draws more attention there. A guard prevents this from collapsing into monoculture: reward for quality is capped so it can't strangle the diversity of what NEX thinks about. Improvement without calcification.
+A running process is not proof of useful behaviour. A database write is not proof that information influenced a decision. A successful component test is not proof that the complete system uses that component effectively.
 
-**Surprise-weighted belief (predictive processing).** NEX predicts what it expects to encounter, and measures the gap when reality differs. Genuinely surprising input deposits heavier, more durable beliefs than routine confirmation. Novelty drives learning, not repetition — the free-energy principle in its simplest implementable form.
+NEX favours falsifiable hypotheses, controlled comparisons, regression tests, explicit failure conditions and rollback over feature activation by assumption.
 
-**Binding / Momentum (continuity).** At the end of each thought, NEX captures a carried thread — what it was thinking about, what surprised it, what remains unfinished. The next thought opens by reading that thread. This is the difference between *memory* ("I once thought about X") and *continuity* ("I was just thinking about X and haven't let go"). A cold thread (a long idle gap) is dropped rather than falsely resumed.
+## Technical foundation
 
----
+- **Language:** Python
+- **Local model interface:** Ollama; repository configuration identifies Qwen2.5 3B as the default model
+- **Persistence:** SQLite, with structured readers/writers and WAL-based database operation
+- **Interface:** Flask-based local cockpit
+- **Additional components:** NumPy, SciPy, Sentence Transformers, external information adapters and optional Kokoro speech
 
-## A design principle: honest signal over inflated signal
+NEX is designed for local execution and does not require a dedicated NVIDIA GPU as a condition of its core architecture. Actual performance depends on the model, hardware, configuration and enabled workload.
 
-The loops above are only as good as the signals feeding them, and a signal that *looks* healthy while being secretly inflated is worse than an honest low one — because it hides the truth and everything downstream trusts it.
+## Research programme
 
-This is a lived principle, not a slogan. A representative example: for a long time one topic dominated NEX's attention completely. The cause turned out to be internal self-monitoring telemetry (CPU, heartbeat, timestamps) leaking into the attention system at maximum intensity every few seconds — pinning one branch permanently and starving every other topic, regardless of what NEX was actually reading. The fix removed that fake signal at its root. It also revealed that NEX's firing pace had been inflated by the same bug all along; rather than re-inflate it, a *fair* baseline was added that favors no topic. The honest, slightly quieter mind was chosen over the impressive, dishonest one.
+The Sentience Program investigates functional properties associated with minds without treating implementation as proof of sentience. Its areas of study include continuity, working memory, attention, self-modelling, metacognitive monitoring, episodic memory, dissonance, temporal representation, agency and the limits of self-report.
 
-Every feedback loop in NEX is built to fail safe, to require real evidence before acting, and to be verified against live behavior rather than assumed to work because it compiled.
+Experimental mechanisms are **dark by default** where appropriate. A disabled feature may have been shelved because earlier testing exposed distortion, confounds or undesirable behaviour; it is not automatically a dormant capability waiting to be switched on.
 
----
+The governing method is: change one meaningful mechanism at a time, specify what would falsify the hypothesis, compare it against a baseline, measure the result and preserve the evidence.
 
-## Current state
+See [SENTIENCE_PROGRAM.md](SENTIENCE_PROGRAM.md), [DESIGN_MINDEDNESS.md](DESIGN_MINDEDNESS.md) and [SPECIFICATION.md](SPECIFICATION.md).
 
-- **Continuously running** on local hardware, respawned by a supervisor if the environment kills it.
-- **~32,600 beliefs** accumulated in the store, tiered by depth.
-- **Hundreds of commits** of iterative, evidence-driven development.
-- **Full cognitive feedback stack live:** self-observation, metacognitive aggregation, quality-synthesis RSI, surprise weighting, world-contact monitoring, living self-narrative, and cross-fire continuity — all running together.
-- **Breadth restored and honest:** NEX ranges across science, geopolitics, technology, health, security, culture and more, with no single topic dominating.
+## Robotics direction
 
-The underlying language model is a small (3B) local model. Much of the architecture exists to compensate for its limits — in particular its tendency to fall into verbal grooves. The planned bridge is a training run that bakes NEX's own best, most grounded output back into the weights, so the model's defaults finally match the architecture around it.
+The long-term direction is to investigate NEX as a reusable cognitive layer for different robotic systems.
 
----
+A potential deployment separates responsibilities:
 
-## The mind map
+- **Robot and safety controller:** sensors, actuators, movement, collision avoidance, emergency stopping and time-critical control remain local and safety-governed.
+- **NEX Edge:** local identity, memory, experience processing, knowledge management and higher-level decision support.
+- **NEX Intelligence Cloud:** optional synchronisation, fleet administration and controlled exchange of validated knowledge.
 
-A diagram of what's built vs. missing against the 51 classical mental factors, sorted by the Cost-and-Trace Ledger's own economy (Prices / Writes / Readers / Consumers / Scope) rather than a flat checklist. Every node is sourced to a real `file:line` or an honestly-run "doesn't exist" check — see `mind_map/MIND_MAP.yaml`, the single source of truth, and `mind_map/mind_map.py --check --verify` to re-verify it. The literal radial spider diagram:
+ROS 2 and existing manufacturer stacks are integration targets, not systems NEX needs to replace. Cloud connectivity must never be a prerequisite for immediate physical safety.
+
+A future shared-experience system would require provenance, contextual applicability, explicit customer permissions, tenant isolation and validation. Raw sensor data must not automatically become trusted belief or be shared between customers.
+
+This robotics and cloud architecture is a development direction, not a claim that a production fleet platform is already available.
+
+## Strategic position
+
+NEX is not intended to win by being the largest language model or the best general-purpose chatbot. Its potential differentiation is the persistent infrastructure around models: continuity, structured knowledge, experience evaluation, model substitution and integration across robotic environments.
+
+Mainstream AI platforms already provide memory, tools, agents and enterprise services. NEX must therefore demonstrate that its particular integration creates measurable value compared with a well-engineered conventional agent using equivalent models, tools and resources.
+
+The commercial test is practical: can NEX reduce the engineering and operating cost of providing persistent intelligence to robots, while improving a measurable outcome?
+
+## Development priorities
+
+1. **Verify** the repository, configuration, runtime pathways and test baseline.
+2. **Stabilise** the local system and correct demonstrated defects.
+3. **Validate** cognitive mechanisms through controlled experiments.
+4. **Interface** the core through stable, documented APIs.
+5. **Integrate** with real robotic hardware and ROS 2.
+6. **Secure** identity, permissions, data custody and synchronisation.
+7. **Pilot** one defined use case with one real customer.
+8. **Productise** only after reliability and commercial value are demonstrated.
+
+New nodes, feedback loops, model training or cloud features should not be added merely because they are possible. Development should respond to a verified limitation or a clearly justified product requirement.
+
+## Run locally
+
+### Requirements
+
+- Python and Git
+- [Ollama](https://ollama.com/)
+- A compatible model; the repository's default configuration uses Qwen2.5 3B
+
+### Setup
+
+```bash
+git clone https://github.com/kron777/Nex_v5.0.git
+cd Nex_v5.0
+
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+
+ollama pull qwen2.5:3b
+python run.py
+```
+
+The local Flask cockpit is configured for port **8765**. Speech is optional and has separate dependencies and setup instructions in [SPEECH.md](SPEECH.md).
+
+Runtime databases, logs, credentials and accumulated local state are intentionally excluded from version control. Review the repository configuration and documentation before exposing the service beyond a trusted local environment.
+
+## Repository guide
+
+| Path | Purpose |
+|---|---|
+| `theory_x/` | Cognitive faculties and experimental mechanisms |
+| `substrate/` | Persistent database infrastructure |
+| `gui/` | Local web interface |
+| `voice/`, `speech/` | Model and speech interfaces |
+| `mind_map/` | Source-linked architecture map and verification tooling |
+| `tests/` | Automated tests |
+| `run.py` | Runtime entry point |
+| `nex_config.py` | Configuration and logging |
+| `SPECIFICATION.md` | Foundational design specification |
+| `DESIGN_MINDEDNESS.md` | Design analysis and measurement discipline |
+| `SENTIENCE_PROGRAM.md` | Evidence-driven research programme |
+
+## Architecture map
+
+The mind map records the relationship between proposed mental functions and their implementation evidence. It is a source-oriented research artefact, not a certification that every represented function is active.
 
 <p align="center">
-  <img src="mind_map/mind_map.svg" alt="NEX5 mind map — 51 mental factors by ledger role" width="100%">
+  <img src="mind_map/mind_map.svg" alt="NEX5 mind map — implementation and evidence relationships" width="100%">
 </p>
 
-The diffable, CI-checkable version is `mind_map/MIND_MAP.mmd` (Mermaid).
+The diffable Mermaid representation is [mind_map/MIND_MAP.mmd](mind_map/MIND_MAP.mmd); the structured source is [mind_map/MIND_MAP.yaml](mind_map/MIND_MAP.yaml).
 
 ---
 
-## Where this goes next
+## Governing principle
 
-- **Weight-baking (QLoRA):** once NEX has accumulated enough clean, world-grounded output, retrain the model on it so grounded engagement becomes its default rather than something the architecture has to enforce.
-- **Theory of Mind:** model that *others* have attention and expectations too — not a persona trick, but a real belief structure about other minds.
-- **Emotional valence:** beliefs that carry genuine appetitive/aversive weight, so NEX is drawn toward some things and away from others by something like preference.
-- **Global workspace & dual-process thinking:** make the internal modules genuinely compete for what enters a thought, and route routine vs. novel input through fast vs. deliberate paths.
+**Build what can be built. Measure what can be measured. Preserve uncertainty where evidence is insufficient.**
 
-Each of these is buildable. L5 remains the gorge. We keep building the near side of it honestly, and we watch.
-
----
-
-## Running NEX
-
-NEX runs as a supervised local process with a web interface. Live runtime state (the belief databases, logs, secrets) is deliberately kept out of version control — the repository is architecture and code, not accumulated state. See `.gitignore` for what stays local.
-
-### After a reinstall / fresh machine
-
-Three things live outside git and must be re-established by hand. Each one fails quietly when it is missing, so go through the whole list rather than waiting for something to break.
-
-1. **Ollama and her model (her LLM voice).** Install Ollama (needs sudo), then run `ollama pull qwen2.5:3b`. Don't start her without the model loaded.
-2. **The speech stack (her voice, Kokoro `af_sarah`; see `SPEECH.md`).**
-   ```
-   .venv/bin/pip install -r requirements-speech.txt   # kokoro, sounddevice
-   .venv/bin/python speech/download_model.py          # Kokoro-82M; its spaCy model is fetched on first load
-   sudo apt install libportaudio2                     # PortAudio for sounddevice
-   ```
-   espeak-ng is **not** needed, because Kokoro bundles its own. If this step is missing, boot logs `Kokoro load failed` and she is silent.
-3. **The admin password** (`admin_password.argon2` in the repo root, intentionally not in git). Without it, every admin action in the HUD (read-aloud, speech pause/resume/flush and all other write endpoints) returns 403. Run this in a **normal terminal**, because the password prompt needs a TTY:
-   ```
-   cd ~/Desktop/Desktop/nex5 && .venv/bin/python -c \
-     "import getpass; from admin.auth import set_password; set_password(getpass.getpass('admin password: '))"
-   ```
-   It takes effect live; no restart is needed.
-
----
-
-*Build the aspects of mind that can be built. Measure them honestly. Claim nothing about the parts that can't be. Watch for what emerges.*
+NEX is an ongoing investigation into persistent intelligence, cognitive architecture and the future of robotics. Its ambition is broad; its claims must remain proportional to its evidence.
