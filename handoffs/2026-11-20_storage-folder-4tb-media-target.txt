@@ -1,0 +1,20 @@
+CC -- Jon added context for the media-file fix: he has a 'storage' folder on his 4TB DATA DRIVE that
+he MANUALLY transfers files to -- this is the 'video-relocation habit' you saw (2.3GB). Check it out
+and fold it into the media-fix plan. Read-only.
+
+1. Find the 4TB data drive in your lsblk/df map: device, mount point, label, total size, and FREE space.
+2. Find the 'storage' folder on it: full path, du -sh size, and a top-level listing -- is it the media
+   dump (videos etc.)?
+3. How the habit works: what dir does media FIRST land in (the one that piles on / and filled it)? Does
+   Jon move it from there to the 4TB 'storage' folder by hand? How often, how much?
+4. REFINE the media-fix options around this (the 4TB drive clearly has room and is already Jon's target):
+   - simplest: point the browser/download + any media 'landing' dir at the 4TB 'storage' folder (or a
+     subfolder) so big media never lands on / in the first place;
+   - or an auto-mover: a watcher/cron that moves files over a size threshold from the landing dir to
+     the 4TB storage folder, with the disk-alert as backstop;
+   - note any app whose download path is hard-coded to the home drive (Brave, torrent client, etc.) --
+     those are the real sources and each needs its download dir repointed.
+   Give 2-3 concrete options with the exact paths/settings to change + rough effort; Jon picks.
+
+READ-ONLY -- report the drive+folder findings and the refined options. Safety fixes (disk-alert +
+journald cap) still apply first; the nex5 DB move stays HELD; no restore yet.
