@@ -1,0 +1,57 @@
+WATCHER -- PHASE-2 BINDING CONSTRAINTS  (founder-set, 2026-11-20)
+================================================================
+Status: GATE HELD. Phase 2 has NOT started. Phase 1 (cloud/static architecture
+reconstruction) is accepted FOR REVIEW, subject to verification. The host-side
+read-only recon is dispatched to cc (handoffs/2026-11-20_watcher-phase0-HOST-recon.txt)
+and its findings are not yet in.
+
+This note is a DURABLE record of the entry conditions Jon set, so they survive a
+context reset and are visible to Claude Code. It is STRICTLY ADDITIVE: it modifies
+no experiment record, no architecture file (sentience_dag.json / MIND_MAP.yaml),
+no NEX source, and no runtime configuration.
+
+----------------------------------------------------------------
+THE THREE BINDING CONDITIONS (as stated, to honour when Phase 2 opens)
+----------------------------------------------------------------
+1. The learning <-> belief-confidence loop: PRESERVE the existing experimental
+   safeguards, and ESTABLISH exactly how this loop operates, including its update
+   mechanisms and observable effects. (Characterization is READ-ONLY; the
+   safeguards -- per-belief external-basis cap 0.02, sign-symmetry and
+   basis-composition canaries, subtractable per-event learning provenance, and the
+   valence admission gates -- are not altered.)
+
+2. The candidate mood feedback loop: keep this EXPLICITLY CLASSIFIED AS A
+   HYPOTHESIS until runtime evidence establishes whether the COMPLETE cycle
+   actually occurs. It is not a finding; it is not promoted to fact without a live
+   runtime trace showing the full path (mood -> generation -> beliefs ->
+   expectations -> valence -> mood) closing.
+
+3. The third runtime architecture graph: it is a SEPARATE RECONSTRUCTION, NOT a
+   modification or replacement of the existing DAG (sentience_dag.json) or mind map
+   (MIND_MAP.yaml). Those remain the source artifacts, untouched.
+
+----------------------------------------------------------------
+UNRESOLVED FINDING -- DO NOT AUTO-RECONCILE
+----------------------------------------------------------------
+The L4_stakes discrepancy is RETAINED AS AN UNRESOLVED FINDING, not automatically
+reconciled: sentience_dag.json marks L4_stakes = 'gap', while the live Build-B
+valence/commitment work is implemented; the two are partially disjoint ontologies
+whose mapping is not explicit in either artifact. This stays open until Jon
+decides how (or whether) to resolve it. No edit to the DAG or map to 'fix' it.
+
+----------------------------------------------------------------
+APPROVAL GATE
+----------------------------------------------------------------
+PHASE 2 REQUIRES JON'S EXPLICIT APPROVAL BEFORE COMMENCEMENT. No Phase-2 work, no
+Watcher design or build, no change to NEX begins until (a) cc's host-side findings
+arrive, (b) Jon has reviewed BOTH the Phase-1 and host-side reports, and (c) Jon
+gives the go.
+
+----------------------------------------------------------------
+STANDING PRINCIPLE
+----------------------------------------------------------------
+The Watcher is an instrument to UNDERSTAND NEX, not a mechanism that changes it.
+The separation between OBSERVATION, INTERPRETATION and INTERVENTION is to be
+preserved consistently across every AI and development environment involved. All
+Watcher reconnaissance is read-only; nothing is built, wired, or applied without a
+gate approval from Jon.
