@@ -210,19 +210,23 @@ def test_defect_pattern_generalises_and_metrics(tmp_path):
     from rdo.orchestrator import run_catalogue
     res = run_catalogue(repo_dir=".", workdir=str(tmp_path / "cycles"))
     cycles = res["cycles"]
-    assert len(cycles) == 2
-    defect = next(v for k, v in cycles.items() if "defect" in k)
+    assert len(cycles) == 3  # genius + migration_defect + affinity_drift
+    defect = cycles["migration_defect (defect-remediation pattern)"]
     # the defect cycle reconciles applied fixes as reuse...
     assert any("fix" in r for r in defect["2_correctly_reused"])
     # ...and still produces at least one ELIGIBLE net-new package (adding a test is safe,
     # unlike the all-gated genius consumers) — the prioritiser distinguishes the two
     assert any(w["eligibility"] == "eligible" for w in defect["4_recommended_work"])
+    # two executed+verified cycles recorded
+    assert len(res["executed_cycles"]) == 2
     # comparable cross-cycle metrics, with no premature acceleration claim
     m = res["learning_metrics"]
-    assert len(m["per_cycle"]) == 4 and "acceleration" in m["trend_claim"]  # watcher+genius+defect+exec
+    assert len(m["per_cycle"]) == 6 and "acceleration" in m["trend_claim"]
     assert len(m["measures"]) == 8
-    # only the executed+verified cycle is efficiency-comparable
-    assert m["comparability"]["efficiency_comparison_pool"] == ["arc_closers_regtest_2026-11"]
+    # ONLY the two executed+verified cycles are efficiency-comparable (imported + planning excluded)
+    assert set(m["comparability"]["efficiency_comparison_pool"]) == {
+        "arc_closers_regtest_2026-11", "affinity_regtest_2026-11"}
+    assert m["efficiency_eligible_cycles"] == 2  # still < 3 -> no acceleration claim
     assert "watcher_2026-11" in m["comparability"]["excluded_from_efficiency"]["imported_retrospective"]
 
 

@@ -174,6 +174,40 @@ def genius_feedback_hypothesis() -> dict:
     }
 
 
+def affinity_drift_idea() -> Tuple[str, List[str], List[Obligation], Dict[str, List[Signature]]]:
+    """Third objective, a fresh discovery cycle: guard the beliefs.affinity schema-drift
+    defect. affinity / affinity_updated_at were read+written by affinity_loop but defined
+    in NO schema file — they exist only via an init_db migration, so a fresh init_all()
+    once produced a beliefs table without them ("no such column: affinity"). Unlike
+    arc_closers, these columns are MIGRATION-ONLY (not in the base schema), so a single
+    fresh-init test genuinely exercises the migration — applying the
+    `migration_guard_needs_legacy_path` lesson, no separate legacy fixture is needed."""
+    objective = ("Guard the beliefs.affinity / affinity_updated_at schema-drift migration "
+                 "(init_db.py:247-248) with a regression test: a fresh init_all() must provision "
+                 "both columns as nullable (affinity IS NULL = not-yet-rated).")
+    assumptions = [
+        "the affinity columns are migration-only (not in beliefs.sql) — confirmed",
+        "affinity_loop depends on 'affinity IS NULL' meaning not-yet-rated",
+    ]
+    seeds = [
+        Obligation("beliefs_affinity", "beliefs.affinity schema-drift defect", "defect",
+                   rationale="columns read/written by affinity_loop but in no schema -> 'no such "
+                             "column: affinity' on a fresh init before the migration was added"),
+    ]
+    signatures: Dict[str, List[Signature]] = {
+        "beliefs_affinity.fix": [
+            Signature(r"ALTER TABLE beliefs ADD COLUMN affinity REAL", "substrate/init_db.py",
+                      "affinity migration present")],
+        "beliefs_affinity.root_cause": [
+            Signature(r"no such column|out-of-band|affinity IS NULL", "substrate/init_db.py",
+                      "root cause documented in the migration note")],
+        "beliefs_affinity.regression_test": [
+            Signature(r"def test_init_all_provisions_affinity", "tests",
+                      "fresh-init affinity-provisioning regression test")],
+    }
+    return objective, assumptions, seeds, signatures
+
+
 def genius_consumers() -> List[dict]:
     """Source-grounded classification of every consumer of the genius signal.
 

@@ -97,5 +97,81 @@ class TestArcClosersClosureTypeMigration(unittest.TestCase):
         pre_migration.close()
 
 
+class TestArcClosersLegacyUpgrade(unittest.TestCase):
+    """The REAL legacy upgrade path: a pre-migration arc_closers (no closure_type)
+    run through the actual `_apply_migrations` runner — not the fresh-schema path and
+    not the invariant helper. Builds a minimal legacy beliefs.db so only the
+    arc_closers ALTER fires (other migrations target absent tables -> skipped)."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="nex5_arc_legacy_")
+        self.db = str(Path(self.tmp) / "legacy_beliefs.db")
+        con = sqlite3.connect(self.db)
+        # pre-migration shape: arc_closers WITHOUT closure_type, with one legacy row
+        con.execute("CREATE TABLE arc_closers (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                    "arc_id INTEGER NOT NULL, belief_id INTEGER NOT NULL, "
+                    "detected_at REAL NOT NULL, meta_confidence REAL NOT NULL)")
+        con.execute("INSERT INTO arc_closers (arc_id, belief_id, detected_at, meta_confidence) "
+                    "VALUES (7, 7, 1.0, 0.9)")
+        con.commit()
+        con.close()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _run_real_migration(self):
+        from substrate import Writer
+        from substrate.init_db import _apply_migrations
+        w = Writer(self.db, name="beliefs")
+        try:
+            _apply_migrations({"beliefs": w})
+        finally:
+            w.close()
+
+    def test_legacy_upgrade_adds_column_with_constraint_and_backfills(self):
+        # pre-state: column genuinely absent
+        con = sqlite3.connect(f"file:{self.db}?mode=ro", uri=True)
+        self.assertNotIn("closure_type", _table_info(con, "arc_closers"))
+        con.close()
+
+        self._run_real_migration()   # the ACTUAL runner
+
+        con = sqlite3.connect(f"file:{self.db}?mode=ro", uri=True)
+        try:
+            info = _table_info(con, "arc_closers")
+            self.assertIn("closure_type", info, "real migration did not add closure_type")
+            self.assertEqual(info["closure_type"]["notnull"], 1)                 # NOT NULL
+            self.assertEqual(str(info["closure_type"]["dflt"]).strip("'\""), "template")
+            # the pre-existing legacy row was backfilled by the DEFAULT
+            self.assertEqual(
+                con.execute("SELECT closure_type FROM arc_closers WHERE arc_id=7").fetchone()[0],
+                "template")
+        finally:
+            con.close()
+
+    def test_default_applied_on_insert_after_legacy_upgrade(self):
+        self._run_real_migration()
+        con = sqlite3.connect(self.db)
+        try:
+            con.execute("INSERT INTO arc_closers (arc_id, belief_id, detected_at, meta_confidence) "
+                        "VALUES (8, 8, 2.0, 0.5)")
+            con.commit()
+            self.assertEqual(
+                con.execute("SELECT closure_type FROM arc_closers WHERE arc_id=8").fetchone()[0],
+                "template")
+        finally:
+            con.close()
+
+    def test_repeated_migration_is_idempotent(self):
+        self._run_real_migration()
+        self._run_real_migration()   # second run must be a safe no-op (column-exists skip)
+        con = sqlite3.connect(f"file:{self.db}?mode=ro", uri=True)
+        try:
+            cols = [r for r in _table_info(con, "arc_closers") if r == "closure_type"]
+            self.assertEqual(len(cols), 1, "repeated migration must not duplicate the column")
+        finally:
+            con.close()
+
+
 if __name__ == "__main__":
     unittest.main()

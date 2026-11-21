@@ -16,7 +16,7 @@ from watcher.evidence import utc_now
 
 from . import prioritise, reconcile as recon_mod, tension
 from .extrapolator import expand, rule_catalogue, scope_summary
-from .knowledge import genius_tagger_idea, migration_defect_idea
+from .knowledge import affinity_drift_idea, genius_tagger_idea, migration_defect_idea
 from .memory import (CycleStore, PatternMemory, accuracy_series, compare,
                      derive_lessons, metrics_series, record_actual)
 from .model import (ANTI_REQUIREMENT, EXECUTED_VERIFIED, IMPORTED_RETROSPECTIVE, MISSING,
@@ -260,17 +260,27 @@ def record_arc_closers_execution(store, memory) -> CycleRecord:
         predicted={"effort": 1, "net_new_count": 1,
                    "note": "one regression-test obligation; no runtime/migration change"},
         reused=["arc_closers_migration.fix (init_db.py:236 + beliefs.sql:319)"],
-        verification={"test_file": "tests/test_arc_closers_migration.py", "tests": 3,
+        verification={"test_file": "tests/test_arc_closers_migration.py", "tests": 6,
                       "all_pass": True, "catches_regression": True, "all_reuse_backed": True,
+                      "fresh_schema_path_verified": True, "legacy_upgrade_path_verified": True,
+                      "real_migration_runner_exercised": "_apply_migrations (not just a helper)",
                       "reuse_claims": 1, "reuse_claims_backed_by_file_evidence": 1},
     )
     record_actual(c, {
-        "effort_actual": 1, "missed": [], "unnecessary": [], "reuse_wrong": [], "regressions": [],
-        "obligations_built": ["arc_closers_migration.regression_test"],
-        "notes": "closure_type is provided by BOTH the base schema (beliefs.sql:319) AND the "
-                 "idempotent migration (init_db.py:236); the migration is a legacy-DB safety net, "
-                 "not the sole source — the 'migration bug' framing was partly stale. No regression "
-                 "test existed; one was added. No runtime/migration code changed.",
+        # REVISED after the integration review: the first pass covered only the fresh-schema
+        # path; the real invariant (the legacy upgrade) needed a second fixture, so actual
+        # effort was 2, not the predicted 1, and one obligation was initially missed.
+        "effort_actual": 2,
+        "missed": ["arc_closers_migration.legacy_upgrade_path"],
+        "unnecessary": [], "reuse_wrong": [], "regressions": [],
+        "obligations_built": ["arc_closers_migration.regression_test (fresh)",
+                              "arc_closers_migration.regression_test (legacy upgrade, real runner)"],
+        "notes": "closure_type is dual-path: base schema (beliefs.sql:319) AND the idempotent "
+                 "migration (init_db.py:236). So a FRESH init_all() exercises the schema, not the "
+                 "migration — the first test was insufficient. Added a legacy fixture that runs the "
+                 "REAL _apply_migrations against an arc_closers lacking the column; verified add + "
+                 "NOT NULL + default + backfill + idempotent re-run. No production defect; no "
+                 "runtime/migration code changed.",
     })
     store.save(c)
     memory.add(Pattern(
@@ -279,6 +289,46 @@ def record_arc_closers_execution(store, memory) -> CycleRecord:
                   "idempotent migration; reconcile both paths, not just the migration.",
         applicability="migration defect schema", confidence=0.3,
         exceptions=["observed once; some columns exist only via migration"]))
+    memory.add(Pattern(
+        key="migration_guard_needs_legacy_path", provenance="cycle:arc_closers_regtest_2026-11",
+        statement="A migration regression guard must exercise the LEGACY upgrade path through the "
+                  "real runner; a fresh init on a dual schema+migration column tests the schema, "
+                  "not the migration. Budget a legacy fixture up front.",
+        applicability="migration defect regression test effort", confidence=0.3,
+        exceptions=["for a migration-only column, a fresh init DOES exercise the migration"]))
+    for p in derive_lessons(c, compare(c)):
+        memory.add(p)
+    for p in derive_lessons(c, compare(c)):
+        memory.add(p)
+    return c
+
+
+def record_affinity_execution(store, memory) -> CycleRecord:
+    """Record the executed+verified beliefs.affinity schema-drift guard — the SECOND
+    executed+verified cycle. Its prediction applied the arc_closers lesson
+    (migration_guard_needs_legacy_path), so effort was predicted correctly."""
+    c = CycleRecord(
+        id="affinity_regtest_2026-11",
+        objective="Execute the eligible beliefs.affinity schema-drift regression test.",
+        kind=EXECUTED_VERIFIED,
+        predicted={"effort": 1, "net_new_count": 1,
+                   "note": "one regression test; migration-only column, so a single fresh init_all "
+                           "test exercises the migration (lesson migration_guard_needs_legacy_path) "
+                           "— NO legacy fixture needed"},
+        reused=["beliefs_affinity.fix (init_db.py:247-248)", "beliefs_affinity.root_cause (note)"],
+        verification={"test_file": "tests/test_affinity_columns_migration.py", "tests": 2,
+                      "all_pass": True, "guards_defect": "no such column: affinity",
+                      "fresh_init_exercises_migration": True, "all_reuse_backed": True,
+                      "reuse_claims": 2, "reuse_claims_backed_by_file_evidence": 2},
+    )
+    record_actual(c, {
+        "effort_actual": 1, "missed": [], "unnecessary": [], "reuse_wrong": [], "regressions": [],
+        "obligations_built": ["beliefs_affinity.regression_test"],
+        "notes": "migration-only columns; one fresh init_all() test provisions+verifies both nullable "
+                 "columns and the 'affinity IS NULL = not-yet-rated' query. The prior lesson correctly "
+                 "predicted no legacy fixture was needed -> effort 1 == predicted 1 (no under-estimate).",
+    })
+    store.save(c)
     for p in derive_lessons(c, compare(c)):
         memory.add(p)
     return c
@@ -329,6 +379,11 @@ def run_catalogue(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
     # the first executed+verified RDO-guided cycle (the only efficiency-comparable kind).
     exec_cycle = record_arc_closers_execution(store, memory)
 
+    # a third discovery cycle (a DIFFERENT, migration-only schema-drift defect) + its execution
+    a_cycle, a_sum = _run_one("affinity_drift_2026-11", affinity_drift_idea(), repo_dir,
+                              memory, store, active)
+    affinity_exec = record_affinity_execution(store, memory)
+
     cycles = [store.load(cid) for cid in store.list_ids()]
     metrics = metrics_series(cycles)
     learning = accuracy_series(cycles)
@@ -336,6 +391,7 @@ def run_catalogue(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
         "cycles": {
             "genius_tagger (feature-deploy pattern)": _six_outputs(g_cycle, g_sum, memory, learning),
             "migration_defect (defect-remediation pattern)": _six_outputs(d_cycle, d_sum, memory, learning),
+            "affinity_drift (defect, migration-only)": _six_outputs(a_cycle, a_sum, memory, learning),
         },
         "generalisation": {
             "patterns_exercised": ["feature-deploy (persistence/daemon/api/consumer)",
@@ -353,11 +409,11 @@ def run_catalogue(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
                     "reusable obligations distinct from domain ones; a 'novel' kind (no rule) is "
                     "surfaced rather than force-fit.",
         },
-        "executed_cycle": {
-            "id": exec_cycle.id, "kind": exec_cycle.kind,
-            "predicted": exec_cycle.predicted, "actual": exec_cycle.actual,
-            "verification": exec_cycle.verification,
-        },
+        "executed_cycles": [
+            {"id": c.id, "kind": c.kind, "predicted": c.predicted, "actual": c.actual,
+             "verification": c.verification}
+            for c in (exec_cycle, affinity_exec)
+        ],
         "learning_metrics": metrics,
         "patterns": [p.to_dict() for p in memory.patterns()],
         "signal_authority_audit": assess_signal_authority(repo_dir, "genius"),
