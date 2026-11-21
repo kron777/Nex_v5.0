@@ -17,6 +17,7 @@ cycles exist to support one.
 """
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 from typing import Dict, List, Optional
@@ -28,6 +29,16 @@ from .model import (CycleRecord, EXECUTED_VERIFIED, IMPORTED_RETROSPECTIVE,
 
 MIN_CYCLES_FOR_TREND = 3
 CONFIDENCE_CAP = 0.9
+CONFIDENCE_STEP = 0.1
+_PATTERN_FIELDS = {f.name for f in dataclasses.fields(Pattern)}
+
+
+def _confidence(base: float, observed_count: int, disconfirmed_count: int) -> float:
+    """Confidence as a PURE, order-independent function of the deduplicated event
+    counts, with a SINGLE clamp to [0, CONFIDENCE_CAP]. This is what makes confidence
+    reconstructible deterministically from the event history (founder constraint)."""
+    raw = base + CONFIDENCE_STEP * (observed_count - 1) - CONFIDENCE_STEP * disconfirmed_count
+    return round(max(0.0, min(CONFIDENCE_CAP, raw)), 3)
 
 
 class PatternMemory:
@@ -38,56 +49,84 @@ class PatternMemory:
             with open(path, "r", encoding="utf-8") as fh:
                 for line in fh:
                     line = line.strip()
-                    if line:
-                        d = json.loads(line)
-                        self._current[d["key"]] = Pattern(**d)
+                    if not line:
+                        continue
+                    d = json.loads(line)
+                    p = Pattern(**{k: v for k, v in d.items() if k in _PATTERN_FIELDS})
+                    if not p.confirmations:                    # tolerate pre-field records
+                        p.confirmations = [p.provenance]
+                    self._recompute(p)                         # derive counts/confidence authoritatively
+                    self._current[p.key] = p
 
     def add(self, pattern: Pattern) -> Pattern:
-        """Add or corroborate. Corroboration bumps observed_count and raises
-        confidence slowly (capped); it never erases exceptions."""
+        """Add a new pattern, or CORROBORATE an existing one. Corroboration is
+        deduplicated by provenance — the same source cannot raise confidence twice.
+        Confidence is recomputed from the deduplicated counts, never mutated in place."""
         ex = self._current.get(pattern.key)
-        if ex is not None:
-            ex.observed_count += 1
-            ex.confidence = min(CONFIDENCE_CAP, round(ex.confidence + 0.1, 3))
+        if ex is None:
+            pattern.base_confidence = min(pattern.confidence, CONFIDENCE_CAP)
+            if not pattern.confirmations:
+                pattern.confirmations = [pattern.provenance]
+            self._current[pattern.key] = pattern
+            cur = pattern
+        else:
+            if pattern.provenance not in ex.confirmations:      # dedup corroboration by source
+                ex.confirmations.append(pattern.provenance)
             for x in pattern.exceptions:
                 if x not in ex.exceptions:
                     ex.exceptions.append(x)
             cur = ex
-        else:
-            pattern.confidence = min(pattern.confidence, CONFIDENCE_CAP)
-            self._current[pattern.key] = pattern
-            cur = pattern
+        self._recompute(cur)
         self._append(cur)
         return cur
+
+    def _recompute(self, p: Pattern) -> None:
+        p.observed_count = len(p.confirmations)
+        p.disconfirmed_count = len(p.disconfirmations)
+        p.confidence = _confidence(p.base_confidence, p.observed_count, p.disconfirmed_count)
+
+    @staticmethod
+    def _reliable(p: Pattern) -> bool:
+        """Reliable AS GUIDANCE only with positive confidence and net positive support.
+        A decayed/zero pattern is retained (patterns()) but not offered (applicable())."""
+        return p.confidence > 0.0 and p.observed_count > p.disconfirmed_count
 
     def _append(self, pattern: Pattern) -> None:
         os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
         with open(self.path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(pattern.to_dict(), default=str) + "\n")
 
-    def refute(self, key: str, evidence: str, delta: float = 0.1) -> Optional[Pattern]:
-        """Record DISCONFIRMING evidence: a later cycle disagreed with the pattern.
-        Lowers confidence (floored at 0) and keeps the disconfirming note — the
-        mechanism the prior version lacked (confidence was monotonic). A pattern that
-        keeps failing decays rather than ossifying. No-op if the key is unknown."""
+    def refute(self, key: str, evidence: str) -> Optional[Pattern]:
+        """Record DISCONFIRMING evidence: a later cycle disagreed. Deduplicated by
+        evidence (the same evidence cannot penalize twice), lowers confidence via the
+        pure recompute (floored at 0) and keeps the disconfirming note. The mechanism
+        the prior version lacked — confidence was monotonic. No-op on an unknown key."""
         p = self._current.get(key)
         if p is None:
             return None
-        p.disconfirmed_count += 1
-        p.confidence = max(0.0, round(p.confidence - delta, 3))
+        if evidence in p.disconfirmations:                      # dedup disconfirmation
+            return p
+        p.disconfirmations.append(evidence)
         note = f"disconfirmed: {evidence}"
         if note not in p.exceptions:
             p.exceptions.append(note)
+        self._recompute(p)
         self._append(p)
         return p
 
     def patterns(self) -> List[Pattern]:
+        """ALL patterns, including decayed/zero-confidence ones (for inspection)."""
         return list(self._current.values())
 
     def applicable(self, context: str) -> List[Pattern]:
+        """Patterns OFFERED as guidance: keyword-matched AND reliable. (Matching is
+        keyword-based — a documented limitation; it cannot yet distinguish genuine
+        transfer from superficial resemblance. Zero-confidence patterns are excluded
+        here but remain in patterns() for inspection.)"""
         ctx = context.lower()
         return [p for p in self._current.values()
-                if not p.applicability or any(w in ctx for w in p.applicability.lower().split())]
+                if self._reliable(p)
+                and (not p.applicability or any(w in ctx for w in p.applicability.lower().split()))]
 
 
 class CycleStore:
@@ -193,6 +232,7 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
     return {
         "cycle": cycle.id,
         "kind": cycle.kind,
+        "work_type": cycle.work_type,
         "outcome_complete": cycle.actual is not None,
         # PROCESS (now)
         "obligations_discovered": len(obligations),
@@ -231,6 +271,12 @@ def metrics_series(cycles: List[CycleRecord]) -> Dict:
     outcome_complete = [r for r in rows if r["outcome_complete"]]
     # efficiency-eligible: RDO ran it AND work was executed+verified (exclude imported)
     efficiency_eligible = [r for r in rows if r["kind"] == EXECUTED_VERIFIED and r["outcome_complete"]]
+    # genuinely COMPARABLE = same work_type (a refactor is not a test-guard); group them,
+    # and treat the largest same-type group as the real comparable set.
+    comparable_by_work_type: Dict[str, List[str]] = {}
+    for r in efficiency_eligible:
+        comparable_by_work_type.setdefault(r["work_type"], []).append(r["cycle"])
+    largest_comparable = max((len(v) for v in comparable_by_work_type.values()), default=0)
 
     def _denominator(measure: str) -> dict:
         contributing = [r for r in rows if r.get(measure) is not None]
@@ -247,7 +293,9 @@ def metrics_series(cycles: List[CycleRecord]) -> Dict:
         "comparability": {
             "process_measures_available_for": "every cycle the RDO ran (native + executed)",
             "outcome_measures_available_for": [r["cycle"] for r in outcome_complete],
-            "efficiency_comparison_pool": [r["cycle"] for r in efficiency_eligible],
+            "completed_executed_cycles": [r["cycle"] for r in efficiency_eligible],
+            "genuinely_comparable_by_work_type": comparable_by_work_type,
+            "efficiency_comparison_pool": comparable_by_work_type.get("test_guard", []),
             "excluded_from_efficiency": {
                 "imported_retrospective": [r["cycle"] for r in rows
                                            if r["kind"] == IMPORTED_RETROSPECTIVE],
@@ -256,14 +304,18 @@ def metrics_series(cycles: List[CycleRecord]) -> Dict:
             },
         },
         "denominators": denominators,
-        "efficiency_eligible_cycles": len(efficiency_eligible),
+        "completed_executed_cycles": len(efficiency_eligible),
+        "largest_comparable_group": largest_comparable,
+        "effort_unit": ("obligation/test-file count (coarse). Elapsed active engineering time and "
+                        "verification effort are NOT reliably available here (work spans interrupted "
+                        "turns), so they are recorded as missing rather than estimated."),
         "trend_claim": (
-            f"NO efficiency/acceleration claim: only {len(efficiency_eligible)} executed+verified "
-            f"RDO-guided cycle(s); need >= {MIN_CYCLES_FOR_TREND} comparable cycles. An imported "
-            f"retrospective and a planning-only cycle are NOT comparable to a completed cycle."
-            if len(efficiency_eligible) < MIN_CYCLES_FOR_TREND
-            else "enough comparable executed+verified cycles to begin assessing a trend; report "
-                 "values, not hype"),
+            f"NO efficiency/acceleration claim: the largest genuinely-comparable (same work_type) "
+            f"group is {largest_comparable} cycle(s); need >= {MIN_CYCLES_FOR_TREND}. Completed "
+            f"executed cycles ({len(efficiency_eligible)}) span >1 work_type and are not all comparable."
+            if largest_comparable < MIN_CYCLES_FOR_TREND
+            else f"the largest comparable (same work_type) group is {largest_comparable} cycles — enough "
+                 f"to BEGIN assessing a trend; report values, not hype. n is small; not statistical proof."),
         "note": "process measures every cycle; outcome measures need executed work + recorded "
                 "actuals; efficiency compares only executed+verified cycles of comparable kind.",
     }

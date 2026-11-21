@@ -112,19 +112,34 @@ class WorkPackage:
 
 @dataclasses.dataclass
 class Pattern:
-    """A reusable lesson from a completed cycle. Never a universal rule just
-    because it worked once: confidence is bounded and exceptions are kept."""
+    """A reusable lesson from a completed cycle. Never a universal rule just because
+    it worked once: confidence is bounded, exceptions are kept, and it decays when
+    later evidence disagrees.
+
+    `confirmations` (provenances) and `disconfirmations` (evidence refs) are the
+    AUTHORITATIVE, deduplicated event history. `observed_count`, `disconfirmed_count`
+    and `confidence` are DERIVED from them (and from `base_confidence`) by
+    PatternMemory, so confidence is reconstructible deterministically and is
+    order-independent. They are stored too, only so the JSONL is self-describing."""
     key: str
     statement: str
-    provenance: str                 # cycle id + source
-    confidence: float = 0.3         # starts low; rises slowly with corroboration
+    provenance: str                 # the origin cycle id + source (first confirmation)
+    base_confidence: float = 0.3    # starting confidence before any corroboration
+    confidence: float = 0.3         # DERIVED from base + counts (recomputed, single clamp)
     applicability: str = ""         # when this pattern applies
     exceptions: List[str] = dataclasses.field(default_factory=list)
-    observed_count: int = 1         # confirmations
-    disconfirmed_count: int = 0     # times later evidence disagreed (confidence then drops)
+    observed_count: int = 1         # DERIVED: == len(confirmations)
+    disconfirmed_count: int = 0     # DERIVED: == len(disconfirmations)
+    confirmations: List[str] = dataclasses.field(default_factory=list)      # provenances (authoritative)
+    disconfirmations: List[str] = dataclasses.field(default_factory=list)   # evidence refs (authoritative)
 
     def to_dict(self) -> dict:
-        return dataclasses.asdict(self)
+        d = dataclasses.asdict(self)
+        # a pattern is RELIABLE as guidance only if it has positive confidence and
+        # net positive support; a decayed/zero pattern is retained for inspection but
+        # is not reliable guidance.
+        d["reliable"] = self.confidence > 0.0 and self.observed_count > self.disconfirmed_count
+        return d
 
 
 # cycle provenance kinds — kept DISTINCT so imported history is never counted as a
@@ -141,6 +156,8 @@ class CycleRecord:
     id: str
     objective: str
     kind: str = NATIVE_PLANNING
+    work_type: str = "unspecified"   # e.g. test_guard | refactor — only same-type cycles are
+                                     # efficiency-comparable (a refactor is not a test-guard)
     assumptions: List[str] = dataclasses.field(default_factory=list)
     obligations: List[dict] = dataclasses.field(default_factory=list)
     relationships: List[dict] = dataclasses.field(default_factory=list)

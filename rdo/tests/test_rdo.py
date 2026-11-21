@@ -161,6 +161,73 @@ def test_pattern_memory_confidence_can_decrease_on_disconfirmation(tmp_path):
     assert PatternMemory(str(tmp_path / "p.jsonl")).patterns()[0].disconfirmed_count == 1
 
 
+# ---- refute() dependability: the six properties verified (item 2) ----
+
+def test_corroboration_dedup_and_ceiling(tmp_path):
+    from rdo.memory import PatternMemory
+    mem = PatternMemory(str(tmp_path / "p.jsonl"))
+    mem.add(Pattern("k", "s", "src0", confidence=0.3))
+    for _ in range(5):                       # same provenance -> deduped, no inflation
+        mem.add(Pattern("k", "s", "src0"))
+    p = mem.patterns()[0]
+    assert p.observed_count == 1 and p.confidence == 0.3
+    for i in range(1, 20):                   # 20 DISTINCT sources -> ceiling at 0.9
+        mem.add(Pattern("k", "s", f"src{i}"))
+    p = mem.patterns()[0]
+    assert p.observed_count == 20 and p.confidence == 0.9
+
+
+def test_disconfirmation_dedup_floor_and_evidence_preserved(tmp_path):
+    from rdo.memory import PatternMemory
+    mem = PatternMemory(str(tmp_path / "p.jsonl"))
+    mem.add(Pattern("k", "s", "src0", confidence=0.3, exceptions=["orig"]))
+    mem.refute("k", "E1")
+    mem.refute("k", "E1")                    # (c) duplicate disconfirmation -> deduped
+    p = mem.patterns()[0]
+    assert p.disconfirmed_count == 1
+    assert "orig" in p.exceptions and any("disconfirmed: E1" in e for e in p.exceptions)  # (a)
+    for i in range(10):                      # (e) floor at 0, never negative
+        mem.refute("k", f"D{i}")
+    assert mem.patterns()[0].confidence == 0.0
+
+
+def test_confidence_is_pure_and_order_independent(tmp_path):
+    from rdo.memory import PatternMemory, _confidence
+    # (b) pure function of (base, observed, disconfirmed) with a single clamp
+    assert _confidence(0.3, 3, 1) == 0.4
+    assert _confidence(0.9, 5, 1) == 0.9     # ceiling
+    assert _confidence(0.1, 1, 5) == 0.0     # floor
+    # order independence: corroborate-then-refute == refute-then-corroborate
+    a = PatternMemory(str(tmp_path / "a.jsonl"))
+    a.add(Pattern("k", "s", "s0", confidence=0.5)); a.add(Pattern("k", "s", "s1")); a.refute("k", "E")
+    b = PatternMemory(str(tmp_path / "b.jsonl"))
+    b.add(Pattern("k", "s", "s0", confidence=0.5)); b.refute("k", "E"); b.add(Pattern("k", "s", "s1"))
+    assert a.patterns()[0].confidence == b.patterns()[0].confidence == 0.5
+    # reconstructible from the persisted event history (reopen recomputes identically)
+    assert PatternMemory(str(tmp_path / "a.jsonl")).patterns()[0].confidence == 0.5
+
+
+def test_corroboration_and_refutation_counts_are_independent(tmp_path):
+    from rdo.memory import PatternMemory
+    mem = PatternMemory(str(tmp_path / "p.jsonl"))
+    mem.add(Pattern("k", "s", "s0")); mem.add(Pattern("k", "s", "s1")); mem.refute("k", "E")
+    p = mem.patterns()[0]                     # (d) separate, non-contradictory counts
+    assert p.observed_count == 2 and p.disconfirmed_count == 1
+    assert len(p.confirmations) == 2 and len(p.disconfirmations) == 1
+
+
+def test_zero_confidence_retained_but_not_applicable(tmp_path):
+    from rdo.memory import PatternMemory
+    mem = PatternMemory(str(tmp_path / "p.jsonl"))
+    mem.add(Pattern("k", "s", "s0", confidence=0.3, applicability="widget"))
+    for i in range(5):
+        mem.refute("k", f"D{i}")             # decay to zero + net negative
+    p = mem.patterns()[0]
+    assert p.confidence == 0.0 and p in mem.patterns()          # (f) retained for inspection
+    assert p.to_dict()["reliable"] is False
+    assert mem.applicable("build a widget") == []              # but NOT offered as guidance
+
+
 # ---- learning loop: predicted vs actual, no acceleration claim ----
 
 def test_learning_compare_and_series(tmp_path):
@@ -235,22 +302,26 @@ def test_defect_pattern_generalises_and_metrics(tmp_path):
     # ...and still produces at least one ELIGIBLE net-new package (adding a test is safe,
     # unlike the all-gated genius consumers) — the prioritiser distinguishes the two
     assert any(w["eligibility"] == "eligible" for w in defect["4_recommended_work"])
-    # three executed+verified cycles recorded (incl. the non-migration config guard)
-    assert len(res["executed_cycles"]) == 3
+    # FOUR executed+verified cycles recorded (3 test-guards + 1 refactor-type consolidation)
+    assert len(res["executed_cycles"]) == 4
     m = res["learning_metrics"]
-    assert len(m["per_cycle"]) == 8 and len(m["measures"]) == 8
-    # ONLY executed+verified cycles are efficiency-comparable (imported + planning excluded)
+    assert len(m["per_cycle"]) == 9 and len(m["measures"]) == 8
+    # genuinely-comparable (same work_type) pool is the 3 test-guards; the refactor is separate
     assert set(m["comparability"]["efficiency_comparison_pool"]) == {
         "arc_closers_regtest_2026-11", "affinity_regtest_2026-11", "config_invariant_2026-11"}
-    assert m["efficiency_eligible_cycles"] == 3
+    assert m["completed_executed_cycles"] == 4 and m["largest_comparable_group"] == 3
+    assert "refactor" in m["comparability"]["genuinely_comparable_by_work_type"]
     assert "watcher_2026-11" in m["comparability"]["excluded_from_efficiency"]["imported_retrospective"]
     # cross-cycle transfer recorded as an OBSERVATION, not proof
     tr = res["cross_cycle_transfer"]
-    assert len(tr["executed_cycles"]) == 3 and "not proof" in tr["observation"].lower()
+    assert len(tr["executed_cycles"]) == 4 and "not proof" in tr["observation"].lower()
     matched = {r["cycle"]: r["prediction_matched"] for r in tr["executed_cycles"]}
     assert matched["arc_closers_regtest_2026-11"] is False     # cycle 1 missed an obligation
     assert matched["affinity_regtest_2026-11"] is True         # lesson applied
     assert matched["config_invariant_2026-11"] is True         # transferred beyond migration
+    # four-way change categorisation present (terminology clarity, item 5)
+    assert set(res["change_categories"]) >= {"general_engine_logic", "pattern_taxonomy",
+                                             "domain_knowledge", "recorded_experience"}
 
 
 def test_defect_kind_expands_to_fix_and_regression_test():
@@ -320,8 +391,51 @@ def test_executed_cycle_efficiency_eligibility(tmp_path):
     imp = CycleRecord(id="i", objective="o", kind=IMPORTED_RETROSPECTIVE)
     record_actual(imp, {"effort_actual": 1})          # imported, has actuals, still NOT comparable
     m = metrics_series([c, imp])
-    assert m["efficiency_eligible_cycles"] == 1
+    assert m["completed_executed_cycles"] == 1
     assert m["comparability"]["efficiency_comparison_pool"] == [c.id]
+
+
+# ---- recorder-consolidation equivalence: each recorder's record is unchanged ----
+
+def _run_recorder(fn, tmp_path):
+    from rdo.memory import CycleStore, PatternMemory
+    store = CycleStore(str(tmp_path))
+    mem = PatternMemory(str(tmp_path / "p.jsonl"))
+    return fn(store, mem), mem
+
+
+def test_arc_closers_recorder_record_equivalent(tmp_path):
+    from rdo.orchestrator import record_arc_closers_execution
+    c, mem = _run_recorder(record_arc_closers_execution, tmp_path)
+    assert c.kind == "executed_verified"
+    assert c.predicted["effort"] == 1 and c.actual["effort_actual"] == 2
+    assert c.actual["missed"] == ["arc_closers_migration.legacy_upgrade_path"]
+    assert c.verification["tests"] == 6 and c.verification["legacy_upgrade_path_verified"] is True
+    keys = {p.key for p in mem.patterns()}
+    assert {"migration_dual_path", "migration_guard_needs_legacy_path",
+            "under_expansion", "effort_estimate_bias"} <= keys
+    # lessons derived EXACTLY once (not double-counted)
+    eeb = next(p for p in mem.patterns() if p.key == "effort_estimate_bias")
+    assert eeb.observed_count == 1
+
+
+def test_affinity_recorder_record_equivalent(tmp_path):
+    from rdo.orchestrator import record_affinity_execution
+    c, mem = _run_recorder(record_affinity_execution, tmp_path)
+    assert c.kind == "executed_verified"
+    assert c.predicted["effort"] == 1 and c.actual["effort_actual"] == 1
+    assert c.actual["missed"] == [] and c.verification["tests"] == 2
+    # no effort/under-expansion lessons when prediction matched
+    assert not any(p.key in ("under_expansion", "effort_estimate_bias") for p in mem.patterns())
+
+
+def test_config_recorder_record_equivalent(tmp_path):
+    from rdo.orchestrator import record_config_invariant_execution
+    c, mem = _run_recorder(record_config_invariant_execution, tmp_path)
+    assert c.kind == "executed_verified"
+    assert c.predicted["effort"] == 1 and c.actual["effort_actual"] == 1
+    assert c.actual["missed"] == [] and c.verification["non_vacuous"] is True
+    assert c.verification["no_production_change"] is True
 
 
 # ---- the RDO subjected to its own Optimal Functional Tension ----
