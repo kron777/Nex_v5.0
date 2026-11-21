@@ -177,3 +177,131 @@ def test_resume_in_a_new_process(sl):
     assert out["n"] == len(sl["cycle"].obligations)
     assert out["reused"] == sl["cycle"].reused
     assert out["missing"] == sl["cycle"].missing
+
+
+# ----------------------- §15 acceptance-gap regression tests ------------------------
+
+def test_convergence_shared_prerequisite(sl):
+    """#1 A genuine shared prerequisite appears in the REAL expansion output: the two
+    consumers of the decayed-confidence signal converge on ONE runtime-verification node
+    (in-degree > 1), via the existing `_merge` mechanism — not a hand-built graph."""
+    c = sl["cycle"]
+    from collections import Counter
+    indeg = Counter(r["dst"] for r in c.relationships if r["kind"] == "depends_on")
+    converging = {k: v for k, v in indeg.items() if v > 1}
+    assert converging, "the slice must contain at least one converging prerequisite"
+    node = "shared_runtime_effect.runtime_verification"
+    assert indeg[node] >= 2
+    parents = sorted(r["src"] for r in c.relationships
+                     if r["kind"] == "depends_on" and r["dst"] == node)
+    assert parents == ["belief_decay_consumer_generation", "belief_decay_consumer_safety"]
+
+
+def test_complete_counts_persisted_and_consistent(sl):
+    """#4 All six counts are reported, internally consistent, and survive persistence."""
+    c = sl["cycle"]
+    for k in ("discovered", "unique", "reuse", "net_new", "deferred", "unresolved"):
+        assert k in c.counts
+    # unique == discovered proves no silent key collision (stable canonical IDs)
+    assert c.counts["unique"] == c.counts["discovered"] == len(c.obligations)
+    # category counts are bounded by discovery and match the lists they summarise
+    assert c.counts["reuse"] == len(c.reused)
+    assert c.counts["net_new"] == len(c.missing)
+    assert c.counts["unresolved"] == sum(1 for o in c.obligations if o["recon_status"] == "unknown")
+    assert c.counts["deferred"] == len(c.frontier)
+    assert sl["store"].load(CID).counts == c.counts
+
+
+def test_frontier_preserved_under_expansion_budget(tmp_path):
+    """#3 A tight expansion budget defers obligations WITH their reasons, through the public
+    run_cycle pipeline, and they survive persistence + resume."""
+    from rdo.orchestrator import run_cycle
+    objective, assumptions, seeds, signatures = belief_decay_idea()
+    c, _ = run_cycle("bd_budget", objective, assumptions, seeds, signatures,
+                     repo_dir=".", max_depth=1)
+    budget_items = [f for f in c.frontier if "max_depth" in f["reason"]]
+    assert budget_items, "a max_depth budget must leave deferred items on the frontier"
+    d = str(tmp_path / "cyc"); CycleStore(d).save(c)
+    reloaded = CycleStore(d).load("bd_budget")
+    assert reloaded.frontier == c.frontier               # reasons preserved across persistence
+    assert any("max_depth" in f["reason"] for f in reloaded.frontier)
+
+
+def test_work_packages_priority_ordered_not_alphabetical(sl):
+    """#5 Inter-package order is meaningful: eligible (buildable) first, then priority desc,
+    then canonical key — deterministic, and NOT merely alphabetical."""
+    c = sl["cycle"]
+    wps = c.work_packages
+
+    def score(p):
+        return max((d["_provisional_sort_score_uncalibrated"]
+                    for d in p["priority_dimensions"].values()), default=0.0)
+
+    keys = [(0 if p["eligibility"] == "eligible" else 1, -score(p), p["key"]) for p in wps]
+    assert keys == sorted(keys), "packages must be ordered eligible-first, priority desc, key"
+    # eligible come before blocked (hard prerequisites respected)
+    elig_idx = [i for i, p in enumerate(wps) if p["eligibility"] == "eligible"]
+    blk_idx = [i for i, p in enumerate(wps) if p["eligibility"] == "blocked"]
+    assert (not elig_idx or not blk_idx) or max(elig_idx) < min(blk_idx)
+    # not the old alphabetical order
+    assert [p["key"] for p in wps] != sorted(p["key"] for p in wps)
+
+
+def test_cycle_detection_and_classification(sl):
+    """#6 Cycles are detected, CLASSIFIED by edge evidence, and reported — UNKNOWN retained
+    where evidence is insufficient to call a loop essential/problematic."""
+    from rdo import tension
+    from rdo.model import Obligation, Relationship
+    # the real slice is acyclic
+    assert [t for t in sl["cycle"].tension if t.get("subject") == "feedback_cycles"] == []
+    obls = {k: Obligation(k, k, "consumer") for k in ("A", "B")}
+    # a pure depends_on cycle -> prerequisite_cycle (unsatisfiable build order) -> underdeveloped
+    dep = [Relationship("A", "B", "depends_on"), Relationship("B", "A", "depends_on")]
+    td = [t.to_dict() for t in tension.assess_system(obls, dep) if t.subject == "feedback_cycles"][0]
+    assert td["verdict"] == "underdeveloped"
+    assert td["dimensions"]["classified_cycles"][0]["classification"] == "prerequisite_cycle"
+    # a cycle through an influences edge -> feedback_loop, verdict stays UNKNOWN (not forced)
+    fl = [Relationship("A", "B", "depends_on"), Relationship("B", "A", "influences")]
+    tf = [t.to_dict() for t in tension.assess_system(obls, fl) if t.subject == "feedback_cycles"][0]
+    assert tf["verdict"] == "unknown"
+    assert tf["dimensions"]["classified_cycles"][0]["classification"] == "feedback_loop"
+
+
+def test_planning_review_and_calibration_are_durable(tmp_path):
+    """#2 Prediction -> reviewed PLANNING outcome -> calibration is exercised and persisted,
+    and a reviewed plan is never recorded as a completed implementation outcome."""
+    from rdo.report import run_stage2_belief_decay
+    from rdo.memory import PatternMemory
+    d = str(tmp_path / "s2")
+    res = run_stage2_belief_decay(repo_dir=".", workdir=d)
+    pr = res["prediction_vs_review"]
+    assert "planning_review" in pr["kind"] and "not an execution" in pr["kind"]
+    assert pr["predicted"]["net_new_count"] == 2
+    assert pr["comparison"]["under_expansion_missed"] == ["belief_decay_rollback"]
+    assert "under_expansion" in pr["calibration_patterns"]
+    # durable: the reviewed actual and the calibration pattern are persisted
+    reloaded = CycleStore(d).load("belief_decay_mvp")
+    assert reloaded.kind == "native_planning"                     # NOT executed_verified
+    assert reloaded.actual["review_kind"] == "planning_review"
+    assert "under_expansion" in [p.key for p in PatternMemory(d + "/patterns.jsonl").patterns()]
+
+
+def test_stage2_end_to_end(tmp_path):
+    """End-to-end Stage 2: one runner call yields convergence, complete counts, deferred
+    frontier, ordered packages and a durable reviewed-planning calibration."""
+    from rdo.report import run_stage2_belief_decay
+    d = str(tmp_path / "e2e")
+    res = run_stage2_belief_decay(repo_dir=".", workdir=d)
+    assert res["converging_prerequisites"] == ["shared_runtime_effect.runtime_verification"]
+    assert set(res["counts"]) == {"discovered", "unique", "reuse", "net_new", "deferred", "unresolved"}
+    assert res["deferred_frontier"]
+    assert res["work_packages_ordered"][0][1] == "eligible"       # a buildable package leads
+    assert res["prediction_vs_review"]["calibration_patterns"] == ["under_expansion"]
+    # the persisted artefact resumes in a fresh process with all of it intact
+    import json as _json, subprocess as _sp, sys as _sys
+    code = (f"import json; from rdo.memory import CycleStore; c=CycleStore({d!r}).load('belief_decay_mvp'); "
+            "print(json.dumps({'counts':c.counts,'frontier':len(c.frontier),'kind':c.kind}))")
+    r = _sp.run([_sys.executable, "-c", code], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    out = _json.loads(r.stdout)
+    assert out["counts"]["discovered"] == 41 and out["frontier"] == 4 and out["kind"] == "native_planning"

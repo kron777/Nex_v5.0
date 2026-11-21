@@ -22,7 +22,7 @@ from .knowledge import (affinity_drift_idea, belief_decay_idea, config_invariant
                         genius_authority_audit, genius_tagger_idea, migration_defect_idea)
 from .memory import (CycleStore, PatternMemory, accuracy_series, comparability_assessment,
                      compare, derive_lessons, metrics_series, record_actual, transfer_observations)
-from .model import CycleRecord, EXECUTED_VERIFIED, IMPORTED_RETROSPECTIVE, Pattern
+from .model import CycleRecord, EXECUTED_VERIFIED, IMPORTED_RETROSPECTIVE, NATIVE_PLANNING, Pattern
 from .orchestrator import _active_experiments, _record_executed, _run_one
 
 
@@ -382,6 +382,13 @@ def run_catalogue(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
     }
 
 
+def _converging_nodes(relationships: List[dict]) -> List[str]:
+    """Obligations reached by >1 depends_on edge — shared prerequisites / converging branches."""
+    from collections import Counter
+    indeg = Counter(r["dst"] for r in relationships if r["kind"] == "depends_on")
+    return sorted(k for k, v in indeg.items() if v > 1)
+
+
 def run_stage2_belief_decay(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
     """RDO v1.3 §16 Stage-2 Extrapolator MVP: run the real belief-DEVELOPMENT objective
     (staleness-based confidence decay) end to end and persist it for resume. Reuses the
@@ -392,17 +399,49 @@ def run_stage2_belief_decay(repo_dir: str = ".", workdir: str = "rdo/.cycles") -
     store = CycleStore(workdir)
     cycle, _summary = _run_one("belief_decay_mvp", belief_decay_idea(), repo_dir, memory, store, [])
     obls = cycle.obligations
+
+    # ---- controlled, explicitly-REVIEWED PLANNING outcome (NOT an execution outcome) ----
+    # The cycle stays kind=native_planning: nothing was built. A reviewer assesses the PLAN's
+    # predictions and records one defensible planning gap — the plan omitted an objective-level
+    # decay rollback/kill-switch (decay mutates confidence, so it needs a reversible off-switch
+    # beyond per-consumer reversibility). This exercises predicted -> reviewed -> calibration
+    # WITHOUT claiming any implementation outcome.
+    review = {
+        "review_kind": "planning_review",   # NOT "execution" — distinguishes a reviewed plan
+        "reviewer": "controlled stage-2 planning review",
+        "missed": ["belief_decay_rollback"],
+        "notes": "planning review only; no work executed. Plan under-expanded: an objective-level "
+                 "decay rollback/kill-switch obligation was not surfaced.",
+    }
+    record_actual(cycle, review)
+    comparison = compare(cycle)                         # predicted vs reviewed discrepancies
+    calibration = derive_lessons(cycle, comparison)     # candidate patterns (low, capped confidence)
+    for p in calibration:
+        memory.add(p)                                   # durable: appended to patterns.jsonl
+    store.save(cycle)                                   # durable: cycle now carries the reviewed actual
+
+    assert cycle.kind == NATIVE_PLANNING, "a reviewed plan must not be recorded as executed work"
     return {
         "stage": "RDO v1.3 §16 Stage 2 — Extrapolator MVP",
         "objective": cycle.objective,
         "obligations_discovered": len(obls),
         "max_depth": max(o["depth"] for o in obls),
         "dependency_edges": len(cycle.relationships),
+        "counts": cycle.counts,
         "reused_existing": cycle.reused,
         "net_new_missing": cycle.missing,
         "anti_requirements": cycle.anti_requirements,
-        "unresolved_branches": sum(1 for o in obls if o["recon_status"] == "unknown"),
+        "deferred_frontier": cycle.frontier,
+        "converging_prerequisites": _converging_nodes(cycle.relationships),
+        "work_packages_ordered": [(p["key"], p["eligibility"]) for p in cycle.work_packages],
         "verification": cycle.verification,
+        "prediction_vs_review": {
+            "kind": "planning_review (not an execution outcome)",
+            "predicted": cycle.predicted,
+            "reviewed": review,
+            "comparison": comparison,
+            "calibration_patterns": [p.key for p in calibration],
+        },
         "persisted_to": os.path.join(workdir, "cycle_belief_decay_mvp.json"),
         "resume_in_new_process":
             f"python -c \"from rdo.memory import CycleStore; "

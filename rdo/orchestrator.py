@@ -17,8 +17,8 @@ from typing import Dict, List, Optional, Tuple
 from . import prioritise, reconcile as recon_mod, tension
 from .extrapolator import expand
 from .memory import PatternMemory, compare, derive_lessons, record_actual
-from .model import (ANTI_REQUIREMENT, EXECUTED_VERIFIED, MISSING, PARTIAL, REUSE_EXISTING,
-                    CycleRecord, Obligation)
+from .model import (ANTI_REQUIREMENT, EXECUTED_VERIFIED, MISSING, PARTIAL, RECON_UNKNOWN,
+                    REUSE_EXISTING, CycleRecord, Obligation)
 from .reconcile import Signature
 
 
@@ -26,12 +26,14 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
               seeds: List[Obligation], signatures: Dict[str, List[Signature]],
               repo_dir: str = ".", active_experiments: Optional[List[str]] = None,
               authorised_gates: Optional[set] = None,
-              memory: Optional[PatternMemory] = None) -> Tuple[CycleRecord, dict]:
+              memory: Optional[PatternMemory] = None,
+              max_depth: int = 4) -> Tuple[CycleRecord, dict]:
     applied = [p.key for p in memory.applicable(objective)] if memory else []
 
-    # EXPAND (+ reconcile interleaved) -> DEDUP (done in expand) -> RECONCILE children
+    # EXPAND (+ reconcile interleaved) -> DEDUP (done in expand) -> RECONCILE children.
+    # max_depth is the expansion budget; items stopped at the budget stay on the frontier.
     reconciler = recon_mod.make_reconciler(repo_dir, signatures)
-    obligations, relationships, frontier = expand(seeds, reconciler)
+    obligations, relationships, frontier = expand(seeds, reconciler, max_depth=max_depth)
 
     # PRUNE false dependencies (a "build X first" on an already-existing X)
     pruned = recon_mod.prune_false_dependencies(obligations, relationships)
@@ -71,12 +73,30 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
         "note": "effort units are uncalibrated counts, not hours",
     }
 
+    # COMPLETE ACCOUNTING — six counts with explicit, internally consistent definitions:
+    #   discovered  = distinct obligation nodes in the graph (post-merge)
+    #   unique      = distinct canonical keys (== discovered proves no silent key collision)
+    #   reuse       = reconciled to an existing mechanism (REUSE_EXISTING)
+    #   net_new     = to be built (MISSING or PARTIAL)
+    #   deferred    = frontier items (stopped before/instead of expansion, each with a reason)
+    #   unresolved  = no reconciliation signature (RECON_UNKNOWN — an honest gap, candidate work)
+    keys = [o.key for o in obligations.values()]
+    counts = {
+        "discovered": len(obligations),
+        "unique": len(set(keys)),
+        "reuse": len(reused),
+        "net_new": len(missing),
+        "deferred": len(frontier),
+        "unresolved": sum(1 for o in obligations.values() if o.recon_status == RECON_UNKNOWN),
+    }
+
     cycle = CycleRecord(
         id=cycle_id, objective=objective, assumptions=assumptions,
         obligations=[o.to_dict() for o in obligations.values()],
         relationships=[r.to_dict() for r in relationships],
         reused=reused, missing=missing, anti_requirements=anti,
         uncertainties=uncertainties + [f"applied_patterns={applied}"],
+        frontier=list(frontier), counts=counts,
         tension=[t.to_dict() for t in (node_t + rel_t + sys_t)],
         work_packages=[p.to_dict() for p in packages],
         predicted=predicted, verification=verification,

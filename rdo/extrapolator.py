@@ -65,7 +65,11 @@ EXPANSION_RULES: Dict[str, List[Rule]] = {
          "a consumer's influence on other nodes must be bounded (capability != authority)", None),
         ("reversibility", NECESSARY, "the influence must be reversible / flag-gated", None),
         ("gate", NECESSARY, "an active behavioural change needs a preregistered gate", None),
-        ("runtime_verification", NECESSARY, "the effect must be observed at runtime", None),
+        # SHARED prerequisite: multiple consumers of one objective's signal are verified
+        # in a SINGLE live runtime-observation session (OFT: observe once, not per consumer).
+        # Independent consumer parents converge on this one obligation via `_merge`.
+        ("runtime_verification", NECESSARY, "the effect must be observed at runtime",
+         "shared_runtime_effect"),
         ("test", NECESSARY, "the consumer must be tested", None),
     ],
     "score": [

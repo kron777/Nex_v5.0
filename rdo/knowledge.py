@@ -115,6 +115,11 @@ def belief_decay_idea() -> Tuple[str, List[str], List[Obligation], Dict[str, Lis
         Obligation("belief_decay_consumer_safety", "consumers tolerate decayed confidence", "consumer",
                    rationale="downstream readers must not break when confidence drops",
                    impact="an unguarded consumer could regress when a belief's confidence falls"),
+        Obligation("belief_decay_consumer_generation", "generation re-ranks beliefs by decayed confidence",
+                   "consumer",
+                   rationale="a SECOND consumer of the same decayed-confidence signal (generation path); "
+                             "it shares the single runtime-verification session with the safety consumer",
+                   impact="without re-ranking, generation keeps surfacing stale beliefs despite decay"),
         Obligation("belief_decay_floor_invariant", "confidence never below floor; beliefs never deleted",
                    "invariant",
                    rationale="decay is bounded and non-destructive by construction",

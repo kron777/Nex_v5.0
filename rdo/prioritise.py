@@ -110,8 +110,10 @@ def build_work_packages(obligations: Dict[str, Obligation],
         groups.setdefault(ob.key.split(".")[0], []).append(ob)
 
     packages: List[WorkPackage] = []
-    for root, obs in sorted(groups.items()):
-        obs.sort(key=lambda o: -priority_dimensions(o, indeg)["_provisional_sort_score_uncalibrated"])
+    for root, obs in groups.items():
+        # within a package: priority desc, then canonical key for a deterministic tie-break
+        obs.sort(key=lambda o: (-priority_dimensions(o, indeg)["_provisional_sort_score_uncalibrated"],
+                                o.key))
         blockers: List[str] = []
         for o in obs:
             elig = eligibility(o, obligations, relationships, active_experiments, authorised_gates)
@@ -125,4 +127,14 @@ def build_work_packages(obligations: Dict[str, Obligation],
             blockers=sorted(set(blockers)), priority_dimensions=dims,
             anti_requirements=anti, reversible=reversible,
             note="net-new necessary/conditional obligations not satisfied by existing mechanisms"))
+
+    # INTER-PACKAGE ordering (meaningful, not alphabetical):
+    #   1. hard prerequisites first — buildable (eligible) packages before blocked ones, so a
+    #      package never sorts ahead of the unmet prerequisites that block it;
+    #   2. then the package's top obligation priority, descending;
+    #   3. then the canonical key, for a fully deterministic tie-break.
+    def _pkg_score(p: WorkPackage) -> float:
+        return max((d["_provisional_sort_score_uncalibrated"] for d in p.priority_dimensions.values()),
+                   default=0.0)
+    packages.sort(key=lambda p: (0 if p.eligibility == "eligible" else 1, -_pkg_score(p), p.key))
     return packages

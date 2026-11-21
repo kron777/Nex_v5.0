@@ -89,3 +89,43 @@ v1.4 texts, the Watcher v3.0 spec, and the Master Roadmap v3.0 (with its authori
 hierarchy) are **not** in the workspace. No version reconciliation is asserted and no
 implementation was altered to match an assumed version; this is recorded for founder
 resolution when the originals are provided.
+
+---
+
+## §15 acceptance completion (the six audited gaps closed)
+
+All changes are bounded to Stage 2, reuse existing mechanisms, keep canonical IDs and
+persistence backward-compatible, and preserve unresolved/deferred information. No Stage 3
+graph-intelligence (SCC/typed-edges/completeness) was started.
+
+| # | §15 requirement | Implementation (path · symbol) | Test | Status |
+|---|---|---|---|---|
+| 1 | Shared prerequisite / converging branch demonstrated in real expansion | `extrapolator.py` — `consumer` rule's `runtime_verification` now a **shared** target (`shared_runtime_effect`); `knowledge.belief_decay_idea` has a 2nd consumer, so both converge via `_merge` (in-degree 2) | `test_convergence_shared_prerequisite` | **VERIFIED** |
+| 2 | Prediction vs reviewed outcome + calibration | `report.run_stage2_belief_decay` records a controlled **planning review** (`review_kind="planning_review"`, `kind` stays `native_planning`), `compare` → `derive_lessons` → `PatternMemory` (durable) | `test_planning_review_and_calibration_are_durable` | **VERIFIED** (reviewed plan, **not** an execution outcome) |
+| 3 | Expansion-budget frontier preserved + resumable | `run_cycle(max_depth=…)` exposed; full `frontier` (with reasons) persisted on `CycleRecord.frontier` | `test_frontier_preserved_under_expansion_budget` | **VERIFIED** |
+| 4 | Complete, consistent six counts | `orchestrator.run_cycle` → `CycleRecord.counts` {discovered, unique, reuse, net_new, deferred, unresolved}, definitions in-code; `unique == discovered` proves no silent collision | `test_complete_counts_persisted_and_consistent` | **VERIFIED** |
+| 5 | Meaningful work-package ordering + unresolved visible | `prioritise.build_work_packages` sorts packages eligible-first, then priority desc, then key (deterministic); `net_new` includes `RECON_UNKNOWN`; anti-requirements excluded | `test_work_packages_priority_ordered_not_alphabetical` | **VERIFIED** |
+| 6 | Cycle detection **and** classification | `tension._classify_cycle` (prerequisite_cycle / feedback_loop / unknown) feeds `assess_system`: prerequisite cycle → `underdeveloped`, feedback/unknown → `unknown` (not forced) | `test_cycle_detection_and_classification` | **VERIFIED** |
+
+End-to-end: `test_stage2_end_to_end`. Suite: **20** Stage-2 tests, **56** RDO tests, all passing.
+Persisted artefact `cycle_belief_decay_mvp.json` (~65 KB) carries `counts`, `frontier`, the
+reviewed `actual` (`native_planning`) and the full graph; it resumes in a fresh process.
+
+### Count definitions (internally consistent)
+- **discovered** — distinct obligation nodes (post-merge).
+- **unique** — distinct canonical keys; `unique == discovered` is the no-silent-collision invariant.
+- **reuse** — reconciled to an existing mechanism (`REUSE_EXISTING`).
+- **net_new** — to build (`MISSING`/`PARTIAL`).
+- **deferred** — frontier items (stopped with a recorded reason).
+- **unresolved** — no reconciliation signature (`RECON_UNKNOWN`): an honest gap, surfaced as candidate work.
+
+### What remains explicitly out of Stage 2 (not started)
+Stage 3 graph intelligence: SCC decomposition, typed edges beyond `depends_on`/`influences`,
+dedup beyond exact-key, completeness/sequence analysis. Implementation-outcome calibration
+(execution, not planning review) is the **Stage 6** learning loop.
+
+### Still requiring the original governing PDF
+These closures satisfy the §15 requirements **as supplied in the development context**. Exact
+thresholds, any additional §15 criteria, and the **v1.3 ↔ v1.4 precedence** remain to be
+confirmed against the original document; the code cites v1.4 and no version reconciliation is
+assumed.

@@ -168,6 +168,8 @@ class CycleRecord:
     missing: List[str] = dataclasses.field(default_factory=list)
     anti_requirements: List[str] = dataclasses.field(default_factory=list)
     uncertainties: List[str] = dataclasses.field(default_factory=list)
+    frontier: List[dict] = dataclasses.field(default_factory=list)   # deferred/unexpanded, each with a reason
+    counts: Dict[str, int] = dataclasses.field(default_factory=dict)  # discovered/unique/reuse/net_new/deferred/unresolved
     tension: List[dict] = dataclasses.field(default_factory=list)
     work_packages: List[dict] = dataclasses.field(default_factory=list)
     predicted: Dict[str, Any] = dataclasses.field(default_factory=dict)
