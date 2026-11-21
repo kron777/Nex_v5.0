@@ -129,3 +129,36 @@ These closures satisfy the §15 requirements **as supplied in the development co
 thresholds, any additional §15 criteria, and the **v1.3 ↔ v1.4 precedence** remain to be
 confirmed against the original document; the code cites v1.4 and no version reconciliation is
 assumed.
+
+---
+
+## Integrity pass (trustworthiness, not test count)
+
+Four correctness refinements on top of the §15 closures, bounded to Stage 2, reuse-first:
+
+1. **Calibration provenance.** `run_stage2_belief_decay(review=None)` writes **no** pattern by
+   default — a predetermined demonstration never becomes a learned production pattern (the CLI
+   path writes nothing to `patterns.jsonl`). Calibration runs **only** from a supplied review,
+   which must name its `reviewer`; derived patterns carry `…|planning_review|reviewer=<id>`
+   provenance and the cycle stays `native_planning`, so a reviewed plan is never confused with an
+   execution outcome. Deterministic fixture reviews live in the tests, in isolated temp stores.
+2. **Deferred accounting.** `counts["deferred"]` is now **genuinely-deferred only** (budget /
+   no-rule); anti-requirement and already-satisfied stops are no longer double-counted (they live
+   under anti-requirements and reuse). The complete frontier is retained on `CycleRecord.frontier`
+   and categorised by `extrapolator.frontier_breakdown` into
+   `{deferred, anti_requirement, already_satisfied, other}`, surfaced as `frontier_*` counts that
+   sum to `frontier_total`. For the belief-decay slice: `deferred=0`, `frontier_total=4`
+   (3 anti-requirement + 1 already-satisfied).
+3. **Safe convergence.** `extrapolator._merge` now refuses to collapse obligations that do not
+   mean the same thing: a different **kind**, or a build-vs-anti-requirement classification, under
+   one canonical key raises **`MergeConflict`** (surfaced, never silent). Compatible convergence
+   keeps one node, both parent relationships, both provenance paths, and takes the stronger
+   classification (recording the raise). The shared runtime-verification node merges cleanly.
+4. **Work-package ordering (honest).** The guarantee is exactly: eligible (buildable) tier before
+   blocked tier, then priority desc, then canonical key (deterministic). It is **NOT** a full
+   prerequisite topological order — blocked packages are ranked by score among themselves, so one
+   blocked package can precede another it depends on. Hard blockers and unresolved prerequisites
+   stay visible (`WorkPackage.blockers`); full prerequisite ordering is left to Stage 3.
+
+Tests: +3 focused regressions (26 Stage-2 tests; **59** RDO tests pass). The default CLI artefact
+carries no production pattern; a reviewer-attributed calibration is durable and resumable.

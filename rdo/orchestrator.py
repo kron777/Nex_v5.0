@@ -15,7 +15,7 @@ import os
 from typing import Dict, List, Optional, Tuple
 
 from . import prioritise, reconcile as recon_mod, tension
-from .extrapolator import expand
+from .extrapolator import expand, frontier_breakdown
 from .memory import PatternMemory, compare, derive_lessons, record_actual
 from .model import (ANTI_REQUIREMENT, EXECUTED_VERIFIED, MISSING, PARTIAL, RECON_UNKNOWN,
                     REUSE_EXISTING, CycleRecord, Obligation)
@@ -78,16 +78,24 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
     #   unique      = distinct canonical keys (== discovered proves no silent key collision)
     #   reuse       = reconciled to an existing mechanism (REUSE_EXISTING)
     #   net_new     = to be built (MISSING or PARTIAL)
-    #   deferred    = frontier items (stopped before/instead of expansion, each with a reason)
+    #   deferred    = GENUINELY unexpanded frontier items only (budget/no-rule) — NOT the whole
+    #                 frontier: anti-requirement stops count under anti_requirements and
+    #                 already-satisfied stops count under reuse, so nothing is double-counted
     #   unresolved  = no reconciliation signature (RECON_UNKNOWN — an honest gap, candidate work)
     keys = [o.key for o in obligations.values()]
+    fbreak = frontier_breakdown(frontier)   # {deferred, anti_requirement, already_satisfied, other}
     counts = {
         "discovered": len(obligations),
         "unique": len(set(keys)),
         "reuse": len(reused),
         "net_new": len(missing),
-        "deferred": len(frontier),
+        "deferred": fbreak["deferred"],
         "unresolved": sum(1 for o in obligations.values() if o.recon_status == RECON_UNKNOWN),
+        # the complete frontier is retained on CycleRecord.frontier; this names each stop reason
+        "frontier_total": len(frontier),
+        "frontier_anti_requirement": fbreak["anti_requirement"],
+        "frontier_already_satisfied": fbreak["already_satisfied"],
+        "frontier_other": fbreak["other"],
     }
 
     cycle = CycleRecord(

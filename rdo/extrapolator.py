@@ -12,15 +12,27 @@ recurses but is bounded by stopping rules (RDO spec v1.4 §14):
     is NOT expanded — you don't rediscover the internals of something that exists.
 
 Convergent branches merge during expansion (dedup by canonical key), so the same
-obligation discovered two ways is recorded once, with both provenances. Every
-stop is recorded with its reason, so the unresolved frontier stays visible.
+obligation discovered two ways is recorded once, with both provenances. Merging is
+SAFE: only obligations that mean the same thing (same kind, compatible classification)
+may collapse onto one key; an incompatible collision is SURFACED as a MergeConflict,
+never silently merged. Every stop is recorded with its reason, so the unresolved
+frontier stays visible.
 """
 from __future__ import annotations
 
 from typing import Callable, Dict, List, Optional, Tuple
 
-from .model import (ANTI_REQUIREMENT, CONDITIONAL, NECESSARY, Obligation,
-                    RECON_UNKNOWN, REUSE_EXISTING, Relationship)
+from .model import (ANTI_REQUIREMENT, CONDITIONAL, FUTURE, HYPOTHESIS, NECESSARY,
+                    OPTIONAL, UNKNOWN, Obligation, RECON_UNKNOWN, REUSE_EXISTING,
+                    Relationship)
+
+# classification strength, strongest -> weakest, for resolving a compatible convergence
+_CLASS_RANK = {NECESSARY: 5, CONDITIONAL: 4, OPTIONAL: 3, FUTURE: 2, HYPOTHESIS: 1, UNKNOWN: 0}
+
+
+class MergeConflict(ValueError):
+    """Two obligations share a canonical key but do not mean the same thing. Surfaced
+    rather than silently merged, so a key collision can never hide incompatible work."""
 
 # A rule: (child_kind, classification, rationale, shared_target|None).
 # shared_target lets independent parents converge on one canonical obligation.
@@ -175,9 +187,28 @@ def expand(seeds: List[Obligation],
         if existing is None:
             obligations[ob.key] = ob
             return ob
-        # convergent discovery: keep one record, accumulate provenance
+        # SAFE convergence — refuse to collapse obligations that do not mean the same thing:
+        #   * a different KIND under one key is a genuine collision (e.g. a schema vs a daemon);
+        #   * a build obligation and an ANTI_REQUIREMENT under one key is a build/don't-build
+        #     contradiction. Either is surfaced, never silently merged.
+        if existing.kind != ob.kind:
+            raise MergeConflict(
+                f"canonical key {ob.key!r} reached as kind {existing.kind!r} and {ob.kind!r} "
+                f"— incompatible, not merged")
+        if (existing.classification == ANTI_REQUIREMENT) != (ob.classification == ANTI_REQUIREMENT):
+            raise MergeConflict(
+                f"canonical key {ob.key!r} is both an anti-requirement and buildable work "
+                f"({existing.classification!r} vs {ob.classification!r}) — not merged")
+        # compatible: keep one record, accumulate provenance, and take the STRONGER
+        # classification (recording the raise) so convergence never weakens an obligation.
         if ob.provenance not in existing.provenance:
             existing.provenance += f"; {ob.provenance}"
+        if (existing.classification != ob.classification
+                and _CLASS_RANK.get(ob.classification, 0) > _CLASS_RANK.get(existing.classification, 0)):
+            existing.note = (existing.note
+                             + f" ; classification raised {existing.classification}->"
+                               f"{ob.classification} on convergence").strip(" ;")
+            existing.classification = ob.classification
         return existing
 
     queue: List[Obligation] = []
@@ -223,3 +254,25 @@ def expand(seeds: List[Obligation],
                 queue.append(child)
 
     return obligations, relationships, frontier
+
+
+def frontier_breakdown(frontier: List[dict]) -> Dict[str, int]:
+    """Categorise frontier stops by their reason, so the complete frontier is retained but
+    intentional stops are not miscounted as deferred work:
+      * deferred         — budget (`max_depth`) or no expansion rule: genuinely unexpanded;
+      * anti_requirement — a deliberate 'do not build' stop;
+      * already_satisfied— reconciled to an existing mechanism (counted under reuse);
+      * other            — any other terminal stop reason.
+    """
+    out = {"deferred": 0, "anti_requirement": 0, "already_satisfied": 0, "other": 0}
+    for f in frontier:
+        r = f.get("reason", "")
+        if "max_depth" in r or "no expansion rule" in r:
+            out["deferred"] += 1
+        elif "anti-requirement" in r:
+            out["anti_requirement"] += 1
+        elif "already satisfied" in r:
+            out["already_satisfied"] += 1
+        else:
+            out["other"] += 1
+    return out

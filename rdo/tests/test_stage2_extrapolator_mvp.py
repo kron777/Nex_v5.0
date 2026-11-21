@@ -27,6 +27,15 @@ from rdo.orchestrator import run_cycle
 
 CID = "belief_decay_mvp"
 
+# A DETERMINISTIC TEST-FIXTURE review — a test construct, NOT an authorised production reviewer.
+# It exercises the calibration pipeline in isolated temp stores; it never represents a genuine
+# reviewed outcome, and the default runner path writes no pattern at all.
+FIXTURE_REVIEW = {
+    "reviewer": "test-fixture (deterministic; not an authorised reviewer)",
+    "missed": ["belief_decay_rollback"],
+    "notes": "deterministic fixture planning review, for pipeline testing only",
+}
+
 
 @pytest.fixture(scope="module")
 def sl(tmp_path_factory):
@@ -208,7 +217,18 @@ def test_complete_counts_persisted_and_consistent(sl):
     assert c.counts["reuse"] == len(c.reused)
     assert c.counts["net_new"] == len(c.missing)
     assert c.counts["unresolved"] == sum(1 for o in c.obligations if o["recon_status"] == "unknown")
-    assert c.counts["deferred"] == len(c.frontier)
+    # #2 deferred is GENUINELY-deferred only (budget / no-rule) — never the whole frontier, and
+    # anti-requirement / already-satisfied stops are NOT double-counted here (they live under
+    # anti_requirements / reuse respectively).
+    from rdo.extrapolator import frontier_breakdown
+    fb = frontier_breakdown(c.frontier)
+    assert c.counts["deferred"] == fb["deferred"]
+    assert c.counts["frontier_total"] == len(c.frontier)
+    assert (fb["deferred"] + fb["anti_requirement"] + fb["already_satisfied"] + fb["other"]
+            == len(c.frontier))
+    # for this slice nothing hits the budget: the frontier is intentional stops only
+    assert c.counts["deferred"] == 0
+    assert c.counts["frontier_already_satisfied"] >= 1 and c.counts["frontier_anti_requirement"] >= 1
     assert sl["store"].load(CID).counts == c.counts
 
 
@@ -273,17 +293,19 @@ def test_planning_review_and_calibration_are_durable(tmp_path):
     from rdo.report import run_stage2_belief_decay
     from rdo.memory import PatternMemory
     d = str(tmp_path / "s2")
-    res = run_stage2_belief_decay(repo_dir=".", workdir=d)
+    res = run_stage2_belief_decay(repo_dir=".", workdir=d, review=FIXTURE_REVIEW)
     pr = res["prediction_vs_review"]
     assert "planning_review" in pr["kind"] and "not an execution" in pr["kind"]
     assert pr["predicted"]["net_new_count"] == 2
     assert pr["comparison"]["under_expansion_missed"] == ["belief_decay_rollback"]
     assert "under_expansion" in pr["calibration_patterns"]
-    # durable: the reviewed actual and the calibration pattern are persisted
+    # durable: the reviewed actual and the calibration pattern are persisted, the pattern carrying
+    # explicit reviewer provenance and clearly marked as a planning review (not execution)
     reloaded = CycleStore(d).load("belief_decay_mvp")
     assert reloaded.kind == "native_planning"                     # NOT executed_verified
     assert reloaded.actual["review_kind"] == "planning_review"
-    assert "under_expansion" in [p.key for p in PatternMemory(d + "/patterns.jsonl").patterns()]
+    under = [p for p in PatternMemory(d + "/patterns.jsonl").patterns() if p.key == "under_expansion"]
+    assert under and "planning_review" in under[0].provenance and "reviewer=" in under[0].provenance
 
 
 def test_stage2_end_to_end(tmp_path):
@@ -291,10 +313,10 @@ def test_stage2_end_to_end(tmp_path):
     frontier, ordered packages and a durable reviewed-planning calibration."""
     from rdo.report import run_stage2_belief_decay
     d = str(tmp_path / "e2e")
-    res = run_stage2_belief_decay(repo_dir=".", workdir=d)
+    res = run_stage2_belief_decay(repo_dir=".", workdir=d, review=FIXTURE_REVIEW)
     assert res["converging_prerequisites"] == ["shared_runtime_effect.runtime_verification"]
-    assert set(res["counts"]) == {"discovered", "unique", "reuse", "net_new", "deferred", "unresolved"}
-    assert res["deferred_frontier"]
+    assert {"discovered", "unique", "reuse", "net_new", "deferred", "unresolved"} <= set(res["counts"])
+    assert res["deferred_frontier"] and res["frontier_breakdown"]["deferred"] == 0
     assert res["work_packages_ordered"][0][1] == "eligible"       # a buildable package leads
     assert res["prediction_vs_review"]["calibration_patterns"] == ["under_expansion"]
     # the persisted artefact resumes in a fresh process with all of it intact
@@ -305,3 +327,67 @@ def test_stage2_end_to_end(tmp_path):
     assert r.returncode == 0, r.stderr
     out = _json.loads(r.stdout)
     assert out["counts"]["discovered"] == 41 and out["frontier"] == 4 and out["kind"] == "native_planning"
+
+
+# --------------------- integrity pass: four correctness points ----------------------
+
+def test_calibration_requires_an_authorised_review(tmp_path):
+    """#1 A predetermined demonstration never becomes a learned production pattern. With no
+    review the default runner writes NO pattern; a review without a named reviewer is refused;
+    only a reviewer-attributed review calibrates."""
+    import pytest
+    from rdo.report import run_stage2_belief_decay
+    from rdo.memory import PatternMemory
+    # default path: no review -> no calibration pattern written
+    d0 = str(tmp_path / "none")
+    res0 = run_stage2_belief_decay(repo_dir=".", workdir=d0)
+    assert "no review" in res0["prediction_vs_review"]
+    assert PatternMemory(d0 + "/patterns.jsonl").patterns() == []
+    # a review with no reviewer provenance is refused
+    d1 = str(tmp_path / "anon")
+    with pytest.raises(ValueError):
+        run_stage2_belief_decay(repo_dir=".", workdir=d1, review={"missed": ["x"]})
+
+
+def test_safe_convergence_merge(sl):
+    """#3 The shared prerequisite merges only compatible obligations: both parent relationships
+    and both provenance paths survive, the merged node is coherent, and incompatible collisions
+    are surfaced rather than silently merged."""
+    from rdo.extrapolator import expand, MergeConflict
+    from rdo.model import Obligation, ANTI_REQUIREMENT
+    c = sl["cycle"]
+    node = "shared_runtime_effect.runtime_verification"
+    merged = [o for o in c.obligations if o["key"] == node][0]
+    parents = sorted(r["src"] for r in c.relationships
+                     if r["kind"] == "depends_on" and r["dst"] == node)
+    assert parents == ["belief_decay_consumer_generation", "belief_decay_consumer_safety"]  # both rels
+    assert "consumer->runtime_verification" in merged["provenance"]                          # path kept
+    assert merged["kind"] == "runtime_verification" and merged["classification"] == "necessary"
+    # incompatible kind under one key -> surfaced
+    import pytest
+    with pytest.raises(MergeConflict):
+        expand([Obligation("k", "a", "daemon"), Obligation("k", "b", "score")])
+    # build vs anti-requirement under one key -> surfaced
+    with pytest.raises(MergeConflict):
+        expand([Obligation("k", "a", "consumer"),
+                Obligation("k", "b", "consumer", classification=ANTI_REQUIREMENT)])
+
+
+def test_work_package_ordering_limitation_is_honest(sl):
+    """#4 The ordering guarantee is exactly: eligible-first, then priority, then key — NOT a full
+    prerequisite topological sort. Blocked packages keep their blockers; the limitation is real."""
+    c = sl["cycle"]
+    wps = c.work_packages
+    # guaranteed: every eligible package precedes every blocked one
+    tiers = [0 if p["eligibility"] == "eligible" else 1 for p in wps]
+    assert tiers == sorted(tiers)
+    # blocked packages still carry their hard blockers (unresolved prerequisites stay visible)
+    assert all(p["blockers"] for p in wps if p["eligibility"] == "blocked")
+    # NOT claimed: a full topological order. Blocked packages are ranked by score, so the blocked
+    # tier is a priority order, not a dependency order — assert we don't accidentally provide one.
+    blocked = [p for p in wps if p["eligibility"] == "blocked"]
+    def score(p):
+        return max((dd["_provisional_sort_score_uncalibrated"]
+                    for dd in p["priority_dimensions"].values()), default=0.0)
+    assert [p["key"] for p in blocked] == [p["key"] for p in
+            sorted(blocked, key=lambda p: (-score(p), p["key"]))]

@@ -128,11 +128,15 @@ def build_work_packages(obligations: Dict[str, Obligation],
             anti_requirements=anti, reversible=reversible,
             note="net-new necessary/conditional obligations not satisfied by existing mechanisms"))
 
-    # INTER-PACKAGE ordering (meaningful, not alphabetical):
-    #   1. hard prerequisites first — buildable (eligible) packages before blocked ones, so a
-    #      package never sorts ahead of the unmet prerequisites that block it;
-    #   2. then the package's top obligation priority, descending;
-    #   3. then the canonical key, for a fully deterministic tie-break.
+    # INTER-PACKAGE ordering (meaningful, NOT a full topological sort):
+    #   1. eligibility tier first — every buildable (eligible) package precedes every blocked
+    #      one, so no ready package sorts behind one with unmet prerequisites;
+    #   2. within a tier, the package's top obligation priority, descending;
+    #   3. then the canonical key, for a deterministic tie-break.
+    # LIMITATION (stated, not overstated): this is NOT a full prerequisite topological order —
+    # BLOCKED packages are ranked by score among themselves, so one blocked package can precede
+    # another that it depends on. Hard blockers are preserved on each package (WorkPackage.blockers)
+    # and unresolved prerequisites stay visible; full prerequisite ordering is left to Stage 3.
     def _pkg_score(p: WorkPackage) -> float:
         return max((d["_provisional_sort_score_uncalibrated"] for d in p.priority_dimensions.values()),
                    default=0.0)
