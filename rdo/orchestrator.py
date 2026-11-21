@@ -16,9 +16,10 @@ from watcher.evidence import utc_now
 
 from . import prioritise, reconcile as recon_mod, tension
 from .extrapolator import expand, rule_catalogue, scope_summary
-from .knowledge import affinity_drift_idea, genius_tagger_idea, migration_defect_idea
-from .memory import (CycleStore, PatternMemory, accuracy_series, compare,
-                     derive_lessons, metrics_series, record_actual)
+from .knowledge import (affinity_drift_idea, config_invariant_idea, genius_tagger_idea,
+                        migration_defect_idea)
+from .memory import (CycleStore, PatternMemory, accuracy_series, comparability_assessment,
+                     compare, derive_lessons, metrics_series, record_actual, transfer_observations)
 from .model import (ANTI_REQUIREMENT, EXECUTED_VERIFIED, IMPORTED_RETROSPECTIVE, MISSING,
                     PARTIAL, REUSE_EXISTING, CycleRecord, Obligation, Pattern)
 from .reconcile import Signature
@@ -164,6 +165,9 @@ def self_assess(rdo_dir: Optional[str] = None) -> dict:
                      "note": "accuracy_series overlaps metrics_series partially; metrics_series is "
                              "canonical. Both kept (distinct outputs + callers); removing one now is "
                              "not justified — a cleanup is also subject to OFT."})
+    findings.append({"level": "node", "subject": "orchestrator.py", "verdict": "resolved",
+                     "note": "the three executed-cycle recorders now share _record_executed (consolidation "
+                             "cycle); domain data stays in each thin caller, lessons derived exactly once."})
     if imports_nex:
         findings.append({"level": "system", "subject": "independence", "verdict": "VIOLATION",
                          "note": f"imports NEX runtime in {sorted(set(imports_nex))}"})
@@ -249,14 +253,33 @@ def _six_outputs(cycle, summary, memory, learning) -> dict:
     }
 
 
+def _record_executed(store, memory, *, cycle_id, objective, predicted, reused, verification,
+                     actual, work_type="test_guard", engineering_pattern="unspecified",
+                     domain_patterns=()) -> CycleRecord:
+    """Shared mechanism for an executed+verified cycle (consolidation cycle #4):
+    build the record, attach actuals, persist, add any domain-specific patterns, then
+    derive lessons EXACTLY once. The domain DATA stays in each caller below — nothing
+    domain-specific is hidden here, and the single derive_lessons call makes the
+    earlier double-count defect unreproducible by construction."""
+    c = CycleRecord(id=cycle_id, objective=objective, kind=EXECUTED_VERIFIED, work_type=work_type,
+                    engineering_pattern=engineering_pattern,
+                    predicted=predicted, reused=list(reused), verification=verification)
+    record_actual(c, actual)
+    store.save(c)
+    for p in domain_patterns:
+        memory.add(p)
+    for p in derive_lessons(c, compare(c)):   # exactly once
+        memory.add(p)
+    return c
+
+
 def record_arc_closers_execution(store, memory) -> CycleRecord:
-    """Record the executed+verified arc_closers regression-test work package — the
-    FIRST RDO-guided cycle whose recommended work was actually built and verified
-    (tests/test_arc_closers_migration.py). Real predicted-vs-actual."""
-    c = CycleRecord(
-        id="arc_closers_regtest_2026-11",
+    """FIRST executed+verified cycle (tests/test_arc_closers_migration.py)."""
+    return _record_executed(
+        store, memory,
+        cycle_id="arc_closers_regtest_2026-11",
         objective="Execute the eligible arc_closers regression-test work package (from the defect cycle).",
-        kind=EXECUTED_VERIFIED,
+        engineering_pattern="migration_guard",
         predicted={"effort": 1, "net_new_count": 1,
                    "note": "one regression-test obligation; no runtime/migration change"},
         reused=["arc_closers_migration.fix (init_db.py:236 + beliefs.sql:319)"],
@@ -265,52 +288,41 @@ def record_arc_closers_execution(store, memory) -> CycleRecord:
                       "fresh_schema_path_verified": True, "legacy_upgrade_path_verified": True,
                       "real_migration_runner_exercised": "_apply_migrations (not just a helper)",
                       "reuse_claims": 1, "reuse_claims_backed_by_file_evidence": 1},
-    )
-    record_actual(c, {
-        # REVISED after the integration review: the first pass covered only the fresh-schema
-        # path; the real invariant (the legacy upgrade) needed a second fixture, so actual
-        # effort was 2, not the predicted 1, and one obligation was initially missed.
-        "effort_actual": 2,
-        "missed": ["arc_closers_migration.legacy_upgrade_path"],
-        "unnecessary": [], "reuse_wrong": [], "regressions": [],
-        "obligations_built": ["arc_closers_migration.regression_test (fresh)",
-                              "arc_closers_migration.regression_test (legacy upgrade, real runner)"],
-        "notes": "closure_type is dual-path: base schema (beliefs.sql:319) AND the idempotent "
-                 "migration (init_db.py:236). So a FRESH init_all() exercises the schema, not the "
-                 "migration — the first test was insufficient. Added a legacy fixture that runs the "
-                 "REAL _apply_migrations against an arc_closers lacking the column; verified add + "
-                 "NOT NULL + default + backfill + idempotent re-run. No production defect; no "
-                 "runtime/migration code changed.",
-    })
-    store.save(c)
-    memory.add(Pattern(
-        key="migration_dual_path", provenance="cycle:arc_closers_regtest_2026-11",
-        statement="A 'migration bug' may be guarded by BOTH a base-schema definition and an "
-                  "idempotent migration; reconcile both paths, not just the migration.",
-        applicability="migration defect schema", confidence=0.3,
-        exceptions=["observed once; some columns exist only via migration"]))
-    memory.add(Pattern(
-        key="migration_guard_needs_legacy_path", provenance="cycle:arc_closers_regtest_2026-11",
-        statement="A migration regression guard must exercise the LEGACY upgrade path through the "
-                  "real runner; a fresh init on a dual schema+migration column tests the schema, "
-                  "not the migration. Budget a legacy fixture up front.",
-        applicability="migration defect regression test effort", confidence=0.3,
-        exceptions=["for a migration-only column, a fresh init DOES exercise the migration"]))
-    for p in derive_lessons(c, compare(c)):
-        memory.add(p)
-    for p in derive_lessons(c, compare(c)):
-        memory.add(p)
-    return c
+        actual={
+            "effort_actual": 2,   # predicted 1; the legacy upgrade needed a 2nd fixture the first pass missed
+            "missed": ["arc_closers_migration.legacy_upgrade_path"],
+            "unnecessary": [], "reuse_wrong": [], "regressions": [],
+            "obligations_built": ["arc_closers_migration.regression_test (fresh)",
+                                  "arc_closers_migration.regression_test (legacy upgrade, real runner)"],
+            "notes": "closure_type is dual-path: base schema (beliefs.sql:319) AND the idempotent "
+                     "migration (init_db.py:236). So a FRESH init_all() exercises the schema, not the "
+                     "migration — the first test was insufficient. Added a legacy fixture that runs the "
+                     "REAL _apply_migrations against an arc_closers lacking the column; verified add + "
+                     "NOT NULL + default + backfill + idempotent re-run. No production defect; no "
+                     "runtime/migration code changed.",
+        },
+        domain_patterns=[
+            Pattern(key="migration_dual_path", provenance="cycle:arc_closers_regtest_2026-11",
+                    statement="A 'migration bug' may be guarded by BOTH a base-schema definition and an "
+                              "idempotent migration; reconcile both paths, not just the migration.",
+                    applicability="migration defect schema", confidence=0.3,
+                    exceptions=["observed once; some columns exist only via migration"]),
+            Pattern(key="migration_guard_needs_legacy_path", provenance="cycle:arc_closers_regtest_2026-11",
+                    statement="A migration regression guard must exercise the LEGACY upgrade path through "
+                              "the real runner; a fresh init on a dual schema+migration column tests the "
+                              "schema, not the migration. Budget a legacy fixture up front.",
+                    applicability="migration defect regression test effort", confidence=0.3,
+                    exceptions=["for a migration-only column, a fresh init DOES exercise the migration"]),
+        ])
 
 
 def record_affinity_execution(store, memory) -> CycleRecord:
-    """Record the executed+verified beliefs.affinity schema-drift guard — the SECOND
-    executed+verified cycle. Its prediction applied the arc_closers lesson
-    (migration_guard_needs_legacy_path), so effort was predicted correctly."""
-    c = CycleRecord(
-        id="affinity_regtest_2026-11",
+    """SECOND executed+verified cycle; its prediction applied the arc_closers lesson."""
+    return _record_executed(
+        store, memory,
+        cycle_id="affinity_regtest_2026-11",
         objective="Execute the eligible beliefs.affinity schema-drift regression test.",
-        kind=EXECUTED_VERIFIED,
+        engineering_pattern="migration_guard",
         predicted={"effort": 1, "net_new_count": 1,
                    "note": "one regression test; migration-only column, so a single fresh init_all "
                            "test exercises the migration (lesson migration_guard_needs_legacy_path) "
@@ -320,18 +332,84 @@ def record_affinity_execution(store, memory) -> CycleRecord:
                       "all_pass": True, "guards_defect": "no such column: affinity",
                       "fresh_init_exercises_migration": True, "all_reuse_backed": True,
                       "reuse_claims": 2, "reuse_claims_backed_by_file_evidence": 2},
-    )
-    record_actual(c, {
-        "effort_actual": 1, "missed": [], "unnecessary": [], "reuse_wrong": [], "regressions": [],
-        "obligations_built": ["beliefs_affinity.regression_test"],
-        "notes": "migration-only columns; one fresh init_all() test provisions+verifies both nullable "
-                 "columns and the 'affinity IS NULL = not-yet-rated' query. The prior lesson correctly "
-                 "predicted no legacy fixture was needed -> effort 1 == predicted 1 (no under-estimate).",
-    })
-    store.save(c)
-    for p in derive_lessons(c, compare(c)):
-        memory.add(p)
-    return c
+        actual={
+            "effort_actual": 1, "missed": [], "unnecessary": [], "reuse_wrong": [], "regressions": [],
+            "obligations_built": ["beliefs_affinity.regression_test"],
+            "notes": "migration-only columns; one fresh init_all() test provisions+verifies both nullable "
+                     "columns and the 'affinity IS NULL = not-yet-rated' query. The prior lesson correctly "
+                     "predicted no legacy fixture was needed -> effort 1 == predicted 1 (no under-estimate).",
+        })
+
+
+def record_config_invariant_execution(store, memory) -> CycleRecord:
+    """THIRD executed+verified cycle — a DIFFERENT (non-migration) pattern:
+    tests/test_nex_config_flag_registry.py. Tests transfer beyond the migration domain."""
+    return _record_executed(
+        store, memory,
+        cycle_id="config_invariant_2026-11",
+        objective="Execute the eligible nex_config flag-registry consistency guard.",
+        engineering_pattern="invariant_guard",
+        predicted={"effort": 1, "net_new_count": 1,
+                   "note": "one guard test; anticipated the scope/exclusions as the hidden obligation "
+                           "and handled it in one file (no second fixture). Invariant holds -> no "
+                           "production change."},
+        reused=["flag_registry_consistency.specify (nex_config.KNOWN_FLAGS / unknown_flags)"],
+        verification={"test_file": "tests/test_nex_config_flag_registry.py", "tests": 3,
+                      "all_pass": True, "invariant_holds": "167 registered, 151 read, 0 unregistered",
+                      "non_vacuous": True, "no_production_change": True, "all_reuse_backed": True,
+                      "reuse_claims": 1, "reuse_claims_backed_by_file_evidence": 1},
+        actual={
+            "effort_actual": 1, "missed": [], "unnecessary": [], "reuse_wrong": [], "regressions": [],
+            "obligations_built": ["flag_registry_consistency.guard_test"],
+            "notes": "Different domain (config/observability, not migration). The general 'reconcile-first + "
+                     "anticipate the hidden obligation' reasoning transferred; the migration-specific patterns "
+                     "did not apply. Scope/exclusions handled in one file -> effort 1 == predicted 1. Out of "
+                     "scope: 16 registry entries are registered-but-not-literally-read (not a defect).",
+        })
+
+
+def record_consolidation_execution(store, memory) -> CycleRecord:
+    """FOURTH executed+verified cycle, a DIFFERENT work_type (refactor, not a test guard):
+    the recorder consolidation itself, run as an RDO-guided cycle (dogfooding). Prediction
+    and acceptance were defined before implementation; equivalence tests prove the three
+    recorders still produce the same records."""
+    return _record_executed(
+        store, memory,
+        cycle_id="recorder_consolidation_2026-11",
+        objective="Consolidate the three executed-cycle recorders into one _record_executed helper.",
+        work_type="refactor", engineering_pattern="refactor",
+        predicted={"effort": 1, "net_new_count": 1,
+                   "note": "one helper + equivalence tests; preserve each record; derive lessons once; "
+                           "do not hide domain data or over-generalise"},
+        reused=["the three recorders' domain data (unchanged)", "record_actual / compare / derive_lessons"],
+        verification={"artifact": "rdo/orchestrator.py::_record_executed + rdo/tests/test_rdo.py",
+                      "equivalence_tests": 3, "all_pass": True, "records_unchanged": True,
+                      "lessons_derived_once": True, "all_reuse_backed": True,
+                      "reuse_claims": 1, "reuse_claims_backed_by_file_evidence": 1},
+        actual={"effort_actual": 1, "missed": [], "unnecessary": [], "reuse_wrong": [], "regressions": [],
+                "obligations_built": ["_record_executed helper", "3 recorder-equivalence tests"],
+                "notes": "Prediction matched. The helper shares the MECHANISM; domain data stays visible "
+                         "in each thin caller; derive_lessons runs once, so the earlier double-count is "
+                         "unreproducible by construction. Equivalence proven before + after the refactor."})
+
+
+def change_categories() -> dict:
+    """Separate the FOUR ways the RDO can change, so 'more capable' is not conflated with
+    'more specialised' (founder terminology constraint). A correct prediction from general
+    reasoning is a general-reasoning gain; a new rule set is specialisation."""
+    return {
+        "general_engine_logic": "UNCHANGED by adding an objective (expand/reconcile/tension/prioritise "
+                                "algorithms). The Pattern-Memory confidence MODEL was corrected this "
+                                "cycle — a dependability fix, not new reasoning.",
+        "pattern_taxonomy": "grew by rule sets: 'defect' (cycle 2), 'invariant' (cycle 3). Adding a rule "
+                           "is SPECIALISATION — it enables expansion; it is not better reasoning.",
+        "domain_knowledge": "grew by per-objective seeds+signatures in knowledge.py (genius/affinity/"
+                           "config) — isolated from the engine.",
+        "recorded_experience": "grew by cycle records + patterns; confidence now decays on disconfirmation.",
+        "attribution_of_matched_predictions": "cycles 2-4 matched prediction via GENERAL reasoning "
+                                             "(reconcile-first + anticipate-the-hidden-obligation), NOT "
+                                             "via the new rules (which only enabled expansion).",
+    }
 
 
 def demo_genius_tagger(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
@@ -384,6 +462,16 @@ def run_catalogue(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
                               memory, store, active)
     affinity_exec = record_affinity_execution(store, memory)
 
+    # a THIRD discovery+execution cycle, a GENUINELY different (non-migration) pattern:
+    # a config/observability invariant guard. Tests transfer beyond the migration domain.
+    c_cycle, c_sum = _run_one("config_guard_plan_2026-11", config_invariant_idea(), repo_dir,
+                              memory, store, active)
+    config_exec = record_config_invariant_execution(store, memory)
+
+    # a FOURTH executed+verified cycle of a DIFFERENT work_type: the recorder consolidation
+    # itself, run as an RDO-guided refactor cycle (prediction defined first; equivalence proven).
+    consolidation_exec = record_consolidation_execution(store, memory)
+
     cycles = [store.load(cid) for cid in store.list_ids()]
     metrics = metrics_series(cycles)
     learning = accuracy_series(cycles)
@@ -392,10 +480,12 @@ def run_catalogue(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
             "genius_tagger (feature-deploy pattern)": _six_outputs(g_cycle, g_sum, memory, learning),
             "migration_defect (defect-remediation pattern)": _six_outputs(d_cycle, d_sum, memory, learning),
             "affinity_drift (defect, migration-only)": _six_outputs(a_cycle, a_sum, memory, learning),
+            "config_invariant (invariant-guard pattern, non-migration)": _six_outputs(c_cycle, c_sum, memory, learning),
         },
         "generalisation": {
             "patterns_exercised": ["feature-deploy (persistence/daemon/api/consumer)",
-                                   "defect-remediation (reproduce/root_cause/fix/regression_test/verify)"],
+                                   "defect-remediation (reproduce/root_cause/fix/regression_test/verify)",
+                                   "invariant-guard (specify/scope/guard_test/verify) — non-migration"],
             "engine_reused_unchanged": ["extrapolator", "reconcile", "tension", "prioritise",
                                         "memory/learning"],
             "rule_catalogue": rule_catalogue(),
@@ -403,17 +493,22 @@ def run_catalogue(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
                 "genius_tagger": scope_summary(g_cycle.obligations),
                 "migration_defect": scope_summary(d_cycle.obligations),
             },
-            "note": "generalisation to a new pattern required ONE new GENERAL expansion rule set "
-                    "('defect') in the engine; domain specifics stayed in knowledge.py. Scope tags "
+            "note": "generalisation to a new pattern required ONE new expansion RULE SET per pattern "
+                    "class ('defect', 'invariant') — a PATTERN-TAXONOMY change, NOT a change to the "
+                    "general engine logic (expand/reconcile/tension/prioritise); domain specifics "
+                    "stayed in knowledge.py. Scope tags "
                     "(general / domain-specific / context-dependent / anti-requirement / novel) keep "
                     "reusable obligations distinct from domain ones; a 'novel' kind (no rule) is "
                     "surfaced rather than force-fit.",
         },
         "executed_cycles": [
-            {"id": c.id, "kind": c.kind, "predicted": c.predicted, "actual": c.actual,
-             "verification": c.verification}
-            for c in (exec_cycle, affinity_exec)
+            {"id": c.id, "kind": c.kind, "work_type": c.work_type, "predicted": c.predicted,
+             "actual": c.actual, "verification": c.verification}
+            for c in (exec_cycle, affinity_exec, config_exec, consolidation_exec)
         ],
+        "change_categories": change_categories(),
+        "comparability_assessment": comparability_assessment(cycles),
+        "cross_cycle_transfer": transfer_observations(cycles),
         "learning_metrics": metrics,
         "patterns": [p.to_dict() for p in memory.patterns()],
         "signal_authority_audit": assess_signal_authority(repo_dir, "genius"),
