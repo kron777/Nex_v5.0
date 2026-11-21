@@ -11,6 +11,7 @@ from typing import Dict, List
 
 from . import adapters, architecture, provenance, registry
 from .evidence import Evidence
+from .host import ingest_host_results
 
 
 def collect_cloud(repo_dir: str = ".",
@@ -24,6 +25,22 @@ def collect_cloud(repo_dir: str = ".",
                                     os.path.join(repo_dir, dag_path))
     records += registry.collect(os.path.join(repo_dir, obs_dir))
     records += adapters.collect(repo_dir)
+    return records
+
+
+def collect_combined(repo_dir: str = ".",
+                     host_results: Dict | None = None,
+                     **cloud_kwargs) -> List[Evidence]:
+    """Cloud evidence PLUS host evidence, with origins preserved.
+
+    Cloud records (origin='cloud') come from `collect_cloud`. Host records
+    (origin='host') come from `watcher.host.ingest_host_results`: real findings
+    when Claude Code has returned them, honest `unknown` placeholders where it has
+    not. The two sets are concatenated, never merged into a single claim — every
+    record keeps its own origin, so a combined report can never pass a cloud/static
+    reading off as a live-machine observation."""
+    records = collect_cloud(repo_dir, **cloud_kwargs)
+    records += ingest_host_results(host_results or {})
     return records
 
 

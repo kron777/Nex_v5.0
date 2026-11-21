@@ -33,24 +33,31 @@ def _cycles():
     return runtime_graph_evidence(build_runtime_graph()).data["feedback_cycles"]
 
 
-def test_live_learning_loop_is_implemented():
+def test_live_learning_loop_is_test_verified_not_runtime():
+    # The live learning<->beliefs loop has code AND tests, but NEX is in STANDBY,
+    # so it is NOT yet runtime_observed. The three dimensions must stay distinct.
     cyc = _cycles()
-    impl = [c for c in cyc if c["status"] == "implemented"]
-    assert impl, "the live learning<->beliefs loop must appear as an implemented cycle"
-    joined = [" ".join(c["cycle"]) for c in impl]
+    tv = [c for c in cyc if c["status"] == "test_verified"]
+    assert tv, "the live learning<->beliefs loop must appear as a test_verified cycle"
+    joined = [" ".join(c["cycle"]) for c in tv]
     assert any("beliefs.confidence" in j and "reconciler" in j for j in joined)
-    assert all("affect_state" not in c["cycle"] for c in impl)
+    for c in tv:
+        assert "affect_state" not in c["cycle"]
+        assert c["source_implemented"] and c["test_verified"]
+        assert c["runtime_observed"] is False  # never claimed observed while off
 
 
 def test_mood_loop_stays_hypothesis():
     cyc = _cycles()
-    for c in cyc:
-        if "affect_state" in c["cycle"]:
-            assert c["status"] == "HYPOTHESIS", "mood loop must never be promoted to fact"
-    # and the hypothesis edges carry an explicit note
+    mood = [c for c in cyc if "affect_state" in c["cycle"]]
+    assert mood, "the candidate mood loop should still be detected as a cycle"
+    for c in mood:
+        assert c["status"] == "hypothesis", "mood loop must never be promoted to fact"
+        assert c["runtime_observed"] is False
+    # the hypothesis edges carry an explicit note and are NOT source_implemented
     g = build_runtime_graph()
-    hyp_edges = [e for e in g.edges if e.src == "affect_state" or e.dst == "beliefs.confidence"
-                 and e.evidence_class == "inferred"]
+    hyp_edges = [e for e in g.edges if e.level == "hypothesis"]
+    assert hyp_edges and all(not e.source_implemented for e in hyp_edges)
     assert any(e.note and "HYPOTHESIS" in e.note for e in g.edges)
 
 

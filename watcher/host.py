@@ -10,6 +10,7 @@ stay distinguishable when combined.
 from __future__ import annotations
 
 import dataclasses
+import json
 from typing import Any, Dict, List
 
 from .evidence import Evidence, utc_now
@@ -82,4 +83,38 @@ def ingest_host_results(results: Dict[str, Any]) -> List[Evidence]:
             r.get("evidence_class", "measured"),
             r.get("source_ref", f"host run {utc_now()}"),
             interpretation=r.get("note")))
+    return out
+
+
+def host_results_template() -> Dict[str, Any]:
+    """A blank results file for Claude Code to fill on the host, one key per
+    request id. Each value is {data, evidence_class, source_ref, note}. Claude Code
+    runs the request's read-only commands on the machine, fills `data` with what it
+    observed, and sets `evidence_class` to 'measured' for a live reading."""
+    return {
+        h.id: {
+            "_title": h.title,
+            "_commands": h.read_only_commands,
+            "data": None,
+            "evidence_class": "measured",
+            "source_ref": "",
+            "note": "",
+        } for h in host_requests()
+    }
+
+
+def load_host_results(path: str) -> Dict[str, Any]:
+    """Load a host-results JSON file produced on the machine. Underscore-prefixed
+    helper keys (`_title`, `_commands`) from the template are ignored; rows whose
+    `data` is still null are dropped so they fall through to honest placeholders."""
+    with open(path, "r", encoding="utf-8") as fh:
+        raw = json.load(fh)
+    ids = {h.id for h in host_requests()}
+    out: Dict[str, Any] = {}
+    for rid, row in raw.items():
+        if rid not in ids or not isinstance(row, dict):
+            continue
+        if row.get("data") is None:
+            continue  # not yet collected -> placeholder downstream
+        out[rid] = {k: v for k, v in row.items() if not k.startswith("_")}
     return out
