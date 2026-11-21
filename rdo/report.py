@@ -20,6 +20,7 @@ from watcher.evidence import utc_now
 
 from .extrapolator import frontier_breakdown, rule_catalogue, scope_summary
 from .graph import analyse as graph_analyse
+from .belief_audit import audit as _belief_audit, gap_map as _belief_gap_map
 from .knowledge import (affinity_drift_idea, belief_decay_idea, config_invariant_idea,
                         genius_authority_audit, genius_tagger_idea, migration_defect_idea)
 from .memory import (CycleStore, PatternMemory, accuracy_series, comparability_assessment,
@@ -496,4 +497,27 @@ def run_stage3_graph_intelligence(repo_dir: str = ".", workdir: str = "rdo/.cycl
             f"python -c \"import json; from rdo.memory import CycleStore; from rdo.graph import analyse; "
             f"c=CycleStore('{workdir}').load('belief_decay_mvp'); "
             f"print(len(analyse(c.obligations,c.relationships,c.frontier)['duplicate_candidates']))\"",
+    }
+
+
+def run_stage4_belief_audit(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
+    """RDO v1.3 §16 Stage 4 — read-only belief audit. Source-grounded map of the belief lifecycle
+    + traceable gap map, persisted for resume. Issues no live-DB query/write; host-only facts are
+    flagged, never guessed."""
+    a = _belief_audit(repo_dir)
+    g = _belief_gap_map(repo_dir, a)
+    os.makedirs(workdir, exist_ok=True)
+    path = os.path.join(workdir, "belief_audit.json")
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump({"audit": a, "gap_map": g}, fh, indent=2, default=str)
+    return {
+        "stage": a["stage"],
+        "lifecycle_phases_evidenced": f"{a['tracked']}/{a['findings_total']}",
+        "consumer_file_count": a["consumption"]["consumer_file_count"],
+        "host_only_unknowns": [h["subject"] for h in a["host_only_unknowns"]],
+        "open_gaps": g["open_gaps"],
+        "gap_summary": [(gp["gap"], gp["severity"], bool(gp.get("resolved"))) for gp in g["gaps"]],
+        "persisted_to": path,
+        "resume_in_new_process":
+            f"python -c \"import json; print(json.load(open('{path}'))['gap_map']['open_gaps'])\"",
     }
