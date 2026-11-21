@@ -120,7 +120,8 @@ class Pattern:
     confidence: float = 0.3         # starts low; rises slowly with corroboration
     applicability: str = ""         # when this pattern applies
     exceptions: List[str] = dataclasses.field(default_factory=list)
-    observed_count: int = 1
+    observed_count: int = 1         # confirmations
+    disconfirmed_count: int = 0     # times later evidence disagreed (confidence then drops)
 
     def to_dict(self) -> dict:
         return dataclasses.asdict(self)

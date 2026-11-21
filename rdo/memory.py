@@ -65,6 +65,22 @@ class PatternMemory:
         with open(self.path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(pattern.to_dict(), default=str) + "\n")
 
+    def refute(self, key: str, evidence: str, delta: float = 0.1) -> Optional[Pattern]:
+        """Record DISCONFIRMING evidence: a later cycle disagreed with the pattern.
+        Lowers confidence (floored at 0) and keeps the disconfirming note — the
+        mechanism the prior version lacked (confidence was monotonic). A pattern that
+        keeps failing decays rather than ossifying. No-op if the key is unknown."""
+        p = self._current.get(key)
+        if p is None:
+            return None
+        p.disconfirmed_count += 1
+        p.confidence = max(0.0, round(p.confidence - delta, 3))
+        note = f"disconfirmed: {evidence}"
+        if note not in p.exceptions:
+            p.exceptions.append(note)
+        self._append(p)
+        return p
+
     def patterns(self) -> List[Pattern]:
         return list(self._current.values())
 
@@ -250,6 +266,37 @@ def metrics_series(cycles: List[CycleRecord]) -> Dict:
                  "values, not hype"),
         "note": "process measures every cycle; outcome measures need executed work + recorded "
                 "actuals; efficiency compares only executed+verified cycles of comparable kind.",
+    }
+
+
+def transfer_observations(cycles: List[CycleRecord]) -> Dict:
+    """Record cross-cycle knowledge-transfer OBSERVATIONS explicitly, without
+    inflating any score (founder constraint). Reports each executed cycle's
+    predicted-vs-actual and whether the prediction matched; states plainly that
+    these are observed instances, not proof of a trend, and that transfer currently
+    lives in the reasoning, not autonomously in the keyword matcher."""
+    execs = [c for c in cycles if c.kind == EXECUTED_VERIFIED and c.actual is not None]
+    rows = []
+    for c in execs:
+        d = compare(c)
+        matched = d.get("effort_error") == 0 and not d.get("under_expansion_missed")
+        rows.append({
+            "cycle": c.id,
+            "predicted_effort": c.predicted.get("effort"),
+            "actual_effort": c.actual.get("effort_actual"),
+            "effort_error": d.get("effort_error"),
+            "missed_obligations": len(d.get("under_expansion_missed") or []),
+            "prediction_matched": matched,
+        })
+    return {
+        "executed_cycles": rows,
+        "observation": "Cycle 1 missed an obligation (actual effort exceeded prediction); later "
+                       "cycles matched prediction. An OBSERVED instance of cross-cycle knowledge "
+                       "transfer — NOT proof of a general improvement trend.",
+        "caveat": "Transfer is applied in the reasoning (reconcile-first + anticipate-the-hidden-"
+                  "obligation), not yet driven autonomously by Pattern Memory's keyword matcher. "
+                  "n is small; even three matched cycles are not statistical proof. Predictions "
+                  "are never rewritten after the fact.",
     }
 
 

@@ -72,6 +72,15 @@ EXPANSION_RULES: Dict[str, List[Rule]] = {
         ("calibration", NECESSARY, "a score must be calibrated against evidence", None),
         ("persistence", CONDITIONAL, "scores are usually persisted", None),
     ],
+    # a THIRD pattern class: proactively guarding an invariant that currently holds
+    # (no defect to fix) — distinct responsibility from defect remediation, so it
+    # earns its own rule rather than being forced into 'defect' (OFT).
+    "invariant": [
+        ("specify", NECESSARY, "state the invariant precisely", None),
+        ("scope", NECESSARY, "define what it ranges over, with exclusions", None),
+        ("guard_test", NECESSARY, "a test that fails if the invariant is violated", None),
+        ("verification", NECESSARY, "confirm the guard is non-vacuous", None),
+    ],
     # a DIFFERENT development pattern: defect remediation (vs feature deployment).
     "defect": [
         ("reproduce", NECESSARY, "a defect must be reproducible before fixing", None),
@@ -90,7 +99,7 @@ TERMINAL_KINDS = {
     "serializer", "data_source", "training_data", "fit", "refit_handling",
     "bounded_influence", "reversibility", "gate", "runtime_verification",
     "anti_second_model", "reproduce", "root_cause", "fix", "regression_test",
-    "verification",
+    "verification", "specify", "scope", "guard_test",
 }
 
 

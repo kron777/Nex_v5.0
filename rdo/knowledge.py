@@ -208,6 +208,36 @@ def affinity_drift_idea() -> Tuple[str, List[str], List[Obligation], Dict[str, L
     return objective, assumptions, seeds, signatures
 
 
+def config_invariant_idea() -> Tuple[str, List[str], List[Obligation], Dict[str, List[Signature]]]:
+    """Third objective, a genuinely different pattern (config/observability, NOT a
+    migration): guard the nex_config flag-registry forward-consistency. Every NEX5_
+    flag READ in NEX source must be registered in KNOWN_FLAGS, else unknown_flags()
+    silently mis-flags a real flag as a typo. Reconciled: 167 registered, 151 read,
+    0 read-but-unregistered — the invariant holds, so this is a proactive guard."""
+    objective = ("Guard nex_config flag-registry forward-consistency: every NEX5_ flag read in "
+                 "NEX source must be registered in KNOWN_FLAGS (so unknown_flags() cannot "
+                 "mis-flag a real flag as a typo).")
+    assumptions = [
+        "KNOWN_FLAGS (nex_config.py) is the authoritative registry",
+        "flag reads use literal os.environ.get/getenv/environ[] patterns",
+        "the invariant currently holds (reconciled: 0 read-but-unregistered)",
+    ]
+    seeds = [
+        Obligation("flag_registry_consistency", "every read NEX5_ flag is registered", "invariant",
+                   rationale="a read flag missing from the registry is silently mis-flagged as a "
+                             "typo by unknown_flags(); the registry can drift from usage"),
+    ]
+    signatures: Dict[str, List[Signature]] = {
+        "flag_registry_consistency.specify": [
+            Signature(r"def unknown_flags|def is_known", "nex_config.py",
+                      "detection mechanism (KNOWN_FLAGS registry) exists")],
+        "flag_registry_consistency.guard_test": [
+            Signature(r"def test_every_read_flag_is_registered", "tests",
+                      "registry/usage consistency guard test")],
+    }
+    return objective, assumptions, seeds, signatures
+
+
 def genius_consumers() -> List[dict]:
     """Source-grounded classification of every consumer of the genius signal.
 

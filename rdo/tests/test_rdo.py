@@ -143,6 +143,24 @@ def test_pattern_memory_no_universal_promotion(tmp_path):
     assert PatternMemory(str(tmp_path / "p.jsonl")).patterns()[0].observed_count == p.observed_count
 
 
+def test_pattern_memory_confidence_can_decrease_on_disconfirmation(tmp_path):
+    # the deficiency fix (item 4): confidence was monotonic; it can now DROP when a
+    # later cycle disagrees, and the disconfirming evidence is retained.
+    from rdo.memory import PatternMemory
+    mem = PatternMemory(str(tmp_path / "p.jsonl"))
+    mem.add(Pattern("k", "stmt", "cycle:1", confidence=0.5, exceptions=["seed exception"]))
+    mem.add(Pattern("k", "stmt", "cycle:2"))                 # corroborate -> 0.6
+    assert mem.patterns()[0].confidence == 0.6
+    mem.refute("k", "cycle:3 disagreed")                     # disconfirm -> 0.5
+    p = mem.patterns()[0]
+    assert p.confidence == 0.5 and p.disconfirmed_count == 1
+    assert any("disconfirmed" in e for e in p.exceptions)    # evidence retained
+    assert "seed exception" in p.exceptions                   # earlier exceptions kept
+    assert mem.refute("unknown", "x") is None                 # no-op on unknown key
+    # persists across reopen
+    assert PatternMemory(str(tmp_path / "p.jsonl")).patterns()[0].disconfirmed_count == 1
+
+
 # ---- learning loop: predicted vs actual, no acceleration claim ----
 
 def test_learning_compare_and_series(tmp_path):
@@ -210,24 +228,29 @@ def test_defect_pattern_generalises_and_metrics(tmp_path):
     from rdo.orchestrator import run_catalogue
     res = run_catalogue(repo_dir=".", workdir=str(tmp_path / "cycles"))
     cycles = res["cycles"]
-    assert len(cycles) == 3  # genius + migration_defect + affinity_drift
+    assert len(cycles) == 4  # genius + migration_defect + affinity_drift + config_invariant
     defect = cycles["migration_defect (defect-remediation pattern)"]
     # the defect cycle reconciles applied fixes as reuse...
     assert any("fix" in r for r in defect["2_correctly_reused"])
     # ...and still produces at least one ELIGIBLE net-new package (adding a test is safe,
     # unlike the all-gated genius consumers) — the prioritiser distinguishes the two
     assert any(w["eligibility"] == "eligible" for w in defect["4_recommended_work"])
-    # two executed+verified cycles recorded
-    assert len(res["executed_cycles"]) == 2
-    # comparable cross-cycle metrics, with no premature acceleration claim
+    # three executed+verified cycles recorded (incl. the non-migration config guard)
+    assert len(res["executed_cycles"]) == 3
     m = res["learning_metrics"]
-    assert len(m["per_cycle"]) == 6 and "acceleration" in m["trend_claim"]
-    assert len(m["measures"]) == 8
-    # ONLY the two executed+verified cycles are efficiency-comparable (imported + planning excluded)
+    assert len(m["per_cycle"]) == 8 and len(m["measures"]) == 8
+    # ONLY executed+verified cycles are efficiency-comparable (imported + planning excluded)
     assert set(m["comparability"]["efficiency_comparison_pool"]) == {
-        "arc_closers_regtest_2026-11", "affinity_regtest_2026-11"}
-    assert m["efficiency_eligible_cycles"] == 2  # still < 3 -> no acceleration claim
+        "arc_closers_regtest_2026-11", "affinity_regtest_2026-11", "config_invariant_2026-11"}
+    assert m["efficiency_eligible_cycles"] == 3
     assert "watcher_2026-11" in m["comparability"]["excluded_from_efficiency"]["imported_retrospective"]
+    # cross-cycle transfer recorded as an OBSERVATION, not proof
+    tr = res["cross_cycle_transfer"]
+    assert len(tr["executed_cycles"]) == 3 and "not proof" in tr["observation"].lower()
+    matched = {r["cycle"]: r["prediction_matched"] for r in tr["executed_cycles"]}
+    assert matched["arc_closers_regtest_2026-11"] is False     # cycle 1 missed an obligation
+    assert matched["affinity_regtest_2026-11"] is True         # lesson applied
+    assert matched["config_invariant_2026-11"] is True         # transferred beyond migration
 
 
 def test_defect_kind_expands_to_fix_and_regression_test():

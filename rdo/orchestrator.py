@@ -16,9 +16,10 @@ from watcher.evidence import utc_now
 
 from . import prioritise, reconcile as recon_mod, tension
 from .extrapolator import expand, rule_catalogue, scope_summary
-from .knowledge import affinity_drift_idea, genius_tagger_idea, migration_defect_idea
+from .knowledge import (affinity_drift_idea, config_invariant_idea, genius_tagger_idea,
+                        migration_defect_idea)
 from .memory import (CycleStore, PatternMemory, accuracy_series, compare,
-                     derive_lessons, metrics_series, record_actual)
+                     derive_lessons, metrics_series, record_actual, transfer_observations)
 from .model import (ANTI_REQUIREMENT, EXECUTED_VERIFIED, IMPORTED_RETROSPECTIVE, MISSING,
                     PARTIAL, REUSE_EXISTING, CycleRecord, Obligation, Pattern)
 from .reconcile import Signature
@@ -164,6 +165,10 @@ def self_assess(rdo_dir: Optional[str] = None) -> dict:
                      "note": "accuracy_series overlaps metrics_series partially; metrics_series is "
                              "canonical. Both kept (distinct outputs + callers); removing one now is "
                              "not justified — a cleanup is also subject to OFT."})
+    findings.append({"level": "node", "subject": "orchestrator.py", "verdict": "minor_duplication",
+                     "note": "three near-identical executed-cycle recorders (record_*_execution) — a "
+                             "rule-of-three consolidation candidate, deferred to keep each cycle's change "
+                             "bounded. Flagged, not forced (OFT)."})
     if imports_nex:
         findings.append({"level": "system", "subject": "independence", "verdict": "VIOLATION",
                          "note": f"imports NEX runtime in {sorted(set(imports_nex))}"})
@@ -296,9 +301,7 @@ def record_arc_closers_execution(store, memory) -> CycleRecord:
                   "not the migration. Budget a legacy fixture up front.",
         applicability="migration defect regression test effort", confidence=0.3,
         exceptions=["for a migration-only column, a fresh init DOES exercise the migration"]))
-    for p in derive_lessons(c, compare(c)):
-        memory.add(p)
-    for p in derive_lessons(c, compare(c)):
+    for p in derive_lessons(c, compare(c)):   # once — do not double-count lessons
         memory.add(p)
     return c
 
@@ -327,6 +330,40 @@ def record_affinity_execution(store, memory) -> CycleRecord:
         "notes": "migration-only columns; one fresh init_all() test provisions+verifies both nullable "
                  "columns and the 'affinity IS NULL = not-yet-rated' query. The prior lesson correctly "
                  "predicted no legacy fixture was needed -> effort 1 == predicted 1 (no under-estimate).",
+    })
+    store.save(c)
+    for p in derive_lessons(c, compare(c)):
+        memory.add(p)
+    return c
+
+
+def record_config_invariant_execution(store, memory) -> CycleRecord:
+    """The THIRD executed+verified cycle — a DIFFERENT (non-migration) pattern:
+    tests/test_nex_config_flag_registry.py. Tests whether accumulated knowledge
+    transfers beyond the migration domain. (NOTE: this is the third near-identical
+    executed-cycle recorder; at rule-of-three it is a consolidation candidate —
+    deferred to keep this cycle's change bounded; flagged by self_assess.)"""
+    c = CycleRecord(
+        id="config_invariant_2026-11",
+        objective="Execute the eligible nex_config flag-registry consistency guard.",
+        kind=EXECUTED_VERIFIED,
+        predicted={"effort": 1, "net_new_count": 1,
+                   "note": "one guard test; anticipated the scope/exclusions as the hidden obligation "
+                           "and handled it in one file (no second fixture). Invariant holds -> no "
+                           "production change."},
+        reused=["flag_registry_consistency.specify (nex_config.KNOWN_FLAGS / unknown_flags)"],
+        verification={"test_file": "tests/test_nex_config_flag_registry.py", "tests": 3,
+                      "all_pass": True, "invariant_holds": "167 registered, 151 read, 0 unregistered",
+                      "non_vacuous": True, "no_production_change": True, "all_reuse_backed": True,
+                      "reuse_claims": 1, "reuse_claims_backed_by_file_evidence": 1},
+    )
+    record_actual(c, {
+        "effort_actual": 1, "missed": [], "unnecessary": [], "reuse_wrong": [], "regressions": [],
+        "obligations_built": ["flag_registry_consistency.guard_test"],
+        "notes": "Different domain (config/observability, not migration). The general 'reconcile-first + "
+                 "anticipate the hidden obligation' reasoning transferred; the migration-specific patterns "
+                 "did not apply. Scope/exclusions handled in one file -> effort 1 == predicted 1. Out of "
+                 "scope: 16 registry entries are registered-but-not-literally-read (not a defect).",
     })
     store.save(c)
     for p in derive_lessons(c, compare(c)):
@@ -384,6 +421,12 @@ def run_catalogue(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
                               memory, store, active)
     affinity_exec = record_affinity_execution(store, memory)
 
+    # a THIRD discovery+execution cycle, a GENUINELY different (non-migration) pattern:
+    # a config/observability invariant guard. Tests transfer beyond the migration domain.
+    c_cycle, c_sum = _run_one("config_guard_plan_2026-11", config_invariant_idea(), repo_dir,
+                              memory, store, active)
+    config_exec = record_config_invariant_execution(store, memory)
+
     cycles = [store.load(cid) for cid in store.list_ids()]
     metrics = metrics_series(cycles)
     learning = accuracy_series(cycles)
@@ -392,10 +435,12 @@ def run_catalogue(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
             "genius_tagger (feature-deploy pattern)": _six_outputs(g_cycle, g_sum, memory, learning),
             "migration_defect (defect-remediation pattern)": _six_outputs(d_cycle, d_sum, memory, learning),
             "affinity_drift (defect, migration-only)": _six_outputs(a_cycle, a_sum, memory, learning),
+            "config_invariant (invariant-guard pattern, non-migration)": _six_outputs(c_cycle, c_sum, memory, learning),
         },
         "generalisation": {
             "patterns_exercised": ["feature-deploy (persistence/daemon/api/consumer)",
-                                   "defect-remediation (reproduce/root_cause/fix/regression_test/verify)"],
+                                   "defect-remediation (reproduce/root_cause/fix/regression_test/verify)",
+                                   "invariant-guard (specify/scope/guard_test/verify) — non-migration"],
             "engine_reused_unchanged": ["extrapolator", "reconcile", "tension", "prioritise",
                                         "memory/learning"],
             "rule_catalogue": rule_catalogue(),
@@ -412,8 +457,9 @@ def run_catalogue(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
         "executed_cycles": [
             {"id": c.id, "kind": c.kind, "predicted": c.predicted, "actual": c.actual,
              "verification": c.verification}
-            for c in (exec_cycle, affinity_exec)
+            for c in (exec_cycle, affinity_exec, config_exec)
         ],
+        "cross_cycle_transfer": transfer_observations(cycles),
         "learning_metrics": metrics,
         "patterns": [p.to_dict() for p in memory.patterns()],
         "signal_authority_audit": assess_signal_authority(repo_dir, "genius"),
