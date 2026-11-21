@@ -22,7 +22,7 @@ from .knowledge import genius_authority_audit
 from .memory import PatternMemory
 from .report import (demo_genius_tagger, run_catalogue, run_stage2_belief_decay,
                      run_stage3_graph_intelligence, run_stage4_belief_audit,
-                     run_stage5_belief_pathway, self_assess)
+                     run_stage5_belief_pathway, run_stage6_learning_loop, self_assess)
 
 
 def _run_demo(args) -> int:
@@ -57,6 +57,11 @@ def _stage4(args) -> int:
 
 def _stage5(args) -> int:
     print(json.dumps(run_stage5_belief_pathway(args.repo, args.out), indent=2, default=str))
+    return 0
+
+
+def _stage6(args) -> int:
+    print(json.dumps(run_stage6_learning_loop(args.repo, args.out), indent=2, default=str))
     return 0
 
 
@@ -111,6 +116,11 @@ def main(argv=None) -> int:
     s5.add_argument("--repo", default=".")
     s5.add_argument("--out", default="rdo/.cycles")
     s5.set_defaults(fn=_stage5)
+
+    s6 = sub.add_parser("stage6", help="RDO v1.3 §16 Stage-6 learning loop (calibration over real evidence)")
+    s6.add_argument("--repo", default=".")
+    s6.add_argument("--out", default="rdo/.cycles")
+    s6.set_defaults(fn=_stage6)
 
     sub.add_parser("selfcheck",
                    help="assess the RDO against its own Optimal Functional Tension").set_defaults(fn=_selfcheck)

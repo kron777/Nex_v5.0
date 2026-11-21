@@ -25,7 +25,8 @@ from .pathway import select_pathway as _select_pathway
 from .knowledge import (affinity_drift_idea, belief_decay_idea, config_invariant_idea,
                         genius_authority_audit, genius_tagger_idea, migration_defect_idea)
 from .memory import (CycleStore, PatternMemory, accuracy_series, comparability_assessment,
-                     compare, derive_lessons, metrics_series, record_actual, transfer_observations)
+                     compare, derive_lessons, learning_loop, metrics_series, record_actual,
+                     transfer_observations)
 from .model import CycleRecord, EXECUTED_VERIFIED, IMPORTED_RETROSPECTIVE, NATIVE_PLANNING, Pattern
 from .orchestrator import _active_experiments, _record_executed, _run_one
 
@@ -544,5 +545,41 @@ def run_stage5_belief_pathway(repo_dir: str = ".", workdir: str = "rdo/.cycles")
         "rollback": spec["rollback"],
         "runtime_observation_gate": spec["runtime_observation_gate"]["status"],
         "isolated_verification": "tests/test_belief_confidence_retrieval_pathway.py (9 tests, real mechanism)",
+        "persisted_to": path,
+    }
+
+
+def run_stage6_learning_loop(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
+    """RDO v1.3 §16 Stage 6 — the learning loop over REAL Stage 2-5 development evidence: the
+    executed cycles (catalogue) plus one reviewer-attributed planning cycle. Reuses the memory
+    primitives; adds reviewed-vs-automated provenance, reopening on new evidence and explicit
+    UNKNOWNs. Persisted for resume. No live NEX writes; planning reviews are NOT execution."""
+    run_catalogue(repo_dir, workdir)                       # executed cycles (real actuals)
+    run_stage2_belief_decay(repo_dir, workdir, review={    # one human-reviewed planning cycle
+        "reviewer": "stage6 controlled review", "missed": ["belief_decay_rollback"],
+        "notes": "planning review (not an execution outcome)"})
+    store = CycleStore(workdir)
+    cycles = [store.load(i) for i in store.list_ids()]
+    bd = store.load("belief_decay_mvp")
+    # controlled reopening fixtures: concrete contradicting evidence reopens; UNKNOWN does not
+    new_evidence = [
+        {"key": "belief_staleness_input", "now": "missing",
+         "observation": "fixture: belief_activation table reported dropped — reused mechanism gone"},
+        {"key": "belief_decay_policy", "now": "unknown", "observation": ""},   # insufficient -> no reopen
+    ]
+    loop = learning_loop(cycles, new_evidence=new_evidence, reopen_cycle=bd)
+    path = os.path.join(workdir, "learning_loop.json")
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(loop, fh, indent=2, default=str)
+    return {
+        "stage": "RDO v1.3 §16 Stage 6 — learning loop",
+        "cycles_ingested": len(cycles),
+        "provenance_split": loop["provenance_split"],
+        "mean_prediction_accuracy": loop["mean_prediction_accuracy"],
+        "accuracy_basis": loop["accuracy_basis"],
+        "unknown_outcomes": sum(1 for p in loop["per_cycle"] if p["accuracy"] is None),
+        "reopening": loop["reopening"],
+        "comparability_largest_group": loop["comparability"]["largest_genuinely_comparable_group"],
+        "anti_gaming": loop["anti_gaming"],
         "persisted_to": path,
     }
