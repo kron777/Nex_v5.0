@@ -125,6 +125,75 @@ def assess_system(obligations: Dict[str, Obligation],
     return out
 
 
+def assess_signal_authority(consumers: List[dict], signal: str = "genius") -> dict:
+    """Assess a signal's INFLUENCE AUTHORITY from the actual relationships, not the
+    consumer count (RDO spec v1.4 §6, §20). `consumers` is the source-grounded table
+    (see knowledge.genius_consumers); each row should already carry `verified`.
+
+    Distinguishes read vs behavioural, direct vs indirect, conditional vs
+    unconditional, magnitude, safeguards and evidence class, and flags (a) authority
+    concentrated in unconditional/material paths and (b) self-reinforcement
+    candidates — a self-derived signal that behaviourally changes what is produced or
+    attended, regenerating itself. Runtime gain is UNKNOWN (NEX in STANDBY), so these
+    are inferences, not verdicts."""
+    behavioural = [c for c in consumers if c["influence"] == "behavioural"]
+    advisory = [c for c in consumers if c["influence"] == "advisory"]
+    non_influence = [c for c in consumers if c["influence"] in ("observability", "housekeeping")]
+    unconditional = [c for c in behavioural if not c.get("conditional", False)]
+    unsafeguarded = [c for c in behavioural if not c.get("safeguards")]
+    material = [c for c in behavioural
+                if str(c.get("magnitude", "")).upper().startswith("MATERIAL")]
+    self_reinforcing = [c for c in behavioural if c.get("self_derived")]
+    # the genuine concern: material OR unconditional behavioural paths
+    concern = material + [c for c in unconditional if c not in material]
+
+    assessments: List[TensionAssessment] = []
+    if concern:
+        assessments.append(TensionAssessment(
+            "relationship", f"{signal}:influence_authority", OVERDEVELOPED, inference=True,
+            evidence=[f"{c['file']}:{c['lines']} — {c['magnitude']}" for c in concern],
+            note=f"{len(behavioural)} behavioural consumers, but authority is concentrated in "
+                 f"{len(concern)} unconditional/material path(s); the rest are bounded/safeguarded. "
+                 f"Review bounds + reversibility on these, not the raw count (capability != authority)."))
+    else:
+        assessments.append(TensionAssessment(
+            "relationship", f"{signal}:influence_authority", SUFFICIENT, inference=True,
+            note="every behavioural consumer is conditional and safeguarded"))
+    if self_reinforcing:
+        assessments.append(TensionAssessment(
+            "system", f"{signal}:self_reinforcement_candidate", TENSION_UNKNOWN, inference=True,
+            evidence=[f"{c['file']} -> {c['target']}" for c in self_reinforcing],
+            note="a self-evaluation signal behaviourally changes what is produced/attended, which "
+                 "regenerates the signal — candidate positive-feedback loop; GAIN UNKNOWN (STANDBY). "
+                 "The attention-multiplier path is the strongest. Preserve belief safeguards "
+                 "(external-basis caps, sign-symmetry / basis-composition canaries)."))
+
+    unverified = [c["file"] for c in consumers if c.get("verified") is False]
+    return {
+        "signal": signal,
+        "consumer_count": len(consumers),
+        "by_influence": {
+            "behavioural": [c["file"] for c in behavioural],
+            "advisory": [c["file"] for c in advisory],
+            "observability_or_housekeeping": [c["file"] for c in non_influence],
+        },
+        "behavioural_count": len(behavioural),
+        "unconditional_behavioural": [c["file"] for c in unconditional],
+        "unsafeguarded_behavioural": [c["file"] for c in unsafeguarded],
+        "material_magnitude": [c["file"] for c in material],
+        "self_reinforcement_candidates": [c["file"] for c in self_reinforcing],
+        "finding": ("authority is NOT a function of the count: most behavioural consumers are "
+                    "conditional + safeguarded; the review target is the material/unconditional "
+                    "path(s) and the self-reinforcement risk, not the nine files."),
+        "assessments": [a.to_dict() for a in assessments],
+        "evidence_grounded": not unverified,
+        "unverified_rows": unverified,
+        "table": consumers,
+        "inference": True,
+        "note": "runtime gain/behaviour is UNKNOWN while NEX is in STANDBY (host-only).",
+    }
+
+
 def recognize_sufficiency(obligations: Dict[str, Obligation]) -> List[dict]:
     """Where further development is NOT justified (the restraint half of OFT)."""
     out: List[dict] = []

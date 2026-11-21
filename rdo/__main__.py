@@ -19,7 +19,8 @@ import sys
 
 from . import __version__
 from .memory import PatternMemory
-from .orchestrator import assess_signal_influence, demo_genius_tagger
+from .orchestrator import (assess_signal_authority, demo_genius_tagger, run_catalogue,
+                           self_assess)
 
 
 def _run_demo(args) -> int:
@@ -27,9 +28,18 @@ def _run_demo(args) -> int:
     return 0
 
 
+def _run_all(args) -> int:
+    print(json.dumps(run_catalogue(args.repo, args.out), indent=2, default=str))
+    return 0
+
+
 def _influence(args) -> int:
-    print(json.dumps(assess_signal_influence(args.repo, args.signal, args.subtree),
-                     indent=2, default=str))
+    print(json.dumps(assess_signal_authority(args.repo, args.signal), indent=2, default=str))
+    return 0
+
+
+def _selfcheck(args) -> int:
+    print(json.dumps(self_assess(), indent=2, default=str))
     return 0
 
 
@@ -50,11 +60,18 @@ def main(argv=None) -> int:
     d.add_argument("--out", default="rdo/.cycles")
     d.set_defaults(fn=_run_demo)
 
-    i = sub.add_parser("influence", help="audit a signal's consumer count (capability != authority)")
+    ra = sub.add_parser("run-all", help="run two cycles (feature-deploy + defect) + cross-cycle metrics")
+    ra.add_argument("--repo", default=".")
+    ra.add_argument("--out", default="rdo/.cycles")
+    ra.set_defaults(fn=_run_all)
+
+    i = sub.add_parser("influence", help="audit a signal's influence authority (capability != authority)")
     i.add_argument("--repo", default=".")
     i.add_argument("--signal", default="genius")
-    i.add_argument("--subtree", default="theory_x")
     i.set_defaults(fn=_influence)
+
+    sub.add_parser("selfcheck",
+                   help="assess the RDO against its own Optimal Functional Tension").set_defaults(fn=_selfcheck)
 
     pt = sub.add_parser("patterns", help="print accumulated development patterns")
     pt.add_argument("--dir", default="rdo/.cycles")

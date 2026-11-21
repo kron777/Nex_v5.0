@@ -195,4 +195,60 @@ def test_demo_cycle_against_real_repo(tmp_path):
     assert res["5_verification"]["all_reuse_backed"] is True
     assert res["2_correctly_reused"], "should reconcile some already-built mechanisms"
     assert all(w["eligibility"] == "blocked" for w in res["4_recommended_work"])
-    assert res["optimal_functional_tension"]["signal_influence_audit"]["consumer_count"] >= 4
+    audit = res["optimal_functional_tension"]["signal_authority_audit"]
+    assert audit["consumer_count"] >= 4
+    # authority is assessed by relationship, not count: behavioural < total, and the
+    # audit names material/self-reinforcement concerns rather than flagging the count
+    assert audit["behavioural_count"] < audit["consumer_count"]
+    assert audit["self_reinforcement_candidates"]
+    assert audit["evidence_grounded"] is True
+
+
+# ---- generalisation: a second cycle of a DIFFERENT pattern (defect remediation) ----
+
+def test_defect_pattern_generalises_and_metrics(tmp_path):
+    from rdo.orchestrator import run_catalogue
+    res = run_catalogue(repo_dir=".", workdir=str(tmp_path / "cycles"))
+    cycles = res["cycles"]
+    assert len(cycles) == 2
+    defect = next(v for k, v in cycles.items() if "defect" in k)
+    # the defect cycle reconciles applied fixes as reuse...
+    assert any("fix" in r for r in defect["2_correctly_reused"])
+    # ...and still produces at least one ELIGIBLE net-new package (adding a test is safe,
+    # unlike the all-gated genius consumers) — the prioritiser distinguishes the two
+    assert any(w["eligibility"] == "eligible" for w in defect["4_recommended_work"])
+    # comparable cross-cycle metrics, with no premature acceleration claim
+    m = res["learning_metrics"]
+    assert len(m["per_cycle"]) == 3 and "acceleration" in m["trend_claim"]
+    assert len(m["measures"]) == 8
+
+
+def test_defect_kind_expands_to_fix_and_regression_test():
+    obs, _, _ = expand([Obligation("bug", "a bug", "defect")],
+                       reconcile_fn=lambda o: MISSING, max_depth=4)
+    for child in ("bug.fix", "bug.regression_test", "bug.root_cause", "bug.verification"):
+        assert child in obs
+
+
+def test_cycle_metrics_pending_vs_recorded():
+    from rdo.memory import cycle_metrics
+    pending = CycleRecord(id="p", objective="o",
+                          obligations=[{"key": "a", "recon_status": "missing", "provenance": "seed"}],
+                          verification={"all_reuse_backed": True})
+    mp = cycle_metrics(pending)
+    assert mp["outcome_status"] == "pending" and mp["missed_obligation_count"] is None
+    recorded = CycleRecord(id="r", objective="o", predicted={"effort": 2})
+    record_actual(recorded, {"missed": ["x"], "effort_actual": 3})
+    mr = cycle_metrics(recorded)
+    assert mr["outcome_status"] == "recorded" and mr["prediction_error_effort"] == 1
+
+
+# ---- the RDO subjected to its own Optimal Functional Tension ----
+
+def test_rdo_self_assessment_lean_and_independent():
+    from rdo.orchestrator import self_assess
+    r = self_assess()
+    assert r["independence_no_nex_import"] is True
+    assert r["reuses_watcher_infrastructure"] is True
+    assert r["module_count"] <= 12
+    assert not any(f["verdict"] == "VIOLATION" for f in r["findings"])

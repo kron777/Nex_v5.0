@@ -160,6 +160,61 @@ def derive_lessons(cycle: CycleRecord, disc: Dict) -> List[Pattern]:
     return out
 
 
+def cycle_metrics(cycle: CycleRecord) -> Dict:
+    """Comparable per-cycle measures (RDO §24). PROCESS measures are computable now
+    from the cycle record; OUTCOME measures need recorded actuals and are `None`
+    (pending) until then — never fabricated."""
+    obligations = cycle.obligations
+    discovered = len(obligations) or 1
+    duplicates = sum(1 for o in obligations if ";" in str(o.get("provenance", "")))
+    reuse_claims = len(cycle.reused)
+    reuse_verified = cycle.verification.get("reuse_claims_backed_by_file_evidence")
+    grounded = sum(1 for o in obligations if o.get("recon_status") in
+                   ("reuse_existing", "missing", "partial"))
+    d = compare(cycle) if cycle.actual is not None else {}
+    missed = d.get("under_expansion_missed")
+    return {
+        "cycle": cycle.id,
+        # PROCESS (now)
+        "obligations_discovered": len(obligations),
+        "duplicate_discovery_rate": round(duplicates / discovered, 3),
+        "reuse_claims": reuse_claims,
+        "reuse_accuracy": (round(reuse_verified / reuse_claims, 3)
+                           if reuse_verified is not None and reuse_claims else None),
+        "verification_success": cycle.verification.get("all_reuse_backed"),
+        "expansion_grounded_fraction": round(grounded / discovered, 3),  # proxy for precision
+        # OUTCOME (need actuals)
+        "missed_obligation_count": (len(missed) if missed is not None else None),
+        "prediction_error_effort": d.get("effort_error"),
+        "rework": (len(d.get("regressions", [])) if cycle.actual is not None else None),
+        "engineering_effort": (cycle.actual.get("effort_actual") if cycle.actual
+                               else cycle.predicted.get("effort")),
+        "outcome_status": ("recorded" if cycle.actual is not None else "pending"),
+    }
+
+
+def metrics_series(cycles: List[CycleRecord]) -> Dict:
+    """The 8 comparable measures across cycles, plus an honest trend statement.
+    No efficiency/acceleration claim is made until enough OUTCOME-complete cycles
+    exist to support one."""
+    rows = [cycle_metrics(c) for c in cycles]
+    outcome_complete = [r for r in rows if r["outcome_status"] == "recorded"]
+    return {
+        "measures": ["expansion_grounded_fraction (precision proxy)", "missed_obligation_count",
+                     "duplicate_discovery_rate", "reuse_accuracy", "prediction_error_effort",
+                     "rework", "engineering_effort", "verification_success"],
+        "per_cycle": rows,
+        "outcome_complete_cycles": len(outcome_complete),
+        "trend_claim": (
+            f"insufficient outcome data ({len(outcome_complete)} of {len(rows)} cycles have "
+            f"recorded actuals; need >= {MIN_CYCLES_FOR_TREND}) — NO efficiency/acceleration claim"
+            if len(outcome_complete) < MIN_CYCLES_FOR_TREND
+            else "enough outcome-complete cycles to begin assessing a trend; report values, not hype"),
+        "note": "process measures are available every cycle; outcome measures require executing the "
+                "recommended work and recording actuals (host/runtime where NEX behaviour is involved).",
+    }
+
+
 def accuracy_series(cycles: List[CycleRecord]) -> Dict:
     """Per-cycle learning metrics across time. Reports the series; makes NO
     acceleration claim until there are enough cycles to support one."""

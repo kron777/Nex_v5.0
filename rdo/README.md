@@ -59,16 +59,22 @@ WORK PACKAGE → VERIFICATION → (persist) → LEARN
 ## Run it
 
 ```bash
-# full cycle on the real genius-tagger objective -> the six demonstration outputs
+# one full cycle on the real genius-tagger objective -> the six demonstration outputs
 python -m rdo run-demo
 
-# audit how many subsystems consume a signal (capability != authority)
-python -m rdo influence --signal genius --subtree theory_x
+# TWO cycles of different patterns (feature-deploy + defect) + cross-cycle learning metrics
+python -m rdo run-all
+
+# source-grounded influence-AUTHORITY audit of a signal (relationships, not a file count)
+python -m rdo influence --signal genius
+
+# subject the RDO to its own Optimal Functional Tension
+python -m rdo selfcheck
 
 # the accumulated development patterns
 python -m rdo patterns
 
-# the tests (isolated fixtures + one real-repo smoke test)
+# the tests (isolated fixtures + real-repo smoke tests)
 python -m pytest rdo/tests -q
 ```
 
@@ -99,6 +105,53 @@ point is reconciliation against HEAD. The cycle finds:
 The headline result: the May-2026 "build the tagger (≈2.5h)" item is **already
 built**, and so are most of its consumers — so the honest recommendation is *don't
 rebuild; verify at runtime and review the signal's influence*, not a checklist.
+
+## Generalisation — a second cycle, a different pattern
+
+The second cycle (`run-all`) runs a **defect-remediation** objective (the
+`WHATS_NEXT.md` open-question migration bugs: `beliefs.content` UNIQUE dedup and
+the `arc_closers` column) through the *same* engine. Generalising to a new pattern
+required **one** new expansion rule set (`defect` → reproduce / root_cause / fix /
+regression_test / migration / verification); reconciliation, OFT, prioritisation
+and learning applied unchanged. The result is genuinely different from the genius
+cycle: the `beliefs.content` fix is both applied **and guarded** (reused), while
+the `arc_closers` fix is applied but **unguarded** — so the RDO recommends a
+regression test, and this time the work is **eligible** (adding a test is not an
+active NEX behavioural change, unlike the gated genius consumer). The prioritiser
+distinguishes safe net-new work from work that needs a preregistered gate.
+
+## Influence authority, assessed by relationship (not counted)
+
+The genius signal is read by nine files, but **authority is not the count**. The
+audit (`rdo influence`) classifies each consumer from source — direct vs indirect,
+read vs behavioural, conditional vs unconditional, magnitude, safeguards, evidence
+class — and verifies every citation against the tree. Six are behavioural and
+**all six are safeguarded** (bounded weights, clamps, neutral defaults, opt-in
+flags, strict gates). Exactly one path — `quality_synthesis → attention`
+(a 1.20×/0.82× multiplier) — is both unconditional and material; that path, plus
+the **self-reinforcement** question (a self-evaluation signal amplifying the
+attention that regenerates it; gain unknown in STANDBY), is the review target. The
+count is not.
+
+## Cross-cycle learning (measured, not claimed)
+
+`run-all` reports eight comparable per-cycle measures — expansion precision proxy,
+missed-obligation count, duplicate-discovery rate, reuse accuracy, prediction
+error, rework, engineering effort, verification success. Process measures are
+available every cycle; outcome measures need recorded actuals and stay `pending`
+until the recommended work is executed. The report makes **no efficiency or
+acceleration claim** until at least three outcome-complete cycles exist. Patterns
+corroborate slowly (the stale-doc pattern is at confidence 0.5 after three
+observations) and never become universal rules.
+
+## The RDO under its own OFT
+
+`rdo selfcheck` holds the RDO to the principle it applies to NEX: 9 modules,
+~1340 LOC, no NEX-runtime import, reuses Watcher infrastructure — functionally
+sufficient and lean. It honestly flags the largest module and one minor
+function overlap, and the OFT-correct response to both is restraint: splitting or
+deleting would trade a small smell for module proliferation, which OFT also
+forbids.
 
 ## Scope & limitations
 
