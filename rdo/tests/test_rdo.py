@@ -219,8 +219,11 @@ def test_defect_pattern_generalises_and_metrics(tmp_path):
     assert any(w["eligibility"] == "eligible" for w in defect["4_recommended_work"])
     # comparable cross-cycle metrics, with no premature acceleration claim
     m = res["learning_metrics"]
-    assert len(m["per_cycle"]) == 3 and "acceleration" in m["trend_claim"]
+    assert len(m["per_cycle"]) == 4 and "acceleration" in m["trend_claim"]  # watcher+genius+defect+exec
     assert len(m["measures"]) == 8
+    # only the executed+verified cycle is efficiency-comparable
+    assert m["comparability"]["efficiency_comparison_pool"] == ["arc_closers_regtest_2026-11"]
+    assert "watcher_2026-11" in m["comparability"]["excluded_from_efficiency"]["imported_retrospective"]
 
 
 def test_defect_kind_expands_to_fix_and_regression_test():
@@ -241,6 +244,57 @@ def test_cycle_metrics_pending_vs_recorded():
     record_actual(recorded, {"missed": ["x"], "effort_actual": 3})
     mr = cycle_metrics(recorded)
     assert mr["outcome_status"] == "recorded" and mr["prediction_error_effort"] == 1
+
+
+# ---- generalisation: obligation scope taxonomy + engine non-contamination ----
+
+def test_obligation_scope_taxonomy():
+    from rdo.extrapolator import classify_scope, scope_summary
+    assert classify_scope({"classification": "anti_requirement", "provenance": "seed",
+                           "kind": "x"}) == "anti_requirement"
+    assert classify_scope({"classification": "conditional", "provenance": "expansion_rule:a->b",
+                           "kind": "migration"}) == "context_dependent"
+    assert classify_scope({"classification": "necessary", "provenance": "seed",
+                           "kind": "persistence"}) == "domain_specific"
+    assert classify_scope({"classification": "necessary",
+                           "provenance": "expansion_rule:persistence->schema",
+                           "kind": "schema"}) == "general"
+    assert classify_scope({"classification": "necessary", "provenance": "expansion_rule:x->y",
+                           "kind": "an_unknown_kind"}) == "novel"
+    s = scope_summary([{"classification": "necessary", "provenance": "seed",
+                        "kind": "persistence", "key": "k"}])
+    assert s["domain_specific"] == ["k"]
+
+
+def test_engine_has_no_domain_tokens():
+    # the common reasoning engine must stay uncontaminated by any domain
+    import rdo.extrapolator as ex
+    src = open(ex.__file__, encoding="utf-8").read()
+    for token in ("genius", "arc_closers", "quality_synthesis", "beliefs_content"):
+        assert token not in src, f"engine contaminated with domain token: {token}"
+
+
+def test_genius_feedback_is_hypothesis():
+    from rdo.knowledge import genius_feedback_hypothesis
+    h = genius_feedback_hypothesis()
+    assert h["classification"] == "HYPOTHESIS"
+    assert h["path"] and h["gain_variables"] and h["existing_safeguards"]
+    assert h["runtime_observations_needed"] and "do NOT" in h["do_not"]
+
+
+def test_executed_cycle_efficiency_eligibility(tmp_path):
+    from rdo.orchestrator import record_arc_closers_execution
+    from rdo.memory import CycleStore, PatternMemory, metrics_series, record_actual
+    from rdo.model import CycleRecord, IMPORTED_RETROSPECTIVE
+    store = CycleStore(str(tmp_path))
+    mem = PatternMemory(str(tmp_path / "p.jsonl"))
+    c = record_arc_closers_execution(store, mem)
+    assert c.kind == "executed_verified" and c.actual is not None
+    imp = CycleRecord(id="i", objective="o", kind=IMPORTED_RETROSPECTIVE)
+    record_actual(imp, {"effort_actual": 1})          # imported, has actuals, still NOT comparable
+    m = metrics_series([c, imp])
+    assert m["efficiency_eligible_cycles"] == 1
+    assert m["comparability"]["efficiency_comparison_pool"] == [c.id]
 
 
 # ---- the RDO subjected to its own Optimal Functional Tension ----

@@ -118,7 +118,16 @@ cycle: the `beliefs.content` fix is both applied **and guarded** (reused), while
 the `arc_closers` fix is applied but **unguarded** — so the RDO recommends a
 regression test, and this time the work is **eligible** (adding a test is not an
 active NEX behavioural change, unlike the gated genius consumer). The prioritiser
-distinguishes safe net-new work from work that needs a preregistered gate.
+distinguishes safe net-new work from work that needs a preregistered gate. That
+eligible item was then **actually executed and verified**
+(`tests/test_arc_closers_migration.py`) — the first executed+verified cycle.
+
+Every obligation is scope-tagged — **general** (reusable engineering rule) /
+**domain-specific** (the idea's seeds) / **context-dependent** (conditional) /
+**anti-requirement** / **novel** (no rule — surfaced, never force-fit). Generalising
+needed one new *general* rule set in the engine; all domain specifics stay in
+`knowledge.py`, and a test asserts the engine names no domain — so domain rules can
+be added, compared and reused without contaminating it.
 
 ## Influence authority, assessed by relationship (not counted)
 
@@ -131,18 +140,26 @@ flags, strict gates). Exactly one path — `quality_synthesis → attention`
 (a 1.20×/0.82× multiplier) — is both unconditional and material; that path, plus
 the **self-reinforcement** question (a self-evaluation signal amplifying the
 attention that regenerates it; gain unknown in STANDBY), is the review target. The
-count is not.
+count is not. The complete potential path, its gain variables, the existing
+countervailing safeguards (`bonsai.py` diversity mechanisms, windowed averaging) and
+the runtime observations needed to decide it are documented as a **HYPOTHESIS**; no
+multiplier or influence behaviour is changed until runtime evidence establishes it.
 
 ## Cross-cycle learning (measured, not claimed)
 
 `run-all` reports eight comparable per-cycle measures — expansion precision proxy,
 missed-obligation count, duplicate-discovery rate, reuse accuracy, prediction
-error, rework, engineering effort, verification success. Process measures are
-available every cycle; outcome measures need recorded actuals and stay `pending`
-until the recommended work is executed. The report makes **no efficiency or
-acceleration claim** until at least three outcome-complete cycles exist. Patterns
-corroborate slowly (the stale-doc pattern is at confidence 0.5 after three
-observations) and never become universal rules.
+error, rework, engineering effort, verification success — with **explicit
+denominators, missing values and comparability**. Cycles are tagged by kind:
+`imported_retrospective` (seeded history), `native_planning` (RDO ran it, no work
+executed yet), and `executed_verified` (recommended work actually built + verified).
+**Only executed+verified cycles are efficiency-comparable** — an imported
+retrospective is never counted as a completed RDO-guided cycle, and a planning-only
+cycle contributes process measures only. The report makes **no efficiency or
+acceleration claim** until at least three *comparable* cycles exist (there is
+currently one: the `arc_closers` regression test). Patterns corroborate slowly (the
+stale-doc pattern is at 0.5 after three observations) and never become universal
+rules merely for appearing twice.
 
 ## The RDO under its own OFT
 

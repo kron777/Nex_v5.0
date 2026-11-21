@@ -121,6 +121,59 @@ def migration_defect_idea() -> Tuple[str, List[str], List[Obligation], Dict[str,
     return objective, assumptions, seeds, signatures
 
 
+def genius_feedback_hypothesis() -> dict:
+    """The complete POTENTIAL feedback path for the genius-signal -> attention
+    authority concern, documented as a HYPOTHESIS. It stays a hypothesis until the
+    whole path is demonstrated by runtime evidence; the multipliers are NOT changed.
+    Source-grounded from theory_x/stage_tom/quality_synthesis.py (writes the signal)
+    and attention._magnitude_for (applies the multiplier)."""
+    return {
+        "classification": "HYPOTHESIS",
+        "status": "unverified — NEX in STANDBY; no runtime gain measured",
+        "path": [
+            "1. a fountain fire is scored by genius v2; the tagger writes genius_tags",
+            "2. quality_synthesis.py pulls recent genius-tagged fires, joins hot_branch "
+            "(dynamic.db), computes mean genius score per branch -> data/quality_signal.json",
+            "3. attention._magnitude_for reads quality_signal.json (~5 min) and applies "
+            "1.20x amplify (high-genius branch) / 0.82x dampen (low-genius) to sense events",
+            "4. amplified branches accumulate focus_num faster -> fire more often",
+            "5. more fires on that branch -> more genius-tagged fires for it -> can raise its "
+            "mean genius score -> back to step 2 (candidate POSITIVE feedback)",
+        ],
+        "gain_variables": [
+            "amplify/dampen factors (1.20x / 0.82x) = per-cycle loop gain",
+            "quality_signal recompute cadence (~5 min) = loop delay",
+            "KEY UNKNOWN: is the genius score content-driven (same content -> same score, "
+            "regardless of fire rate) or branch-correlated? content-driven => self-limiting; "
+            "branch-correlated => self-confirming",
+            "mean-over-window averaging (sample size / window) = damping of per-fire noise",
+            "focus_num saturation at fire time (r80: 96% of fires >=0.90 readiness) may cap effect",
+        ],
+        "existing_safeguards": [
+            "bonsai.py diversity_recency (cools hot branches) + diversity_starvation (lifts cold "
+            "branches toward parity) — a countervailing force against runaway concentration",
+            "the dampen side (0.82x) is bounded and does not run away",
+            "belief-learning safeguards (external-basis caps, sign-symmetry / basis-composition "
+            "canaries, subtractable provenance) guard the belief arm of any loop",
+            "cadence + windowed mean damp high-frequency feedback",
+        ],
+        "runtime_observations_needed": [
+            "controlled gain measurement: a branch's mean genius score BEFORE vs AFTER its "
+            "amplifier is applied, multiplier on vs off — flat => not self-reinforcing",
+            "branch concentration over time (HHI / firing-branch coverage) with quality_synthesis "
+            "on vs off — does amplification reduce diversity beyond what diversity_starvation corrects?",
+            "monotonic vs stabilising fire-share trajectory for high-genius branches over many cycles",
+            "confirm the score is content-driven (same content scores equally regardless of branch)",
+            "use a blind primary (coverage/HHI), NOT p_on_subject (definitional) — matches the "
+            "DAG's existing falsifier discipline",
+        ],
+        "decision_rule": "self-reinforcing only if measured loop gain exceeds the combined damping "
+                         "(diversity mechanisms + windowed averaging) across cycles; until then, HYPOTHESIS.",
+        "do_not": "do NOT change the 1.20x/0.82x multipliers or any influence behaviour before this "
+                  "is established by runtime evidence (host-only).",
+    }
+
+
 def genius_consumers() -> List[dict]:
     """Source-grounded classification of every consumer of the genius signal.
 

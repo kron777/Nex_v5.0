@@ -15,12 +15,12 @@ from typing import Dict, List, Optional, Tuple
 from watcher.evidence import utc_now
 
 from . import prioritise, reconcile as recon_mod, tension
-from .extrapolator import expand
+from .extrapolator import expand, rule_catalogue, scope_summary
 from .knowledge import genius_tagger_idea, migration_defect_idea
 from .memory import (CycleStore, PatternMemory, accuracy_series, compare,
                      derive_lessons, metrics_series, record_actual)
-from .model import (ANTI_REQUIREMENT, MISSING, PARTIAL, REUSE_EXISTING, CycleRecord,
-                    Obligation, Pattern)
+from .model import (ANTI_REQUIREMENT, EXECUTED_VERIFIED, IMPORTED_RETROSPECTIVE, MISSING,
+                    PARTIAL, REUSE_EXISTING, CycleRecord, Obligation, Pattern)
 from .reconcile import Signature
 
 
@@ -110,14 +110,18 @@ def assess_signal_authority(repo_dir: str, signal: str = "genius") -> dict:
     distinguishes read/behavioural, direct/indirect, conditional/unconditional,
     magnitude, safeguards and evidence class, and flags the material/unconditional
     path(s) + self-reinforcement risk rather than the raw file count."""
-    from .knowledge import genius_consumers
+    from .knowledge import genius_consumers, genius_feedback_hypothesis
     from .reconcile import _grep
     consumers = genius_consumers()
     for c in consumers:
         hits = _grep(c["anchor"], repo_dir, c["file"])
         c["verified"] = bool(hits)
         c["verified_evidence"] = hits[0] if hits else None
-    return tension.assess_signal_authority(consumers, signal)
+    report = tension.assess_signal_authority(consumers, signal)
+    if signal == "genius":
+        # the principal review target, documented as a hypothesis (no behaviour changed)
+        report["feedback_hypothesis"] = genius_feedback_hypothesis()
+    return report
 
 
 # ---------------- the RDO under its OWN Optimal Functional Tension -------------
@@ -189,6 +193,7 @@ def _seed_watcher_cycle(memory: PatternMemory, store: CycleStore) -> CycleRecord
     learning datapoint (genuine predicted-vs-actual)."""
     wc = CycleRecord(
         id="watcher_2026-11", objective="Build the external NEX Watcher (passive MVP + increments)",
+        kind=IMPORTED_RETROSPECTIVE,   # a historical record, NOT a completed RDO-guided cycle
         assumptions=["a new package under watcher/ is independent of NEX invariants"],
         predicted={"net_new_count": 6, "effort": 6,
                    "note": "6 planned modules: snapshots, ledger, regression, longitudinal, "
@@ -244,6 +249,41 @@ def _six_outputs(cycle, summary, memory, learning) -> dict:
     }
 
 
+def record_arc_closers_execution(store, memory) -> CycleRecord:
+    """Record the executed+verified arc_closers regression-test work package — the
+    FIRST RDO-guided cycle whose recommended work was actually built and verified
+    (tests/test_arc_closers_migration.py). Real predicted-vs-actual."""
+    c = CycleRecord(
+        id="arc_closers_regtest_2026-11",
+        objective="Execute the eligible arc_closers regression-test work package (from the defect cycle).",
+        kind=EXECUTED_VERIFIED,
+        predicted={"effort": 1, "net_new_count": 1,
+                   "note": "one regression-test obligation; no runtime/migration change"},
+        reused=["arc_closers_migration.fix (init_db.py:236 + beliefs.sql:319)"],
+        verification={"test_file": "tests/test_arc_closers_migration.py", "tests": 3,
+                      "all_pass": True, "catches_regression": True, "all_reuse_backed": True,
+                      "reuse_claims": 1, "reuse_claims_backed_by_file_evidence": 1},
+    )
+    record_actual(c, {
+        "effort_actual": 1, "missed": [], "unnecessary": [], "reuse_wrong": [], "regressions": [],
+        "obligations_built": ["arc_closers_migration.regression_test"],
+        "notes": "closure_type is provided by BOTH the base schema (beliefs.sql:319) AND the "
+                 "idempotent migration (init_db.py:236); the migration is a legacy-DB safety net, "
+                 "not the sole source — the 'migration bug' framing was partly stale. No regression "
+                 "test existed; one was added. No runtime/migration code changed.",
+    })
+    store.save(c)
+    memory.add(Pattern(
+        key="migration_dual_path", provenance="cycle:arc_closers_regtest_2026-11",
+        statement="A 'migration bug' may be guarded by BOTH a base-schema definition and an "
+                  "idempotent migration; reconcile both paths, not just the migration.",
+        applicability="migration defect schema", confidence=0.3,
+        exceptions=["observed once; some columns exist only via migration"]))
+    for p in derive_lessons(c, compare(c)):
+        memory.add(p)
+    return c
+
+
 def demo_genius_tagger(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
     """Run the full cycle on the real genius-tagger objective and return the six
     required demonstration outputs (single-cycle entry point)."""
@@ -285,6 +325,10 @@ def run_catalogue(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
     memory.add(Pattern(key="reconcile_stale_docs", provenance="cycle:migration_defect_2026-11",
                        statement="(corroboration)", applicability="migration defect"))
 
+    # the defect cycle's one ELIGIBLE recommendation was executed + verified -> record it as
+    # the first executed+verified RDO-guided cycle (the only efficiency-comparable kind).
+    exec_cycle = record_arc_closers_execution(store, memory)
+
     cycles = [store.load(cid) for cid in store.list_ids()]
     metrics = metrics_series(cycles)
     learning = accuracy_series(cycles)
@@ -298,8 +342,21 @@ def run_catalogue(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
                                    "defect-remediation (reproduce/root_cause/fix/regression_test/verify)"],
             "engine_reused_unchanged": ["extrapolator", "reconcile", "tension", "prioritise",
                                         "memory/learning"],
-            "note": "generalisation to a new pattern required ONE new expansion rule set "
-                    "('defect'); the rest of the engine applied unchanged.",
+            "rule_catalogue": rule_catalogue(),
+            "obligation_scope_by_cycle": {
+                "genius_tagger": scope_summary(g_cycle.obligations),
+                "migration_defect": scope_summary(d_cycle.obligations),
+            },
+            "note": "generalisation to a new pattern required ONE new GENERAL expansion rule set "
+                    "('defect') in the engine; domain specifics stayed in knowledge.py. Scope tags "
+                    "(general / domain-specific / context-dependent / anti-requirement / novel) keep "
+                    "reusable obligations distinct from domain ones; a 'novel' kind (no rule) is "
+                    "surfaced rather than force-fit.",
+        },
+        "executed_cycle": {
+            "id": exec_cycle.id, "kind": exec_cycle.kind,
+            "predicted": exec_cycle.predicted, "actual": exec_cycle.actual,
+            "verification": exec_cycle.verification,
         },
         "learning_metrics": metrics,
         "patterns": [p.to_dict() for p in memory.patterns()],

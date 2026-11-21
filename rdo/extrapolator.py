@@ -98,6 +98,50 @@ def _child_key(parent: Obligation, child_kind: str, shared_target: Optional[str]
     return f"{shared_target}.{child_kind}" if shared_target else f"{parent.key}.{child_kind}"
 
 
+# -------- generalisation: obligation SCOPE + rule catalogue (RDO §5 of the brief) --------
+# Every kind with a rule here is a GENERAL engineering pattern, reusable across domains;
+# domain specificity lives only in rdo/knowledge.py seeds — the engine stays uncontaminated.
+
+def classify_scope(ob: dict) -> str:
+    """Scope of a single obligation: general | domain_specific | context_dependent |
+    anti_requirement | novel. Derived from existing fields, no new state."""
+    cls = ob.get("classification")
+    if cls == ANTI_REQUIREMENT:
+        return "anti_requirement"
+    if cls == CONDITIONAL:
+        return "context_dependent"
+    if ob.get("provenance", "") == "seed":
+        return "domain_specific"          # the idea's top-level obligations are domain-shaped
+    kind = ob.get("kind")
+    if kind not in EXPANSION_RULES and kind not in TERMINAL_KINDS:
+        return "novel"                    # no pattern covers it -> a new requirement class
+    return "general"                      # produced by a general engineering rule
+
+
+def scope_summary(obligations: List[dict]) -> Dict[str, List[str]]:
+    out: Dict[str, List[str]] = {"general": [], "domain_specific": [], "context_dependent": [],
+                                 "anti_requirement": [], "novel": []}
+    for ob in obligations:
+        out[classify_scope(ob)].append(ob.get("key"))
+    return out
+
+
+def rule_catalogue() -> dict:
+    """The expansion-rule catalogue — evidence that domain rules can be reused and
+    compared WITHOUT contaminating the engine."""
+    return {
+        "general_engineering_patterns": sorted(EXPANSION_RULES),
+        "terminal_kinds": sorted(TERMINAL_KINDS),
+        "domain_knowledge_location": "rdo/knowledge.py (per-domain seeds + reconciliation "
+                                     "signatures) — NOT in the engine",
+        "engine_contamination_check": "EXPANSION_RULES/TERMINAL_KINDS name only generic engineering "
+                                      "kinds; no project-specific/domain name appears in this engine",
+        "pattern_promotion_rule": "a pattern is NOT promoted for appearing twice — confidence is "
+                                  "capped and rises slowly, provenance + exceptions are retained "
+                                  "(memory.PatternMemory).",
+    }
+
+
 def expand(seeds: List[Obligation],
            reconcile_fn: Optional[Callable[[Obligation], str]] = None,
            max_depth: int = 4) -> Tuple[Dict[str, Obligation], List[Relationship], List[dict]]:

@@ -126,11 +126,20 @@ class Pattern:
         return dataclasses.asdict(self)
 
 
+# cycle provenance kinds — kept DISTINCT so imported history is never counted as a
+# completed RDO-guided development cycle (founder constraint).
+NATIVE_PLANNING = "native_planning"            # RDO ran it; no work executed yet (outcome pending)
+IMPORTED_RETROSPECTIVE = "imported_retrospective"  # a historical record seeded into learning
+EXECUTED_VERIFIED = "executed_verified"        # RDO-recommended work actually built + verified
+CYCLE_KINDS = (NATIVE_PLANNING, IMPORTED_RETROSPECTIVE, EXECUTED_VERIFIED)
+
+
 @dataclasses.dataclass
 class CycleRecord:
     """A complete development cycle, persisted for resume + learning."""
     id: str
     objective: str
+    kind: str = NATIVE_PLANNING
     assumptions: List[str] = dataclasses.field(default_factory=list)
     obligations: List[dict] = dataclasses.field(default_factory=list)
     relationships: List[dict] = dataclasses.field(default_factory=list)

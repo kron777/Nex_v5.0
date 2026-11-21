@@ -23,7 +23,8 @@ from typing import Dict, List, Optional
 
 from watcher.evidence import utc_now
 
-from .model import CycleRecord, Pattern
+from .model import (CycleRecord, EXECUTED_VERIFIED, IMPORTED_RETROSPECTIVE,
+                    NATIVE_PLANNING, Pattern)
 
 MIN_CYCLES_FOR_TREND = 3
 CONFIDENCE_CAP = 0.9
@@ -175,6 +176,8 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
     missed = d.get("under_expansion_missed")
     return {
         "cycle": cycle.id,
+        "kind": cycle.kind,
+        "outcome_complete": cycle.actual is not None,
         # PROCESS (now)
         "obligations_discovered": len(obligations),
         "duplicate_discovery_rate": round(duplicates / discovered, 3),
@@ -193,25 +196,60 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
     }
 
 
+_OUTCOME_MEASURES = ("missed_obligation_count", "prediction_error_effort", "rework")
+_PROCESS_MEASURES = ("expansion_grounded_fraction", "duplicate_discovery_rate",
+                     "reuse_accuracy", "verification_success")
+
+
 def metrics_series(cycles: List[CycleRecord]) -> Dict:
-    """The 8 comparable measures across cycles, plus an honest trend statement.
-    No efficiency/acceleration claim is made until enough OUTCOME-complete cycles
-    exist to support one."""
+    """The 8 comparable measures across cycles, with EXPLICIT denominators,
+    comparability and missing values (founder constraint). Efficiency comparison
+    uses ONLY executed+verified RDO-guided cycles — an imported retrospective is
+    never counted as a completed cycle, and a native planning cycle with no
+    executed work contributes process measures only. No acceleration trend is
+    computed from incomplete or incomparable data."""
     rows = [cycle_metrics(c) for c in cycles]
-    outcome_complete = [r for r in rows if r["outcome_status"] == "recorded"]
+    by_kind: Dict[str, int] = {}
+    for r in rows:
+        by_kind[r["kind"]] = by_kind.get(r["kind"], 0) + 1
+    outcome_complete = [r for r in rows if r["outcome_complete"]]
+    # efficiency-eligible: RDO ran it AND work was executed+verified (exclude imported)
+    efficiency_eligible = [r for r in rows if r["kind"] == EXECUTED_VERIFIED and r["outcome_complete"]]
+
+    def _denominator(measure: str) -> dict:
+        contributing = [r for r in rows if r.get(measure) is not None]
+        return {"contributing_cycles": [r["cycle"] for r in contributing],
+                "n": len(contributing), "missing": len(rows) - len(contributing)}
+
+    denominators = {m: _denominator(m) for m in (_PROCESS_MEASURES + _OUTCOME_MEASURES)}
     return {
         "measures": ["expansion_grounded_fraction (precision proxy)", "missed_obligation_count",
                      "duplicate_discovery_rate", "reuse_accuracy", "prediction_error_effort",
                      "rework", "engineering_effort", "verification_success"],
         "per_cycle": rows,
-        "outcome_complete_cycles": len(outcome_complete),
+        "cycles_by_kind": by_kind,
+        "comparability": {
+            "process_measures_available_for": "every cycle the RDO ran (native + executed)",
+            "outcome_measures_available_for": [r["cycle"] for r in outcome_complete],
+            "efficiency_comparison_pool": [r["cycle"] for r in efficiency_eligible],
+            "excluded_from_efficiency": {
+                "imported_retrospective": [r["cycle"] for r in rows
+                                           if r["kind"] == IMPORTED_RETROSPECTIVE],
+                "native_planning_no_actuals": [r["cycle"] for r in rows
+                                               if r["kind"] == NATIVE_PLANNING and not r["outcome_complete"]],
+            },
+        },
+        "denominators": denominators,
+        "efficiency_eligible_cycles": len(efficiency_eligible),
         "trend_claim": (
-            f"insufficient outcome data ({len(outcome_complete)} of {len(rows)} cycles have "
-            f"recorded actuals; need >= {MIN_CYCLES_FOR_TREND}) — NO efficiency/acceleration claim"
-            if len(outcome_complete) < MIN_CYCLES_FOR_TREND
-            else "enough outcome-complete cycles to begin assessing a trend; report values, not hype"),
-        "note": "process measures are available every cycle; outcome measures require executing the "
-                "recommended work and recording actuals (host/runtime where NEX behaviour is involved).",
+            f"NO efficiency/acceleration claim: only {len(efficiency_eligible)} executed+verified "
+            f"RDO-guided cycle(s); need >= {MIN_CYCLES_FOR_TREND} comparable cycles. An imported "
+            f"retrospective and a planning-only cycle are NOT comparable to a completed cycle."
+            if len(efficiency_eligible) < MIN_CYCLES_FOR_TREND
+            else "enough comparable executed+verified cycles to begin assessing a trend; report "
+                 "values, not hype"),
+        "note": "process measures every cycle; outcome measures need executed work + recorded "
+                "actuals; efficiency compares only executed+verified cycles of comparable kind.",
     }
 
 
