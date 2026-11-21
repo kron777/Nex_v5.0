@@ -500,7 +500,12 @@ class TestArchitectureCompliance(unittest.TestCase):
         result = subprocess.run(
             ["grep", "-rl", "import sqlite3", "--include=*.py",
              "--exclude-dir=substrate", "--exclude-dir=tests",
-             "--exclude-dir=.venv", "--exclude-dir=__pycache__", str(root)],
+             "--exclude-dir=.venv", "--exclude-dir=__pycache__",
+             # watcher/ is an external, read-only instrument (mode=ro + a write-denying
+             # authorizer, proven in watcher/tests/test_watcher_safety.py). By design it
+             # must not import substrate, so its one guarded sqlite3 choke point is
+             # scanned separately rather than routed through substrate.connect().
+             "--exclude-dir=watcher", str(root)],
             capture_output=True, text=True,
         )
         exceptions = {"nex_db_reaper.py", "nex_db_backup.py"}

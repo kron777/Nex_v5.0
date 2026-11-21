@@ -1,0 +1,4 @@
+# runtime cycle records + pattern memory (regenerate with `python -m rdo run-demo`)
+.cycles/
+__pycache__/
+*.pyc
