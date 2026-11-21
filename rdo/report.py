@@ -18,8 +18,8 @@ from typing import Dict, List, Optional
 from watcher.evidence import utc_now
 
 from .extrapolator import rule_catalogue, scope_summary
-from .knowledge import (affinity_drift_idea, config_invariant_idea, genius_authority_audit,
-                        genius_tagger_idea, migration_defect_idea)
+from .knowledge import (affinity_drift_idea, belief_decay_idea, config_invariant_idea,
+                        genius_authority_audit, genius_tagger_idea, migration_defect_idea)
 from .memory import (CycleStore, PatternMemory, accuracy_series, comparability_assessment,
                      compare, derive_lessons, metrics_series, record_actual, transfer_observations)
 from .model import CycleRecord, EXECUTED_VERIFIED, IMPORTED_RETROSPECTIVE, Pattern
@@ -379,4 +379,32 @@ def run_catalogue(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
         "patterns": [p.to_dict() for p in memory.patterns()],
         "signal_authority_audit": genius_authority_audit(repo_dir, "genius"),
         "generated_at": utc_now(),
+    }
+
+
+def run_stage2_belief_decay(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
+    """RDO v1.3 §16 Stage-2 Extrapolator MVP: run the real belief-DEVELOPMENT objective
+    (staleness-based confidence decay) end to end and persist it for resume. Reuses the
+    generic driver (`_run_one` -> `run_cycle`) and `CycleStore`; it introduces no new
+    persistence, graph or reconciliation mechanism. Read-only: it proposes work, it never
+    touches the live belief store."""
+    memory = PatternMemory(os.path.join(workdir, "patterns.jsonl"))
+    store = CycleStore(workdir)
+    cycle, _summary = _run_one("belief_decay_mvp", belief_decay_idea(), repo_dir, memory, store, [])
+    obls = cycle.obligations
+    return {
+        "stage": "RDO v1.3 §16 Stage 2 — Extrapolator MVP",
+        "objective": cycle.objective,
+        "obligations_discovered": len(obls),
+        "max_depth": max(o["depth"] for o in obls),
+        "dependency_edges": len(cycle.relationships),
+        "reused_existing": cycle.reused,
+        "net_new_missing": cycle.missing,
+        "anti_requirements": cycle.anti_requirements,
+        "unresolved_branches": sum(1 for o in obls if o["recon_status"] == "unknown"),
+        "verification": cycle.verification,
+        "persisted_to": os.path.join(workdir, "cycle_belief_decay_mvp.json"),
+        "resume_in_new_process":
+            f"python -c \"from rdo.memory import CycleStore; "
+            f"print(CycleStore('{workdir}').load('belief_decay_mvp').objective)\"",
     }

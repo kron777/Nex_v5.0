@@ -52,6 +52,7 @@ class Obligation:
     recon_status: str = RECON_UNKNOWN
     recon_evidence: List[str] = dataclasses.field(default_factory=list)
     confidence: str = "stated"      # stated | measured | inferred
+    impact: str = ""                # consequence if unmet / value if met (planning attribute)
     note: str = ""
 
     def __post_init__(self) -> None:

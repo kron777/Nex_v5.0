@@ -20,7 +20,7 @@ import sys
 from . import __version__
 from .knowledge import genius_authority_audit
 from .memory import PatternMemory
-from .report import demo_genius_tagger, run_catalogue, self_assess
+from .report import demo_genius_tagger, run_catalogue, run_stage2_belief_decay, self_assess
 
 
 def _run_demo(args) -> int:
@@ -35,6 +35,11 @@ def _run_all(args) -> int:
 
 def _influence(args) -> int:
     print(json.dumps(genius_authority_audit(args.repo, args.signal), indent=2, default=str))
+    return 0
+
+
+def _stage2(args) -> int:
+    print(json.dumps(run_stage2_belief_decay(args.repo, args.out), indent=2, default=str))
     return 0
 
 
@@ -69,6 +74,11 @@ def main(argv=None) -> int:
     i.add_argument("--repo", default=".")
     i.add_argument("--signal", default="genius")
     i.set_defaults(fn=_influence)
+
+    s2 = sub.add_parser("stage2", help="RDO v1.3 §16 Stage-2 Extrapolator MVP (belief-decay objective)")
+    s2.add_argument("--repo", default=".")
+    s2.add_argument("--out", default="rdo/.cycles")
+    s2.set_defaults(fn=_stage2)
 
     sub.add_parser("selfcheck",
                    help="assess the RDO against its own Optimal Functional Tension").set_defaults(fn=_selfcheck)
