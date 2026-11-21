@@ -118,6 +118,24 @@ def test_traceable_acyclic_dependency_graph(sl):
             assert obls[r["dst"]]["depth"] >= obls[r["src"]]["depth"]
 
 
+def test_dependency_cycles_are_detected(sl):
+    """'cycles must be detected' is an ACTIVE capability (tension._find_cycles, wired into
+    assess_system and run every cycle), not merely by-construction absence. The belief-decay
+    slice is acyclic; a deliberate cycle must be flagged."""
+    from rdo import tension
+    from rdo.model import Obligation, Relationship
+    # (a) the real slice surfaces no feedback-cycle system tension
+    c = sl["cycle"]
+    assert [t for t in c.tension if t.get("subject") == "feedback_cycles"] == []
+    # (b) a deliberate A->B->C->A dependency cycle IS detected and surfaced
+    obls = {k: Obligation(k, k, "consumer") for k in ("A", "B", "C")}
+    rels = [Relationship("A", "B", "depends_on"), Relationship("B", "C", "depends_on"),
+            Relationship("C", "A", "depends_on")]
+    assert tension._find_cycles(rels) == [["A", "B", "C", "A"]]
+    sys_t = [t.to_dict() for t in tension.assess_system(obls, rels)]
+    assert any(t["subject"] == "feedback_cycles" for t in sys_t)
+
+
 def test_hard_prerequisites_not_bypassed(sl):
     # the eligibility gate blocks work with unmet prerequisites, and names them
     c = sl["cycle"]

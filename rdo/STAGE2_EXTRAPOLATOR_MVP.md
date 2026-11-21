@@ -34,7 +34,8 @@ Run it: `python -m rdo stage2 --out rdo/.cycles` → prints the result and persi
 | Traceable dependency graph | **REUSE** | `Relationship` (`depends_on`) + `parent_key` tree |
 | Persist + resume in a new process | **REUSE** | `CycleStore.save` / `.load` (`CycleRecord(**json)`) |
 | Record `impact` per obligation | **ADDED (field)** | new optional `Obligation.impact` — the one attribute with no home; a field, not a new mechanism |
-| Explicit dependency-cycle / SCC detection | **MISSING → Stage 3** | not present in `rdo/`; expansion is acyclic *by construction* (parent_key tree, strictly increasing depth). Full SCC/completeness analysis is RDO v1.3 §16 **Stage 3**. |
+| Dependency-cycle detection | **REUSE (present + wired)** | `tension._find_cycles` (DFS over `depends_on`/`influences`) runs every cycle via `assess_system`; it surfaces a `feedback_cycles` system tension with the cycle path. The belief-decay slice is acyclic. (Correction: an earlier draft wrongly listed this as absent/Stage 3.) |
+| SCC / completeness / sequence analysis, typed edges, dedup beyond exact-key | **MISSING → Stage 3** | not present in `rdo/`; these are RDO v1.3 §16 **Stage 3** (graph intelligence), not built here. |
 
 No duplicate persistence, graph or reconciliation mechanism was created.
 
@@ -51,6 +52,7 @@ suite 48 passing.
 - **No verification without acceptance evidence** (every reuse claim file-backed) → `test_no_verification_without_acceptance_evidence`
 - **Stable canonical IDs, no silent merge** → `test_stable_canonical_ids_and_no_silent_merge`
 - **Traceable acyclic graph** (every node traces to a seed; `depends_on` depth-monotonic) → `test_traceable_acyclic_dependency_graph`
+- **Cycles are actively detected** (`tension._find_cycles` flags a deliberate cycle; slice is clean) → `test_dependency_cycles_are_detected`
 - **Hard prerequisites not bypassed** (blocked packages name blockers) → `test_hard_prerequisites_not_bypassed`
 - **Unresolved/deferred branches survive persistence** (31 `unknown`-recon obligations reload unchanged) → `test_unresolved_branches_survive_persistence`
 - **Persist + resume identity** (byte-for-byte) → `test_persist_and_resume_identity`
@@ -74,9 +76,10 @@ evidence" rule on the slice itself.
 ## Stage 3 readiness (RDO v1.3 §16)
 
 The MVP provides the obligation graph (`parent_key` tree + `depends_on` edges) Stage 3
-builds on. Stage 3 adds: deduplication beyond exact-key (currently exact-key only), typed
-edges beyond `depends_on`, explicit **cycle/SCC detection**, and completeness/sequence
-analysis — none of which exist yet in `rdo/`.
+builds on. Basic **cycle detection already exists** (`tension._find_cycles`, wired via
+`assess_system`). Stage 3 adds what is *not* yet present: deduplication beyond exact-key
+(currently exact-key only), typed edges beyond `depends_on`, **SCC** decomposition, and
+completeness/sequence analysis.
 
 ## Specification-discrepancy note (unresolved — awaiting governing PDFs)
 
