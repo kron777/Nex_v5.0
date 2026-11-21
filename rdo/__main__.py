@@ -18,9 +18,9 @@ import os
 import sys
 
 from . import __version__
+from .knowledge import genius_authority_audit
 from .memory import PatternMemory
-from .orchestrator import (assess_signal_authority, demo_genius_tagger, run_catalogue,
-                           self_assess)
+from .report import demo_genius_tagger, run_catalogue, self_assess
 
 
 def _run_demo(args) -> int:
@@ -34,7 +34,7 @@ def _run_all(args) -> int:
 
 
 def _influence(args) -> int:
-    print(json.dumps(assess_signal_authority(args.repo, args.signal), indent=2, default=str))
+    print(json.dumps(genius_authority_audit(args.repo, args.signal), indent=2, default=str))
     return 0
 
 

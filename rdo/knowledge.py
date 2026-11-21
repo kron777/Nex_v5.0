@@ -238,6 +238,27 @@ def config_invariant_idea() -> Tuple[str, List[str], List[Obligation], Dict[str,
     return objective, assumptions, seeds, signatures
 
 
+def genius_authority_audit(repo_dir: str, signal: str = "genius") -> dict:
+    """Assess the genius signal's influence AUTHORITY from the actual relationships, not
+    the consumer count (RDO §6/§20). Each consumer in the grounded table (genius_consumers)
+    is grep-verified against its cited file so the classification cannot go stale, then the
+    GENERIC tension.assess_signal_authority distinguishes read/behavioural, direct/indirect,
+    conditional/unconditional, magnitude, safeguards and evidence class, and flags the
+    material/unconditional path(s) + self-reinforcement risk rather than the raw file count.
+    (Moved here from the generic orchestrator so the driver stays domain-free.)"""
+    from . import tension
+    from .reconcile import _grep
+    consumers = genius_consumers()
+    for c in consumers:
+        hits = _grep(c["anchor"], repo_dir, c["file"])
+        c["verified"] = bool(hits)
+        c["verified_evidence"] = hits[0] if hits else None
+    report = tension.assess_signal_authority(consumers, signal)
+    if signal == "genius":
+        report["feedback_hypothesis"] = genius_feedback_hypothesis()
+    return report
+
+
 def genius_consumers() -> List[dict]:
     """Source-grounded classification of every consumer of the genius signal.
 

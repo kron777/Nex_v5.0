@@ -321,10 +321,37 @@ def test_rdo_never_imports_nex_runtime():
     assert offenders == [], f"RDO must not import NEX runtime: {offenders}"
 
 
+def test_orchestrator_is_domain_free():
+    """The generic cycle DRIVER must name no domain specifics in its CODE. Genius/
+    migration/config knowledge lives in knowledge.py; the demonstration + reporting
+    live in report.py. This guards the responsibility split so the driver cannot
+    silently re-absorb domain logic (the leak that motivated extracting report.py and
+    genius_authority_audit). Docstrings/comments are stripped first, so the check is
+    on identifiers and in-code string literals (e.g. `== "genius"`), not prose."""
+    import ast
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(root, "orchestrator.py"), encoding="utf-8") as fh:
+        tree = ast.parse(fh.read())
+    # drop module/function/class docstrings; ast.unparse already omits comments
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef,
+                             ast.ClassDef)):
+            body = node.body
+            if (body and isinstance(body[0], ast.Expr)
+                    and isinstance(body[0].value, ast.Constant)
+                    and isinstance(body[0].value.value, str)):
+                node.body = body[1:] or [ast.Pass()]
+    code = ast.unparse(tree).lower()
+    forbidden = ["genius", "migration", "config_invariant", "affinity",
+                 "assess_signal_authority", "quality_synthesis", "tagger"]
+    present = [tok for tok in forbidden if tok in code]
+    assert present == [], f"orchestrator.py code must stay domain-free; found: {present}"
+
+
 # ---- full cycle against the real repository (integration smoke) ----
 
 def test_demo_cycle_against_real_repo(tmp_path):
-    from rdo.orchestrator import demo_genius_tagger
+    from rdo.report import demo_genius_tagger
     res = demo_genius_tagger(repo_dir=".", workdir=str(tmp_path / "cycles"))
     for k in ("1_discovered", "2_correctly_reused", "3_rejected_or_deferred",
               "4_recommended_work", "5_verification", "6_learned"):
@@ -344,7 +371,7 @@ def test_demo_cycle_against_real_repo(tmp_path):
 # ---- generalisation: a second cycle of a DIFFERENT pattern (defect remediation) ----
 
 def test_defect_pattern_generalises_and_metrics(tmp_path):
-    from rdo.orchestrator import run_catalogue
+    from rdo.report import run_catalogue
     res = run_catalogue(repo_dir=".", workdir=str(tmp_path / "cycles"))
     cycles = res["cycles"]
     assert len(cycles) == 4  # genius + migration_defect + affinity_drift + config_invariant
@@ -436,7 +463,7 @@ def test_genius_feedback_is_hypothesis():
 
 
 def test_executed_cycle_efficiency_eligibility(tmp_path):
-    from rdo.orchestrator import record_arc_closers_execution
+    from rdo.report import record_arc_closers_execution
     from rdo.memory import CycleStore, PatternMemory, metrics_series, record_actual
     from rdo.model import CycleRecord, IMPORTED_RETROSPECTIVE
     store = CycleStore(str(tmp_path))
@@ -460,7 +487,7 @@ def _run_recorder(fn, tmp_path):
 
 
 def test_arc_closers_recorder_record_equivalent(tmp_path):
-    from rdo.orchestrator import record_arc_closers_execution
+    from rdo.report import record_arc_closers_execution
     c, mem = _run_recorder(record_arc_closers_execution, tmp_path)
     assert c.kind == "executed_verified"
     assert c.predicted["effort"] == 1 and c.actual["effort_actual"] == 2
@@ -475,7 +502,7 @@ def test_arc_closers_recorder_record_equivalent(tmp_path):
 
 
 def test_affinity_recorder_record_equivalent(tmp_path):
-    from rdo.orchestrator import record_affinity_execution
+    from rdo.report import record_affinity_execution
     c, mem = _run_recorder(record_affinity_execution, tmp_path)
     assert c.kind == "executed_verified"
     assert c.predicted["effort"] == 1 and c.actual["effort_actual"] == 1
@@ -485,7 +512,7 @@ def test_affinity_recorder_record_equivalent(tmp_path):
 
 
 def test_config_recorder_record_equivalent(tmp_path):
-    from rdo.orchestrator import record_config_invariant_execution
+    from rdo.report import record_config_invariant_execution
     c, mem = _run_recorder(record_config_invariant_execution, tmp_path)
     assert c.kind == "executed_verified"
     assert c.predicted["effort"] == 1 and c.actual["effort_actual"] == 1
@@ -496,7 +523,7 @@ def test_config_recorder_record_equivalent(tmp_path):
 # ---- the RDO subjected to its own Optimal Functional Tension ----
 
 def test_rdo_self_assessment_lean_and_independent():
-    from rdo.orchestrator import self_assess
+    from rdo.report import self_assess
     r = self_assess()
     assert r["independence_no_nex_import"] is True
     assert r["reuses_watcher_infrastructure"] is True
