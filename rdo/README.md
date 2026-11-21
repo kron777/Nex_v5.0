@@ -163,12 +163,15 @@ rules merely for appearing twice.
 
 ## The RDO under its own OFT
 
-`rdo selfcheck` holds the RDO to the principle it applies to NEX: 9 modules,
-~1340 LOC, no NEX-runtime import, reuses Watcher infrastructure — functionally
-sufficient and lean. It honestly flags the largest module and one minor
-function overlap, and the OFT-correct response to both is restraint: splitting or
-deleting would trade a small smell for module proliferation, which OFT also
-forbids.
+`rdo selfcheck` holds the RDO to the principle it applies to NEX: 10 modules,
+no NEX-runtime import, reuses Watcher infrastructure. The generic cycle driver
+(`orchestrator.py`) is domain-free; the demonstration/reporting layer lives in
+`report.py` and the domain-specific authority audit in `knowledge.py` (see
+`DEVELOPMENT_HISTORY.md` for that split's prediction-versus-actual). selfcheck
+reports total LOC and flags the largest modules on an **observational size
+tripwire**, plus one minor function overlap; the OFT-correct response is
+restraint — none of them has grown a second responsibility, so splitting further
+would trade a size smell for module proliferation, which OFT also forbids.
 
 ## Scope & limitations
 
