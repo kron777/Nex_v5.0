@@ -8,6 +8,8 @@ cycle against the real repository.
 """
 import os
 
+import pytest
+
 from rdo.extrapolator import expand
 from rdo.memory import (CycleStore, PatternMemory, accuracy_series, compare,
                         derive_lessons, record_actual)
@@ -228,6 +230,56 @@ def test_zero_confidence_retained_but_not_applicable(tmp_path):
     assert mem.applicable("build a widget") == []              # but NOT offered as guidance
 
 
+# ---- persistence lifecycle + reconstruction (item 2) ----
+
+def test_persistence_lifecycle_reconstruction_and_append_only(tmp_path):
+    from rdo.memory import PatternMemory
+    path = str(tmp_path / "p.jsonl")
+    mem = PatternMemory(path)
+    mem.add(Pattern("k", "rule", "cycle:1", confidence=0.3, exceptions=["seed"]))
+    mem.add(Pattern("k", "rule", "cycle:2"))        # corroborate
+    mem.add(Pattern("k", "rule", "cycle:2"))        # DUPLICATE corroboration -> no state/log change
+    mem.refute("k", "E")                            # disconfirm
+    mem.refute("k", "E")                            # DUPLICATE refutation -> no state/log change
+    before = mem.patterns()[0]
+    assert (before.confidence, before.observed_count, before.disconfirmed_count) == (0.3, 2, 1)
+    # append-only log: exactly the three state-changing events, duplicates wrote nothing
+    lines = [ln for ln in open(path, encoding="utf-8").read().splitlines() if ln.strip()]
+    assert len(lines) == 3
+    # reload -> confidence/counts reconstructed deterministically from the persisted history
+    after = PatternMemory(path).patterns()[0]
+    assert (after.confidence, after.observed_count, after.disconfirmed_count) == (0.3, 2, 1)
+    assert after.confirmations == ["cycle:1", "cycle:2"] and after.disconfirmations == ["E"]
+
+
+def test_tolerant_reload_skips_a_truncated_line(tmp_path):
+    from rdo.memory import PatternMemory
+    path = str(tmp_path / "p.jsonl")
+    mem = PatternMemory(path)
+    mem.add(Pattern("k", "rule", "cycle:1", confidence=0.4))
+    with open(path, "a", encoding="utf-8") as fh:   # simulate a crash mid-append
+        fh.write('{"key": "k", "statement": "trunc')
+    reloaded = PatternMemory(path)                  # must not brick on the truncated line
+    assert reloaded.patterns()[0].confidence == 0.4
+
+
+def test_record_executed_raises_on_persistence_failure_without_partial_lessons(tmp_path):
+    from rdo.orchestrator import _record_executed
+    from rdo.memory import PatternMemory
+    mem = PatternMemory(str(tmp_path / "p.jsonl"))
+
+    class _FailingStore:
+        def save(self, cycle):
+            raise OSError("disk full")
+
+    with pytest.raises(OSError):
+        _record_executed(_FailingStore(), mem, cycle_id="x", objective="o",
+                         predicted={"effort": 1}, reused=["r"], verification={},
+                         actual={"effort_actual": 1, "missed": []})
+    # persistence failed BEFORE any lesson was added -> no partial "success"
+    assert mem.patterns() == []
+
+
 # ---- learning loop: predicted vs actual, no acceleration claim ----
 
 def test_learning_compare_and_series(tmp_path):
@@ -306,11 +358,14 @@ def test_defect_pattern_generalises_and_metrics(tmp_path):
     assert len(res["executed_cycles"]) == 4
     m = res["learning_metrics"]
     assert len(m["per_cycle"]) == 9 and len(m["measures"]) == 8
-    # genuinely-comparable (same work_type) pool is the 3 test-guards; the refactor is separate
+    # the HONEST comparable pool is the 2 MIGRATION guards (engineering_pattern), not 3 test_guards
     assert set(m["comparability"]["efficiency_comparison_pool"]) == {
-        "arc_closers_regtest_2026-11", "affinity_regtest_2026-11", "config_invariant_2026-11"}
-    assert m["completed_executed_cycles"] == 4 and m["largest_comparable_group"] == 3
-    assert "refactor" in m["comparability"]["genuinely_comparable_by_work_type"]
+        "arc_closers_regtest_2026-11", "affinity_regtest_2026-11"}
+    assert m["completed_executed_cycles"] == 4 and m["largest_comparable_group"] == 2
+    cp = m["comparability"]["genuinely_comparable_by_engineering_pattern"]
+    assert set(cp.get("migration_guard", [])) == {"arc_closers_regtest_2026-11", "affinity_regtest_2026-11"}
+    assert "invariant_guard" in cp and "refactor" in cp
+    assert res["comparability_assessment"]["largest_genuinely_comparable_group"] == 2
     assert "watcher_2026-11" in m["comparability"]["excluded_from_efficiency"]["imported_retrospective"]
     # cross-cycle transfer recorded as an OBSERVATION, not proof
     tr = res["cross_cycle_transfer"]

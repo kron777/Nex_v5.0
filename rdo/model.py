@@ -156,8 +156,10 @@ class CycleRecord:
     id: str
     objective: str
     kind: str = NATIVE_PLANNING
-    work_type: str = "unspecified"   # e.g. test_guard | refactor — only same-type cycles are
-                                     # efficiency-comparable (a refactor is not a test-guard)
+    work_type: str = "unspecified"   # coarse: test_guard | refactor
+    engineering_pattern: str = "unspecified"   # FINER comparability axis: migration_guard |
+                                     # invariant_guard | refactor — sharing work_type is NOT enough
+                                     # to be genuinely comparable (a config guard != a migration guard)
     assumptions: List[str] = dataclasses.field(default_factory=list)
     obligations: List[dict] = dataclasses.field(default_factory=list)
     relationships: List[dict] = dataclasses.field(default_factory=list)

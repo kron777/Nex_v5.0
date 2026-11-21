@@ -28,15 +28,19 @@ from .model import (CycleRecord, EXECUTED_VERIFIED, IMPORTED_RETROSPECTIVE,
                     NATIVE_PLANNING, Pattern)
 
 MIN_CYCLES_FOR_TREND = 3
-CONFIDENCE_CAP = 0.9
-CONFIDENCE_STEP = 0.1
+# These are HEURISTIC weights, NOT calibrated probabilities: confidence is a bounded
+# bookkeeping score for "how much corroboration vs disconfirmation this lesson has",
+# not a probability that the lesson is true.
+CONFIDENCE_CAP = 0.9        # heuristic ceiling
+CONFIDENCE_STEP = 0.1       # heuristic per-event weight
 _PATTERN_FIELDS = {f.name for f in dataclasses.fields(Pattern)}
 
 
 def _confidence(base: float, observed_count: int, disconfirmed_count: int) -> float:
     """Confidence as a PURE, order-independent function of the deduplicated event
     counts, with a SINGLE clamp to [0, CONFIDENCE_CAP]. This is what makes confidence
-    reconstructible deterministically from the event history (founder constraint)."""
+    reconstructible deterministically from the event history. The weights are
+    heuristic (see above), not calibrated probabilities."""
     raw = base + CONFIDENCE_STEP * (observed_count - 1) - CONFIDENCE_STEP * disconfirmed_count
     return round(max(0.0, min(CONFIDENCE_CAP, raw)), 3)
 
@@ -51,7 +55,10 @@ class PatternMemory:
                     line = line.strip()
                     if not line:
                         continue
-                    d = json.loads(line)
+                    try:                                       # tolerate a truncated last line
+                        d = json.loads(line)                   # (e.g. a crash mid-append) without
+                    except json.JSONDecodeError:               # bricking the whole memory
+                        continue
                     p = Pattern(**{k: v for k, v in d.items() if k in _PATTERN_FIELDS})
                     if not p.confirmations:                    # tolerate pre-field records
                         p.confirmations = [p.provenance]
@@ -68,17 +75,23 @@ class PatternMemory:
             if not pattern.confirmations:
                 pattern.confirmations = [pattern.provenance]
             self._current[pattern.key] = pattern
-            cur = pattern
-        else:
-            if pattern.provenance not in ex.confirmations:      # dedup corroboration by source
-                ex.confirmations.append(pattern.provenance)
-            for x in pattern.exceptions:
-                if x not in ex.exceptions:
-                    ex.exceptions.append(x)
-            cur = ex
-        self._recompute(cur)
-        self._append(cur)
-        return cur
+            self._recompute(pattern)
+            self._append(pattern)
+            return pattern
+        # corroborate an existing pattern; a DUPLICATE event writes nothing (symmetry
+        # with refute() — no no-op snapshot, no change to counts/confidence)
+        changed = False
+        if pattern.provenance not in ex.confirmations:          # dedup corroboration by source
+            ex.confirmations.append(pattern.provenance)
+            changed = True
+        for x in pattern.exceptions:
+            if x not in ex.exceptions:
+                ex.exceptions.append(x)
+                changed = True
+        if changed:
+            self._recompute(ex)
+            self._append(ex)
+        return ex
 
     def _recompute(self, p: Pattern) -> None:
         p.observed_count = len(p.confirmations)
@@ -233,6 +246,7 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
         "cycle": cycle.id,
         "kind": cycle.kind,
         "work_type": cycle.work_type,
+        "engineering_pattern": cycle.engineering_pattern,
         "outcome_complete": cycle.actual is not None,
         # PROCESS (now)
         "obligations_discovered": len(obligations),
@@ -249,6 +263,42 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
         "engineering_effort": (cycle.actual.get("effort_actual") if cycle.actual
                                else cycle.predicted.get("effort")),
         "outcome_status": ("recorded" if cycle.actual is not None else "pending"),
+    }
+
+
+def comparability_assessment(cycles: List[CycleRecord]) -> Dict:
+    """A lightweight per-cycle comparability signature (founder item 4). Sharing a coarse
+    work_type does NOT make objectives comparable; this derives the dimensions that matter
+    and groups by engineering_pattern. Better a small honest comparison group than a large
+    artificial one."""
+    rows = []
+    for c in cycles:
+        if c.kind != EXECUTED_VERIFIED or c.actual is None:
+            continue
+        a, v = c.actual, c.verification
+        # migration/DB involvement is taken from the AUTHORITATIVE engineering_pattern tag,
+        # not keyword-matched (config's notes mention 'migration' incidentally — a false positive).
+        is_migration = c.engineering_pattern == "migration_guard"
+        rows.append({
+            "cycle": c.id,
+            "engineering_pattern": c.engineering_pattern,
+            "obligations_built": len(a.get("obligations_built", [])),
+            "reuse_vs_new": f"{len(c.reused)} reused / {len(a.get('obligations_built', []))} new",
+            "migration_or_runtime": is_migration,
+            "verification_tests": v.get("tests") or v.get("equivalence_tests"),
+            "db_fixture_involved": is_migration,
+        })
+    groups: Dict[str, List[str]] = {}
+    for r in rows:
+        groups.setdefault(r["engineering_pattern"], []).append(r["cycle"])
+    return {
+        "per_cycle": rows,
+        "groups_by_engineering_pattern": groups,
+        "largest_genuinely_comparable_group": max((len(v) for v in groups.values()), default=0),
+        "finding": "sharing work_type='test_guard' did NOT make the three guards comparable: two are "
+                   "migration guards (DB fixtures + the real migration runner) and one is an "
+                   "invariant guard (source scan, no DB). The honest comparable group is the 2 "
+                   "migration guards, not 3 — a smaller honest set, not a larger artificial one.",
     }
 
 
@@ -271,12 +321,16 @@ def metrics_series(cycles: List[CycleRecord]) -> Dict:
     outcome_complete = [r for r in rows if r["outcome_complete"]]
     # efficiency-eligible: RDO ran it AND work was executed+verified (exclude imported)
     efficiency_eligible = [r for r in rows if r["kind"] == EXECUTED_VERIFIED and r["outcome_complete"]]
-    # genuinely COMPARABLE = same work_type (a refactor is not a test-guard); group them,
-    # and treat the largest same-type group as the real comparable set.
+    # genuinely COMPARABLE uses the FINER engineering_pattern, not the coarse work_type:
+    # three 'test_guard' cycles are NOT comparable if two are migration guards and one is an
+    # invariant guard. The honest comparable set is the largest engineering_pattern group.
     comparable_by_work_type: Dict[str, List[str]] = {}
+    comparable_by_pattern: Dict[str, List[str]] = {}
     for r in efficiency_eligible:
         comparable_by_work_type.setdefault(r["work_type"], []).append(r["cycle"])
-    largest_comparable = max((len(v) for v in comparable_by_work_type.values()), default=0)
+        comparable_by_pattern.setdefault(r["engineering_pattern"], []).append(r["cycle"])
+    largest_group = max(comparable_by_pattern.values(), key=len, default=[])
+    largest_comparable = len(largest_group)
 
     def _denominator(measure: str) -> dict:
         contributing = [r for r in rows if r.get(measure) is not None]
@@ -294,8 +348,9 @@ def metrics_series(cycles: List[CycleRecord]) -> Dict:
             "process_measures_available_for": "every cycle the RDO ran (native + executed)",
             "outcome_measures_available_for": [r["cycle"] for r in outcome_complete],
             "completed_executed_cycles": [r["cycle"] for r in efficiency_eligible],
-            "genuinely_comparable_by_work_type": comparable_by_work_type,
-            "efficiency_comparison_pool": comparable_by_work_type.get("test_guard", []),
+            "by_work_type_coarse": comparable_by_work_type,
+            "genuinely_comparable_by_engineering_pattern": comparable_by_pattern,
+            "efficiency_comparison_pool": sorted(largest_group),   # the HONEST comparable set
             "excluded_from_efficiency": {
                 "imported_retrospective": [r["cycle"] for r in rows
                                            if r["kind"] == IMPORTED_RETROSPECTIVE],
@@ -310,12 +365,13 @@ def metrics_series(cycles: List[CycleRecord]) -> Dict:
                         "verification effort are NOT reliably available here (work spans interrupted "
                         "turns), so they are recorded as missing rather than estimated."),
         "trend_claim": (
-            f"NO efficiency/acceleration claim: the largest genuinely-comparable (same work_type) "
-            f"group is {largest_comparable} cycle(s); need >= {MIN_CYCLES_FOR_TREND}. Completed "
-            f"executed cycles ({len(efficiency_eligible)}) span >1 work_type and are not all comparable."
+            f"NO efficiency/acceleration claim: the largest genuinely-comparable (same "
+            f"engineering_pattern) group is {largest_comparable} cycle(s); need >= {MIN_CYCLES_FOR_TREND}. "
+            f"Completed executed cycles ({len(efficiency_eligible)}) span >1 engineering_pattern and are "
+            f"not all comparable."
             if largest_comparable < MIN_CYCLES_FOR_TREND
-            else f"the largest comparable (same work_type) group is {largest_comparable} cycles — enough "
-                 f"to BEGIN assessing a trend; report values, not hype. n is small; not statistical proof."),
+            else f"the largest comparable (same engineering_pattern) group is {largest_comparable} cycles "
+                 f"— enough to BEGIN assessing a trend; report values, not hype. n is small; not proof."),
         "note": "process measures every cycle; outcome measures need executed work + recorded "
                 "actuals; efficiency compares only executed+verified cycles of comparable kind.",
     }

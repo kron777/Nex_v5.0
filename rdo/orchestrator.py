@@ -18,8 +18,8 @@ from . import prioritise, reconcile as recon_mod, tension
 from .extrapolator import expand, rule_catalogue, scope_summary
 from .knowledge import (affinity_drift_idea, config_invariant_idea, genius_tagger_idea,
                         migration_defect_idea)
-from .memory import (CycleStore, PatternMemory, accuracy_series, compare,
-                     derive_lessons, metrics_series, record_actual, transfer_observations)
+from .memory import (CycleStore, PatternMemory, accuracy_series, comparability_assessment,
+                     compare, derive_lessons, metrics_series, record_actual, transfer_observations)
 from .model import (ANTI_REQUIREMENT, EXECUTED_VERIFIED, IMPORTED_RETROSPECTIVE, MISSING,
                     PARTIAL, REUSE_EXISTING, CycleRecord, Obligation, Pattern)
 from .reconcile import Signature
@@ -254,13 +254,15 @@ def _six_outputs(cycle, summary, memory, learning) -> dict:
 
 
 def _record_executed(store, memory, *, cycle_id, objective, predicted, reused, verification,
-                     actual, work_type="test_guard", domain_patterns=()) -> CycleRecord:
+                     actual, work_type="test_guard", engineering_pattern="unspecified",
+                     domain_patterns=()) -> CycleRecord:
     """Shared mechanism for an executed+verified cycle (consolidation cycle #4):
     build the record, attach actuals, persist, add any domain-specific patterns, then
     derive lessons EXACTLY once. The domain DATA stays in each caller below — nothing
     domain-specific is hidden here, and the single derive_lessons call makes the
     earlier double-count defect unreproducible by construction."""
     c = CycleRecord(id=cycle_id, objective=objective, kind=EXECUTED_VERIFIED, work_type=work_type,
+                    engineering_pattern=engineering_pattern,
                     predicted=predicted, reused=list(reused), verification=verification)
     record_actual(c, actual)
     store.save(c)
@@ -277,6 +279,7 @@ def record_arc_closers_execution(store, memory) -> CycleRecord:
         store, memory,
         cycle_id="arc_closers_regtest_2026-11",
         objective="Execute the eligible arc_closers regression-test work package (from the defect cycle).",
+        engineering_pattern="migration_guard",
         predicted={"effort": 1, "net_new_count": 1,
                    "note": "one regression-test obligation; no runtime/migration change"},
         reused=["arc_closers_migration.fix (init_db.py:236 + beliefs.sql:319)"],
@@ -319,6 +322,7 @@ def record_affinity_execution(store, memory) -> CycleRecord:
         store, memory,
         cycle_id="affinity_regtest_2026-11",
         objective="Execute the eligible beliefs.affinity schema-drift regression test.",
+        engineering_pattern="migration_guard",
         predicted={"effort": 1, "net_new_count": 1,
                    "note": "one regression test; migration-only column, so a single fresh init_all "
                            "test exercises the migration (lesson migration_guard_needs_legacy_path) "
@@ -344,6 +348,7 @@ def record_config_invariant_execution(store, memory) -> CycleRecord:
         store, memory,
         cycle_id="config_invariant_2026-11",
         objective="Execute the eligible nex_config flag-registry consistency guard.",
+        engineering_pattern="invariant_guard",
         predicted={"effort": 1, "net_new_count": 1,
                    "note": "one guard test; anticipated the scope/exclusions as the hidden obligation "
                            "and handled it in one file (no second fixture). Invariant holds -> no "
@@ -372,7 +377,7 @@ def record_consolidation_execution(store, memory) -> CycleRecord:
         store, memory,
         cycle_id="recorder_consolidation_2026-11",
         objective="Consolidate the three executed-cycle recorders into one _record_executed helper.",
-        work_type="refactor",
+        work_type="refactor", engineering_pattern="refactor",
         predicted={"effort": 1, "net_new_count": 1,
                    "note": "one helper + equivalence tests; preserve each record; derive lessons once; "
                            "do not hide domain data or over-generalise"},
@@ -502,6 +507,7 @@ def run_catalogue(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
             for c in (exec_cycle, affinity_exec, config_exec, consolidation_exec)
         ],
         "change_categories": change_categories(),
+        "comparability_assessment": comparability_assessment(cycles),
         "cross_cycle_transfer": transfer_observations(cycles),
         "learning_metrics": metrics,
         "patterns": [p.to_dict() for p in memory.patterns()],
