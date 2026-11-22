@@ -1,0 +1,17 @@
+[Unit]
+Description=NEX5 disk-space alarm (read-only; alerts, never deletes)
+Documentation=file:/home/rr/Desktop/Desktop/nex5/deploy/systemd/README.md
+# Observer only: df/du read-only check of the filesystems holding NEX's home
+# checkout and /tmp logs. A non-zero exit marks the unit failed, so a low-disk
+# condition is visible in `systemctl --user status nex5-disk-alarm`.
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/rr/Desktop/Desktop/nex5
+ExecStart=/home/rr/Desktop/Desktop/nex5/deploy/systemd/nex5_disk_alarm.sh
+Nice=19
+IOSchedulingClass=idle
+# Thresholds (uncomment/edit to override the script defaults 3 GiB / 8%):
+# Environment=NEX5_DISK_MIN_FREE_GIB=3
+# Environment=NEX5_DISK_MIN_FREE_PCT=8
+# Environment=NEX5_DISK_WATCH=%h:/tmp
