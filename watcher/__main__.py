@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 
 from . import __version__
@@ -24,6 +25,7 @@ from .collector import collect_cloud, collect_combined
 from .host import host_requests_as_data, host_results_template, load_host_results
 from .regression import detect, summarize
 from .report import render_json, render_markdown
+from .ripple import collect_offline_ripple, test_outcomes
 from .snapshot import load_snapshot, take_snapshot
 
 
@@ -81,6 +83,55 @@ def _regression(args) -> int:
     return 1 if any(f["severity"] == "critical" for f in findings) else 0
 
 
+def _changed_from_base(repo: str, base: str) -> list:
+    """Files the working tree + HEAD differ from `base` by (read-only git)."""
+    changed = set()
+    for args in (["diff", "--name-only", base], ["diff", "--name-only", base, "HEAD"]):
+        try:
+            out = subprocess.run(["git", "-C", repo, *args], capture_output=True,
+                                 text=True, timeout=60)
+            if out.returncode == 0:
+                changed.update(l for l in out.stdout.splitlines() if l.strip())
+        except Exception:
+            pass
+    return [os.path.join(repo, c) for c in sorted(changed)]
+
+
+def _ripple(args) -> int:
+    changed = list(args.changed.split(",")) if args.changed else []
+    changed = [c if os.path.isabs(c) else os.path.join(args.repo, c) for c in changed if c]
+    if args.base:
+        changed += _changed_from_base(args.repo, args.base)
+    changed = sorted(set(changed))
+    if not changed:
+        print("no changed files given — pass --changed a.py,b.py or --base <gitref>", file=sys.stderr)
+        return 2
+    before = _load_json(args.before) if args.before else None
+    after = _load_json(args.after) if args.after else None
+    records = collect_offline_ripple(args.repo, changed, before=before, after=after)
+    _emit(records, "NEX Watcher — Offline Ripple (repo-proven, live-confirm pending)",
+          args.out, "watcher_ripple")
+    return 0
+
+
+def _test_run(args) -> int:
+    result = test_outcomes(args.repo, target=args.target, timeout=args.timeout)
+    if args.out:
+        with open(args.out, "w", encoding="utf-8") as fh:
+            json.dump(result, fh, indent=2, default=str)
+        print(f"wrote test-outcome snapshot to {args.out} "
+              f"(total={result.get('total')}, summary={result.get('summary')})")
+    else:
+        print(json.dumps({k: v for k, v in result.items() if k != "outcomes"},
+                         indent=2, default=str))
+    return 0
+
+
+def _load_json(path: str) -> dict:
+    with open(path, "r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
 def _emit(records, title, out_dir, stem) -> None:
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
@@ -128,6 +179,22 @@ def main(argv=None) -> int:
     g.add_argument("--before", required=True)
     g.add_argument("--after", required=True)
     g.set_defaults(fn=_regression)
+
+    rp = sub.add_parser("ripple", help="offline ripple of a change: source-dependents + test-delta")
+    rp.add_argument("--repo", default=".")
+    rp.add_argument("--changed", default=None, help="comma-separated changed files")
+    rp.add_argument("--base", default=None, help="git ref; changed files = diff(base..working/HEAD)")
+    rp.add_argument("--before", default=None, help="test-outcome JSON from before the change (test-run)")
+    rp.add_argument("--after", default=None, help="test-outcome JSON from after the change (test-run)")
+    rp.add_argument("--out", default=None, help="output directory (default: print)")
+    rp.set_defaults(fn=_ripple)
+
+    tr = sub.add_parser("test-run", help="run the suite, capture per-test outcomes (before/after a wire)")
+    tr.add_argument("--repo", default=".")
+    tr.add_argument("--target", default=None, help="pytest target (default: whole repo)")
+    tr.add_argument("--out", default=None, help="write outcome JSON here (default: print summary)")
+    tr.add_argument("--timeout", type=int, default=1800)
+    tr.set_defaults(fn=_test_run)
 
     args = p.parse_args(argv)
     return args.fn(args)

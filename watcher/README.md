@@ -97,9 +97,40 @@ python -m pytest watcher/tests -q
 | `regression.py` | regression detection between two snapshots (weakened evidence, passive→active tool, cycle-level drop) |
 | `longitudinal.py` | track a subject across an ordered series of snapshots (integration stages over time) |
 | `report.py` | structured Markdown/JSON reports |
+| `ripple.py` | **offline ripple of a change** — source-dependency map + test-suite delta (see below) |
 | `host.py` | the host-side read-only spec; host-results template + ingestion of Claude Code's host findings |
 | `__main__.py` | CLI (`python -m watcher …`) |
 | `tests/` | passive-safety proofs + behaviour tests (isolated fixtures, temp data) |
+
+## Offline ripple — "read the karma of a wire" (`ripple.py`)
+
+The one job this adds: after a wire is connected, say **what rippled**, so the
+effects can be smoothed before the next wire — without hand-reading the codebase.
+Two **offline** views (no live NEX needed), both read-only `Evidence` (origin=cloud):
+
+- **source-dependency ripple** — who imports/depends on whatever the wire touched
+  (static reverse-import map over the real source), plus the tests downstream of it.
+- **test-suite delta** — whether the suite shifted: capture per-test outcomes
+  before and after, diff them (`newly_failing` is the signal that matters).
+
+```bash
+# who depends on what a change touched (+ which tests to run first):
+python -m watcher ripple --changed theory_x/stage6_fountain/__init__.py
+python -m watcher ripple --base origin/main            # changed files from a git diff
+
+# did the suite shift across a wire? snapshot before, wire, snapshot after, diff:
+python -m watcher test-run --out before.json           # before the wire
+#   … connect the wire …
+python -m watcher test-run --out after.json            # after the wire
+python -m watcher ripple --changed <wired files> --before before.json --after after.json --out watcher/reports
+```
+
+The **runtime tier** (what actually fired, how her behaviour changed) is *not*
+built here: it is emitted as an honest `origin=host`, `unknown` placeholder
+(`ripple.runtime`) with a clean ingestion hook, so the report never implies a live
+observation it did not make. Everything the offline tier reports is
+**repo-proven, live-confirm pending** — it is the suite and the source graph, not
+her runtime, until the Watcher has seen her behave. See `OFFLINE_RIPPLE.md`.
 
 ## Scope of this version
 
