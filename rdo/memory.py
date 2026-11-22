@@ -466,6 +466,8 @@ def learning_provenance(cycle: CycleRecord) -> str:
     execution outcome. A planning review is tagged human_reviewed:planning_review and must NOT be
     read as an independent execution outcome."""
     a = cycle.actual or {}
+    if a.get("review_kind") == "watcher_verified_execution":
+        return "independent_watcher_verified"          # external observation, not human, not self
     if a.get("reviewer"):
         kind = "planning_review" if a.get("review_kind") == "planning_review" else "execution_review"
         return f"human_reviewed:{kind}"
