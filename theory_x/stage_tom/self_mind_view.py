@@ -452,13 +452,25 @@ class SelfMindView:
                 if i["active_drive_count"] > 0
                 else ""
             )
-            return (
+            summary = (
                 f"Currently holding {b['total_count']:,} beliefs "
                 f"({b['t1_count']} anchored, {b['t2_count']} high-confidence). "
                 f"{prob_part}{drive_part}. "
                 f"Recent processing themes: {themes}. "
                 f"{u['review_queue_count']} problems awaiting review."
             )
+            # SENTIENCE Phase 1 — colour the self-view with the bound self-state's
+            # recent continuity (dark unless NEX5_SELF_CONTINUITY=1). Descriptive
+            # only, never a verdict; '' when unarmed, so this line is byte-identical
+            # by default. Fail-safe: a continuity error never breaks the summary.
+            try:
+                from theory_x.stage_tom import self_binding as _sb  # type: ignore
+                _cont = _sb.continuity_for_prompt()
+                if _cont:
+                    summary = summary + _cont
+            except Exception:
+                pass
+            return summary
         except Exception as exc:
             errors.record(
                 f"self_mind_view current_summary error: {exc}",

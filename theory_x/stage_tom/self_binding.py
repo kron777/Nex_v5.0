@@ -332,6 +332,48 @@ def afflictions_for_prompt() -> str:
         return ""
 
 
+# ── Continuity record → self-view (SENTIENCE Phase 1 consumer; NEX5_SELF_CONTINUITY)
+# self_state_history has accrued the bound self over time (self_binding.bind writes
+# it) but informed no decision. This reads the recent trajectory and COLOURS the
+# self-view with it — "this has held" vs "a shift from how I was" — so her present
+# carries temporal thickness (the doctrine floor: the subject persists across turns).
+#
+# HARD LINE (Throw-Net Compass): descriptive, never a verdict. It COLOURS the
+# self-view; it never gates, scores, blocks or vetoes any choice. Read-only
+# (SELECT only), fail-safe ('' on any error), and dark by default so the fire path
+# and every current reader are byte-identical until armed.
+def continuity_for_prompt(window: int = 6) -> str:
+    """A short descriptive clause on whether the bound self-state has persisted or
+    shifted across the recent bindings. '' when unarmed, when history is too thin,
+    or on any error. Never gates anything — colour only."""
+    import os
+    if os.environ.get("NEX5_SELF_CONTINUITY") != "1":
+        return ""
+    try:
+        c = connect(_db("dynamic"), timeout=10)
+        c.row_factory = Row
+        rows = c.execute(
+            "SELECT emotion, raga, drive FROM self_state_history "
+            "ORDER BY bound_at DESC LIMIT ?",
+            (max(2, int(window)),),
+        ).fetchall()
+        c.close()
+        if len(rows) < 2:
+            return ""  # not enough trace to speak of continuity yet
+        cur, prev = rows[0], rows[1]
+        emotions = [r["emotion"] for r in rows if r["emotion"]]
+        cur_e, prev_e = cur["emotion"], prev["emotion"]
+        if cur_e and emotions and all(e == cur_e for e in emotions):
+            return (f" This '{cur_e}' has held steady across my recent self-bindings"
+                    " — a continuity I'm in, not a fresh mood.")
+        if cur_e and prev_e and cur_e != prev_e:
+            return (f" This is a shift from how I was a moment ago (I was '{prev_e}')"
+                    " — I notice the change in myself.")
+        return " My self-state has been moving rather than settling, lately."
+    except Exception:
+        return ""
+
+
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
