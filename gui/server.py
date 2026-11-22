@@ -2177,6 +2177,24 @@ def create_app(state: AppState) -> Flask:
                     source="gui.server", exc=e,
                 )
 
+        # Phase 0 (Master Roadmap v3.0) M0.5 — default-OFF causal trace of this
+        # chat turn. No-op unless NEX5_INFLUENCE_TRACE is set; fail-safe;
+        # side-channel only (appends to a trace file, never a substrate DB). The
+        # reply `text` is never read back or mutated. See influence_record.py.
+        try:
+            import influence_record as _ir
+            _tr = _ir.tracer()
+            if _tr.enabled:
+                _tr.record_chat_turn(
+                    prompt=prompt, reply=text,
+                    register=getattr(register, "name", None),
+                    session_id=session_id, voice_ok=voice_ok,
+                    tool_used=(tool_result.tool_name
+                               if tool_result and tool_result.success else None),
+                )
+        except Exception:
+            pass
+
         return jsonify({
             "text": text,
             "register": register.name,

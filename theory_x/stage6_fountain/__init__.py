@@ -177,6 +177,28 @@ def build_fountain(
                 thought = generator.generate(dynamic_state, readers["beliefs"])
                 if thought:
                     logger.info("Fountain fired: %s", thought[:100])
+                # Phase 0 (Master Roadmap v3.0) M0.5 — default-OFF causal trace.
+                # No-op unless NEX5_INFLUENCE_TRACE is set; fail-safe; side-channel
+                # only (appends to a trace file, never a substrate DB). The output
+                # `thought` is never read or mutated by the overlay. See
+                # influence_record.py.
+                try:
+                    import influence_record as _ir
+                    _tr = _ir.tracer()
+                    if _tr.enabled and thought:
+                        try:
+                            _mode = mode_state.current_name() if mode_state else None
+                        except Exception:
+                            _mode = None
+                        _tr.record_fountain_fire(
+                            thought,
+                            mode_name=_mode,
+                            readiness=locals().get("_readiness"),
+                            last_fire_ts=generator.last_fire_ts(),
+                            total_fires=generator.total_fires(),
+                        )
+                except Exception:
+                    pass
                 # Phase 29: drive probe opportunity each fountain tick
                 try:
                     generator._maybe_spawn_drive_probe()
