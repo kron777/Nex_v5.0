@@ -178,10 +178,10 @@ def _run_generator_once(
 
 def test_fountain_generator_trace_overlay_on_off_equivalence(
     tmp_path, monkeypatch, record_property
+):
     # Freeze wall-clock reads so timestamp-bearing DB rows are directly
     # comparable across the paired OFF/ON substrates.
     monkeypatch.setattr(time, "time", lambda: 1_700_000_000.0)
-):
     import os
     from substrate import Reader
 
