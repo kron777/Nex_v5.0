@@ -598,6 +598,8 @@ The tool-path expansion also identifies conditional defect DRAFT-002: the natura
 
 A further membrane boundary finding is recorded as DRAFT-003: the classifier uses substring matching for `"you"`, so a world query containing the product name `YouTube` is classified INSIDE and routed through the self-model/INSIDE retrieval path. The source/test evidence and limits are documented in the Reality Report and Chat audit. No runtime repair or severity assignment is included.
 
+The Chat audit now also expands the internal membrane dependencies: INSIDE routing combines a SelfModel snapshot (sense-event reads and its own top-five inside-belief selection) with a separate query-ranked INSIDE BeliefRetriever pass; OUTSIDE routing uses DynamicState-derived branch hints and a separate retriever call. Both are collapsed at the current Chat trace's retrieval boundary, which does not record the underlying selected row IDs or activation dependencies.
+
 **Evidence boundary:** static inspection only; PR #65 head and source file hashes are recorded in the audit. Its latest CI pass validates the tested suite, not every branch or deployed-host behaviour. The audit remains partial and does not satisfy Gate 0.
 
 ## 4. Top documentation/source discrepancies
