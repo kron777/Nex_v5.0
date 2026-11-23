@@ -453,7 +453,7 @@ def _run_paired_sqlite_cycle(tmp_path, monkeypatch, trace_on):
 
         selected = consumer._pending()
         assert len(selected) == 1
-        consumer._speak_one(selected[0])
+        consumer._speak_one(dict(selected[0]))
         query_sequence = list(read_queries)
         final_status = actual_reader.read(
             "SELECT status FROM speech_queue WHERE id=?", (qid,)
