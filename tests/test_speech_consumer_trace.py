@@ -264,7 +264,7 @@ def test_real_reader_selection_exposes_sqlite_row_mapping_limitation(
         writer.close()
 
 
-def test_real_writer_reader_and_consumer_preserve_registered_row_link(
+def test_reader_selected_row_identity_links_to_consumer_processing(
     monkeypatch, tmp_path
 ):
     path = _enable_trace(monkeypatch, tmp_path)
@@ -295,7 +295,7 @@ def test_real_writer_reader_and_consumer_preserve_registered_row_link(
 
         selected = consumer._pending()
         assert len(selected) == 1
-        consumer._speak_one(dict(selected[0]))
+        # Convert only in this test adapter: the pre-existing sqlite3.Row/.get()\n        # mismatch is asserted separately and is not changed in Phase 0.\n        consumer._speak_one(dict(selected[0]))
 
         rows = _events(path)
         consumer_start = next(row for row in rows
@@ -310,7 +310,7 @@ def test_real_writer_reader_and_consumer_preserve_registered_row_link(
         writer.close()
 
 
-def test_commit_before_registration_is_explicitly_unlinked(
+def test_committed_row_before_registration_stays_unlinked(
     monkeypatch, tmp_path
 ):
     path = _enable_trace(monkeypatch, tmp_path)
