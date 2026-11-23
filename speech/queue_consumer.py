@@ -225,7 +225,7 @@ class SpeechQueueConsumer(threading.Thread):
             synthesis_id = emit(
                 "synthesis_started", "SpeechQueueConsumer._speak_one",
                 "KokoroBackend.synth", "started",
-                speaking_id or processing_id, {"queue_id": qid, "voice": voice},
+                speaking_id, {"queue_id": qid, "voice": voice},
             )
             try:
                 audio, sr = self.backend.synth(content, voice=voice)
@@ -233,7 +233,7 @@ class SpeechQueueConsumer(threading.Thread):
                 failed_id = emit(
                     "synthesis_failed", "KokoroBackend.synth",
                     "SpeechQueueConsumer._speak_one", "failed",
-                    synthesis_id or speaking_id or processing_id,
+                    synthesis_id,
                     {"queue_id": qid, "error_type": type(exc).__name__},
                 )
                 log.error("speech synthesis failed on id=%s: %s", qid, exc)
@@ -258,7 +258,7 @@ class SpeechQueueConsumer(threading.Thread):
             player_id = emit(
                 "player_invocation_started", "SpeechQueueConsumer._speak_one",
                 "Player.play", "invoked",
-                synthesis_done_id or synthesis_id or speaking_id or processing_id,
+                synthesis_done_id,
                 {"queue_id": qid, "sample_rate": sr},
             )
             try:
