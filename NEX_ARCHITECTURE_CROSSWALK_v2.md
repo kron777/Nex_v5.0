@@ -358,6 +358,21 @@ An initial comparison of startup comments suggested that external sense feeds we
 
 **Correct Phase 0 finding:** the current source and test contract is auto-start on boot. The "paused" descriptions are stale documentation, not evidence that the runtime is paused. This was an intentional historical change and must not be reverted as a supposed bug. Whether a deployed host actually started the scheduler remains UNKNOWN without runtime evidence.
 
+## 3.14 Harmonizer / held-tension prompt path — activation and measurement qualification
+
+| Stage | Source evidence | Finding |
+|---|---|---|
+| Loop boot | `build_world_model()` starts `_harmonizer_loop` as a daemon thread | The Harmonizer scan/tick loop is source-started unconditionally by the WorldModel builder. |
+| Tension creation | `Harmonizer._hold_as_tension()` | Writes `held_tensions` only when `NEX5_HELD_TENSION=1`; source default is OFF. Otherwise the escalation follows the retire/synthesize path. |
+| Chat consumer | `gui/server.py::api_chat` calls `state.world_model.harmonizer.format_for_prompt()` and appends non-empty text to `belief_text` | This is a real Chat prompt consumer. |
+| Content-specific line | `Harmonizer._content_specific_tension_line()` | Requires `NEX5_HELD_TENSION=1`; reads the newest open `held_tensions` pair and inserts clipped belief contents (up to 90 characters each). |
+| Generic count line | `Harmonizer.tick()` → `format_for_prompt()` | When the held-tension flag is off, the content-specific line is empty; Chat may receive only “Holding N unresolved tensions…” from the cached `active_paradox` count. |
+| Count correctness | `NEX5_HARMONIZER_TENSION_COUNT_FIX` | Default OFF. The uncorrected tick counts all `harmonizer_events` rows with resolution='paradox', not the latest unresolved state per pair. Source comment records a measured 73 all-time vs 40 actually open (2026-11-07). Thus the Chat line can overstate unresolved tensions. |
+| GUI visibility | `GET /api/harmonizer/tensions` | Read-only HUD endpoint lists up to 200 held_tensions rows and belief contents; it is not itself a cognitive/Chat consumer. |
+| Resolution/decay | `Harmonizer.decay()`, `sweep_resolved_tensions()`, `retry_bridge_for_tensions()` | `decay()` docstring says no live caller; `_harmonizer_loop` calls scan/resolve and tick only. Do not assume stale held tensions are swept in live operation. |
+
+**Distinction:** the Chat unresolved-tension line is not proof that the `held_tensions` table is populated or that the ledger primitives are live. With the held-tension flag OFF, the generic line is derived from `harmonizer_events` and can be miscounted. With the flag ON, the content-specific path can read actual open held-tension rows. Actual host flag values and table contents remain UNKNOWN.
+
 ## 4. Top documentation/source discrepancies
 
 These are discrepancies to reconcile, not automatic instructions to modify code or documentation.
