@@ -146,12 +146,14 @@ The engine source records that drive resonance was dropped from the combiner aft
 
 | Stage | Source evidence | Finding | Evidence ceiling |
 |---|---|---|---|
-| Construction/registration | `run.py` section 9c | Constructs `Metacognition` with conversation Writer/Reader and beliefs Reader, then attempts registration in the Theory-X registry. | [L1] |
-| Event persistence | `stage9_metacognition/metacognition.py::_write_event` | Writes self-observation events to `meta_cognition_events`; cache is invalidated after a successful write. | [L1] |
-| Retrieval/formatting | `get_recent()`, `format_for_prompt()` | Reads unresolved events and converts selected event types into short prompt text. | [L1] |
-| Fountain injection | `generator.py` around the metacognition block | The prompt insertion is explicitly gated by `NEX5_METACOG_VOICE=1`; a non-empty formatted line is appended to the next fire's focus block. | [L1] source; [L2] UNKNOWN |
+| Construction/registration | `run.py` section 9c | Constructs `Metacognition` with conversation Writer/Reader and beliefs Reader, then attempts registration in the Theory-X registry. No Metacognition background loop is started by `run.py`. | [L1] |
+| Chat event production | `gui/server.py::api_chat` → `state.metacognition.tick()` | Chat calls `tick()` on each request. Detected events are written to `meta_cognition_events`; this is request-driven, not an autonomous continuous daemon. | [L1] |
+| Same-turn retrieval | `tick()` → `_refresh_recent_cache()` → `get_recent()` | After event writes invalidate the cache, the same tick refreshes it by reading unresolved rows from `meta_cognition_events`. | [L1] |
+| Chat injection | `api_chat` → `format_for_prompt()` | Chat appends a non-empty self-observation line to `belief_text` without checking `NEX5_METACOG_VOICE`. This is a same-turn producer→read→prompt path. | [L1] source; runtime [L2] UNKNOWN |
+| Fountain injection | `generator.py` around the metacognition block | Separate Fountain insertion is gated by `NEX5_METACOG_VOICE=1`; a non-empty line is appended to the next fire's focus block. | [L1] source; runtime [L2] UNKNOWN |
+| Other readers | `_maybe_engage_stillness()`, optional digest, `decay()` | Stillness counts recent groove rows; digest reads event-type counts only when its flag is armed; decay resolves stale rows when called. | [L1] |
 
-This is a real source-defined producer-to-prompt path, but not evidence that the flag is enabled on the host, that events are being produced, or that the injected text improves subsequent cognition.
+**Correction to the supplied feedback map:** `meta_cognition_events` is not read only by the reaper and tests. The Chat request path reads it through `get_recent()` and can inject the selected event into that same turn. The table is not “written continuously” by a Metacognition daemon in the inspected boot path; writes are driven by Chat `tick()` calls and any explicit other callers. This is a real source-defined feedback edge, but host event production and behavioural benefit remain unverified.
 
 ### 3.3.4 Arc records: read attempt without usable prompt output
 
@@ -166,7 +168,7 @@ Separately, `run.py` sets `arc_loop = None`; its comment says the background Arc
 | Global Workspace winner | Salience candidates and winner | Yes, conditional on non-empty winner and workspace flag | [L1]; runtime [L2] UNKNOWN |
 | Empty-window surprise | Maximum score with NULL actual content | Can enter workspace unless non-empty guard enabled | [L1]; live occurrence UNKNOWN |
 | Emphasis | Post-thought score and `emphasis_log` row | No consumer identified in this bounded pass | [L1]; [L3] UNKNOWN |
-| Metacognition | Unresolved self-observation events | Yes, but `NEX5_METACOG_VOICE=1` required | [L1]; runtime [L2] UNKNOWN |
+| Metacognition | Chat `tick()` writes/reads unresolved self-observation events and injects into same-turn Chat prompt; separate Fountain insertion is gated by `NEX5_METACOG_VOICE=1` | Yes in Chat source without that flag; conditional in Fountain | [L1]; runtime [L2] UNKNOWN |
 | Arcs | Fountain query of arc tables | No usable formatted prompt content; ArcLoop disabled in boot | Source path is a no-op |
 
 **Interpretation:** the repository does not have one uniform “feedback missing” condition. It contains a mixture of (a) active-by-default source paths whose runtime state is unknown, (b) optional prompt feedback, (c) post-hoc measurement with no identified downstream consumer, and (d) residual readers whose output is currently empty. This supports keeping the missing-discrimination hypothesis open rather than declaring one root cause.
