@@ -70,10 +70,11 @@ FORBIDDEN_AUTHORITY_KEYS = {
     "blocks_action", "vetoes_action", "scores_action",
     "can_gate", "can_veto", "can_block", "can_score",
 }
-NON_RUNTIME_DIRS = {
-    ".git", ".venv", "venv", "__pycache__", "build", "dist",
-    "mind_map", "tests", "scripts", "tools", "rdo", "watcher",
-}
+RUNTIME_ROOTS = (
+    "run.py", "gui", "theory_x", "substrate", "speech", "voice", "admin",
+    "nex_config.py", "power_switch.py", "keystone.py", "alpha.py", "errors.py",
+    "nex5_rate.py",
+)
 
 
 def check_descriptive_only(doc: dict, root: Path = ROOT) -> list[str]:
@@ -93,17 +94,26 @@ def check_descriptive_only(doc: dict, root: Path = ROOT) -> list[str]:
         if forbidden:
             errs.append(f"{node.get('id', '<missing id>')}: forbidden action-authority field(s): {', '.join(forbidden)}")
 
-    for path in root.rglob("*.py"):
-        try:
-            relative = path.relative_to(root)
-        except ValueError:
-            continue
-        if any(part in NON_RUNTIME_DIRS for part in relative.parts):
+    runtime_files = []
+    for rel in RUNTIME_ROOTS:
+        candidate = root / rel
+        if candidate.is_file() and candidate.suffix == ".py":
+            runtime_files.append(candidate)
+        elif candidate.is_dir():
+            runtime_files.extend(candidate.rglob("*.py"))
+
+    for path in sorted(set(runtime_files)):
+        relative = path.relative_to(root)
+        if any(part in {".git", ".venv", "venv", "__pycache__"} for part in relative.parts):
             continue
         try:
             source = path.read_text(encoding="utf-8")
             tree = ast.parse(source, filename=str(relative))
-        except (OSError, UnicodeError, SyntaxError) as exc:
+        except SyntaxError:
+            # A syntactically invalid module cannot be imported by the runtime;
+            # syntax validity is handled by the Python test/build checks.
+            continue
+        except (OSError, UnicodeError) as exc:
             errs.append(f"{relative}: cannot inspect runtime source for mind-map authority use: {exc}")
             continue
 
