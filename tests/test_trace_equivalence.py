@@ -93,15 +93,25 @@ def _run_chat_once(tmp_path: Path, *, trace_on: bool, monkeypatch, read_query_lo
         ]
 
         table_counts = {}
+        database_snapshot = {}
         for db_name, reader in readers.items():
             tables = reader.read(
                 "SELECT name FROM sqlite_master "
                 "WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
             )
-            table_counts[db_name] = {
-                row["name"]: reader.count(row["name"])
-                for row in tables
-            }
+            table_counts[db_name] = {}
+            database_snapshot[db_name] = {}
+            for table_row in tables:
+                table_name = table_row["name"]
+                table_counts[db_name][table_name] = reader.count(table_name)
+                rows = reader.read(f'SELECT * FROM "{table_name}"')
+                normalized = [
+                    tuple(sorted(row.items()))
+                    for row in rows
+                ]
+                database_snapshot[db_name][table_name] = sorted(
+                    normalized, key=repr
+                )
 
         trace_rows = []
         if trace_on:
@@ -121,6 +131,7 @@ def _run_chat_once(tmp_path: Path, *, trace_on: bool, monkeypatch, read_query_lo
             "messages": messages,
             "sessions": sessions,
             "table_counts": table_counts,
+            "database_snapshot": database_snapshot,
             "trace_rows": trace_rows,
             "trace_path": trace_path,
             "read_queries": request_read_queries,
@@ -172,6 +183,9 @@ def test_chat_trace_overlay_on_off_equivalence(tmp_path, monkeypatch, record_pro
     assert on["messages"] == off["messages"]
     assert on["sessions"] == off["sessions"]
     assert on["table_counts"] == off["table_counts"]
+    # Compare complete contents of every non-internal table across all six
+    # databases, not only selected conversation rows and aggregate counts.
+    assert on["database_snapshot"] == off["database_snapshot"]
 
     # Exact SQL read sequence equality is stronger than comparing counts:
     # it catches extra reads as well as changed read ordering/path coverage.
