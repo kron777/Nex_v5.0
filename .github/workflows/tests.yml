@@ -57,7 +57,17 @@ jobs:
         env:
           HF_HUB_OFFLINE: "1"
           TRANSFORMERS_OFFLINE: "1"
+          NEX_CAUSAL_TRACE_SAMPLE_PATH: ${{ github.workspace }}/artifacts/NEX_CAUSAL_TRACE_SAMPLE.json
         run: python scripts/check_test_baseline.py
+
+      - name: Upload isolated Phase 0 causal trace sample
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NEX_CAUSAL_TRACE_SAMPLE
+          path: artifacts/NEX_CAUSAL_TRACE_SAMPLE.json
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Mind map stays sourced (no stale status claims)
         run: python mind_map/mind_map.py --check --verify
