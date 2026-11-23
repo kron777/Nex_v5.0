@@ -575,3 +575,42 @@ This remains a bounded source audit. The active environment, API access controls
 - nex_db_reaper.py: 5cfb609a8ad8a5f9bd0ab83729d8b42220700658
 
 This is a bounded source-level reconciliation. It does not establish runtime flag values, reaper installation, database row counts, frequency of the nominal fire-count thresholds, or whether the identified incomplete grader/boost producers have other external/manual callers. No runtime or test behaviour, schema, retention policy, data, flags, host state, experiment, merge or deployment was changed.
+
+
+
+## M0.3–M0.4 forward/backward audit — optional Chat affect and operator prompt faculties (23 Nov 2026)
+
+### Shared activation boundary
+
+The inspected Chat handler invokes these blocks only on the voice-composition path (the branch where a model-composed reply is required). Each block is additionally gated by its own environment flag and admin session. Source comments describe them as prompt-only; no routing or belief-selection change is performed by these blocks. Their flags' deployed values are UNKNOWN. The separate NEX5_CHAT_WORKSPACE selector is source-commented default OFF; if enabled, it budget-selects among the assembled blocks, but exempt blocks are retained even when they exceed the nominal character budget.
+
+### Individual input and state paths
+
+- OperatorModel reads only the configured operator-intake text file (default path in its module) and formats answer lines; a missing/unreadable file yields no block. Its caller requires NEX5_OPERATOR_MODEL=1 and an admin session. The separate NEX5_OPERATOR_ANCHOR block is a constant second-person addressee instruction, also admin-scoped; it does not read or recite operator details.
+- Compassion computes semantic distress salience/register from the current message using embedding anchors, then advances and persists compassion_state. This state is a single id=1 row in conversations.db, not keyed by session. NEX5_COMPASSION_V2 optionally changes the distress-anchor handling. The prompt block therefore has a persistent cross-turn substrate state, but the current code path is global across admin sessions rather than per-session. Actual multi-admin use is unknown.
+- Compass is a prompt-only moral-weighting composition. It reads current-message distress without mutating Compassion's level, reads Amoha state, and calls self_binding._cluster_reads() to identify high affliction/distortion signals. It returns a held-open weighing, not a rule verdict. It is not evidence that the SelfBinding background process is running.
+- Equanimity reads Raga and Dvesa detector outputs and suppresses its stance when Compassion distress is live. It is a prompt-only hold-steady cue.
+- Apramada reads the global momentum carry and up to three open ProblemMemory items, then checks whether the current message attends those threads. It emits a vigilance cue for a held thread at risk of being dropped.
+- Virya reads current_focus/open-problem content and recent Fountain thoughts to estimate drift from the hard thread. It yields when Equanimity is FULL. It is a prompt-only re-engagement cue.
+- Sraddha searches live, unpaused Tier-6/7 beliefs for current-message token overlap, then evaluates confidence, corroboration and belief-edge degree before emitting a support cue. It does not read belief_warrant; this remains a separate support calculation.
+- Prasrabdhi reads Raga and the Virya hard-thread/drift calculation; it emits only when circling is off-focus rather than legitimate sustained attention.
+
+### Scope distinction
+
+The eight named affect/operator prompt faculties above are present in the Chat voice-composition path. A source scan of the inspected FountainGenerator found no imports or flag references for these specific Chat faculties. Do not infer that these Chat blocks also participate in Fountain. Fountain has its own distinct optional faculty branches already mapped elsewhere in the Crosswalk.
+
+### Source hashes
+
+- gui/server.py: 5ee8b167f386466c383090445c63a84810bbae52
+- theory_x/stage_tom/operator_model.py: b6e45b58cf811ab68bfa92103f5bf3bea48ba1da
+- theory_x/stage_affect/compassion.py: eeed5387a828c8e16f7b946474dd5fafc91d04b0
+- theory_x/stage_affect/compass.py: 64ecfbed96c8ecb350efa2b4c0f28975af625a71
+- theory_x/stage_affect/upekkha.py: d3080e469204a7f53eadab1ad36a73c391d8dad6
+- theory_x/stage_affect/apramada.py: a64ad433d78da0d2f1221dc472d925316fb4b216
+- theory_x/stage_affect/virya.py: 02b66b8a355b25685f97de3f41601bf622dc1e5b
+- theory_x/stage_affect/sraddha.py: 74d009c10182310d4f84ffb41adfdfc9a0ee6738
+- theory_x/stage_affect/prasrabdhi.py: cec8b3e8e2ad1d312d26ff7a2c16dd93d0638047
+- theory_x/stage_tom/self_binding.py: acbbe02e00723ebc6c5fd13236251f4877259ce5
+- theory_x/stage_tom/amoha_detector.py: 8012d5d34d502e3a14fa7f61e2c525dc779c4206
+
+This remains source-level evidence. No flag values, file presence on host, number of concurrent admin sessions, actual prompt composition, model reliance or behavioural effect has been observed. No runtime/test behaviour, schema, state, flag, host configuration, experiment, merge or deployment was changed.
