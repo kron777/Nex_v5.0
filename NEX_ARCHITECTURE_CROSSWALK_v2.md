@@ -316,6 +316,29 @@ Draft PR #54 now contains a source/test prototype for the two required end-to-en
 
 **Phase boundary:** these are source-level design/evidence gaps, not authorisation to wire the shadow into Chat, alter the 1,400-character live budget, or change held-tension behaviour. A1's conservation/no-rewind semantics need founder/spec reconciliation before implementation. Keep `p13_finitude` dark until a live consumer and its invariants are verified.
 
+## 3.12 Genius/STRIKING signal — producer and consumer activation audit
+
+### Producer
+
+`run.py` constructs `GeniusTagger` and calls `start_loop()` unconditionally in the normal boot path. The tagger backfills recent Fountain fires, then scores new fires every 60 seconds and writes `conversations.db.genius_tags` keyed by `(fountain_event_id, weights_version)`. This is [L1] source-defined startup; actual host weights, DB writes and tag population remain [L2] UNKNOWN.
+
+The `GeniusTagger` module and `run.py` still describe the tagger as “LOG-ONLY” and say future consumers do not exist. That description is stale against the current source consumers below.
+
+### Consumer matrix
+
+| Consumer | Reads `genius_tags`? | Activation / effect | Classification |
+|---|---|---|---|
+| Recent STRIKING prompt block | Yes — `generator.py::_build_recent_striking_block` | Included unless `NEX5_GENIUS_PROMPT_OFF=1`; selects from recent STRIKING fires, filters <5 min, deduplicates, samples up to 2 and applies groove/topic filters. | Source-default active; host [L2] UNKNOWN |
+| Readiness mood modulation | Yes — `readiness.py::_genius_modulation` | Active unless `NEX5_FOUNTAIN_READINESS_MOD_OFF=1`; requires minimum sample size; can subtract up to 0.15 from readiness. | Source-default active, sample-dependent |
+| Reanimation governor | Yes — `generator.py` governor brick 1 | Active unless `NEX5_GOVERNOR_OFF=1`; on >=4 recent rows and striking rate <=5%, cadence changes 20→5 and a self-rut notice may be written at most once per 2h. | Source-default active, threshold-dependent |
+| Continuity block | Yes — `generator.py` continuity layer | Requires `NEX5_CONTINUITY_N>0`; source default is 0. When enabled, retrieves top-scoring prior fires into the next prompt. | Implemented, default-OFF |
+| VoiceEngine candidate grading | Yes — `stage_throw_net/voice_engine.py::_enrich_with_genius` | Adds latest tag score to belief candidates unless `NEX5_GENIUS_GRADE_OFF=1`; the score contributes through the Genius axis with weight 0.15. Actual VoiceEngine use depends on caller/mode. | Implemented, conditional consumer |
+| Snapshot retention scoring | **No direct `genius_tags` read found.** `theory_x/snapshots/snapshots.py::score_pending_snapshots` independently calls `score_v2.compute_features` and loads the same weights to assign retention tiers. | Invoked by `tools/snapshots.py` CLI; no boot loop found. Pruning is dry-run unless `--commit` is supplied. | Parallel scorer/manual tool, not a live table consumer |
+
+**Count correction:** the “six consumers” description is only accurate if “Genius signal” includes both direct `genius_tags` readers and the separate snapshot scorer using the same scoring model. The source shows five direct table-reader mechanisms above; of those, three are source-default active (subject to sample/host state), continuity is default-OFF, and VoiceEngine grading is caller/mode-dependent. Snapshot retention is a separate manual scoring path, not a sixth live `genius_tags` consumer.
+
+**Feedback conclusion:** this is not a disconnected score table. There are genuine producer-to-next-thought paths through the striking prompt block, readiness modulation and reanimation governor, plus conditional continuity and VoiceEngine ranking. However, the producer's “log-only/no consumers” comments and any dashboard that labels all six as unconditionally live are inaccurate. Runtime consumption and behavioural benefit still require an ID-linked trace and controlled comparison.
+
 ## 4. Top documentation/source discrepancies
 
 These are discrepancies to reconcile, not automatic instructions to modify code or documentation.
