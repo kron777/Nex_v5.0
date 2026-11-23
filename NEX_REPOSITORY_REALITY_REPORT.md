@@ -1190,3 +1190,8 @@ Source hashes:
 - `theory_x/memory/downtime.py`: `c609c501a2470be6ef3494e2d918bd05271d1f6d`
 
 No runtime, snapshot, database, test behaviour, host state, merge or deployment was changed.
+
+
+## Phase 0 defect/risk backlog companion (24 Nov 2026)
+
+A companion `NEX_VERIFIED_DEFECT_BACKLOG.md` has been added to this draft branch for Gate 0 review. It consolidates the DRAFT findings in this Reality Report, separates source-confirmed paths from conditional exposure and unknown host incidence, assigns provisional triage ordering, records the top five documentation/implementation discrepancies and states the evidence-level limits. It is not Founder-approved and does not authorize remediation. The exact-head CI status and M0.1–M0.5 completion limits are recorded in the backlog and ADR-001.
