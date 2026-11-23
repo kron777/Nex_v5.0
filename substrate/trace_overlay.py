@@ -25,6 +25,7 @@ class TraceHandle:
 
     trace_id: str
     token: contextvars.Token
+    start_record_id: Optional[str] = None
 
 
 _CONTEXT: contextvars.ContextVar[Optional[dict[str, Any]]] = contextvars.ContextVar(
@@ -135,9 +136,8 @@ def begin_trace(
         "initial_parent_record_id": str(parent_record_id) if parent_record_id else None,
     }
     token = _CONTEXT.set(state)
-    handle = TraceHandle(trace_id=trace_id, token=token)
     start_parents = [str(parent_record_id)] if parent_record_id else []
-    record(
+    start_record_id = record(
         "trace_start",
         producer="trace_overlay",
         source_ref=source_ref,
@@ -146,7 +146,12 @@ def begin_trace(
         outcome="started",
         parent_ids=start_parents,
     )
-    return handle
+    state["root_record_id"] = start_record_id
+    return TraceHandle(
+        trace_id=trace_id,
+        token=token,
+        start_record_id=start_record_id,
+    )
 
 
 def link_entity(entity_ref: str, record_id: str) -> bool:
