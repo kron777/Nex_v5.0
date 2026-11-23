@@ -1200,3 +1200,22 @@ A companion `NEX_VERIFIED_DEFECT_BACKLOG.md` has been added to this draft branch
 ## M0.3 node-level reconciliation (24 Nov 2026)
 
 The Crosswalk now contains an explicit row for each of the 30 declared MIND_MAP nodes, with source path, declared evidence/dark/blocked modifiers, separate L0–L4 assessment, and historical host-evidence caveats. The node-level assessment is not a conversion of MIND_MAP's own evidence vocabulary. Four nodes remain L0, sixteen L1, nine L2-reported (host checkout identity pending), one L3 only in the isolated Fountain fixture, and none L4. See the “Explicit 30-node MIND_MAP → source/runtime evidence crosswalk” section in NEX_ARCHITECTURE_CROSSWALK_v2.md.
+
+
+### DRAFT-023 — ExecutiveControl is registered but bypassed by the active Chat register path
+
+The GUI module constructs a process-global ExecutiveControl instance and registers it with the Theory X node registry. Its module docstring says it replaces the classify() stub in voice/registers.py. However, the active api_chat route does not call _executive.select(). The route explicitly chooses the user-supplied register when present, otherwise by_name("Philosophical"), with a comment dated 2026-05-29: “default chat to Philosophical”; the comment says to restore the ExecutiveControl branch later. The voice.registers.classify() function remains the Phase 1 stub returning Conversational, and default_register() also returns Conversational.
+
+Therefore, the classifier's unit tests do not establish that it participates in the production Chat route. The current default Chat register is Philosophical, not the classifier's selected register and not voice.registers.default_register(). This may be a deliberate temporary product choice; whether it is approved and still intended is unresolved. The mismatch is between the module's replacement claim, the register module's stated default, and the actual route.
+
+The ExecutiveControl instance is still registered and may be ticked for state monitoring, but that does not consume its classification output. The class also describes itself as thread-safe while its continuity-bias read of _session_registers occurs outside the lock, and its process-lifetime session map has no expiry/cleanup; those are secondary risks if select() is restored to the concurrent Chat path.
+
+Test boundary: tests/test_executive_control.py covers classifier unit behavior and continuity bias, but no route-level test verifies that api_chat calls ExecutiveControl or validates the deliberate Philosophical default. No concurrency or session-expiry test was identified.
+
+Source hashes:
+- gui/server.py: d67df10f4449004c255e38b11b4a1888a4e4934c
+- theory_x/executive_control.py: af98135e115d43ab01bdae08b2cde71b3f6eecc1
+- voice/registers.py: e9d836ec1854572f6209e0f25435aec6653fe4df
+- tests/test_executive_control.py: d0ffe94a36e60cb30536759090affc09cfc1c3b1
+
+No register, prompt, runtime or test behaviour was changed.
