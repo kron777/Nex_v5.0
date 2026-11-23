@@ -56,7 +56,7 @@ review and **not** RDO self-assessment. Failed/unverified obligations are **reop
 
 ## Requirements → evidence (tests)
 
-`rdo/tests/test_stage7_execution_watcher.py` now includes explicit test-execution authorization and path-containment regressions. The branch's earlier local report of 10 Stage-7 tests / 108 RDO tests predates these additions; the updated count and pass status are pending exact-head CI.
+`rdo/tests/test_stage7_execution_watcher.py` now includes explicit test-execution authorization and path-containment regressions. The Stage-7 test file now contains 12 tests. The earlier local report of 10 Stage-7 tests / 108 RDO tests predates these additions; the updated full-suite count and pass status are pending exact-head CI.
 
 - traceability objective→obligations · three separate dimensions → `test_verified_*`, `test_traceability_*`
 - **claim / passing test alone ≠ success** → `test_claim_without_source_evidence_is_not_accepted`, `test_missing_all_evidence_is_claim_unverified`
