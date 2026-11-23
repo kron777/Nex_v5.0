@@ -583,6 +583,19 @@ The causal trace should preserve the distinction above. The current PR #54 sourc
 
 No behavioural change, new evaluation, flag activation or schema migration is authorised by this audit. The next proof level for decision-changing effects belongs to the roadmap's later controlled ablation work, not to Phase 0 instrumentation.
 
+## 3.22 Chat source-to-sink expansion — PR #65 integrated branch
+
+A separate revision-bound Chat pathway audit has been added in `NEX_CHAT_PATHWAY_AUDIT.md`, inspected against PR #65 integrated source head `3d5df48e6539818097b58b6e936059fae946ceca`. It expands the `gui/server.py::api_chat` path into the shared entry/routing stage, conditional gap refusal, direct VoiceEngine substrate hit, VoiceClient composition, retry/sanitization/persistence branches, and the source contributors that can populate the prompt.
+
+Two important qualifications from that audit:
+
+- Chat has distinct direct-substrate and model-composition routes. A VoiceEngine hit can be returned directly (except in the operator-hybrid case); it is not accurate to represent every Chat turn as an LLM composition.
+- The FocalSet block is labelled “log-only”, but it adds selected belief contents to session Working Memory; the later same-turn WorkingMemory branch can inject those contents into the prompt for a Conversational register when the precomputed belief count meets the threshold. This is a source-confirmed conditional prompt-influence path and an omitted causal edge in the current trace. It is not a claim of deployed activation or a behavioural defect.
+
+The audit also identifies prompt contributors whose provenance is currently collapsed into the single `context_selection` digest, including tool results, disturbance/problem context, optional faculties, random spectrum rows, and the VoiceEngine TimeFetch candidate/enrichment pipeline. The current trace parent list is therefore not a complete causal closure for Chat.
+
+**Evidence boundary:** static inspection only; PR #65 head and source file hashes are recorded in the audit. Its latest CI pass validates the tested suite, not every branch or deployed-host behaviour. The audit remains partial and does not satisfy Gate 0.
+
 ## 4. Top documentation/source discrepancies
 
 These are discrepancies to reconcile, not automatic instructions to modify code or documentation.
