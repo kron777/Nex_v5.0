@@ -134,12 +134,11 @@ class SpeechQueueConsumer(threading.Thread):
         qid = row["id"]
         entity_ref = f"beliefs.speech_queue:{qid}"
         content = row["content"]
-        trace_api = None
-        trace_handle = None
+        trace_api = trace_handle = None
         trace_outcome = "processing_interrupted"
 
-        # _speak_one is entered only after run() has received a row from
-        # _pending(). This records processing hand-off, not an exclusive claim.
+        # This is the hand-off into processing after _pending() returned a row;
+        # it is not an exclusive reservation or a claim on the queue item.
         if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
             try:
                 from substrate import trace_overlay as trace_api
@@ -149,24 +148,7 @@ class SpeechQueueConsumer(threading.Thread):
                     entity_ref=entity_ref,
                     payload={"queue_id": qid},
                 )
-                if trace_handle is not None:
-                    processing_id = _trace_record(
-                        trace_api, trace_handle, "queue_item_processing_started",
-                        producer="SpeechQueueConsumer.run",
-                        consumer="SpeechQueueConsumer._speak_one",
-                        source_ref="speech/queue_consumer.py::_speak_one",
-                        entity_ref=entity_ref,
-                        outcome="processing_started",
-                        payload={"queue_id": qid},
-                        parent_ids=(
-                            [trace_handle.start_record_id]
-                            if trace_handle.start_record_id else []
-                        ),
-                    )
-                else:
-                    processing_id = None
             except Exception:
-                # A failed observer must not prevent speech processing.
                 if trace_api is not None:
                     try:
                         trace_api.close_current_trace(
@@ -175,27 +157,42 @@ class SpeechQueueConsumer(threading.Thread):
                         )
                     except Exception:
                         pass
-                trace_api = None
-                trace_handle = None
-                processing_id = None
-        else:
-            processing_id = None
+                trace_api = trace_handle = None
 
-        def trace_event(event_type, *, producer, consumer, source_ref,
-                        outcome=None, parent_id=None, payload=None):
+        def emit(event_type, producer, consumer, outcome, parent_id, payload=None):
             return _trace_record(
                 trace_api, trace_handle, event_type,
-                producer=producer,
-                consumer=consumer,
-                source_ref=source_ref,
-                entity_ref=entity_ref,
-                outcome=outcome,
-                payload=payload,
+                producer=producer, consumer=consumer,
+                source_ref="speech/queue_consumer.py::_speak_one",
+                entity_ref=entity_ref, outcome=outcome, payload=payload,
                 parent_ids=[parent_id] if parent_id else [],
             )
 
+        def persist_status(status, sql, params, parent_id):
+            try:
+                self.writer.write(sql, params)
+            except Exception as exc:
+                emit(
+                    "queue_status_write_failed", "SpeechQueueConsumer._speak_one",
+                    "speech_queue", f"{status}_write_failed", parent_id,
+                    {"queue_id": qid, "error_type": type(exc).__name__},
+                )
+                raise
+            return emit(
+                "queue_status_persisted", "SpeechQueueConsumer._speak_one",
+                "speech_queue", status, parent_id, {"queue_id": qid},
+            )
+
         try:
-            # Use voice from VoiceState if available, else fall back to row voice or config.
+            if trace_handle is not None:
+                processing_id = emit(
+                    "queue_item_processing_started", "SpeechQueueConsumer.run",
+                    "SpeechQueueConsumer._speak_one", "processing_started",
+                    trace_handle.start_record_id, {"queue_id": qid},
+                )
+            else:
+                processing_id = None
+
             voice = None
             if self._voice_state is not None:
                 try:
@@ -203,242 +200,113 @@ class SpeechQueueConsumer(threading.Thread):
                 except Exception:
                     pass
             if not voice:
+                # Reader returns sqlite3.Row, which supports indexed access,
+                # not dict.get(). Keep this path compatible with real rows.
                 voice = row["voice"] or self.config.voice
 
             if not _is_speakable(content):
-                try:
-                    self.writer.write(
-                        "UPDATE speech_queue SET status='suppressed' WHERE id=?", (qid,)
-                    )
-                except Exception as exc:
-                    trace_event(
-                        "queue_status_write_failed",
-                        producer="SpeechQueueConsumer._speak_one",
-                        consumer="speech_queue",
-                        source_ref="speech/queue_consumer.py::_speak_one",
-                        outcome="suppressed_status_write_failed",
-                        parent_id=processing_id,
-                        payload={"queue_id": qid, "error_type": type(exc).__name__},
-                    )
-                    trace_outcome = "suppressed_status_write_failed"
-                    raise
-                trace_event(
-                    "queue_status_persisted",
-                    producer="SpeechQueueConsumer._speak_one",
-                    consumer="speech_queue",
-                    source_ref="speech/queue_consumer.py::_speak_one",
-                    outcome="suppressed",
-                    parent_id=processing_id,
-                    payload={"queue_id": qid},
+                persist_status(
+                    "suppressed",
+                    "UPDATE speech_queue SET status='suppressed' WHERE id=?",
+                    (qid,), processing_id,
                 )
                 log.info("speech suppressed (non-speakable content) id=%s chars=%d",
                          qid, len(content))
                 trace_outcome = "suppressed"
                 return
 
-            try:
-                self.writer.write(
-                    "UPDATE speech_queue SET status='speaking' WHERE id=?", (qid,)
-                )
-            except Exception as exc:
-                trace_event(
-                    "queue_status_write_failed",
-                    producer="SpeechQueueConsumer._speak_one",
-                    consumer="speech_queue",
-                    source_ref="speech/queue_consumer.py::_speak_one",
-                    outcome="speaking_status_write_failed",
-                    parent_id=processing_id,
-                    payload={"queue_id": qid, "error_type": type(exc).__name__},
-                )
-                trace_outcome = "speaking_status_write_failed"
-                raise
-
-            speaking_status_id = trace_event(
-                "queue_status_persisted",
-                producer="SpeechQueueConsumer._speak_one",
-                consumer="speech_queue",
-                source_ref="speech/queue_consumer.py::_speak_one",
-                outcome="speaking",
-                parent_id=processing_id,
-                payload={"queue_id": qid},
+            speaking_id = persist_status(
+                "speaking",
+                "UPDATE speech_queue SET status='speaking' WHERE id=?",
+                (qid,), processing_id,
             )
-            synthesis_started_id = trace_event(
-                "synthesis_started",
-                producer="SpeechQueueConsumer._speak_one",
-                consumer="KokoroBackend.synth",
-                source_ref="speech/queue_consumer.py::_speak_one",
-                outcome="started",
-                parent_id=speaking_status_id or processing_id,
-                payload={"queue_id": qid, "voice": voice},
+            synthesis_id = emit(
+                "synthesis_started", "SpeechQueueConsumer._speak_one",
+                "KokoroBackend.synth", "started",
+                speaking_id or processing_id, {"queue_id": qid, "voice": voice},
             )
-
             try:
                 audio, sr = self.backend.synth(content, voice=voice)
             except Exception as exc:
-                synthesis_failed_id = trace_event(
-                    "synthesis_failed",
-                    producer="KokoroBackend.synth",
-                    consumer="SpeechQueueConsumer._speak_one",
-                    source_ref="speech/queue_consumer.py::_speak_one",
-                    outcome="failed",
-                    parent_id=synthesis_started_id or speaking_status_id or processing_id,
-                    payload={"queue_id": qid, "error_type": type(exc).__name__},
+                failed_id = emit(
+                    "synthesis_failed", "KokoroBackend.synth",
+                    "SpeechQueueConsumer._speak_one", "failed",
+                    synthesis_id or speaking_id or processing_id,
+                    {"queue_id": qid, "error_type": type(exc).__name__},
                 )
                 log.error("speech synthesis failed on id=%s: %s", qid, exc)
                 try:
-                    self.writer.write(
+                    persist_status(
+                        "failed",
                         "UPDATE speech_queue SET status='failed', error=? WHERE id=?",
-                        (str(exc), qid),
+                        (str(exc), qid), failed_id,
                     )
-                except Exception as status_exc:
-                    trace_event(
-                        "queue_status_write_failed",
-                        producer="SpeechQueueConsumer._speak_one",
-                        consumer="speech_queue",
-                        source_ref="speech/queue_consumer.py::_speak_one",
-                        outcome="failed_status_write_failed",
-                        parent_id=synthesis_failed_id,
-                        payload={"queue_id": qid, "error_type": type(status_exc).__name__},
-                    )
+                except Exception:
                     trace_outcome = "synthesis_failed_status_write_failed"
                     raise
-                trace_event(
-                    "queue_status_persisted",
-                    producer="SpeechQueueConsumer._speak_one",
-                    consumer="speech_queue",
-                    source_ref="speech/queue_consumer.py::_speak_one",
-                    outcome="failed",
-                    parent_id=synthesis_failed_id,
-                    payload={"queue_id": qid},
-                )
                 trace_outcome = "synthesis_failed"
                 return
 
-            synthesis_completed_id = trace_event(
-                "synthesis_completed",
-                producer="KokoroBackend.synth",
-                consumer="SpeechQueueConsumer._speak_one",
-                source_ref="speech/queue_consumer.py::_speak_one",
-                outcome="returned",
-                parent_id=synthesis_started_id or speaking_status_id or processing_id,
-                payload={"queue_id": qid, "sample_rate": sr},
+            synthesis_done_id = emit(
+                "synthesis_completed", "KokoroBackend.synth",
+                "SpeechQueueConsumer._speak_one", "returned",
+                synthesis_id or speaking_id or processing_id,
+                {"queue_id": qid, "sample_rate": sr},
             )
-            player_started_id = trace_event(
-                "player_invocation_started",
-                producer="SpeechQueueConsumer._speak_one",
-                consumer="Player.play",
-                source_ref="speech/queue_consumer.py::_speak_one",
-                outcome="invoked",
-                parent_id=synthesis_completed_id or synthesis_started_id or speaking_status_id or processing_id,
-                payload={"queue_id": qid, "sample_rate": sr},
+            player_id = emit(
+                "player_invocation_started", "SpeechQueueConsumer._speak_one",
+                "Player.play", "invoked",
+                synthesis_done_id or synthesis_id or speaking_id or processing_id,
+                {"queue_id": qid, "sample_rate": sr},
             )
             try:
                 self.player.play(audio, sr)
             except Exception as exc:
-                player_failed_id = trace_event(
-                    "player_call_failed",
-                    producer="Player.play",
-                    consumer="SpeechQueueConsumer._speak_one",
-                    source_ref="speech/queue_consumer.py::_speak_one",
-                    outcome="raised",
-                    parent_id=player_started_id,
-                    payload={"queue_id": qid, "error_type": type(exc).__name__},
+                failed_id = emit(
+                    "player_call_failed", "Player.play",
+                    "SpeechQueueConsumer._speak_one", "raised", player_id,
+                    {"queue_id": qid, "error_type": type(exc).__name__},
                 )
                 log.error("audio player failed on id=%s: %s", qid, exc)
                 try:
-                    self.writer.write(
+                    persist_status(
+                        "failed",
                         "UPDATE speech_queue SET status='failed', error=? WHERE id=?",
-                        (str(exc), qid),
+                        (str(exc), qid), failed_id,
                     )
-                except Exception as status_exc:
-                    trace_event(
-                        "queue_status_write_failed",
-                        producer="SpeechQueueConsumer._speak_one",
-                        consumer="speech_queue",
-                        source_ref="speech/queue_consumer.py::_speak_one",
-                        outcome="failed_status_write_failed",
-                        parent_id=player_failed_id,
-                        payload={"queue_id": qid, "error_type": type(status_exc).__name__},
-                    )
+                except Exception:
                     trace_outcome = "player_call_failed_status_write_failed"
                     raise
-                trace_event(
-                    "queue_status_persisted",
-                    producer="SpeechQueueConsumer._speak_one",
-                    consumer="speech_queue",
-                    source_ref="speech/queue_consumer.py::_speak_one",
-                    outcome="failed",
-                    parent_id=player_failed_id,
-                    payload={"queue_id": qid},
-                )
                 trace_outcome = "player_call_failed"
                 return
 
-            player_returned_id = trace_event(
-                "player_call_returned",
-                producer="Player.play",
-                consumer="SpeechQueueConsumer._speak_one",
-                source_ref="speech/queue_consumer.py::_speak_one",
-                outcome="returned",
-                parent_id=player_started_id,
-                payload={"queue_id": qid, "sample_rate": sr},
+            # A returned Player.play() call is observable; physical audibility
+            # is not established by this interface.
+            player_returned_id = emit(
+                "player_call_returned", "Player.play",
+                "SpeechQueueConsumer._speak_one", "returned", player_id,
+                {"queue_id": qid, "sample_rate": sr},
             )
-
             try:
-                self.writer.write(
+                persist_status(
+                    "spoken",
                     "UPDATE speech_queue SET status='spoken', spoken_at=? WHERE id=?",
-                    (time.time(), qid),
+                    (time.time(), qid), player_returned_id,
                 )
             except Exception as status_exc:
-                trace_event(
-                    "queue_status_write_failed",
-                    producer="SpeechQueueConsumer._speak_one",
-                    consumer="speech_queue",
-                    source_ref="speech/queue_consumer.py::_speak_one",
-                    outcome="spoken_status_write_failed",
-                    parent_id=player_returned_id,
-                    payload={"queue_id": qid, "error_type": type(status_exc).__name__},
-                )
-                # Preserve the existing fallback status attempt. A successful
-                # Player.play() return remains a separate historical fact.
+                # Keep the historical player return distinct from persistence.
                 try:
-                    self.writer.write(
+                    persist_status(
+                        "failed_fallback",
                         "UPDATE speech_queue SET status='failed', error=? WHERE id=?",
-                        (str(status_exc), qid),
+                        (str(status_exc), qid), player_returned_id,
                     )
-                except Exception as fallback_exc:
-                    trace_event(
-                        "queue_status_write_failed",
-                        producer="SpeechQueueConsumer._speak_one",
-                        consumer="speech_queue",
-                        source_ref="speech/queue_consumer.py::_speak_one",
-                        outcome="failed_fallback_status_write_failed",
-                        parent_id=player_returned_id,
-                        payload={"queue_id": qid, "error_type": type(fallback_exc).__name__},
-                    )
+                except Exception:
                     trace_outcome = "player_returned_status_persistence_failed"
                     raise
-                trace_event(
-                    "queue_status_persisted",
-                    producer="SpeechQueueConsumer._speak_one",
-                    consumer="speech_queue",
-                    source_ref="speech/queue_consumer.py::_speak_one",
-                    outcome="failed_fallback",
-                    parent_id=player_returned_id,
-                    payload={"queue_id": qid},
-                )
                 trace_outcome = "player_returned_spoken_status_failed_fallback_persisted"
                 return
 
-            trace_event(
-                "queue_status_persisted",
-                producer="SpeechQueueConsumer._speak_one",
-                consumer="speech_queue",
-                source_ref="speech/queue_consumer.py::_speak_one",
-                outcome="spoken",
-                parent_id=player_returned_id,
-                payload={"queue_id": qid},
-            )
             log.info("spoke belief_id=%s (%d chars)", row["belief_id"], len(content))
             trace_outcome = "player_call_returned_spoken_status_persisted"
         finally:
