@@ -175,10 +175,15 @@ Trace event names such as `model_input` and `model_output` are observer labels; 
 
 ## 8. Tests and what they establish
 
-PR #65 includes a paired Chat trace OFF/ON route fixture using the Flask route and isolated SQLite substrate. The test compares the tested request/result path and database/Reader observations under the fixture's controlled conditions. The latest integrated PR #65 CI run `45250499152` passed full pytest and the mind-map sourcing check on head `3d5df48e6539818097b58b6e936059fae946ceca`.
+PR #65 includes a paired Chat trace OFF/ON route fixture using the Flask route and isolated SQLite substrate. The test constructs a deliberately minimal `AppState` with Writers/Readers and a deterministic `VoiceClient`; it clears all `NEX5_*` environment flags except the trace controls. It does not supply a WorldModel, Membrane, VoiceEngine, ToolCaller/ToolRegistry, FocalSet, or the other optional faculties. The deterministic test prompt follows the ordinary model-composition route. It compares model request bytes, returned behaviour, message/session rows, complete non-internal table contents, Reader SELECT/WITH sequences, and the trace's explicit parent links. Its measured elapsed time is one paired diagnostic sample only.
+
+Separate `tests/test_focal_set.py` and `tests/test_working_memory.py` exercise those classes in isolation. They do not establish the GUI integration path from FocalSet selection through session Working Memory into the assembled Chat prompt. No integrated route test for that conditional influence path was identified in this bounded test inspection.
+
+The latest integrated PR #65 CI run `45250499152` passed full pytest and the mind-map sourcing check on head `3d5df48e6539818097b58b6e936059fae946ceca`.
 
 That result does not establish:
-- every Chat branch, flag combination, tool, VoiceEngine candidate source or retry path is covered;
+- membrane/WorldModel retrieval, direct VoiceEngine hits, operator hybrid, tool use, faculty blocks, FocalSet/WorkingMemory prompt injection, spectrum selection, or retry branches are exercised by the paired trace fixture;
+- every Chat branch or flag combination is covered;
 - arbitrary direct SQLite access is observed;
 - runtime flag values or host wiring;
 - statistical latency neutrality;
@@ -210,6 +215,9 @@ All hashes below identify the inspected PR #65 integrated branch files, not the 
 | `theory_x/working_memory.py` | `4e9badadbb3ada939c05fcb4a82455723c0efa36` | Per-session short-term buffer, activation and decay |
 | `theory_x/stage_capability/tool_caller.py` | `31faba3cc49b60f21069679e920c73442249f919` | Heuristic tool selection and kwargs/prompt construction |
 | `theory_x/stage_capability/tools.py` | `ff5f251b225c975c01f6bf3c3da9cbad1f77fbee` | Tool registry and implementation dispatch |
+| `tests/test_trace_equivalence.py` | `d6c89025affae77cddb4b91d4d2c2301b51c3e60` | Minimal deterministic Chat OFF/ON trace fixture |
+| `tests/test_focal_set.py` | `083b8053ff09ef0975f8aab35a120904b2f55423` | FocalSet unit tests; no Chat route integration |
+| `tests/test_working_memory.py` | `446d90f4c79a515eba08aaac1b24c5c33f0797e3` | WorkingMemory unit tests; no Chat route integration |
 | `substrate/trace_overlay.py` | `fbccc3b63bc94dab8e9f01951a581ba3af3f087e` | Trace record envelope and payload digest behaviour |
 
 The Chat route's line ranges in this audit are from the same `gui/server.py` blob; line numbers may shift on later commits. Recheck the branch head and file hashes before relying on this map after further source changes.
