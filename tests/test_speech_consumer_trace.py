@@ -480,6 +480,8 @@ def test_real_fountain_crystallizer_enqueue_links_to_real_consumer(
     monkeypatch.setenv("NEX5_SPEECH_QUIET_DAMPING", "1.0")
     monkeypatch.setenv("NEX5_INTAKE_RESONANCE_OFF", "1")
 
+    writers = {}
+    producer = None
     init_all()
     paths = db_paths()
     writers = {name: Writer(path, name=name) for name, path in paths.items()}
