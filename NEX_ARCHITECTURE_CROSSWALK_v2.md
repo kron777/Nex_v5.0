@@ -1213,3 +1213,10 @@ The central mutation gate explicitly exempts `api_chat` as public, so no admin s
 ### Web fetch destination validation — conditional SSRF path
 
 `ToolRegistry._web_fetch()` uses `parsed.netloc.lstrip("www.")` for allowlist normalization, which strips a character set rather than an exact prefix; certain lookalike hostnames can be normalized to an allowed name. It then uses default `urllib.request.urlopen()` redirect handling without validating the final destination. A permitted origin redirecting to an internal/private address can therefore bypass the initial host check. This is a conditional SSRF risk; no request was made and no internal target is asserted reachable. Existing tests cover only a direct unknown-domain rejection. See DRAFT-016 in the Reality Report.
+
+
+## Throw-Net — threshold activation and failed-session accounting (24 Nov 2026)
+
+- Gate REJECT and Chat gap-deflection callers invoke the TriggerDetector record methods but ignore their threshold booleans. Each method still inserts an unfired trigger row. `pending_triggers()` returns every unfired row, and `run_pending()` processes all of them. Therefore the documented four-reject/three-deflection thresholds do not gate session execution in the inspected chain. The monitor starts only with `NEX5_THROWNET=1` (default OFF). See DRAFT-017.
+- If an outer ThrowNetEngine cycle raises, the DB session is written as `failed`, but the function later returns `status="complete"` and marks the trigger fired, so it is not retried by the pending query. Per-candidate gate errors are separately caught and do not exercise this outer failure path. The retry policy is unresolved; the returned/persisted status mismatch is source-confirmed. See DRAFT-018.
+- Existing tests cover threshold booleans and pending-row mechanics independently, but do not enforce the cross-component threshold gate or outer-cycle failure status/retry contract.
