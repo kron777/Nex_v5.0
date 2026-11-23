@@ -82,8 +82,17 @@ def _append(path: str, record: dict[str, Any]) -> bool:
         parent = os.path.dirname(os.path.abspath(path))
         os.makedirs(parent, exist_ok=True)
         with _LOCK:
-            with open(path, "a", encoding="utf-8") as fh:
-                fh.write(line + "\n")
+            # Trace artifacts may contain stable entity IDs and timing metadata.
+            # Create and retain them as owner-only files, independent of umask.
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+            try:
+                os.fchmod(fd, 0o600)
+                with os.fdopen(fd, "a", encoding="utf-8") as fh:
+                    fd = -1
+                    fh.write(line + "\n")
+            finally:
+                if fd >= 0:
+                    os.close(fd)
         return True
     except Exception:
         # Observability failure must never affect the cognitive path.
