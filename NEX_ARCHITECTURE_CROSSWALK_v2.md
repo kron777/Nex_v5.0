@@ -469,6 +469,18 @@ The Fountain already has a more durable per-block trace than the one-prompt temp
 
 **A1 implication:** reuse this existing fire/block identity and manifest before adding another Fountain trace store. The new M0.5 overlay supplies the missing Chat/gate/Writer parent chain; it should not duplicate Fountain block payloads. The full raw temporary prompt file is a candidate for removal or restricted opt-in after external/manual consumer confirmation.
 
+## 3.19 CoherenceGate Check 1a/1b — narrow rules, not a general contradiction evaluator
+
+Current source and tests define two separate checks:
+
+- **Check 1a:** Jaccard token overlap >=0.70 with an existing belief → REJECT as redundant.
+- **Check 1b:** direct negation of a locked Tier-1 anchor with at least four shared words → REJECT. The test suite explicitly verifies a minimal-pair direct negation is rejected, while two-word overlap and rhetorical-negation cases are not rejected.
+- The earlier broad token-overlap contradiction approach was removed after false positives. Current Check 1b is a narrow locked-anchor protection, not a general contradiction detector and not a truth-evaluation mechanism.
+- The source comments describe a large prior reject population dominated by Throw-Net traffic; those historical counts should not be mistaken for the current Check 1b distribution.
+- The supplied map's statement that Check 1b “passes direct contradictions” is not supported for direct negations of locked T1 anchors: the current code explicitly rejects those. The cited 47.7% counterfactual REJECT statistic was not reproduced from current source/tests and remains UNKNOWN without its dataset and calculation.
+
+This gate preserves locked axioms and filters near-duplicate thoughts. It does not establish whether a novel contradiction to a non-locked belief is true, useful, or worthy of being held as tension.
+
 ## 4. Top documentation/source discrepancies
 
 These are discrepancies to reconcile, not automatic instructions to modify code or documentation.
