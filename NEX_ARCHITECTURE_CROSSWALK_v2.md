@@ -242,6 +242,21 @@ A bounded source search of the inspected Fountain generator, crystallizer, Chat 
 
 **Design consequence for M0.5:** reuse `fountain_event_id`, `session_id` and Writer-returned row IDs as entity anchors; add a separate top-level trace identity only where necessary; and record parent relationships only when the call/data dependency is explicit. Do not fabricate a parent edge from temporal proximity. Trace artifacts must remain outside the cognitive databases and must not alter prompts, candidate order, gate decisions, Writer SQL/parameters or outputs.
 
+## 3.8 P0 diagnostic-log privacy inventory — source verified
+
+The source contains several ad-hoc diagnostic files under `/tmp` that record raw cognitive or conversational content:
+
+| Path | Writer | Content and write mode | Source finding |
+|---|---|---|---|
+| `/tmp/nex5_last_chat_prompt.log` | `gui/server.py::api_chat` | Overwrites with timestamp/register, raw user prompt and full voice prompt sent to the LLM | Raw private conversation/context content; no explicit file mode or retention |
+| `/tmp/nex5_deflection.log` | `gui/server.py::api_chat` | Appends JSON containing session ID, query excerpt, user mirror, raw LLM output and final response | Raw conversation and model output; unbounded append; no explicit file mode or retention |
+| `/tmp/nex5_last_prompt.log` | `FountainGenerator.generate` | Overwrites with the complete assembled Fountain prompt | May include retrieved beliefs and internal context; no explicit file mode or retention |
+| `/tmp/nex5_retrieval_history.log` | Fountain retrieval path | Appends retrieved belief source and up to 120 characters of content per result | Persistent content-bearing retrieval history; no explicit rotation/retention |
+
+The source does not specify restrictive permissions at creation; actual host file modes and umask are UNKNOWN. The files are not a causal trace: they have no trace IDs or parent links, and the overwrite/append patterns do not establish complete cycle history. The bounded search of the repository's `scripts/` Python tools did not identify consumers of these four exact paths; this is not proof that no external host script consumes them.
+
+**Risk classification:** source-confirmed raw-content logging; actual exposure depends on host permissions, filesystem state and access. Do not claim a confirmed disclosure without inspecting the host. The correct remediation should preserve only necessary diagnostics (for example, lengths, bounded IDs and hashes), or use an explicitly approved restricted diagnostic path. Do not silently delete files or alter live logging until consumers and retention requirements are checked.
+
 ## 4. Top documentation/source discrepancies
 
 These are discrepancies to reconcile, not automatic instructions to modify code or documentation.
