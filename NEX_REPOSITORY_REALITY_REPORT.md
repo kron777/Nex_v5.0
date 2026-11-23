@@ -1062,7 +1062,7 @@ No runtime or test behaviour, schema, database, flags, host state, experiment, m
 
 ### DRAFT-015 — unauthenticated Chat can invoke unsandboxed Python execution
 
-**<badge color="danger">High-impact security risk — conditional network exposure</badge>**
+**High-impact security risk — conditional network exposure.**
 
 The inspected startup path constructs `ToolRegistry` and `ToolCaller` unconditionally and passes both into `AppState`. In `api_chat`, the raw user prompt is passed to `tool_caller.should_use_tool(prompt, [])`; when a heuristic matches, `build_tool_kwargs()` forwards the raw query as the Python code input and `ToolRegistry.execute()` runs it.
 
@@ -1087,3 +1087,16 @@ Source hashes:
 - `tests/test_tools.py`: `85c7aa8236e2cdd1005f3ab4aa49c8c6da337d2d`
 
 **Disposition:** security finding for Gate 0 defect backlog and independent review. No severity remediation is implemented here because the governing change-approval gate remains closed. The service should not be exposed to untrusted networks in this state.
+
+
+### DRAFT-016 — web_fetch allowlist can be bypassed before and after the initial URL check
+
+The same public tool path exposes `web_fetch`. Its allowlist check normalizes the hostname with `parsed.netloc.lstrip("www.")`. Python `lstrip` removes any leading characters belonging to the supplied character set, not the exact `www.` prefix. A lookalike hostname beginning with `w` can therefore be transformed into an allowlisted hostname for the comparison (for example, the string `wcoingecko.com` becomes `coingecko.com`). Whether any such lookalike domain is attacker-controlled is not established.
+
+Separately, after validating the initial hostname, the code calls `urllib.request.urlopen()` with the default redirect handling and does not validate the final URL/host after redirects. A permitted origin that redirects to an internal/private destination can therefore bypass the initial destination check. This is a conditional server-side request forgery (SSRF) path; no redirect or network request was executed, and no reachable internal service is claimed.
+
+The existing `tests/test_tools.py::test_web_fetch_rejects_unknown_domain` checks a straightforward `evil.com` URL. It does not test hostname normalization, lookalike prefixes, redirects, or private-address destinations.
+
+Source hash: `theory_x/stage_capability/tools.py` `ff5f251b225c975c01f6bf3c3da9cbad1f77fbee`; test hash: `tests/test_tools.py` `85c7aa8236e2cdd1005f3ab4aa49c8c6da337d2d`.
+
+**Disposition:** conditional SSRF/allowlist-bypass risk within the same unauthenticated public Chat tool boundary as DRAFT-015. No remediation or exploit testing was performed.
