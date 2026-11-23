@@ -21,7 +21,7 @@ from . import __version__
 from .knowledge import genius_authority_audit
 from .memory import PatternMemory
 from .report import (demo_genius_tagger, run_catalogue, run_stage2_belief_decay,
-                     run_stage3_graph_intelligence, self_assess)
+                     run_stage3_graph_intelligence, run_stage4_belief_audit, self_assess)
 
 
 def _run_demo(args) -> int:
@@ -46,6 +46,11 @@ def _stage2(args) -> int:
 
 def _stage3(args) -> int:
     print(json.dumps(run_stage3_graph_intelligence(args.repo, args.out), indent=2, default=str))
+    return 0
+
+
+def _stage4(args) -> int:
+    print(json.dumps(run_stage4_belief_audit(args.repo, args.out), indent=2, default=str))
     return 0
 
 
@@ -90,6 +95,11 @@ def main(argv=None) -> int:
     s3.add_argument("--repo", default=".")
     s3.add_argument("--out", default="rdo/.cycles")
     s3.set_defaults(fn=_stage3)
+
+    s4 = sub.add_parser("stage4", help="RDO v1.3 §16 Stage-4 read-only belief audit (lifecycle + gap map)")
+    s4.add_argument("--repo", default=".")
+    s4.add_argument("--out", default="rdo/.cycles")
+    s4.set_defaults(fn=_stage4)
 
     sub.add_parser("selfcheck",
                    help="assess the RDO against its own Optimal Functional Tension").set_defaults(fn=_selfcheck)
