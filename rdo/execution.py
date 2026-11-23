@@ -17,6 +17,7 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 from typing import Dict, List, Optional
 
 from watcher.evidence import Evidence, host_placeholder, utc_now
@@ -69,17 +70,50 @@ def record_claim(record: dict, *, completion_claim: bool, changed_artifacts: Lis
     return record
 
 
-def _run_test(test_file: str, repo_dir: str) -> Optional[bool]:
-    """Run a test INDEPENDENTLY (subprocess pytest). True=passed, False=failed, None=not runnable."""
-    path = os.path.join(repo_dir, test_file)
-    if not os.path.exists(path):
+def _approved_test_path(test_file: str, repo_dir: str,
+                         approved_test_files: Optional[List[str]]) -> Optional[str]:
+    """Resolve one exact, caller-approved repo-relative test path.
+
+    Absolute paths, traversal, missing files and symlinks escaping repo_dir are refused.
+    A path in evidence_requirements is a requirement, NOT permission to execute it.
+    """
+    if not test_file or not approved_test_files:
         return None
     try:
-        r = subprocess.run([sys.executable, "-m", "pytest", test_file, "-q"],
-                           cwd=repo_dir, capture_output=True, text=True, timeout=120)
-        return r.returncode == 0
-    except (OSError, subprocess.SubprocessError):
+        requested = Path(test_file)
+        if requested.is_absolute() or ".." in requested.parts:
+            return None
+        root = Path(repo_dir).resolve()
+        resolved = (root / requested).resolve(strict=True)
+        relative = resolved.relative_to(root).as_posix()
+        if not resolved.is_file():
+            return None
+        allowed = set()
+        for item in approved_test_files:
+            candidate = Path(item)
+            if candidate.is_absolute() or ".." in candidate.parts:
+                continue
+            allowed.add(candidate.as_posix())
+        return relative if relative in allowed else None
+    except (OSError, RuntimeError, ValueError):
         return None
+
+
+def _run_test(test_file: str, repo_dir: str,
+              approved_test_files: Optional[List[str]] = None) -> tuple[str, Optional[bool]]:
+    """Run only an explicitly approved, repo-contained test.
+
+    Returns (status, result). No allowlist / unsafe path -> ('not_authorized', None).
+    """
+    relative = _approved_test_path(test_file, repo_dir, approved_test_files)
+    if relative is None:
+        return "not_authorized", None
+    try:
+        r = subprocess.run([sys.executable, "-m", "pytest", relative, "-q"],
+                           cwd=repo_dir, capture_output=True, text=True, timeout=120)
+        return ("passed" if r.returncode == 0 else "failed"), (r.returncode == 0)
+    except (OSError, subprocess.SubprocessError):
+        return "error", None
 
 
 def _obligation_verdict(source_ok: bool, test_ok: Optional[bool]) -> str:
@@ -103,10 +137,15 @@ def _overall_verdict(per: Dict[str, str]) -> str:
     return "verified" if vals == {"verified"} else "partial"
 
 
-def verify(record: dict, repo_dir: str, ledger_path: str) -> dict:
-    """INDEPENDENT Watcher verification along three SEPARATE dimensions. The verdict is derived from
-    evidence, never from the completion claim. Lifecycle is recorded in the Watcher's append-only
-    ConnectionLedger; runtime stays an honest host-only UNKNOWN."""
+def verify(record: dict, repo_dir: str, ledger_path: str,
+           *, approved_test_files: Optional[List[str]] = None) -> dict:
+    """INDEPENDENT Watcher verification along three SEPARATE dimensions.
+
+    Test execution requires an explicit exact-path allowlist supplied by the caller. The
+    test_file recorded as an evidence requirement is not, by itself, execution permission.
+    The path must also resolve inside repo_dir. Lifecycle is recorded in the Watcher's
+    append-only ConnectionLedger; runtime stays an honest host-only UNKNOWN.
+    """
     ledger = ConnectionLedger(ledger_path)
     dims: Dict[str, dict] = {}
     per: Dict[str, str] = {}
@@ -119,8 +158,12 @@ def verify(record: dict, repo_dir: str, ledger_path: str) -> dict:
         source_ok = bool(hits)
         if source_ok and ledger.current_state(cid) == "DECLARED":
             ledger.record(cid, "SOURCE_CONFIRMED", evidence_refs=hits[:1])
-        # TEST dimension (cloud, independent run)
-        test_ok = _run_test(req["test_file"], repo_dir) if req.get("test_file") else None
+        # TEST dimension (cloud, independent run). A declared test path is not permission:
+        # the caller must explicitly allowlist the exact repo-relative path.
+        if req.get("test_file"):
+            test_status, test_ok = _run_test(req["test_file"], repo_dir, approved_test_files)
+        else:
+            test_status, test_ok = "not_requested", None
         if source_ok and test_ok is not None and ledger.current_state(cid) == "SOURCE_CONFIRMED":
             ledger.record(cid, "TEST_WRITTEN")
             ledger.record(cid, "TEST_PASSED" if test_ok else "TEST_FAILED")
@@ -133,8 +176,9 @@ def verify(record: dict, repo_dir: str, ledger_path: str) -> dict:
                              modifier=None if source_ok else "unverified")
         dims[ob] = {
             "source_implemented": source_ev.to_dict(),
-            "test_verified": {"status": ("passed" if test_ok else "failed" if test_ok is False else "none"),
-                              "test_file": req.get("test_file")},
+            "test_verified": {"status": test_status,
+                              "test_file": req.get("test_file"),
+                              "execution_authorized": test_status not in ("not_authorized", "not_requested")},
             "runtime_observed": runtime.to_dict(),
             "ledger_state": ledger.current_state(cid),
         }
