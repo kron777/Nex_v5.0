@@ -455,6 +455,20 @@ The arc path is a useful example of why a SQL read is not automatically an opera
 
 **Conclusion:** this is not an active feedback edge. It is a retired, unwired subsystem with a disabled producer and a missing persistence contract. The map's “double-dead” description is supported, with the qualification that there are several dormant readers inside the orphaned class, not one active runtime reader. Do not restore the old wiring without first deciding whether the subsystem is still wanted and defining its schema/phase.
 
+## 3.18 Fountain prompt-block manifest — persistent trace already exists
+
+The Fountain already has a more durable per-block trace than the one-prompt temporary file:
+
+- FountainGenerator creates `fountain_prompt_blocks` in the dynamic database at startup. It is deliberately not dropped on restart.
+- After the Fountain event is written, it uses `Writer.write_many()` to insert one row per prompt block: `fire_id`, ordinal, block name, SHA-256 hash, character count, bounded prefix and timestamp.
+- A 30-day reaper runs once at process start. The documented estimated cost is about 1.8 KiB/fire (16 blocks), ~930 KiB/day at 530 fires/day and ~27 MiB steady state.
+- The manifest write is after the fire is already written and is fail-safe; a manifest write failure does not change what the Fountain said.
+- The raw `nex5_last_prompt.log` full-prompt overwrite still exists despite the persistent manifest. The manifest provides per-block retrospective shape/hash/prefix evidence, while the temporary file exposes the complete assembled prompt and only preserves the most recent fire.
+
+**Consumer status:** the bounded source search found the manifest writer and schema/reaper but no runtime reader or repository script consumer. It is manually queryable from the dynamic database. It is a persistent trace substrate, not yet a demonstrated cognitive consumer or complete cross-system CTL.
+
+**A1 implication:** reuse this existing fire/block identity and manifest before adding another Fountain trace store. The new M0.5 overlay supplies the missing Chat/gate/Writer parent chain; it should not duplicate Fountain block payloads. The full raw temporary prompt file is a candidate for removal or restricted opt-in after external/manual consumer confirmation.
+
 ## 4. Top documentation/source discrepancies
 
 These are discrepancies to reconcile, not automatic instructions to modify code or documentation.
