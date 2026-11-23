@@ -406,8 +406,8 @@ This establishes an implemented Chat context-consumption path, not proof that th
 ### Warrant and earned-ness
 
 - `WarrantRecorder` is explicitly gated by `NEX5_WARRANT_RECORD=1` and records conflict-survival checks and use-days in side tables.
-- `WarrantPass` is separately gated by `NEX5_WARRANT=1` and persists computed values into `belief_warrant`.
-- The inspected `run.py` startup contains the conditional recorder construction/start, but this inspection has not yet established a live flag value.
+- `WarrantPass` is separately gated by `NEX5_WARRANT=1` in its own `start_loop()` method and persists computed values into `belief_warrant`. However, the inspected `run.py` constructs/starts `WarrantRecorder` conditionally and contains no construction or start call for `WarrantPass`. Thus the compute/persist implementation exists, but normal startup activation is not established by this entrypoint.
+- The inspected `run.py` startup contains the conditional recorder construction/start; the flag's deployed value remains UNKNOWN.
 - A complete downstream consumer search for `belief_warrant` is still open. Do not treat the existence of the computation/table as operational influence or say categorically that there are no readers until that search is complete.
 
 ## 3.15 Novel Association / Tier-7 retrieval gap — content versus annotation
