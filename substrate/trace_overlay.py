@@ -132,10 +132,11 @@ def begin_trace(
         "trace_id": trace_id,
         "trace_kind": str(trace_kind),
         "path": target,
-        "last_record_id": str(parent_record_id) if parent_record_id else None,
+        "initial_parent_record_id": str(parent_record_id) if parent_record_id else None,
     }
     token = _CONTEXT.set(state)
     handle = TraceHandle(trace_id=trace_id, token=token)
+    start_parents = [str(parent_record_id)] if parent_record_id else []
     record(
         "trace_start",
         producer="trace_overlay",
@@ -143,6 +144,7 @@ def begin_trace(
         entity_ref=entity_ref,
         payload=payload,
         outcome="started",
+        parent_ids=start_parents,
     )
     return handle
 
@@ -220,19 +222,16 @@ def record(
 ) -> Optional[str]:
     """Append one metadata-only observation and return its record ID.
 
-    Payload is hashed and discarded. Parent IDs default to the previous
-    successfully written record in this trace; callers may supply explicit
-    parents when a real multi-parent dependency is known.
+    Payload is hashed and discarded. Parent IDs are explicit: when omitted,
+    the observation has no asserted causal parent. Chronological ordering is
+    represented by the artifact's record order and timestamps, not by
+    manufacturing a causal edge to the preceding observation.
     """
     state = _CONTEXT.get()
     if state is None or os.environ.get("NEX5_TRACE_OVERLAY", "0") != "1":
         return None
     record_id = uuid.uuid4().hex
-    if parent_ids is None:
-        last = state.get("last_record_id")
-        parents = [last] if last else []
-    else:
-        parents = [str(value) for value in parent_ids if value]
+    parents = [str(value) for value in (parent_ids or []) if value]
     item = {
         "schema": "nex5/influence-record/v1",
         "trace_id": state["trace_id"],
@@ -252,7 +251,6 @@ def record(
     }
     if not _append(state["path"], item):
         return None
-    state["last_record_id"] = record_id
     return record_id
 
 
