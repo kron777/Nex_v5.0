@@ -187,16 +187,22 @@ class WarrantRecorder:
             "SELECT id, belief_id_a, belief_id_b, ts FROM synergizer_log WHERE id > ? "
             "ORDER BY id LIMIT ?", (int(c), _USE_BATCH)),
             "id", ("belief_id_a", "belief_id_b"), "ts")
-        c = self._cursor("use_lineage_ts")
-        take("use_lineage_ts", self._br.read(
-            "SELECT created_at, parent_id FROM belief_lineage WHERE created_at > ? "
-            "ORDER BY created_at LIMIT ?", (c, _USE_BATCH)),
-            "created_at", ("parent_id",), "created_at")
-        c = self._cursor("use_arc_ts")
-        take("use_arc_ts", self._br.read(
-            "SELECT joined_at, belief_id FROM arc_members WHERE joined_at > ? "
-            "ORDER BY joined_at LIMIT ?", (c, _USE_BATCH)),
-            "joined_at", ("belief_id",), "joined_at")
+        # Timestamp-only cursors can permanently skip rows when a batch ends
+        # partway through a group sharing the same timestamp: the next query's
+        # strict ">" predicate jumps over the unprocessed peers. Use SQLite's
+        # insertion rowid as a stable append cursor for these two append-only
+        # event tables. New cursor keys intentionally replay old history once;
+        # INSERT OR IGNORE keeps the derived use-day ledger idempotent.
+        c = self._cursor("use_lineage_rowid")
+        take("use_lineage_rowid", self._br.read(
+            "SELECT rowid AS rid, parent_id, created_at FROM belief_lineage "
+            "WHERE rowid > ? ORDER BY rowid LIMIT ?", (int(c), _USE_BATCH)),
+            "rid", ("parent_id",), "created_at")
+        c = self._cursor("use_arc_rowid")
+        take("use_arc_rowid", self._br.read(
+            "SELECT rowid AS rid, belief_id, joined_at FROM arc_members "
+            "WHERE rowid > ? ORDER BY rowid LIMIT ?", (int(c), _USE_BATCH)),
+            "rid", ("belief_id",), "joined_at")
 
         if pairs:
             write_batch(self._w, [(

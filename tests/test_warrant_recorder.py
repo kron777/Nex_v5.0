@@ -36,16 +36,18 @@ def _beliefs(path):
         " locked INTEGER DEFAULT 0, paused INTEGER DEFAULT 0);"
         "CREATE TABLE synergizer_log (id INTEGER PRIMARY KEY, ts REAL, belief_id_a INTEGER, "
         " belief_id_b INTEGER);"
-        "CREATE TABLE belief_lineage (child_id INTEGER, parent_id INTEGER, created_at REAL);"
-        "CREATE TABLE arc_members (belief_id INTEGER, joined_at REAL);")
+        "CREATE TABLE belief_lineage (child_id INTEGER, parent_id INTEGER, relationship TEXT, "
+        " weight REAL, created_at REAL);"
+        "CREATE TABLE arc_members (arc_id INTEGER, belief_id INTEGER, position INTEGER, "
+        " role TEXT, distance_from_centroid REAL, joined_at REAL);")
     rows = [(i, f"plain belief number {i} about ordinary things", t, 0, 0)
             for i, t in [(1, 3), (2, 3), (3, 3), (4, 6), (5, 6), (6, 7), (7, 7), (8, 7)]]
     rows += [(9, "a locked keystone", 1, 1, 0), (10, "paused one", 7, 0, 1)]
     c.executemany("INSERT INTO beliefs VALUES (?,?,?,?,?)", rows)
     c.executemany("INSERT INTO synergizer_log VALUES (?,?,?,?)",
                   [(1, _T0, 4, 6), (2, _T0 + 3600, 4, 7)])          # 4 used twice same day
-    c.execute("INSERT INTO belief_lineage VALUES (50, 4, ?)", (_T0 + 2 * _DAY,))
-    c.execute("INSERT INTO arc_members VALUES (6, ?)", (_T0 + 5 * _DAY,))
+    c.execute("INSERT INTO belief_lineage VALUES (50, 4, 'supports', 1.0, ?)", (_T0 + 2 * _DAY,))
+    c.execute("INSERT INTO arc_members VALUES (1, 6, 1, 'member', 0.1, ?)", (_T0 + 5 * _DAY,))
     c.commit(); c.close()
 
 
@@ -69,9 +71,11 @@ class TestRecorder(unittest.TestCase):
         _beliefs(self.bdb); _dynamic(self.ddb)
         self.r = rec.WarrantRecorder(_W(self.bdb), Reader(self.bdb), Reader(self.ddb))
         self._per_band = rec._PER_BAND
+        self._use_batch = rec._USE_BATCH
 
     def tearDown(self):
         rec._PER_BAND = self._per_band
+        rec._USE_BATCH = self._use_batch
         self.tmp.cleanup()
 
     def _q(self, sql):
@@ -108,6 +112,48 @@ class TestRecorder(unittest.TestCase):
         self.assertEqual(got[7], 1)
         self.assertEqual(self.r.use_cycle(now=_T0 + 12 * _DAY), 0)    # cursors hold
         self.assertEqual(dict(self._q("SELECT belief_id, days FROM belief_use_days")), got)
+
+    def test_lineage_and_arc_cursors_do_not_skip_equal_timestamp_batches(self):
+        # More rows than one batch deliberately share the same timestamp.
+        # Timestamp cursors with a strict '>' predicate used to lose the
+        # remaining rows after the first batch.
+        rec._USE_BATCH = 2
+        same_ts = _T0 + 30 * _DAY
+        c = sqlite3.connect(self.bdb)
+        c.executemany(
+            "INSERT INTO belief_lineage VALUES (?,?,?, ?,?)",
+            [(100 + i, i, "supports", 1.0, same_ts) for i in range(1, 6)],
+        )
+        c.executemany(
+            "INSERT INTO arc_members (arc_id, belief_id, position, role, "
+            "distance_from_centroid, joined_at) VALUES (1, ?, ?, 'member', 0.1, ?)",
+            [(i, i, same_ts) for i in range(1, 6)],
+        )
+        c.commit()
+        c.close()
+
+        # Each call can consume only two rows from each source.
+        self.r.use_cycle(now=same_ts + _DAY)
+        self.r.use_cycle(now=same_ts + _DAY + 1)
+        self.r.use_cycle(now=same_ts + _DAY + 2)
+
+        got = dict(self._q(
+            "SELECT belief_id, days FROM belief_use_days WHERE belief_id BETWEEN 1 AND 5"
+        ))
+        self.assertEqual(set(got), {1, 2, 3, 4, 5})
+        used_days = {
+            (bid, day) for bid, day in self._q(
+                "SELECT belief_id, day FROM belief_use_day "
+                "WHERE belief_id BETWEEN 1 AND 5"
+            )
+        }
+        expected_day = int(same_ts // _DAY)
+        self.assertTrue(all((bid, expected_day) in used_days for bid in range(1, 6)))
+        cursors = dict(self._q(
+            "SELECT name, value FROM warrant_record_cursor "
+            "WHERE name IN ('use_lineage_rowid', 'use_arc_rowid')"
+        ))
+        self.assertEqual(set(cursors), {"use_lineage_rowid", "use_arc_rowid"})
 
     def test_use_days_increment_on_new_day_only(self):
         self.r.use_cycle(now=_T0)
