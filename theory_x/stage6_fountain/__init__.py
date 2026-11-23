@@ -159,7 +159,7 @@ def build_fountain(
                         pass
 
                 # Diagnostic: log what the loop is deciding this tick.
-                                try:
+                try:
                     _readiness = generator._evaluator.score(
                         dynamic_state, readers["beliefs"],
                         last_fire_ts=generator.last_fire_ts(),
