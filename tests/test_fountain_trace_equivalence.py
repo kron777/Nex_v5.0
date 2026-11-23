@@ -9,12 +9,15 @@ from __future__ import annotations
 
 import json
 import random
+import time
 from pathlib import Path
 
 from tests import _bootstrap  # noqa: F401
 
 
-def _run_generator_once(tmp_path: Path, *, trace_on: bool, monkeypatch):
+def _run_generator_once(
+    tmp_path: Path, *, trace_on: bool, monkeypatch, read_query_log
+):
     import os
     data_dir = tmp_path / "nex-data"
     data_dir.mkdir(parents=True)
@@ -32,22 +35,6 @@ def _run_generator_once(tmp_path: Path, *, trace_on: bool, monkeypatch):
     from substrate import Reader, Writer, db_paths
     from voice.llm import VoiceClient
 
-    # Fountain prompt assembly uses SQLite ORDER BY RANDOM() for several
-    # retrieval slots. Python's random.seed() does not control SQLite's
-    # built-in RNG, so paired OFF/ON runs could receive different prompts
-    # before the overlay is even involved. Give each read connection the
-    # same deterministic SQLite RNG stream; production code remains untouched.
-    original_reader_open = Reader._open
-
-    def deterministic_reader_open(self):
-        connection = original_reader_open(self)
-        sqlite_rng = random.Random(8675309)
-        connection.create_function(
-            "random", 0, lambda: sqlite_rng.getrandbits(63)
-        )
-        return connection
-
-    monkeypatch.setattr(Reader, "_open", deterministic_reader_open)
     from theory_x.stage6_fountain.generator import FountainGenerator
     from theory_x.stage6_fountain.crystallizer import FountainCrystallizer
     from substrate import trace_overlay
@@ -55,6 +42,13 @@ def _run_generator_once(tmp_path: Path, *, trace_on: bool, monkeypatch):
     init_all()
     paths = db_paths()
     writers = {name: Writer(path, name=name) for name, path in paths.items()}
+    # init_db seeds undo_log_meta with SQLite julianday('now'), which is not
+    # controlled by Python's time.time monkeypatch. Normalize the fixture seed
+    # through the ordinary Writer so every other database field stays compared.
+    writers["beliefs"].write(
+        "UPDATE undo_log_meta SET installed_at=? WHERE id=1",
+        (1_700_000_000.0,),
+    )
     readers = {name: Reader(path) for name, path in paths.items()}
     model_requests = []
 
@@ -113,17 +107,32 @@ def _run_generator_once(tmp_path: Path, *, trace_on: bool, monkeypatch):
         )
 
     try:
+        read_query_log.clear()
         thought = generator.generate(DynamicState(), readers["beliefs"])
+        request_read_queries = list(read_query_log)
+        read_query_log.clear()
         table_counts = {}
+        database_snapshot = {}
         for db_name, reader in readers.items():
             tables = reader.read(
                 "SELECT name FROM sqlite_master "
                 "WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
             )
-            table_counts[db_name] = {
-                row["name"]: reader.count(row["name"])
-                for row in tables
-            }
+            table_counts[db_name] = {}
+            database_snapshot[db_name] = {}
+            for table_row in tables:
+                table_name = table_row["name"]
+                table_counts[db_name][table_name] = reader.count(table_name)
+                rows = reader.read(f'SELECT * FROM "{table_name}"')
+                # SQLite does not promise row order without ORDER BY. Compare
+                # complete row content as a sorted multiset, retaining duplicates.
+                normalized = [
+                    tuple((key, row[key]) for key in row.keys())
+                    for row in rows
+                ]
+                database_snapshot[db_name][table_name] = sorted(
+                    normalized, key=repr
+                )
         beliefs = [
             tuple(row[key] for key in ("content", "tier", "confidence", "source", "branch_id"))
             for row in readers["beliefs"].read(
@@ -155,6 +164,8 @@ def _run_generator_once(tmp_path: Path, *, trace_on: bool, monkeypatch):
             "thought": thought,
             "model_requests": model_requests,
             "table_counts": table_counts,
+            "database_snapshot": database_snapshot,
+            "read_queries": request_read_queries,
             "beliefs": beliefs,
             "fires": fires,
             "trace_rows": trace_rows,
@@ -172,8 +183,34 @@ def _run_generator_once(tmp_path: Path, *, trace_on: bool, monkeypatch):
             writer.close()
 
 
-def test_fountain_generator_trace_overlay_on_off_equivalence(tmp_path, monkeypatch):
+def test_fountain_generator_trace_overlay_on_off_equivalence(
+    tmp_path, monkeypatch, record_property
+):
+    # Freeze wall-clock reads so timestamp-bearing DB rows are directly
+    # comparable across the paired OFF/ON substrates.
+    monkeypatch.setattr(time, "time", lambda: 1_700_000_000.0)
     import os
+    from substrate import Reader
+
+    read_query_log = []
+    original_reader_open = Reader._open
+
+    def observed_reader_open(self):
+        connection = original_reader_open(self)
+        sqlite_rng = random.Random(8675309)
+        connection.create_function(
+            "random", 0, lambda: sqlite_rng.getrandbits(63)
+        )
+
+        def observe_statement(statement):
+            normalized = statement.lstrip().upper()
+            if normalized.startswith(("SELECT", "WITH")):
+                read_query_log.append(statement.strip())
+
+        connection.set_trace_callback(observe_statement)
+        return connection
+
+    monkeypatch.setattr(Reader, "_open", observed_reader_open)
 
     # Isolate this replay from the host's runtime flags. Only the trace overlay
     # may differ between the paired runs.
@@ -184,12 +221,22 @@ def test_fountain_generator_trace_overlay_on_off_equivalence(tmp_path, monkeypat
         }:
             monkeypatch.delenv(key, raising=False)
 
-    off = _run_generator_once(tmp_path / "off", trace_on=False, monkeypatch=monkeypatch)
-    on = _run_generator_once(tmp_path / "on", trace_on=True, monkeypatch=monkeypatch)
+    off = _run_generator_once(
+        tmp_path / "off", trace_on=False, monkeypatch=monkeypatch,
+        read_query_log=read_query_log,
+    )
+    on = _run_generator_once(
+        tmp_path / "on", trace_on=True, monkeypatch=monkeypatch,
+        read_query_log=read_query_log,
+    )
 
     assert on["thought"] == off["thought"]
     assert on["model_requests"] == off["model_requests"]
     assert on["table_counts"] == off["table_counts"]
+    assert on["database_snapshot"] == off["database_snapshot"]
+    assert on["read_queries"] == off["read_queries"]
+    record_property("fountain_trace_off_read_query_count", len(off["read_queries"]))
+    record_property("fountain_trace_on_read_query_count", len(on["read_queries"]))
     assert on["beliefs"] == off["beliefs"]
     assert on["fires"] == off["fires"]
 
