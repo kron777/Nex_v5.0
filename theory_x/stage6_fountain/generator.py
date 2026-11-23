@@ -2122,6 +2122,20 @@ class FountainGenerator:
         if not thought:
             return None
 
+        if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+            try:
+                from substrate.trace_overlay import record as _trace_record
+                _trace_record(
+                    "candidate_generation",
+                    producer="FountainGenerator.generate",
+                    consumer="FountainCrystallizer",
+                    source_ref="theory_x/stage6_fountain/generator.py::generate",
+                    outcome="voice_generated" if voice_ok else "voice_fallback",
+                    payload=thought,
+                )
+            except Exception:
+                pass
+
         # Voice was down — write a bare tick, skip condenser and crystallizer
         if not voice_ok:
             ts_now = time.time()
