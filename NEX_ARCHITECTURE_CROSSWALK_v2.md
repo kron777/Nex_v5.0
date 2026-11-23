@@ -648,3 +648,6 @@ This draft is not a complete crosswalk and does not satisfy Gate 0. It records a
 
 
 **Open-problem candidate boundary:** TimeFetch's gap candidates originate from `ProblemMemory.find_matching()`: open problems are traversed in `last_touched_at DESC` order and retained at a threshold of two shared cleaned content tokens. The matches are not pre-ranked by overlap count or semantic similarity before entering VoiceEngine's later scoring stage. Whether recency-first candidate inclusion is the intended balance is unresolved without the authoritative acceptance criteria. Source hash: `4a9dcc839bf0be7bf28338168d8946309c7002f5`.
+
+
+**Genius tag versioning cross-check:** `GENIUS_SCORE_v2.md` says tags coexist per `(fountain_event_id, weights_version)` so old and new scores can be compared. VoiceEngine currently takes the newest timestamped tag without an active-version filter. The evidence supports “most recently tagged score”, not necessarily “approved/current weights score”; intended consumer semantics remain open pending the authoritative version contract. Design doc hash: `be73cb4f7b494c48eb37eeec8635aba89ea5751e`.
