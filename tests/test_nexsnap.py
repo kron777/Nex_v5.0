@@ -20,7 +20,7 @@ def test_git_commit_commits_locally_without_push(monkeypatch, tmp_path):
     nexsnap.git_commit(tmp_path / "CORPUS.md", tmp_path / "snapshot.json")
 
     assert calls[0][-2:] == ["branch", "--show-current"]
-    assert calls[1][0:5] == ["git", "-C", str(tmp_path), "add"]
+    assert calls[1][0:4] == ["git", "-C", str(tmp_path), "add"]
     assert calls[2][0:4] == ["git", "-C", str(tmp_path), "commit"]
     assert not any(command[4] == "push" for command in calls if len(command) > 4)
 
