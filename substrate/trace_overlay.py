@@ -31,6 +31,10 @@ _CONTEXT: contextvars.ContextVar[Optional[dict[str, Any]]] = contextvars.Context
     "nex5_influence_trace_context", default=None
 )
 _LOCK = threading.Lock()
+# Bounded hand-off registry for asynchronous consumers (e.g. speech queue).
+# It stores trace provenance only; it never touches NEX databases.
+_EXTERNAL_PARENTS: dict[str, dict[str, str]] = {}
+_EXTERNAL_PARENT_LIMIT = 4096
 _REPO_ROOT = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
 
 
@@ -106,6 +110,7 @@ def begin_trace(
     entity_ref: Optional[str] = None,
     payload: Any = None,
     path: Optional[str] = None,
+    parent_record_id: Optional[str] = None,
 ) -> Optional[TraceHandle]:
     """Begin a trace only when explicitly enabled and an artifact path is known.
 
@@ -127,7 +132,7 @@ def begin_trace(
         "trace_id": trace_id,
         "trace_kind": str(trace_kind),
         "path": target,
-        "last_record_id": None,
+        "last_record_id": str(parent_record_id) if parent_record_id else None,
     }
     token = _CONTEXT.set(state)
     handle = TraceHandle(trace_id=trace_id, token=token)
@@ -140,6 +145,66 @@ def begin_trace(
         outcome="started",
     )
     return handle
+
+
+def link_entity(entity_ref: str, record_id: str) -> bool:
+    """Attach a persisted entity identity to its producing trace record.
+
+    Used only to bridge an asynchronous boundary where ContextVars do not
+    propagate (for example, Fountain enqueue -> SpeechQueueConsumer thread).
+    The consumer later opens a new trace whose first record names this record
+    as its parent. The hand-off is process-local, bounded, and observational.
+    """
+    state = _CONTEXT.get()
+    if (not enabled() or state is None or not entity_ref or not record_id):
+        return False
+    try:
+        with _LOCK:
+            _EXTERNAL_PARENTS[str(entity_ref)] = {
+                "record_id": str(record_id),
+                "path": str(state["path"]),
+            }
+            while len(_EXTERNAL_PARENTS) > _EXTERNAL_PARENT_LIMIT:
+                _EXTERNAL_PARENTS.pop(next(iter(_EXTERNAL_PARENTS)))
+        return True
+    except Exception:
+        return False
+
+
+def begin_linked_trace(
+    trace_kind: str,
+    *,
+    source_ref: str,
+    entity_ref: str,
+    payload: Any = None,
+) -> Optional[TraceHandle]:
+    """Begin a consumer trace linked to a producer record by entity identity.
+
+    If no in-process producer link exists (e.g. the queue survived a restart),
+    fall back to an ordinary root trace rather than inventing provenance.
+    """
+    if not enabled():
+        return None
+    try:
+        with _LOCK:
+            parent = _EXTERNAL_PARENTS.pop(str(entity_ref), None)
+        if parent is None:
+            return begin_trace(
+                trace_kind,
+                source_ref=source_ref,
+                entity_ref=entity_ref,
+                payload=payload,
+            )
+        return begin_trace(
+            trace_kind,
+            source_ref=source_ref,
+            entity_ref=entity_ref,
+            payload=payload,
+            path=parent["path"],
+            parent_record_id=parent["record_id"],
+        )
+    except Exception:
+        return None
 
 
 def record(
