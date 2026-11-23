@@ -2308,21 +2308,77 @@ def create_app(state: AppState) -> Flask:
                                 "AND role='nex' ORDER BY id DESC LIMIT 3",
                                 (session_id,))
                         ] if session_id else []
-                        if _is_repeat_reply(text, _prior):
+                        _repeat_detected = _is_repeat_reply(text, _prior)
+                        _trace_repeat_gate_id = None
+                        if _trace_handle is not None:
+                            _trace_repeat_gate_id = _trace_api.record(
+                                "repeat_guard",
+                                producer="ChatMemory._is_repeat_reply",
+                                consumer="ChatResponse",
+                                source_ref="gui/server.py::api_chat:anti_repeat_guard",
+                                outcome="repeat_detected" if _repeat_detected else "pass",
+                                payload={"prior_reply_count": len(_prior)},
+                                parent_ids=(
+                                    [_trace_model_output_id]
+                                    if _trace_model_output_id else []
+                                ),
+                            )
+                        if _repeat_detected:
+                            _retry_prompt = voice_prompt + (
+                                "\n\nYou have recently opened replies the "
+                                "same way and repeated yourself. Do NOT "
+                                "reuse your previous opening or phrasing — "
+                                "answer THIS afresh, in a different shape.")
+                            _retry_input_id = None
+                            if _trace_handle is not None:
+                                _retry_input_id = _trace_api.record(
+                                    "model_input",
+                                    producer="ChatMemory",
+                                    consumer="VoiceClient.speak",
+                                    source_ref="gui/server.py::api_chat:anti_repeat_retry_input",
+                                    outcome="anti_repeat_retry",
+                                    payload=_retry_prompt,
+                                    parent_ids=(
+                                        [_trace_repeat_gate_id]
+                                        if _trace_repeat_gate_id else []
+                                    ),
+                                )
                             _resp2 = state.voice.speak(
-                                VoiceRequest(
-                                    prompt=voice_prompt + (
-                                        "\n\nYou have recently opened replies the "
-                                        "same way and repeated yourself. Do NOT "
-                                        "reuse your previous opening or phrasing — "
-                                        "answer THIS afresh, in a different shape."),
-                                    register=register),
+                                VoiceRequest(prompt=_retry_prompt, register=register),
                                 beliefs=None, belief_count=belief_count,
                             )
-                            if (_resp2 and _resp2.text
-                                    and not _is_repeat_reply(_resp2.text, _prior)):
+                            _retry_accepted = bool(
+                                _resp2 and _resp2.text
+                                and not _is_repeat_reply(_resp2.text, _prior)
+                            )
+                            if _trace_handle is not None:
+                                _retry_output_id = _trace_api.record(
+                                    "model_output",
+                                    producer="VoiceClient.speak",
+                                    consumer="ChatSanitization",
+                                    source_ref="gui/server.py::api_chat:anti_repeat_retry_output",
+                                    outcome="retry_selected" if _retry_accepted else "retry_rejected",
+                                    payload=_resp2.text if _resp2 else None,
+                                    parent_ids=[_retry_input_id] if _retry_input_id else [],
+                                )
+                                if _retry_accepted and _retry_output_id:
+                                    _trace_model_output_id = _retry_output_id
+                            if _retry_accepted:
                                 text = _resp2.text
-                    except Exception:
+                    except Exception as _repeat_exc:
+                        if _trace_handle is not None:
+                            _trace_api.record(
+                                "repeat_guard",
+                                producer="ChatMemory",
+                                consumer="ChatResponse",
+                                source_ref="gui/server.py::api_chat:anti_repeat_retry",
+                                outcome="retry_failed",
+                                payload={"error_type": type(_repeat_exc).__name__},
+                                parent_ids=(
+                                    [_trace_model_output_id]
+                                    if _trace_model_output_id else []
+                                ),
+                            )
                         pass   # fail-safe: keep the original composed reply
                 # NO-PARROT (NEX5_NO_PARROT, default OFF): drop a leading
                 # restatement of the question just asked, keeping the answer
@@ -2344,19 +2400,73 @@ def create_app(state: AppState) -> Flask:
                     try:
                         from theory_x.stage_provenance import read_provenance
                         _prov = read_provenance(text, prompt, _prov_snap, session_id)
+                        _trace_provenance_gate_id = None
+                        if _trace_handle is not None:
+                            _trace_provenance_gate_id = _trace_api.record(
+                                "provenance_gate",
+                                producer="read_provenance",
+                                consumer="ChatResponse",
+                                source_ref="gui/server.py::api_chat:provenance_read",
+                                outcome="cue_required" if _prov.get("cue") else "no_cue",
+                                payload=_prov,
+                                parent_ids=(
+                                    [_trace_model_output_id]
+                                    if _trace_model_output_id else []
+                                ),
+                            )
                         if _prov.get("cue"):
+                            _retry_prompt = voice_prompt + _prov["cue"]
+                            _retry_input_id = None
+                            if _trace_handle is not None:
+                                _retry_input_id = _trace_api.record(
+                                    "model_input",
+                                    producer="ChatProvenance",
+                                    consumer="VoiceClient.speak",
+                                    source_ref="gui/server.py::api_chat:provenance_retry_input",
+                                    outcome="provenance_retry",
+                                    payload=_retry_prompt,
+                                    parent_ids=(
+                                        [_trace_provenance_gate_id]
+                                        if _trace_provenance_gate_id else []
+                                    ),
+                                )
                             _resp3 = state.voice.speak(
-                                VoiceRequest(prompt=voice_prompt + _prov["cue"],
-                                             register=register),
+                                VoiceRequest(prompt=_retry_prompt, register=register),
                                 beliefs=None, belief_count=belief_count,
                             )
                             if _resp3 and _resp3.text and _resp3.text.strip():
-                                _after = read_provenance(_resp3.text, prompt,
-                                                         _prov_snap, session_id,
-                                                         log=False)
-                                if _after["mirror"] < _prov["mirror"]:
+                                _after = read_provenance(
+                                    _resp3.text, prompt, _prov_snap, session_id, log=False
+                                )
+                                _retry_accepted = _after["mirror"] < _prov["mirror"]
+                                if _trace_handle is not None:
+                                    _retry_output_id = _trace_api.record(
+                                        "model_output",
+                                        producer="VoiceClient.speak",
+                                        consumer="ChatSanitization",
+                                        source_ref="gui/server.py::api_chat:provenance_retry_output",
+                                        outcome="retry_selected" if _retry_accepted else "retry_rejected",
+                                        payload=_resp3.text,
+                                        parent_ids=[_retry_input_id] if _retry_input_id else [],
+                                    )
+                                    if _retry_accepted and _retry_output_id:
+                                        _trace_model_output_id = _retry_output_id
+                                if _retry_accepted:
                                     text = _resp3.text
-                    except Exception:
+                    except Exception as _prov_exc:
+                        if _trace_handle is not None:
+                            _trace_api.record(
+                                "provenance_gate",
+                                producer="read_provenance",
+                                consumer="ChatResponse",
+                                source_ref="gui/server.py::api_chat:provenance_retry",
+                                outcome="retry_failed",
+                                payload={"error_type": type(_prov_exc).__name__},
+                                parent_ids=(
+                                    [_trace_model_output_id]
+                                    if _trace_model_output_id else []
+                                ),
+                            )
                         pass   # fail-safe: keep the original composed reply
                 # C3 2026-05-09: log deflection events for distribution measurement.
                 if resp.deflection_fired:
