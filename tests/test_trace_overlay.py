@@ -31,7 +31,7 @@ def test_requires_explicit_artifact_path(tmp_path, monkeypatch):
     assert not list(tmp_path.iterdir())
 
 
-def test_records_parent_chain_and_only_payload_digest(tmp_path, monkeypatch):
+def test_parentage_is_explicit_and_only_payload_digest_is_retained(tmp_path, monkeypatch):
     monkeypatch.setenv("NEX5_DATA_DIR", str(tmp_path / "nex-data"))
     path = tmp_path / "trace.jsonl"
     monkeypatch.setenv("NEX5_TRACE_OVERLAY", "1")
@@ -49,6 +49,7 @@ def test_records_parent_chain_and_only_payload_digest(tmp_path, monkeypatch):
     second = trace.record(
         "context_selection", producer="gui.server", consumer="voice.speak",
         source_ref="gui/server.py::_assemble_chat_blocks", outcome="serial",
+        parent_ids=[first],
     )
     trace.end_trace(
         handle, source_ref="gui/server.py::api_chat", entity_ref="message-2",
@@ -61,9 +62,10 @@ def test_records_parent_chain_and_only_payload_digest(tmp_path, monkeypatch):
     assert len({row["record_id"] for row in rows}) == 4
     assert all(row["trace_id"] == handle.trace_id for row in rows)
     assert rows[0]["event_type"] == "trace_start"
-    assert rows[1]["parent_ids"] == [rows[0]["record_id"]]
+    assert rows[0]["parent_ids"] == []
+    assert rows[1]["parent_ids"] == []
     assert rows[2]["parent_ids"] == [first]
-    assert rows[3]["parent_ids"] == [second]
+    assert rows[3]["parent_ids"] == []
     assert rows[1]["payload_digest"]
     serialized = path.read_text(encoding="utf-8")
     assert "private prompt" not in serialized
@@ -91,7 +93,7 @@ def test_nested_trace_restores_outer_context(tmp_path, monkeypatch):
     assert len(outer_rows) == 4
     assert len(inner_rows) == 3
     assert outer_rows[-2]["event_type"] == "outer_resumed"
-    assert outer_rows[-2]["parent_ids"] == [outer_record]
+    assert outer_rows[-2]["parent_ids"] == []
     assert resumed == outer_rows[-2]["record_id"]
 
 
@@ -211,4 +213,4 @@ def test_async_consumer_trace_has_enqueue_record_as_cross_thread_parent(tmp_path
     consumer_event = next(row for row in rows if row["record_id"] == consumed_id)
     assert consumer.trace_id != producer.trace_id
     assert consumer_start["parent_ids"] == [enqueue_id]
-    assert consumer_event["parent_ids"] == [consumer_start["record_id"]]
+    assert consumer_event["parent_ids"] == []
