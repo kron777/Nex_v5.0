@@ -218,6 +218,26 @@ def test_trace_off_preserves_speech_path(monkeypatch, tmp_path):
     assert not path.exists()
 
 
+
+def test_suppressed_item_records_status_without_synthesis_or_player(
+    monkeypatch, tmp_path
+):
+    path = _enable_trace(monkeypatch, tmp_path)
+    backend = FakeBackend()
+    consumer = _consumer(monkeypatch, backend=backend)
+    consumer._speak_one({
+        "id": 5106, "belief_id": 96, "content": '{"machine": "data"}',
+        "voice": "af_sarah",
+    })
+
+    rows = _events(path)
+    assert any(row["event_type"] == "queue_status_persisted"
+               and row["outcome"] == "suppressed" for row in rows)
+    assert backend.calls == []
+    assert consumer.player.calls == []
+    assert rows[-1]["outcome"] == "suppressed"
+
+
 def _real_sqlite_consumer(tmp_path, monkeypatch):
     from substrate import Reader, Writer
 
