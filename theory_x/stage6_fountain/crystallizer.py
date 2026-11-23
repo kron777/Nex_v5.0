@@ -300,6 +300,11 @@ class FountainCrystallizer:
         trace_fountain_event_record_id: Optional[str] = None,
     ) -> Optional[int]:
         self._trace_terminal_record_id = None
+        _trace_quality_gate_id = None
+        _trace_coherence_gate_id = None
+        _trace_belief_write_id = None
+        _trace_crystallization_link_id = None
+        _trace_speech_gate_id = None
         # Stillness guard — Row 9 extension. Metacognition writes a stillness_log
         # row when sustained groove exceeds threshold; we skip crystallization
         # while any row has expires_at > now (pure substrate read, zero coupling).
@@ -418,8 +423,7 @@ class FountainCrystallizer:
                                 payload={"table": "crystallization_rejects", "row_id": _reject_row_id},
                                 parent_ids=(
                                     [_trace_quality_gate_id]
-                                    if "_trace_quality_gate_id" in locals() and _trace_quality_gate_id
-                                    else []
+                                    if _trace_quality_gate_id else []
                                 ),
                             )
                         except Exception:
@@ -453,8 +457,7 @@ class FountainCrystallizer:
                         payload={"reason": decision.reason, "source_node": packet.source_node},
                         parent_ids=(
                             [_trace_quality_gate_id]
-                            if "_trace_quality_gate_id" in locals() and _trace_quality_gate_id
-                            else []
+                            if _trace_quality_gate_id else []
                         ),
                     )
                     self._trace_terminal_record_id = _trace_coherence_gate_id
@@ -533,10 +536,10 @@ class FountainCrystallizer:
                     payload={"table": "beliefs", "row_id": belief_id, "tier": 6},
                     parent_ids=(
                         [_trace_coherence_gate_id]
-                        if "_trace_coherence_gate_id" in locals() and _trace_coherence_gate_id
+                        if _trace_coherence_gate_id
                         else (
                             [_trace_quality_gate_id]
-                            if "_trace_quality_gate_id" in locals() and _trace_quality_gate_id
+                            if _trace_quality_gate_id
                             else (trace_parent_ids or [])
                         )
                     ),
@@ -564,8 +567,7 @@ class FountainCrystallizer:
                              "fountain_event_id": fountain_event_id, "belief_id": belief_id},
                     parent_ids=[
                         rid for rid in (
-                            _trace_belief_write_id
-                            if "_trace_belief_write_id" in locals() else None,
+                            _trace_belief_write_id,
                             trace_fountain_event_record_id,
                         ) if rid
                     ],
@@ -603,8 +605,7 @@ class FountainCrystallizer:
                             payload={"reason": decision.reason},
                             parent_ids=(
                                 [_trace_crystallization_link_id]
-                                if "_trace_crystallization_link_id" in locals()
-                                and _trace_crystallization_link_id else []
+                                if _trace_crystallization_link_id else []
                             ),
                         )
                         self._trace_terminal_record_id = (
@@ -643,8 +644,7 @@ class FountainCrystallizer:
                                     payload={"belief_id": belief_id, "speech_queue_id": _speech_queue_id},
                                     parent_ids=(
                                         [_trace_speech_gate_id]
-                                        if "_trace_speech_gate_id" in locals()
-                                        and _trace_speech_gate_id else []
+                                        if _trace_speech_gate_id else []
                                     ),
                                 )
                                 self._trace_terminal_record_id = (
@@ -669,8 +669,7 @@ class FountainCrystallizer:
                                 outcome="already_present",
                                 parent_ids=(
                                     [_trace_speech_gate_id]
-                                    if "_trace_speech_gate_id" in locals()
-                                    and _trace_speech_gate_id else []
+                                    if _trace_speech_gate_id else []
                                 ),
                             )
                         except Exception:
@@ -688,8 +687,7 @@ class FountainCrystallizer:
                                  "content_length": len(thought)},
                         parent_ids=(
                             [_trace_crystallization_link_id]
-                            if "_trace_crystallization_link_id" in locals()
-                            and _trace_crystallization_link_id else []
+                            if _trace_crystallization_link_id else []
                         ),
                     )
                 except Exception:
