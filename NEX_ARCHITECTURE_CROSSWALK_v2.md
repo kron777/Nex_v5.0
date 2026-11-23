@@ -605,9 +605,9 @@ The FocalSet/WorkingMemory inspection further identifies an unresolved session-i
 
 **Evidence boundary:** static inspection only; PR #65 head and source file hashes are recorded in the audit. Its latest CI pass validates the tested suite, not every branch or deployed-host behaviour. The audit remains partial and does not satisfy Gate 0.
 
-## 4. Top documentation/source discrepancies
+## 4. Additional architecture-documentation/source discrepancies
 
-These are discrepancies to reconcile, not automatic instructions to modify code or documentation.
+The five highest-impact runtime-contract/code-comment discrepancies are ranked separately in NEX_VERIFIED_DEFECT_BACKLOG.md and ADR-001. This section retains five additional architecture-documentation/source discrepancies for reconciliation; it is not a competing priority list. These are not automatic instructions to modify code or documentation.
 
 1. **Architecture status and test count conflict.** The opening of `ARCHITECTURE.md` says “Phase 9 complete” and “189 tests passing”, while later text in the same header records 1,987 tests as of the 2026-11-07/08 session. The status is not a reliable current Phase 0 baseline.
 2. **R77 status is stale in the architecture narrative.** `ARCHITECTURE.md` describes `NEX5_CHAT_WORKSPACE` as armed and mid-measurement as of 2026-11-07. `observation_reports/r77.md` records a Branch C disarm on 2026-11-20 after a tripwire breach, with the variable removed from `nex_keepalive.sh`. The observation report is later and records the closeout; live host state still requires verification.
@@ -1295,3 +1295,18 @@ Source basis:
 The GUI constructs and registers one ExecutiveControl instance, but the active api_chat route does not call its select() method. Instead, unless the client supplies an explicit register, the route selects Philosophical. The module docstring says ExecutiveControl replaces the voice.registers.classify() stub, while that function remains a Conversational stub and default_register() returns Conversational. A dated code comment identifies the Philosophical default as an intentional edit and says the classifier branch should be restored later; whether that temporary override remains approved is unresolved. Unit tests cover the classifier itself, not route-level consumption. See DRAFT-023 in the Reality Report.
 
 Secondary qualification if the classifier is restored: its continuity-bias read is outside the lock despite the thread-safe claim, and its process-lifetime session map has no expiry/cleanup.
+
+
+### M0.3/M0.4 progress update (24 Nov 2026)
+
+Completed in this documentation pass:
+- Explicit L0–L4 mapping for all 30 declared MIND_MAP nodes, preserving the map's own evidence/dark/blocked modifiers separately.
+- Broad forward/backward source-to-sink audits for boot stages, Chat, Fountain, WorldModel, predictive/counterfactual, provenance, gate/reshape, warrant, affect, memory, attention/working memory, and optional faculties.
+- Exact source/test boundaries and conditional activation notes for DRAFT-001 through DRAFT-023, consolidated in NEX_VERIFIED_DEFECT_BACKLOG.md.
+- A current exact-head CI reconciliation in ADR-001 and the defect backlog.
+
+Still open:
+- Exhaustive closure of every module's direct/dynamic import, event, shared-state, SQL read/write and downstream-consumer edges; the current crosswalk is broad but not yet a complete all-file call graph.
+- Exact host checkout identity, process environment and live trace capture; historical MIND_MAP host observations remain unverified against PR #65 source.
+- Target-host M0.1/M0.2 measurements and full pytest/known-failure baseline.
+- Frozen V2.1 and Founder Sign-Off reconciliation and approval.
