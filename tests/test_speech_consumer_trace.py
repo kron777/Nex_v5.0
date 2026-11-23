@@ -315,7 +315,8 @@ def test_reader_selected_row_identity_links_to_consumer_processing(
 
         selected = consumer._pending()
         assert len(selected) == 1
-        # Convert only in this test adapter: the pre-existing sqlite3.Row/.get()\n        # mismatch is asserted separately and is not changed in Phase 0.\n        consumer._speak_one(dict(selected[0]))
+        # Test adapter conversion only; the existing row/.get() defect is unchanged.
+        consumer._speak_one(dict(selected[0]))
 
         rows = _events(path)
         consumer_start = next(row for row in rows
@@ -350,7 +351,7 @@ def test_committed_row_before_registration_stays_unlinked(
         # production poll query before output_queued/link_entity registration.
         selected = consumer._pending()
         assert len(selected) == 1
-        consumer._speak_one(selected[0])
+        consumer._speak_one(dict(selected[0]))
 
         enqueue_id = trace_overlay.record(
             "output_queued",
