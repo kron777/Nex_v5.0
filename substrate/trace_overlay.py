@@ -40,6 +40,20 @@ def enabled() -> bool:
     )
 
 
+def _external_jsonl_path(path: str) -> Optional[str]:
+    """Reject non-JSONL paths and artifacts inside the configured NEX data tree."""
+    try:
+        target = os.path.abspath(path)
+        if not target.lower().endswith(".jsonl"):
+            return None
+        data_root = os.path.abspath(os.environ.get("NEX5_DATA_DIR", "data"))
+        if os.path.commonpath((target, data_root)) == data_root:
+            return None
+        return target
+    except (OSError, ValueError):
+        return None
+
+
 def _digest(payload: Any) -> Optional[str]:
     if payload is None:
         return None
@@ -85,6 +99,9 @@ def begin_trace(
     target = path or os.environ.get("NEX5_TRACE_PATH", "").strip()
     if not target:
         return None
+    target = _external_jsonl_path(target)
+    if target is None:
+        return None
 
     trace_id = uuid.uuid4().hex
     state = {
@@ -124,7 +141,7 @@ def record(
     parents when a real multi-parent dependency is known.
     """
     state = _CONTEXT.get()
-    if state is None:
+    if state is None or os.environ.get("NEX5_TRACE_OVERLAY", "0") != "1":
         return None
     record_id = uuid.uuid4().hex
     if parent_ids is None:
