@@ -14,13 +14,15 @@ Then assembles them into structured markdown for Claude bootstrap.
 
 Usage:
   python3 scripts/nexsnap.py              # generate corpus + state, no commit
-  python3 scripts/nexsnap.py --commit     # generate + git add + git commit + push
+  python3 scripts/nexsnap.py --commit     # generate + git add + git commit locally
+  python3 scripts/nexsnap.py --commit --push  # also push the current branch
 
-The --commit flag wraps the entire output in one git transaction so the
-corpus and state snapshot stay paired.
+Committing and pushing are separate, explicit operations. Push always targets
+ the checked-out branch; this script never hardcodes or silently targets main.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
 import sys
@@ -44,12 +46,13 @@ def write_state_json(snap_ts):
     fname = datetime.fromtimestamp(snap_ts).strftime("%Y-%m-%d_%H%M") + "_state.json"
     path = SNAP_DIR / fname
 
+    runtime = ex.extract_runtime_state()
     state = {
         "snapshot_at": snap_ts,
         "snapshot_at_str": datetime.fromtimestamp(snap_ts).strftime("%Y-%m-%d %H:%M:%S"),
-        "runtime": ex.extract_runtime_state(),
+        "runtime": runtime,
         "port_status_counts": _port_counts(ex.extract_port_status()),
-        "fountain_by_branch_24h": ex.extract_runtime_state().get("fountain_24h_by_branch", {}),
+        "fountain_by_branch_24h": runtime.get("fountain_24h_by_branch", {}),
     }
     path.write_text(json.dumps(state, indent=2, default=str))
     return path
@@ -361,8 +364,21 @@ def assemble_corpus(snap_ts):
     return "\n".join(parts)
 
 
+def current_branch():
+    """Return the checked-out branch; refuse detached-HEAD operation."""
+    result = subprocess.run(
+        ["git", "-C", str(REPO), "branch", "--show-current"],
+        check=True, capture_output=True, text=True,
+    )
+    branch = result.stdout.strip()
+    if not branch:
+        raise RuntimeError("Refusing git operation from detached HEAD.")
+    return branch
+
+
 def git_commit(corpus_path, state_path):
-    """Add, commit, push corpus + state snapshot."""
+    """Stage and commit generated artifacts locally; never push implicitly."""
+    branch = current_branch()
     snap_label = datetime.now().strftime("%Y-%m-%d %H:%M")
     msg_lines = [
         f"corpus: regenerated {snap_label}",
@@ -379,20 +395,48 @@ def git_commit(corpus_path, state_path):
                     str(corpus_path), str(state_path)], check=True)
     subprocess.run(["git", "-C", str(REPO), "commit", "-m", "\n".join(msg_lines)],
                    check=True)
-    subprocess.run(["git", "-C", str(REPO), "push", "origin", "main"], check=True)
+    return branch
 
 
-def main():
+def git_push(branch):
+    """Push only the explicitly selected, currently checked-out branch."""
+    if branch != current_branch():
+        raise RuntimeError(
+            f"Refusing to push {branch!r}: checked-out branch changed."
+        )
+    subprocess.run(
+        ["git", "-C", str(REPO), "push", "origin", branch],
+        check=True,
+    )
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Generate NEX corpus and runtime snapshot.")
+    parser.add_argument(
+        "--commit", action="store_true",
+        help="commit generated artifacts locally on the current branch",
+    )
+    parser.add_argument(
+        "--push", action="store_true",
+        help="push the current branch after --commit (never pushes implicitly)",
+    )
+    args = parser.parse_args(argv)
+    if args.push and not args.commit:
+        parser.error("--push requires --commit")
+
     snap_ts = time.time()
     corpus_text = assemble_corpus(snap_ts)
     CORPUS_PATH.write_text(corpus_text)
     state_path = write_state_json(snap_ts)
     print(f"OK CORPUS.md written ({len(corpus_text)} bytes)")
     print(f"OK state snapshot at {state_path}")
-    if "--commit" in sys.argv:
-        print("Committing...")
-        git_commit(CORPUS_PATH, state_path)
-        print("OK pushed to origin/main")
+    if args.commit:
+        print("Committing locally...")
+        branch = git_commit(CORPUS_PATH, state_path)
+        print(f"OK committed on {branch}")
+        if args.push:
+            git_push(branch)
+            print(f"OK pushed to origin/{branch}")
 
 
 if __name__ == "__main__":
