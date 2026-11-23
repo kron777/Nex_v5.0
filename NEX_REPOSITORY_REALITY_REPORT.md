@@ -1025,7 +1025,7 @@ This is a source-confirmed scheduling/coverage risk, not evidence of actual star
 Source hashes:
 - `run.py`: `73a2c58a4f5f0348135a46eb83d6cdd61db874e7`
 - `theory_x/stage_counterfactual/counterfactual_node.py`: `76f8146b803d6272721a349c86e3a5530af4df16`
-- `theory_x/stage_throw_net/time_fetch.py`: `<escape>source hash not captured in this pass</escape>`
+- `theory_x/stage_throw_net/time_fetch.py`: `7a97a76a48eb54d621d1a436fc5c64d5f6ddfd7b`
 - `theory_x/stage7_sustained/problem_memory.py`: `4a9dcc839bf0be7bf28338168d8946309c7002f5`
 - `substrate/init_db.py`: `575c95769939f85a776ab698d4c16f17cc1ba238`
 - `tests/test_counterfactual_node.py`: `1cd15a6a5c0bfe115791eec9a3aae4b4d088a3f8`
