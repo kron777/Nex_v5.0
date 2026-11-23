@@ -187,6 +187,7 @@ def verify(record: dict, repo_dir: str, ledger_path: str,
     verdict = _overall_verdict(per)
     record["verification"] = {
         "dimensions": dims, "per_obligation_verdict": per, "ledger_path": ledger_path,
+        "approved_test_files": sorted(approved_test_files or []),
         "note": "source + test are INDEPENDENT cloud evidence; runtime is a SEPARATE host-only "
                 "UNKNOWN; the verdict ignores the completion claim",
     }
