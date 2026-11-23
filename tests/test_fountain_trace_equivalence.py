@@ -1,9 +1,8 @@
-"""Paired FountainGenerator replay for the Phase 0 trace overlay.
+"""Paired one-cycle Fountain loop replay for the Phase 0 trace overlay.
 
-This exercises the actual generator and crystallizer against fresh isolated
-SQLite substrates. It does not start the daemon fountain_loop or the speech
-consumer; scheduler/loop and asynchronous playback equivalence remain separate
-proof obligations.
+This executes the actual fountain_loop closure synchronously with a captured
+thread and a test-controlled sleeper, against fresh isolated SQLite substrates.
+It does not start asynchronous speech playback.
 """
 from __future__ import annotations
 
@@ -15,7 +14,7 @@ from pathlib import Path
 from tests import _bootstrap  # noqa: F401
 
 
-def _run_generator_once(
+def _run_fountain_cycle_once(
     tmp_path: Path, *, trace_on: bool, monkeypatch, read_query_log
 ):
     import os
@@ -35,10 +34,10 @@ def _run_generator_once(
     from substrate import Reader, Writer, db_paths
     from voice.llm import VoiceClient
 
-    from theory_x.stage6_fountain.generator import FountainGenerator
-    from theory_x.stage6_fountain.crystallizer import FountainCrystallizer
+    from types import SimpleNamespace
+    import theory_x.stage6_fountain as fountain_module
+    from theory_x.stage6_fountain import build_fountain
     from theory_x.stage_gate.coherence_gate import CoherenceGate
-    from substrate import trace_overlay
 
     init_all()
     paths = db_paths()
@@ -73,50 +72,61 @@ def _run_generator_once(
     # Keep retrieval and any prompt-side random choices paired.
     random.seed(8675309)
     voice = VoiceClient(request_fn=deterministic_model)
-    crystallizer = FountainCrystallizer(
-        beliefs_writer=writers["beliefs"],
-        beliefs_reader=readers["beliefs"],
-        conversations_reader=readers.get("conversations"),
-        dynamic_reader=readers["dynamic"],
-        dynamic_writer=writers["dynamic"],
+
+    # Run the production fountain_loop target once without creating a daemon
+    # thread or sleeping. Only the loop module's Thread/time bindings are
+    # replaced; Writer threads and other module clocks remain untouched.
+    captured_threads = []
+
+    class CapturedThread:
+        def __init__(self, target, daemon=None, name=None):
+            self.target = target
+            self.daemon = daemon
+            self.name = name
+            captured_threads.append(self)
+
+        def start(self):
+            return None
+
+    real_loop_time = fountain_module.time
+    sleep_calls = [0]
+
+    class OneCycleTime:
+        def __getattr__(self, name):
+            return getattr(real_loop_time, name)
+
+        def sleep(self, seconds):
+            sleep_calls[0] += 1
+            if sleep_calls[0] > 1:
+                raise StopIteration
+
+    monkeypatch.setattr(
+        fountain_module, "threading", SimpleNamespace(Thread=CapturedThread)
+    )
+
+    state = build_fountain(
+        writers,
+        readers,
+        voice,
+        dynamic_state=DynamicState(),
         coherence_gate=CoherenceGate(
             beliefs_reader=readers["beliefs"],
             beliefs_writer=writers["beliefs"],
         ),
     )
-    generator = FountainGenerator(
-        sense_writer=writers["sense"],
-        dynamic_writer=writers["dynamic"],
-        voice_client=voice,
-        dynamic_reader=readers["dynamic"],
-        beliefs_writer=writers["beliefs"],
-        beliefs_reader=readers["beliefs"],
-        crystallizer=crystallizer,
-        sense_reader=readers["sense"],
-        conversations_reader=readers.get("conversations"),
-    )
-
-    handle = None
-    if trace_on:
-        handle = trace_overlay.begin_trace(
-            "fountain_generator_replay",
-            source_ref="tests/test_fountain_trace_equivalence.py::_run_generator_once",
-            payload={"fixture": "deterministic_generator_replay"},
-        )
-        generator._trace_input_record_id = trace_overlay.record(
-            "input_arrival",
-            producer="phase0_test_harness",
-            consumer="FountainGenerator.generate",
-            source_ref="tests/test_fountain_trace_equivalence.py::_run_generator_once",
-            outcome="controlled_generator_invocation",
-            parent_ids=(
-                [handle.start_record_id] if handle.start_record_id else []
-            ),
-        )
+    generator = state.generator
+    # Patch only the loop sleeper after construction so initialization is
+    # unaffected; the second loop sleep stops the target after one cycle.
+    monkeypatch.setattr(fountain_module, "time", OneCycleTime())
 
     try:
         read_query_log.clear()
-        thought = generator.generate(DynamicState(), readers["beliefs"])
+        assert len(captured_threads) == 1
+        try:
+            captured_threads[0].target()
+        except StopIteration:
+            pass
+        thought = generator.last_thought()
         request_read_queries = list(read_query_log)
         read_query_log.clear()
         table_counts = {}
@@ -155,17 +165,6 @@ def _run_generator_once(
                 "FROM fountain_events ORDER BY id"
             )
         ]
-        if handle is not None:
-            trace_overlay.end_trace(
-                handle,
-                source_ref="tests/test_fountain_trace_equivalence.py::_run_generator_once",
-                outcome="thought_returned" if thought else "no_fire",
-                payload=thought,
-                parent_ids=(
-                    [generator._trace_final_record_id]
-                    if getattr(generator, "_trace_final_record_id", None) else []
-                ),
-            )
         trace_rows = (
             [json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines()]
             if trace_on else []
@@ -184,18 +183,12 @@ def _run_generator_once(
             "trace_path": trace_path,
         }
     finally:
-        if handle is not None:
-            # end_trace normally restores the context; this is defensive if the
-            # generator raises before the normal teardown above.
-            trace_overlay.close_current_trace(
-                source_ref="tests/test_fountain_trace_equivalence.py::_run_generator_once",
-                outcome="test_exception_cleanup",
-            )
+        pass
         for writer in writers.values():
             writer.close()
 
 
-def test_fountain_generator_trace_overlay_on_off_equivalence(
+def test_fountain_loop_trace_overlay_on_off_equivalence(
     tmp_path, monkeypatch, record_property
 ):
     # Freeze wall-clock reads so timestamp-bearing DB rows are directly
@@ -247,11 +240,11 @@ def test_fountain_generator_trace_overlay_on_off_equivalence(
         }:
             monkeypatch.delenv(key, raising=False)
 
-    off = _run_generator_once(
+    off = _run_fountain_cycle_once(
         tmp_path / "off", trace_on=False, monkeypatch=monkeypatch,
         read_query_log=read_query_log,
     )
-    on = _run_generator_once(
+    on = _run_fountain_cycle_once(
         tmp_path / "on", trace_on=True, monkeypatch=monkeypatch,
         read_query_log=read_query_log,
     )
@@ -313,6 +306,9 @@ def test_fountain_generator_trace_overlay_on_off_equivalence(
         row for row in rows if row["record_id"] == by_event["trace_end"][0]["parent_ids"][0]
     )
 
+    assert start["trace_kind"] == "fountain_cycle"
+    assert start["source_ref"].endswith("fountain_loop")
+    assert input_event["outcome"] == "scheduler_tick"
     assert input_event["parent_ids"] == [start["record_id"]]
     assert workspace["parent_ids"] == [input_event["record_id"]]
     assert set(model_input["parent_ids"]) == {
