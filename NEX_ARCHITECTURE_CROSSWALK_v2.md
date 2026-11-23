@@ -1182,3 +1182,10 @@ This is a source-level producer/consumer mismatch; the runtime flag value, occur
 The composite is the equal-weight mean of goal relevance, locked-keystone self relevance and recent-entity novelty. Drive resonance is computed/logged but excluded from the composite and dominant-signal selection; the source cites a prior null test (p=0.190) as the reason. The underlying historical experiment record was not re-verified in this pass.
 
 The inspected path is observation-only: the score does not alter the thought, branch, crystallization or belief confidence. No downstream consumer of `emphasis_log` was identified in this bounded pass. Treat this as [L1] instrumentation, not [L3] operational influence or [L4] validated improvement. No dedicated EmphasisEngine/PredictionTracker test module was found in the inspected tree.
+
+
+## Chat provenance — accepted retry and measurement boundary (24 Nov 2026)
+
+The admin-scoped provenance path snapshots pre-turn context, logs a mirror score for the first composed reply, and may issue one cue-driven retry. The retry is evaluated with `log=False`; if accepted, it becomes the delivered response, but no final-response provenance row is written to `/tmp/nex5_provenance.log`. Thus the file represents initial drafts for retry-accepted turns, not exclusively delivered replies. The trace overlay may record the retry output/selection separately. See DRAFT-012 in the Reality Report.
+
+Existing module tests cover the mirror metric, cue and snapshot, not the `api_chat` retry branch or final-log identity. This is a conditional measurement limitation; feature activation and retry incidence on the target host are UNKNOWN.
