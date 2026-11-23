@@ -42,6 +42,7 @@ def test_parentage_is_explicit_and_only_payload_digest_is_retained(tmp_path, mon
         entity_ref="session-123", payload={"prompt": "private prompt"},
     )
     assert handle is not None
+    assert handle.start_record_id == rows[0]["record_id"]
     first = trace.record(
         "input_arrival", producer="gui.server", source_ref="gui/server.py::api_chat",
         entity_ref="message-1", payload={"prompt": "private prompt"},
