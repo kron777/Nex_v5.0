@@ -94,7 +94,64 @@ The current source has a Chat Workspace mechanism. This contradicts older unqual
 
 **Current ladder:** [L1] for the source/tested Chat assembly mechanism; current [L2] runtime activation UNKNOWN; [L3] causal influence on the emitted answer UNKNOWN; [L4] validation must be read from the relevant preregistered experiment and cannot be inferred from source.
 
-### 3.3 Writer substrate
+### 3.3 Evaluation, feedback and the next-thought pathway — bounded source trace
+
+This section extends the initial Fountain sample with a source-level trace of several evaluation signals. It does not claim live activation or behavioural effectiveness. All source references below are from the inspected `main` revision `6e6712bd4bde15ad2288f220cd4438b11622c93c`.
+
+### 3.3.1 Global Workspace and surprise
+
+| Stage | Source evidence | Finding | Evidence ceiling |
+|---|---|---|---|
+| Prediction verification | `theory_x/stage_prediction/predictive_substrate.py::_verify_one` | When the target window contains no items, it writes `surprise_score=1.0` and `actual_content=None`. | [L1] source |
+| Workspace candidate | `theory_x/stage_tom/global_workspace.py::_surprise_candidate` | Reads recent `surprise_events` with score > 0.3. Empty-window rows are excluded only when `NEX5_GW_SURPRISE_NONEMPTY=1`; that guard is default-OFF. | [L1] source |
+| Arbitration | `theory_x/stage_tom/global_workspace.py::arbitrate` | Competes surprise with momentum, bonsai, stakes and drive candidates; the winning framing line is returned. | [L1] source |
+| Fountain consumption | `theory_x/stage6_fountain/generator.py` around the GLOBAL WORKSPACE block | `NEX5_GLOBAL_WORKSPACE` defaults to enabled in source; a non-empty returned line is prepended to `focus_block`. Actual process environment remains UNKNOWN. | [L1] source; [L2] UNKNOWN |
+| Separate belief promotion | `theory_x/life/surprise_loop.py::surprise_tick` | Promotion requires non-empty `actual_content` and `predicted_content`. This filter does not protect the separate Global Workspace candidate path. | [L1] source |
+
+**Causal implication:** an empty prediction window can be assigned the maximum surprise score and can enter Global Workspace arbitration unless the optional non-empty guard is enabled. The source does not establish that such a row exists in the deployed database or wins a live fire. Do not report a live failure without runtime evidence.
+
+### 3.3.2 Emphasis scoring
+
+| Stage | Source evidence | Finding | Evidence ceiling |
+|---|---|---|---|
+| Construction | `run.py` / `theory_x/stage6_fountain/generator.py` | Fountain attempts to construct `EmphasisEngine`; construction failure is non-fatal. | [L1] |
+| Scoring | `generator.py` after thought generation; `stage_emphasis/emphasis_engine.py::score` | Scores goal relevance, self relevance and novelty-proxy surprise. Drive resonance is still calculated and recorded but excluded from the combined score and dominant-signal choice. | [L1] |
+| Novelty proxy | `stage_emphasis/prediction_tracker.py::expectation_error` | Measures the fraction of capitalised entities in the current thought absent from the union of entities in the previous 20 Fountain thoughts. This is a vocabulary/entity novelty proxy, not a prediction-outcome accuracy measure. | [L1] |
+| Persistence | `generator.py` inserts the result into `emphasis_log` linked to `fountain_event_id`. | A post-thought record is written. The engine's own source describes this as log-only pending evidence that the measure tracks something real. | [L1] |
+| Subsequent consumption | Bounded source search of the inspected revision | No downstream decision or prompt consumer was identified in this pass. Treat downstream use as UNKNOWN, not proof that no consumer exists anywhere. | [L3] UNKNOWN |
+
+The engine source records that drive resonance was dropped from the combiner after a ground-truth test reported p=0.190 and effect −0.013. Its other three combined signals are explicitly described as unvalidated in the source comments. Do not treat the combined score as a validated importance or quality measure.
+
+### 3.3.3 Metacognitive observations
+
+| Stage | Source evidence | Finding | Evidence ceiling |
+|---|---|---|---|
+| Construction/registration | `run.py` section 9c | Constructs `Metacognition` with conversation Writer/Reader and beliefs Reader, then attempts registration in the Theory-X registry. | [L1] |
+| Event persistence | `stage9_metacognition/metacognition.py::_write_event` | Writes self-observation events to `meta_cognition_events`; cache is invalidated after a successful write. | [L1] |
+| Retrieval/formatting | `get_recent()`, `format_for_prompt()` | Reads unresolved events and converts selected event types into short prompt text. | [L1] |
+| Fountain injection | `generator.py` around the metacognition block | The prompt insertion is explicitly gated by `NEX5_METACOG_VOICE=1`; a non-empty formatted line is appended to the next fire's focus block. | [L1] source; [L2] UNKNOWN |
+
+This is a real source-defined producer-to-prompt path, but not evidence that the flag is enabled on the host, that events are being produced, or that the injected text improves subsequent cognition.
+
+### 3.3.4 Arc records: read attempt without usable prompt output
+
+The Fountain calls `_fetch_arc_context()` and then `_format_arc_context()` before assembling `prompt_parts`. The fetch queries active arcs from the last two hours and recently closed arcs from the last four hours. However, the formatter's current implementation documents that both prompt-injection blocks were removed and, when records exist, falls through an empty `lines` list and returns an empty string. Consequently `arc_block` does not provide usable prompt context.
+
+Separately, `run.py` sets `arc_loop = None`; its comment says the background ArcLoop was removed and was the only writer of the arc tables. The source therefore shows a residual read attempt but no current producer loop and no effective prompt consumer. Runtime database contents remain UNKNOWN.
+
+### 3.3.5 Feedback-path summary
+
+| Signal/mechanism | Writes or computes | Reaches a later thought in source? | Current classification |
+|---|---|---|---|
+| Global Workspace winner | Salience candidates and winner | Yes, conditional on non-empty winner and workspace flag | [L1]; runtime [L2] UNKNOWN |
+| Empty-window surprise | Maximum score with NULL actual content | Can enter workspace unless non-empty guard enabled | [L1]; live occurrence UNKNOWN |
+| Emphasis | Post-thought score and `emphasis_log` row | No consumer identified in this bounded pass | [L1]; [L3] UNKNOWN |
+| Metacognition | Unresolved self-observation events | Yes, but `NEX5_METACOG_VOICE=1` required | [L1]; runtime [L2] UNKNOWN |
+| Arcs | Fountain query of arc tables | No usable formatted prompt content; ArcLoop disabled in boot | Source path is a no-op |
+
+**Interpretation:** the repository does not have one uniform “feedback missing” condition. It contains a mixture of (a) active-by-default source paths whose runtime state is unknown, (b) optional prompt feedback, (c) post-hoc measurement with no identified downstream consumer, and (d) residual readers whose output is currently empty. This supports keeping the missing-discrimination hypothesis open rather than declaring one root cause.
+
+## 3.4 Writer substrate
 
 Source: `substrate/writer.py`
 
