@@ -57,7 +57,7 @@ The following source paths can add material or affect the prompt after the initi
 | DriveEmergence | Reads/formats current drive topic and appends it when non-empty. | No distinct trace record. |
 | SelfMindView | Reads current cognitive-state summary and appends it when non-empty. | No distinct trace record. |
 | SocialPresence | Reads current social-posture summary and appends it when non-empty. | No distinct trace record. |
-| ToolCaller / ToolRegistry | Heuristically chooses a tool, builds kwargs, executes it, and appends a successful result's prompt block. | No explicit tool-selection, invocation, result, or prompt-injection trace edge. Successful tool name is later stored in the assistant message row. |
+| ToolCaller / ToolRegistry | Heuristically chooses a tool, builds kwargs, executes it, and appends a successful result's prompt block. The source exposes three tools: allowlisted-domain `web_fetch`, constrained-subprocess `python_exec`, and NEX `beliefs_query`. The caller's precedence is price/crypto → math → explicit belief query → current/latest → factual query with no beliefs. | No explicit tool-selection, invocation, result, or prompt-injection trace edge. Successful tool name is later stored in the assistant message row. |
 | FocalSet / WorkingMemory | Retrieves up to ten raw beliefs, updates FocalSet, adds focal contents to per-session Working Memory, then reads/logs that memory. | **Not merely log-only:** Working Memory is read later in the same handler and may be injected into the prompt (see §4). No trace edge connects the selected belief IDs to that injection. |
 | Spectrum standing-points | Reads random `source='spectrum'` beliefs for a foundation block; for Philosophical/thin context, reads up to four more and appends Tier 1 markers. | No trace record for row IDs or random selection. |
 | Cross-turn WorkingMemory injection | For Conversational register with enough counted Tier markers, appends up to five active Working Memory items. | No trace record connecting prior-turn memory entries or FocalSet additions to the composed prompt. |
@@ -75,7 +75,7 @@ The source labels the FocalSet section “log-only attention tracking” and the
 4. For each focal ID, it adds the corresponding belief content to the session Working Memory object via `_wm.add()`.
 5. Later in the same request, the Working Memory injection branch reads active items and, when the session exists, the register is Conversational, and the previously computed `belief_count` meets `CHAT_GAP_MIN_BELIEFS`, appends up to five items to `belief_text`.
 
-Therefore, under those conditions, the FocalSet → WorkingMemory path can influence the current Chat prompt, not merely produce logs. The code also allows the accumulated Working Memory to affect later turns. This is a documentation/comment accuracy issue and an omitted causal edge in the current trace, not a finding that the mechanism is defective or currently active in deployment.
+Therefore, under those conditions, the FocalSet → WorkingMemory path can influence the current Chat prompt, not merely produce logs. The code also allows the accumulated Working Memory to affect later turns within the same server process: `_working_memory_by_session` is a module-level in-memory dictionary keyed by session ID, and the inspected path does not persist these WorkingMemory items to SQLite. A process restart therefore does not have a durable WorkingMemory restore path established by this code. This is a documentation/comment accuracy issue and an omitted causal edge in the current trace, not a finding that the mechanism is defective or currently active in deployment.
 
 A related ordering fact: `belief_count` is computed before the spectrum and Working Memory additions. The gap decision therefore uses the earlier assembled `belief_text`, not a recount of the final prompt after those later additions.
 
@@ -167,6 +167,10 @@ The following causal edges remain unrepresented or only coarsely represented:
 
 The current `context_selection` record is a useful boundary marker for the composed prompt, but its parent list (initial retrieval, gap gate, and optional substrate voice) is not a complete list of the mechanisms that contributed to its payload. Do not infer omitted parentage from source order.
 
+### 7.1 Tool path detail
+
+The Chat handler passes an empty belief list to `ToolCaller.should_use_tool(prompt, [])`, so its “no beliefs retrieved” factual-query fallback is eligible whenever the query matches the corresponding phrase pattern; it is not passed the actual retrieved belief set. The precedence is price/crypto → math → explicit belief query → current/latest → factual phrasing with the supplied empty list. `build_tool_kwargs()` passes the query to the selected tool (and an empty code string for `python_exec`, which the registry replaces with the query). `ToolRegistry.execute()` dispatches to the selected implementation and returns a `ToolResult`; the handler injects only successful results. `web_fetch` uses a domain allowlist and a bounded response read; `python_exec` runs a subprocess with a five-second timeout and import-name blocklist; `beliefs_query` performs a separate BeliefRetriever query. These source details do not establish actual tool registration/use in a live environment.
+
 Trace event names such as `model_input` and `model_output` are observer labels; they do not prove that the external model used a particular context item or that a reply was correct.
 
 ## 8. Tests and what they establish
@@ -202,6 +206,10 @@ All hashes below identify the inspected PR #65 integrated branch files, not the 
 | `theory_x/stage_throw_net/time_fetch.py` | `7a97a76a48eb54d621d1a436fc5c64d5f6ddfd7b` | Four-source VoiceEngine candidate sweep |
 | `theory_x/stage_tom/global_workspace.py` | `54ddab05112702eef34faaa4f24d45139350b349` | Chat budgeted block-selection helper |
 | `run.py` | `73a2c58a4f5f0348135a46eb83d6cdd61db874e7` | VoiceEngine construction and AppState wiring |
+| `theory_x/focal_set.py` | `e12531f2858085778ebca75f73a7dee6ec8ce416` | FocalSet selection and selected-ID state |
+| `theory_x/working_memory.py` | `4e9badadbb3ada939c05fcb4a82455723c0efa36` | Per-session short-term buffer, activation and decay |
+| `theory_x/stage_capability/tool_caller.py` | `31faba3cc49b60f21069679e920c73442249f919` | Heuristic tool selection and kwargs/prompt construction |
+| `theory_x/stage_capability/tools.py` | `ff5f251b225c975c01f6bf3c3da9cbad1f77fbee` | Tool registry and implementation dispatch |
 | `substrate/trace_overlay.py` | `fbccc3b63bc94dab8e9f01951a581ba3af3f087e` | Trace record envelope and payload digest behaviour |
 
 The Chat route's line ranges in this audit are from the same `gui/server.py` blob; line numbers may shift on later commits. Recheck the branch head and file hashes before relying on this map after further source changes.
