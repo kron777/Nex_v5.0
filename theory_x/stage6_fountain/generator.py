@@ -1702,6 +1702,14 @@ class FountainGenerator:
         if self._total_fires % 8 == 7 and readiness >= 0.8 and belief_count >= 20:
             koan = self._select_koan(beliefs_reader)
 
+        # Per-cycle trace identities are observational only and reset before
+        # prompt construction so a failed/disabled trace cannot reuse stale IDs.
+        self._trace_workspace_record_id = None
+        self._trace_model_input_record_id = None
+        self._trace_model_output_record_id = None
+        self._trace_candidate_record_id = None
+        self._trace_fountain_event_record_id = None
+        self._trace_final_record_id = None
         prompt, retrieval_manifest = self._build_prompt(status, belief_count, tier_dist,
                                                          disturbance=disturbance, koan=koan)
 
@@ -2053,12 +2061,48 @@ class FountainGenerator:
         # removed. Full code recoverable at commit 1c71238.
         if not _emitted:
           try:
+            if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+                try:
+                    from substrate.trace_overlay import record as _trace_record
+                    self._trace_model_input_record_id = _trace_record(
+                        "model_input",
+                        producer="FountainGenerator._build_prompt",
+                        consumer="VoiceClient.speak",
+                        source_ref="theory_x/stage6_fountain/generator.py::voice_prompt",
+                        outcome="composed_prompt",
+                        payload=prompt,
+                        parent_ids=[
+                            rid for rid in (
+                                getattr(self, "_trace_input_record_id", None),
+                                self._trace_workspace_record_id,
+                            ) if rid
+                        ],
+                    )
+                except Exception:
+                    pass
             resp = self._voice.speak(
                 VoiceRequest(prompt=prompt, register=PHILOSOPHICAL,
                              self_report_examples=False),
                 beliefs=None,
             )
             thought = resp.text.strip()
+            if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+                try:
+                    from substrate.trace_overlay import record as _trace_record
+                    self._trace_model_output_record_id = _trace_record(
+                        "model_output",
+                        producer="VoiceClient.speak",
+                        consumer="FountainGenerator.generate",
+                        source_ref="theory_x/stage6_fountain/generator.py::voice_output",
+                        outcome="generated" if thought else "empty",
+                        payload=thought,
+                        parent_ids=(
+                            [self._trace_model_input_record_id]
+                            if self._trace_model_input_record_id else []
+                        ),
+                    )
+                except Exception:
+                    pass
             # Leak detector: strip "Real drift" prompt-structure prefix if LLM echoed it
             if thought.lower().startswith("real drift"):
                 # Drop first line; keep what came after
@@ -2125,13 +2169,23 @@ class FountainGenerator:
         if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
             try:
                 from substrate.trace_overlay import record as _trace_record
-                _trace_record(
+                self._trace_candidate_record_id = _trace_record(
                     "candidate_generation",
                     producer="FountainGenerator.generate",
                     consumer="FountainCrystallizer",
                     source_ref="theory_x/stage6_fountain/generator.py::generate",
                     outcome="voice_generated" if voice_ok else "voice_fallback",
                     payload=thought,
+                    parent_ids=(
+                        [self._trace_model_output_record_id]
+                        if self._trace_model_output_record_id
+                        else [
+                            rid for rid in (
+                                getattr(self, "_trace_input_record_id", None),
+                                self._trace_workspace_record_id,
+                            ) if rid
+                        ]
+                    ),
                 )
             except Exception:
                 pass
@@ -2353,7 +2407,7 @@ class FountainGenerator:
         if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
             try:
                 from substrate.trace_overlay import record as _trace_record
-                _trace_record(
+                self._trace_fountain_event_record_id = _trace_record(
                     "writer_delta",
                     producer="FountainGenerator.generate",
                     consumer="FountainCrystallizer",
@@ -2361,7 +2415,12 @@ class FountainGenerator:
                     entity_ref=f"dynamic.fountain_events:{fountain_event_id}",
                     outcome="inserted",
                     payload={"table": "fountain_events", "row_id": fountain_event_id},
+                    parent_ids=(
+                        [self._trace_candidate_record_id]
+                        if self._trace_candidate_record_id else []
+                    ),
                 )
+                self._trace_final_record_id = self._trace_fountain_event_record_id
             except Exception:
                 pass
         self._link_activation_to_event()
@@ -2592,7 +2651,17 @@ class FountainGenerator:
                     hot_branch=hot_branch,
                     focal_item=_fire_focal,
                     retained_candidate_id=_retained_candidate_id,
+                    trace_parent_ids=[
+                        rid for rid in (
+                            self._trace_candidate_record_id,
+                            self._trace_fountain_event_record_id,
+                        ) if rid
+                    ],
                 )
+                self._trace_final_record_id = getattr(
+                    self._crystallizer, "_trace_terminal_record_id",
+                    self._trace_fountain_event_record_id,
+                ) or self._trace_fountain_event_record_id
                 if crystallized_id:
                     error_channel.record(
                         f"Fountain insight crystallized as belief {crystallized_id}",
