@@ -1195,3 +1195,8 @@ No runtime, snapshot, database, test behaviour, host state, merge or deployment 
 ## Phase 0 defect/risk backlog companion (24 Nov 2026)
 
 A companion `NEX_VERIFIED_DEFECT_BACKLOG.md` has been added to this draft branch for Gate 0 review. It consolidates the DRAFT findings in this Reality Report, separates source-confirmed paths from conditional exposure and unknown host incidence, assigns provisional triage ordering, records the top five documentation/implementation discrepancies and states the evidence-level limits. It is not Founder-approved and does not authorize remediation. The exact-head CI status and M0.1–M0.5 completion limits are recorded in the backlog and ADR-001.
+
+
+## M0.3 node-level reconciliation (24 Nov 2026)
+
+The Crosswalk now contains an explicit row for each of the 30 declared MIND_MAP nodes, with source path, declared evidence/dark/blocked modifiers, separate L0–L4 assessment, and historical host-evidence caveats. The node-level assessment is not a conversion of MIND_MAP's own evidence vocabulary. Four nodes remain L0, sixteen L1, nine L2-reported (host checkout identity pending), one L3 only in the isolated Fountain fixture, and none L4. See the “Explicit 30-node MIND_MAP → source/runtime evidence crosswalk” section in NEX_ARCHITECTURE_CROSSWALK_v2.md.
