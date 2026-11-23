@@ -45,6 +45,7 @@ def test_parentage_is_explicit_and_only_payload_digest_is_retained(tmp_path, mon
     first = trace.record(
         "input_arrival", producer="gui.server", source_ref="gui/server.py::api_chat",
         entity_ref="message-1", payload={"prompt": "private prompt"},
+        parent_ids=[handle.start_record_id],
     )
     second = trace.record(
         "context_selection", producer="gui.server", consumer="voice.speak",
@@ -62,8 +63,9 @@ def test_parentage_is_explicit_and_only_payload_digest_is_retained(tmp_path, mon
     assert len({row["record_id"] for row in rows}) == 4
     assert all(row["trace_id"] == handle.trace_id for row in rows)
     assert rows[0]["event_type"] == "trace_start"
+    assert handle.start_record_id == rows[0]["record_id"]
     assert rows[0]["parent_ids"] == []
-    assert rows[1]["parent_ids"] == []
+    assert rows[1]["parent_ids"] == [rows[0]["record_id"]]
     assert rows[2]["parent_ids"] == [first]
     assert rows[3]["parent_ids"] == []
     assert rows[1]["payload_digest"]

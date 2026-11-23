@@ -1209,6 +1209,10 @@ def create_app(state: AppState) -> Flask:
                         source_ref="gui/server.py::api_chat:prompt_validation",
                         outcome="accepted",
                         payload=prompt,
+                        parent_ids=(
+                            [_trace_handle.start_record_id]
+                            if _trace_handle.start_record_id else []
+                        ),
                     )
             except Exception:
                 _trace_handle = None

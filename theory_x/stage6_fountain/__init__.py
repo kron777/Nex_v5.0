@@ -197,6 +197,10 @@ def build_fountain(
                                 source_ref="theory_x/stage6_fountain/__init__.py::fountain_loop",
                                 outcome="scheduler_tick",
                                 payload={"interval_seconds": interval},
+                                parent_ids=(
+                                    [_trace_handle.start_record_id]
+                                    if _trace_handle.start_record_id else []
+                                ),
                             )
                     except Exception:
                         _trace_handle = None
