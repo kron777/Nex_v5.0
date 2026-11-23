@@ -87,6 +87,13 @@ The source labels the FocalSet section “log-only attention tracking” and the
 
 Therefore, under those conditions, the FocalSet → WorkingMemory path can influence the current Chat prompt, not merely produce logs. The code also allows the accumulated Working Memory to affect later turns within the same server process: `_working_memory_by_session` is a module-level in-memory dictionary keyed by session ID, and the inspected path does not persist these WorkingMemory items to SQLite. A process restart therefore does not have a durable WorkingMemory restore path established by this code. This is a documentation/comment accuracy issue and an omitted causal edge in the current trace, not a finding that the mechanism is defective or currently active in deployment.
 
+### 4.1 Session isolation and lifecycle boundary
+
+The inspected source creates one module-level `_focal_set = FocalSet(K=4)` for the server process, while WorkingMemory instances are created separately in the module-level `_working_memory_by_session` dictionary. Each Chat request updates that shared FocalSet with the current request's candidates, then uses the resulting focal IDs to add content to the requesting session's WorkingMemory. FocalSet's hold-time and prior-priority state therefore span requests and sessions; where candidate belief IDs overlap, a previous request can affect which candidates are protected/selected for a later session's WorkingMemory. This is a cross-session coupling path in the current implementation. Whether that shared attention state is intended by the governing design is unresolved; do not classify it as a defect without the authoritative acceptance rules.
+
+The session WorkingMemory dictionary is process-local and the inspected module exposes a lazy create/get helper but no corresponding deletion/eviction path for session keys. Each individual WorkingMemory is bounded to seven items, but the number of retained session objects is not bounded by this helper. Session retirement, cleanup and memory-growth behaviour remain unverified outside the inspected module. These are lifecycle/acceptance questions for Phase 0, not permission to redesign or change the runtime.
+
+
 A related ordering fact: `belief_count` is computed before the spectrum and Working Memory additions. The gap decision therefore uses the earlier assembled `belief_text`, not a recount of the final prompt after those later additions.
 
 ## 5. Gap gate and response routing
