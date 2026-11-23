@@ -1173,3 +1173,12 @@ At PR #65 source head `cffbbc94b5a494247d127abf2720886a08f7a567`, the producer e
 - `surprise_weighting.confidence_for_fire()`, called by FountainCrystallizer under the source-default-enabled `NEX5_SURPRISE_WEIGHT` setting, uses the latest score alone and does not check `actual_content`, `surprise_flag` or `big_surprise`. A recent empty-window sentinel can therefore supply the maximum confidence boost to an unrelated subsequent crystallization. See DRAFT-011 in the Reality Report.
 
 This is a source-level producer/consumer mismatch; the runtime flag value, occurrence and downstream impact are UNKNOWN. The existing producer and ledger tests exercise the sentinel separately, but no test exercises its handling by the confidence consumer. No behaviour or test change was made.
+
+
+## Fountain emphasis instrumentation — source-to-sink qualification (24 Nov 2026)
+
+`FountainGenerator` constructs `PredictionTracker` and `EmphasisEngine` internally. It scores each candidate thought **before** inserting that thought into `fountain_events`, so the 20-fire novelty window contains prior fires rather than the candidate itself. The result is persisted to `dynamic.db.emphasis_log` after the Fountain event ID is available.
+
+The composite is the equal-weight mean of goal relevance, locked-keystone self relevance and recent-entity novelty. Drive resonance is computed/logged but excluded from the composite and dominant-signal selection; the source cites a prior null test (p=0.190) as the reason. The underlying historical experiment record was not re-verified in this pass.
+
+The inspected path is observation-only: the score does not alter the thought, branch, crystallization or belief confidence. No downstream consumer of `emphasis_log` was identified in this bounded pass. Treat this as [L1] instrumentation, not [L3] operational influence or [L4] validated improvement. No dedicated EmphasisEngine/PredictionTracker test module was found in the inspected tree.
