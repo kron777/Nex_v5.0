@@ -296,7 +296,9 @@ class FountainCrystallizer:
         hot_branch: Optional[str] = None,
         focal_item: Optional[str] = None,
         retained_candidate_id: Optional[int] = None,
+        trace_parent_ids: Optional[list[str]] = None,
     ) -> Optional[int]:
+        self._trace_terminal_record_id = None
         # Stillness guard — Row 9 extension. Metacognition writes a stillness_log
         # row when sustained groove exceeds threshold; we skip crystallization
         # while any row has expires_at > now (pure substrate read, zero coupling).
@@ -308,6 +310,20 @@ class FountainCrystallizer:
                     (_now,),
                 )
                 if _still:
+                    if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+                        try:
+                            from substrate.trace_overlay import record as _trace_record
+                            self._trace_terminal_record_id = _trace_record(
+                                "stillness_gate",
+                                producer="FountainCrystallizer.crystallize",
+                                consumer="FountainCrystallizer",
+                                source_ref="theory_x/stage6_fountain/crystallizer.py::stillness_guard",
+                                outcome="hold",
+                                payload={"stillness_row_id": _still["id"]},
+                                parent_ids=trace_parent_ids or [],
+                            )
+                        except Exception:
+                            pass
                     errors.record(
                         "Stillness active — skipping fountain crystallization",
                         source=_LOG_SOURCE,
@@ -323,14 +339,16 @@ class FountainCrystallizer:
         if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
             try:
                 from substrate.trace_overlay import record as _trace_record
-                _trace_record(
+                _trace_quality_gate_id = _trace_record(
                     "quality_gate",
                     producer="FountainCrystallizer._quality_check",
                     consumer="CoherenceGate.check",
                     source_ref="theory_x/stage6_fountain/crystallizer.py::crystallize",
                     outcome="accepted" if ok else f"rejected:{reason}",
                     payload={"ok": ok, "reason": reason},
+                    parent_ids=trace_parent_ids or [],
                 )
+                self._trace_terminal_record_id = _trace_quality_gate_id
             except Exception:
                 pass
 
@@ -380,12 +398,31 @@ class FountainCrystallizer:
             self._last_reject_pattern = None
             if self._dynamic_writer is not None:
                 try:
-                    self._dynamic_writer.write(
+                    _reject_row_id = self._dynamic_writer.write(
                         "INSERT INTO crystallization_rejects "
                         "(ts, reason, thought_excerpt, matched_pattern) "
                         "VALUES (?, ?, ?, ?)",
                         (time.time(), reason, thought[:200], matched),
                     )
+                    if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+                        try:
+                            from substrate.trace_overlay import record as _trace_record
+                            self._trace_terminal_record_id = _trace_record(
+                                "writer_delta",
+                                producer="FountainCrystallizer.crystallize",
+                                consumer="crystallization_rejects",
+                                source_ref="theory_x/stage6_fountain/crystallizer.py::reject_insert",
+                                entity_ref=f"dynamic.crystallization_rejects:{_reject_row_id}",
+                                outcome="rejected",
+                                payload={"table": "crystallization_rejects", "row_id": _reject_row_id},
+                                parent_ids=(
+                                    [_trace_quality_gate_id]
+                                    if "_trace_quality_gate_id" in locals() and _trace_quality_gate_id
+                                    else []
+                                ),
+                            )
+                        except Exception:
+                            pass
                 except Exception as exc:
                     errors.record(
                         f"crystallization_reject write failed: {exc}",
@@ -406,14 +443,20 @@ class FountainCrystallizer:
             if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
                 try:
                     from substrate.trace_overlay import record as _trace_record
-                    _trace_record(
+                    _trace_coherence_gate_id = _trace_record(
                         "coherence_gate",
                         producer="CoherenceGate.check",
                         consumer="FountainCrystallizer.crystallize",
                         source_ref="theory_x/stage6_fountain/crystallizer.py::gate_check",
                         outcome=decision.outcome.value,
                         payload={"reason": decision.reason, "source_node": packet.source_node},
+                        parent_ids=(
+                            [_trace_quality_gate_id]
+                            if "_trace_quality_gate_id" in locals() and _trace_quality_gate_id
+                            else []
+                        ),
                     )
+                    self._trace_terminal_record_id = _trace_coherence_gate_id
                 except Exception:
                     pass
             if decision.outcome != GateOutcome.ACCEPT:
@@ -479,7 +522,7 @@ class FountainCrystallizer:
         if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
             try:
                 from substrate.trace_overlay import record as _trace_record
-                _trace_record(
+                _trace_belief_write_id = _trace_record(
                     "writer_delta",
                     producer="FountainCrystallizer.crystallize",
                     consumer="fountain_crystallizations",
@@ -487,7 +530,17 @@ class FountainCrystallizer:
                     entity_ref=f"beliefs.beliefs:{belief_id}",
                     outcome="inserted",
                     payload={"table": "beliefs", "row_id": belief_id, "tier": 6},
+                    parent_ids=(
+                        [_trace_coherence_gate_id]
+                        if "_trace_coherence_gate_id" in locals() and _trace_coherence_gate_id
+                        else (
+                            [_trace_quality_gate_id]
+                            if "_trace_quality_gate_id" in locals() and _trace_quality_gate_id
+                            else (trace_parent_ids or [])
+                        )
+                    ),
                 )
+                self._trace_terminal_record_id = _trace_belief_write_id
             except Exception:
                 pass
 
@@ -499,7 +552,7 @@ class FountainCrystallizer:
         if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
             try:
                 from substrate.trace_overlay import record as _trace_record
-                _trace_record(
+                _trace_crystallization_link_id = _trace_record(
                     "writer_delta",
                     producer="FountainCrystallizer.crystallize",
                     consumer="speech_governor",
@@ -508,7 +561,13 @@ class FountainCrystallizer:
                     outcome="inserted",
                     payload={"table": "fountain_crystallizations", "row_id": crystallization_id,
                              "fountain_event_id": fountain_event_id, "belief_id": belief_id},
+                    parent_ids=(
+                        [_trace_belief_write_id]
+                        if "_trace_belief_write_id" in locals() and _trace_belief_write_id
+                        else []
+                    ),
                 )
+                self._trace_terminal_record_id = _trace_crystallization_link_id
             except Exception:
                 pass
 
