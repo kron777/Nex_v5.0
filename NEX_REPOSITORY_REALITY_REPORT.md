@@ -1160,3 +1160,33 @@ Source hashes:
 - `tests/test_conversation_memory.py`: `9632aa1d9bc0b617cef1b93d31e886174d560b68`
 
 No runtime or test behaviour, prompt, session policy, database, flags, host state, experiment, merge or deployment was changed.
+
+
+## M0.3–M0.4 source audit — shutdown snapshot and resumption durability (24 Nov 2026)
+
+Inspected against PR #65 integrated source head `cffbbc94b5a494247d127abf2720886a08f7a567`.
+
+### DRAFT-021 — graceful SIGTERM path overrides the snapshot writer's final-snapshot handler
+
+`StateSnapshotWriter.__init__()` registers both an `atexit` callback and its own SIGTERM handler, with the latter intended to write a final snapshot. The normal `run.py` boot path constructs the writer and passes it into Fountain. Fountain calls `write_snapshot()` on every scheduler tick, so periodic snapshots are present in the source path.
+
+Later in the same `run.py`, the application registers its own `_graceful_standby` SIGTERM handler, replacing the handler installed by `StateSnapshotWriter`. That standby handler marks a clean-shutdown timestamp, waits, stops the decoder, drains state via `state.close()`, then calls `os._exit(0)`. It does not call `snapshot_writer.write_snapshot()`; `os._exit` bypasses Python's `atexit` callbacks. Consequently, the writer's advertised final SIGTERM/atexit snapshot is not executed on the normal power-pill/keepalive SIGTERM path. The most recent periodic snapshot remains the recovery point, which may predate final state changes after the last Fountain tick.
+
+This does not mean no snapshot exists: Fountain writes periodically. The finding is specifically that the final-shutdown snapshot hook is shadowed in the normal shutdown sequence. Host shutdown incidence and the amount of state that can change after the last tick are UNKNOWN.
+
+### DRAFT-022 — resumption snapshot is consumed even when database recovery writes fail
+
+`ResumptionSeeder.run()` reads a valid, non-stale snapshot, calls `_promote_beliefs()` and `_reissue_probes()`, then unconditionally calls `_consume_snapshot()` and sets `executed=True`. Both helper methods catch their own database exceptions and return `0` (or a partial count) rather than propagating failure. The caller therefore cannot distinguish “nothing to promote/reissue” from “database write failed”; it still renames the snapshot to `.consumed`. A transient database error can consequently discard the only recovery manifest before the next boot can retry those belief promotions or probe reissues.
+
+The normal boot sequence deliberately calls `downtime.record_boot()` before the seeder because both read the same snapshot and the seeder consumes it; that ordering is correct and source-documented. The issue is the seeder's consume-on-partial-failure behaviour after that read.
+
+Test boundary: the inspected test tree contains downtime, probe-context snapshot and episodic tests, but no dedicated `test_snapshot_writer.py` or `test_resumption.py` exercising SIGTERM handler ownership, final snapshot writing, partial promotion/reissue failure, or consume/retry policy. No shutdown or database-failure test was run.
+
+Source hashes:
+- `run.py`: `73a2c58a4f5f0348135a46eb83d6cdd61db874e7`
+- `theory_x/stage6_fountain/__init__.py`: `28095c55d0d88bbf49288c7cf399b8c9f4c3ee19`
+- `theory_x/memory/snapshot_writer.py`: `367defcc540bab11708ca2cb9aed5a09ee4377cd`
+- `theory_x/memory/resumption.py`: `665b379cd6f09842462c469cfa64e4c437e57472`
+- `theory_x/memory/downtime.py`: `c609c501a2470be6ef3494e2d918bd05271d1f6d`
+
+No runtime, snapshot, database, test behaviour, host state, merge or deployment was changed.
