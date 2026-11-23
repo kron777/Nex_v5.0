@@ -822,3 +822,49 @@ The same log material identifies the runtime data path under `/home/rr/Desktop/D
 
 This qualifies DRAFT-006: the GitHub snapshot has no inspected startup wiring, but the host log confirms a locally instantiated loop in a potentially divergent checkout. Manus must compare both checkout identities and the current startup path before any activation claim or code correction.
 
+
+
+## M0.3 belief-write instrumentation — TaggingBeliefWriter and IntakeResonance (23 Nov 2026)
+
+The active boot path wraps the beliefs writer with `TaggingBeliefWriter` in both `run.py` and `gui/server.py`. For an eligible explicit-column `INSERT INTO beliefs` where the caller has not already supplied a `tags` column and the content parameter can be located, the wrapper:
+1. runs `tag_ops.generate(content)` and rewrites the insert to include generated tags;
+2. unless `NEX5_INTAKE_RESONANCE_OFF=1`, lazily constructs `IntakeResonance` and calls `compute(content)` before the underlying belief insert.
+
+The resonance probe compares the incoming content against Tier 1–3 standing beliefs and a bounded Tier-6 pool. The T6 reserve logic is separately covered by `tests/test_intake_t6_reserve.py`; `tests/test_tag_protocol.py` covers tag generation/writer injection. No test in those files covers the default-on resonance logging, log retention, failed-insert association or cost.
+
+`IntakeResonance.compute()` writes a row to `intake_resonance_log`, including a content excerpt (up to 500 characters), score, top-match belief ID and timestamp. The wrapper calls the probe before the actual belief insert, and the log has no incoming belief foreign key. `substrate/init_db.py` creates the table and indexes, but the inspected `nex_db_reaper.py` retention target list does not include `intake_resonance_log`. No retention limit or cleanup path was found in the inspected code.
+
+The optional `NEX_TAG_FEEDBACK_ON` path is separate: it reads user tags from `fountain_events.tag` and can add tag context to Chat/Fountain prompts when enabled; it is default-off. Do not conflate that user-tag feedback with auto-generated `beliefs.tags` from TaggingBeliefWriter.
+
+**Classification:** source-confirmed default-on write-path instrumentation and append-only content logging; not a demonstrated change to belief tier or selection. Data retention, log growth, embedding cost and failure association require a measured policy decision. No code or database changes made.
+
+Source hashes:
+- `writer_wrapper.py` `c267de05ebe279dc3992ae33d7108c0b77c3401b`
+- `tag_ops.py` `d12b8d82767a22fae03b65484c34163fc99b48f7`
+- `intake_resonance.py` `62c9b8bd200e49d3d7032f4815b267175d4c557f`
+- `init_db.py` `575c95769939f85a776ab698d4c16f17cc1ba238`
+- `nex_db_reaper.py` `5cfb609a8ad8a5f9bd0ab83729d8b42220700658`
+- `tests/test_tag_protocol.py` `69ff8b38f3bf5930a90b8ed029de7fcee6ddb2e3`
+- `tests/test_intake_t6_reserve.py` `1d892aa0de1649de10e93c92bfafa206f8e13819`
+
+## M0.3 World Bridge — prompt injection vs Phase-A documentation (23 Nov 2026)
+
+**DRAFT-008 — source-confirmed documentation/implementation mismatch; approval intent unresolved.** The `theory_x/world_bridge/selector.py` module and class docstrings describe Phase A as selection/logging only, with prompt injection deferred to Phase B. The inspected runtime path is further along:
+- `run.py` constructs `WorldBridgeSelector` and passes it to `FountainGenerator` unconditionally.
+- The selector module has `ENABLED = True`; the inspected path does not consult the registered `NEX5_BRIDGE` flag.
+- Each Fountain generation calls `select_and_log(mark_injected=True)`; when fresh events are returned, the generator appends formatted stream/body text to the composition prompt.
+- Selection is bounded to at most five events, 150 characters per event and a 1,500-character total injection budget. The selected event JSON and `injected` status are written to `world_bridge_log`.
+
+The code therefore implements prompt injection when eligible sense events exist, despite the selector documentation describing Phase A only. The referenced World Bridge Design v0.2 and any approval record were not located in the inspected repository/Library material, so this is not yet classified as an unauthorized change; intent and phase approval remain unresolved.
+
+`substrate/init_db.py` creates `world_bridge_log`; the inspected `nex_db_reaper.py` target list does not include it, and no cleanup path was found. The log stores selected-event JSON (including formatted body snippets), stream names and injection status. Live selection frequency, actual host flag/config and data volume are UNKNOWN.
+
+Source hashes:
+- `selector.py` `7b71b2b66e663b58a6f5eb71707153380cd882d0`
+- `generator.py` `d57bde71eca5f5968964b2846b8a34cffa8964a2`
+- `run.py` `73a2c58a4f5f0348135a46eb83d6cdd61db874e7`
+- `init_db.py` `575c95769939f85a776ab698d4c16f17cc1ba238`
+- `nex_db_reaper.py` `5cfb609a8ad8a5f9bd0ab83729d8b42220700658`
+
+No prompt, runtime flag, database or host changes were made.
+
