@@ -8,6 +8,7 @@ def _read(path):
 
 
 def test_default_off_is_inert(tmp_path, monkeypatch):
+    monkeypatch.setenv("NEX5_DATA_DIR", str(tmp_path / "nex-data"))
     monkeypatch.delenv("NEX5_TRACE_OVERLAY", raising=False)
     monkeypatch.setenv("NEX5_TRACE_PATH", str(tmp_path / "trace.jsonl"))
 
@@ -29,6 +30,7 @@ def test_requires_explicit_artifact_path(tmp_path, monkeypatch):
 
 
 def test_records_parent_chain_and_only_payload_digest(tmp_path, monkeypatch):
+    monkeypatch.setenv("NEX5_DATA_DIR", str(tmp_path / "nex-data"))
     path = tmp_path / "trace.jsonl"
     monkeypatch.setenv("NEX5_TRACE_OVERLAY", "1")
     monkeypatch.setenv("NEX5_TRACE_PATH", str(path))
@@ -67,6 +69,7 @@ def test_records_parent_chain_and_only_payload_digest(tmp_path, monkeypatch):
 
 
 def test_nested_trace_restores_outer_context(tmp_path, monkeypatch):
+    monkeypatch.setenv("NEX5_DATA_DIR", str(tmp_path / "nex-data"))
     path = tmp_path / "trace.jsonl"
     monkeypatch.setenv("NEX5_TRACE_OVERLAY", "1")
     monkeypatch.setenv("NEX5_TRACE_PATH", str(path))
@@ -90,6 +93,7 @@ def test_nested_trace_restores_outer_context(tmp_path, monkeypatch):
 
 
 def test_trace_write_failure_is_non_fatal(tmp_path, monkeypatch):
+    monkeypatch.setenv("NEX5_DATA_DIR", str(tmp_path / "nex-data"))
     monkeypatch.setenv("NEX5_TRACE_OVERLAY", "1")
     monkeypatch.setenv("NEX5_TRACE_PATH", str(tmp_path / "missing" / "trace.jsonl"))
     handle = trace.begin_trace("chat", source_ref="chat")
@@ -114,6 +118,7 @@ def test_refuses_trace_artifact_inside_nex_data_dir(tmp_path, monkeypatch):
 
 
 def test_turning_flag_off_stops_writes_and_end_restores_context(tmp_path, monkeypatch):
+    monkeypatch.setenv("NEX5_DATA_DIR", str(tmp_path / "nex-data"))
     path = tmp_path / "trace.jsonl"
     monkeypatch.setenv("NEX5_TRACE_OVERLAY", "1")
     monkeypatch.setenv("NEX5_TRACE_PATH", str(path))
