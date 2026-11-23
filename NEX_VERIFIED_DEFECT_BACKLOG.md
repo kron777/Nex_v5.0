@@ -80,7 +80,7 @@ These five are the most material discrepancies identified in the current source 
 
 DRAFT-016 is an additional security boundary weakness; DRAFT-006 is an external-action state-accounting risk; both remain high-priority review items.
 
-## Current repository and CI state
+## PR/CI snapshot at backlog creation (24 Nov 2026)
 
 | Workstream | Exact head | CI | PR state |
 |---|---|---|---|
@@ -116,3 +116,8 @@ CI success validates only the tested repository suite at that exact head. It doe
 ### Current update — DRAFT-023 (24 Nov 2026)
 
 The Reality Report and Crosswalk now include DRAFT-023 for ExecutiveControl. The classifier is constructed and registered, but the active Chat route selects Philosophical by default and does not call ExecutiveControl.select(); voice.registers.classify remains a Conversational stub. This is source-confirmed; whether the dated override remains approved is unresolved. See the Reality Report for source hashes and test boundary.
+
+
+### Latest PR49 status check (24 Nov 2026, before this backlog refresh)
+
+Immediately before this documentation refresh, PR #49 head was 50a8b6adbeb2c722bbd0b57881041e4a3dfa00b5. No workflow run was returned for that head. The earlier run 45280433678 on head ae1b3c8227f11915803fa1a49ca42680748781c1 completed as cancelled. PR #65 exact-head run 45273123963 and PR #72 exact-head run 45272386599 remained successful. This backlog refresh is documentation-only; no new test run is claimed.
