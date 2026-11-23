@@ -279,6 +279,21 @@ Draft PR #54 now contains a source/test prototype for the two required end-to-en
 
 **Not yet established:** no host flag has been enabled; no live Fountain cycle or Chat turn has been captured; no deterministic ON/OFF comparison has demonstrated exact prompt/selection/gate/Writer/output invariance; the later TTS playback is not correlated across the consumer thread. PR #54 remains draft and unmerged. This is not Gate 0 approval and does not authorise live activation.
 
+## 3.10 P0 runtime/WSGI, connection and path hygiene — source findings
+
+| Area | Source evidence | Finding | Evidence ceiling |
+|---|---|---|---|
+| HTTP server | `run.py::main` and `gui/server.py::main` | Both entrypoints start Flask with `app.run(..., debug=False, use_reloader=False)`. No production WSGI server is wired in these entrypoints. | [L1] |
+| Entry-point configuration | `run.py` reads `NEX5_HOST/NEX5_PORT`; `gui/server.py` reads `NEX5_GUI_HOST/NEX5_GUI_PORT` | Two boot entrypoints expose different host/port variable names. Both default to loopback and port 8765. | [L1] |
+| Process/loop ownership | `run.py` starts background schedulers, Fountain and other loops before serving Flask | A blind multi-worker WSGI replacement could duplicate autonomous loops and split in-process state. Production WSGI choice requires explicit single-owner/thread/process design; do not substitute Gunicorn multiprocess by default. | [L1] |
+| Writer connection | `substrate/writer.py::Writer` | One Writer per database, one worker thread and one long-lived write connection; queue serialises writes. This is the intended one-pen architecture. | [L1] |
+| Reader connection | `substrate/reader.py::Reader` | Each `read/read_one` opens a fresh read-only connection and closes it via a context manager. Callers can explicitly reuse `Reader.connection()` across multiple queries. | [L1] |
+| SQLite factory | `substrate/db.py::connect` | Centralises WAL, busy timeout, foreign keys and optional schema tripwire. | [L1] |
+| Database paths | `substrate/paths.py::db_paths` | Six database paths resolve from `NEX5_DATA_DIR` at use time. | [L1] |
+| Other diagnostic paths | Chat/Fountain diagnostic logs in §3.8 | Multiple content-bearing logs remain hardcoded under `/tmp`; their consumers, host modes and retention need separate reconciliation. | [L1]; host [L2] UNKNOWN |
+
+**Reconciliation:** the current Writer/Reader connection design is not itself a one-open defect: it intentionally uses one long-lived writer connection and short-lived read-only connections. The outstanding hygiene questions are direct SQLite access outside the substrate, the two entrypoint/configuration differences, production WSGI deployment and raw-content diagnostic paths. These require separate source/consumer and runtime evidence before code changes.
+
 ## 4. Top documentation/source discrepancies
 
 These are discrepancies to reconcile, not automatic instructions to modify code or documentation.
