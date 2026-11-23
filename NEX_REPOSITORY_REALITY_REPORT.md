@@ -663,3 +663,38 @@ Test source hashes:
 - tests/test_reshape.py: de58caba4855ef05a9415bc3f4bc57a703f2a136
 - tests/test_warrant_recorder.py: b16fa6185340f26a57c9e22c8c525a161e6e61db
 - tests/test_warrant.py: 99e639bcf3bd8c1f6e5ab1acbf5b61f20e438b51
+
+
+
+## M0.3–M0.4 forward/backward audit — recursive self-binding and quality-signal reach (23 Nov 2026)
+
+### Recursive self-reading: active per-fire path and duplicated bind writes
+
+- FountainGenerator calls recursive_self.format_for_prompt() during normal fire prompt composition. recursive_self.perturbation() refreshes its bound state by calling self_binding.bind(), which writes/replaces dynamic.db.self_state and appends a self_state_history row.
+- Later in the same Fountain fire, generator calls recursive_self.perturbation() again to set _pending_nudge_active for the completion-time recursion_attrib row. That second call again invokes self_binding.bind(). Thus the inspected normal path performs two fresh self-binding writes/history appends per Fountain fire: one while composing the prompt line, and one while capturing the nudge flag. The two history rows are separate timestamps, not a single shared observation.
+- This is a source-confirmed duplicated recomputation/write path. Whether the history is intended to represent each bind invocation or each fire is unresolved; it may inflate the apparent number of self-state observations. No runtime row-rate measurement was made.
+- Generator itself writes recursion_attrib at fire completion using the captured _pending_nudge_active, current hot_branch and prior branch. The recursion_attribution.py docstring's standalone watcher/sample instructions are not the only path; the generator has its own inline sampler. Its helper _fixation_teeth() reads the latest recursion_attrib branch as an input to optional NEX5_RETRIEVAL_TEETH branch-carry diversion.
+
+### Value-drift is not currently reflected in the bound self-state
+
+- self_binding.bind() contains a comment that it reads the last logged value-drift verdict, but the implementation assigns drift = "clean" unconditionally. It does not query value_drift_log.
+- value_drift_monitor.check() is a separate explicit check that makes model calls and appends value_drift_log. No automatic invocation was found in run.py, gui/server.py or FountainGenerator in the inspected revision.
+- Consequently, the self_state.drift column is not a live reflection of value_drift_monitor results in this source path; it is always written as "clean". The self-binding synthesis/components returned to recursive_self do not currently include drift, so the direct behavioural impact of this placeholder is not established. This is a source/comment mismatch, not a claim that the value-drift monitor never runs manually.
+
+### Quality synthesis: signal reaches attention, but only for a narrow payload type
+
+- NEX5_QUALITY_SYNTH=1 in FountainGenerator.__init__ starts quality_synthesis.start_loop(). The loop scores recent genius_tags by fountain_event.hot_branch and writes quality_signal.json. This is a real background producer.
+- Stage 2 attention._quality_multiplier() reads that JSON and maps high/low branch verdicts to 1.20/0.82 multipliers. Therefore the quality signal does have a downstream reader; it is not merely a log-only metric.
+- However, _magnitude_for() returns early for string payloads and numeric payloads before calling _quality_multiplier(). The multiplier is applied only in the final fallback branch for values that are neither strings nor numbers. Thus the documented multiplier does not affect the ordinary string or numeric event paths through this function. This is a source-confirmed scope limitation; the distribution of actual adapter payload types and resulting live impact are unknown.
+- Quality signal file absence/read failure leaves the cache/neutral result in place; actual flag values and whether the loop is running are unknown.
+
+### Source hashes
+
+- theory_x/stage6_fountain/generator.py: 43644876295ffdd649a240f52a7946c666a8579f
+- theory_x/stage_tom/recursive_self.py: ada4aeb260a8deb70418c03dc9180f71cddec714
+- theory_x/stage_tom/self_binding.py: acbbe02e00723ebc6c5fd13236251f4877259ce5
+- theory_x/stage_tom/value_drift_monitor.py: e08a9649bd94e9094b49aeae59aa9f8feeacbff5
+- theory_x/stage_tom/quality_synthesis.py: 284d37ef654eb2e43783e3cb6200e3f995229d75
+- theory_x/stage2_dynamic/attention.py: d2765c7618e8421bb3e60c8898f749f2370f0344
+
+No runtime/test behaviour, schema, data, flags, host state, experiment, merge or deployment was changed. These are source-level reach and accounting findings; any change requires the authoritative specification and founder approval.
