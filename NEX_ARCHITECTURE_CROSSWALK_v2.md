@@ -106,7 +106,7 @@ This section extends the initial Fountain sample with a source-level trace of se
 | Workspace candidate | `theory_x/stage_tom/global_workspace.py::_surprise_candidate` | Reads recent `surprise_events` with score > 0.3. Empty-window rows are excluded only when `NEX5_GW_SURPRISE_NONEMPTY=1`; that guard is default-OFF. | [L1] source |
 | Arbitration | `theory_x/stage_tom/global_workspace.py::arbitrate` | Competes surprise with momentum, bonsai, stakes and drive candidates; the winning framing line is returned. | [L1] source |
 | Fountain consumption | `theory_x/stage6_fountain/generator.py` around the GLOBAL WORKSPACE block | `NEX5_GLOBAL_WORKSPACE` defaults to enabled in source; a non-empty returned line is prepended to `focus_block`. Actual process environment remains UNKNOWN. | [L1] source; [L2] UNKNOWN |
-| Separate belief promotion | `theory_x/life/surprise_loop.py::surprise_tick` | Promotion requires non-empty `actual_content` and `predicted_content`. This filter does not protect the separate Global Workspace candidate path. | [L1] source |
+| Separate belief promotion | `theory_x/life/surprise_loop.py::surprise_tick` | The function requires non-empty `actual_content` and `predicted_content` before promotion. Its runtime boot/scheduling caller was not established in this pass; do not infer that this promotion loop is active. This filter, even if active, does not protect the separate Global Workspace candidate path. | [L1] function present; activation UNKNOWN |
 
 **Causal implication:** an empty prediction window can be assigned the maximum surprise score and can enter Global Workspace arbitration unless the optional non-empty guard is enabled. The source does not establish that such a row exists in the deployed database or wins a live fire. Do not report a live failure without runtime evidence.
 
@@ -151,7 +151,21 @@ Separately, `run.py` sets `arc_loop = None`; its comment says the background Arc
 
 **Interpretation:** the repository does not have one uniform “feedback missing” condition. It contains a mixture of (a) active-by-default source paths whose runtime state is unknown, (b) optional prompt feedback, (c) post-hoc measurement with no identified downstream consumer, and (d) residual readers whose output is currently empty. This supports keeping the missing-discrimination hypothesis open rather than declaring one root cause.
 
-## 3.4 Writer substrate
+## 3.4 Sense scheduler — source-defined startup and stale documentation
+
+| Stage | Source evidence | Finding | Evidence ceiling |
+|---|---|---|---|
+| Construction | `run.py` calls `build_scheduler()` during startup. | Scheduler is part of the normal boot path. | [L1] |
+| Adapter set | `theory_x/stage1_sense/__init__.py::build_scheduler` | Constructs 28 adapters: four internal sensors and 24 external/diversification/research feeds. The function's docstring and comments say external feeds start paused. | [L1] |
+| Thread startup | `theory_x/stage1_sense/scheduler.py::SenseScheduler.__init__` | Creates adapter threads and then unconditionally calls `self.start_all()`. External adapters are enabled and the global run event is set. | [L1] |
+| Poll/emit | `scheduler.py::_AdapterThread._run` | External adapters poll only when both the global run event and local adapter event are set; `start_all()` sets both. Successful polls call `adapter.submit(events)`. | [L1] |
+| Boot log | `run.py` | Logs “external feeds auto-start” and “23 adapters wired”, while the builder constructs 28. | [L1] |
+
+**Reconciliation:** the top-level `run.py` module docstring and builder comments describe feeds as paused, but the implementation unconditionally starts them. The scheduler itself contains a dated comment stating that automatic startup was restored on 2026-05-09 at the founder's request. Therefore this is not evidence of an accidental runtime activation bug; it is a documentation/count discrepancy. Actual deployed activation remains UNKNOWN until host evidence is collected.
+
+The 23-versus-28 count discrepancy is source-visible: the builder instantiates 28 adapters; the startup log says 23. Confirm whether the count is an intentional legacy log string or a change in intended adapter inventory before changing it.
+
+## 3.5 Writer substrate
 
 Source: `substrate/writer.py`
 
