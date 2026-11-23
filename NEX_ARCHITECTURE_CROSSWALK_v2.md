@@ -373,6 +373,40 @@ An initial comparison of startup comments suggested that external sense feeds we
 
 **Distinction:** the Chat unresolved-tension line is not proof that the `held_tensions` table is populated or that the ledger primitives are live. With the held-tension flag OFF, the generic line is derived from `harmonizer_events` and can be miscounted. With the flag ON, the content-specific path can read actual open held-tension rows. Actual host flag values and table contents remain UNKNOWN.
 
+## 3.11 Evaluation and self-observation paths — source-to-consumer corrections
+
+The supplied feedback-map hypothesis needs refinement against the current source. The following are source-confirmed; they do not establish live host activation.
+
+### Predictive substrate and surprise
+
+- `run.py` constructs `PredictiveSubstrate` and calls `start_loop()` without an environment flag in the inspected startup path. It predicts internal-belief and external-input windows, then verifies expired predictions and writes `surprise_events` plus prediction verification fields.
+- `theory_x/stage_prediction/surprise_weighting.py` reads recent `surprise_events`; `FountainCrystallizer.crystallize()` calls its `confidence_for_fire()` path when `NEX5_SURPRISE_WEIGHT` is enabled (default documented as ON). This is a real downstream use of the surprise score in belief confidence.
+- `theory_x/life/surprise_loop.py` contains a reader/promoter that converts qualifying surprise rows into Tier-6 beliefs, which would make them available to normal belief retrieval. However, the inspected `run.py`, `gui/server.py` and `theory_x/life/__init__.py` contain no startup/wiring call for this loop. Treat the promotion path as IMPLEMENTED but its automatic activation/consumption as UNKNOWN until all external launch paths are checked.
+- `PredictionTracker.expectation_error()` is a separate mechanism: it derives a novelty ratio from the last 20 Fountain thoughts, not the predictive substrate's stored prediction verdicts. `EmphasisEngine.score()` calls it for the surprise component. Do not conflate these two surprise mechanisms.
+
+### Emphasis
+
+- `EmphasisEngine.score()` computes goal relevance, self relevance and PredictionTracker novelty, plus drive resonance as a separately logged signal. Its own source documentation says log-only; the inspected code returns an `EmphasisResult`, and Fountain writes its fields to `emphasis_log`.
+- The inspected consumer path does not establish that the combined emphasis score changes candidate selection, crystallization acceptance or future prompt composition. The fact it is calculated on every fire is not evidence that it influences cognition. The image-map claim of zero readers for `emphasis_log` remains a plausible source-level finding, but a complete repository-wide reader search is still required before marking it definitive.
+
+### Metacognition events
+
+The image-map statement that `meta_cognition_events` is read only by the reaper and tests is contradicted by the inspected source:
+
+- `Metacognition.get_recent()` reads unresolved rows from `meta_cognition_events`.
+- `_refresh_recent_cache()` selects the recent rows (or salient-ranked candidates when its flag is enabled).
+- `format_for_prompt()` turns the selected event into a self-observation string.
+- `gui/server.py::api_chat` calls `tick()`, calls `format_for_prompt()`, and appends a non-empty result to `belief_text` before the model request.
+
+This establishes an implemented Chat context-consumption path, not proof that the injected observation changes the model's subsequent cognition in a controlled or durable way. The table is not simply write-only.
+
+### Warrant and earned-ness
+
+- `WarrantRecorder` is explicitly gated by `NEX5_WARRANT_RECORD=1` and records conflict-survival checks and use-days in side tables.
+- `WarrantPass` is separately gated by `NEX5_WARRANT=1` and persists computed values into `belief_warrant`.
+- The inspected `run.py` startup contains the conditional recorder construction/start, but this inspection has not yet established a live flag value.
+- A complete downstream consumer search for `belief_warrant` is still open. Do not treat the existence of the computation/table as operational influence or say categorically that there are no readers until that search is complete.
+
 ## 4. Top documentation/source discrepancies
 
 These are discrepancies to reconcile, not automatic instructions to modify code or documentation.
