@@ -1770,6 +1770,15 @@ def create_app(state: AppState) -> Flask:
                 "voice_ok": True,
             })
 
+        if _trace_handle is not None:
+            _trace_api.record(
+                "chat_gap_gate",
+                producer="gui.server.api_chat",
+                source_ref="gui/server.py::api_chat:belief_count_gate",
+                outcome="pass",
+                payload={"belief_count": belief_count, "minimum": CHAT_GAP_MIN_BELIEFS},
+            )
+
         # Sample spectrum foundation — always present in chat composition.
         _spectrum_block = ""
         try:
