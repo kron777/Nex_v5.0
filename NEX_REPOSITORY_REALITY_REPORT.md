@@ -768,3 +768,18 @@ No runtime/test behaviour, schema, data, flags, host state, experiment, merge or
 - Tests inspected: `tests/test_self_present.py` (`8d0aff76802adbe1661fe8b16f01c8a32d7d222f`), `tests/test_self_narrative.py` (`a293b97d46a7db14fb9302e2c3206b4516eefdb1`), `tests/test_stakes_appraisal.py` (`d735d5d57b36fbcd88ae9cce4b0898b1943649f2`), and `tests/test_affect_state.py` (`9c8ad303d6b4f6f80587e43e56041cde28089586`).
 
 No tests were run or modified in this pass. No runtime behaviour, schema, database, flag, host, experiment, baseline, tripwire, merge or deployment was changed. These findings are source/test-coverage evidence only; any behavioural correction remains subject to the authority and Gate 0 requirements.
+
+
+## M0.4 governance invariant — MIND_MAP is descriptive, not an action authority (23 Nov 2026)
+
+The authoritative MIND_MAP metadata explicitly states: "Descriptive only. No node in this map may gate, score, block, or veto an action." The current MIND_MAP renderer is a developer-side YAML → Mermaid/DOT/Markdown generator. Its existing check validates node fields, source references, absent-source claims and stale verification dates. Before the policy guard, however, it did **not** validate the descriptive-only constraint, reject action-authority fields, or check that NEX runtime source does not import/load MIND_MAP.yaml. The existing CI workflow already runs mind_map/mind_map.py --check --verify, but that command did not enforce this invariant.
+
+**DRAFT-005 — source-confirmed CI enforcement gap:** the map's descriptive-only rule was documented in YAML but not enforced by the CI check. This did not establish a live runtime violation: the inspected entrypoints do not import MIND_MAP, and the separate sentience_dag.json is a developer build-order DAG, not the mind map and not a NEX runtime faculty.
+
+**Proposed enforcement:** PR #72 adds check_descriptive_only() to the existing checker. It requires the metadata constraint, rejects explicit action-authority keys on nodes (while deliberately allowing the existing blocked evidence/status modifier), and AST-scans NEX runtime roots for imports of mind_map or direct MIND_MAP.yaml reads. RDO, Watcher, tests and developer tooling are excluded because they may use the map as evidence without making it a runtime authority. Focused tests cover missing constraint, forbidden fields, runtime import/read, and allowed RDO use.
+
+- PR #72: https://github.com/kron777/Nex_v5.0/pull/72
+- Exact inspected PR head: 6aa226a80d623f223ef994ca9d2d49d29f7d1966
+- CI run: 45272386599, in progress at time of this report update.
+- This is a draft CI/governance correction, not a merged or yet CI-verified control. No NEX runtime behaviour changed.
+
