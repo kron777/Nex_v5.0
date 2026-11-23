@@ -267,3 +267,11 @@ def test_chat_trace_overlay_on_off_equivalence(tmp_path, monkeypatch, record_pro
     serialized = on["trace_path"].read_text(encoding="utf-8")
     assert "Hello, NEX. Give me one observation." not in serialized
     assert "A deterministic reply." not in serialized
+
+    from tests._trace_sample_export import append_trace_sample
+    append_trace_sample(
+        "chat_turn", rows,
+        checks=["response_equal", "model_requests_equal", "all_database_rows_equal",
+                "messages_equal", "sessions_equal", "read_query_sequence_equal",
+                "explicit_parentage_validated", "raw_prompt_and_response_absent"],
+    )
