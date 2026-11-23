@@ -881,3 +881,9 @@ The exact-head PR65 workflow passed at source revision `cffbbc94b5a494247d127abf
 
 **Status:** the M0.5 sample and fixture-equivalence checks are complete at the isolated-test level. Live-host trace capture, production prompt-path coverage with non-empty retrieval, and speech-consumer/audibility evidence remain outstanding. This does not satisfy the host/runtime evidence requirements of Gate 0.
 
+
+
+### Host-state timestamp qualification (19 Nov snapshot; current state unknown)
+
+A separate `NEX_R77_diagnostics.txt` snapshot reports `NEX5 is currently OFF` (19 Nov 2026). The 16 Nov runtime log shows a clean SIGTERM/STANDBY transition, followed by keepalive/power-switch supervisor activity. These are historical observations only; they do not establish the process or standby-marker state on 23 Nov. The keepalive/power-switch may control relaunch, so Manus must inspect the current marker, process tree and supervisor before any host-side work.
+
