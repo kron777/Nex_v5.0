@@ -103,7 +103,6 @@ def _run_fountain_cycle_once(
     monkeypatch.setattr(
         fountain_module, "threading", SimpleNamespace(Thread=CapturedThread)
     )
-    monkeypatch.setattr(fountain_module, "time", OneCycleTime())
 
     state = build_fountain(
         writers,
@@ -116,6 +115,9 @@ def _run_fountain_cycle_once(
         ),
     )
     generator = state.generator
+    # Patch only the loop sleeper after construction so initialization is
+    # unaffected; the second loop sleep stops the target after one cycle.
+    monkeypatch.setattr(fountain_module, "time", OneCycleTime())
 
     try:
         read_query_log.clear()
