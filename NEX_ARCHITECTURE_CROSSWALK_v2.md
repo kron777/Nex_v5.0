@@ -252,6 +252,16 @@ The source contains several ad-hoc diagnostic files under `/tmp` that record raw
 | `/tmp/nex5_deflection.log` | `gui/server.py::api_chat` | Appends JSON containing session ID, query excerpt, user mirror, raw LLM output and final response | Raw conversation and model output; unbounded append; no explicit file mode or retention |
 | `/tmp/nex5_last_prompt.log` | `FountainGenerator.generate` | Overwrites with the complete assembled Fountain prompt | May include retrieved beliefs and internal context; no explicit file mode or retention |
 | `/tmp/nex5_retrieval_history.log` | Fountain retrieval path | Appends retrieved belief source and up to 120 characters of content per result | Persistent content-bearing retrieval history; no explicit rotation/retention |
+| `/tmp/nex5_executive_control.log` | Chat route | Appends the first 200 characters of the user query with register metadata | Raw query excerpt |
+| `/tmp/nex5_behavioural_self_model.log` | Chat route | Appends up to 120 characters of the injected behavioural-self-model text | Raw self-model prompt content |
+| `/tmp/nex5_problem_memory.log` | Chat route | Appends the first 200 characters of the user prompt with problem-match metadata | Raw query excerpt |
+| `/tmp/nex5_goal_manager.log` | Chat route | Appends goal title and first 200 characters of user prompt | User query and goal content |
+| `/tmp/nex5_metacognition.log` | Chat route | Appends metacognition text and first 200 characters of user prompt | Raw self-observation and query content |
+| `/tmp/nex5_novel_association.log` | Chat route | Appends novel-association text | Raw cross-branch association content |
+| `/tmp/nex5_focal.log` | Chat FocalSet path | Appends query excerpt and selected focal belief contents | Raw query and belief content |
+| `/tmp/nex5_working_memory.log` | Chat Working Memory path | Appends query excerpt and active working-memory belief contents | Raw query and belief content |
+| `/tmp/nex5_self_model.log` | Chat route | Appends counts and text length only | Metadata-only in inspected write |
+| `/tmp/nex5_harmonizer.log` | Chat route | Appends active-paradox/injected booleans and text length | Metadata-only in inspected write |
 
 The source does not specify restrictive permissions at creation; actual host file modes and umask are UNKNOWN. The files are not a causal trace: they have no trace IDs or parent links, and the overwrite/append patterns do not establish complete cycle history. The bounded search of the repository's `scripts/` Python tools did not identify consumers of these four exact paths; this is not proof that no external host script consumes them.
 
