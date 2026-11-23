@@ -325,3 +325,40 @@ Source blob hashes:
 - `ground_self_belief.py`: `abb6f9e2f9d751097ad7cbaf375f7876d1cbca6c`
 
 No source/runtime behaviour, schema, retention window, scheduler, feature flag, host state, experiment, merge or deployment was changed.
+
+
+## M0.3–M0.4 forward-audit continuation — Stage 3 WorldModel feedback (23 Nov 2026)
+
+At PR #49 source revision `07f6ebe42a1ac99a8038a73476782d1542704296`, `build_world_model()` starts six daemon loops. Their source-defined data paths are distinct:
+
+| Loop / component | Trigger and source | Writes / state transition | Identified downstream relationship |
+|---|---|---|---|
+| Belief decay | Hourly loop calls `BeliefPromoter.decay_pass()` after an initial one-hour wait | Changes tier/demotion metadata for eligible beliefs | Retriever's tier ≤6 candidate filter makes tier changes relevant to future candidate eligibility. |
+| Harmonizer | Every two hours calls `run_scan_and_resolve(world_model_state=state)` | Can pause/unpause contradictory beliefs, write harmonizer events/held tensions and belief edges, and resolve/retire pairs | Retriever excludes paused beliefs; activation reads belief edges; Chat/Fountain can read the Harmonizer's held-tension prompt summary through their separate integration paths. Exact influence depends on state and branch. |
+| Cross-domain detection | Every six hours calls `Harmonizer.detect_cross_domain()` | Adds cross-domain belief edges | BeliefRetriever's ActivationEngine reads edges and blends activation into candidate scores. |
+| Erosion | Every six hours calls `ProvenanceErosion.erosion_pass()` | Advances `erosion_stage` and resets reinforcement counters for qualifying beliefs; retrieval calls `record_use()` and increments use count | This is a usage/erosion feedback loop. The inspected base BeliefRetriever SQL does not filter on `erosion_stage`; do not claim erosion stage directly excludes a belief from retrieval without identifying another consumer. |
+| Synergizer | Loop wakes every 60 seconds, with a 5-minute cooldown and a 25-minute timer trigger | `BeliefSynergizer.synthesize()` can insert a synthesized belief and records `synergizer_log`; it uses source data from beliefs, edges, Fountain fires, drives and cooldown state | Synthesized beliefs and edges can enter later retrieval subject to normal filters; live creation/selection remains unknown. |
+| World consolidation | Thread starts, but exits without work when `NEX5_WORLD_CONSOLIDATE` is empty; `dry/report/test` runs report-only, `1/on/true/yes` arms promotion | When armed, clusters eligible Tier-7 world beliefs and calls promoter corroboration (bounded per run) | Tier changes can affect future retriever eligibility; runtime flag and host effect unknown. Do not describe this as unconditionally active. |
+
+### Retrieval feedback closure
+
+The inspected `BeliefRetriever.retrieve()` selects the eligible pool using `tier <= 6`, `paused = 0`, and `locked = 1 OR confidence >= 0.15`; it scores keyword overlap and optional semantic candidates, then seeds ActivationEngine from the top five keyword candidates. ActivationEngine reads `belief_edges`, returns activation/typed roles, and the retriever blends normalized keyword and activation scores at 0.4/0.6 when activation exists. After final results are selected, the retriever calls `ProvenanceErosion.record_use()` for each returned belief.
+
+This yields a source-defined chain: edge producers (including cross-domain/harmonizer/novel-association/edge-builder paths) → ActivationEngine → retrieval ranking → selected beliefs → use-count update → later erosion processing. The chain is source-level; no single live trace here identifies a particular edge changing a particular Chat/Fountain selection and subsequent output. The same discipline applies to promotion/decay: tier changes alter eligibility only through later retrieval; they are not proof of model reliance.
+
+### Important guardrail
+
+The WorldConsolidation thread's existence is not equivalent to armed execution. The loop checks the environment before constructing the consolidator; an empty `NEX5_WORLD_CONSOLIDATE` returns immediately. Its own `tick()` distinguishes dry/report mode from armed promotion. The deployed value is unknown.
+
+Source blob hashes:
+- `theory_x/stage3_world_model/__init__.py`: `6cbde28b64315b869a260298ddec887d1b9bb0ae`
+- `theory_x/stage3_world_model/harmonizer.py`: `e72008ec21ad91e20cbdcfc73bacf14263e34382`
+- `theory_x/stage3_world_model/promotion.py`: `23def50b1ecfc7f2516f5562d60c791972a5d779`
+- `theory_x/stage3_world_model/synergizer.py`: `2dd84ba796f06d95816e550d4ed4581903d82db4`
+- `theory_x/stage3_world_model/world_consolidation.py`: `192550c20c7b8e776dfa55f4f82d80fd4cc7ce69`
+- `theory_x/stage3_world_model/erosion.py`: `ad92f0c72e0682dfe42a9c5ce2c8e83e72f66b26`
+- `theory_x/stage3_world_model/pipeline_hooks.py`: `6750bb427ed493a3310d9ea69d0e82207d0d38f1`
+- `theory_x/stage3_world_model/activation.py`: `509a021671c7f698fb740086dfffa170d2543b84`
+- `theory_x/stage3_world_model/retrieval.py`: `aa3eeb15c9a4a19a24a6d328bc370cd0a4438cf3`
+
+No runtime behaviour, tier policy, edge policy, erosion threshold, schema, environment flag, host, experiment, merge or deployment was changed.
