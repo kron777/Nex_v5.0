@@ -9,12 +9,13 @@ from __future__ import annotations
 
 import copy
 import json
+import time
 from pathlib import Path
 
 from tests import _bootstrap  # noqa: F401
 
 
-def _run_chat_once(tmp_path: Path, *, trace_on: bool, monkeypatch):
+def _run_chat_once(tmp_path: Path, *, trace_on: bool, monkeypatch, read_query_log):
     data_dir = tmp_path / "nex-data"
     data_dir.mkdir(parents=True)
     trace_path = tmp_path / "influence.jsonl"
@@ -35,6 +36,13 @@ def _run_chat_once(tmp_path: Path, *, trace_on: bool, monkeypatch):
     init_all()
     paths = db_paths()
     writers = {name: Writer(path, name=name) for name, path in paths.items()}
+    # init_db seeds undo_log_meta with SQLite julianday('now'), which is not
+    # controlled by Python's time.time monkeypatch. Normalize the fixture seed
+    # through the ordinary Writer so every other database field stays compared.
+    writers["beliefs"].write(
+        "UPDATE undo_log_meta SET installed_at=? WHERE id=1",
+        (1_700_000_000.0,),
+    )
     readers = {name: Reader(path) for name, path in paths.items()}
     model_requests = []
 
@@ -61,10 +69,18 @@ def _run_chat_once(tmp_path: Path, *, trace_on: bool, monkeypatch):
         with client.session_transaction() as session:
             session["chat_session_id"] = "phase0-equivalence-session"
 
+        # Count actual SELECT/WITH statements issued through NEX Reader
+        # connections during the Chat request. The callback is test-only and
+        # observes SQL already executed; it does not alter query behaviour.
+        read_query_log.clear()
+        started = time.perf_counter()
         response = client.post(
             "/api/chat",
             json={"prompt": "Hello, NEX. Give me one observation."},
         )
+        elapsed_seconds = time.perf_counter() - started
+        request_read_queries = list(read_query_log)
+        read_query_log.clear()
         assert response.status_code == 200, response.get_json()
         payload = response.get_json()
 
@@ -84,15 +100,25 @@ def _run_chat_once(tmp_path: Path, *, trace_on: bool, monkeypatch):
         ]
 
         table_counts = {}
+        database_snapshot = {}
         for db_name, reader in readers.items():
             tables = reader.read(
                 "SELECT name FROM sqlite_master "
                 "WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
             )
-            table_counts[db_name] = {
-                row["name"]: reader.count(row["name"])
-                for row in tables
-            }
+            table_counts[db_name] = {}
+            database_snapshot[db_name] = {}
+            for table_row in tables:
+                table_name = table_row["name"]
+                table_counts[db_name][table_name] = reader.count(table_name)
+                rows = reader.read(f'SELECT * FROM "{table_name}"')
+                normalized = [
+                    tuple((key, row[key]) for key in row.keys())
+                    for row in rows
+                ]
+                database_snapshot[db_name][table_name] = sorted(
+                    normalized, key=repr
+                )
 
         trace_rows = []
         if trace_on:
@@ -112,14 +138,39 @@ def _run_chat_once(tmp_path: Path, *, trace_on: bool, monkeypatch):
             "messages": messages,
             "sessions": sessions,
             "table_counts": table_counts,
+            "database_snapshot": database_snapshot,
             "trace_rows": trace_rows,
             "trace_path": trace_path,
+            "read_queries": request_read_queries,
+            "elapsed_seconds": elapsed_seconds,
         }
     finally:
         state.close()
 
 
-def test_chat_trace_overlay_on_off_equivalence(tmp_path, monkeypatch):
+def test_chat_trace_overlay_on_off_equivalence(tmp_path, monkeypatch, record_property):
+    # Freeze wall-clock reads so timestamp-bearing DB rows are directly
+    # comparable across the paired OFF/ON substrates. perf_counter remains live.
+    monkeypatch.setattr(time, "time", lambda: 1_700_000_000.0)
+    # SQLite's trace callback observes actual SELECT/WITH statements without
+    # changing production code or adding queries.
+    from substrate import Reader
+
+    read_query_log = []
+    original_reader_open = Reader._open
+
+    def observed_reader_open(self):
+        connection = original_reader_open(self)
+
+        def observe_statement(statement):
+            normalized = statement.lstrip().upper()
+            if normalized.startswith(("SELECT", "WITH")):
+                read_query_log.append(statement.strip())
+
+        connection.set_trace_callback(observe_statement)
+        return connection
+
+    monkeypatch.setattr(Reader, "_open", observed_reader_open)
     # Keep both executions on the same controlled feature-flag baseline.
     for key in list(__import__("os").environ):
         if key.startswith("NEX5_") and key not in {
@@ -128,14 +179,37 @@ def test_chat_trace_overlay_on_off_equivalence(tmp_path, monkeypatch):
         }:
             monkeypatch.delenv(key, raising=False)
 
-    off = _run_chat_once(tmp_path / "off", trace_on=False, monkeypatch=monkeypatch)
-    on = _run_chat_once(tmp_path / "on", trace_on=True, monkeypatch=monkeypatch)
+    off = _run_chat_once(
+        tmp_path / "off", trace_on=False, monkeypatch=monkeypatch,
+        read_query_log=read_query_log,
+    )
+    on = _run_chat_once(
+        tmp_path / "on", trace_on=True, monkeypatch=monkeypatch,
+        read_query_log=read_query_log,
+    )
 
     assert on["behaviour"] == off["behaviour"]
     assert on["model_requests"] == off["model_requests"]
     assert on["messages"] == off["messages"]
     assert on["sessions"] == off["sessions"]
     assert on["table_counts"] == off["table_counts"]
+    # Compare complete contents of every non-internal table across all six
+    # databases, not only selected conversation rows and aggregate counts.
+    assert on["database_snapshot"] == off["database_snapshot"]
+
+    # Exact SQL read sequence equality is stronger than comparing counts:
+    # it catches extra reads as well as changed read ordering/path coverage.
+    assert on["read_queries"] == off["read_queries"]
+    record_property("chat_trace_off_read_query_count", len(off["read_queries"]))
+    record_property("chat_trace_on_read_query_count", len(on["read_queries"]))
+    record_property("chat_trace_off_elapsed_ms", round(off["elapsed_seconds"] * 1000, 3))
+    record_property("chat_trace_on_elapsed_ms", round(on["elapsed_seconds"] * 1000, 3))
+    record_property(
+        "chat_trace_elapsed_delta_ms",
+        round((on["elapsed_seconds"] - off["elapsed_seconds"]) * 1000, 3),
+    )
+    # One paired wall-clock sample is diagnostic only, not a latency pass/fail:
+    # statistically meaningful latency claims require repeated controlled runs.
 
     # The trace is the sole allowed delta and contains metadata/digests only.
     assert on["trace_rows"]
