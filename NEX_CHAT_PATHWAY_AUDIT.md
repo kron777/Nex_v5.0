@@ -167,6 +167,19 @@ The following causal edges remain unrepresented or only coarsely represented:
 
 The current `context_selection` record is a useful boundary marker for the composed prompt, but its parent list (initial retrieval, gap gate, and optional substrate voice) is not a complete list of the mechanisms that contributed to its payload. Do not infer omitted parentage from source order.
 
+### 7.1.1 Conditional ToolCaller → Python execution defect (DRAFT-002)
+
+A source-level hand-off mismatch is visible across the Chat caller and tool registry:
+
+1. `ToolCaller.should_use_tool()` selects `python_exec` for phrases such as `calculate 15 * 37`.
+2. `ToolCaller.build_tool_kwargs()` returns `{"query": query, "code": ""}` for `python_exec`; it does not translate the natural-language calculation into Python source.
+3. `ToolRegistry._python_exec()` replaces an empty code argument with the original query and passes it to `python3 -c`.
+4. A natural-language query such as `calculate 15 * 37` is invalid Python syntax. The tool returns `success=False`; `api_chat` appends tool output only when `tool_result.success` is true.
+
+The existing `tests/test_tools.py` verifies that a calculation phrase selects `python_exec` and separately verifies that direct Python code such as `print(2 + 2)` executes. Its kwargs test only checks that the query key exists. It does not test the integrated natural-language query → kwargs → registry execution contract.
+
+**Classification:** conditional source-confirmed integration defect DRAFT-002. Live incidence, severity and user impact are UNKNOWN. No runtime fix is included or implied; remediation remains outside this Phase 0 audit and subject to the governing authority/approval process.
+
 ### 7.1 Tool path detail
 
 The Chat handler passes an empty belief list to `ToolCaller.should_use_tool(prompt, [])`, so its “no beliefs retrieved” factual-query fallback is eligible whenever the query matches the corresponding phrase pattern; it is not passed the actual retrieved belief set. The precedence is price/crypto → math → explicit belief query → current/latest → factual phrasing with the supplied empty list. `build_tool_kwargs()` passes the query to the selected tool (and an empty code string for `python_exec`, which the registry replaces with the query). `ToolRegistry.execute()` dispatches to the selected implementation and returns a `ToolResult`; the handler injects only successful results. `web_fetch` uses a domain allowlist and a bounded response read; `python_exec` runs a subprocess with a five-second timeout and import-name blocklist; `beliefs_query` performs a separate BeliefRetriever query. These source details do not establish actual tool registration/use in a live environment.
