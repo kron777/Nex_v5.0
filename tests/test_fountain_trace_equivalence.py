@@ -240,11 +240,11 @@ def test_fountain_loop_trace_overlay_on_off_equivalence(
         }:
             monkeypatch.delenv(key, raising=False)
 
-    off = _run_generator_once(
+    off = _run_fountain_cycle_once(
         tmp_path / "off", trace_on=False, monkeypatch=monkeypatch,
         read_query_log=read_query_log,
     )
-    on = _run_generator_once(
+    on = _run_fountain_cycle_once(
         tmp_path / "on", trace_on=True, monkeypatch=monkeypatch,
         read_query_log=read_query_log,
     )
