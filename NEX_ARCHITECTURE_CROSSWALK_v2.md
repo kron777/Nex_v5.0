@@ -801,3 +801,23 @@ At branch revision `07f6ebe42a1ac99a8038a73476782d1542704296`, the Stage 2 facto
 **Scorecard boundary:** ScorecardLoop refreshes the fixed-source market-prediction self-belief from the scorecard; it is not itself a new prediction experiment. The refreshed belief's prompt use remains query-dependent.
 
 Source hashes and per-loop read/write detail are recorded in the Reality Report's M0.3–M0.4 continuation addendum. This expands the forward map but does not close the full faculty audit or the backward map. No runtime behaviour, schema, loop interval, feature flag, retention policy or deployment was changed.
+
+
+## 3.25 Stage 3 WorldModel feedback and retrieval closure (23 Nov 2026)
+
+At source revision `07f6ebe42a1ac99a8038a73476782d1542704296`, `build_world_model()` starts six daemon loops: decay (hourly), harmonizer (every two hours), cross-domain detection (every six hours), erosion (every six hours), synergizer (60-second wake with 5-minute cooldown and 25-minute timer trigger), and world consolidation (environment-gated).
+
+| Mechanism | Source write / state change | Identified consumer |
+|---|---|---|
+| Promotion/decay | Changes belief tier and corroboration metadata | BeliefRetriever limits its candidate pool to tier ≤6; tier changes affect later eligibility. |
+| Harmonizer | Pauses/unpauses contradictory beliefs; writes harmonizer events, held tensions and belief edges | Retriever filters paused beliefs; ActivationEngine reads belief edges; separate Chat/Fountain prompt paths can read held-tension summaries. |
+| Cross-domain detection | Adds cross-domain belief edges | ActivationEngine reads edges; retrieval blends normalized keyword and activation scores 0.4/0.6 when activation exists. |
+| Erosion | Retrieval calls `record_use()`; periodic erosion advances `erosion_stage` and resets reinforcement counters | Usage/erosion feedback is source-defined. Base retrieval SQL does not filter `erosion_stage`; no direct candidate exclusion claim is made. |
+| Synergizer | May insert synthesized beliefs and `synergizer_log` rows | Later belief retrieval can consider the inserted belief under ordinary eligibility/query filters. |
+| World consolidation | Clusters Tier-7 world beliefs; may corroborate/promote bounded items | Thread exits if `NEX5_WORLD_CONSOLIDATE` is empty; `dry/report/test` is report-only and `1/on/true/yes` arms. Promoted tier may affect later retrieval eligibility. |
+
+**Retrieval closure:** eligible beliefs are selected by tier, pause and lock/confidence conditions; keyword and optional semantic candidates are ranked; the top five keyword candidates seed ActivationEngine; edges contribute spreading activation; the normalized keyword/activation scores are blended; selected results then call `ProvenanceErosion.record_use()`. Thus edge creation can influence a later retrieval ranking in source, and selected retrieval results feed later use/erosion state. A particular edge changing a particular Chat/Fountain selection and response has not been demonstrated by a live ID-linked trace.
+
+**Evidence boundary:** this establishes source-defined write/read relationships, not successful host ticks, actual edge creation, tier changes, candidate selection or model reliance. The WorldConsolidation thread is not unconditionally active; its environment gate and dry/armed modes must remain explicit.
+
+Per-module hashes and detailed source observations are recorded in the Reality Report. No runtime, schema, scoring, edge, tier, erosion, flag or deployment change was made.
