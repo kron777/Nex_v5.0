@@ -1208,3 +1208,8 @@ The normal `run.py` boot path constructs `ToolRegistry` and `ToolCaller` and inj
 The central mutation gate explicitly exempts `api_chat` as public, so no admin session is required for this tool path. The default bind is `127.0.0.1`, but `NEX5_HOST` can change the interface. If reachable by untrusted clients, the path permits conditional unauthenticated arbitrary code execution. No exploit was run; no live exposure or compromise is claimed. The tool tests cover only literal blocked imports and raw-query handoff, not indirect import bypass or isolation. See DRAFT-015 in the Reality Report.
 
 **Security disposition:** do not expose this service beyond a trusted local boundary until the Python tool is disabled or safely isolated and independently verified. Runtime changes remain outside this documentation-only pass.
+
+
+### Web fetch destination validation — conditional SSRF path
+
+`ToolRegistry._web_fetch()` uses `parsed.netloc.lstrip("www.")` for allowlist normalization, which strips a character set rather than an exact prefix; certain lookalike hostnames can be normalized to an allowed name. It then uses default `urllib.request.urlopen()` redirect handling without validating the final destination. A permitted origin redirecting to an internal/private address can therefore bypass the initial host check. This is a conditional SSRF risk; no request was made and no internal target is asserted reachable. Existing tests cover only a direct unknown-domain rejection. See DRAFT-016 in the Reality Report.
