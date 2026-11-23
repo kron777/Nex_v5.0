@@ -174,7 +174,53 @@ def build_fountain(
                 except Exception:
                     pass
 
-                thought = generator.generate(dynamic_state, readers["beliefs"])
+                # Phase 0 causal trace — observational only, default OFF.
+                _trace_handle = None
+                _trace_api = None
+                if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+                    try:
+                        from substrate import trace_overlay as _trace_api
+                        _trace_handle = _trace_api.begin_trace(
+                            "fountain_cycle",
+                            source_ref="theory_x/stage6_fountain/__init__.py::fountain_loop",
+                            payload=dynamic_state.status(),
+                        )
+                        if _trace_handle is not None:
+                            _trace_api.record(
+                                "input_arrival",
+                                producer="dynamic_state",
+                                consumer="FountainGenerator.generate",
+                                source_ref="theory_x/stage6_fountain/__init__.py::fountain_loop",
+                                payload=dynamic_state.status(),
+                            )
+                    except Exception:
+                        _trace_handle = None
+                        _trace_api = None
+                try:
+                    thought = generator.generate(dynamic_state, readers["beliefs"])
+                    if _trace_handle is not None:
+                        _trace_api.record(
+                            "candidate_generation",
+                            producer="FountainGenerator.generate",
+                            consumer="FountainCrystallizer",
+                            source_ref="theory_x/stage6_fountain/generator.py::generate",
+                            outcome="generated" if thought else "no_fire",
+                            payload=thought,
+                        )
+                        _trace_api.end_trace(
+                            _trace_handle,
+                            source_ref="theory_x/stage6_fountain/__init__.py::fountain_loop",
+                            outcome="thought_generated" if thought else "no_fire",
+                            payload=thought,
+                        )
+                except Exception:
+                    if _trace_handle is not None:
+                        _trace_api.end_trace(
+                            _trace_handle,
+                            source_ref="theory_x/stage6_fountain/__init__.py::fountain_loop",
+                            outcome="generation_exception",
+                        )
+                    raise
                 if thought:
                     logger.info("Fountain fired: %s", thought[:100])
                 # Phase 29: drive probe opportunity each fountain tick
