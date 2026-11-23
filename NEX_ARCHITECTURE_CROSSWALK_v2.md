@@ -547,7 +547,7 @@ The retrieval/warrant recorder's use-day metric must therefore be described as *
 
 ### Immediate Phase 0 trace implication
 
-The causal trace should preserve the distinction above. In particular, the Chat VoiceEngine trace should identify the selected `belief_id`, source and final score as bounded metadata (not raw content), while the Fountain trace should distinguish retrieved IDs, the retained-candidate hand-off, crystallization ID and any later speech-queue disposition. A retrieval row or evaluation score alone must never be labelled a relied-upon or decision-changing belief.
+The causal trace should preserve the distinction above. In particular, the Chat VoiceEngine trace should identify the selected `belief_id` as an `entity_ref` and the actual source/selection outcome through the existing envelope fields, while the Fountain trace should distinguish retrieved IDs, the retained-candidate hand-off, crystallization ID and any later speech-queue disposition. The current draft envelope stores payloads as digests, not readable numeric measurements; if the final VoiceEngine score must be independently inspectable, that requires explicit reconciliation of the trace schema rather than silently adding a new field. A retrieval row or evaluation score alone must never be labelled a relied-upon or decision-changing belief.
 
 No behavioural change, new evaluation, flag activation or schema migration is authorised by this audit. The next proof level for decision-changing effects belongs to the roadmap's later controlled ablation work, not to Phase 0 instrumentation.
 
