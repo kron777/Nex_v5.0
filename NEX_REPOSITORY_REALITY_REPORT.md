@@ -868,3 +868,16 @@ Source hashes:
 
 No prompt, runtime flag, database or host changes were made.
 
+
+
+## M0.5 fixture trace sample — generated, verified and committed (23 Nov 2026)
+
+The exact-head PR65 workflow passed at source revision `cffbbc94b5a494247d127abf2720886a08f7a567` (run `45273123963`). It uploaded artifact `NEX_CAUSAL_TRACE_SAMPLE` (artifact ID `14865998487`), and the verified JSON was committed in this Phase-0 evidence branch as `NEX_CAUSAL_TRACE_SAMPLE.json`.
+
+- Fountain cycle: 14 records, from scheduler tick through prompt construction, model output, candidate generation, writer deltas, quality/coherence gates, crystallization and speech-gate HOLD to thought return. All non-root records have explicit earlier causal parents. The prompt-block-manifest writer record is now linked to the model-input and workspace-selection records.
+- Chat turn: 11 records, from input arrival through message persistence, retrieval, context assembly, model input/output, sanitization and response persistence. All non-root records have explicit earlier causal parents. This fixture returned `no_belief_context`; it does not validate a populated retrieval/context path.
+- The Fountain fixture's speech gate returned `hold`; the sample does not prove a queued/played/audible speech result.
+- Both tests verified trace-overlay ON/OFF equivalence for the covered outputs, model requests, database rows and SQL read sequences. Raw prompts/responses and database rows are not included in the sample.
+
+**Status:** the M0.5 sample and fixture-equivalence checks are complete at the isolated-test level. Live-host trace capture, production prompt-path coverage with non-empty retrieval, and speech-consumer/audibility evidence remain outstanding. This does not satisfy the host/runtime evidence requirements of Gate 0.
+
