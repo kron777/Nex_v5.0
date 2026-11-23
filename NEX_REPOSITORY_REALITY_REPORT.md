@@ -205,3 +205,41 @@ Inspected at `6e6712bd4bde15ad2288f220cd4438b11622c93c`:
 
 
 **Ordering clarification:** The handler updates FocalSet and adds current focal items to the session WorkingMemory before it reads and appends the `Recently attended (cross-turn)` block. On eligible turns, that prompt block can contain both current-turn selected items and retained prior-turn items; it is not exclusively historical context.
+
+
+## Independent exact-head review reconciliation (23 Nov 2026)
+
+Reviewed Maus's independent read-only assessment against PR #49 head `d046d5beadd640cca6df6631d9dbd3166d16fccf` and PR #65 head `3d5df48e6539818097b58b6e936059fae946ceca`. This addendum records evidence corrections; it does not authorise behavioural work.
+
+### Authority boundary
+
+The exact Founder Sign-Off/approval record and Frozen V2.1 specification are not present in the inspected PR #49 tree. This is a bounded absence, not proof that they do not exist in an external Library or another authoritative location. PR #49's own ADR says they remain unlocated and remains explicitly draft/not ratified; its crosswalk states that it is partial and not a Gate 0 submission. A statement that the Master Roadmap was reopened from the Library is not the canonical roadmap artifact or a substitute for its version, provenance and approval record. Gate 0 remains unestablished until the canonical authority materials are produced, hierarchy/criteria are reconciled, and the specified Founder review/approval is recorded.
+
+### Exact-head CI correction
+
+- PR #49 `d046d5beadd640cca6df6631d9dbd3166d16fccf`: pytest run `45255379806` completed successfully.
+- PR #65 `3d5df48e6539818097b58b6e936059fae946ceca`: pytest run `45250499152` completed successfully.
+
+These are separate PR heads and separate workflows. Green CI supersedes earlier pending/stale status statements for these exact revisions; it does not establish runtime behaviour, production trace completeness, host neutrality, Gate 0 approval, or test coverage outside the asserted fixtures. PR #49's historical CI table should be read as history, not as a live status source.
+
+### Additional trace/control-flow findings
+
+**VoiceEngine parent edge — source-supported trace concern:** In `gui/server.py`, the VoiceEngine input trace record includes both the Chat input record and general Chat retrieval record as parents (source lines 1901–1915). The actual `VoiceEngine.query_reply()` call receives the query, session ID and turn number, not the general Chat retrieval result; VoiceEngine performs its own TimeFetch retrieval. A shared query is a common upstream cause, but the inspected call does not establish general Chat retrieval as an immediate parent of the VoiceEngine retrieval. Preserve this as a parentage question; do not infer causality from chronology or shared context.
+
+**Substrate miss comment/control-flow discrepancy:** The handler comment around lines 2261–2263 says a substrate miss suppresses LLM fallback in `use_substrate` mode. In the inspected handler, a miss leaves `text` unset and reaches `state.voice.speak()` (lines 2261–2282). The repository's `voice/llm.py::VoiceClient.speak()` builds a model request and invokes `_request_fn`; its default request function sends an HTTP request to the configured llama-server endpoint. The handler therefore does not itself implement the suppression described by the comment. A runtime-specific substitute or configuration could alter the downstream effect, so deployed model invocation remains unverified. Classification: source-confirmed comment/control-flow mismatch; runtime mode effect unresolved. No behavioural fix proposed.
+
+**Speech queue overlap:** The consumer selects pending rows and later changes status; the inspected path has no atomic exclusive claim. Two overlapping consumers could select the same row before either update, but deployment topology and actual overlap are unknown. This is a conditional concurrency risk, not an observed duplicate-processing incident.
+
+**Observer cost:** Trace appends perform synchronous JSONL serialization/write under a shared lock. Added latency and contention are possible by construction, but magnitude and host impact are unknown. The benchmark smoke test is diagnostic and non-gating; no latency threshold or production neutrality claim is established.
+
+### Evidence classification guardrails
+
+- The controlled commit-before-registration test establishes a reproducible ordering in which the consumer sees a committed pending row before the producer registers the trace link. It proves possibility, not deployed frequency.
+- The process-local bounded registry can lose hand-off identity on restart or eviction; the consumer then remains explicitly unlinked. This is incomplete provenance, not a fabricated parent.
+- Queue selection/processing-start is not an exclusive reservation; player-call return is not physical audibility; persisted `spoken` status is not proof of listener receipt.
+- The Chat OFF/ON fixture is a minimal route fixture and does not establish trace completeness for optional faculties, VoiceEngine, tools, FocalSet/WorkingMemory or every branch.
+- The two PR CI passes are not one integrated merged-tree run.
+
+**Disposition:** No new runtime defect severity is assigned here. The VoiceEngine edge is a trace-integrity concern; the substrate miss is a comment/control-flow mismatch with unresolved runtime mode effect; consumer overlap and observer latency remain conditional. Gate 0 remains unestablished, and behavioural development remains unauthorised pending authority reconciliation and Founder approval.
+
+Source blob hashes at PR #65 head: `gui/server.py` `d67df10f4449004c255e38b11b4a1888a4e4934c`; `voice/llm.py` `a41e04db8569393dc2ae2ebe622cf1e67ae3de66`; `substrate/trace_overlay.py` `fbccc3b63bc94dab8e9f01951a581ba3af3f087e`; `speech/queue_consumer.py` `cf97bf9cc8681de901c3d1b8c052b95df5c822b2`; `theory_x/stage6_fountain/crystallizer.py` `62cbb62cf55b8c39ab1301b9d89d36b37cc16bfc`; `substrate/writer.py` `b5b7bc98fcb39e75683188fbc59f33adf8868741`.
