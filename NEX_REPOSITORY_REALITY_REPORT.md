@@ -243,3 +243,25 @@ These are separate PR heads and separate workflows. Green CI supersedes earlier 
 **Disposition:** No new runtime defect severity is assigned here. The VoiceEngine edge is a trace-integrity concern; the substrate miss is a comment/control-flow mismatch with unresolved runtime mode effect; consumer overlap and observer latency remain conditional. Gate 0 remains unestablished, and behavioural development remains unauthorised pending authority reconciliation and Founder approval.
 
 Source blob hashes at PR #65 head: `gui/server.py` `d67df10f4449004c255e38b11b4a1888a4e4934c`; `voice/llm.py` `a41e04db8569393dc2ae2ebe622cf1e67ae3de66`; `substrate/trace_overlay.py` `fbccc3b63bc94dab8e9f01951a581ba3af3f087e`; `speech/queue_consumer.py` `cf97bf9cc8681de901c3d1b8c052b95df5c822b2`; `theory_x/stage6_fountain/crystallizer.py` `62cbb62cf55b8c39ab1301b9d89d36b37cc16bfc`; `substrate/writer.py` `b5b7bc98fcb39e75683188fbc59f33adf8868741`.
+
+
+## Governing roadmap retrieval and internal reconciliation (23 Nov 2026)
+
+The original full document **“NEX v5.0 — Master Technical, Research & Commercialization Roadmap (v3.0)”**, dated 20 November 2026, has now been located in the ChatGPT Library as `gemini.txt` (44,167 bytes; Library file reference `turn390file0`). This is the original full roadmap, not merely the technical-only derivative. It states the hierarchy Founder Sign-Off > Frozen V2.1 Spec > Runtime Truth > Roadmap. Its presence in the Library corrects any implication that the roadmap itself is unavailable; its absence from the reviewed PR #49 repository tree remains true. The exact Frozen V2.1 specification and Founder Sign-Off/approval record remain unlocated in the searched Library/repository material; do not infer global non-existence.
+
+### Roadmap requirements mapped to current evidence
+
+- **M0.1–M0.2:** The report exists and repository/CI evidence is being assembled. Exact host measurements (Python, SQLite, Ollama, Qwen2.5 3B model digest, idle/load RAM/VRAM, median tokens/sec), runtime DB/snapshot hashes, and an exact target-host clean/dirty inventory have not been observed in this workflow. CI passing on a GitHub runner is not a substitute for those target-host measurements.
+- **M0.3–M0.4:** The Crosswalk and ADR exist as drafts, but the Crosswalk explicitly remains partial. The full forward Declaration → Boot → Scheduler → Emission → Consumer audit and backward Chat Output/Fountain Action/Belief Write → upstream audit for every `theory_x/` faculty is not established as complete. The 30-node mind map and named architecture documents require a complete, revision-bound reconciliation. The evidence ladder in Roadmap §1.2 defines L0–L5, while §6.2 says assign L0–L4; preserve this as an internal roadmap inconsistency for Founder clarification rather than silently choosing one.
+- **M0.5:** The default-OFF trace implementation and isolated fixtures exist on the PR #65 branch, but the reviewed materials do not contain a complete production-host trace sample. The roadmap deliverable `NEX_CAUSAL_TRACE_SAMPLE.json` is not established as delivered. The tested OFF/ON fixtures do not by themselves prove a live Chat turn and full Fountain cycle on the target host.
+
+### Roadmap sequencing conflict requiring authority clarification
+
+The same v3.0 document contains a material sequencing tension:
+- §5.1 says the read-only causal trace (Phase 0) runs first, the Chat Arbiter experiment (Phase 1.1) second, and CTL Shadow Trials (Phase 1.3) third.
+- §6.3 defines Phase 0 Week 3 as the read-only causal trace and explicitly states Gate 0 requires Founder approval of the Reality Report, Crosswalk and verified defect backlog **before any behavioural edits**.
+- §12.3's immediate 30-day checklist nevertheless places implementation and a frozen three-arm Chat Arbiter benchmark in Week 3, then places Gate 0 Founder sign-off in Week 4.
+
+The Chat Arbiter treatment changes context selection and is separately classified as a Tier B Phase 1.1 experiment in §7.1; the checklist's Week 3 placement therefore conflicts with both §5.1 sequencing and §6.3's explicit Gate 0 condition. This report does not resolve whether §12.3 is stale, erroneous, or intended to describe a separately approved exception. Until the Founder resolves the conflict against the Frozen V2.1 authority, follow the explicit Gate 0 restriction and do not start the behavioural Chat Arbiter experiment.
+
+**Current Phase 0 disposition:** M0.1–M0.5 are not yet demonstrated complete. Continue only read-only audit, documentation, approved isolated fixtures and non-behavioural trace-evidence work. Do not begin Phase 1 behavioural experiments/fixes. The original roadmap's retrieval is now verified; the higher-authority Frozen V2.1 and Founder Sign-Off remain unresolved.
