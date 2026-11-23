@@ -45,7 +45,9 @@ The later report is a strong reason not to repeat the 7 November status as curre
 
 The script's documented `--commit` mode performs Git add/commit/push. A regeneration must therefore use the non-commit invocation unless a separate, explicit commit/push action is intended.
 
-This GitHub-only inspection did not execute the generator. No new corpus or runtime snapshot was fabricated. Before running it, inspect `nexsnap_extract.py` and the runtime DB paths to establish whether the extraction is read-only and whether a host/runtime is required. A repository checkout without the approved host cannot truthfully refresh live-state sections.
+The extractor was inspected. Its three SQLite runtime connections explicitly use `mode=ro` (lines 217–224 of `scripts/nexsnap_extract.py`), so those queries request read-only database access. However, the top-level generator is not read-only: `write_state_json()` creates a timestamped file under `snapshots/`, and `assemble_corpus()` overwrites `CORPUS.md`. The `--commit` path stages both outputs, commits them, and hard-codes `git push origin main` (see `git_commit()`). This is a significant operational hazard when run from a feature branch or when the runtime data is stale. The extractor also reads databases from the repository-local `data/` directory; a source-only checkout without those databases cannot refresh live-state sections.
+
+This GitHub-only inspection did not execute the generator. No new corpus or runtime snapshot was fabricated. Before running it, verify the data directory and approved host/runtime evidence. A repository checkout without the approved host cannot truthfully refresh live-state sections. Do not use `--commit` during routine regeneration; its push-to-main behaviour should be separately reviewed and corrected with tests before reuse.
 
 ## 5. Evidence needed to close the discrepancies
 
