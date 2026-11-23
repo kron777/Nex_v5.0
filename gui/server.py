@@ -897,6 +897,20 @@ def create_app(state: AppState) -> Flask:
     # server restarts during development without requiring re-auth every process.
     app.secret_key = _ensure_secret()
 
+    @app.teardown_request
+    def _trace_request_teardown(exc):
+        # A failed/unexpected Chat exit must not leak its ContextVar into a
+        # reused request thread. Normal api_chat returns have already closed it.
+        if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+            try:
+                from substrate.trace_overlay import close_current_trace
+                close_current_trace(
+                    source_ref="gui/server.py::teardown_request",
+                    outcome="exception" if exc is not None else "unfinished_request",
+                )
+            except Exception:
+                pass
+
     # -- auth gate: deny-by-default for state-changing requests --------------
     # Each mutating route was historically expected to re-check session["admin"]
     # itself; most never did, leaving the write surface (mode/voice/strikes/
