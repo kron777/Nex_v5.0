@@ -181,7 +181,42 @@ Separately, `run.py` sets `arc_loop = None`; its comment says the background Arc
 
 The 23-versus-28 count discrepancy is source-visible: the builder instantiates 28 adapters; the startup log says 23. Confirm whether the count is an intentional legacy log string or a change in intended adapter inventory before changing it.
 
-## 3.5 Writer substrate
+## 3.5 Boot and autonomous-loop inventory — source-only
+
+This is a boot-path inventory, not a claim that the deployed host currently runs these paths. It records the startup mechanism visible in `run.py` and the relevant constructors.
+
+| Faculty / service | Boot wiring | Activation condition visible in source | Current source classification |
+|---|---|---|---|
+| SenseScheduler / Stage 1 | `build_scheduler()`; constructor creates adapter threads and calls `start_all()` | Unconditional; internal and external adapter threads start | [L1] |
+| Dynamic / Stage 2 | `build_dynamic()` | Constructed during normal boot | [L1] |
+| WorldModel / Stage 3 | `build_world_model()` | Constructed during normal boot | [L1] |
+| Membrane / Stage 4 | `build_membrane()` | Constructed during normal boot | [L1] |
+| CoherenceGate / HoldingZone / TriggerDetector | Constructed in `run.py`; gate passed into Dynamic, WorldModel and Fountain | Unconditional construction; actual call paths differ by entry point | [L1] |
+| SelfNarrative / GoalManager / Metacognition | Constructed and registered where registry call succeeds | Unconditional construction; Chat and Fountain consumers have different gating | [L1] |
+| NovelAssociation | Constructed in guarded try block | Unconditional attempt; non-fatal on failure | [L1] |
+| ThrowNetMonitor | Engine and monitor constructed | `start_loop()` only when `NEX5_THROWNET=1`; otherwise explicitly not started | [L1], default source path off |
+| SubstrateHarmonic / GeniusTagger / CounterfactualNode | Constructed in guarded boot blocks | Construction attempted; do not infer autonomous execution solely from construction | [L1] |
+| DriveEmergence / CompetingDrives / VoiceEngine | Constructed during normal boot | Passed into Fountain/Chat consumers; loop/consumer details require faculty-level trace | [L1] |
+| WarrantRecorder | Constructed in guarded block | Only when `NEX5_WARRANT_RECORD=1` | [L1], default source path off |
+| AffectState | Constructed; its constructor starts a 300-second daemon tick | Unconditional construction if import/init succeeds | [L1] |
+| PredictiveSubstrate | Constructed; its constructor starts its 300-second loop | Unconditional construction if import/init succeeds | [L1] |
+| PersonaResponder | Constructed and its loop started | Only when `NEX5_PERSONA_RESPONDER=1` | [L1], default source path off |
+| SelfMindView | Constructed and supplied to AppState / Metacognition | Unconditional construction attempt | [L1] |
+| WorldPredictionLoop | `start_loop()` called | Only when `NEX5_WORLD_PRED=1` | [L1], default source path off |
+| SelfPredictionLoop | `start_loop()` called | Only when `NEX5_SELF_PRED=1` | [L1], default source path off |
+| SelfMaintainShadow | `start_loop()` called | Only when `NEX5_SELF_MAINTAIN_SHADOW=1` | [L1], default source path off |
+| SocialPresence | Explicitly assigned `None`; explanatory cut comment | Not booted in current `run.py` path | Source-disabled |
+| Fountain | `build_fountain()` starts its daemon loop internally | Unconditional build attempt | [L1] |
+| SpeechQueueConsumer | Constructed and `.start()` called | Only when parsed `SpeechConfig.enabled` | [L1], config-dependent |
+| SignalLoop | `build_signal_loop()` called | No explicit `.start()` at this call site; constructor/factory activation requires separate inspection | [L1] constructed; running UNKNOWN |
+| DiversityLoop | `build_diversity_loop()`, then `.start()` | Unconditional | [L1] |
+| ArcLoop | Explicitly set to `None` | Not started | Source-disabled |
+| EdgeGeneratorLoop | `build_edge_generator_loop()`, then `.start()` | Unconditional | [L1] |
+| DecoderLoop | Daemon thread started after AppState construction | Unconditional attempt; failure is non-fatal | [L1] |
+
+**Important limit:** this table establishes only the boot construction/start mechanisms and explicit flag conditions visible in source. It does not establish host environment values, successful initialization, actual emitted events, downstream use or behavioural effect. The remaining M0.3–M0.4 work is to trace each faculty's own emission and terminal consumer, then link those paths to the backward audit from Chat output, Fountain action and belief writes.
+
+## 3.6 Writer substrate
 
 Source: `substrate/writer.py`
 
