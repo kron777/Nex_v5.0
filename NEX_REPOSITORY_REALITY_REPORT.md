@@ -1100,3 +1100,35 @@ The existing `tests/test_tools.py::test_web_fetch_rejects_unknown_domain` checks
 Source hash: `theory_x/stage_capability/tools.py` `ff5f251b225c975c01f6bf3c3da9cbad1f77fbee`; test hash: `tests/test_tools.py` `85c7aa8236e2cdd1005f3ab4aa49c8c6da337d2d`.
 
 **Disposition:** conditional SSRF/allowlist-bypass risk within the same unauthenticated public Chat tool boundary as DRAFT-015. No remediation or exploit testing was performed.
+
+
+## M0.3–M0.4 source audit — Throw-Net threshold and failure accounting (24 Nov 2026)
+
+Inspected against PR #65 integrated source head `cffbbc94b5a494247d127abf2720886a08f7a567`.
+
+### DRAFT-017 — threshold return values do not gate pending Throw-Net sessions
+
+`TriggerDetector.record_gate_reject()` writes an unfired `throw_net_triggers` row for each qualifying non-Throw-Net CoherenceGate REJECT, then returns whether the same-topic count reached four in 15 minutes. `CoherenceGate.check()` calls this method for every eligible REJECT but ignores its boolean return. Similarly, the Chat gap-deflection path calls `record_gap_deflection()` for each gap refusal and ignores its return value (which reports whether the same-topic count reached three in 30 minutes).
+
+`TriggerDetector.pending_triggers()` selects every row where `fired=0`; it does not filter by threshold count/state. `ThrowNetEngine.run_pending()` runs a session for every returned row. Thus the threshold methods calculate and report threshold crossings, but the active producer → pending queue → monitor path does not use those results to gate session creation. If `NEX5_THROWNET=1`, every logged trigger can be processed, including a first single rejection/deflection, rather than only a threshold-qualified trigger.
+
+The monitor is constructed when dependencies exist but its background loop is started only when `NEX5_THROWNET=1` (source default OFF). This is a source-confirmed threshold-wiring mismatch, not evidence of live session volume.
+
+Test boundary: `tests/test_throw_net_trigger.py` checks the boolean thresholds and verifies that pending_triggers returns unfired rows; `tests/test_throw_net_engine.py` verifies run_pending processes all pending rows. No test verifies that sub-threshold rows remain ineligible or that only threshold-qualified rows reach run_session. The existing tests therefore cover each method independently but not the intended threshold contract across the chain.
+
+### DRAFT-018 — failed Throw-Net cycle can be returned as complete and its trigger consumed
+
+If the outer `run_session()` cycle raises (for example, `TimeFetch.run()` or refinement raises), the exception handler persists the session row with `status='failed'`. After the handler, the function still calls `_try_mark_fired()` and then returns a dictionary with `status='complete'` unconditionally. Because `pending_triggers()` selects only `fired=0`, that trigger is no longer eligible for a later retry. The persisted row and returned result can therefore disagree, and a failed cycle is consumed without an automatic retry path.
+
+This is distinct from a per-candidate CoherenceGate exception: those are caught inside the candidate loop and counted in `outcomes['error']`, after which the overall session can legitimately complete. The existing `test_run_session_handles_gate_error_per_candidate` covers only that inner case. No test was identified for an outer cycle exception, the returned status, or the failed-trigger retry/consumption policy. Whether consume-on-failure is intended is unresolved; returning `complete` when the persisted row is `failed` is source-confirmed.
+
+Source hashes:
+- `theory_x/stage_gate/coherence_gate.py`: `39f73108cb36e886cfc8dafe045646acba15549e`
+- `theory_x/stage_throw_net/trigger_detector.py`: `4d5b855cfb9debe70fdd84649b62273af9964bff`
+- `theory_x/stage_throw_net/throw_net_engine.py`: `6d420f9e3036a055bb9677664b5a44cc805edae4`
+- `theory_x/stage_throw_net/monitor.py`: `04f81a7a811f7a40da853e7b2a321e399590b3e5`
+- `gui/server.py`: `d67df10f4449004c255e38b11b4a1888a4e4934c`
+- `tests/test_throw_net_trigger.py`: `34648ab33397d7de53ca4d8f5fc4cf3fe53ab8e5`
+- `tests/test_throw_net_engine.py`: `e5a354809f7ec0d7eec83fbea5d72b04f34a436c`
+
+No runtime or test behaviour, flags, database, host state, experiment, merge or deployment was changed.
