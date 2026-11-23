@@ -198,8 +198,8 @@ This is a boot-path inventory, not a claim that the deployed host currently runs
 | SubstrateHarmonic / GeniusTagger / CounterfactualNode | Constructed in guarded boot blocks | Construction attempted; do not infer autonomous execution solely from construction | [L1] |
 | DriveEmergence / CompetingDrives / VoiceEngine | Constructed during normal boot | Passed into Fountain/Chat consumers; loop/consumer details require faculty-level trace | [L1] |
 | WarrantRecorder | Constructed in guarded block | Only when `NEX5_WARRANT_RECORD=1` | [L1], default source path off |
-| AffectState | Constructed; its constructor starts a 300-second daemon tick | Unconditional construction if import/init succeeds | [L1] |
-| PredictiveSubstrate | Constructed; its constructor starts its 300-second loop | Unconditional construction if import/init succeeds | [L1] |
+| AffectState | Constructed in `run.py`, then `start_loop()` is called explicitly | Unconditional start attempt if import/init succeeds | [L1] |
+| PredictiveSubstrate | Constructed in `run.py`, then `start_loop()` is called explicitly | Unconditional start attempt if import/init succeeds | [L1] |
 | PersonaResponder | Constructed and its loop started | Only when `NEX5_PERSONA_RESPONDER=1` | [L1], default source path off |
 | SelfMindView | Constructed and supplied to AppState / Metacognition | Unconditional construction attempt | [L1] |
 | WorldPredictionLoop | `start_loop()` called | Only when `NEX5_WORLD_PRED=1` | [L1], default source path off |
