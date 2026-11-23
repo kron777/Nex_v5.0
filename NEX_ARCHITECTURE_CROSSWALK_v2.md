@@ -1002,3 +1002,23 @@ These mechanisms are not numbered boot loops. The inspected Chat handler calls t
 - NEX5_CHAT_WORKSPACE is a separate optional selector over the assembled Chat blocks. Source comments mark it default OFF; its exempt blocks can exceed the nominal character budget.
 
 The full per-file hashes and source notes are in the corresponding Reality Report section. Host flags, operator document presence, concurrent admin use, prompt contents and model reliance remain UNKNOWN. No runtime or test behaviour was changed.
+
+
+
+## 3.32 Reshape outcome accounting and warrant activation boundary (23 Nov 2026)
+
+| Mechanism | Verified producer / operation | Consumer / result | Evidence boundary |
+|---|---|---|---|
+| Holding-zone reshape | Resolver transforms up to ten reshape_pending rows and calls CoherenceGate.check(new_packet) | Original held row receives terminal "reshaped" status and transformed preview | Returned GateDecision is discarded. If gate.check raises, exception is logged but original row is still marked "reshaped". Thus status means attempted transformed resubmission, not verified gate acceptance. |
+| Warrant evidence recording | WarrantRecorder, gated by NEX5_WARRANT_RECORD=1, appends belief_survival and accumulates belief_use_day / belief_use_days | Raw survival/use evidence for later warrant computation | run.py wires the recorder, not the separate WarrantPass. |
+| Warrant score computation | WarrantPass.run_once() calls compute_all() and persist() | belief_warrant side table | WarrantPass is described as NEX5_WARRANT-gated in its module, but no construction/start was found in inspected run.py, gui/server.py or Stage 2 dynamic startup. Normal activation is unestablished; manual/other callers not globally excluded. |
+
+### Reshape semantics
+
+Do not equate "reshaped" with "accepted". The resolver calls the gate, but ignores its returned outcome. A REJECT/HOLD/RESHAPE result is not reflected in the original row's resolution status, and an exception still leads to "reshaped". This is an outcome-accounting gap; the transformed content is still submitted to the gate, so it is not evidence of a gate bypass. Whether the status label is intentionally defined as "transformed and resubmitted" must be checked against the authoritative spec.
+
+### Warrant evidence completeness
+
+WarrantRecorder's Fountain retrieval/event and synergizer cursors use monotonic row IDs. Its lineage and arc-membership cursors use timestamp-only cursors with strict greater-than reads. If a capped batch splits rows sharing one timestamp, the remaining same-timestamp rows can be skipped after the cursor advances. This is a conditional source-level risk; no incidence is claimed. A future test should create more tied-timestamp rows than one batch and verify no evidence loss, but no test or runtime change was made in this phase.
+
+The Reality Report contains exact source hashes and the detailed activation/wiring evidence. No runtime/test behaviour, schema, data, flags, host state, experiment, merge or deployment was changed.
