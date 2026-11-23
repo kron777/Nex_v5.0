@@ -31,6 +31,7 @@ _CONTEXT: contextvars.ContextVar[Optional[dict[str, Any]]] = contextvars.Context
     "nex5_influence_trace_context", default=None
 )
 _LOCK = threading.Lock()
+_REPO_ROOT = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
 
 
 def enabled() -> bool:
@@ -43,12 +44,20 @@ def enabled() -> bool:
 def _external_jsonl_path(path: str) -> Optional[str]:
     """Reject non-JSONL paths and artifacts inside the configured NEX data tree."""
     try:
-        target = os.path.abspath(path)
+        target = os.path.realpath(path)
         if not target.lower().endswith(".jsonl"):
             return None
-        data_root = os.path.abspath(os.environ.get("NEX5_DATA_DIR", "data"))
-        if os.path.commonpath((target, data_root)) == data_root:
-            return None
+        data_root = os.path.realpath(os.environ.get(
+            "NEX5_DATA_DIR", os.path.join(_REPO_ROOT, "data")
+        ))
+        protected_roots = [data_root, _REPO_ROOT]
+        for flag in ("NEX5_BELIEFS_DB", "NEX5_DYNAMIC_DB", "NEX5_CONV_DB"):
+            db_path = os.environ.get(flag)
+            if db_path:
+                protected_roots.append(os.path.realpath(os.path.dirname(db_path)))
+        for root in protected_roots:
+            if os.path.commonpath((target, root)) == root:
+                return None
         return target
     except (OSError, ValueError):
         return None
