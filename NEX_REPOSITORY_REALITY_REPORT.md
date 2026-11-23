@@ -105,12 +105,14 @@ No host command was executed and no runtime flag, process or database was touche
 
 | Class | Current result |
 |---|---|
-| Confirmed code defect | UNKNOWN — no fresh suite output |
+| Confirmed code defect | One conditional source-confirmed fallback defect on draft PR #65; focused test added, CI pending; host impact UNKNOWN |
 | Stale test | UNKNOWN — no fresh suite output |
 | Environment / missing dependency | UNKNOWN — no fresh host run |
 | Collection error | UNKNOWN — no fresh host run |
 
 The absence of active entries in `known_failures.txt` is not proof that there are no failures.
+
+**Later Phase 0 branch finding (not part of the inspected `main` snapshot):** PR #65 source inspection found a conditional speech-consumer defect. `Reader.read()` returns `sqlite3.Row`, but `SpeechQueueConsumer._speak_one()` falls back to `row.get("voice")` when `voice_state.current_name()` returns an empty value or raises; `sqlite3.Row` has no `.get()` method. Normal `run.py` startup supplies `voice_state`, so this is a fallback-path defect, not evidence that the ordinary boot path fails. A focused test documents the row type and the current CI run for PR #65 is pending. No runtime failure has been observed.
 
 ## 6. Required host-side capture
 
