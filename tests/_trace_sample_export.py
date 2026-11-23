@@ -23,7 +23,7 @@ def append_trace_sample(kind: str, rows: Iterable[dict], checks: list[str]) -> N
 
     path = Path(destination)
     path.parent.mkdir(parents=True, exist_ok=True)
-    revision = os.environ.get("GITHUB_SHA") or "unknown"
+    revision = os.environ.get("NEX_CAUSAL_TRACE_SOURCE_REVISION") or os.environ.get("GITHUB_SHA") or "unknown"
     if path.exists():
         sample = json.loads(path.read_text(encoding="utf-8"))
         if sample.get("source_revision") != revision:
@@ -36,7 +36,8 @@ def append_trace_sample(kind: str, rows: Iterable[dict], checks: list[str]) -> N
             "schema_version": "1.0",
             "classification": "isolated_fixture_not_live_runtime",
             "source_revision": revision,
-            "source_ref": os.environ.get("GITHUB_REF", "unknown"),
+            "source_ref": os.environ.get("GITHUB_HEAD_REF") or os.environ.get("GITHUB_REF", "unknown"),
+            "workflow_revision": os.environ.get("GITHUB_SHA", "unknown"),
             "generated_at_utc": datetime.now(timezone.utc).isoformat(),
             "privacy": "metadata_and_payload_digests_only; no prompts, responses or database rows",
             "traces": {},
