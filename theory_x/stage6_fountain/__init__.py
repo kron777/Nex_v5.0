@@ -178,6 +178,8 @@ def build_fountain(
                 # Phase 0 causal trace — observational only, default OFF.
                 # Do not call dynamic_state.status() here: that would add an
                 # extra state/DB read solely for the observer.
+                generator._trace_input_record_id = None
+                generator._trace_final_record_id = None
                 _trace_handle = None
                 _trace_api = None
                 if (os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1"
