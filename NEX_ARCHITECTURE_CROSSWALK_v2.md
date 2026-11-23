@@ -657,3 +657,28 @@ This draft is not a complete crosswalk and does not satisfy Gate 0. It records a
 
 
 **Prompt timing qualification:** The `Recently attended (cross-turn)` block is assembled after the current request's FocalSet update and WorkingMemory add operation. It may therefore contain both same-turn selected beliefs and retained earlier items, not only cross-turn carry-over.
+
+
+## Independent review reconciliation — causal and authority qualifications (23 Nov 2026)
+
+The exact-head independent review confirms that this crosswalk remains partial and is not a Gate 0 submission. The authority-artifact absence is bounded to the inspected repository/PR material: canonical Frozen V2.1 and Founder Sign-Off/approval records remain unlocated there, but their non-existence elsewhere is not established. The Master Roadmap's reported retrieval from the Library does not substitute for a canonical, versioned artifact in the review evidence. Gate 0 remains unestablished pending authority reconciliation and the required Founder approval.
+
+### Additional Chat trace distinctions
+
+- The VoiceEngine input trace record currently lists the general Chat retrieval record as a parent. The VoiceEngine call receives the query/session/turn values and performs its own TimeFetch retrieval; the general Chat retrieval result is not passed into it. The parent edge is therefore not established by the inspected data dependency. Treat it as a trace-parentage concern requiring explicit reconciliation, not a behavioural defect.
+- The handler's `use_substrate` comment says a substrate miss suppresses LLM fallback, but the inspected miss path leaves `text` unset and proceeds to `state.voice.speak()`. The default `VoiceClient.speak()` implementation invokes its request function and its default request function sends an HTTP request to llama-server. Runtime substitutions/configuration remain unverified. Record a source-confirmed comment/control-flow mismatch with unresolved runtime effect; do not change behaviour without authority.
+- A Chat model-input marker and aggregate context digest do not identify every selected retrieval item, faculty, tool result, WorkingMemory contribution or substrate read. A trace edge is not proof that the downstream model relied on that material.
+- The paired Chat fixture validates its minimal configured route only. It is not evidence for every feature flag, optional faculty, VoiceEngine direct hit/miss, tool route, retry or exception path.
+
+### Speech and observer qualifications
+
+- The controlled commit/register race proves a possible unlinked trace at the tested interleaving, not its deployed frequency.
+- Pending-row selection followed by a later status update is not an exclusive claim. Overlapping consumers could select the same row; actual deployment overlap and duplicate processing are unknown.
+- Synchronous JSONL writes under a shared trace lock create possible latency/contending-writer cost. The benchmark smoke test is diagnostic only; no host latency distribution or acceptance threshold is established.
+- A player-call return and a persisted `spoken` status do not prove physical audibility or listener receipt. A processing-start event does not prove exclusive ownership.
+
+### Exact-head CI correction
+
+PR #49 head `d046d5beadd640cca6df6631d9dbd3166d16fccf` passed pytest run `45255379806`; PR #65 head `3d5df48e6539818097b58b6e936059fae946ceca` passed pytest run `45250499152`. These are separate workflow runs on separate PR heads. They supersede stale pending/failure statements for those exact revisions, but do not establish runtime behaviour, complete causal coverage or Gate 0 approval. Historical CI tables in the ADR remain historical records and should not be presented as current status.
+
+No runtime, schema, architecture, queue, retry, flag, host, experiment or deployment change is authorised or proposed by this reconciliation.
