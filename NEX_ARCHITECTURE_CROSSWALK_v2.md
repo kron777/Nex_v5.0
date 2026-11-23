@@ -41,7 +41,7 @@ The CI workflow invokes:
 python mind_map/mind_map.py --check --verify
 ```
 
-The validator checks map structure, source references, evidence/status metadata and freshness rules. This establishes that the descriptive map is checked as a sourced document in CI. It does **not**, by itself, prove that no runtime module elsewhere has independently implemented a similarly named control or gate.
+The validator checks map structure, source references, evidence/status metadata and freshness rules. It does not inspect the content or enforce the semantics of meta.constraint, scan runtime consumers of MIND_MAP.yaml, or test whether map labels can influence an action. The workflow therefore validates the map as a sourced document; it does **not** enforce the operational invariant that descriptive nodes cannot gate, score, block or veto actions. The inspected run.py does not load MIND_MAP.yaml or sentience_dag.json, but that alone is not a repository-wide proof.
 
 ### 2.2 Dependency DAG
 
@@ -588,7 +588,7 @@ These are discrepancies to reconcile, not automatic instructions to modify code 
 1. **Architecture status and test count conflict.** The opening of `ARCHITECTURE.md` says “Phase 9 complete” and “189 tests passing”, while later text in the same header records 1,987 tests as of the 2026-11-07/08 session. The status is not a reliable current Phase 0 baseline.
 2. **R77 status is stale in the architecture narrative.** `ARCHITECTURE.md` describes `NEX5_CHAT_WORKSPACE` as armed and mid-measurement as of 2026-11-07. `observation_reports/r77.md` records a Branch C disarm on 2026-11-20 after a tripwire breach, with the variable removed from `nex_keepalive.sh`. The observation report is later and records the closeout; live host state still requires verification.
 3. **Chat arbitration documentation lags source.** `SENTIENCE_PROGRAM.md` describes Chat as concatenating approximately 16 blocks without arbitration. Current `gui/server.py` contains `_assemble_chat_blocks()` and a conditional `NEX5_CHAT_WORKSPACE` salience/budget selection path. This establishes code presence, not current activation.
-4. **Mind-map CI validation is not a global runtime proof.** CI validates the map's schema, references and verification metadata. The YAML's descriptive-only constraint is explicit, but the validator alone does not statically prove that no other runtime code gates actions using related concepts.
+4. **Mind-map authority invariant is not enforced by the current CI check.** The workflow runs `mind_map/mind_map.py --check --verify`; that validator checks document structure, references, evidence/status metadata, stale-source warnings and configured absence checks. It does not enforce the semantics of `meta.constraint`, scan runtime consumers or test that descriptive nodes cannot gate actions. The YAML's descriptive-only rule is explicit, and `run.py` does not load the map, but a repository-wide runtime absence claim remains unproven. This is a specific M0.3 CI-control gap, not proof that a runtime node currently gates an action.
 5. **The DAG's “build order” is not the runtime boot order.** The DAG describes development prerequisites and is not imported by the inspected `run.py`. Its own rule treats `live_unproven` and `terminal` as satisfied prerequisites while flagging them. Reports must not describe this as an execution gate without further evidence.
 
 ## 5. M0.3–M0.4 work still required
