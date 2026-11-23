@@ -286,6 +286,7 @@ def end_trace(
     entity_ref: Optional[str] = None,
     outcome: str = "completed",
     payload: Any = None,
+    parent_ids: Optional[list[str]] = None,
 ) -> None:
     """Record a terminal observation and restore any enclosing context."""
     if handle is None:
@@ -298,6 +299,7 @@ def end_trace(
             entity_ref=entity_ref,
             outcome=outcome,
             payload=payload,
+            parent_ids=parent_ids,
         )
     finally:
         try:
