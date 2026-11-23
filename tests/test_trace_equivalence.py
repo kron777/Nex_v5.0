@@ -145,7 +145,8 @@ def test_chat_trace_overlay_on_off_equivalence(tmp_path, monkeypatch, record_pro
     # Freeze wall-clock reads so timestamp-bearing DB rows are directly
     # comparable across the paired OFF/ON substrates. perf_counter remains live.
     monkeypatch.setattr(time, "time", lambda: 1_700_000_000.0)
-    # connection without changing production code or adding queries.
+    # SQLite's trace callback observes actual SELECT/WITH statements without
+    # changing production code or adding queries.
     from substrate import Reader
 
     read_query_log = []
