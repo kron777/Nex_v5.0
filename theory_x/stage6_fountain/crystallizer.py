@@ -297,6 +297,7 @@ class FountainCrystallizer:
         focal_item: Optional[str] = None,
         retained_candidate_id: Optional[int] = None,
         trace_parent_ids: Optional[list[str]] = None,
+        trace_fountain_event_record_id: Optional[str] = None,
     ) -> Optional[int]:
         self._trace_terminal_record_id = None
         # Stillness guard — Row 9 extension. Metacognition writes a stillness_log
@@ -561,11 +562,13 @@ class FountainCrystallizer:
                     outcome="inserted",
                     payload={"table": "fountain_crystallizations", "row_id": crystallization_id,
                              "fountain_event_id": fountain_event_id, "belief_id": belief_id},
-                    parent_ids=(
-                        [_trace_belief_write_id]
-                        if "_trace_belief_write_id" in locals() and _trace_belief_write_id
-                        else []
-                    ),
+                    parent_ids=[
+                        rid for rid in (
+                            _trace_belief_write_id
+                            if "_trace_belief_write_id" in locals() else None,
+                            trace_fountain_event_record_id,
+                        ) if rid
+                    ],
                 )
                 self._trace_terminal_record_id = _trace_crystallization_link_id
             except Exception:
