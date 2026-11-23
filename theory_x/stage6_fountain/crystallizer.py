@@ -320,6 +320,19 @@ class FountainCrystallizer:
         thought = _METADATA_PATTERN.sub('', thought).strip()
         ok, reason = self._quality_check(thought, droplet=droplet,
                                          focal_item=focal_item)
+        if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+            try:
+                from substrate.trace_overlay import record as _trace_record
+                _trace_record(
+                    "quality_gate",
+                    producer="FountainCrystallizer._quality_check",
+                    consumer="CoherenceGate.check",
+                    source_ref="theory_x/stage6_fountain/crystallizer.py::crystallize",
+                    outcome="accepted" if ok else f"rejected:{reason}",
+                    payload={"ok": ok, "reason": reason},
+                )
+            except Exception:
+                pass
 
         # Best-of-cluster upgrade (NEX5_BESTOFCLUSTER, default OFF). When a
         # thought is rejected as a semantic near-duplicate but scores higher on
@@ -390,6 +403,19 @@ class FountainCrystallizer:
                 branch_id=hot_branch,
             )
             decision = self._gate.check(packet)
+            if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+                try:
+                    from substrate.trace_overlay import record as _trace_record
+                    _trace_record(
+                        "coherence_gate",
+                        producer="CoherenceGate.check",
+                        consumer="FountainCrystallizer.crystallize",
+                        source_ref="theory_x/stage6_fountain/crystallizer.py::gate_check",
+                        outcome=decision.outcome.value,
+                        payload={"reason": decision.reason, "source_node": packet.source_node},
+                    )
+                except Exception:
+                    pass
             if decision.outcome != GateOutcome.ACCEPT:
                 errors.record(
                     f"Fountain gate {decision.outcome.value} ({decision.reason}): {thought[:60]}",
@@ -450,12 +476,41 @@ class FountainCrystallizer:
             "VALUES (?, 6, ?, ?, ?, ?, 0, ?)",
             (thought, _conf, ts, category, hot_branch, _attr_tags),
         )
+        if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+            try:
+                from substrate.trace_overlay import record as _trace_record
+                _trace_record(
+                    "writer_delta",
+                    producer="FountainCrystallizer.crystallize",
+                    consumer="fountain_crystallizations",
+                    source_ref="theory_x/stage6_fountain/crystallizer.py::belief_insert",
+                    entity_ref=f"beliefs.beliefs:{belief_id}",
+                    outcome="inserted",
+                    payload={"table": "beliefs", "row_id": belief_id, "tier": 6},
+                )
+            except Exception:
+                pass
 
-        self._writer.write(
+        crystallization_id = self._writer.write(
             "INSERT INTO fountain_crystallizations "
             "(fountain_event_id, belief_id, ts, content) VALUES (?, ?, ?, ?)",
             (fountain_event_id, belief_id, ts, thought),
         )
+        if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+            try:
+                from substrate.trace_overlay import record as _trace_record
+                _trace_record(
+                    "writer_delta",
+                    producer="FountainCrystallizer.crystallize",
+                    consumer="speech_governor",
+                    source_ref="theory_x/stage6_fountain/crystallizer.py::crystallization_link",
+                    entity_ref=f"dynamic.fountain_crystallizations:{crystallization_id}",
+                    outcome="inserted",
+                    payload={"table": "fountain_crystallizations", "row_id": crystallization_id,
+                             "fountain_event_id": fountain_event_id, "belief_id": belief_id},
+                )
+            except Exception:
+                pass
 
         # Governor decides whether to speak this belief.
         # source='spectrum' beliefs are foundation variants — never enqueued for TTS.
