@@ -1097,3 +1097,13 @@ The consumers currently treat any returned result as success: listener persists 
 
 No construction/start of DMListenLoop, PostLoop or DMResponder was found in the inspected run.py or gui/server.py; the GUI Moltbook route is read-only. The existing optional-Moltbook tests cover schema absence/presence and HUD/daily-life reads, not the external-action loops or dry-run state accounting. Thus this is a conditional source defect in a dormant/optional integration, not evidence of live activity. Credentials, flag values and actual activation remain UNKNOWN. No external network action was made and no runtime correction is applied pending Gate 0 and explicit external-action policy approval.
 
+
+
+### Host-log qualification — Moltbook activation and checkout identity (23 Nov 2026)
+
+The supplied host log file `Pasted text(10).txt` records repeated `theory_x.stage7_moltbook` warnings on 16 Nov 2026 between 10:52 and 10:56: the integration was disabled because `/home/rr/.config/moltbook/credentials.json` was missing. At 10:57:13 the supervisor received SIGTERM; the scheduler and decoder stopped and NEX reported a clean STANDBY exit. This means a Moltbook loop was instantiated in the host runtime at that time, despite no loop startup being found in the inspected GitHub PR65 snapshot's `run.py` or `gui/server.py`.
+
+The same log material identifies the runtime data path under `/home/rr/Desktop/Desktop/nex5`, while shell commands refer to the separate audit checkout `/home/rr/Desktop/NEX_AUDIT/Nex_v5.0-main`. It contains no `git status --short`, branch name or `git rev-parse HEAD` for both checkouts. Therefore the active host checkout and the GitHub snapshot used for this audit are **not proven identical**. The 16 Nov missing-credentials observation is historical, not a current credentials/status claim; no successful Moltbook post or DM is evidenced by that log excerpt. Current process/standby state remains UNKNOWN.
+
+This qualifies DRAFT-006: the GitHub snapshot has no inspected startup wiring, but the host log confirms a locally instantiated loop in a potentially divergent checkout. Manus must compare both checkout identities and the current startup path before any activation claim or code correction.
+
