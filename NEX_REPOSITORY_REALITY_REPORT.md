@@ -1001,6 +1001,6 @@ Test boundary: `tests/test_provenance.py` covers mirror scoring, closed verdict 
 Source hashes:
 - `gui/server.py`: `d67df10f4449004c255e38b11b4a1888a4e4934c`
 - `theory_x/stage_provenance/provenance.py`: `92671a3e120a1935fab33f6d659ab806f1eb4cc6`
-- `tests/test_provenance.py`: `<escape>not separately re-hashed in this addendum</escape>`
+- `tests/test_provenance.py`: `fcefbeccb6bedc3e20798142814d7b96b4e6dca5`
 
 No runtime or test behaviour, database, flags, host state, experiment, merge or deployment was changed.
