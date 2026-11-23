@@ -1888,13 +1888,30 @@ def create_app(state: AppState) -> Flask:
                     turn_n=_turn_n,
                 )
                 if _trace_handle is not None:
+                    _voice_source = (
+                        str(_ve_result.get("source") or "unknown")
+                        if _ve_result is not None else None
+                    )
+                    _voice_candidate_id = (
+                        _ve_result.get("belief_id") if _ve_result is not None else None
+                    )
+                    _voice_entity_ref = (
+                        f"voice_candidate:{_voice_source}:{_voice_candidate_id}"
+                        if _voice_candidate_id is not None else None
+                    )
                     _trace_api.record(
                         "substrate_voice",
                         producer="VoiceEngine.query_reply",
                         consumer="ChatResponse",
                         source_ref="gui/server.py::api_chat:voice_engine",
+                        entity_ref=_voice_entity_ref,
                         outcome="hit" if _ve_result is not None else "miss",
-                        payload=_ve_result.get("content") if _ve_result else None,
+                        payload=({
+                            "candidate_id": _voice_candidate_id,
+                            "source": _voice_source,
+                            "score": _ve_result.get("score"),
+                            "content": _ve_result.get("content"),
+                        } if _ve_result is not None else None),
                     )
                 if _ve_result is not None:
                     if _op_comp:
