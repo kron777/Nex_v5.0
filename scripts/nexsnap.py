@@ -18,7 +18,7 @@ Usage:
   python3 scripts/nexsnap.py --commit --push  # also push the current branch
 
 Committing and pushing are separate, explicit operations. Push always targets
- the checked-out branch; this script never hardcodes or silently targets main.
+the checked-out branch; this script never hardcodes or silently targets main.
 """
 from __future__ import annotations
 
