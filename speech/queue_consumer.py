@@ -169,9 +169,11 @@ class SpeechQueueConsumer(threading.Thread):
             )
 
         def persist_status(status, sql, params, parent_id):
+            nonlocal trace_outcome
             try:
                 self.writer.write(sql, params)
             except Exception as exc:
+                trace_outcome = f"{status}_status_write_failed"
                 emit(
                     "queue_status_write_failed", "SpeechQueueConsumer._speak_one",
                     "speech_queue", f"{status}_write_failed", parent_id,
