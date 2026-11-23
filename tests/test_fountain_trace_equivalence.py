@@ -119,7 +119,7 @@ def _run_generator_once(
                 # SQLite does not promise row order without ORDER BY. Compare
                 # complete row content as a sorted multiset, retaining duplicates.
                 normalized = [
-                    tuple(sorted(row.items()))
+                    tuple((key, row[key]) for key in row.keys())
                     for row in rows
                 ]
                 database_snapshot[db_name][table_name] = sorted(
