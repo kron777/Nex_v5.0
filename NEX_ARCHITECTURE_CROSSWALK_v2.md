@@ -1,7 +1,8 @@
 # NEX Architecture Crosswalk v2 — Working Draft
 
 **Status:** Partial source crosswalk; not a Gate 0 submission  
-**Inspected revision:** `6e6712bd4bde15ad2288f220cd4438b11622c93c`  
+**Current documentation branch revision:** `07f6ebe42a1ac99a8038a73476782d1542704296`  
+**Boot/source inventory rechecked:** `run.py` blob `73a2c58a4f5f0348135a46eb83d6cdd61db874e7` (23 Nov 2026)  
 **Inspection date:** 2026-11-23  
 **Scope:** Phase 0 M0.3–M0.4; source-level inspection only unless explicitly stated
 
@@ -701,3 +702,72 @@ Current drafts and isolated CI fixtures do not establish all of these deliverabl
 2. Chat Arbiter sequencing: §5.1 places read-only Phase 0 trace first and Chat Arbiter experiment in Phase 1.1 second. §6.3 makes Gate 0 Founder approval of the Reality Report, Crosswalk and verified defect backlog a condition before any behavioural edits. Yet §12.3's 30-day checklist places implementation and a three-arm Chat Arbiter benchmark in Week 3, with Gate 0 sign-off in Week 4. Since §7.1 separately defines the Arbiter as a Tier B Phase 1.1 experiment, this is a material sequencing conflict. It is not resolved here; no Chat Arbiter behavioural experiment should begin before the explicit Gate 0 condition is satisfied and the Founder resolves the conflicting checklist wording.
 
 **Disposition:** This Crosswalk remains partial and not a Gate 0 submission. Continue Phase 0 evidence work only; no Phase 1 behavioural change is authorised.
+
+
+## 3.23 Boot-level forward audit — exact PR #49 branch revision (23 Nov 2026)
+
+This pass re-read `run.py` and the relevant factory/loop implementations at the PR #49 branch revision `07f6ebe42a1ac99a8038a73476782d1542704296`. It corrects several boot-inventory descriptions and extends the forward map. These are source-level construction/start findings only; actual host environment, successful runtime ticks, row emission and downstream behavioural influence remain unobserved here.
+
+### Stage 1 — SenseScheduler and adapters
+
+- `run.py::main` calls `build_scheduler(writers, readers, mode_state=mode_state)`.
+- The builder's adapter list contains 28 adapters: four internal sensors and 24 external feeds.
+- `SenseScheduler.__init__` creates one daemon thread per adapter and unconditionally calls `start_all()`. `start_all()` sets the global run event and enables each external adapter; the adapter thread's `_should_run()` requires both global and local events for external feeds. Internal sensors are enabled at construction.
+- Thus the executable source starts external feeds automatically; the module docstring/comments that say external feeds start paused are stale relative to the constructor. The run.py startup log says "23 adapters wired" although the builder list contains 28. These are confirmed source/documentation discrepancies. Whether all feed polls succeed is runtime UNKNOWN.
+- Builder source hash: `theory_x/stage1_sense/__init__.py` `aa98057657ed631efdceae9a8419c9d9f7324825`; scheduler `a8cc64da406ffa49ad8d59c5134560c4cbb2fdd9`.
+
+### Stage 2 — Dynamic formation and life loops
+
+`build_dynamic()` constructs its DynamicState and starts daemon threads for nine core loops: sense polling/A–F pipeline, aperture recalculation, accumulator decay/flush, crystallization, consolidation, sense distillation, snapshot/tier sampling, health reporting, and emergent-drive detection. It then appends further loop functions when imports succeed: witness, pattern, identity, affinity, scorecard, surprise, remember, wonder, fetch, daily-life, sustained-focus, signal-to-problem, diversity edge-builder, gate retention, and the loops returned by `get_moltbook_loops()`. The factory starts every assembled loop before returning the state. This is stronger than merely constructing a Stage 2 object; it is a source-defined autonomous-loop startup path. It still does not prove each loop's first tick succeeded or produced a useful downstream effect.
+
+Source hash: `theory_x/stage2_dynamic/__init__.py` `7b35f304cf823b555a4c6ec78722a07d017de576`.
+
+### Stage 3 — WorldModel background loops
+
+`build_world_model()` constructs retrieval, promotion, harmonization, activation, erosion, pipeline hooks and synergizer components, then starts six daemon loops: decay, harmonizer, cross-domain, erosion, synergizer and world consolidation. The earlier table's broad [L1] label is retained; the exact six-loop start is now explicit. Individual loops have distinct read/write paths and must be traced separately before assigning any downstream-consumption level.
+
+Source hash: `theory_x/stage3_world_model/__init__.py` `6cbde28b64315b869a260298ddec887d1b9bb0ae`.
+
+### Stage 4 — Membrane
+
+`build_membrane()` constructs classifier, SelfModel, QueryRouter and BehaviouralSelfModel. When the conversations Reader is available (it is supplied by the normal boot path), it starts a daemon behavioural loop that waits four hours before attempting `write_behavioural_beliefs()`, passing the CoherenceGate. Chat route invocation of `membrane.route()` is a separate synchronous path; construction of the membrane does not mean every request uses it. Both loop activation and request routing remain host/runtime observations to be verified.
+
+Source hash: `theory_x/stage4_membrane/__init__.py` `2450572707cd4164d0e877e0b039f8369b1ac395`.
+
+### Stage 5 — Self-location commitment
+
+The import of `SelfLocationCommitment` is not merely unused wiring: `run.py` constructs it during boot and calls `commit(writers["beliefs"], readers["beliefs"])`, logging the returned belief ID. This is a one-time boot operation, not a daemon loop. The source establishes the attempted write path; whether a new row is inserted or an existing commitment is returned depends on the implementation/database state and must be inspected before describing each boot as a new insertion.
+
+### Stage 6 — Fountain
+
+`build_fountain()` starts a daemon `fountain_loop` before returning its FountainState. The loop periodically evaluates readiness, invokes `generator.generate()`, attempts the drive-probe opportunity, and writes a state snapshot when configured. This is source-defined startup, not evidence of a live fire or accepted belief. The detailed generation → crystallization → gate → persistence → optional speech path remains in Sections 3.1 and 3.1.1.
+
+Source hash: `theory_x/stage6_fountain/__init__.py` `43515f025e7279a6891dd0a630f79b84df198e0c`.
+
+### Additional boot-wiring corrections
+
+| Mechanism | Exact source finding | Evidence boundary |
+|---|---|---|
+| SignalLoop | `run.py` calls `build_signal_loop()`; the factory itself calls `loop.start()`. The earlier table's "no explicit .start() at this call site" is true but its implication that running state is unresolved from source is incomplete. | Thread-start attempt established; successful tick/output and consumers need separate tracing. |
+| DiversityLoop | `run.py` calls builder then `.start()`; the loop runs groove detection, dormancy scan and clock tick, with 60-second wait. | Thread-start attempt established. |
+| EdgeGeneratorLoop | Builder constructs and returns the object; `run.py` calls `.start()`, which creates the daemon thread. The loop has a 60-second boot delay and 30-minute tick; it reads unedged Fountain/synergized beliefs and may persist proposed belief edges. | Start and source read/write path established; live output UNKNOWN. |
+| Reshape/HoldingZone resolver | `run.py` constructs the resolver, attaches gate/transformer and calls `start_loop()`. | Start attempt established; actual held-row resolutions not established. |
+| ThrowNet | TriggerDetector is constructed and receives gate/gap-related telemetry. TimeFetch, RefinementEngine and ThrowNetEngine are constructed; ThrowNetMonitor loop starts only with `NEX5_THROWNET=1`, otherwise the source explicitly leaves the autonomous monitor stopped. | Trigger observation and autonomous processing must not be conflated. |
+| CounterfactualNode | Constructed in a guarded block and `start_loop()` called when construction succeeds. Its `_maybe_promote()` currently returns immediately; auto-promotion is explicitly disabled. | Loop-start attempt does not imply the disabled promotion path runs. |
+| NovelAssociation | Constructed, `start_loop()` called and registry registration attempted in a guarded block. | Start attempt established; association writes/consumers need separate trace. |
+| SubstrateHarmonic / GeniusTagger | Both constructed and their `start_loop()` methods called; boot comments classify their outputs as log-only. | Loop-start attempt and table writes do not establish downstream decision use. |
+| DriveEmergence / AffectState / PredictiveSubstrate / SelfMindView | Each is constructed and its `start_loop()` is called in a guarded boot block; these are not merely importable modules. | Source-defined start attempts; exact writes, readers and prompt consumers require faculty-specific trace. |
+| WarrantRecorder | `start_loop()` is called only when `NEX5_WARRANT_RECORD=1`. | Default source path off. |
+| PersonaResponder / WorldPredictionLoop / SelfPredictionLoop / SelfMaintainShadow | Start calls are explicitly environment-gated (`NEX5_PERSONA_RESPONDER`, `NEX5_WORLD_PRED`, `NEX5_SELF_PRED`, `NEX5_SELF_MAINTAIN_SHADOW`). | Runtime flag values UNKNOWN. |
+| SpeechQueueConsumer | Started only if parsed `SpeechConfig.enabled`; the normal boot path passes a VoiceState and preloaded backend. | Config-dependent; host value and actual playback UNKNOWN. |
+| ArcLoop / SocialPresence / GrooveBreaker | Current boot path explicitly leaves ArcLoop and SocialPresence unset; GrooveBreaker wiring is removed and its module-level ENABLED constant is documented as false. | Source-disabled, not "active but unobserved". |
+
+### Corrected SignalLoop factory evidence
+
+`theory_x/signals/loop.py::build_signal_loop()` constructs SignalLoop, calls `loop.start()`, and returns it. The SignalLoop tick reads sense/belief data, invokes detectors, writes emitted signal rows and may write matched patterns. This confirms that the run.py factory call initiates the loop, unlike a factory that only returns a dormant object. Source hash: `6453c1ca9ac3ef1ffc8d84b46de87c3c6b3f981e`.
+
+### What this pass does not close
+
+This is a boot-level inventory correction, not the full M0.3–M0.4 forward audit. For each started faculty, the remaining work is to identify exact trigger, data reads, transformation, writes/events, failure behaviour, and each downstream reader/decision/prompt sink; then verify whether the backward Chat/Fountain/belief-write map captures it. Source presence and thread-start calls remain [L1] evidence. Host activation, successful emission and operational consumption are not upgraded without trace evidence.
+
+No runtime code, schema, flags, scheduler policy, host, experiment, merge or deployment was changed.
