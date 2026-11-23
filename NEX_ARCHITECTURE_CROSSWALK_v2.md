@@ -1034,3 +1034,23 @@ The inspected test files do not currently close the two identified edges:
 - tests/test_warrant.py verifies the disabled WarrantPass loop is inert, but does not verify enabled startup wiring from run.py.
 
 These are coverage gaps only. The source review did not execute or alter the tests. Exact test-file hashes are recorded in the matching Reality Report section.
+
+
+
+## 3.33 Recursive self-binding and quality-signal reach (23 Nov 2026)
+
+| Path | Producer / source | Consumer / effect | Qualification |
+|---|---|---|---|
+| Recursive self-reading | FountainGenerator calls recursive_self.format_for_prompt() during prompt composition; recursive_self.perturbation() calls self_binding.bind() | Bound self-state becomes a possible prompt nudge; generator captures nudge state in recursion_attrib at fire completion | Generator calls perturbation() a second time after format_for_prompt(), so self_binding.bind() writes self_state_history twice per fire in this source path. |
+| Recursion attribution | Generator writes nudge_active, current branch, prior branch and movement at fire completion | _fixation_teeth() reads latest branch when NEX5_RETRIEVAL_TEETH=1 | This is an inline generator sampler; recursion_attribution.py's standalone watcher is not the only route. |
+| Value drift | value_drift_monitor.check() can write value_drift_log | self_binding.bind() writes self_state.drift | Despite its comment, bind() sets drift="clean" unconditionally and does not read value_drift_log. The monitor is not found in inspected normal boot/fire wiring. |
+| Quality synthesis | Optional NEX5_QUALITY_SYNTH loop scores genius_tags by Fountain branch and writes quality_signal.json | Stage 2 attention reads the JSON and computes 1.20/0.82 multipliers | _magnitude_for() returns before applying the multiplier for string and numeric payloads. The multiplier is only reached for other payload types, so its documented effect is narrower than the module description implies. |
+
+### Interpretation boundaries
+
+- The duplicate self_binding writes are confirmed by the call graph and the append to self_state_history; live write volume is unknown. Whether history is meant to count bind invocations or fires is not established.
+- Value drift's constant "clean" is a placeholder field, not a measured clean verdict. The separate check may still be run manually or externally.
+- Quality synthesis is a genuine feedback edge because attention reads its file. Do not call it log-only. Equally, do not assume its branch multiplier changes ordinary text or numeric feed magnitudes in the current implementation.
+- Exact source hashes and the full source-level analysis are in the matching Reality Report section.
+
+No runtime/test behaviour, schema, data, flags, host state, experiment, merge or deployment was changed.
