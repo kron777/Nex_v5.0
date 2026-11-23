@@ -85,7 +85,7 @@ Associated test files include `tests/test_fountain.py`, `tests/test_fountain_cry
 | Session/input persistence | `gui/server.py:1190+` | Uses the conversations Writer for session and user-message inserts | Source present |
 | Routing/retrieval | `gui/server.py:1240+` onward | Routes through membrane when available, otherwise calls world-model retrieval | Source present |
 | Context assembly | `gui/server.py:202+` | `_assemble_chat_blocks()` concatenates blocks by default; `NEX5_CHAT_WORKSPACE=1` enables a bounded salience-selection path | Source present; flag state unknown |
-| Model invocation/output persistence | Within `api_chat()`, full exact terminal chain not completed in this draft | Must be traced through the complete handler and Writer call sites | OPEN |
+| Model invocation/output persistence | `gui/server.py::api_chat()` through `state.voice.speak()` or optional `VoiceEngine.query_reply()`; then `_sanitize_reply()`, conversations Writer and `jsonify()` | Source path traced through model/substrate response, sanitization, assistant-message persistence and HTTP response. | [L1] source |
 | CoherenceGate | No call found in the inspected route segment | Do not assume the Fountain gate is shared by Chat | Not established in Chat path |
 
 Associated tests include `tests/test_chat_arbiter.py`, `tests/test_chat_blocks_budget.py`, `tests/test_chat_ablation.py` and `tests/test_writer_roundtrip.py`.
@@ -93,6 +93,22 @@ Associated tests include `tests/test_chat_arbiter.py`, `tests/test_chat_blocks_b
 The current source has a Chat Workspace mechanism. This contradicts older unqualified documentation that describes Chat as only serial concatenation. Whether the mechanism is enabled in the deployed process remains UNKNOWN.
 
 **Current ladder:** [L1] for the source/tested Chat assembly mechanism; current [L2] runtime activation UNKNOWN; [L3] causal influence on the emitted answer UNKNOWN; [L4] validation must be read from the relevant preregistered experiment and cannot be inferred from source.
+
+### 3.2.1 Chat path — completed source-level terminal trace
+
+The Chat handler's source path is now traced through its terminal response:
+
+1. **Arrival and user persistence:** `POST /api/chat` validates the prompt, creates/reuses a session and writes the user message through the conversations Writer.
+2. **Routing and retrieval:** when Membrane and WorldModel are available, `membrane.route()` determines the route and supplies `belief_text`; otherwise the handler calls the WorldModel retriever directly and applies Chat-specific filtering/capping.
+3. **Context enrichment:** source contains conditional or state-dependent prompt enrichments from BehaviouralSelfModel, SelfModel, Harmonizer, disturbance state, ProblemMemory, Metacognition, NovelAssociation, SelfNarrative, AffectState, DriveEmergence, SelfMindView, SocialPresence, tools, spectrum beliefs, working memory and tagged-thought retrieval. The active status of each dependency/flag is not established by source alone.
+4. **Metacognition distinction:** unlike the Fountain insertion, Chat calls `state.metacognition.tick()` and `format_for_prompt()` without the `NEX5_METACOG_VOICE` gate. A non-empty result is appended to Chat's `belief_text`. This is a source-defined Chat prompt path, not proof that the runtime object emits an event or that the text is behaviourally useful.
+5. **Chat Workspace:** `_assemble_chat_blocks()` concatenates all ordered blocks when `NEX5_CHAT_WORKSPACE` is unset or not `1`. Bounded salience selection is conditional on `NEX5_CHAT_WORKSPACE=1`; source comments describe the mechanism as dark/default-off. `NEX5_SELF_PRESENT=1` optionally carries salience across turns.
+6. **Response generation:** the optional substrate VoiceEngine path is used only when the request is not a probe/instruction query, VoiceEngine exists and `voice_mode == "use_substrate"`. Otherwise the handler calls `state.voice.speak(VoiceRequest(...))`. Additional repeat/provenance retries are conditional and fail-safe.
+7. **Terminal sanitization and output:** the response is sanitized, written as role `nex` through the conversations Writer, then returned in the HTTP JSON response.
+
+**Boundary finding:** the inspected `api_chat()` path does not call the Fountain `CoherenceGate`. Do not assume Chat and Fountain share identical gating or acceptance semantics.
+
+**Evidence ceiling:** the complete source path supports [L1]. Runtime activation of optional branches, actual model calls, successful persistence and the causal contribution of individual context blocks remain [L2] UNKNOWN / [L3] UNKNOWN. No [L4] performance claim follows from this trace.
 
 ### 3.3 Evaluation, feedback and the next-thought pathway — bounded source trace
 
