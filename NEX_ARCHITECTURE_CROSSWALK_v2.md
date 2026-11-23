@@ -594,6 +594,8 @@ Two important qualifications from that audit:
 
 The audit also identifies prompt contributors whose provenance is currently collapsed into the single `context_selection` digest, including tool results, disturbance/problem context, optional faculties, random spectrum rows, and the VoiceEngine TimeFetch candidate/enrichment pipeline. The current trace parent list is therefore not a complete causal closure for Chat.
 
+The tool-path expansion also identifies conditional defect DRAFT-002: the natural-language math heuristic selects `python_exec`, but the caller passes the original query as code through an empty-code fallback, so ordinary calculation phrasing is not executable Python. This is recorded in the Reality Report defect backlog and Chat audit with source/test hashes. No runtime repair or severity assignment is included.
+
 **Evidence boundary:** static inspection only; PR #65 head and source file hashes are recorded in the audit. Its latest CI pass validates the tested suite, not every branch or deployed-host behaviour. The audit remains partial and does not satisfy Gate 0.
 
 ## 4. Top documentation/source discrepancies
