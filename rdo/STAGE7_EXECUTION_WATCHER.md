@@ -33,7 +33,7 @@ the agent's self-reported claim — **recorded, not trusted**.
 | dimension | how | who |
 |---|---|---|
 | `source_implemented` | read-only grep of the after-state for the signature → `SOURCE_CONFIRMED` | cloud |
-| `test_verified` | run the required test independently → `TEST_PASSED` / `TEST_FAILED` | cloud |
+| `test_verified` | run the required test independently only when its exact repo-relative path is explicitly supplied in the caller's `approved_test_files` allowlist; otherwise `not_authorized` | cloud |
 | `runtime_observed` | **host-only** `host_placeholder` — `UNKNOWN` (NEX in standby) | host (not performed) |
 
 Per-obligation verdict: **verified** (source + test), **failed** (test fails), **partial** (source, no
@@ -56,7 +56,7 @@ review and **not** RDO self-assessment. Failed/unverified obligations are **reop
 
 ## Requirements → evidence (tests)
 
-`rdo/tests/test_stage7_execution_watcher.py` (10 tests), full RDO suite **108 passing**:
+`rdo/tests/test_stage7_execution_watcher.py` now includes explicit test-execution authorization and path-containment regressions. The branch's earlier local report of 10 Stage-7 tests / 108 RDO tests predates these additions; the updated count and pass status are pending exact-head CI.
 
 - traceability objective→obligations · three separate dimensions → `test_verified_*`, `test_traceability_*`
 - **claim / passing test alone ≠ success** → `test_claim_without_source_evidence_is_not_accepted`, `test_missing_all_evidence_is_claim_unverified`
@@ -81,3 +81,18 @@ This completes the RDO v1.3 §16 stage sequence (Stage 0 reconciliation → Stag
 branches (`claude/rdo-stage{1..7}-*` plus the earlier PRs #45–48) remain **open and unmerged** pending
 review. The **v1.3/v1.4 precedence** is still **not** resolved by assumption, and the host-only live
 confirmations across Stages 1/5/7 remain for founder authority.
+
+
+### Test-execution safety boundary (added after source review)
+
+A test path listed in an execution record is an evidence requirement, not permission to execute it.
+`verify()` now runs pytest only when the caller supplies the exact repo-relative path in
+`approved_test_files`. Absolute paths, `..` traversal and symlinks resolving outside
+`repo_dir` are refused. An unapproved / unsafe path is recorded as
+`test_verified.status = not_authorized`; source-only evidence remains `partial` and the
+Watcher ledger does not advance to `TEST_WRITTEN`.
+
+The controlled Stage-7 demonstration explicitly allowlists only `test_demo_guard.py` inside its
+throwaway temporary repository. New tests prove that a declared but unapproved test is not executed
+and that even an allowlisted path cannot escape the repository root. This is a per-call explicit
+authorization boundary; it does not claim arbitrary test suites are side-effect-free.
