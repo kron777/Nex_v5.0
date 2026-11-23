@@ -36,7 +36,8 @@ def _beliefs(path):
         " locked INTEGER DEFAULT 0, paused INTEGER DEFAULT 0);"
         "CREATE TABLE synergizer_log (id INTEGER PRIMARY KEY, ts REAL, belief_id_a INTEGER, "
         " belief_id_b INTEGER);"
-        "CREATE TABLE belief_lineage (child_id INTEGER, parent_id INTEGER, created_at REAL);"
+        "CREATE TABLE belief_lineage (child_id INTEGER, parent_id INTEGER, relationship TEXT, "
+        " weight REAL, created_at REAL);"
         "CREATE TABLE arc_members (belief_id INTEGER, joined_at REAL);")
     rows = [(i, f"plain belief number {i} about ordinary things", t, 0, 0)
             for i, t in [(1, 3), (2, 3), (3, 3), (4, 6), (5, 6), (6, 7), (7, 7), (8, 7)]]
@@ -44,7 +45,7 @@ def _beliefs(path):
     c.executemany("INSERT INTO beliefs VALUES (?,?,?,?,?)", rows)
     c.executemany("INSERT INTO synergizer_log VALUES (?,?,?,?)",
                   [(1, _T0, 4, 6), (2, _T0 + 3600, 4, 7)])          # 4 used twice same day
-    c.execute("INSERT INTO belief_lineage VALUES (50, 4, ?)", (_T0 + 2 * _DAY,))
+    c.execute("INSERT INTO belief_lineage VALUES (50, 4, 'supports', 1.0, ?)", (_T0 + 2 * _DAY,))
     c.execute("INSERT INTO arc_members VALUES (6, ?)", (_T0 + 5 * _DAY,))
     c.commit(); c.close()
 
@@ -139,7 +140,14 @@ class TestRecorder(unittest.TestCase):
             "SELECT belief_id, days FROM belief_use_days WHERE belief_id BETWEEN 1 AND 5"
         ))
         self.assertEqual(set(got), {1, 2, 3, 4, 5})
-        self.assertEqual(set(got.values()), {1})
+        used_days = {
+            (bid, day) for bid, day in self._q(
+                "SELECT belief_id, day FROM belief_use_day "
+                "WHERE belief_id BETWEEN 1 AND 5"
+            )
+        }
+        expected_day = int(same_ts // _DAY)
+        self.assertTrue(all((bid, expected_day) in used_days for bid in range(1, 6)))
         cursors = dict(self._q(
             "SELECT name, value FROM warrant_record_cursor "
             "WHERE name IN ('use_lineage_rowid', 'use_arc_rowid')"
