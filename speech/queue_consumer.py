@@ -204,7 +204,7 @@ class SpeechQueueConsumer(threading.Thread):
             if not voice:
                 # Reader returns sqlite3.Row, which supports indexed access,
                 # not dict.get(). Keep this path compatible with real rows.
-                voice = row["voice"] or self.config.voice
+                voice = row.get("voice") or self.config.voice
 
             if not _is_speakable(content):
                 persist_status(
