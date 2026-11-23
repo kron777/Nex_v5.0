@@ -32,6 +32,22 @@ def test_mind_map_declares_descriptive_only_authority():
     assert "gate, score, block, or veto" in constraint
 
 
+def _docstring_constant_ids(tree):
+    """Return AST string constants that are module/class/function docstrings."""
+    docstrings = set()
+    owners = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+    for owner in ast.walk(tree):
+        if isinstance(owner, owners) and owner.body:
+            first = owner.body[0]
+            if (
+                isinstance(first, ast.Expr)
+                and isinstance(first.value, ast.Constant)
+                and isinstance(first.value.value, str)
+            ):
+                docstrings.add(id(first.value))
+    return docstrings
+
+
 def test_runtime_source_does_not_import_or_read_descriptive_maps():
     violations = []
     for path in _runtime_python_files():
@@ -42,6 +58,7 @@ def test_runtime_source_does_not_import_or_read_descriptive_maps():
             violations.append(f"{path.relative_to(ROOT)}: cannot inspect AST: {exc}")
             continue
 
+        docstrings = _docstring_constant_ids(tree)
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
@@ -55,7 +72,11 @@ def test_runtime_source_does_not_import_or_read_descriptive_maps():
                     violations.append(
                         f"{path.relative_to(ROOT)}:{node.lineno}: imports from {module}"
                     )
-            elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            elif (
+                isinstance(node, ast.Constant)
+                and isinstance(node.value, str)
+                and id(node) not in docstrings
+            ):
                 for forbidden in FORBIDDEN_PATHS:
                     if forbidden in node.value:
                         violations.append(
