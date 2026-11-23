@@ -190,7 +190,7 @@ def build_fountain(
                             payload={"interval_seconds": interval},
                         )
                         if _trace_handle is not None:
-                            _trace_api.record(
+                            generator._trace_input_record_id = _trace_api.record(
                                 "input_arrival",
                                 producer="FountainLoop",
                                 consumer="FountainGenerator.generate",
@@ -208,19 +208,28 @@ def build_fountain(
                 try:
                     thought = generator.generate(dynamic_state, readers["beliefs"])
                     if _trace_handle is not None:
+                        _terminal_record_id = getattr(
+                            generator, "_trace_final_record_id", None
+                        )
                         if not thought:
-                            _trace_api.record(
+                            _terminal_record_id = _trace_api.record(
                                 "candidate_generation",
                                 producer="FountainGenerator.generate",
                                 consumer="FountainCrystallizer",
                                 source_ref="theory_x/stage6_fountain/generator.py::generate",
                                 outcome="no_fire",
+                                parent_ids=(
+                                    [generator._trace_input_record_id]
+                                    if getattr(generator, "_trace_input_record_id", None)
+                                    else []
+                                ),
                             )
                         _trace_api.end_trace(
                             _trace_handle,
                             source_ref="theory_x/stage6_fountain/__init__.py::fountain_loop",
                             outcome="thought_returned" if thought else "no_fire",
                             payload=thought,
+                            parent_ids=[_terminal_record_id] if _terminal_record_id else [],
                         )
                 except Exception:
                     if _trace_handle is not None:
