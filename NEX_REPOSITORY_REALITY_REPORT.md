@@ -114,6 +114,16 @@ The absence of active entries in `known_failures.txt` is not proof that there ar
 
 **Later Phase 0 branch finding (not part of the inspected `main` snapshot):** PR #65 source inspection found a conditional speech-consumer defect. `Reader.read()` returns `sqlite3.Row`, but `SpeechQueueConsumer._speak_one()` falls back to `row.get("voice")` when `voice_state.current_name()` returns an empty value or raises; `sqlite3.Row` has no `.get()` method. Normal `run.py` startup supplies `voice_state`, so this is a fallback-path defect, not evidence that the ordinary boot path fails. A focused test documents the row type and the current CI run for PR #65 is pending. No runtime failure has been observed.
 
+### 5.1 Verified defect backlog — working, non-exhaustive
+
+The following item is source-confirmed in the current Phase 0 draft stack. It is not a live-host failure report, and no repair is authorised or included here.
+
+| Ref | Finding | Trigger / impact boundary | Evidence | Status |
+|---|---|---|---|---|
+| DRAFT-001 | Speech consumer's voice fallback calls `row.get("voice")`, but `Reader.read()` returns `sqlite3.Row`, which has no `.get()` method. | Reached only when `voice_state.current_name()` returns an empty value or raises. Normal `run.py` startup supplies `voice_state`; the ordinary boot path is not shown to hit this fallback. | Source inspection and a focused isolated test on PR #65. | Source-confirmed conditional defect; current combined PR #65 CI pending. Host frequency/impact UNKNOWN. |
+
+No severity, priority or remediation is assigned pending the full runtime/call-path audit and the higher-authority Frozen V2.1 acceptance constraints. The list is not exhaustive: other defect classes remain UNKNOWN until the fresh test baseline and approved host capture are completed.
+
 ## 6. Required host-side capture
 
 When the approved host is available, capture the following in one timestamped, read-only session:
