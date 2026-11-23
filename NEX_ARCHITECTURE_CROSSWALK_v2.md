@@ -973,3 +973,32 @@ The module docstring in theory_x/diversity/residue.py says unconsumed residue is
 ### Evidence boundary
 
 The exact source hashes are listed in the matching M0.3–M0.4 section of NEX_REPOSITORY_REALITY_REPORT.md. Findings are source-level only. No runtime/test behaviour, schema, data, retention policy, flags, host state, experiment, merge or deployment was changed.
+
+
+
+## 3.31 Optional Chat affect and operator prompt faculties (23 Nov 2026)
+
+These mechanisms are not numbered boot loops. The inspected Chat handler calls them on the voice-composition path only, and each call requires both its own flag and an admin session. They produce prompt blocks; no routing or belief-selection change is established by these blocks.
+
+| Faculty | Inputs / state read | Output / downstream effect | Boundary |
+|---|---|---|---|
+| OperatorModel | Configured operator-intake document | Formatted operator-read block in Chat prompt | NEX5_OPERATOR_MODEL=1 + admin. Missing/unreadable file yields empty block. |
+| OperatorAnchor | No external state; constant addressee instruction | Direct second-person address instruction in Chat prompt | NEX5_OPERATOR_ANCHOR=1 + admin. |
+| Compassion | Current message embedding against distress anchors; persistent compassion_state | Care/non-harm stance in Chat prompt; advances single-row compassion state | NEX5_COMPASSION=1 + admin. State row is global id=1, not session-keyed. NEX5_COMPASSION_V2 separately gates the alternate anchor handling. |
+| Compass | Current-message distress, Amoha detector, self_binding._cluster_reads() affliction signals | Held-open moral weighing in Chat prompt | NEX5_COMPASS=1 + admin; prompt-only, not a rule verdict. |
+| Equanimity | Raga, Dvesa and Compassion distress read | Hold-steady cue when a pull is hot and Compassion is not live | NEX5_EQUANIMITY=1 + admin. |
+| Apramada | Global momentum carry and open ProblemMemory items | Vigilance cue when the current turn risks dropping a held thread | NEX5_APRAMADA=1 + admin. |
+| Virya | Current focus/open problem and recent Fountain thoughts; yields to full Equanimity | Re-engagement cue when recent thought has drifted from a hard thread | NEX5_VIRYA=1 + admin. |
+| Sraddha | Prompt-relevant live Tier-6/7 beliefs, confidence, corroboration and edge degree | Supported-belief confidence cue | NEX5_SRADDHA=1 + admin. Does not read belief_warrant. |
+| Prasrabdhi | Raga plus Virya's focus/drift read | Let-it-move cue when circling is off-focus | NEX5_PRASRABDHI=1 + admin. |
+
+### Cross-faculty qualifications
+
+- Compassion is stateful: its stance call advances and persists a single conversations.db compassion_state row. Unlike AffectCarry, that state is not keyed by session_id. The source boundary is global across admin sessions; actual multi-admin concurrency is unknown.
+- Compass calls private helper self_binding._cluster_reads() and uses the affliction thresholds, but this does not mean the SelfBinding script or self_state history process is running.
+- Equanimity suppresses its stance when Compassion distress is live. Virya yields when Equanimity is FULL. Prasrabdhi checks the same focus/drift evidence and is intended to nudge only off-focus circling. These are source-defined precedence relationships.
+- Sraddha is separate from the belief_warrant score. It selects relevant live Tier-6/7 beliefs and scores support using confidence, corroboration and graph degree; no belief_warrant read is part of this prompt path.
+- FountainGenerator contains no import or flag reference for these Chat-specific modules in the inspected source revision. Do not infer that the blocks are shared with Fountain.
+- NEX5_CHAT_WORKSPACE is a separate optional selector over the assembled Chat blocks. Source comments mark it default OFF; its exempt blocks can exceed the nominal character budget.
+
+The full per-file hashes and source notes are in the corresponding Reality Report section. Host flags, operator document presence, concurrent admin use, prompt contents and model reliance remain UNKNOWN. No runtime or test behaviour was changed.
