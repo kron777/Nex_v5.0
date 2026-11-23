@@ -9,12 +9,13 @@ from __future__ import annotations
 
 import copy
 import json
+import time
 from pathlib import Path
 
 from tests import _bootstrap  # noqa: F401
 
 
-def _run_chat_once(tmp_path: Path, *, trace_on: bool, monkeypatch):
+def _run_chat_once(tmp_path: Path, *, trace_on: bool, monkeypatch, read_query_log):
     data_dir = tmp_path / "nex-data"
     data_dir.mkdir(parents=True)
     trace_path = tmp_path / "influence.jsonl"
@@ -61,10 +62,18 @@ def _run_chat_once(tmp_path: Path, *, trace_on: bool, monkeypatch):
         with client.session_transaction() as session:
             session["chat_session_id"] = "phase0-equivalence-session"
 
+        # Count actual SELECT/WITH statements issued through NEX Reader
+        # connections during the Chat request. The callback is test-only and
+        # observes SQL already executed; it does not alter query behaviour.
+        read_query_log.clear()
+        started = time.perf_counter()
         response = client.post(
             "/api/chat",
             json={"prompt": "Hello, NEX. Give me one observation."},
         )
+        elapsed_seconds = time.perf_counter() - started
+        request_read_queries = list(read_query_log)
+        read_query_log.clear()
         assert response.status_code == 200, response.get_json()
         payload = response.get_json()
 
@@ -114,12 +123,33 @@ def _run_chat_once(tmp_path: Path, *, trace_on: bool, monkeypatch):
             "table_counts": table_counts,
             "trace_rows": trace_rows,
             "trace_path": trace_path,
+            "read_queries": request_read_queries,
+            "elapsed_seconds": elapsed_seconds,
         }
     finally:
         state.close()
 
 
-def test_chat_trace_overlay_on_off_equivalence(tmp_path, monkeypatch):
+def test_chat_trace_overlay_on_off_equivalence(tmp_path, monkeypatch, record_property):
+    # SQLite's trace callback lets the fixture count reads on every Reader
+    # connection without changing production code or adding queries.
+    from substrate import Reader
+
+    read_query_log = []
+    original_reader_open = Reader._open
+
+    def observed_reader_open(self):
+        connection = original_reader_open(self)
+
+        def observe_statement(statement):
+            normalized = statement.lstrip().upper()
+            if normalized.startswith(("SELECT", "WITH")):
+                read_query_log.append(statement.strip())
+
+        connection.set_trace_callback(observe_statement)
+        return connection
+
+    monkeypatch.setattr(Reader, "_open", observed_reader_open)
     # Keep both executions on the same controlled feature-flag baseline.
     for key in list(__import__("os").environ):
         if key.startswith("NEX5_") and key not in {
@@ -128,14 +158,34 @@ def test_chat_trace_overlay_on_off_equivalence(tmp_path, monkeypatch):
         }:
             monkeypatch.delenv(key, raising=False)
 
-    off = _run_chat_once(tmp_path / "off", trace_on=False, monkeypatch=monkeypatch)
-    on = _run_chat_once(tmp_path / "on", trace_on=True, monkeypatch=monkeypatch)
+    off = _run_chat_once(
+        tmp_path / "off", trace_on=False, monkeypatch=monkeypatch,
+        read_query_log=read_query_log,
+    )
+    on = _run_chat_once(
+        tmp_path / "on", trace_on=True, monkeypatch=monkeypatch,
+        read_query_log=read_query_log,
+    )
 
     assert on["behaviour"] == off["behaviour"]
     assert on["model_requests"] == off["model_requests"]
     assert on["messages"] == off["messages"]
     assert on["sessions"] == off["sessions"]
     assert on["table_counts"] == off["table_counts"]
+
+    # Exact SQL read sequence equality is stronger than comparing counts:
+    # it catches extra reads as well as changed read ordering/path coverage.
+    assert on["read_queries"] == off["read_queries"]
+    record_property("chat_trace_off_read_query_count", len(off["read_queries"]))
+    record_property("chat_trace_on_read_query_count", len(on["read_queries"]))
+    record_property("chat_trace_off_elapsed_ms", round(off["elapsed_seconds"] * 1000, 3))
+    record_property("chat_trace_on_elapsed_ms", round(on["elapsed_seconds"] * 1000, 3))
+    record_property(
+        "chat_trace_elapsed_delta_ms",
+        round((on["elapsed_seconds"] - off["elapsed_seconds"]) * 1000, 3),
+    )
+    # One paired wall-clock sample is diagnostic only, not a latency pass/fail:
+    # statistically meaningful latency claims require repeated controlled runs.
 
     # The trace is the sole allowed delta and contains metadata/digests only.
     assert on["trace_rows"]
