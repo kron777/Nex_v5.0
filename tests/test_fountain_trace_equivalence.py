@@ -194,6 +194,20 @@ def test_fountain_generator_trace_overlay_on_off_equivalence(
     # Freeze wall-clock reads so timestamp-bearing DB rows are directly
     # comparable across the paired OFF/ON substrates.
     monkeypatch.setattr(time, "time", lambda: 1_700_000_000.0)
+    # CoherenceGate persists measured latency. Make that diagnostic field
+    # deterministic in this isolated fixture; production timing is untouched.
+    from theory_x.stage_gate.coherence_gate import CoherenceGate
+    original_gate_check = CoherenceGate.check
+
+    def deterministic_gate_check(self, packet):
+        original_perf_counter = time.perf_counter
+        time.perf_counter = lambda: 1.0
+        try:
+            return original_gate_check(self, packet)
+        finally:
+            time.perf_counter = original_perf_counter
+
+    monkeypatch.setattr(CoherenceGate, "check", deterministic_gate_check)
     import os
     from substrate import Reader
 
