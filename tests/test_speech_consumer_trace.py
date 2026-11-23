@@ -334,3 +334,113 @@ def test_commit_before_registration_is_explicitly_unlinked(
         )[0]["status"] == "spoken"
     finally:
         writer.close()
+
+
+def _run_paired_sqlite_cycle(tmp_path, monkeypatch, trace_on):
+    from substrate import Reader, Writer
+
+    data_dir = tmp_path / "nex-data"
+    data_dir.mkdir(parents=True)
+    trace_path = tmp_path / "paired-trace.jsonl"
+    monkeypatch.setenv("NEX5_DATA_DIR", str(data_dir))
+    monkeypatch.setenv("NEX5_TRACE_OVERLAY", "1" if trace_on else "0")
+    if trace_on:
+        monkeypatch.setenv("NEX5_TRACE_PATH", str(trace_path))
+    else:
+        monkeypatch.delenv("NEX5_TRACE_PATH", raising=False)
+
+    db_path = tmp_path / "paired-speech.sqlite"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE speech_queue ("
+        "id INTEGER PRIMARY KEY, belief_id INTEGER NOT NULL, "
+        "content TEXT NOT NULL, voice TEXT, queued_at REAL NOT NULL, "
+        "status TEXT NOT NULL DEFAULT 'pending', spoken_at REAL, error TEXT)"
+    )
+    conn.commit()
+    conn.close()
+
+    actual_writer = Writer(db_path, name="speech-paired-test")
+    writer_calls = []
+
+    class RecordingWriter:
+        def write(self, sql, params=()):
+            writer_calls.append((sql, tuple(params)))
+            return actual_writer.write(sql, params)
+
+    actual_reader = Reader(db_path)
+    read_queries = []
+
+    class RecordingReader:
+        def read(self, sql, params=()):
+            read_queries.append((sql, tuple(params)))
+            return actual_reader.read(sql, params)
+
+    backend = FakeBackend()
+    consumer = queue_consumer.SpeechQueueConsumer(
+        writer=RecordingWriter(),
+        reader=RecordingReader(),
+        config=SpeechConfig(enabled=True),
+        backend=backend,
+    )
+    consumer.player = FakePlayer()
+    try:
+        if trace_on:
+            from substrate import trace_overlay
+            producer = trace_overlay.begin_trace(
+                "fountain_cycle", source_ref="fountain_loop"
+            )
+        qid = consumer.writer.write(
+            "INSERT INTO speech_queue "
+            "(id, belief_id, content, voice, queued_at) VALUES (?, ?, ?, ?, ?)",
+            (5301, 111, "A paired speech item.", "af_sarah", 1.0),
+        )
+        if trace_on:
+            entity_ref = f"beliefs.speech_queue:{qid}"
+            enqueue_id = trace_overlay.record(
+                "output_queued",
+                producer="FountainCrystallizer.crystallize",
+                consumer="SpeechQueueConsumer",
+                source_ref="crystallizer.py::speech_queue_insert",
+                entity_ref=entity_ref,
+                outcome="queued",
+            )
+            assert enqueue_id
+            assert trace_overlay.link_entity(entity_ref, enqueue_id)
+            trace_overlay.end_trace(producer, source_ref="fountain_loop")
+
+        selected = consumer._pending()
+        assert len(selected) == 1
+        consumer._speak_one(selected[0])
+        query_sequence = list(read_queries)
+        final_status = actual_reader.read(
+            "SELECT status FROM speech_queue WHERE id=?", (qid,)
+        )[0]["status"]
+        result = {
+            "query_sequence": query_sequence,
+            "writer_calls": writer_calls,
+            "final_status": final_status,
+            "backend_calls": backend.calls,
+            "player_calls": consumer.player.calls,
+        }
+        assert trace_path.exists() is trace_on
+        return result
+    finally:
+        actual_writer.close()
+
+
+def test_speech_trace_on_off_preserves_database_and_processing_operations(
+    monkeypatch, tmp_path
+):
+    off = _run_paired_sqlite_cycle(
+        tmp_path / "off", monkeypatch, trace_on=False
+    )
+    on = _run_paired_sqlite_cycle(
+        tmp_path / "on", monkeypatch, trace_on=True
+    )
+
+    assert on["query_sequence"] == off["query_sequence"]
+    assert on["writer_calls"] == off["writer_calls"]
+    assert on["final_status"] == off["final_status"] == "spoken"
+    assert on["backend_calls"] == off["backend_calls"]
+    assert on["player_calls"] == off["player_calls"]
