@@ -1133,3 +1133,9 @@ The sample contains a 14-record Fountain cycle and an 11-record Chat turn. Every
 
 Scope limitations: Chat retrieval returned no belief context; Fountain's speech gate returned HOLD, so no queue/playback/audibility is demonstrated. The artifact is from isolated fixtures, not the live host. A populated-retrieval Chat trace, speech-consumer chain, and live-host capture remain open.
 
+
+
+### Host-state timestamp qualification (19 Nov snapshot; current state unknown)
+
+A separate `NEX_R77_diagnostics.txt` snapshot reports `NEX5 is currently OFF` (19 Nov 2026). The 16 Nov runtime log shows a clean SIGTERM/STANDBY transition, followed by keepalive/power-switch supervisor activity. These are historical observations only; they do not establish the process or standby-marker state on 23 Nov. The keepalive/power-switch may control relaunch, so Manus must inspect the current marker, process tree and supervisor before any host-side work.
+
