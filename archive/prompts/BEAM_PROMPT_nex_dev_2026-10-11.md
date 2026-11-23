@@ -1,3 +1,7 @@
+> **ARCHIVED 2026-11-23** — This file is retained as historical project evidence, not as current operating guidance. Original path: `BEAM_PROMPT_nex_dev.md`. Reason: Historical external-review prompt; no longer an active handover.
+
+---
+
 # Prompt for Beam AI — open questions on the NEX mindedness dev
 
 You've reviewed NEX (`kron777/Nex_v5.0`) before and your design input fed the current

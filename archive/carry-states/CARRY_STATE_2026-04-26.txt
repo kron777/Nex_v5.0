@@ -1,3 +1,7 @@
+> **ARCHIVED 2026-11-23** — This file is retained as historical project evidence, not as current operating guidance. Original path: `journal/carryx.txt`. Reason: Legacy April carry-state, superseded as an active handover by later carry-over records.
+
+---
+
 NEX5 — CARRY STATE
 Last session: 2026-04-26
 Lead: Jon (kron777)
