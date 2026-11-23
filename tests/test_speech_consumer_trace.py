@@ -453,6 +453,113 @@ def test_committed_row_before_registration_stays_unlinked(
         writer.close()
 
 
+
+def test_real_fountain_crystallizer_enqueue_links_to_real_consumer(
+    monkeypatch, tmp_path
+):
+    from types import SimpleNamespace
+    from tests import _bootstrap  # noqa: F401
+    from substrate import Reader, Writer, db_paths
+    from substrate.init_db import init_all
+    from substrate import trace_overlay
+    from theory_x.stage6_fountain.crystallizer import FountainCrystallizer
+
+    data_dir = tmp_path / "nex-data"
+    data_dir.mkdir()
+    trace_path = tmp_path / "fountain-speech.jsonl"
+    monkeypatch.setenv("NEX5_DATA_DIR", str(data_dir))
+    monkeypatch.setenv("NEX5_ADMIN_HASH_FILE", str(data_dir / "admin.argon2"))
+    monkeypatch.setenv("NEX5_TRACE_OVERLAY", "1")
+    monkeypatch.setenv("NEX5_TRACE_PATH", str(trace_path))
+    monkeypatch.setenv("NEX5_SPEECH_ENABLED", "true")
+    monkeypatch.setenv("NEX5_SPEECH_PROB", "1.0")
+    monkeypatch.setenv("NEX5_SPEECH_MIN_GAP", "0")
+    monkeypatch.setenv("NEX5_SPEECH_QUIET_DAMPING", "1.0")
+    monkeypatch.setenv("NEX5_INTAKE_RESONANCE_OFF", "1")
+
+    init_all()
+    paths = db_paths()
+    writers = {name: Writer(path, name=name) for name, path in paths.items()}
+    readers = {name: Reader(path) for name, path in paths.items()}
+    producer = trace_overlay.begin_trace(
+        "fountain_cycle", source_ref="isolated_real_crystallizer_test"
+    )
+    try:
+        crystallizer = FountainCrystallizer(
+            beliefs_writer=writers["beliefs"],
+            beliefs_reader=readers["beliefs"],
+        )
+        thought = "I notice a pull toward the horizon within myself."
+        belief_id = crystallizer.crystallize(
+            thought=thought,
+            fountain_event_id=1,
+            ts=1_700_000_000.0,
+            trace_parent_ids=(
+                [producer.start_record_id] if producer.start_record_id else []
+            ),
+        )
+        assert belief_id is not None
+        trace_overlay.end_trace(
+            producer, source_ref="isolated_real_crystallizer_test"
+        )
+
+        queued = readers["beliefs"].read(
+            "SELECT id, belief_id, content, voice FROM speech_queue "
+            "WHERE belief_id=? AND status='pending'",
+            (belief_id,),
+        )
+        assert len(queued) == 1
+        queue_id = queued[0]["id"]
+        entity_ref = f"beliefs.speech_queue:{queue_id}"
+
+        class VoiceState:
+            def current_name(self):
+                return queued[0]["voice"] or "af_sarah"
+
+        consumer = queue_consumer.SpeechQueueConsumer(
+            writer=writers["beliefs"],
+            reader=readers["beliefs"],
+            config=SpeechConfig(enabled=True),
+            voice_state=VoiceState(),
+            backend=FakeBackend(),
+        )
+        consumer.player = FakePlayer()
+        selected = consumer._pending()
+        assert len(selected) == 1
+        assert selected[0]["id"] == queue_id
+        consumer._speak_one(selected[0])
+
+        rows = _events(trace_path)
+        enqueue = next(
+            row for row in rows
+            if row["event_type"] == "output_queued"
+            and row["entity_ref"] == entity_ref
+            and row["outcome"] == "queued"
+        )
+        consumer_start = next(
+            row for row in rows
+            if row["event_type"] == "trace_start"
+            and row["entity_ref"] == entity_ref
+            and row["trace_id"] != enqueue["trace_id"]
+        )
+        assert consumer_start["parent_ids"] == [enqueue["record_id"]]
+        stored = readers["beliefs"].read(
+            "SELECT status FROM speech_queue WHERE id=?", (queue_id,)
+        )
+        assert stored[0]["status"] == "spoken"
+        assert consumer.backend.calls == [(thought, queued[0]["voice"] or "af_sarah")]
+        assert len(consumer.player.calls) == 1
+    finally:
+        try:
+            trace_overlay.end_trace(
+                producer, source_ref="isolated_real_crystallizer_test_cleanup"
+            )
+        except Exception:
+            pass
+        for writer in writers.values():
+            writer.close()
+
+
 def _run_paired_sqlite_cycle(tmp_path, monkeypatch, trace_on):
     from substrate import Reader, Writer
 
