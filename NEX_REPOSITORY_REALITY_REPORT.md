@@ -403,3 +403,35 @@ Source hashes:
 - `theory_x/stage_self_narrative/self_narrative.py`: `15d8c1dd1de8332b3d12e06a096aac2c0b2b2cb3`
 
 No runtime behaviour, prompt content, goal policy, schema, flags, host, experiment, merge or deployment was changed.
+
+
+## M0.3–M0.4 correction and extension — Fountain prompt consumers and selection feedback (23 Nov 2026)
+
+A deeper pass through `theory_x/stage6_fountain/generator.py` found additional downstream consumers and corrects one bounded conclusion in the Stage 2 audit.
+
+### Affinity correction
+
+The Stage 2 addendum correctly states that the inspected BeliefRetriever scoring and VoiceEngine scoring paths do not read `beliefs.affinity`. However, the Fountain prompt builder does read it: it selects up to ten beliefs with `affinity > 0.40`, randomly samples up to two, and appends their contents under "Beliefs you've come to feel as deeply yours". Therefore AffinityLoop output has a source-confirmed Fountain prompt consumer. This does not validate the self-rating signal: `affinity_loop.py` itself documents a prior test in which the model's ratings collapsed to the nearest prompt anchors. Record the relationship as **source-level prompt consumption of an unvalidated affinity field**, not as a validated preference or proof of influence on generated content.
+
+### Fountain selection feedback paths
+
+- **Momentum:** after a normal Fountain thought, `capture_momentum()` is called when `NEX5_MOMENTUM` is unset or `1` (source default ON). The next candidate-selection helper reads the persisted `momentum` row (`thought_fragment`, `carry_count`) and uses it as an unfinished-thread signal in the curiosity score. `NEX5_CARRYOVER=1` additionally stamps whether the prior fire crystallized. This is a source-defined cross-fire selection-feedback path, not just a prompt annotation. Actual flag state and effect on selected content remain host/runtime unknown.
+- **Global Workspace:** `NEX5_GLOBAL_WORKSPACE` defaults to `1`; when a non-empty arbitration line is returned it is prepended to the DRIFT focus block. The winning workspace line is deliberately not carried into wide EXPLAIN/ARGUE fires unless the separate `NEX5_WIDE_FOCUS=1` path carries selected faculty lines. This distinction is source-defined.
+- **RecursiveSelf:** `recursive_self.format_for_prompt()` is called without an environment gate and a non-empty line is appended to the focus block; its separate `perturbation()` result is sampled for `recursion_attrib`. The source does not establish that the attribution row itself changes the selection.
+- **Conditional inner faculties:** Metacognition voice, mood/compositional emotion, Amoha, affliction cluster, L4 grounding/stakes, and wide-focus carry are individually gated by `NEX5_METACOG_VOICE`, `NEX5_MOOD`, `NEX5_AMOHA`, `NEX5_AFFLICTIONS`, `NEX5_L4_STAKES`, and `NEX5_WIDE_FOCUS`. Do not infer activation from the imported modules or source presence.
+- **Affinity, identity, downtime and surprise:** the normal prompt builder reads recent `identity_log` statement, latest `self_downtime` belief, recent `surprise` belief (six-hour window), and random inward/outward `spectrum` standing-points. These are direct source reads into prompt construction. `NEX5_IDENTITY_BLOCK` is a separate optional identity-block mechanism; its flag being off does not remove the distinct latest-`identity_log` block.
+- **HotObserver:** post-fire observer writing is gated by `NEX5_HOT_OBSERVER=1`; when enabled it writes a meta-belief about the completed fire and carry branch. Its beliefs can later be candidates for retrieval, but actual selection is unverified.
+- **SubstrateVoice:** the potential anchor-verbatim path has a further `NEX5_RECONCILE != 1` guard plus groove/cooldown/anchor conditions. A source comment says the deployment has `NEX5_RECONCILE=1`, but the live host environment has not been inspected. Do not state whether the branch is active on the current host.
+- **Quiescent path:** every fifth fire, by the counter condition in source, can record a bare external sense item (or tick fallback) and return before normal LLM composition/crystallization/speech. This is a distinct Fountain output branch.
+- **Stillness path:** duplicate own-slot retrieval can write a blank Fountain event/stillness record and return without a generated thought; after three consecutive stillness events the next fire is forced with a quiet notice. This is distinct from the ordinary generated-thought route.
+- **Substrate Emit / Reconcile Emit:** `NEX5_SUBSTRATE_EMIT=1` can render top activated substrate beliefs directly; `NEX5_RECONCILE=1` can construct a joint-progress prompt from open problems. These are separate source-defined generation alternatives; current host flag values remain unknown.
+- **Post-fire observer records:** EmphasisEngine scores after thought generation and writes `emphasis_log`; `fountain_retrieval_log` and `fountain_prompt_blocks` are also written after the thought/event is already recorded. These are observer/persistence outputs, not upstream causes of that same fire. The retrieval log is dropped/recreated on startup except for the conditional legacy-FK migration branch; the prompt-block manifest is retained with 30-day pruning. No runtime reader for the prompt-block manifest was identified in this pass.
+- **Parallel substrate fire:** every fifth main-path fire according to the counter condition can render a separate substrate output and persist it in `substrate_fires`; it does not replace the normal Fountain thought. This is another output path whose actual runtime occurrence is unknown.
+
+### Evidence boundary
+
+These observations expand the source-to-prompt and source-to-output map. They do not establish current host flag values, successful runtime execution, which prompt blocks were present on a live fire, whether a specific candidate was selected, or whether the model relied on it. The persistent prompt-block manifest is useful evidence infrastructure but is not itself a complete causal graph: its entries are hashes/lengths/prefixes, and the manifest has no identified runtime consumer in this inspection.
+
+Source hash: `theory_x/stage6_fountain/generator.py` `43644876295ffdd649a240f52a7946c666a8579f`.
+
+No runtime behaviour, flag, prompt, selection policy, schema, host, experiment, merge or deployment was changed.
