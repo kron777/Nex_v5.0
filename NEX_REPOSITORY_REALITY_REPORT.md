@@ -961,3 +961,24 @@ Source hashes:
 - `run.py`: `73a2c58a4f5f0348135a46eb83d6cdd61db874e7`
 - `tests/test_predictive_substrate.py`: `96f5b6dfa21729948499a3b2c483eb9cca050296`
 - `tests/test_expectations.py`: `9d61df7d0cf0421e69e96681b89b8051f498ee61`
+
+
+## M0.3–M0.4 source audit — Fountain EmphasisEngine and PredictionTracker (24 Nov 2026)
+
+Inspected against PR #65 integrated source head `cffbbc94b5a494247d127abf2720886a08f7a567`.
+
+The FountainGenerator constructs `PredictionTracker` and `EmphasisEngine` internally during generator initialization; they are not wired as separate run.py constructor arguments. At each completed thought, the generator scores the thought before inserting its own `fountain_events` row. This ordering is deliberate: the tracker reads the preceding 20 Fountain thoughts, so scoring after insertion would include the candidate itself and suppress its novelty signal. The result is then written to `dynamic.db.emphasis_log` with the corresponding `fountain_event_id`.
+
+The current combiner averages three signals equally: open/stuck problem relevance, overlap with locked Tier-1 keystones, and entity novelty against the previous 20 Fountain thoughts. Drive resonance is still computed and logged, but is excluded from `combined` and `dominant_signal`; the source comment records a prior ground-truth test result of p=0.190 and says it was removed from the combiner. That historical experiment result was not independently re-verified in this pass.
+
+The module and generator explicitly describe the mechanism as observation-only. The score is not fed back into candidate selection, generation, branch choice, crystallization or belief confidence in the inspected path. No downstream reader of `emphasis_log` was identified in the bounded source pass. This is [L1] constructed instrumentation, not evidence of operationally consumed emphasis or improved output quality.
+
+Test boundary: the inspected test tree has Fountain and FountainCrystallizer tests but no dedicated `test_emphasis_engine.py` or `test_prediction_tracker.py`. No test was run or modified.
+
+Source hashes:
+- `theory_x/stage6_fountain/generator.py`: `d57bde71eca5f5968964b2846b8a34cffa8964a2`
+- `theory_x/stage_emphasis/emphasis_engine.py`: `21d67aa1b86fe224d30dd17fed64cba987e71a6c`
+- `theory_x/stage_emphasis/prediction_tracker.py`: `96c74a502616af1ee47d4204612158c8edea545d`
+- `run.py`: `73a2c58a4f5f0348135a46eb83d6cdd61db874e7`
+
+No runtime or test behaviour, schema, flags, database, experiment, host state, merge or deployment was changed.
