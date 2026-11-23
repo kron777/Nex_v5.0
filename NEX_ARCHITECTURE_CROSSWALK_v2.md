@@ -654,3 +654,6 @@ This draft is not a complete crosswalk and does not satisfy Gate 0. It records a
 
 
 **FocalSet integration boundary:** The Chat handler updates a process-global FocalSet from each request's top-10 belief candidates, then copies its selected IDs into the requesting session's own WorkingMemory. Up to five active items are later injected into the composition prompt only for Conversational turns with at least two retrieved belief blocks. Shared FocalSet hold/last-shift state can influence another session's selected IDs when candidate sets overlap; session WorkingMemory itself remains separately keyed. No inspected integration test interleaves two chat sessions through this path. Whether attention continuity is intended to be process-global or session-scoped remains an explicit acceptance question; do not infer a defect or change the architecture without the governing sign-off. See Section 12 of `NEX_CHAT_PATHWAY_AUDIT.md`.
+
+
+**Prompt timing qualification:** The `Recently attended (cross-turn)` block is assembled after the current request's FocalSet update and WorkingMemory add operation. It may therefore contain both same-turn selected beliefs and retained earlier items, not only cross-turn carry-over.
