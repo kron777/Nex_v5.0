@@ -178,6 +178,8 @@ def build_fountain(
                 # Phase 0 causal trace — observational only, default OFF.
                 # Do not call dynamic_state.status() here: that would add an
                 # extra state/DB read solely for the observer.
+                generator._trace_input_record_id = None
+                generator._trace_final_record_id = None
                 _trace_handle = None
                 _trace_api = None
                 if (os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1"
@@ -190,7 +192,7 @@ def build_fountain(
                             payload={"interval_seconds": interval},
                         )
                         if _trace_handle is not None:
-                            _trace_api.record(
+                            generator._trace_input_record_id = _trace_api.record(
                                 "input_arrival",
                                 producer="FountainLoop",
                                 consumer="FountainGenerator.generate",
@@ -208,19 +210,28 @@ def build_fountain(
                 try:
                     thought = generator.generate(dynamic_state, readers["beliefs"])
                     if _trace_handle is not None:
+                        _terminal_record_id = getattr(
+                            generator, "_trace_final_record_id", None
+                        )
                         if not thought:
-                            _trace_api.record(
+                            _terminal_record_id = _trace_api.record(
                                 "candidate_generation",
                                 producer="FountainGenerator.generate",
                                 consumer="FountainCrystallizer",
                                 source_ref="theory_x/stage6_fountain/generator.py::generate",
                                 outcome="no_fire",
+                                parent_ids=(
+                                    [generator._trace_input_record_id]
+                                    if getattr(generator, "_trace_input_record_id", None)
+                                    else []
+                                ),
                             )
                         _trace_api.end_trace(
                             _trace_handle,
                             source_ref="theory_x/stage6_fountain/__init__.py::fountain_loop",
                             outcome="thought_returned" if thought else "no_fire",
                             payload=thought,
+                            parent_ids=[_terminal_record_id] if _terminal_record_id else [],
                         )
                 except Exception:
                     if _trace_handle is not None:
