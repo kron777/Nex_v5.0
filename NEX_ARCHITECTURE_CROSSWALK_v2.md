@@ -339,6 +339,14 @@ The `GeniusTagger` module and `run.py` still describe the tagger as “LOG-ONLY�
 
 **Feedback conclusion:** this is not a disconnected score table. There are genuine producer-to-next-thought paths through the striking prompt block, readiness modulation and reanimation governor, plus conditional continuity and VoiceEngine ranking. However, the producer's “log-only/no consumers” comments and any dashboard that labels all six as unconditionally live are inaccurate. Runtime consumption and behavioural benefit still require an ID-linked trace and controlled comparison.
 
+## 3.13 A2 morality-table prerequisite — no source table identified
+
+A bounded inspection of all six current SQL schema files (`beliefs.sql`, `conversations.sql`, `dynamic.sql`, `intel.sql`, `probes.sql`, `sense.sql`), `MIND_MAP.yaml`, and the repository's `strikes/` package found no dedicated table or module named for morality, ethics, virtue or Dharma.
+
+The `strikes/` package is a catalogue/protocol mechanism for manual striking experiments; it is not a morality table and no automatic consumer path from it into Fountain was established. The `genius_tags` table records a separate Genius/STRIKING classification signal and has the consumers described in §3.12; it is not evidence of a moral judgment table.
+
+**A2 is therefore a roadmap requirement whose source object and semantics are not yet identified.** Before creating consumers, establish the intended table/schema, what constitutes a moral observation versus a STRIKING event, how evidence is accumulated, how contradictory observations are handled, and which existing faculties should consume it. Do not repurpose `genius_tags`, the `strikes/` catalogue or `held_tensions` by name similarity.
+
 ## 4. Top documentation/source discrepancies
 
 These are discrepancies to reconcile, not automatic instructions to modify code or documentation.
