@@ -614,3 +614,36 @@ The eight named affect/operator prompt faculties above are present in the Chat v
 - theory_x/stage_tom/amoha_detector.py: 8012d5d34d502e3a14fa7f61e2c525dc779c4206
 
 This remains source-level evidence. No flag values, file presence on host, number of concurrent admin sessions, actual prompt composition, model reliance or behavioural effect has been observed. No runtime/test behaviour, schema, state, flag, host configuration, experiment, merge or deployment was changed.
+
+
+
+## M0.3–M0.4 forward/backward audit — reshape outcome semantics and warrant activation (23 Nov 2026)
+
+### Holding-zone reshape: transformation is not gate acceptance
+
+- HoldingZoneResolver._process_reshape_pending() fetches up to ten pending rows, transforms each, and calls CoherenceGate.check(new_packet).
+- The returned GateDecision is discarded. If the call raises, the exception is logged, but the original held row is still marked with terminal action "reshaped", the transformed preview is stored, and _reshape_count is incremented.
+- Therefore the terminal status currently means at most "transformer returned a packet and the resolver attempted gate resubmission"; it does not establish that the gate accepted the new packet. In the exception branch it records "reshaped" despite the resubmission having raised.
+- A non-exceptional REJECT, HOLD or another non-ACCEPT result is likewise not distinguished in the original row's resolution record. The gate may create its own new held/rejected state, but that outcome is not linked into the original held_resolutions row by this code.
+- The accurate source-level classification is an outcome-accounting/observability gap, not proof that the transformed content bypasses the gate. The gate call is present. Whether "reshaped" was intentionally defined as "transformed and resubmitted" rather than "accepted" must be reconciled with the authoritative spec before any change.
+
+### Warrant: evidence recorder is wired; score pass startup is not established
+
+- run.py conditionally constructs and starts WarrantRecorder only when NEX5_WARRANT_RECORD=1. The recorder appends belief_survival checks and accumulates belief_use_day / belief_use_days from retrieval, Fountain anchors, synthesis, lineage and arc membership evidence.
+- stage_warrant/warrant.py separately defines WarrantPass. Its run_once() calls compute_all() and persist(), creating/updating the derived belief_warrant side table. Its docstring says it is started only when NEX5_WARRANT=1 (run.py).
+- The inspected run.py startup path contains the WarrantRecorder block but no import, construction or start of WarrantPass. The inspected gui/server.py startup path likewise has no WarrantPass construction. The Stage 2 dynamic factory has a retention loop but no WarrantPass registration in the inspected section. Thus the module's "run.py" startup claim is not supported by the inspected boot wiring.
+- Recorder activation and warrant-score calculation are distinct: enabling NEX5_WARRANT_RECORD can collect raw evidence without calculating belief_warrant through WarrantPass. No claim is made about manual/CLI invocation or other external callers; those were not exhaustively excluded. The actual host flag values remain unknown.
+- A second bounded completeness risk exists in WarrantRecorder.use_cycle(): the Fountain retrieval/event and synergizer cursors use monotonic IDs, but the belief_lineage and arc_members cursors use created_at/joined_at timestamps with a strict greater-than predicate. If a capped batch ends partway through multiple rows sharing the same timestamp, the cursor advances to that timestamp and remaining rows at the same timestamp are skipped on the next cycle. This is conditional on timestamp ties at a batch boundary; no incidence is established. It merits a fixture-level test before any repair.
+
+### Source hashes
+
+- run.py: 73a2c58a4f5f0348135a46eb83d6cdd61db874e7
+- gui/server.py: 5ee8b167f386466c383090445c63a84810bbae52
+- theory_x/stage_gate/resolver.py: c89fa5dcea4ffb5c14c1b528f16982efe19a0d4d
+- theory_x/stage_gate/holding_zone.py: b3fc5713deee86a848782c671468ae4af9d7f53e
+- theory_x/stage_gate/coherence_gate.py: 39f73108cb36e886cfc8dafe045646acba15549e
+- theory_x/stage_warrant/recorder.py: ade231c1fc7c8da7f90f8f7ab375d352837a7c79
+- theory_x/stage_warrant/warrant.py: a15bc9d012fffac319adf1634f52eb1fde0e35b6
+- theory_x/stage2_dynamic/__init__.py: 7b35f304cf823b555a4c6ec78722a07d017de576
+
+No runtime/test behaviour, schema, data, flags, host state, experiment, merge or deployment was changed. These findings are evidence and test-design candidates only; any behavioural repair requires the canonical specification and founder approval.
