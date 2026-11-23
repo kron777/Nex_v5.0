@@ -481,6 +481,22 @@ Current source and tests define two separate checks:
 
 This gate preserves locked axioms and filters near-duplicate thoughts. It does not establish whether a novel contradiction to a non-locked belief is true, useful, or worthy of being held as tension.
 
+## 3.20 Prediction families — separate autonomous substrate from gated scorecards
+
+The repository has three distinct prediction mechanisms that should not be conflated:
+
+| Mechanism | Boot state | What it writes/reads | Does it become a belief? |
+|---|---|---|---|
+| `PredictiveSubstrate` | `run.py` starts it unconditionally; 300s interval | Verifies prior `predictions`, creates internal-belief/external-input predictions, writes `surprise_events`. Global Workspace reads surprise candidates. | No direct belief promotion in this path; it can influence the next prompt through Global Workspace. |
+| `WorldPredictionLoop` | Requires `NEX5_WORLD_PRED=1`; default OFF | Voice crypto-direction prediction plus random control; resolver stamps correct/wrong in `world_predictions`; scorecard reports performance. | No belief insert in `world_predictions.py` or the loop's current path. |
+| `SelfPredictionLoop` | Requires `NEX5_SELF_PRED=1`; default OFF | Predicts fire/no-fire against a random control, resolves against persistent `fountain_events`, writes `self_predictions` and scorecards. | No belief insert in the inspected path. `adapt_threshold()` is explicitly monitor-only; its docstring says the actual update loop is elsewhere (`selfdesc_novel`). |
+
+The reported “2,705 market + 5,228 self predictions resolved” is a historical database claim, not something source code alone verifies. Current host flag values and table counts are UNKNOWN. The current source shows the two scorecard loops are optional and do not automatically promote their outcomes into beliefs. By contrast, PredictiveSubstrate is source-default active and its surprise events can influence the next thought through Global Workspace, even though the prediction itself is not promoted as a belief.
+
+### Pattern loop distinction
+
+`theory_x/life/pattern_loop.py` is a daily-activity pattern summariser: it reads identity/activity records, writes `pattern_log` and may write a Tier-6 `pattern_loop` belief. It does not generate falsifiable outcome predictions or resolve them against actual outcomes. No normal `run.py` start call was found for this loop. Do not call it the same thing as the world/self prediction scorecards.
+
 ## 4. Top documentation/source discrepancies
 
 These are discrepancies to reconcile, not automatic instructions to modify code or documentation.
