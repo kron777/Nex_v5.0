@@ -1139,3 +1139,26 @@ Scope limitations: Chat retrieval returned no belief context; Fountain's speech 
 
 A separate `NEX_R77_diagnostics.txt` snapshot reports `NEX5 is currently OFF` (19 Nov 2026). The 16 Nov runtime log shows a clean SIGTERM/STANDBY transition, followed by keepalive/power-switch supervisor activity. These are historical observations only; they do not establish the process or standby-marker state on 23 Nov. The keepalive/power-switch may control relaunch, so Manus must inspect the current marker, process tree and supervisor before any host-side work.
 
+
+
+## Stage World source-to-sink addendum — prediction, calibration and expectation ledger (24 Nov 2026)
+
+Revision basis: PR #65 integrated source head `cffbbc94b5a494247d127abf2720886a08f7a567`.
+
+| Mechanism | Construction / activation | Source-confirmed sink | Evidence level / limit |
+|---|---|---|---|
+| WorldPredictionLoop | Constructed and started by `run.py` only under `NEX5_WORLD_PRED=1` (default OFF). | Voice direction and random control are persisted in `world_predictions`; resolver stamps outcomes against a later independent price fetch; ScorecardLoop reads the scorecard to refresh its fixed-source self-belief. | [L1] source path plus isolated producer tests; host flag/runtime activity UNKNOWN. |
+| SelfPredictionLoop | Constructed and started only under `NEX5_SELF_PRED=1` (default OFF). | Fire/no-fire target; authored-belief count target; self-description novelty target; optional owned-belief expectations, commitment scan and reconciler. | [L1] source path; several producer/reconciler fixture tests exist; integrated loop execution UNKNOWN. |
+| Calibration consult | Called after the voice direction is generated and before its prediction row is fully recorded. Reads the fixed-source self-belief and current voice/random scorecards; stamps trust level on the voice row. | Trust metadata is persisted on `world_predictions`; it does not change the current prediction. | [L1]; no dedicated consult test; unavailable-scorecard branch currently records `none` rather than `unknown`. |
+| Expectations reconciler | Called from SelfPredictionLoop only under `NEX5_RECONCILER=1` (default OFF). | Headers frozen producer rows, adjudicates due evidence, writes terminal ledger states and event valence; optional learning/mood are separate gates. | [L1]; `tests/test_expectations.py` covers pure math, guardrails, producer/reconciler fixture paths and canaries; no live activation claim. |
+| Learning guards | Reconciler records guard ticks; subtraction paths are separately gated by `NEX5_LEARN_RATIO_SUBTRACT` and `NEX5_LEARN_ATTRIBUTION_SUBTRACT`; cap is gated by `NEX5_LEARN_CAP`. | Read-only diagnostics, reversible learning-subtraction records and cap blocks, depending on the specific flag/path. | [L1]; `tests/test_learning_guards.py` covers bounded fixture cases; host flag values UNKNOWN. |
+
+### Crosswalk qualifications
+
+- The SelfPredictionLoop's actual tick is broader than the fire/no-fire startup log: it also resolves/makes `authored_30m` and `selfdesc_novel` rows, then conditionally runs owned-belief, commitments and expectations. Keep these as distinct producers and gates rather than describing the loop as a single fire predictor.
+- The market voice/random comparison is not guaranteed to share one baseline/time observation: the voice prompt takes an initial price read, and each subsequent producer insert performs another independent price fetch. Each row receives its own timestamp. A failed second/third fetch can also leave one leg missing while the wrapper returns a non-error dictionary. See DRAFT-009 in the Reality Report.
+- Calibration consult distinguishes missing self-belief (`unknown`) from a present self-belief plus unavailable live scorecard (`none`), even though the latter has no fresh evidence for a negative judgement. Its returned level is stamped onto the voice row. See DRAFT-010 in the Reality Report.
+- Existing `test_frozen_at_made.py` verifies direct producer persistence and frozen-field immutability, not the generator's paired baseline or partial-pair contract. Self-prediction and expectations have separate fixture coverage; these tests do not prove the environment-gated loops run on the target host.
+- No host environment values, network activity, live prediction rows, actual voice calibration, or statistical skill have been measured here. [L1] is not [L2]–[L4].
+
+No source/runtime behaviour, experiment, flags, schema, database or host state changed.
