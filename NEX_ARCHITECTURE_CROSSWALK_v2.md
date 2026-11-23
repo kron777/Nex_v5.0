@@ -294,6 +294,28 @@ Draft PR #54 now contains a source/test prototype for the two required end-to-en
 
 **Reconciliation:** the current Writer/Reader connection design is not itself a one-open defect: it intentionally uses one long-lived writer connection and short-lived read-only connections. The outstanding hygiene questions are direct SQLite access outside the substrate, the two entrypoint/configuration differences, production WSGI deployment and raw-content diagnostic paths. These require separate source/consumer and runtime evidence before code changes.
 
+## 3.11 A1 finitude / cost ledger — shadow-to-live gap and invariants
+
+| Layer | Source evidence | Verified status |
+|---|---|---|
+| Live Chat budget | `gui/server.py::_assemble_chat_blocks` reads `NEX5_CHAT_WORKSPACE_BUDGET` (default 1400) and passes that fixed integer to `select_within_budget()` when `NEX5_CHAT_WORKSPACE=1`. | [L1] live source path; actual flag value [L2] UNKNOWN |
+| Shadow Balance | `theory_x/stage_finitude/budget_shadow.py::Budget` | [L1] implementation; module explicitly says NOT IN LIVE PATH |
+| Spend ledger | `Budget.spend()` inserts into `shadow_budget_spend` and decrements in-memory `_spent` only after successful write. | [L1] source; no live consumer identified |
+| Ledger primitives | `theory_x/stage3_world_model/ledger_primitives.py::refuse/consolidate/recall` | [L1] implementation; module explicitly says NOT IN LIVE PATH |
+| Tests | `tests/test_shadow_budget.py`, `tests/test_ledger_primitives.py` | Component-level tests; synthetic 200-moment budget corpus and synthetic 20-pair refusal-rate corpus, not live chat/tension samples |
+| Mind map | `mind_map/MIND_MAP.yaml::p13_finitude` | Says `evidence: implemented` and `dark: true`; its short `sketch` says “real ceiling enforced live”, while its detailed notes correctly say the spend ledger and Balance are not used by the live caller |
+
+**Verified conclusion:** the live 1,400-character selector exists, but the per-moment Balance, persisted spend ledger and ledger primitives are not wired into the live Chat/Fountain path. The shadow calls the real pure selector with its own `remaining`, but that proves only the selector's response to a supplied budget—not that live spends are debited and passed to it. The spend table is written by shadow tests/primitives; no live read/consumer was found in the traced entrypoints.
+
+### CTL v0 questions that must be resolved before wiring
+
+1. **No-rewind / moment lifetime:** `Budget._spent` is process memory. `shadow_budget_spend` stores `moment_id` and `remaining_after`, but the constructor does not rehydrate from those rows. Reconstructing a Budget with the same moment ID after process restart resets `_spent` to zero. The module says a moment balance should not survive restart; the roadmap's “no-rewind” requirement therefore needs an explicit definition of whether a moment ends at process restart or must survive it.
+2. **Conservation semantics:** `refuse()` accumulates cost on re-facing the same pair. But `consolidate()` collapses duplicate rows by summing `seq` and taking the maximum individual `cost`, while returning the discarded sum-minus-max as `cost_delta`. This preserves distinct-pair count and facing count, but does not preserve cumulative cost if `cost` means “cumulative cost paid across every facing” as the module docstring says. The intended meaning of cost (cumulative paid vs current holding price) must be fixed before changing this.
+3. **Atomicity under concurrency:** `refuse()` performs read-then-write for an open pair without a unique constraint visible in the table definition; the module acknowledges a concurrent race and delegates duplicate cleanup to `consolidate()`. That cleanup uses multiple Writer calls, not one explicit transaction. A crash between update/delete operations could leave a partially consolidated group.
+4. **Reader/consumer:** the persisted spend ledger is not read back into a live balance or selector. A write-only ledger records history but cannot, by itself, prevent a rewind or prove a live price was applied.
+
+**Phase boundary:** these are source-level design/evidence gaps, not authorisation to wire the shadow into Chat, alter the 1,400-character live budget, or change held-tension behaviour. A1's conservation/no-rewind semantics need founder/spec reconciliation before implementation. Keep `p13_finitude` dark until a live consumer and its invariants are verified.
+
 ## 4. Top documentation/source discrepancies
 
 These are discrepancies to reconcile, not automatic instructions to modify code or documentation.
