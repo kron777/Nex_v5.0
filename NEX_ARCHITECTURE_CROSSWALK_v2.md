@@ -1054,3 +1054,26 @@ These are coverage gaps only. The source review did not execute or alter the tes
 - Exact source hashes and the full source-level analysis are in the matching Reality Report section.
 
 No runtime/test behaviour, schema, data, flags, host state, experiment, merge or deployment was changed.
+
+
+## 3.34 Stage-TOM / Stage-Affect — structured attention, self-observation and readiness
+
+Inspected against PR #65 integrated source head `3d5df48e6539818097b58b6e936059fae946ceca`. All activation flags and live runtime values remain UNKNOWN.
+
+| Mechanism | Actual source path / consumer | Evidence and limits |
+|---|---|---|
+| Structured present | `gui.server._assemble_chat_blocks` calls `self_present.update` only when Chat workspace and SelfPresent flags are ON; the blended per-session salience vector is passed to `global_workspace.select_within_budget` | Persists vector/winner/turn count to conversations.db. Unit tests cover carry, persistence and helper-level integration; not live-route activation or concurrent multi-session isolation. |
+| HOT observer | FountainGenerator calls `hot_observer.observe` under `NEX5_HOT_OBSERVER`; every third eligible fire writes a Tier-3 `hot_observer` belief | SelfNarrative reads the latest such belief; Fountain separately samples recent HOT beliefs for prompt retrieval. Counter is process-local and resets on restart. |
+| Self-model aggregation | SelfNarrative calls `aggregate_self_model`; it summarizes recent HOT beliefs when at least five exist in the 24h window | Actual downstream consumer exists; summary is derived from the observer belief corpus and is not an independent validation of self-knowledge. |
+| Source identity | `source_identity.py` provides map/census/backfill; `--backfill --apply` writes old belief rows | No caller found in inspected boot/Chat/Fountain entry points. Distinct from automatic source-kind stamping in `substrate/source_kind.py`. |
+| Stakes approach | Readiness adds `appraise_approach` bonus under `NEX5_APPROACH` | Separate conditional source path; tests cover it individually. |
+| Stakes aversive | Readiness subtracts `appraise_groove` under `NEX5_STAKES` | Comment declares mutual exclusion with approach, but the two independent `if` blocks do not enforce it. Both terms apply if both flags are set; no both-on test was found in `tests/test_stakes_appraisal.py`. |
+| Legacy L4 stakes | Fountain checks `stakes_monitor.check_world_contact` every fifth fire under `NEX5_L4_STAKES`; resulting state reaches workspace arbitration and grounding override | Distinct from the readiness `NEX5_STAKES` cost. Do not merge these flags/concepts in reports. |
+| AffectState | `run.py` starts its 300s daemon; state persists in conversations.db; Chat formats it into the prompt | Fountain reads valence/arousal for novelty reach only under `NEX5_VALENCE_DRIVE`; optional composed-emotion line uses `NEX5_MOOD`; event-valence nudge uses `NEX5_EXPECT_MOOD`. |
+| Optional affect faculties | Admin-scoped Chat blocks: Compassion, Compass, Equanimity, Apramada, Virya, Sraddha, Prasrabdhi, AffectCarry | Compassion and Compass are exempt from Chat workspace eviction; remaining listed blocks compete for budget. Flags are source conditions, not observed runtime values. |
+| Conviction | Module documentation records prior Chat regroup/order consumers as removed after measured-null results | No current caller found in inspected boot/Chat/Fountain paths; retained source is not evidence of an active faculty. |
+
+### Conditional finding DRAFT-004 — readiness arm mutual exclusion is not enforced
+
+The source comment in `ReadinessEvaluator.score()` says `NEX5_APPROACH` and `NEX5_STAKES` are mutually exclusive, but the implementation evaluates them in separate `if` statements. If both flags are set, both the positive approach bonus and negative groove cost are applied. `tests/test_stakes_appraisal.py` tests each flag independently and does not cover the combined state. This is a source-confirmed conditional guard gap; live flag values and incidence are UNKNOWN. No behavioural change or severity assignment is made pending the authoritative specification and Gate 0.
+
