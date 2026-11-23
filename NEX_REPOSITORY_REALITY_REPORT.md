@@ -929,3 +929,35 @@ No dedicated calibration-consult test was found in the inspected test tree. The 
 The self-prediction target and expectations tests provide meaningful fixture coverage for their individual producer/reconciler logic. They do not close the integrated voice/random market-pair path or the calibration read-failure branch. No tests were run or modified in this audit.
 
 **Disposition:** These are Phase 0 evidence findings, not authorisation to alter the experiment or runtime. The relevant loops are source-gated OFF by default; deployed values remain UNKNOWN. No runtime code, test behaviour, schema, flags, database, host, experiment, merge or deployment was changed.
+
+
+## M0.3–M0.4 source-to-sink finding — empty-window surprise reaches belief confidence (24 Nov 2026)
+
+Inspected against PR #65 integrated source head `cffbbc94b5a494247d127abf2720886a08f7a567`.
+
+### DRAFT-011 — empty prediction window is treated differently by separate surprise consumers
+
+`PredictiveSubstrate._verify_one()` deliberately records an empty target window as `surprise_score=1.0` with `actual_content=None`; the same row receives `surprise_flag=1` and `big_surprise=1`. This is an explicit sentinel: the expectations reconciler's `_evidence_surprise()` recognises score 1.0 plus absent actual content as `empty_window` and returns no evidence. The normal Stage 2 `SurpriseLoop` also excludes rows with NULL/empty `actual_content` before promoting surprise events into beliefs.
+
+A separate downstream consumer does not preserve that distinction. `FountainCrystallizer.crystallize()` calls `surprise_weighting.confidence_for_fire()` when `NEX5_SURPRISE_WEIGHT` is unset or `1` (the source default). That function selects the most recent `surprise_events` row within 60 seconds, reads `surprise_score`, and computes the confidence boost from the score alone. Although the query selects `surprise_flag` and `big_surprise`, neither flag nor `actual_content` is used to reject an empty-window sentinel. A recent empty window can therefore be interpreted as maximum novelty and raise the next crystallized belief's confidence from the 0.70 baseline to the 0.92 cap.
+
+The PredictiveSubstrate loop is constructed and started unconditionally in the inspected `run.py` source; deployed operation is not established. The confidence consumer's source default is enabled, but the host environment value is UNKNOWN. This is a source-confirmed producer/consumer semantic mismatch and a conditional confidence-inflation path, not evidence that it has occurred on the target host.
+
+### Test boundary
+
+- `tests/test_predictive_substrate.py::test_verify_empty_window_scores_1` explicitly asserts the empty-window sentinel (score 1.0, no actual content).
+- `tests/test_expectations.py::test_surprise_empty_window_is_unresolved_never_violated` checks that the ledger does not treat that sentinel as evidence.
+- `theory_x/life/surprise_loop.py::surprise_tick()` excludes rows with absent actual content before belief promotion.
+- No dedicated `tests/test_surprise_weighting.py` or inspected integration test covers the crystallizer confidence consumer's handling of the same sentinel.
+
+No severity or repair is assigned pending the authoritative acceptance criteria and broader experiment review. No runtime or test behaviour was changed.
+
+Source hashes:
+- `theory_x/stage_prediction/predictive_substrate.py`: `24933b4d6217376a1341c351319cc48546543c80`
+- `theory_x/stage_prediction/surprise_weighting.py`: `10db4a80a31c065b113290f21d89bd16743a89fb`
+- `theory_x/stage6_fountain/crystallizer.py`: `62cbb62cf55b8c39ab1301b9d89d36b37cc16bfc`
+- `theory_x/life/surprise_loop.py`: `bb1869e3d5784ca668ca37e8c76cc25998d7a381`
+- `theory_x/stage_world/expectations.py`: `994b552e03ef12c6b76fe5161095731665fc167c`
+- `run.py`: `73a2c58a4f5f0348135a46eb83d6cdd61db874e7`
+- `tests/test_predictive_substrate.py`: `96f5b6dfa21729948499a3b2c483eb9cca050296`
+- `tests/test_expectations.py`: `9d61df7d0cf0421e69e96681b89b8051f498ee61`
