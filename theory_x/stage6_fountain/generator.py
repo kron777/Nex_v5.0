@@ -2444,8 +2444,37 @@ class FountainGenerator:
                         for _ordinal, _name, _hash, _nchars, _prefix in _blocks
                     ]
                 )
+                if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+                    try:
+                        from substrate.trace_overlay import record as _trace_record
+                        _trace_record(
+                            "writer_delta",
+                            producer="FountainGenerator.generate",
+                            consumer="FountainTrace",
+                            source_ref="theory_x/stage6_fountain/generator.py::prompt_block_manifest",
+                            entity_ref=f"dynamic.fountain_prompt_blocks:fire_id={fountain_event_id}",
+                            outcome="inserted",
+                            payload={"table": "fountain_prompt_blocks",
+                                     "fire_id": fountain_event_id,
+                                     "block_count": len(_blocks)},
+                        )
+                    except Exception:
+                        pass
             self._last_prompt_blocks = []
         except Exception as e:
+            if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+                try:
+                    from substrate.trace_overlay import record as _trace_record
+                    _trace_record(
+                        "writer_delta",
+                        producer="FountainGenerator.generate",
+                        consumer="FountainTrace",
+                        source_ref="theory_x/stage6_fountain/generator.py::prompt_block_manifest",
+                        entity_ref=f"dynamic.fountain_prompt_blocks:fire_id={fountain_event_id}",
+                        outcome="write_failed",
+                    )
+                except Exception:
+                    pass
             error_channel.record(
                 f"prompt_blocks write failed: {e}",
                 source="stage6_fountain", exc=e,
