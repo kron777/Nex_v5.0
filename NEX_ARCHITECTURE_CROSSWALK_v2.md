@@ -771,3 +771,33 @@ Source hash: `theory_x/stage6_fountain/__init__.py` `43515f025e7279a6891dd0a630f
 This is a boot-level inventory correction, not the full M0.3–M0.4 forward audit. For each started faculty, the remaining work is to identify exact trigger, data reads, transformation, writes/events, failure behaviour, and each downstream reader/decision/prompt sink; then verify whether the backward Chat/Fountain/belief-write map captures it. Source presence and thread-start calls remain [L1] evidence. Host activation, successful emission and operational consumption are not upgraded without trace evidence.
 
 No runtime code, schema, flags, scheduler policy, host, experiment, merge or deployment was changed.
+
+
+## 3.24 Stage 2 life-loop source-to-sink expansion (23 Nov 2026)
+
+At branch revision `07f6ebe42a1ac99a8038a73476782d1542704296`, the Stage 2 factory was inspected beyond its nine core loops. It also assembles and starts witness, pattern, identity, affinity, scorecard, surprise, remember, wonder, fetch, daily-life, sustained-focus, signal-to-problem, diversity edge-builder, gate-retention and available Moltbook loops.
+
+| Producer | Source output | Next identified consumer / boundary |
+|---|---|---|
+| IdentityLoop | `identity_log` and Tier-6 `identity_loop` belief | PatternLoop reads identity statements; Fountain has a separate identity-context read. |
+| PatternLoop | `pattern_log` and Tier-6 `pattern_loop` belief | WitnessLoop reads pattern statements. |
+| WitnessLoop | `witness_log` and Tier-6 `witness_loop` belief | Subsequent retrieval is possible subject to normal belief filters; live selection is UNKNOWN. |
+| Remember/Wonder/Fetch | Tier-6 beliefs generated from old+recent beliefs, recent sense entities, or URL-backed feed content | General belief candidate pool, subject to query and retrieval filters. |
+| SurpriseLoop | Tier-6 belief from unpromoted surprise events; qualifying large surprise can signal current focus | Belief retrieval; FocusLoop's current-focus path requires a separate event/condition trace. |
+| ScorecardLoop | Refreshes fixed-source Tier-1 locked market self-belief through `ground_self_belief.refresh_self_belief()` | Eligible for belief retrieval; actual selection is query-dependent. |
+| AffinityLoop | Updates `beliefs.affinity` | Inspected BeliefRetriever and VoiceEngine scoring paths do not read this field; no consumer identified in this bounded pass. |
+| SignalToProblem | Reads unactioned `signals`; marks them actioned and inserts `open_problems` | FocusLoop reads open problems and writes `current_focus`; this establishes a source-defined signal → problem → focus chain. |
+| FocusLoop | Reads open problems, belief overlap, Fountain thoughts and chat activity | Upserts `current_focus`, updates problem observations/state, and may write a NEX chat message when stuck. |
+| Diversity EdgeBuilder | Reads belief content/edge counts and embedding similarity | Inserts `belief_edges`; BeliefRetriever reads edges and blends spreading activation (60/40 in the inspected implementation). |
+| Gate retention | Reads age-bounded `gate_decisions` / `throw_net_sessions` | Deletes old rows in bounded batches; maintenance, not an identified prompt selector. |
+| DailyLife | Reads clock, sense, belief, focus, problem and external interaction state | Writes `daily_activities` and conversation sessions/messages. User delivery and later Chat read path remain to be traced. |
+
+**Recursive self-observation chain:** IdentityLoop → PatternLoop → WitnessLoop is source-supported by table reads/writes, with belief rows also written by each level. This is a constructed feedback pathway, not proof of autonomous successful ticks or improved self-understanding.
+
+**Retrieval boundary:** the inspected BeliefRetriever candidate pool admits tier ≤6 beliefs when unpaused and locked or confidence ≥0.15, then applies query relevance and optional edge-based spreading activation. Thus a Tier-6 belief write or Tier-1 locked self-belief can become eligible, but row creation alone does not prove selection, prompt injection or model reliance.
+
+**Affinity boundary:** the inspected retrieval score and VoiceEngine score do not consume `beliefs.affinity`. Do not claim affinity updates change those ranking paths without identifying another consumer.
+
+**Scorecard boundary:** ScorecardLoop refreshes the fixed-source market-prediction self-belief from the scorecard; it is not itself a new prediction experiment. The refreshed belief's prompt use remains query-dependent.
+
+Source hashes and per-loop read/write detail are recorded in the Reality Report's M0.3–M0.4 continuation addendum. This expands the forward map but does not close the full faculty audit or the backward map. No runtime behaviour, schema, loop interval, feature flag, retention policy or deployment was changed.
