@@ -1193,6 +1193,18 @@ def create_app(state: AppState) -> Flask:
         # Phase 0 causal trace — metadata-only and default OFF.
         _trace_handle = None
         _trace_api = None
+        _trace_input_id = None
+        _trace_user_write_id = None
+        _trace_retrieval_id = None
+        _trace_gap_gate_id = None
+        _trace_gap_write_id = None
+        _trace_voice_engine_input_id = None
+        _trace_substrate_voice_id = None
+        _trace_context_selection_id = None
+        _trace_voice_client_input_id = None
+        _trace_model_output_id = None
+        _trace_sanitized_id = None
+        _trace_assistant_write_id = None
         if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
             try:
                 from substrate import trace_overlay as _trace_api
@@ -1202,7 +1214,7 @@ def create_app(state: AppState) -> Flask:
                     payload=prompt,
                 )
                 if _trace_handle is not None:
-                    _trace_api.record(
+                    _trace_input_id = _trace_api.record(
                         "input_arrival",
                         producer="gui.server.api_chat",
                         consumer="ChatRouting",
@@ -1253,7 +1265,7 @@ def create_app(state: AppState) -> Flask:
                     (session_id, prompt, register.name, state.now_fn()),
                 )
                 if _trace_handle is not None:
-                    _trace_api.record(
+                    _trace_user_write_id = _trace_api.record(
                         "writer_delta",
                         producer="gui.server.api_chat",
                         consumer="Membrane/WorldModel",
@@ -1262,6 +1274,7 @@ def create_app(state: AppState) -> Flask:
                         outcome="persisted",
                         payload={"table": "messages", "message_id": _user_message_id,
                                  "session_id": session_id, "role": "user"},
+                        parent_ids=[_trace_input_id] if _trace_input_id else [],
                     )
             except Exception as e:
                 error_channel.record(
@@ -1343,13 +1356,14 @@ def create_app(state: AppState) -> Flask:
         # before was a recency proxy and measured as a null (2026-09-21).
         _retrieved_belief_text = belief_text
         if _trace_handle is not None:
-            _trace_api.record(
+            _trace_retrieval_id = _trace_api.record(
                 "retrieval",
                 producer="Membrane/WorldModel",
                 consumer="ChatContextAssembly",
                 source_ref="gui/server.py::api_chat:belief_retrieval",
                 outcome="retrieved" if belief_text else "no_belief_context",
                 payload=belief_text,
+                parent_ids=[_trace_input_id] if _trace_input_id else [],
             )
 
         # BehaviouralSelfModel injection — INSIDE routes only (Phase 5.3).
@@ -1726,12 +1740,13 @@ def create_app(state: AppState) -> Flask:
                 and register.name not in _ALLOW_THIN_REGISTERS
                 and belief_count < CHAT_GAP_MIN_BELIEFS):
             if _trace_handle is not None:
-                _trace_api.record(
+                _trace_gap_gate_id = _trace_api.record(
                     "chat_gap_gate",
                     producer="gui.server.api_chat",
                     source_ref="gui/server.py::api_chat:belief_count_gate",
                     outcome="deflect",
                     payload={"belief_count": belief_count, "minimum": CHAT_GAP_MIN_BELIEFS},
+                    parent_ids=[rid for rid in (_trace_input_id, _trace_retrieval_id) if rid],
                 )
             if writer is not None and session_id is not None:
                 try:
@@ -1742,7 +1757,7 @@ def create_app(state: AppState) -> Flask:
                         (session_id, CHAT_GAP_REFUSAL, register.name, state.now_fn(), None),
                     )
                     if _trace_handle is not None:
-                        _trace_api.record(
+                        _trace_gap_write_id = _trace_api.record(
                             "writer_delta",
                             producer="gui.server.api_chat",
                             consumer="HTTP response",
@@ -1751,6 +1766,7 @@ def create_app(state: AppState) -> Flask:
                             outcome="persisted",
                             payload={"table": "messages", "message_id": _gap_message_id,
                                      "role": "nex", "kind": "gap_refusal"},
+                            parent_ids=[_trace_gap_gate_id] if _trace_gap_gate_id else [],
                         )
                 except Exception as exc:
                     error_channel.record(
@@ -1776,6 +1792,10 @@ def create_app(state: AppState) -> Flask:
                                 if "_gap_message_id" in locals() else None),
                     outcome="gap_deflection",
                     payload=CHAT_GAP_REFUSAL,
+                    parent_ids=(
+                        [_trace_gap_write_id or _trace_gap_gate_id]
+                        if (_trace_gap_write_id or _trace_gap_gate_id) else []
+                    ),
                 )
             return jsonify({
                 "register": register.name,
@@ -1786,12 +1806,13 @@ def create_app(state: AppState) -> Flask:
             })
 
         if _trace_handle is not None:
-            _trace_api.record(
+            _trace_gap_gate_id = _trace_api.record(
                 "chat_gap_gate",
                 producer="gui.server.api_chat",
                 source_ref="gui/server.py::api_chat:belief_count_gate",
                 outcome="pass",
                 payload={"belief_count": belief_count, "minimum": CHAT_GAP_MIN_BELIEFS},
+                parent_ids=[rid for rid in (_trace_input_id, _trace_retrieval_id) if rid],
             )
 
         # Sample spectrum foundation — always present in chat composition.
@@ -1878,13 +1899,14 @@ def create_app(state: AppState) -> Flask:
                     except Exception:
                         pass
                 if _trace_handle is not None:
-                    _trace_api.record(
+                    _trace_voice_engine_input_id = _trace_api.record(
                         "model_input",
                         producer="ChatContextAssembly",
                         consumer="VoiceEngine.query_reply",
                         source_ref="gui/server.py::api_chat:voice_engine_input",
                         outcome="substrate_query",
                         payload={"query": prompt, "session_id": session_id, "turn_n": _turn_n},
+                        parent_ids=[rid for rid in (_trace_input_id, _trace_retrieval_id) if rid],
                     )
                 _ve_result = state.voice_engine.query_reply(
                     query=prompt,
@@ -1903,7 +1925,7 @@ def create_app(state: AppState) -> Flask:
                         f"voice_candidate:{_voice_source}:{_voice_candidate_id}"
                         if _voice_candidate_id is not None else None
                     )
-                    _trace_api.record(
+                    _trace_substrate_voice_id = _trace_api.record(
                         "substrate_voice",
                         producer="VoiceEngine.query_reply",
                         consumer="ChatResponse",
@@ -1916,6 +1938,10 @@ def create_app(state: AppState) -> Flask:
                             "score": _ve_result.get("score"),
                             "content": _ve_result.get("content"),
                         } if _ve_result is not None else None),
+                        parent_ids=(
+                            [_trace_voice_engine_input_id]
+                            if _trace_voice_engine_input_id else []
+                        ),
                     )
                 if _ve_result is not None:
                     if _op_comp:
@@ -2186,7 +2212,7 @@ def create_app(state: AppState) -> Flask:
             logger.info("chat prompt chars: blocks=%d voice_prompt=%d",
                         len(_blocks_concat), len(voice_prompt))
             if _trace_handle is not None:
-                _trace_api.record(
+                _trace_context_selection_id = _trace_api.record(
                     "context_selection",
                     producer="ChatContextAssembly",
                     consumer="VoiceEngine/VoiceClient",
@@ -2194,6 +2220,12 @@ def create_app(state: AppState) -> Flask:
                     outcome="assembled",
                     payload={"blocks": _blocks_concat, "belief_text": belief_text,
                              "voice_prompt": voice_prompt},
+                    parent_ids=[
+                        rid for rid in (
+                            _trace_retrieval_id, _trace_gap_gate_id,
+                            _trace_substrate_voice_id,
+                        ) if rid
+                    ],
                 )
 
         if text is None:
@@ -2230,13 +2262,17 @@ def create_app(state: AppState) -> Flask:
             # Substrate miss returns her own deflection. Probes + use_llm unaffected.
             try:
                 if _trace_handle is not None:
-                    _trace_api.record(
+                    _trace_voice_client_input_id = _trace_api.record(
                         "model_input",
                         producer="ChatContextAssembly",
                         consumer="VoiceClient.speak",
                         source_ref="gui/server.py::api_chat:voice_prompt",
                         outcome="composed_prompt",
                         payload=voice_prompt,
+                        parent_ids=(
+                            [_trace_context_selection_id]
+                            if _trace_context_selection_id else []
+                        ),
                     )
                 resp = state.voice.speak(
                     VoiceRequest(prompt=voice_prompt, register=register),
@@ -2245,13 +2281,17 @@ def create_app(state: AppState) -> Flask:
                 )
                 text = resp.text
                 if _trace_handle is not None:
-                    _trace_api.record(
+                    _trace_model_output_id = _trace_api.record(
                         "model_output",
                         producer="VoiceClient.speak",
                         consumer="ChatSanitization",
                         source_ref="gui/server.py::api_chat:voice_speak",
                         outcome="composed" if text else "empty",
                         payload=text,
+                        parent_ids=(
+                            [_trace_voice_client_input_id]
+                            if _trace_voice_client_input_id else []
+                        ),
                     )
                 voice_ok = True
                 # ANTI-REPEAT (NEX5_CHAT_MEMORY, admin-scoped): if she opened like
@@ -2268,21 +2308,77 @@ def create_app(state: AppState) -> Flask:
                                 "AND role='nex' ORDER BY id DESC LIMIT 3",
                                 (session_id,))
                         ] if session_id else []
-                        if _is_repeat_reply(text, _prior):
+                        _repeat_detected = _is_repeat_reply(text, _prior)
+                        _trace_repeat_gate_id = None
+                        if _trace_handle is not None:
+                            _trace_repeat_gate_id = _trace_api.record(
+                                "repeat_guard",
+                                producer="ChatMemory._is_repeat_reply",
+                                consumer="ChatResponse",
+                                source_ref="gui/server.py::api_chat:anti_repeat_guard",
+                                outcome="repeat_detected" if _repeat_detected else "pass",
+                                payload={"prior_reply_count": len(_prior)},
+                                parent_ids=(
+                                    [_trace_model_output_id]
+                                    if _trace_model_output_id else []
+                                ),
+                            )
+                        if _repeat_detected:
+                            _retry_prompt = voice_prompt + (
+                                "\n\nYou have recently opened replies the "
+                                "same way and repeated yourself. Do NOT "
+                                "reuse your previous opening or phrasing — "
+                                "answer THIS afresh, in a different shape.")
+                            _retry_input_id = None
+                            if _trace_handle is not None:
+                                _retry_input_id = _trace_api.record(
+                                    "model_input",
+                                    producer="ChatMemory",
+                                    consumer="VoiceClient.speak",
+                                    source_ref="gui/server.py::api_chat:anti_repeat_retry_input",
+                                    outcome="anti_repeat_retry",
+                                    payload=_retry_prompt,
+                                    parent_ids=(
+                                        [_trace_repeat_gate_id]
+                                        if _trace_repeat_gate_id else []
+                                    ),
+                                )
                             _resp2 = state.voice.speak(
-                                VoiceRequest(
-                                    prompt=voice_prompt + (
-                                        "\n\nYou have recently opened replies the "
-                                        "same way and repeated yourself. Do NOT "
-                                        "reuse your previous opening or phrasing — "
-                                        "answer THIS afresh, in a different shape."),
-                                    register=register),
+                                VoiceRequest(prompt=_retry_prompt, register=register),
                                 beliefs=None, belief_count=belief_count,
                             )
-                            if (_resp2 and _resp2.text
-                                    and not _is_repeat_reply(_resp2.text, _prior)):
+                            _retry_accepted = bool(
+                                _resp2 and _resp2.text
+                                and not _is_repeat_reply(_resp2.text, _prior)
+                            )
+                            if _trace_handle is not None:
+                                _retry_output_id = _trace_api.record(
+                                    "model_output",
+                                    producer="VoiceClient.speak",
+                                    consumer="ChatSanitization",
+                                    source_ref="gui/server.py::api_chat:anti_repeat_retry_output",
+                                    outcome="retry_selected" if _retry_accepted else "retry_rejected",
+                                    payload=_resp2.text if _resp2 else None,
+                                    parent_ids=[_retry_input_id] if _retry_input_id else [],
+                                )
+                                if _retry_accepted and _retry_output_id:
+                                    _trace_model_output_id = _retry_output_id
+                            if _retry_accepted:
                                 text = _resp2.text
-                    except Exception:
+                    except Exception as _repeat_exc:
+                        if _trace_handle is not None:
+                            _trace_api.record(
+                                "repeat_guard",
+                                producer="ChatMemory",
+                                consumer="ChatResponse",
+                                source_ref="gui/server.py::api_chat:anti_repeat_retry",
+                                outcome="retry_failed",
+                                payload={"error_type": type(_repeat_exc).__name__},
+                                parent_ids=(
+                                    [_trace_model_output_id]
+                                    if _trace_model_output_id else []
+                                ),
+                            )
                         pass   # fail-safe: keep the original composed reply
                 # NO-PARROT (NEX5_NO_PARROT, default OFF): drop a leading
                 # restatement of the question just asked, keeping the answer
@@ -2304,19 +2400,73 @@ def create_app(state: AppState) -> Flask:
                     try:
                         from theory_x.stage_provenance import read_provenance
                         _prov = read_provenance(text, prompt, _prov_snap, session_id)
+                        _trace_provenance_gate_id = None
+                        if _trace_handle is not None:
+                            _trace_provenance_gate_id = _trace_api.record(
+                                "provenance_gate",
+                                producer="read_provenance",
+                                consumer="ChatResponse",
+                                source_ref="gui/server.py::api_chat:provenance_read",
+                                outcome="cue_required" if _prov.get("cue") else "no_cue",
+                                payload=_prov,
+                                parent_ids=(
+                                    [_trace_model_output_id]
+                                    if _trace_model_output_id else []
+                                ),
+                            )
                         if _prov.get("cue"):
+                            _retry_prompt = voice_prompt + _prov["cue"]
+                            _retry_input_id = None
+                            if _trace_handle is not None:
+                                _retry_input_id = _trace_api.record(
+                                    "model_input",
+                                    producer="ChatProvenance",
+                                    consumer="VoiceClient.speak",
+                                    source_ref="gui/server.py::api_chat:provenance_retry_input",
+                                    outcome="provenance_retry",
+                                    payload=_retry_prompt,
+                                    parent_ids=(
+                                        [_trace_provenance_gate_id]
+                                        if _trace_provenance_gate_id else []
+                                    ),
+                                )
                             _resp3 = state.voice.speak(
-                                VoiceRequest(prompt=voice_prompt + _prov["cue"],
-                                             register=register),
+                                VoiceRequest(prompt=_retry_prompt, register=register),
                                 beliefs=None, belief_count=belief_count,
                             )
                             if _resp3 and _resp3.text and _resp3.text.strip():
-                                _after = read_provenance(_resp3.text, prompt,
-                                                         _prov_snap, session_id,
-                                                         log=False)
-                                if _after["mirror"] < _prov["mirror"]:
+                                _after = read_provenance(
+                                    _resp3.text, prompt, _prov_snap, session_id, log=False
+                                )
+                                _retry_accepted = _after["mirror"] < _prov["mirror"]
+                                if _trace_handle is not None:
+                                    _retry_output_id = _trace_api.record(
+                                        "model_output",
+                                        producer="VoiceClient.speak",
+                                        consumer="ChatSanitization",
+                                        source_ref="gui/server.py::api_chat:provenance_retry_output",
+                                        outcome="retry_selected" if _retry_accepted else "retry_rejected",
+                                        payload=_resp3.text,
+                                        parent_ids=[_retry_input_id] if _retry_input_id else [],
+                                    )
+                                    if _retry_accepted and _retry_output_id:
+                                        _trace_model_output_id = _retry_output_id
+                                if _retry_accepted:
                                     text = _resp3.text
-                    except Exception:
+                    except Exception as _prov_exc:
+                        if _trace_handle is not None:
+                            _trace_api.record(
+                                "provenance_gate",
+                                producer="read_provenance",
+                                consumer="ChatResponse",
+                                source_ref="gui/server.py::api_chat:provenance_retry",
+                                outcome="retry_failed",
+                                payload={"error_type": type(_prov_exc).__name__},
+                                parent_ids=(
+                                    [_trace_model_output_id]
+                                    if _trace_model_output_id else []
+                                ),
+                            )
                         pass   # fail-safe: keep the original composed reply
                 # C3 2026-05-09: log deflection events for distribution measurement.
                 if resp.deflection_fired:
@@ -2352,13 +2502,17 @@ def create_app(state: AppState) -> Flask:
         # history nor the displayed reply carries prompt frame. Fail-safe inside.
         text = _sanitize_reply(_strip_question_parrot(text, prompt))
         if _trace_handle is not None:
-            _trace_api.record(
+            _trace_sanitized_id = _trace_api.record(
                 "output_sanitized",
                 producer="ChatSanitization",
                 consumer="conversations.Writer",
                 source_ref="gui/server.py::api_chat:reply_sanitization",
                 outcome="ready",
                 payload=text,
+                parent_ids=(
+                    [_trace_model_output_id or _trace_substrate_voice_id]
+                    if (_trace_model_output_id or _trace_substrate_voice_id) else []
+                ),
             )
 
         if writer is not None and session_id is not None:
@@ -2371,7 +2525,7 @@ def create_app(state: AppState) -> Flask:
                     (session_id, text, register.name, state.now_fn(), used_tool),
                 )
                 if _trace_handle is not None:
-                    _trace_api.record(
+                    _trace_assistant_write_id = _trace_api.record(
                         "writer_delta",
                         producer="gui.server.api_chat",
                         consumer="HTTP response",
@@ -2380,6 +2534,7 @@ def create_app(state: AppState) -> Flask:
                         outcome="persisted",
                         payload={"table": "messages", "message_id": _assistant_message_id,
                                  "role": "nex"},
+                        parent_ids=[_trace_sanitized_id] if _trace_sanitized_id else [],
                     )
             except Exception as e:
                 error_channel.record(
@@ -2395,6 +2550,10 @@ def create_app(state: AppState) -> Flask:
                             if "_assistant_message_id" in locals() else None),
                 outcome="reply_returned" if voice_ok else "fallback_returned",
                 payload=text,
+                parent_ids=(
+                    [_trace_assistant_write_id or _trace_sanitized_id]
+                    if (_trace_assistant_write_id or _trace_sanitized_id) else []
+                ),
             )
         return jsonify({
             "text": text,
