@@ -58,6 +58,7 @@ jobs:
           HF_HUB_OFFLINE: "1"
           TRANSFORMERS_OFFLINE: "1"
           NEX_CAUSAL_TRACE_SAMPLE_PATH: ${{ github.workspace }}/artifacts/NEX_CAUSAL_TRACE_SAMPLE.json
+          NEX_CAUSAL_TRACE_SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
         run: python scripts/check_test_baseline.py
 
       - name: Upload isolated Phase 0 causal trace sample
