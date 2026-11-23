@@ -164,3 +164,51 @@ def test_refuses_trace_artifact_inside_custom_database_root(tmp_path, monkeypatc
     monkeypatch.setenv("NEX5_TRACE_PATH", str(db_dir / "trace.jsonl"))
 
     assert trace.begin_trace("chat", source_ref="chat") is None
+
+
+
+def test_async_consumer_trace_has_enqueue_record_as_cross_thread_parent(tmp_path, monkeypatch):
+    monkeypatch.setenv("NEX5_DATA_DIR", str(tmp_path / "nex-data"))
+    path = tmp_path / "trace.jsonl"
+    monkeypatch.setenv("NEX5_TRACE_OVERLAY", "1")
+    monkeypatch.setenv("NEX5_TRACE_PATH", str(path))
+
+    entity_ref = "beliefs.speech_queue:77"
+    producer = trace.begin_trace("fountain_cycle", source_ref="fountain_loop")
+    enqueue_id = trace.record(
+        "output_queued",
+        producer="FountainCrystallizer.crystallize",
+        consumer="SpeechQueueConsumer",
+        source_ref="crystallizer.py::speech_queue_insert",
+        entity_ref=entity_ref,
+        outcome="queued",
+    )
+    assert enqueue_id
+    assert trace.link_entity(entity_ref, enqueue_id)
+    trace.end_trace(producer, source_ref="fountain_loop", outcome="speech_handoff")
+
+    consumer = trace.begin_linked_trace(
+        "speech_queue_item",
+        source_ref="queue_consumer.py::_speak_one",
+        entity_ref=entity_ref,
+    )
+    assert consumer is not None
+    consumed_id = trace.record(
+        "queue_item_consumed",
+        producer="SpeechQueueConsumer._pending",
+        consumer="SpeechQueueConsumer._speak_one",
+        source_ref="queue_consumer.py::_pending",
+        entity_ref=entity_ref,
+        outcome="claimed",
+    )
+    trace.end_trace(consumer, source_ref="queue_consumer.py::_speak_one")
+
+    rows = _read(path)
+    consumer_start = next(
+        row for row in rows
+        if row["trace_id"] == consumer.trace_id and row["event_type"] == "trace_start"
+    )
+    consumer_event = next(row for row in rows if row["record_id"] == consumed_id)
+    assert consumer.trace_id != producer.trace_id
+    assert consumer_start["parent_ids"] == [enqueue_id]
+    assert consumer_event["parent_ids"] == [consumer_start["record_id"]]
