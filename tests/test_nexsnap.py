@@ -1,7 +1,5 @@
 """Regression tests for the corpus snapshot git safety boundary."""
 import subprocess
-from pathlib import Path
-
 import pytest
 
 from scripts import nexsnap
