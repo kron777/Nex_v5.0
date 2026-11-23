@@ -682,3 +682,22 @@ The exact-head independent review confirms that this crosswalk remains partial a
 PR #49 head `d046d5beadd640cca6df6631d9dbd3166d16fccf` passed pytest run `45255379806`; PR #65 head `3d5df48e6539818097b58b6e936059fae946ceca` passed pytest run `45250499152`. These are separate workflow runs on separate PR heads. They supersede stale pending/failure statements for those exact revisions, but do not establish runtime behaviour, complete causal coverage or Gate 0 approval. Historical CI tables in the ADR remain historical records and should not be presented as current status.
 
 No runtime, schema, architecture, queue, retry, flag, host, experiment or deployment change is authorised or proposed by this reconciliation.
+
+
+## Original Master Roadmap v3.0 reconciliation (23 Nov 2026)
+
+The original full **NEX v5.0 — Master Technical, Research & Commercialization Roadmap v3.0** (20 Nov 2026) is available in the ChatGPT Library as `gemini.txt` (44,167 bytes; Library result reference `turn390file0`). This confirms the original roadmap is available outside this PR's repository tree; the PR tree's bounded absence is not a global absence. The exact Frozen V2.1 specification and Founder Sign-Off/approval record remain unlocated in the searched material.
+
+The roadmap's Phase 0 requirements are:
+- M0.1–M0.2: exact repository/environment/test baseline, target-host measurements, runtime database/snapshot hashes, full pytest reconciliation and Reality Report.
+- M0.3–M0.4: cross-check the named architecture sources, verify descriptive mind-map nodes cannot gate/veto, forward and backward audit every `theory_x/` faculty, and deliver Crosswalk/ADR.
+- M0.5: default-OFF read-only causal trace, one complete Fountain cycle and one complete Chat turn, and OFF/ON no-mutation verification; deliver `NEX_CAUSAL_TRACE_SAMPLE.json`.
+
+Current drafts and isolated CI fixtures do not establish all of these deliverables. In particular, no target-host measurements or complete production-host trace sample are established, and the forward/backward faculty audit remains partial.
+
+### Two internal roadmap inconsistencies
+
+1. Evidence levels: §1.2 defines a six-level L0–L5 ladder (including L5 generalisation), while §6.2 instructs the crosswalk to assign L0–L4. Do not silently collapse or choose between these instructions; obtain Founder clarification, preserving the distinction in the evidence model meanwhile.
+2. Chat Arbiter sequencing: §5.1 places read-only Phase 0 trace first and Chat Arbiter experiment in Phase 1.1 second. §6.3 makes Gate 0 Founder approval of the Reality Report, Crosswalk and verified defect backlog a condition before any behavioural edits. Yet §12.3's 30-day checklist places implementation and a three-arm Chat Arbiter benchmark in Week 3, with Gate 0 sign-off in Week 4. Since §7.1 separately defines the Arbiter as a Tier B Phase 1.1 experiment, this is a material sequencing conflict. It is not resolved here; no Chat Arbiter behavioural experiment should begin before the explicit Gate 0 condition is satisfied and the Founder resolves the conflicting checklist wording.
+
+**Disposition:** This Crosswalk remains partial and not a Gate 0 submission. Continue Phase 0 evidence work only; no Phase 1 behavioural change is authorised.
