@@ -3549,7 +3549,7 @@ class FountainGenerator:
         if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
             try:
                 from substrate.trace_overlay import record as _trace_record
-                _trace_record(
+                self._trace_workspace_record_id = _trace_record(
                     "workspace_selection",
                     producer="GlobalWorkspace.arbitrate",
                     consumer="FountainGenerator.focus_block",
@@ -3557,6 +3557,10 @@ class FountainGenerator:
                     outcome=("disabled" if os.environ.get("NEX5_GLOBAL_WORKSPACE", "1") != "1"
                              else "winner_selected" if _gw_line else "no_winner"),
                     payload=_gw_line,
+                    parent_ids=(
+                        [self._trace_input_record_id]
+                        if getattr(self, "_trace_input_record_id", None) else []
+                    ),
                 )
             except Exception:
                 pass
