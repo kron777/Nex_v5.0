@@ -67,6 +67,7 @@ Priority labels are proposed ordering by potential impact and exposure, not an a
 | DRAFT-002 | Natural-language calculation heuristics select `python_exec`, but the original prose query is passed as Python source and normally fails syntax parsing. | L1 | Source-confirmed integration defect; distinct from the unsandboxed-code security issue in DRAFT-015. |
 | DRAFT-003 | Membrane classifier uses substring matching for “you”, so “YouTube” is classified as self-inquiry/INSIDE. | L1 | Source-confirmed conditional query-routing defect; runtime frequency UNKNOWN. |
 | DRAFT-005 | MIND_MAP descriptive-only constraint was not enforced by the earlier CI check. PR #72 adds a static guard and focused tests; its exact head passed CI, but remains draft/unmerged. | L1 | Proposed governance correction in PR #72; do not mark resolved until merged and verified on the authoritative branch. |
+| DRAFT-024 | api_chat passes an empty beliefs list to ToolCaller even after local retrieval; its “no beliefs + factual query” fallback is therefore always eligible. | L1 | Source-confirmed caller/method mismatch; external freshness intent unresolved. No route-level test. This increases web_fetch reachability but does not itself prove SSRF. |
 
 ## Top five documentation-versus-code discrepancies
 
@@ -121,3 +122,8 @@ The Reality Report and Crosswalk now include DRAFT-023 for ExecutiveControl. The
 ### Latest PR49 status check (24 Nov 2026, before this backlog refresh)
 
 Immediately before this documentation refresh, PR #49 head was 50a8b6adbeb2c722bbd0b57881041e4a3dfa00b5. No workflow run was returned for that head. The earlier run 45280433678 on head ae1b3c8227f11915803fa1a49ca42680748781c1 completed as cancelled. PR #65 exact-head run 45273123963 and PR #72 exact-head run 45272386599 remained successful. This backlog refresh is documentation-only; no new test run is claimed.
+
+
+### Current update — DRAFT-024 (24 Nov 2026)
+
+The Reality Report and Crosswalk now record that api_chat passes an empty beliefs list to ToolCaller.should_use_tool() even after normal retrieval has assembled local belief context. This makes the documented factual web-fetch fallback eligible regardless of actual local retrieval. Intent may be a deliberate freshness policy; no correction is proposed before acceptance criteria are clarified.
