@@ -48,9 +48,37 @@ def host_requests() -> List[HostRequest]:
              "decryption/{atlas_builder,classifier,differential_analyzer,spark_detector,"
              "nex_cognition_simulator}.py"]),
         HostRequest(
+            "phase0_environment", "Phase 0 host environment + model fingerprint",
+            "OS/kernel, CPU, GPU model, RAM, VRAM counters, Python, SQLite and Ollama versions; "
+            "Qwen2.5 3B model tag and backing blob digest; current Ollama loaded-model state. "
+            "Inference throughput is deliberately not measured by this passive request.",
+            ["cat /etc/os-release",
+             "uname -a",
+             "lscpu",
+             "free -b",
+             "python3 --version",
+             "python3 -c 'import sqlite3; print(sqlite3.sqlite_version)'",
+             "ollama --version",
+             "ollama list",
+             "ollama show qwen2.5:3b --modelfile | awk '/^FROM / {print $2}' | xargs -r basename",
+             "ollama ps",
+             "lspci -nnk | grep -A3 -E 'VGA|3D|Display'",
+             "for f in /sys/class/drm/card*/device/mem_info_vram_total; do "
+             "[ -r \"$f\" ] && printf '%s=' \"$f\" && cat \"$f\"; done"]),
+        HostRequest(
             "live_db_metadata", "Live DB read-only metadata (mode=ro only)",
-            "beliefs/dynamic/conversations DB paths, drive, row counts, WAL sizes",
+            "beliefs/dynamic/conversations DB paths, drive, row counts, WAL sizes; no row contents",
             ["sqlite3 'file:<db>?mode=ro' 'SELECT COUNT(*) FROM <table>'  # mode=ro ONLY"]),
+        HostRequest(
+            "runtime_artifact_hashes", "Runtime DB + snapshot fingerprints",
+            "Exact runtime DB, WAL/SHM and snapshot paths, sizes, modification times and SHA-256 hashes; "
+            "metadata only, never copy or dump private contents",
+            ["find <NEX_RUNTIME_ROOTS> -type f "
+             "\\( -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' "
+             "-o -name '*.db-wal' -o -name '*.sqlite-wal' "
+             "-o -name '*.db-shm' -o -name '*.sqlite-shm' \\) "
+             "-printf '%p\\t%s\\t%TY-%Tm-%TdT%TH:%TM:%TS\\n'",
+             "sha256sum <exact-db-wal-shm-and-snapshot-paths>  # metadata only; do not copy files"]),
         HostRequest(
             "registry_state", "Experiment registry state",
             "observation_reports r78-r84 status + any open tripwire flag files (read-only)",
