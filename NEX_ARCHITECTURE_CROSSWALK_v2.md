@@ -1189,3 +1189,8 @@ The inspected path is observation-only: the score does not alter the thought, br
 The admin-scoped provenance path snapshots pre-turn context, logs a mirror score for the first composed reply, and may issue one cue-driven retry. The retry is evaluated with `log=False`; if accepted, it becomes the delivered response, but no final-response provenance row is written to `/tmp/nex5_provenance.log`. Thus the file represents initial drafts for retry-accepted turns, not exclusively delivered replies. The trace overlay may record the retry output/selection separately. See DRAFT-012 in the Reality Report.
 
 Existing module tests cover the mirror metric, cue and snapshot, not the `api_chat` retry branch or final-log identity. This is a conditional measurement limitation; feature activation and retry incidence on the target host are UNKNOWN.
+
+
+## CounterfactualNode — open-problem LRU rotation qualification (24 Nov 2026)
+
+The boot path starts CounterfactualNode without an environment gate. Each 300-second tick selects the oldest `open_problems.last_touched_at` row. It inserts accepted Tier-3 beliefs but does not update that problem's `last_touched_at`; TimeFetch's called `fetch_from_beliefs()` is read-only, and the node does not call `ProblemMemory.touch()`. Automatic promotion is disabled, so it does not remove the selected problem from the open pool. If no other subsystem touches/closes the oldest problem, it can be selected repeatedly and starve newer problems. The risk is conditional on external updates; no live incidence is established. Existing tests do not exercise multi-problem rotation. See DRAFT-013 in the Reality Report.
