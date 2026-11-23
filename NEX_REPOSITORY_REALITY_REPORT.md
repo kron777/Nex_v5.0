@@ -265,3 +265,63 @@ The same v3.0 document contains a material sequencing tension:
 The Chat Arbiter treatment changes context selection and is separately classified as a Tier B Phase 1.1 experiment in §7.1; the checklist's Week 3 placement therefore conflicts with both §5.1 sequencing and §6.3's explicit Gate 0 condition. This report does not resolve whether §12.3 is stale, erroneous, or intended to describe a separately approved exception. Until the Founder resolves the conflict against the Frozen V2.1 authority, follow the explicit Gate 0 restriction and do not start the behavioural Chat Arbiter experiment.
 
 **Current Phase 0 disposition:** M0.1–M0.5 are not yet demonstrated complete. Continue only read-only audit, documentation, approved isolated fixtures and non-behavioural trace-evidence work. Do not begin Phase 1 behavioural experiments/fixes. The original roadmap's retrieval is now verified; the higher-authority Frozen V2.1 and Founder Sign-Off remain unresolved.
+
+
+## M0.3–M0.4 forward-audit continuation — Stage 2 life loops and sinks (23 Nov 2026)
+
+A further source pass at PR #49 branch revision `07f6ebe42a1ac99a8038a73476782d1542704296` inspected the Stage 2 loop assembly and the principal life/sustained-attention/signal/edge/retention modules. This is static source evidence, not proof of host execution or actual emitted rows.
+
+### Stage 2 loop assembly
+
+`build_dynamic()` starts nine core daemon loops and appends further loop functions when their imports succeed: witness, pattern, identity, affinity, scorecard, surprise, remember, wonder, fetch, daily-life, sustained-focus, signal-to-problem, diversity edge-builder, gate retention, and the list returned by `get_moltbook_loops()`. It starts all assembled threads before returning DynamicState. This means those loop start attempts are source-defined, not merely module presence. Whether each thread completes ticks, writes rows, or affects downstream decisions remains unobserved.
+
+### Source-to-sink inventory
+
+| Loop / mechanism | Reads or trigger | Output / write | Downstream path established in inspected source |
+|---|---|---|---|
+| IdentityLoop | Belief/focus/surprise/Fountain/Moltbook and related substrate state | `identity_log` plus Tier-6 `identity_loop` belief | PatternLoop reads `identity_log`; Fountain has a separate identity-context read. |
+| PatternLoop | Recent `identity_log` statements | `pattern_log` plus Tier-6 `pattern_loop` belief | WitnessLoop reads `pattern_log`; Tier-6 beliefs are eligible for general belief retrieval subject to retriever filters. |
+| WitnessLoop | Recent `pattern_log` statements | `witness_log` plus Tier-6 `witness_loop` belief | Its own module describes retrieval feeding subsequent IdentityLoop composition; source confirms the belief write, but live retrieval/consumption is not observed. |
+| RememberLoop | One old and one recent belief | LLM-generated Tier-6 `remember_loop` belief | General belief candidate pool, subject to retrieval filters. |
+| WonderLoop | Recent `sense_events` / entities | LLM-generated Tier-6 `wonder_loop` question-belief | General belief candidate pool, subject to retrieval filters. |
+| FetchLoop | Recent URL-bearing `sense_events`; bounded HTTP fetch | LLM-generated Tier-6 `fetch_loop` belief | General belief candidate pool, subject to retrieval filters. |
+| SurpriseLoop | Unpromoted `surprise_events` | Tier-6 belief; special current-focus signal on qualifying large surprise | Belief retrieval; FocusLoop's current-focus path is a separate consumer to trace. |
+| ScorecardLoop | Calls `ground_self_belief.refresh_self_belief()`, which reads the WorldPrediction scorecard | Updates/inserts a fixed-source Tier-1 locked market-prediction self-belief | Tier-1 locked belief is within the retriever's eligible tier/lock pool; actual prompt selection is query-dependent. |
+| AffinityLoop | Belief graph and edge statistics | Updates `beliefs.affinity` / `affinity_updated_at` | The inspected BeliefRetriever scoring path and VoiceEngine scoring path do not read this affinity field. No downstream consumer was identified in this bounded pass; do not infer global absence. The module itself warns that its LLM self-rating is hollow. |
+| FocusLoop | Open problems, belief overlap, recent Fountain thoughts and conversation activity | Upserts `current_focus`, updates `open_problems`, and may write a NEX chat message when stuck | IdentityLoop, DailyLife and Chat/Fountain context paths read related focus/problem state; exact per-turn influence is conditional and separately traced. |
+| SignalToProblem | Unactioned `signals` rows and confidence/type/volume filters | Marks signals actioned and inserts `open_problems` | FocusLoop reads open problems and chooses a current focus. This is a source-defined signal → problem → sustained-focus chain. |
+| Diversity EdgeBuilder | Belief candidates, existing edge counts and embedding similarity | Inserts `belief_edges` (`cross_domain`) | BeliefRetriever explicitly blends spreading activation when belief edges exist (60/40 in the inspected implementation). This is a source-defined retrieval influence path; actual edge creation and selected result remain runtime UNKNOWN. |
+| Gate retention | Age-bounded `gate_decisions` and `throw_net_sessions` | Deletes rows beyond configured retention windows in bounded batches | Maintenance/retention path; not a prompt or action selector in this inspection. |
+| DailyLife | Clock/calendar, beliefs, open problems, focus, Fountain and external interaction records | `daily_activities`; creates sessions/messages for scheduled entries/outreach/journal; may use sense/Moltbook context | Conversation rows may be visible to ordinary conversation readers; the precise user-facing/UI consumer and whether the resulting entries feed Chat context need separate source tracing. |
+
+### Specific distinctions and limits
+
+- Identity → Pattern → Witness is a source-defined recursive observation chain: PatternLoop reads IdentityLoop output; WitnessLoop reads PatternLoop output; the outputs are also written as beliefs. This is a constructed feedback design, not evidence of autonomous runtime execution or cognitive improvement.
+- Tier-6 and Tier-1 belief writes are not automatically [L3]. They become candidates for retrieval subject to the retriever's eligibility, query overlap, branch/side filters and downstream context selection. A row existing is not proof it was selected or relied upon.
+- EdgeBuilder is a stronger source-level downstream link than a log-only table: BeliefRetriever reads `belief_edges` and blends spreading activation. It remains [L1] source evidence until a trace links a particular persisted edge to a selected retrieval result and subsequent prompt/decision.
+- Affinity updates should not be described as changing retrieval ranking on the basis of the inspected retriever/VoiceEngine paths: neither reads `beliefs.affinity` in the scoring code inspected. Other potential consumers remain unverified.
+- ScorecardLoop's output is not a new market-prediction experiment; it refreshes the fixed-source self-belief using the scorecard module. The belief's eligibility does not establish that a particular Chat/Fountain prompt selected it.
+- DailyLife and FocusLoop can write conversation messages. Their creation is not proof of delivery to a user or of a downstream response; recipient/session ownership and read paths require separate verification.
+- Retention is a destructive data-maintenance operation by design. This audit records the source-defined bounded deletion path; no host run, deleted-row count or impact measurement was performed.
+
+Source blob hashes:
+- `theory_x/stage2_dynamic/__init__.py`: `7b35f304cf823b555a4c6ec78722a07d017de576`
+- `theory_x/life/identity_loop.py`: `ada5eb0e310029ccaaeee5764fd6d39ebccac6c3`
+- `theory_x/life/pattern_loop.py`: `08d62f4a36320880dcedcd728fc2effb880e6307`
+- `theory_x/life/witness_loop.py`: `fffafc610293ab46cc6d8d72c598f16e2318507a`
+- `theory_x/life/affinity_loop.py`: `403d39c2e41a5aebbb5ee196d072c33949ba41f0`
+- `theory_x/life/scorecard_loop.py`: `2e14123418f9e98496fdc8de46dea081f8f5f9eb`
+- `theory_x/life/surprise_loop.py`: `bb1869e3d5784ca668ca37e8c76cc25998d7a381`
+- `theory_x/life/remember_loop.py`: `ffed94e8e237c8feb01d559512f094b827cf2ff8`
+- `theory_x/life/wonder_loop.py`: `0f3f21f1a643955c2910f5b35398534e34b5a6af`
+- `theory_x/life/fetch_loop.py`: `8bea7ef2a66df212fee7d6ce090277b2250e2ead`
+- `theory_x/life/daily_life.py`: `15565b07db30e96b18665d27a64fba3be777e374`
+- `theory_x/sustained/focus_loop.py`: `43e0dffdd88d8a6ccc1e2c86537764a6e74e7ad2`
+- `theory_x/signals/signal_to_problem.py`: `87526c50ee07873a2a1ce6002487f0fdb5c91c8a`
+- `theory_x/diversity/edge_builder.py`: `8bfb0c02aec8aea373c75c9954881fa748647c23`
+- `theory_x/stage_gate/retention.py`: `5e6086caa8738f499861a9c7a8ffb24dc5da0ecc`
+- `theory_x/stage3_world_model/retrieval.py`: `aa3eeb15c9a4a19a24a6d328bc370cd0a4438cf3`
+- `theory_x/stage_throw_net/voice_engine.py`: `ea52711e13b7ea71531a3bec9a394d18e2574b40`
+- `ground_self_belief.py`: `abb6f9e2f9d751097ad7cbaf375f7876d1cbca6c`
+
+No source/runtime behaviour, schema, retention window, scheduler, feature flag, host state, experiment, merge or deployment was changed.
