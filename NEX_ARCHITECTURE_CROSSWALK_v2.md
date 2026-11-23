@@ -942,3 +942,34 @@ CoherenceGate.check() documents that it never raises and implements this by conv
 ### Source revision
 
 This section was checked against the PR #49 source revision preceding the documentation-only commits that add this section. Source hashes are listed in the matching M0.3–M0.4 extension in NEX_REPOSITORY_REALITY_REPORT.md. No runtime or test behaviour, schema, flag, host state, experiment, merge or deployment was changed.
+
+
+
+## 3.30 Active Diversity ecology, reanimation and retention reconciliation (23 Nov 2026)
+
+| Mechanism | Producer / cadence | Consumer / sink | Qualification |
+|---|---|---|---|
+| GrooveSpotter | Active DiversityLoop thread calls detect_all() every 60s; writes groove_alerts and signal_cooldown | Fountain curiosity candidate scoring reads active cooldown content; Fountain feedback/selection paths read recent groove_alerts | Genuine selection feedback path. Curiosity re-ranks the candidate set rather than dropping candidates. |
+| DormancyScanner | Active DiversityLoop thread scans incrementally every 60s and again in ClockRunner's fast path; writes dormant_beliefs | ClockRunner wake_one() marks one candidate and sets pending state; Fountain pop_reanimated() can inject the belief into later context | Source comments define nominal 20-fire reanimation, accelerated to 5 during a low-striking-rate trough. Actual cadence depends on 60s polling and fire bursts. |
+| Rut mirror | Fountain's low-striking-rate governor can write a Tier-6 self_rut_notice, throttled to once per two hours | Belief enters the substrate and can later be retrieved by normal belief paths | A state write, not merely diagnostic logging. |
+| Boost decay | ClockRunner fast pass calls apply_decay() | Fountain own-belief retrieval LEFT JOINs belief_boost and applies a bounded recency bonus | Decay consumer/selection path is verified; current producer of new boost rows is not established in the inspected active loop. |
+| CrossbreedGrader | Constructed by DiversityLoop; grade() writes collision_grades | ClockRunner summaries/evolver and diversity panel read collision_grades | DiversityLoop._run() never calls self.grader.grade(). The active production producer is not established by this loop; other callers are not globally excluded. |
+| Three clocks | ClockRunner thresholds 20/200/2000 fire-count increments; polled by DiversityLoop every 60s | Fast: boost decay/dormancy/reanimation; medium: groove/collision summaries; slow: GraderEvolver | Thresholds are nominal and may coalesce under bursts because each poll runs a given clock at most once. |
+| Residue | Fountain saves unselected oversampled own-belief candidates and pops up to two previous rows on later cycles | Residue beliefs are fetched and prepended to the next context candidate set | Live cross-fire context path. |
+| ArcLoop | run.py sets arc_loop=None; the background loop is disabled | Warrant/recorder code can read arc_members if present | Do not infer active arc formation from schema or read paths. |
+
+### Important details
+
+- Fountain calls notify_fire() after a completed output, incrementing a process-local counter observed by DiversityLoop. The active loop calls GrooveSpotter, DormancyScanner and ClockRunner; it constructs CrossbreedGrader but does not call its grade() method in the active loop body.
+- wake_one() writes reanimated_at and sets a module-level pending candidate. Fountain's later pop_reanimated() call is the observed hand-off. ClockRunner also retains a per-instance copy and exposes get_reanimated_belief(), but no consumer of that getter was identified in this path.
+- The governor's low-striking-rate branch changes the reanimation cadence and can write a first-person self_rut_notice belief. This is a source-level adaptive feedback edge, not proof that the belief changes subsequent decisions.
+- belief_boost is read by Fountain retrieval and decayed by the fast clock. The inspected active loop does not call apply_boost(); a current production producer for new boosts remains unresolved.
+- Groove alerts and cooldown rows are not passive logs: Fountain reads them while scoring or shaping later candidate selection. The candidate selector's source comment says it re-ranks rather than drops the candidate set.
+
+### Residue retention correction
+
+The module docstring in theory_x/diversity/residue.py says unconsumed residue is absent from nex_db_reaper TARGETS and never ages out. That is contradicted by the inspected nex_db_reaper.py revision, whose TARGETS explicitly includes beliefs.db.residue with a two-day created_at retention. residue.py's local cleanup only deletes consumed rows older than seven days; the separate reaper supplies the shorter all-row TTL. The repository also contains a systemd service/timer describing a nightly run, but deployed installation/enabled state is UNKNOWN. This is a documentation discrepancy, not a basis for changing retention or deleting data.
+
+### Evidence boundary
+
+The exact source hashes are listed in the matching M0.3–M0.4 section of NEX_REPOSITORY_REALITY_REPORT.md. Findings are source-level only. No runtime/test behaviour, schema, data, retention policy, flags, host state, experiment, merge or deployment was changed.
