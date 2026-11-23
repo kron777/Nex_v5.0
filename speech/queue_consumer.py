@@ -252,7 +252,7 @@ class SpeechQueueConsumer(threading.Thread):
             synthesis_done_id = emit(
                 "synthesis_completed", "KokoroBackend.synth",
                 "SpeechQueueConsumer._speak_one", "returned",
-                synthesis_id or speaking_id or processing_id,
+                synthesis_id,
                 {"queue_id": qid, "sample_rate": sr},
             )
             player_id = emit(
