@@ -44,6 +44,7 @@ Priority labels are proposed ordering by potential impact and exposure, not an a
 | DRAFT-017 | Throw-Net threshold functions return threshold booleans, but CoherenceGate and Chat callers ignore them; the monitor processes every unfired trigger when enabled. | L1 | Source-confirmed threshold-wiring mismatch. Throw-Net monitor is default-OFF; live activation UNKNOWN. |
 | DRAFT-020 | FocalSet is described as log-only but its selected beliefs are added to per-session WorkingMemory and injected into the same Chat turn's prompt on a conditional path. FocalSet state is process-global and unsynchronized. | L1 | Source-confirmed prompt influence and cross-session selection coupling; no arbitrary cross-session text leakage was demonstrated. |
 | DRAFT-006 | Moltbook dry-run return values can be recorded as approved/posted/sent even when no external POST occurs; a supplied host log shows a loop instantiated in a potentially divergent checkout. | L2 for loop instantiation only | External action and current checkout identity UNKNOWN. Host log is historical; Manus must reconcile checkout identities before activation claims or code correction. |
+| DRAFT-023 | ExecutiveControl is constructed/registered but not consumed by api_chat; the route defaults to Philosophical while voice.registers.classify/default_register remain Conversational. | L1 | Source-confirmed route mismatch; code comment marks the Philosophical default as a deliberate edit, but continued approval/intent is unresolved. Unit tests do not cover route integration. |
 
 ### P2 — Reliability, measurement and recovery
 
@@ -110,3 +111,8 @@ CI success validates only the tested repository suite at that exact head. It doe
 7. Founder review and approval of the Reality Report, Crosswalk and this verified defect/risk backlog are required before behavioural edits.
 
 **No remediation is authorised by this backlog.** No runtime code, tests, database, flags, host, protected experiment, baseline, tripwire, external action, merge or deployment was changed in producing it. All items remain open for evidence review; some may be downgraded, reclassified or closed after higher-authority reconciliation and approved verification.
+
+
+### Current update — DRAFT-023 (24 Nov 2026)
+
+The Reality Report and Crosswalk now include DRAFT-023 for ExecutiveControl. The classifier is constructed and registered, but the active Chat route selects Philosophical by default and does not call ExecutiveControl.select(); voice.registers.classify remains a Conversational stub. This is source-confirmed; whether the dated override remains approved is unresolved. See the Reality Report for source hashes and test boundary.
