@@ -42,6 +42,13 @@ def _run_generator_once(
     init_all()
     paths = db_paths()
     writers = {name: Writer(path, name=name) for name, path in paths.items()}
+    # init_db seeds undo_log_meta with SQLite julianday('now'), which is not
+    # controlled by Python's time.time monkeypatch. Normalize the fixture seed
+    # through the ordinary Writer so every other database field stays compared.
+    writers["beliefs"].write(
+        "UPDATE undo_log_meta SET installed_at=? WHERE id=1",
+        (1_700_000_000.0,),
+    )
     readers = {name: Reader(path) for name, path in paths.items()}
     model_requests = []
 
