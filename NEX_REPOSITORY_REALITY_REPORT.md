@@ -482,3 +482,54 @@ Source hashes:
 - `run.py`: `73a2c58a4f5f0348135a46eb83d6cdd61db874e7`
 
 No runtime behaviour, schema, flag, host, experiment, merge or deployment was changed.
+
+
+
+## M0.3–M0.4 forward/backward audit — cross-path feedback, annotation and analytical consumers (23 Nov 2026)
+
+This pass follows several mechanisms that sit across the numbered stages and were not fully represented in the preceding Stage 1–10 map. Evidence is source-level at the exact PR #49 revision listed below.
+
+### Fountain workspace and drive composition
+
+- FountainGenerator calls global_workspace.arbitrate() on the normal prompt-composition path when NEX5_GLOBAL_WORKSPACE is unset or 1. The arbiter scores available surprise, momentum, bonsai, stakes and drive candidates and returns one leading frame, which is prepended to focus_block. This is a Fountain prompt-framing operation; the module's broader “broadcast to all” description should not be read as evidence that the winning frame is delivered to every faculty.
+- DriveEmergence.format_for_prompt() supplies the drive candidate to the arbiter, and the generator separately appends the same drive line later in the focus block. Therefore workspace framing does not gate the direct drive contribution; depending on the winner, the drive may be represented both in the framing line and in its own appended block. This is a source-path observation, not a demonstrated quality defect.
+- Chat has a distinct NEX5_CHAT_WORKSPACE budgeted block selector, source-commented default OFF. It is not the same operation as Fountain's single-winner arbiter. Its exempt blocks are retained regardless of budget, so the character budget is not an absolute ceiling when exempt content alone exceeds it.
+
+### Human annotation → substrate feedback
+
+- /api/coincidence/tag writes an operator-supplied coin, maybe or non label onto a Fountain event, propagates it to that event's existing word_contexts rows, captures a bounded substrate-context snapshot in coincidence_context, and attempts hypothesis auto-scoring.
+- When NEX_TAG_FEEDBACK_ON=1, the label has multiple downstream paths: Chat's voice-composition route can inject a global tag summary and up to four keyword-matched tagged thoughts; Fountain samples the tag block with a 25% per-fire chance; and identity_loop adds recent tag counts to its next self-description. The tag retrieval functions are no-ops when the flag is unset or 0. The identity metric is independently guarded by the same flag.
+- These retrieval queries are over the shared Fountain corpus and take no session identifier. The code therefore implements a system-level annotation-feedback path, not a session-private memory path. Whether this global feedback boundary is intended is unresolved pending the authoritative acceptance criteria; no cross-user privacy conclusion is made from this source inspection.
+
+### Coincidence decoder and UI sink
+
+- run.py starts coincidence.decoder_loop after AppState construction. The loop waits 15 seconds, then polls every 30 seconds; each tick reads up to 200 unprocessed Fountain events, tokenizes nonempty thoughts into unique sorted words (minimum token length three, stopwords removed), and writes per-word context rows to word_contexts. It also reads the nearest preceding tree snapshot, recent surprise and daemon counts, recent Fountain-fire count, and time since the latest external sense event. Its cursor advances over rows with no usable tokens as well.
+- gui/server.py consumes word_contexts for the recent-fire ticker, top-word counts, word fingerprints and tag aggregates. The inspected sinks are GUI/analytical surfaces; no cognitive prompt or selector read of word_contexts was identified in this pass. The separately captured coincidence_context is read by rich tag retrieval to annotate tagged thoughts with aperture, branch and fire-count context.
+- The decoder is therefore an active boot-managed analytical pipeline, not an inert library module. Its output is visible in the GUI, but visibility does not prove that it changes NEX's cognition.
+
+### Affect, drive and gate cross-coupling
+
+- AffectState starts a 300-second background loop at boot when construction succeeds. It integrates a lexical polarity signal from high-tier beliefs, a belief-creation-rate arousal signal, surprise-event arousal, and stability input; it persists the current row and appends affect_history. Chat reads the current affect row for prompt composition. CompetingDrives reads the history series to calculate affect variance, then contributes a separate tension block to Fountain. The current mood output is thus consumed through more than one route.
+- NEX5_EXPECT_MOOD is a separate optional coupling: when enabled and eligible, AffectState reads reconciled event_valence rows as a capped valence nudge. The expectation ledger contains the reconciler implementation, but no direct call to expectations.reconcile() or commitments.scan() was found in the inspected run.py boot wiring or gui/server.py request path. This is a bounded wiring question, not proof that no external/manual caller exists. Accordingly, do not assume the event-valence-to-mood loop is operational merely because both modules exist.
+- AffectCarry is distinct from AffectState: it is an on-demand, admin-scoped Chat compose path behind NEX5_AFFECT_CARRY=1, with per-session carry weights in conversations.db. It reads the current message's distress salience/cues, decays and persists the session's carry, and returns tone-colouring text. The optional openbeat subpath also reads the prior user message from that same session. It is not a boot daemon and should not be conflated with the substrate-wide affect state.
+- CoherenceGate.check() catches internal evaluation exceptions and returns ACCEPT with reason gate_error_fallback, then logs the decision. This is a source-confirmed fail-open exception path. Its practical frequency and acceptability are unknown; do not describe the gate as fail-closed under internal error without changing or qualifying that claim.
+
+### Evidence boundary and source hashes
+
+- run.py: 73a2c58a4f5f0348135a46eb83d6cdd61db874e7
+- gui/server.py: 5ee8b167f386466c383090445c63a84810bbae52
+- theory_x/stage6_fountain/generator.py: 43644876295ffdd649a240f52a7946c666a8579f
+- theory_x/stage_tom/global_workspace.py: 54ddab05112702eef34faaa4f24d45139350b349
+- theory_x/coincidence/decoder_loop.py: b60a900d9dd3b7b1f1058bb0efc2baa6330e9bfd
+- theory_x/coincidence/context_capture.py: a586d19c1a90293f410d876408585d9834e557bd
+- theory_x/coincidence/tag_retrieval.py: 1277af630945b5b165f930e900a91095df6b5d04
+- theory_x/life/identity_loop.py: ada5eb0e310029ccaaeee5764fd6d39ebccac6c3
+- theory_x/stage_affect/affect_state.py: e6d1fd62d6a356929015f0d71586b6f7d80e9be1
+- theory_x/stage_affect/affect_carry.py: e34848d18898608cab28826f26ad9480d4901d93
+- theory_x/stage_drives/drive_emergence.py: 9f3c0a15f6e6bf67e45e25969e599873d35dd6f7
+- theory_x/stage_drives/competing_drives.py: d24685fec6ac806fdd245c01b8f8c71df8e9cc7a
+- theory_x/stage_gate/coherence_gate.py: 39f73108cb36e886cfc8dafe045646acba15549e
+- theory_x/stage_world/expectations.py: 994b552e03ef12c6b76fe5161095731665fc167c
+- theory_x/stage_world/commitments.py: fd11771f2a14c4abf5572e9f9327fcb78bb5f5ef
+
+This remains a bounded source audit. The active environment, API access controls outside the route body, actual flag values, row volumes, model reliance and runtime frequencies have not been observed. No runtime or test behaviour, schema, flag, host state, experiment, merge or deployment was changed.
