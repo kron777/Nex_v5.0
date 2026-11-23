@@ -191,4 +191,19 @@ No live trace was captured, and no production prompt, private conversation, or r
 4. Obtain the exact Frozen V2.1 specification and Founder Sign-Off record; no acceptance criterion should be inferred from this source audit.
 5. Obtain approved host-side evidence before claiming runtime activation or capturing a production trace.
 
+## 10. Source manifest
+
+All hashes below identify the inspected PR #65 integrated branch files, not the deployed host:
+
+| Source | Blob SHA | Audit relevance |
+|---|---|---|
+| `gui/server.py` | `d67df10f4449004c255e38b11b4a1888a4e4934c` | Chat route, prompt assembly, retry and response handling |
+| `theory_x/stage_throw_net/voice_engine.py` | `ea52711e13b7ea71531a3bec9a394d18e2574b40` | Candidate retrieval enrichment, scoring and substrate reply selection |
+| `theory_x/stage_throw_net/time_fetch.py` | `7a97a76a48eb54d621d1a436fc5c64d5f6ddfd7b` | Four-source VoiceEngine candidate sweep |
+| `theory_x/stage_tom/global_workspace.py` | `54ddab05112702eef34faaa4f24d45139350b349` | Chat budgeted block-selection helper |
+| `run.py` | `73a2c58a4f5f0348135a46eb83d6cdd61db874e7` | VoiceEngine construction and AppState wiring |
+| `substrate/trace_overlay.py` | `fbccc3b63bc94dab8e9f01951a581ba3af3f087e` | Trace record envelope and payload digest behaviour |
+
+The Chat route's line ranges in this audit are from the same `gui/server.py` blob; line numbers may shift on later commits. Recheck the branch head and file hashes before relying on this map after further source changes.
+
 **Gate status:** This is a partial source audit. It does not complete the Master Roadmap's forward/backward audit, does not satisfy Gate 0, does not authorise behavioural changes, and does not supersede any higher-authority document.
