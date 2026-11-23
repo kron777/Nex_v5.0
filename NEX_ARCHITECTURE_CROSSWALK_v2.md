@@ -347,6 +347,17 @@ The `strikes/` package is a catalogue/protocol mechanism for manual striking exp
 
 **A2 is therefore a roadmap requirement whose source object and semantics are not yet identified.** Before creating consumers, establish the intended table/schema, what constitutes a moral observation versus a STRIKING event, how evidence is accumulated, how contradictory observations are handled, and which existing faculties should consume it. Do not repurpose `genius_tags`, the `strikes/` catalogue or `held_tensions` by name similarity.
 
+## 3.10 Sense-feed activation — apparent mismatch resolved by source history and tests
+
+An initial comparison of startup comments suggested that external sense feeds were described as paused while `SenseScheduler.__init__()` called `start_all()`. The deeper source/test review resolves the operational question:
+
+- `theory_x/stage1_sense/scheduler.py::SenseScheduler.__init__` explicitly calls `self.start_all()`.
+- The immediately adjacent source comment dates the change to 2026-05-09 and says feeds auto-start on boot per Jon's request; it also identifies removal of that line as the reversion path.
+- `tests/test_sense.py::TestScheduler.test_init_starts_all` was updated on 2026-05-09 and asserts `global_running` is true and external adapters are enabled.
+- `run.py`, `theory_x/stage1_sense/__init__.py` and parts of the scheduler module docstring still describe external feeds as paused by default.
+
+**Correct Phase 0 finding:** the current source and test contract is auto-start on boot. The "paused" descriptions are stale documentation, not evidence that the runtime is paused. This was an intentional historical change and must not be reverted as a supposed bug. Whether a deployed host actually started the scheduler remains UNKNOWN without runtime evidence.
+
 ## 4. Top documentation/source discrepancies
 
 These are discrepancies to reconcile, not automatic instructions to modify code or documentation.
