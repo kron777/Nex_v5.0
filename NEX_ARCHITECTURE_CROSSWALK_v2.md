@@ -1087,3 +1087,13 @@ MIND_MAP.yaml declares that it is descriptive only and that no node may gate, sc
 
 PR #72 adds a static policy check and focused tests. It preserves the existing blocked status modifier while rejecting explicit authority fields, checks the required metadata constraint, and scans NEX runtime roots for imports or direct reads of MIND_MAP.yaml. RDO/Watcher/developer tools remain allowed to consult the map as evidence. Exact-head CI is pending; this is not yet a verified or merged control.
 
+
+
+## 3.36 Optional Moltbook — dormant boot path, external side effects and dry-run accounting
+
+The Stage-7 Moltbook package contains a DM listener, outbound post loop, DM responder and one-shot DM seeder. These can approve DMs, publish Fountain beliefs and send replies. The client defaults MOLTBOOK_DRY_RUN to 1, and non-GET requests return a dry-run stub rather than performing HTTP POST.
+
+The consumers currently treat any returned result as success: listener persists approved=1, poster advances the queue and records posted, and responder records sent, even when the client returned the dry-run stub. The one-shot seeder also has a separate dry_run parameter that is not propagated to the client; with the client default dry-run enabled, it can report a send without an external POST.
+
+No construction/start of DMListenLoop, PostLoop or DMResponder was found in the inspected run.py or gui/server.py; the GUI Moltbook route is read-only. The existing optional-Moltbook tests cover schema absence/presence and HUD/daily-life reads, not the external-action loops or dry-run state accounting. Thus this is a conditional source defect in a dormant/optional integration, not evidence of live activity. Credentials, flag values and actual activation remain UNKNOWN. No external network action was made and no runtime correction is applied pending Gate 0 and explicit external-action policy approval.
+
