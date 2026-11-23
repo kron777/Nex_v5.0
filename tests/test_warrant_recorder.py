@@ -69,9 +69,11 @@ class TestRecorder(unittest.TestCase):
         _beliefs(self.bdb); _dynamic(self.ddb)
         self.r = rec.WarrantRecorder(_W(self.bdb), Reader(self.bdb), Reader(self.ddb))
         self._per_band = rec._PER_BAND
+        self._use_batch = rec._USE_BATCH
 
     def tearDown(self):
         rec._PER_BAND = self._per_band
+        rec._USE_BATCH = self._use_batch
         self.tmp.cleanup()
 
     def _q(self, sql):
@@ -108,6 +110,41 @@ class TestRecorder(unittest.TestCase):
         self.assertEqual(got[7], 1)
         self.assertEqual(self.r.use_cycle(now=_T0 + 12 * _DAY), 0)    # cursors hold
         self.assertEqual(dict(self._q("SELECT belief_id, days FROM belief_use_days")), got)
+
+    def test_lineage_and_arc_cursors_do_not_skip_equal_timestamp_batches(self):
+        # More rows than one batch deliberately share the same timestamp.
+        # Timestamp cursors with a strict '>' predicate used to lose the
+        # remaining rows after the first batch.
+        rec._USE_BATCH = 2
+        same_ts = _T0 + 30 * _DAY
+        c = sqlite3.connect(self.bdb)
+        c.executemany(
+            "INSERT INTO belief_lineage VALUES (?,?,?, ?,?)",
+            [(100 + i, i, "supports", 1.0, same_ts) for i in range(1, 6)],
+        )
+        c.executemany(
+            "INSERT INTO arc_members (arc_id, belief_id, position, role, "
+            "distance_from_centroid, joined_at) VALUES (1, ?, ?, 'member', 0.1, ?)",
+            [(i, i, same_ts) for i in range(1, 6)],
+        )
+        c.commit()
+        c.close()
+
+        # Each call can consume only two rows from each source.
+        self.r.use_cycle(now=same_ts + _DAY)
+        self.r.use_cycle(now=same_ts + _DAY + 1)
+        self.r.use_cycle(now=same_ts + _DAY + 2)
+
+        got = dict(self._q(
+            "SELECT belief_id, days FROM belief_use_days WHERE belief_id BETWEEN 1 AND 5"
+        ))
+        self.assertEqual(set(got), {1, 2, 3, 4, 5})
+        self.assertEqual(set(got.values()), {1})
+        cursors = dict(self._q(
+            "SELECT name, value FROM warrant_record_cursor "
+            "WHERE name IN ('use_lineage_rowid', 'use_arc_rowid')"
+        ))
+        self.assertEqual(set(cursors), {"use_lineage_rowid", "use_arc_rowid"})
 
     def test_use_days_increment_on_new_day_only(self):
         self.r.use_cycle(now=_T0)
