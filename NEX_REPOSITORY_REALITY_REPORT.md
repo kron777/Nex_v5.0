@@ -1132,3 +1132,31 @@ Source hashes:
 - `tests/test_throw_net_engine.py`: `e5a354809f7ec0d7eec83fbea5d72b04f34a436c`
 
 No runtime or test behaviour, flags, database, host state, experiment, merge or deployment was changed.
+
+
+## M0.3–M0.4 source audit — FocalSet / WorkingMemory chat influence and session scope (24 Nov 2026)
+
+Inspected against PR #65 integrated source head `cffbbc94b5a494247d127abf2720886a08f7a567`.
+
+### DRAFT-020 — FocalSet is described as log-only but feeds same-turn prompt memory
+
+`gui.server` constructs one module-level `FocalSet(K=4)` for the process. It is shared by all Chat sessions and its implementation has no lock around `update()`, its priority map or its focal-ID set. Each chat turn retrieves up to 10 beliefs for the current prompt, updates this shared FocalSet, and reads the resulting focal IDs.
+
+The code comment calls this “log-only attention tracking (no behavior change)”. However, the same block adds the selected current-turn focal beliefs to a `WorkingMemory` object keyed by the current Flask session ID. Later in the same `api_chat` request, the WorkingMemory injection path reads those just-added items and appends them to `belief_text` when the register is Conversational and `belief_count >= 2`. This is a real prompt influence on that conditional path, not merely logging or cross-turn-only memory.
+
+The FocalSet's priorities and current focal IDs are process-global, so one session's update can influence another session's selection when their retrieved candidate sets overlap. Concurrent chat requests can also interleave between `update()` and `get_focal_ids()`; the FocalSet itself has no synchronization. The later content filter uses the current request's own `_raw_beliefs`, so this pass found no path that directly copies another session's arbitrary belief text into the current session's WorkingMemory. The confirmed concern is shared selection state and potential inconsistent selection, not demonstrated private-text leakage.
+
+The `_working_memory_by_session` dictionary is also process-global, has no registry lock and no cleanup/eviction path. Each WorkingMemory instance is bounded to seven items and has its own internal lock, but the number of session objects in the registry is unbounded over process lifetime. Concurrent first use of the same session can also race the dictionary's check/create sequence. The Flask session ID is generated server-side and stored in the signed session; this audit did not find a client-supplied arbitrary session ID in `api_chat`.
+
+Test boundary: `tests/test_focal_set.py` tests the node's selection mechanics; `tests/test_working_memory.py` tests individual-buffer decay, capacity and concurrent adds; neither tests multi-session FocalSet isolation or the Chat prompt handoff. The WorkingMemory concurrency test does not cover the module-level session registry. `tests/test_conversation_memory.py` tests session-filtered SQL, but `gui.server` constructs a ConversationMemory object without a call to its `state()` method in the inspected module; the actual Chat history path uses `_recent_dialogue()` instead.
+
+Source hashes:
+- `gui/server.py`: `d67df10f4449004c255e38b11b4a1888a4e4934c`
+- `theory_x/focal_set.py`: `e12531f2858085778ebca75f73a7dee6ec8ce416`
+- `theory_x/working_memory.py`: `4e9badadbb3ada939c05fcb4a82455723c0efa36`
+- `theory_x/conversation_memory.py`: `5d9be238428ed5559af5117c7ab57bdef34f121f`
+- `tests/test_focal_set.py`: `083b8053ff09ef0975f8aab35a120904b2f55423`
+- `tests/test_working_memory.py`: `446d90f4c79a515eba08aaac1b24c5c33f0797e3`
+- `tests/test_conversation_memory.py`: `9632aa1d9bc0b617cef1b93d31e886174d560b68`
+
+No runtime or test behaviour, prompt, session policy, database, flags, host state, experiment, merge or deployment was changed.
