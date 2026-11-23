@@ -877,3 +877,22 @@ A deeper read of `theory_x/stage6_fountain/generator.py` expands the earlier Fou
 **Correction to Section 3.24 / Reality Report:** Affinity's downstream consumer is not globally absent. It is absent from the inspected retriever/VoiceEngine score calculations but present in Fountain prompt assembly as described above.
 
 **Evidence boundary:** source-level control flow only. Host flag values, actual branch frequency, live prompt block composition, selected candidate IDs on a live fire, model reliance and physical output remain UNKNOWN. Detailed source evidence is recorded in the Reality Report. No behaviour, prompt, flag, selection policy, schema or deployment change was made.
+
+
+## 3.28 Predictive, counterfactual and optional faculty wiring (23 Nov 2026)
+
+Additional boot-managed paths were checked against `run.py`, their implementations and Chat consumers:
+
+- **PredictiveSubstrate:** constructed and loop-started during boot when initialization succeeds; 300-second cadence. It predicts internal-belief regions from beliefs/open problems/drive and external-input regions from external sense events/user messages. Later verification writes `surprise_events`; Stage 2 SurpriseLoop can turn unpromoted events into Tier-6 beliefs, and Fountain reads recent surprise beliefs. Empty target windows are scored as surprise 1.0 with no actual content.
+- **CounterfactualNode:** loop-started during boot when dependencies exist; 300-second cadence. It processes one oldest-touched open problem, obtains TimeFetch candidates, scores them with RefinementEngine, submits buildable candidates to CoherenceGate and inserts ACCEPT candidates as Tier-3 `counterfactual_node` beliefs. The subsequent review_queue auto-promotion is disabled by immediate return in `_maybe_promote()`; the belief-insertion path remains.
+- **Throw-Net:** TriggerDetector/engine are constructed when dependencies exist; detector can record gate-reject and gap-deflection triggers. ThrowNetMonitor's periodic consumer starts only with `NEX5_THROWNET=1`; default is off. Trigger logging must not be described as active Throw-Net processing.
+- **Chat provenance:** only active when `NEX5_PROVENANCE=1` and the session is admin-scoped. It snapshots pre-turn retrieved beliefs (or recency fallback), focus, latest Fountain thought and affect; after the reply it computes mirror/copy metrics. A mirror-dominant cue can cause one retry, kept only if the mirror score falls. It is not purely a log-only observer when armed. The grounding hint is explicitly unproven; there is no self-grounded verdict.
+- **WorldPredictionLoop:** starts only with `NEX5_WORLD_PRED=1`; its scorecard output is read by ScorecardLoop for the fixed-source self-belief.
+- **SelfPredictionLoop:** starts only with `NEX5_SELF_PRED=1`; self/authored/self-description predictions are recorded, but its threshold adaptation is explicitly a monitor and is not wired to the live fire gate. Owned-belief/commitment/reconciler paths have separate flags.
+- **SelfMaintainShadow:** optional `NEX5_SELF_MAINTAIN_SHADOW=1`; writes hypothetical regulator metrics only. Module says it changes no beliefs and its table has no reader.
+- **WarrantRecorder:** optional `NEX5_WARRANT_RECORD=1`; records survival/use evidence in side tables and is not a thought/retrieval/output selector.
+- **PersonaResponder:** optional `NEX5_PERSONA_RESPONDER=1`; generates an external-interlocutor response and writes external-other-mind sense events. Fountain's SOCIAL input has a separate read gate.
+- **SocialPresence:** boot explicitly sets the AppState object to None and passes None into Metacognition; module snapshot table has no external reader in inspected source.
+- **Finitude BudgetShadow:** module source explicitly states it is not imported by `gui/server.py` or `selector.py`; not in the inspected live path.
+
+These distinctions are source-level activation and consumer paths, not host-state observations. Optional environment values, successful ticks, writes, and model reliance remain UNKNOWN unless a runtime trace proves them. Per-file hashes are recorded in the Reality Report. No runtime or schema changes were made.
