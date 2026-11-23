@@ -433,3 +433,107 @@ def accuracy_series(cycles: List[CycleRecord]) -> Dict:
                         if len(completed) < MIN_CYCLES_FOR_TREND
                         else "enough cycles to begin assessing a trend (report values, not hype)"),
     }
+
+
+# ---------------- Stage 6: the learning loop (assembled over real stage evidence) --------------
+# Reuses compare / cycle_metrics / accuracy_series / comparability_assessment. Adds: a prediction
+# accuracy that CANNOT be gamed by over-generating obligations, a reviewed-vs-automated provenance
+# split, reopening of deferred/resolved branches on new evidence, and explicit UNKNOWNs.
+
+def prediction_accuracy(cycle: CycleRecord) -> Optional[Dict]:
+    """Prediction accuracy from recorded discrepancies. UNKNOWN (None) until an actual is recorded.
+    Over-expansion (unnecessary), under-expansion (missed) and inappropriate reuse ALL enter the
+    denominator, so proposing MORE obligations than needed never raises the score."""
+    if cycle.actual is None:
+        return None                                   # UNKNOWN — never fabricated
+    d = compare(cycle)
+    missed = len(d["under_expansion_missed"])
+    unnecessary = len(d["over_expansion_unnecessary"])
+    bad_reuse = len(d["inappropriate_reuse"])
+    predicted_net_new = cycle.predicted.get("net_new_count", len(cycle.missing))
+    correct = max(0, predicted_net_new - unnecessary)  # unnecessary predictions are not "correct"
+    denom = correct + missed + unnecessary + bad_reuse
+    return {
+        "correct": correct, "missed": missed, "unnecessary": unnecessary,
+        "inappropriate_reuse": bad_reuse, "effort_error": d["effort_error"],
+        "accuracy": (round(correct / denom, 3) if denom else None),
+        "note": "missed + unnecessary both reduce accuracy; more obligations never raises it",
+    }
+
+
+def learning_provenance(cycle: CycleRecord) -> str:
+    """Distinguish a HUMAN-reviewed outcome from automated self-assessment and from a real
+    execution outcome. A planning review is tagged human_reviewed:planning_review and must NOT be
+    read as an independent execution outcome."""
+    a = cycle.actual or {}
+    if a.get("reviewer"):
+        kind = "planning_review" if a.get("review_kind") == "planning_review" else "execution_review"
+        return f"human_reviewed:{kind}"
+    if cycle.actual is None:
+        return "unknown_no_outcome"
+    if cycle.kind == EXECUTED_VERIFIED:
+        return "executed_verified_outcome"
+    return "automated_self_assessment"
+
+
+def reopening_candidates(cycle: CycleRecord, new_evidence: List[Dict]) -> List[Dict]:
+    """New evidence can reopen a previously deferred or apparently-resolved branch. Each item is
+    {key, observation, now?, blocker_cleared?}. Reopen only on CONCRETE contradicting evidence;
+    UNKNOWN/insufficient evidence does not reopen (no manufactured certainty)."""
+    by_key = {o["key"]: o for o in cycle.obligations}
+    frontier_keys = {f["key"] for f in cycle.frontier}
+    out: List[Dict] = []
+    for ev in new_evidence or []:
+        k, obs = ev.get("key"), ev.get("observation", "")
+        if not obs or ev.get("now") == "unknown":
+            out.append({"key": k, "reopen": False, "reason": "insufficient/UNKNOWN evidence — not reopened"})
+        elif k in by_key and by_key[k].get("recon_status") == "reuse_existing" and ev.get("now") == "missing":
+            out.append({"key": k, "reopen": True, "reason": "reused mechanism now observed missing", "evidence": obs})
+        elif k in frontier_keys and ev.get("blocker_cleared"):
+            out.append({"key": k, "reopen": True, "reason": "deferred branch's blocker reported cleared", "evidence": obs})
+        else:
+            out.append({"key": k, "reopen": False, "reason": "no matching deferred/resolved branch"})
+    return out
+
+
+def learning_loop(cycles: List[CycleRecord], new_evidence: Optional[List[Dict]] = None,
+                  reopen_cycle: Optional[CycleRecord] = None) -> Dict:
+    """The assembled Stage-6 learning loop over real stage evidence. Per-cycle accuracy + provenance
+    with explicit UNKNOWNs and contradictory-evidence flags; aggregate accuracy only over recorded
+    outcomes; reopening on new evidence. Planning reviews are never counted as execution outcomes."""
+    per: List[Dict] = []
+    reviewed = other = unknown = 0
+    for c in cycles:
+        prov = learning_provenance(c)
+        acc = prediction_accuracy(c)
+        contradiction = None
+        if c.actual is not None:
+            d = compare(c)
+            overlap = set(d["under_expansion_missed"]) & set(d["over_expansion_unnecessary"])
+            contradiction = sorted(overlap) or None   # same obligation both missed AND unnecessary
+        per.append({
+            "cycle": c.id, "kind": c.kind, "provenance": prov,
+            "outcome_status": "recorded" if c.actual is not None else "UNKNOWN (pending)",
+            "accuracy": acc, "contradictory_evidence": contradiction,
+        })
+        if prov.startswith("human_reviewed"):
+            reviewed += 1
+        elif prov == "unknown_no_outcome":
+            unknown += 1
+        else:
+            other += 1
+    accs = [p["accuracy"]["accuracy"] for p in per
+            if p["accuracy"] and p["accuracy"]["accuracy"] is not None]
+    return {
+        "per_cycle": per,
+        "provenance_split": {"human_reviewed": reviewed,
+                             "executed_or_self_assessed": other, "unknown_no_outcome": unknown},
+        "mean_prediction_accuracy": (round(sum(accs) / len(accs), 3) if accs else None),
+        "accuracy_basis": f"{len(accs)} cycle(s) with recorded outcomes; the rest are UNKNOWN, not fabricated",
+        "series": accuracy_series(cycles),
+        "comparability": comparability_assessment(cycles),
+        "reopening": reopening_candidates(reopen_cycle, new_evidence) if (reopen_cycle and new_evidence) else [],
+        "anti_gaming": ("accuracy penalises missed AND unnecessary obligations, so more obligations "
+                        "never raises it; completeness is not an input; planning reviews are tagged "
+                        "human_reviewed and NOT counted as execution outcomes."),
+    }
