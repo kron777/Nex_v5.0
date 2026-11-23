@@ -647,3 +647,19 @@ This remains source-level evidence. No flag values, file presence on host, numbe
 - theory_x/stage2_dynamic/__init__.py: 7b35f304cf823b555a4c6ec78722a07d017de576
 
 No runtime/test behaviour, schema, data, flags, host state, experiment, merge or deployment was changed. These findings are evidence and test-design candidates only; any behavioural repair requires the canonical specification and founder approval.
+
+
+
+### Existing test coverage checked for the reshape and warrant findings
+
+The repository's current tests were inspected to determine whether these source findings are already exercised:
+
+- tests/test_reshape.py covers successful transform/re-submit, transformer returning None, the ten-row bound, and an error while inserting reshape_pending. It does not exercise an exception thrown by CoherenceGate.check() during resolver resubmission, nor assert how a returned REJECT/HOLD/RESHAPE outcome should be represented in the original held_resolutions record. The existing "gate_unaffected_by_reshape_path_error" test concerns put_reshape_pending failure at initial gate time, not resolver resubmission.
+- tests/test_warrant_recorder.py covers rotating survival windows, distinct use days, idempotence, identity-block exclusion and disabled-loop inertness. It does not cover timestamp ties spanning the lineage/arc cursor batch boundary.
+- tests/test_warrant.py covers score arithmetic and that WarrantPass.start_loop() is inert when NEX5_WARRANT is unset. It does not verify that run.py actually constructs/starts WarrantPass when the flag is set.
+- These are test-coverage observations from the inspected files, not test execution results. No tests were run or modified in this pass.
+
+Test source hashes:
+- tests/test_reshape.py: de58caba4855ef05a9415bc3f4bc57a703f2a136
+- tests/test_warrant_recorder.py: b16fa6185340f26a57c9e22c8c525a161e6e61db
+- tests/test_warrant.py: 99e639bcf3bd8c1f6e5ab1acbf5b61f20e438b51
