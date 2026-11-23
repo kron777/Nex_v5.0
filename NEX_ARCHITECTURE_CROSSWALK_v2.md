@@ -410,6 +410,20 @@ This establishes an implemented Chat context-consumption path, not proof that th
 - The inspected `run.py` startup contains the conditional recorder construction/start, but this inspection has not yet established a live flag value.
 - A complete downstream consumer search for `belief_warrant` is still open. Do not treat the existence of the computation/table as operational influence or say categorically that there are no readers until that search is complete.
 
+## 3.15 Novel Association / Tier-7 retrieval gap — content versus annotation
+
+| Stage | Source evidence | Finding |
+|---|---|---|
+| Producer boot | `run.py` constructs `NovelAssociation` and calls `start_loop()` | Source-default background loop starts; cadence is 30 minutes. Actual host initialization remains UNKNOWN. |
+| Candidate pool | `NovelAssociation._pull_candidates()` | Reads unpaused, branch-tagged beliefs with confidence >=0.15, sampling up to 10 per branch. It does not filter by tier. |
+| Edge production | `NovelAssociation._write_association()` | For cross-branch pairs with cosine >=0.72, writes a `belief_edges` row of type `synthesises` and a `novel_association_log` row. It does not create a new belief. The module's comments describe the topology as T7 cross-domain. |
+| Standard retrieval pool | `BeliefRetriever.retrieve()` | Initial candidate query filters `tier <= 6`. `row_map` is built only from those eligible rows. |
+| Spreading activation | `BeliefRetriever.retrieve()` → `ActivationEngine.activate()` | Activation may return scores for graph neighbours, but the final merge drops any ID absent from `row_map`. Therefore a Tier-7-only Novel Association endpoint cannot appear in standard retrieval results. |
+| Chat annotation | `gui/server.py::api_chat` → `NovelAssociation.format_for_prompt()` | A recent unannotated log row can produce a short metadata line naming the two branch IDs and similarity. This reaches Chat, but not the underlying belief content. |
+| Separate Synergizer | `BeliefSynergizer.synthesize()` | Different mechanism: writes a new Tier-6 belief (source `synergized`), which is eligible for standard retrieval. Do not conflate it with NovelAssociation's T7 edge-only topology. |
+
+**Correction to the feedback map:** the statement “synthesises edges cannot reach prompts” is true for the underlying Tier-7 belief content through the standard retriever, but not for all signal. The Chat route can receive a metadata-only NovelAssociation annotation. The separate Tier-6 Synergizer output is a different path and can be retrieved. The source gap is therefore specifically: T7 edge topology is generated, activation may traverse it, but final retrieval filters out IDs not present in the Tier<=6 candidate map.
+
 ## 4. Top documentation/source discrepancies
 
 These are discrepancies to reconcile, not automatic instructions to modify code or documentation.
