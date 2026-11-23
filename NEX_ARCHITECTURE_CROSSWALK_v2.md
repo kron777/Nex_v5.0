@@ -277,7 +277,7 @@ Draft PR #54 now contains a source/test prototype for the two required end-to-en
 - Chat input, user-message persistence, retrieval, context assembly, VoiceEngine/VoiceClient input/output, gap-gate pass/deflect, assistant-message persistence and response completion.
 - Existing `fountain_event_id`, belief IDs, `session_id` and Writer-returned message IDs are reused as entity anchors.
 - The collector is default-OFF and requires an explicit external JSONL path. It hashes payloads rather than writing raw content, rejects the configured/default NEX data directory, and swallows trace-write failures.
-- The full repository CI suite, including the mind-map freshness check, passed on PR #54 head `24219af3157d82d3d658d73bc74ddba9332c57e8`.
+- The full repository CI suite, including the mind-map freshness check, passed on PR #54 head `a76709ad10cd9932cd2feb60e913f7de02303b8f`.
 
 **Not yet established:** no host flag has been enabled; no live Fountain cycle or Chat turn has been captured; no deterministic ON/OFF comparison has demonstrated exact prompt/selection/gate/Writer/output invariance; the later TTS playback is not correlated across the consumer thread. PR #54 remains draft and unmerged. This is not Gate 0 approval and does not authorise live activation.
 
