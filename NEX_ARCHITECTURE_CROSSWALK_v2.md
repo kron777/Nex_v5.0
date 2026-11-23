@@ -821,3 +821,23 @@ At source revision `07f6ebe42a1ac99a8038a73476782d1542704296`, `build_world_mode
 **Evidence boundary:** this establishes source-defined write/read relationships, not successful host ticks, actual edge creation, tier changes, candidate selection or model reliance. The WorldConsolidation thread is not unconditionally active; its environment gate and dry/armed modes must remain explicit.
 
 Per-module hashes and detailed source observations are recorded in the Reality Report. No runtime, schema, scoring, edge, tier, erosion, flag or deployment change was made.
+
+
+## 3.26 Stages 4–10 — boot wiring and Chat consumer verification (23 Nov 2026)
+
+At source revision `07f6ebe42a1ac99a8038a73476782d1542704296`, the following source-level paths were checked against `run.py` and `gui/server.py::api_chat`:
+
+- **Stage 4 Membrane:** `build_membrane()` constructs classifier, SelfModel, QueryRouter and BehaviouralSelfModel; with the normal conversations Reader it starts the behavioural loop. Chat's membrane route is separate from the INSIDE-only BehaviouralSelfModel prompt append. The latter is not a universal Chat context block.
+- **Stage 5 SelfLocation:** boot calls `SelfLocationCommitment.commit()` once; it inserts-or-ignores the fixed-source locked Tier-1 belief and reads its ID back. It is eligible for retrieval but not necessarily selected.
+- **Stage 7 ProblemMemory:** constructed as a service object, not started as an autonomous loop. Chat calls `find_matching()` and `format_for_prompt()`; VoiceEngine TimeFetch also calls `find_matching()`; Fountain receives the object for task-bearing context.
+- **Stage 8 GoalManager:** constructed, registered and exposed through the goal API. Chat calls `get_active()` for logging, but a handler comment explicitly states goal text is no longer appended to the Chat prompt. It is not a current Chat prompt contributor.
+- **Stage 9 Metacognition:** constructed/registered without a `run.py` daemon loop; Chat calls `tick()` and `format_for_prompt()` per request and may append the result. Fountain has a separate flag-gated insertion.
+- **Stage 10 NovelAssociation:** constructed and its loop is started; Chat calls `format_for_prompt()` and may append non-empty association text, marking it annotated.
+- **SelfNarrative:** constructed/registered early and passed as a write-trigger target to CoherenceGate, ProblemMemory and NovelAssociation; Chat calls topic-conditioned `format_for_prompt()` and may append entries.
+- **AffectState / DriveEmergence / SelfMindView:** each has a boot-time loop start attempt; Chat may append their DB-backed prompt summaries. VoiceEngine separately receives DriveEmergence for drive-topic embedding alignment.
+
+The source-defined Chat prompt append paths are distinct and conditional: BehaviouralSelfModel (INSIDE only), ProblemMemory (matching query), Metacognition, NovelAssociation, SelfNarrative, AffectState, DriveEmergence and SelfMindView. These are upstream contributors to `belief_text`, not proof of model reliance. The current trace's aggregate context digest does not identify every selected row. Direct VoiceEngine-hit responses can bypass model composition.
+
+**Correction:** GoalManager should not be described as a Chat prompt contributor in the current source. Its active goal is checked/logged, while the text append was removed.
+
+Detailed source hashes and boundaries are in the Reality Report addendum. This section establishes source-level construction/call paths only; host execution, prompt payloads on a live request, and downstream model reliance remain unobserved. No runtime or prompt behaviour was changed.
