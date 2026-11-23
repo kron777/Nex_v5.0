@@ -121,6 +121,8 @@ VoiceEngine's `query_reply()` calls TimeFetch, which sweeps four sources:
 
 It deduplicates by content, preserving source priority belief → novel association → arc → problem, and caps the pool at 40. Belief candidates are enriched with tier and reinforce count; when enabled and the conversations Reader is available, belief candidates may also be enriched with Genius scores through belief → Fountain crystallization → genius-tag lookups. Candidates are scored using semantic similarity, confidence, tier, reinforcement count, drive alignment, and Genius score. The best candidate is returned only when it meets `min_score` (default 0.6 in the class source); otherwise the route misses.
 
+The current implementation is a **six-component** weighted score, despite the VoiceEngine module's opening description still calling it a “five-axis grader”: semantic 0.45, confidence 0.23, tier 0.14, recency/reinforcement 0.08, drive alignment 0.10, and Genius 0.15. The source explicitly notes that the Genius component was added without renormalising the earlier weights, so the component weights sum to 1.15 rather than 1.0. This means the score is not a normalized probability or a simple [0,1] weighted average; its threshold is an implementation threshold whose interpretation depends on the current scoring revision. This is an important source/documentation qualification, not an independent finding that the chosen weights or threshold are incorrect.
+
 On a hit:
 - ordinary non-probe/non-instruction requests use the candidate content directly as the reply and skip VoiceClient composition;
 - the admin/operator-composition case retains the candidate as grounding and continues to the composition route.
