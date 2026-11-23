@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import time
 from datetime import datetime
@@ -12,6 +13,15 @@ from .kokoro_backend import KokoroBackend
 from .player import Player
 
 log = logging.getLogger("nex5.speech.consumer")
+
+def _trace_record(trace_api, trace_handle, event_type: str, **fields) -> None:
+    """Best-effort trace emission; observability must never affect speech."""
+    if trace_api is None or trace_handle is None:
+        return
+    try:
+        trace_api.record(event_type, **fields)
+    except Exception:
+        pass
 
 
 def _is_speakable(content: str) -> bool:
@@ -120,37 +130,135 @@ class SpeechQueueConsumer(threading.Thread):
     def _speak_one(self, row) -> None:
         qid = row["id"]
         content = row["content"]
-        # Use voice from VoiceState if available, else fall back to row voice or config
-        voice = None
-        if self._voice_state is not None:
-            try:
-                voice = self._voice_state.current_name()
-            except Exception:
-                pass
-        if not voice:
-            voice = row.get("voice") or self.config.voice
-        if not _is_speakable(content):
-            self.writer.write(
-                "UPDATE speech_queue SET status='suppressed' WHERE id=?", (qid,)
-            )
-            log.info("speech suppressed (non-speakable content) id=%s chars=%d",
-                     qid, len(content))
-            return
+        trace_api = None
+        trace_handle = None
+        trace_outcome = "processing_interrupted"
 
-        self.writer.write(
-            "UPDATE speech_queue SET status='speaking' WHERE id=?", (qid,)
-        )
+        # The consumer runs on its own thread, outside the Fountain cycle's
+        # ContextVar. Start a separately scoped trace anchored to the persisted
+        # queue row ID so enqueue and eventual disposition can be correlated
+        # without pretending the asynchronous parent context crossed threads.
+        if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+            try:
+                from substrate import trace_overlay as trace_api
+                trace_handle = trace_api.begin_linked_trace(
+                    "speech_queue_item",
+                    source_ref="speech/queue_consumer.py::SpeechQueueConsumer._speak_one",
+                    entity_ref=f"beliefs.speech_queue:{qid}",
+                )
+                if trace_handle is not None:
+                    _trace_record(
+                        trace_api, trace_handle, "queue_item_consumed",
+                        producer="SpeechQueueConsumer._pending",
+                        consumer="SpeechQueueConsumer._speak_one",
+                        source_ref="speech/queue_consumer.py::_pending",
+                        entity_ref=f"beliefs.speech_queue:{qid}",
+                        outcome="claimed",
+                        payload={"queue_id": qid},
+                    )
+            except Exception:
+                # begin_trace may have installed a ContextVar before an
+                # unexpected trace-start failure; close it defensively.
+                if trace_api is not None:
+                    try:
+                        trace_api.close_current_trace(
+                            source_ref="speech/queue_consumer.py::trace_start",
+                            outcome="trace_start_failed",
+                        )
+                    except Exception:
+                        pass
+                trace_api = None
+                trace_handle = None
+
         try:
-            audio, sr = self.backend.synth(content, voice=voice)
-            self.player.play(audio, sr)
+            # Use voice from VoiceState if available, else fall back to row voice or config
+            voice = None
+            if self._voice_state is not None:
+                try:
+                    voice = self._voice_state.current_name()
+                except Exception:
+                    pass
+            if not voice:
+                voice = row.get("voice") or self.config.voice
+            if not _is_speakable(content):
+                self.writer.write(
+                    "UPDATE speech_queue SET status='suppressed' WHERE id=?", (qid,)
+                )
+                if trace_handle is not None:
+                    _trace_record(
+                        trace_api, trace_handle, "output_suppressed",
+                        producer="SpeechQueueConsumer._is_speakable",
+                        consumer="speech_queue",
+                        source_ref="speech/queue_consumer.py::_speak_one",
+                        entity_ref=f"beliefs.speech_queue:{qid}",
+                        outcome="suppressed",
+                        payload={"queue_id": qid, "reason": "non_speakable_content"},
+                    )
+                log.info("speech suppressed (non-speakable content) id=%s chars=%d",
+                         qid, len(content))
+                trace_outcome = "suppressed"
+                return
+
             self.writer.write(
-                "UPDATE speech_queue SET status='spoken', spoken_at=? WHERE id=?",
-                (time.time(), qid),
+                "UPDATE speech_queue SET status='speaking' WHERE id=?", (qid,)
             )
-            log.info("spoke belief_id=%s (%d chars)", row["belief_id"], len(content))
-        except Exception as e:
-            log.error("synth/play failed on id=%s: %s", qid, e)
-            self.writer.write(
-                "UPDATE speech_queue SET status='failed', error=? WHERE id=?",
-                (str(e), qid),
-            )
+            if trace_handle is not None:
+                _trace_record(
+                    trace_api, trace_handle, "synthesis_started",
+                    producer="SpeechQueueConsumer._speak_one",
+                    consumer="KokoroBackend.synth",
+                    source_ref="speech/queue_consumer.py::_speak_one",
+                    entity_ref=f"beliefs.speech_queue:{qid}",
+                    outcome="speaking",
+                    payload={"queue_id": qid, "voice": voice},
+                )
+            playback_completed = False
+            try:
+                audio, sr = self.backend.synth(content, voice=voice)
+                self.player.play(audio, sr)
+                playback_completed = True
+                if trace_handle is not None:
+                    _trace_record(
+                        trace_api, trace_handle, "audio_playback_completed",
+                        producer="Player.play",
+                        consumer="SpeechQueueConsumer._speak_one",
+                        source_ref="speech/queue_consumer.py::_speak_one",
+                        entity_ref=f"beliefs.speech_queue:{qid}",
+                        outcome="played",
+                        payload={"queue_id": qid, "sample_rate": sr},
+                    )
+                self.writer.write(
+                    "UPDATE speech_queue SET status='spoken', spoken_at=? WHERE id=?",
+                    (time.time(), qid),
+                )
+                log.info("spoke belief_id=%s (%d chars)", row["belief_id"], len(content))
+                trace_outcome = "spoken"
+            except Exception as e:
+                log.error("synth/play failed on id=%s: %s", qid, e)
+                self.writer.write(
+                    "UPDATE speech_queue SET status='failed', error=? WHERE id=?",
+                    (str(e), qid),
+                )
+                if trace_handle is not None:
+                    _trace_record(
+                        trace_api, trace_handle,
+                        "queue_status_write_failed" if playback_completed else "audio_playback_failed",
+                        producer="SpeechQueueConsumer._speak_one",
+                        consumer="speech_queue",
+                        source_ref="speech/queue_consumer.py::_speak_one",
+                        entity_ref=f"beliefs.speech_queue:{qid}",
+                        outcome="status_write_failed" if playback_completed else "failed",
+                        payload={"queue_id": qid, "error_type": type(e).__name__},
+                    )
+                trace_outcome = "failed"
+        finally:
+            if trace_handle is not None:
+                try:
+                    trace_api.end_trace(
+                        trace_handle,
+                        source_ref="speech/queue_consumer.py::SpeechQueueConsumer._speak_one",
+                        entity_ref=f"beliefs.speech_queue:{qid}",
+                        outcome=trace_outcome,
+                    )
+                except Exception:
+                    pass
