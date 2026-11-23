@@ -101,3 +101,27 @@ def test_trace_write_failure_is_non_fatal(tmp_path, monkeypatch):
     target.mkdir()
     assert trace.record("event", producer="chat", source_ref="chat") is None
     trace.end_trace(handle, source_ref="chat")
+
+def test_refuses_trace_artifact_inside_nex_data_dir(tmp_path, monkeypatch):
+    data_dir = tmp_path / "nex-data"
+    data_dir.mkdir()
+    monkeypatch.setenv("NEX5_TRACE_OVERLAY", "1")
+    monkeypatch.setenv("NEX5_DATA_DIR", str(data_dir))
+    monkeypatch.setenv("NEX5_TRACE_PATH", str(data_dir / "trace.jsonl"))
+
+    assert trace.begin_trace("chat", source_ref="chat") is None
+    assert list(data_dir.iterdir()) == []
+
+
+def test_turning_flag_off_stops_writes_and_end_restores_context(tmp_path, monkeypatch):
+    path = tmp_path / "trace.jsonl"
+    monkeypatch.setenv("NEX5_TRACE_OVERLAY", "1")
+    monkeypatch.setenv("NEX5_TRACE_PATH", str(path))
+    handle = trace.begin_trace("chat", source_ref="chat")
+    assert handle is not None
+
+    monkeypatch.setenv("NEX5_TRACE_OVERLAY", "0")
+    assert trace.record("after_off", producer="chat", source_ref="chat") is None
+    trace.end_trace(handle, source_ref="chat")
+    rows = _read(path)
+    assert [row["event_type"] for row in rows] == ["trace_start"]
