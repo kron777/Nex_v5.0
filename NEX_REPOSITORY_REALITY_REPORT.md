@@ -13,6 +13,8 @@
 
 The inspected public `main` branch was at the revision above. The repository exposes a substantial Python codebase, a CI test-baseline workflow, a sourced descriptive mind map, a separate dependency DAG, and multiple runtime pathways. The repository's current Phase 0 evidence package is incomplete.
 
+**Priority security finding — DRAFT-015:** the active public `/api/chat` route can select `python_exec` from a user prompt and passes the raw prompt to a subprocess. The import blacklist is bypassable through Python built-ins; this is not a sandbox. The route is explicitly exempted from the admin mutation gate. The default bind is loopback (`127.0.0.1`), but `NEX5_HOST` can expose it on another interface. If reachable by untrusted clients, this is a conditional unauthenticated arbitrary-code-execution path. No exploit was run. Do not expose the service beyond a trusted local boundary until this path is disabled or safely isolated and independently verified.
+
 The following are established from repository evidence:
 
 - The default branch is `main`.
@@ -1054,3 +1056,34 @@ Source hashes:
 - `theory_x/life/surprise_loop.py`: `bb1869e3d5784ca668ca37e8c76cc25998d7a381`
 
 No runtime or test behaviour, schema, database, flags, host state, experiment, merge or deployment was changed.
+
+
+## M0.3 security audit — public Chat to Python tool execution (24 Nov 2026)
+
+### DRAFT-015 — unauthenticated Chat can invoke unsandboxed Python execution
+
+**<badge color="danger">High-impact security risk — conditional network exposure</badge>**
+
+The inspected startup path constructs `ToolRegistry` and `ToolCaller` unconditionally and passes both into `AppState`. In `api_chat`, the raw user prompt is passed to `tool_caller.should_use_tool(prompt, [])`; when a heuristic matches, `build_tool_kwargs()` forwards the raw query as the Python code input and `ToolRegistry.execute()` runs it.
+
+The `python_exec` implementation only searches for literal `import os` / `from os`-style statements using regular expressions. It then executes the supplied text via `subprocess.run(["python3", "-c", safe_code], ...)`. This does not constrain Python built-ins, indirect imports such as `__import__`, file access, dynamic evaluation, or other capabilities available to the application user. The declared `_SAFE_IMPORTS` set is not used as an AST allowlist or execution sandbox. A prompt can include a tool-triggering keyword such as “calculate” in valid Python comment text and still supply executable Python beneath it; no exploit was executed to establish this source-level path.
+
+The route's authentication boundary is explicit: `api_chat` is included in `_PUBLIC_MUTATIONS`, so the central admin gate deliberately exempts it. Tool selection/execution in the chat route has no additional admin check. `run.py` binds to `127.0.0.1` by default, which limits ordinary remote exposure in the default configuration; however, `NEX5_HOST` is configurable. If the service is bound to a non-loopback interface or exposed through a reachable reverse proxy, an unauthenticated caller may be able to execute arbitrary Python with the NEX process account's permissions. Local callers are also within the reachable boundary.
+
+The risk is therefore **conditional on network reachability**, not a claim that the default loopback deployment is publicly reachable. The consequence, if exposed, is high impact: access to files, environment values and processes available to the application account. This is not a claim of observed exploitation or host compromise.
+
+### Test and verification boundary
+
+- `tests/test_tools.py::test_python_exec_blocks_os_import` checks only a literal `import os` string; the corresponding sys test checks literal `import sys`.
+- `tests/test_tools.py::test_build_tool_kwargs_python_exec` confirms the query is passed through as the code input.
+- No test covers builtin/indirect-import bypass, filesystem/process capability, isolation, or the public route's authorization boundary.
+- No exploit or security test was executed. No runtime setting or source code was changed.
+
+Source hashes:
+- `run.py`: `73a2c58a4f5f0348135a46eb83d6cdd61db874e7`
+- `gui/server.py`: `d67df10f4449004c255e38b11b4a1888a4e4934c`
+- `theory_x/stage_capability/tool_caller.py`: `31faba3cc49b60f21069679e920c73442249f919`
+- `theory_x/stage_capability/tools.py`: `ff5f251b225c975c01f6bf3c3da9cbad1f77fbee`
+- `tests/test_tools.py`: `85c7aa8236e2cdd1005f3ab4aa49c8c6da337d2d`
+
+**Disposition:** security finding for Gate 0 defect backlog and independent review. No severity remediation is implemented here because the governing change-approval gate remains closed. The service should not be exposed to untrusted networks in this state.
