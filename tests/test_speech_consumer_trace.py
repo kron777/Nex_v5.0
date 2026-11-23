@@ -6,6 +6,8 @@ not claim an atomic producer/consumer hand-off or physical audio audibility.
 import json
 import sqlite3
 
+import pytest
+
 import speech.queue_consumer as queue_consumer
 from speech.config import SpeechConfig
 
@@ -201,6 +203,79 @@ def test_player_return_remains_visible_when_spoken_status_write_fails(
     assert rows[-1]["outcome"] == (
         "player_returned_spoken_status_failed_fallback_persisted"
     )
+
+
+
+def test_speaking_status_write_failure_stops_before_synthesis(
+    monkeypatch, tmp_path
+):
+    path = _enable_trace(monkeypatch, tmp_path)
+    writer = FakeWriter(
+        fail=lambda sql, params: "status='speaking'" in sql
+    )
+    backend = FakeBackend()
+    consumer = _consumer(monkeypatch, backend=backend, writer=writer)
+
+    with pytest.raises(RuntimeError, match="simulated status persistence failure"):
+        consumer._speak_one({
+            "id": 5107, "belief_id": 97, "content": "A speakable sentence.",
+            "voice": "af_sarah",
+        })
+
+    rows = _events(path)
+    assert backend.calls == []
+    assert consumer.player.calls == []
+    failed = next(row for row in rows
+                  if row["event_type"] == "queue_status_write_failed")
+    assert failed["outcome"] == "speaking_write_failed"
+    assert rows[-1]["outcome"] == "speaking_status_write_failed"
+
+
+def test_suppressed_status_write_failure_is_not_reported_as_suppressed(
+    monkeypatch, tmp_path
+):
+    path = _enable_trace(monkeypatch, tmp_path)
+    writer = FakeWriter(
+        fail=lambda sql, params: "status='suppressed'" in sql
+    )
+    backend = FakeBackend()
+    consumer = _consumer(monkeypatch, backend=backend, writer=writer)
+
+    with pytest.raises(RuntimeError, match="simulated status persistence failure"):
+        consumer._speak_one({
+            "id": 5108, "belief_id": 98, "content": '{"raw": "payload"}',
+            "voice": "af_sarah",
+        })
+
+    rows = _events(path)
+    assert backend.calls == []
+    assert consumer.player.calls == []
+    assert any(row["event_type"] == "queue_status_write_failed"
+               and row["outcome"] == "suppressed_write_failed" for row in rows)
+    assert rows[-1]["outcome"] == "suppressed_status_write_failed"
+
+
+def test_failed_status_write_after_synthesis_failure_remains_visible(
+    monkeypatch, tmp_path
+):
+    path = _enable_trace(monkeypatch, tmp_path)
+    writer = FakeWriter(
+        fail=lambda sql, params: "status='failed'" in sql
+    )
+    backend = FakeBackend(fail=True)
+    consumer = _consumer(monkeypatch, backend=backend, writer=writer)
+
+    with pytest.raises(RuntimeError, match="simulated status persistence failure"):
+        consumer._speak_one({
+            "id": 5109, "belief_id": 99, "content": "A speakable sentence.",
+            "voice": "af_sarah",
+        })
+
+    rows = _events(path)
+    assert "synthesis_failed" in [row["event_type"] for row in rows]
+    assert any(row["event_type"] == "queue_status_write_failed"
+               and row["outcome"] == "failed_write_failed" for row in rows)
+    assert rows[-1]["outcome"] == "synthesis_failed_status_write_failed"
 
 
 def test_trace_off_preserves_speech_path(monkeypatch, tmp_path):
