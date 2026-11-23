@@ -3442,7 +3442,8 @@ class FountainGenerator:
                     producer="GlobalWorkspace.arbitrate",
                     consumer="FountainGenerator.focus_block",
                     source_ref="theory_x/stage6_fountain/generator.py::workspace",
-                    outcome="winner_selected" if _gw_line else "no_winner",
+                    outcome=("disabled" if os.environ.get("NEX5_GLOBAL_WORKSPACE", "1") != "1"
+                             else "winner_selected" if _gw_line else "no_winner"),
                     payload=_gw_line,
                 )
             except Exception:
