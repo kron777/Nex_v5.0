@@ -38,7 +38,8 @@ def _beliefs(path):
         " belief_id_b INTEGER);"
         "CREATE TABLE belief_lineage (child_id INTEGER, parent_id INTEGER, relationship TEXT, "
         " weight REAL, created_at REAL);"
-        "CREATE TABLE arc_members (belief_id INTEGER, joined_at REAL);")
+        "CREATE TABLE arc_members (arc_id INTEGER, belief_id INTEGER, position INTEGER, "
+        " role TEXT, distance_from_centroid REAL, joined_at REAL);")
     rows = [(i, f"plain belief number {i} about ordinary things", t, 0, 0)
             for i, t in [(1, 3), (2, 3), (3, 3), (4, 6), (5, 6), (6, 7), (7, 7), (8, 7)]]
     rows += [(9, "a locked keystone", 1, 1, 0), (10, "paused one", 7, 0, 1)]
@@ -46,7 +47,7 @@ def _beliefs(path):
     c.executemany("INSERT INTO synergizer_log VALUES (?,?,?,?)",
                   [(1, _T0, 4, 6), (2, _T0 + 3600, 4, 7)])          # 4 used twice same day
     c.execute("INSERT INTO belief_lineage VALUES (50, 4, 'supports', 1.0, ?)", (_T0 + 2 * _DAY,))
-    c.execute("INSERT INTO arc_members VALUES (6, ?)", (_T0 + 5 * _DAY,))
+    c.execute("INSERT INTO arc_members VALUES (1, 6, 1, 'member', 0.1, ?)", (_T0 + 5 * _DAY,))
     c.commit(); c.close()
 
 
