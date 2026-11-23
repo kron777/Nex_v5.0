@@ -178,7 +178,8 @@ def build_fountain(
                 # Phase 0 causal trace — observational only, default OFF.
                 _trace_handle = None
                 _trace_api = None
-                if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+                if (os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1"
+                        and os.environ.get("NEX5_TRACE_PATH", "").strip()):
                     try:
                         from substrate import trace_overlay as _trace_api
                         _trace_handle = _trace_api.begin_trace(
