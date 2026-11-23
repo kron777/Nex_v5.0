@@ -38,6 +38,16 @@ A source-comment discrepancy was also found: the FocalSet block is labelled “l
 
 The membrane route and direct-retriever fallback are alternatives, not two sequential retrieval passes.
 
+### 2.3 Internal membrane/retrieval dependencies
+
+The two membrane routes have materially different upstream dependencies:
+
+- **INSIDE:** the router first calls `SelfModel.snapshot()`. The snapshot reads the latest `internal.proprioception`, `internal.temporal`, `internal.interoception`, and `internal.meta_awareness` payloads from `sense_events`; when DynamicState is present it calls `status()` for meta-awareness and again for attention; and it queries up to 30 eligible INSIDE-source beliefs, scores them by confidence × tier weight, then formats the top five (the prompt formatter emits up to three standing-points). Separately, the router calls `BeliefRetriever.retrieve()` with `branch_hints=["systems"]`, `limit=5`, and `side_filter="INSIDE"`. That retriever first reads the eligible belief pool (tier ≤ 6, unpaused, locked or confidence ≥ 0.15, ordered by confidence, limit 20,000), applies the membrane source filter, computes keyword overlap and optional semantic fallback, then attempts spreading activation/typed-role enrichment before returning its top results. The SelfModel snapshot and routed BeliefRetriever result are separate contributions; the snapshot's inside-belief selection is not the same query-ranked result.
+- **OUTSIDE:** the router optionally reads DynamicState status and selects branch IDs whose `focus_num > 0.1`, then calls BeliefRetriever with those hints and `limit=8`, without an explicit side filter. The Chat handler subsequently applies its own two-token overlap filter and prompt-length cap. When DynamicState is absent or fails, the route proceeds with an empty active-branch hint list.
+
+These source paths show that the trace's single initial `retrieval` boundary collapses several distinct reads and transforms. The current trace does not expose the selected belief IDs, sense-event row IDs, dynamic branch snapshot, activation seeds/results, or the distinction between SelfModel's top-five standing-points and router's query-ranked INSIDE beliefs. The above is source behaviour, not proof those optional dependencies are present on the deployed host.
+
+
 ## 3. Context contributors after initial retrieval
 
 The following source paths can add material or affect the prompt after the initial retrieval record. Their presence in AppState and their internal conditions are not proof that they produce content on every turn.
@@ -240,6 +250,9 @@ All hashes below identify the inspected PR #65 integrated branch files, not the 
 | `theory_x/stage4_membrane/classifier.py` | `84f68975083266ba1a3fecf5322664392711bf10` | INSIDE/OUTSIDE substring classifier |
 | `theory_x/stage4_membrane/router.py` | `74d82fe0f9fe210c75d86105e205dcb0c4151d79` | INSIDE/OUTSIDE retrieval route |
 | `tests/test_membrane.py` | `42c0347534b765ef4c24685e333c8fe4047fdce8` | Classifier and route tests; no YouTube token-boundary case |
+| `theory_x/stage3_world_model/retrieval.py` | `aa3eeb15c9a4a19a24a6d328bc370cd0a4438cf3` | Belief pool, side filter, keyword/semantic scoring and activation blend |
+| `theory_x/stage3_world_model/activation.py` | `509a021671c7f698fb740086dfffa170d2543b84` | Spreading activation over belief edges |
+| `theory_x/stage4_membrane/self_model.py` | `c3646242ee244d7434228fcabf0550ebd0d37947` | Sense-event snapshot and INSIDE standing-point selection |
 | `substrate/trace_overlay.py` | `fbccc3b63bc94dab8e9f01951a581ba3af3f087e` | Trace record envelope and payload digest behaviour |
 
 The Chat route's line ranges in this audit are from the same `gui/server.py` blob; line numbers may shift on later commits. Recheck the branch head and file hashes before relying on this map after further source changes.
