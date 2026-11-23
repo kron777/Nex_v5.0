@@ -192,9 +192,10 @@ def build_fountain(
                         if _trace_handle is not None:
                             _trace_api.record(
                                 "input_arrival",
-                                producer="dynamic_state",
+                                producer="FountainLoop",
                                 consumer="FountainGenerator.generate",
                                 source_ref="theory_x/stage6_fountain/__init__.py::fountain_loop",
+                                outcome="scheduler_tick",
                                 payload={"interval_seconds": interval},
                             )
                     except Exception:
