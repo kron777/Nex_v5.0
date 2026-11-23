@@ -1737,6 +1737,17 @@ def create_app(state: AppState) -> Flask:
                         "VALUES (?, 'nex', ?, ?, ?, ?)",
                         (session_id, CHAT_GAP_REFUSAL, register.name, state.now_fn(), None),
                     )
+                    if _trace_handle is not None:
+                        _trace_api.record(
+                            "writer_delta",
+                            producer="gui.server.api_chat",
+                            consumer="HTTP response",
+                            source_ref="gui/server.py::api_chat:gap_refusal_insert",
+                            entity_ref=f"conversations.messages:{_gap_message_id}",
+                            outcome="persisted",
+                            payload={"table": "messages", "message_id": _gap_message_id,
+                                     "role": "nex", "kind": "gap_refusal"},
+                        )
                 except Exception as exc:
                     error_channel.record(
                         f"conversations: gap refusal insert failed: {exc}",
@@ -2338,6 +2349,17 @@ def create_app(state: AppState) -> Flask:
                     "VALUES (?, 'nex', ?, ?, ?, ?)",
                     (session_id, text, register.name, state.now_fn(), used_tool),
                 )
+                if _trace_handle is not None:
+                    _trace_api.record(
+                        "writer_delta",
+                        producer="gui.server.api_chat",
+                        consumer="HTTP response",
+                        source_ref="gui/server.py::api_chat:assistant_message_insert",
+                        entity_ref=f"conversations.messages:{_assistant_message_id}",
+                        outcome="persisted",
+                        payload={"table": "messages", "message_id": _assistant_message_id,
+                                 "role": "nex"},
+                    )
             except Exception as e:
                 error_channel.record(
                     f"conversations: nex message insert failed: {e}",
