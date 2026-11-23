@@ -243,6 +243,27 @@ def _real_sqlite_consumer(tmp_path, monkeypatch):
     return writer, reader, consumer
 
 
+def test_real_reader_selection_exposes_sqlite_row_mapping_limitation(
+    monkeypatch, tmp_path
+):
+    writer, reader, consumer = _real_sqlite_consumer(tmp_path, monkeypatch)
+    try:
+        writer.write(
+            "INSERT INTO speech_queue "
+            "(id, belief_id, content, voice, queued_at) VALUES (?, ?, ?, ?, ?)",
+            (5203, 103, "A persisted speech item.", "af_sarah", 1.0),
+        )
+        selected = consumer._pending()
+        assert len(selected) == 1
+        # Reader.read() returns sqlite3.Row, while the existing consumer uses
+        # row.get("voice"). This is a pre-existing runtime defect, deliberately
+        # not changed by this Phase 0 instrumentation PR.
+        assert isinstance(selected[0], sqlite3.Row)
+        assert not hasattr(selected[0], "get")
+    finally:
+        writer.close()
+
+
 def test_real_writer_reader_and_consumer_preserve_registered_row_link(
     monkeypatch, tmp_path
 ):
@@ -274,7 +295,7 @@ def test_real_writer_reader_and_consumer_preserve_registered_row_link(
 
         selected = consumer._pending()
         assert len(selected) == 1
-        consumer._speak_one(selected[0])
+        consumer._speak_one(dict(selected[0]))
 
         rows = _events(path)
         consumer_start = next(row for row in rows
