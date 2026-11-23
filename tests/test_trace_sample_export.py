@@ -24,7 +24,11 @@ def test_export_contains_complete_fountain_and_chat_traces_when_enabled():
         assert rows[-1]["event_type"] == "trace_end"
         assert len({row["trace_id"] for row in rows}) == 1
         seen = set()
-        for row in rows:
+        for index, row in enumerate(rows):
+            if index == 0:
+                assert row["parent_ids"] == []
+            else:
+                assert row["parent_ids"], "every non-root sample event must have explicit causal parentage"
             assert all(parent in seen for parent in row["parent_ids"])
             seen.add(row["record_id"])
     serialized = path.read_text(encoding="utf-8")
