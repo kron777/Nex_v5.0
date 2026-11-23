@@ -2674,12 +2674,11 @@ class FountainGenerator:
                     hot_branch=hot_branch,
                     focal_item=_fire_focal,
                     retained_candidate_id=_retained_candidate_id,
-                    trace_parent_ids=[
-                        rid for rid in (
-                            self._trace_candidate_record_id,
-                            self._trace_fountain_event_record_id,
-                        ) if rid
-                    ],
+                    trace_parent_ids=(
+                        [self._trace_candidate_record_id]
+                        if self._trace_candidate_record_id else []
+                    ),
+                    trace_fountain_event_record_id=self._trace_fountain_event_record_id,
                 )
                 self._trace_final_record_id = getattr(
                     self._crystallizer, "_trace_terminal_record_id",
