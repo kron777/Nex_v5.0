@@ -1199,3 +1199,12 @@ The boot path starts CounterfactualNode without an environment gate. Each 300-se
 ## PredictiveSubstrate — external-input population parity (24 Nov 2026)
 
 The external-input producer takes up to 10 non-internal sense rows plus up to 10 user messages, concatenates sense first, then truncates to 10; it does not merge by timestamp. A full 10-row sense sample excludes chat entirely. The verifier then queries all sense events in the window without excluding `internal.*`, so internal events omitted from the prediction population can influence the score. The forecast and verification populations therefore differ. This can affect the surprise score and its downstream consumers (including DRAFT-011). Live incidence and score impact are UNKNOWN; current fixture tests do not exercise mixed-source chronological selection or producer/verifier filter parity. See DRAFT-014 in the Reality Report.
+
+
+## Stage Capability — public Chat / Python execution security boundary (24 Nov 2026)
+
+The normal `run.py` boot path constructs `ToolRegistry` and `ToolCaller` and injects them into `AppState`. The public `api_chat` route passes the raw prompt to the heuristic selector; a “calculate”/“compute”/“math” match can route to `python_exec`. `build_tool_kwargs()` forwards the raw query as code. `ToolRegistry._python_exec()` uses regex checks for literal import statements, then executes the text with `python3 -c` under the NEX process account. This is not a sandbox; Python built-ins and indirect imports bypass the blacklist.
+
+The central mutation gate explicitly exempts `api_chat` as public, so no admin session is required for this tool path. The default bind is `127.0.0.1`, but `NEX5_HOST` can change the interface. If reachable by untrusted clients, the path permits conditional unauthenticated arbitrary code execution. No exploit was run; no live exposure or compromise is claimed. The tool tests cover only literal blocked imports and raw-query handoff, not indirect import bypass or isolation. See DRAFT-015 in the Reality Report.
+
+**Security disposition:** do not expose this service beyond a trusted local boundary until the Python tool is disabled or safely isolated and independently verified. Runtime changes remain outside this documentation-only pass.
