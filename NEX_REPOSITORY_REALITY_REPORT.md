@@ -1031,3 +1031,26 @@ Source hashes:
 - `tests/test_counterfactual_node.py`: `1cd15a6a5c0bfe115791eec9a3aae4b4d088a3f8`
 
 No runtime or test behaviour, database, flags, host state, experiment, merge or deployment was changed.
+
+
+## M0.3–M0.4 source audit — PredictiveSubstrate external-input target population (24 Nov 2026)
+
+Inspected against PR #65 integrated source head `cffbbc94b5a494247d127abf2720886a08f7a567`.
+
+### DRAFT-014 — external-input prediction and verification use different populations
+
+The `external_input` predictor constructs its sample from two separately limited queries: up to 10 non-`internal.*` sense events and up to 10 user messages. It concatenates the sense rows first, then the message rows, and slices the combined list to 10. It does not merge the two sources by timestamp. When 10 qualifying sense events exist, no user messages enter the prediction centroid; with fewer sense rows, the remaining slots go to messages only after the sense rows, regardless of their relative recency. This is not a true most-recent mixed stream sample.
+
+The verifier for `external_input` uses the same time window but queries all sense events without the producer's `stream NOT LIKE 'internal.%'` filter, then adds user messages. Internal sense events excluded from the predicted population can therefore participate in the actual comparison. The target population used to build the centroid and the population used to score it are not equivalent.
+
+This affects the meaning of the resulting surprise score and, conditionally, downstream consumers including SurpriseLoop and the Fountain confidence-weighting path described in DRAFT-011. It is a source-confirmed population/verification mismatch; live event composition and measured score impact are UNKNOWN.
+
+Test boundary: `tests/test_predictive_substrate.py::test_external_prediction_written` seeds sense events only. The external-input verification tests do not exercise a mixed chat/sense window or assert exclusion of internal streams. No test was found for chronological merging or parity between the external predictor's and verifier's stream filters.
+
+Source hashes:
+- `theory_x/stage_prediction/predictive_substrate.py`: `24933b4d6217376a1341c351319cc48546543c80`
+- `tests/test_predictive_substrate.py`: `96f5b6dfa21729948499a3b2c483eb9cca050296`
+- `theory_x/stage_prediction/surprise_weighting.py`: `10db4a80a31c065b113290f21d89bd16743a89fb`
+- `theory_x/life/surprise_loop.py`: `bb1869e3d5784ca668ca37e8c76cc25998d7a381`
+
+No runtime or test behaviour, schema, database, flags, host state, experiment, merge or deployment was changed.
