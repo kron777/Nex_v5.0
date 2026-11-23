@@ -105,14 +105,14 @@ No host command was executed and no runtime flag, process or database was touche
 
 | Class | Current result |
 |---|---|
-| Confirmed code defect | One conditional source-confirmed fallback defect on draft PR #65; focused test added, CI pending; host impact UNKNOWN |
+| Confirmed code defect | One conditional source-confirmed fallback defect on draft PR #65; focused test added; PR #65 full pytest passed; host impact UNKNOWN |
 | Stale test | UNKNOWN — no fresh suite output |
 | Environment / missing dependency | UNKNOWN — no fresh host run |
 | Collection error | UNKNOWN — no fresh host run |
 
 The absence of active entries in `known_failures.txt` is not proof that there are no failures.
 
-**Later Phase 0 branch finding (not part of the inspected `main` snapshot):** PR #65 source inspection found a conditional speech-consumer defect. `Reader.read()` returns `sqlite3.Row`, but `SpeechQueueConsumer._speak_one()` falls back to `row.get("voice")` when `voice_state.current_name()` returns an empty value or raises; `sqlite3.Row` has no `.get()` method. Normal `run.py` startup supplies `voice_state`, so this is a fallback-path defect, not evidence that the ordinary boot path fails. A focused test documents the row type and the current CI run for PR #65 is pending. No runtime failure has been observed.
+**Later Phase 0 branch finding (not part of the inspected `main` snapshot):** PR #65 source inspection found a conditional speech-consumer defect. `Reader.read()` returns `sqlite3.Row`, but `SpeechQueueConsumer._speak_one()` falls back to `row.get("voice")` when `voice_state.current_name()` returns an empty value or raises; `sqlite3.Row` has no `.get()` method. Normal `run.py` startup supplies `voice_state`, so this is a fallback-path defect, not evidence that the ordinary boot path fails. A focused test documents the row type; PR #65's combined full pytest run passed (run `45243112976`). No runtime failure has been observed.
 
 ### 5.1 Verified defect backlog — working, non-exhaustive
 
@@ -120,9 +120,11 @@ The following item is source-confirmed in the current Phase 0 draft stack. It is
 
 | Ref | Finding | Trigger / impact boundary | Evidence | Status |
 |---|---|---|---|---|
-| DRAFT-001 | Speech consumer's voice fallback calls `row.get("voice")`, but `Reader.read()` returns `sqlite3.Row`, which has no `.get()` method. | Reached only when `voice_state.current_name()` returns an empty value or raises. Normal `run.py` startup supplies `voice_state`; the ordinary boot path is not shown to hit this fallback. | Source inspection and a focused isolated test on PR #65. | Source-confirmed conditional defect; current combined PR #65 CI pending. Host frequency/impact UNKNOWN. |
+| DRAFT-001 | Speech consumer's voice fallback calls `row.get("voice")`, but `Reader.read()` returns `sqlite3.Row`, which has no `.get()` method. | Reached only when `voice_state.current_name()` returns an empty value or raises. Normal `run.py` startup supplies `voice_state`; the ordinary boot path is not shown to hit this fallback. | Source inspection and a focused isolated test on PR #65; combined PR #65 pytest run `45243112976` passed. | Source-confirmed conditional defect; host frequency/impact UNKNOWN. |
 
 No severity, priority or remediation is assigned pending the full runtime/call-path audit and the higher-authority Frozen V2.1 acceptance constraints. The list is not exhaustive: other defect classes remain UNKNOWN until the fresh test baseline and approved host capture are completed.
+
+**Evidence-branch CI note (23 Nov 2026):** PR #49's current run `45243207500` failed. The focused authority-boundary test failure was reproduced as a false positive caused by two module docstrings containing map filenames; the test has been corrected to ignore docstrings while retaining executable literal-reference and import checks. The full CI log was unavailable, so it is not known whether this was the only failure. A new PR #49 run is required before the evidence branch can be described as green. This note does not change the report's inspected-main revision above.
 
 ## 6. Required host-side capture
 
