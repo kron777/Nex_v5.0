@@ -81,6 +81,27 @@ Associated tests include `tests/test_fountain.py`, `tests/test_fountain_crystall
 
 **Current ladder:** relevant mechanisms are [L1] source-present and individually tested. Current [L2] host activation and event emission remain UNKNOWN. The source links the event, accepted belief and optional speech queue, but a live ID-linked [L3] trace has not been captured. [L4] behavioural improvement is not established.
 
+### 3.1.1 Asynchronous speech consumer — row-identity hand-off (draft PR #65)
+
+The speech path crosses an asynchronous boundary: Fountain commits a speech_queue row, while SpeechQueueConsumer polls the table independently. The current trace hand-off uses the exact persisted row identity:
+
+1. FountainCrystallizer.crystallize() calls Writer.write() to insert the queue row and receives its ID.
+2. After the write returns, it records output_queued with entity_ref="beliefs.speech_queue:<id>".
+3. If that trace append returns a record ID, it registers the same entity reference through link_entity().
+4. The consumer's _pending() query returns the row; _speak_one() opens begin_linked_trace() using that row ID. When the in-memory mapping exists, the consumer trace_start.parent_ids names the exact output_queued record.
+
+PR #65 adds an isolated integration fixture that calls the real FountainCrystallizer.crystallize() method, uses real SQLite Writer/Reader instances, selects the actual pending row with _pending(), and processes it through _speak_one() with a deterministic backend and fake player. It asserts the consumer trace root's parent is the output_queued record for the exact queue-row ID and that the persisted queue status becomes spoken.
+
+**Bounded evidence classification:** [L2] simulated/isolated execution is test-covered for this producer-to-consumer path. [L3] is demonstrated only in the bounded fixture sense: the consumer reads the exact persisted entity and processing invokes the test player and changes that row's status. Host activation and real audio output remain UNKNOWN; [L4] behavioural benefit is not established. The PR #65 full CI run for head 2b15d3be2469781dd671d9e24697673be3e0e36b is pending.
+
+**Known race — missing parent is preserved, not repaired:** the database insert commits before Fountain records output_queued and calls link_entity(). A consumer can select the row during this interval. PR #65 includes a controlled interleaving using the production Writer.write() and _pending() methods; when the consumer reaches the row before registration, its trace starts unlinked. The in-memory registry cannot make the SQLite commit and registration atomic. No new lock, queue schema field, durable hand-off or JSONL recovery was added: those would exceed the current observer-only scope and could alter scheduling. Restart, registry eviction and the commit/register window therefore remain explicit false-negative provenance cases, not grounds to invent a parent.
+
+**Event semantics:** the consumer records processing start, not an exclusive reservation. Synthesis completion is distinct from player invocation/return/failure. Player.play() returning does not prove physical sound was audible. Queue-status persistence is recorded separately from synthesis/player outcomes, including the existing fallback write after a failed spoken update.
+
+**Conditional source defect:** Reader.read() returns sqlite3.Row, while the existing consumer fallback calls row.get("voice") if voice_state.current_name() returns empty or raises. Normal run.py startup supplies voice_state; therefore this is a conditional fallback defect, not evidence that the normal boot path fails. PR #65 tests and documents the mismatch but deliberately does not alter runtime behaviour.
+
+This fixture does not combine the full daemon fountain_loop with asynchronous playback. PR #64 separately executes one synchronous production loop cycle. Neither PR captures the deployed host or establishes physical audio audibility.
+
 ### 3.2 Chat path — partially traced
 
 | Stage | Source location | Current source finding | Evidence ceiling |
