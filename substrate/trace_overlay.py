@@ -105,6 +105,7 @@ def begin_trace(
 
     trace_id = uuid.uuid4().hex
     state = {
+        "parent_context": _CONTEXT.get(),
         "trace_id": trace_id,
         "trace_kind": str(trace_kind),
         "path": target,
@@ -170,6 +171,26 @@ def record(
         return None
     state["last_record_id"] = record_id
     return record_id
+
+
+def close_current_trace(
+    *,
+    source_ref: str,
+    outcome: str = "request_teardown",
+) -> None:
+    """Fail-safe cleanup for request/thread teardown after an unexpected exit."""
+    state = _CONTEXT.get()
+    if state is None:
+        return
+    try:
+        record(
+            "trace_end",
+            producer="trace_overlay",
+            source_ref=source_ref,
+            outcome=outcome,
+        )
+    finally:
+        _CONTEXT.set(state.get("parent_context"))
 
 
 def end_trace(
