@@ -504,7 +504,7 @@ class FountainCrystallizer:
                     producer="FountainCrystallizer.crystallize",
                     consumer="speech_governor",
                     source_ref="theory_x/stage6_fountain/crystallizer.py::crystallization_link",
-                    entity_ref=f"dynamic.fountain_crystallizations:{crystallization_id}",
+                    entity_ref=f"beliefs.fountain_crystallizations:{crystallization_id}",
                     outcome="inserted",
                     payload={"table": "fountain_crystallizations", "row_id": crystallization_id,
                              "fountain_event_id": fountain_event_id, "belief_id": belief_id},
@@ -540,11 +540,25 @@ class FountainCrystallizer:
                         (belief_id,),
                     )
                     if not existing:
-                        self._writer.write(
+                        _speech_queue_id = self._writer.write(
                             "INSERT INTO speech_queue "
                             "(belief_id, content, voice, queued_at) VALUES (?, ?, ?, ?)",
                             (belief_id, thought, cfg.voice, ts),
                         )
+                        if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+                            try:
+                                from substrate.trace_overlay import record as _trace_record
+                                _trace_record(
+                                    "output_queued",
+                                    producer="FountainCrystallizer.crystallize",
+                                    consumer="SpeechQueueConsumer",
+                                    source_ref="theory_x/stage6_fountain/crystallizer.py::speech_queue_insert",
+                                    entity_ref=f"beliefs.speech_queue:{_speech_queue_id}",
+                                    outcome="queued",
+                                    payload={"belief_id": belief_id, "speech_queue_id": _speech_queue_id},
+                                )
+                            except Exception:
+                                pass
         except Exception as exc:
             errors.record(
                 f"speech enqueue failed: {exc}", source=_LOG_SOURCE, exc=exc
