@@ -1022,3 +1022,15 @@ Do not equate "reshaped" with "accepted". The resolver calls the gate, but ignor
 WarrantRecorder's Fountain retrieval/event and synergizer cursors use monotonic row IDs. Its lineage and arc-membership cursors use timestamp-only cursors with strict greater-than reads. If a capped batch splits rows sharing one timestamp, the remaining same-timestamp rows can be skipped after the cursor advances. This is a conditional source-level risk; no incidence is claimed. A future test should create more tied-timestamp rows than one batch and verify no evidence loss, but no test or runtime change was made in this phase.
 
 The Reality Report contains exact source hashes and the detailed activation/wiring evidence. No runtime/test behaviour, schema, data, flags, host state, experiment, merge or deployment was changed.
+
+
+
+### Existing regression-test coverage
+
+The inspected test files do not currently close the two identified edges:
+
+- tests/test_reshape.py verifies normal resubmission and transformer failure, but not gate.check() raising during resolver resubmission or the original held row's status for non-ACCEPT gate outcomes.
+- tests/test_warrant_recorder.py does not cover timestamp ties across a capped lineage/arc cursor page.
+- tests/test_warrant.py verifies the disabled WarrantPass loop is inert, but does not verify enabled startup wiring from run.py.
+
+These are coverage gaps only. The source review did not execute or alter the tests. Exact test-file hashes are recorded in the matching Reality Report section.
