@@ -600,6 +600,8 @@ A further membrane boundary finding is recorded as DRAFT-003: the classifier use
 
 The Chat audit now also expands the internal membrane dependencies: INSIDE routing combines a SelfModel snapshot (sense-event reads and its own top-five inside-belief selection) with a separate query-ranked INSIDE BeliefRetriever pass; OUTSIDE routing uses DynamicState-derived branch hints and a separate retriever call. Both are collapsed at the current Chat trace's retrieval boundary, which does not record the underlying selected row IDs or activation dependencies.
 
+The FocalSet/WorkingMemory inspection further identifies an unresolved session-isolation boundary: a single process-global FocalSet is updated across requests, while WorkingMemory is session-keyed in a process-local dictionary. Shared FocalSet hold/priority state can affect later sessions' selection where belief IDs overlap; the dictionary helper has no session-key deletion/eviction path in the inspected module. These are design/acceptance and lifecycle questions, not asserted defects absent the Frozen V2.1 criteria.
+
 **Evidence boundary:** static inspection only; PR #65 head and source file hashes are recorded in the audit. Its latest CI pass validates the tested suite, not every branch or deployed-host behaviour. The audit remains partial and does not satisfy Gate 0.
 
 ## 4. Top documentation/source discrepancies
