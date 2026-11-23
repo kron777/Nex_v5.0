@@ -424,6 +424,16 @@ This establishes an implemented Chat context-consumption path, not proof that th
 
 **Correction to the feedback map:** the statement “synthesises edges cannot reach prompts” is true for the underlying Tier-7 belief content through the standard retriever, but not for all signal. The Chat route can receive a metadata-only NovelAssociation annotation. The separate Tier-6 Synergizer output is a different path and can be retrieved. The source gap is therefore specifically: T7 edge topology is generated, activation may traverse it, but final retrieval filters out IDs not present in the Tier<=6 candidate map.
 
+## 3.16 Self-maintain shadow — self-reader versus cognitive consumer
+
+- `run.py` constructs and starts `SelfMaintainShadow` only when `NEX5_SELF_MAINTAIN_SHADOW=1`; source default is OFF.
+- The module is explicitly log-only: it computes would-pause/would-unpause counts and writes one row per hourly tick; it does not pause or unpause beliefs.
+- The module **does read its own table** in `_setpoint()` to compute a rolling median after at least 24 hourly rows exist. If insufficient, it falls back to internal interoception snapshots.
+- The bounded source search found no other cognitive faculty consuming `self_maintain_shadow`. Thus “nothing reads its table” is too broad literally; the accurate statement is “no external cognitive consumer; only the shadow's own setpoint calculation reads its history.”
+- Because the loop is default-OFF and has no external consumer, its runtime data and any influence on cognition remain UNKNOWN / absent by source design.
+
+This is a monitoring self-read, not a closed cognitive feedback loop. Do not wire its would-pause decisions into belief pausing without the roadmap's separate Phase D approval.
+
 ## 4. Top documentation/source discrepancies
 
 These are discrepancies to reconcile, not automatic instructions to modify code or documentation.
