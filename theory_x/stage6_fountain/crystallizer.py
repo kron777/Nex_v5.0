@@ -548,15 +548,19 @@ class FountainCrystallizer:
                         if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
                             try:
                                 from substrate.trace_overlay import record as _trace_record
-                                _trace_record(
+                                _queue_entity_ref = f"beliefs.speech_queue:{_speech_queue_id}"
+                                _queue_record_id = _trace_record(
                                     "output_queued",
                                     producer="FountainCrystallizer.crystallize",
                                     consumer="SpeechQueueConsumer",
                                     source_ref="theory_x/stage6_fountain/crystallizer.py::speech_queue_insert",
-                                    entity_ref=f"beliefs.speech_queue:{_speech_queue_id}",
+                                    entity_ref=_queue_entity_ref,
                                     outcome="queued",
                                     payload={"belief_id": belief_id, "speech_queue_id": _speech_queue_id},
                                 )
+                                if _queue_record_id:
+                                    from substrate.trace_overlay import link_entity as _link_entity
+                                    _link_entity(_queue_entity_ref, _queue_record_id)
                             except Exception:
                                 pass
         except Exception as exc:
