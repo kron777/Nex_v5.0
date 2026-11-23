@@ -18,7 +18,9 @@ from __future__ import annotations
 
 import json
 import re
-from substrate import connect, Row
+from contextlib import ExitStack
+from contextlib import closing
+from substrate import connect, Row, db_paths
 import sys
 import time
 from collections import Counter
@@ -29,7 +31,6 @@ REPO = Path(__file__).resolve().parents[1]
 THEORY_X = REPO / "theory_x"
 SUBSTRATE = REPO / "substrate"
 GUI = REPO / "gui"
-DATA = REPO / "data"
 
 
 def banner(title):
@@ -215,45 +216,53 @@ def extract_anti_patterns():
 
 
 def extract_runtime_state():
-    """Quick read of drives_competing, voice_profile, fountain 24h, gate 24h."""
-    conv = connect(f"file:{DATA}/conversations.db?mode=ro", uri=True)
-    conv.row_factory = Row
-    dyn = connect(f"file:{DATA}/dynamic.db?mode=ro", uri=True)
-    dyn.row_factory = Row
-    bel = connect(f"file:{DATA}/beliefs.db?mode=ro", uri=True)
-    bel.row_factory = Row
-    now = time.time()
+    """Read runtime summaries through the configured, read-only DB paths.
 
+    Resolve paths at call time so NEX5_DATA_DIR is honoured, and close every
+    connection even when a later database cannot be opened or a query fails.
+    """
+    paths = db_paths()
+    now = time.time()
     state = {}
 
-    drow = conv.execute("SELECT * FROM drives_competing WHERE id = 1").fetchone()
-    if drow:
-        state["drives"] = {k: drow[k] for k in (
-            "coherence", "exploration", "integration",
-            "self_preservation", "curiosity"
-        )}
-        state["drives"]["tension_pairs"] = drow["tension_pairs"]
+    with ExitStack() as stack:
+        conv = stack.enter_context(closing(connect(paths["conversations"], read_only=True)))
+        dyn = stack.enter_context(closing(connect(paths["dynamic"], read_only=True)))
+        bel = stack.enter_context(closing(connect(paths["beliefs"], read_only=True)))
+        conv.row_factory = Row
+        dyn.row_factory = Row
+        bel.row_factory = Row
 
-    vp = conv.execute(
-        "SELECT drive_pair, frequency FROM voice_profile ORDER BY frequency DESC"
-    ).fetchall()
-    state["voice_profile"] = [{"pair": r["drive_pair"], "freq": r["frequency"]} for r in vp]
+        drow = conv.execute("SELECT * FROM drives_competing WHERE id = 1").fetchone()
+        if drow:
+            state["drives"] = {k: drow[k] for k in (
+                "coherence", "exploration", "integration",
+                "self_preservation", "curiosity"
+            )}
+            state["drives"]["tension_pairs"] = drow["tension_pairs"]
 
-    fc = dyn.execute(
-        "SELECT hot_branch, COUNT(*) AS n FROM fountain_events "
-        "WHERE ts > ? GROUP BY hot_branch ORDER BY n DESC",
-        (now - 86400,),
-    ).fetchall()
-    state["fountain_24h_by_branch"] = {r["hot_branch"] or "null": r["n"] for r in fc}
+        vp = conv.execute(
+            "SELECT drive_pair, frequency FROM voice_profile ORDER BY frequency DESC"
+        ).fetchall()
+        state["voice_profile"] = [{"pair": r["drive_pair"], "freq": r["frequency"]} for r in vp]
 
-    try:
-        gc = bel.execute(
-            "SELECT outcome, COUNT(*) AS n FROM gate_decisions WHERE ts > ? GROUP BY outcome",
+        fc = dyn.execute(
+            "SELECT hot_branch, COUNT(*) AS n FROM fountain_events "
+            "WHERE ts > ? GROUP BY hot_branch ORDER BY n DESC",
             (now - 86400,),
         ).fetchall()
-        state["gate_24h"] = {r["outcome"]: r["n"] for r in gc}
-    except Exception as e:
-        state["gate_24h"] = f"error: {e}"
+        state["fountain_24h_by_branch"] = {
+            r["hot_branch"] or "null": r["n"] for r in fc
+        }
+
+        try:
+            gc = bel.execute(
+                "SELECT outcome, COUNT(*) AS n FROM gate_decisions WHERE ts > ? GROUP BY outcome",
+                (now - 86400,),
+            ).fetchall()
+            state["gate_24h"] = {r["outcome"]: r["n"] for r in gc}
+        except Exception as e:
+            state["gate_24h"] = f"error: {e}"
 
     return state
 
