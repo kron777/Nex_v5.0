@@ -181,3 +181,5 @@ Inspected at `6e6712bd4bde15ad2288f220cd4438b11622c93c`:
 - `substrate/writer.py` — `b5b7bc98fcb39e75683188fbc59f33adf8868741`
 
 **Status rule:** All source claims above are revision-bound. Re-check the branch SHA before relying on this report after any new commit.
+
+**Evidence-branch CI update (23 Nov 2026):** PR #49's corrected head `bbbd86bce7d24e2583aa1c882910915fc1914448` passed the full pytest workflow and the `Mind map stays sourced (no stale status claims)` step in run `45249262986`. The preceding run `45243207500` failed; focused reproduction showed the authority-boundary scan incorrectly matched map filenames in module docstrings. The guard now excludes module/class/function docstrings while retaining executable literal-reference and direct-import checks. The complete failed-run log was unavailable, so it is not established that the docstring false positive was the only failure. PR #65's combined full pytest run `45243112976` also passed. These CI results do not establish host behaviour or Gate 0 readiness.
