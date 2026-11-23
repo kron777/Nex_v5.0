@@ -533,3 +533,45 @@ This pass follows several mechanisms that sit across the numbered stages and wer
 - theory_x/stage_world/commitments.py: fd11771f2a14c4abf5572e9f9327fcb78bb5f5ef
 
 This remains a bounded source audit. The active environment, API access controls outside the route body, actual flag values, row volumes, model reliance and runtime frequencies have not been observed. No runtime or test behaviour, schema, flag, host state, experiment, merge or deployment was changed.
+
+
+
+## M0.3–M0.4 forward/backward audit — active Diversity ecology and retention reconciliation (23 Nov 2026)
+
+### Active DiversityLoop and its real consumers
+
+- run.py constructs and starts DiversityLoop during normal boot. Its daemon thread polls every 60 seconds and calls GrooveSpotter.detect_all(), DormancyScanner.scan_incremental(), and ClockRunner.tick(current_fire_count()). FountainGenerator calls notify_fire() after each completed Fountain output, incrementing the process-local fire counter.
+- GrooveSpotter writes groove_alerts and signal_cooldown records from recent own-content repetition/phrase/centroid patterns. Fountain reads active signal_cooldown content while scoring curiosity candidates and reads recent groove_alerts for multiple selection/feedback checks. The curiosity selector re-ranks the existing candidate set; its source comment explicitly says it does not drop candidates. These are genuine source-to-selection edges, not merely GUI telemetry.
+- DormancyScanner updates dormant_beliefs. ClockRunner's fast pass calls wake_one(), which marks the highest-scored eligible dormant belief reanimated and sets the module-level pending item. Fountain later calls pop_reanimated() and can add that belief to its context candidate list at its reanimation cadence. Source comments describe a normal 20-fire cadence and an accelerated 5-fire cadence during a sustained low-striking-rate trough. The 60-second poll means these are threshold-driven nominal cadences, not a guarantee of one execution for every exact 20-fire interval under bursts.
+- The trough path can also write a Tier-6 self_rut_notice belief, throttled to once per two hours. This is a state-writing self-observation triggered by the measured striking-rate condition; it is not just a log line.
+- ClockRunner's fast/medium/slow clocks are thresholded at 20/200/2000 fire-count increments. The fast path decays belief_boost, runs another dormancy scan and attempts reanimation; the medium path records active groove-alert and collision-grade summaries; the slow path invokes GraderEvolver. These clock operations are triggered by the loop's observed fire count and 60-second poll, not by a dedicated timer per threshold.
+
+### Diversity mechanisms whose production edges remain incomplete
+
+- DiversityLoop constructs a CrossbreedGrader instance, but its active _run() method never calls the instance's grade() method. The grader's grade() method is the inspected writer of collision_grades; ClockRunner's medium/slow paths and the diversity panel read collision_grades, while GraderEvolver skips when fewer than ten rows exist. The active boot-managed producer for those grades is therefore not established by this loop. Other production callers have not been globally excluded.
+- Fountain's own-belief candidate query LEFT JOINs belief_boost and converts boost_value into a bounded recency/time bonus. ClockRunner decays existing boost rows, but the inspected active DiversityLoop does not call apply_boost(). The current producer of new boost rows remains unresolved; do not infer that the grader automatically creates boosts.
+- ClockRunner also stores a per-instance _reanimated_belief and exposes get_reanimated_belief(), while wake_one() separately stores the module-level pending item consumed by Fountain's pop_reanimated(). The inspected live hand-off uses the module-level item; the per-instance getter has no identified consumer in this path. This is redundant state, not evidence that reanimation is disconnected.
+- ArcLoop remains disabled in run.py. Its tables can still be read by evaluation/recorder code, but the inspected normal boot path does not produce new arc memberships through ArcLoop. Do not infer active arc formation from table/schema presence.
+
+### Retention documentation correction: residue
+
+- theory_x/diversity/residue.py's module docstring says unconsumed residue is not in nex_db_reaper TARGETS and therefore never ages out. That statement is stale against the inspected repository revision: nex_db_reaper.py explicitly includes beliefs.db.residue with a two-day retention window. The reaper's target is timestamp-based on created_at, so the repository defines cleanup for old unconsumed as well as consumed residue rows.
+- residue.py's own inline reaper only deletes consumed rows older than seven days; the separate DB reaper is the mechanism that supplies the shorter two-day TTL. The systemd service/timer definitions describe a nightly run around 04:00, but their installation/enabled state on the deployed host is UNKNOWN. Therefore the code-level retention target is verified; actual host execution and present row counts are not.
+- No retention policy or data was changed. The stale residue module docstring should be corrected only through an approved source change, not by silently altering the reaper or deleting data in this Phase 0 pass.
+
+### Source hashes
+
+- run.py: 73a2c58a4f5f0348135a46eb83d6cdd61db874e7
+- theory_x/diversity/loop.py: 0032eed6df58965161413825d89261bafa86d398
+- theory_x/diversity/groove.py: 9d52c1b07ea54ad072b48245f6c44615e49967bf
+- theory_x/diversity/dormancy.py: e75b793da32ad3909bc4c31d682459d53ebdc07f
+- theory_x/diversity/consolidation.py: 6d9432af3287ad875571c74459995aaf2f742fb5
+- theory_x/diversity/reanimate.py: 092fa76f8e8dadf7e65f5be1b648afe98a8e4593
+- theory_x/diversity/residue.py: 4a6abc80cbe6177e4069f3d350a987e531332d9f
+- theory_x/diversity/grader.py: 57fd77caa258cab6cea2fd6d870224b619a6549a
+- theory_x/diversity/boost.py: 1c263965ef2fcc8b429d440300ef47da988b1325
+- theory_x/diversity/evolver.py: 34ed3a6577d581a855b4372da923d72a5ec481fc
+- theory_x/stage6_fountain/generator.py: 43644876295ffdd649a240f52a7946c666a8579f
+- nex_db_reaper.py: 5cfb609a8ad8a5f9bd0ab83729d8b42220700658
+
+This is a bounded source-level reconciliation. It does not establish runtime flag values, reaper installation, database row counts, frequency of the nominal fire-count thresholds, or whether the identified incomplete grader/boost producers have other external/manual callers. No runtime or test behaviour, schema, retention policy, data, flags, host state, experiment, merge or deployment was changed.
