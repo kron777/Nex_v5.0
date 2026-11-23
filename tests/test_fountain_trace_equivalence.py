@@ -321,12 +321,12 @@ def test_fountain_generator_trace_overlay_on_off_equivalence(
     assert model_output["parent_ids"] == [model_input["record_id"]]
     assert candidate["parent_ids"] == [model_output["record_id"]]
     assert fire_write["parent_ids"] == [candidate["record_id"]]
-    assert set(quality["parent_ids"]) == {
-        candidate["record_id"], fire_write["record_id"]
-    }
+    assert quality["parent_ids"] == [candidate["record_id"]]
     assert coherence["parent_ids"] == [quality["record_id"]]
     assert belief_write["parent_ids"] == [coherence["record_id"]]
-    assert crystallization_link["parent_ids"] == [belief_write["record_id"]]
+    assert set(crystallization_link["parent_ids"]) == {
+        belief_write["record_id"], fire_write["record_id"]
+    }
     assert speech_gate["parent_ids"] == [crystallization_link["record_id"]]
     assert terminal["event_type"] in {"speech_gate", "output_queued"}
     assert by_event["trace_end"][0]["parent_ids"] == [terminal["record_id"]]
