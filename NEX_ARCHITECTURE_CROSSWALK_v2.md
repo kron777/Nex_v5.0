@@ -896,3 +896,49 @@ Additional boot-managed paths were checked against `run.py`, their implementatio
 - **Finitude BudgetShadow:** module source explicitly states it is not imported by `gui/server.py` or `selector.py`; not in the inspected live path.
 
 These distinctions are source-level activation and consumer paths, not host-state observations. Optional environment values, successful ticks, writes, and model reliance remain UNKNOWN unless a runtime trace proves them. Per-file hashes are recorded in the Reality Report. No runtime or schema changes were made.
+
+
+
+## 3.29 Cross-path feedback, annotation and analytical consumers (23 Nov 2026)
+
+This section extends the Stage 1–10 map across the shared annotation, coincidence, affect and drive pathways. It records actual source edges, not assumed cognitive effects.
+
+| Origin / producer | Intermediate state | Verified consumer / sink | Boundary |
+|---|---|---|---|
+| Fountain event → operator coin/maybe/non annotation | fountain_events.tag; word_contexts.fountain_tag; coincidence_context snapshot | GUI coincidence analytics; conditional Chat and Fountain tag retrieval; conditional IdentityLoop tag-count clause | Retrieval and identity feedback require NEX_TAG_FEEDBACK_ON=1. Tag queries are global over the shared Fountain corpus, not session-keyed. |
+| Fountain event → coincidence decoder | word_contexts rows containing unique tokens and time/substrate context | GUI recent-fire ticker, top-word view, word fingerprint and tag aggregates | run.py starts the decoder loop at boot; no prompt/selector consumer of word_contexts was identified in this pass. |
+| AffectState background tick | affect_state current row; append-only affect_history | Chat current-affect prompt block; CompetingDrives affect-variance calculation → Fountain tension block | AffectState starts at boot when construction succeeds. NEX5_EXPECT_MOOD is an additional optional event_valence input, not the default mood source. |
+| AffectCarry Chat request | per-session conversations.db carry weight | admin-scoped Chat tone-colouring block | On-demand only; requires NEX5_AFFECT_CARRY=1. Separate from AffectState. |
+| DriveEmergence background tick | drives row and drive_emergence_log | Chat drive prompt; Fountain workspace candidate and separately appended drive block; VoiceEngine scoring alignment | Drive is a direct prompt contributor even when it does not win workspace arbitration. |
+| GlobalWorkspace candidate survey | one selected framing line | Fountain focus_block prefix | Fountain default source gate is enabled unless NEX5_GLOBAL_WORKSPACE is explicitly not 1. It is not a global broadcast to every faculty. |
+| CoherenceGate evaluation | GateDecision + gate_decisions row | Calling producer path; reject may feed TriggerDetector; hold/reshape may feed holding zone | Internal exceptions are converted to ACCEPT/gate_error_fallback. This is a fail-open exception branch. |
+
+### Annotation and decoder sequence
+
+1. A Fountain thought is persisted as a fountain_events row.
+2. The boot-managed decoder polls Fountain events every 30 seconds, tokenizes eligible thoughts and writes word_contexts. It is a retrospective analytical path and advances its cursor even when an event yields no tokens.
+3. The coincidence tag endpoint can update the Fountain event tag, propagate it to existing word_contexts rows, capture a coincidence_context snapshot and attempt hypothesis auto-scoring.
+4. With NEX_TAG_FEEDBACK_ON=1, the shared tag corpus can be reintroduced into a later Chat voice prompt (summary plus keyword matches), sampled into a later Fountain prompt (25% random branch), and counted in a later IdentityLoop self-description.
+5. Rich tag retrieval reads coincidence_context for aperture, branch and fire-count annotations. It does not derive those annotations from word_contexts.
+
+This closes a previously under-described human-annotation feedback edge. It does not establish that the tag feature is active on the deployed host, that labels are accurate, or that a model relies on them.
+
+### Workspace and drive qualification
+
+- Fountain's GlobalWorkspace arbitration considers surprise, momentum, bonsai, stakes and drive candidates and prepends the highest-salience framing line to focus_block. The source comment's use of “broadcast” describes the prompt framing metaphor; the observed consumer is the Fountain prompt.
+- The same DriveEmergence line is also appended independently after the workspace line. Arbitration therefore does not select whether the drive block is present; it selects the leading frame. Depending on the winning candidate, the drive can be represented in both places.
+- Chat's NEX5_CHAT_WORKSPACE path is a separate budgeted selector over Chat faculty blocks. Its exempt blocks are never evicted, so the configured character budget is not a strict maximum if exempt blocks alone exceed it.
+
+### Affect and expectations qualification
+
+- AffectState reads high-tier belief text for lexical polarity, belief creation rate for arousal, flagged surprise events for a further arousal bump, and stability inputs; it writes both affect_state and affect_history. Chat consumes the current row; CompetingDrives consumes the history.
+- When NEX5_EXPECT_MOOD is enabled and the eligibility gate passes, AffectState may add a capped nudge from event_valence. The expectations module implements ingest/reconcile, and commitments implements scan/evidence, but no direct invocation of expectations.reconcile() or commitments.scan() was found in the inspected run.py boot wiring or gui/server.py request path. External/manual invocation remains possible and unverified; do not infer a live event_valence feedback loop from module presence alone.
+- AffectCarry is an admin-scoped, per-session request-time tone mechanism. It is not the same state store, cadence or consumer path as AffectState.
+
+### Gate exception semantics
+
+CoherenceGate.check() documents that it never raises and implements this by converting an internal exception to ACCEPT with reason gate_error_fallback before logging the decision. The exception branch is therefore fail-open. This is a source-level property; exception frequency, actual exposure and acceptance criteria are unknown. It should be considered in any future universal-gate claim, but no behaviour change is proposed in Phase 0.
+
+### Source revision
+
+This section was checked against the PR #49 source revision preceding the documentation-only commits that add this section. Source hashes are listed in the matching M0.3–M0.4 extension in NEX_REPOSITORY_REALITY_REPORT.md. No runtime or test behaviour, schema, flag, host state, experiment, merge or deployment was changed.
