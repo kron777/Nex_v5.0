@@ -21,6 +21,7 @@ from watcher.evidence import utc_now
 from .extrapolator import frontier_breakdown, rule_catalogue, scope_summary
 from .graph import analyse as graph_analyse
 from .belief_audit import audit as _belief_audit, gap_map as _belief_gap_map
+from .pathway import select_pathway as _select_pathway
 from .knowledge import (affinity_drift_idea, belief_decay_idea, config_invariant_idea,
                         genius_authority_audit, genius_tagger_idea, migration_defect_idea)
 from .memory import (CycleStore, PatternMemory, accuracy_series, comparability_assessment,
@@ -76,7 +77,7 @@ def self_assess(rdo_dir: Optional[str] = None) -> dict:
         findings.append({"level": "system", "subject": "independence", "verdict": "VIOLATION",
                          "note": f"imports NEX runtime in {sorted(set(imports_nex))}"})
 
-    lean = total_loc < 1800 and len(modules) <= 12 and not imports_nex
+    lean = total_loc < 1800 and len(modules) <= 13 and not imports_nex
     return {
         "modules": modules,
         "module_count": len(modules),
@@ -520,4 +521,28 @@ def run_stage4_belief_audit(repo_dir: str = ".", workdir: str = "rdo/.cycles") -
         "persisted_to": path,
         "resume_in_new_process":
             f"python -c \"import json; print(json.load(open('{path}'))['gap_map']['open_gaps'])\"",
+    }
+
+
+def run_stage5_belief_pathway(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
+    """RDO v1.3 §16 Stage 5 — select + specify the first belief-to-mechanism pathway (read-only).
+    The selected pathway is verified in isolation against the real mechanism by
+    tests/test_belief_confidence_retrieval_pathway.py. Persists the spec for resume. No live writes."""
+    spec = _select_pathway(repo_dir)
+    os.makedirs(workdir, exist_ok=True)
+    path = os.path.join(workdir, "belief_pathway.json")
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(spec, fh, indent=2, default=str)
+    return {
+        "stage": spec["stage"],
+        "selected": spec["selected"],
+        "excluded": spec["excluded"],
+        "causal_proposition": spec["causal_proposition"]["observable_consequence"],
+        "baseline": spec["baseline"],
+        "success_if": spec["success_if"],
+        "inconclusive_because": spec["inconclusive_because"],
+        "rollback": spec["rollback"],
+        "runtime_observation_gate": spec["runtime_observation_gate"]["status"],
+        "isolated_verification": "tests/test_belief_confidence_retrieval_pathway.py (9 tests, real mechanism)",
+        "persisted_to": path,
     }
