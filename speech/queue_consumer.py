@@ -203,7 +203,7 @@ class SpeechQueueConsumer(threading.Thread):
                 except Exception:
                     pass
             if not voice:
-                voice = row.get("voice") or self.config.voice
+                voice = row["voice"] or self.config.voice
 
             if not _is_speakable(content):
                 try:
@@ -314,13 +314,22 @@ class SpeechQueueConsumer(threading.Thread):
                 trace_outcome = "synthesis_failed"
                 return
 
+            synthesis_completed_id = trace_event(
+                "synthesis_completed",
+                producer="KokoroBackend.synth",
+                consumer="SpeechQueueConsumer._speak_one",
+                source_ref="speech/queue_consumer.py::_speak_one",
+                outcome="returned",
+                parent_id=synthesis_started_id or speaking_status_id or processing_id,
+                payload={"queue_id": qid, "sample_rate": sr},
+            )
             player_started_id = trace_event(
                 "player_invocation_started",
                 producer="SpeechQueueConsumer._speak_one",
                 consumer="Player.play",
                 source_ref="speech/queue_consumer.py::_speak_one",
                 outcome="invoked",
-                parent_id=synthesis_started_id or speaking_status_id or processing_id,
+                parent_id=synthesis_completed_id or synthesis_started_id or speaking_status_id or processing_id,
                 payload={"queue_id": qid, "sample_rate": sr},
             )
             try:
