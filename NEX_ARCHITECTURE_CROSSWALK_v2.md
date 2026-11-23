@@ -841,3 +841,39 @@ The source-defined Chat prompt append paths are distinct and conditional: Behavi
 **Correction:** GoalManager should not be described as a Chat prompt contributor in the current source. Its active goal is checked/logged, while the text append was removed.
 
 Detailed source hashes and boundaries are in the Reality Report addendum. This section establishes source-level construction/call paths only; host execution, prompt payloads on a live request, and downstream model reliance remain unobserved. No runtime or prompt behaviour was changed.
+
+
+## 3.27 Fountain prompt, selection feedback and alternate-output branches (23 Nov 2026)
+
+A deeper read of `theory_x/stage6_fountain/generator.py` expands the earlier Fountain pathway. The generator has multiple early returns and non-LLM alternatives; it must not be represented as one uniform "prompt → LLM → crystallizer" path.
+
+### Prompt and selection feedback
+
+- `NEX5_GLOBAL_WORKSPACE` defaults to enabled in source. A non-empty arbitration result is prepended to the DRIFT focus block. It is deliberately not carried into wide EXPLAIN/ARGUE mode unless `NEX5_WIDE_FOCUS=1`.
+- `recursive_self.format_for_prompt()` is called without an environment gate; a non-empty line is appended to the focus block. Its separate perturbation state is sampled for `recursion_attrib`; that attribution write is not itself proof of selection change.
+- `NEX5_MOMENTUM` defaults to enabled. After a normal fire, `capture_momentum()` stores a thought fragment and carry branch. The next `_curiosity_pick()` reads the persisted momentum row and uses its unfinished-thread/carry-count state in candidate scoring. `NEX5_CARRYOVER=1` additionally stamps whether the previous fire crystallized. This is a source-defined cross-fire selection feedback path.
+- The generator directly reads the latest `identity_log` statement, latest `self_downtime` belief, recent `surprise` belief (six-hour window), random inward/outward `spectrum` beliefs, and affinity-selected favourites. These are prompt contributors independent of the optional `NEX5_IDENTITY_BLOCK` feature.
+- **Affinity correction:** the inspected BeliefRetriever and VoiceEngine scoring paths do not read `beliefs.affinity`, but Fountain does: it selects up to ten beliefs with affinity > 0.40 and randomly appends up to two. AffinityLoop therefore has a source-confirmed Fountain prompt consumer. The affinity self-rating remains unvalidated; the module itself documents anchor-copying behaviour in its prior rating test. This is prompt consumption, not validation of preference quality.
+- `NEX5_METACOG_VOICE`, `NEX5_MOOD`, `NEX5_AMOHA`, `NEX5_AFFLICTIONS`, `NEX5_L4_STAKES` and `NEX5_WIDE_FOCUS` gate distinct optional faculty lines. Their source presence does not establish host activation.
+- `NEX5_HOT_OBSERVER=1` gates post-fire meta-belief writing. Those beliefs can later enter retrieval; actual downstream selection is not established here.
+- `NEX5_SELF_NARRATIVE=1` enables a separate Stage-TOM SelfNarrative instance in the Fountain generator; it is not the same object as the Stage 26 `stage_self_narrative.SelfNarrative` constructed by `run.py`. Its Fountain prompt block is additionally flag-gated.
+
+### Alternate and early-return branches
+
+1. **SubstrateVoice:** before normal prompt construction, the generator may return a Tier-1/2 anchor verbatim when groove/cooldown/anchor conditions hold and `NEX5_RECONCILE != 1`. A source comment says the deployment has `NEX5_RECONCILE=1`; actual host environment has not been observed, so live activation is UNKNOWN.
+2. **Quiescent:** every fifth counter cycle, a bare external sense item (or tick fallback) is written as a Fountain event and returned before normal LLM composition/crystallization.
+3. **Stillness:** duplicate own-slot retrieval can write an empty-thought Fountain event and stillness row, then return without generated content; after three consecutive stillness events the next cycle is forced with a quiet notice.
+4. **Substrate Emit:** `NEX5_SUBSTRATE_EMIT=1` can render top activated substrate beliefs directly instead of the LLM thought.
+5. **Reconcile Emit:** `NEX5_RECONCILE=1` can compose a joint-progress prompt from open problems. This is a distinct prompt path.
+6. **Frame retry:** `NEX5_FRAME_GATE=1` can trigger one regeneration attempt after the register-template detector trips.
+7. **Parallel substrate fire:** every fifth main-path fire according to the post-increment counter condition can persist a separate rendered substrate output in `substrate_fires`; it is not the same as replacing the main Fountain output.
+
+### Observer/persistence boundaries
+
+- `emphasis_log`, `fountain_retrieval_log` and `fountain_prompt_blocks` are written after the thought/event is already produced; they are not upstream causes of that same fire.
+- `fountain_retrieval_log` is normally dropped/recreated at startup, except for its conditional legacy-FK migration branch. It records only selected retrieval slots and is used within the process for recent retrieval-duplicate detection.
+- `fountain_prompt_blocks` persists with 30-day pruning and stores block identity/hash/length/bounded prefix. No runtime reader was identified in this pass. It is useful retrospective shape evidence, not a complete contributor graph or proof of model reliance.
+
+**Correction to Section 3.24 / Reality Report:** Affinity's downstream consumer is not globally absent. It is absent from the inspected retriever/VoiceEngine score calculations but present in Fountain prompt assembly as described above.
+
+**Evidence boundary:** source-level control flow only. Host flag values, actual branch frequency, live prompt block composition, selected candidate IDs on a live fire, model reliance and physical output remain UNKNOWN. Detailed source evidence is recorded in the Reality Report. No behaviour, prompt, flag, selection policy, schema or deployment change was made.
