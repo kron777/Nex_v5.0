@@ -143,3 +143,21 @@ def test_teardown_closes_unfinished_trace_context(tmp_path, monkeypatch):
     rows = _read(tmp_path / "trace.jsonl")
     assert [row["event_type"] for row in rows] == ["trace_start", "trace_end"]
     assert rows[-1]["outcome"] == "exception"
+
+def test_refuses_trace_artifact_inside_repository(tmp_path, monkeypatch):
+    monkeypatch.setenv("NEX5_DATA_DIR", str(tmp_path / "nex-data"))
+    monkeypatch.setenv("NEX5_TRACE_OVERLAY", "1")
+    monkeypatch.setenv("NEX5_TRACE_PATH", str(trace._REPO_ROOT / "trace.jsonl"))
+
+    assert trace.begin_trace("chat", source_ref="chat") is None
+
+
+def test_refuses_trace_artifact_inside_custom_database_root(tmp_path, monkeypatch):
+    db_dir = tmp_path / "custom-db"
+    db_dir.mkdir()
+    monkeypatch.setenv("NEX5_DATA_DIR", str(tmp_path / "other-data"))
+    monkeypatch.setenv("NEX5_BELIEFS_DB", str(db_dir / "beliefs.db"))
+    monkeypatch.setenv("NEX5_TRACE_OVERLAY", "1")
+    monkeypatch.setenv("NEX5_TRACE_PATH", str(db_dir / "trace.jsonl"))
+
+    assert trace.begin_trace("chat", source_ref="chat") is None
