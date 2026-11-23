@@ -196,3 +196,6 @@ Inspected at `6e6712bd4bde15ad2288f220cd4438b11622c93c`:
 
 
 **Additional VoiceEngine retrieval detail (23 Nov 2026):** The open-problem gap source calls `ProblemMemory.find_matching()`, which considers open problems ordered by most recently touched and includes a row when at least two cleaned content tokens overlap with the query/title+description. It does not rank those matches by overlap count or semantic similarity before TimeFetch adds them to the candidate pool. Source hash: `theory_x/stage7_sustained/problem_memory.py` `4a9dcc839bf0be7bf28338168d8946309c7002f5`. This is a retrieval-order fact, not a defect determination.
+
+
+**Genius score version boundary (23 Nov 2026):** The design document specifies that old and new Genius tags coexist, uniquely keyed by fountain event and weights version, for comparison after re-fitting. VoiceEngine selects the latest tag by timestamp without filtering to a declared active weights version. Thus “latest tagged” is source-confirmed; “current approved score” is not established. This is an unresolved consumer/version contract, not a declared defect absent the authoritative acceptance rule. Design source hash: `GENIUS_SCORE_v2.md` `be73cb4f7b494c48eb37eeec8635aba89ea5751e`.
