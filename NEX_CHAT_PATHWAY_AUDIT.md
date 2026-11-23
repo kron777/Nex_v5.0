@@ -205,9 +205,15 @@ That result does not establish:
 
 No live trace was captured, and no production prompt, private conversation, or runtime database content is included in this audit.
 
+## 8.1 Membrane classifier boundary finding (DRAFT-003)
+
+The inspected `MembraneClassifier.classify_query()` lowercases the full query and tests each configured self-inquiry keyword using substring membership. The keyword `"you"` therefore matches inside the product name `YouTube`. For example, `how do I use YouTube` deterministically classifies as INSIDE, even though it is a world/product query. The Chat handler then follows the INSIDE route: self-model snapshot plus INSIDE-filtered belief retrieval, with a Philosophical register hint. This is a source-confirmed conditional routing defect, not evidence of live host incidence.
+
+The current membrane tests cover examples such as `how are you feeling?` and `what do you believe?` as INSIDE, and BTC/news/research queries as OUTSIDE, but contain no token-boundary/product-name case. No runtime fix is included. Classification and routing source hashes are recorded in the source manifest.
+
 ## 9. Remaining Phase 0 work
 
-1. Complete source-level edge tracing for the unrepresented contributors and branches above, starting with the FocalSet/WorkingMemory path and tool path because they have explicit prompt influence.
+1. Complete source-level edge tracing for the unrepresented contributors and branches above, including membrane classifier boundaries, FocalSet/WorkingMemory, tool path, and VoiceEngine candidate ranking.
 2. Audit the membrane route and its internal producer dependencies, and the full VoiceEngine candidate-selection path, with IDs and exact read/write boundaries.
 3. Audit the Chat handler's alternate error, retry, admin and feature-flag branches against the Frozen V2.1 specification when the exact authoritative copy is available.
 4. Obtain the exact Frozen V2.1 specification and Founder Sign-Off record; no acceptance criterion should be inferred from this source audit.
@@ -231,6 +237,9 @@ All hashes below identify the inspected PR #65 integrated branch files, not the 
 | `tests/test_trace_equivalence.py` | `d6c89025affae77cddb4b91d4d2c2301b51c3e60` | Minimal deterministic Chat OFF/ON trace fixture |
 | `tests/test_focal_set.py` | `083b8053ff09ef0975f8aab35a120904b2f55423` | FocalSet unit tests; no Chat route integration |
 | `tests/test_working_memory.py` | `446d90f4c79a515eba08aaac1b24c5c33f0797e3` | WorkingMemory unit tests; no Chat route integration |
+| `theory_x/stage4_membrane/classifier.py` | `84f68975083266ba1a3fecf5322664392711bf10` | INSIDE/OUTSIDE substring classifier |
+| `theory_x/stage4_membrane/router.py` | `74d82fe0f9fe210c75d86105e205dcb0c4151d79` | INSIDE/OUTSIDE retrieval route |
+| `tests/test_membrane.py` | `42c0347534b765ef4c24685e333c8fe4047fdce8` | Classifier and route tests; no YouTube token-boundary case |
 | `substrate/trace_overlay.py` | `fbccc3b63bc94dab8e9f01951a581ba3af3f087e` | Trace record envelope and payload digest behaviour |
 
 The Chat route's line ranges in this audit are from the same `gui/server.py` blob; line numbers may shift on later commits. Recheck the branch head and file hashes before relying on this map after further source changes.
