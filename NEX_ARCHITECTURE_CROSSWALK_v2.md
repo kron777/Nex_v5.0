@@ -434,6 +434,17 @@ This establishes an implemented Chat context-consumption path, not proof that th
 
 This is a monitoring self-read, not a closed cognitive feedback loop. Do not wire its would-pause decisions into belief pausing without the roadmap's separate Phase D approval.
 
+## 3.12 Arc subsystem — disabled producer and inert prompt reader
+
+The arc path is a useful example of why a SQL read is not automatically an operational consumer:
+
+- `run.py` sets `arc_loop = None`; its dated comments say the loop was disabled from 2026-05-30 and removed from startup wiring. The source explicitly says `build_arc_loop` has no other caller and that the detector was the only writer of `arcs`, `arc_members` and `arc_closers`.
+- `theory_x/arcs/loop.py` still contains a functioning `ArcLoop` / `build_arc_loop()` implementation, but the inspected startup path does not construct or start it.
+- `FountainGenerator._fetch_arc_context()` still queries active arcs within 7,200 seconds and recently closed arcs within 14,400 seconds. This is a reader at the SQL level.
+- However, `_format_arc_context()` contains a dated comment explaining that the two prompt-injection blocks were removed and the function now returns an empty string even when rows exist. The caller's `if arc_block:` therefore does not add arc context to the prompt.
+
+**Correct classification:** arc detection is CONSTRUCTED but its normal startup producer is disabled; the remaining Fountain read/format path is operationally inert for prompt influence. The image-map shorthand "zero readers" is not literally accurate (a query remains), but it is accurate to say no functioning downstream cognitive consumer is established in this startup path. Existing rows may remain in the database; host contents and freshness are UNKNOWN.
+
 ## 4. Top documentation/source discrepancies
 
 These are discrepancies to reconcile, not automatic instructions to modify code or documentation.
