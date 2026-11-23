@@ -663,6 +663,14 @@ def _run_paired_sqlite_cycle(tmp_path, monkeypatch, trace_on):
 def test_speech_trace_on_off_preserves_database_and_processing_operations(
     monkeypatch, tmp_path
 ):
+    from types import SimpleNamespace
+
+    # The persisted spoken_at value is a wall-clock field, not a trace effect.
+    # Freeze only the consumer module's clock so paired SQL parameters compare.
+    monkeypatch.setattr(
+        queue_consumer, "time",
+        SimpleNamespace(time=lambda: 1_700_000_000.0),
+    )
     off = _run_paired_sqlite_cycle(
         tmp_path / "off", monkeypatch, trace_on=False
     )
