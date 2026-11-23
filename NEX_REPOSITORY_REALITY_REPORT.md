@@ -1004,3 +1004,30 @@ Source hashes:
 - `tests/test_provenance.py`: `fcefbeccb6bedc3e20798142814d7b96b4e6dca5`
 
 No runtime or test behaviour, database, flags, host state, experiment, merge or deployment was changed.
+
+
+## M0.3–M0.4 source audit — CounterfactualNode problem-selection rotation (24 Nov 2026)
+
+Inspected against PR #65 integrated source head `cffbbc94b5a494247d127abf2720886a08f7a567`.
+
+### DRAFT-013 — oldest open problem can be selected repeatedly without internal LRU rotation
+
+`run.py` constructs and starts `CounterfactualNode` in an unconditional initialization block when its dependencies construct successfully; no environment gate is present in that block. Its loop waits 300 seconds between ticks. Each `_process_one()` selects exactly one `open_problems` row using `ORDER BY last_touched_at ASC LIMIT 1` (oldest first).
+
+After selection, the node builds a constraint, calls `TimeFetch.fetch_from_beliefs()`, scores candidates, submits buildable candidates to CoherenceGate and inserts ACCEPT candidates as Tier-3 beliefs. The selected problem's `last_touched_at` is not updated in this path. `TimeFetch.fetch_from_beliefs()` is read-only and does not call ProblemMemory's mutation methods. `_maybe_promote()` returns immediately because automatic promotion is intentionally disabled. The schema has no trigger that automatically updates `last_touched_at` on a linked belief insert.
+
+ProblemMemory exposes `touch(problem_id)` specifically to rotate the oldest-touched-first pool when an attempt produces no observation, but CounterfactualNode does not call it. Therefore, if the oldest open problem remains open and no other subsystem updates/touches it, subsequent ticks can repeatedly process that same problem while newer open problems remain unvisited. External updates or closure can change the order, so starvation is conditional rather than established live behaviour.
+
+Test boundary: `tests/test_counterfactual_node.py` covers single-problem selection, candidate/gate handling, and promotion (with the promotion test explicitly skipped because promotion was intentionally disabled). No test seeds multiple open problems and verifies that successive ticks rotate the selected problem or advance `last_touched_at`.
+
+This is a source-confirmed scheduling/coverage risk, not evidence of actual starvation on the host. No severity or repair is assigned.
+
+Source hashes:
+- `run.py`: `73a2c58a4f5f0348135a46eb83d6cdd61db874e7`
+- `theory_x/stage_counterfactual/counterfactual_node.py`: `76f8146b803d6272721a349c86e3a5530af4df16`
+- `theory_x/stage_throw_net/time_fetch.py`: `<escape>source hash not captured in this pass</escape>`
+- `theory_x/stage7_sustained/problem_memory.py`: `4a9dcc839bf0be7bf28338168d8946309c7002f5`
+- `substrate/init_db.py`: `575c95769939f85a776ab698d4c16f17cc1ba238`
+- `tests/test_counterfactual_node.py`: `1cd15a6a5c0bfe115791eec9a3aae4b4d088a3f8`
+
+No runtime or test behaviour, database, flags, host state, experiment, merge or deployment was changed.
