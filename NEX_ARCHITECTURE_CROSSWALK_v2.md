@@ -1288,3 +1288,10 @@ Source basis:
 **Level summary:** 4 nodes at L0, 16 at L1, 9 at L2 (all historical MIND_MAP host claims pending checkout reconciliation), 1 at L3 (isolated Fountain fixture path only), and 0 at L4. No node is L4-validated. No L2 historical host claim should be treated as current PR #65 runtime truth until the host checkout identity and environment are reconciled.
 
 **MIND_MAP discrepancies retained, not silently edited:** (a) the map's dark:false for upeksa/apramada is based on historical live observations, while source shows explicit admin-scoped environment gates; (b) p13_finitude's live fixed selector cap is not the same as wiring BudgetShadow's spend ledger; (c) p9_dissonance's active retire/synthesize path is not the same as the dark held-tension behaviour; (d) p12_selfreport and hri_apatrapya are built but blocked; (e) p7_valence is inferred, not independently implemented. These distinctions require Founder review before any status or code change.
+
+
+## ExecutiveControl faculty — constructed but not consumed by active Chat routing
+
+The GUI constructs and registers one ExecutiveControl instance, but the active api_chat route does not call its select() method. Instead, unless the client supplies an explicit register, the route selects Philosophical. The module docstring says ExecutiveControl replaces the voice.registers.classify() stub, while that function remains a Conversational stub and default_register() returns Conversational. A dated code comment identifies the Philosophical default as an intentional edit and says the classifier branch should be restored later; whether that temporary override remains approved is unresolved. Unit tests cover the classifier itself, not route-level consumption. See DRAFT-023 in the Reality Report.
+
+Secondary qualification if the classifier is restored: its continuity-bias read is outside the lock despite the thread-safe claim, and its process-lifetime session map has no expiry/cleanup.
