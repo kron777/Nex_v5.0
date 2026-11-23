@@ -27,7 +27,9 @@ def _verify_slice(tmp_path, files, req=_REQ, claim=True):
     wp = {"key": "wp:guard", "obligation_keys": list(req)}
     rec = ex.create_execution_record("exec:guard", "cyc7", "add a guard", wp, req)
     ex.record_claim(rec, completion_claim=claim, changed_artifacts=list(files), tests=[], failures=[])
-    return ex.verify(rec, str(repo), str(repo / "ledger.jsonl"))
+    approved = [r["test_file"] for r in req.values() if r.get("test_file")]
+    return ex.verify(rec, str(repo), str(repo / "ledger.jsonl"),
+                     approved_test_files=approved)
 
 
 # ----------------------------- the verified vertical slice -----------------------------
