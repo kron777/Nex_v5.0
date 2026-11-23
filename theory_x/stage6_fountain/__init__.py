@@ -212,7 +212,7 @@ def build_fountain(
                         _trace_api.end_trace(
                             _trace_handle,
                             source_ref="theory_x/stage6_fountain/__init__.py::fountain_loop",
-                            outcome="thought_generated" if thought else "no_fire",
+                            outcome="thought_returned" if thought else "no_fire",
                             payload=thought,
                         )
                 except Exception:
