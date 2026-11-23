@@ -12,12 +12,14 @@ report; no engine module does, so there is no cycle.
 """
 from __future__ import annotations
 
+import json
 import os
 from typing import Dict, List, Optional
 
 from watcher.evidence import utc_now
 
 from .extrapolator import frontier_breakdown, rule_catalogue, scope_summary
+from .graph import analyse as graph_analyse
 from .knowledge import (affinity_drift_idea, belief_decay_idea, config_invariant_idea,
                         genius_authority_audit, genius_tagger_idea, migration_defect_idea)
 from .memory import (CycleStore, PatternMemory, accuracy_series, comparability_assessment,
@@ -452,4 +454,46 @@ def run_stage2_belief_decay(repo_dir: str = ".", workdir: str = "rdo/.cycles",
         "resume_in_new_process":
             f"python -c \"from rdo.memory import CycleStore; "
             f"print(CycleStore('{workdir}').load('belief_decay_mvp').objective)\"",
+    }
+
+
+def run_stage3_graph_intelligence(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
+    """RDO v1.3 §16 Stage 3 — graph intelligence over the belief-decay obligation graph.
+
+    Uses the Stage-2 cycle (via CycleStore) as the regression baseline and runs the read-only
+    `rdo.graph` analysis: typed edges, SCC decomposition, semantic duplicate CANDIDATES (surfaced,
+    never merged), completeness against the objective, and a prerequisite-derived implementation
+    sequence. The analysis is persisted for fresh-process resume. No merges; the live store is
+    never touched."""
+    memory = PatternMemory(os.path.join(workdir, "patterns.jsonl"))
+    store = CycleStore(workdir)
+    cycle, _summary = _run_one("belief_decay_mvp", belief_decay_idea(), repo_dir, memory, store, [])
+    analysis = graph_analyse(cycle.obligations, cycle.relationships, cycle.frontier)
+    path = os.path.join(workdir, "graph_analysis_belief_decay_mvp.json")
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(analysis, fh, indent=2, default=str)
+
+    indeg = {r["dst"] for r in cycle.relationships if r["kind"] == "depends_on"
+             and [x["dst"] for x in cycle.relationships if x["kind"] == "depends_on"].count(r["dst"]) > 1}
+    seq = analysis["implementation_sequence"]
+    return {
+        "stage": "RDO v1.3 §16 Stage 3 — Graph Intelligence",
+        "baseline_cycle": cycle.id,
+        "typed_edges": analysis["typed_edges"],
+        "scc_nontrivial_components": len(analysis["scc"]["nontrivial_components"]),
+        "has_cyclic_components": analysis["scc"]["has_cyclic_components"],
+        "duplicate_candidates": len(analysis["duplicate_candidates"]),
+        "duplicate_candidate_sample": analysis["duplicate_candidates"][:3],
+        "convergence_preserved": "shared_runtime_effect.runtime_verification" in indeg,
+        "completeness": {k: analysis["completeness"][k]
+                         for k in ("discovered", "unresolved_count", "complete_against_objective")},
+        "sequence_levels": len(seq["levels"]),
+        "parallel_width": seq["parallel_width"],
+        "cyclic_components_in_sequence": seq["cyclic_components"],
+        "persisted_cycle": os.path.join(workdir, "cycle_belief_decay_mvp.json"),
+        "persisted_analysis": path,
+        "resume_in_new_process":
+            f"python -c \"import json; from rdo.memory import CycleStore; from rdo.graph import analyse; "
+            f"c=CycleStore('{workdir}').load('belief_decay_mvp'); "
+            f"print(len(analyse(c.obligations,c.relationships,c.frontier)['duplicate_candidates']))\"",
     }
