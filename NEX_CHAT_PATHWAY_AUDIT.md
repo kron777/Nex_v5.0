@@ -302,3 +302,32 @@ Source hashes on this branch: `gui/server.py` `5ee8b167f386466c383090445c63a8481
 
 
 **Ordering qualification:** In the handler, the FocalSet update and WorkingMemory add/decay occur at approximately lines 1596–1655, before the `Recently attended (cross-turn)` injection at approximately lines 1733–1742. Therefore, on an eligible Conversational turn, the injected WorkingMemory can include both items added from the current request's just-computed focal set and items retained from earlier turns. The label “cross-turn” does not mean the block is exclusively prior-turn state. This same-turn ordering is important when interpreting prompt provenance and any ablation or attention experiment.
+
+
+## Independent review reconciliation — exact PR #65 source (23 Nov 2026)
+
+An independent read-only review of PR #49 head `d046d5beadd640cca6df6631d9dbd3166d16fccf` and PR #65 head `3d5df48e6539818097b58b6e936059fae946ceca` identified the following additional qualifications. These are source/test observations, not permission to change behaviour.
+
+### VoiceEngine trace parentage
+
+At `gui/server.py::api_chat`, the `model_input` record for `VoiceEngine.query_reply` currently sets `parent_ids` to both `_trace_input_id` and `_trace_retrieval_id` (PR #65 source lines 1901–1915). The actual call passes `query=prompt`, `session_id`, and `turn_n`; it does not receive the earlier general Chat retrieval result or its selected belief set. VoiceEngine then performs its own TimeFetch retrieval. The shared user query is a common upstream input, but the inspected call path does not establish that the general Chat retrieval result is an immediate causal parent of the VoiceEngine retrieval. Treat this as a **trace-parentage concern requiring reconciliation**, not as a response-quality defect. Do not alter the edge until the intended parent semantics and governing acceptance criteria are confirmed.
+
+### Substrate-mode miss and VoiceClient fallback
+
+The handler comment at approximately lines 2261–2263 says that in `use_substrate` mode an LLM fallback is suppressed on a substrate miss. In the inspected handler, an eligible VoiceEngine miss leaves `text` unset; control reaches `if text is None` and calls `state.voice.speak(...)` at lines 2261–2282. The repository's `voice/llm.py::VoiceClient.speak` constructs a model request and invokes its configured `_request_fn`; the default request function sends an HTTP request to the configured llama-server endpoint. Thus the handler itself does not implement the suppression described by the comment. Whether a particular runtime substitutes another VoiceClient/request function or disables the endpoint remains a wiring/configuration question; do not claim deployed model invocation from this static path alone. Record the discrepancy as **source-confirmed control-flow/comment mismatch; runtime mode effect unresolved**. No fix is authorised by this audit.
+
+### Speech hand-off and observer limits
+
+The commit-before-registration interleaving is directly reproducible in the test fixture: Writer commit makes the pending row visible before the producer records/registers its trace identity. The consumer can therefore start an explicitly unlinked trace. This proves the possibility under the controlled ordering, not the frequency in deployment. The identity registry is process-local and bounded; restart or eviction can also remove the hand-off. The honest unlinked result avoids a fabricated parent but leaves provenance incomplete.
+
+The consumer selects pending rows and only later writes a speaking status; there is no atomic exclusive claim in the inspected path. Two overlapping consumers could select the same row before either status update, but no evidence establishes that the deployed topology overlaps consumers or that duplicate playback occurred. Keep this conditional.
+
+Trace append serializes and writes synchronously under a shared module lock. This creates a possible caller-latency/lock-contention cost; current diagnostic tests do not establish a deployed-host latency distribution or neutrality threshold. The benchmark smoke test is not a performance acceptance test. Event labels remain narrow: selection is not reservation, synthesis return is not waveform validation, player-call return is not audibility, and persisted `spoken` status is not listener receipt.
+
+### Test and authority boundary
+
+Both requested exact PR heads have green pytest workflow runs: PR #49 run `45255379806` on `d046d5beadd640cca6df6631d9dbd3166d16fccf`, and PR #65 run `45250499152` on `3d5df48e6539818097b58b6e936059fae946ceca`. These are separate branch heads and separate workflow runs, not a jointly tested merged tree. They validate their respective workflow assertions only.
+
+The absence of authority artifacts is bounded to the inspected repository tree and PR material. The canonical Frozen V2.1 specification and Founder Sign-Off/approval record remain unlocated in that inspected material; this does not prove they do not exist elsewhere. PR #49 itself says its crosswalk is partial and Gate 0 is not established. The Master Roadmap being reported as reopened from the Library is not equivalent to including and verifying the canonical roadmap and its version/provenance in the reviewed tree.
+
+**Disposition:** Gate 0 remains unestablished. Behavioural changes remain unauthorised pending production of the canonical authority artifacts, reconciliation of their hierarchy and criteria, and the required Founder approval of the defined Gate 0 packet. No source/runtime change, schema change, deployment, merge, or roadmap amendment is made by this reconciliation.
