@@ -31,6 +31,23 @@ def _run_generator_once(tmp_path: Path, *, trace_on: bool, monkeypatch):
     from substrate.init_db import init_all
     from substrate import Reader, Writer, db_paths
     from voice.llm import VoiceClient
+
+    # Fountain prompt assembly uses SQLite ORDER BY RANDOM() for several
+    # retrieval slots. Python's random.seed() does not control SQLite's
+    # built-in RNG, so paired OFF/ON runs could receive different prompts
+    # before the overlay is even involved. Give each read connection the
+    # same deterministic SQLite RNG stream; production code remains untouched.
+    original_reader_open = Reader._open
+
+    def deterministic_reader_open(self):
+        connection = original_reader_open(self)
+        sqlite_rng = random.Random(8675309)
+        connection.create_function(
+            "random", 0, lambda: sqlite_rng.getrandbits(63)
+        )
+        return connection
+
+    monkeypatch.setattr(Reader, "_open", deterministic_reader_open)
     from theory_x.stage6_fountain.generator import FountainGenerator
     from theory_x.stage6_fountain.crystallizer import FountainCrystallizer
     from substrate import trace_overlay
