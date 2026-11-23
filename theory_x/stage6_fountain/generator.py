@@ -2539,6 +2539,12 @@ class FountainGenerator:
                             payload={"table": "fountain_prompt_blocks",
                                      "fire_id": fountain_event_id,
                                      "block_count": len(_blocks)},
+                            parent_ids=[
+                                rid for rid in (
+                                    self._trace_model_input_record_id,
+                                    self._trace_workspace_record_id,
+                                ) if rid
+                            ],
                         )
                     except Exception:
                         pass
@@ -2554,6 +2560,12 @@ class FountainGenerator:
                         source_ref="theory_x/stage6_fountain/generator.py::prompt_block_manifest",
                         entity_ref=f"dynamic.fountain_prompt_blocks:fire_id={fountain_event_id}",
                         outcome="write_failed",
+                        parent_ids=[
+                            rid for rid in (
+                                self._trace_model_input_record_id,
+                                self._trace_workspace_record_id,
+                            ) if rid
+                        ],
                     )
                 except Exception:
                     pass

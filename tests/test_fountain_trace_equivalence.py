@@ -291,6 +291,10 @@ def test_fountain_loop_trace_overlay_on_off_equivalence(
         row for row in by_event["writer_delta"]
         if row["source_ref"].endswith("fountain_events_insert")
     )
+    prompt_manifest = next(
+        row for row in by_event["writer_delta"]
+        if row["source_ref"].endswith("prompt_block_manifest")
+    )
     quality = by_event["quality_gate"][0]
     coherence = by_event["coherence_gate"][0]
     belief_write = next(
@@ -316,6 +320,9 @@ def test_fountain_loop_trace_overlay_on_off_equivalence(
     }
     assert model_output["parent_ids"] == [model_input["record_id"]]
     assert candidate["parent_ids"] == [model_output["record_id"]]
+    assert set(prompt_manifest["parent_ids"]) == {
+        model_input["record_id"], workspace["record_id"]
+    }
     assert fire_write["parent_ids"] == [candidate["record_id"]]
     assert quality["parent_ids"] == [candidate["record_id"]]
     assert coherence["parent_ids"] == [quality["record_id"]]
@@ -329,3 +336,11 @@ def test_fountain_loop_trace_overlay_on_off_equivalence(
 
     serialized = on["trace_path"].read_text(encoding="utf-8")
     assert "A small observation can change how a familiar pattern is understood." not in serialized
+
+    from tests._trace_sample_export import append_trace_sample
+    append_trace_sample(
+        "fountain_cycle", rows,
+        checks=["thought_equal", "model_requests_equal", "all_database_rows_equal",
+                "read_query_sequence_equal", "beliefs_equal", "fountain_events_equal",
+                "explicit_parentage_validated", "raw_prompt_absent"],
+    )
