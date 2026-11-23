@@ -92,7 +92,7 @@ The speech path crosses an asynchronous boundary: Fountain commits a speech_queu
 
 PR #65 adds an isolated integration fixture that calls the real FountainCrystallizer.crystallize() method, uses real SQLite Writer/Reader instances, selects the actual pending row with _pending(), and processes it through _speak_one() with a deterministic backend and fake player. It asserts the consumer trace root's parent is the output_queued record for the exact queue-row ID and that the persisted queue status becomes spoken.
 
-**Bounded evidence classification:** [L2] simulated/isolated execution is test-covered for this producer-to-consumer path. [L3] is demonstrated only in the bounded fixture sense: the consumer reads the exact persisted entity and processing invokes the test player and changes that row's status. Host activation and real audio output remain UNKNOWN; [L4] behavioural benefit is not established. The PR #65 full CI run for head 2b15d3be2469781dd671d9e24697673be3e0e36b is pending.
+**Bounded evidence classification:** [L2] simulated/isolated execution is test-covered for this producer-to-consumer path. [L3] is demonstrated only in the bounded fixture sense: the consumer reads the exact persisted entity and processing invokes the test player and changes that row's status. Host activation and real audio output remain UNKNOWN; [L4] behavioural benefit is not established. The combined PR #65 full CI run for head 3f8a393c8be32d848d1816f4f2e4fe0f319925fd is pending (run 45242073991).
 
 **Known race — missing parent is preserved, not repaired:** the database insert commits before Fountain records output_queued and calls link_entity(). A consumer can select the row during this interval. PR #65 includes a controlled interleaving using the production Writer.write() and _pending() methods; when the consumer reaches the row before registration, its trace starts unlinked. The in-memory registry cannot make the SQLite commit and registration atomic. No new lock, queue schema field, durable hand-off or JSONL recovery was added: those would exceed the current observer-only scope and could alter scheduling. Restart, registry eviction and the commit/register window therefore remain explicit false-negative provenance cases, not grounds to invent a parent.
 
@@ -134,6 +134,15 @@ The Chat handler's source path is now traced through its terminal response:
 **Boundary finding:** the inspected `api_chat()` path does not call the Fountain `CoherenceGate`. Do not assume Chat and Fountain share identical gating or acceptance semantics.
 
 **Evidence ceiling:** the complete source path supports [L1]. Runtime activation of optional branches, actual model calls, successful persistence and the causal contribution of individual context blocks remain [L2] UNKNOWN / [L3] UNKNOWN. No [L4] performance claim follows from this trace.
+
+
+### 3.2.2 Explicit Chat causal edges — isolated route fixture (PR #62, carried in combined PR #65)
+
+The explicit-parent stack records a Chat turn root and links the tested route's actual source dependencies rather than treating chronological adjacency as causation. PR #62 instruments the tested normal model-composition path and gap-refusal branch with explicit parent IDs; its paired fixture uses the real Flask route and isolated SQLite databases with a deterministic model stub.
+
+The test checks trace integrity and OFF/ON equivalence for the exercised route: model request/response, persisted database state and Reader query sequence. This establishes a bounded simulated pathway and observer comparison, not host activation, all Chat branches, tool routes, retries, VoiceEngine short-circuits or behavioural benefit.
+
+**Bounded evidence classification:** [L2] simulated trace emission is test-covered. Explicit [L3] edges are test-verified only for the represented Chat route dependencies; the influence of every context block and untested branch remains UNKNOWN. [L4] is not established. PR #65 now carries this Chat implementation alongside the Fountain and speech trace work so the combined stack can be tested together.
 
 ### 3.3 Evaluation, feedback and the next-thought pathway — bounded source trace
 
