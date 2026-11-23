@@ -1123,3 +1123,13 @@ WorldBridgeSelector's module/class documentation describes Phase A as select+log
 
 This is a source-confirmed documentation/implementation mismatch; whether the implementation is an approved Phase-B change is unresolved because the referenced World Bridge Design v0.2 and approval record were not located. world_bridge_log stores selected-event JSON and injection status. init_db.py creates it; the inspected DB reaper does not target it and no cleanup path was found. Runtime selection frequency and log growth remain unknown.
 
+
+
+## 3.39 Phase-0 causal trace sample and verified scope
+
+PR65 exact-head CI passed at `cffbbc94b5a494247d127abf2720886a08f7a567` (run `45273123963`). The resulting metadata/digest-only sample is committed as `NEX_CAUSAL_TRACE_SAMPLE.json` in the evidence branch.
+
+The sample contains a 14-record Fountain cycle and an 11-record Chat turn. Every non-root record has explicit earlier parentage; the Fountain prompt-block-manifest write is linked to the model-input and workspace-selection records. Overlay ON/OFF equivalence passed for the tested outputs, model requests, DB rows and SQL read sequences.
+
+Scope limitations: Chat retrieval returned no belief context; Fountain's speech gate returned HOLD, so no queue/playback/audibility is demonstrated. The artifact is from isolated fixtures, not the live host. A populated-retrieval Chat trace, speech-consumer chain, and live-host capture remain open.
+
