@@ -362,3 +362,44 @@ Source blob hashes:
 - `theory_x/stage3_world_model/retrieval.py`: `aa3eeb15c9a4a19a24a6d328bc370cd0a4438cf3`
 
 No runtime behaviour, tier policy, edge policy, erosion threshold, schema, environment flag, host, experiment, merge or deployment was changed.
+
+
+## M0.3–M0.4 forward/backward bridge — Stages 4–10 and actual Chat sinks (23 Nov 2026)
+
+A further pass at source revision `07f6ebe42a1ac99a8038a73476782d1542704296` traced boot wiring for Stages 4–10 and checked the actual `gui/server.py::api_chat` consumers. This refines the broad faculty list in the earlier Crosswalk: construction, background loops, per-request methods, prompt injection and API-only surfaces are distinguished.
+
+| Faculty | Boot/runtime construction path | Source-confirmed consumer / sink | Boundary |
+|---|---|---|---|
+| Stage 4 Membrane / SelfModel | `build_membrane()` constructs classifier, SelfModel, QueryRouter and BehaviouralSelfModel; starts the behavioural background thread when conversations Reader exists (normal boot supplies it). | Chat routes through Membrane when available; SelfModel snapshot and query-ranked INSIDE/OUTSIDE retrieval are distinct route contributions. BehaviouralSelfModel is called and formatted only for INSIDE route prompt injection. | Background loop waits four hours between write attempts; runtime writes unknown. Route fixture does not cover all integrations. |
+| Stage 5 SelfLocationCommitment | `run.py` calls `commit()` once during boot. | Inserts-or-ignores fixed-source locked Tier-1 self-location belief, then reads back the ID. The belief is eligible for the general retriever under locked/tier filters. | Idempotent commit attempt, not evidence of a fresh row on every boot or of prompt selection. |
+| Stage 7 ProblemMemory | Constructed in `run.py`, passed to Fountain and VoiceEngine and exposed to Chat. No autonomous ProblemMemory loop is started here. | Chat calls `find_matching(prompt)` and `format_for_prompt()`; VoiceEngine TimeFetch calls `find_matching()`; Fountain receives the object for task-bearing context. | Each consumer has separate conditions; matching/formatting does not prove selected content changed an answer. |
+| Stage 8 GoalManager | Constructed and registered during boot; exposed through AppState and goal API endpoints. | Chat calls `get_active()` for a diagnostic log entry, but source comment explicitly says the goal text is no longer appended to the Chat prompt (SEAM 3). | Do not list GoalManager as a current Chat prompt contributor. API create/list/update/complete paths remain available in source. |
+| Stage 9 Metacognition | Constructed and registered during boot; no autonomous daemon loop is started by `run.py`. | Each Chat request calls `tick()`, then `format_for_prompt()`; non-empty output is appended to the same request's `belief_text`. Separate Fountain prompt insertion has its own flag. | Request-driven Chat path, not continuous background observation. |
+| Stage 10 NovelAssociation | Constructed, `start_loop()` called and registry registration attempted. | Chat calls `format_for_prompt()`; returned association text can be appended to `belief_text`. The method marks surfaced associations annotated. | Background generation and Chat surfacing are separate operations; actual association production and prompt selection unknown. |
+| SelfNarrative | Constructed early and registered; passed as write-trigger target to CoherenceGate, ProblemMemory and NovelAssociation. | Chat calls topic-conditioned `format_for_prompt()` and appends non-empty autobiographical text to `belief_text`. | Source-defined prompt path; trigger production, row availability and selected text remain runtime unknown. |
+| AffectState | Constructed and `start_loop()` called. | Chat calls `format_for_prompt()` and appends non-empty persisted affect-state text; separate status endpoint reads state. | DB-backed prompt summary, not evidence that model adopts it. |
+| DriveEmergence | Constructed and `start_loop()` called. | Chat calls `format_for_prompt()`; VoiceEngine receives DriveEmergence and reads its drive-topic embedding for drive-alignment scoring. | Prompt summary and retrieval-score alignment are distinct consumer paths. |
+| SelfMindView | Constructed and `start_loop()` called; passed into Metacognition and AppState. | Chat calls `current_summary()` and appends a non-empty cognitive-state summary. | Snapshot creation, summary availability and prompt use remain host/runtime dependent. |
+
+### GoalManager correction
+
+The broad earlier list of possible Chat prompt contributors should not be read as asserting GoalManager prompt injection. In the inspected handler, `get_active()` is called and the active goal is logged, but a source comment says goal text is no longer appended to the Chat prompt. GoalManager remains available through its API and internal state methods; the current Chat path does not use its goal text as context.
+
+### Prompt-path causal closure update
+
+The inspected Chat handler contains explicit source-level append paths for BehaviouralSelfModel (INSIDE only), ProblemMemory (matching query), Metacognition, NovelAssociation, SelfNarrative, AffectState, DriveEmergence and SelfMindView. These are distinct contributions to `belief_text`, later passed through Chat block assembly and model composition on applicable branches. The aggregate trace's `context_selection` record does not independently identify each selected row or prove that the model relied on a contribution. The direct VoiceEngine hit route can bypass model composition entirely.
+
+Source hashes:
+- `run.py`: `73a2c58a4f5f0348135a46eb83d6cdd61db874e7`
+- `gui/server.py`: `5ee8b167f386466c383090445c63a84810bbae52`
+- `theory_x/stage4_membrane/behavioural_self_model.py`: `cd6ce4179e95b8435c33602f116f0a33f89ced12`
+- `theory_x/stage4_membrane/self_model.py`: `c3646242ee244d7434228fcabf0550ebd0d37947`
+- `theory_x/stage4_membrane/router.py`: `74d82fe0f9fe210c75d86105e205dcb0c4151d79`
+- `theory_x/stage5_self_location/commitment.py`: `fc26693efe9a371b9330a764a752743699a12917`
+- `theory_x/stage7_sustained/problem_memory.py`: `4a9dcc839bf0be7bf28338168d8946309c7002f5`
+- `theory_x/stage8_goal_manager/goal_manager.py`: `0b879a903fa499fb88153edbcb7f5c8e69bd6dfa`
+- `theory_x/stage9_metacognition/metacognition.py`: `de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08`
+- `theory_x/stage10_imagination/novel_association.py`: `c9f25a0a1a5b13ef481abe05bb5b59cdaa560cbc`
+- `theory_x/stage_self_narrative/self_narrative.py`: `15d8c1dd1de8332b3d12e06a096aac2c0b2b2cb3`
+
+No runtime behaviour, prompt content, goal policy, schema, flags, host, experiment, merge or deployment was changed.
