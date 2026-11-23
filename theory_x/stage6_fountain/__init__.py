@@ -201,14 +201,14 @@ def build_fountain(
                 try:
                     thought = generator.generate(dynamic_state, readers["beliefs"])
                     if _trace_handle is not None:
-                        _trace_api.record(
-                            "candidate_generation",
-                            producer="FountainGenerator.generate",
-                            consumer="FountainCrystallizer",
-                            source_ref="theory_x/stage6_fountain/generator.py::generate",
-                            outcome="generated" if thought else "no_fire",
-                            payload=thought,
-                        )
+                        if not thought:
+                            _trace_api.record(
+                                "candidate_generation",
+                                producer="FountainGenerator.generate",
+                                consumer="FountainCrystallizer",
+                                source_ref="theory_x/stage6_fountain/generator.py::generate",
+                                outcome="no_fire",
+                            )
                         _trace_api.end_trace(
                             _trace_handle,
                             source_ref="theory_x/stage6_fountain/__init__.py::fountain_loop",
