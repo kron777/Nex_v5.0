@@ -55,7 +55,7 @@ def _run_fountain_cycle_once(
     def deterministic_model(url, payload):
         model_requests.append(json.loads(json.dumps(payload, sort_keys=True)))
         return {"choices": [{"message": {
-            "content": "A small observation can change how a familiar pattern is understood."
+            "content": "I notice that pausing before a decision lets me examine the impulse behind it rather than simply follow it. What becomes visible when I wait long enough to see the pattern?"
         }}]}
 
     class DynamicState:
