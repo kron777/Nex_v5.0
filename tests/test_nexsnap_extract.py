@@ -1,6 +1,8 @@
 """Runtime snapshot extraction must use configured read-only DB paths."""
 import time
 
+import pytest
+
 from substrate import connect
 from substrate.paths import db_paths
 from scripts import nexsnap_extract
@@ -40,8 +42,24 @@ def test_runtime_state_uses_configured_data_dir_and_read_only_connections(
         f"INSERT INTO gate_decisions VALUES ('ACCEPT', {now})",
     ])
 
+    opened = []
+    calls = []
+    real_connect = nexsnap_extract.connect
+
+    def tracking_connect(*args, **kwargs):
+        calls.append((args, kwargs))
+        conn = real_connect(*args, **kwargs)
+        opened.append(conn)
+        return conn
+
+    monkeypatch.setattr(nexsnap_extract, "connect", tracking_connect)
     state = nexsnap_extract.extract_runtime_state()
 
+    assert [call[1]["read_only"] for call in calls] == [True, True, True]
+    assert len(opened) == 3
+    for conn in opened:
+        with pytest.raises(Exception):
+            conn.execute("SELECT 1")
     assert state["drives"]["coherence"] == 0.1
     assert state["voice_profile"] == [{"pair": "care-curiosity", "freq": 7}]
     assert state["fountain_24h_by_branch"] == {"reflection": 1}
@@ -75,7 +93,6 @@ def test_runtime_state_closes_opened_connections_when_later_open_fails(
 
     monkeypatch.setattr(nexsnap_extract, "connect", tracking_connect)
 
-    import pytest
     with pytest.raises(RuntimeError, match="simulated third database open failure"):
         nexsnap_extract.extract_runtime_state()
 
