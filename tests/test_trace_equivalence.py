@@ -142,7 +142,9 @@ def _run_chat_once(tmp_path: Path, *, trace_on: bool, monkeypatch, read_query_lo
 
 
 def test_chat_trace_overlay_on_off_equivalence(tmp_path, monkeypatch, record_property):
-    # SQLite's trace callback lets the fixture count reads on every Reader
+    # Freeze wall-clock reads so timestamp-bearing DB rows are directly
+    # comparable across the paired OFF/ON substrates. perf_counter remains live.
+    monkeypatch.setattr(time, "time", lambda: 1_700_000_000.0)
     # connection without changing production code or adding queries.
     from substrate import Reader
 
