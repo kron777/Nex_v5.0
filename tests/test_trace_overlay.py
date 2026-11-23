@@ -130,3 +130,16 @@ def test_turning_flag_off_stops_writes_and_end_restores_context(tmp_path, monkey
     trace.end_trace(handle, source_ref="chat")
     rows = _read(path)
     assert [row["event_type"] for row in rows] == ["trace_start"]
+
+def test_teardown_closes_unfinished_trace_context(tmp_path, monkeypatch):
+    monkeypatch.setenv("NEX5_DATA_DIR", str(tmp_path / "nex-data"))
+    monkeypatch.setenv("NEX5_TRACE_OVERLAY", "1")
+    monkeypatch.setenv("NEX5_TRACE_PATH", str(tmp_path / "trace.jsonl"))
+    handle = trace.begin_trace("chat", source_ref="chat")
+    assert handle is not None
+
+    trace.close_current_trace(source_ref="gui.server::teardown_request", outcome="exception")
+    assert trace.record("leak_check", producer="test", source_ref="test") is None
+    rows = _read(tmp_path / "trace.jsonl")
+    assert [row["event_type"] for row in rows] == ["trace_start", "trace_end"]
+    assert rows[-1]["outcome"] == "exception"
