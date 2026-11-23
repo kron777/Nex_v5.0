@@ -329,3 +329,11 @@ def test_fountain_loop_trace_overlay_on_off_equivalence(
 
     serialized = on["trace_path"].read_text(encoding="utf-8")
     assert "A small observation can change how a familiar pattern is understood." not in serialized
+
+    from tests._trace_sample_export import append_trace_sample
+    append_trace_sample(
+        "fountain_cycle", rows,
+        checks=["thought_equal", "model_requests_equal", "all_database_rows_equal",
+                "read_query_sequence_equal", "beliefs_equal", "fountain_events_equal",
+                "explicit_parentage_validated", "raw_prompt_absent"],
+    )
