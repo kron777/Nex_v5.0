@@ -129,3 +129,56 @@ def test_rollback_is_isolated_nothing_live_touched(tmp_path):
     # execution.py performs no DB write and no live-state mutation
     src = open(ex.__file__, encoding="utf-8").read()
     assert "import sqlite3" not in src and "mode=rw" not in src
+
+
+# -------------------------- explicit test-execution authorization --------------------------
+
+def test_declared_test_is_not_run_without_allowlist(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "guard.py").write_text(_GUARD_OK, encoding="utf-8")
+    marker = repo / "executed.txt"
+    (repo / "test_guard.py").write_text(
+        "from pathlib import Path\n"
+        "Path('executed.txt').write_text('ran')\n"
+        "def test_g():\n    assert True\n",
+        encoding="utf-8",
+    )
+    rec = ex.create_execution_record(
+        "exec:no_approval", "cyc7", "add a guard",
+        {"key": "wp:guard", "obligation_keys": ["guard"]}, _REQ
+    )
+    rec = ex.verify(rec, str(repo), str(repo / "ledger.jsonl"))
+    d = rec["verification"]["dimensions"]["guard"]
+    assert rec["verdict"] == "partial"
+    assert d["test_verified"]["status"] == "not_authorized"
+    assert d["test_verified"]["execution_authorized"] is False
+    assert d["ledger_state"] == "SOURCE_CONFIRMED"
+    assert not marker.exists(), "a declared test path must not execute without explicit approval"
+
+
+def test_allowlisted_test_path_cannot_escape_repo(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "guard.py").write_text(_GUARD_OK, encoding="utf-8")
+    marker = repo / "escaped.txt"
+    outside = tmp_path / "test_outside.py"
+    outside.write_text(
+        "from pathlib import Path\n"
+        f"Path({str(marker)!r}).write_text('ran')\n"
+        "def test_g():\n    assert True\n",
+        encoding="utf-8",
+    )
+    req = {"guard": {"source_signature": r"def guard", "source_path": "guard.py",
+                     "test_file": "../test_outside.py"}}
+    rec = ex.create_execution_record(
+        "exec:path_escape", "cyc7", "add a guard",
+        {"key": "wp:guard", "obligation_keys": ["guard"]}, req
+    )
+    rec = ex.verify(rec, str(repo), str(repo / "ledger.jsonl"),
+                    approved_test_files=["../test_outside.py"])
+    d = rec["verification"]["dimensions"]["guard"]
+    assert rec["verdict"] == "partial"
+    assert d["test_verified"]["status"] == "not_authorized"
+    assert d["test_verified"]["execution_authorized"] is False
+    assert not marker.exists(), "path traversal must not execute a test outside repo_dir"
