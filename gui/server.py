@@ -2174,6 +2174,15 @@ def create_app(state: AppState) -> Flask:
             # EDIT B 2026-05-29 (v2, clean): in use_substrate mode, suppress LLM fallback.
             # Substrate miss returns her own deflection. Probes + use_llm unaffected.
             try:
+                if _trace_handle is not None:
+                    _trace_api.record(
+                        "model_input",
+                        producer="ChatContextAssembly",
+                        consumer="VoiceClient.speak",
+                        source_ref="gui/server.py::api_chat:voice_prompt",
+                        outcome="composed_prompt",
+                        payload=voice_prompt,
+                    )
                 resp = state.voice.speak(
                     VoiceRequest(prompt=voice_prompt, register=register),
                     beliefs=None,
