@@ -698,3 +698,73 @@ Test source hashes:
 - theory_x/stage2_dynamic/attention.py: d2765c7618e8421bb3e60c8898f749f2370f0344
 
 No runtime/test behaviour, schema, data, flags, host state, experiment, merge or deployment was changed. These are source-level reach and accounting findings; any change requires the authoritative specification and founder approval.
+
+
+## M0.3–M0.4 source-to-sink audit — Stage-TOM and Stage-Affect continuation (23 Nov 2026)
+
+**Inspected implementation revision:** PR #65 integrated source head `3d5df48e6539818097b58b6e936059fae946ceca`. This is static source evidence. Optional flag values, deployed process wiring and live effects remain UNKNOWN.
+
+### Structured present — a real optional Chat state write
+
+- `gui/server.py::_assemble_chat_blocks()` computes salience for the Chat blocks. When `NEX5_CHAT_WORKSPACE=1`, it passes those candidates to `global_workspace.select_within_budget()`.
+- If `NEX5_SELF_PRESENT=1` as well, the helper calls `stage_tom.self_present.update(session_id, salience, conversations_writer, conversations_reader)` before arbitration.
+- `self_present.update()` reads the previous vector for that session, applies the bounded 0.7 carry / 0.3 current-turn blend, then writes the new vector, winner and turn count to the `self_present` table in conversations.db. It is therefore a stateful selection input, not merely a descriptive prompt line.
+- The primary key is `session_id`; the implementation is session-keyed. `tests/test_self_present.py` covers the blend, persistence across turns, eventual yielding to sustained new salience, fail-safe behaviour and helper-level arbiter integration. It does not establish live Chat-route activation or multi-session isolation under concurrent requests.
+
+### SelfNarrative, HOT observations and their actual consumer path
+
+- FountainGenerator conditionally constructs SelfNarrative under `NEX5_SELF_NARRATIVE=1` and appends its returned narrative to the Fountain prompt when the same flag is enabled.
+- `SelfNarrative.build_narrative()` reads recent Fountain fires, recent T6 beliefs, active branches and the latest non-retired `source='hot_observer'` belief. It also calls `self_model_aggregator.aggregate_self_model()`; the aggregator is therefore consumed by SelfNarrative, contrary to any reading of it as a standalone-only helper.
+- The aggregator counts HOT observations in a 24-hour window, requires at least five, and derives overall and per-branch template/grounded proportions. The result is a summary string; it is not itself a new belief or an independently validated self-model.
+- FountainGenerator conditionally calls `hot_observer.observe()` under `NEX5_HOT_OBSERVER=1`. The observer writes a Tier-3 belief every third eligible invocation (minimum 15 words) to beliefs.db. Fountain's retrieval prompt separately samples recent hot_observer beliefs from a 72-hour pool, with near-duplicate filtering, so this source has both a write path and a distinct retrieval path.
+- The observer's every-third counter is process-local and resets on process restart. This is a source fact; no live rate or restart effect was measured.
+
+### Source identity — operator backfill versus runtime stamping
+
+- `stage_tom.source_identity.py` provides map, census and historical backfill commands. Backfill is dry-run by default; `--backfill --apply` performs UPDATEs to existing beliefs rows.
+- No import/call was found in the inspected `run.py`, `gui/server.py` or FountainGenerator path. It should be classified as an operator/maintenance utility, not as proof that the live pipeline invokes the backfill.
+- This is distinct from the separate `substrate/source_kind.py` write-time source-kind stamping path. Do not conflate the backfill utility with automatic provenance stamping.
+
+### Stakes — three distinct mechanisms and one missing mutual-exclusion guard
+
+- `ReadinessEvaluator.score()` conditionally adds the positive `appraise_approach()` bonus under `NEX5_APPROACH=1`, and separately subtracts the `appraise_groove()` cost under `NEX5_STAKES=1`.
+- The source comment says these flags are mutually exclusive, but the implementation uses two independent `if` statements and contains no guard that rejects or suppresses the combination. If both flags are set, both terms are applied. This is a **conditional source-confirmed guard gap**; live flag values and actual incidence are UNKNOWN.
+- `tests/test_stakes_appraisal.py` verifies the two arms separately, including their individual readiness wiring, but has no both-flags-enabled case.
+- The older `NEX5_L4_STAKES` path in FountainGenerator is a third, distinct mechanism: every fifth fire it calls `stakes_monitor.check_world_contact()`, stores `_stakes_active`, and passes that state to the workspace arbiter / grounding-focus override. It is not the same as the `NEX5_STAKES` readiness penalty.
+- The ratio-based `stakes_appraisal.appraise()` is retained as a measurement helper and is not the readiness consumer; readiness uses the groove-onset and approach appraisals under their separate flags.
+
+### Stage-Affect wiring and budget treatment
+
+- `run.py` constructs and starts the AffectState background loop. It restores the persisted row on startup and updates the substrate-resident valence/arousal/stability values on its 300-second tick.
+- Chat reads `state.affect_state.format_for_prompt()` when the object is present. Fountain's `_valence_reach()` reads the persisted valence/arousal only under `NEX5_VALENCE_DRIVE=1`; the optional composed-emotion prompt line is gated by `NEX5_MOOD=1`. The AffectState tick also has a separate optional one-way `NEX5_EXPECT_MOOD` coupling to event-valence expectations.
+- The Chat handler constructs optional admin-scoped blocks for Compassion, Compass, Equanimity, Apramada, Virya, Sraddha, Prasrabdhi and AffectCarry. Compassion and Compass are marked exempt from the Chat workspace budget; the other listed blocks compete with the remaining candidates. Their live flag states are not established by source inspection.
+- `conviction.py` explicitly records that its former Chat regroup/order consumers were removed after measured-null results. No current call was found in the inspected Chat/Fountain/boot paths; treat the module as retained source, not a live prompt contribution.
+- The composed-emotion helper reads the AffectState row and names a configuration; it does not establish felt emotion. No consciousness or subjective-experience claim follows from these functional signals.
+
+### Test and source references
+
+- `gui/server.py`: `d67df10f4449004c255e38b11b4a1888a4e4934c`
+- `run.py`: `73a2c58a4f5f0348135a46eb83d6cdd61db874e7`
+- `theory_x/stage6_fountain/generator.py`: `2be85084413f2cc9c4c512d3fa15b4f3d7483711`
+- `theory_x/stage6_fountain/readiness.py`: `9132a0acd139ee817b4166dd51abe9ec8cec4108`
+- `theory_x/stage_tom/self_present.py`: `501b7b6f17841840a13726852627aface1ab5aaa`
+- `theory_x/stage_tom/self_narrative.py`: `5fbc617fadc177ade59b45acf118b77c43ef2e84`
+- `theory_x/stage_tom/self_model_aggregator.py`: `f05a03e8450c05bc92975bb668feb4baa7220488`
+- `theory_x/stage_tom/hot_observer.py`: `35d4e9774c0e5c7571faf7e1f577253d7d5c76de`
+- `theory_x/stage_tom/source_identity.py`: `bfa24e3e63cbc502ebc678e190ac949858db3e4d`
+- `theory_x/stage_tom/stakes_appraisal.py`: `6c07e833e991978e956ea4d0a479a1ded885af1f`
+- `theory_x/stage_tom/stakes_monitor.py`: `871575360f185351b202efd2b67cc40f35ad3ec4`
+- `theory_x/stage_affect/affect_state.py`: `e6d1fd62d6a356929015f0d71586b6f7d80e9be1`
+- `theory_x/stage_affect/affect_carry.py`: `e34848d18898608cab28826f26ad9480d4901d93`
+- `theory_x/stage_affect/compassion.py`: `eeed5387a828c8e16f7b946474dd5fafc91d04b0`
+- `theory_x/stage_affect/compass.py`: `64ecfbed96c8ecb350efa2b4c0f28975af625a71`
+- `theory_x/stage_affect/upekkha.py`: `d3080e469204a7f53eadab1ad36a73c391d8dad6`
+- `theory_x/stage_affect/apramada.py`: `a64ad433d78da0d2f1221dc472d925316fb4b216`
+- `theory_x/stage_affect/virya.py`: `02b66b8a355b25685f97de3f41601bf622dc1e5b`
+- `theory_x/stage_affect/sraddha.py`: `74d009c10182310d4f84ffb41adfdfc9a0ee6738`
+- `theory_x/stage_affect/prasrabdhi.py`: `cec8b3e8e2ad1d312d26ff7a2c16dd93d0638047`
+- `theory_x/stage_affect/conviction.py`: `33c43bd6c7b1e2ec0a1df2056fe03ca447610e74`
+- `theory_x/stage_affect/compositional_emotion.py`: `9e8b32559082530457489d0d1df28274774e98c2`
+- Tests inspected: `tests/test_self_present.py` (`8d0aff76802adbe1661fe8b16f01c8a32d7d222f`), `tests/test_self_narrative.py` (`a293b97d46a7db14fb9302e2c3206b4516eefdb1`), `tests/test_stakes_appraisal.py` (`d735d5d57b36fbcd88ae9cce4b0898b1943649f2`), and `tests/test_affect_state.py` (`9c8ad303d6b4f6f80587e43e56041cde28089586`).
+
+No tests were run or modified in this pass. No runtime behaviour, schema, database, flag, host, experiment, baseline, tripwire, merge or deployment was changed. These findings are source/test-coverage evidence only; any behavioural correction remains subject to the authority and Gate 0 requirements.
