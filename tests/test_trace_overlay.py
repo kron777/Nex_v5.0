@@ -1,4 +1,5 @@
 import json
+import stat
 from pathlib import Path
 
 from substrate import trace_overlay as trace
@@ -55,6 +56,7 @@ def test_records_parent_chain_and_only_payload_digest(tmp_path, monkeypatch):
     )
 
     rows = _read(path)
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
     assert len(rows) == 4
     assert len({row["record_id"] for row in rows}) == 4
     assert all(row["trace_id"] == handle.trace_id for row in rows)
