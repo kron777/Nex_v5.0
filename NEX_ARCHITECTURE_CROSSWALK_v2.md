@@ -1234,3 +1234,8 @@ FocalSet has no internal lock and is shared across sessions; overlapping candida
 The boot sequence records downtime before running ResumptionSeeder because both read the same snapshot and the seeder consumes it; that ordering is correct. The SnapshotWriter is passed into Fountain and writes on every Fountain scheduler tick. However, SnapshotWriter's constructor-installed SIGTERM handler is later replaced by run.py's graceful-standby handler. That handler calls `os._exit(0)` without invoking `snapshot_writer.write_snapshot()`; `os._exit` also bypasses the registered atexit callback. Thus the normal SIGTERM path does not produce the advertised final snapshot; recovery relies on the latest periodic tick. See DRAFT-021.
 
 For a valid non-stale snapshot, ResumptionSeeder calls promotion/reissue helpers that swallow database errors and return zero/partial counts, then consumes the snapshot unconditionally. A transient write failure can therefore discard the recovery manifest and prevent retry on the next boot. Existing tests do not cover this recovery failure contract. See DRAFT-022.
+
+
+## Phase 0 findings backlog companion (24 Nov 2026)
+
+The source-to-sink findings in this Crosswalk are consolidated in `NEX_VERIFIED_DEFECT_BACKLOG.md` for Gate 0 review. That file separates source-confirmed defects, conditional risks, documentation/implementation mismatches and unresolved host/approval questions; its priority ordering is provisional, not an approved severity scheme. The top five doc-vs-code discrepancies are recorded there. No remediation is authorized by the backlog.
