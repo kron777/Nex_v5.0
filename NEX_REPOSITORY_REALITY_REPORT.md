@@ -982,3 +982,25 @@ Source hashes:
 - `run.py`: `73a2c58a4f5f0348135a46eb83d6cdd61db874e7`
 
 No runtime or test behaviour, schema, flags, database, experiment, host state, merge or deployment was changed.
+
+
+## M0.3–M0.4 source audit — Chat provenance retry measurement (24 Nov 2026)
+
+Inspected against PR #65 integrated source head `cffbbc94b5a494247d127abf2720886a08f7a567`.
+
+### DRAFT-012 — accepted provenance retry is not written to the provenance log
+
+When `NEX5_PROVENANCE=1` and the chat session is admin-scoped, `gui.server.api_chat` captures a pre-turn snapshot, generates a reply, and calls `read_provenance()` on that first reply. The default call logs the mirror/copy metrics and cue decision to `/tmp/nex5_provenance.log`. If the mirror score crosses the cue threshold, the route generates one retry and evaluates it using `read_provenance(..., log=False)`. If the retry is less mirrored, it replaces the first reply as the response returned to the user. No subsequent `read_provenance()` call with logging enabled records the accepted retry.
+
+Therefore, when the retry is accepted, the provenance file records the discarded first draft, not the final response delivered to the user. The trace overlay can record the retry output and selection, but the provenance metrics file does not carry the final response's mirror score. Any analysis treating that file as a distribution of delivered replies would be biased toward pre-cue drafts. This is conditional on the feature being armed and a retry actually being accepted; host flag state and incidence are UNKNOWN.
+
+The source's hard line remains explicit: provenance may identify mirror-dominance or say provenance is not established; it must not claim emotional authenticity or self-grounding. The grounding hint is explicitly unproven and is not used for the verdict.
+
+Test boundary: `tests/test_provenance.py` covers mirror scoring, closed verdict vocabulary, cue thresholds, snapshot capture, and fail-safe behaviour. It does not exercise the `gui.server.api_chat` retry-selection path or assert which reply is written to the provenance log. No route-level provenance retry test was identified in the inspected test tree.
+
+Source hashes:
+- `gui/server.py`: `d67df10f4449004c255e38b11b4a1888a4e4934c`
+- `theory_x/stage_provenance/provenance.py`: `92671a3e120a1935fab33f6d659ab806f1eb4cc6`
+- `tests/test_provenance.py`: `<escape>not separately re-hashed in this addendum</escape>`
+
+No runtime or test behaviour, database, flags, host state, experiment, merge or deployment was changed.
