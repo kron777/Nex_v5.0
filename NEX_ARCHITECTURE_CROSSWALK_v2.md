@@ -497,6 +497,60 @@ The reported “2,705 market + 5,228 self predictions resolved” is a historica
 
 `theory_x/life/pattern_loop.py` is a daily-activity pattern summariser: it reads identity/activity records, writes `pattern_log` and may write a Tier-6 `pattern_loop` belief. It does not generate falsifiable outcome predictions or resolve them against actual outcomes. No normal `run.py` start call was found for this loop. Do not call it the same thing as the world/self prediction scorecards.
 
+## 3.21 Evaluation artefacts vs downstream decision influence — source audit
+
+This audit separates evaluation output from an actual downstream consumer. It is a source-level finding against the inspected repository revision; it is not a claim about current host flags or live runtime behaviour.
+
+### `belief_warrant` — score construction exists; normal boot consumer is not established
+
+- `theory_x/stage_warrant/warrant.py::compute_all()` calculates survival, sustain, independent support and cross-branch synthesis components. Its `persist()` function creates/upserts the `belief_warrant` side table through the beliefs Writer.
+- `WarrantPass.start_loop()` checks `NEX5_WARRANT=1`, but the inspected `run.py` startup path does not construct or start `WarrantPass`. It does contain a separate `NEX5_WARRANT_RECORD=1` startup block for `WarrantRecorder`. The validation utility `tools/warrant_validate.py` calls `compute_all()` directly; it is an offline/read-only evaluation path, not a runtime consumer of the persisted table.
+- `WarrantRecorder.use_cycle()` reads non-identity `fountain_retrieval_log` rows, Fountain anchors, synergizer events, lineage and arc membership to build `belief_use_day(s)`; its survival pass writes `belief_survival`. These are recorder outputs and input features for the warrant calculation, not a read of `belief_warrant` by a decision sink.
+- The inspected decision sinks do not use `belief_warrant`: `BeliefRetriever` scores keyword/semantic relevance with confidence and graph activation; `VoiceEngine` uses semantic similarity, confidence, tier, reinforcement recency, drive alignment and genius score; `GlobalWorkspace` arbitrates surprise, momentum, bonsai, stakes and drive candidates. No `belief_warrant` read was found in those audited paths.
+- Important distinction: the warrant sustain component treats eligible retrieval/association records as use-days. That establishes recorded exposure/association under its operational definition; it does **not** by itself establish that a thought relied on the belief or that the belief changed a decision.
+
+**Classification:** score and persistence functions are constructed [L1]. A normal boot-time producer/consumer path for the `belief_warrant` table is not established in the inspected startup and decision paths. Host flag values and any external/manual invocation are UNKNOWN. Do not classify the score as influencing retrieval, retention or selection.
+
+### `emphasis_log` — post-generation observation, not a selection signal
+
+- `FountainGenerator` constructs `EmphasisEngine`, creates `emphasis_log`, scores a thought after generation, then writes the result against the newly created `fountain_event_id`.
+- `EmphasisEngine.score()` computes goal relevance, self relevance and prediction surprise as the current equal-weight combined score. Drive resonance is still separately computed/logged but was removed from the combined score after its prior ground-truth test was null (p=0.190, effect -0.013). The other three signals are explicitly unvalidated in the module documentation.
+- The score is post-hoc: it is computed after the candidate thought already exists. The inspected `generator.py`, `global_workspace.py`, `BeliefRetriever` and `VoiceEngine` paths contain no read of `emphasis_log` or use of the returned `EmphasisResult` to alter candidate choice, crystallization, belief retrieval or subsequent thought selection.
+
+**Classification:** constructed observation/evaluation mechanism [L1]; actual host/runtime writes remain UNKNOWN. No downstream decision influence is established in the inspected paths. Treat `emphasis_log` as a measurement record, not an active attention or retention mechanism.
+
+### Do not conflate `belief_warrant` with `śraddhā`
+
+`theory_x/stage_affect/sraddha.py` is a separate prompt-composition mechanism. It selects relevant Tier-6/7 beliefs using raw confidence, corroboration count and belief-edge degree; it does not query the `belief_warrant` table. `gui/server.py` adds its returned block to Chat context only when `NEX5_SRADDHA=1` and the session is admin-authorised. This is a source-level prompt influence path [L1], with the flag's live value UNKNOWN; it is not evidence that the warrant score is consumed.
+
+### A known evaluation-to-selection path: Genius score in VoiceEngine
+
+A distinct path does have a source-level downstream selection consumer:
+
+- `VoiceEngine._enrich_genius_scores()` reads `genius_tags` and attaches the corresponding score to eligible belief candidates.
+- `VoiceEngine._score_candidate()` includes the continuous genius score with weight 0.15 (unscored candidates receive the neutral 0.5 value); `query_reply()` selects the highest-scoring candidate and applies the `min_score` threshold.
+- This is an evaluation-to-candidate-ranking path in source when the VoiceEngine route is used. It is not a belief-warrant or emphasis-log consumer, and source presence does not prove live activation or improved task outcomes. No persistence/retention effect is established by this path.
+
+### Evidence vocabulary — do not collapse these states
+
+| Evidence state | What currently establishes it | What it does not establish |
+|---|---|---|
+| **Written** | A Writer insert/upsert creates a belief or evaluation row with an ID. | That another mechanism ever reads it. |
+| **Retrieved** | A retrieval result or `fountain_retrieval_log` row records a belief drawn into a retrieval/context path. | That it was attended to, relied upon, or changed a choice. |
+| **Context-present** | The belief is included in an assembled prompt/context block. | That the model used it in its reasoning or output. |
+| **Selected** | A specific candidate/winner ID and its score are recorded at the selection point. | That the selected item changed a later decision or outcome. |
+| **Retained-to-commit** | `generator.py` passes the top-ranked `own_sense` retrieval candidate as `retained_candidate_id` to crystallization; `crystallizer.py` emits a log linking that ID to the new crystallized belief ID. | A durable structured relation: the current smṛti link is an application log entry, not a new relational row. |
+| **Relied upon** | A downstream mechanism reads a specific item and uses it in a defined operation/decision, with an ID-linked trace. | That the result would differ if the item were absent. |
+| **Decision-changing** | A controlled ablation/counterfactual shows a downstream decision or outcome changes when the item/mechanism is removed. | Generalisation beyond the tested tasks. |
+
+The retrieval/warrant recorder's use-day metric must therefore be described as *retrieval/association exposure*, not as proven reliance. The smṛti hand-off is stronger than mere retrieval because the selected ID is passed into the crystallization call, but its current log-only link is not yet a durable, independently queryable retention edge.
+
+### Immediate Phase 0 trace implication
+
+The causal trace should preserve the distinction above. In particular, the Chat VoiceEngine trace should identify the selected `belief_id`, source and final score as bounded metadata (not raw content), while the Fountain trace should distinguish retrieved IDs, the retained-candidate hand-off, crystallization ID and any later speech-queue disposition. A retrieval row or evaluation score alone must never be labelled a relied-upon or decision-changing belief.
+
+No behavioural change, new evaluation, flag activation or schema migration is authorised by this audit. The next proof level for decision-changing effects belongs to the roadmap's later controlled ablation work, not to Phase 0 instrumentation.
+
 ## 4. Top documentation/source discrepancies
 
 These are discrepancies to reconcile, not automatic instructions to modify code or documentation.
