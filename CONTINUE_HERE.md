@@ -29,6 +29,10 @@ The live host was reported in the recent deep-dive handover as having been in ST
 
 Host measurements, model digest, resource use and fresh test baseline remain outstanding unless a later evidence capture is available.
 
+## Status discrepancy register
+
+See `docs/REPOSITORY_STATUS_RECONCILIATION_2026-11-23.md` for verified documentation conflicts: separate phase-numbering systems, stale 22 May CORPUS snapshot, and the historical 7 November R77 armed claim versus the later reported tripwire closeout. It is a discrepancy register, not a roadmap amendment or runtime confirmation.
+
 ## Current workstreams
 
 ### Phase 0 evidence foundation — draft PR #49
