@@ -445,6 +445,16 @@ The arc path is a useful example of why a SQL read is not automatically an opera
 
 **Correct classification:** arc detection is CONSTRUCTED but its normal startup producer is disabled; the remaining Fountain read/format path is operationally inert for prompt influence. The image-map shorthand "zero readers" is not literally accurate (a query remains), but it is accurate to say no functioning downstream cognitive consumer is established in this startup path. Existing rows may remain in the database; host contents and freshness are UNKNOWN.
 
+## 3.17 Auto-probe / GrooveBreaker — confirmed double-dead path
+
+- `theory_x/auto_probe/groove_breaker.py` has module constant `ENABLED=False` (disabled 2026-05-02). `check_and_maybe_log()` immediately returns when false; the observation writer is therefore inactive.
+- The 2026-07-26 file comment says the live construction/call sites were removed from `run.py`, `stage6_fountain/__init__.py` and `generator.py`. Current source confirms no GrooveBreaker construction in `run.py` and no `get_pending_probe_text()` call in the Fountain generator.
+- The intended delivery reader `get_pending_probe_text()` queries `auto_probe_log.delivered_at` and `selected_probe_text`. The constructor's cooldown reader and pending-approval reader also query `auto_probe_log`.
+- No `auto_probe_log` table definition exists in any of the six current canonical SQL schema files. The observation writer is disabled, the runtime object/call path is absent, and the intended reader has no current schema contract.
+- The separate `probes` table in `probes.db` is a probe catalogue; it does not substitute for `auto_probe_log`.
+
+**Conclusion:** this is not an active feedback edge. It is a retired, unwired subsystem with a disabled producer and a missing persistence contract. The map's “double-dead” description is supported, with the qualification that there are several dormant readers inside the orphaned class, not one active runtime reader. Do not restore the old wiring without first deciding whether the subsystem is still wanted and defining its schema/phase.
+
 ## 4. Top documentation/source discrepancies
 
 These are discrepancies to reconcile, not automatic instructions to modify code or documentation.
