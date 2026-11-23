@@ -158,7 +158,10 @@ def build_fountain(
                     except Exception:
                         pass
 
-                # Diagnostic: log what the loop is deciding this tick
+                # Diagnostic: log what the loop is deciding this tick.
+                # Keep the values as a local snapshot so the trace observer can
+                # reuse them without re-reading dynamic_state or any database.
+                _trace_input = {"interval_seconds": interval}
                 try:
                     _readiness = generator._evaluator.score(
                         dynamic_state, readers["beliefs"],
@@ -166,6 +169,8 @@ def build_fountain(
                     )
                     _elapsed = time.time() - generator.last_fire_ts()
                     _will_fire = generator._evaluator.is_ready(_readiness)
+                    _trace_input["readiness_score"] = _readiness
+                    _trace_input["will_fire"] = _will_fire
                     _mode_name = mode_state.current_name() if mode_state else "default"
                     logger.info(
                         "Fountain tick: readiness=%.2f interval=%ds elapsed=%.1fs "
@@ -176,6 +181,8 @@ def build_fountain(
                     pass
 
                 # Phase 0 causal trace — observational only, default OFF.
+                # Reuse the already-computed local tick snapshot: tracing must
+                # not call dynamic_state.status() a second time or add DB reads.
                 _trace_handle = None
                 _trace_api = None
                 if (os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1"
@@ -185,7 +192,7 @@ def build_fountain(
                         _trace_handle = _trace_api.begin_trace(
                             "fountain_cycle",
                             source_ref="theory_x/stage6_fountain/__init__.py::fountain_loop",
-                            payload=dynamic_state.status(),
+                            payload=_trace_input,
                         )
                         if _trace_handle is not None:
                             _trace_api.record(
@@ -193,7 +200,7 @@ def build_fountain(
                                 producer="dynamic_state",
                                 consumer="FountainGenerator.generate",
                                 source_ref="theory_x/stage6_fountain/__init__.py::fountain_loop",
-                                payload=dynamic_state.status(),
+                                payload=_trace_input,
                             )
                     except Exception:
                         _trace_handle = None
