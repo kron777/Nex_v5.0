@@ -1194,3 +1194,8 @@ Existing module tests cover the mirror metric, cue and snapshot, not the `api_ch
 ## CounterfactualNode — open-problem LRU rotation qualification (24 Nov 2026)
 
 The boot path starts CounterfactualNode without an environment gate. Each 300-second tick selects the oldest `open_problems.last_touched_at` row. It inserts accepted Tier-3 beliefs but does not update that problem's `last_touched_at`; TimeFetch's called `fetch_from_beliefs()` is read-only, and the node does not call `ProblemMemory.touch()`. Automatic promotion is disabled, so it does not remove the selected problem from the open pool. If no other subsystem touches/closes the oldest problem, it can be selected repeatedly and starve newer problems. The risk is conditional on external updates; no live incidence is established. Existing tests do not exercise multi-problem rotation. See DRAFT-013 in the Reality Report.
+
+
+## PredictiveSubstrate — external-input population parity (24 Nov 2026)
+
+The external-input producer takes up to 10 non-internal sense rows plus up to 10 user messages, concatenates sense first, then truncates to 10; it does not merge by timestamp. A full 10-row sense sample excludes chat entirely. The verifier then queries all sense events in the window without excluding `internal.*`, so internal events omitted from the prediction population can influence the score. The forecast and verification populations therefore differ. This can affect the surprise score and its downstream consumers (including DRAFT-011). Live incidence and score impact are UNKNOWN; current fixture tests do not exercise mixed-source chronological selection or producer/verifier filter parity. See DRAFT-014 in the Reality Report.
