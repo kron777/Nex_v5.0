@@ -17,12 +17,12 @@ from typing import Dict, List, Optional
 
 from watcher.evidence import utc_now
 
-from .extrapolator import rule_catalogue, scope_summary
-from .knowledge import (affinity_drift_idea, config_invariant_idea, genius_authority_audit,
-                        genius_tagger_idea, migration_defect_idea)
+from .extrapolator import frontier_breakdown, rule_catalogue, scope_summary
+from .knowledge import (affinity_drift_idea, belief_decay_idea, config_invariant_idea,
+                        genius_authority_audit, genius_tagger_idea, migration_defect_idea)
 from .memory import (CycleStore, PatternMemory, accuracy_series, comparability_assessment,
                      compare, derive_lessons, metrics_series, record_actual, transfer_observations)
-from .model import CycleRecord, EXECUTED_VERIFIED, IMPORTED_RETROSPECTIVE, Pattern
+from .model import CycleRecord, EXECUTED_VERIFIED, IMPORTED_RETROSPECTIVE, NATIVE_PLANNING, Pattern
 from .orchestrator import _active_experiments, _record_executed, _run_one
 
 
@@ -379,4 +379,77 @@ def run_catalogue(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
         "patterns": [p.to_dict() for p in memory.patterns()],
         "signal_authority_audit": genius_authority_audit(repo_dir, "genius"),
         "generated_at": utc_now(),
+    }
+
+
+def _converging_nodes(relationships: List[dict]) -> List[str]:
+    """Obligations reached by >1 depends_on edge — shared prerequisites / converging branches."""
+    from collections import Counter
+    indeg = Counter(r["dst"] for r in relationships if r["kind"] == "depends_on")
+    return sorted(k for k, v in indeg.items() if v > 1)
+
+
+def run_stage2_belief_decay(repo_dir: str = ".", workdir: str = "rdo/.cycles",
+                            review: Optional[dict] = None) -> dict:
+    """RDO v1.3 §16 Stage-2 Extrapolator MVP: run the real belief-DEVELOPMENT objective
+    (staleness-based confidence decay) end to end and persist it for resume. Reuses the
+    generic driver (`_run_one` -> `run_cycle`) and `CycleStore`; it introduces no new
+    persistence, graph or reconciliation mechanism. Read-only: it proposes work, it never
+    touches the live belief store."""
+    memory = PatternMemory(os.path.join(workdir, "patterns.jsonl"))
+    store = CycleStore(workdir)
+    cycle, _summary = _run_one("belief_decay_mvp", belief_decay_idea(), repo_dir, memory, store, [])
+    obls = cycle.obligations
+
+    # ---- calibration ONLY from a genuine, authorised planning review ----
+    # A predetermined demonstration finding must NOT become a learned production pattern. When no
+    # review is supplied (the default, and the CLI path), nothing is written to PatternMemory.
+    # A genuine review is a reviewed PLANNING outcome (NOT an execution outcome): the cycle stays
+    # kind=native_planning (nothing was built), and every derived calibration pattern carries the
+    # reviewer's explicit provenance so it is attributable and never confused with execution.
+    comparison = None
+    calibration: List[Pattern] = []
+    review_report: object = "no review supplied — no calibration pattern written"
+    if review is not None:
+        reviewer = review.get("reviewer")
+        if not reviewer:
+            raise ValueError("a genuine planning review must name its reviewer (provenance)")
+        actual = dict(review)
+        actual["review_kind"] = "planning_review"       # distinguishes a reviewed plan from execution
+        record_actual(cycle, actual)
+        comparison = compare(cycle)                      # predicted vs reviewed discrepancies
+        for p in derive_lessons(cycle, comparison):      # candidate patterns (low, capped confidence)
+            p.provenance = f"{p.provenance}|planning_review|reviewer={reviewer}"
+            memory.add(p)                                # durable: appended to patterns.jsonl
+            calibration.append(p)
+        store.save(cycle)                                # durable: cycle now carries the reviewed actual
+        assert cycle.kind == NATIVE_PLANNING, "a reviewed plan must not be recorded as executed work"
+        review_report = {
+            "kind": "planning_review (not an execution outcome)",
+            "reviewer": reviewer,
+            "predicted": cycle.predicted,
+            "reviewed": actual,
+            "comparison": comparison,
+            "calibration_patterns": [p.key for p in calibration],
+        }
+    return {
+        "stage": "RDO v1.3 §16 Stage 2 — Extrapolator MVP",
+        "objective": cycle.objective,
+        "obligations_discovered": len(obls),
+        "max_depth": max(o["depth"] for o in obls),
+        "dependency_edges": len(cycle.relationships),
+        "counts": cycle.counts,
+        "reused_existing": cycle.reused,
+        "net_new_missing": cycle.missing,
+        "anti_requirements": cycle.anti_requirements,
+        "deferred_frontier": cycle.frontier,
+        "frontier_breakdown": frontier_breakdown(cycle.frontier),
+        "converging_prerequisites": _converging_nodes(cycle.relationships),
+        "work_packages_ordered": [(p["key"], p["eligibility"]) for p in cycle.work_packages],
+        "verification": cycle.verification,
+        "prediction_vs_review": review_report,
+        "persisted_to": os.path.join(workdir, "cycle_belief_decay_mvp.json"),
+        "resume_in_new_process":
+            f"python -c \"from rdo.memory import CycleStore; "
+            f"print(CycleStore('{workdir}').load('belief_decay_mvp').objective)\"",
     }

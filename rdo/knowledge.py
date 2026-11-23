@@ -78,6 +78,88 @@ def genius_tagger_idea() -> Tuple[str, List[str], List[Obligation], Dict[str, Li
     return objective, assumptions, seeds, signatures
 
 
+def belief_decay_idea() -> Tuple[str, List[str], List[Obligation], Dict[str, List[Signature]]]:
+    """Stage-2 Extrapolator demonstration on a real belief-DEVELOPMENT objective.
+
+    Objective: add staleness-based confidence decay for beliefs — a belief not
+    reactivated within a window has its confidence decayed on a bounded schedule,
+    never below a floor, without deleting beliefs or breaking consumers. This is a
+    development objective (build a mechanism), NOT the Stage-4 read-only belief
+    audit. Existing belief mechanisms are inspected read-only ONLY to ground the
+    reconciliation signatures; nothing here touches the live store.
+
+    It exercises the Extrapolator end to end: structure the objective, recurse
+    obligations (each with parent, rationale, class, confidence, impact, evidence
+    need), reconcile against bounded repository evidence (the real `belief_activation`
+    recency table is REUSE; the decay policy/daemon are MISSING), surface duplication
+    as anti-requirements, build a traceable dependency graph, and persist for resume.
+    """
+    objective = ("Add staleness-based confidence decay for beliefs: decay the confidence of "
+                 "beliefs not reactivated within a window, on a bounded schedule, never below a "
+                 "floor, without deleting beliefs or breaking consumers.")
+    assumptions = [
+        "belief recency is already tracked in belief_activation(last_touched_at) (substrate/init_db.py)",
+        "confidence is an existing belief column; decay must reuse it, not add a second store",
+        "decay is bounded + advisory to lifecycle: it lowers confidence to a floor, it never deletes",
+    ]
+    seeds = [
+        Obligation("belief_decay_policy", "staleness decay policy (rate, window, floor)", "score",
+                   rationale="define how much confidence decays per staleness unit, with a floor",
+                   impact="without a calibrated policy, decay is arbitrary and could de-rank valid beliefs"),
+        Obligation("belief_staleness_input", "read per-belief recency (last_touched_at)", "persistence",
+                   rationale="decay needs a recency input per belief",
+                   impact="if recency is unavailable, decay cannot target stale beliefs"),
+        Obligation("belief_decay_daemon", "apply decay on a bounded schedule", "daemon",
+                   rationale="decay must run continuously, not once",
+                   impact="without a scheduled applier, confidence never actually decays at runtime"),
+        Obligation("belief_decay_consumer_safety", "consumers tolerate decayed confidence", "consumer",
+                   rationale="downstream readers must not break when confidence drops",
+                   impact="an unguarded consumer could regress when a belief's confidence falls"),
+        Obligation("belief_decay_consumer_generation", "generation re-ranks beliefs by decayed confidence",
+                   "consumer",
+                   rationale="a SECOND consumer of the same decayed-confidence signal (generation path); "
+                             "it shares the single runtime-verification session with the safety consumer",
+                   impact="without re-ranking, generation keeps surfacing stale beliefs despite decay"),
+        Obligation("belief_decay_floor_invariant", "confidence never below floor; beliefs never deleted",
+                   "invariant",
+                   rationale="decay is bounded and non-destructive by construction",
+                   impact="an unbounded decay could silently erase belief signal"),
+        Obligation("belief_decay_runtime_verification", "observe decay firing on the live store",
+                   "runtime_verification", classification=NECESSARY,
+                   rationale="source existence does not prove the decay actually runs",
+                   impact="without runtime observation, 'decay works' is an unverified claim"),
+        Obligation("anti_second_confidence_store", "do NOT add a second confidence field/store",
+                   "anti_requirement", classification=ANTI_REQUIREMENT,
+                   rationale="beliefs already persist a confidence value; a second store fragments it",
+                   impact="duplicate confidence stores would diverge and corrupt the lifecycle"),
+        Obligation("anti_delete_stale_beliefs", "do NOT delete or hard-expire stale beliefs",
+                   "anti_requirement", classification=ANTI_REQUIREMENT,
+                   rationale="decay lowers confidence to a floor; deletion loses provenance + history",
+                   impact="deleting stale beliefs would destroy auditable history irreversibly"),
+    ]
+    signatures: Dict[str, List[Signature]] = {
+        # REUSE: the recency table the decay depends on already exists
+        "belief_staleness_input": [
+            Signature(r"CREATE TABLE IF NOT EXISTS belief_activation", "substrate/init_db.py",
+                      "belief_activation recency table (reuse)"),
+            Signature(r"last_touched_at", "substrate/init_db.py", "recency column (reuse)")],
+        # MISSING: no decay policy / applier exists yet (net-new development)
+        "belief_decay_policy": [
+            Signature(r"confidence.{0,20}decay|staleness.{0,20}decay|def .*decay", "substrate",
+                      "staleness decay policy")],
+        # scoped to substrate CODE (not prose): a belief-confidence decay applier is
+        # genuinely absent — an earlier repo-wide signature matched only a journal note,
+        # a false reuse that would violate "no verification without acceptance evidence".
+        "belief_decay_daemon": [
+            Signature(r"confidence_decay|class .*ConfidenceDecay|def run_decay", "substrate",
+                      "belief-confidence decay applier (code)")],
+        # the confidence store the anti-requirement protects DOES exist
+        "anti_second_confidence_store": [
+            Signature(r"confidence", "substrate/init_db.py", "confidence already persisted (do not duplicate)")],
+    }
+    return objective, assumptions, seeds, signatures
+
+
 def migration_defect_idea() -> Tuple[str, List[str], List[Obligation], Dict[str, List[Signature]]]:
     """A DIFFERENT development pattern from the genius deploy cycle: defect
     remediation. Objective = the two pre-existing migration bugs listed under

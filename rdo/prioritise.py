@@ -110,8 +110,10 @@ def build_work_packages(obligations: Dict[str, Obligation],
         groups.setdefault(ob.key.split(".")[0], []).append(ob)
 
     packages: List[WorkPackage] = []
-    for root, obs in sorted(groups.items()):
-        obs.sort(key=lambda o: -priority_dimensions(o, indeg)["_provisional_sort_score_uncalibrated"])
+    for root, obs in groups.items():
+        # within a package: priority desc, then canonical key for a deterministic tie-break
+        obs.sort(key=lambda o: (-priority_dimensions(o, indeg)["_provisional_sort_score_uncalibrated"],
+                                o.key))
         blockers: List[str] = []
         for o in obs:
             elig = eligibility(o, obligations, relationships, active_experiments, authorised_gates)
@@ -125,4 +127,18 @@ def build_work_packages(obligations: Dict[str, Obligation],
             blockers=sorted(set(blockers)), priority_dimensions=dims,
             anti_requirements=anti, reversible=reversible,
             note="net-new necessary/conditional obligations not satisfied by existing mechanisms"))
+
+    # INTER-PACKAGE ordering (meaningful, NOT a full topological sort):
+    #   1. eligibility tier first — every buildable (eligible) package precedes every blocked
+    #      one, so no ready package sorts behind one with unmet prerequisites;
+    #   2. within a tier, the package's top obligation priority, descending;
+    #   3. then the canonical key, for a deterministic tie-break.
+    # LIMITATION (stated, not overstated): this is NOT a full prerequisite topological order —
+    # BLOCKED packages are ranked by score among themselves, so one blocked package can precede
+    # another that it depends on. Hard blockers are preserved on each package (WorkPackage.blockers)
+    # and unresolved prerequisites stay visible; full prerequisite ordering is left to Stage 3.
+    def _pkg_score(p: WorkPackage) -> float:
+        return max((d["_provisional_sort_score_uncalibrated"] for d in p.priority_dimensions.values()),
+                   default=0.0)
+    packages.sort(key=lambda p: (0 if p.eligibility == "eligible" else 1, -_pkg_score(p), p.key))
     return packages

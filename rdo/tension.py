@@ -89,18 +89,49 @@ def _find_cycles(edges: List[Relationship]) -> List[List[str]]:
     return cycles
 
 
+def _classify_cycle(cycle: List[str], relationships: List[Relationship]) -> str:
+    """Classify a detected cycle from edge evidence, retaining UNKNOWN when unclear:
+      * prerequisite_cycle — every edge is `depends_on`: a circular build order that cannot
+        be satisfied (must be broken);
+      * feedback_loop      — the cycle runs through at least one `influences` edge: a candidate
+        feedback loop that may be essential (examine gain/stability, do not auto-remove);
+      * unknown            — the edges along the cycle cannot all be resolved (insufficient
+        evidence to classify).
+    `cycle` is a path like [A, B, C, A]."""
+    kinds: List[str] = []
+    pairs = set(zip(cycle, cycle[1:]))
+    for a, b in pairs:
+        ks = {r.kind for r in relationships if r.src == a and r.dst == b
+              and r.kind in ("depends_on", "influences")}
+        if not ks:
+            return "unknown"               # an edge we cannot resolve -> do not over-claim
+        kinds.extend(ks)
+    if "influences" in kinds:
+        return "feedback_loop"
+    if kinds and all(k == "depends_on" for k in kinds):
+        return "prerequisite_cycle"
+    return "unknown"
+
+
 def assess_system(obligations: Dict[str, Obligation],
                   relationships: List[Relationship]) -> List[TensionAssessment]:
     out: List[TensionAssessment] = []
 
-    # stability: feedback cycles among obligations
+    # stability: cycles among obligations — detect, CLASSIFY (where evidence supports), report
     cycles = _find_cycles(relationships)
     if cycles:
+        classified = [{"cycle": " -> ".join(c), "classification": _classify_cycle(c, relationships)}
+                      for c in cycles]
+        labels = {cc["classification"] for cc in classified}
+        # a purely prerequisite (depends_on) cycle is an unsatisfiable build order -> underdeveloped;
+        # feedback loops / unknown cycles stay UNKNOWN (do not force a problematic verdict).
+        verdict = UNDERDEVELOPED if "prerequisite_cycle" in labels else TENSION_UNKNOWN
         out.append(TensionAssessment(
-            "system", "feedback_cycles", TENSION_UNKNOWN, inference=True,
+            "system", "feedback_cycles", verdict, inference=True,
             evidence=[" -> ".join(c) for c in cycles],
-            note="feedback cycle(s) among obligations — examine stability/gain before building; "
-                 "do not auto-remove (some cycles are essential)"))
+            dimensions={"classified_cycles": classified},
+            note="cycle(s) detected and classified: prerequisite cycles must be broken; feedback "
+                 "loops examined for gain/stability; unknown ones reviewed — do not auto-remove"))
 
     # resource concentration: high in-degree obligations (potential bottleneck)
     indeg: Dict[str, int] = {}
