@@ -1,0 +1,194 @@
+# NEX Chat Pathway Audit — Phase 0 Source Evidence
+
+**Status:** Working source audit; not a Gate 0 submission  
+**Inspection date:** 2026-11-23  
+**Audited implementation revision:** `3d5df48e6539818097b58b6e936059fae946ceca` (PR #65 integrated Phase 0 branch)  
+**Scope:** `gui/server.py::api_chat`, its directly called Chat routing/selection mechanisms, the VoiceEngine retrieval path, and the default boot wiring inspected at the same source revision.  
+**Method:** Static source inspection through GitHub file contents. No local checkout, deployed host, live database, process, or runtime flags were inspected.
+
+> This document is a revision-bound source map, not a claim that the inspected branch is deployed or that any environment flag is active. Optional state objects and environment flags are source-level conditions only; their live values remain UNKNOWN.
+
+## 1. Executive findings
+
+The Chat handler is not one linear retrieval-to-LLM pathway. It contains two distinct reply-producing routes after a shared input/session/routing stage:
+
+1. **VoiceEngine substrate hit:** when the request is not a probe or instruction query, a VoiceEngine is present, and `voice_mode == "use_substrate"`, a qualifying candidate can be returned verbatim. In the operator-composition case the candidate is instead prepended as grounding and the request continues to model composition.
+2. **VoiceClient composition:** when no direct substrate reply has been selected, the handler builds a prompt from retrieved beliefs, multiple optional and always-on faculty/context contributors, and ordered prompt blocks, then calls `state.voice.speak()`. Anti-repeat and provenance may each trigger one additional model call.
+
+The existing trace overlay represents the main route boundaries, but does not yet expose a complete source-to-sink causal graph for Chat. In particular, many context contributors are combined into one digest-only `context_selection` record without individual producer IDs or explicit parent edges. The trace must not be described as complete causal closure.
+
+A source-comment discrepancy was also found: the FocalSet block is labelled “log-only attention tracking”, but it updates per-session Working Memory, and that memory can be injected into the same turn's prompt on a later branch. This is a source-confirmed prompt-influence path, conditional on the relevant objects/register/belief-count conditions. It is not evidence that the path is active on the deployed host.
+
+## 2. Shared entry and routing
+
+### 2.1 Request acceptance and session persistence
+
+- `POST /api/chat` reads JSON, strips `prompt`, and returns HTTP 400 for an empty prompt before opening a trace.
+- The trace overlay is optional and starts only when `NEX5_TRACE_OVERLAY=1`; accepted non-empty prompts receive an `input_arrival` record.
+- Register selection uses an explicit `register` value when supplied; otherwise the source currently selects Philosophical (falling back to the default register).
+- If a conversations Writer exists, the handler creates a session row when necessary and inserts the user message. Writer failures are caught and logged; the request continues. A missing Writer means those message writes are not performed.
+- A best-effort `ec_decision` log records the chosen register and whether the caller overrode it.
+
+### 2.2 Membrane / WorldModel retrieval alternatives
+
+- If both `state.membrane` and `state.world_model` exist, the handler calls `membrane.route()` with the prompt, the WorldModel retriever and dynamic state. It takes `belief_text` and a possible `register_hint` from the route result.
+- Otherwise, if a WorldModel exists, it calls the retriever directly with active dynamic branch hints and a limit of three. Chat then applies its own token-overlap filter (at least two shared content tokens) and caps the formatted belief block at approximately 800 characters.
+- If neither route is available, the initial belief context remains empty.
+- The trace's `retrieval` event records the formatted belief block at this point, before the later Chat-specific additions described below. It does not separately identify each underlying belief row or every downstream context producer.
+
+The membrane route and direct-retriever fallback are alternatives, not two sequential retrieval passes.
+
+## 3. Context contributors after initial retrieval
+
+The following source paths can add material or affect the prompt after the initial retrieval record. Their presence in AppState and their internal conditions are not proof that they produce content on every turn.
+
+| Contributor / mechanism | Source behaviour in the audited handler | Causal-trace status / limitation |
+|---|---|---|
+| BehaviouralSelfModel | On an INSIDE membrane route, ticks and formats behavioural metrics; appends non-empty text to `belief_text`. | No distinct trace record or parent edge. |
+| SelfModel snapshot | Reads the route's self-model snapshot and logs its composition; source comment says its content was already injected by the router's inside route. | Handler block is observability; actual injection is upstream in the membrane route and is not separately identified in the current Chat trace. |
+| Harmonizer | On an INSIDE route with WorldModel, ticks; if active paradoxes exist, appends formatted tension text. | No distinct trace record or parent edge. |
+| Disturbance | Reads WorldModel disturbance; under register conditions appends a tension note and decrements its remaining-cycle value. | This is a state-changing read/consume path as well as prompt assembly; no distinct trace edge. |
+| ProblemMemory | Finds matching open problems and appends the first match's formatted text. | No distinct trace record. |
+| GoalManager | Reads active goal and logs it; the current handler explicitly does not append goal text to Chat prompt. | Read/log only in this handler path; do not classify as prompt influence here. |
+| Metacognition | Ticks, formats a self-pattern summary and appends it when non-empty. | No distinct trace record. |
+| NovelAssociation | Formats the latest unannotated association and appends it when non-empty; comments describe marking it annotated. | No distinct trace record or explicit association ID edge. |
+| SelfNarrative | Formats topic-matched autobiographical context and appends it when non-empty. | No distinct trace record. |
+| AffectState | Reads/formats current affect and appends it when non-empty. | No distinct trace record. |
+| DriveEmergence | Reads/formats current drive topic and appends it when non-empty. | No distinct trace record. |
+| SelfMindView | Reads current cognitive-state summary and appends it when non-empty. | No distinct trace record. |
+| SocialPresence | Reads current social-posture summary and appends it when non-empty. | No distinct trace record. |
+| ToolCaller / ToolRegistry | Heuristically chooses a tool, builds kwargs, executes it, and appends a successful result's prompt block. | No explicit tool-selection, invocation, result, or prompt-injection trace edge. Successful tool name is later stored in the assistant message row. |
+| FocalSet / WorkingMemory | Retrieves up to ten raw beliefs, updates FocalSet, adds focal contents to per-session Working Memory, then reads/logs that memory. | **Not merely log-only:** Working Memory is read later in the same handler and may be injected into the prompt (see §4). No trace edge connects the selected belief IDs to that injection. |
+| Spectrum standing-points | Reads random `source='spectrum'` beliefs for a foundation block; for Philosophical/thin context, reads up to four more and appends Tier 1 markers. | No trace record for row IDs or random selection. |
+| Cross-turn WorkingMemory injection | For Conversational register with enough counted Tier markers, appends up to five active Working Memory items. | No trace record connecting prior-turn memory entries or FocalSet additions to the composed prompt. |
+| Faculty prompt blocks | May include operator model/anchor, compassion, compass, equanimity, apramada, virya, sraddha, prasrabdhi, affect-carry, recent conversation, spectrum, and tag-retrieval blocks. | Collapsed into one `context_selection` digest; individual block provenance and flag decisions are not represented as separate edges. |
+
+Errors in many optional contributors are caught and treated as absence of that contribution. The resulting prompt can therefore vary with object availability, internal state, flags, and error paths.
+
+## 4. FocalSet / WorkingMemory discrepancy
+
+The source labels the FocalSet section “log-only attention tracking” and the nested Working Memory section “log-only”. The code does more than log:
+
+1. It retrieves up to ten raw beliefs for the current prompt.
+2. It advances the FocalSet tick and calls `_focal_set.update()`.
+3. It obtains focal belief IDs.
+4. For each focal ID, it adds the corresponding belief content to the session Working Memory object via `_wm.add()`.
+5. Later in the same request, the Working Memory injection branch reads active items and, when the session exists, the register is Conversational, and the previously computed `belief_count` meets `CHAT_GAP_MIN_BELIEFS`, appends up to five items to `belief_text`.
+
+Therefore, under those conditions, the FocalSet → WorkingMemory path can influence the current Chat prompt, not merely produce logs. The code also allows the accumulated Working Memory to affect later turns. This is a documentation/comment accuracy issue and an omitted causal edge in the current trace, not a finding that the mechanism is defective or currently active in deployment.
+
+A related ordering fact: `belief_count` is computed before the spectrum and Working Memory additions. The gap decision therefore uses the earlier assembled `belief_text`, not a recount of the final prompt after those later additions.
+
+## 5. Gap gate and response routing
+
+After the first group of context contributors and tool execution:
+
+- The final register may be overridden by the membrane route if the caller did not explicitly choose one.
+- The handler computes `belief_count` by counting the `- [Tier` marker in the current `belief_text`.
+- Probe requests, social queries, and configured thin-register cases are exempt from the ordinary thin-belief deflection.
+- Otherwise, when the count is below `CHAT_GAP_MIN_BELIEFS`, the handler records a gap-gate deflection, attempts to persist the refusal message, records a trigger-detector gap deflection if available, closes the trace, and returns without entering VoiceEngine or VoiceClient composition.
+- If the gate passes, later spectrum/WorkingMemory material can still be added before the response route is selected.
+
+The gap refusal is a distinct response sink. It is not a model-generated answer.
+
+### 5.1 VoiceEngine substrate route
+
+The route is eligible only when all are true:
+
+- not a probe;
+- not an instruction query according to `_is_instruction_query()`;
+- `state.voice_engine` exists;
+- `state.voice_mode == "use_substrate"`.
+
+The normal `run.py` source constructs VoiceEngine and supplies it to AppState, but that source fact does not establish the deployed runtime's mode or successful construction.
+
+VoiceEngine's `query_reply()` calls TimeFetch, which sweeps four sources:
+
+1. Beliefs: keyword LIKE retrieval with confidence and content-length filters.
+2. Novel associations: matched pairs joined back to beliefs.
+3. Arcs: theme-summary matches excluding return-transformation arcs.
+4. Open problems: ProblemMemory matches.
+
+It deduplicates by content, preserving source priority belief → novel association → arc → problem, and caps the pool at 40. Belief candidates are enriched with tier and reinforce count; when enabled and the conversations Reader is available, belief candidates may also be enriched with Genius scores through belief → Fountain crystallization → genius-tag lookups. Candidates are scored using semantic similarity, confidence, tier, reinforcement count, drive alignment, and Genius score. The best candidate is returned only when it meets `min_score` (default 0.6 in the class source); otherwise the route misses.
+
+On a hit:
+- ordinary non-probe/non-instruction requests use the candidate content directly as the reply and skip VoiceClient composition;
+- the admin/operator-composition case retains the candidate as grounding and continues to the composition route.
+
+On a miss or VoiceEngine exception, the handler continues to the VoiceClient route. VoiceEngine records a query-trigger row; that write is not itself proof that the candidate was used as the reply. The handler's `substrate_voice` trace event records hit/miss and a source-scoped candidate reference when an origin ID exists, but does not expose the underlying TimeFetch read sequence or candidate-pool construction as separate causal events.
+
+### 5.2 VoiceClient composition route
+
+When no direct substrate reply is selected:
+
+- Successful operator composition may prepend the VoiceEngine hit as grounding.
+- Tag retrieval, operator model/anchor, recent conversation, compassion, compass, equanimity, apramada, virya, sraddha, prasrabdhi, and affect-carry blocks are assembled in a defined prompt order.
+- `_assemble_chat_blocks()` concatenates all blocks when `NEX5_CHAT_WORKSPACE` is not enabled. When enabled, it performs budgeted salience selection, with compassion and compass exempt from eviction. Optional self-presence salience carry is a further conditional branch. The ablation flag can omit non-exempt block kinds.
+- The final prompt combines those blocks with the assembled `belief_text` and user prompt (or uses the block string plus prompt when no belief text exists).
+- The handler calls `state.voice.speak()`.
+- If Chat Memory is active and the reply matches recent openings, it may issue one anti-repeat retry. A retry replaces the first answer only if it passes the repeat check.
+- If provenance is active and the reply triggers a cue, it may issue one provenance retry. The retry replaces the first answer only if the measured mirror score is lower.
+- Question-parrot stripping and final reply sanitization occur before persistence and HTTP response.
+- A successful assistant-message insert records the selected tool name when the tool call succeeded. Persistence failure is caught; the response is still returned.
+
+The trace records a composed prompt digest, model input/output markers, retry decisions and final sanitization/persistence. It does not individually link all upstream faculty, tool results, FocalSet/WorkingMemory items, random spectrum rows, and other substrate reads into the selected model input.
+
+## 6. Source-to-sink map and evidence boundary
+
+| Route | Source → decision/transform → sink | What source establishes | What remains UNKNOWN |
+|---|---|---|---|
+| Empty prompt | Request JSON → validation → HTTP 400 | Rejected before trace/session/message path. | Host request mix/frequency. |
+| Gap refusal | Input/retrieval/context → Tier-marker count gate → refusal message/HTTP JSON | Conditional early response path; no VoiceEngine/VoiceClient call after deflection. | Live flag/object state and observed frequency. |
+| Substrate hit | User query → TimeFetch candidates → VoiceEngine scoring/threshold → candidate content → sanitize/store/HTTP | Source-defined direct-reply path and candidate-ranking mechanism. | Live mode, candidate hit rate, actual downstream use on host, outcome quality. |
+| Substrate miss / ineligible | Query → no eligible candidate or miss → prompt composition → VoiceClient → sanitize/store/HTTP | Source-defined fallback to composition. | Host path frequency and backend/model behaviour. |
+| Operator hybrid | VoiceEngine hit + admin/flag → grounding prepended → VoiceClient composition | Source-defined hybrid route. | Live admin/flag conditions and use frequency. |
+| Model retries | First VoiceClient answer → repeat/provenance checks → at most one retry per guard → selected reply | Conditional bounded retry paths and acceptance conditions. | Runtime incidence and effects. |
+| Tool contribution | Prompt → heuristic selection → registry execution → successful result injected → assistant row records tool name | Source-defined tool path and persistence of successful tool name. | Which tools are registered/live, execution incidence, exact tool side effects. |
+
+No route in this table proves that context was attended to, relied upon, or decision-changing. A model request containing context is evidence of context presence, not model reliance.
+
+## 7. Trace coverage assessment against PR #65
+
+The tested overlay has useful, explicit route markers: input arrival, user-message Writer delta, initial retrieval, gap gate, VoiceEngine query/hit/miss, composed prompt input, model output, repeat/provenance retry markers, sanitization, assistant-message Writer delta, and trace end.
+
+The following causal edges remain unrepresented or only coarsely represented:
+
+- Individual retrieved belief IDs and the retrieval SQL/result set.
+- Membrane route outcome and its internal self-model/context inputs.
+- Each subsequent faculty/context append operation.
+- Disturbance state read/decrement and ProblemMemory matching result.
+- FocalSet selected IDs → WorkingMemory writes → current/later prompt injection.
+- Random spectrum rows and the exact selection outcome.
+- Tool selection, invocation, result, and prompt insertion.
+- TimeFetch's four candidate sources, candidate deduplication, tier/reinforcement enrichment, Genius cross-database enrichment, score components, and selected candidate's full provenance.
+- Chat Workspace block-level salience selection, exclusions, budget and selected/dropped block identities.
+- Provenance snapshot inputs and the causal basis for a provenance retry.
+- Direct SQL readers and stateful objects whose reads are not routed through the NEX Reader observer.
+
+The current `context_selection` record is a useful boundary marker for the composed prompt, but its parent list (initial retrieval, gap gate, and optional substrate voice) is not a complete list of the mechanisms that contributed to its payload. Do not infer omitted parentage from source order.
+
+Trace event names such as `model_input` and `model_output` are observer labels; they do not prove that the external model used a particular context item or that a reply was correct.
+
+## 8. Tests and what they establish
+
+PR #65 includes a paired Chat trace OFF/ON route fixture using the Flask route and isolated SQLite substrate. The test compares the tested request/result path and database/Reader observations under the fixture's controlled conditions. The latest integrated PR #65 CI run `45250499152` passed full pytest and the mind-map sourcing check on head `3d5df48e6539818097b58b6e936059fae946ceca`.
+
+That result does not establish:
+- every Chat branch, flag combination, tool, VoiceEngine candidate source or retry path is covered;
+- arbitrary direct SQLite access is observed;
+- runtime flag values or host wiring;
+- statistical latency neutrality;
+- model reliance or decision-changing effect;
+- deployed-host behaviour.
+
+No live trace was captured, and no production prompt, private conversation, or runtime database content is included in this audit.
+
+## 9. Remaining Phase 0 work
+
+1. Complete source-level edge tracing for the unrepresented contributors and branches above, starting with the FocalSet/WorkingMemory path and tool path because they have explicit prompt influence.
+2. Audit the membrane route and its internal producer dependencies, and the full VoiceEngine candidate-selection path, with IDs and exact read/write boundaries.
+3. Audit the Chat handler's alternate error, retry, admin and feature-flag branches against the Frozen V2.1 specification when the exact authoritative copy is available.
+4. Obtain the exact Frozen V2.1 specification and Founder Sign-Off record; no acceptance criterion should be inferred from this source audit.
+5. Obtain approved host-side evidence before claiming runtime activation or capturing a production trace.
+
+**Gate status:** This is a partial source audit. It does not complete the Master Roadmap's forward/backward audit, does not satisfy Gate 0, does not authorise behavioural changes, and does not supersede any higher-authority document.
