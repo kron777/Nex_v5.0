@@ -1219,3 +1219,18 @@ Source hashes:
 - tests/test_executive_control.py: d0ffe94a36e60cb30536759090affc09cfc1c3b1
 
 No register, prompt, runtime or test behaviour was changed.
+
+
+### DRAFT-024 — Chat passes an empty belief set to ToolCaller even when local retrieval has run
+
+The active api_chat route calls ToolCaller.should_use_tool(prompt, []) rather than passing the beliefs retrieved earlier in the same route. ToolCaller documents its factual web-fetch fallback as “No beliefs found + query looks factual”; with an unconditional empty list, that predicate is always eligible for factual-pattern prompts, even when the route has already assembled local belief context. The heuristic also selects web_fetch for current/latest/today and price/crypto patterns.
+
+This may be an intentional preference for external freshness, but the actual caller does not implement the documented “only when no local beliefs were found” condition. It can cause unnecessary external fetches and increases the reachable surface of DRAFT-016. The precise route branch and intent should be confirmed before any correction.
+
+Test boundary: ToolCaller unit tests include a non-empty-beliefs case that suppresses the factual fallback, but no api_chat integration test verifies that the route passes its actual retrieval result or intentionally forces the fallback.
+
+Source hashes:
+- gui/server.py: d67df10f4449004c255e38b11b4a1888a4e4934c
+- theory_x/stage_capability/tool_caller.py: 31faba3cc49b60f21069679e920c73442249f919
+
+No tool call, network request or runtime behaviour was changed.
