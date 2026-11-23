@@ -887,3 +887,45 @@ The exact-head PR65 workflow passed at source revision `cffbbc94b5a494247d127abf
 
 A separate `NEX_R77_diagnostics.txt` snapshot reports `NEX5 is currently OFF` (19 Nov 2026). The 16 Nov runtime log shows a clean SIGTERM/STANDBY transition, followed by keepalive/power-switch supervisor activity. These are historical observations only; they do not establish the process or standby-marker state on 23 Nov. The keepalive/power-switch may control relaunch, so Manus must inspect the current marker, process tree and supervisor before any host-side work.
 
+
+
+## M0.3–M0.4 source audit — Stage World prediction and self-prediction (24 Nov 2026)
+
+Inspected against PR #65 integrated source head `cffbbc94b5a494247d127abf2720886a08f7a567`. This pass follows the Stage World producers through loop startup, persistence, calibration consultation and the existing tests. It is static source/test evidence; deployed flag values and live incidence remain UNKNOWN.
+
+### Startup and scope
+
+- `run.py` starts `WorldPredictionLoop` only when `NEX5_WORLD_PRED=1`; the source default is OFF. The loop periodically resolves matured `world_predictions` and asks the local voice endpoint for a new directional prediction paired with a random control.
+- `run.py` starts `SelfPredictionLoop` only when `NEX5_SELF_PRED=1`; the source default is OFF. Its tick is broader than the startup label suggests: it resolves and creates fire/no-fire predictions, runs the fire-threshold monitor, resolves/creates the `authored_30m` and `selfdesc_novel` targets, and conditionally invokes owned-belief production, commitment scanning and the single expectations reconciler under their separate flags.
+- The expectations reconciler can write the expectations ledger and event-valence records; learning and mood remain separately gated. `expectations.reconcile()` also calls the learning-guard tick recorder. No host flag state or runtime activation is established here.
+
+### DRAFT-009 — voice/random market predictions are not a strictly paired baseline
+
+`prediction_generator.make_voice_prediction()` first fetches a baseline price and gives that value to the voice prompt. It then calls `world_predictions.make_prediction()` separately for the voice row and random row. Each call fetches the price again and takes its own `made_at` timestamp. Consequently, the prompt baseline, voice-row baseline and random-row baseline can differ; the voice and random rows are not guaranteed to share the same exact price/time observation despite the paired-comparison description.
+
+There is also a partial-pair accounting path: `make_prediction()` returns `None` when its own price fetch fails, but `make_voice_prediction()` still returns its ordinary result dictionary without treating a missing voice or random row ID as an error. The loop logs a normal prediction result whenever the dictionary has no `error` key. A one-sided sample can therefore be recorded/treated as a successful cycle and later enter the separate source scorecards.
+
+Test boundary: `tests/test_frozen_at_made.py::TestWorldPredictionProducer::test_voice_and_random` calls `make_prediction()` twice with a patched constant price. It verifies frozen columns but does not call `make_voice_prediction()`, assert shared baseline/timestamp identity, or exercise either leg failing independently. No dedicated `WorldPredictionLoop` or `make_voice_prediction` test file was found in the inspected PR #65 tree. This is a source-confirmed experimental-pairing and accounting gap; actual price drift, partial-pair frequency and score impact are UNKNOWN. No severity or repair is assigned.
+
+### DRAFT-010 — calibration data failure is labelled as a negative result
+
+`calibration_consult.consult_self_trust()` returns `level="unknown"` when the tested self-belief is absent. If that belief exists but the live scorecard read fails, the exception branch instead returns `level="none"` and a phrase saying the system has tested itself and was not reliable. The live numbers were unavailable, so that negative reliability conclusion is not supported by the evidence available to the function. `prediction_generator.make_voice_prediction()` stamps the returned level onto the voice prediction row, so the distinction persists as recorded metadata. The prediction itself is not changed by this consultation.
+
+No dedicated calibration-consult test was found in the inspected test tree. The existing frozen-producer test checks that trust stamping does not alter frozen-at-made fields; it does not exercise the unavailable-scorecard branch. Source-confirmed evidence-state misclassification; host incidence and downstream use are UNKNOWN.
+
+### Evidence and test coverage
+
+- `run.py`: `73a2c58a4f5f0348135a46eb83d6cdd61db874e7`
+- `theory_x/stage_world/world_loop.py`: `d369250123c9cfa4f73d3ca5cc33708adf71899a`
+- `theory_x/stage_world/world_predictions.py`: `d79ace3fa5fc57dea4e34d66bdccfd244ca1b31`
+- `theory_x/stage_world/prediction_generator.py`: `fa690c8db470da5a85e7d210a00aa3de75b2f0f3`
+- `theory_x/stage_world/calibration_consult.py`: `f6ee331132fb915eb2785a2557ed5d59e6b63a3e`
+- `theory_x/stage_world/self_prediction.py`: `a0474c459629e267e418e795419b4b1e1e2f6e48`
+- `tests/test_frozen_at_made.py`: `88c4ed6cc757f1ce884b4afa4209a939f61b4763`
+- `tests/test_selfpred_targets.py`: `528c26171e930123d18dc9486ec54b98859a613a`
+- `tests/test_selfpred_cognitive.py`: `03fad84d60598f16b64a36856c21939c79f876a8`
+- `tests/test_expectations.py`: `9d61df7d0cf0421e69e96681b89b8051f498ee61`
+
+The self-prediction target and expectations tests provide meaningful fixture coverage for their individual producer/reconciler logic. They do not close the integrated voice/random market-pair path or the calibration read-failure branch. No tests were run or modified in this audit.
+
+**Disposition:** These are Phase 0 evidence findings, not authorisation to alter the experiment or runtime. The relevant loops are source-gated OFF by default; deployed values remain UNKNOWN. No runtime code, test behaviour, schema, flags, database, host, experiment, merge or deployment was changed.
