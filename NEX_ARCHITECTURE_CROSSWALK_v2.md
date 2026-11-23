@@ -1310,3 +1310,8 @@ Still open:
 - Exact host checkout identity, process environment and live trace capture; historical MIND_MAP host observations remain unverified against PR #65 source.
 - Target-host M0.1/M0.2 measurements and full pytest/known-failure baseline.
 - Frozen V2.1 and Founder Sign-Off reconciliation and approval.
+
+
+### ToolCaller belief-context handoff
+
+api_chat calls ToolCaller.should_use_tool(prompt, []) even after the normal retrieval branch has assembled local belief context. ToolCaller’s “no beliefs + factual phrasing” fallback is therefore always eligible for those patterns. This may be a deliberate freshness policy, but it does not match the method's documented condition and has no route-level test. It can increase web_fetch calls and therefore the reachable surface of DRAFT-016. See DRAFT-024.
