@@ -596,6 +596,8 @@ The audit also identifies prompt contributors whose provenance is currently coll
 
 The tool-path expansion also identifies conditional defect DRAFT-002: the natural-language math heuristic selects `python_exec`, but the caller passes the original query as code through an empty-code fallback, so ordinary calculation phrasing is not executable Python. This is recorded in the Reality Report defect backlog and Chat audit with source/test hashes. No runtime repair or severity assignment is included.
 
+A further membrane boundary finding is recorded as DRAFT-003: the classifier uses substring matching for `"you"`, so a world query containing the product name `YouTube` is classified INSIDE and routed through the self-model/INSIDE retrieval path. The source/test evidence and limits are documented in the Reality Report and Chat audit. No runtime repair or severity assignment is included.
+
 **Evidence boundary:** static inspection only; PR #65 head and source file hashes are recorded in the audit. Its latest CI pass validates the tested suite, not every branch or deployed-host behaviour. The audit remains partial and does not satisfy Gate 0.
 
 ## 4. Top documentation/source discrepancies
