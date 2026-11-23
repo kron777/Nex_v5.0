@@ -2193,11 +2193,34 @@ class FountainGenerator:
         # Voice was down — write a bare tick, skip condenser and crystallizer
         if not voice_ok:
             ts_now = time.time()
-            self._dynamic_writer.write(
+            _fallback_event_id = self._dynamic_writer.write(
                 "INSERT INTO fountain_events (ts, thought, readiness, hot_branch, word_count) "
                 "VALUES (?, ?, ?, ?, ?)",
                 (ts_now, thought, readiness, "voice_fallback", len(thought.split())),
             )
+            if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+                try:
+                    from substrate.trace_overlay import record as _trace_record
+                    self._trace_fountain_event_record_id = _trace_record(
+                        "writer_delta",
+                        producer="FountainGenerator.generate",
+                        consumer="FountainLoop",
+                        source_ref="theory_x/stage6_fountain/generator.py::voice_fallback_event_insert",
+                        entity_ref=f"dynamic.fountain_events:{_fallback_event_id}",
+                        outcome="inserted",
+                        payload={"table": "fountain_events", "row_id": _fallback_event_id,
+                                 "voice_fallback": True},
+                        parent_ids=(
+                            [self._trace_candidate_record_id]
+                            if self._trace_candidate_record_id else []
+                        ),
+                    )
+                    self._trace_final_record_id = (
+                        self._trace_fountain_event_record_id
+                        or self._trace_candidate_record_id
+                    )
+                except Exception:
+                    pass
             self._link_activation_to_event()
             self._last_fountain_output = _strip_metadata(thought)
             self._last_fire_ts = ts_now
