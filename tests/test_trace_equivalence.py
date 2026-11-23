@@ -106,7 +106,7 @@ def _run_chat_once(tmp_path: Path, *, trace_on: bool, monkeypatch, read_query_lo
                 table_counts[db_name][table_name] = reader.count(table_name)
                 rows = reader.read(f'SELECT * FROM "{table_name}"')
                 normalized = [
-                    tuple(sorted(row.items()))
+                    tuple((key, row[key]) for key in row.keys())
                     for row in rows
                 ]
                 database_snapshot[db_name][table_name] = sorted(
