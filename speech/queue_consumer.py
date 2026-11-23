@@ -202,8 +202,8 @@ class SpeechQueueConsumer(threading.Thread):
                 except Exception:
                     pass
             if not voice:
-                # Reader returns sqlite3.Row, which supports indexed access,
-                # not dict.get(). Keep this path compatible with real rows.
+                # Known Phase 0 defect: Reader returns sqlite3.Row, which does
+                # not implement dict.get(). Kept unchanged pending Gate 0.
                 voice = row.get("voice") or self.config.voice
 
             if not _is_speakable(content):
