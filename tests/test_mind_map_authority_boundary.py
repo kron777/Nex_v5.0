@@ -88,3 +88,25 @@ def test_runtime_source_does_not_import_or_read_descriptive_maps():
         "controllers; keep map use in external development/visualization tools:\n"
         + "\n".join(violations)
     )
+
+def test_docstring_filename_mentions_are_not_runtime_consumption():
+    tree = ast.parse(
+        '"""MIND_MAP.yaml is documented here."""\n'
+        'filename = "sentience_dag.json"\n'
+        'class Notes:\n'
+        '    """MIND_MAP.yaml remains descriptive."""\n'
+        '    def explain(self):\n'
+        '        """sentience_dag.json is a documented artifact."""\n'
+        '        return "ordinary value"\n'
+    )
+    docstrings = _docstring_constant_ids(tree)
+    module_doc = tree.body[0].value
+    executable_filename = tree.body[1].value
+    class_doc = tree.body[2].body[0].value
+    function_doc = tree.body[2].body[1].body[0].value
+
+    assert id(module_doc) in docstrings
+    assert id(class_doc) in docstrings
+    assert id(function_doc) in docstrings
+    assert id(executable_filename) not in docstrings
+
