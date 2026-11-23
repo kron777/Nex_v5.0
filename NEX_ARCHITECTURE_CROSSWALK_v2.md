@@ -1107,3 +1107,19 @@ The same log material identifies the runtime data path under `/home/rr/Desktop/D
 
 This qualifies DRAFT-006: the GitHub snapshot has no inspected startup wiring, but the host log confirms a locally instantiated loop in a potentially divergent checkout. Manus must compare both checkout identities and the current startup path before any activation claim or code correction.
 
+
+
+## 3.37 TaggingBeliefWriter and IntakeResonance — default-on belief-write path
+
+The beliefs writer is wrapped in both run.py and gui/server.py. Eligible belief inserts without caller-supplied tags are rewritten with tags from tag_ops.generate(). Before the underlying insert, the wrapper also calls IntakeResonance unless NEX5_INTAKE_RESONANCE_OFF=1. This is a default-on measurement path, not just a passive read: it embeds incoming content, compares it with standing beliefs and writes an intake_resonance_log row containing up to 500 characters of content, score, top-match belief ID and timestamp.
+
+The T6 reserve selection has focused tests; tag injection has tag-protocol tests. No direct test covers resonance logging/retention or a failed underlying belief insert after the probe. init_db.py creates the log table, but the inspected DB reaper does not target it; no cleanup path was found. The incoming belief ID is not part of the log row, so it is not directly linked to the subsequent insert.
+
+NEX_TAG_FEEDBACK_ON is a separate, default-off prompt path that reads user tags from fountain_events.tag; do not confuse it with auto-generated beliefs.tags. This entry maps the actual writer/probe path and leaves retention/cost policy unresolved.
+
+## 3.38 WorldBridge — active prompt injection despite Phase-A-only module docs
+
+WorldBridgeSelector's module/class documentation describes Phase A as select+log only and Phase B as future prompt injection. In the inspected runtime snapshot, run.py constructs and passes the selector unconditionally, selector.py has ENABLED=True, and FountainGenerator calls select_and_log(mark_injected=True), then appends returned stream/body text to the prompt. It can inject up to five events, with 150 characters per event and a 1,500-character total budget. The registered NEX5_BRIDGE flag is not consulted by this path.
+
+This is a source-confirmed documentation/implementation mismatch; whether the implementation is an approved Phase-B change is unresolved because the referenced World Bridge Design v0.2 and approval record were not located. world_bridge_log stores selected-event JSON and injection status. init_db.py creates it; the inspected DB reaper does not target it and no cleanup path was found. Runtime selection frequency and log growth remain unknown.
+
