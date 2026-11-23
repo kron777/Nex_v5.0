@@ -457,13 +457,16 @@ def test_committed_row_before_registration_stays_unlinked(
 def test_real_fountain_crystallizer_enqueue_links_to_real_consumer(
     monkeypatch, tmp_path
 ):
-    from types import SimpleNamespace
+    import os
     from tests import _bootstrap  # noqa: F401
     from substrate import Reader, Writer, db_paths
     from substrate.init_db import init_all
     from substrate import trace_overlay
     from theory_x.stage6_fountain.crystallizer import FountainCrystallizer
 
+    for key in list(os.environ):
+        if key.startswith("NEX5_"):
+            monkeypatch.delenv(key, raising=False)
     data_dir = tmp_path / "nex-data"
     data_dir.mkdir()
     trace_path = tmp_path / "fountain-speech.jsonl"
@@ -502,6 +505,7 @@ def test_real_fountain_crystallizer_enqueue_links_to_real_consumer(
         trace_overlay.end_trace(
             producer, source_ref="isolated_real_crystallizer_test"
         )
+        producer = None
 
         queued = readers["beliefs"].read(
             "SELECT id, belief_id, content, voice FROM speech_queue "
@@ -550,12 +554,13 @@ def test_real_fountain_crystallizer_enqueue_links_to_real_consumer(
         assert consumer.backend.calls == [(thought, queued[0]["voice"] or "af_sarah")]
         assert len(consumer.player.calls) == 1
     finally:
-        try:
-            trace_overlay.end_trace(
-                producer, source_ref="isolated_real_crystallizer_test_cleanup"
-            )
-        except Exception:
-            pass
+        if producer is not None:
+            try:
+                trace_overlay.end_trace(
+                    producer, source_ref="isolated_real_crystallizer_test_cleanup"
+                )
+            except Exception:
+                pass
         for writer in writers.values():
             writer.close()
 
