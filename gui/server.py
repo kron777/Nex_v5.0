@@ -1187,6 +1187,15 @@ def create_app(state: AppState) -> Flask:
                     source_ref="gui/server.py::api_chat",
                     payload=prompt,
                 )
+                if _trace_handle is not None:
+                    _trace_api.record(
+                        "input_arrival",
+                        producer="gui.server.api_chat",
+                        consumer="ChatRouting",
+                        source_ref="gui/server.py::api_chat:prompt_validation",
+                        outcome="accepted",
+                        payload=prompt,
+                    )
             except Exception:
                 _trace_handle = None
                 _trace_api = None
@@ -1227,14 +1236,14 @@ def create_app(state: AppState) -> Flask:
                 )
                 if _trace_handle is not None:
                     _trace_api.record(
-                        "input_arrival",
+                        "writer_delta",
                         producer="gui.server.api_chat",
-                        consumer="membrane.route/world_model.retrieve",
+                        consumer="Membrane/WorldModel",
                         source_ref="gui/server.py::api_chat:user_message_insert",
                         entity_ref=f"conversations.messages:{_user_message_id}",
                         outcome="persisted",
-                        payload={"session_id": session_id, "message_id": _user_message_id,
-                                 "prompt": prompt},
+                        payload={"table": "messages", "message_id": _user_message_id,
+                                 "session_id": session_id, "role": "user"},
                     )
             except Exception as e:
                 error_channel.record(
@@ -1830,6 +1839,15 @@ def create_app(state: AppState) -> Flask:
                         _turn_n = _tn_row[0]["n"] if _tn_row else 0
                     except Exception:
                         pass
+                if _trace_handle is not None:
+                    _trace_api.record(
+                        "model_input",
+                        producer="ChatContextAssembly",
+                        consumer="VoiceEngine.query_reply",
+                        source_ref="gui/server.py::api_chat:voice_engine_input",
+                        outcome="substrate_query",
+                        payload={"query": prompt, "session_id": session_id, "turn_n": _turn_n},
+                    )
                 _ve_result = state.voice_engine.query_reply(
                     query=prompt,
                     session_id=session_id,
