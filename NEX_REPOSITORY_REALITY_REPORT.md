@@ -435,3 +435,50 @@ These observations expand the source-to-prompt and source-to-output map. They do
 Source hash: `theory_x/stage6_fountain/generator.py` `43644876295ffdd649a240f52a7946c666a8579f`.
 
 No runtime behaviour, flag, prompt, selection policy, schema, host, experiment, merge or deployment was changed.
+
+
+## M0.3–M0.4 forward audit — predictive, counterfactual, provenance and optional families (23 Nov 2026)
+
+This pass checked additional boot-managed faculties against their implementation and consumer paths at source revision `07f6ebe42a1ac99a8038a73476782d1542704296`.
+
+| Faculty | Boot/activation condition | Source-defined output and consumer | Evidence boundary |
+|---|---|---|---|
+| PredictiveSubstrate | `run.py` constructs and calls `start_loop()` when initialization succeeds; 300-second cadence. | Generates internal-belief and external-input centroid predictions; later verifies due windows and writes `surprise_events`. Stage 2 SurpriseLoop reads unpromoted surprise events and can create Tier-6 beliefs; Fountain also reads a recent `source='surprise'` belief. | Source-defined feedback chain; no live tick/prediction/surprise row observed in this pass. |
+| CounterfactualNode | Constructed and `start_loop()` called in boot when dependencies are available; 300-second cadence. | Processes one oldest-touched open problem; TimeFetch fetches candidates, RefinementEngine scores, CoherenceGate evaluates; ACCEPT candidates are inserted as Tier-3 `counterfactual_node` beliefs linked to the problem. | The later move to `review_queue` is disabled by immediate return in `_maybe_promote()`. The belief-insertion path remains present; whether any candidate is accepted in runtime is unknown. |
+| Throw-Net | TriggerDetector/engine are constructed when their dependencies are available; monitor loop starts only when `NEX5_THROWNET=1`. | TriggerDetector records gate-reject and gap-deflection triggers; when enabled, ThrowNetMonitor calls `run_pending()`, which fetches/refines candidates and submits packets to CoherenceGate, writing session outcomes. | Source comments say the monitor is retired by default; triggers can still be logged. No deployed flag value or trigger volume observed. |
+| Chat provenance | `NEX5_PROVENANCE=1` **and** admin session required. | Before model composition, captures the retrieved belief block (or recency fallback), current focus, latest Fountain thought and affect vector. After response, computes mirror/copy measures; only if mirror-dominant cue fires does it retry once, keeping the retry only if its mirror score is lower. | Conditional response-path behaviour, not merely a log-only observer. Grounding hint is explicitly unproven; there is no self-grounded verdict. Current flag/session state unknown. |
+| WorldPredictionLoop | Starts only with `NEX5_WORLD_PRED=1`; default OFF in source. | Periodically resolves and makes external market predictions; writes prediction/scorecard records used by ScorecardLoop's self-belief refresh path. | Not an unconditional boot loop; host flag unknown. |
+| SelfPredictionLoop | Starts only with `NEX5_SELF_PRED=1`; default OFF in source. | Resolves/makes self, authored-utterance and self-description predictions; includes a threshold monitor explicitly described as not wired to the live fire gate. Optional owned-belief/commitment/reconciler subpaths have their own flags. | Do not claim learned threshold controls live firing. No host flag/value or live result observed. |
+| SelfMaintainShadow | Starts only with `NEX5_SELF_MAINTAIN_SHADOW=1`; default OFF. | Computes hypothetical active-set regulator metrics and writes `self_maintain_shadow`. Module says it changes no beliefs and has no table reader. | Shadow/telemetry only; no runtime activation or downstream reader observed. |
+| WarrantRecorder | Starts only with `NEX5_WARRANT_RECORD=1`; default OFF. | Records survival/use evidence into side tables using retrieval log, Fountain anchor, Synergizer, lineage and arc sources. | Recording-only by module contract; it does not change what is thought/retrieved/said. It shares the conditional Fountain retrieval-log preservation path. |
+| PersonaResponder | Starts only with `NEX5_PERSONA_RESPONDER=1` in the boot path. | Generates a response to recent Fountain thoughts and writes its own social/interlocutor state and external-other-mind sense events. Fountain's SOCIAL prompt layer has a separate gate. | Two-sided loop requires both responder activation and Fountain read gate; neither host flag is established here. |
+| SocialPresence | Boot explicitly sets `_social_presence=None` and attaches None to Metacognition. | Module can write `social_presence_snapshots`, but its own source says there are no readers outside its module. | Not wired into this boot path; module presence is not activation. |
+| Finitude BudgetShadow | Module source says it is not imported by `gui/server.py` or `selector.py`. | Shadow budget-spend ledger only. | Not in the inspected live path. |
+| Stage Provenance | Conditional Chat path above; no independent background loop. | Pre-turn snapshot and post-response mirror read are admin-scoped. | Keep distinct from claims about emotional authenticity or groundedness. |
+
+### Important causal distinctions
+
+- PredictiveSubstrate's two streams are not the same target: internal predictions use recent beliefs/open problems/drive; external predictions use recent external sense events and user messages. Verification compares the target window against later beliefs or later sense/user-message content, respectively.
+- An empty verification window is treated as surprise score 1.0 with no actual content; a surprise event can therefore be generated by absence of observed input, not only semantic mismatch. Downstream consumers must preserve this distinction.
+- CounterfactualNode's automatic promotion to review_queue is disabled, but its upstream candidate generation, CoherenceGate submission and Tier-3 belief insertion remain in the inspected implementation. Do not describe the whole node as disabled.
+- Trigger logging and Throw-Net processing are separate. TriggerDetector can record a threshold-crossing event while the periodic consumer remains stopped.
+- Chat provenance is not purely observational when armed: it may cause one retry. It is admin-scoped and uses a mirror-dominant condition; its grounding score is expressly marked unproven.
+- SocialPresence's implementation can write snapshots, but boot assigns None and Metacognition receives None. No external consumer was identified.
+
+Source hashes:
+- `theory_x/stage_prediction/predictive_substrate.py`: `24933b4d6217376a1341c351319cc48546543c80`
+- `theory_x/stage_counterfactual/counterfactual_node.py`: `76f8146b803d6272721a349c86e3a5530af4df16`
+- `theory_x/stage_throw_net/monitor.py`: `04f81a7a811f7a40da853e7b2a321e399590b3e5`
+- `theory_x/stage_throw_net/throw_net_engine.py`: `6d420f9e3036a055bb9677664b5a44cc805edae4`
+- `theory_x/stage_throw_net/trigger_detector.py`: `4d5b855cfb9debe70fdd84649b62273af9964bff`
+- `theory_x/stage_provenance/provenance.py`: `92671a3e120a1935fab33f6d659ab806f1eb4cc6`
+- `theory_x/stage_world/world_loop.py`: `d369250123c9cfa4f73d3ca5cc33708adf71899a`
+- `theory_x/stage_world/self_prediction.py`: `a0474c459629e267e418e795419b4b1e1e2f6e48`
+- `theory_x/stage_self_maintain/shadow.py`: `65da9373b112ea15fe255f81550b20b432c927db`
+- `theory_x/stage_finitude/budget_shadow.py`: `a194f3d80c6da63078548bc1ab037986e1de7d00`
+- `theory_x/stage_warrant/recorder.py`: `ade231c1fc7c8da7f90f8f7ab375d352837a7c79`
+- `theory_x/stage_social/social_presence.py`: `80803ae0c8cdce8d08d78bfc416337559c188f17`
+- `gui/server.py`: `5ee8b167f386466c383090445c63a84810bbae52`
+- `run.py`: `73a2c58a4f5f0348135a46eb83d6cdd61db874e7`
+
+No runtime behaviour, schema, flag, host, experiment, merge or deployment was changed.
