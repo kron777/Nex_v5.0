@@ -14,7 +14,7 @@ from pathlib import Path
 from tests import _bootstrap  # noqa: F401
 
 
-def _run_generator_once(
+def _run_fountain_cycle_once(
     tmp_path: Path, *, trace_on: bool, monkeypatch, read_query_log
 ):
     import os
@@ -186,7 +186,7 @@ def _run_generator_once(
             writer.close()
 
 
-def test_fountain_generator_trace_overlay_on_off_equivalence(
+def test_fountain_loop_trace_overlay_on_off_equivalence(
     tmp_path, monkeypatch, record_property
 ):
     # Freeze wall-clock reads so timestamp-bearing DB rows are directly
