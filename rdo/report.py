@@ -609,7 +609,7 @@ def run_stage7_execution_integration(repo_dir: str = ".", workdir: str = "rdo/.c
     ex.record_claim(rec, completion_claim=True,
                     changed_artifacts=["demo_module.py", "test_demo_guard.py"],
                     tests=["test_demo_guard.py"], failures=[])
-    ex.verify(rec, tmp, led)
+    ex.verify(rec, tmp, led, approved_test_files=['test_demo_guard.py'])
     verified_actual = ex.feedback_to_learning(rec)
 
     # NEGATIVE: a completion claim (even with an unrelated passing test) but NO source evidence
@@ -618,7 +618,7 @@ def run_stage7_execution_integration(repo_dir: str = ".", workdir: str = "rdo/.c
                         "test_file": "test_demo_guard.py"}}
     rec2 = ex.create_execution_record("exec:phantom", "stage7_slice", "phantom", wp2, req2)
     ex.record_claim(rec2, completion_claim=True, changed_artifacts=[], tests=[], failures=[])
-    ex.verify(rec2, tmp, led)
+    ex.verify(rec2, tmp, led, approved_test_files=['test_demo_guard.py'])
 
     path = ex.save_record(rec, os.path.join(workdir, "execution_record.json"))
     dims = rec["verification"]["dimensions"]["demo_guard"]
