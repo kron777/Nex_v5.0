@@ -306,6 +306,9 @@ def test_fountain_loop_trace_overlay_on_off_equivalence(
         row for row in rows if row["record_id"] == by_event["trace_end"][0]["parent_ids"][0]
     )
 
+    assert start["trace_kind"] == "fountain_cycle"
+    assert start["source_ref"].endswith("fountain_loop")
+    assert input_event["outcome"] == "scheduler_tick"
     assert input_event["parent_ids"] == [start["record_id"]]
     assert workspace["parent_ids"] == [input_event["record_id"]]
     assert set(model_input["parent_ids"]) == {
