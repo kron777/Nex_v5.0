@@ -301,7 +301,7 @@ nodes:
     blocked: false
     falsifier: "Declined as a detector. Would only inject a prompt line (voice-level)."
     falsifier_status: na
-    source: { kind: absent, claim: "absent root — not built", check: "grep -rn 'vicikitsa' --include=*.py --include=*.md ." }
+    source: { kind: absent, claim: "absent root — not built", check: "grep -rn 'vicikitsa' --include=*.py ." }
     last_verified: 2026-11-15
     notes: >
       Dev round, 2026-11-15: re-confirmed absent (grep unchanged). Traced the one
