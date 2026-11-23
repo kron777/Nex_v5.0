@@ -783,3 +783,32 @@ The authoritative MIND_MAP metadata explicitly states: "Descriptive only. No nod
 - CI run: 45272386599, in progress at time of this report update.
 - This is a draft CI/governance correction, not a merged or yet CI-verified control. No NEX runtime behaviour changed.
 
+
+
+## M0.3 external side-effect audit — optional Moltbook integration (23 Nov 2026)
+
+**DRAFT-006 — conditional outbound-action / dry-run state-accounting gap.** The Stage-7 Moltbook package contains external write-capable operations:
+- `DMListenLoop` auto-approves incoming DM requests that pass its claimed-account, karma and red-flag filters, then writes a local `moltbook_dms.approved=1` row.
+- `PostLoop` can publish selected Fountain beliefs as external posts.
+- `DMResponder` can call the local LLM and send replies to external DM conversations.
+- `scripts_moltbook_seed.py` can send opening DMs to locally approved conversations.
+
+The `MoltbookClient` defaults `MOLTBOOK_DRY_RUN` to `1`; non-GET requests return a dry-run result without HTTP POST. However, the consumers do not consistently distinguish that result from a successful external action:
+- Listener records the conversation as locally approved after `dm_approve()` returns, including a dry-run stub.
+- Poster records the post as `posted` and advances the queue after `create_post()` returns, including a dry-run stub.
+- Responder marks a reply `sent` after `dm_send()` returns, including a dry-run stub.
+- The one-shot seeder's `main(dry_run=False)` parameter is not passed into `MoltbookClient`; with the client's default dry-run enabled and no `--dry-run` flag, the script can log/count a message as sent although the client did not POST.
+
+**Wiring boundary:** no startup construction of `DMListenLoop`, `PostLoop` or `DMResponder` was found in the inspected `run.py` or `gui/server.py`. The GUI `/api/moltbook/chats` route is read-only. The inspected `test_moltbook_optional.py` covers missing/installed table handling and HUD/daily-life reads, not loop startup, external writes or dry-run accounting. This is bounded source evidence, not proof that no operator or external launcher can start the loops.
+
+**Classification:** source-confirmed conditional state-accounting defect in dry-run paths; actual activation, credentials, `MOLTBOOK_DRY_RUN` value and live external actions are UNKNOWN. No network request was made and no local database or flag was changed. No correction is applied pending Gate 0 and explicit approval of the external social-action policy.
+
+Source hashes:
+- `client.py` `0b60ce8ab9ec2e935c9abb55311235f07e43631e`
+- `listener.py` `54c5a1d91aa54525c768d0b0c4914d6d830e6d83`
+- `poster.py` `3acdf141685c28b60ea66102e93b01ead27f11be`
+- `responder.py` `0e568897167e458b61701b29e3fcd2538ab22923`
+- `scripts_moltbook_seed.py` `fa76ea6fce757d108060435f32a2955ca0f70854`
+- `tests/test_moltbook_optional.py` `6bff5f1a331cd2133396853960e3cb3f9f39c3a6`
+- Inspected boot/GUI hashes: `run.py` `73a2c58a4f5f0348135a46eb83d6cdd61db874e7`; `gui/server.py` `d67df10f4449004c255e38b11b4a1888a4e4934c`
+
