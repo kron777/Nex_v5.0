@@ -59,23 +59,27 @@ The inspected `run.py` boot path does not import or read `MIND_MAP.yaml` or `sen
 
 ## 3. Forward and backward pathway samples
 
-### 3.1 Fountain path — partially traced
+### 3.1 Fountain path — source-traced to persistence and optional speech output
 
 | Stage | Source location | Current source finding | Evidence ceiling |
 |---|---|---|---|
-| Boot | `run.py:46` | `main()` is the unified boot entry point | Source present |
-| Gate construction | `run.py:130–170` | Constructs `CoherenceGate`, resolver and trigger detector | [L1] candidate; tests require exact association |
-| Fountain construction | `run.py:600` | Calls `build_fountain(..., coherence_gate=coherence_gate)` | Source present |
-| Scheduler loop | `theory_x/stage6_fountain/__init__.py:139+` | `fountain_loop()` runs in a loop using configured interval | Source present |
-| Candidate generation | `theory_x/stage6_fountain/generator.py:1596` | `generate()` is the generator entry point | Source present |
-| Workspace selection | `theory_x/stage6_fountain/generator.py:3402+` | Under `NEX5_GLOBAL_WORKSPACE`, calls `global_workspace.arbitrate()` and prepends its result to the focus block | Source present; flag/runtime state unknown |
-| Gate / crystallization | `theory_x/stage6_fountain/generator.py:2530`; `theory_x/stage6_fountain/crystallizer.py:290+` | Generator calls crystallizer; crystallizer calls `self._gate.check(packet)` when a gate is supplied | Source present |
-| Persistence | `theory_x/stage6_fountain/crystallizer.py:350+` onward | Accepted path proceeds to belief/crystallization persistence; exact row-level write trace not captured here | Partial source trace |
-| Downstream consumer | Not exhaustively mapped | No end-to-end ID-linked trace captured | UNKNOWN |
+| Boot | `run.py::main` | Constructs substrate, scheduler, gate and faculty dependencies; builds Fountain with the CoherenceGate. | [L1] |
+| Scheduler | `theory_x/stage6_fountain/__init__.py::build_fountain` | Starts a daemon `fountain_loop`; loop waits for configured/mode interval, checks mode/readiness and calls `generator.generate()`. | [L1] |
+| Candidate generation | `generator.py::FountainGenerator.generate` | Scores readiness, builds the prompt, invokes the configured voice path and returns a thought when one is produced. | [L1] |
+| Salience/workspace | `generator.py` GLOBAL WORKSPACE block; `stage_tom/global_workspace.py::arbitrate` | Unless `NEX5_GLOBAL_WORKSPACE=0`, surveys candidates and prepends a non-empty winner to the focus block. Source default is enabled; host value UNKNOWN. | [L1]; [L2] UNKNOWN |
+| Fire identity and event | `generator.py` at the `fountain_events` insert | Inserts the completed thought and retains the Writer-returned `fountain_event_id`. | [L1] |
+| Post-thought scoring | `generator.py` / `stage_emphasis/emphasis_engine.py` | Scores the completed thought and writes an `emphasis_log` row keyed to the fire ID. This is post-hoc logging; no downstream consumer was identified in the bounded search. | [L1]; [L3] UNKNOWN |
+| Crystallization quality gate | `generator.py` calls `FountainCrystallizer.crystallize()`; `crystallizer.py::_quality_check` | Quality/repeat checks run before the CoherenceGate. A quality rejection returns before the CoherenceGate is called. | [L1] |
+| CoherenceGate | `crystallizer.py::crystallize` → `CoherenceGate.check()` | If a gate is supplied and quality passes, constructs a `ThoughtPacket(source_node="fountain")`; only ACCEPT proceeds to belief persistence. REJECT/HOLD/RESHAPE return without the belief insert. | [L1] |
+| Belief persistence | `crystallizer.py::crystallize` | Inserts Tier-6 belief, then a `fountain_crystallizations` link keyed by `fountain_event_id` and `belief_id`. Confidence can be modified by `NEX5_SURPRISE_WEIGHT` (source default enabled), with fail-safe baseline 0.70. | [L1] |
+| Speech decision | `crystallizer.py::crystallize` | For configured speakable belief categories and enabled SpeechConfig, consults SpeechGovernor; only SPEAK enqueues a `speech_queue` row. | [L1] |
+| Speech output | `run.py` SpeechQueueConsumer startup; `speech/queue_consumer.py` | Consumer starts only when SpeechConfig is enabled; polls pending rows, synthesizes and plays audio, then updates status to spoken/failed/suppressed. | [L1]; host/config [L2] UNKNOWN |
 
-Associated test files include `tests/test_fountain.py`, `tests/test_fountain_crystallizer.py`, `tests/test_coherence_gate.py` and related tests. Their existence supports constructed/test coverage at component level; it does not establish an integrated live causal edge.
+**Important boundary:** the Fountain's CoherenceGate applies to crystallization, not to every generated thought. The event row and post-thought measurements can exist even when crystallization is rejected or not reached. Speech is a later, separately configured consumer of eligible crystallized beliefs.
 
-**Current ladder:** source and component tests support [L1] for the relevant implemented mechanisms. [L2] current runtime evidence is UNKNOWN. [L3] end-to-end consumption is UNKNOWN. [L4] behavioural improvement is not established by this crosswalk.
+Associated tests include `tests/test_fountain.py`, `tests/test_fountain_crystallizer.py`, `tests/test_coherence_gate.py`, speech queue/governor tests and related tests. These support component-level constructed/test behaviour, not a complete live causal trace.
+
+**Current ladder:** relevant mechanisms are [L1] source-present and individually tested. Current [L2] host activation and event emission remain UNKNOWN. The source links the event, accepted belief and optional speech queue, but a live ID-linked [L3] trace has not been captured. [L4] behavioural improvement is not established.
 
 ### 3.2 Chat path — partially traced
 
