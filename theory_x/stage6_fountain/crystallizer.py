@@ -587,6 +587,28 @@ class FountainCrystallizer:
                     situation=situation,
                     mode=mode,
                 )
+                _trace_speech_gate_id = None
+                if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+                    try:
+                        from substrate.trace_overlay import record as _trace_record
+                        _trace_speech_gate_id = _trace_record(
+                            "speech_gate",
+                            producer="SpeechGovernor.decide",
+                            consumer="SpeechQueueConsumer",
+                            source_ref="theory_x/stage6_fountain/crystallizer.py::speech_governor",
+                            outcome="speak" if decision.speak else "hold",
+                            payload={"reason": decision.reason},
+                            parent_ids=(
+                                [_trace_crystallization_link_id]
+                                if "_trace_crystallization_link_id" in locals()
+                                and _trace_crystallization_link_id else []
+                            ),
+                        )
+                        self._trace_terminal_record_id = (
+                            _trace_speech_gate_id or self._trace_terminal_record_id
+                        )
+                    except Exception:
+                        pass
                 gov_msg = (
                     f"Governor {'SPEAK' if decision.speak else 'HOLD'}: "
                     f"{decision.reason} | {thought[:60]}"
@@ -616,12 +638,59 @@ class FountainCrystallizer:
                                     entity_ref=_queue_entity_ref,
                                     outcome="queued",
                                     payload={"belief_id": belief_id, "speech_queue_id": _speech_queue_id},
+                                    parent_ids=(
+                                        [_trace_speech_gate_id]
+                                        if "_trace_speech_gate_id" in locals()
+                                        and _trace_speech_gate_id else []
+                                    ),
+                                )
+                                self._trace_terminal_record_id = (
+                                    _queue_record_id or _trace_speech_gate_id
+                                    or self._trace_terminal_record_id
                                 )
                                 if _queue_record_id:
                                     from substrate.trace_overlay import link_entity as _link_entity
                                     _link_entity(_queue_entity_ref, _queue_record_id)
                             except Exception:
                                 pass
+                    elif os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+                        try:
+                            from substrate.trace_overlay import record as _trace_record
+                            _already_id = existing[0]["id"]
+                            self._trace_terminal_record_id = _trace_record(
+                                "output_queued",
+                                producer="FountainCrystallizer.crystallize",
+                                consumer="SpeechQueueConsumer",
+                                source_ref="theory_x/stage6_fountain/crystallizer.py::speech_queue_existing",
+                                entity_ref=f"beliefs.speech_queue:{_already_id}",
+                                outcome="already_present",
+                                parent_ids=(
+                                    [_trace_speech_gate_id]
+                                    if "_trace_speech_gate_id" in locals()
+                                    and _trace_speech_gate_id else []
+                                ),
+                            )
+                        except Exception:
+                            pass
+            elif os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+                try:
+                    from substrate.trace_overlay import record as _trace_record
+                    self._trace_terminal_record_id = _trace_record(
+                        "speech_gate",
+                        producer="FountainCrystallizer.crystallize",
+                        consumer="SpeechQueueConsumer",
+                        source_ref="theory_x/stage6_fountain/crystallizer.py::speech_eligibility",
+                        outcome="not_eligible",
+                        payload={"category": category, "speech_enabled": cfg.enabled,
+                                 "content_length": len(thought)},
+                        parent_ids=(
+                            [_trace_crystallization_link_id]
+                            if "_trace_crystallization_link_id" in locals()
+                            and _trace_crystallization_link_id else []
+                        ),
+                    )
+                except Exception:
+                    pass
         except Exception as exc:
             errors.record(
                 f"speech enqueue failed: {exc}", source=_LOG_SOURCE, exc=exc
