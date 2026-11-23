@@ -224,6 +224,20 @@ The Writer describes one database, one write connection and one worker thread. I
 
 This supports the intended single-writer abstraction at the inspected source boundary. It does not establish that every write in the repository uses this interface or that no direct-write exception exists. A repository-wide write-path audit remains required.
 
+## 3.7 M0.5 trace identity — existing anchors and missing links
+
+The source inspection found useful existing identities, but no existing end-to-end `trace_id` / `parent_ids` propagation.
+
+| Path | Existing identity | What it anchors | Missing for M0.5 |
+|---|---|---|---|
+| Fountain | `fountain_event_id`, returned by `substrate.Writer.write()` when `fountain_events` is inserted | A completed thought/fire and several downstream rows such as emphasis, retrieval manifests, context blocks and crystallization links | It is created after candidate generation and workspace selection. No top-level trace ID or parent chain is carried through the earlier stages. |
+| Chat | `session_id` plus Writer-returned message row IDs | Conversation/session and individual persisted messages | `session_id` spans multiple turns; the user-message and assistant-message write return values are not retained as a per-turn causal chain. No turn-level trace ID or parent chain was found. |
+| Writer | Synchronous `write()` returns `cursor.lastrowid`; `write_many()` returns row IDs | Actual persistence identity for a successful write | No generic trace metadata is attached to a write request. The trace must observe actual returned IDs without changing SQL, parameters or write order. |
+
+A bounded source search of the inspected Fountain generator, crystallizer, Chat handler and Writer found no existing `trace_id`, `parent_ids` or general request-correlation mechanism. This is a source-search result, not a claim about every third-party or host logging layer.
+
+**Design consequence for M0.5:** reuse `fountain_event_id`, `session_id` and Writer-returned row IDs as entity anchors; add a separate top-level trace identity only where necessary; and record parent relationships only when the call/data dependency is explicit. Do not fabricate a parent edge from temporal proximity. Trace artifacts must remain outside the cognitive databases and must not alter prompts, candidate order, gate decisions, Writer SQL/parameters or outputs.
+
 ## 4. Top documentation/source discrepancies
 
 These are discrepancies to reconcile, not automatic instructions to modify code or documentation.
