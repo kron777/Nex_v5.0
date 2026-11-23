@@ -2220,7 +2220,12 @@ def create_app(state: AppState) -> Flask:
                     outcome="assembled",
                     payload={"blocks": _blocks_concat, "belief_text": belief_text,
                              "voice_prompt": voice_prompt},
-                    parent_ids=[rid for rid in (_trace_retrieval_id, _trace_gap_gate_id) if rid],
+                    parent_ids=[
+                        rid for rid in (
+                            _trace_retrieval_id, _trace_gap_gate_id,
+                            _trace_substrate_voice_id,
+                        ) if rid
+                    ],
                 )
 
         if text is None:
