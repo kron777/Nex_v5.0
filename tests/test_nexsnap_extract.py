@@ -67,10 +67,10 @@ def test_runtime_state_closes_opened_connections_when_later_open_fails(
     real_connect = nexsnap_extract.connect
 
     def tracking_connect(*args, **kwargs):
+        if len(opened) == 2:
+            raise RuntimeError("simulated third database open failure")
         conn = real_connect(*args, **kwargs)
         opened.append(conn)
-        if len(opened) == 3:
-            raise RuntimeError("simulated third database open failure")
         return conn
 
     monkeypatch.setattr(nexsnap_extract, "connect", tracking_connect)
