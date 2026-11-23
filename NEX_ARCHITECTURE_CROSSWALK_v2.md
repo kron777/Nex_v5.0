@@ -1162,3 +1162,14 @@ Revision basis: PR #65 integrated source head `cffbbc94b5a494247d127abf2720886a0
 - No host environment values, network activity, live prediction rows, actual voice calibration, or statistical skill have been measured here. [L1] is not [L2]–[L4].
 
 No source/runtime behaviour, experiment, flags, schema, database or host state changed.
+
+
+## Predictive surprise consumer qualification — empty-window sentinel (24 Nov 2026)
+
+At PR #65 source head `cffbbc94b5a494247d127abf2720886a08f7a567`, the producer emits an empty-window sentinel as `surprise_score=1.0`, `actual_content=NULL`, `surprise_flag=1`, `big_surprise=1`. Consumers differ:
+
+- Stage 2 `SurpriseLoop` filters out rows without actual content before belief promotion.
+- The expectations ledger treats score 1.0 plus absent actual content as `empty_window` and no evidence.
+- `surprise_weighting.confidence_for_fire()`, called by FountainCrystallizer under the source-default-enabled `NEX5_SURPRISE_WEIGHT` setting, uses the latest score alone and does not check `actual_content`, `surprise_flag` or `big_surprise`. A recent empty-window sentinel can therefore supply the maximum confidence boost to an unrelated subsequent crystallization. See DRAFT-011 in the Reality Report.
+
+This is a source-level producer/consumer mismatch; the runtime flag value, occurrence and downstream impact are UNKNOWN. The existing producer and ledger tests exercise the sentinel separately, but no test exercises its handling by the confidence consumer. No behaviour or test change was made.
