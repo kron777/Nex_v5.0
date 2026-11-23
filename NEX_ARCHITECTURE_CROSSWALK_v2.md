@@ -1077,3 +1077,13 @@ Inspected against PR #65 integrated source head `3d5df48e6539818097b58b6e936059f
 
 The source comment in `ReadinessEvaluator.score()` says `NEX5_APPROACH` and `NEX5_STAKES` are mutually exclusive, but the implementation evaluates them in separate `if` statements. If both flags are set, both the positive approach bonus and negative groove cost are applied. `tests/test_stakes_appraisal.py` tests each flag independently and does not cover the combined state. This is a source-confirmed conditional guard gap; live flag values and incidence are UNKNOWN. No behavioural change or severity assignment is made pending the authoritative specification and Gate 0.
 
+
+
+## 3.35 MIND_MAP descriptive-only authority boundary
+
+MIND_MAP.yaml declares that it is descriptive only and that no node may gate, score, block or veto an action. The renderer's prior check validated source references and map structure but did not enforce this policy or verify that runtime source remained independent of the map. The CI workflow already invokes the renderer's --check --verify command, so the gap was in the checker rather than workflow wiring.
+
+**DRAFT-005:** this was a source-confirmed CI enforcement gap, not evidence that the live runtime consumed the map. The separate sentience_dag.json is a development-planning DAG and must not be conflated with MIND_MAP or treated as a runtime faculty.
+
+PR #72 adds a static policy check and focused tests. It preserves the existing blocked status modifier while rejecting explicit authority fields, checks the required metadata constraint, and scans NEX runtime roots for imports or direct reads of MIND_MAP.yaml. RDO/Watcher/developer tools remain allowed to consult the map as evidence. Exact-head CI is pending; this is not yet a verified or merged control.
+
