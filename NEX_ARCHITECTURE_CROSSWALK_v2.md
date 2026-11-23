@@ -267,6 +267,18 @@ The source does not specify restrictive permissions at creation; actual host fil
 
 **Risk classification:** source-confirmed raw-content logging; actual exposure depends on host permissions, filesystem state and access. Do not claim a confirmed disclosure without inspecting the host. The correct remediation should preserve only necessary diagnostics (for example, lengths, bounded IDs and hashes), or use an explicitly approved restricted diagnostic path. Do not silently delete files or alter live logging until consumers and retention requirements are checked.
 
+## 3.9 M0.5 trace overlay implementation status
+
+Draft PR #54 now contains a source/test prototype for the two required end-to-end paths:
+
+- Fountain cycle/input, candidate generation, Global Workspace selection, fire persistence, quality decision, CoherenceGate outcome, belief/crystallization Writer IDs and speech-queue enqueue.
+- Chat input, user-message persistence, retrieval, context assembly, VoiceEngine/VoiceClient input/output, gap-gate pass/deflect, assistant-message persistence and response completion.
+- Existing `fountain_event_id`, belief IDs, `session_id` and Writer-returned message IDs are reused as entity anchors.
+- The collector is default-OFF and requires an explicit external JSONL path. It hashes payloads rather than writing raw content, rejects the configured/default NEX data directory, and swallows trace-write failures.
+- The full repository CI suite, including the mind-map freshness check, passed on PR #54 head `24219af3157d82d3d658d73bc74ddba9332c57e8`.
+
+**Not yet established:** no host flag has been enabled; no live Fountain cycle or Chat turn has been captured; no deterministic ON/OFF comparison has demonstrated exact prompt/selection/gate/Writer/output invariance; the later TTS playback is not correlated across the consumer thread. PR #54 remains draft and unmerged. This is not Gate 0 approval and does not authorise live activation.
+
 ## 4. Top documentation/source discrepancies
 
 These are discrepancies to reconcile, not automatic instructions to modify code or documentation.
