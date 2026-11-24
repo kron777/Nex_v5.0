@@ -1781,3 +1781,13 @@ Fountain's `_build_prompt` path enables GlobalWorkspace by default (`NEX5_GLOBAL
 **Amoha / Afflictions:** prompt-only modulators, independently gated by `NEX5_AMOHA` and `NEX5_AFFLICTIONS` (both default OFF). Metacognition voice and L4 stakes are separate gates. GlobalWorkspace default-on prompt influence and DRAFT-043 are recorded above.
 
 See Reality Report for source hashes and qualifications. No runtime change authorised.
+
+
+
+### 3.x Coherence Gate / Holding Zone — corroboration and resolution persistence (24 Nov 2026)
+
+The current Holding Zone implementation's corroboration match is content-only: active held rows are compared to incoming packet content using Jaccard >= 0.40. The resolver increments each matching held row for every ACCEPT arrival and promotes at count 3. Neither the held row's `source_node` nor the incoming packet's `source_node` participates in the match or count. The existing threshold test uses three matching ACCEPT packets with the same default `source_node="fountain"`. Therefore the tested implementation establishes repeated matching arrivals, not independent-source corroboration. The Faculty Model §2.5 says “N similar thoughts arrive” but does not define source independence; intended evidentiary meaning remains unresolved.
+
+A second isolated test injects a failure into the belief INSERT during promotion. `promote_to_belief()` returns `None` after recording the exception, but `HoldingZoneResolver.on_gate_accept()` does not inspect that result and proceeds to mark the held row accepted. The fixture confirms an accepted held row and resolution record can coexist with no promoted belief row. This is a source-confirmed failure mode reproduced with isolated SQLite, not a deployed incident.
+
+Tests: `tests/test_holding_zone.py::TestCorroborationThreshold`. Exact tested commit `4793e55ed8220f0f2b70c5cae9fd3654650735b0`; CI run `45426072925` passed the full pytest workflow and mind-map sourcing check. These tests support [L1] characterization only. They do not establish host activation [L2], downstream consumption [L3], behavioural benefit [L4], or Gate 0 readiness. No runtime, schema, policy, threshold, or production behaviour was changed.
