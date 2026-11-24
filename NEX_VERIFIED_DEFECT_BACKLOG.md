@@ -142,3 +142,26 @@ A related but distinct Stage 2 distillation policy is recorded in the Crosswalk 
 ### Current update — DRAFT-026 (24 Nov 2026)
 
 **Temporal quiet-signal producer/consumer contract mismatch.** Stage 2 consolidation reads the latest `internal.temporal` payload and looks for `seconds_since_last_user_message` to decide whether to run its quiet-triggered decay/prune pass. The built-in Stage 1 `Temporal.poll()` producer inspected for the Stage 1 factory emits clock fields but not this key. The inspected consolidation tests manually insert the expected key into a temporal row, so they do not validate the real producer-to-consumer path. Another writer could supply the field; no complete writer census or live payload inspection has established whether that occurs. Source-level mismatch confirmed for the inspected producer; runtime effect UNKNOWN. No severity or remediation is assigned pending authoritative acceptance criteria and a complete producer census.
+
+
+### Current update — DRAFT-027 (24 Nov 2026)
+
+**Stage 1 scheduler shutdown does not wait for adapter threads before closing Writers.** _AdapterThread starts a daemon worker without retaining its thread handle; stop() only sets an event. SenseScheduler.shutdown() signals all workers and returns without joining them. AppState.close() then closes the Writers. If a worker is still inside poll() and subsequently reaches Adapter.submit()/Writer.write() after the Writer sentinel has been queued or processed, the request may be enqueued behind the sentinel and never serviced. This is a source-confirmed shutdown interleaving risk, not an observed failure. No shutdown interleaving was induced; target-host exposure is UNKNOWN. No severity or remediation is assigned pending acceptance criteria.
+
+**DRAFT-027 test boundary:** No dedicated test was run or identified in this bounded pass for shutdown during an in-flight adapter poll/write, thread termination/join, or Writer sentinel ordering. Source anchors: theory_x/stage1_sense/scheduler.py, gui/server.py (AppState.close) and substrate/writer.py.
+
+### Current update — DRAFT-028 (24 Nov 2026)
+
+**Some Stage 1 adapters can report partial upstream failure as a clean poll.** ExchangePrices.poll() and CryptoNews.poll() catch individual upstream failures and continue, returning any successful subset (or an empty list) without surfacing those failures to the scheduler. Scheduler last_error=None and last_event_count therefore do not establish that every configured source succeeded. ArxivAI.poll() follows a different contract and lets exceptions reach the scheduler. This is source-confirmed observability asymmetry; no current upstream outage or partial poll was observed. No severity or remediation is assigned.
+
+**DRAFT-028 test boundary:** The reviewed tests/test_sense_extract.py tests extraction/filtering helpers, not per-upstream adapter failures or expected completeness. No adapter test was run in this pass. Source anchors: theory_x/stage1_sense/feeds/exchange_prices.py, feeds/crypto_news.py, feeds/arxiv_ai.py, theory_x/stage1_sense/scheduler.py.
+
+### Current update — DRAFT-029 (24 Nov 2026)
+
+**RSS ingestion lacks a stable item identity/dedup boundary before Stage 2 A–F processing.** The shared parse_rss() helper omits the RSS/Atom entry id/guid, does not inspect Feedparser's bozo parse-warning status, and does not deduplicate across polls. The inspected sense_events schema has no unique source-item key. Stage 2 _sense_poll_loop() consumes each inserted row by database ID and invokes the A–F pipeline without content-level deduplication; the separate belief-distillation loop has its own exact/near-duplicate checks, but that does not make A–F processing idempotent. Repeated feed entries can therefore be processed as separate rows if returned by later polls and matched to branches. This is a conditional source-level risk, not a measured duplicate rate or live repeated state effect. No severity or remediation is assigned.
+
+**DRAFT-029 test boundary:** The reviewed tests/test_sense_extract.py covers payload extraction and filtering, not repeated poll ingestion, GUID preservation, malformed-feed partial parsing, or repeated-row A–F effects. No tests were run in this pass. Source anchors: theory_x/stage1_sense/feeds/_helpers.py, substrate/schema/sense.sql, theory_x/stage2_dynamic/__init__.py and theory_x/stage2_dynamic/pipeline.py.
+
+### PR #49 documentation update status (24 Nov 2026)
+
+Before this backlog update, PR #49 head was 5e1d7515c6b42d643f65495c084047edc4c3b372. The new Stage 1 source-audit findings are documented in the Reality Report and Architecture Crosswalk; this backlog addendum consolidates the three additional review candidates above. PR remains open, draft and unmerged. No exact-head CI result is claimed for the current documentation head unless a matching workflow run is returned separately.
