@@ -105,8 +105,9 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
 def assess_signal_authority(repo_dir: str, signal: str = "genius") -> dict:
     """Assess the genius signal's influence AUTHORITY from the actual relationships,
     not the consumer count (RDO §6/§20). Each consumer in the grounded table
-    (knowledge.genius_consumers) is grep-verified against its cited file so the
-    classification cannot go stale, then `tension.assess_signal_authority`
+    (knowledge.genius_consumers) is checked for cited-anchor presence in its file.
+    This is not semantic verification of the row or proof that the behaviour occurs.
+    Then `tension.assess_signal_authority`
     distinguishes read/behavioural, direct/indirect, conditional/unconditional,
     magnitude, safeguards and evidence class, and flags the material/unconditional
     path(s) + self-reinforcement risk rather than the raw file count."""
