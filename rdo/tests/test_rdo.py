@@ -214,13 +214,18 @@ def test_defect_pattern_generalises_and_metrics(tmp_path):
     defect = cycles["migration_defect (defect-remediation pattern)"]
     # the defect cycle reconciles applied fixes as reuse...
     assert any("fix" in r for r in defect["2_correctly_reused"])
-    # ...and still surfaces net-new regression work. Its package is blocked where
-    # necessary prerequisites remain unresolved; unknown obligations remain
-    # individually investigable rather than being relabelled as missing.
+    # Regression-test obligations must remain visible in discovery and be
+    # accounted for either as already-existing evidence or as net-new work.
+    # Existing regression tests are correctly reconciled as reuse, not re-requested.
+    regression_keys = [key for key in defect["1_discovered"]["obligations"]
+                       if "regression_test" in key]
+    assert regression_keys
     packages = defect["4_recommended_work"]
-    assert packages
-    assert any(any("regression_test" in key for key in w["obligations"])
-               for w in packages)
+    accounted_for = set(defect["2_correctly_reused"])
+    accounted_for.update(key for w in packages for key in w["obligations"])
+    assert all(key in accounted_for for key in regression_keys)
+    # Any remaining package is blocked where necessary prerequisites remain
+    # unresolved; unknown obligations remain investigable, not relabelled missing.
     assert any(w["eligibility"] == "blocked" and
                any("unknown" in blocker or "partial" in blocker for blocker in w["blockers"])
                for w in packages)
