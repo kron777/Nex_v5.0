@@ -165,3 +165,8 @@ A related but distinct Stage 2 distillation policy is recorded in the Crosswalk 
 ### PR #49 documentation update status (24 Nov 2026)
 
 Before this backlog update, PR #49 head was 5e1d7515c6b42d643f65495c084047edc4c3b372. The new Stage 1 source-audit findings are documented in the Reality Report and Architecture Crosswalk; this backlog addendum consolidates the three additional review candidates above. PR remains open, draft and unmerged. No exact-head CI result is claimed for the current documentation head unless a matching workflow run is returned separately.
+
+
+### DRAFT-027 test-coverage clarification — 24 Nov 2026
+
+The reviewed tests/test_sense.py does cover scheduler auto-start: test_starts_running_for_external asserts global_running and adapter enabled immediately after construction. It therefore corroborates the implemented auto-start behaviour and confirms that the paused-by-default package/scheduler prose is stale. However, teardown only calls scheduler.shutdown(), and the direct _AdapterThread test only calls stop(); neither waits for or asserts worker termination before Writer cleanup. The shutdown race remains without a corresponding join/order assertion.
