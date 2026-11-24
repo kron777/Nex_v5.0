@@ -20,7 +20,7 @@ from __future__ import annotations
 from typing import Callable, Dict, List, Optional, Tuple
 
 from .model import (ANTI_REQUIREMENT, CONDITIONAL, NECESSARY, Obligation,
-                    RECON_UNKNOWN, REUSE_EXISTING, Relationship)
+                    RECON_UNKNOWN, REUSE_EXISTING, SIGNATURE_MATCHED, Relationship)
 
 # A rule: (child_kind, classification, rationale, shared_target|None).
 # shared_target lets independent parents converge on one canonical obligation.
@@ -193,6 +193,10 @@ def expand(seeds: List[Obligation],
                 frontier.append({"key": ob.key,
                                  "reason": "semantic satisfaction independently reviewed"})
                 continue
+            frontier.append({"key": ob.key,
+                             "reason": "reuse status lacks semantic-review evidence; "
+                                       "expanded conservatively"})
+        elif ob.recon_status == SIGNATURE_MATCHED:
             frontier.append({"key": ob.key,
                              "reason": "source signature matched; semantic satisfaction unreviewed; "
                                        "expanded conservatively"})
