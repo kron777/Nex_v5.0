@@ -221,6 +221,7 @@ def test_cycle_metrics_reject_malformed_effort_and_zero_obligation_denominator()
         actual={"missed": [], "unnecessary": [], "reuse_wrong": [],
                 "regressions": [], "effort_actual": "seven"},
     )
+    assert compare(malformed)["effort_error"] is None
     series = metrics_series([malformed])
     assert series["efficiency_eligible_cycles"] == 0
     assert series["comparability"]["efficiency_comparison_pool"] == []
