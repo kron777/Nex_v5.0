@@ -307,3 +307,137 @@ Completion of this workpaper does **not** mean Gate 0 is complete, does not auth
 This draft was assembled from the existing Phase 0 handover and the current PR #49 documentation branch. The initial pathway leads in §4 are summaries of the companion crosswalk, not independent re-verification of every cited source path. The next revision must bind each detailed claim to the current source/test revision and preserve the crosswalk's explicit host/runtime unknowns.
 
 No NEX runtime code, tests, schema, database, flags, experiments, baselines, tripwires, host state or deployment was changed in preparing this workpaper.
+
+
+## 13. Source reconciliation pass 1 — revision-bound findings (24 Nov 2026)
+
+### 13.1 Revision and method
+
+This pass re-opened the companion Crosswalk, Defect Backlog, Chat Pathway Audit and ADR-001 on the Phase 0 documentation branch, then inspected the relevant implementation files at PR #65 source head `cffbbc94b5a494247d127abf2720886a08f7a567`. This is an exact, public GitHub source snapshot; it is not proof that the deployed host runs this revision. Source blob IDs are recorded below so later changes can be detected.
+
+The following findings are a bounded source reconciliation, not a claim that every evaluator or every consumer in the repository has been exhausted. The Crosswalk and Defect Backlog remain the companion authority for their wider inventories. In particular, the exact Frozen V2.1 specification and Founder Sign-Off remain unavailable.
+
+### 13.2 Finding EVI-01 — Global Workspace is a prompt-framing selector, not a general evaluator
+
+**Claim:** the Fountain Global Workspace gathers a bounded set of heterogeneous candidates, assigns source-specific salience values, selects one maximum-salience candidate and prepends its framing text to the Fountain focus block. It does not assess the truth or evidential quality of the selected candidate.
+
+- **Status:** source-confirmed [L1]; host activation [L2] UNKNOWN; behavioural value [L4] UNKNOWN.
+- **Source anchors at PR #65 head:**
+  - `theory_x/stage_tom/global_workspace.py`, blob `54ddab05112702eef34faaa4f24d45139350b349`, lines 38–80: source weights and surprise candidate admission.
+  - Same file, lines 130–168: `arbitrate_candidates()` uses `max(..., key=salience)`; ties retain the first maximum; Chat budget selection is a separate stable-order policy.
+  - Same file, lines 245–289: candidates are surprise, momentum, bonsai, stakes and drive; winner is returned as the framing line.
+  - `theory_x/stage6_fountain/generator.py`, blob `d57bde71eca5f5968964b2846b8a34cffa8964a2`, lines 3558–3578: `NEX5_GLOBAL_WORKSPACE` defaults to `1`; a non-empty winner is prepended to `focus_block`.
+- **Forward path:** candidate sources → salience constants / candidate functions → max-salience winner → returned framing line → Fountain focus prompt. The source does not establish that the language model relies on the frame or that it improves the generated thought.
+- **Backward path:** the prompt insertion reads the single returned winner; it does not receive a separately computed truth, provenance, uncertainty or independent-corroboration assessment.
+- **Discrimination boundary:** this mechanism distinguishes candidates by configured source salience, not by semantic correctness. The first-maximum tie rule is deterministic but is not an evidential tie-break.
+- **Known interacting issue:** `_surprise_candidate()` admits recent scores above 0.3. The empty-window exclusion is conditional on `NEX5_GW_SURPRISE_NONEMPTY=1`; the source comment records that empty prediction windows can carry score 1.0 with NULL actual content. The companion Defect Backlog tracks this as DRAFT-011. Do not duplicate it as a new defect here; retain it as a high-value T1/T3 crosswalk case.
+- **Falsifier / next evidence:** show an existing source-supported evaluator upstream of arbitration that validates candidate content/provenance and is actually read by the selector, or a controlled isolated test showing the selector's intended policy includes such a distinction. No such dependency was established in this pass.
+- **Functional sufficiency:** potentially sufficient for its narrow responsibility of choosing a prompt frame by salience; insufficient evidence to call it an evaluator of truth, relevance or importance in a general sense. A central evaluator is not implied.
+
+### 13.3 Finding EVI-02 — EmphasisEngine is deliberately observational; its score is persisted but not shown to alter selection
+
+**Claim:** EmphasisEngine computes a three-signal equal-weight mean plus a separately logged drive-resonance value, and Fountain persists the result against the generated `fountain_event_id`. The inspected call path labels this post-hoc/observation-only and does not feed the score back into the thought or a later decision in the inspected generator path.
+
+- **Status:** source-confirmed [L1]; runtime execution [L2] UNKNOWN; downstream decision consumption [L3] not established; behavioural validation [L4] UNKNOWN.
+- **Source anchors:**
+  - `theory_x/stage_emphasis/emphasis_engine.py`, blob `21d67aa1b86fe224d30dd17fed64cba987e71a6c`, lines 1–25 and 212–255: observation-only contract; `goal_relevance`, `self_relevance`, `surprise` are equally averaged; `drive_resonance` is still computed but excluded from `combined` and `dominant_signal`. The module records a prior ground-truth test of drive resonance as null (p=0.190, effect -0.013); the other three signals are explicitly described as untested, not validated.
+  - `theory_x/stage6_fountain/generator.py`, blob `d57bde71eca5f5968964b2846b8a34cffa8964a2`, lines 1125–1165: engine construction is local to FountainGenerator and fail-safe; emphasis table is created lazily.
+  - Same file, lines 2393–2413: scoring occurs before the `fountain_events` insert and is described as not touching the thought or upstream state.
+  - Same file, lines 2414–2465: after the event insert returns `fountain_event_id`, an `emphasis_log` row is written with that ID and the component signals/combined/dominant value.
+- **Forward path:** generated thought → score computation → event insert returns ID → `emphasis_log` persistence keyed by that ID. This establishes identity association, not downstream use.
+- **Backward path:** no read of `emphasis_log` or `EmphasisResult` by the inspected Fountain selection/crystallization path was established in this bounded source pass. The score is retained in `_last_result` for node state/inspection; a full repository-wide sink audit remains open.
+- **Falsifier / next evidence:** locate and trace a consumer that reads the stored emphasis row or current result and changes an actual selection, gate, prompt, confidence or action; otherwise a controlled fixture should show that changing the emphasis signal leaves downstream decisions invariant.
+- **Functional sufficiency:** observation-only may be the correct functional level. Lack of a decision consumer is not automatically a defect, because the stated contract explicitly defers influence pending evidence that the measure tracks something real. Do not wire it into selection merely to increase its evidence level.
+
+### 13.4 Finding EVI-03 — CoherenceGate applies a bounded heuristic acceptance policy, not general contradiction or truth evaluation
+
+**Claim:** the inspected CoherenceGate evaluates candidate text against a limited set of recent beliefs, locked Tier-1 anchors, active goal titles and open-problem titles. Its decisions are rule-based and order-sensitive; it does not establish factual truth or comprehensively reconcile contradictory evidence.
+
+- **Status:** source-confirmed [L1]; Fountain construction in `run.py` source [L1]; actual runtime calls/host activation [L2] UNKNOWN; behavioural validity [L4] UNKNOWN.
+- **Source anchors:**
+  - `theory_x/stage_gate/coherence_gate.py`, blob `39f73108cb36e886cfc8dafe045646acba15549e`, lines 291–400: Jaccard redundancy rejection; direct negation comparison against selected locked anchors; Jaccard HOLD band; goal/problem title overlap rules; novel connection ACCEPT; opt-in reshape; default ACCEPT.
+  - Same file, lines 402–477: bounded substrate queries and gate-decision logging.
+  - `run.py`, blob `73a2c58a4f5f0348135a46eb83d6cdd61db874e7`, lines 124–155: constructs and supplies the gate to dynamic formation.
+- **Forward path:** ThoughtPacket → fresh bounded substrate reads → ordered heuristic checks → GateDecision → caller-specific handling. The Fountain crystallizer's actual ACCEPT/REJECT/HOLD handling is separately mapped in the Crosswalk and trace stack; this gate is not shown as a general Chat response gate.
+- **Backward path:** decision inputs are candidate text/packet metadata, selected anchor content and IDs, recent belief content, active goal titles and open-problem titles. The inspected rules do not query independent external sources or a general truth/uncertainty evaluator.
+- **Discrimination boundary:** the direct-negation rule only applies when token overlap and anchor-negation difference meet its conditions; a paraphrase with lower Jaccard can pass that specific check. Goal/problem checks use title-token overlap and negation, not full semantic entailment. A default ACCEPT means “no configured rule fired”, not “verified true”.
+- **Falsifier / next evidence:** representative minimal pairs across paraphrase, contradiction, scope, temporal change, source conflict and factual error could show that the existing gate reliably meets a broader approved contract. That contract must first be taken from the governing specification; do not infer it from class names or comments.
+- **Functional sufficiency:** plausibly sufficient as a bounded coherence/redundancy gate for its declared responsibility; not sufficient evidence for a universal evaluator. This does not justify broadening its remit.
+
+### 13.5 Finding EVI-04 — Metacognition produces self-observation events that can become prompt context; prompt inclusion is not proof of correction
+
+**Claim:** the Chat path calls Metacognition's detector tick, obtains a formatted recent observation and appends non-empty text to the current Chat belief context. Fountain has a separate conditional injection path behind `NEX5_METACOG_VOICE=1`. This is a real source-level feedback-to-context path, but not evidence that the model recognises, accepts or corrects the detected pattern.
+
+- **Status:** source-confirmed [L1]; Chat/Fountain live activation and emitted event counts [L2] UNKNOWN; model reliance/decision change [L3] UNKNOWN; improved behaviour [L4] UNKNOWN.
+- **Source anchors:**
+  - `theory_x/stage9_metacognition/metacognition.py`, blob `de853bd93a11dcfe39ee8afa30a84e5c7b1f8b08`, lines 242–369: `tick()` runs detectors, writes events, refreshes a recent-event cache; `get_recent()` retrieves unresolved events; optional salience ranking is conditional.
+  - Same file, lines 369–408: `format_for_prompt()` formats the top cached event as a short self-observation.
+  - `gui/server.py`, blob `d67df10f4449004c255e38b11b4a1888a4e4934c`, lines 1519–1537: Chat calls `tick()`, formats and appends non-empty output to `belief_text`.
+  - `theory_x/stage6_fountain/generator.py`, blob `d57bde71eca5f5968964b8a34cffa8964a2`, lines 3643–3655: Fountain prompt injection is conditional on `NEX5_METACOG_VOICE=1`.
+- **Forward path:** detector inputs → event write → unresolved-event retrieval/cache → formatted self-observation → Chat context append (or conditional Fountain append). The current path does not establish a subsequent acknowledgement, correction, changed detector threshold or durable policy revision.
+- **Backward path:** the prompt text depends on the selected top recent event; by default the selection is recent-first, with an optional severity/decay ranking behind `NEX5_SALIENT_SELF_OBS`. The model receives the formatted phrase, not necessarily the full evidence, detector inputs or competing interpretations.
+- **Discrimination boundary:** event production, event retrieval and formatted prompt inclusion are separate stages. A detector's event may be stale, noisy or wrong; prompt presence alone does not validate it. Repeated detector outputs and their provenance remain relevant to H5.
+- **Falsifier / next evidence:** an isolated controlled fixture can compare correct, false-positive, stale and contradictory detector events, then inspect whether the downstream response appropriately uses, qualifies or rejects the observation. A true correction claim would additionally require a source-supported later state change.
+- **Functional sufficiency:** sufficient to surface an observation into Chat context under the inspected path; not evidence of a self-correcting feedback loop. Do not infer adaptation from prompt inclusion.
+
+### 13.6 Finding EVI-05 — Warrant calculation/persistence and operational use remain distinct, with boot wiring unresolved
+
+**Claim:** Warrant has a defined computation and persistence mechanism, and its background pass is flag-gated. In the inspected `run.py` blob at the source revision, no `WarrantPass` construction/start call was found. The class docstring says it is constructed and started only when `NEX5_WARRANT=1 (run.py)`, but the inspected boot file does not substantiate that statement. This is a documentation/source-wiring discrepancy to resolve, not proof that warrant never runs in another host wrapper or alternate entrypoint.
+
+- **Status:** computation/persistence source [L1]; normal `run.py` construction not established; runtime [L2] UNKNOWN; decision consumer [L3] UNKNOWN.
+- **Source anchors:**
+  - `theory_x/stage_warrant/warrant.py`, blob `a15bc9d012fffac319adf1634f52eb1fde0e35b6`, lines 105–190: read-only calculation from belief graph/lineage, historical usage and dynamic event records; combines four components and persists to `belief_warrant`.
+  - Same file, lines 205–255: `WarrantPass` background loop and `NEX5_WARRANT` guard in `start_loop()`.
+  - `run.py`, blob `73a2c58a4f5f0348135a46eb83d6cdd61db874e7`: inspected full 812-line boot file; no `WarrantPass` reference was found in this file.
+  - `tests/test_warrant.py`, blob `99e639bcf3bd8c1f6e5ab1acbf5b61f20e438b51`, lines 101–121: computation test and flag-off thread-start test; these do not prove normal boot wiring or a consumer.
+- **Forward path:** source data → `compute_all()` → weighted warrant values → `belief_warrant` upsert through Writer, if `run_once()` is called by an active pass.
+- **Backward path:** no operational reader of `belief_warrant` was established in the bounded inspected callsites. The computation's inputs are historical survival/promotion, distinct-day usage and cross-branch support/synthesis signals.
+- **Falsifier / next evidence:** locate an alternate boot/host entrypoint that constructs and starts the pass, then trace a reader from the persisted table to a decision sink; or establish that the pass is intentionally dormant/analysis-only under the approved contract.
+- **Functional sufficiency:** the calculation may be adequate as an offline/observational “earnedness” measure. Its present role cannot be upgraded to an operational belief evaluator without proving both authorised activation and actual consumption.
+
+### 13.7 Finding EVI-06 — Surprise has distinct consumers with different admission semantics
+
+**Claim:** the same `surprise_events` records feed several distinct pathways that do not share the same validity filter. The SurpriseLoop requires non-empty predicted and actual content plus `surprise_flag=1`; the Fountain confidence weighting reads the latest score without checking `actual_content`, `surprise_flag` or `big_surprise`; Global Workspace has a separate optional empty-window filter. This creates a source-confirmed semantic mismatch across consumers.
+
+- **Status:** source-confirmed [L1]; frequency and active host flags [L2] UNKNOWN; impact on actual beliefs/thoughts [L3] UNKNOWN; behavioural effect [L4] UNKNOWN.
+- **Source anchors:**
+  - `theory_x/life/surprise_loop.py`, blob `bb1869e3d5784ca668ca37e8c76cc25998d7a381`, lines 96–118: promotion query explicitly requires flagged events and non-empty actual/predicted content.
+  - `theory_x/stage_prediction/surprise_weighting.py`, blob `10db4a80a31c065b113290f21d89bd16743a89fb`, lines 37–67: confidence weighting selects the latest event in a 60-second window and uses `surprise_score` alone to compute the boost.
+  - `theory_x/stage_tom/global_workspace.py`, blob `54ddab05112702eef34faaa4f24d45139350b349`, lines 63–80: empty-window exclusion is conditional on `NEX5_GW_SURPRISE_NONEMPTY=1`.
+  - `theory_x/stage6_fountain/crystallizer.py`, blob `62cbb62cf55b8c39ab1301b9d89d36b37cc16bfc`, lines 489–496: confidence weighting is called when `NEX5_SURPRISE_WEIGHT` is unset or `1` (source default `1`).
+- **Forward paths:** one producer/table → (a) SurpriseLoop's filtered promotion to Tier-6 belief, (b) confidence weighting of a later crystallized Fountain belief, and (c) Global Workspace candidate admission/framing. These are separate consumers with different contracts.
+- **Backward path:** the confidence sink reads the latest score, not the validation fields selected alongside it; the promotion sink filters those fields; the Workspace sink uses its own flag-controlled content/score filter.
+- **Discrimination boundary:** a numeric score is not interchangeable with a validated, content-bearing prediction error. A high sentinel score can be “no usable observation” for one consumer but a maximal weight for another.
+- **Falsifier / next evidence:** a temporary-database test should insert matched rows (valid content, NULL actual, empty actual, unflagged, boundary score) and assert each consumer's documented admission result. This is a proposed isolated test only; it has not been run in this pass.
+- **Functional sufficiency:** each consumer can be locally coherent under its own contract, but the current cross-consumer semantic mismatch is a strong T1/T2/T3 candidate. Do not change filters or defaults before the governing acceptance contract and existing defect record are reconciled.
+
+### 13.8 Finding EVI-07 — FocalSet and WorkingMemory are a selection-to-context pathway, not merely a log
+
+**Claim:** the Chat handler updates the process-global FocalSet from retrieved belief candidates, adds the selected focal beliefs to a session-specific WorkingMemory object, and then reads/logs active WorkingMemory items. The current code section shown here does not itself prove the later prompt-injection branch; the companion Chat Pathway Audit and Crosswalk trace that downstream conditional append. Thus the “log-only” comments are not an accurate description of the full pathway.
+
+- **Status:** source-confirmed [L1] for selection and session-memory writes; prompt-injection path source-confirmed in the companion audit; live activation [L2] UNKNOWN; model reliance [L3] UNKNOWN.
+- **Source anchors:**
+  - `gui/server.py`, blob `d67df10f4449004c255e38b11b4a1888a4e4934c`, lines 114–135: process-global FocalSet and module-level setup.
+  - Same file, lines 1672–1725: retrieved candidates → FocalSet update → focal IDs → session WorkingMemory additions → active-item read/log.
+  - `theory_x/focal_set.py`, blob `e12531f2858085778ebca75f73a7dee6ec8ce416`, lines 56–184: salience smoothing, open-mode selection and top-K/protection policy.
+- **Forward path:** retrieval candidates → FocalSet priorities/selection → focal belief IDs → session WorkingMemory additions → active items; companion Chat audit traces the conditional same-turn/cross-turn prompt append.
+- **Backward path:** selected IDs depend on the retrieved candidate pool and FocalSet's current process state, including smoothed priorities/protected prior focal members. WorkingMemory is keyed by session ID, while the FocalSet instance is process-global.
+- **Discrimination boundary:** retrieval candidate generation limits what FocalSet can choose; FocalSet does not independently discover omitted candidates. The shared selector state and per-session memory boundary are distinct and should not be collapsed into one “memory” claim.
+- **Falsifier / next evidence:** paired isolated requests with overlapping/disjoint belief IDs across sessions can establish whether shared focal state changes later selection; a separate trace should identify exactly which WorkingMemory IDs enter each prompt. Do not interpret this coupling as a privacy leak without demonstrating cross-session content transfer.
+- **Functional sufficiency:** the selector can be sufficient as a bounded attention mechanism over the supplied candidate set. Whether process-global state across sessions is intended is unresolved; no redesign is proposed.
+
+### 13.9 Reconciliation summary and next smallest evidence set
+
+This pass confirms that “evaluation” in NEX is not one homogeneous function. At least six different responsibilities are visible in the inspected source: prompt-frame salience competition (Global Workspace), a bounded coherence gate (CoherenceGate), observation-only post-thought measurement (EmphasisEngine), self-observation surfaced as context (Metacognition), an earnedness computation with unestablished boot/consumer wiring (Warrant), and surprise consumers with non-equivalent admission semantics. FocalSet is an attention selector whose outputs can reach Chat context through WorkingMemory.
+
+The evidence does **not** support a blanket claim that NEX has no evaluation, nor a blanket claim that these mechanisms form an integrated evaluative system. It supports a mixed arrangement with local evaluators/selectors, observation-only measurements, conditional prompt feedback, and at least one source-confirmed cross-consumer semantic mismatch.
+
+**Smallest proposed isolated test set (not run in this pass):**
+1. **T1/T2 surprise admission matrix:** one temporary DB, paired event rows varying only actual-content presence, surprise flag and score; inspect promotion, confidence weighting and workspace admission independently.
+2. **T2 emphasis non-consumption check:** vary one EmphasisResult signal under a deterministic Fountain fixture and compare generated thought, gate outcome, crystallized belief and speech queue; expected invariance is consistent with the observation-only contract.
+3. **T1 CoherenceGate minimal-pair matrix:** near-duplicate, paraphrase, direct negation, scope/temporal qualifier and goal-title overlap; assert actual GateDecision and reason without interpreting ACCEPT as factual truth.
+4. **T2/T4 Metacognition context test:** inject valid, false-positive, stale and conflicting event fixtures; inspect formatted context and downstream model stub inputs, without claiming model reliance.
+5. **T2/T4 FocalSet session-boundary fixture:** overlapping and disjoint candidates across two session IDs; inspect selected IDs and prompt-contributing WorkingMemory IDs.
+6. **Warrant wiring inspection:** read-only search of all boot/entrypoint variants and all readers of `belief_warrant`; do not arm `NEX5_WARRANT` or start the background pass.
+
+No new tests were added or executed in this pass. The proposed tests remain within the Phase 0 isolated-evidence boundary but must be reconciled against the exact governing acceptance criteria before implementation. No production source, runtime code, flags, database, experiment, baseline, tripwire, host or deployment was changed.
