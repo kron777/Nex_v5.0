@@ -551,18 +551,20 @@ Added `TestGateSubstrateReadFailure.test_unavailable_belief_reader_allows_anchor
 
 ## 13.17 CoherenceGate per-query failure and empty-result controls
 
-Five additional isolated controls separate the four substrate reads instead of treating either reader as one indivisible dependency:
+Seven additional isolated controls separate the four substrate reads instead of treating either reader as one indivisible dependency:
 
-| Fixture | Injected condition | Expected/current source-path distinction |
+| Fixture | Injected condition | Observed/current source-path distinction |
 |---|---|---|
-| Anchor-only failure | The `tier=1` anchor query raises; recent-belief and conversations queries still run | The seeded anchor is unavailable to the comparison; the direct-negation packet reaches the default ACCEPT in this fixture |
+| Anchor-only failure | The `tier=1` anchor query raises; recent-belief and conversations queries still run | The seeded anchor is unavailable to the comparison; the direct-negation packet reaches default ACCEPT in this fixture |
 | Recent-belief-only failure | The recent-belief query raises; anchor query succeeds | The locked anchor remains available and the direct-negation packet is REJECTed |
-| Goal-only failure | The goals query raises; open-problems and beliefs queries still run | The locked-anchor comparison remains available and REJECTs the direct-negation packet |
-| Problem-only failure | The open-problems query raises; goals and beliefs queries still run | The locked-anchor comparison remains available and REJECTs the direct-negation packet |
+| Goal-only failure — anchor independence | The goals query raises; open-problems and beliefs queries still run | The locked-anchor comparison remains available and REJECTs the direct-negation packet |
+| Problem-only failure — anchor independence | The open-problems query raises; goals and beliefs queries still run | The locked-anchor comparison remains available and REJECTs the direct-negation packet |
+| Goal-only failure — lost goal signal | An active goal is seeded; the goals query raises | The same goal-negating packet is HOLD with the normal reader and ACCEPT when the goals read fails |
+| Problem-only failure — lost problem signal | An open problem is seeded; the problems query raises | The same problem-negating packet is HOLD with the normal reader and ACCEPT when the problems read fails |
 | Successful-empty control | All reads successfully return empty lists | The direct-negation packet reaches default ACCEPT because no anchor was returned; this is an empty result, not a reader exception |
 
 The fixtures use temporary databases and selective reader wrappers that delegate all non-target queries to the real test readers. The successful-empty control uses a deterministic reader returning an empty list. These are component-level characterizations; they do not simulate SQLite lock/corruption/I/O failures, caller persistence, deployed incidence, or host recovery.
 
-The source distinction is important: an unavailable anchor read and a successful empty anchor result currently collapse to the same evaluation input (an empty list). The tests characterize that collapse; they do not establish that the system is required to fail closed, retry, abstain, or expose a distinct outcome. The Faculty Model §2.3–2.4 describes the gate's questions and four outcomes but does not define unavailable-evidence semantics. The top-level `check()` docstring's ACCEPT-on-internal-error statement is counterevidence that availability may have been an intentional design priority, but does not settle the per-evidence contract.
+The source distinction is important: an unavailable anchor read and a successful empty anchor result currently collapse to the same evaluation input (an empty list). Goal/problem read failures also remove those evidence-specific HOLD/connection opportunities, while independent belief reads continue. The tests characterize these effects; they do not establish that the system is required to fail closed, retry, abstain, or expose a distinct outcome. The Faculty Model §2.3–2.4 describes the gate's questions and four outcomes but does not define unavailable-evidence semantics. The inspected Theory X Doctrine describes the belief field as the inter-node bus and the gate's four outcomes, but no unavailable-evidence policy was found in the inspected passages. The top-level `check()` docstring's ACCEPT-on-internal-error statement is counterevidence that availability may have been an intentional design priority, but does not settle the per-evidence contract.
 
 **Evidence classification:** source-level query separation and exception handling [L1]; fixture outcomes pending CI on this test head [L1]; real storage-failure behaviour, deployed incidence, intended policy and operational impact [L2/L4] UNKNOWN. No production source, schema, flags, runtime state, or roadmap items changed.
