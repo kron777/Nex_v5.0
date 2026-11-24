@@ -1510,3 +1510,12 @@ A bounded lifecycle trace from the Stage 1 adapter threads through application s
 Source anchors at current PR #49 source head: `theory_x/stage1_sense/scheduler.py` (`_AdapterThread.__init__`, `_run`, `stop`, `SenseScheduler.shutdown`); `gui/server.py` (`AppState.close`); and `substrate/writer.py` (`Writer.close`, synchronous `write`, worker sentinel handling). This lifecycle edge belongs in the Stage 1 forward dependency/termination map and remains an open Phase 0 defect/risk candidate pending authoritative acceptance criteria. No remediation is authorised by this finding.
 
 No runtime, test, schema, flag, host, experiment, merge or deployment change was made.
+
+
+### Stage 2 → Stage 3 pipeline-hook influence path — 24 Nov 2026
+
+The WorldModel factory constructs `PipelineHooks` and registers the live `DynamicState`, which injects `on_pipeline_event` as the optional callback used by Stage 2 `run_pipeline()`. The callback is reached only after Step F has at least one qualifying branch hit; Stage 2 invokes it for each valenced branch with magnitude at least 0.001. The hook itself ignores magnitudes below 0.6, then tokenises `sensation_source` (the provenance string when present, otherwise the stream name) together with the branch id. It reads up to the 50 newest beliefs with tier <= 7 that are unpaused and unlocked, and calls the promoter's corroboration path when overlap divided by the hook query-token count is at least 0.7. With `NEX5_TIER_CLIMB=1`, it additionally considers up to 500 T6 beliefs.
+
+This means the inspected cross-stage feedback is not a direct semantic comparison between the full sensed payload and belief content: the hook's comparison input is provenance/stream plus branch identity. It is also conditional on a Step-F hit and a high enough magnitude. Internal streams do not reach Step F in the inspected mapper because their magnitude is forced to zero. The hook is a real source-level connection from Stage 2 attention to Stage 3 belief corroboration, but no live invocation or specific belief promotion is established.
+
+The inspected `tests/test_world_model.py` covers the promoter's corroboration threshold and stage labels; the reviewed test slice does not exercise the full DynamicState → Step-F → PipelineHooks integration or verify which source tokens drive corroboration.
