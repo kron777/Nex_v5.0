@@ -148,6 +148,7 @@ class CycleRecord:
     obligations: List[dict] = dataclasses.field(default_factory=list)
     relationships: List[dict] = dataclasses.field(default_factory=list)
     reused: List[str] = dataclasses.field(default_factory=list)
+    signature_matches: List[str] = dataclasses.field(default_factory=list)
     missing: List[str] = dataclasses.field(default_factory=list)
     anti_requirements: List[str] = dataclasses.field(default_factory=list)
     uncertainties: List[str] = dataclasses.field(default_factory=list)
