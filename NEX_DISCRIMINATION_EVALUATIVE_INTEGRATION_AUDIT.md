@@ -2,7 +2,7 @@
 **Status:** Investigative workpaper — draft; not a Gate 0 submission or new acceptance specification  
 **Programme boundary:** NEX v5.0, Master Roadmap v3.0, Phase 0 M0.3–M0.5 support  
 **Repository:** `kron777/Nex_v5.0`  
-**Prepared against:** PR #49 head `308f8e40ee97470b7770f73318996cf47f2994e3` (documentation branch; base `main` at `6e6712bd4bde15ad2288f220cd4438b11622c93c`)  
+**Prepared against:** PR #49 Phase 0 evidence branch; source anchors and test claims are pinned to the revisions recorded in the relevant sections (base `main` at `6e6712bd4bde15ad2288f220cd4438b11622c93c`)  
 **Companion evidence:** `NEX_ARCHITECTURE_CROSSWALK_v2.md`, especially §§3.3, 3.11, 3.15, 3.19, 3.21 and subsequent source-audit addenda; `NEX_CHAT_PATHWAY_AUDIT.md`; `NEX_VERIFIED_DEFECT_BACKLOG.md`.  
 **Authority qualification:** The exact Frozen V2.1 specification and Founder Sign-Off record were not present in the retrieved handover/library material. This workpaper therefore does not define or amend frozen acceptance criteria. It records questions, source-grounded leads and possible isolated tests only.
 
@@ -470,7 +470,7 @@ The two cases characterize the current source behaviour:
 
 These are characterization assertions, **not** an assertion that this is the desired policy. They make the observed consumer boundary reproducible and give a future policy decision a precise regression surface. Existing `tests/test_gw_surprise_nonempty.py` already characterizes the separate Workspace empty-window flag behaviour; SurpriseLoop's stricter promotion query remains visible in its source and should be tested independently if the approved contract requires it.
 
-The test was committed as a test-only change. It does not alter production code, flags, runtime state, databases or the roadmap. CI has been triggered by this commit; results are pending at the time of this note.
+The test was committed as a test-only change. It does not alter production code, flags, runtime state, databases or the roadmap. The exact test head `492017879936f16c7949ccadcf43d66c042db38c` passed GitHub Actions run `45415124667` (pytest job successful).
 
 
 ## 13.12 FocalSet / WorkingMemory sink qualification — prompt use is conditional, selector state is shared
@@ -496,7 +496,7 @@ Added `tests/test_chat_working_memory_session_boundary.py`. It resets the module
 
 This test covers the per-session WorkingMemory boundary only. It does not prove that the process-global FocalSet is session-isolated (it is not: source shows one shared instance), does not exercise the complete Flask prompt-assembly route, and does not establish model reliance. The complete route's prompt append remains conditional as described in §13.12.
 
-No production code or runtime state was changed. This is a deterministic, isolated characterization test; CI will validate its import/runtime compatibility.
+No production code or runtime state was changed. This is a deterministic, isolated characterization test; it passed in GitHub Actions run `45415124667` on test head `492017879936f16c7949ccadcf43d66c042db38c`.
 
 
 ## 13.14 CoherenceGate negation minimal-pair characterization
@@ -516,7 +516,7 @@ The tests record current behaviour, including the first case as a known lexical 
 
 **Impact boundary:** CoherenceGate's anchor contradiction check is a bounded lexical heuristic. It catches the tested direct minimal pair, but the Boolean negation feature can conflate rhetorical, scoped, or compositional negation with actual opposition. Existing threshold/Jaccard checks do not solve that semantic distinction. This is a demonstrated limitation of the heuristic, not evidence that all gate decisions are unreliable.
 
-**Evidence classification:** source rule [L1]; fixture outcome [L1] pending CI; semantic correctness in deployed workloads [L4] UNKNOWN. No production code, thresholds, flags, anchors, or runtime data changed.
+**Evidence classification:** source rule [L1]; fixture outcome [L1], CI-passed on test head `492017879936f16c7949ccadcf43d66c042db38c` in run `45415124667`; semantic correctness in deployed workloads [L4] UNKNOWN. No production code, thresholds, flags, anchors, or runtime data changed.
 
 
 ## 13.15 CoherenceGate punctuation-sensitive negation characterization
@@ -529,7 +529,7 @@ The new isolated test compares:
 
 This is a source-predicted lexical false-negative shape, not a claim that punctuation always changes the correct semantic interpretation. The fixture records the actual gate result in an isolated temporary substrate. It does not propose a production fix or infer real-world frequency.
 
-**Evidence boundary:** whitespace-token implementation [L1]; test outcome pending CI until the current run completes [L1]; prevalence and effect in deployed conversations [L4] UNKNOWN. No production source, thresholds, flags, anchors, runtime data, or roadmap items changed.
+**Evidence boundary:** whitespace-token implementation [L1]; fixture outcome [L1], CI-passed on test head `492017879936f16c7949ccadcf43d66c042db38c` in run `45415124667`; prevalence and effect in deployed conversations [L4] UNKNOWN. No production source, thresholds, flags, anchors, runtime data, or roadmap items changed.
 
 
 ## 13.16 CoherenceGate substrate-read failure characterization — evidence unavailable becomes empty
@@ -546,7 +546,7 @@ Added `TestGateSubstrateReadFailure.test_unavailable_belief_reader_allows_anchor
 
 **Interpretation boundary:** this demonstrates fail-open behaviour when both beliefs reads are unavailable in the tested configuration. It does not establish how often the condition occurs in a running deployment, whether infrastructure retries or external health checks prevent it, or what the intended policy should be. A fail-open choice may have been deliberate for availability; changing it would alter gate semantics and requires governing-spec review and explicit authorization.
 
-**Evidence classification:** source-level exception handling [L1]; isolated fixture outcome [L1], with CI status tracked against the exact test head; deployed incidence and operational impact [L2/L4] UNKNOWN. No production source, runtime state, flags, anchors, or roadmap items changed.
+**Evidence classification:** source-level exception handling [L1]; isolated fixture outcome [L1], CI-passed on test head `492017879936f16c7949ccadcf43d66c042db38c` in run `45415124667`; deployed incidence and operational impact [L2/L4] UNKNOWN. No production source, runtime state, flags, anchors, or roadmap items changed.
 
 
 ## 13.17 CoherenceGate per-query failure and empty-result controls
@@ -569,7 +569,7 @@ The fixtures use temporary databases and selective reader wrappers that delegate
 
 The source distinction is important: an unavailable anchor read and a successful empty anchor result currently collapse to the same evaluation input (an empty list). A paired fixture now explicitly compares their final outcome and reason and confirms they are identical. Goal/problem read failures remove their evidence-specific HOLD opportunities and positive connection rationales. For positive connections, the outcome remains ACCEPT but its reason falls back to accept:novel_no_conflict; independent belief reads continue. The tests characterize these effects; they do not establish that the system is required to fail closed, retry, abstain, or expose a distinct outcome. The Faculty Model §2.3–2.4 describes the gate's questions and four outcomes but does not define unavailable-evidence semantics. The inspected Theory X Doctrine describes the belief field as the inter-node bus and the gate's four outcomes, but no unavailable-evidence policy was found in the inspected passages. The top-level `check()` docstring's ACCEPT-on-internal-error statement is counterevidence that availability may have been an intentional design priority, but does not settle the per-evidence contract.
 
-**Evidence classification:** source-level query separation and exception handling [L1]; fixture outcomes pending CI on this test head [L1]; real storage-failure behaviour, deployed incidence, intended policy and operational impact [L2/L4] UNKNOWN. No production source, schema, flags, runtime state, or roadmap items changed.
+**Evidence classification:** source-level query separation and exception handling [L1]; fixture outcomes [L1], CI-passed on test head `492017879936f16c7949ccadcf43d66c042db38c` in run `45415124667`; real storage-failure behaviour, deployed incidence, intended policy and operational impact [L2/L4] UNKNOWN. No production source, schema, flags, runtime state, or roadmap items changed.
 
 
 ## 13.18 Anchor-read-failure ACCEPT reaches the existing resolver sink
@@ -584,7 +584,7 @@ Added `TestGateWiring.test_anchor_read_failure_accept_still_triggers_resolver` i
 
 **Impact boundary:** this demonstrates that an ACCEPT produced with the anchor evidence unavailable is not merely a return-value classification: through the existing resolver sink, it can cause a held thought to be promoted when the corroboration threshold is met. It does not establish that the promotion is substantively wrong—the fixture only proves the source-path consequence—or that this sequence occurs in deployment. Whether partial-evidence ACCEPT should be allowed to trigger this sink remains a policy question. No production code, schema, live database, flags, or roadmap items changed.
 
-**Evidence classification:** source-level ACCEPT-to-resolver wiring and resolver actions [L1]; isolated sink-reaching fixture outcome [L1], pending CI on this test head; deployed frequency, operational harm and intended partial-evidence contract [L2/L4] UNKNOWN.
+**Evidence classification:** source-level ACCEPT-to-resolver wiring and resolver actions [L1]; isolated sink-reaching fixture outcome [L1], CI-passed on test head `492017879936f16c7949ccadcf43d66c042db38c` in run `45415124667`; deployed frequency, operational harm and intended partial-evidence contract [L2/L4] UNKNOWN.
 
 
 ## 13.19 Read-failure observability is separate from decision input
