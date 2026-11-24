@@ -1369,3 +1369,15 @@ Static inspection of `run.py` on this branch confirms a concrete boot constructi
 - This is a source-level boot-path observation, not proof that the target host is running this checkout, that all optional constructors succeeded, or that every constructed component is registered, consumed, or behaviourally influential.
 
 Source anchor: `run.py` at the PR #49 evidence branch (boot setup and faculty wiring, approximately lines 100–420). This slice strengthens the forward boot map but does not close backward-consumer, dynamic-import, shared-state, event, or SQL edge closure across the 311 Python files under `theory_x/`.
+
+
+### Stage 1 internal self-observation and status semantics — 24 Nov 2026
+
+A bounded source-to-sink slice of the two always-on internal adapters adds these qualifications:
+
+- `Interoception.poll()` reads aggregate belief counts/tier counts/locked count and maximum `created_at` through the supplied beliefs Reader, then emits one `internal.interoception` SenseEvent for submission to `sense.db`. It also appends a separate best-effort JSONL line to `/tmp/nex5_interoception.log`; failure of that auxiliary append is swallowed and does not prevent the SenseEvent path. Its first `beliefs_since_last_poll` value is `null`, because no prior in-process total exists.
+- `MetaAwareness.poll()` samples Writer queue depths, recent error-channel length (up to 500 returned events), and scheduler status, then emits `internal.meta_awareness`. Its `sense_active_external_count` is derived from each adapter's `enabled` boolean, not a fresh poll-success/health signal.
+- Scheduler `enable()` sets `enabled=True` before a successful poll is observed. A poll that returns an empty list without raising is still recorded as a successful scheduler iteration with event count zero and `last_error=None`. Therefore the MetaAwareness active count is control-state/enablement telemetry, not proof that an external source is reachable, producing events, or recently polled successfully.
+- The scheduler module docstring still describes external feeds as paused until GUI activation, while its constructor calls `start_all()` unconditionally. This corroborates the already-recorded source-comment/actual-startup discrepancy; it does not establish target-host runtime activation.
+
+This slice maps production and semantics of these two internal streams only. No downstream consumer of `internal.interoception` or `internal.meta_awareness` was established in this bounded pass; that is an open backward-consumer question, not evidence of no consumer. Source anchors: `theory_x/stage1_sense/scheduler.py`, `internal/interoception.py`, `internal/meta_awareness.py` on repository `main` at the inspected revision. No runtime changes or tests were made.
