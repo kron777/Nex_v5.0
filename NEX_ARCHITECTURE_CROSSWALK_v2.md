@@ -1769,3 +1769,15 @@ See the Reality Report section “Stage 37 social interlocutor and Stage 45 emph
 Fountain's `_build_prompt` path enables GlobalWorkspace by default (`NEX5_GLOBAL_WORKSPACE` default `1`). It selects the highest-salience current candidate across surprise, momentum, Bonsai, stakes and drive, then prepends the winner's framing line to the focus block. It therefore has prompt influence when a candidate exists; `NEX5_GW_LOG` is a separate optional diagnostic and is not the activation gate.
 
 **DRAFT-043:** the surprise reader accepts recent `surprise_score > 0.3` rows without excluding `actual_content IS NULL` unless `NEX5_GW_SURPRISE_NONEMPTY=1` (default OFF). The module documents empty prediction windows scoring 1.0; surprise weight 1.00 outranks all other candidates. An eligible empty row can therefore win the default-on arbiter and frame the prompt with an empty quote. Target-host occurrence is UNKNOWN. See Reality Report for details and source hashes. No remediation or flag change authorised.
+
+
+
+## Stage TOM recursive self and observer/modulator callsites (24 Nov 2026)
+
+**RecursiveSelf / SelfBinding:** Fountain calls the recursive prompt formatter without an env gate. It refreshes binding at prompt time, reads affect/rāga/drive/attention/proprioception, persists current and historical self-state, and emits a first-person nudge only when its perturbation predicate is true. It is a per-fire path, not a daemon. **DRAFT-044:** the persisted `drift` column is assigned literal `"clean"`; the separate ValueDriftMonitor log is not read by bind. The field is absent from returned components and prompt synthesis in the inspected path, so this is a stored placeholder mismatch, not demonstrated prompt influence.
+
+**HotObserver:** called post-fire only under `NEX5_HOT_OBSERVER=1`; every third qualifying invocation (15+ words) writes a Tier 3 / 0.6 belief, not merely telemetry. Default OFF.
+
+**Amoha / Afflictions:** prompt-only modulators, independently gated by `NEX5_AMOHA` and `NEX5_AFFLICTIONS` (both default OFF). Metacognition voice and L4 stakes are separate gates. GlobalWorkspace default-on prompt influence and DRAFT-043 are recorded above.
+
+See Reality Report for source hashes and qualifications. No runtime change authorised.
