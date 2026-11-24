@@ -1473,3 +1473,14 @@ The Stage 1 feed audit was cross-checked against the Stage 2 loops to avoid trea
 Source anchors at current PR #49 branch head `5dc5f8b13e18a716901a5b0296a50c7463156ebe`: `theory_x/stage1_sense/feeds/_helpers.py`, `theory_x/stage1_sense/feeds/arxiv_ai.py`, `substrate/schema/sense.sql`, `theory_x/stage2_dynamic/__init__.py` (`_sense_poll_loop`, `_sense_distillation_loop`) and `theory_x/stage2_dynamic/pipeline.py` (`run_pipeline`, steps A–F). No tests were run in this pass.
 
 This is a conditional cross-stage risk map, not a finding that duplicate feed rows, repeated state changes, or cursor-loss incidents occurred on the target host. No runtime, schema, test, flag, host, experiment, merge or deployment change was made.
+
+
+### Additional Stage 2 sense-table consumers — 24 Nov 2026
+
+The Stage 2 backward scan found two further direct readers of `sense_events` beyond the A–F poller, distiller and Fountain paths:
+
+- `BonsaiTree.refresh_cadence()` reads the previous 24 hours of non-internal sense rows, groups timestamps by stream, clusters bursts, computes median inter-burst gaps and maps recognised stream prefixes to branches. The minimum interval among mapped streams becomes that branch's cached cadence factor input. This is a separate influence path: event frequency can affect later decay timing even where an individual event did not produce a Step-F attention hit. It is read-only against sense.db and refreshes on the first accumulator tick and then every 60 ticks (about 30 minutes at the 30-second loop cadence).
+- `consolidation._external_quiet()` reads the latest `internal.temporal` payload and expects `seconds_since_last_user_message`; when the value exceeds 300 seconds, the consolidation loop runs an additional tree decay/prune pass. The inspected built-in `Temporal.poll()` producer emits clock fields (unix/local/UTC time, hour, weekday, etc.) but does not emit this expected key. The tests for consolidation manually seed `internal.temporal` rows containing the key rather than invoking the actual Temporal adapter. This is a producer/consumer contract discrepancy on the inspected factory path. Whether another writer supplies the field was not established, so target-host impact and global absence remain UNKNOWN.
+- Stage 2 Crystallizer reads `pipeline_events`, not `sense_events`, and selects recent high-magnitude events for a branch when constructing a precipitated belief. This is a second-order consumer of the Stage 2 pipeline log, not a direct sense-table reader. The provenance stream can be carried into the resulting belief when the selected pipeline metadata contains a sensed title.
+
+These paths add three distinct mechanisms to the crosswalk: frequency-derived decay cadence, quiet-triggered decay/pruning based on a temporal payload field, and pipeline-log-driven belief crystallization. No runtime activity or causal effect is claimed from source inspection alone.
