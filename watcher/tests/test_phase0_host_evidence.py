@@ -65,10 +65,14 @@ def test_phase0_host_request_covers_host_and_candidate_model_fingerprint():
         "NEX5_VOICE_URL",
         "NEX5_VOICE_MODEL",
         "voice_endpoint_origin=",
-        "configured_model_api_digest=",
+        "configured_model_api_digest",
         "ollama_list_model_entry=",
         "modelfile_backing_blob=",
         "ollama_ps_status=",
+        "ollama_version=",
+        "source_default_model_api_digest",
+        "source_default_only_no_unique_process_candidate",
+        "source_default_candidate_not_runtime_selected",
     ):
         assert required in commands
 
@@ -77,6 +81,24 @@ def test_phase0_host_request_covers_host_and_candidate_model_fingerprint():
     assert "ollama run" not in commands
     assert "UNKNOWN_NO_UNIQUE_PROCESS_CANDIDATE" in commands
     assert "NOT_SAFE_TO_QUERY" in commands
+
+
+def test_standby_host_still_collects_local_ollama_and_keepalive_venv_candidates():
+    commands = _commands("phase0_environment")
+
+    assert "/home/rr/Desktop/Desktop/nex5/.venv/bin/python3" in commands
+    assert "keepalive_venv_default_not_live_process" in commands
+    assert "UNKNOWN_NO_PROCESS_OR_KEEPALIVE_VENV" in commands
+    assert '["ollama", "--version"]' in commands
+    assert "source_default_model_api_digest" in commands
+    assert "source_default_only_no_unique_process_candidate" in commands
+    assert "source_default_candidate_not_runtime_selected" in commands
+    assert "http://127.0.0.1:11434/v1/chat/completions" in commands
+
+    # The CLI version is collected before the unique-process gate, while model
+    # identity remains an explicitly labelled source-default candidate.
+    assert commands.index('["ollama", "--version"]') < commands.index("if len(candidates) == 1:")
+    assert "ollama run" not in commands
 
 
 def test_checkout_and_process_requests_are_redacted_and_fail_closed():
