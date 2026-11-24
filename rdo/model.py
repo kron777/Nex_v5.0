@@ -52,9 +52,10 @@ class Obligation:
     assumptions: List[str] = dataclasses.field(default_factory=list)
     recon_status: str = RECON_UNKNOWN
     recon_evidence: List[str] = dataclasses.field(default_factory=list)
-    # False by default: source-anchor matches do not establish semantic satisfaction.
-    # Only an explicit, separately reviewed assessment may set this true.
+    # Source-anchor matches do not establish semantic satisfaction. A reviewed
+    # reuse claim needs both an explicit decision and traceable review evidence.
     recon_semantic_verified: bool = False
+    recon_semantic_review_evidence: List[str] = dataclasses.field(default_factory=list)
     confidence: str = "stated"      # stated | measured | inferred
     note: str = ""
 
