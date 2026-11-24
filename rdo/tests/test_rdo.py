@@ -429,3 +429,29 @@ def test_metrics_keep_predicted_and_actual_effort_separate():
     series = metrics_series([pending, empty_actual, recorded])
     assert set(series["measure_keys"]) == set(series["denominators"])
     assert len(series["measure_keys"]) == 8
+
+
+def test_active_experiment_registry_empty_is_distinct_from_unavailable(tmp_path):
+    from rdo.orchestrator import _active_experiments
+    empty = tmp_path / "observation_reports"
+    empty.mkdir()
+    assert _active_experiments(str(tmp_path)) == []
+    empty.rmdir()
+    import pytest
+    with pytest.raises(RuntimeError, match="registry unavailable"):
+        _active_experiments(str(tmp_path))
+
+
+def test_grep_oserror_and_invalid_exit_remain_unknown(tmp_path, monkeypatch):
+    import rdo.reconcile as recon
+    ob = Obligation("scan-error", "scan error", "test")
+    def fail(*args, **kwargs):
+        raise OSError("grep unavailable")
+    monkeypatch.setattr(recon.subprocess, "run", fail)
+    assert recon.reconcile(ob, str(tmp_path), [Signature("x")]) == RECON_UNKNOWN
+
+    from types import SimpleNamespace
+    monkeypatch.setattr(recon.subprocess, "run",
+                        lambda *a, **k: SimpleNamespace(returncode=3, stdout="", stderr="bad regex"))
+    ob = Obligation("invalid-grep", "invalid grep", "test")
+    assert recon.reconcile(ob, str(tmp_path), [Signature("[")]) == RECON_UNKNOWN
