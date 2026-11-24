@@ -231,8 +231,10 @@ def recognize_sufficiency(obligations: Dict[str, Obligation]) -> List[dict]:
     """Where further development is NOT justified (the restraint half of OFT)."""
     out: List[dict] = []
     for ob in obligations.values():
-        if ob.recon_status == REUSE_EXISTING and ob.classification not in (OPTIONAL, FUTURE):
-            out.append({"key": ob.key, "reason": "already sufficient; reuse, do not rebuild"})
+        if (ob.recon_status == REUSE_EXISTING and ob.classification not in (OPTIONAL, FUTURE)
+                and ob.recon_evidence and ob.confidence == "measured"
+                and ob.recon_semantic_verified):
+            out.append({"key": ob.key, "reason": "semantic satisfaction reviewed; reuse, do not rebuild"})
         elif ob.recon_status == MISSING and ob.classification in (OPTIONAL, FUTURE, CONDITIONAL):
             out.append({"key": ob.key,
                         "reason": f"{ob.classification}; absence not currently a deficiency"})
