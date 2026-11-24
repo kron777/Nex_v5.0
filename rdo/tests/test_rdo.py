@@ -386,6 +386,15 @@ def test_reconciliation_distinguishes_empty_scan_from_unavailable(tmp_path, monk
     assert recon.reconcile(sql_ob, str(tmp_path),
                            [Signature("CREATE TABLE evidence_marker", "schema.sql")]) == "signature_matched"
 
+    stale_review = Obligation("stale", "stale review", "schema",
+                              recon_status=REUSE_EXISTING,
+                              recon_evidence=["old.py:1"], confidence="measured",
+                              recon_semantic_verified=True)
+    assert recon.reconcile(stale_review, str(tmp_path),
+                           [Signature("not_present_now")]) == MISSING
+    assert stale_review.recon_semantic_verified is False
+    assert stale_review.recon_evidence == []
+
     ob = Obligation("partial-scan", "partial scan", "daemon")
     monkeypatch.setattr(recon.subprocess, "run",
                         lambda *a, **k: SimpleNamespace(returncode=2, stdout="x.py:1:match\n", stderr="read error"))
