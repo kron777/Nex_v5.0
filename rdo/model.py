@@ -22,7 +22,7 @@ CLASSIFICATIONS = (NECESSARY, CONDITIONAL, OPTIONAL, FUTURE, HYPOTHESIS, UNKNOWN
                    ANTI_REQUIREMENT)
 
 # ---- reconciliation outcome (vs the real codebase) ----
-REUSE_EXISTING = "reuse_existing"   # a real mechanism already satisfies this
+REUSE_EXISTING = "reuse_existing"   # all configured signatures matched; semantic satisfaction is separate
 PARTIAL = "partial"                 # some evidence, not complete
 MISSING = "missing"                 # no mechanism found
 RECON_UNKNOWN = "unknown"           # no signature to check -> honest inference
@@ -51,6 +51,9 @@ class Obligation:
     assumptions: List[str] = dataclasses.field(default_factory=list)
     recon_status: str = RECON_UNKNOWN
     recon_evidence: List[str] = dataclasses.field(default_factory=list)
+    # False by default: source-anchor matches do not establish semantic satisfaction.
+    # Only an explicit, separately reviewed assessment may set this true.
+    recon_semantic_verified: bool = False
     confidence: str = "stated"      # stated | measured | inferred
     note: str = ""
 
