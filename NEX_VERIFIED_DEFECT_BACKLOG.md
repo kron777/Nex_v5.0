@@ -179,3 +179,8 @@ The reviewed tests/test_sense.py does cover scheduler auto-start: test_starts_ru
 **DRAFT-030 test boundary:** tests/test_strikes.py covers feed_activity in the probe/strike context snapshot, not the WorldBridge selector-to-Fountain-prompt path. No WorldBridge integration test was established in this bounded review; this is not a claim that no such test exists anywhere. Source anchors: run.py, theory_x/world_bridge/selector.py, theory_x/stage6_fountain/generator.py and tests/test_strikes.py.
 
 The same source pass found context_snapshot.py reads sense_events for a feed_activity summary; ProbeRunner and StrikeProtocol persist that snapshot for probe/strike records. This is observational capture, not evidence of a Chat/Fountain cognition input.
+
+
+### DRAFT-030 source qualification — internal streams in WorldBridge
+
+The selector's formatter explicitly converts internal.temporal, internal.meta_awareness and internal.interoception into compact prompt text; internal.proprioception falls through to a short raw JSON snippet. In particular, MetaAwareness's enabled/global-running fields can be presented in Fountain despite the separate SelfModel snapshot not using the fetched MetaAwareness payload. These values remain control-state telemetry, not feed-health or persistence proof. This is a source-path qualification to DRAFT-030, not a separate severity assessment.
