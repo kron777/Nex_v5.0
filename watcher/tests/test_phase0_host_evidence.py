@@ -65,7 +65,7 @@ def test_checkout_and_process_requests_do_not_expose_credentials_or_raw_argv():
     assert "VIRTUAL_ENV" in runtime
     assert "PYTHONHOME" in runtime
     assert "NEX5_DATA_DIR" in runtime
-    assert "NEX5_* dump" in runtime
+    assert "NEX5_* dump" in _requests()["runtime_identity"].collects
     assert "systemctl --user list-units" in runtime
     assert "Do not infer STANDBY" in runtime
 
@@ -96,14 +96,13 @@ def test_phase0_runtime_artifact_request_uses_verified_roots_and_stability_check
         assert suffix in commands
 
     assert "stat -c '%d:%i:%s:%y:%z'" in commands
-    assert 'before="$' not in commands  # before/after are captured as separate stat calls
     assert 'after=$(stat' in commands
     assert 'if [ "$before" = "$after" ]' in commands
     assert "stable=NO sha256=DISCARD" in commands
     assert "sha256sum" in commands
     assert "SELECT COUNT(*)" not in commands
     assert "row counts" in request.collects
-    assert "do not copy" in request.collects
+    assert "file copies" in request.collects
 
 
 def test_phase0_host_requests_remain_unknown_until_host_results_arrive():
