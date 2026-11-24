@@ -163,8 +163,8 @@ retrospective is never counted as a completed RDO-guided cycle, and a planning-o
 cycle contributes process measures only. The report makes **no efficiency or
 acceleration claim** until at least three *comparable* cycles exist (there is
 currently two recorded executed+verified test-work cycles: `arc_closers` and
-`beliefs.affinity`; the catalogue has six rows across its three discovery cycles,
-two imported/seeded records and two execution records. The historical execution
+`beliefs.affinity`; the catalogue has six rows: one imported retrospective, three
+native discovery cycles and two execution records. The historical execution
 records retain their recorded test claims but do not yet carry independently
 checkable CI-run/artifact references. Their evidentiary classification remains a
 Founder decision. Patterns corroborate slowly and never become universal rules
