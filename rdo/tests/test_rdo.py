@@ -444,6 +444,12 @@ def test_system_readiness_does_not_promote_partial_or_unknown():
     readiness = next(t for t in assess_system({"reviewed": reviewed}, [])
                      if t.subject == "integration_readiness")
     assert readiness.verdict == SUFFICIENT
+    flag_only = Obligation("flag_only", "flag only", "test", recon_status=REUSE_EXISTING,
+                           recon_evidence=["src.py:12"], confidence="measured",
+                           recon_semantic_verified=True)
+    readiness = next(t for t in assess_system({"flag_only": flag_only}, [])
+                     if t.subject == "integration_readiness")
+    assert readiness.verdict == TENSION_UNKNOWN
 
     no_necessary = {"optional": Obligation("optional", "optional", "test",
                                            classification="optional",
