@@ -528,6 +528,13 @@ def test_metrics_keep_predicted_and_actual_effort_separate():
                            actual={"effort_actual": 4})
     assert cycle_metrics(pending)["engineering_effort"] is None
     assert cycle_metrics(pending)["predicted_effort"] == 7
+    # Historical reuse claims are not a substitute for explicit signature counts.
+    legacy = CycleRecord(id="legacy", objective="o", reused=["old_reuse_claim"],
+                         verification={"all_reuse_backed": True})
+    legacy_metrics = cycle_metrics(legacy)
+    assert legacy_metrics["signature_matches"] is None
+    assert legacy_metrics["signature_evidence_coverage"] is None
+    assert legacy_metrics["signature_evidence_coverage_complete"] is None
     assert cycle_metrics(empty_actual)["engineering_effort"] is None
     assert cycle_metrics(empty_actual)["predicted_effort"] == 8
     assert cycle_metrics(recorded)["engineering_effort"] == 4
