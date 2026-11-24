@@ -1393,3 +1393,15 @@ A bounded source-to-sink inspection of `stage1_sense/base.py`, `substrate/writer
 - The schema's absence of explicit trace/parent columns is only a statement about this table's current shape; it does not rule out correlation in payloads or other stores. Downstream readers/consumers remain unverified in this slice.
 
 Source anchors: `theory_x/stage1_sense/base.py`, `theory_x/stage1_sense/scheduler.py`, `theory_x/stage1_sense/internal/interoception.py`, `substrate/writer.py`, `substrate/reader.py`, and `substrate/schema/sense.sql` on `main` at the inspected source revision. This is source-level evidence only; no host DB or live adapter output was inspected. No runtime or test changes were made.
+
+### Stage 1 adapter inventory and remaining internal feeds — 24 Nov 2026
+
+Inspection of `theory_x/stage1_sense/__init__.py` closes another bounded forward-path slice:
+
+- `build_scheduler(writers, readers, mode_state)` wires 28 adapter instances to the single `writers["sense"]` destination and supplies `readers["beliefs"]` to Interoception. MetaAwareness receives the Writer map and a late-bound scheduler reference.
+- The four internal streams are Proprioception (CPU/memory/load/available thermal readings), Temporal (local/UTC clock fields), Interoception (belief-store aggregates) and MetaAwareness (Writer queue/error/scheduler telemetry). All four are constructed in the factory.
+- The factory docstring says external feeds start paused, while the instantiated `SenseScheduler` constructor calls `start_all()` unconditionally. On this source path, the scheduler sets the global run event and enables each non-internal adapter; the docstring does not describe the implemented constructor behaviour.
+- The factory imports/constructs the listed active external adapters, while Reuters, APNews, PhilPapers and PapersWithCode are explicitly commented out of this factory. Their files remain in the tree but are not part of this factory's adapter list.
+- The source count is 28 constructed adapters in this factory. It is not evidence that all polls succeed, all rows persist, or the target host is running this version.
+
+This complements the scheduler and persistence slices; it does not close the backward-consumer audit for `sense_events` or prove live external-feed activity.
