@@ -254,7 +254,9 @@ def metrics_series(cycles: List[CycleRecord]) -> Dict:
         by_kind[r["kind"]] = by_kind.get(r["kind"], 0) + 1
     outcome_complete = [r for r in rows if r["outcome_complete"]]
     # efficiency-eligible: RDO ran it AND work was executed+verified (exclude imported)
-    efficiency_eligible = [r for r in rows if r["kind"] == EXECUTED_VERIFIED and r["outcome_complete"]]
+    efficiency_eligible = [r for r in rows
+                           if r["kind"] == EXECUTED_VERIFIED and r["outcome_complete"]
+                           and r["engineering_effort"] is not None]
 
     def _denominator(measure: str) -> dict:
         contributing = [r for r in rows if r.get(measure) is not None]
@@ -301,8 +303,12 @@ def accuracy_series(cycles: List[CycleRecord]) -> Dict:
             rows.append({"cycle": c.id, "status": "pending"})
             continue
         d = compare(c)
+        required = ("under_expansion_missed", "over_expansion_unnecessary",
+                    "inappropriate_reuse", "regressions")
+        complete = all(isinstance(d.get(k), list) for k in required)
         rows.append({
             "cycle": c.id,
+            "status": "complete" if complete else "partial",
             "missed": (len(d["under_expansion_missed"])
                        if isinstance(d.get("under_expansion_missed"), list) else None),
             "unnecessary": (len(d["over_expansion_unnecessary"])
@@ -311,7 +317,7 @@ def accuracy_series(cycles: List[CycleRecord]) -> Dict:
                                     if isinstance(d.get("inappropriate_reuse"), list) else None),
             "effort_error": d["effort_error"],
         })
-    completed = [r for r in rows if r.get("status") != "pending"]
+    completed = [r for r in rows if r.get("status") == "complete"]
     return {
         "series": rows,
         "completed_cycles": len(completed),
