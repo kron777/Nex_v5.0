@@ -174,19 +174,21 @@ def expand(seeds: List[Obligation],
 
     while queue:
         ob = queue.pop(0)
-        # A REUSE_EXISTING label without source evidence + explicit semantic review
-        # is not trusted. Reconcile it afresh rather than allowing it to suppress work.
-        if ob.recon_status == REUSE_EXISTING and not (
-                ob.recon_evidence and ob.confidence == "measured" and
-                ob.recon_semantic_verified and ob.recon_semantic_review_evidence):
+        # A caller-supplied REUSE_EXISTING seed is never trusted as current.
+        # Force a fresh reconciliation on every cycle, even when its review fields
+        # look complete: otherwise a stale review can bypass the source scan and
+        # suppress expansion. The callback may return REUSE_EXISTING only if it
+        # performs a fresh scan and supplies a current semantic-review decision.
+        if ob.recon_status == REUSE_EXISTING:
             ob.recon_status = RECON_UNKNOWN
             ob.recon_evidence = []
             ob.recon_semantic_verified = False
             ob.recon_semantic_review_evidence = []
             ob.confidence = "inferred"
-            ob.note = (ob.note + " ; unsupported reuse label downgraded to unknown").strip(" ;")
+            ob.note = (ob.note + " ; prior reuse assertion invalidated; fresh review required").strip(" ;")
 
-        # reconcile first so stopping can consult only reviewed semantic reuse
+        # Reconcile every non-terminal status before stopping decisions.
+        # make_reconciler performs a source scan, never semantic approval.
         if ob.recon_status == RECON_UNKNOWN:
             ob.recon_status = reconcile_fn(ob)
 
