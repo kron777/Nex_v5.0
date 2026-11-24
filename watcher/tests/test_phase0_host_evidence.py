@@ -4,8 +4,11 @@ These tests inspect the generated collection specification only. They do not
 execute host commands, access a live NEX checkout, or read runtime databases.
 """
 import ast
+import hashlib
 import json
+import os
 import re
+import stat
 import subprocess
 
 from watcher.host import host_requests, host_results_template, ingest_host_results
@@ -17,6 +20,22 @@ def _requests():
 
 def _commands(request_id):
     return "\n".join(_requests()[request_id].read_only_commands)
+
+
+def _artifact_fingerprint_function():
+    command_text = _commands("runtime_artifact_hashes")
+    blocks = re.findall(r"<<'PY'\n(.*?)\nPY(?:\n|$)", command_text, re.DOTALL)
+    assert len(blocks) == 1
+    tree = ast.parse(blocks[0])
+    helper_nodes = [
+        node for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name in {"stamp", "fingerprint"}
+    ]
+    assert {node.name for node in helper_nodes} == {"stamp", "fingerprint"}
+    namespace = {"hashlib": hashlib, "os": os, "re": re, "stat": stat}
+    module = ast.Module(body=helper_nodes, type_ignores=[])
+    exec(compile(module, "embedded_host_fingerprint_helpers", "exec"), namespace)
+    return namespace["fingerprint"]
 
 
 def test_phase0_host_request_covers_host_and_candidate_model_fingerprint():
@@ -117,6 +136,59 @@ def test_artifact_fingerprint_is_derived_no_follow_and_failure_safe():
     assert "SELECT COUNT(*)" not in commands
     assert "No SQL" in request.collects
     assert "file copies" in request.collects
+
+
+def test_embedded_fingerprint_accepts_only_stable_sha256(tmp_path):
+    fingerprint = _artifact_fingerprint_function()
+    path = tmp_path / "beliefs.db"
+    payload = b"isolated fingerprint fixture, not a NEX database"
+    path.write_bytes(payload)
+
+    status, detail = fingerprint(path)
+
+    assert status == "YES"
+    assert hashlib.sha256(payload).hexdigest() in detail
+    for metadata in ("device=", "inode=", "size=", "mtime_ns=", "ctime_ns="):
+        assert metadata in detail
+
+
+def test_embedded_fingerprint_never_accepts_hash_failure(tmp_path, monkeypatch):
+    fingerprint = _artifact_fingerprint_function()
+    path = tmp_path / "beliefs.db"
+    path.write_bytes(b"isolated hash failure fixture")
+
+    def fail_hash():
+        raise PermissionError("simulated hash failure")
+
+    monkeypatch.setattr(hashlib, "sha256", fail_hash)
+    status, detail = fingerprint(path)
+
+    assert status == "NO"
+    assert detail == "HASH_FAILED:PermissionError"
+
+
+def test_embedded_fingerprint_rejects_file_changed_during_read(tmp_path, monkeypatch):
+    fingerprint = _artifact_fingerprint_function()
+    path = tmp_path / "sense.db"
+    path.write_bytes(b"isolated mutation fixture with enough bytes to read")
+    original_read = os.read
+    touched = False
+
+    def read_then_mutate(fd, size):
+        nonlocal touched
+        data = original_read(fd, size)
+        if data and not touched:
+            touched = True
+            before = os.stat(path)
+            os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns + 1_000_000_000))
+        return data
+
+    monkeypatch.setattr(os, "read", read_then_mutate)
+    status, detail = fingerprint(path)
+
+    assert touched is True
+    assert status == "NO"
+    assert detail == "CHANGED_DURING_HASH"
 
 
 def test_generated_host_commands_have_valid_shell_and_python_syntax():
