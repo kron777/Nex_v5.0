@@ -49,15 +49,23 @@ class PatternMemory:
         counted once, but distinct provenance alone does not prove independent
         underlying evidence; that interpretation remains a human judgement.
         """
-        incoming = [x.strip() for x in str(pattern.provenance).split(";") if x.strip()]
+        incoming = list(dict.fromkeys(
+            x.strip() for x in str(pattern.provenance).split(";") if x.strip()
+        ))
         ex = self._current.get(pattern.key)
         if ex is not None:
-            existing = [x.strip() for x in str(ex.provenance).split(";") if x.strip()]
+            existing = list(dict.fromkeys(
+                x.strip() for x in str(ex.provenance).split(";") if x.strip()
+            ))
             new = [x for x in incoming if x not in existing]
+            exceptions_changed = False
             for x in pattern.exceptions:
                 if x not in ex.exceptions:
                     ex.exceptions.append(x)
+                    exceptions_changed = True
             if not new:
+                if exceptions_changed:
+                    self._append(ex)
                 return ex
             ex.provenance = "; ".join(existing + new)
             ex.observed_count += 1
@@ -209,10 +217,6 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
     }
 
 
-_OUTCOME_MEASURES = ("missed_obligation_count", "prediction_error_effort", "rework",
-                     "engineering_effort")
-_PROCESS_MEASURES = ("expansion_grounded_fraction", "duplicate_discovery_rate",
-                     "reuse_accuracy", "verification_success")
 _MEASURE_KEYS = ("expansion_grounded_fraction", "missed_obligation_count",
                  "duplicate_discovery_rate", "reuse_accuracy", "prediction_error_effort",
                  "rework", "engineering_effort", "verification_success")
