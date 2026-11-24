@@ -26,7 +26,7 @@ Nothing here imports `theory_x` or `substrate` (enforced by a test).
 ```
 IDEA → RECURSIVE EXPANSION → RECONCILIATION → DEDUPLICATION →
 RELATIONSHIP MAPPING → OPTIMAL FUNCTIONAL TENSION → PRIORITISATION →
-WORK PACKAGE → VERIFICATION → (persist) → LEARN
+WORK PACKAGE → EVIDENCE ACCOUNTING → (persist) → LEARN
 ```
 
 - **Expansion** (`extrapolator.py`) — a small seed of obligations expands via
