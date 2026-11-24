@@ -137,3 +137,8 @@ A related but distinct Stage 2 distillation policy is recorded in the Crosswalk 
 
 
 **DRAFT-025 test boundary:** The inspected `tests/test_dynamic.py` cursor tests cover save/load only, not error-to-cursor behaviour or replay boundaries; the internal-stream assertion checks only `hits >= 0`, not absence of state influence. The inspected `tests/test_sense.py` cases cover successful writes, not concrete Adapter.submit() partial-write failure. This is limited to the reviewed test slices.
+
+
+### Current update — DRAFT-026 (24 Nov 2026)
+
+**Temporal quiet-signal producer/consumer contract mismatch.** Stage 2 consolidation reads the latest `internal.temporal` payload and looks for `seconds_since_last_user_message` to decide whether to run its quiet-triggered decay/prune pass. The built-in Stage 1 `Temporal.poll()` producer inspected for the Stage 1 factory emits clock fields but not this key. The inspected consolidation tests manually insert the expected key into a temporal row, so they do not validate the real producer-to-consumer path. Another writer could supply the field; no complete writer census or live payload inspection has established whether that occurs. Source-level mismatch confirmed for the inspected producer; runtime effect UNKNOWN. No severity or remediation is assigned pending authoritative acceptance criteria and a complete producer census.
