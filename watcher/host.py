@@ -48,6 +48,7 @@ def host_requests() -> List[HostRequest]:
                 "--is-inside-work-tree >/dev/null 2>&1; then "
                 "printf '\\ncheckout=%s\\n' \"$checkout\"; "
                 "git -C \"$checkout\" rev-parse --show-toplevel; "
+                "df -P \"$checkout\" | tail -1; "
                 "git -C \"$checkout\" branch --show-current; "
                 "git -C \"$checkout\" rev-parse HEAD; "
                 "git -C \"$checkout\" status --porcelain=v1 --untracked-files=all | "
@@ -118,6 +119,7 @@ def host_requests() -> List[HostRequest]:
                 "awk 'tolower($1) ~ /(nex|power_switch|keepalive)/ "
                 "{print $1, $3, $4}'",
                 "git -C <verified-process-cwd> rev-parse --show-toplevel; "
+                "df -P <verified-process-cwd> | tail -1; "
                 "git -C <verified-process-cwd> branch --show-current; "
                 "git -C <verified-process-cwd> rev-parse HEAD; "
                 "git -C <verified-process-cwd> status --porcelain=v1 --untracked-files=all | "
