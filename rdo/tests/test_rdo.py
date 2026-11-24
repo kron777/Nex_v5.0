@@ -208,9 +208,9 @@ def test_demo_cycle_against_real_repo(tmp_path):
     from rdo.orchestrator import demo_genius_tagger
     res = demo_genius_tagger(repo_dir=".", workdir=str(tmp_path / "cycles"))
     for k in ("1_discovered", "2_signature_matches_located", "3_rejected_or_deferred",
-              "4_recommended_work", "5_verification", "6_learned"):
+              "4_recommended_work", "5_source_evidence_coverage", "6_learned"):
         assert k in res
-    assert res["5_verification"]["all_signature_matches_have_file_evidence"] is True
+    assert res["5_source_evidence_coverage"]["all_signature_matches_have_file_evidence"] is True
     assert res["2_signature_matches_located"], "should locate configured source signatures"
     blockers = [b for w in res["4_recommended_work"] for b in w["blockers"]]
     assert any("preregistered" in b for b in blockers)
