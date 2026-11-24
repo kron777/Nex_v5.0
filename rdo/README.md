@@ -161,7 +161,7 @@ executed yet), and `executed_verified` (recommended work actually built + verifi
 **Only executed+verified cycles are efficiency-comparable** — an imported
 retrospective is never counted as a completed RDO-guided cycle, and a planning-only
 cycle contributes process measures only. The report makes **no efficiency or
-acceleration claim** until at least three *comparable* cycles exist (there is
+acceleration claim** until at least three *comparable* cycles exist (there are
 currently two recorded executed+verified test-work cycles: `arc_closers` and
 `beliefs.affinity`; the catalogue has six rows: one imported retrospective, three
 native discovery cycles and two execution records. The historical execution
