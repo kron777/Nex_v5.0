@@ -8,8 +8,8 @@ recurses but is bounded by stopping rules (RDO spec v1.4 §14):
 
   * depth cap,
   * terminal (leaf) kinds that do not decompose,
-  * an obligation already satisfied by a real mechanism (reconciled REUSE_EXISTING)
-    is NOT expanded — you don't rediscover the internals of something that exists.
+  * an obligation is NOT skipped merely because a configured source signature
+    matched; expansion stops only after explicit semantic-satisfaction review.
 
 Convergent branches merge during expansion (dedup by canonical key), so the same
 obligation discovered two ways is recorded once, with both provenances. Every
@@ -188,9 +188,14 @@ def expand(seeds: List[Obligation],
             frontier.append({"key": ob.key, "reason": f"max_depth {max_depth} reached"})
             continue
         if ob.recon_status == REUSE_EXISTING:
+            if (ob.recon_evidence and ob.confidence == "measured" and
+                    ob.recon_semantic_verified):
+                frontier.append({"key": ob.key,
+                                 "reason": "semantic satisfaction independently reviewed"})
+                continue
             frontier.append({"key": ob.key,
-                             "reason": "already satisfied by an existing mechanism; not expanded"})
-            continue
+                             "reason": "source signature matched; semantic satisfaction unreviewed; "
+                                       "expanded conservatively"})
         rules = EXPANSION_RULES.get(ob.kind)
         if not rules:
             frontier.append({"key": ob.key, "reason": f"no expansion rule for kind '{ob.kind}'"})
