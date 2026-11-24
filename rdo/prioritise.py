@@ -74,8 +74,11 @@ def eligibility(ob: Obligation, obligations: Dict[str, Obligation],
     for rel in relationships:
         if rel.kind == "depends_on" and rel.src == ob.key:
             dep = obligations.get(rel.dst)
-            if dep is not None and dep.recon_status == MISSING and dep.classification == NECESSARY:
-                blockers.append(f"depends on unbuilt necessary mechanism '{dep.key}'")
+            if dep is None:
+                blockers.append(f"depends on unresolved necessary mechanism '{rel.dst}' (target absent)")
+            elif dep.classification == NECESSARY and dep.recon_status in (MISSING, PARTIAL, RECON_UNKNOWN):
+                state = "unbuilt" if dep.recon_status == MISSING else dep.recon_status
+                blockers.append(f"depends on necessary mechanism '{dep.key}' ({state})")
     return {"eligibility": "blocked" if blockers else "eligible", "blockers": blockers}
 
 
