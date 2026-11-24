@@ -251,6 +251,7 @@ def metrics_series(cycles: List[CycleRecord]) -> Dict:
     denominators = {m: _denominator(m) for m in _MEASURE_KEYS}
     return {
         "measures": [_MEASURE_LABELS[m] for m in _MEASURE_KEYS],
+        "measure_keys": list(_MEASURE_KEYS),
         "per_cycle": rows,
         "cycles_by_kind": by_kind,
         "comparability": {
