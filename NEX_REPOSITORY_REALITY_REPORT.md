@@ -1679,3 +1679,42 @@ Current source hashes:
 - `run.py`: `73a2c58a4f5f0348135a46eb83d6cdd61db874e7`
 - `gui/server.py`: `5ee8b167f386466c383090445c63a84810bbae52`
 - `tests/test_moltbook_optional.py`: `6bff5f1a331cd2133396853960e3cb3f9f39c3a6`
+
+
+
+## M0.3–M0.4 source audit — Stage 37 social interlocutor and Stage 45 emphasis (24 Nov 2026)
+
+### Stage 37 PersonaResponder ↔ Fountain SOCIAL
+
+**Activation is independently gated at both ends.** Main `run.py` constructs and starts `PersonaResponderLoop` only when `NEX5_PERSONA_RESPONDER=1` (default `0`). It reads `NEX5_PERSONA_INTERVAL` (default 600 seconds). Fountain's receiving layer independently reads `NEX5_SOCIAL_N` (default 0); the generator queries recent `sense_events` rows for `stream='external.other_mind'` and appends selected content to the next Fountain prompt only when its social count is positive. The source comment says both halves must be enabled for the dialogue cycle. No host environment or process inventory was obtained, so actual activation is UNKNOWN.
+
+**Source identity qualification.** PersonaResponder's `VOICE_URL` and `VOICE_MODEL` default to the same configured NEX voice endpoint/model (`NEX5_VOICE_URL`, `NEX5_VOICE_MODEL`). It makes a separate LLM call with a distinct interlocutor prompt, reads recent NEX Fountain thoughts, applies a reply-overlap bouncer, and writes an accepted response into `sense_events` under `external.other_mind`. The module itself explicitly states that this is another LLM call wearing a persona, not a second conscious being. Accordingly, `external.other_mind` is a stream label and role distinction inside the NEX data path; by itself it does not establish an independently operated model, human interlocutor, external service, or conscious other. When both gates are enabled, the source establishes a synthetic self-dialogue loop: one configured LLM endpoint generates the interlocutor turn and Fountain can consume that turn as not-self context.
+
+The responder loop executes one exchange then sleeps for the configured interval; execution duration is additional to the sleep interval. Its errors are caught/logged per tick. The inspected test tree contains persona focus-rotation and language-guard tests, but no dedicated end-to-end test for PersonaResponderLoop → sense-event write → Fountain SOCIAL prompt inclusion. This is a test-coverage boundary, not evidence the route fails.
+
+### Stage 38 SocialPresence — explicitly cut
+
+The current main boot path does not construct or start `SocialPresence`; it assigns `_social_presence = None` and passes that value to Metacognition. The inspected Metacognition consumers are guarded for `None`, so those branches are no-ops. The module and its tests remain in the repository, but `social_presence_snapshots` has no demonstrated production consumer in the inspected source. This matches the explicit removal comment in `run.py`; module existence and passing unit tests do not establish live operation.
+
+### Stage 45 EmphasisEngine — observation-only per-fire path
+
+The Fountain generator constructs `PredictionTracker` and `EmphasisEngine` inside its own initialization path; this is not a separate daemon and does not require separate `run.py` construction. If initialization succeeds, each generated thought is scored before its `fountain_events` row is inserted. The ordering is deliberate: PredictionTracker reads the recent fire history, and scoring after insertion would include the current thought in its own comparison window. After the fire row is inserted, the generator attempts to persist the result to `emphasis_log` linked by `fountain_event_id`. Scoring and log-write errors are caught and do not stall the fire.
+
+The combined score is an equal-weight mean of three signals: goal relevance (open-problem corpus), self relevance (locked Tier-1 keystone beliefs), and PredictionTracker expectation error (entity novelty against the last 20 Fountain fires). Drive resonance is still calculated and separately logged but was removed from the combined score after the module's cited ground-truth test reported a null/negative result. The other three signals are explicitly unvalidated in the module documentation. The code comments describe this as observation-only; the score does not modify the thought, branch, generation prompt or selection path in the inspected callsite. A dedicated `tests/test_emphasis_engine.py` or `tests/test_prediction_tracker.py` file was not present in the current repository tree; this is a bounded test-tree observation, not a claim that no indirect coverage exists.
+
+### Stage 13 / Stage 45 boundary notes
+
+`SelfMaintainShadow` is separately env-gated by `NEX5_SELF_MAINTAIN_SHADOW` (default off), records would-be active-set regulation to `self_maintain_shadow`, and its module states that no production component reads that table. `WarrantRecorder` is separately gated by `NEX5_WARRANT_RECORD` (default off) and records evidence inputs; it is not itself the Warrant scoring pass. The Warrant scoring module has its own `NEX5_WARRANT` gate, and the inspected `run.py` constructs the recorder but does not construct a `WarrantPass`. These are distinct evidence-collection and scoring mechanisms; do not treat recorder activation as proof Warrant is computed or consumed.
+
+No host flags were read and no external interlocutor/service was contacted. No runtime, schema, flags, experiment, merge or deployment was changed.
+
+Current source hashes:
+- `run.py`: `73a2c58a4f5f0348135a46eb83d6cdd61db874e7`
+- `theory_x/stage_tom/persona_responder.py`: `2b440503831675d1e8670a09dea5aa2d8ebebbce`
+- `theory_x/stage6_fountain/generator.py`: `43644876295ffdd649a240f52a7946c666a8579f`
+- `theory_x/stage_emphasis/emphasis_engine.py`: `21d67aa1b86fe224d30dd17fed64cba987e71a6c`
+- `theory_x/stage_emphasis/prediction_tracker.py`: `96c74a502616af1ee47d4204612158c8edea545d`
+- `theory_x/stage_social/social_presence.py`: `80803ae0c8cdce8d08d78bfc416337559c188f17`
+- `theory_x/stage_self_maintain/shadow.py`: `65da9373b112ea15fe255f81550b20b432c927db`
+- `theory_x/stage_warrant/recorder.py`: `ade231c1fc7c8da7f90f8f7ab375d352837a7c79`
+- `theory_x/stage_warrant/warrant.py`: `a15bc9d012fffac319adf1634f52eb1fde0e35b6`
