@@ -1309,3 +1309,11 @@ Further source inspection of the Stage 1 adapter base and SQLite substrate found
 - Each `Reader.read()` / `read_one()` call opens a fresh read-only connection. Interoception's four aggregate queries are therefore not enclosed in one explicit read snapshot; under concurrent writes their results could reflect different moments. No such inconsistency was observed or measured.
 
 This remains a bounded source-level finding. No live sense.db, emitted event, target-host runtime or downstream consumer was inspected. No runtime, test, schema, flag or host changes were made.
+
+### Stage 1 factory inventory and activation qualification — 24 Nov 2026
+
+The Stage 1 package factory confirms 28 adapter instances are assembled against the shared sense Writer; Interoception receives the beliefs Reader and MetaAwareness receives the Writer map plus a late-bound scheduler reference. The four internal streams are Proprioception (system resource observations), Temporal (clock observations), Interoception (belief aggregates) and MetaAwareness (Writer/error/scheduler telemetry).
+
+The package/factory documentation says external feeds start paused, but the constructed `SenseScheduler` unconditionally calls `start_all()` in its constructor. In this source path, external adapters are therefore enabled and the global run event is set during scheduler construction. This is a source comment/docstring versus implementation discrepancy; it is not evidence of the target host's current process state or successful external polling.
+
+The factory's active list omits Reuters, APNews, PhilPapers and PapersWithCode, which are retained in the source tree but explicitly commented out of factory construction. This audit confirms construction wiring only, not poll success, durable row persistence, downstream use or live activation.
