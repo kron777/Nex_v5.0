@@ -1,23 +1,24 @@
-"""Architecture readers + a SEPARATE runtime-architecture graph.
+"""Architecture readers + a SEPARATE static/design relationship graph.
 
 Two readers parse the existing source artifacts READ-ONLY and never modify them:
   * `read_mind_map`  — mind_map/MIND_MAP.yaml (the mental-factor / property aspect map)
   * `read_dag`       — sentience_dag.json (the build-dependency DAG)
 
-`RuntimeGraph` is a THIRD, independent reconstruction of the actual runtime
-producer->consumer wiring. It is NOT a modification or replacement of the DAG or
-mind map.
+`RuntimeGraph` is a THIRD, independent static/design view of source-present
+producer->consumer relationships. It is NOT a modification or replacement of the
+build DAG or mind map, and it does not establish that a relationship is live.
 
 Each edge carries THREE independent evidence dimensions, kept distinguishable
 (founder constraint #5):
-  * source_implemented — the code for this edge was read in source
-  * test_verified      — a test asserts the behaviour
+  * source_implemented — the relationship is present in inspected source
+  * test_verified      — a cited test exercises/asserts the scoped relationship
   * runtime_observed   — the edge was seen firing in a live trace (host only)
 An edge's `level` is the strongest dimension it has; a cycle's status is its
 WEAKEST edge (a loop is only as established as its least-established link). These
-flags are curated review assertions, not dynamically derived proofs; the current
-source references are group-level and do not provide a per-edge source/test trace.
-NEX is in STANDBY, so nothing is `runtime_observed` yet — that stays an honest gap.
+flags are curated review assertions, not dynamically derived proofs. Each
+source-backed edge carries a scoped claim, source reference, test reference when
+verified, and caveat. Synthetic tests are not live traces. NEX is in STANDBY, so
+nothing is `runtime_observed` yet — that stays an honest gap.
 """
 from __future__ import annotations
 
