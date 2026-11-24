@@ -1346,3 +1346,13 @@ PR #74 remains draft and unmerged. Latest test-only commit: `ec551aac4c634aa21d9
 ### Watcher host-evidence request CI update — 24 Nov 2026
 
 PR #73 exact head `e917f3704647c3431d2f2a86b4abf8ab40818aef` completed workflow run `45283644024` successfully, including the full repository test/baseline gate and MIND_MAP sourcing check. This validates the Watcher request-template coverage and its isolated tests at that commit only. It does not mean any target-host probe was executed: OS/model/runtime measurements, artifact hashes, live checkout identity and performance remain uncollected. PR #73 remains open, draft and unmerged.
+
+
+
+### MIND_MAP source-pointer integrity spot audit — 24 Nov 2026
+
+A repository-tree check against the PR #49 evidence branch found 30 declared MIND_MAP nodes. The nine distinct file-typed source references currently present in `mind_map/MIND_MAP.yaml` all resolve to tracked repository files, and each stated line range is within the current file length. This is a pointer-integrity check only: it does not validate the semantic sufficiency of each cited source, re-run the probes, or establish live activation.
+
+The same pass inspected all nine `sentience_dag.json` nodes carrying a `module` field. Seven values resolve as repository paths; two values — `bonsai.py decay_pass (recency penalty)` and `bonsai.py decay_pass (starvation bonus)` — are descriptive function labels, not literal paths. They are therefore not counted as missing source files, but remain less directly navigable than path-qualified module references. The DAG and MIND_MAP are distinct artifacts with different node sets/roles; this check does not assert they should be one-to-one.
+
+The repository tree contains 311 Python files under `theory_x/`. This bounded check does not close the required faculty-by-faculty forward/backward dependency audit, dynamic imports, event/shared-state edges, SQL readers/writers, or downstream consumers. Those remain open for M0.3.
