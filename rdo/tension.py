@@ -124,7 +124,7 @@ def assess_system(obligations: Dict[str, Obligation],
         verdict = TENSION_UNKNOWN
     else:
         verdict = SUFFICIENT
-    evidence = [f"{k}: {obligations[k].recon_status}" for k in missing_nec + unknown_nec]
+    evidence = [f"{k}: {o.recon_status}" for k, o in necessary.items()]
     out.append(TensionAssessment(
         "system", "integration_readiness", verdict,
         inference=bool(unknown_nec or any(obligations[k].recon_status == PARTIAL for k in missing_nec)),
