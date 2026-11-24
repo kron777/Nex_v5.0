@@ -109,7 +109,7 @@ def test_reconcile_requires_real_match(tmp_path):
                      [Signature("class GeniusTagger", None, "daemon")]) == MISSING
     ob_reuse = Obligation("r", "r", "daemon")
     assert reconcile(ob_reuse, str(tmp_path),
-                     [Signature("def real_thing", None, "fn")]) == REUSE_EXISTING
+                     [Signature("def real_thing", None, "fn")]) == "signature_matched"
     ob_partial = Obligation("p", "p", "daemon")
     assert reconcile(ob_partial, str(tmp_path),
                      [Signature("def real_thing", None, "a"),
@@ -130,7 +130,8 @@ def test_eligibility_blocks_ungated_and_host_only():
 def test_anti_requirements_appear_and_reused_not_rebuilt():
     obs = {
         "exists": Obligation("exists", "e", "persistence", recon_status=REUSE_EXISTING,
-                             recon_evidence=["init_db.py:1"]),
+                             recon_evidence=["init_db.py:1"], confidence="measured",
+                             recon_semantic_verified=True),
         "anti": Obligation("anti", "no second store", "anti_requirement",
                            classification=ANTI_REQUIREMENT, rationale="already persisted"),
         "todo": Obligation("todo", "t", "consumer", recon_status=MISSING),
@@ -167,11 +168,14 @@ def test_learning_compare_and_series(tmp_path):
     lessons = {p.key for p in derive_lessons(c, disc)}
     assert "under_expansion" in lessons and "effort_estimate_bias" in lessons
     series = accuracy_series([c])
-    assert series["completed_cycles"] == 1 and "no acceleration" in series["trend_claim"]
+    assert series["completed_cycles"] == 0 and series["series"][0]["status"] == "partial"
+    assert "no acceleration" in series["trend_claim"]
 
 
 def test_recognize_sufficiency_restrains_development():
-    obs = {"built": Obligation("built", "b", "persistence", recon_status=REUSE_EXISTING),
+    obs = {"built": Obligation("built", "b", "persistence", recon_status=REUSE_EXISTING,
+                               recon_evidence=["src.py:1"], confidence="measured",
+                               recon_semantic_verified=True),
            "opt": Obligation("opt", "o", "ui", classification="optional",
                              recon_status=MISSING)}
     suff = {s["key"] for s in recognize_sufficiency(obs)}
