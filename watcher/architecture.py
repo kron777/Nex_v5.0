@@ -146,8 +146,8 @@ class RuntimeGraph:
 
 
 def build_runtime_graph() -> RuntimeGraph:
-    """Seed the runtime graph from Phase-1 source reads. Edges carry the three
-    evidence dimensions explicitly. Nothing is `runtime_observed` yet (STANDBY)."""
+    """Seed the static relationship graph from Phase-1 source reads. Edges carry
+    independent evidence dimensions; nothing is `runtime_observed` in STANDBY."""
     g = RuntimeGraph()
     src = "Phase-1 source read (expectations.py, global_workspace, commitments.py, episodic.py)"
     # Per-edge records are curated source/test claims, not runtime observations.
@@ -211,8 +211,8 @@ def build_runtime_graph() -> RuntimeGraph:
              claim="A qualifying reconciliation can update basis-belief confidence through _learn().",
              scope="Synthetic path with learning enabled and eligible basis beliefs.",
              caveat="Conditional on NEX5_EXPECT_LEARN and learning eligibility; not unconditional."),
-        dict(src="beliefs.confidence", dst="owned_belief_expectations",
-             label="owned-belief producer copies belief confidence into its basis",
+        dict(src="beliefs.confidence", dst="producers",
+             label="belief confidence -> owned-belief producer path",
              source_ref="theory_x/stage_world/owned_belief.py:119-141",
              test_ref="tests/test_owned_belief.py::test_row_is_open_owned_band_four_with_its_own_confidence",
              claim="The owned-belief producer copies originating belief confidence into the expectation/basis record.",
