@@ -1627,3 +1627,10 @@ The payload-use distinction is narrower than the snapshot field names suggest:
 - The inside-belief query selects at most 30 candidates from an explicit source allowlist, then scores by confidence × tier weight and returns five; the prompt formatter renders at most the first three.
 
 Thus “read”, “mapped into snapshot”, and “surfaced to the model” are separate stages. The inspected router calls `self_model.snapshot()` directly for each INSIDE route; the 30-second cache belongs to `tick()`/state reporting and is not used by that direct route call. No live snapshot contents or prompt payload were captured.
+
+
+### Stage 4 BehaviouralSelfModel measurement-to-prompt path — 24 Nov 2026
+
+The BehaviouralSelfModel reads the latest 100 `messages` rows with role `nex` and computes hedge/position phrase rates, dominant register, average word count, and a `belief_usage_rate`. The latter increments when the stored NEX response text contains the literal phrase `her current beliefs` or `[tier`. However, `gui/server.py` stores the sanitized generated reply text in role `nex`; the retrieved belief block is assembled earlier into the system prompt. The metric therefore inspects the model's response wording, not the actual prompt's retrieved-belief inclusion or the separately captured `_retrieved_belief_text` provenance. It can undercount genuine prompt injection and may count incidental wording. The metric is subsequently compared to a keystone expectation and can create a Tier 6 `behavioural_observation` belief when it falls below threshold.
+
+This is a measurement-target mismatch in the inspected source path. Whether the metric is used as an intended proxy rather than a literal injection measure requires the governing acceptance language; no behaviour change is proposed. The BehaviouralSelfModel's own metric calculation, its 4-hour belief-writing loop, and its INSIDE-only prompt formatter are separate stages. The formatter uses cached observations from the last 100 responses and surfaces response length, dominant register, hedge rate and a coarse belief-usage statement; it does not render every calculated metric.
