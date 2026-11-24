@@ -20,7 +20,8 @@ from .knowledge import affinity_drift_idea, genius_tagger_idea, migration_defect
 from .memory import (CycleStore, PatternMemory, accuracy_series, compare,
                      derive_lessons, metrics_series, record_actual)
 from .model import (ANTI_REQUIREMENT, EXECUTED_VERIFIED, IMPORTED_RETROSPECTIVE, MISSING,
-                    PARTIAL, REUSE_EXISTING, SIGNATURE_MATCHED, CycleRecord, Obligation, Pattern)
+                    PARTIAL, RECON_UNKNOWN, REUSE_EXISTING, SIGNATURE_MATCHED,
+                    CycleRecord, Obligation, Pattern)
 from .reconcile import Signature
 
 
@@ -51,12 +52,14 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
     recon_buckets = recon_mod.summarize(obligations)
     reused = recon_buckets.get(REUSE_EXISTING, [])
     signature_matches = recon_buckets.get(SIGNATURE_MATCHED, [])
+    unknowns = recon_buckets.get(RECON_UNKNOWN, [])
     missing = recon_buckets.get(MISSING, []) + recon_buckets.get(PARTIAL, [])
     anti = [o.key for o in obligations.values() if o.classification == ANTI_REQUIREMENT]
     uncertainties = [f["key"] + ": " + f["reason"] for f in frontier
                      if ("no reconciliation" in f["reason"] or "max_depth" in f["reason"]
                          or "semantic satisfaction unreviewed" in f["reason"]
-                         or "lacks semantic-review evidence" in f["reason"]) ]
+                         or "lacks semantic-review evidence" in f["reason"]) ] + [
+        f"{key}: reconciliation unknown; investigate" for key in unknowns]
 
     # VERIFICATION — every reuse claim must be backed by real evidence
     backed = [k for k in reused if obligations[k].recon_evidence]
@@ -80,8 +83,9 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
         "signature_matches_requiring_semantic_review": len(signature_matches),
         "net_new_count": len(missing),
         "signature_review_count": len(signature_matches),
-        "effort": len(missing) + len(signature_matches),
-        "note": "uncalibrated count of unresolved build + semantic-review obligations; not hours",
+        "unknown_investigation_count": len(unknowns),
+        "effort": len(missing) + len(signature_matches) + len(unknowns),
+        "note": "uncalibrated count of unresolved build, semantic-review and investigation obligations; not hours",
     }
 
     cycle = CycleRecord(
@@ -100,6 +104,7 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
         "discovered": len(obligations),
         "reused": reused,
         "signature_matches": signature_matches,
+        "unknowns": unknowns,
         "rejected_or_deferred": anti + [f["key"] for f in frontier
                                         if "already satisfied" in f["reason"]],
         "recommended_work": [{"package": p.key, "eligibility": p.eligibility,
