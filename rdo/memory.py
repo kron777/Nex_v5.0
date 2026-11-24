@@ -200,8 +200,8 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
         signature_matches = None
     signature_backed = cycle.verification.get(
         "signature_matches_backed_by_file_evidence")
-    grounded = sum(1 for o in obligations if o.get("recon_status") in
-                   ("signature_matched", "reuse_existing", "missing", "partial"))
+    reconciled = sum(1 for o in obligations if o.get("recon_status") in
+                     ("signature_matched", "reuse_existing", "missing", "partial"))
     d = compare(cycle) if cycle.actual is not None else {}
     missed = d.get("under_expansion_missed")
     actual_effort = (cycle.actual.get("effort_actual")
@@ -235,7 +235,7 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
         "signature_evidence_coverage_complete": (
             cycle.verification.get("all_signature_matches_have_file_evidence")
             if isinstance(signature_matches, (int, float)) and signature_matches > 0 else None),
-        "expansion_grounded_fraction": round(grounded / discovered, 3),  # proxy for precision
+        "reconciliation_status_coverage": round(reconciled / discovered, 3),  # completed scan/review status, not precision
         # OUTCOME (need actuals)
         "missed_obligation_count": (len(missed) if isinstance(missed, list) else None),
         "prediction_error_effort": d.get("effort_error"),
@@ -247,11 +247,11 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
     }
 
 
-_MEASURE_KEYS = ("expansion_grounded_fraction", "missed_obligation_count",
+_MEASURE_KEYS = ("reconciliation_status_coverage", "missed_obligation_count",
                  "duplicate_discovery_rate", "signature_evidence_coverage", "prediction_error_effort",
                  "rework", "engineering_effort", "signature_evidence_coverage_complete")
 _MEASURE_LABELS = {
-    "expansion_grounded_fraction": "expansion_grounded_fraction (precision proxy)",
+    "reconciliation_status_coverage": "reconciliation_status_coverage (fraction with a completed reconciliation status; not precision)",
     "missed_obligation_count": "missed_obligation_count",
     "duplicate_discovery_rate": "duplicate_discovery_rate",
     "signature_evidence_coverage": "signature_evidence_coverage (configured source-anchor coverage, not semantic accuracy)",
