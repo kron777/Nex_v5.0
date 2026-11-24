@@ -1501,3 +1501,14 @@ A further check against the repository's governing technical specification found
 - This is source-confirmed divergence from the inspected SPECIFICATION.md contract. Whether there is a later approved exception or superseding authority has not been established. No contention event or live impact is claimed, and no remediation is authorised by this audit.
 
 Source anchors at current PR #49 source revision: SPECIFICATION.md §8 and the non-negotiable rules; theory_x/world_bridge/selector.py (_log_selection); run.py (selector construction); theory_x/stage6_fountain/generator.py (selector call and prompt assembly); tests/test_sense.py (literal import scan). This should be reconciled with the Frozen V2.1 authority before any implementation change.
+
+
+### Stage 3 retrieval and Harmonizer coverage audit — 24 Nov 2026
+
+The inspected production chat path calls Stage 3 retrieval through Stage 4 QueryRouter when membrane and WorldModel are both present. INSIDE queries combine a self-model snapshot with up to five INSIDE-filtered beliefs; OUTSIDE queries retrieve up to eight using active Dynamic branch hints. The no-membrane fallback instead retrieves up to three and applies a chat-only two-token overlap filter and ~800-character cap. The retrieved belief block is used in prompt assembly.
+
+The retrieval implementation's spreading activation does not add graph-only neighbours to the returned candidates: after activation scores are computed, result assembly drops any activated ID absent from the original keyword-scored `row_map`. Graph activation therefore adjusts/reranks the keyword-matched candidate set in this implementation, rather than expanding it with zero-overlap neighbours. Edge traversal stamps are best-effort. FocalSet/Working Memory is a separate attention-tracking path; the inspected code updates its buffer and logs it but does not append that buffer to the prompt at that point. A separate dashboard activation calculation is likewise not evidence of response influence.
+
+The Harmonizer's initial conflict scan selects only 200 eligible beliefs ordered by ascending tier. Its own source comment reports a historically measured pool exceeding 3,700, with more than 600 Tier 3 beliefs and no Tiers 5–7 reached by that scan. The optional paradox-fix pass directly rechecks already-open paradox pairs to escalate them after incubation; it does not repair initial discovery coverage for beliefs excluded from the 200-row selection. Current target-host population and whether the flag is armed are UNKNOWN.
+
+No live query, retrieved belief set, graph traversal, focal buffer, Harmonizer scan, or current beliefs.db population was observed. All findings above are source-level path semantics, with historical measurements identified as such.
