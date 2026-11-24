@@ -54,6 +54,11 @@ def _grep(pattern: str, repo_dir: str, path: Optional[str], max_hits: int = 3) -
         return []
     if res.returncode != 0 or (res.returncode == 1 and lines):
         return None
+    # GNU grep omits the filename when an explicitly named file is the
+    # sole search target. Restore it so evidence remains traceable to the
+    # exact source/test file, just as it is for directory-scoped searches.
+    if os.path.isfile(target):
+        lines = [f"{path}:{ln}" for ln in lines]
     # make paths repo-relative for stable evidence
     out = []
     for ln in lines[:max_hits]:
