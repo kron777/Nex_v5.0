@@ -343,7 +343,16 @@ class TestContradiction(unittest.TestCase):
             [held_id],
         )
 
-        self.resolver.on_gate_accept(contradictory_packet)
+        from theory_x.stage_gate.coherence_gate import GateOutcome
+
+        gate = _make_gate(
+            self.writers,
+            self.readers,
+            holding_zone=self.zone,
+            resolver=self.resolver,
+        )
+        decision = gate.check(contradictory_packet)
+        self.assertEqual(decision.outcome, GateOutcome.ACCEPT)
 
         held = self.readers["beliefs"].read_one(
             "SELECT status, corroboration_count FROM held_thoughts WHERE id=?",
