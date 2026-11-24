@@ -278,7 +278,7 @@ class TestResolutionPersistenceFailure(unittest.TestCase):
         )
         self.assertEqual(held["status"], "accepted")
         audit_rows = self.readers["beliefs"].read(
-            "SELECT id FROM held_resolutions WHERE held_id=?", (held_id,)
+            "SELECT action FROM held_resolutions WHERE held_id=?", (held_id,)
         )
         self.assertEqual(audit_rows, [])
 
