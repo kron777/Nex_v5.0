@@ -43,18 +43,29 @@ class PatternMemory:
                         self._current[d["key"]] = Pattern(**d)
 
     def add(self, pattern: Pattern) -> Pattern:
-        """Add or corroborate. Corroboration bumps observed_count and raises
-        confidence slowly (capped); it never erases exceptions."""
+        """Add or corroborate once per recorded provenance token.
+
+        Exact cycle replay is idempotent. A new recorded origin is retained and
+        counted once, but distinct provenance alone does not prove independent
+        underlying evidence; that interpretation remains a human judgement.
+        """
+        incoming = [x.strip() for x in str(pattern.provenance).split(";") if x.strip()]
         ex = self._current.get(pattern.key)
         if ex is not None:
-            ex.observed_count += 1
-            ex.confidence = min(CONFIDENCE_CAP, round(ex.confidence + 0.1, 3))
+            existing = [x.strip() for x in str(ex.provenance).split(";") if x.strip()]
+            new = [x for x in incoming if x not in existing]
             for x in pattern.exceptions:
                 if x not in ex.exceptions:
                     ex.exceptions.append(x)
+            if not new:
+                return ex
+            ex.provenance = "; ".join(existing + new)
+            ex.observed_count += 1
+            ex.confidence = min(CONFIDENCE_CAP, round(ex.confidence + 0.1, 3))
             cur = ex
         else:
             pattern.confidence = min(pattern.confidence, CONFIDENCE_CAP)
+            pattern.provenance = "; ".join(incoming)
             self._current[pattern.key] = pattern
             cur = pattern
         self._append(cur)
@@ -174,6 +185,8 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
                    ("reuse_existing", "missing", "partial"))
     d = compare(cycle) if cycle.actual is not None else {}
     missed = d.get("under_expansion_missed")
+    actual_effort = (cycle.actual.get("effort_actual")
+                     if cycle.actual is not None else None)
     return {
         "cycle": cycle.id,
         "kind": cycle.kind,
@@ -190,15 +203,29 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
         "missed_obligation_count": (len(missed) if missed is not None else None),
         "prediction_error_effort": d.get("effort_error"),
         "rework": (len(d.get("regressions", [])) if cycle.actual is not None else None),
-        "engineering_effort": (cycle.actual.get("effort_actual") if cycle.actual
-                               else cycle.predicted.get("effort")),
+        "engineering_effort": actual_effort,
+        "predicted_effort": cycle.predicted.get("effort"),
         "outcome_status": ("recorded" if cycle.actual is not None else "pending"),
     }
 
 
-_OUTCOME_MEASURES = ("missed_obligation_count", "prediction_error_effort", "rework")
+_OUTCOME_MEASURES = ("missed_obligation_count", "prediction_error_effort", "rework",
+                     "engineering_effort")
 _PROCESS_MEASURES = ("expansion_grounded_fraction", "duplicate_discovery_rate",
                      "reuse_accuracy", "verification_success")
+_MEASURE_KEYS = ("expansion_grounded_fraction", "missed_obligation_count",
+                 "duplicate_discovery_rate", "reuse_accuracy", "prediction_error_effort",
+                 "rework", "engineering_effort", "verification_success")
+_MEASURE_LABELS = {
+    "expansion_grounded_fraction": "expansion_grounded_fraction (precision proxy)",
+    "missed_obligation_count": "missed_obligation_count",
+    "duplicate_discovery_rate": "duplicate_discovery_rate",
+    "reuse_accuracy": "reuse_accuracy",
+    "prediction_error_effort": "prediction_error_effort",
+    "rework": "rework",
+    "engineering_effort": "engineering_effort (actual only)",
+    "verification_success": "verification_success",
+}
 
 
 def metrics_series(cycles: List[CycleRecord]) -> Dict:
@@ -221,11 +248,9 @@ def metrics_series(cycles: List[CycleRecord]) -> Dict:
         return {"contributing_cycles": [r["cycle"] for r in contributing],
                 "n": len(contributing), "missing": len(rows) - len(contributing)}
 
-    denominators = {m: _denominator(m) for m in (_PROCESS_MEASURES + _OUTCOME_MEASURES)}
+    denominators = {m: _denominator(m) for m in _MEASURE_KEYS}
     return {
-        "measures": ["expansion_grounded_fraction (precision proxy)", "missed_obligation_count",
-                     "duplicate_discovery_rate", "reuse_accuracy", "prediction_error_effort",
-                     "rework", "engineering_effort", "verification_success"],
+        "measures": [_MEASURE_LABELS[m] for m in _MEASURE_KEYS],
         "per_cycle": rows,
         "cycles_by_kind": by_kind,
         "comparability": {
