@@ -113,15 +113,25 @@ def assess_system(obligations: Dict[str, Obligation],
             evidence=[f"{k} (in-degree {indeg[k]})" for k in hot],
             note="several obligations converge on one mechanism — confirm it is not a bottleneck"))
 
-    # integration: unbuilt necessary obligations
-    missing_nec = [k for k, o in obligations.items()
-                   if o.recon_status == MISSING and o.classification == NECESSARY]
-    verdict = UNDERDEVELOPED if missing_nec else SUFFICIENT
+    # Sufficient only when every necessary obligation is affirmatively reconciled.
+    # Partial evidence is underdeveloped; unavailable evidence remains unknown.
+    necessary = {k: o for k, o in obligations.items() if o.classification == NECESSARY}
+    missing_nec = [k for k, o in necessary.items() if o.recon_status in (MISSING, PARTIAL)]
+    unknown_nec = [k for k, o in necessary.items() if o.recon_status == RECON_UNKNOWN]
+    if missing_nec:
+        verdict = UNDERDEVELOPED
+    elif unknown_nec:
+        verdict = TENSION_UNKNOWN
+    else:
+        verdict = SUFFICIENT
+    evidence = [f"{k}: {obligations[k].recon_status}" for k in missing_nec + unknown_nec]
     out.append(TensionAssessment(
-        "system", "integration_readiness", verdict, inference=False,
-        evidence=missing_nec[:10],
-        note=f"{len(missing_nec)} necessary obligation(s) unbuilt" if missing_nec
-             else "all necessary obligations reconcile to existing mechanisms"))
+        "system", "integration_readiness", verdict,
+        inference=bool(unknown_nec or any(obligations[k].recon_status == PARTIAL for k in missing_nec)),
+        evidence=evidence[:10],
+        note=(f"{len(missing_nec)} necessary obligation(s) missing or partial; {len(unknown_nec)} unknown"
+              if missing_nec or unknown_nec
+              else "all necessary obligations reconcile to existing mechanisms"))
     return out
 
 
