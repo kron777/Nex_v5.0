@@ -132,10 +132,10 @@ def compare(cycle: CycleRecord) -> Dict:
     predicted_effort = cycle.predicted.get("effort")
     actual_effort = a.get("effort_actual")
     disc = {
-        "under_expansion_missed": a.get("missed", []),            # necessary work we didn't discover
-        "over_expansion_unnecessary": a.get("unnecessary", []),   # work we proposed but wasn't needed
-        "inappropriate_reuse": a.get("reuse_wrong", []),          # claimed reuse that didn't hold
-        "regressions": a.get("regressions", []),
+        "under_expansion_missed": a.get("missed"),            # None = not reported; [] = reported zero
+        "over_expansion_unnecessary": a.get("unnecessary"),
+        "inappropriate_reuse": a.get("reuse_wrong"),
+        "regressions": a.get("regressions"),
         "effort_predicted": predicted_effort,
         "effort_actual": actual_effort,
         "effort_error": (None if predicted_effort is None or actual_effort is None
@@ -195,40 +195,46 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
     missed = d.get("under_expansion_missed")
     actual_effort = (cycle.actual.get("effort_actual")
                      if cycle.actual is not None else None)
+    required_outcomes = ("missed", "unnecessary", "reuse_wrong", "regressions")
+    outcome_fields_reported = ([k for k in required_outcomes if cycle.actual is not None and k in cycle.actual])
+    outcome_complete = cycle.actual is not None and all(k in cycle.actual for k in required_outcomes)
     return {
         "cycle": cycle.id,
         "kind": cycle.kind,
-        "outcome_complete": cycle.actual is not None,
+        "outcome_recorded": cycle.actual is not None,
+        "outcome_fields_reported": outcome_fields_reported,
+        "outcome_complete": outcome_complete,
         # PROCESS (now)
         "obligations_discovered": len(obligations),
         "duplicate_discovery_rate": round(duplicates / discovered, 3),
         "reuse_claims": reuse_claims,
-        "reuse_accuracy": (round(reuse_verified / reuse_claims, 3)
-                           if reuse_verified is not None and reuse_claims else None),
-        "verification_success": cycle.verification.get("all_reuse_backed"),
+        "reuse_evidence_coverage": (round(reuse_verified / reuse_claims, 3)
+                                     if reuse_verified is not None and reuse_claims else None),
+        "reuse_evidence_coverage_complete": cycle.verification.get("all_reuse_claims_have_file_evidence"),
         "expansion_grounded_fraction": round(grounded / discovered, 3),  # proxy for precision
         # OUTCOME (need actuals)
-        "missed_obligation_count": (len(missed) if missed is not None else None),
+        "missed_obligation_count": (len(missed) if isinstance(missed, list) else None),
         "prediction_error_effort": d.get("effort_error"),
-        "rework": (len(d.get("regressions", [])) if cycle.actual is not None else None),
+        "rework": (len(d["regressions"]) if isinstance(d.get("regressions"), list) else None),
         "engineering_effort": actual_effort,
         "predicted_effort": cycle.predicted.get("effort"),
-        "outcome_status": ("recorded" if cycle.actual is not None else "pending"),
+        "outcome_status": ("complete" if outcome_complete else
+                           "partial" if cycle.actual is not None else "pending"),
     }
 
 
 _MEASURE_KEYS = ("expansion_grounded_fraction", "missed_obligation_count",
-                 "duplicate_discovery_rate", "reuse_accuracy", "prediction_error_effort",
-                 "rework", "engineering_effort", "verification_success")
+                 "duplicate_discovery_rate", "reuse_evidence_coverage", "prediction_error_effort",
+                 "rework", "engineering_effort", "reuse_evidence_coverage_complete")
 _MEASURE_LABELS = {
     "expansion_grounded_fraction": "expansion_grounded_fraction (precision proxy)",
     "missed_obligation_count": "missed_obligation_count",
     "duplicate_discovery_rate": "duplicate_discovery_rate",
-    "reuse_accuracy": "reuse_accuracy",
+    "reuse_evidence_coverage": "reuse_evidence_coverage (signature/file-anchor coverage, not semantic accuracy)",
     "prediction_error_effort": "prediction_error_effort",
     "rework": "rework",
     "engineering_effort": "engineering_effort (actual only)",
-    "verification_success": "verification_success",
+    "reuse_evidence_coverage_complete": "reuse_evidence_coverage_complete (all reuse claims have file anchors; not execution success)",
 }
 
 
@@ -294,9 +300,12 @@ def accuracy_series(cycles: List[CycleRecord]) -> Dict:
         d = compare(c)
         rows.append({
             "cycle": c.id,
-            "missed": len(d["under_expansion_missed"]),
-            "unnecessary": len(d["over_expansion_unnecessary"]),
-            "inappropriate_reuse": len(d["inappropriate_reuse"]),
+            "missed": (len(d["under_expansion_missed"])
+                       if isinstance(d.get("under_expansion_missed"), list) else None),
+            "unnecessary": (len(d["over_expansion_unnecessary"])
+                            if isinstance(d.get("over_expansion_unnecessary"), list) else None),
+            "inappropriate_reuse": (len(d["inappropriate_reuse"])
+                                    if isinstance(d.get("inappropriate_reuse"), list) else None),
             "effort_error": d["effort_error"],
         })
     completed = [r for r in rows if r.get("status") != "pending"]
