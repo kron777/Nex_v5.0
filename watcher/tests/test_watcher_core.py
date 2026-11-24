@@ -137,3 +137,26 @@ def test_git_empty_success_is_measured_but_failure_is_unknown(monkeypatch):
     dirty = next(r for r in failed if r.subject == "checkout.dirty")
     assert head.evidence_class == "unknown" and head.modifier == "unverified"
     assert dirty.evidence_class == "unknown" and dirty.data is None
+
+
+
+def test_runtime_graph_edges_have_scoped_source_and_test_evidence():
+    graph = build_runtime_graph()
+    assert len(graph.edges) == 14  # twelve source-backed edges + two hypotheses
+    source_edges = [edge for edge in graph.edges if edge.source_implemented]
+    assert len(source_edges) == 12
+    assert all(edge.source_ref and edge.claim and edge.scope and edge.caveat
+               for edge in source_edges)
+    assert all(edge.runtime_observed is False for edge in graph.edges)
+    # Test verification is an edge-specific claim, not a blanket graph assertion.
+    assert all(edge.test_ref for edge in source_edges if edge.test_verified)
+    ownership_gate = next(edge for edge in source_edges
+                          if edge.src == "ownership" and edge.dst == "valence_gate")
+    assert ownership_gate.test_verified is False
+    assert ownership_gate.test_ref == ""
+    assert "focused threshold test" in ownership_gate.caveat
+    # Bundled producer claims are narrowed to the evidence actually asserted.
+    producer = next(edge for edge in source_edges
+                    if edge.src == "beliefs.confidence")
+    assert producer.dst == "owned_belief_expectations"
+    assert "Internal-surprise" in producer.caveat
