@@ -188,9 +188,11 @@ currently two recorded executed+verified test-work cycles: `arc_closers` and
 `beliefs.affinity`. The catalogue has six rows: one imported retrospective, three
 native discovery cycles and two execution records. The historical execution
 records retain their recorded test claims but do not yet carry independently
-checkable CI-run/artifact references. Their evidentiary classification remains a
-Founder decision. Patterns corroborate slowly and never become universal rules
-merely for appearing twice.
+checkable CI-run/artifact references. The Founder has directed that both remain
+classified as `EXECUTED_VERIFIED` and eligible for efficiency comparisons while
+historical supporting evidence is sought. Current CI is not retroactive proof of
+those historical test runs. Patterns corroborate slowly and never become universal
+rules merely for appearing twice.
 
 ## The RDO under its own OFT
 
