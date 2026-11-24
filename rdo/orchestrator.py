@@ -36,7 +36,7 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
     reconciler = recon_mod.make_reconciler(repo_dir, signatures)
     obligations, relationships, frontier = expand(seeds, reconciler)
 
-    # PRUNE false dependencies (a "build X first" on an already-existing X)
+    # PRUNE dependencies only when the target's semantic satisfaction is reviewed
     pruned = recon_mod.prune_false_dependencies(obligations, relationships)
 
     # OPTIMAL FUNCTIONAL TENSION (node / relationship / system)
