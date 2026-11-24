@@ -1607,3 +1607,8 @@ Harmonizer coverage requires a separate qualification. Its initial conflict scan
 ### Stage 3 test-boundary review — 24 Nov 2026
 
 The reviewed `tests/test_world_model.py` covers small-population keyword retrieval, basic activation-adjacent retrieval, promotion/decay and a two-belief Harmonizer conflict example. It does not test graph-connected zero-keyword-overlap beliefs being returned, the 200-row/tier-order starvation boundary, or the distinction between initial conflict discovery and the optional direct escalation pass. The chat injection test only asserts that a request does not crash and that the system prompt contains the generic NEX marker; it does not assert the exact routed belief set, INSIDE/OUTSIDE policy, or provenance of the injected belief block. These are bounded observations about the inspected test file, not repository-wide absence claims.
+
+
+### WorldBridge test-tree spot check — 24 Nov 2026
+
+The recursive tracked-tree inventory at PR #49 source head 90b4ee4cd4dbee06abfdb54fc8f8111264259831 contains no dedicated tests/test_world_bridge*.py module. The inspected tests/test_fountain.py does not reference WorldBridgeSelector, select_and_log or world_bridge_log. By contrast, tests/test_probe_snapshot.py explicitly tests feed_activity grouping by stream and snapshot-window behavior. This narrows the test evidence: the probe/strike snapshot consumer has direct fixture coverage, while the selector-to-Fountain prompt and direct beliefs.db logging paths were not covered by the specific test modules inspected. This is not a claim that no assertion about WorldBridge exists anywhere in the entire suite.
