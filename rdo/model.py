@@ -161,5 +161,9 @@ class CycleRecord:
     lessons: List[str] = dataclasses.field(default_factory=list)
     created_at: str = dataclasses.field(default_factory=utc_now)
 
+    def __post_init__(self) -> None:
+        if self.kind not in CYCLE_KINDS:
+            raise ValueError(f"bad cycle kind {self.kind!r}")
+
     def to_dict(self) -> dict:
         return dataclasses.asdict(self)
