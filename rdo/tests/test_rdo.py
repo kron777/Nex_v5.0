@@ -80,7 +80,7 @@ def test_over_expansion_stopped_by_reuse():
 def test_signature_match_without_semantic_review_does_not_stop_expansion():
     obs, _, frontier = expand(
         [Obligation("store", "store", "persistence")],
-        reconcile_fn=lambda o: REUSE_EXISTING, max_depth=1)
+        reconcile_fn=lambda o: SIGNATURE_MATCHED, max_depth=1)
     assert "store.schema" in obs
     assert any("semantic satisfaction unreviewed" in f["reason"] for f in frontier)
 
