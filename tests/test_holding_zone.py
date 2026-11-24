@@ -350,9 +350,11 @@ class TestGateWiring(unittest.TestCase):
         )
 
         anchor = "I attend to the world with wonder, stillness, presence, and care."
-        _seed_belief(
-            self.writers, anchor, tier=1, confidence=0.9,
-            source="keystone_seed", locked=1,
+        self.writers["beliefs"].write(
+            "INSERT INTO beliefs "
+            "(content, tier, confidence, created_at, source, branch_id, locked) "
+            "VALUES (?, 1, 0.9, ?, 'keystone_seed', 'phase0_fixture', 1)",
+            (anchor, time.time()),
         )
         time.sleep(0.03)
 
