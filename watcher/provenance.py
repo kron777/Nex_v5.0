@@ -37,19 +37,20 @@ def collect_repo_provenance(repo_dir: str = ".") -> List[Evidence]:
     status = _git(repo_dir, "status", "--porcelain")
     remotes = _git(repo_dir, "remote", "-v")
     last = _git(repo_dir, "log", "--oneline", "-1")
-    def ev(subject, value, interpretation=None):
-        available = value is not None
-        return Evidence(subject, (bool(value) if subject == "checkout.dirty" and available else value),
+    def ev(subject, value, interpretation=None, *, empty_is_valid=False):
+        available = value is not None and (bool(value) or empty_is_valid)
+        return Evidence(subject, (bool(value) if subject == "checkout.dirty" and available else
+                                  value if available else None),
                         "cloud", "measured" if available else "unknown", src,
                         modifier=None if available else "unverified",
-                        interpretation=interpretation or ("Git command failed; value unavailable."
+                        interpretation=interpretation or ("Git command failed or returned an invalid empty value."
                                                           if not available else None))
 
     return [
         ev("checkout.HEAD", head, "SHA of the checkout the Watcher runs in (the GitHub clone)."),
         ev("checkout.branch", branch),
-        ev("checkout.dirty", status, "True if the working tree has uncommitted changes."),
-        ev("checkout.remotes", remotes),
+        ev("checkout.dirty", status, "True if the working tree has uncommitted changes.", empty_is_valid=True),
+        ev("checkout.remotes", remotes, empty_is_valid=True),
         ev("checkout.last_commit", last),
     ]
 
