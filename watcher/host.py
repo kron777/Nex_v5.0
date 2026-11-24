@@ -2,8 +2,8 @@
 Code on the machine. Cloud-side never runs these; it never pretends to have
 observed the live machine.
 
-`host_requests()` returns the read-only collection spec (the same shape dispatched
-to Claude Code on the handoffs branch). `ingest_host_results()` turns the results
+host_requests() returns the read-only collection spec (the same shape dispatched
+to Claude Code on the handoffs branch). ingest_host_results() turns the results
 Claude Code returns into Evidence tagged origin='host', so cloud and host findings
 stay distinguishable when combined.
 """
@@ -25,21 +25,102 @@ class HostRequest:
 
 
 def host_requests() -> List[HostRequest]:
-    """Read-only host-side collection. No exec of unknown tools, no writes, no
-    restart, no config change, no cleanup."""
+    """Read-only host-side collection. No writes, restarts, config changes or cleanup.
+
+    Process/environment discovery is deliberately allow-listed: no raw argv,
+    complete environment dump, credential-bearing remote URL or home-directory
+    scan is part of the collection contract.
+    """
     return [
         HostRequest(
-            "checkouts_drift", "Checkouts + deployment drift",
-            "path, drive, SHA, dirty-state and drift-vs-GitHub for EVERY nex5 checkout",
-            ["git -C <checkout> rev-parse HEAD",
-             "git -C <checkout> status -s",
-             "git -C <checkout> remote -v",
-             "git -C <checkout> rev-list --left-right --count origin/main...HEAD"]),
+            "checkouts_drift", "Known checkouts + deployment drift",
+            "Git root, branch, full HEAD SHA, clean/dirty summary, sanitized origin URL, "
+            "locally available origin/main SHA and divergence for the two historically "
+            "identified checkout paths, plus any additional checkout path established "
+            "from a verified NEX process working directory. No home-directory scan. "
+            "The origin/main tracking ref is not refreshed; report its SHA and treat "
+            "divergence as relative to that locally cached ref.",
+            [
+                "for checkout in "
+                "/home/rr/Desktop/Desktop/nex5 "
+                "/home/rr/Desktop/NEX_AUDIT/Nex_v5.0-main; do "
+                "if [ -d \"$checkout\" ] && git -C \"$checkout\" rev-parse "
+                "--is-inside-work-tree >/dev/null 2>&1; then "
+                "printf '\\ncheckout=%s\\n' \"$checkout\"; "
+                "git -C \"$checkout\" rev-parse --show-toplevel; "
+                "git -C \"$checkout\" branch --show-current; "
+                "git -C \"$checkout\" rev-parse HEAD; "
+                "git -C \"$checkout\" status --porcelain=v1 --untracked-files=all | "
+                "awk 'BEGIN{n=0;staged=0;unstaged=0;untracked=0} "
+                "{n++; if(substr($0,1,2)==\"??\") untracked++; "
+                "else {if(substr($0,1,1)!=\" \") staged++; "
+                "if(substr($0,2,1)!=\" \") unstaged++}} "
+                "END{printf \"dirty_entries=%d staged=%d unstaged=%d untracked=%d\\n\","
+                "n,staged,unstaged,untracked}'; "
+                "git -C \"$checkout\" remote get-url origin 2>/dev/null | "
+                "python3 -c 'import sys,urllib.parse; "
+                "s=sys.stdin.read().strip(); "
+                "p=urllib.parse.urlsplit(s) if \"://\" in s else None; "
+                "host=(p.hostname or \"\") if p else \"\"; "
+                "host+=((\":\"+str(p.port)) if p and p.port else \"\"); "
+                "print(\"origin_sanitized=\" + "
+                "(urllib.parse.urlunsplit((p.scheme,host,p.path,\"\",\"\")) "
+                "if p else s.split(\"@\",1)[-1]))'; "
+                "if base=$(git -C \"$checkout\" rev-parse --verify "
+                "'refs/remotes/origin/main^{commit}' 2>/dev/null); then "
+                "printf 'origin_main_cached_sha=%s\\n' \"$base\"; "
+                "git -C \"$checkout\" rev-list --left-right --count \"$base...HEAD\"; "
+                "else printf 'origin_main_cached_sha=UNAVAILABLE\\n'; fi; "
+                "fi; done",
+                "# Read-only process survey: process name only, never command-line arguments. "
+                "For Python candidates, accept only a working directory containing both "
+                "run.py and substrate/paths.py; record PID, /proc/PID/cwd and /proc/PID/exe.",
+                "ps -eo pid=,comm= | awk '$2 ~ /^python([0-9.]*)$/ {print $1}' | "
+                "while read -r pid; do "
+                "cwd=$(readlink -f \"/proc/$pid/cwd\" 2>/dev/null) || continue; "
+                "[ -f \"$cwd/run.py\" ] && [ -f \"$cwd/substrate/paths.py\" ] || continue; "
+                "printf 'candidate_pid=%s cwd=%s exe=' \"$pid\" \"$cwd\"; "
+                "readlink -f \"/proc/$pid/exe\" 2>/dev/null || true; done",
+                "# No git fetch is performed. The divergence count is relative to the "
+                "existing local origin/main tracking ref and may be stale.",
+            ],
+        ),
         HostRequest(
             "runtime_identity", "Runtime state + process identity (if running)",
-            "pid, checkout the live process runs from, NEX5_* flags; else confirm STANDBY",
-            ["pgrep -af 'run.py|power_switch'",
-             "tr '\\0' '\\n' < /proc/<pid>/environ | grep '^NEX5_'  # only if running"]),
+            "Candidate NEX Python PID, process working directory and executable, "
+            "plus only the allow-listed VIRTUAL_ENV, PYTHONHOME and NEX5_DATA_DIR "
+            "environment keys. No raw command line and no general NEX5_* dump. "
+            "Report a matching NEX process only when its verified checkout identity "
+            "is established; otherwise report process identity UNKNOWN. Record "
+            "matching user service names/states without reading unit contents.",
+            [
+                "ps -eo pid=,comm= | awk '$2 ~ /^python([0-9.]*)$/ {print $1}' | "
+                "while read -r pid; do "
+                "cwd=$(readlink -f \"/proc/$pid/cwd\" 2>/dev/null) || continue; "
+                "[ -f \"$cwd/run.py\" ] && [ -f \"$cwd/substrate/paths.py\" ] || continue; "
+                "printf 'candidate_pid=%s cwd=%s exe=' \"$pid\" \"$cwd\"; "
+                "readlink -f \"/proc/$pid/exe\" 2>/dev/null || true; "
+                "python3 - \"$pid\" <<'PY'\n"
+                "import pathlib, sys\n"
+                "pid=sys.argv[1]\n"
+                "allowed={b'VIRTUAL_ENV', b'PYTHONHOME', b'NEX5_DATA_DIR'}\n"
+                "try:\n"
+                "    entries=pathlib.Path('/proc',pid,'environ').read_bytes().split(b'\\\\0')\n"
+                "    for entry in entries:\n"
+                "        key, sep, value=entry.partition(b'=')\n"
+                "        if sep and key in allowed:\n"
+                "            print(key.decode()+'='+value.decode(errors='replace'))\n"
+                "except OSError as exc:\n"
+                "    print('allowlisted_environment=UNAVAILABLE:'+type(exc).__name__)\n"
+                "PY\n"
+                "done",
+                "systemctl --user list-units --type=service --all --no-legend 2>/dev/null | "
+                "awk 'tolower($1) ~ /(nex|power_switch|keepalive)/ "
+                "{print $1, $3, $4}'",
+                "# Do not inspect /proc/PID/cmdline or print all of /proc/PID/environ. "
+                "Do not infer STANDBY merely because this filtered survey found no candidate.",
+            ],
+        ),
         HostRequest(
             "classify_unknown_tools", "Classify the 5 unknown decryption tools (SOURCE ONLY)",
             "passive/isolated/active/unknown per tool, with cited side-effect lines",
@@ -48,37 +129,97 @@ def host_requests() -> List[HostRequest]:
              "decryption/{atlas_builder,classifier,differential_analyzer,spark_detector,"
              "nex_cognition_simulator}.py"]),
         HostRequest(
-            "phase0_environment", "Phase 0 host environment + model fingerprint",
-            "OS/kernel, CPU, GPU model, RAM, VRAM counters, Python, SQLite and Ollama versions; "
-            "Qwen2.5 3B model tag and backing blob digest; current Ollama loaded-model state. "
-            "Inference throughput is deliberately not measured by this passive request.",
-            ["cat /etc/os-release",
-             "uname -a",
-             "lscpu",
-             "free -b",
-             "python3 --version",
-             "python3 -c 'import sqlite3; print(sqlite3.sqlite_version)'",
-             "ollama --version",
-             "ollama list",
-             "ollama show qwen2.5:3b --modelfile | awk '/^FROM / {print $2}' | xargs -r basename",
-             "ollama ps",
-             "lspci -nnk | grep -A3 -E 'VGA|3D|Display'",
-             "for f in /sys/class/drm/card*/device/mem_info_vram_total; do "
-             "[ -r \"$f\" ] && printf '%s=' \"$f\" && cat \"$f\"; done"]),
-        HostRequest(
-            "live_db_metadata", "Live DB read-only metadata (mode=ro only)",
-            "beliefs/dynamic/conversations DB paths, drive, row counts, WAL sizes; no row contents",
-            ["sqlite3 'file:<db>?mode=ro' 'SELECT COUNT(*) FROM <table>'  # mode=ro ONLY"]),
+            "phase0_environment", "Phase 0 host environment + NEX interpreter/model fingerprint",
+            "OS/kernel, CPU, physical RAM, GPU/driver and current VRAM counters; Python and "
+            "SQLite versions from the verified NEX interpreter (not an unrelated system "
+            "Python); Ollama version, exact qwen2.5:3b API digest where available, the "
+            "Modelfile FROM backing-blob identifier as a separate value, and current "
+            "loaded-model state. No inference, throughput benchmark or package installation.",
+            [
+                "cat /etc/os-release",
+                "uname -a",
+                "lscpu",
+                "grep -E '^(MemTotal|MemAvailable):' /proc/meminfo",
+                "lspci -nnk | grep -A3 -E 'VGA|3D|Display' 2>/dev/null || true",
+                "for f in /sys/class/drm/card*/device/mem_info_vram_total "
+                "/sys/class/drm/card*/device/mem_info_vram_used; do "
+                "[ -r \"$f\" ] && printf '%s=' \"$f\" && cat \"$f\"; done",
+                "<verified-NEX-python> --version",
+                "<verified-NEX-python> -c 'import sqlite3; print(sqlite3.sqlite_version)'",
+                "ollama --version",
+                "ollama list | awk 'NR==1 || $1==\"qwen2.5:3b\"'",
+                "python3 - <<'PY'\n"
+                "import json, urllib.request\n"
+                "try:\n"
+                "    with urllib.request.urlopen('http://127.0.0.1:11434/api/tags', timeout=3) as r:\n"
+                "        data=json.load(r)\n"
+                "    matches=[m for m in data.get('models',[]) if m.get('name')=='qwen2.5:3b']\n"
+                "    print('qwen2.5:3b_api_digest='+matches[0].get('digest','UNKNOWN') if matches else 'qwen2.5:3b_api_digest=NOT_INSTALLED_OR_NOT_VISIBLE')\n"
+                "except Exception as exc:\n"
+                "    print('qwen2.5:3b_api_digest=UNKNOWN:'+type(exc).__name__)\n"
+                "PY",
+                "ollama show qwen2.5:3b --modelfile 2>/dev/null | "
+                "awk '$1==\"FROM\" {n=$2; sub(/^.*\\//,\"\",n); "
+                "print \"modelfile_backing_blob=\" n; found=1} "
+                "END{if(!found) print \"modelfile_backing_blob=UNKNOWN\"}'",
+                "ollama ps",
+                "# Resolve <verified-NEX-python> from the running NEX process's allow-listed "
+                "VIRTUAL_ENV, or the verified checkout's .venv/bin/python if that is the "
+                "interpreter configured for NEX. If neither is established, report the "
+                "system Python separately and leave the NEX interpreter UNKNOWN.",
+                "# Ollama list ID, /api/tags full digest and Modelfile FROM blob are distinct "
+                "identifiers. Keep them separately labelled; do not substitute one for another.",
+            ],
+        ),
         HostRequest(
             "runtime_artifact_hashes", "Runtime DB + snapshot fingerprints",
-            "Exact runtime DB, WAL/SHM and snapshot paths, sizes, modification times and SHA-256 hashes; "
-            "metadata only, never copy or dump private contents",
-            ["find <NEX_RUNTIME_ROOTS> -type f "
-             "\\( -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' "
-             "-o -name '*.db-wal' -o -name '*.sqlite-wal' "
-             "-o -name '*.db-shm' -o -name '*.sqlite-shm' \\) "
-             "-printf '%p\\t%s\\t%TY-%Tm-%TdT%TH:%TM:%TS\\n'",
-             "sha256sum <exact-db-wal-shm-and-snapshot-paths>  # metadata only; do not copy files"]),
+            "Exact verified runtime data-root and snapshot-root paths; DB/WAL/SHM/journal "
+            "and known snapshot-file paths, sizes, modification times and SHA-256 values. "
+            "Record a digest as stable only when device, inode, size, mtime and ctime match "
+            "before and after hashing. If roots cannot be established from the verified "
+            "process/configuration, do not guess or scan home; leave fingerprints UNKNOWN. "
+            "No row counts, database contents or file copies.",
+            [
+                "# Resolve NEX5_DATA_DIR only from the verified NEX process's allow-listed "
+                "environment. If absent, substrate/paths.py defines the default as "
+                "<verified NEX checkout>/data. Resolve snapshot_dir from the actual "
+                "StateSnapshotWriter construction; include <verified checkout>/snapshots "
+                "only when source/runtime evidence establishes that it is used.",
+                "# Set these variables to the exact verified roots before running the "
+                "following read-only commands; do not leave placeholders or guess paths.",
+                "for root in \"$NEX5_DATA_DIR\"; do "
+                "[ -d \"$root\" ] || { printf 'data_root_unavailable=%s\\n' \"$root\"; continue; }; "
+                "find \"$root\" -type f \\( "
+                "-name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' "
+                "-o -name '*.db-wal' -o -name '*.db-shm' -o -name '*.db-journal' "
+                "-o -name '*.sqlite-wal' -o -name '*.sqlite-shm' "
+                "-o -name '*.sqlite3-wal' -o -name '*.sqlite3-shm' "
+                "-o -name 'state_snapshot.json' -o -name 'state_snapshot.json.tmp' "
+                "\\) -print0; done | "
+                "while IFS= read -r -d '' file; do "
+                "before=$(stat -c '%d:%i:%s:%y:%z' -- \"$file\") || continue; "
+                "digest=$(sha256sum -- \"$file\" | awk '{print $1}') || continue; "
+                "after=$(stat -c '%d:%i:%s:%y:%z' -- \"$file\") || continue; "
+                "if [ \"$before\" = \"$after\" ]; then "
+                "printf 'stable=YES sha256=%s before=%s path=%s\\n' \"$digest\" \"$before\" \"$file\"; "
+                "else printf 'stable=NO sha256=DISCARD before=%s after=%s path=%s\\n' "
+                "\"$before\" \"$after\" \"$file\"; fi; done",
+                "for root in \"$NEX5_SNAPSHOT_DIR\"; do "
+                "[ -d \"$root\" ] || { printf 'snapshot_root_unavailable=%s\\n' \"$root\"; continue; }; "
+                "find \"$root\" -type f \\( -name '*.json' -o -name '*.snapshot' "
+                "-o -name '*.snap' -o -name '*.bak' \\) -print0; done | "
+                "while IFS= read -r -d '' file; do "
+                "before=$(stat -c '%d:%i:%s:%y:%z' -- \"$file\") || continue; "
+                "digest=$(sha256sum -- \"$file\" | awk '{print $1}') || continue; "
+                "after=$(stat -c '%d:%i:%s:%y:%z' -- \"$file\") || continue; "
+                "if [ \"$before\" = \"$after\" ]; then "
+                "printf 'stable=YES sha256=%s before=%s path=%s\\n' \"$digest\" \"$before\" \"$file\"; "
+                "else printf 'stable=NO sha256=DISCARD before=%s after=%s path=%s\\n' "
+                "\"$before\" \"$after\" \"$file\"; fi; done",
+                "# Hashing is read-only but reads each complete file and can add disk I/O. "
+                "Do not hash a live-changing file repeatedly; record unstable status once.",
+            ],
+        ),
         HostRequest(
             "registry_state", "Experiment registry state",
             "observation_reports r78-r84 status + any open tripwire flag files (read-only)",
@@ -93,7 +234,7 @@ def host_requests_as_data() -> List[dict]:
 def ingest_host_results(results: Dict[str, Any]) -> List[Evidence]:
     """Turn Claude Code's returned host findings into Evidence (origin='host').
 
-    `results` maps a HostRequest.id -> {data, evidence_class, source_ref, note}.
+    results maps a HostRequest.id -> {data, evidence_class, source_ref, note}.
     Anything not returned is recorded as an unverified host placeholder, so the
     gap is explicit rather than silently filled.
     """
@@ -115,10 +256,10 @@ def ingest_host_results(results: Dict[str, Any]) -> List[Evidence]:
 
 
 def host_results_template() -> Dict[str, Any]:
-    """A blank results file for Claude Code to fill on the host, one key per
+    """A blank host-results file for Claude Code to fill on the host, one key per
     request id. Each value is {data, evidence_class, source_ref, note}. Claude Code
-    runs the request's read-only commands on the machine, fills `data` with what it
-    observed, and sets `evidence_class` to 'measured' for a live reading."""
+    runs the request's read-only commands on the machine, fills data with what it
+    observed, and sets evidence_class to 'measured' for a live reading."""
     return {
         h.id: {
             "_title": h.title,
@@ -133,8 +274,8 @@ def host_results_template() -> Dict[str, Any]:
 
 def load_host_results(path: str) -> Dict[str, Any]:
     """Load a host-results JSON file produced on the machine. Underscore-prefixed
-    helper keys (`_title`, `_commands`) from the template are ignored; rows whose
-    `data` is still null are dropped so they fall through to honest placeholders."""
+    helper keys (_title, _commands) from the template are ignored; rows whose
+    data is still null are dropped so they fall through to honest placeholders."""
     with open(path, "r", encoding="utf-8") as fh:
         raw = json.load(fh)
     ids = {h.id for h in host_requests()}
@@ -143,6 +284,6 @@ def load_host_results(path: str) -> Dict[str, Any]:
         if rid not in ids or not isinstance(row, dict):
             continue
         if row.get("data") is None:
-            continue  # not yet collected -> placeholder downstream
+            continue
         out[rid] = {k: v for k, v in row.items() if not k.startswith("_")}
     return out
