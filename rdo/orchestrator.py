@@ -61,7 +61,7 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
                          or "lacks semantic-review evidence" in f["reason"]) ] + [
         f"{key}: reconciliation unknown; investigate" for key in unknowns]
 
-    # VERIFICATION — every reuse claim must be backed by real evidence
+    # SOURCE-EVIDENCE ACCOUNTING — source anchors are counted separately from semantic reuse
     backed = [k for k in reused if obligations[k].recon_evidence]
     verification = {
         "reuse_claims": len(reused),
@@ -264,7 +264,7 @@ def _six_outputs(cycle, summary, memory, learning) -> dict:
         "2_semantically_reviewed_reuse": summary["reused"],
         "3_rejected_or_deferred": summary["rejected_or_deferred"],
         "4_recommended_work": summary["recommended_work"],
-        "5_verification": summary["verification"],
+        "5_source_evidence_coverage": summary["verification"],
         "6_learned": {"patterns": [p.to_dict() for p in memory.patterns()],
                       "learning_series": learning},
         "optimal_functional_tension": {
