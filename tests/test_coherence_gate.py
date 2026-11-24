@@ -478,3 +478,50 @@ class TestStage2Wiring(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAnchorNegationMinimalPairs(unittest.TestCase):
+    """Characterize the gate's lexical negation heuristic, not semantic truth."""
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+        self.gate = _make_gate(self.writers, self.readers)
+        self.anchor = (
+            "I attend to the world with wonder, stillness, presence, and care."
+        )
+        _seed_belief(
+            self.writers, self.anchor, tier=1, confidence=0.9,
+            locked=1, source="keystone_seed",
+        )
+        time.sleep(0.05)
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def _check(self, content):
+        from theory_x.stage_gate.coherence_gate import ThoughtPacket
+        return self.gate.check(ThoughtPacket(
+            content=content, source_node="phase0_negation_fixture",
+            confidence=0.7,
+        ))
+
+    def test_double_negation_is_still_classified_as_negated(self):
+        """'not fail to attend' is semantically affirmative but trips XOR."""
+        from theory_x.stage_gate.coherence_gate import GateOutcome
+        decision = self._check(
+            "I do not fail to attend to the world with wonder, stillness, "
+            "presence, and care."
+        )
+        # Current implementation sees the token 'not', not the scope of
+        # negation; this expected REJECT records the observed limitation.
+        self.assertEqual(decision.outcome, GateOutcome.REJECT)
+        self.assertIn("contradicts_anchor", decision.reason)
+
+    def test_not_only_is_exempted_from_negation_detection(self):
+        """The explicit 'not only' exception avoids a negation-XOR rejection."""
+        from theory_x.stage_gate.coherence_gate import GateOutcome
+        decision = self._check(
+            "I not only attend to the world with wonder, stillness, "
+            "presence, and care."
+        )
+        self.assertNotEqual(decision.outcome, GateOutcome.REJECT)
