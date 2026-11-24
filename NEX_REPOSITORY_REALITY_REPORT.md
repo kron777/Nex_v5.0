@@ -1758,3 +1758,17 @@ Current source hashes:
 - `theory_x/stage_tom/hot_observer.py`: `35d4e9774c0e5c7571faf7e1f577253d7d5c76de`
 - `theory_x/stage_tom/amoha_detector.py`: `8012d5d34d502e3a14fa7f61e2c525dc779c4206`
 - `theory_x/stage_tom/value_drift_monitor.py`: `e08a9649bd94e9094b49aeae59aa9f8feeacbff5`
+
+
+
+## M0.3–M0.4 source/test characterization — Holding Zone corroboration and promotion persistence (24 Nov 2026)
+
+This addendum records two bounded findings from the CoherenceGate/Holding Zone path. It is source- and isolated-test evidence only; it does not establish deployed incidence, actual belief quality, or the intended Founder acceptance policy.
+
+**DRAFT-045 — corroboration count does not establish source independence.** `HoldingZone.find_corroborations()` selects every active held thought and compares only Jaccard similarity of `packet.content` with held content. It does not inspect the incoming packet's `source_node`, compare source identity with the held row, or retain identities of earlier corroborating packets. `HoldingZoneResolver.on_gate_accept()` increments the count for every match and promotes at count 3. The existing threshold test sends the same corroborating content three times through the default `_packet()` source `fountain`; all three arrivals count toward promotion. Thus the implemented N=3 threshold means three matching ACCEPT arrivals, not three independent sources. This is a direct code/test fact. Whether the Faculty Model intended independent evidence, distinct nodes, distinct episodes, or merely repeated arrivals is not specified by the inspected §2.5 wording and remains an acceptance question. No source-diversity policy or threshold change is proposed here.
+
+**DRAFT-046 — failed belief persistence can still produce accepted resolution state.** `HoldingZone.promote_to_belief()` catches a belief INSERT exception and returns `None`. The resolver does not inspect that return value; it then calls `mark_resolved(..., "accepted", "corroboration_threshold_3")`. The isolated test `test_failed_promotion_write_still_marks_held_thought_accepted` injects a failure only for the promotion INSERT while delegating the other writes to the real temporary SQLite writer. It verifies corroboration count 3, held status `accepted`, an `accepted` resolution row, and no corresponding belief row. This confirms a reproducible non-atomic state transition under the injected failure. It does not establish that this failure has occurred in deployed NEX.
+
+**Evidence and scope.** Tests are in `tests/test_holding_zone.py`; source is `theory_x/stage_gate/holding_zone.py` and `theory_x/stage_gate/resolver.py`. Characterization commit `4793e55ed8220f0f2b70c5cae9fd3654650735b0` passed GitHub Actions run `45426072925` (full pytest workflow and mind-map sourcing check). The preceding characterization commit `8493de3d2bc09c01d90ebc1770c15dd62e440945` also passed run `45424053528`. These CI results establish the tests passed on those exact commits; they do not establish runtime activation, truth, source independence, or Gate 0 readiness.
+
+No production source, schema, database, runtime flag, experiment, host state, merge or deployment was changed. No policy decision was made.
