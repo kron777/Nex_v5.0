@@ -1343,3 +1343,8 @@ Source inspection of the sense table schema, Stage 2 Dynamic loops and A–F pip
 The result is a materially different set of downstream semantics: general Stage 2 attention consumes all streams; belief distillation consumes a filtered subset with a write cap; Fountain's external context readers apply their own filtering. These are not interchangeable definitions of “Stage 1 data consumed.”
 
 Evidence level: source-confirmed control flow at the PR #49 evidence branch. Exposure, actual row counts, runtime errors, cursor values, and live effects remain UNKNOWN. No runtime, test, schema, flag, host or experiment changes were made.
+
+
+### Stage 2 internal-stream influence qualification — 24 Nov 2026
+
+The Stage 2 attention mapper narrows the meaning of “consumes all streams.” Internal rows are read by the general sense poller and can match the `systems` branch at Step B, but `_magnitude_for()` returns 0.0 for every `internal.*` stream. The A–F pipeline may still write B/D/E diagnostic rows; Step F skips magnitudes below 0.001, so this inspected path does not update Bonsai attention or the membrane accumulator from internal telemetry. For non-internal text rows, branch matching uses stream and selected payload tokens, with direct stream mappings and keyword-overlap magnitude logic. No live row-level influence is claimed.
