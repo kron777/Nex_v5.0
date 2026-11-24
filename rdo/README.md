@@ -35,10 +35,14 @@ WORK PACKAGE → VERIFICATION → (persist) → LEARN
   kinds, and — crucially — an obligation already satisfied by a real mechanism is
   **not** expanded. Convergent branches merge; every stop records its reason.
 - **Reconciliation** (`reconcile.py`) — each obligation with a *signature* is
-  checked against the **actual tree** (read-only grep): all signatures match →
-  `reuse_existing`; some → `partial`; none → `missing`; no signature → `unknown`
-  (an honest gap, never a fabricated status). It also prunes *false dependencies*
-  (a "build X first" edge whose X already exists).
+  checked against text-readable files in the **actual tree** (read-only grep):
+  all configured signatures match → `reuse_existing` (meaning *signature match
+  located*, not semantic satisfaction); some → `partial`; none in a completed
+  scan → `missing`; unavailable scan/no signature → `unknown`. A signature hit
+  is a source anchor, not proof that the full obligation is satisfied. Necessary
+  obligations remain readiness-unknown until a separate semantic review is
+  explicitly recorded. It also prunes candidate *false dependencies* based on
+  signature matches; those are not independently validated as satisfied.
 - **Optimal Functional Tension** (`tension.py`) — node / relationship / system
   assessment. Not a single score: every verdict is evidence-backed or explicitly
   marked `inference`. It also **recognises when further development is not
@@ -86,25 +90,31 @@ point is reconciliation against HEAD. The cycle finds:
 
 1. **Discovered** — the full obligation network (table, daemon, boot wiring, API,
    panel, score, two consumers, runtime verification, + anti-requirements).
-2. **Correctly reused** (each backed by a real `file:line`): `genius_tags`
-   (`substrate/init_db.py`), the `GeniusTagger` daemon (`theory_x/genius/tagger.py`
-   + boot in `run.py`), `/api/genius/recent` + panel, the v2 score, **and** the
-   fountain consumer (`generator.py` reads `genius_tags`).
+2. **Signature matches located** (each backed by a configured `file:line`
+   anchor): `genius_tags` (`substrate/init_db.py`), the `GeniusTagger` daemon
+   (`theory_x/genius/tagger.py` + boot in `run.py`), `/api/genius/recent` + panel,
+   the v2 score, **and** a fountain-source reference (`generator.py` contains a
+   `genius_tags` read). These matches locate relevant source; they do not by
+   themselves establish that each complete API, UI, calibration or consumer
+   obligation is semantically satisfied.
 3. **Rejected / deferred** — rebuilding any of the above, plus two explicit
    anti-requirements (no second score; no duplicate tags store).
 4. **Recommended work** — only the genuinely-missing **retrieval consumer** (with
    its `bounded_influence` / `reversibility` / `gate` sub-obligations) and
    **runtime verification**. Both **blocked**: an active behavioural change needs a
    preregistered gate, and runtime evidence is host-only while NEX is in STANDBY.
-5. **Verified** — every reuse claim re-checked against file evidence.
+5. **Evidence coverage** — each reported signature match has a file anchor.
+   This is not semantic verification, test execution, or runtime verification.
 6. **Learned** — the stale-doc pattern (*planning docs and code docstrings older
    than HEAD understate built state; reconcile first*), corroborated by the
    just-completed Watcher cycle, and an OFT flag: the genius signal is consumed by
    ~9 files → recommend an influence-authority review.
 
-The headline result: the May-2026 "build the tagger (≈2.5h)" item is **already
-built**, and so are most of its consumers — so the honest recommendation is *don't
-rebuild; verify at runtime and review the signal's influence*, not a checklist.
+The bounded result: the May-2026 proposal has several **source signature matches**
+   in the current tree. Those matches suggest where relevant mechanisms may exist;
+   they do not establish that the full tagger, API, score, panel or consumer
+   obligations are satisfied. The retrieval-consumer and runtime-verification
+   questions remain separately surfaced; no runtime behaviour is inferred.
 
 ## Generalisation — three discovery cycles across two patterns
 
@@ -161,9 +171,13 @@ multiplier or influence behaviour is changed until runtime evidence establishes 
 ## Cross-cycle learning (measured, not claimed)
 
 `run-all` reports eight comparable per-cycle measures — expansion precision proxy,
-missed-obligation count, duplicate-discovery rate, reuse accuracy, prediction
-error, rework, engineering effort, verification success — with **explicit
-denominators, missing values and comparability**. Cycles are tagged by kind:
+missed-obligation count, duplicate-discovery rate, reuse evidence coverage,
+prediction error, rework, engineering effort, and completeness of file-anchor
+coverage — with **per-measure denominators and missing values**. Evidence coverage
+is not semantic reuse accuracy; coverage completeness is not successful test or
+execution verification. Omitted actual outcome fields remain unknown (not zero),
+and an outcome record is complete only when all four outcome lists are explicitly
+reported. Cycles are tagged by kind:
 `imported_retrospective` (seeded history), `native_planning` (RDO ran it, no work
 executed yet), and `executed_verified` (recommended work actually built + verified).
 **Only executed+verified cycles are efficiency-comparable** — an imported
@@ -191,8 +205,10 @@ forbids.
 
 - The RDO **obeys its own principle**: it reuses Watcher infrastructure, it is
   lean, and it stays advisory. It is not a development bureaucracy.
-- LLM/human reasoning seeds obligations and signatures (`knowledge.py`); the
-  **tree is the authority**. Proposals never silently become fact.
+- LLM/human reasoning seeds obligations and signatures (`knowledge.py`). The
+  tree establishes only whether configured anchors were found; it does not
+  independently establish semantic satisfaction. A separate review is required
+  before necessary obligations can contribute to a `sufficient` readiness verdict.
 - The maths (Pareto framing, weighted priority) is scaffolding and is labelled
   uncalibrated — the early value is in structure (obligations, reconciliation,
   anti-requirements, tension), not equations.
