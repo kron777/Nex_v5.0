@@ -1257,3 +1257,9 @@ These recommendations do not resolve the roadmap's acceptance criteria, approve 
 PR #74 adds an isolated test that inspects the trace from inside the fake synthesis and player call bodies. It confirms that `synthesis_started` and `player_invocation_started` are emitted before the respective callee body begins, and that completion/return events are only present after the call returns. These event names therefore denote pre-call attempt markers in the current implementation, not independent proof of callee entry. No runtime instrumentation semantics were changed.
 
 The existing real-Writer/Reader speech fixture independently reads back the final `spoken` row after the synchronous Writer call, confirming committed queue status in that isolated SQLite test. It does not prove physical playback completion or audibility. The new exact-head test commit is `ec551aac4c634aa21d9b827421dc89f24c0246f2`; CI is pending and no pass is claimed.
+
+
+
+### Watcher host-evidence request CI update — 24 Nov 2026
+
+PR #73 exact head `e917f3704647c3431d2f2a86b4abf8ab40818aef` completed workflow run `45283644024` successfully, including the full repository test/baseline gate and MIND_MAP sourcing check. This validates the Watcher request-template coverage and its isolated tests at that commit only. It does not mean any target-host probe was executed: OS/model/runtime measurements, artifact hashes, live checkout identity and performance remain uncollected. PR #73 remains open, draft and unmerged.
