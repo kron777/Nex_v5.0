@@ -125,9 +125,13 @@ def test_git_empty_success_is_measured_but_failure_is_unknown(monkeypatch):
                         lambda *a, **k: SimpleNamespace(returncode=0, stdout="", stderr=""))
     assert provenance._git(".", "remote", "-v") == ""
     measured = provenance.collect_repo_provenance(".")
-    assert all(r.evidence_class == "measured" for r in measured)
-    dirty = next(r for r in measured if r.subject == "checkout.dirty")
-    assert dirty.data is False
+    by_subject = {r.subject: r for r in measured}
+    assert by_subject["checkout.HEAD"].evidence_class == "unknown"
+    assert by_subject["checkout.branch"].evidence_class == "unknown"
+    assert by_subject["checkout.last_commit"].evidence_class == "unknown"
+    assert by_subject["checkout.remotes"].evidence_class == "measured"
+    dirty = by_subject["checkout.dirty"]
+    assert dirty.evidence_class == "measured" and dirty.data is False
 
     monkeypatch.setattr(provenance.subprocess, "run",
                         lambda *a, **k: SimpleNamespace(returncode=128, stdout="", stderr="fatal"))
