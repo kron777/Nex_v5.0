@@ -1544,3 +1544,8 @@ Thus “read”, “mapped into snapshot”, and “surfaced to the model” are
 The BehaviouralSelfModel's `belief_usage_rate` is calculated by scanning the last 100 stored role=`nex` message contents for `her current beliefs` or `[tier`. The GUI persists the sanitized generated assistant reply as role `nex`, while the retrieved belief block is assembled into the system prompt before generation and separately captured in `_retrieved_belief_text`. The metric therefore measures whether the reply text echoes prompt-marker strings, not whether beliefs were actually injected into that turn's prompt. It is an unreliable proxy for prompt-injection frequency; the direction and magnitude of any live measurement error are unknown.
 
 That metric is compared against a seeded expectation and can generate a Tier 6 `behavioural_observation` belief via the membrane's four-hour loop. The resulting belief is a downstream artefact of the proxy metric. No live message sample, observed metric value, or resulting belief was inspected.
+
+
+### Stage 4 test-coverage boundary — 24 Nov 2026
+
+The inspected `tests/test_behavioural.py` seeds role=`nex` message text directly and checks hedge metrics / that belief-writing does not raise; it does not compare `belief_usage_rate` against the actual per-turn system prompt or `_retrieved_belief_text`. The reviewed `tests/test_self_model.py` and `tests/test_membrane.py` verify snapshot keys, caching, basic sensor payload mapping and route outputs, but do not assert which snapshot fields survive `format_self_state()` into the model prompt, nor that the fetched MetaAwareness payload is unused. These are bounded gaps in the inspected test files, not claims that no other test covers adjacent behaviour.
