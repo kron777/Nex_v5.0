@@ -45,7 +45,8 @@ def test_duplicate_discovery_merges():
 
 def test_false_dependency_is_pruned():
     tgt = Obligation("db", "db", "persistence", recon_status=REUSE_EXISTING,
-                     recon_evidence=["substrate/init_db.py:1"])
+                     recon_evidence=["substrate/init_db.py:1"], confidence="measured",
+                     recon_semantic_verified=True)
     src = Obligation("feature", "feature", "consumer")
     obs = {"db": tgt, "feature": src}
     rels = [Relationship("feature", "db", "depends_on")]
@@ -66,9 +67,14 @@ def test_feedback_cycle_detected():
 
 def test_over_expansion_stopped_by_reuse():
     seeds = [Obligation("store", "store", "persistence")]
-    obs, _, frontier = expand(seeds, reconcile_fn=lambda o: REUSE_EXISTING, max_depth=4)
+    def reviewed_reuse(ob):
+        ob.recon_evidence = ["store.py:1"]
+        ob.confidence = "measured"
+        ob.recon_semantic_verified = True
+        return REUSE_EXISTING
+    obs, _, frontier = expand(seeds, reconcile_fn=reviewed_reuse, max_depth=4)
     assert set(obs) == {"store"}                                 # not expanded
-    assert any("already satisfied" in f["reason"] for f in frontier)
+    assert any("semantic satisfaction independently reviewed" in f["reason"] for f in frontier)
 
 
 def test_max_depth_bounds_expansion():
