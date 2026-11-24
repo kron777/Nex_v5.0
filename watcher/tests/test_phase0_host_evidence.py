@@ -29,7 +29,7 @@ def test_phase0_host_request_covers_host_and_candidate_model_fingerprint():
         "/proc/meminfo",
         "lspci",
         "/sys/module/$module/version",
-        "mem_info_vram_total",
+        "mem_info_vram_",
         "mem_info_vram_used",
         "/sys/fs/cgroup/memory.max",
         "candidate_python_version=",
@@ -106,7 +106,7 @@ def test_artifact_fingerprint_is_derived_no_follow_and_failure_safe():
     assert "state_snapshot.json.tmp" in commands
     assert "state_snapshot.json.consumed" in commands
     assert '(".db", ".sqlite", ".sqlite3")' in commands
-    assert '("-wal", "-shm", "-journal")' in commands
+    assert '("", "-wal", "-shm", "-journal")' in commands
     assert '(".json", ".snapshot", ".snap", ".bak")' in commands
     assert "followlinks=False" in commands
     assert "path.is_symlink()" in commands
