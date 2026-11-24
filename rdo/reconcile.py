@@ -3,9 +3,10 @@ read-only, before any work is proposed (RDO spec v1.4 §13 step 5, §30).
 
 This is the step that stops the Extrapolator from recommending work that already
 exists. For each obligation with a known mechanism *signature*, the reconciler
-searches the actual tree: all signatures match -> `reuse_existing`; some ->
-`partial`; none -> `missing`; no signature defined -> `unknown` (an honest gap,
-never a silent assumption).
+searches the actual tree: all signatures match -> `signature_matched`; some ->
+`partial`; none -> `missing`; unavailable scan/no signature -> `unknown`.
+A signature match is only a source anchor. `reuse_existing` is reserved for a
+separate semantic-satisfaction review.
 
 It also deduplicates obligations and prunes *false dependencies*: a "must build X
 first" edge whose X already exists independently is not net-new work, and is
@@ -18,8 +19,8 @@ import os
 import subprocess
 from typing import Callable, Dict, List, Optional
 
-from .model import (MISSING, PARTIAL, RECON_UNKNOWN, REUSE_EXISTING, Obligation,
-                    Relationship)
+from .model import (MISSING, PARTIAL, RECON_UNKNOWN, REUSE_EXISTING, SIGNATURE_MATCHED,
+                    Obligation, Relationship)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -93,7 +94,7 @@ def reconcile(ob: Obligation, repo_dir: str,
                    ", ".join(unavailable)).strip(" ;")
         return RECON_UNKNOWN
     if hits == len(signatures):
-        ob.recon_status = REUSE_EXISTING
+        ob.recon_status = SIGNATURE_MATCHED
     elif hits > 0:
         ob.recon_status = PARTIAL
     else:
