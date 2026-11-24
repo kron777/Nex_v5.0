@@ -541,3 +541,44 @@ class TestAnchorNegationMinimalPairs(unittest.TestCase):
         # identical content-word overlap, the candidate is not classified as
         # contradicting the affirmative anchor.
         self.assertNotEqual(punctuated.outcome, GateOutcome.REJECT)
+
+
+class TestGateSubstrateReadFailure(unittest.TestCase):
+    """Characterize the gate's behaviour when evidence reads fail."""
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+        _seed_belief(
+            self.writers,
+            "I attend to the world with wonder, stillness, presence, and care.",
+            tier=1, confidence=0.9, locked=1, source="keystone_seed",
+        )
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_unavailable_belief_reader_allows_anchor_contradiction(self):
+        """A failed evidence read currently becomes an empty anchor set."""
+        from theory_x.stage_gate.coherence_gate import (
+            CoherenceGate, GateOutcome, ThoughtPacket,
+        )
+
+        class FailingReader:
+            def read(self, *args, **kwargs):
+                raise RuntimeError("isolated fixture: belief store unavailable")
+
+        gate = CoherenceGate(
+            beliefs_reader=FailingReader(),
+            beliefs_writer=self.writers["beliefs"],
+            conversations_reader=self.readers["conversations"],
+        )
+        decision = gate.check(ThoughtPacket(
+            content=(
+                "I do not attend to the world with wonder, stillness, "
+                "presence, and care."
+            ),
+            source_node="phase0_read_failure_fixture",
+            confidence=0.7,
+        ))
+        self.assertEqual(decision.outcome, GateOutcome.ACCEPT)
+        self.assertEqual(decision.reason, "accept:novel_no_conflict")
