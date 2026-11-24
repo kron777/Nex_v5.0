@@ -240,6 +240,49 @@ class TestCorroborationThreshold(unittest.TestCase):
         )
 
 
+class TestResolutionPersistenceFailure(unittest.TestCase):
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+        self.zone = _make_zone(self.writers, self.readers)
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_resolution_audit_insert_failure_leaves_terminal_status_without_audit(self):
+        """Characterize the split status-update / resolution-audit write path."""
+        from theory_x.stage_gate.holding_zone import HoldingZone
+
+        held_id = self.zone.hold(
+            _packet("I retain a clear distinction between evidence and inference."),
+            "fixture:resolution_audit_failure",
+        )
+        self.assertIsNotNone(held_id)
+        delegate = self.writers["beliefs"]
+
+        class AuditFailingWriter:
+            def write(self, query, params=()):
+                if query.lstrip().lower().startswith("insert into held_resolutions"):
+                    raise RuntimeError("isolated fixture: resolution audit unavailable")
+                return delegate.write(query, params)
+
+        failing_zone = HoldingZone(
+            AuditFailingWriter(), self.readers["beliefs"]
+        )
+        failing_zone.mark_resolved(
+            held_id, "accepted", "fixture:audit_insert_failure"
+        )
+
+        held = self.readers["beliefs"].read_one(
+            "SELECT status FROM held_thoughts WHERE id=?", (held_id,)
+        )
+        self.assertEqual(held["status"], "accepted")
+        audit_rows = self.readers["beliefs"].read(
+            "SELECT id FROM held_resolutions WHERE held_id=?", (held_id,)
+        )
+        self.assertEqual(audit_rows, [])
+
+
 class TestContradiction(unittest.TestCase):
 
     def setUp(self):
