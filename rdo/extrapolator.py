@@ -174,7 +174,16 @@ def expand(seeds: List[Obligation],
 
     while queue:
         ob = queue.pop(0)
-        # reconcile first so stopping can consult "already exists"
+        # A REUSE_EXISTING label without source evidence + explicit semantic review
+        # is not trusted. Reconcile it afresh rather than allowing it to suppress work.
+        if ob.recon_status == REUSE_EXISTING and not (
+                ob.recon_evidence and ob.confidence == "measured" and
+                ob.recon_semantic_verified):
+            ob.recon_status = RECON_UNKNOWN
+            ob.confidence = "inferred"
+            ob.note = (ob.note + " ; unsupported reuse label downgraded to unknown").strip(" ;")
+
+        # reconcile first so stopping can consult only reviewed semantic reuse
         if ob.recon_status == RECON_UNKNOWN:
             ob.recon_status = reconcile_fn(ob)
 
