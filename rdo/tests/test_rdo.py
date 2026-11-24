@@ -195,11 +195,11 @@ def test_rdo_never_imports_nex_runtime():
 def test_demo_cycle_against_real_repo(tmp_path):
     from rdo.orchestrator import demo_genius_tagger
     res = demo_genius_tagger(repo_dir=".", workdir=str(tmp_path / "cycles"))
-    for k in ("1_discovered", "2_correctly_reused", "3_rejected_or_deferred",
+    for k in ("1_discovered", "2_signature_matches_located", "3_rejected_or_deferred",
               "4_recommended_work", "5_verification", "6_learned"):
         assert k in res
-    assert res["5_verification"]["all_reuse_backed"] is True
-    assert res["2_correctly_reused"], "should reconcile some already-built mechanisms"
+    assert res["5_verification"]["all_reuse_claims_have_file_evidence"] is True
+    assert res["2_signature_matches_located"], "should locate configured source signatures"
     assert all(w["eligibility"] == "blocked" for w in res["4_recommended_work"])
     audit = res["optimal_functional_tension"]["signal_authority_audit"]
     assert audit["consumer_count"] >= 4
@@ -219,14 +219,14 @@ def test_defect_pattern_generalises_and_metrics(tmp_path):
     assert len(cycles) == 3  # genius + migration_defect + affinity_drift
     defect = cycles["migration_defect (defect-remediation pattern)"]
     # the defect cycle reconciles applied fixes as reuse...
-    assert any("fix" in r for r in defect["2_correctly_reused"])
+    assert any("fix" in r for r in defect["2_signature_matches_located"])
     # Regression-test obligations must be accounted for exactly once, and a
     # reuse claim must expose the specific test declaration that supports it.
     regression_keys = [key for key in defect["1_discovered"]["obligations"]
                        if "regression_test" in key]
     assert regression_keys
     packages = defect["4_recommended_work"]
-    reused = set(defect["2_correctly_reused"])
+    reused = set(defect["2_signature_matches_located"])
     packaged = {key for w in packages for key in w["obligations"]}
     evidence = {item["key"]: item for item in defect["reconciliation_evidence"]}
     expected_test_paths = {
