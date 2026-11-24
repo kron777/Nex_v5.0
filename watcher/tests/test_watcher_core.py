@@ -142,6 +142,8 @@ def test_git_empty_success_is_measured_but_failure_is_unknown(monkeypatch):
 
 def test_runtime_graph_edges_have_scoped_source_and_test_evidence():
     graph = build_runtime_graph()
+    evidence = runtime_graph_evidence(graph)
+    assert len(evidence.data["edges"]) == 14
     assert len(graph.edges) == 14  # twelve source-backed edges + two hypotheses
     source_edges = [edge for edge in graph.edges if edge.source_implemented]
     assert len(source_edges) == 12
