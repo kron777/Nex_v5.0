@@ -1633,3 +1633,22 @@ These findings describe event-production cadence and cleanup wiring, not observe
 **VoiceEngine.** The main boot path constructs VoiceEngine and AppState defaults `voice_mode` to `use_substrate`. For ordinary non-probe, non-instruction chat, the route calls `query_reply()` in that mode. A candidate scoring >=0.6 is returned directly as the reply (except admin operator-composition mode, where it becomes grounding). The engine records a `user_query` trigger row for every query: successful substrate replies are inserted with `fired=1`; misses are inserted with `fired=0`. This is an additional trigger producer beyond gate rejects and gap deflections. If Throw-Net monitoring is enabled, the current pending query treats every such unfired user-query miss as a pending session candidate, because it filters only `fired=0` and not trigger type/threshold.
 
 There is also a source-comment/call-path discrepancy: the chat handler comment says a substrate miss suppresses LLM fallback in `use_substrate` mode, but after `query_reply()` returns None, `text` remains None and the ordinary `if text is None` composition branch proceeds to call `state.voice.speak()`. In the inspected path, a miss therefore falls through to LLM composition rather than a demonstrated substrate-only deflection. Probe and instruction requests bypass VoiceEngine intentionally. The current source establishes a hybrid retrieval-first/fallback path, not a strict substrate-only mode on misses.
+
+
+
+## M0.3–M0.4 current-branch revalidation — Chat provenance retry measurement (24 Nov 2026)
+
+The DRAFT-012 source path was re-opened against the current PR #49 branch head `6eb6598ba8eae5a6bd0138e54ecd946276490437`, rather than relying only on the earlier PR #65 integrated-source revision cited in the original finding.
+
+The discrepancy remains present in the current branch: when provenance is armed for an admin session, the first composed reply is passed to `read_provenance()` with its default logging enabled. If the cue is returned, the one retry is evaluated with `log=False`; if its mirror score is lower, the retry replaces the response text. No final logging call records the accepted retry. The provenance log therefore records the initial draft for retry-accepted turns, not the selected delivered reply. This remains conditional on feature activation and an accepted retry; neither host flag state nor incidence is known.
+
+The current branch also preserves the module's explicit boundary: the verdict vocabulary is limited to mirror-dominant or not-established, and the grounding hint is marked unproven. The cue can affect one generation retry; this path is not a passive-only observer when armed.
+
+The inspected `tests/test_provenance.py` still covers module-level scoring, verdict, cue and snapshot behaviour, but does not exercise the Flask route's retry-selection/logging relationship.
+
+Current PR #49 branch file hashes:
+- `gui/server.py`: `5ee8b167f386466c383090445c63a84810bbae52`
+- `theory_x/stage_provenance/provenance.py`: `92671a3e120a1935fab33f6d659ab806f1eb4cc6`
+- `tests/test_provenance.py`: `fcefbeccb6bedc3e20798142814d7b96b4e6dca5`
+
+This is a source revalidation only. No runtime/test behaviour, schema, flag, host state, experiment, merge or deployment was changed.
