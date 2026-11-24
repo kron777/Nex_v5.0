@@ -146,8 +146,8 @@ def prune_false_dependencies(obligations: Dict[str, Obligation],
 
 
 def summarize(obligations: Dict[str, Obligation]) -> Dict[str, List[str]]:
-    buckets: Dict[str, List[str]] = {REUSE_EXISTING: [], PARTIAL: [], MISSING: [],
-                                     RECON_UNKNOWN: []}
+    buckets: Dict[str, List[str]] = {REUSE_EXISTING: [], SIGNATURE_MATCHED: [],
+                                     PARTIAL: [], MISSING: [], RECON_UNKNOWN: []}
     for ob in obligations.values():
         buckets.setdefault(ob.recon_status, []).append(ob.key)
     return buckets
