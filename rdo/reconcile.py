@@ -31,10 +31,15 @@ class Signature:
     label: str = ""
 
 
-def _grep(pattern: str, repo_dir: str, path: Optional[str], max_hits: int = 3) -> List[str]:
+def _grep(pattern: str, repo_dir: str, path: Optional[str], max_hits: int = 3) -> Optional[List[str]]:
+    """Return matches, [] for a successful no-match, or None when the scan is unavailable.
+
+    GNU grep uses exit 1 for a complete no-match and 2+ for errors. In particular,
+    partial stdout from a failing scan is never accepted as complete evidence.
+    """
     target = os.path.join(repo_dir, path) if path else repo_dir
     if not os.path.exists(target):
-        return []
+        return None
     try:
         res = subprocess.run(
             ["grep", "-rnI", "-E", pattern, "--include=*.py", "--include=*.md",
@@ -43,8 +48,12 @@ def _grep(pattern: str, repo_dir: str, path: Optional[str], max_hits: int = 3) -
             capture_output=True, text=True, timeout=30,
         )
     except (OSError, subprocess.SubprocessError):
-        return []
+        return None
     lines = [ln for ln in res.stdout.splitlines() if ln.strip()]
+    if res.returncode == 1 and not lines:
+        return []
+    if res.returncode != 0 or (res.returncode == 1 and lines):
+        return None
     # make paths repo-relative for stable evidence
     out = []
     for ln in lines[:max_hits]:
@@ -61,11 +70,22 @@ def reconcile(ob: Obligation, repo_dir: str,
         ob.note = (ob.note + " ; no reconciliation signature — status is an inference").strip(" ;")
         return RECON_UNKNOWN
     hits, evidence = 0, []
+    unavailable = []
     for sig in signatures:
         found = _grep(sig.pattern, repo_dir, sig.path)
+        if found is None:
+            unavailable.append(sig.label or sig.pattern)
+            continue
         if found:
             hits += 1
             evidence.append(f"[{sig.label or sig.pattern}] " + found[0])
+    if unavailable:
+        ob.recon_status = RECON_UNKNOWN
+        ob.recon_evidence = evidence
+        ob.confidence = "inferred"
+        ob.note = (ob.note + " ; reconciliation scan unavailable for: " +
+                   ", ".join(unavailable)).strip(" ;")
+        return RECON_UNKNOWN
     if hits == len(signatures):
         ob.recon_status = REUSE_EXISTING
     elif hits > 0:
