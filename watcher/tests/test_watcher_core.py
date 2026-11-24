@@ -144,9 +144,9 @@ def test_runtime_graph_edges_have_scoped_source_and_test_evidence():
     graph = build_runtime_graph()
     evidence = runtime_graph_evidence(graph)
     assert len(evidence.data["edges"]) == 14
-    assert len(graph.edges) == 14  # twelve source-backed edges + two hypotheses
+    assert len(graph.edges) == 14  # thirteen source-backed edges + one remaining hypothesis
     source_edges = [edge for edge in graph.edges if edge.source_implemented]
-    assert len(source_edges) == 12
+    assert len(source_edges) == 13
     assert all(edge.source_ref and edge.claim and edge.scope and edge.caveat
                for edge in source_edges)
     assert all(edge.runtime_observed is False for edge in graph.edges)
@@ -154,11 +154,19 @@ def test_runtime_graph_edges_have_scoped_source_and_test_evidence():
     assert all(edge.test_ref for edge in source_edges if edge.test_verified)
     ownership_gate = next(edge for edge in source_edges
                           if edge.src == "ownership" and edge.dst == "valence_gate")
-    assert ownership_gate.test_verified is False
-    assert ownership_gate.test_ref == ""
-    assert "focused threshold test" in ownership_gate.caveat
+    assert ownership_gate.test_verified is True
+    assert ownership_gate.test_ref == "tests/test_expectations.py::test_valence_ownership_threshold_isolated"
+    assert "0.499, 0.5, and 0.501" in ownership_gate.caveat
+    assert "upstream ownership derivation" in ownership_gate.scope
     # Bundled producer claims are narrowed to the evidence actually asserted.
     producer = next(edge for edge in source_edges
                     if edge.src == "beliefs.confidence")
     assert producer.dst == "producers"
     assert "Internal-surprise" in producer.caveat
+    affect_prompt = next(edge for edge in graph.edges
+                         if edge.src == "affect_state" and edge.dst == "chat_assembly")
+    assert affect_prompt.source_implemented is True
+    assert affect_prompt.test_verified is False
+    assert affect_prompt.source_ref == "gui/server.py:1510-1520"
+    assert "not that the model uses it" in affect_prompt.caveat
+    assert affect_prompt.claim and affect_prompt.scope
