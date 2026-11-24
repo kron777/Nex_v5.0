@@ -62,7 +62,7 @@ WORK PACKAGE → VERIFICATION → (persist) → LEARN
 # one full cycle on the real genius-tagger objective -> the six demonstration outputs
 python -m rdo run-demo
 
-# TWO cycles of different patterns (feature-deploy + defect) + cross-cycle learning metrics
+# three discovery cycles (feature-deploy + two defect variants) + cross-cycle learning metrics
 python -m rdo run-all
 
 # source-grounded influence-AUTHORITY audit of a signal (relationships, not a file count)
@@ -106,9 +106,9 @@ The headline result: the May-2026 "build the tagger (≈2.5h)" item is **already
 built**, and so are most of its consumers — so the honest recommendation is *don't
 rebuild; verify at runtime and review the signal's influence*, not a checklist.
 
-## Generalisation — a second cycle, a different pattern
+## Generalisation — three discovery cycles across two patterns
 
-The second cycle (`run-all`) runs a **defect-remediation** objective (the
+The second and third discovery cycles (`run-all`) run **defect-remediation** objectives (the
 `WHATS_NEXT.md` open-question migration bugs: `beliefs.content` UNIQUE dedup and
 the `arc_closers` column) through the *same* engine. Generalising to a new pattern
 required **one** new expansion rule set (`defect` → reproduce / root_cause / fix /
@@ -117,10 +117,11 @@ and learning applied unchanged. The result is genuinely different from the geniu
 cycle: the `beliefs.content` fix is both applied **and guarded** (reused), while
 the `arc_closers` fix is applied but **unguarded** — so the RDO recommends a
 regression test, and this time the work is **eligible** (adding a test is not an
-active NEX behavioural change, unlike the gated genius consumer). The prioritiser
-distinguishes safe net-new work from work that needs a preregistered gate. That
-eligible item was then **actually executed and verified**
-(`tests/test_arc_closers_migration.py`) — the first executed+verified cycle.
+active NEX behavioural change, unlike the gated genius consumer). The prioritiser distinguishes safe net-new work from work that needs a preregistered
+gate. That eligible item was then recorded as executed+verified
+(`tests/test_arc_closers_migration.py`). A third discovery cycle covers the separate
+`beliefs.affinity` migration-only schema-drift guard; its regression test is also
+recorded as executed+verified.
 
 Every obligation is scope-tagged — **general** (reusable engineering rule) /
 **domain-specific** (the idea's seeds) / **context-dependent** (conditional) /
@@ -134,7 +135,11 @@ be added, compared and reused without contaminating it.
 The genius signal is read by nine files, but **authority is not the count**. The
 audit (`rdo influence`) classifies each consumer from source — direct vs indirect,
 read vs behavioural, conditional vs unconditional, magnitude, safeguards, evidence
-class — and verifies every citation against the tree. Six are behavioural and
+class — and checks that each curated source anchor is present in the cited file.
+This is an **anchor-presence check**, not semantic verification of the row's
+classification or proof that the described behaviour occurs. The graph's
+`source_implemented` and `test_verified` flags are curated assertions; they are not
+automatically derived links to per-edge source and test evidence. Six are behavioural and
 **all six are safeguarded** (bounded weights, clamps, neutral defaults, opt-in
 flags, strict gates). Exactly one path — `quality_synthesis → attention`
 (a 1.20×/0.82× multiplier) — is both unconditional and material; that path, plus
@@ -157,9 +162,13 @@ executed yet), and `executed_verified` (recommended work actually built + verifi
 retrospective is never counted as a completed RDO-guided cycle, and a planning-only
 cycle contributes process measures only. The report makes **no efficiency or
 acceleration claim** until at least three *comparable* cycles exist (there is
-currently one: the `arc_closers` regression test). Patterns corroborate slowly (the
-stale-doc pattern is at 0.5 after three observations) and never become universal
-rules merely for appearing twice.
+currently two recorded executed+verified test-work cycles: `arc_closers` and
+`beliefs.affinity`; the catalogue has six rows across its three discovery cycles,
+two imported/seeded records and two execution records. The historical execution
+records retain their recorded test claims but do not yet carry independently
+checkable CI-run/artifact references. Their evidentiary classification remains a
+Founder decision. Patterns corroborate slowly and never become universal rules
+merely for appearing twice.
 
 ## The RDO under its own OFT
 
