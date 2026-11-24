@@ -70,7 +70,10 @@ def _grep(pattern: str, repo_dir: str, path: Optional[str], max_hits: int = 3) -
 
 def reconcile(ob: Obligation, repo_dir: str,
               signatures: Optional[List[Signature]]) -> str:
-    """Set ob.recon_status/evidence from the real tree; return the status."""
+    """Set source-anchor status from the current tree; semantic review is separate."""
+    # Any new scan invalidates a prior semantic-review assertion and stale anchors.
+    ob.recon_semantic_verified = False
+    ob.recon_evidence = []
     if not signatures:
         ob.recon_status = RECON_UNKNOWN
         ob.confidence = "inferred"
