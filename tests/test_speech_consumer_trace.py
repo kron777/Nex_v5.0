@@ -809,3 +809,47 @@ def test_overlapping_consumers_do_not_invent_or_duplicate_parentage(
     assert sorted(row["parent_ids"] for row in starts) == sorted(
         [[enqueue_id], []]
     )
+
+
+
+def test_operation_started_markers_precede_callee_entry_and_are_not_completion(
+    monkeypatch, tmp_path
+):
+    """The overlay's started events are pre-call attempts, not callee evidence."""
+    path = _enable_trace(monkeypatch, tmp_path)
+    observations = {}
+
+    class EntryObservingBackend(FakeBackend):
+        def synth(self, content, voice):
+            observations["synth_at_entry"] = [
+                row["event_type"] for row in _events(path)
+            ]
+            return super().synth(content, voice)
+
+    class EntryObservingPlayer(FakePlayer):
+        def play(self, audio, sample_rate):
+            observations["player_at_entry"] = [
+                row["event_type"] for row in _events(path)
+            ]
+            return super().play(audio, sample_rate)
+
+    consumer = _consumer(monkeypatch, backend=EntryObservingBackend())
+    consumer.player = EntryObservingPlayer()
+    consumer._speak_one({
+        "id": 5110, "belief_id": 100, "content": "A speakable sentence.",
+        "voice": "af_sarah",
+    })
+
+    synth_at_entry = observations["synth_at_entry"]
+    assert "synthesis_started" in synth_at_entry
+    assert "synthesis_completed" not in synth_at_entry
+    assert "synthesis_failed" not in synth_at_entry
+
+    player_at_entry = observations["player_at_entry"]
+    assert "player_invocation_started" in player_at_entry
+    assert "player_call_returned" not in player_at_entry
+    assert "player_call_failed" not in player_at_entry
+
+    final_events = [row["event_type"] for row in _events(path)]
+    assert "synthesis_completed" in final_events
+    assert "player_call_returned" in final_events
