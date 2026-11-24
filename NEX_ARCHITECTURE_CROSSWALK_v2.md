@@ -1761,3 +1761,11 @@ No external request or account access was performed. No runtime changes authoris
 **Self-maintenance / Warrant boundary.** SelfMaintainShadow is an env-gated log-only would-regulator; its table has no demonstrated reader. WarrantRecorder (default off) records use-day and survival evidence; it is distinct from the Warrant scoring pass. Main `run.py` constructs only the recorder under `NEX5_WARRANT_RECORD=1`, not `WarrantPass`; the scorer has its own `NEX5_WARRANT` gate. Do not conflate evidence accrual with scoring/consumption.
 
 See the Reality Report section “Stage 37 social interlocutor and Stage 45 emphasis” for source hashes, test boundaries and activation qualifications. No runtime changes authorised.
+
+
+
+## Stage TOM GlobalWorkspace — active prompt arbitration (24 Nov 2026)
+
+Fountain's `_build_prompt` path enables GlobalWorkspace by default (`NEX5_GLOBAL_WORKSPACE` default `1`). It selects the highest-salience current candidate across surprise, momentum, Bonsai, stakes and drive, then prepends the winner's framing line to the focus block. It therefore has prompt influence when a candidate exists; `NEX5_GW_LOG` is a separate optional diagnostic and is not the activation gate.
+
+**DRAFT-043:** the surprise reader accepts recent `surprise_score > 0.3` rows without excluding `actual_content IS NULL` unless `NEX5_GW_SURPRISE_NONEMPTY=1` (default OFF). The module documents empty prediction windows scoring 1.0; surprise weight 1.00 outranks all other candidates. An eligible empty row can therefore win the default-on arbiter and frame the prompt with an empty quote. Target-host occurrence is UNKNOWN. See Reality Report for details and source hashes. No remediation or flag change authorised.
