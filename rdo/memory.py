@@ -225,10 +225,12 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
         "signature_matches": signature_matches,
         "signature_evidence_coverage": (round(signature_backed / signature_matches, 3)
                                      if signature_backed is not None and signature_matches else None),
-        "signature_evidence_coverage_complete": cycle.verification.get(
-            "all_signature_matches_have_file_evidence",
-            cycle.verification.get("all_reuse_claims_have_file_evidence",
-                                   cycle.verification.get("all_reuse_backed"))),
+        "signature_evidence_coverage_complete": (
+            cycle.verification.get(
+                "all_signature_matches_have_file_evidence",
+                cycle.verification.get("all_reuse_claims_have_file_evidence",
+                                       cycle.verification.get("all_reuse_backed")))
+            if signature_matches else None),
         "expansion_grounded_fraction": round(grounded / discovered, 3),  # proxy for precision
         # OUTCOME (need actuals)
         "missed_obligation_count": (len(missed) if isinstance(missed, list) else None),
