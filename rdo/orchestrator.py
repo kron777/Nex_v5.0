@@ -267,7 +267,7 @@ def record_arc_closers_execution(store, memory) -> CycleRecord:
                    "note": "one regression-test obligation; no runtime/migration change"},
         reused=["arc_closers_migration.fix (init_db.py:236 + beliefs.sql:319)"],
         verification={"test_file": "tests/test_arc_closers_migration.py", "tests": 6,
-                      "all_pass": True, "catches_regression": True, "all_reuse_backed": True,
+                      "all_pass": True, "catches_regression": True, "all_reuse_claims_have_file_evidence": True,
                       "fresh_schema_path_verified": True, "legacy_upgrade_path_verified": True,
                       "real_migration_runner_exercised": "_apply_migrations (not just a helper)",
                       "reuse_claims": 1, "reuse_claims_backed_by_file_evidence": 1},
@@ -322,7 +322,7 @@ def record_affinity_execution(store, memory) -> CycleRecord:
         reused=["beliefs_affinity.fix (init_db.py:247-248)", "beliefs_affinity.root_cause (note)"],
         verification={"test_file": "tests/test_affinity_columns_migration.py", "tests": 2,
                       "all_pass": True, "guards_defect": "no such column: affinity",
-                      "fresh_init_exercises_migration": True, "all_reuse_backed": True,
+                      "fresh_init_exercises_migration": True, "all_reuse_claims_have_file_evidence": True,
                       "reuse_claims": 2, "reuse_claims_backed_by_file_evidence": 2},
     )
     record_actual(c, {
