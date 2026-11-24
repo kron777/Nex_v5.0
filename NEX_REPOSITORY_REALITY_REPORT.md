@@ -1512,3 +1512,8 @@ The retrieval implementation's spreading activation does not add graph-only neig
 The Harmonizer's initial conflict scan selects only 200 eligible beliefs ordered by ascending tier. Its own source comment reports a historically measured pool exceeding 3,700, with more than 600 Tier 3 beliefs and no Tiers 5–7 reached by that scan. The optional paradox-fix pass directly rechecks already-open paradox pairs to escalate them after incubation; it does not repair initial discovery coverage for beliefs excluded from the 200-row selection. Current target-host population and whether the flag is armed are UNKNOWN.
 
 No live query, retrieved belief set, graph traversal, focal buffer, Harmonizer scan, or current beliefs.db population was observed. All findings above are source-level path semantics, with historical measurements identified as such.
+
+
+### Stage 3 test-boundary review — 24 Nov 2026
+
+The reviewed `tests/test_world_model.py` covers small-population keyword retrieval, basic activation-adjacent retrieval, promotion/decay and a two-belief Harmonizer conflict example. It does not test graph-connected zero-keyword-overlap beliefs being returned, the 200-row/tier-order starvation boundary, or the distinction between initial conflict discovery and the optional direct escalation pass. The chat injection test only asserts that a request does not crash and that the system prompt contains the generic NEX marker; it does not assert the exact routed belief set, INSIDE/OUTSIDE policy, or provenance of the injected belief block. These are bounded observations about the inspected test file, not repository-wide absence claims.
