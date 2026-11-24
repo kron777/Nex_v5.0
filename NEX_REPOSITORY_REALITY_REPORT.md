@@ -1249,3 +1249,11 @@ The following points are independent technical recommendations, not governing re
 4. **L5 classification.** Provisionally treat L5 as a separate generalisation classification and keep the Phase 0 faculty audit at L0–L4 if that is what the canonical roadmap's Phase 0 text specifies. Record L5 separately as exploratory/out of scope unless the canonical roadmap explicitly requires it. The apparent global L0–L5 versus Phase 0 L0–L4 distinction still requires exact-document reconciliation.
 
 These recommendations do not resolve the roadmap's acceptance criteria, approve a latency threshold, certify causal-trace completeness, or authorise runtime, schema, queue, flag, host, experiment, merge or deployment changes. Gate 0 remains unestablished.
+
+
+
+### Speech operation-stage evidence addendum — 24 Nov 2026
+
+PR #74 adds an isolated test that inspects the trace from inside the fake synthesis and player call bodies. It confirms that `synthesis_started` and `player_invocation_started` are emitted before the respective callee body begins, and that completion/return events are only present after the call returns. These event names therefore denote pre-call attempt markers in the current implementation, not independent proof of callee entry. No runtime instrumentation semantics were changed.
+
+The existing real-Writer/Reader speech fixture independently reads back the final `spoken` row after the synchronous Writer call, confirming committed queue status in that isolated SQLite test. It does not prove physical playback completion or audibility. The new exact-head test commit is `ec551aac4c634aa21d9b827421dc89f24c0246f2`; CI is pending and no pass is claimed.
