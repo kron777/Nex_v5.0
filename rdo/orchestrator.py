@@ -78,9 +78,10 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
     predicted = {
         "reused_count": len(reused),
         "signature_matches_requiring_semantic_review": len(signature_matches),
-        "net_new_count": len(missing) + len(signature_matches),
+        "net_new_count": len(missing),
+        "signature_review_count": len(signature_matches),
         "effort": len(missing) + len(signature_matches),
-        "note": "uncalibrated obligation count including semantic-review work; not hours",
+        "note": "uncalibrated count of unresolved build + semantic-review obligations; not hours",
     }
 
     cycle = CycleRecord(
