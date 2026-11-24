@@ -525,3 +525,19 @@ class TestAnchorNegationMinimalPairs(unittest.TestCase):
             "presence, and care."
         )
         self.assertNotEqual(decision.outcome, GateOutcome.REJECT)
+
+    def test_punctuated_negation_is_not_detected_by_whitespace_token_check(self):
+        """A comma after 'not' hides the token from the current negation set."""
+        from theory_x.stage_gate.coherence_gate import GateOutcome
+        direct = self._check(
+            "I do not attend to the world with wonder, stillness, presence, and care."
+        )
+        punctuated = self._check(
+            "I do not, however, attend to the world with wonder, stillness, "
+            "presence, and care."
+        )
+        self.assertEqual(direct.outcome, GateOutcome.REJECT)
+        # The punctuation-sensitive detector misses 'not,'; despite near-
+        # identical content-word overlap, the candidate is not classified as
+        # contradicting the affirmative anchor.
+        self.assertNotEqual(punctuated.outcome, GateOutcome.REJECT)
