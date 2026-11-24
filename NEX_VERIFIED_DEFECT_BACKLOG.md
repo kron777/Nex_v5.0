@@ -248,3 +248,16 @@ A recursive tracked-tree spot check at source head 90b4ee4cd4dbee06abfdb54fc8f81
 ### Current update — DRAFT-037 (24 Nov 2026; population-contract question)
 
 **External prediction verification includes internal sense events excluded from prediction construction.** `_predict_external()` forms its centroid from sense streams excluding `internal.%` plus user messages. `_verify_one()` for `external_input` later queries all sense events in the target window without that exclusion, then compares them with the predicted centroid. This permits internal telemetry to count as the actual external observation. The inspected verification tests do not assert the intended exclusion. Whether this is deliberate broader outcome scoring or a scope mismatch remains UNKNOWN; no threshold or code correction proposed.
+
+
+### Current update — DRAFT-038 (24 Nov 2026; trigger population extension)
+
+**Throw-Net pending queue also admits VoiceEngine user-query misses.** VoiceEngine records every query as `trigger_type='user_query'`; successful substrate replies are marked fired, misses are unfired. The pending query selects every unfired row without filtering trigger_type. If the retired monitor is enabled, user-query misses can therefore be run through ThrowNet just like gate/gap triggers, without any per-topic threshold. This extends DRAFT-034's producer/consumer mismatch. Runtime effect remains conditional on `NEX5_THROWNET=1` and actual pending misses.
+
+### Current update — DRAFT-039 (24 Nov 2026; source-comment/call-path discrepancy)
+
+**VoiceEngine comment claims substrate misses suppress LLM fallback, but inspected chat control flow continues into LLM composition.** In default `use_substrate` mode, `query_reply()` returning None leaves `text=None`; the subsequent `if text is None` branch calls `state.voice.speak()`. The source therefore demonstrates retrieval-first with LLM fallback, not strict substrate-only miss handling. Whether this is a stale comment or a contract regression needs governing acceptance criteria; no change made.
+
+### Current update — DRAFT-040 (24 Nov 2026; dormant producer)
+
+**SelfNarrative rut-notice tick has no demonstrated main-runtime invocation.** Narrative writes from CoherenceGate/NovelAssociation and chat retrieval are wired, but the rut-detection producer is implemented in `SelfNarrative.tick()`. The inspected `run.py` and `gui/server.py` paths neither call that method nor start a SelfNarrative loop. External dispatch is not ruled out, but the inspected Theory X registry does not establish automatic ticking. No claim about live rut notices is made.
