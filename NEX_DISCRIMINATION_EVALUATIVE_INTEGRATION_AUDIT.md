@@ -538,11 +538,31 @@ The source inspection identified a distinct failure path from the top-level `gat
 
 - In `theory_x/stage_gate/coherence_gate.py`, `_read_substrate()` initializes anchors, goals, problems and recent beliefs as empty lists.
 - Each of the four reads is wrapped in its own `try/except`; an exception is recorded, but the corresponding list remains empty and evaluation continues.
-- If the beliefs reader is unavailable, both the locked-anchor read and recent-belief read fail. If the conversations reader returns no evidence, a contradictory packet can reach the default `ACCEPT / accept:novel_no_conflict` path without an anchor comparison.
-- The public `check()` method's outer error fallback is not invoked in this case because the read exceptions have already been swallowed.
+- If the beliefs reader is unavailable, both the locked-anchor read and recent-belief read fail because they are separate queries against that reader. If only the anchor query fails, recent-belief retrieval can still succeed; if only the recent-belief query fails, the locked-anchor comparison can still run.
+- The goals and open-problems reads use a separate conversations reader and have independent exception handlers. A conversations-reader failure or successful empty result does **not** by itself suppress the locked-anchor comparison. It can remove goal/problem-based HOLD or connection outcomes, while the beliefs reader remains independently available.
+- The public `check()` method's outer error fallback is not invoked when these read exceptions are swallowed inside `_read_substrate()`.
 
-Added `TestGateSubstrateReadFailure.test_unavailable_belief_reader_allows_anchor_contradiction`. The isolated fixture seeds a locked affirmative anchor in a temporary database, substitutes a reader that raises on every read, and submits the corresponding direct-negation minimal pair. The test characterizes the current result as `ACCEPT / accept:novel_no_conflict`.
+Added `TestGateSubstrateReadFailure.test_unavailable_belief_reader_allows_anchor_contradiction`. The isolated fixture seeds a locked affirmative anchor in a temporary database, substitutes a reader that raises on every beliefs query, and submits the corresponding direct-negation minimal pair. The returned result is `ACCEPT / accept:novel_no_conflict`. The fixture inspects the returned decision; it does not assert downstream persistence or model reliance.
 
-**Interpretation boundary:** this demonstrates fail-open behaviour when the belief evidence reader is unavailable in the tested configuration. It does not establish how often the condition occurs in a running deployment, whether infrastructure retries or external health checks prevent it, or what the intended policy should be. A fail-open choice may have been deliberate for availability; changing it would alter gate semantics and requires governing-spec review and explicit authorization.
+**Interpretation boundary:** this demonstrates fail-open behaviour when both beliefs reads are unavailable in the tested configuration. It does not establish how often the condition occurs in a running deployment, whether infrastructure retries or external health checks prevent it, or what the intended policy should be. A fail-open choice may have been deliberate for availability; changing it would alter gate semantics and requires governing-spec review and explicit authorization.
 
-**Evidence classification:** source-level exception handling [L1]; isolated fixture outcome pending CI [L1]; deployed incidence and operational impact [L2/L4] UNKNOWN. No production source, runtime state, flags, anchors, or roadmap items changed.
+**Evidence classification:** source-level exception handling [L1]; isolated fixture outcome [L1], with CI status tracked against the exact test head; deployed incidence and operational impact [L2/L4] UNKNOWN. No production source, runtime state, flags, anchors, or roadmap items changed.
+
+
+## 13.17 CoherenceGate per-query failure and empty-result controls
+
+Five additional isolated controls separate the four substrate reads instead of treating either reader as one indivisible dependency:
+
+| Fixture | Injected condition | Expected/current source-path distinction |
+|---|---|---|
+| Anchor-only failure | The `tier=1` anchor query raises; recent-belief and conversations queries still run | The seeded anchor is unavailable to the comparison; the direct-negation packet reaches the default ACCEPT in this fixture |
+| Recent-belief-only failure | The recent-belief query raises; anchor query succeeds | The locked anchor remains available and the direct-negation packet is REJECTed |
+| Goal-only failure | The goals query raises; open-problems and beliefs queries still run | The locked-anchor comparison remains available and REJECTs the direct-negation packet |
+| Problem-only failure | The open-problems query raises; goals and beliefs queries still run | The locked-anchor comparison remains available and REJECTs the direct-negation packet |
+| Successful-empty control | All reads successfully return empty lists | The direct-negation packet reaches default ACCEPT because no anchor was returned; this is an empty result, not a reader exception |
+
+The fixtures use temporary databases and selective reader wrappers that delegate all non-target queries to the real test readers. The successful-empty control uses a deterministic reader returning an empty list. These are component-level characterizations; they do not simulate SQLite lock/corruption/I/O failures, caller persistence, deployed incidence, or host recovery.
+
+The source distinction is important: an unavailable anchor read and a successful empty anchor result currently collapse to the same evaluation input (an empty list). The tests characterize that collapse; they do not establish that the system is required to fail closed, retry, abstain, or expose a distinct outcome. The Faculty Model §2.3–2.4 describes the gate's questions and four outcomes but does not define unavailable-evidence semantics. The top-level `check()` docstring's ACCEPT-on-internal-error statement is counterevidence that availability may have been an intentional design priority, but does not settle the per-evidence contract.
+
+**Evidence classification:** source-level query separation and exception handling [L1]; fixture outcomes pending CI on this test head [L1]; real storage-failure behaviour, deployed incidence, intended policy and operational impact [L2/L4] UNKNOWN. No production source, schema, flags, runtime state, or roadmap items changed.
