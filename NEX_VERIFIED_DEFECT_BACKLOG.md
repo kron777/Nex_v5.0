@@ -302,3 +302,16 @@ The code contains an opt-in mitigation, `NEX5_GW_SURPRISE_NONEMPTY=1`, but it is
 Source hashes:
 - `theory_x/stage_tom/global_workspace.py`: `54ddab05112702eef34faaa4f24d45139350b349`
 - `theory_x/stage6_fountain/generator.py`: `43644876295ffdd649a240f52a7946c666a8579f`
+
+
+
+### Current update — DRAFT-044 (24 Nov 2026; SelfBinding drift field is a hardcoded placeholder)
+
+**SelfBinding persists a `drift='clean'` value without reading the value-drift monitor.** The `bind()` implementation contains a comment saying it reads the last logged verdict, but the actual assignment is the literal `drift = "clean"`. That value is written to both `self_state` and `self_state_history`. It is not included in the returned `components` object or the synthesis text. The inspected `recursive_self` caller consumes the returned components (emotion, rāga, attending, etc.), not the drift column. The separate `value_drift_monitor.py` writes to its own `value_drift_log`; no read/join from that log is present in `self_binding.bind()`.
+
+This does not establish that a false clean verdict is injected into the Fountain prompt: the inspected recursive prompt path does not read the drift column, and no production consumer of `self_state.drift` was identified in the bounded caller review. It does establish that the persisted field/history represents a constant placeholder rather than a monitored drift state, despite the comment and faculty description. Whether the column should remain explicitly unknown/placeholder or be connected to the separate monitor requires acceptance criteria. No correction authorised.
+
+Source hashes:
+- `theory_x/stage_tom/self_binding.py`: `acbbe02e00723ebc6c5fd13236251f4877259ce5`
+- `theory_x/stage_tom/recursive_self.py`: `ada4aeb260a8deb70418c03dc9180f71cddec714`
+- `theory_x/stage_tom/value_drift_monitor.py`: `e08a9649bd94e9094b49aeae59aa9f8feeacbff5`
