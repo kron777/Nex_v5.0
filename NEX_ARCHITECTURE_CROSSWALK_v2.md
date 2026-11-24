@@ -1356,3 +1356,16 @@ A repository-tree check against the PR #49 evidence branch found 30 declared MIN
 The same pass inspected all nine `sentience_dag.json` nodes carrying a `module` field. Seven values resolve as repository paths; two values — `bonsai.py decay_pass (recency penalty)` and `bonsai.py decay_pass (starvation bonus)` — are descriptive function labels, not literal paths. They are therefore not counted as missing source files, but remain less directly navigable than path-qualified module references. The DAG and MIND_MAP are distinct artifacts with different node sets/roles; this check does not assert they should be one-to-one.
 
 The repository tree contains 311 Python files under `theory_x/`. This bounded check does not close the required faculty-by-faculty forward/backward dependency audit, dynamic imports, event/shared-state edges, SQL readers/writers, or downstream consumers. Those remain open for M0.3.
+
+
+
+### Boot-orchestrator forward-path audit slice — 24 Nov 2026
+
+Static inspection of `run.py` on this branch confirms a concrete boot construction path, distinct from mere module presence:
+
+- Core factories imported and called from `main()`: `build_scheduler` (stage1), `build_dynamic` (stage2), `build_world_model` (stage3), `build_membrane` (stage4), and `build_fountain` (stage6); supporting construction includes self-location commitment, mode/voice state, drives, memory/resumption, and WorldBridge selection.
+- Additional faculties are imported/constructed in the boot body rather than through those five factories: SelfNarrative; CoherenceGate/HoldingZone/Resolver/TriggerDetector; ProblemMemory; GoalManager; Metacognition; NovelAssociation; ThrowNet; SubstrateHarmonic; GeniusTagger; CounterfactualNode; DriveEmergence; CompetingDrives; VoiceEngine; and affect-related components.
+- Activation is not uniform. Several constructors/loops are guarded by broad `try/except` blocks and can fail non-fatally. Throw-Net's monitor is constructed, but its autonomous loop is started only when `NEX5_THROWNET=1`; otherwise trigger telemetry remains. WarrantRecorder is only constructed/started when `NEX5_WARRANT_RECORD=1`. The code comments identify some subsystems as log-only.
+- This is a source-level boot-path observation, not proof that the target host is running this checkout, that all optional constructors succeeded, or that every constructed component is registered, consumed, or behaviourally influential.
+
+Source anchor: `run.py` at the PR #49 evidence branch (boot setup and faculty wiring, approximately lines 100–420). This slice strengthens the forward boot map but does not close backward-consumer, dynamic-import, shared-state, event, or SQL edge closure across the 311 Python files under `theory_x/`.
