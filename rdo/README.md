@@ -37,8 +37,7 @@ WORK PACKAGE → VERIFICATION → (persist) → LEARN
   Convergent branches merge; every stop records its reason.
 - **Reconciliation** (`reconcile.py`) — each obligation with a *signature* is
   checked against text-readable files in the **actual tree** (read-only grep):
-  all configured signatures match → `reuse_existing` (meaning *signature match
-  located*, not semantic satisfaction); some → `partial`; none in a completed
+  all configured signatures match → `signature_matched`; some → `partial`; none in a completed
   scan → `missing`; unavailable scan/no signature → `unknown`. A signature hit
   is a source anchor, not proof that the full obligation is satisfied. Necessary
   obligations remain readiness-unknown until a separate semantic review is
