@@ -12,8 +12,9 @@ Lifecycle states (strength-ordered):
 
     DECLARED            a connection is asserted (from the architecture model)
     SOURCE_CONFIRMED    the code implementing it was read in source
-    TEST_WRITTEN        a test targets it
-    TEST_PASSED         that test passes               (test-verified)
+    TEST_WRITTEN        a curated test reference is recorded for it
+    TEST_PASSED         the curated graph asserts the cited test passed; the ledger
+                        does not execute the test or independently verify its result
     TEST_FAILED         that test fails
     RUNTIME_OBSERVED    seen firing in a live trace    (host only)
     REGRESSED           was verified, now failing/absent
