@@ -298,8 +298,6 @@ def record_arc_closers_execution(store, memory) -> CycleRecord:
         exceptions=["for a migration-only column, a fresh init DOES exercise the migration"]))
     for p in derive_lessons(c, compare(c)):
         memory.add(p)
-    for p in derive_lessons(c, compare(c)):
-        memory.add(p)
     return c
 
 
@@ -424,9 +422,10 @@ def run_catalogue(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
 def _active_experiments(repo_dir: str) -> List[str]:
     """Reuse the Watcher's registry to learn which experiment windows are active/
     pending, so the eligibility gate can protect them."""
-    try:
-        from watcher.registry import ingest_registry
-        ev = ingest_registry(os.path.join(repo_dir, "observation_reports"))
-        return list(ev.data.get("active_or_pending", []))
-    except Exception:
-        return []
+    from watcher.registry import ingest_registry
+    ev = ingest_registry(os.path.join(repo_dir, "observation_reports"))
+    if ev.data is None or ev.evidence_class != "measured":
+        raise RuntimeError(
+            "experiment registry unavailable; refusing to treat unknown windows as none"
+        )
+    return list(ev.data.get("active_or_pending", []))
