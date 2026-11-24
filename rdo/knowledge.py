@@ -2,7 +2,7 @@
 
 This is the ONE place where LLM/human reasoning seeds the engine: the idea is
 decomposed into top-level obligations, and each gets a *reconciliation signature*
-— a read-only pattern that proves whether a real mechanism exists. The engine
+— a read-only pattern that locates a source anchor for later semantic review. The engine
 then expands, reconciles against the actual tree, assesses and prioritises
 deterministically. Seeds are proposals; the tree is the authority (RDO §22).
 
