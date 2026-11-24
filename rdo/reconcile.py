@@ -133,7 +133,9 @@ def prune_false_dependencies(obligations: Dict[str, Obligation],
         if rel.kind != "depends_on":
             continue
         tgt = obligations.get(rel.dst)
-        if tgt is not None and tgt.recon_status == REUSE_EXISTING:
+        if (tgt is not None and tgt.recon_status == REUSE_EXISTING and
+                tgt.recon_evidence and tgt.confidence == "measured" and
+                tgt.recon_semantic_verified):
             rel.kind = "reuses"
             rel.note = (f"dependency satisfied by existing mechanism "
                         f"({tgt.recon_evidence[0] if tgt.recon_evidence else 'reconciled'}); "
