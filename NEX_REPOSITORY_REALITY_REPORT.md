@@ -157,7 +157,7 @@ Do not run live probes, change flags, restart NEX or write to runtime databases 
 | Known-failure reconciliation | PARTIAL — allowlist inspected; no fresh failures |
 | Architecture crosswalk | PARTIAL — see `NEX_ARCHITECTURE_CROSSWALK_v2.md` |
 | ADR-001 | DRAFT — see `ADR-001.md` |
-| Causal trace sample | NOT COLLECTED — no live/approved capture |
+| Causal trace sample | ISOLATED FIXTURE SAMPLE PRESENT; live/approved host capture NOT COLLECTED |
 
 ## 8. Limitations and next evidence
 
@@ -255,7 +255,7 @@ The original full document **“NEX v5.0 — Master Technical, Research & Commer
 
 - **M0.1–M0.2:** The report exists and repository/CI evidence is being assembled. Exact host measurements (Python, SQLite, Ollama, Qwen2.5 3B model digest, idle/load RAM/VRAM, median tokens/sec), runtime DB/snapshot hashes, and an exact target-host clean/dirty inventory have not been observed in this workflow. CI passing on a GitHub runner is not a substitute for those target-host measurements.
 - **M0.3–M0.4:** The Crosswalk and ADR exist as drafts, but the Crosswalk explicitly remains partial. The full forward Declaration → Boot → Scheduler → Emission → Consumer audit and backward Chat Output/Fountain Action/Belief Write → upstream audit for every `theory_x/` faculty is not established as complete. The 30-node mind map and named architecture documents require a complete, revision-bound reconciliation. The evidence ladder in Roadmap §1.2 defines L0–L5, while §6.2 says assign L0–L4; preserve this as an internal roadmap inconsistency for Founder clarification rather than silently choosing one.
-- **M0.5:** The default-OFF trace implementation and isolated fixtures exist on the PR #65 branch, but the reviewed materials do not contain a complete production-host trace sample. The roadmap deliverable `NEX_CAUSAL_TRACE_SAMPLE.json` is not established as delivered. The tested OFF/ON fixtures do not by themselves prove a live Chat turn and full Fountain cycle on the target host.
+- **M0.5:** The default-OFF trace implementation, isolated fixtures and committed `NEX_CAUSAL_TRACE_SAMPLE.json` exist. The sample is explicitly classified `isolated_fixture_not_live_runtime`; it contains an 11-record Chat fixture and a 14-record Fountain fixture with OFF/ON equivalence checks. A complete production-host trace is not present. The Chat fixture returned no belief context and the Fountain speech gate returned HOLD; it does not prove populated retrieval, speech-consumer execution, physical audibility or live target-host operation.
 
 ### Roadmap sequencing conflict requiring authority clarification
 
@@ -1772,3 +1772,12 @@ This addendum records two bounded findings from the CoherenceGate/Holding Zone p
 **Evidence and scope.** Tests are in `tests/test_holding_zone.py`; source is `theory_x/stage_gate/holding_zone.py` and `theory_x/stage_gate/resolver.py`. Characterization commit `4793e55ed8220f0f2b70c5cae9fd3654650735b0` passed GitHub Actions run `45426072925` (full pytest workflow and mind-map sourcing check). The preceding characterization commit `8493de3d2bc09c01d90ebc1770c15dd62e440945` also passed run `45424053528`. These CI results establish the tests passed on those exact commits; they do not establish runtime activation, truth, source independence, or Gate 0 readiness.
 
 No production source, schema, database, runtime flag, experiment, host state, merge or deployment was changed. No policy decision was made.
+
+
+## Holding Zone / CoherenceGate characterization update — 24 Nov 2026
+
+Six bounded findings are now recorded in `NEX_VERIFIED_DEFECT_BACKLOG.md` as DRAFT-045–DRAFT-050. They concern same-source corroboration, promotion-write failure, resolution-audit write failure, corroboration/contradiction predicate overlap, evaluator-exception fallback, and substrate-read availability being collapsed into empty evidence. The corresponding isolated tests are in `tests/test_holding_zone.py` and `tests/test_coherence_gate.py`.
+
+The full pytest workflow and MIND_MAP sourcing check passed on exact test head `16d0dab6492b1cf23c5d8c7cb4987e24d2666a66` (Actions run `45430422437`). These findings characterize current source paths and isolated fixtures only. They do not establish deployed incidents, truth, behavioural impact or a final resolution policy. No production source, runtime, schema, database, flag, experiment, baseline or tripwire was changed.
+
+The M0.5 status above distinguishes the committed fixture artifact from a live host capture. The sample file is present and structurally connected, but its own metadata classifies it as an isolated fixture; live-host capture, populated-retrieval Chat coverage and audible speech evidence remain open.
