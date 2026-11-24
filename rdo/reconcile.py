@@ -73,6 +73,7 @@ def reconcile(ob: Obligation, repo_dir: str,
     """Set source-anchor status from the current tree; semantic review is separate."""
     # Any new scan invalidates a prior semantic-review assertion and stale anchors.
     ob.recon_semantic_verified = False
+    ob.recon_semantic_review_evidence = []
     ob.recon_evidence = []
     if not signatures:
         ob.recon_status = RECON_UNKNOWN
@@ -138,7 +139,7 @@ def prune_false_dependencies(obligations: Dict[str, Obligation],
         tgt = obligations.get(rel.dst)
         if (tgt is not None and tgt.recon_status == REUSE_EXISTING and
                 tgt.recon_evidence and tgt.confidence == "measured" and
-                tgt.recon_semantic_verified):
+                tgt.recon_semantic_verified and tgt.recon_semantic_review_evidence):
             rel.kind = "reuses"
             rel.note = (f"dependency satisfied by existing mechanism "
                         f"({tgt.recon_evidence[0] if tgt.recon_evidence else 'reconciled'}); "
@@ -153,7 +154,7 @@ def summarize(obligations: Dict[str, Obligation]) -> Dict[str, List[str]]:
     for ob in obligations.values():
         if (ob.recon_status == REUSE_EXISTING and not
                 (ob.recon_evidence and ob.confidence == "measured" and
-                 ob.recon_semantic_verified)):
+                 ob.recon_semantic_verified and ob.recon_semantic_review_evidence)):
             buckets[RECON_UNKNOWN].append(ob.key)
         else:
             buckets.setdefault(ob.recon_status, []).append(ob.key)
