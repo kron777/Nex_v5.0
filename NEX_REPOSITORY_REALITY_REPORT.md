@@ -1395,3 +1395,14 @@ Further backward inspection identified additional source paths:
 - The Stage 2 Crystallizer reads `pipeline_events` (dynamic.db), selecting high-magnitude recent branch events and carrying stream provenance into a precipitated belief when the chosen metadata contains a sensed title. This is downstream of the A–F pipeline log rather than a direct sense.db read.
 
 No live cadence cache, temporal payload, consolidation run, crystallized belief or target-host effect was inspected.
+
+
+### RSS parser identity and malformed-feed qualification — 24 Nov 2026
+
+A closer read of `feeds/_helpers.py::parse_rss()` adds two qualifications to the feed audit:
+
+- The helper does not inspect Feedparser's `bozo` / parse-warning status before accepting `feed.entries`. A malformed or partially parsed response may still yield entries and be treated as an ordinary poll result; no malformed response was supplied or observed in this audit.
+- The stored payload contains title, link, summary, published, authors and tags, but omits the RSS/Atom entry's stable `id`/`guid` field. The table therefore receives no dedicated item identity from this helper. Title/link may help downstream matching, but they are not guaranteed unique or stable identifiers.
+- Together with the absence of cross-poll deduplication and a unique source-item key in the inspected schema, this means the current source path cannot itself distinguish a repeated item from a newly observed item with the same content. This is a structural limitation, not a measured duplicate-ingestion incident.
+
+Source anchor: `theory_x/stage1_sense/feeds/_helpers.py` at PR #49 source revision `23e327e84b6b26b6e22eb27808514100c2802855`. No malformed-feed test or live feed response was run. No runtime or test behaviour changed.
