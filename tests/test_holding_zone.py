@@ -345,9 +345,20 @@ class TestContradiction(unittest.TestCase):
 
         from theory_x.stage_gate.coherence_gate import GateOutcome
 
-        gate = _make_gate(
-            self.writers,
-            self.readers,
+        from theory_x.stage_gate.coherence_gate import CoherenceGate
+
+        class EmptyBeliefsReader:
+            """Successful empty substrate fixture; resolver retains the real held-zone reader."""
+            def read(self, *args, **kwargs):
+                return []
+
+            def read_one(self, *args, **kwargs):
+                return None
+
+        gate = CoherenceGate(
+            beliefs_reader=EmptyBeliefsReader(),
+            beliefs_writer=self.writers["beliefs"],
+            conversations_reader=self.readers["conversations"],
             holding_zone=self.zone,
             resolver=self.resolver,
         )
