@@ -153,13 +153,14 @@ def host_requests() -> List[HostRequest]:
                 "\n"                "done",
                 "if systemctl --user show-environment >/dev/null 2>&1; then "
                 "printf 'user_manager=AVAILABLE\\n'; "
-                "units=$(systemctl --user list-units --type=service --all --no-legend --plain --no-pager 2>&1 | "
-                "awk 'tolower($1) ~ /(nex|power_switch|keepalive)/ {print $1}'); "
+                "set -o pipefail; if units=$(systemctl --user list-units --type=service --all --no-legend --plain --no-pager 2>&1 | "
+                "awk 'tolower($1) ~ /(nex|power_switch|keepalive)/ {print $1}'); then "
                 "if [ -n \"$units\" ]; then printf '%s\\n' \"$units\" | while read -r unit; do "
                 "printf 'service=%s\\n' \"$unit\"; "
                 "systemctl --user show \"$unit\" --property=ActiveState --property=SubState "
                 "--property=MainPID --no-pager 2>&1; done; "
                 "else printf 'matching_user_services=NONE\\n'; fi; "
+                "else printf 'user_unit_list=UNAVAILABLE\\n'; fi; "
                 "else printf 'user_manager=UNAVAILABLE\\n'; fi",
                 "# Dynamic checkout drift is collected by the process-candidate survey above; "
                 "# candidates are not declared active NEX processes without independent correlation.",
