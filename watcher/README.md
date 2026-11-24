@@ -33,11 +33,14 @@ different claims**, and the Watcher never collapses them:
 | dimension | means | who can establish it |
 |---|---|---|
 | `source_implemented` | the code exists (read in source) | cloud |
-| `test_verified` | a test asserts the behaviour | cloud |
+| `test_verified` | a curated graph assertion cites a test intended to assert the scoped relationship; the ledger does not run it | cloud |
 | `runtime_observed` | seen firing in a live trace | **host only** |
 
 Every runtime-graph `Edge` carries all three as explicit booleans; its `level` is
-the strongest it has, and a feedback cycle's status is its **weakest** edge. NEX is
+the strongest it has, and a feedback cycle's status is its **weakest** edge. These
+flags are curated review assertions, not dynamically derived proofs. Ledger
+`TEST_WRITTEN`/`TEST_PASSED` entries cite `test_ref`, but mirror the curated
+`test_verified` flag; they do not represent a test run or captured CI result. NEX is
 in STANDBY, so nothing is `runtime_observed` yet — that stays an honest gap, not an
 assumption.
 
