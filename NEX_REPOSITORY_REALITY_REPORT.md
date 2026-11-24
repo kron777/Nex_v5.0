@@ -1718,3 +1718,19 @@ Current source hashes:
 - `theory_x/stage_self_maintain/shadow.py`: `65da9373b112ea15fe255f81550b20b432c927db`
 - `theory_x/stage_warrant/recorder.py`: `ade231c1fc7c8da7f90f8f7ab375d352837a7c79`
 - `theory_x/stage_warrant/warrant.py`: `a15bc9d012fffac319adf1634f52eb1fde0e35b6`
+
+
+
+## M0.3–M0.4 source audit — Stage TOM GlobalWorkspace prompt arbitration (24 Nov 2026)
+
+The current Fountain generator checks `NEX5_GLOBAL_WORKSPACE` with default `"1"`; unless explicitly set to another value, it calls `global_workspace.arbitrate()` during prompt assembly. A non-empty returned winner line is prepended to `focus_block`. The module surveys recent surprise, momentum, Bonsai attention, stakes override and emergent drive candidates; the highest-salience candidate becomes the framing line. This is an active prompt-influence path in source, not a log-only observer. Host environment and actual incidence remain UNKNOWN.
+
+**DRAFT-043 — empty-surprise winner.** The surprise candidate reader selects a row from the last 60 seconds when `surprise_score > 0.3`. By default it does not filter `actual_content IS NULL` or the empty-window sentinel score. The module comment explicitly documents that an empty prediction window can score 1.0 and previously won the workspace with an empty quote. Surprise weight is 1.00, exceeding the other candidate weights: stakes 0.90, momentum 0.55, Bonsai 0.50, drive 0.45. When an eligible empty row exists and `NEX5_GW_SURPRISE_NONEMPTY` is unset, the empty-content candidate can win and prepend the framing line to the Fountain prompt. The available mitigation `NEX5_GW_SURPRISE_NONEMPTY=1` is default OFF. Whether this condition occurs on the target host is UNKNOWN; no live database was inspected.
+
+The arbiter also has a separate optional decision logger (`NEX5_GW_LOG`); its absence does not disable arbitration. The current repository tree contains no dedicated `test_global_workspace.py`; this is a bounded test-file observation, not proof of zero indirect tests.
+
+Source hashes:
+- `theory_x/stage_tom/global_workspace.py`: `54ddab05112702eef34faaa4f24d45139350b349`
+- `theory_x/stage6_fountain/generator.py`: `43644876295ffdd649a240f52a7946c666a8579f`
+
+No runtime, schema, flags, experiment, host state, merge or deployment was changed.
