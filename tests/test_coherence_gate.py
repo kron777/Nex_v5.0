@@ -544,7 +544,7 @@ class TestAnchorNegationMinimalPairs(unittest.TestCase):
 
 
 class TestGateSubstrateReadFailure(unittest.TestCase):
-    """Characterize the gate's behaviour when evidence reads fail."""
+    """Characterize per-query failures, partial reads, and successful empty reads."""
 
     def setUp(self):
         self.writers, self.readers, self.tmp = _make_env()
