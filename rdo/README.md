@@ -114,9 +114,13 @@ the `arc_closers` column) through the *same* engine. Generalising to a new patte
 required **one** new expansion rule set (`defect` → reproduce / root_cause / fix /
 regression_test / migration / verification); reconciliation, OFT, prioritisation
 and learning applied unchanged. The result is genuinely different from the genius
-cycle: the `beliefs.content` fix is applied and its regression-test obligation is
-currently classified as reused; that reuse still requires a semantically relevant
-test reference, not merely a matching token anywhere under `tests`. The
+cycle: the `beliefs.content` fix is applied and guarded by
+`tests/test_beliefs_content_dedup.py`, which exercises both production partial
+unique indexes: duplicates within one problem and among orphan beliefs are rejected,
+while equal content across different problems remains allowed. The RDO now matches
+the specific regression-test declaration in that file, rather than accepting an
+incidental token anywhere under `tests`; obligation-level reconciliation evidence
+is included in cycle output. The
 `arc_closers` migration is also already guarded by `tests/test_arc_closers_migration.py`,
 including the actual legacy-upgrade path; it should not be described as unguarded
 or recommended as net-new test work. The work remains surfaced, but its package is blocked while
