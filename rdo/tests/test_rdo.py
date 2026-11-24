@@ -214,9 +214,16 @@ def test_defect_pattern_generalises_and_metrics(tmp_path):
     defect = cycles["migration_defect (defect-remediation pattern)"]
     # the defect cycle reconciles applied fixes as reuse...
     assert any("fix" in r for r in defect["2_correctly_reused"])
-    # ...and still produces at least one ELIGIBLE net-new package (adding a test is safe,
-    # unlike the all-gated genius consumers) — the prioritiser distinguishes the two
-    assert any(w["eligibility"] == "eligible" for w in defect["4_recommended_work"])
+    # ...and still surfaces net-new regression work. Its package is blocked where
+    # necessary prerequisites remain unresolved; unknown obligations remain
+    # individually investigable rather than being relabelled as missing.
+    packages = defect["4_recommended_work"]
+    assert packages
+    assert any(any("regression_test" in key for key in w["obligations"])
+               for w in packages)
+    assert any(w["eligibility"] == "blocked" and
+               any("unknown" in blocker or "partial" in blocker for blocker in w["blockers"])
+               for w in packages)
     # two executed+verified cycles recorded
     assert len(res["executed_cycles"]) == 2
     # comparable cross-cycle metrics, with no premature acceleration claim
