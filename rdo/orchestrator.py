@@ -66,7 +66,10 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
         "signature_matches_backed_by_file_evidence": sum(
             1 for k in signature_matches if obligations[k].recon_evidence),
         "reuse_claims_backed_by_file_evidence": len(backed),
-        "all_reuse_claims_have_file_evidence": len(backed) == len(reused),
+        "all_semantic_reuse_claims_have_file_evidence": len(backed) == len(reused),
+        "all_signature_matches_have_file_evidence": (
+            verification_count := sum(1 for k in signature_matches if obligations[k].recon_evidence)
+        ) == len(signature_matches),
         "net_new_work_packages": sum(1 for p in packages),
         "blocked_work_packages": sum(1 for p in packages if p.eligibility == "blocked"),
         "unbacked_reuse_claims": [k for k in reused if k not in backed],
