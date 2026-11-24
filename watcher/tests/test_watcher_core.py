@@ -153,9 +153,22 @@ def test_runtime_graph_edges_have_scoped_source_and_test_evidence():
     assert len(source_edges) == 13
     assert all(edge.source_ref and edge.claim and edge.scope and edge.caveat
                for edge in source_edges)
+    from pathlib import Path
+    repo_root = Path(__file__).resolve().parents[2]
+    for edge in source_edges:
+        for source_ref in edge.source_ref.split(";"):
+            source_path = source_ref.strip().split(":", 1)[0]
+            assert (repo_root / source_path).is_file(), (
+                f"source reference does not resolve: {source_ref}")
     assert all(edge.runtime_observed is False for edge in graph.edges)
     # Test verification is an edge-specific claim, not a blanket graph assertion.
     assert all(edge.test_ref for edge in source_edges if edge.test_verified)
+    for edge in source_edges:
+        if edge.test_verified:
+            for test_ref in edge.test_ref.split(";"):
+                test_path = test_ref.strip().split("::", 1)[0]
+                assert (repo_root / test_path).is_file(), (
+                    f"test reference does not resolve: {test_ref}")
     ownership_gate = next(edge for edge in source_edges
                           if edge.src == "ownership" and edge.dst == "valence_gate")
     assert ownership_gate.test_verified is True
