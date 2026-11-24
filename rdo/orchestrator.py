@@ -60,7 +60,7 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
     verification = {
         "reuse_claims": len(reused),
         "reuse_claims_backed_by_file_evidence": len(backed),
-        "all_reuse_backed": len(backed) == len(reused),
+        "all_reuse_claims_have_file_evidence": len(backed) == len(reused),
         "net_new_work_packages": sum(1 for p in packages),
         "blocked_work_packages": sum(1 for p in packages if p.eligibility == "blocked"),
         "unbacked_reuse_claims": [k for k in reused if k not in backed],
@@ -242,7 +242,7 @@ def _six_outputs(cycle, summary, memory, learning) -> dict:
              "evidence": o["recon_evidence"]}
             for o in cycle.obligations
         ],
-        "2_correctly_reused": summary["reused"],
+        "2_signature_matches_located": summary["reused"],
         "3_rejected_or_deferred": summary["rejected_or_deferred"],
         "4_recommended_work": summary["recommended_work"],
         "5_verification": summary["verification"],
