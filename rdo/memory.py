@@ -190,11 +190,16 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
     discovered = len(obligations) or 1
     duplicates = sum(1 for o in obligations if ";" in str(o.get("provenance", "")))
     reuse_claims = len(cycle.reused)
-    signature_matches = cycle.verification.get(
-        "signature_matches", len(cycle.signature_matches) if cycle.signature_matches else len(cycle.reused))
+    # Legacy records without an explicit signature-match count remain unknown;
+    # a historical reuse claim is not retroactively treated as a signature match.
+    if "signature_matches" in cycle.verification:
+        signature_matches = cycle.verification["signature_matches"]
+    elif cycle.signature_matches:
+        signature_matches = len(cycle.signature_matches)
+    else:
+        signature_matches = None
     signature_backed = cycle.verification.get(
-        "signature_matches_backed_by_file_evidence",
-        cycle.verification.get("reuse_claims_backed_by_file_evidence"))
+        "signature_matches_backed_by_file_evidence")
     grounded = sum(1 for o in obligations if o.get("recon_status") in
                    ("signature_matched", "reuse_existing", "missing", "partial"))
     d = compare(cycle) if cycle.actual is not None else {}
@@ -223,14 +228,13 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
         "duplicate_discovery_rate": round(duplicates / discovered, 3),
         "reuse_claims": reuse_claims,
         "signature_matches": signature_matches,
-        "signature_evidence_coverage": (round(signature_backed / signature_matches, 3)
-                                     if signature_backed is not None and signature_matches else None),
+        "signature_evidence_coverage": (
+            round(signature_backed / signature_matches, 3)
+            if isinstance(signature_matches, (int, float)) and signature_matches > 0
+            and isinstance(signature_backed, (int, float)) else None),
         "signature_evidence_coverage_complete": (
-            cycle.verification.get(
-                "all_signature_matches_have_file_evidence",
-                cycle.verification.get("all_reuse_claims_have_file_evidence",
-                                       cycle.verification.get("all_reuse_backed")))
-            if signature_matches else None),
+            cycle.verification.get("all_signature_matches_have_file_evidence")
+            if isinstance(signature_matches, (int, float)) and signature_matches > 0 else None),
         "expansion_grounded_fraction": round(grounded / discovered, 3),  # proxy for precision
         # OUTCOME (need actuals)
         "missed_obligation_count": (len(missed) if isinstance(missed, list) else None),
