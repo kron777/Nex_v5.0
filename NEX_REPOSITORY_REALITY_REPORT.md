@@ -1286,3 +1286,15 @@ Static inspection of `run.py` on this branch confirms a concrete boot constructi
 - This is a source-level boot-path observation, not proof that the target host is running this checkout, that all optional constructors succeeded, or that every constructed component is registered, consumed, or behaviourally influential.
 
 Source anchor: `run.py` at the PR #49 evidence branch (boot setup and faculty wiring, approximately lines 100–420). This slice strengthens the forward boot map but does not close backward-consumer, dynamic-import, shared-state, event, or SQL edge closure across the 311 Python files under `theory_x/`.
+
+
+### Stage 1 internal self-observation audit slice — 24 Nov 2026
+
+Static source inspection of `theory_x/stage1_sense/internal/interoception.py`, `meta_awareness.py` and `scheduler.py` adds a bounded qualification to the Stage 1 map:
+
+- Interoception reads aggregate belief graph counts through the beliefs Reader and emits an `internal.interoception` SenseEvent to the Stage 1 Writer path. It separately appends a best-effort `/tmp/nex5_interoception.log` record; auxiliary log failure is swallowed. Its first in-process belief-count delta is null.
+- MetaAwareness emits Writer queue depths, recent error-channel length and scheduler state. Its external-active count counts enabled flags; it does not measure recent poll success, source reachability or event production.
+- The scheduler sets an adapter's enabled flag when enabling it, before a successful poll. Empty poll results are not treated as errors by the scheduler. Consequently enabled/active telemetry must not be interpreted as source health.
+- The scheduler docstring says external feeds begin paused, but its constructor unconditionally invokes `start_all()`. This is a source-level documentation/implementation discrepancy, not proof of what is running on the target host.
+
+The backward-consumer search for these two internal stream names remains open. No claim of global absence is made. No runtime/test behaviour, schema, flags, host state or experiment was changed.
