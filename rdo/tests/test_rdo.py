@@ -219,7 +219,7 @@ def test_defect_pattern_generalises_and_metrics(tmp_path):
     # individually investigable rather than being relabelled as missing.
     packages = defect["4_recommended_work"]
     assert packages
-    assert any(any("regression_test" in key for key in w["obligation_keys"])
+    assert any(any("regression_test" in key for key in w["obligations"])
                for w in packages)
     assert any(w["eligibility"] == "blocked" and
                any("unknown" in blocker or "partial" in blocker for blocker in w["blockers"])
