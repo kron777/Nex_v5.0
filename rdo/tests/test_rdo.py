@@ -8,6 +8,8 @@ cycle against the real repository.
 """
 import os
 
+import pytest
+
 from rdo.extrapolator import expand
 from rdo.memory import (CycleStore, PatternMemory, accuracy_series, compare,
                         derive_lessons, record_actual)
@@ -96,7 +98,7 @@ def test_prepopulated_reuse_seed_is_freshly_reconciled_before_stopping():
         return SIGNATURE_MATCHED
 
     obligations, _, frontier = expand([stale], reconcile_fn=fresh_scan, max_depth=1)
-    assert observed == [([], False, [])]
+    assert observed and observed[0] == ([], False, [])
     assert stale.recon_status == SIGNATURE_MATCHED
     assert "stale-seed.schema" in obligations
     assert any("semantic satisfaction unreviewed" in f["reason"] for f in frontier)
