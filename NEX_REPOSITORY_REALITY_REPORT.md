@@ -1370,3 +1370,17 @@ Evidence remains source-level. No target-host environment, external-feed health,
 ### Stage 2 test review qualification — 24 Nov 2026
 
 The bounded tests inspected (`tests/test_dynamic.py`, `tests/test_sense.py`) establish successful pipeline/cursor basics and successful adapter submission. They do not exercise swallowed `run_pipeline()` errors with subsequent cursor movement, replay boundaries, partial pipeline side effects, or the five-write distillation cap. The internal-stream test asserts only a non-negative hit count and does not verify absence of tree/membrane influence. The inspected adapter tests do not inject a Writer failure into the concrete Adapter.submit() path. This is a bounded test-coverage observation; it is not a repository-wide claim that no related tests exist.
+
+
+### Cross-stage consequence of repeated Stage 1 feed rows — 24 Nov 2026
+
+The RSS ingestion findings were traced one step further into Stage 2:
+
+- The inspected RSS helper/adapter path does not deduplicate feed items across polls, and the sense table has no unique source-item key. Repeated feed entries can therefore be persisted as separate rows; this remains a source-level possibility, not a measured target-host duplicate rate.
+- Stage 2's general `_sense_poll_loop` consumes every new row by database ID, including internal and repeated external rows, and invokes the A–F pipeline once per row. The inspected pipeline has no content-level idempotency check; if a repeated row matches branches, it can be processed again. Actual duplicate frequency and downstream state impact are UNKNOWN.
+- Stage 2's separate sense-distillation loop does apply exact/near-duplicate belief checks and excludes internal and `external.other_mind` streams. That protects this belief-promotion path only; it does not deduplicate the general A–F pipeline.
+- The A–F pipeline catches exceptions internally, records an error and returns zero. Its caller advances the in-memory row cursor after the call returns, so a caught pipeline failure is not distinguished from a no-match/zero-hit result by the caller. This is a source-level accounting boundary; no failure was injected and no row loss is claimed.
+
+Source anchors at inspected PR #49 branch head `5dc5f8b13e18a716901a5b0296a50c7463156ebe`: `theory_x/stage1_sense/feeds/_helpers.py`, `feeds/arxiv_ai.py`, `substrate/schema/sense.sql`, `theory_x/stage2_dynamic/__init__.py` and `theory_x/stage2_dynamic/pipeline.py`. These findings supplement, rather than replace, the prior Stage 2 loop audit.
+
+Evidence remains source-level. No duplicate count, live tree/membrane mutation, target-host cursor state, or failure/restart outcome was measured. No runtime, schema, test, flag, host, experiment, merge or deployment change was made.
