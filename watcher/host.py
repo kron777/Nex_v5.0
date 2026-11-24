@@ -456,7 +456,7 @@ def host_requests() -> List[HostRequest]:
                 "            if path.is_symlink():\n"
                 "                skipped_files += 1\n"
                 "                continue\n"
-                "            if mode.endswith(\"_data\"):\n"
+                "            if mode == \"data\" or mode.endswith(\"_data\"):\n"
                 "                match = (\n"
                 "                    name in (\"state_snapshot.json\", \"state_snapshot.json.tmp\", \"state_snapshot.json.consumed\")\n"
                 "                    or any(name.endswith(ext + side)\n"
