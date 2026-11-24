@@ -200,3 +200,8 @@ The selector's formatter explicitly converts internal.temporal, internal.meta_aw
 ### Current update — DRAFT-028 (24 Nov 2026)
 
 **Graph spreading activation does not expand the Stage 3 retrieval candidate set.** `BeliefRetriever.retrieve()` computes graph activation from the top five keyword-scored seeds and blends activation with keyword scores, but final result assembly drops any activated belief ID absent from the original keyword-scored `row_map`. A graph-connected belief with zero query-token overlap is therefore not returned by this path solely because it is connected. The implementation currently uses graph activation to adjust/rerank keyword-matched candidates, not to retrieve graph-only neighbours. Whether candidate expansion is required is an acceptance-contract question; no behaviour change is authorised.
+
+
+### DRAFT-030 test-inventory qualification — 24 Nov 2026
+
+A recursive tracked-tree spot check at source head 90b4ee4cd4dbee06abfdb54fc8f8111264259831 found no dedicated tests/test_world_bridge*.py module. The inspected tests/test_fountain.py does not reference WorldBridgeSelector/select_and_log/world_bridge_log. tests/test_probe_snapshot.py does explicitly test feed_activity grouping and window behavior. This narrows the evidence to direct snapshot fixture coverage and no dedicated selector test module; it is not a claim that no WorldBridge assertion exists anywhere in the suite.
