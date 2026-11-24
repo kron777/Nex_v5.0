@@ -30,9 +30,9 @@ def _artifact_helper_namespace():
     tree = ast.parse(blocks[0])
     helper_nodes = [
         node for node in tree.body
-        if isinstance(node, ast.FunctionDef) and node.name in {"stamp", "fingerprint", "walk"}
+        if isinstance(node, ast.FunctionDef) and node.name in {"stamp", "fingerprint", "walk", "choose_artifact_roots", "scan_artifact_roots"}
     ]
-    assert {node.name for node in helper_nodes} == {"stamp", "fingerprint", "walk"}
+    assert {node.name for node in helper_nodes} == {"stamp", "fingerprint", "walk", "choose_artifact_roots", "scan_artifact_roots"}
     namespace = {
         "hashlib": hashlib, "os": os, "pathlib": pathlib, "re": re, "stat": stat,
     }
@@ -202,6 +202,53 @@ def test_embedded_fingerprint_rejects_file_changed_during_read(tmp_path, monkeyp
     assert touched is True
     assert status == "NO"
     assert detail == "CHANGED_DURING_HASH"
+
+
+def test_artifact_roots_fallback_to_named_checkouts_and_execute_scan(tmp_path, capsys):
+    helpers = _artifact_helper_namespace()
+    choose = helpers["choose_artifact_roots"]
+    scan = helpers["scan_artifact_roots"]
+
+    checkouts = []
+    for name in ("runtime_checkout", "audit_checkout"):
+        checkout = tmp_path / name
+        (checkout / "substrate").mkdir(parents=True)
+        (checkout / "run.py").write_text("# fixture marker", encoding="utf-8")
+        (checkout / "substrate" / "paths.py").write_text("# fixture marker", encoding="utf-8")
+        (checkout / "data").mkdir()
+        (checkout / "snapshots").mkdir()
+        (checkout / "data" / "beliefs.db").write_bytes((name + " database").encode())
+        (checkout / "snapshots" / (name + ".json")).write_text('{"fixture": true}', encoding="utf-8")
+        checkouts.append(checkout)
+
+    # No live process: only the two explicit historical checkout defaults are considered.
+    targets = choose([], checkouts)
+    assert [item[0] for item in targets] == [
+        "known_checkout_1_data",
+        "known_checkout_2_data",
+    ]
+    assert all(item[2] == "known_checkout_default_candidate_active_root_unknown" for item in targets)
+    assert all(item[3] is None for item in targets)
+
+    scan(targets)
+    output = capsys.readouterr().out
+    assert "runtime_process_identity=UNKNOWN; no unique process candidate" in output
+    assert "known_checkout_1_data_artifact stable=YES" in output
+    assert "known_checkout_1_data_snapshot_archive_artifact stable=YES" in output
+    assert "known_checkout_2_data_artifact stable=YES" in output
+    assert "known_checkout_2_data_snapshot_archive_artifact stable=YES" in output
+
+    # A unique process candidate remains the only authority for a custom data root.
+    custom_data = tmp_path / "custom_runtime_data"
+    custom_data.mkdir()
+    (custom_data / "sense.db").write_bytes(b"configured data directory")
+    candidate = ("4321", checkouts[0], str(custom_data))
+    selected = choose([candidate], checkouts)
+    assert len(selected) == 1
+    assert selected[0][0] == "data"
+    assert selected[0][1] == custom_data
+    assert selected[0][2] == "process_NEX5_DATA_DIR_candidate_active_root_unverified"
+    assert selected[0][3] == "4321"
 
 
 def test_artifact_walk_reports_empty_and_incomplete_inventory(tmp_path, monkeypatch, capsys):
