@@ -214,16 +214,28 @@ def test_defect_pattern_generalises_and_metrics(tmp_path):
     defect = cycles["migration_defect (defect-remediation pattern)"]
     # the defect cycle reconciles applied fixes as reuse...
     assert any("fix" in r for r in defect["2_correctly_reused"])
-    # Regression-test obligations must remain visible in discovery and be
-    # accounted for either as already-existing evidence or as net-new work.
-    # Existing regression tests are correctly reconciled as reuse, not re-requested.
+    # Regression-test obligations must be accounted for exactly once, and a
+    # reuse claim must expose the specific test declaration that supports it.
     regression_keys = [key for key in defect["1_discovered"]["obligations"]
                        if "regression_test" in key]
     assert regression_keys
     packages = defect["4_recommended_work"]
-    accounted_for = set(defect["2_correctly_reused"])
-    accounted_for.update(key for w in packages for key in w["obligations"])
-    assert all(key in accounted_for for key in regression_keys)
+    reused = set(defect["2_correctly_reused"])
+    packaged = {key for w in packages for key in w["obligations"]}
+    evidence = {item["key"]: item for item in defect["reconciliation_evidence"]}
+    expected_test_paths = {
+        "beliefs_content_uniq.regression_test": "tests/test_beliefs_content_dedup.py",
+        "arc_closers_migration.regression_test": "tests/test_arc_closers_migration.py",
+    }
+    for key in regression_keys:
+        assert (key in reused) != (key in packaged), (
+            f"{key} must be accounted for exactly once")
+        if key in reused:
+            item = evidence[key]
+            assert item["status"] == "reuse_existing"
+            expected_path = expected_test_paths[key]
+            assert any(expected_path in ref for ref in item["evidence"]), (
+                f"{key} reuse is not backed by {expected_path}")
     # Any remaining package is blocked where necessary prerequisites remain
     # unresolved; unknown obligations remain investigable, not relabelled missing.
     assert any(w["eligibility"] == "blocked" and
