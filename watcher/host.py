@@ -105,7 +105,7 @@ def host_requests() -> List[HostRequest]:
                 "pid=sys.argv[1]\n"
                 "allowed={b'VIRTUAL_ENV', b'PYTHONHOME', b'NEX5_DATA_DIR'}\n"
                 "try:\n"
-                "    entries=pathlib.Path('/proc',pid,'environ').read_bytes().split(b'\\\\0')\n"
+                "    entries=pathlib.Path('/proc',pid,'environ').read_bytes().split(b'\\0')\n"
                 "    for entry in entries:\n"
                 "        key, sep, value=entry.partition(b'=')\n"
                 "        if sep and key in allowed:\n"
