@@ -333,7 +333,7 @@ class TestContradiction(unittest.TestCase):
         contradictory_packet = _packet(
             "I do not attend to the world with wonder or care."
         )
-        # The same incoming packet satisfies both independent lexical predicates.
+        # The same incoming packet satisfies both lexical predicates.
         self.assertEqual(
             [row["id"] for row in self.zone.find_corroborations(contradictory_packet)],
             [held_id],
@@ -343,9 +343,7 @@ class TestContradiction(unittest.TestCase):
             [held_id],
         )
 
-        from theory_x.stage_gate.coherence_gate import GateOutcome
-
-        from theory_x.stage_gate.coherence_gate import CoherenceGate
+        from theory_x.stage_gate.coherence_gate import CoherenceGate, GateOutcome
 
         class EmptyBeliefsReader:
             """Successful empty substrate fixture; resolver retains the real held-zone reader."""
