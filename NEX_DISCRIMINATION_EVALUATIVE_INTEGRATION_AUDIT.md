@@ -485,3 +485,15 @@ A targeted re-read of the full Chat handler resolves two details that should not
 **Updated impact boundary:** the source confirms a shared process-level attention selector whose state can influence which candidates are selected in a subsequent session. It does not establish that one session's private WorkingMemory contents are copied into another session's WorkingMemory: those buffers are separately keyed. Nor does it establish an actual privacy breach. The plausible cross-session effect is indirect selector-state influence (priority smoothing / hold protection), not direct content transfer. Whether that coupling is intended requires the governing spec and, if relevant, a controlled two-session fixture.
 
 **Evidence classification:** selection-to-session-memory write [L1]; conditional same-turn/cross-turn prompt inclusion [L1]; model reliance [L3] UNKNOWN; beneficial or harmful cross-session effect [L4] UNKNOWN. Existing tests cover FocalSet selection and WorkingMemory behaviour separately, but the inspected test set does not establish this full handler pathway or its two-session interaction.
+
+
+## 13.13 Isolated characterization test added — Chat WorkingMemory session boundary
+
+Added `tests/test_chat_working_memory_session_boundary.py`. It resets the module-level session-buffer dictionary for each test, then verifies:
+- repeated lookup of one session ID returns the same WorkingMemory instance;
+- two distinct session IDs receive distinct buffers;
+- content added to one buffer is absent from the other.
+
+This test covers the per-session WorkingMemory boundary only. It does not prove that the process-global FocalSet is session-isolated (it is not: source shows one shared instance), does not exercise the complete Flask prompt-assembly route, and does not establish model reliance. The complete route's prompt append remains conditional as described in §13.12.
+
+No production code or runtime state was changed. This is a deterministic, isolated characterization test; CI will validate its import/runtime compatibility.
