@@ -80,8 +80,27 @@ def host_requests() -> List[HostRequest]:
                 "while read -r pid; do "
                 "cwd=$(readlink -f \"/proc/$pid/cwd\" 2>/dev/null) || continue; "
                 "[ -f \"$cwd/run.py\" ] && [ -f \"$cwd/substrate/paths.py\" ] || continue; "
-                "printf 'candidate_pid=%s cwd=%s exe=' \"$pid\" \"$cwd\"; "
-                "readlink -f \"/proc/$pid/exe\" 2>/dev/null || true; done",
+                "printf '\\nprocess_checkout_candidate_pid=%s\\n' \"$pid\"; "
+                "printf 'candidate_cwd=%s\\n' \"$cwd\"; "
+                "printf 'candidate_exe='; readlink -f \"/proc/$pid/exe\" 2>/dev/null || true; "
+                "git -C \"$cwd\" rev-parse --show-toplevel 2>&1; "
+                "df -P \"$cwd\" | tail -1; "
+                "git -C \"$cwd\" branch --show-current 2>&1; "
+                "git -C \"$cwd\" rev-parse HEAD 2>&1; "
+                "git --no-optional-locks -C \"$cwd\" status --porcelain=v1 --untracked-files=all | "
+                "awk 'BEGIN{n=0} {n++} END{printf \"dirty_entries=%d\\n\",n}'; "
+                "git -C \"$cwd\" remote get-url origin 2>/dev/null | "
+                "python3 -c 'import re,sys,urllib.parse; s=sys.stdin.read().strip(); "
+                "p=urllib.parse.urlsplit(s) if \"://\" in s else None; "
+                "m=re.match(r\"^(?:[^@/:]+@)?(\\[[^]]+\\]|[^/:]+):\",s) if not p else None; "
+                "host=(p.hostname or \"\") if p else (m.group(1).strip(\"[]\") if m else \"\"); "
+                "scheme=p.scheme if p else \"ssh\"; "
+                "host=(\"[\"+host+\"]\") if \":\" in host and not host.startswith(\"[\") else host; "
+                "print(\"origin_identity=\"+(scheme+\"://\"+host if host else \"UNRECOGNIZED\"))'; "
+                "if base=$(git -C \"$cwd\" rev-parse --verify 'refs/remotes/origin/main^{commit}' 2>/dev/null); then "
+                "printf 'origin_main_cached_sha=%s\\n' \"$base\"; "
+                "git -C \"$cwd\" rev-list --left-right --count \"$base...HEAD\"; "
+                "else printf 'origin_main_cached_sha=UNAVAILABLE\\n'; fi; done",
                 "# No remote ref refresh is performed. The divergence count is relative to the "
                 "existing local origin/main tracking ref and may be stale.",
             ],
@@ -104,34 +123,43 @@ def host_requests() -> List[HostRequest]:
                 "python3 - \"$pid\" <<'PY'\n"
                 "import pathlib, sys\n"
                 "pid=sys.argv[1]\n"
-                "allowed={b'VIRTUAL_ENV', b'PYTHONHOME', b'NEX5_DATA_DIR'}\n"
-                "try:\n"
-                "    entries=pathlib.Path('/proc',pid,'environ').read_bytes().split(b'\\0')\n"
-                "    for entry in entries:\n"
-                "        key, sep, value=entry.partition(b'=')\n"
-                "        if sep and key in allowed:\n"
-                "            print(key.decode()+'='+value.decode(errors='replace'))\n"
-                "except OSError as exc:\n"
-                "    print('allowlisted_environment=UNAVAILABLE:'+type(exc).__name__)\n"
-                "PY\n"
+                "allowed={b'VIRTUAL_ENV', b'PYTHONHOME', b'NEX5_DATA_DIR', b'NEX5_VOICE_URL', b'NEX5_VOICE_MODEL'}\\n"
+                "seen=set()\\n"
+                "try:\\n"
+                "    entries=pathlib.Path('/proc',pid,'environ').read_bytes().split(b'\\\\0')\\n"
+                "    for entry in entries:\\n"
+                "        key, sep, value=entry.partition(b'=')\\n"
+                "        if not sep or key not in allowed: continue\\n"
+                "        seen.add(key)\\n"
+                "        if key == b'NEX5_VOICE_URL':\\n"
+                "            import urllib.parse\\n"
+                "            parsed=urllib.parse.urlsplit(value.decode(errors='replace'))\\n"
+                "            host=parsed.hostname or ''\\n"
+                "            if ':' in host and not host.startswith('['): host='['+host+']'\\n"
+                "            try: port=(':'+str(parsed.port)) if parsed.port else ''\\n"
+                "            except ValueError: host=''; port=''\\n"
+                "            origin=(parsed.scheme+'://'+host+port) if parsed.scheme and host else 'UNRECOGNIZED'\\n"
+                "            print('NEX5_VOICE_ENDPOINT_ORIGIN='+origin)\\n"
+                "        else: print(key.decode()+'='+value.decode(errors='replace'))\\n"
+                "    for key in allowed-seen:\\n"
+                "        name='NEX5_VOICE_ENDPOINT_ORIGIN' if key == b'NEX5_VOICE_URL' else key.decode()\\n"
+                "        print(name+'=NOT_SET')\\n"
+                "except OSError as exc:\\n"
+                "    print('allowlisted_environment=UNAVAILABLE:'+type(exc).__name__)\\n"
+                "PY\\n"
                 "done",
-                "systemctl --user list-units --type=service --all --no-legend 2>/dev/null | "
-                "awk 'tolower($1) ~ /(nex|power_switch|keepalive)/ "
-                "{print $1, $3, $4}'",
-                "git -C <verified-process-cwd> rev-parse --show-toplevel; "
-                "df -P <verified-process-cwd> | tail -1; "
-                "git -C <verified-process-cwd> branch --show-current; "
-                "git -C <verified-process-cwd> rev-parse HEAD; "
-                "git -C <verified-process-cwd> status --porcelain=v1 --untracked-files=all | "
-                "awk 'BEGIN{n=0} {n++} END{printf \"dirty_entries=%d\\n\",n}'; "
-                "git -C <verified-process-cwd> remote get-url origin 2>/dev/null | "
-                "python3 -c 'import sys,urllib.parse; s=sys.stdin.read().strip(); "
-                "p=urllib.parse.urlsplit(s) if \"://\" in s else None; "
-                "host=(p.hostname or \"\") if p else \"\"; "
-                "host+=((\":\"+str(p.port)) if p and p.port else \"\"); "
-                "print(urllib.parse.urlunsplit((p.scheme,host,p.path,\"\",\"\")) if p else s.split(\"@\",1)[-1])'; "
-                "# Do not inspect /proc/PID/cmdline or print all of /proc/PID/environ. "
-                "Do not infer STANDBY merely because this filtered survey found no candidate.",
+                "if systemctl --user show-environment >/dev/null 2>&1; then "
+                "printf 'user_manager=AVAILABLE\\n'; "
+                "units=$(systemctl --user list-units --type=service --all --no-legend --plain --no-pager 2>&1 | "
+                "awk 'tolower($1) ~ /(nex|power_switch|keepalive)/ {print $1}'); "
+                "if [ -n \"$units\" ]; then printf '%s\\n' \"$units\" | while read -r unit; do "
+                "printf 'service=%s\\n' \"$unit\"; "
+                "systemctl --user show \"$unit\" --property=ActiveState --property=SubState "
+                "--property=MainPID --no-pager 2>&1; done; "
+                "else printf 'matching_user_services=NONE\\n'; fi; "
+                "else printf 'user_manager=UNAVAILABLE\\n'; fi",
+                "# Dynamic checkout drift is collected by the process-candidate survey above; "
+                "# candidates are not declared active NEX processes without independent correlation.",
             ],
         ),
         HostRequest(
@@ -157,8 +185,13 @@ def host_requests() -> List[HostRequest]:
                 "for f in /sys/class/drm/card*/device/mem_info_vram_total "
                 "/sys/class/drm/card*/device/mem_info_vram_used; do "
                 "[ -r \"$f\" ] && printf '%s=' \"$f\" && cat \"$f\"; done",
-                "<verified-NEX-python> --version",
-                "<verified-NEX-python> -c 'import sqlite3; print(sqlite3.sqlite_version)'",
+                "ps -eo pid=,comm= | awk '$2 ~ /^python([0-9.]*)$/ {print $1}' | "
+                "while read -r pid; do cwd=$(readlink -f \"/proc/$pid/cwd\" 2>/dev/null) || continue; "
+                "[ -f \"$cwd/run.py\" ] && [ -f \"$cwd/substrate/paths.py\" ] || continue; "
+                "exe=$(readlink -f \"/proc/$pid/exe\" 2>/dev/null) || continue; "
+                "printf 'python_interpreter_candidate_pid=%s exe=%s\\n' \"$pid\" \"$exe\"; "
+                "\"$exe\" --version 2>&1 | sed 's/^/candidate_python_version=/'; "
+                "\"$exe\" -c 'import sqlite3; print(\"candidate_sqlite_version=\"+sqlite3.sqlite_version)' 2>&1; done",
                 "ollama --version",
                 "ollama list | awk 'NR==1 || $1==\"qwen2.5:3b\"'",
                 "python3 - <<'PY'\n"
@@ -265,11 +298,23 @@ def ingest_host_results(results: Dict[str, Any]) -> List[Evidence]:
                                 "host (not yet returned)", modifier="unverified",
                                 interpretation="awaiting Claude Code's host-side run"))
             continue
+        evidence_class = r.get("evidence_class")
+        source_ref = r.get("source_ref")
+        provenance_ok = (
+            evidence_class in ("measured", "implemented", "static", "inferred", "unknown")
+            and isinstance(source_ref, str)
+            and bool(source_ref.strip())
+        )
+        if not provenance_ok:
+            evidence_class = "unknown"
+            source_ref = "host result (missing or invalid provenance)"
+            modifier = "unverified"
+        else:
+            modifier = "unverified" if evidence_class == "unknown" else None
         out.append(Evidence(
             f"host:{rid}", r.get("data"), "host",
-            r.get("evidence_class", "measured"),
-            r.get("source_ref", f"host run {utc_now()}"),
-            interpretation=r.get("note")))
+            evidence_class, source_ref,
+            modifier=modifier, interpretation=r.get("note")))
     return out
 
 
@@ -283,8 +328,8 @@ def host_results_template() -> Dict[str, Any]:
             "_title": h.title,
             "_commands": h.read_only_commands,
             "data": None,
-            "evidence_class": "measured",
-            "source_ref": "",
+            "evidence_class": None,
+            "source_ref": None,
             "note": "",
         } for h in host_requests()
     }
