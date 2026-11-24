@@ -361,7 +361,11 @@ class TestGateWiring(unittest.TestCase):
         packet = _packet(
             "I do not attend to the world with wonder, stillness, presence, and care."
         )
-        self.zone.hold(packet, "fixture:pre-existing-held-thought")
+        held_id = self.zone.hold(packet, "fixture:pre-existing-held-thought")
+        self.writers["beliefs"].write(
+            "UPDATE held_thoughts SET corroboration_count=2 WHERE id=?",
+            (held_id,),
+        )
         time.sleep(0.02)
 
         delegate = self.readers["beliefs"]
@@ -384,10 +388,17 @@ class TestGateWiring(unittest.TestCase):
         time.sleep(0.03)
 
         row = self.readers["beliefs"].read_one(
-            "SELECT corroboration_count FROM held_thoughts WHERE content=?",
+            "SELECT corroboration_count, status FROM held_thoughts WHERE content=?",
             (packet.content,),
         )
-        self.assertEqual(row["corroboration_count"], 1)
+        self.assertEqual(row["corroboration_count"], 3)
+        self.assertEqual(row["status"], "accepted")
+        promoted = self.readers["beliefs"].read(
+            "SELECT content, source FROM beliefs WHERE content=?",
+            (packet.content,),
+        )
+        self.assertEqual(len(promoted), 1)
+        self.assertEqual(promoted[0]["source"], "fountain")
 
     def test_resolver_error_does_not_break_gate(self):
         """Gate ACCEPT is returned correctly even when resolver raises."""
