@@ -400,6 +400,75 @@ class TestGateWiring(unittest.TestCase):
         self.assertEqual(len(promoted), 1)
         self.assertEqual(promoted[0]["source"], "fountain")
 
+    def test_evaluation_error_fallback_accept_still_triggers_resolver(self):
+        """Characterize that the outer evaluation-error ACCEPT reaches resolver."""
+        mock_resolver = MagicMock()
+        gate = _make_gate(
+            self.writers, self.readers,
+            holding_zone=self.zone,
+            resolver=mock_resolver,
+        )
+        gate._evaluate = MagicMock(side_effect=RuntimeError("isolated evaluation failure"))
+
+        from theory_x.stage_gate.coherence_gate import GateOutcome
+        decision = gate.check(_packet(
+            "A novel thought about careful evidence and patient reasoning."
+        ))
+
+        self.assertEqual(decision.outcome, GateOutcome.ACCEPT)
+        self.assertEqual(decision.reason, "gate_error_fallback")
+        mock_resolver.on_gate_accept.assert_called_once()
+
+    def test_anchor_read_failure_accept_can_reject_held_thought(self):
+        """An ACCEPT after an unavailable anchor read reaches contradiction resolution."""
+        from theory_x.stage_gate.coherence_gate import CoherenceGate, GateOutcome
+
+        affirmative = "I attend to the world with wonder and care always."
+        self.writers["beliefs"].write(
+            "INSERT INTO beliefs "
+            "(content, tier, confidence, created_at, source, branch_id, locked) "
+            "VALUES (?, 1, 0.9, ?, 'keystone_seed', 'phase0_fixture', 1)",
+            (affirmative, time.time()),
+        )
+        held_id = self.zone.hold(
+            _packet(affirmative), "fixture:held_affirmative_thought"
+        )
+        self.assertIsNotNone(held_id)
+        time.sleep(0.02)
+
+        delegate = self.readers["beliefs"]
+
+        class AnchorFailingReader:
+            def read(self, query, *args, **kwargs):
+                if "tier=1" in query:
+                    raise RuntimeError("isolated fixture: anchor query unavailable")
+                return delegate.read(query, *args, **kwargs)
+
+        packet = _packet("I do not attend to the world with wonder or care.")
+        gate = CoherenceGate(
+            beliefs_reader=AnchorFailingReader(),
+            beliefs_writer=self.writers["beliefs"],
+            conversations_reader=self.readers["conversations"],
+            holding_zone=self.zone,
+            resolver=self.resolver,
+        )
+        decision = gate.check(packet)
+        self.assertEqual(decision.outcome, GateOutcome.ACCEPT)
+        time.sleep(0.03)
+
+        held = self.readers["beliefs"].read_one(
+            "SELECT corroboration_count, status FROM held_thoughts WHERE id=?",
+            (held_id,),
+        )
+        self.assertEqual(held["corroboration_count"], 1)
+        self.assertEqual(held["status"], "rejected")
+        resolution = self.readers["beliefs"].read_one(
+            "SELECT action, reason FROM held_resolutions WHERE held_id=?",
+            (held_id,),
+        )
+        self.assertEqual(resolution["action"], "rejected")
+        self.assertEqual(resolution["reason"], "contradicted_by_accept")
+
     def test_resolver_error_does_not_break_gate(self):
         """Gate ACCEPT is returned correctly even when resolver raises."""
         mock_resolver = MagicMock()
