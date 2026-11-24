@@ -315,3 +315,36 @@ Source hashes:
 - `theory_x/stage_tom/self_binding.py`: `acbbe02e00723ebc6c5fd13236251f4877259ce5`
 - `theory_x/stage_tom/recursive_self.py`: `ada4aeb260a8deb70418c03dc9180f71cddec714`
 - `theory_x/stage_tom/value_drift_monitor.py`: `e08a9649bd94e9094b49aeae59aa9f8feeacbff5`
+
+
+## Current update — Holding Zone / CoherenceGate characterization (24 Nov 2026)
+
+The following six entries are source-confirmed and isolated-test characterized on the Phase 0 evidence branch. They are not deployed-incident claims, do not establish truth or behavioural impact, and do not authorise production changes. No priority or severity is assigned here.
+
+### Current update — DRAFT-045 (corroboration provenance)
+
+**The N=3 Holding Zone threshold counts matching ACCEPT arrivals, not independent sources.** `HoldingZone.find_corroborations()` matches active held thoughts by content Jaccard similarity only. It does not compare the incoming `source_node` with the held thought's source or retain the identities of earlier corroborating packets. The existing threshold test sends three matching packets using the default `source_node="fountain"`; all count toward promotion. This establishes that repeated arrivals from one source can satisfy the threshold. The Faculty Model's “N similar thoughts” wording does not define whether N means arrivals, distinct sources, independent episodes or independent evidence. No source-diversity rule or threshold change is proposed.
+
+### Current update — DRAFT-046 (promotion write failure)
+
+**A failed belief INSERT can still leave a held thought marked accepted.** `HoldingZone.promote_to_belief()` catches a belief INSERT exception and returns `None`. `HoldingZoneResolver.on_gate_accept()` does not inspect that result before calling `mark_resolved(..., "accepted", ...)`. The isolated test `test_failed_promotion_write_still_marks_held_thought_accepted` injects failure into the belief INSERT while the other temporary-DB writes remain available. It verifies an accepted held status and resolution record with no corresponding belief row. This is a reproducible non-atomic transition under the injected failure, not evidence of a deployed incident.
+
+### Current update — DRAFT-047 (resolution audit write failure)
+
+**A failed resolution-audit INSERT can leave terminal status without its audit record.** `HoldingZone.mark_resolved()` updates `held_thoughts.status` and then inserts into `held_resolutions` as separate writes. The isolated test `test_resolution_audit_insert_failure_leaves_terminal_status_without_audit` injects failure into the audit INSERT after allowing the status UPDATE to commit. It verifies `status="accepted"` with no corresponding resolution row. No transaction spans the two writes in the inspected path.
+
+### Current update — DRAFT-048 (corroboration/contradiction predicate overlap)
+
+**One incoming ACCEPT packet can satisfy both the similarity and contradiction predicates; corroboration is processed first.** The isolated test `test_contradictory_accept_at_threshold_promotes_before_rejection_scan` seeds a held thought at corroboration count two. Its incoming packet has the same content-word set but opposite negation, so both `find_corroborations()` and `find_contradictions()` identify the held row. The ordinary CoherenceGate accepts the packet against the separate substrate; the resolver increments the count to three, promotes the held thought and marks it accepted before the subsequent contradiction scan. That scan only considers rows still in `holding`, so it no longer sees the promoted row. This demonstrates an ordering interaction in the current lexical heuristics. It does not decide whether the intended resolution should be HOLD, REJECT, or another policy.
+
+### Current update — DRAFT-049 (evaluation exception fallback)
+
+**An evaluator exception falls back to ACCEPT and still dispatches resolver side effects.** `CoherenceGate.check()` catches an exception from `_evaluate()` and returns `GateOutcome.ACCEPT` with reason `gate_error_fallback`. Resolver dispatch is keyed to ACCEPT outcome, not to the reason or whether evaluation completed. The isolated test `test_evaluation_error_fallback_accept_still_triggers_resolver` forces the evaluator exception and verifies the resolver is called. This is source/test evidence of a fail-open fallback path; no deployed exception frequency or incident is established.
+
+### Current update — DRAFT-050 (substrate read availability erased)
+
+**A failed substrate read is passed to the evaluator as an empty collection, indistinguishable from a successful empty read.** `CoherenceGate._read_substrate()` catches per-source reader exceptions and leaves the corresponding list empty; it does not pass source availability or read-error state into `_evaluate()`. The existing isolated matrix in `tests/test_coherence_gate.py` verifies that a successful empty substrate and an unavailable anchor read can produce the same ACCEPT outcome/reason, while goal/problem read failures can suppress HOLD conditions or positive connection rationales. A missing read is therefore not evidence that the source contains no contradiction or connection. No production change is proposed.
+
+**Evidence provenance:** source blobs on the Phase 0 evidence branch: `coherence_gate.py` `39f73108cb36e886cfc8dafe045646acba15549e`; `holding_zone.py` `b3fc5713deee86a848782c671468ae4af9d7f53e`; `resolver.py` `c89fa5dcea4ffb5c14c1b528f16982efe19a0d4d`. Test blobs: `test_holding_zone.py` `9b89e71c9c43a116696bf7db9f96567775acffe7`; `test_coherence_gate.py` `52e777342010a192fd65102b1180a981f20277a8`. Exact tested branch head: `16d0dab6492b1cf23c5d8c7cb4987e24d2666a66`; GitHub Actions run `45430422437` completed successfully (full pytest workflow and MIND_MAP sourcing check). The tests characterize isolated fixtures only.
+
+No NEX runtime/source implementation, schema, live database, flags, experiments, baselines, tripwires, deployment or merge was changed. Policy questions remain open for Founder review.
