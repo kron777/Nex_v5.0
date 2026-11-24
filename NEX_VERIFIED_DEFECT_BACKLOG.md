@@ -290,3 +290,15 @@ Current source hashes:
 **Moltbook PostLoop's implementation does not follow its documented candidate priority.** `_pick_best()` says it ranks first by highest `word_count`, then by newest `queued_at` among ties. Its actual descending sort key is `(queued_at, word_count)`, making recency the primary criterion and word count only the tie-breaker. This can select a newer shorter thought over an older longer one within the same eligible queue window. No PostLoop-specific test exists in the inspected tree. Whether the code or the stated priority is authoritative remains unresolved; no selection policy is changed in Phase 0.
 
 Source hash: `theory_x/stage7_moltbook/poster.py` `3acdf141685c28b60ea66102e3fcd2538ab22923`.
+
+
+
+### Current update — DRAFT-043 (24 Nov 2026; default-on prompt arbitration / empty-surprise candidate)
+
+**GlobalWorkspace can promote an empty prediction-window record into the highest-salience prompt frame.** Fountain enables GlobalWorkspace by default (`NEX5_GLOBAL_WORKSPACE` defaults to `"1"`). Its surprise candidate query accepts any recent row with `surprise_score > 0.3`; unless `NEX5_GW_SURPRISE_NONEMPTY=1`, it does not exclude `actual_content IS NULL` or the empty-window sentinel score. The module's own comment states an empty prediction window scores 1.0 and previously won the workspace with an empty quote. Surprise weight is 1.00, above every other candidate weight in this arbiter (stakes 0.90, momentum 0.55, Bonsai 0.50, drive 0.45). Thus, if such a recent row exists while the filter flag is unset, the empty surprise candidate can win and its framing line is prepended to Fountain's focus block. This is a prompt-influence path, not merely telemetry.
+
+The code contains an opt-in mitigation, `NEX5_GW_SURPRISE_NONEMPTY=1`, but it is default OFF. Host flag state, frequency of empty rows and actual prompt incidence are UNKNOWN. The repository tree contains no dedicated GlobalWorkspace test file; no claim is made about indirect coverage. The intended treatment of empty prediction windows needs acceptance criteria before correction. No runtime change authorised.
+
+Source hashes:
+- `theory_x/stage_tom/global_workspace.py`: `54ddab05112702eef34faaa4f24d45139350b349`
+- `theory_x/stage6_fountain/generator.py`: `43644876295ffdd649a240f52a7946c666a8579f`
