@@ -205,6 +205,8 @@ def test_embedded_fingerprint_rejects_file_changed_during_read(tmp_path, monkeyp
 
 
 def test_artifact_roots_fallback_to_named_checkouts_and_execute_scan(tmp_path, capsys):
+    commands = _commands("runtime_artifact_hashes")
+    assert re.search(r"^scan_artifact_roots\\(targets\\)$", commands, re.MULTILINE)
     helpers = _artifact_helper_namespace()
     choose = helpers["choose_artifact_roots"]
     scan = helpers["scan_artifact_roots"]
