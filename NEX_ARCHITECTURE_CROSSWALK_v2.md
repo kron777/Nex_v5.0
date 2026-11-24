@@ -1733,3 +1733,17 @@ Rechecked against current PR #49 head `6eb6598ba8eae5a6bd0138e54ecd946276490437`
 The cue can cause one retry, so this is a conditional generation influence, not merely passive measurement. The module still refuses a self-grounded/authenticity verdict; its grounding hint remains explicitly unproven. Module tests do not cover the route-level retry/log identity.
 
 Current source hashes: `gui/server.py` `5ee8b167f386466c383090445c63a84810bbae52`; `theory_x/stage_provenance/provenance.py` `92671a3e120a1935fab33f6d659ab806f1eb4cc6`; `tests/test_provenance.py` `fcefbeccb6bedc3e20798142814d7b96b4e6dca5`. See DRAFT-012 and the current-branch revalidation in the Reality Report.
+
+
+
+## Stage 7 Moltbook — optional activation and external-action boundary (24 Nov 2026)
+
+The main `run.py` path does not construct/start the Moltbook DM listener, DM responder or post loop. The GUI activity endpoint reads optional Moltbook tables only; its tests cover absent/present table handling, not the action loops. External process/manual activation is not ruled out.
+
+If separately launched, the listener can auto-approve profile-filtered DM requests and persist inbound message text to `sense_events` and a pending-reply queue. The responder sanitizes selected inbound/thread text, adds optional belief context, calls the local LLM and sends a reply. The post loop selects recent `fountain_insight` beliefs and can publish them. These are potential external I/O paths, not evidence of host activation.
+
+Two source-level contract discrepancies are recorded in the Reality Report:
+- **DRAFT-041:** client dry-run returns a marker without making the external write, but listener/responder/poster callers treat the normal return as approval/sent/posted success in local state.
+- **DRAFT-042:** poster's stated priority is word-count first, recency second; implementation sorts recency first, word-count second.
+
+No external request or account access was performed. No runtime changes authorised.
