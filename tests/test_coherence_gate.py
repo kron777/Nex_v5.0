@@ -675,3 +675,35 @@ class TestGateSubstrateReadFailure(unittest.TestCase):
         ))
         self.assertEqual(decision.outcome, GateOutcome.ACCEPT)
         self.assertEqual(decision.reason, "accept:novel_no_conflict")
+
+    def test_goal_read_failure_suppresses_goal_negation_hold(self):
+        from theory_x.stage_gate.coherence_gate import GateOutcome, ThoughtPacket
+        _seed_goal(self.writers, "support open source architecture")
+        packet = ThoughtPacket(
+            content="I do not support open source architecture through careful design.",
+            source_node="phase0_goal_read_fixture",
+            confidence=0.7,
+        )
+        normal = _make_gate(self.writers, self.readers).check(packet)
+        self.assertEqual(normal.outcome, GateOutcome.HOLD)
+        failed = self._gate_with_selective_failure(
+            "conversations", "FROM goals"
+        ).check(packet)
+        self.assertEqual(failed.outcome, GateOutcome.ACCEPT)
+        self.assertEqual(failed.reason, "accept:novel_no_conflict")
+
+    def test_problem_read_failure_suppresses_problem_negation_hold(self):
+        from theory_x.stage_gate.coherence_gate import GateOutcome, ThoughtPacket
+        _seed_problem(self.writers, "maintain robust memory continuity")
+        packet = ThoughtPacket(
+            content="I do not maintain robust memory continuity through careful design.",
+            source_node="phase0_problem_read_fixture",
+            confidence=0.7,
+        )
+        normal = _make_gate(self.writers, self.readers).check(packet)
+        self.assertEqual(normal.outcome, GateOutcome.HOLD)
+        failed = self._gate_with_selective_failure(
+            "conversations", "FROM open_problems"
+        ).check(packet)
+        self.assertEqual(failed.outcome, GateOutcome.ACCEPT)
+        self.assertEqual(failed.reason, "accept:novel_no_conflict")
