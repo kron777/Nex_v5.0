@@ -164,7 +164,7 @@ def build_runtime_graph() -> RuntimeGraph:
         dict(src="expectations", dst="reconciler",
              label="ingest() ledger rows -> reconcile() dispatch",
              source_ref="theory_x/stage_world/expectations.py:221-260,345-380",
-             test_ref="tests/test_expectations.py::test_one_live_cell_three_exact_zeros; tests/test_expectations.py::test_discharged_breached_unresolved",
+             test_ref="tests/test_expectations.py::test_one_live_cell_three_exact_zeros",
              claim="The reconciler ingests, selects due expectation rows, and dispatches them.",
              scope="Representative synthetic integration paths.",
              caveat="Does not claim exhaustive coverage of every dispatch branch."),
