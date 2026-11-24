@@ -206,7 +206,7 @@ def test_demo_cycle_against_real_repo(tmp_path):
     for k in ("1_discovered", "2_signature_matches_located", "3_rejected_or_deferred",
               "4_recommended_work", "5_verification", "6_learned"):
         assert k in res
-    assert res["5_verification"]["all_reuse_claims_have_file_evidence"] is True
+    assert res["5_verification"]["all_signature_matches_have_file_evidence"] is True
     assert res["2_signature_matches_located"], "should locate configured source signatures"
     assert all(w["eligibility"] == "blocked" for w in res["4_recommended_work"])
     audit = res["optimal_functional_tension"]["signal_authority_audit"]
@@ -246,7 +246,7 @@ def test_defect_pattern_generalises_and_metrics(tmp_path):
             f"{key} must be accounted for exactly once")
         if key in reused:
             item = evidence[key]
-            assert item["status"] == "reuse_existing"
+            assert item["status"] == "signature_matched"
             expected_path = expected_test_paths[key]
             assert any(expected_path in ref for ref in item["evidence"]), (
                 f"{key} reuse is not backed by {expected_path}")
