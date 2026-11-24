@@ -215,9 +215,9 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
         "duplicate_discovery_rate": round(duplicates / discovered, 3),
         "reuse_claims": reuse_claims,
         "signature_matches": signature_matches,
-        "reuse_evidence_coverage": (round(signature_backed / signature_matches, 3)
+        "signature_evidence_coverage": (round(signature_backed / signature_matches, 3)
                                      if signature_backed is not None and signature_matches else None),
-        "reuse_evidence_coverage_complete": cycle.verification.get(
+        "signature_evidence_coverage_complete": cycle.verification.get(
             "all_signature_matches_have_file_evidence",
             cycle.verification.get("all_reuse_claims_have_file_evidence",
                                    cycle.verification.get("all_reuse_backed"))),
@@ -234,17 +234,17 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
 
 
 _MEASURE_KEYS = ("expansion_grounded_fraction", "missed_obligation_count",
-                 "duplicate_discovery_rate", "reuse_evidence_coverage", "prediction_error_effort",
-                 "rework", "engineering_effort", "reuse_evidence_coverage_complete")
+                 "duplicate_discovery_rate", "signature_evidence_coverage", "prediction_error_effort",
+                 "rework", "engineering_effort", "signature_evidence_coverage_complete")
 _MEASURE_LABELS = {
     "expansion_grounded_fraction": "expansion_grounded_fraction (precision proxy)",
     "missed_obligation_count": "missed_obligation_count",
     "duplicate_discovery_rate": "duplicate_discovery_rate",
-    "reuse_evidence_coverage": "reuse_evidence_coverage (signature/file-anchor coverage, not semantic accuracy)",
+    "signature_evidence_coverage": "signature_evidence_coverage (configured source-anchor coverage, not semantic accuracy)",
     "prediction_error_effort": "prediction_error_effort",
     "rework": "rework",
     "engineering_effort": "engineering_effort (actual only)",
-    "reuse_evidence_coverage_complete": "reuse_evidence_coverage_complete (all reuse claims have file anchors; not execution success)",
+    "signature_evidence_coverage_complete": "signature_evidence_coverage_complete (all signature matches have file anchors; not execution success)",
 }
 
 
