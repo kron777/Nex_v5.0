@@ -582,3 +582,96 @@ class TestGateSubstrateReadFailure(unittest.TestCase):
         ))
         self.assertEqual(decision.outcome, GateOutcome.ACCEPT)
         self.assertEqual(decision.reason, "accept:novel_no_conflict")
+
+    def _gate_with_selective_failure(self, reader_key, query_fragment):
+        from theory_x.stage_gate.coherence_gate import CoherenceGate
+
+        delegate = self.readers[reader_key]
+
+        class SelectiveFailureReader:
+            def read(self, query, *args, **kwargs):
+                if query_fragment in query:
+                    raise RuntimeError(f"isolated fixture: {query_fragment} unavailable")
+                return delegate.read(query, *args, **kwargs)
+
+        beliefs_reader = (
+            SelectiveFailureReader()
+            if reader_key == "beliefs" else self.readers["beliefs"]
+        )
+        conversations_reader = (
+            SelectiveFailureReader()
+            if reader_key == "conversations" else self.readers["conversations"]
+        )
+        return CoherenceGate(
+            beliefs_reader=beliefs_reader,
+            beliefs_writer=self.writers["beliefs"],
+            conversations_reader=conversations_reader,
+        )
+
+    def _contradictory_packet(self):
+        from theory_x.stage_gate.coherence_gate import ThoughtPacket
+        return ThoughtPacket(
+            content=(
+                "I do not attend to the world with wonder, stillness, "
+                "presence, and care."
+            ),
+            source_node="phase0_read_failure_fixture",
+            confidence=0.7,
+        )
+
+    def test_anchor_read_failure_alone_removes_anchor_comparison(self):
+        from theory_x.stage_gate.coherence_gate import GateOutcome
+        gate = self._gate_with_selective_failure("beliefs", "tier=1")
+        decision = gate.check(self._contradictory_packet())
+        self.assertEqual(decision.outcome, GateOutcome.ACCEPT)
+        self.assertEqual(decision.reason, "accept:novel_no_conflict")
+
+    def test_recent_belief_read_failure_does_not_remove_anchor_comparison(self):
+        from theory_x.stage_gate.coherence_gate import GateOutcome
+        gate = self._gate_with_selective_failure(
+            "beliefs", "SELECT content FROM beliefs"
+        )
+        decision = gate.check(self._contradictory_packet())
+        self.assertEqual(decision.outcome, GateOutcome.REJECT)
+        self.assertIn("contradicts_anchor", decision.reason)
+
+    def test_goal_read_failure_does_not_remove_anchor_comparison(self):
+        from theory_x.stage_gate.coherence_gate import GateOutcome
+        gate = self._gate_with_selective_failure("conversations", "FROM goals")
+        decision = gate.check(self._contradictory_packet())
+        self.assertEqual(decision.outcome, GateOutcome.REJECT)
+        self.assertIn("contradicts_anchor", decision.reason)
+
+    def test_problem_read_failure_does_not_remove_anchor_comparison(self):
+        from theory_x.stage_gate.coherence_gate import GateOutcome
+        gate = self._gate_with_selective_failure(
+            "conversations", "FROM open_problems"
+        )
+        decision = gate.check(self._contradictory_packet())
+        self.assertEqual(decision.outcome, GateOutcome.REJECT)
+        self.assertIn("contradicts_anchor", decision.reason)
+
+    def test_successful_empty_substrate_is_distinct_from_reader_failure(self):
+        from theory_x.stage_gate.coherence_gate import (
+            CoherenceGate, GateOutcome, ThoughtPacket,
+        )
+
+        class EmptyReader:
+            def read(self, *args, **kwargs):
+                return []
+
+        gate = CoherenceGate(
+            beliefs_reader=EmptyReader(),
+            beliefs_writer=self.writers["beliefs"],
+            conversations_reader=EmptyReader(),
+        )
+        decision = gate.check(ThoughtPacket(
+            content=(
+                "I do not attend to the world with wonder, stillness, "
+                "presence, and care."
+            ),
+            source_node="phase0_empty_substrate_fixture",
+            confidence=0.7,
+        ))
+        self.assertEqual(decision.outcome, GateOutcome.ACCEPT)
+        self.assertEqual(decision.reason, "accept:novel_no_conflict")
