@@ -43,8 +43,10 @@ cannot disturb the fire path → built.
   Nothing was double-built.
 - **Proof.** `watcher ripple` before/after on the seam: test-delta = **8
   `test_appeared` (the new tests), 0 newly_failing, 0 warning/critical**; **no
-  fountain/fire test in the delta**. Full suite **1422 → 1430 passed** (+8 exactly),
-  **failed 99 / error 62 / skipped 5 unchanged**. `generator.py` not in the diff
+  fountain/fire test in the delta**. Reproduced full-suite comparison using the
+  same Python environment: parent **1602 passed / 0 failed / 0 errors / 5 skipped /
+  30 subtests**; continuity branch **1610 passed / 0 failed / 0 errors / 5 skipped /
+  30 subtests**. Net **+8 passing tests, with no regressions**. `generator.py` not in the diff
   (only `self_binding.py` +42/−0 and `self_mind_view.py` +13/−1). Fire path proven
   unaffected.
 
