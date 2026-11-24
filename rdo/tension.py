@@ -120,7 +120,7 @@ def assess_system(obligations: Dict[str, Obligation],
     unknown_nec = [k for k, o in necessary.items() if o.recon_status == RECON_UNKNOWN]
     if missing_nec:
         verdict = UNDERDEVELOPED
-    elif unknown_nec:
+    elif unknown_nec or not necessary:
         verdict = TENSION_UNKNOWN
     else:
         verdict = SUFFICIENT
@@ -131,7 +131,9 @@ def assess_system(obligations: Dict[str, Obligation],
         evidence=evidence[:10],
         note=(f"{len(missing_nec)} necessary obligation(s) missing or partial; {len(unknown_nec)} unknown"
               if missing_nec or unknown_nec
-              else "all necessary obligations reconcile to existing mechanisms")))
+              else ("no necessary obligations defined; readiness cannot be established"
+                    if not necessary else
+                    "all necessary obligations reconcile to existing mechanisms"))))
     return out
 
 
