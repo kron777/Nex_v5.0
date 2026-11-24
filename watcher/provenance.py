@@ -15,16 +15,18 @@ from typing import List
 from .evidence import Evidence, host_placeholder
 
 
-def _git(repo_dir: str, *args: str) -> str:
-    """Run a read-only git command; return stdout stripped, or '' on failure."""
+def _git(repo_dir: str, *args: str) -> str | None:
+    """Return stdout (including a valid empty string), or None when Git failed."""
     try:
         out = subprocess.run(
             ["git", "-C", repo_dir, *args],
             capture_output=True, text=True, timeout=20, check=False,
         )
+        if out.returncode != 0:
+            return None
         return out.stdout.strip()
-    except Exception:
-        return ""
+    except (OSError, subprocess.SubprocessError):
+        return None
 
 
 def collect_repo_provenance(repo_dir: str = ".") -> List[Evidence]:
@@ -35,14 +37,20 @@ def collect_repo_provenance(repo_dir: str = ".") -> List[Evidence]:
     status = _git(repo_dir, "status", "--porcelain")
     remotes = _git(repo_dir, "remote", "-v")
     last = _git(repo_dir, "log", "--oneline", "-1")
+    def ev(subject, value, interpretation=None):
+        available = value is not None
+        return Evidence(subject, (bool(value) if subject == "checkout.dirty" and available else value),
+                        "cloud", "measured" if available else "unknown", src,
+                        modifier=None if available else "unverified",
+                        interpretation=interpretation or ("Git command failed; value unavailable."
+                                                          if not available else None))
+
     return [
-        Evidence("checkout.HEAD", head, "cloud", "measured", src,
-                 interpretation="SHA of the checkout the Watcher runs in (the GitHub clone)."),
-        Evidence("checkout.branch", branch, "cloud", "measured", src),
-        Evidence("checkout.dirty", bool(status), "cloud", "measured", src,
-                 interpretation="True if the working tree has uncommitted changes."),
-        Evidence("checkout.remotes", remotes, "cloud", "measured", src),
-        Evidence("checkout.last_commit", last, "cloud", "measured", src),
+        ev("checkout.HEAD", head, "SHA of the checkout the Watcher runs in (the GitHub clone)."),
+        ev("checkout.branch", branch),
+        ev("checkout.dirty", status, "True if the working tree has uncommitted changes."),
+        ev("checkout.remotes", remotes),
+        ev("checkout.last_commit", last),
     ]
 
 
@@ -51,8 +59,11 @@ def detect_drift(repo_dir: str = ".", baseline: str = "origin/main") -> List[Evi
     src = f"git -C {repo_dir} rev-list --left-right --count {baseline}...HEAD"
     counts = _git(repo_dir, "rev-list", "--left-right", "--count", f"{baseline}...HEAD")
     behind = ahead = None
-    if counts and len(counts.split()) == 2:
-        behind, ahead = (int(x) for x in counts.split())
+    if counts is not None and len(counts.split()) == 2:
+        try:
+            behind, ahead = (int(x) for x in counts.split())
+        except ValueError:
+            behind = ahead = None
     rel = ("equal" if ahead == 0 and behind == 0
            else "ahead" if behind == 0 and (ahead or 0) > 0
            else "behind" if ahead == 0 and (behind or 0) > 0
@@ -60,8 +71,10 @@ def detect_drift(repo_dir: str = ".", baseline: str = "origin/main") -> List[Evi
     return [
         Evidence("drift.vs_baseline",
                  {"baseline": baseline, "ahead": ahead, "behind": behind, "relation": rel},
-                 "cloud", "measured", src,
-                 interpretation=f"This checkout is {rel} relative to {baseline}."),
+                 "cloud", "measured" if counts is not None and ahead is not None else "unknown", src,
+                 modifier=None if counts is not None and ahead is not None else "unverified",
+                 interpretation=(f"This checkout is {rel} relative to {baseline}." if counts is not None and ahead is not None
+                                 else f"Git could not establish drift relative to {baseline}.")),
         # The deployed + home-drive checkouts can only be read on the machine.
         host_placeholder(
             "drift.deployed_and_local_checkouts",
