@@ -52,6 +52,8 @@ def test_checkout_and_process_requests_do_not_expose_credentials_or_raw_argv():
     assert "urllib.parse.urlsplit" in checkout
     assert "origin_main_cached_sha=" in checkout
     assert "rev-list --left-right --count" in checkout
+    assert "git -C <verified-process-cwd> rev-parse HEAD" in runtime
+    assert "remote get-url origin" in runtime
     assert "git fetch" not in combined
 
     # The collector must summarize worktree state without printing filenames,
