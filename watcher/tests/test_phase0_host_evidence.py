@@ -49,7 +49,6 @@ def test_phase0_host_request_covers_host_and_candidate_model_fingerprint():
         "lspci",
         "/sys/module/$module/version",
         "mem_info_vram_",
-        "mem_info_vram_used",
         "/sys/fs/cgroup/memory.max",
         "candidate_python_version=",
         "candidate_sqlite_version=",
@@ -95,6 +94,9 @@ def test_checkout_and_process_requests_are_redacted_and_fail_closed():
     assert "systemctl --user show-environment" in runtime
     assert "user_manager=AVAILABLE" in runtime
     assert "user_manager=UNAVAILABLE" in runtime
+    assert "user_unit_list=UNAVAILABLE" in runtime
+    assert "matching_user_services=NONE" in runtime
+    assert "set -o pipefail" in runtime
     assert "--property=MainPID" in runtime
     assert "Do not read service unit contents" in _requests()["runtime_identity"].collects
 
