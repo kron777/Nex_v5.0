@@ -173,20 +173,24 @@ def host_requests() -> List[HostRequest]:
         ),
         HostRequest(
             "runtime_artifact_hashes", "Runtime DB + snapshot fingerprints",
-            "Exact verified runtime data-root and snapshot-root paths; DB/WAL/SHM/journal "
-            "and known snapshot-file paths, sizes, modification times and SHA-256 values. "
+            "Exact verified runtime data root and the separate known snapshot-archive path; DB/WAL/"
+            "SHM/journal and state_snapshot.json paths, sizes, modification times and SHA-256 "
             "Record a digest as stable only when device, inode, size, mtime and ctime match "
-            "before and after hashing. If roots cannot be established from the verified "
-            "process/configuration, do not guess or scan home; leave fingerprints UNKNOWN. "
-            "No row counts, database contents or file copies.",
+            "before and after hashing. run.py passes the runtime data directory to "
+            "StateSnapshotWriter, so state_snapshot.json is beside the DBs. The separate "
+            "scripts/snapshot.py archive is under the verified checkout snapshots/ directory. "
+            "If roots cannot be established from the verified process/configuration, do not "
+            "guess or scan home; leave fingerprints UNKNOWN. No row counts, DB contents or "
+            "file copies.",
             [
-                "# Resolve NEX5_DATA_DIR only from the verified NEX process's allow-listed "
-                "environment. If absent, substrate/paths.py defines the default as "
-                "<verified NEX checkout>/data. Resolve snapshot_dir from the actual "
-                "StateSnapshotWriter construction; include <verified checkout>/snapshots "
-                "only when source/runtime evidence establishes that it is used.",
-                "# Set these variables to the exact verified roots before running the "
-                "following read-only commands; do not leave placeholders or guess paths.",
+                "# Resolve NEX5_DATA_DIR only from the verified NEX process allow-list. If absent, "
+                "substrate/paths.py defaults it to <verified NEX checkout>/data. run.py "
+                "passes paths[beliefs].parent to StateSnapshotWriter, so active "
+                "state_snapshot.json, its .tmp and .consumed variants live beside the DBs. "
+                "scripts/snapshot.py writes a separate archive under <verified checkout>/snapshots.",
+                "# Set NEX5_DATA_DIR to the exact verified runtime root. Set the optional "
+                "NEX5_SNAPSHOT_DIR only to the verified checkout snapshots/ archive directory; "
+                "do not leave placeholders or guess paths.",
                 "for root in \"$NEX5_DATA_DIR\"; do "
                 "[ -d \"$root\" ] || { printf 'data_root_unavailable=%s\\n' \"$root\"; continue; }; "
                 "find \"$root\" -type f \\( "
@@ -195,6 +199,7 @@ def host_requests() -> List[HostRequest]:
                 "-o -name '*.sqlite-wal' -o -name '*.sqlite-shm' "
                 "-o -name '*.sqlite3-wal' -o -name '*.sqlite3-shm' "
                 "-o -name 'state_snapshot.json' -o -name 'state_snapshot.json.tmp' "
+                "-o -name 'state_snapshot.json.consumed' "
                 "\\) -print0; done | "
                 "while IFS= read -r -d '' file; do "
                 "before=$(stat -c '%d:%i:%s:%y:%z' -- \"$file\") || continue; "
