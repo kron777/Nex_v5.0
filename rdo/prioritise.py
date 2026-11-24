@@ -118,6 +118,8 @@ def build_work_packages(obligations: Dict[str, Obligation],
     net_new = [ob for ob in obligations.values()
                if ob.classification in (NECESSARY, "conditional")
                and (ob.recon_status in (MISSING, PARTIAL, RECON_UNKNOWN, SIGNATURE_MATCHED)
+                    or (ob.recon_status == REUSE_EXISTING and
+                        not _semantic_reuse_is_reviewed(ob))
                     or ob.kind in HOST_ONLY_KINDS)]
 
     # group by root target (key before first '.')
