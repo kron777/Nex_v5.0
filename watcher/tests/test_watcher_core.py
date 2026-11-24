@@ -116,3 +116,24 @@ def test_provenance_real_repo_and_host_placeholder():
     # the deployed/home checkouts are recorded as host-only, never guessed
     host = [r for r in drift if r.origin == "host"]
     assert host and host[0].evidence_class == "unknown"
+
+def test_git_empty_success_is_measured_but_failure_is_unknown(monkeypatch):
+    from types import SimpleNamespace
+    import watcher.provenance as provenance
+
+    monkeypatch.setattr(provenance.subprocess, "run",
+                        lambda *a, **k: SimpleNamespace(returncode=0, stdout="", stderr=""))
+    assert provenance._git(".", "remote", "-v") == ""
+    measured = provenance.collect_repo_provenance(".")
+    assert all(r.evidence_class == "measured" for r in measured)
+    dirty = next(r for r in measured if r.subject == "checkout.dirty")
+    assert dirty.data is False
+
+    monkeypatch.setattr(provenance.subprocess, "run",
+                        lambda *a, **k: SimpleNamespace(returncode=128, stdout="", stderr="fatal"))
+    assert provenance._git(".", "rev-parse", "HEAD") is None
+    failed = provenance.collect_repo_provenance(".")
+    head = next(r for r in failed if r.subject == "checkout.HEAD")
+    dirty = next(r for r in failed if r.subject == "checkout.dirty")
+    assert head.evidence_class == "unknown" and head.modifier == "unverified"
+    assert dirty.evidence_class == "unknown" and dirty.data is None
