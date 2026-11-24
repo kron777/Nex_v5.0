@@ -1,12 +1,12 @@
 """Reconciliation — check discovered obligations against the REAL repository,
 read-only, before any work is proposed (RDO spec v1.4 §13 step 5, §30).
 
-This is the step that stops the Extrapolator from recommending work that already
-exists. For each obligation with a known mechanism *signature*, the reconciler
-searches the actual tree: all signatures match -> `signature_matched`; some ->
-`partial`; none -> `missing`; unavailable scan/no signature -> `unknown`.
-A signature match is only a source anchor. `reuse_existing` is reserved for a
-separate semantic-satisfaction review.
+This step locates source anchors before work is proposed. For each obligation
+with a known mechanism *signature*, the reconciler searches the actual tree:
+all signatures match -> `signature_matched`; some -> `partial`; none ->
+`missing`; unavailable scan/no signature -> `unknown`. A signature match is
+only a source anchor. `reuse_existing` is reserved for a separate
+semantic-satisfaction review.
 
 It also deduplicates obligations and prunes *false dependencies*: a "must build X
 first" edge whose X already exists independently is not net-new work, and is
@@ -25,8 +25,8 @@ from .model import (MISSING, PARTIAL, RECON_UNKNOWN, REUSE_EXISTING, SIGNATURE_M
 
 @dataclasses.dataclass(frozen=True)
 class Signature:
-    """A grep pattern (optionally scoped to a path) that indicates a mechanism
-    exists. `required` signatures all matching => reuse_existing."""
+    """A grep pattern (optionally scoped to a path) that locates a source anchor.
+    All required signatures matching => signature_matched, not semantic reuse."""
     pattern: str
     path: Optional[str] = None
     label: str = ""
@@ -126,9 +126,8 @@ def dedup(obligations: List[Obligation]) -> Dict[str, Obligation]:
 
 def prune_false_dependencies(obligations: Dict[str, Obligation],
                              relationships: List[Relationship]) -> List[dict]:
-    """A `depends_on` edge whose target already exists (reuse_existing) is not
-    net-new work: reclassify it to `reuses` and record why. Returns the pruned
-    edges' notes."""
+    """Prune a dependency only when its target has an explicit semantic-review
+    record in addition to matched source evidence. Returns the pruned edge notes."""
     pruned: List[dict] = []
     for rel in relationships:
         if rel.kind != "depends_on":
