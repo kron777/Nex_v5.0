@@ -198,6 +198,34 @@ def test_learning_compare_and_series(tmp_path):
     assert "no acceleration" in series["trend_claim"]
 
 
+def test_cycle_metrics_reject_malformed_effort_and_zero_obligation_denominator():
+    from rdo.memory import cycle_metrics, metrics_series
+
+    empty = CycleRecord("empty", "empty objective", obligations=[])
+    metrics = cycle_metrics(empty)
+    assert metrics["obligations_discovered"] == 0
+    assert metrics["duplicate_discovery_rate"] is None
+    assert metrics["reconciliation_status_coverage"] is None
+
+    with pytest.raises(ValueError):
+        CycleRecord("bad-kind", "bad", kind="executed-ish")
+    with pytest.raises(ValueError):
+        record_actual(empty, {"missed": [], "unnecessary": [],
+                              "reuse_wrong": [], "regressions": [],
+                              "effort_actual": True})
+    with pytest.raises(ValueError):
+        record_actual(empty, {"missed": "none"})
+
+    malformed = CycleRecord(
+        "malformed-effort", "test", kind="executed_verified",
+        actual={"missed": [], "unnecessary": [], "reuse_wrong": [],
+                "regressions": [], "effort_actual": "seven"},
+    )
+    series = metrics_series([malformed])
+    assert series["efficiency_eligible_cycles"] == 0
+    assert series["comparability"]["efficiency_comparison_pool"] == []
+
+
 def test_recognize_sufficiency_restrains_development():
     # The prioritiser must also fail closed when called directly, outside expand().
     unsupported = Obligation("unsupported", "unsupported reuse", "persistence",
