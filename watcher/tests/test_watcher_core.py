@@ -160,5 +160,5 @@ def test_runtime_graph_edges_have_scoped_source_and_test_evidence():
     # Bundled producer claims are narrowed to the evidence actually asserted.
     producer = next(edge for edge in source_edges
                     if edge.src == "beliefs.confidence")
-    assert producer.dst == "owned_belief_expectations"
+    assert producer.dst == "producers"
     assert "Internal-surprise" in producer.caveat
