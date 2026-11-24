@@ -230,3 +230,12 @@ A recursive tracked-tree spot check at source head 90b4ee4cd4dbee06abfdb54fc8f81
 ### Current update — DRAFT-033 (24 Nov 2026)
 
 **Metacognition event production has no demonstrated deduplication/decay lifecycle in the inspected chat path.** The chat route calls `tick()` per turn; the inspected boot/runtime path does not schedule `decay()`. The Phase 41 contradiction-rate and keystone-abandonment findings can remain true across multiple turns and have no per-type cooldown or already-open-event guard before `_write_event()`, so repeated unresolved rows are possible. GrooveSpotter repeats are separately tracked as DRAFT-032. Whether another maintenance caller exists outside the inspected path is UNKNOWN. No live row counts or target-host invocation history were examined.
+
+
+### Current update — DRAFT-034 (24 Nov 2026)
+
+**Throw-Net threshold return values do not gate queued sessions.** The TriggerDetector methods insert every qualifying gate-reject/gap-deflection event and return a boolean only when their same-topic threshold is reached. Both inspected callers ignore that boolean. The pending query selects all `fired=0` rows without checking `threshold_state` or an age cutoff, and the monitor processes every returned row when `NEX5_THROWNET=1`. Thus the documented 4/15-minute and 3/30-minute thresholds do not constrain which logged rows become sessions in the enabled monitor path. The monitor is explicitly retired by default; impact is conditional on the opt-in flag and queued rows. Existing trigger tests verify threshold booleans and that pending returns all unfired rows, but do not verify threshold-gated session eligibility. No host flag or live queue state was inspected. No correction authorised.
+
+### Current update — DRAFT-035 (24 Nov 2026; documentation/callsite discrepancy)
+
+**WorldBridge Phase A “log only” documentation is stale relative to the Fountain callsite.** The selector's module/class docs describe Phase A as no prompt modification and Phase B as future injection, but the generator receives the returned selections and appends them to its composition prompt; the selector is enabled in source and is called with `mark_injected=True`. Prompt assembly is therefore present in the inspected source. Whether the model attends to or acts on the selected content is not established. No runtime change authorised.
