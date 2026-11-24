@@ -127,3 +127,10 @@ Immediately before this documentation refresh, PR #49 head was 50a8b6adbeb2c722b
 ### Current update — DRAFT-024 (24 Nov 2026)
 
 The Reality Report and Crosswalk now record that api_chat passes an empty beliefs list to ToolCaller.should_use_tool() even after normal retrieval has assembled local belief context. This makes the documented factual web-fetch fallback eligible regardless of actual local retrieval. Intent may be a deliberate freshness policy; no correction is proposed before acceptance criteria are clarified.
+
+
+### Current update — DRAFT-025 (24 Nov 2026)
+
+**Stage 2 sense-poll cursor can advance after a swallowed pipeline exception.** The `_sense_poll_loop()` caller advances `last_id` and increments `_pipeline_runs` after every `run_pipeline()` call. The callee catches processing exceptions, records them and returns 0, which is indistinguishable to the caller from a legitimate no-match result. The cursor is periodically persisted, so a failed row may be replayed if the process restarts before a later cursor save, but can be skipped after the cursor advances past it. The pipeline also performs multiple independent log writes and mutates in-memory tree/membrane state before its final Stage F log write, so failure can leave partial effects. This is a source-confirmed processing/retry-accounting gap; no live failure or loss rate was observed. Whether the intended contract is at-most-once, retryable, or best-effort processing requires authoritative acceptance criteria before any remediation.
+
+A related but distinct Stage 2 distillation policy is recorded in the Crosswalk and Reality Report: the loop caps new belief writes at five per pass while advancing its cursor through the fetched batch, which means later candidate rows in that batch are not revisited. The source comment describes this as the intended cap boundary; its alignment with approved policy remains unresolved and is not assigned a defect severity here.
