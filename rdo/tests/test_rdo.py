@@ -208,7 +208,9 @@ def test_demo_cycle_against_real_repo(tmp_path):
         assert k in res
     assert res["5_verification"]["all_signature_matches_have_file_evidence"] is True
     assert res["2_signature_matches_located"], "should locate configured source signatures"
-    assert all(w["eligibility"] == "blocked" for w in res["4_recommended_work"])
+    blockers = [b for w in res["4_recommended_work"] for b in w["blockers"]]
+    assert any("preregistered" in b for b in blockers)
+    assert any("host-only" in b for b in blockers)
     audit = res["optimal_functional_tension"]["signal_authority_audit"]
     assert audit["consumer_count"] >= 4
     # authority is assessed by relationship, not count: behavioural < total, and the
@@ -226,7 +228,8 @@ def test_defect_pattern_generalises_and_metrics(tmp_path):
     cycles = res["cycles"]
     assert len(cycles) == 3  # genius + migration_defect + affinity_drift
     defect = cycles["migration_defect (defect-remediation pattern)"]
-    # the defect cycle reconciles applied fixes as reuse...
+    # the defect cycle locates source signatures for applied fixes; semantic
+    # satisfaction remains unreviewed, so these are surfaced for review.
     assert any("fix" in r for r in defect["2_signature_matches_located"])
     # Regression-test obligations must be accounted for exactly once, and a
     # reuse claim must expose the specific test declaration that supports it.
@@ -375,7 +378,7 @@ def test_reconciliation_distinguishes_empty_scan_from_unavailable(tmp_path, monk
     monkeypatch.undo()
     sql_ob = Obligation("sql", "SQL evidence", "schema")
     assert recon.reconcile(sql_ob, str(tmp_path),
-                           [Signature("CREATE TABLE evidence_marker", "schema.sql")]) == REUSE_EXISTING
+                           [Signature("CREATE TABLE evidence_marker", "schema.sql")]) == "signature_matched"
 
     ob = Obligation("partial-scan", "partial scan", "daemon")
     monkeypatch.setattr(recon.subprocess, "run",
@@ -395,9 +398,10 @@ def test_reconciliation_distinguishes_empty_scan_from_unavailable(tmp_path, monk
 
 
 def test_system_readiness_does_not_promote_partial_or_unknown():
-    from rdo.model import TENSION_UNKNOWN, UNDERDEVELOPED, SUFFICIENT
+    from rdo.model import TENSION_UNKNOWN, UNDERDEVELOPED, SUFFICIENT, SIGNATURE_MATCHED
     for status, expected in ((MISSING, UNDERDEVELOPED), (PARTIAL, UNDERDEVELOPED),
                              (RECON_UNKNOWN, TENSION_UNKNOWN),
+                             (SIGNATURE_MATCHED, TENSION_UNKNOWN),
                              (REUSE_EXISTING, TENSION_UNKNOWN)):
         obs = {"required": Obligation("required", "required", "test",
                                       recon_status=status)}
