@@ -1577,3 +1577,16 @@ The following index consolidates the source paths identified so far. It is a nav
 The index reconciles several apparent contradictions: “Fountain excludes internal streams” is true only for its specific non-internal SQL readers, not for WorldBridge or the optional SELF layer; “MetaAwareness is unused” is true only of the inspected SelfModel snapshot mapping, not of WorldBridge's conditional prompt formatting; and Stage 2 attention, belief distillation and cadence derivation are separate consumers with different inclusion and persistence rules.
 
 Remaining closure work: verify the complete repository-wide reader/writer census (including dynamic imports, direct SQLite connections, helpers and non-obvious table aliases), reconcile every faculty edge against the governing architecture documents, and distinguish source presence from target-host activation and causal influence. The current map remains bounded and provisional.
+
+
+### WorldBridge write-path / One-Pen Rule reconciliation — 24 Nov 2026
+
+A further check against the repository's governing technical specification found a concrete storage-boundary discrepancy:
+
+- SPECIFICATION.md §8 states that each database has exactly one writer thread, all writes submit to the single writer queue, and no code acquires a write lock directly. Its “non-negotiable” rules section further states that every write goes through the queue and direct DB writes are bugs.
+- WorldBridgeSelector imports substrate.connect and uses a fresh ordinary connection to the beliefs database inside _log_selection(), executing an INSERT into world_bridge_log directly. It is not passed the beliefs Writer. This is not a read-only connection and does not route the insert through the Writer queue.
+- The boot path constructs WorldBridgeSelector and passes it into Fountain; Fountain invokes select_and_log() in prompt construction. Therefore the direct-write method is reachable on the inspected source path, subject to the selector and Fountain path executing.
+- The existing test_sense.py one-pen ratchet searches for the literal “import sqlite3” outside substrate. A module using “from substrate import connect” and issuing INSERT is outside the coverage of that specific grep assertion; this observation does not establish that no other guard or test covers it.
+- This is source-confirmed divergence from the inspected SPECIFICATION.md contract. Whether there is a later approved exception or superseding authority has not been established. No contention event or live impact is claimed, and no remediation is authorised by this audit.
+
+Source anchors at current PR #49 source revision: SPECIFICATION.md §8 and the non-negotiable rules; theory_x/world_bridge/selector.py (_log_selection); run.py (selector construction); theory_x/stage6_fountain/generator.py (selector call and prompt assembly); tests/test_sense.py (literal import scan). This should be reconciled with the Frozen V2.1 authority before any implementation change.
