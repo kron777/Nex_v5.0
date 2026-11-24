@@ -81,7 +81,7 @@ def host_requests() -> List[HostRequest]:
                 "[ -f \"$cwd/run.py\" ] && [ -f \"$cwd/substrate/paths.py\" ] || continue; "
                 "printf 'candidate_pid=%s cwd=%s exe=' \"$pid\" \"$cwd\"; "
                 "readlink -f \"/proc/$pid/exe\" 2>/dev/null || true; done",
-                "# No git fetch is performed. The divergence count is relative to the "
+                "# No remote ref refresh is performed. The divergence count is relative to the "
                 "existing local origin/main tracking ref and may be stale.",
             ],
         ),
