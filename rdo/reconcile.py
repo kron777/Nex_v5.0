@@ -34,16 +34,17 @@ class Signature:
 def _grep(pattern: str, repo_dir: str, path: Optional[str], max_hits: int = 3) -> Optional[List[str]]:
     """Return matches, [] for a successful no-match, or None when the scan is unavailable.
 
-    GNU grep uses exit 1 for a complete no-match and 2+ for errors. In particular,
-    partial stdout from a failing scan is never accepted as complete evidence.
+    GNU grep uses exit 1 for a complete no-match and 2+ for errors. The scan
+    searches all text-readable file types (-I skips binary files), rather than a
+    hard-coded extension allowlist. Partial stdout from a failing scan is never
+    accepted as complete evidence.
     """
     target = os.path.join(repo_dir, path) if path else repo_dir
     if not os.path.exists(target):
         return None
     try:
         res = subprocess.run(
-            ["grep", "-rnI", "-E", pattern, "--include=*.py", "--include=*.md",
-             "--include=*.json", "--exclude-dir=__pycache__", "--exclude-dir=.git",
+            ["grep", "-rnI", "-E", pattern, "--exclude-dir=__pycache__", "--exclude-dir=.git",
              "--exclude-dir=.venv", target],
             capture_output=True, text=True, timeout=30,
         )
