@@ -62,8 +62,9 @@ def test_ledger_seed_from_graph_keeps_runtime_unclaimed(tmp_path):
     # a test_verified edge reaches TEST_PASSED; nothing reaches RUNTIME_OBSERVED (STANDBY)
     assert states["reconciler->beliefs.confidence"] == "TEST_PASSED"
     assert "RUNTIME_OBSERVED" not in states.values()
-    # a hypothesis edge only gets DECLARED (not source_confirmed)
-    assert states["affect_state->chat_assembly"] == "DECLARED"
+    # the scoped prompt-content relationship is source-confirmed, but remains
+    # untested and unobserved at runtime; the broader feedback loop is still a hypothesis.
+    assert states["affect_state->chat_assembly"] == "SOURCE_CONFIRMED"
 
 
 # ---- regression detection ----
