@@ -310,3 +310,122 @@ def test_rdo_self_assessment_lean_and_independent():
     assert r["reuses_watcher_infrastructure"] is True
     assert r["module_count"] <= 12
     assert not any(f["verdict"] == "VIOLATION" for f in r["findings"])
+
+# ---- correction regressions: evidence availability and downstream interpretation ----
+
+def test_reconciliation_distinguishes_empty_scan_from_unavailable(tmp_path, monkeypatch):
+    import subprocess
+    from types import SimpleNamespace
+    import rdo.reconcile as recon
+
+    ob = Obligation("empty", "empty", "daemon")
+    monkeypatch.setattr(recon.subprocess, "run",
+                        lambda *a, **k: SimpleNamespace(returncode=1, stdout="", stderr=""))
+    assert recon.reconcile(ob, str(tmp_path),
+                           [Signature("not_present", None, "empty")]) == MISSING
+
+    ob = Obligation("partial-scan", "partial scan", "daemon")
+    monkeypatch.setattr(recon.subprocess, "run",
+                        lambda *a, **k: SimpleNamespace(returncode=2, stdout="x.py:1:match\n", stderr="read error"))
+    assert recon.reconcile(ob, str(tmp_path),
+                           [Signature("match", None, "scan")]) == RECON_UNKNOWN
+    assert ob.confidence == "inferred"
+
+    ob = Obligation("missing-path", "missing path", "daemon")
+    assert recon.reconcile(ob, str(tmp_path), [Signature("x", "absent.py")]) == RECON_UNKNOWN
+
+    def timeout(*a, **k):
+        raise subprocess.TimeoutExpired("grep", 30)
+    monkeypatch.setattr(recon.subprocess, "run", timeout)
+    ob = Obligation("timeout", "timeout", "daemon")
+    assert recon.reconcile(ob, str(tmp_path), [Signature("x")]) == RECON_UNKNOWN
+
+
+def test_system_readiness_does_not_promote_partial_or_unknown():
+    from rdo.model import TENSION_UNKNOWN, UNDERDEVELOPED, SUFFICIENT
+    for status, expected in ((MISSING, UNDERDEVELOPED), (PARTIAL, UNDERDEVELOPED),
+                             (RECON_UNKNOWN, TENSION_UNKNOWN),
+                             (REUSE_EXISTING, SUFFICIENT)):
+        obs = {"required": Obligation("required", "required", "test",
+                                      recon_status=status)}
+        readiness = next(t for t in assess_system(obs, []). if t.subject == "integration_readiness")
+        assert readiness.verdict == expected
+    mixed = {"partial": Obligation("partial", "p", "test", recon_status=PARTIAL),
+             "unknown": Obligation("unknown", "u", "test", recon_status=RECON_UNKNOWN)}
+    readiness = next(t for t in assess_system(mixed, []). if t.subject == "integration_readiness")
+    assert readiness.verdict == UNDERDEVELOPED
+
+
+def test_unresolved_dependency_blocks_dependent_but_remains_investigable():
+    from rdo.model import RECON_UNKNOWN
+    for status in (MISSING, PARTIAL, RECON_UNKNOWN):
+        target = Obligation("target", "target", "test", recon_status=status)
+        work = Obligation("feature", "feature", "test", recon_status=MISSING)
+        obs = {"target": target, "feature": work}
+        rels = [Relationship("feature", "target", "depends_on")]
+        assert eligibility(work, obs, rels)["eligibility"] == "blocked"
+        assert eligibility(target, obs, rels)["eligibility"] == "eligible"
+        packages = {p.key: p for p in build_work_packages(obs, rels)}
+        assert packages["wp:feature"].eligibility == "blocked"
+        assert "target" in packages["wp:target"].obligation_keys
+    dangling = Obligation("feature", "feature", "test", recon_status=MISSING)
+    assert eligibility(dangling, {"feature": dangling},
+                       [Relationship("feature", "absent", "depends_on")])["eligibility"] == "blocked"
+
+
+def test_pattern_memory_provenance_replay_is_idempotent_and_merges_origins(tmp_path):
+    mem = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    first = Pattern("lesson", "statement", "cycle:one", confidence=0.3)
+    mem.add(first)
+    initial = mem.patterns()[0]
+    mem.add(Pattern("lesson", "statement", "cycle:one", confidence=0.3))
+    assert initial.observed_count == 1 and initial.confidence == 0.3
+    mem.add(Pattern("lesson", "statement", "cycle:two", confidence=0.3))
+    assert initial.observed_count == 2
+    assert initial.provenance == "cycle:one; cycle:two"
+    reopened = PatternMemory(str(tmp_path / "patterns.jsonl")).patterns()[0]
+    assert reopened.observed_count == 2 and reopened.provenance == initial.provenance
+
+
+def test_arc_closers_execution_derives_lessons_once(tmp_path, monkeypatch):
+    import rdo.orchestrator as orch
+    calls = []
+    monkeypatch.setattr(orch, "derive_lessons", lambda c, d: calls.append(c.id) or [])
+    orch.record_arc_closers_execution(CycleStore(str(tmp_path / "cycles")),
+                                      PatternMemory(str(tmp_path / "patterns.jsonl")))
+    assert calls == ["arc_closers_regtest_2026-11"]
+
+
+def test_catalogue_replay_does_not_inflate_learning_counts(tmp_path):
+    from rdo.orchestrator import run_catalogue
+    workdir = str(tmp_path / "catalogue")
+    run_catalogue(repo_dir=".", workdir=workdir)
+    first = {p.key: (p.observed_count, p.confidence, p.provenance)
+             for p in PatternMemory(str(tmp_path / "catalogue" / "patterns.jsonl")).patterns()}
+    run_catalogue(repo_dir=".", workdir=workdir)
+    second = {p.key: (p.observed_count, p.confidence, p.provenance)
+              for p in PatternMemory(str(tmp_path / "catalogue" / "patterns.jsonl")).patterns()}
+    assert second == first
+
+
+def test_merged_seed_provenance_remains_domain_specific():
+    from rdo.extrapolator import classify_scope
+    assert classify_scope({"classification": NECESSARY,
+                           "provenance": "seed; expansion_rule:persistence->schema",
+                           "kind": "schema"}) == "domain_specific"
+
+
+def test_metrics_keep_predicted_and_actual_effort_separate():
+    from rdo.memory import cycle_metrics, metrics_series
+    pending = CycleRecord(id="pending", objective="o", predicted={"effort": 7})
+    empty_actual = CycleRecord(id="empty", objective="o", predicted={"effort": 8}, actual={})
+    recorded = CycleRecord(id="recorded", objective="o", predicted={"effort": 9},
+                           actual={"effort_actual": 4})
+    assert cycle_metrics(pending)["engineering_effort"] is None
+    assert cycle_metrics(pending)["predicted_effort"] == 7
+    assert cycle_metrics(empty_actual)["engineering_effort"] is None
+    assert cycle_metrics(empty_actual)["predicted_effort"] == 8
+    assert cycle_metrics(recorded)["engineering_effort"] == 4
+    series = metrics_series([pending, empty_actual, recorded])
+    assert set(series["measure_keys"]) == set(series["denominators"])
+    assert len(series["measure_keys"]) == 8
