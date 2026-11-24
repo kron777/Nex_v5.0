@@ -131,7 +131,7 @@ def assess_system(obligations: Dict[str, Obligation],
         evidence=evidence[:10],
         note=(f"{len(missing_nec)} necessary obligation(s) missing or partial; {len(unknown_nec)} unknown"
               if missing_nec or unknown_nec
-              else "all necessary obligations reconcile to existing mechanisms"))
+              else "all necessary obligations reconcile to existing mechanisms")))
     return out
 
 
