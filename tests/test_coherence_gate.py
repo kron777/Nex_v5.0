@@ -718,3 +718,37 @@ class TestGateSubstrateReadFailure(unittest.TestCase):
         ).check(packet)
         self.assertEqual(failed.outcome, GateOutcome.ACCEPT)
         self.assertEqual(failed.reason, "accept:novel_no_conflict")
+
+    def test_goal_read_failure_removes_positive_goal_connection_reason(self):
+        from theory_x.stage_gate.coherence_gate import GateOutcome, ThoughtPacket
+        _seed_goal(self.writers, "support open source architecture")
+        packet = ThoughtPacket(
+            content="Support open source architecture through careful design.",
+            source_node="phase0_goal_connection_fixture",
+            confidence=0.7,
+        )
+        normal = _make_gate(self.writers, self.readers).check(packet)
+        self.assertEqual(normal.outcome, GateOutcome.ACCEPT)
+        self.assertIn("accept:novel_connects_goal_", normal.reason)
+        failed = self._gate_with_selective_failure(
+            "conversations", "FROM goals"
+        ).check(packet)
+        self.assertEqual(failed.outcome, GateOutcome.ACCEPT)
+        self.assertEqual(failed.reason, "accept:novel_no_conflict")
+
+    def test_problem_read_failure_removes_positive_problem_connection_reason(self):
+        from theory_x.stage_gate.coherence_gate import GateOutcome, ThoughtPacket
+        _seed_problem(self.writers, "maintain robust memory continuity")
+        packet = ThoughtPacket(
+            content="Maintain robust memory continuity through careful design.",
+            source_node="phase0_problem_connection_fixture",
+            confidence=0.7,
+        )
+        normal = _make_gate(self.writers, self.readers).check(packet)
+        self.assertEqual(normal.outcome, GateOutcome.ACCEPT)
+        self.assertIn("accept:novel_connects_problem_", normal.reason)
+        failed = self._gate_with_selective_failure(
+            "conversations", "FROM open_problems"
+        ).check(packet)
+        self.assertEqual(failed.outcome, GateOutcome.ACCEPT)
+        self.assertEqual(failed.reason, "accept:novel_no_conflict")
