@@ -180,6 +180,8 @@ def expand(seeds: List[Obligation],
                 ob.recon_evidence and ob.confidence == "measured" and
                 ob.recon_semantic_verified):
             ob.recon_status = RECON_UNKNOWN
+            ob.recon_evidence = []
+            ob.recon_semantic_verified = False
             ob.confidence = "inferred"
             ob.note = (ob.note + " ; unsupported reuse label downgraded to unknown").strip(" ;")
 
