@@ -20,7 +20,7 @@ from .knowledge import affinity_drift_idea, genius_tagger_idea, migration_defect
 from .memory import (CycleStore, PatternMemory, accuracy_series, compare,
                      derive_lessons, metrics_series, record_actual)
 from .model import (ANTI_REQUIREMENT, EXECUTED_VERIFIED, IMPORTED_RETROSPECTIVE, MISSING,
-                    PARTIAL, REUSE_EXISTING, CycleRecord, Obligation, Pattern)
+                    PARTIAL, REUSE_EXISTING, SIGNATURE_MATCHED, CycleRecord, Obligation, Pattern)
 from .reconcile import Signature
 
 
@@ -50,15 +50,21 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
 
     recon_buckets = recon_mod.summarize(obligations)
     reused = recon_buckets.get(REUSE_EXISTING, [])
+    signature_matches = recon_buckets.get(SIGNATURE_MATCHED, [])
     missing = recon_buckets.get(MISSING, []) + recon_buckets.get(PARTIAL, [])
     anti = [o.key for o in obligations.values() if o.classification == ANTI_REQUIREMENT]
     uncertainties = [f["key"] + ": " + f["reason"] for f in frontier
-                     if "no reconciliation" in f["reason"] or "max_depth" in f["reason"]]
+                     if ("no reconciliation" in f["reason"] or "max_depth" in f["reason"]
+                         or "semantic satisfaction unreviewed" in f["reason"]
+                         or "lacks semantic-review evidence" in f["reason"]) ]
 
     # VERIFICATION — every reuse claim must be backed by real evidence
     backed = [k for k in reused if obligations[k].recon_evidence]
     verification = {
         "reuse_claims": len(reused),
+        "signature_matches": len(signature_matches),
+        "signature_matches_backed_by_file_evidence": sum(
+            1 for k in signature_matches if obligations[k].recon_evidence),
         "reuse_claims_backed_by_file_evidence": len(backed),
         "all_reuse_claims_have_file_evidence": len(backed) == len(reused),
         "net_new_work_packages": sum(1 for p in packages),
@@ -68,16 +74,18 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
 
     predicted = {
         "reused_count": len(reused),
-        "net_new_count": len(missing),
-        "effort": len(missing),  # 1 unit ~= one obligation to build (uncalibrated count)
-        "note": "effort units are uncalibrated counts, not hours",
+        "signature_matches_requiring_semantic_review": len(signature_matches),
+        "net_new_count": len(missing) + len(signature_matches),
+        "effort": len(missing) + len(signature_matches),
+        "note": "uncalibrated obligation count including semantic-review work; not hours",
     }
 
     cycle = CycleRecord(
         id=cycle_id, objective=objective, assumptions=assumptions,
         obligations=[o.to_dict() for o in obligations.values()],
         relationships=[r.to_dict() for r in relationships],
-        reused=reused, missing=missing, anti_requirements=anti,
+        reused=reused, signature_matches=signature_matches, missing=missing,
+        anti_requirements=anti,
         uncertainties=uncertainties + [f"applied_patterns={applied}"],
         tension=[t.to_dict() for t in (node_t + rel_t + sys_t)],
         work_packages=[p.to_dict() for p in packages],
@@ -87,6 +95,7 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
         "objective": objective,
         "discovered": len(obligations),
         "reused": reused,
+        "signature_matches": signature_matches,
         "rejected_or_deferred": anti + [f["key"] for f in frontier
                                         if "already satisfied" in f["reason"]],
         "recommended_work": [{"package": p.key, "eligibility": p.eligibility,
@@ -242,7 +251,8 @@ def _six_outputs(cycle, summary, memory, learning) -> dict:
              "evidence": o["recon_evidence"]}
             for o in cycle.obligations
         ],
-        "2_signature_matches_located": summary["reused"],
+        "2_signature_matches_located": summary["signature_matches"],
+        "2_semantically_reviewed_reuse": summary["reused"],
         "3_rejected_or_deferred": summary["rejected_or_deferred"],
         "4_recommended_work": summary["recommended_work"],
         "5_verification": summary["verification"],
