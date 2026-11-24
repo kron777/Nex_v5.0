@@ -190,7 +190,7 @@ def host_requests() -> List[HostRequest]:
             "before and after hashing. run.py passes the runtime data directory to "
             "StateSnapshotWriter, so state_snapshot.json is beside the DBs. The separate "
             "scripts/snapshot.py archive is under the verified checkout snapshots/ directory. "
-            "If roots cannot be established from the verified process/configuration, do not "
+            "If roots cannot be established from the verified NEX process or checkout configuration, do not "
             "guess or scan home; leave fingerprints UNKNOWN. No row counts, DB contents or "
             "file copies.",
             [
