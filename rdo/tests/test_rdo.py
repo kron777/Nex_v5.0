@@ -176,6 +176,12 @@ def test_learning_compare_and_series(tmp_path):
 
 
 def test_recognize_sufficiency_restrains_development():
+    # The prioritiser must also fail closed when called directly, outside expand().
+    unsupported = Obligation("unsupported", "unsupported reuse", "persistence",
+                              recon_status=REUSE_EXISTING)
+    direct_packages = build_work_packages({"unsupported": unsupported}, [])
+    assert direct_packages and "unsupported" in direct_packages[0].obligation_keys
+
     obs = {"built": Obligation("built", "b", "persistence", recon_status=REUSE_EXISTING,
                                recon_evidence=["src.py:1"], confidence="measured",
                                recon_semantic_verified=True,
