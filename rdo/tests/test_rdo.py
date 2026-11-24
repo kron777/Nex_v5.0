@@ -46,7 +46,8 @@ def test_duplicate_discovery_merges():
 def test_false_dependency_is_pruned():
     tgt = Obligation("db", "db", "persistence", recon_status=REUSE_EXISTING,
                      recon_evidence=["substrate/init_db.py:1"], confidence="measured",
-                     recon_semantic_verified=True)
+                     recon_semantic_verified=True,
+                     recon_semantic_review_evidence=["manual review: obligation scope checked"])
     src = Obligation("feature", "feature", "consumer")
     obs = {"db": tgt, "feature": src}
     rels = [Relationship("feature", "db", "depends_on")]
@@ -71,6 +72,7 @@ def test_over_expansion_stopped_by_reuse():
         ob.recon_evidence = ["store.py:1"]
         ob.confidence = "measured"
         ob.recon_semantic_verified = True
+        ob.recon_semantic_review_evidence = ["manual review: persistence contract checked"]
         return REUSE_EXISTING
     obs, _, frontier = expand(seeds, reconcile_fn=reviewed_reuse, max_depth=4)
     assert set(obs) == {"store"}                                 # not expanded
@@ -393,6 +395,7 @@ def test_reconciliation_distinguishes_empty_scan_from_unavailable(tmp_path, monk
     assert recon.reconcile(stale_review, str(tmp_path),
                            [Signature("not_present_now")]) == MISSING
     assert stale_review.recon_semantic_verified is False
+    assert stale_review.recon_semantic_review_evidence == []
     assert stale_review.recon_evidence == []
 
     ob = Obligation("partial-scan", "partial scan", "daemon")
