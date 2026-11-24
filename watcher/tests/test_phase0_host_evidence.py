@@ -90,6 +90,7 @@ def test_checkout_and_process_requests_are_redacted_and_fail_closed():
     assert "PYTHONHOME" in runtime
     assert "NEX5_DATA_DIR" in runtime
     assert "NEX5_VOICE_ENDPOINT_ORIGIN" in runtime
+    assert "process_candidates=NONE_AFTER_FILTER" in runtime
     assert "NEX5_VOICE_MODEL" in runtime
     assert "systemctl --user show-environment" in runtime
     assert "user_manager=AVAILABLE" in runtime
