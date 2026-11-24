@@ -205,3 +205,8 @@ The selector's formatter explicitly converts internal.temporal, internal.meta_aw
 ### DRAFT-030 test-inventory qualification — 24 Nov 2026
 
 A recursive tracked-tree spot check at source head 90b4ee4cd4dbee06abfdb54fc8f8111264259831 found no dedicated tests/test_world_bridge*.py module. The inspected tests/test_fountain.py does not reference WorldBridgeSelector/select_and_log/world_bridge_log. tests/test_probe_snapshot.py does explicitly test feed_activity grouping and window behavior. This narrows the evidence to direct snapshot fixture coverage and no dedicated selector test module; it is not a claim that no WorldBridge assertion exists anywhere in the suite.
+
+
+### Current update — DRAFT-029 (24 Nov 2026)
+
+**BehaviouralSelfModel belief-usage metric inspects response text, not prompt injection.** `BehaviouralSelfModel.observe()` reads the last 100 stored role=`nex` message contents and increments `belief_usage_count` when a generated reply contains `her current beliefs` or `[tier`. The GUI stores the sanitized assistant response in that role; the retrieved belief block is assembled into the system prompt before generation and separately captured as `_retrieved_belief_text`. The metric therefore does not directly measure whether the belief block was injected into the prompt and may undercount or incidentally count. This value is compared to a seeded expectation and may generate a Tier 6 behavioural-observation belief. Runtime magnitude and resulting belief impact are UNKNOWN. If the intended measure is literal prompt inclusion, the current source path does not measure it; acceptance intent must be confirmed before any correction.
