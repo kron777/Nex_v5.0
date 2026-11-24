@@ -22,11 +22,12 @@ CLASSIFICATIONS = (NECESSARY, CONDITIONAL, OPTIONAL, FUTURE, HYPOTHESIS, UNKNOWN
                    ANTI_REQUIREMENT)
 
 # ---- reconciliation outcome (vs the real codebase) ----
-REUSE_EXISTING = "reuse_existing"   # all configured signatures matched; semantic satisfaction is separate
+SIGNATURE_MATCHED = "signature_matched"  # configured source signatures matched; not semantic satisfaction
+REUSE_EXISTING = "reuse_existing"   # semantic satisfaction separately reviewed
 PARTIAL = "partial"                 # some evidence, not complete
 MISSING = "missing"                 # no mechanism found
 RECON_UNKNOWN = "unknown"           # no signature to check -> honest inference
-RECON_STATES = (REUSE_EXISTING, PARTIAL, MISSING, RECON_UNKNOWN)
+RECON_STATES = (SIGNATURE_MATCHED, REUSE_EXISTING, PARTIAL, MISSING, RECON_UNKNOWN)
 
 # ---- functional-tension verdicts (OFT) ----
 UNDERDEVELOPED = "underdeveloped"
