@@ -226,6 +226,13 @@ def test_cycle_metrics_reject_malformed_effort_and_zero_obligation_denominator()
     assert series["efficiency_eligible_cycles"] == 0
     assert series["comparability"]["efficiency_comparison_pool"] == []
 
+    bad_counts = CycleRecord(
+        "bad-counts", "test", obligations=[],
+        verification={"signature_matches": True,
+                      "signature_matches_backed_by_file_evidence": 1},
+    )
+    assert cycle_metrics(bad_counts)["signature_matches"] is None
+
 
 def test_recognize_sufficiency_restrains_development():
     # The prioritiser must also fail closed when called directly, outside expand().
