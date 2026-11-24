@@ -32,8 +32,9 @@ WORK PACKAGE → VERIFICATION → (persist) → LEARN
 - **Expansion** (`extrapolator.py`) — a small seed of obligations expands via
   generic engineering rules (a persistence obligation implies a schema, a write
   path, provenance, a test…). Recursion is **bounded**: depth cap, terminal
-  kinds, and — crucially — an obligation already satisfied by a real mechanism is
-  **not** expanded. Convergent branches merge; every stop records its reason.
+  kinds, and — crucially — a source-signature match alone does **not** stop
+  expansion. Expansion stops only after explicit semantic-satisfaction review.
+  Convergent branches merge; every stop records its reason.
 - **Reconciliation** (`reconcile.py`) — each obligation with a *signature* is
   checked against text-readable files in the **actual tree** (read-only grep):
   all configured signatures match → `reuse_existing` (meaning *signature match
@@ -41,8 +42,8 @@ WORK PACKAGE → VERIFICATION → (persist) → LEARN
   scan → `missing`; unavailable scan/no signature → `unknown`. A signature hit
   is a source anchor, not proof that the full obligation is satisfied. Necessary
   obligations remain readiness-unknown until a separate semantic review is
-  explicitly recorded. It also prunes candidate *false dependencies* based on
-  signature matches; those are not independently validated as satisfied.
+  explicitly recorded. Candidate dependency pruning also requires that separate
+  semantic review; signature matches alone do not remove prerequisite work.
 - **Optimal Functional Tension** (`tension.py`) — node / relationship / system
   assessment. Not a single score: every verdict is evidence-backed or explicitly
   marked `inference`. It also **recognises when further development is not
@@ -97,24 +98,24 @@ point is reconciliation against HEAD. The cycle finds:
    `genius_tags` read). These matches locate relevant source; they do not by
    themselves establish that each complete API, UI, calibration or consumer
    obligation is semantically satisfied.
-3. **Rejected / deferred** — rebuilding any of the above, plus two explicit
-   anti-requirements (no second score; no duplicate tags store).
-4. **Recommended work** — only the genuinely-missing **retrieval consumer** (with
-   its `bounded_influence` / `reversibility` / `gate` sub-obligations) and
-   **runtime verification**. Both **blocked**: an active behavioural change needs a
-   preregistered gate, and runtime evidence is host-only while NEX is in STANDBY.
+3. **Anti-requirements retained** — no second score and no duplicate tags store.
+   Source-signature matches do not, by themselves, justify rejecting further
+   discovery or implementation work.
+4. **Recommended work** — the remaining obligation network is expanded
+   conservatively where semantic satisfaction has not been reviewed. Active
+   behavioural work remains subject to its preregistered gate; runtime verification
+   remains host-only while NEX is in STANDBY.
 5. **Evidence coverage** — each reported signature match has a file anchor.
    This is not semantic verification, test execution, or runtime verification.
-6. **Learned** — the stale-doc pattern (*planning docs and code docstrings older
-   than HEAD understate built state; reconcile first*), corroborated by the
-   just-completed Watcher cycle, and an OFT flag: the genius signal is consumed by
-   ~9 files → recommend an influence-authority review.
+6. **Learned** — candidate patterns retain their recorded provenance and are not
+   promoted to universal rules merely by repeated appearance. The influence-authority
+   review remains a source-based assessment, not a runtime finding.
 
 The bounded result: the May-2026 proposal has several **source signature matches**
-   in the current tree. Those matches suggest where relevant mechanisms may exist;
-   they do not establish that the full tagger, API, score, panel or consumer
-   obligations are satisfied. The retrieval-consumer and runtime-verification
-   questions remain separately surfaced; no runtime behaviour is inferred.
+   in the current tree. Those matches identify locations for review; they do not
+   establish that the full tagger, API, score, panel or consumer obligations are
+   satisfied. The recursive expansion remains active unless a separate semantic
+   review is recorded; no runtime behaviour is inferred.
 
 ## Generalisation — three discovery cycles across two patterns
 
