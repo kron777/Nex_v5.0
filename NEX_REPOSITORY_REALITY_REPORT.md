@@ -1328,3 +1328,18 @@ A source-to-sink pass now identifies the following consumers of Stage 1 rows:
 - tests/test_interoception_fixes.py and tests/test_sense_extract.py provide isolated fixture coverage for portions of the SelfModel and Fountain paths. They do not demonstrate target-host execution or causal impact on a final output.
 
 This closes a bounded backward-consumer slice, not the full Stage 1 audit. Source presence and test coverage do not establish live row availability, call frequency, or row-level decision influence.
+
+
+### Stage 1 → Stage 2 ingestion audit — 24 Nov 2026
+
+Source inspection of the sense table schema, Stage 2 Dynamic loops and A–F pipeline establishes the following:
+
+- The `sense_events` table is append-only in the inspected schema shape (autoincrement id, stream, payload, provenance, timestamp); it has no per-consumer processing status or retry marker.
+- Stage 2's general `_sense_poll_loop()` reads all streams, including internal streams, in ascending id batches of 100. It invokes `run_pipeline()` and advances the cursor after the call without checking the returned hit count.
+- `run_pipeline()` catches exceptions internally, writes an error-channel record and returns 0. The caller cannot distinguish this error return from a legitimate zero-branch-match result, so it advances the in-memory cursor and counts the row as a pipeline run. The cursor is saved every 50 rows and on shutdown. Depending on when failure occurs relative to cursor persistence/restart, a failed row may be retried or may be passed permanently; no deployed loss rate is known.
+- The A–F pipeline is not atomic across its side effects. Each `pipeline_events` write is a separate synchronous Writer transaction; Stage F mutates tree and membrane state before its final event write. A later failure can therefore leave partial logs/state. No failure was injected and no live partial outcome is claimed.
+- The distinct sense-distillation loop excludes internal streams and `external.other_mind`, caps new belief writes at five per pass, but still advances the cursor through the full fetched batch after the cap. Later candidate rows in that batch are not reconsidered by this loop. The code comment explicitly describes the cap as limiting writes rather than cursor movement; whether this deliberate throughput policy is approved remains unresolved.
+
+The result is a materially different set of downstream semantics: general Stage 2 attention consumes all streams; belief distillation consumes a filtered subset with a write cap; Fountain's external context readers apply their own filtering. These are not interchangeable definitions of “Stage 1 data consumed.”
+
+Evidence level: source-confirmed control flow at the PR #49 evidence branch. Exposure, actual row counts, runtime errors, cursor values, and live effects remain UNKNOWN. No runtime, test, schema, flag, host or experiment changes were made.
