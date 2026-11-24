@@ -186,6 +186,60 @@ class TestCorroborationThreshold(unittest.TestCase):
         self.assertEqual(resolutions[0]["action"], "accepted")
 
 
+    def test_failed_promotion_write_still_marks_held_thought_accepted(self):
+        """Characterize the non-atomic promotion/resolution failure path."""
+        from theory_x.stage_gate.holding_zone import HoldingZone
+
+        held_content = (
+            "sustained attention crypto involves pattern recognition carefully always."
+        )
+        held_id = self.zone.hold(
+            _packet(held_content), "fixture:promotion_write_failure"
+        )
+        self.assertIsNotNone(held_id)
+
+        delegate = self.writers["beliefs"]
+
+        class PromotionFailingWriter:
+            def write(self, query, params=()):
+                if query.lstrip().lower().startswith("insert into beliefs"):
+                    raise RuntimeError("isolated fixture: promotion write unavailable")
+                return delegate.write(query, params)
+
+        failing_zone = HoldingZone(
+            PromotionFailingWriter(), self.readers["beliefs"]
+        )
+        resolver = _make_resolver(failing_zone, self.writers)
+        corroborating_packet = _packet(
+            "sustained attention crypto reveals pattern recognition emerging."
+        )
+
+        for _ in range(3):
+            resolver.on_gate_accept(corroborating_packet)
+            time.sleep(0.02)
+
+        held = self.readers["beliefs"].read_one(
+            "SELECT status, corroboration_count FROM held_thoughts WHERE id=?",
+            (held_id,),
+        )
+        self.assertEqual(held["corroboration_count"], 3)
+        self.assertEqual(held["status"], "accepted")
+
+        promoted = self.readers["beliefs"].read(
+            "SELECT id FROM beliefs WHERE content=?", (held_content,)
+        )
+        self.assertEqual(promoted, [])
+
+        resolution = self.readers["beliefs"].read_one(
+            "SELECT action, reason FROM held_resolutions WHERE held_id=?",
+            (held_id,),
+        )
+        self.assertEqual(resolution["action"], "accepted")
+        self.assertEqual(
+            resolution["reason"], "corroboration_threshold_3"
+        )
+
+
 class TestContradiction(unittest.TestCase):
 
     def setUp(self):
