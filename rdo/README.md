@@ -116,12 +116,13 @@ regression_test / migration / verification); reconciliation, OFT, prioritisation
 and learning applied unchanged. The result is genuinely different from the genius
 cycle: the `beliefs.content` fix is both applied **and guarded** (reused), while
 the `arc_closers` fix is applied but **unguarded** — so the RDO recommends a
-regression test, and this time the work is **eligible** (adding a test is not an
-active NEX behavioural change, unlike the gated genius consumer). The prioritiser distinguishes safe net-new work from work that needs a preregistered
-gate. That eligible item was then recorded as executed+verified
-(`tests/test_arc_closers_migration.py`). A third discovery cycle covers the separate
-`beliefs.affinity` migration-only schema-drift guard; its regression test is also
-recorded as executed+verified.
+regression test. The work remains surfaced, but its package is blocked while
+necessary prerequisite evidence is unresolved; unknown obligations remain
+investigable and are not treated as confirmed missing. This is distinct from the
+behavioural gate applied to the genius consumer. The historical
+`tests/test_arc_closers_migration.py` work is recorded as executed+verified. A third
+discovery cycle covers the separate `beliefs.affinity` migration-only schema-drift
+guard; its regression test is also recorded as executed+verified.
 
 Every obligation is scope-tagged — **general** (reusable engineering rule) /
 **domain-specific** (the idea's seeds) / **context-dependent** (conditional) /
