@@ -321,7 +321,7 @@ class TestContradiction(unittest.TestCase):
 
     def test_contradictory_accept_at_threshold_promotes_before_rejection_scan(self):
         """A packet matching both heuristics is processed as corroboration first."""
-        held_content = "I attend to the world with wonder and care always."
+        held_content = "I cultivate patient curiosity across unfamiliar systems and contexts."
         held_id = self.zone.hold(
             _packet(held_content), "fixture:corroboration_contradiction_overlap"
         )
@@ -331,7 +331,7 @@ class TestContradiction(unittest.TestCase):
         self.assertEqual(self.zone.increment_corroboration(held_id), 2)
 
         contradictory_packet = _packet(
-            "I do not attend to the world with wonder or care."
+            "I do not cultivate patient curiosity across unfamiliar systems or contexts."
         )
         # The same incoming packet satisfies both lexical predicates.
         self.assertEqual(
