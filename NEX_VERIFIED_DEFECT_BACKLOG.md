@@ -170,3 +170,12 @@ Before this backlog update, PR #49 head was 5e1d7515c6b42d643f65495c084047edc4c3
 ### DRAFT-027 test-coverage clarification — 24 Nov 2026
 
 The reviewed tests/test_sense.py does cover scheduler auto-start: test_starts_running_for_external asserts global_running and adapter enabled immediately after construction. It therefore corroborates the implemented auto-start behaviour and confirms that the paused-by-default package/scheduler prose is stale. However, teardown only calls scheduler.shutdown(), and the direct _AdapterThread test only calls stop(); neither waits for or asserts worker termination before Writer cleanup. The shutdown race remains without a corresponding join/order assertion.
+
+
+### Current update — DRAFT-030 (24 Nov 2026)
+
+**WorldBridge's documented Phase A boundary no longer matches the active Fountain prompt path.** The WorldBridge selector module/class docs describe Phase A as selection/logging only, with prompt injection deferred to Phase B. The inspected boot path constructs the selector and passes it to Fountain; Fountain calls select_and_log(mark_injected=True) and appends returned formatted selections to the active composition prompt. The selector is therefore a source-level prompt contributor, including eligible qualitative internal sense streams, not merely a diagnostic logger. This may represent an implementation advancement whose docs were not updated; whether it conflicts with the governing design/acceptance contract is unresolved. No severity or remediation is assigned.
+
+**DRAFT-030 test boundary:** tests/test_strikes.py covers feed_activity in the probe/strike context snapshot, not the WorldBridge selector-to-Fountain-prompt path. No WorldBridge integration test was established in this bounded review; this is not a claim that no such test exists anywhere. Source anchors: run.py, theory_x/world_bridge/selector.py, theory_x/stage6_fountain/generator.py and tests/test_strikes.py.
+
+The same source pass found context_snapshot.py reads sense_events for a feed_activity summary; ProbeRunner and StrikeProtocol persist that snapshot for probe/strike records. This is observational capture, not evidence of a Chat/Fountain cognition input.
