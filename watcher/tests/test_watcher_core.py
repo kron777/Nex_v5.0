@@ -1,6 +1,8 @@
 """Core Watcher behaviour: evidence schema, runtime graph + cycles, readers,
 registry, tool classification, provenance."""
+import ast
 import json
+import re
 
 import pytest
 
@@ -157,9 +159,45 @@ def test_runtime_graph_edges_have_scoped_source_and_test_evidence():
     repo_root = Path(__file__).resolve().parents[2]
     for edge in source_edges:
         for source_ref in edge.source_ref.split(";"):
-            source_path = source_ref.strip().split(":", 1)[0]
-            assert (repo_root / source_path).is_file(), (
-                f"source reference does not resolve: {source_ref}")
+            source_ref = source_ref.strip()
+            match = re.fullmatch(r"(.+?):(.+)", source_ref)
+            assert match, f"malformed source reference: {source_ref}"
+            source_path, spans = match.groups()
+            source_file = repo_root / source_path
+            assert source_file.is_file(), f"source reference does not resolve: {source_ref}"
+            line_count = len(source_file.read_text(encoding="utf-8").splitlines())
+            for span in spans.split(","):
+                span_match = re.fullmatch(r"(\d+)(?:-(\d+))?", span.strip())
+                assert span_match, f"malformed source line span: {source_ref}"
+                first = int(span_match.group(1))
+                last = int(span_match.group(2) or first)
+                assert 1 <= first <= last <= line_count, (
+                    f"source line span is outside file: {source_ref}")
+
+    def _test_node_exists(test_file, node_parts):
+        tree = ast.parse(test_file.read_text(encoding="utf-8"))
+        scope = tree.body
+        for part in node_parts:
+            # Ignore pytest parameter IDs; validate the underlying declared node.
+            part = part.split("[", 1)[0]
+            candidates = [n for n in scope if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                                               ast.ClassDef)) and n.name == part]
+            if not candidates:
+                return False
+            node = candidates[0]
+            scope = node.body if isinstance(node, ast.ClassDef) else []
+        return bool(node_parts)
+
+    for edge in source_edges:
+        if edge.test_verified:
+            for test_ref in edge.test_ref.split(";"):
+                test_ref = test_ref.strip()
+                parts = test_ref.split("::")
+                assert len(parts) >= 2 and all(parts), f"malformed test reference: {test_ref}"
+                test_file = repo_root / parts[0]
+                assert test_file.is_file(), f"test reference does not resolve: {test_ref}"
+                assert _test_node_exists(test_file, parts[1:]), (
+                    f"pytest node ID does not resolve to a declared test: {test_ref}")
     assert all(edge.runtime_observed is False for edge in graph.edges)
     # Test verification is an edge-specific claim, not a blanket graph assertion.
     assert all(edge.test_ref for edge in source_edges if edge.test_verified)
