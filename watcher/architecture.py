@@ -102,6 +102,12 @@ class RuntimeGraph:
         self.edges: List[Edge] = []
 
     def add(self, edge: Edge) -> None:
+        if edge.test_verified and not edge.test_ref:
+            raise ValueError("test_verified edges require a traceable test_ref")
+        if edge.test_verified and not edge.source_implemented:
+            raise ValueError("test_verified edges must also be source_implemented")
+        if edge.source_implemented and not edge.source_ref:
+            raise ValueError("source_implemented edges require a source_ref")
         self.nodes.add(edge.src)
         self.nodes.add(edge.dst)
         self.edges.append(edge)
