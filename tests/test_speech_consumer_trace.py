@@ -683,3 +683,129 @@ def test_speech_trace_on_off_preserves_database_and_processing_operations(
     assert on["final_status"] == off["final_status"] == "spoken"
     assert on["backend_calls"] == off["backend_calls"]
     assert on["player_calls"] == off["player_calls"]
+
+
+def _register_external_parent(trace_overlay, entity_ref):
+    producer = trace_overlay.begin_trace(
+        "fountain_cycle", source_ref="isolated_handoff_edge_test"
+    )
+    record_id = trace_overlay.record(
+        "output_queued",
+        producer="FountainCrystallizer.crystallize",
+        consumer="SpeechQueueConsumer",
+        source_ref="crystallizer.py::speech_queue_insert",
+        entity_ref=entity_ref,
+        outcome="queued",
+        parent_ids=[producer.start_record_id] if producer.start_record_id else [],
+    )
+    assert record_id
+    return producer, record_id
+
+
+def test_registration_failure_is_preserved_as_missing_parent(
+    monkeypatch, tmp_path
+):
+    path = _enable_trace(monkeypatch, tmp_path)
+    from substrate import trace_overlay
+
+    trace_overlay._EXTERNAL_PARENTS.clear()
+    entity_ref = "beliefs.speech_queue:5401"
+    producer, enqueue_id = _register_external_parent(trace_overlay, entity_ref)
+    # The queue insert/producer event exists, but the hand-off registration fails.
+    monkeypatch.setattr(trace_overlay, "link_entity", lambda *_args: False)
+
+    consumer = _consumer(monkeypatch)
+    consumer._speak_one({
+        "id": 5401, "belief_id": 141, "content": "A speakable sentence.",
+        "voice": "af_sarah",
+    })
+    trace_overlay.end_trace(producer, source_ref="isolated_handoff_edge_test")
+
+    rows = _events(path)
+    consumer_start = next(
+        row for row in rows
+        if row["event_type"] == "trace_start"
+        and row["entity_ref"] == entity_ref
+    )
+    assert enqueue_id
+    assert consumer_start["parent_ids"] == []
+    assert consumer_start["trace_id"] != next(
+        row for row in rows
+        if row["event_type"] == "output_queued"
+        and row["entity_ref"] == entity_ref
+    )["trace_id"]
+
+
+def test_registry_loss_or_process_restart_falls_back_to_unlinked_root(
+    monkeypatch, tmp_path
+):
+    path = _enable_trace(monkeypatch, tmp_path)
+    from substrate import trace_overlay
+
+    trace_overlay._EXTERNAL_PARENTS.clear()
+    entity_ref = "beliefs.speech_queue:5402"
+    producer, enqueue_id = _register_external_parent(trace_overlay, entity_ref)
+    assert trace_overlay.link_entity(entity_ref, enqueue_id)
+
+    # The registry is process-local. Clearing it models loss on restart before
+    # the consumer resumes a persisted pending queue row.
+    trace_overlay._EXTERNAL_PARENTS.clear()
+    consumer = _consumer(monkeypatch)
+    consumer._speak_one({
+        "id": 5402, "belief_id": 142, "content": "A speakable sentence.",
+        "voice": "af_sarah",
+    })
+    trace_overlay.end_trace(producer, source_ref="isolated_handoff_edge_test")
+
+    rows = _events(path)
+    consumer_start = next(
+        row for row in rows
+        if row["event_type"] == "trace_start"
+        and row["entity_ref"] == entity_ref
+    )
+    assert consumer_start["parent_ids"] == []
+    assert any(
+        row["event_type"] == "output_queued"
+        and row["record_id"] == enqueue_id
+        for row in rows
+    )
+
+
+def test_overlapping_consumers_do_not_invent_or_duplicate_parentage(
+    monkeypatch, tmp_path
+):
+    path = _enable_trace(monkeypatch, tmp_path)
+    from substrate import trace_overlay
+
+    trace_overlay._EXTERNAL_PARENTS.clear()
+    entity_ref = "beliefs.speech_queue:5403"
+    producer, enqueue_id = _register_external_parent(trace_overlay, entity_ref)
+    assert trace_overlay.link_entity(entity_ref, enqueue_id)
+
+    # Two consumers can observe the same pending identity. The registry pop is
+    # one-shot: at most one obtains the known producer edge; the other remains
+    # an explicitly unlinked root. This does not reserve or claim the queue row.
+    first = trace_overlay.begin_linked_trace(
+        "speech_queue_item", source_ref="consumer_one",
+        entity_ref=entity_ref, payload={"queue_id": 5403},
+    )
+    second = trace_overlay.begin_linked_trace(
+        "speech_queue_item", source_ref="consumer_two",
+        entity_ref=entity_ref, payload={"queue_id": 5403},
+    )
+    assert first is not None and second is not None
+    trace_overlay.end_trace(second, source_ref="consumer_two")
+    trace_overlay.end_trace(first, source_ref="consumer_one")
+    trace_overlay.end_trace(producer, source_ref="isolated_handoff_edge_test")
+
+    rows = _events(path)
+    starts = [
+        row for row in rows
+        if row["event_type"] == "trace_start"
+        and row["entity_ref"] == entity_ref
+        and row["trace_kind"] == "speech_queue_item"
+    ]
+    assert len(starts) == 2
+    assert sorted(row["parent_ids"] for row in starts) == sorted(
+        [[enqueue_id], []]
+    )
