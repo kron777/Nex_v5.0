@@ -239,3 +239,12 @@ A recursive tracked-tree spot check at source head 90b4ee4cd4dbee06abfdb54fc8f81
 ### Current update — DRAFT-035 (24 Nov 2026; documentation/callsite discrepancy)
 
 **WorldBridge Phase A “log only” documentation is stale relative to the Fountain callsite.** The selector's module/class docs describe Phase A as no prompt modification and Phase B as future injection, but the generator receives the returned selections and appends them to its composition prompt; the selector is enabled in source and is called with `mark_injected=True`. Prompt assembly is therefore present in the inspected source. Whether the model attends to or acts on the selected content is not established. No runtime change authorised.
+
+
+### Current update — DRAFT-036 (24 Nov 2026; activation/consumer gap)
+
+**Surprise-event promotion worker is not wired in the inspected main boot path.** PredictiveSubstrate writes flagged rows to dynamic.db `surprise_events`; `theory_x/life/surprise_loop.py` is the separate component that promotes eligible rows to Tier 6 beliefs with `source='surprise'`. Fountain's generator reads that belief source for its six-hour surprise prompt block. The inspected `run.py` starts PredictiveSubstrate but contains no reference to `surprise_loop` or `surprise_tick`. A separately managed external caller is not ruled out; host process inventory is unavailable. AffectState reads raw surprise rows directly, so its arousal path remains distinct. Existing inspected prediction tests verify raw event writes, not the promotion-to-Fountain chain. No runtime change authorised.
+
+### Current update — DRAFT-037 (24 Nov 2026; population-contract question)
+
+**External prediction verification includes internal sense events excluded from prediction construction.** `_predict_external()` forms its centroid from sense streams excluding `internal.%` plus user messages. `_verify_one()` for `external_input` later queries all sense events in the target window without that exclusion, then compares them with the predicted centroid. This permits internal telemetry to count as the actual external observation. The inspected verification tests do not assert the intended exclusion. Whether this is deliberate broader outcome scoring or a scope mismatch remains UNKNOWN; no threshold or code correction proposed.
