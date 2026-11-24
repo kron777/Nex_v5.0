@@ -13,7 +13,7 @@ import dataclasses
 import json
 from typing import Any, Dict, List
 
-from .evidence import Evidence, utc_now
+from .evidence import Evidence
 
 
 @dataclasses.dataclass(frozen=True)
@@ -111,7 +111,7 @@ def host_requests() -> List[HostRequest]:
             "environment metadata. Voice URL is redacted to origin only. No raw command line or broad environment dump. "
             "Candidates are not verified NEX processes until independently correlated with the service PID. "
             "Record matching service state and MainPID values, or explicit manager unavailability. "
-            "Do not read service unit contents or raw process arguments.",
+            "Do not read service unit contents or raw process arguments. Absolute paths can reveal usernames/data layout; redact before third-party sharing.",
             [
                 "ps -eo pid=,comm= | awk '$2 ~ /^python([0-9.]*)$/ {print $1}' | "
                 "while read -r pid; do "
@@ -210,6 +210,7 @@ def host_requests() -> List[HostRequest]:
                 "candidates = []\n"
                 "for proc in pathlib.Path(\"/proc\").iterdir():\n"
                 "    if not proc.name.isdigit():\n"
+                "    if proc.name == str(os.getpid()):\n"\n                "        continue\n"
                 "        continue\n"
                 "    try:\n"
                 "        if not re.fullmatch(r\"python[0-9.]*\", (proc / \"comm\").read_text().strip()):\n"
@@ -323,6 +324,7 @@ def host_requests() -> List[HostRequest]:
                 "candidates = []\n"
                 "for proc in pathlib.Path(\"/proc\").iterdir():\n"
                 "    if not proc.name.isdigit():\n"
+                "    if proc.name == str(os.getpid()):\n"\n                "        continue\n"
                 "        continue\n"
                 "    try:\n"
                 "        if not re.fullmatch(r\"python[0-9.]*\", (proc / \"comm\").read_text().strip()):\n"
@@ -484,8 +486,8 @@ def ingest_host_results(results: Dict[str, Any]) -> List[Evidence]:
 def host_results_template() -> Dict[str, Any]:
     """A blank host-results file for Claude Code to fill on the host, one key per
     request id. Each value is {data, evidence_class, source_ref, note}. Claude Code
-    runs the request's read-only commands on the machine, fills data with what it
-    observed, and sets evidence_class to 'measured' for a live reading."""
+    leaves provenance blank until the host runner supplies an explicit class and
+    source reference. Missing or invalid provenance is downgraded to unknown/unverified."""
     return {
         h.id: {
             "_title": h.title,
