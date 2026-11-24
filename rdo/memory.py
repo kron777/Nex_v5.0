@@ -215,8 +215,14 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
         signature_matches = len(cycle.signature_matches)
     else:
         signature_matches = None
+    if (not isinstance(signature_matches, int) or isinstance(signature_matches, bool)
+            or signature_matches < 0):
+        signature_matches = None
     signature_backed = cycle.verification.get(
         "signature_matches_backed_by_file_evidence")
+    if (not isinstance(signature_backed, int) or isinstance(signature_backed, bool)
+            or signature_backed < 0):
+        signature_backed = None
     reconciled = sum(1 for o in obligations if o.get("recon_status") in
                      ("signature_matched", "reuse_existing", "missing", "partial"))
     d = compare(cycle) if cycle.actual is not None else {}
