@@ -343,6 +343,50 @@ class TestGateWiring(unittest.TestCase):
         )
         self.assertEqual(rows[0]["corroboration_count"], 1)
 
+    def test_anchor_read_failure_accept_still_triggers_resolver(self):
+        """An ACCEPT caused by missing anchor evidence reaches the normal resolver sink."""
+        from theory_x.stage_gate.coherence_gate import (
+            CoherenceGate, GateOutcome,
+        )
+
+        anchor = "I attend to the world with wonder, stillness, presence, and care."
+        _seed_belief(
+            self.writers, anchor, tier=1, confidence=0.9,
+            source="keystone_seed", locked=1,
+        )
+        time.sleep(0.03)
+
+        packet = _packet(
+            "I do not attend to the world with wonder, stillness, presence, and care."
+        )
+        self.zone.hold(packet, "fixture:pre-existing-held-thought")
+        time.sleep(0.02)
+
+        delegate = self.readers["beliefs"]
+
+        class AnchorFailingReader:
+            def read(self, query, *args, **kwargs):
+                if "tier=1" in query:
+                    raise RuntimeError("isolated fixture: anchor query unavailable")
+                return delegate.read(query, *args, **kwargs)
+
+        gate = CoherenceGate(
+            beliefs_reader=AnchorFailingReader(),
+            beliefs_writer=self.writers["beliefs"],
+            conversations_reader=self.readers["conversations"],
+            holding_zone=self.zone,
+            resolver=self.resolver,
+        )
+        decision = gate.check(packet)
+        self.assertEqual(decision.outcome, GateOutcome.ACCEPT)
+        time.sleep(0.03)
+
+        row = self.readers["beliefs"].read_one(
+            "SELECT corroboration_count FROM held_thoughts WHERE content=?",
+            (packet.content,),
+        )
+        self.assertEqual(row["corroboration_count"], 1)
+
     def test_resolver_error_does_not_break_gate(self):
         """Gate ACCEPT is returned correctly even when resolver raises."""
         mock_resolver = MagicMock()
