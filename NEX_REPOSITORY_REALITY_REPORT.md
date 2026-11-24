@@ -1317,3 +1317,14 @@ The Stage 1 package factory confirms 28 adapter instances are assembled against 
 The package/factory documentation says external feeds start paused, but the constructed `SenseScheduler` unconditionally calls `start_all()` in its constructor. In this source path, external adapters are therefore enabled and the global run event is set during scheduler construction. This is a source comment/docstring versus implementation discrepancy; it is not evidence of the target host's current process state or successful external polling.
 
 The factory's active list omits Reuters, APNews, PhilPapers and PapersWithCode, which are retained in the source tree but explicitly commented out of factory construction. This audit confirms construction wiring only, not poll success, durable row persistence, downstream use or live activation.
+
+### Stage 1 backward-consumer evidence — 24 Nov 2026
+
+A source-to-sink pass now identifies the following consumers of Stage 1 rows:
+
+- Stage 4 SelfModel queries the latest row for all four internal streams. It maps Proprioception, Temporal and Interoception payload fields into its snapshot. It also fetches the latest MetaAwareness payload, but the inspected code does not use that payload in the returned meta-awareness fields; when DynamicState exists, those fields come from DynamicState instead. This is a fetch-versus-reliance distinction.
+- Stage 6 FountainGenerator reads non-internal sense rows in its quiescent branch (latest row, every fifth fire under the inspected condition) and through _recent_sense_sample(), which samples a recent window, filters internal/noise streams, extracts summaries and returns up to a configured number of distinct streams for drift context.
+- Fountain also writes an internal.fountain row. The inspected readers above explicitly exclude internal.%, so this producer write is not evidence of a self-consumer.
+- tests/test_interoception_fixes.py and tests/test_sense_extract.py provide isolated fixture coverage for portions of the SelfModel and Fountain paths. They do not demonstrate target-host execution or causal impact on a final output.
+
+This closes a bounded backward-consumer slice, not the full Stage 1 audit. Source presence and test coverage do not establish live row availability, call frequency, or row-level decision influence.
