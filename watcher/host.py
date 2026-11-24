@@ -113,10 +113,12 @@ def host_requests() -> List[HostRequest]:
             "Record matching service state and MainPID values, or explicit manager unavailability. "
             "Do not read service unit contents or raw process arguments. Absolute paths can reveal usernames/data layout; redact before third-party sharing.",
             [
-                "ps -eo pid=,comm= | awk '$2 ~ /^python([0-9.]*)$/ {print $1}' | "
-                "while read -r pid; do "
+                "pids=$(ps -eo pid=,comm= | awk '$2 ~ /^python([0-9.]*)$/ {print $1}'); "
+                "candidate_count=0; "
+                "for pid in $pids; do "
                 "cwd=$(readlink -f \"/proc/$pid/cwd\" 2>/dev/null) || continue; "
                 "[ -f \"$cwd/run.py\" ] && [ -f \"$cwd/substrate/paths.py\" ] || continue; "
+                "candidate_count=$((candidate_count+1)); "
                 "printf 'candidate_pid=%s cwd=%s exe=' \"$pid\" \"$cwd\"; "
                 "readlink -f \"/proc/$pid/exe\" 2>/dev/null || true; "
                 "python3 - \"$pid\" <<'PY'\n"
@@ -150,7 +152,8 @@ def host_requests() -> List[HostRequest]:
                 "except OSError as exc:\n"
                 "    print(\"allowlisted_environment=UNAVAILABLE:\" + type(exc).__name__)\n"
                 "PY\n"
-                "\n"                "done",
+                "done; "
+                "[ \"$candidate_count\" -gt 0 ] || printf 'process_candidates=NONE_AFTER_FILTER\\n'",
                 "if systemctl --user show-environment >/dev/null 2>&1; then "
                 "printf 'user_manager=AVAILABLE\\n'; "
                 "set -o pipefail; if units=$(systemctl --user list-units --type=service --all --no-legend --plain --no-pager 2>&1 | "
