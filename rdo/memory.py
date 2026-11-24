@@ -18,6 +18,7 @@ cycles exist to support one.
 from __future__ import annotations
 
 import json
+import math
 import os
 from typing import Dict, List, Optional
 
@@ -187,7 +188,7 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
     from the cycle record; OUTCOME measures need recorded actuals and are `None`
     (pending) until then — never fabricated."""
     obligations = cycle.obligations
-    discovered = len(obligations) or 1
+    discovered = len(obligations)
     duplicates = sum(1 for o in obligations if ";" in str(o.get("provenance", "")))
     reuse_claims = len(cycle.reused)
     # Legacy records without an explicit signature-match count remain unknown;
@@ -204,8 +205,13 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
                      ("signature_matched", "reuse_existing", "missing", "partial"))
     d = compare(cycle) if cycle.actual is not None else {}
     missed = d.get("under_expansion_missed")
-    actual_effort = (cycle.actual.get("effort_actual")
-                     if cycle.actual is not None else None)
+    raw_actual_effort = (cycle.actual.get("effort_actual")
+                          if cycle.actual is not None else None)
+    actual_effort = (raw_actual_effort
+                     if isinstance(raw_actual_effort, (int, float))
+                     and not isinstance(raw_actual_effort, bool)
+                     and math.isfinite(raw_actual_effort)
+                     and raw_actual_effort >= 0 else None)
     actual_field_map = {
         "missed": "under_expansion_missed",
         "unnecessary": "over_expansion_unnecessary",
@@ -225,7 +231,7 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
         "outcome_complete": outcome_complete,
         # PROCESS (now)
         "obligations_discovered": len(obligations),
-        "duplicate_discovery_rate": round(duplicates / discovered, 3),
+        "duplicate_discovery_rate": (round(duplicates / discovered, 3) if discovered else None),
         "reuse_claims": reuse_claims,
         "signature_matches": signature_matches,
         "signature_evidence_coverage": (
@@ -235,10 +241,15 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
         "signature_evidence_coverage_complete": (
             cycle.verification.get("all_signature_matches_have_file_evidence")
             if isinstance(signature_matches, (int, float)) and signature_matches > 0 else None),
-        "reconciliation_status_coverage": round(reconciled / discovered, 3),  # completed scan/review status, not precision
+        "reconciliation_status_coverage": (round(reconciled / discovered, 3) if discovered else None),  # completed scan/review status, not precision
         # OUTCOME (need actuals)
         "missed_obligation_count": (len(missed) if isinstance(missed, list) else None),
-        "prediction_error_effort": d.get("effort_error"),
+        "prediction_error_effort": (
+            d.get("effort_error") if actual_effort is not None and
+            isinstance(cycle.predicted.get("effort"), (int, float)) and
+            not isinstance(cycle.predicted.get("effort"), bool) and
+            math.isfinite(cycle.predicted.get("effort")) and
+            cycle.predicted.get("effort") >= 0 else None),
         "rework": (len(d["regressions"]) if isinstance(d.get("regressions"), list) else None),
         "engineering_effort": actual_effort,
         "predicted_effort": cycle.predicted.get("effort"),
@@ -275,9 +286,13 @@ def metrics_series(cycles: List[CycleRecord]) -> Dict:
         by_kind[r["kind"]] = by_kind.get(r["kind"], 0) + 1
     outcome_complete = [r for r in rows if r["outcome_complete"]]
     # efficiency-eligible: RDO ran it AND work was executed+verified (exclude imported)
+    def _valid_effort(value) -> bool:
+        return (isinstance(value, (int, float)) and not isinstance(value, bool)
+                and math.isfinite(value) and value >= 0)
+
     efficiency_eligible = [r for r in rows
                            if r["kind"] == EXECUTED_VERIFIED and r["outcome_complete"]
-                           and r["engineering_effort"] is not None]
+                           and _valid_effort(r["engineering_effort"])]
 
     def _denominator(measure: str) -> dict:
         contributing = [r for r in rows if r.get(measure) is not None]
