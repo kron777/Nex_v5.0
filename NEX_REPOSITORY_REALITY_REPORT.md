@@ -1734,3 +1734,27 @@ Source hashes:
 - `theory_x/stage6_fountain/generator.py`: `43644876295ffdd649a240f52a7946c666a8579f`
 
 No runtime, schema, flags, experiment, host state, merge or deployment was changed.
+
+
+
+## M0.3–M0.4 source audit — Stage TOM recursive self / binding and conditional observers (24 Nov 2026)
+
+**Recursive self and binding.** The Fountain prompt assembly calls `recursive_self.format_for_prompt()` without an environment gate. That function calls `perturbation()`, which refreshes state by invoking `self_binding.bind()` on each call. The bind reads current affect, rāga, dominant drive, attention and selected proprioceptive telemetry, writes/overwrites `dynamic.db.self_state`, and appends `self_state_history` (history failure is swallowed). The recursive layer can then add a first-person prompt line when its detected state calls for a nudge (fixation, high-activity churn or dullness); otherwise it returns an empty string. This is a per-fire prompt-time path, not a separate autonomous daemon. It is not always a non-empty prompt block: the perturbation predicate controls whether a line is returned.
+
+**DRAFT-044 — drift placeholder.** Although the SelfBinding module's faculty description lists value-drift and the bind comment says it reads the last logged verdict, the implementation assigns `drift = "clean"` literally. It persists this value to current and history rows but does not include it in returned components or the synthesis. The separate ValueDriftMonitor writes to `value_drift_log`; `bind()` does not query that table. The inspected recursive prompt caller consumes returned components and does not read the drift column. Therefore this is a persisted placeholder/description mismatch, not evidence that a clean verdict is injected into the prompt. No production consumer of `self_state.drift` was identified in the bounded caller review.
+
+**Conditional Stage TOM observers/modulators.**
+- `HotObserver.observe()` is called after a completed fire only when `NEX5_HOT_OBSERVER=1`. It uses a process-local counter, and on every third call with a thought of at least 15 words writes a Tier 3, confidence 0.6 belief with source `hot_observer`, classifying it as template-like or grounded. This is a belief-writing path, not a passive log-only metric; it is default OFF. No target-host flag state or invocation count is known.
+- `NEX5_AMOHA` defaults OFF; when enabled and its semantic reading classifies recent thoughts as clouded, it appends a prompt-only clear-seeing note.
+- `NEX5_AFFLICTIONS` defaults OFF; when enabled, the cluster reads five detector states and appends a note for high states (excluding rāga, which already surfaces through binding/recursive self).
+- `NEX5_METACOG_VOICE` and `NEX5_L4_STAKES` are separate gates; do not infer their activation from module existence.
+- GlobalWorkspace is separately default-on and its empty-surprise candidate risk is DRAFT-043.
+
+No host flags were read. No runtime, schema, experiment, host state, merge or deployment was changed.
+
+Current source hashes:
+- `theory_x/stage_tom/self_binding.py`: `acbbe02e00723ebc6c5fd13236251f4877259ce5`
+- `theory_x/stage_tom/recursive_self.py`: `ada4aeb260a8deb70418c03dc9180f71cddec714`
+- `theory_x/stage_tom/hot_observer.py`: `35d4e9774c0e5c7571faf7e1f577253d7d5c76de`
+- `theory_x/stage_tom/amoha_detector.py`: `8012d5d34d502e3a14fa7f61e2c525dc779c4206`
+- `theory_x/stage_tom/value_drift_monitor.py`: `e08a9649bd94e9094b49aeae59aa9f8feeacbff5`
