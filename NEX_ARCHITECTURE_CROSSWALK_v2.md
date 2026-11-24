@@ -1791,3 +1791,17 @@ The current Holding Zone implementation's corroboration match is content-only: a
 A second isolated test injects a failure into the belief INSERT during promotion. `promote_to_belief()` returns `None` after recording the exception, but `HoldingZoneResolver.on_gate_accept()` does not inspect that result and proceeds to mark the held row accepted. The fixture confirms an accepted held row and resolution record can coexist with no promoted belief row. This is a source-confirmed failure mode reproduced with isolated SQLite, not a deployed incident.
 
 Tests: `tests/test_holding_zone.py::TestCorroborationThreshold`. Exact tested commit `4793e55ed8220f0f2b70c5cae9fd3654650735b0`; CI run `45426072925` passed the full pytest workflow and mind-map sourcing check. These tests support [L1] characterization only. They do not establish host activation [L2], downstream consumption [L3], behavioural benefit [L4], or Gate 0 readiness. No runtime, schema, policy, threshold, or production behaviour was changed.
+
+
+### CoherenceGate / Holding Zone — resolver ordering and failure semantics (24 Nov 2026)
+
+The Phase 0 test increment extends the previous corroboration/promotion characterization with four additional source/test findings:
+
+- **DRAFT-047 — resolution audit is not atomic with held status.** `mark_resolved()` updates the held row, then separately inserts the resolution record. Injecting failure into the latter leaves terminal status without an audit row.
+- **DRAFT-048 — corroboration and contradiction predicates overlap.** A single incoming ACCEPT packet can satisfy both lexical predicates. With the held thought already at count two, `on_gate_accept()` increments to three and promotes/marks accepted before the contradiction scan; the now-terminal row is excluded from the subsequent contradiction query. The isolated test drives this through the ordinary CoherenceGate with a phrase that does not conflict with the seeded keystone anchors.
+- **DRAFT-049 — evaluator exception is fail-open.** An exception from `_evaluate()` returns `ACCEPT / gate_error_fallback`; resolver dispatch follows the outcome and still runs. The test verifies the resolver callback.
+- **DRAFT-050 — unavailable source is indistinguishable from successful empty source.** Per-source read exceptions are caught and represented as empty lists, with no availability state passed to the evaluator. The existing read-failure matrix shows decision-relevant anchor/goal/problem comparisons can disappear and that successful-empty and unavailable-anchor cases can share an ACCEPT result.
+
+Together with DRAFT-045/046 above, these are current-source and isolated-test findings only. They do not establish deployed incidence or determine the intended policy for evidence independence, conflicting signals, exception fallback or unavailable reads. CoherenceGate remains a bounded coherence filter, not a truth adjudicator. No production code, schema, runtime state, database, flag, experiment, baseline or tripwire was changed.
+
+Exact tested head `16d0dab6492b1cf23c5d8c7cb4987e24d2666a66`; Actions run `45430422437` passed the full pytest workflow and MIND_MAP sourcing check. Source/test blob hashes and test boundaries are recorded in the corresponding Reality Report and verified defect backlog entries.
