@@ -471,3 +471,17 @@ The two cases characterize the current source behaviour:
 These are characterization assertions, **not** an assertion that this is the desired policy. They make the observed consumer boundary reproducible and give a future policy decision a precise regression surface. Existing `tests/test_gw_surprise_nonempty.py` already characterizes the separate Workspace empty-window flag behaviour; SurpriseLoop's stricter promotion query remains visible in its source and should be tested independently if the approved contract requires it.
 
 The test was committed as a test-only change. It does not alter production code, flags, runtime state, databases or the roadmap. CI has been triggered by this commit; results are pending at the time of this note.
+
+
+## 13.12 FocalSet / WorkingMemory sink qualification — prompt use is conditional, selector state is shared
+
+A targeted re-read of the full Chat handler resolves two details that should not be compressed into “FocalSet feeds memory”:
+
+- `gui/server.py`, blob `d67df10f4449004c255e38b11b4a1888a4e4934c`, lines 114–141: one module-level `_focal_set = FocalSet(K=4)` is created and registered for the process; separately, `_working_memory_by_session` is a dictionary of WorkingMemory instances keyed by session ID.
+- Same file, lines 1672–1726: when the world-model retriever returns candidates, the single process-level FocalSet is updated; its focal IDs are then added to the current request's session-specific WorkingMemory. The current focal candidate contents are taken from this request's retrieved candidate map.
+- Same file, lines 1849–1864: WorkingMemory is actually consumed into `belief_text` only when there is a session ID, active items, `register.name == "Conversational"`, and `belief_count >= CHAT_GAP_MIN_BELIEFS`. At most five active items are appended under “Recently attended (cross-turn)”. This is a conditional prompt-context sink, not unconditional memory injection.
+- `theory_x/focal_set.py`, blob `e12531f2858085778ebca75f73a7dee6ec8ce416`, lines 92–184: FocalSet retains priorities, focal IDs, last-shift tick and mode between requests; returning IDs reuse smoothed priority and the hold-time gate can protect current focal members still present in a later candidate pool.
+
+**Updated impact boundary:** the source confirms a shared process-level attention selector whose state can influence which candidates are selected in a subsequent session. It does not establish that one session's private WorkingMemory contents are copied into another session's WorkingMemory: those buffers are separately keyed. Nor does it establish an actual privacy breach. The plausible cross-session effect is indirect selector-state influence (priority smoothing / hold protection), not direct content transfer. Whether that coupling is intended requires the governing spec and, if relevant, a controlled two-session fixture.
+
+**Evidence classification:** selection-to-session-memory write [L1]; conditional same-turn/cross-turn prompt inclusion [L1]; model reliance [L3] UNKNOWN; beneficial or harmful cross-session effect [L4] UNKNOWN. Existing tests cover FocalSet selection and WorkingMemory behaviour separately, but the inspected test set does not establish this full handler pathway or its two-session interaction.
