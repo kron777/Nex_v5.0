@@ -362,6 +362,17 @@ def test_system_readiness_does_not_promote_partial_or_unknown():
     readiness = next(t for t in assess_system(mixed, []) if t.subject == "integration_readiness")
     assert readiness.verdict == UNDERDEVELOPED
 
+    all_reused = {"a": Obligation("a", "a", "test", recon_status=REUSE_EXISTING),
+                  "b": Obligation("b", "b", "test", recon_status=REUSE_EXISTING)}
+    readiness = next(t for t in assess_system(all_reused, []) if t.subject == "integration_readiness")
+    assert readiness.verdict == SUFFICIENT
+
+    no_necessary = {"optional": Obligation("optional", "optional", "test",
+                                           classification="optional",
+                                           recon_status=REUSE_EXISTING)}
+    readiness = next(t for t in assess_system(no_necessary, []) if t.subject == "integration_readiness")
+    assert readiness.verdict == TENSION_UNKNOWN
+
 
 def test_unresolved_dependency_blocks_dependent_but_remains_investigable():
     from rdo.model import RECON_UNKNOWN
