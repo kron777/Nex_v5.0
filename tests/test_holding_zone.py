@@ -296,14 +296,14 @@ class TestContradiction(unittest.TestCase):
     def test_contradiction_rejects_held(self):
         """Held thought contradicted by an incoming ACCEPT becomes 'rejected'."""
         # Held: affirmative statement about attending with wonder
-        held_content = "I attend to the world with wonder and care always."
+        held_content = "I cultivate patient curiosity across unfamiliar systems and contexts."
         p = _packet(held_content)
         held_id = self.zone.hold(p, "hold:negates_goal_1")
         self.assertIsNotNone(held_id)
         time.sleep(0.02)
 
         # Contradicting: negates the held content (overlap>=2, different negation)
-        contra_content = "I do not attend to the world with wonder or care."
+        contra_content = "I do not cultivate patient curiosity across unfamiliar systems or contexts."
         self.resolver.on_gate_accept(_packet(contra_content))
         time.sleep(0.05)
 
@@ -343,20 +343,11 @@ class TestContradiction(unittest.TestCase):
             [held_id],
         )
 
-        from theory_x.stage_gate.coherence_gate import CoherenceGate, GateOutcome
+        from theory_x.stage_gate.coherence_gate import GateOutcome
 
-        class EmptyBeliefsReader:
-            """Successful empty substrate fixture; resolver retains the real held-zone reader."""
-            def read(self, *args, **kwargs):
-                return []
-
-            def read_one(self, *args, **kwargs):
-                return None
-
-        gate = CoherenceGate(
-            beliefs_reader=EmptyBeliefsReader(),
-            beliefs_writer=self.writers["beliefs"],
-            conversations_reader=self.readers["conversations"],
+        gate = _make_gate(
+            self.writers,
+            self.readers,
             holding_zone=self.zone,
             resolver=self.resolver,
         )
