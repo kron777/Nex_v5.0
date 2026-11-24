@@ -48,6 +48,8 @@ class PatternMemory:
         Exact cycle replay is idempotent. A new recorded origin is retained and
         counted once, but distinct provenance alone does not prove independent
         underlying evidence; that interpretation remains a human judgement.
+        Multiple new semicolon-separated provenance tokens in one add() call are
+        retained together but increment observed_count once for that call.
         """
         incoming = list(dict.fromkeys(
             x.strip() for x in str(pattern.provenance).split(";") if x.strip()
