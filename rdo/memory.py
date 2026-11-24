@@ -122,6 +122,14 @@ def record_actual(cycle: CycleRecord, actual: Dict) -> CycleRecord:
     """Attach real outcomes. `actual` keys (all optional):
         missed:[keys], unnecessary:[keys], reuse_wrong:[keys],
         effort_actual:<n>, notes:str, regressions:[...]"""
+    if "effort_actual" in actual:
+        effort = actual["effort_actual"]
+        if (not isinstance(effort, (int, float)) or isinstance(effort, bool)
+                or not math.isfinite(effort) or effort < 0):
+            raise ValueError("effort_actual must be a finite, non-negative number")
+    for field in ("missed", "unnecessary", "reuse_wrong", "regressions"):
+        if field in actual and not isinstance(actual[field], list):
+            raise ValueError(f"{field} must be a list when reported")
     cycle.actual = dict(actual)
     cycle.actual.setdefault("recorded_at", utc_now())
     return cycle
