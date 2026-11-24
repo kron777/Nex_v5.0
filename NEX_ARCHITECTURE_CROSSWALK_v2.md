@@ -1315,3 +1315,18 @@ Still open:
 ### ToolCaller belief-context handoff
 
 api_chat calls ToolCaller.should_use_tool(prompt, []) even after the normal retrieval branch has assembled local belief context. ToolCaller’s “no beliefs + factual phrasing” fallback is therefore always eligible for those patterns. This may be a deliberate freshness policy, but it does not match the method's documented condition and has no route-level test. It can increase web_fetch calls and therefore the reachable surface of DRAFT-016. See DRAFT-024.
+
+
+### Manus advisory reconciliation — 24 Nov 2026
+
+The following points are independent technical recommendations, not governing requirements or Founder decisions. The reviewed PR tree did not contain the canonical Master Roadmap or Frozen V2.1 specification; exact acceptance wording must be checked against those authoritative documents.
+
+1. **Asynchronous parentage.** Require an explicit parent edge for an in-scope asynchronous handoff when the producer record exists and consumer identity can be joined to it. Do not infer parentage from timestamps or ordering. The controlled speech-queue commit-before-registration test demonstrates a real unlinked-trace race and a useful partial result, not complete producer-to-consumer lineage. Preserve missing-parent observations as explicit gaps. Additional isolated coverage is recommended for registration failure, trace-registry loss/restart and overlapping consumers. No race-frequency claim is made.
+
+2. **Operation-stage evidence.** Distinguish a pre-call attempt marker, observed callee entry, successful return or exception, persisted outcome, and physical completion. A pre-call marker does not prove callee entry; a returned player call does not prove audio completed or was audible. A queue row marked spoken is software-state evidence only. Persistence claims should be tied to Writer success and, where material, independent read-back. Physical completion remains unobserved without a device/backend acknowledgement.
+
+3. **Observer overhead.** Treat behavioural neutrality and latency neutrality as separate properties. Synchronous JSONL serialization, filesystem writes and shared-lock contention necessarily may add elapsed time. Do not assert zero added delay. Before an acceptance benchmark, agree the representative host/workload and a bounded latency budget; report repeated p50/p95/p99, including concurrency and lock contention. The existing benchmark remains diagnostic and non-gating until its workload and threshold are approved.
+
+4. **L5 classification.** Provisionally treat L5 as a separate generalisation classification and keep the Phase 0 faculty audit at L0–L4 if that is what the canonical roadmap's Phase 0 text specifies. Record L5 separately as exploratory/out of scope unless the canonical roadmap explicitly requires it. The apparent global L0–L5 versus Phase 0 L0–L4 distinction still requires exact-document reconciliation.
+
+These recommendations do not resolve the roadmap's acceptance criteria, approve a latency threshold, certify causal-trace completeness, or authorise runtime, schema, queue, flag, host, experiment, merge or deployment changes. Gate 0 remains unestablished.
