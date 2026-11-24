@@ -34,10 +34,10 @@ def host_requests() -> List[HostRequest]:
     return [
         HostRequest(
             "checkouts_drift", "Known checkouts + deployment drift",
-            "Git root, branch, full HEAD SHA, clean/dirty summary, sanitized origin URL, "
+            "Git root, branch, full HEAD SHA, clean/dirty summary, redacted origin scheme/host, "
             "locally available origin/main SHA and divergence for the two historically "
             "identified checkout paths, plus any additional checkout path established "
-            "from a verified NEX process working directory. No home-directory scan. "
+            "from Python process-working-directory candidates. Candidates require independent PID/service correlation. No home scan. "
             "The origin/main tracking ref is not refreshed; report its SHA and treat "
             "divergence as relative to that locally cached ref.",
             [
@@ -51,7 +51,7 @@ def host_requests() -> List[HostRequest]:
                 "df -P \"$checkout\" | tail -1; "
                 "git -C \"$checkout\" branch --show-current; "
                 "git -C \"$checkout\" rev-parse HEAD; "
-                "git -C \"$checkout\" status --porcelain=v1 --untracked-files=all | "
+                "git --no-optional-locks -C \"$checkout\" status --porcelain=v1 --untracked-files=all | "
                 "awk 'BEGIN{n=0;staged=0;unstaged=0;untracked=0} "
                 "{n++; if(substr($0,1,2)==\"??\") untracked++; "
                 "else {if(substr($0,1,1)!=\" \") staged++; "
@@ -63,10 +63,9 @@ def host_requests() -> List[HostRequest]:
                 "p=urllib.parse.urlsplit(s) if \"://\" in s else None; "
                 "m=re.match(r\"^(?:[^@/:]+@)?(\\[[^]]+\\]|[^/:]+):\",s) if not p else None; "
                 "host=(p.hostname or \"\") if p else (m.group(1).strip(\"[]\") if m else \"\"); "
-                "scheme=p.scheme if p else \"ssh\"; port=\"\"; "
-                "exec(\"try: port=(\\\":\\\"+str(p.port)) if p and p.port else \\\"\\\"\\nexcept ValueError: host=\\\"\\\"\"); "
+                "scheme=p.scheme if p else \"ssh\"; "
                 "host=(\"[\"+host+\"]\") if \":\" in host and not host.startswith(\"[\") else host; "
-                "print(\"origin_identity=\"+(scheme+\"://\"+host+port if host else \"UNRECOGNIZED\"))'; "
+                "print(\"origin_identity=\"+(scheme+\"://\"+host if host else \"UNRECOGNIZED\"))'; "
                 "if base=$(git -C \"$checkout\" rev-parse --verify "
                 "'refs/remotes/origin/main^{commit}' 2>/dev/null); then "
                 "printf 'origin_main_cached_sha=%s\\n' \"$base\"; "
@@ -107,12 +106,12 @@ def host_requests() -> List[HostRequest]:
         ),
         HostRequest(
             "runtime_identity", "Runtime state + process identity (if running)",
-            "Candidate NEX Python PID, process working directory and executable, "
-            "plus only the allow-listed VIRTUAL_ENV, PYTHONHOME and NEX5_DATA_DIR "
-            "environment keys. No raw command line and no general NEX5_* dump. "
-            "Report a matching NEX process only when its verified checkout identity "
-            "is established; otherwise report process identity UNKNOWN. Record "
-            "matching user service names/states without reading unit contents.",
+            "Python process candidates with repository markers, PID, working directory and executable; "
+            "plus allow-listed VIRTUAL_ENV, PYTHONHOME, NEX5_DATA_DIR, NEX5_VOICE_URL and NEX5_VOICE_MODEL "
+            "environment metadata. Voice URL is redacted to origin only. No raw command line or broad environment dump. "
+            "Candidates are not verified NEX processes until independently correlated with the service PID. "
+            "Record matching service state and MainPID values, or explicit manager unavailability. "
+            "Do not read service unit contents or raw process arguments.",
             [
                 "ps -eo pid=,comm= | awk '$2 ~ /^python([0-9.]*)$/ {print $1}' | "
                 "while read -r pid; do "
@@ -175,9 +174,9 @@ def host_requests() -> List[HostRequest]:
              "nex_cognition_simulator}.py"]),
         HostRequest(
             "phase0_environment", "Phase 0 host environment + NEX interpreter/model fingerprint",
-            "OS/kernel, CPU, physical RAM, GPU/driver and current VRAM counters; Python and "
-            "SQLite versions from the verified NEX interpreter (not an unrelated system "
-            "Python); Ollama version, exact qwen2.5:3b API digest where available, the "
+            "OS/kernel, CPU, physical RAM, GPU driver modules/versions, per-device VRAM counters and cgroup memory; candidate Python and "
+            "SQLite versions from a process executable candidate (not an unrelated system "
+            "Python); configured local Ollama version, selected model API digest where available, the "
             "Modelfile FROM backing-blob identifier as a separate value, and current "
             "loaded-model state. No inference, throughput benchmark or package installation.",
             [
@@ -186,9 +185,19 @@ def host_requests() -> List[HostRequest]:
                 "lscpu",
                 "grep -E '^(MemTotal|MemAvailable):' /proc/meminfo",
                 "lspci -nnk | grep -A3 -E 'VGA|3D|Display' 2>/dev/null || true",
-                "for f in /sys/class/drm/card*/device/mem_info_vram_total "
-                "/sys/class/drm/card*/device/mem_info_vram_used; do "
-                "[ -r \"$f\" ] && printf '%s=' \"$f\" && cat \"$f\"; done",
+                "for module in amdgpu nvidia i915 xe; do if [ -d \"/sys/module/$module\" ]; then "
+                "printf 'gpu_driver_module=%s version=' \"$module\"; "
+                "if [ -r \"/sys/module/$module/version\" ]; then cat \"/sys/module/$module/version\"; "
+                "else printf 'NOT_EXPOSED\\n'; fi; fi; done",
+                "seen=0; for device in /sys/class/drm/card[0-9]*/device; do "
+                "[ -e \"$device\" ] || continue; seen=1; "
+                "for metric in total used; do f=\"$device/mem_info_vram_$metric\"; "
+                "if [ -r \"$f\" ]; then printf '%s=' \"$f\"; cat \"$f\"; "
+                "else printf '%s=UNKNOWN\\n' \"$f\"; fi; done; done; "
+                "[ \"$seen\" -eq 1 ] || printf 'VRAM_COUNTERS=UNKNOWN_NOT_EXPOSED\\n'",
+                "for f in /sys/fs/cgroup/memory.max /sys/fs/cgroup/memory.current "
+                "/sys/fs/cgroup/memory/memory.limit_in_bytes; do "
+                "if [ -r \"$f\" ]; then printf '%s=' \"$f\"; cat \"$f\"; fi; done",
                 "ps -eo pid=,comm= | awk '$2 ~ /^python([0-9.]*)$/ {print $1}' | "
                 "while read -r pid; do cwd=$(readlink -f \"/proc/$pid/cwd\" 2>/dev/null) || continue; "
                 "[ -f \"$cwd/run.py\" ] && [ -f \"$cwd/substrate/paths.py\" ] || continue; "
@@ -281,7 +290,7 @@ def host_requests() -> List[HostRequest]:
                 "    except Exception as exc:\n"
                 "        print(label + \"_status=UNKNOWN:\" + type(exc).__name__)\n"
                 "PY\n"
-                "\n"                "# Resolve <verified-NEX-python> from the running NEX process's allow-listed "
+                "\n"                "# Candidate interpreter versions are unverified until the process PID is independently correlated. "
                 "VIRTUAL_ENV, or the verified checkout's .venv/bin/python if that is the "
                 "interpreter configured for NEX. If neither is established, report the "
                 "system Python separately and leave the NEX interpreter UNKNOWN.",
@@ -291,23 +300,23 @@ def host_requests() -> List[HostRequest]:
         ),
         HostRequest(
             "runtime_artifact_hashes", "Runtime DB + snapshot fingerprints",
-            "Exact verified runtime data root and the separate known snapshot-archive path; DB/WAL/"
+            "Candidate-derived runtime data root and candidate checkout snapshot archive; DB/WAL/"
             "SHM/journal and state_snapshot.json paths, sizes, modification times and SHA-256 values. "
-            "Record a digest as stable only when device, inode, size, mtime and ctime match "
-            "before and after hashing. run.py passes the runtime data directory to "
+            "Accept a digest only when device, inode, size, mtime_ns and ctime_ns match "
+            "before opening, after opening and after hashing; failed hashes are unstable. run.py passes the runtime data directory to "
             "StateSnapshotWriter, so state_snapshot.json is beside the DBs. The separate "
-            "scripts/snapshot.py archive is under the verified checkout snapshots/ directory. "
-            "If roots cannot be established from the verified NEX process or checkout configuration, do not "
-            "guess or scan home; leave fingerprints UNKNOWN. No row counts, DB contents or "
-            "file copies.",
+            "scripts/snapshot.py archive is under the candidate checkout snapshots/ directory. "
+            "If candidate discovery is ambiguous or unavailable, do not "
+            "guess or scan home; leave fingerprints UNKNOWN. Candidate-derived roots remain unverified until identity is correlated. No SQL/row counts or "
+            "file copies. Nested symlink files/directories are skipped; the root symlink target is disclosed.",
             [
                 "# Resolve NEX5_DATA_DIR only from the verified NEX process allow-list. If absent, "
-                "substrate/paths.py defaults it to <verified NEX checkout>/data. run.py "
+                "substrate/paths.py defaults it to the candidate checkout data directory. run.py "
                 "passes paths[beliefs].parent to StateSnapshotWriter, so active "
                 "state_snapshot.json, its .tmp and .consumed variants live beside the DBs. "
-                "scripts/snapshot.py writes a separate archive under <verified checkout>/snapshots.",
-                "# Set NEX5_DATA_DIR to the exact verified runtime root. Set the optional "
-                "NEX5_SNAPSHOT_DIR only to the verified checkout snapshots/ archive directory; "
+                "scripts/snapshot.py writes a separate archive under the candidate checkout snapshots directory.",
+                "# Runtime root is resolved from the unique process candidate; no shell placeholder is required. Set the optional "
+                "the snapshot archive root is derived from the candidate checkout snapshots/ directory; "
                 "do not leave placeholders or guess paths.",
                 "python3 - <<'PY'\n"
                 "import hashlib, os, pathlib, re, stat\n"
