@@ -133,7 +133,8 @@ def test_anti_requirements_appear_and_reused_not_rebuilt():
     obs = {
         "exists": Obligation("exists", "e", "persistence", recon_status=REUSE_EXISTING,
                              recon_evidence=["init_db.py:1"], confidence="measured",
-                             recon_semantic_verified=True),
+                             recon_semantic_verified=True,
+                             recon_semantic_review_evidence=["manual review: persistence contract checked"]),
         "anti": Obligation("anti", "no second store", "anti_requirement",
                            classification=ANTI_REQUIREMENT, rationale="already persisted"),
         "todo": Obligation("todo", "t", "consumer", recon_status=MISSING),
@@ -177,7 +178,8 @@ def test_learning_compare_and_series(tmp_path):
 def test_recognize_sufficiency_restrains_development():
     obs = {"built": Obligation("built", "b", "persistence", recon_status=REUSE_EXISTING,
                                recon_evidence=["src.py:1"], confidence="measured",
-                               recon_semantic_verified=True),
+                               recon_semantic_verified=True,
+                               recon_semantic_review_evidence=["manual review: source and test reviewed"]),
            "opt": Obligation("opt", "o", "ui", classification="optional",
                              recon_status=MISSING)}
     suff = {s["key"] for s in recognize_sufficiency(obs)}
@@ -391,7 +393,8 @@ def test_reconciliation_distinguishes_empty_scan_from_unavailable(tmp_path, monk
     stale_review = Obligation("stale", "stale review", "schema",
                               recon_status=REUSE_EXISTING,
                               recon_evidence=["old.py:1"], confidence="measured",
-                              recon_semantic_verified=True)
+                              recon_semantic_verified=True,
+                              recon_semantic_review_evidence=["old manual review"])
     assert recon.reconcile(stale_review, str(tmp_path),
                            [Signature("not_present_now")]) == MISSING
     assert stale_review.recon_semantic_verified is False
@@ -436,7 +439,8 @@ def test_system_readiness_does_not_promote_partial_or_unknown():
     assert readiness.verdict == TENSION_UNKNOWN
     reviewed = Obligation("reviewed", "reviewed", "test", recon_status=REUSE_EXISTING,
                           recon_evidence=["src.py:12"], confidence="measured",
-                          recon_semantic_verified=True)
+                          recon_semantic_verified=True,
+                          recon_semantic_review_evidence=["manual review: full obligation verified"])
     readiness = next(t for t in assess_system({"reviewed": reviewed}, [])
                      if t.subject == "integration_readiness")
     assert readiness.verdict == SUFFICIENT
