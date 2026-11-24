@@ -441,3 +441,33 @@ The evidence does **not** support a blanket claim that NEX has no evaluation, no
 6. **Warrant wiring inspection:** read-only search of all boot/entrypoint variants and all readers of `belief_warrant`; do not arm `NEX5_WARRANT` or start the background pass.
 
 No new tests were added or executed in this pass. The proposed tests remain within the Phase 0 isolated-evidence boundary but must be reconciled against the exact governing acceptance criteria before implementation. No production source, runtime code, flags, database, experiment, baseline, tripwire, host or deployment was changed.
+
+
+## 13.10 Warrant wiring correction — recorder is boot-wired; scorer remains separate
+
+The first pass's EVI-05 correctly noted that the inspected `run.py` does not construct/start `WarrantPass`, but its summary was incomplete because it did not distinguish the separately named `WarrantRecorder`.
+
+**Verified source distinction at the same source revision:**
+
+- `run.py`, blob `73a2c58a4f5f0348135a46eb83d6cdd61db874e7`, lines 355–374: `WarrantRecorder` is constructed and started when `NEX5_WARRANT_RECORD=1`. This is a real boot callsite, conditional on the flag. It is not the `WarrantPass`.
+- `theory_x/stage_warrant/recorder.py`, blob `ade231c1fc7c8da7f90f8f7ab375d352837a7c79`, lines 1–38 and 140–220: the recorder writes append-only `belief_survival`, `belief_use_day`, `belief_use_days` and cursor records. Its survival checks are a shadow conflict check; it does not mutate belief state.
+- `theory_x/stage_warrant/warrant.py`, blob `a15bc9d012fffac319adf1634f52eb1fde0e35b6`, lines 1–105 and 105–190: `compute_all()` currently reconstructs survival from `beliefs.promotion_log` and sustain from the existing retrieval/anchor/synthesis/lineage/arc event sources. The inspected implementation does not read the recorder's `belief_survival` or `belief_use_days` side tables.
+- Same `warrant.py`, lines 205–255: `WarrantPass` is the separate periodic computation-and-persistence loop, guarded by `NEX5_WARRANT=1`; no construction/start call was found in the complete inspected 812-line `run.py`.
+- `tools/warrant_validate.py`, blob `19f0873c65fa97c192ed4cdba421a6d7dc6df8c5`, lines 1–30 and 54–62: the validation tool calls `compute_all()` read-only. It does not read the recorder side tables as its evidence source.
+- `tests/test_warrant.py` covers the computation and the off-gate; `tests/test_warrant_recorder.py` covers recorder cycles and its off-gate. Those tests do not establish a data handoff between recorder outputs and the scorer.
+
+**Updated classification:** recorder boot wiring is source-confirmed but conditional [L1]; actual activation and accumulated rows [L2] UNKNOWN. The scorer's existing compute/persist code is source-confirmed [L1], but normal `run.py` activation is not established. The recorder-to-scorer integration is **not present in the inspected source path**. This is stronger and more precise than saying simply “Warrant has no boot wiring”: one data-collection component can be armed while the separate score computation remains dormant, and the newly recorded evidence is not consumed by that computation in the inspected implementation.
+
+**Interpretation boundary:** do not assume this is an accidental defect. The recorder's stated purpose is to accumulate evidence for re-validation after a prior gate failure. The correct next question is whether a later authorised validation step is meant to read those tables, or whether a future scoring revision is planned. The current evidence does not authorise enabling either flag, changing the scorer, or inventing a bridge.
+
+## 13.11 Isolated characterization test added — surprise weighting admission
+
+Added `tests/test_surprise_weighting_admission.py` on the Phase 0 branch. It uses a temporary SQLite database and tests the existing `confidence_for_fire(dynamic_db=...)` function without touching project databases or runtime flags.
+
+The two cases characterize the current source behaviour:
+1. A recent event with `surprise_flag=0` and `actual_content=NULL` still raises confidence according to its numerical score.
+2. Such a newer empty event supersedes an older content-bearing event for the weighting consumer.
+
+These are characterization assertions, **not** an assertion that this is the desired policy. They make the observed consumer boundary reproducible and give a future policy decision a precise regression surface. Existing `tests/test_gw_surprise_nonempty.py` already characterizes the separate Workspace empty-window flag behaviour; SurpriseLoop's stricter promotion query remains visible in its source and should be tested independently if the approved contract requires it.
+
+The test was committed as a test-only change. It does not alter production code, flags, runtime state, databases or the roadmap. CI has been triggered by this commit; results are pending at the time of this note.
