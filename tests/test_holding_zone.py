@@ -295,7 +295,7 @@ class TestContradiction(unittest.TestCase):
 
     def test_contradiction_rejects_held(self):
         """Held thought contradicted by an incoming ACCEPT becomes 'rejected'."""
-        # Held: affirmative statement about attending with wonder
+        # Held: affirmative statement about cultivating patient curiosity
         held_content = "I cultivate patient curiosity across unfamiliar systems and contexts."
         p = _packet(held_content)
         held_id = self.zone.hold(p, "hold:negates_goal_1")
