@@ -12,7 +12,7 @@ from rdo.extrapolator import expand
 from rdo.memory import (CycleStore, PatternMemory, accuracy_series, compare,
                         derive_lessons, record_actual)
 from rdo.model import (ANTI_REQUIREMENT, MISSING, NECESSARY, PARTIAL, RECON_UNKNOWN,
-                       REUSE_EXISTING, CycleRecord, Obligation, Pattern, Relationship)
+                       REUSE_EXISTING, SIGNATURE_MATCHED, CycleRecord, Obligation, Pattern, Relationship)
 from rdo.prioritise import build_work_packages, eligibility
 from rdo.reconcile import Signature, prune_false_dependencies, reconcile
 from rdo.tension import assess_system, recognize_sufficiency
