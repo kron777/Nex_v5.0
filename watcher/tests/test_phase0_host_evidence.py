@@ -7,6 +7,7 @@ import ast
 import hashlib
 import json
 import os
+import pathlib
 import re
 import stat
 import subprocess
@@ -22,21 +23,30 @@ def _commands(request_id):
     return "\n".join(_requests()[request_id].read_only_commands)
 
 
-def _artifact_fingerprint_function():
+def _artifact_helper_namespace():
     command_text = _commands("runtime_artifact_hashes")
     blocks = re.findall(r"<<'PY'\n(.*?)\nPY(?:\n|$)", command_text, re.DOTALL)
     assert len(blocks) == 1
     tree = ast.parse(blocks[0])
     helper_nodes = [
         node for node in tree.body
-        if isinstance(node, ast.FunctionDef) and node.name in {"stamp", "fingerprint"}
+        if isinstance(node, ast.FunctionDef) and node.name in {"stamp", "fingerprint", "walk"}
     ]
-    assert {node.name for node in helper_nodes} == {"stamp", "fingerprint"}
-    namespace = {"hashlib": hashlib, "os": os, "re": re, "stat": stat}
+    assert {node.name for node in helper_nodes} == {"stamp", "fingerprint", "walk"}
+    namespace = {
+        "hashlib": hashlib, "os": os, "pathlib": pathlib, "re": re, "stat": stat,
+    }
     module = ast.Module(body=helper_nodes, type_ignores=[])
     exec(compile(module, "embedded_host_fingerprint_helpers", "exec"), namespace)
-    return namespace["fingerprint"]
+    return namespace
 
+
+def _artifact_fingerprint_function():
+    return _artifact_helper_namespace()["fingerprint"]
+
+
+def _artifact_walk_function():
+    return _artifact_helper_namespace()["walk"]
 
 def test_phase0_host_request_covers_host_and_candidate_model_fingerprint():
     request = _requests()["phase0_environment"]
@@ -192,6 +202,49 @@ def test_embedded_fingerprint_rejects_file_changed_during_read(tmp_path, monkeyp
     assert touched is True
     assert status == "NO"
     assert detail == "CHANGED_DURING_HASH"
+
+
+def test_artifact_walk_reports_empty_and_incomplete_inventory(tmp_path, monkeypatch, capsys):
+    walk = _artifact_walk_function()
+    root = tmp_path / "data"
+    root.mkdir()
+    payload = root / "beliefs.db"
+    payload.write_bytes(b"isolated inventory fixture")
+
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "hidden.db").write_bytes(b"must not be traversed through a symlink")
+    (root / "linked.db").symlink_to(outside / "hidden.db")
+    (root / "linked_dir").symlink_to(outside, target_is_directory=True)
+
+    walk(root, "data")
+    output = capsys.readouterr().out
+    assert "data_artifact_match_count=1" in output
+    assert "data_artifact_stable_count=1" in output
+    assert "data_artifact_unstable_count=0" in output
+    assert "data_symlink_directories_skipped=1" in output
+    assert "data_symlink_files_skipped=1" in output
+    assert "data_walk_status=COMPLETE_WITH_SKIPS" in output
+
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    walk(empty, "data")
+    output = capsys.readouterr().out
+    assert "data_artifact_match_count=0" in output
+    assert "data_walk_status=COMPLETE_EMPTY" in output
+
+    def failing_walk(directory, followlinks=False, onerror=None):
+        error_path = str(pathlib.Path(directory) / "restricted")
+        onerror(PermissionError(13, "permission denied", error_path))
+        return iter(())
+
+    monkeypatch.setattr(os, "walk", failing_walk)
+    walk(root, "data")
+    output = capsys.readouterr().out
+    assert "data_walk_error=YES" in output
+    assert "PermissionError" in output
+    assert "data_walk_error_count=1" in output
+    assert "data_walk_status=INCOMPLETE" in output
 
 
 def test_generated_host_commands_have_valid_shell_and_python_syntax():
