@@ -29,6 +29,11 @@ _IMPORTANCE = {NECESSARY: 1.0, "conditional": 0.6, OPTIONAL: 0.3, FUTURE: 0.1,
                "hypothesis": 0.2, "unknown": 0.2, ANTI_REQUIREMENT: 0.0}
 
 
+def _semantic_reuse_is_reviewed(ob: Obligation) -> bool:
+    return (ob.recon_status == REUSE_EXISTING and ob.recon_evidence
+            and ob.confidence == "measured" and ob.recon_semantic_verified)
+
+
 def _indegree(relationships: List[Relationship]) -> Dict[str, int]:
     d: Dict[str, int] = {}
     for e in relationships:
@@ -40,7 +45,8 @@ def priority_dimensions(ob: Obligation, indeg: Dict[str, int]) -> Dict[str, obje
     """Separate, un-blended dimensions. The weighted figure is a sorting aid only."""
     importance = _IMPORTANCE.get(ob.classification, 0.3)
     centrality = min(indeg.get(ob.key, 0) / 5.0, 1.0)
-    readiness = {MISSING: 1.0, PARTIAL: 0.6, REUSE_EXISTING: 0.0}.get(ob.recon_status, 0.4)
+    readiness = (0.0 if _semantic_reuse_is_reviewed(ob) else
+                 {MISSING: 1.0, PARTIAL: 0.6}.get(ob.recon_status, 0.4))
     uncertainty = 1.0 if ob.confidence == "inferred" else (0.5 if ob.confidence == "stated" else 0.2)
     dims = {
         "importance": round(importance, 2),
@@ -77,8 +83,13 @@ def eligibility(ob: Obligation, obligations: Dict[str, Obligation],
             dep = obligations.get(rel.dst)
             if dep is None:
                 blockers.append(f"depends on unresolved necessary mechanism '{rel.dst}' (target absent)")
-            elif dep.classification == NECESSARY and dep.recon_status in (MISSING, PARTIAL, RECON_UNKNOWN, SIGNATURE_MATCHED):
-                state = "unbuilt" if dep.recon_status == MISSING else dep.recon_status
+            elif dep.classification == NECESSARY and (
+                    dep.recon_status in (MISSING, PARTIAL, RECON_UNKNOWN, SIGNATURE_MATCHED)
+                    or (dep.recon_status == REUSE_EXISTING and
+                        not _semantic_reuse_is_reviewed(dep))):
+                state = ("unbuilt" if dep.recon_status == MISSING else
+                         "semantic review required" if dep.recon_status == REUSE_EXISTING
+                         else dep.recon_status)
                 blockers.append(f"depends on necessary mechanism '{dep.key}' ({state})")
     return {"eligibility": "blocked" if blockers else "eligible", "blockers": blockers}
 
@@ -95,8 +106,7 @@ def build_work_packages(obligations: Dict[str, Obligation],
     for ob in obligations.values():
         if ob.classification == ANTI_REQUIREMENT:
             anti.append(f"{ob.key}: {ob.rationale}")
-        elif (ob.recon_status == REUSE_EXISTING and ob.recon_semantic_verified
-              and ob.recon_evidence and ob.confidence == "measured"):
+        elif _semantic_reuse_is_reviewed(ob):
             ev = ob.recon_evidence[0]
             anti.append(f"do NOT rebuild '{ob.key}' — semantic satisfaction reviewed ({ev})")
 
