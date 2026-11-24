@@ -201,9 +201,17 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
     missed = d.get("under_expansion_missed")
     actual_effort = (cycle.actual.get("effort_actual")
                      if cycle.actual is not None else None)
-    required_outcomes = ("missed", "unnecessary", "reuse_wrong", "regressions")
-    outcome_fields_reported = ([k for k in required_outcomes if cycle.actual is not None and k in cycle.actual])
-    outcome_complete = cycle.actual is not None and all(k in cycle.actual for k in required_outcomes)
+    actual_field_map = {
+        "missed": "under_expansion_missed",
+        "unnecessary": "over_expansion_unnecessary",
+        "reuse_wrong": "inappropriate_reuse",
+        "regressions": "regressions",
+    }
+    outcome_fields_reported = [
+        field for field, metric in actual_field_map.items()
+        if cycle.actual is not None and isinstance(d.get(metric), list)
+    ]
+    outcome_complete = cycle.actual is not None and len(outcome_fields_reported) == len(actual_field_map)
     return {
         "cycle": cycle.id,
         "kind": cycle.kind,
