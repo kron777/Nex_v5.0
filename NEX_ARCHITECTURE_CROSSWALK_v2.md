@@ -1495,3 +1495,18 @@ A closer read of `feeds/_helpers.py::parse_rss()` adds two qualifications to the
 - Together with the absence of cross-poll deduplication and a unique source-item key in the inspected schema, this means the current source path cannot itself distinguish a repeated item from a newly observed item with the same content. This is a structural limitation, not a measured duplicate-ingestion incident.
 
 Source anchor: `theory_x/stage1_sense/feeds/_helpers.py` at PR #49 source revision `23e327e84b6b26b6e22eb27808514100c2802855`. No malformed-feed test or live feed response was run. No runtime or test behaviour changed.
+
+
+### Stage 1 scheduler shutdown and Writer-close ordering — 24 Nov 2026
+
+A bounded lifecycle trace from the Stage 1 adapter threads through application shutdown found a possible in-flight write race:
+
+- `_AdapterThread` starts a daemon thread but does not retain the `threading.Thread` handle on the object. Its `stop()` method only sets a stop event; it does not join or otherwise wait for the worker to exit.
+- If shutdown begins while an adapter is inside `poll()`, the worker continues through `submit(events)` and updates status before its next loop condition observes the stop event. The stop event shortens the subsequent wait but does not cancel or synchronously drain the in-flight poll/submit.
+- `SenseScheduler.shutdown()` calls `stop()` for each adapter thread and returns without joining them.
+- `AppState.close()` calls `scheduler.shutdown()` and then immediately calls `close()` on each Writer. `Writer.close()` enqueues its sentinel and joins its worker with a timeout. A Stage 1 adapter that reaches `Writer.write()` after the Writer sentinel has been enqueued could enqueue behind the sentinel, after the Writer worker has exited; its synchronous future wait may then remain unresolved. The exact interleaving depends on shutdown timing and Writer queue state.
+- This is a source-confirmed race possibility, not an observed shutdown failure. No thread interleaving was induced, no shutdown test was run, and no target-host impact is claimed.
+
+Source anchors at current PR #49 source head: `theory_x/stage1_sense/scheduler.py` (`_AdapterThread.__init__`, `_run`, `stop`, `SenseScheduler.shutdown`); `gui/server.py` (`AppState.close`); and `substrate/writer.py` (`Writer.close`, synchronous `write`, worker sentinel handling). This lifecycle edge belongs in the Stage 1 forward dependency/termination map and remains an open Phase 0 defect/risk candidate pending authoritative acceptance criteria. No remediation is authorised by this finding.
+
+No runtime, test, schema, flag, host, experiment, merge or deployment change was made.
