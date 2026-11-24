@@ -12,8 +12,8 @@ from typing import Dict, List
 
 from .model import (ANTI_REQUIREMENT, CONDITIONAL, FUTURE, MISSING, NECESSARY,
                     OPTIONAL, OVERDEVELOPED, PARTIAL, RECON_UNKNOWN, REUSE_EXISTING,
-                    SUFFICIENT, TENSION_UNKNOWN, UNDERDEVELOPED, Obligation,
-                    Relationship, TensionAssessment)
+                    SIGNATURE_MATCHED, SUFFICIENT, TENSION_UNKNOWN, UNDERDEVELOPED,
+                    Obligation, Relationship, TensionAssessment)
 
 
 # ---- node-level ----
@@ -31,12 +31,16 @@ def assess_node(ob: Obligation) -> TensionAssessment:
         return TensionAssessment("node", ob.key, SUFFICIENT, inference=False,
                                  evidence=["reconciled MISSING"],
                                  note=f"{ob.classification}: absence is acceptable")
+    if ob.recon_status == SIGNATURE_MATCHED:
+        return TensionAssessment("node", ob.key, TENSION_UNKNOWN, inference=True,
+                                 evidence=ev,
+                                 note="configured source signature matched; semantic satisfaction "
+                                      "has not been independently reviewed")
     if ob.recon_status == REUSE_EXISTING:
         if not (ob.recon_evidence and ob.confidence == "measured" and ob.recon_semantic_verified):
             return TensionAssessment("node", ob.key, TENSION_UNKNOWN, inference=True,
                                      evidence=ev,
-                                     note="configured signature matched, but semantic satisfaction "
-                                          "has not been independently reviewed")
+                                     note="reuse status lacks independent semantic-review evidence")
         if ob.classification in (OPTIONAL, FUTURE):
             return TensionAssessment("node", ob.key, OVERDEVELOPED, inference=True,
                                      evidence=ev,
@@ -123,7 +127,7 @@ def assess_system(obligations: Dict[str, Obligation],
     necessary = {k: o for k, o in obligations.items() if o.classification == NECESSARY}
     missing_nec = [k for k, o in necessary.items() if o.recon_status in (MISSING, PARTIAL)]
     unknown_nec = [k for k, o in necessary.items()
-                    if o.recon_status == RECON_UNKNOWN or
+                    if o.recon_status in (RECON_UNKNOWN, SIGNATURE_MATCHED) or
                     (o.recon_status == REUSE_EXISTING and not
                      (o.recon_evidence and o.confidence == "measured" and
                       o.recon_semantic_verified))]
