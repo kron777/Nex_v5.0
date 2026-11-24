@@ -1459,3 +1459,17 @@ For non-internal text streams, matching combines stream-name and selected payloa
 ### Stage 2 test-coverage boundary — 24 Nov 2026
 
 The inspected tests cover basic A–F pipeline operation and cursor save/load, but do not establish the failure semantics above. `tests/test_dynamic.py::TestCursorPersistence` verifies a stored cursor can be loaded; it does not exercise a `run_pipeline()` exception followed by cursor advancement, replay before/after a save, partial Stage F side effects, or the distillation write-cap/cursor interaction. Its `test_internal_event_matches_systems_branch` only asserts the returned hit count is non-negative; it does not assert that internal telemetry leaves tree focus and membrane accumulation unchanged. `tests/test_sense.py` verifies successful adapter writes and a mock scheduler hand-off, but the inspected cases do not inject a per-event Writer failure into the real `Adapter.submit()` implementation. These are gaps in the inspected test slices, not a claim that no other tests anywhere exercise related behaviour.
+
+
+### Stage 1 repeated-feed rows and Stage 2 consumer asymmetry — 24 Nov 2026
+
+The Stage 1 feed audit was cross-checked against the Stage 2 loops to avoid treating the two downstream paths as one:
+
+- The inspected RSS adapter path has no cross-poll item deduplication in `parse_rss()`; the `sense_events` schema has no uniqueness constraint on source item identity. Repeated feed entries can therefore become separate rows with distinct database IDs even when their payload title/link repeats. This is a code-path possibility, not a measured duplicate rate.
+- Stage 2 `_sense_poll_loop` reads every new `sense_events` row by increasing database ID, without excluding internal or repeated external items, and calls `run_pipeline()` for each row. The pipeline's A–F steps operate on each row; no content-level deduplication appears in this path. Repeated rows may therefore receive repeated pipeline processing when their stream/value matches branches. Whether repeated processing materially changes live tree/membrane state is unverified.
+- The separate `_sense_distillation_loop` excludes `internal.%` and `external.other_mind`, extracts titles, applies exact/near-duplicate belief checks within its time window, and limits new belief writes per pass. That deduplication is local to belief promotion; it does not make the general Stage 2 A–F pipeline idempotent.
+- `run_pipeline()` catches its own exceptions, records an error and returns zero. The caller then advances its in-memory row cursor after the call returns, so a failed pipeline row is not distinguished from a no-match/zero-hit row by the caller. The separate source audit already records cursor persistence cadence and restart uncertainty; this addendum connects that boundary to the repeated-feed path without asserting a live loss or duplicate effect.
+
+Source anchors at current PR #49 branch head `5dc5f8b13e18a716901a5b0296a50c7463156ebe`: `theory_x/stage1_sense/feeds/_helpers.py`, `theory_x/stage1_sense/feeds/arxiv_ai.py`, `substrate/schema/sense.sql`, `theory_x/stage2_dynamic/__init__.py` (`_sense_poll_loop`, `_sense_distillation_loop`) and `theory_x/stage2_dynamic/pipeline.py` (`run_pipeline`, steps A–F). No tests were run in this pass.
+
+This is a conditional cross-stage risk map, not a finding that duplicate feed rows, repeated state changes, or cursor-loss incidents occurred on the target host. No runtime, schema, test, flag, host, experiment, merge or deployment change was made.
