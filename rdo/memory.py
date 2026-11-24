@@ -118,14 +118,18 @@ class CycleStore:
 
 # ---- the learning loop ----
 
+def _valid_effort(value) -> bool:
+    return (isinstance(value, (int, float)) and not isinstance(value, bool)
+            and math.isfinite(value) and value >= 0)
+
+
 def record_actual(cycle: CycleRecord, actual: Dict) -> CycleRecord:
     """Attach real outcomes. `actual` keys (all optional):
         missed:[keys], unnecessary:[keys], reuse_wrong:[keys],
         effort_actual:<n>, notes:str, regressions:[...]"""
     if "effort_actual" in actual:
         effort = actual["effort_actual"]
-        if (not isinstance(effort, (int, float)) or isinstance(effort, bool)
-                or not math.isfinite(effort) or effort < 0):
+        if not _valid_effort(effort):
             raise ValueError("effort_actual must be a finite, non-negative number")
     for field in ("missed", "unnecessary", "reuse_wrong", "regressions"):
         if field in actual and not isinstance(actual[field], list):
@@ -142,6 +146,10 @@ def compare(cycle: CycleRecord) -> Dict:
     a = cycle.actual
     predicted_effort = cycle.predicted.get("effort")
     actual_effort = a.get("effort_actual")
+    if not _valid_effort(predicted_effort):
+        predicted_effort = None
+    if not _valid_effort(actual_effort):
+        actual_effort = None
     disc = {
         "under_expansion_missed": a.get("missed"),            # None = not reported; [] = reported zero
         "over_expansion_unnecessary": a.get("unnecessary"),
@@ -215,11 +223,7 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
     missed = d.get("under_expansion_missed")
     raw_actual_effort = (cycle.actual.get("effort_actual")
                           if cycle.actual is not None else None)
-    actual_effort = (raw_actual_effort
-                     if isinstance(raw_actual_effort, (int, float))
-                     and not isinstance(raw_actual_effort, bool)
-                     and math.isfinite(raw_actual_effort)
-                     and raw_actual_effort >= 0 else None)
+    actual_effort = raw_actual_effort if _valid_effort(raw_actual_effort) else None
     actual_field_map = {
         "missed": "under_expansion_missed",
         "unnecessary": "over_expansion_unnecessary",
@@ -294,10 +298,6 @@ def metrics_series(cycles: List[CycleRecord]) -> Dict:
         by_kind[r["kind"]] = by_kind.get(r["kind"], 0) + 1
     outcome_complete = [r for r in rows if r["outcome_complete"]]
     # efficiency-eligible: RDO ran it AND work was executed+verified (exclude imported)
-    def _valid_effort(value) -> bool:
-        return (isinstance(value, (int, float)) and not isinstance(value, bool)
-                and math.isfinite(value) and value >= 0)
-
     efficiency_eligible = [r for r in rows
                            if r["kind"] == EXECUTED_VERIFIED and r["outcome_complete"]
                            and _valid_effort(r["engineering_effort"])]
