@@ -178,10 +178,11 @@ def expand(seeds: List[Obligation],
         # is not trusted. Reconcile it afresh rather than allowing it to suppress work.
         if ob.recon_status == REUSE_EXISTING and not (
                 ob.recon_evidence and ob.confidence == "measured" and
-                ob.recon_semantic_verified):
+                ob.recon_semantic_verified and ob.recon_semantic_review_evidence):
             ob.recon_status = RECON_UNKNOWN
             ob.recon_evidence = []
             ob.recon_semantic_verified = False
+            ob.recon_semantic_review_evidence = []
             ob.confidence = "inferred"
             ob.note = (ob.note + " ; unsupported reuse label downgraded to unknown").strip(" ;")
 
@@ -200,7 +201,7 @@ def expand(seeds: List[Obligation],
             continue
         if ob.recon_status == REUSE_EXISTING:
             if (ob.recon_evidence and ob.confidence == "measured" and
-                    ob.recon_semantic_verified):
+                    ob.recon_semantic_verified and ob.recon_semantic_review_evidence):
                 frontier.append({"key": ob.key,
                                  "reason": "semantic satisfaction independently reviewed"})
                 continue
