@@ -5,9 +5,10 @@ Context: `substrate/schema/beliefs.sql` creates arc_closers WITH
 _apply_migrations also carries an idempotent `ALTER TABLE arc_closers ADD COLUMN
 closure_type ...` for legacy databases that predate the column. Either path must
 leave the column present; `theory_x/arcs` writes closure_type, so its absence is a
-real defect. This was a WHATS_NEXT.md open-question migration bug that had been
-fixed but left UNGUARDED — surfaced by the RDO's defect-remediation cycle as the
-one eligible, net-new work item. This test is that guard.
+real defect. This was a WHATS_NEXT.md open-question migration bug. The fix and this
+regression guard are both present in the repository; the legacy-upgrade test below
+exercises the actual migration runner. The RDO should treat this test as existing
+evidence, not describe the migration as unguarded or recommend duplicate test work.
 
 Isolated: it does not modify NEX runtime or migration code. (tests/ is exempt from
 the no-raw-sqlite3 architecture invariant, so sqlite3 is used directly for
