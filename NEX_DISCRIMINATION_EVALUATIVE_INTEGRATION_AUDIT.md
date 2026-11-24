@@ -497,3 +497,23 @@ Added `tests/test_chat_working_memory_session_boundary.py`. It resets the module
 This test covers the per-session WorkingMemory boundary only. It does not prove that the process-global FocalSet is session-isolated (it is not: source shows one shared instance), does not exercise the complete Flask prompt-assembly route, and does not establish model reliance. The complete route's prompt append remains conditional as described in §13.12.
 
 No production code or runtime state was changed. This is a deterministic, isolated characterization test; CI will validate its import/runtime compatibility.
+
+
+## 13.14 CoherenceGate negation minimal-pair characterization
+
+A narrow test pair was added to `tests/test_coherence_gate.py` (class `TestAnchorNegationMinimalPairs`) using an isolated substrate fixture and a locked `keystone_seed` anchor.
+
+**Observed source rule:** `theory_x/stage_gate/coherence_gate.py`, blob `39f73108cb36e886cfc8dafe045646acba15549e`, lines 149–165:
+- `_tokens()` removes stopwords and punctuation for overlap/Jaccard;
+- `_has_negation()` removes the explicit `not only` pattern, then tests whether any whitespace-delimited token belongs to the negation-word set.
+- It does not parse negation scope, compositional meaning, or multiple-negation cancellation.
+
+**Characterized minimal pair:**
+1. The affirmative anchor wording is repeated with “I do not fail to attend …”. The expression is semantically affirmative in ordinary English, but the presence of `not` makes the candidate's Boolean negation state differ from the anchor. With high lexical overlap, the gate currently returns `REJECT / contradicts_anchor`.
+2. “I not only attend …” is covered by the explicit exception and does not produce that negation-XOR rejection.
+
+The tests record current behaviour, including the first case as a known lexical false-positive shape. They do not assert that double-negation should be accepted under every context, nor propose a replacement semantic parser or threshold.
+
+**Impact boundary:** CoherenceGate's anchor contradiction check is a bounded lexical heuristic. It catches the tested direct minimal pair, but the Boolean negation feature can conflate rhetorical, scoped, or compositional negation with actual opposition. Existing threshold/Jaccard checks do not solve that semantic distinction. This is a demonstrated limitation of the heuristic, not evidence that all gate decisions are unreliable.
+
+**Evidence classification:** source rule [L1]; fixture outcome [L1] pending CI; semantic correctness in deployed workloads [L4] UNKNOWN. No production code, thresholds, flags, anchors, or runtime data changed.
