@@ -123,8 +123,8 @@ def seed_from_graph(ledger: ConnectionLedger, graph) -> List[dict]:
         if e.source_implemented and ledger.current_state(cid) in ("DECLARED",):
             out.append(ledger.record(cid, "SOURCE_CONFIRMED",
                                      evidence_refs=[e.source_ref], note=e.label))
-        if e.test_verified and ledger.current_state(cid) in ("SOURCE_CONFIRMED",):
-            test_refs = [e.test_ref] if e.test_ref else []
+        if e.test_verified and e.test_ref and ledger.current_state(cid) in ("SOURCE_CONFIRMED",):
+            test_refs = [e.test_ref]
             out.append(ledger.record(cid, "TEST_WRITTEN", evidence_refs=test_refs,
                                      note="curated test_verified graph assertion; test not run by ledger"))
             out.append(ledger.record(cid, "TEST_PASSED", evidence_refs=test_refs,
