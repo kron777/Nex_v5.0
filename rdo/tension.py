@@ -32,6 +32,11 @@ def assess_node(ob: Obligation) -> TensionAssessment:
                                  evidence=["reconciled MISSING"],
                                  note=f"{ob.classification}: absence is acceptable")
     if ob.recon_status == REUSE_EXISTING:
+        if not (ob.recon_evidence and ob.confidence == "measured" and ob.recon_semantic_verified):
+            return TensionAssessment("node", ob.key, TENSION_UNKNOWN, inference=True,
+                                     evidence=ev,
+                                     note="configured signature matched, but semantic satisfaction "
+                                          "has not been independently reviewed")
         if ob.classification in (OPTIONAL, FUTURE):
             return TensionAssessment("node", ob.key, OVERDEVELOPED, inference=True,
                                      evidence=ev,
@@ -117,7 +122,11 @@ def assess_system(obligations: Dict[str, Obligation],
     # Partial evidence is underdeveloped; unavailable evidence remains unknown.
     necessary = {k: o for k, o in obligations.items() if o.classification == NECESSARY}
     missing_nec = [k for k, o in necessary.items() if o.recon_status in (MISSING, PARTIAL)]
-    unknown_nec = [k for k, o in necessary.items() if o.recon_status == RECON_UNKNOWN]
+    unknown_nec = [k for k, o in necessary.items()
+                    if o.recon_status == RECON_UNKNOWN or
+                    (o.recon_status == REUSE_EXISTING and not
+                     (o.recon_evidence and o.confidence == "measured" and
+                      o.recon_semantic_verified))]
     if missing_nec:
         verdict = UNDERDEVELOPED
     elif unknown_nec or not necessary:
@@ -133,7 +142,7 @@ def assess_system(obligations: Dict[str, Obligation],
               if missing_nec or unknown_nec
               else ("no necessary obligations defined; readiness cannot be established"
                     if not necessary else
-                    "all necessary obligations reconcile to existing mechanisms"))))
+                    "all necessary obligations have independently reviewed semantic-satisfaction evidence"))))
     return out
 
 
