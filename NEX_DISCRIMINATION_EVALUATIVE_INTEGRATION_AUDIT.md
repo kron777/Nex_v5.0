@@ -530,3 +530,19 @@ The new isolated test compares:
 This is a source-predicted lexical false-negative shape, not a claim that punctuation always changes the correct semantic interpretation. The fixture records the actual gate result in an isolated temporary substrate. It does not propose a production fix or infer real-world frequency.
 
 **Evidence boundary:** whitespace-token implementation [L1]; test outcome pending CI until the current run completes [L1]; prevalence and effect in deployed conversations [L4] UNKNOWN. No production source, thresholds, flags, anchors, runtime data, or roadmap items changed.
+
+
+## 13.16 CoherenceGate substrate-read failure characterization — evidence unavailable becomes empty
+
+The source inspection identified a distinct failure path from the top-level `gate_error_fallback`:
+
+- In `theory_x/stage_gate/coherence_gate.py`, `_read_substrate()` initializes anchors, goals, problems and recent beliefs as empty lists.
+- Each of the four reads is wrapped in its own `try/except`; an exception is recorded, but the corresponding list remains empty and evaluation continues.
+- If the beliefs reader is unavailable, both the locked-anchor read and recent-belief read fail. If the conversations reader returns no evidence, a contradictory packet can reach the default `ACCEPT / accept:novel_no_conflict` path without an anchor comparison.
+- The public `check()` method's outer error fallback is not invoked in this case because the read exceptions have already been swallowed.
+
+Added `TestGateSubstrateReadFailure.test_unavailable_belief_reader_allows_anchor_contradiction`. The isolated fixture seeds a locked affirmative anchor in a temporary database, substitutes a reader that raises on every read, and submits the corresponding direct-negation minimal pair. The test characterizes the current result as `ACCEPT / accept:novel_no_conflict`.
+
+**Interpretation boundary:** this demonstrates fail-open behaviour when the belief evidence reader is unavailable in the tested configuration. It does not establish how often the condition occurs in a running deployment, whether infrastructure retries or external health checks prevent it, or what the intended policy should be. A fail-open choice may have been deliberate for availability; changing it would alter gate semantics and requires governing-spec review and explicit authorization.
+
+**Evidence classification:** source-level exception handling [L1]; isolated fixture outcome pending CI [L1]; deployed incidence and operational impact [L2/L4] UNKNOWN. No production source, runtime state, flags, anchors, or roadmap items changed.
