@@ -14,8 +14,10 @@ Each edge carries THREE independent evidence dimensions, kept distinguishable
   * test_verified      — a test asserts the behaviour
   * runtime_observed   — the edge was seen firing in a live trace (host only)
 An edge's `level` is the strongest dimension it has; a cycle's status is its
-WEAKEST edge (a loop is only as established as its least-established link). NEX is
-in STANDBY, so nothing is `runtime_observed` yet — that stays an honest gap.
+WEAKEST edge (a loop is only as established as its least-established link). These
+flags are curated review assertions, not dynamically derived proofs; the current
+source references are group-level and do not provide a per-edge source/test trace.
+NEX is in STANDBY, so nothing is `runtime_observed` yet — that stays an honest gap.
 """
 from __future__ import annotations
 
