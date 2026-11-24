@@ -261,3 +261,32 @@ A recursive tracked-tree spot check at source head 90b4ee4cd4dbee06abfdb54fc8f81
 ### Current update — DRAFT-040 (24 Nov 2026; dormant producer)
 
 **SelfNarrative rut-notice tick has no demonstrated main-runtime invocation.** Narrative writes from CoherenceGate/NovelAssociation and chat retrieval are wired, but the rut-detection producer is implemented in `SelfNarrative.tick()`. The inspected `run.py` and `gui/server.py` paths neither call that method nor start a SelfNarrative loop. External dispatch is not ruled out, but the inspected Theory X registry does not establish automatic ticking. No claim about live rut notices is made.
+
+
+
+### Current update — DRAFT-041 (24 Nov 2026; conditional dry-run state-accounting mismatch)
+
+**Moltbook dry-run responses are treated as completed external actions by the caller loops.** `MoltbookClient` defaults `MOLTBOOK_DRY_RUN` to `1` and returns a structured `{"dry_run": true, ...}` object for non-GET calls without contacting Moltbook. The inspected callers do not branch on that marker:
+
+- `PostLoop.post_tick()` extracts no post ID from the dry-run result, but still inserts `moltbook_posts.status='posted'`, marks the queue row `posted`, and marks other in-window candidates `skipped`.
+- `DMResponder._handle_one()` marks the pending reply `sent` after the dry-run `dm_send()` returns normally.
+- `DMListenLoop._approve_pending_requests()` records a conversation as `approved=1` after the dry-run approval returns normally.
+
+These local statuses can therefore represent simulated calls as completed external actions. The default dry-run setting makes the condition relevant if these loops are launched without overriding the environment. This is not evidence the loops are currently running: the inspected main `run.py` does not construct/start the Moltbook loops, and the GUI route only reads optional activity tables. The client still loads the credentials file at construction even in dry-run mode.
+
+Test boundary: the only Moltbook-specific test file found is `tests/test_moltbook_optional.py`, which tests optional-table/HUD behaviour and daily-life fallback; it does not exercise the listener, poster or responder action/status paths. No live account, daemon or host state was inspected. Treat as a source-confirmed conditional state-accounting mismatch, not a deployed incident. No correction authorised in Phase 0.
+
+Current source hashes:
+- `theory_x/stage7_moltbook/client.py`: `0b60ce8ab9ec2e935c9abb55311235f07e43631e`
+- `theory_x/stage7_moltbook/poster.py`: `3acdf141685c28b60ea66102e3fcd2538ab22923`
+- `theory_x/stage7_moltbook/listener.py`: `54c5a1d91aa54525c768d0b0c4914d6d830e6d83`
+- `theory_x/stage7_moltbook/responder.py`: `0e568897167e458b61701b29e3fcd2538ab22923`
+- `run.py`: `73a2c58a4f5f0348135a46eb83d6cdd61db874e7`
+- `gui/server.py`: `5ee8b167f386466c383090445c63a84810bbae52`
+- `tests/test_moltbook_optional.py`: `6bff5f1a331cd2133396853960e3cb3f9f39c3a6`
+
+### Current update — DRAFT-042 (24 Nov 2026; selection-order/documentation mismatch)
+
+**Moltbook PostLoop's implementation does not follow its documented candidate priority.** `_pick_best()` says it ranks first by highest `word_count`, then by newest `queued_at` among ties. Its actual descending sort key is `(queued_at, word_count)`, making recency the primary criterion and word count only the tie-breaker. This can select a newer shorter thought over an older longer one within the same eligible queue window. No PostLoop-specific test exists in the inspected tree. Whether the code or the stated priority is authoritative remains unresolved; no selection policy is changed in Phase 0.
+
+Source hash: `theory_x/stage7_moltbook/poster.py` `3acdf141685c28b60ea66102e3fcd2538ab22923`.
