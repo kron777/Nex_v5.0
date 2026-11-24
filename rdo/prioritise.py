@@ -8,8 +8,8 @@ Stage 2 — PRIORITISATION: compare eligible work along dimensions reported
 SEPARATELY. A provisional weighted figure is included only for sorting and is
 explicitly labelled uncalibrated — it is never presented as established science.
 
-Work packages bundle the genuinely net-new obligations and carry their
-anti-requirements (what must deliberately NOT be built).
+Work packages bundle unresolved build and semantic-review obligations and carry
+their anti-requirements (what must deliberately NOT be built).
 """
 from __future__ import annotations
 
@@ -87,8 +87,8 @@ def build_work_packages(obligations: Dict[str, Obligation],
                         relationships: List[Relationship],
                         active_experiments: Optional[List[str]] = None,
                         authorised_gates: Optional[set] = None) -> List[WorkPackage]:
-    """Bundle net-new (missing/partial) necessary obligations by root target, with
-    their anti-requirements. Reused and anti-requirement obligations are NOT work."""
+    """Bundle unresolved necessary/conditional obligations by root target.
+    Signature-matched obligations are review work, not automatic rebuild claims."""
     indeg = _indegree(relationships)
     # global anti-requirements: explicit anti-reqs + "do not rebuild what exists"
     anti: List[str] = []
@@ -129,5 +129,5 @@ def build_work_packages(obligations: Dict[str, Obligation],
             eligibility="blocked" if blockers else "eligible",
             blockers=sorted(set(blockers)), priority_dimensions=dims,
             anti_requirements=anti, reversible=reversible,
-            note="net-new necessary/conditional obligations not satisfied by existing mechanisms"))
+            note="unresolved build/review obligations; signature matches require semantic review, not automatic rebuild"))
     return packages
