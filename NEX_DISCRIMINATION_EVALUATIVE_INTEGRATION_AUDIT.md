@@ -517,3 +517,16 @@ The tests record current behaviour, including the first case as a known lexical 
 **Impact boundary:** CoherenceGate's anchor contradiction check is a bounded lexical heuristic. It catches the tested direct minimal pair, but the Boolean negation feature can conflate rhetorical, scoped, or compositional negation with actual opposition. Existing threshold/Jaccard checks do not solve that semantic distinction. This is a demonstrated limitation of the heuristic, not evidence that all gate decisions are unreliable.
 
 **Evidence classification:** source rule [L1]; fixture outcome [L1] pending CI; semantic correctness in deployed workloads [L4] UNKNOWN. No production code, thresholds, flags, anchors, or runtime data changed.
+
+
+## 13.15 CoherenceGate punctuation-sensitive negation characterization
+
+A further paired fixture extends §13.14 without changing the gate. The source-level distinction is precise: the negation helper lowercases and calls whitespace split, then compares whole resulting tokens against the negation-word set; unlike the content-token helper, it does not strip punctuation before this comparison.
+
+The new isolated test compares:
+- “I do not attend …” — the direct negation minimal pair is rejected against the seeded affirmative anchor.
+- “I do not, however, attend …” — the same negation marker followed by a comma is represented as the token "not,", which does not equal the set member "not"; the candidate therefore does not trigger the anchor-negation XOR rejection despite near-verbatim content-word overlap.
+
+This is a source-predicted lexical false-negative shape, not a claim that punctuation always changes the correct semantic interpretation. The fixture records the actual gate result in an isolated temporary substrate. It does not propose a production fix or infer real-world frequency.
+
+**Evidence boundary:** whitespace-token implementation [L1]; test outcome pending CI until the current run completes [L1]; prevalence and effect in deployed conversations [L4] UNKNOWN. No production source, thresholds, flags, anchors, runtime data, or roadmap items changed.
