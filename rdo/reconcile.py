@@ -148,5 +148,10 @@ def summarize(obligations: Dict[str, Obligation]) -> Dict[str, List[str]]:
     buckets: Dict[str, List[str]] = {REUSE_EXISTING: [], SIGNATURE_MATCHED: [],
                                      PARTIAL: [], MISSING: [], RECON_UNKNOWN: []}
     for ob in obligations.values():
-        buckets.setdefault(ob.recon_status, []).append(ob.key)
+        if (ob.recon_status == REUSE_EXISTING and not
+                (ob.recon_evidence and ob.confidence == "measured" and
+                 ob.recon_semantic_verified)):
+            buckets[RECON_UNKNOWN].append(ob.key)
+        else:
+            buckets.setdefault(ob.recon_status, []).append(ob.key)
     return buckets
