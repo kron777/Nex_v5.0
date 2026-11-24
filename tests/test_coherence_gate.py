@@ -651,7 +651,7 @@ class TestGateSubstrateReadFailure(unittest.TestCase):
         self.assertEqual(decision.outcome, GateOutcome.REJECT)
         self.assertIn("contradicts_anchor", decision.reason)
 
-    def test_successful_empty_substrate_is_distinct_from_reader_failure(self):
+    def test_successful_empty_substrate_matches_anchor_read_failure_decision(self):
         from theory_x.stage_gate.coherence_gate import (
             CoherenceGate, GateOutcome, ThoughtPacket,
         )
@@ -665,16 +665,27 @@ class TestGateSubstrateReadFailure(unittest.TestCase):
             beliefs_writer=self.writers["beliefs"],
             conversations_reader=EmptyReader(),
         )
-        decision = gate.check(ThoughtPacket(
+        packet = ThoughtPacket(
             content=(
                 "I do not attend to the world with wonder, stillness, "
                 "presence, and care."
             ),
             source_node="phase0_empty_substrate_fixture",
             confidence=0.7,
-        ))
-        self.assertEqual(decision.outcome, GateOutcome.ACCEPT)
-        self.assertEqual(decision.reason, "accept:novel_no_conflict")
+        )
+        empty_decision = gate.check(packet)
+        failed_anchor_decision = self._gate_with_selective_failure(
+            "beliefs", "tier=1"
+        ).check(packet)
+
+        self.assertEqual(empty_decision.outcome, GateOutcome.ACCEPT)
+        self.assertEqual(empty_decision.reason, "accept:novel_no_conflict")
+        # The evaluator currently cannot distinguish a successful empty
+        # anchor query from an unavailable anchor query in its decision.
+        self.assertEqual(
+            (empty_decision.outcome, empty_decision.reason),
+            (failed_anchor_decision.outcome, failed_anchor_decision.reason),
+        )
 
     def test_goal_read_failure_suppresses_goal_negation_hold(self):
         from theory_x.stage_gate.coherence_gate import GateOutcome, ThoughtPacket
