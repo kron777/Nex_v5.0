@@ -1723,3 +1723,13 @@ These findings describe event-production cadence and cleanup wiring, not observe
 **VoiceEngine.** The main boot path constructs VoiceEngine and AppState defaults `voice_mode` to `use_substrate`. For ordinary non-probe, non-instruction chat, the route calls `query_reply()` in that mode. A candidate scoring >=0.6 is returned directly as the reply (except admin operator-composition mode, where it becomes grounding). The engine records a `user_query` trigger row for every query: successful substrate replies are inserted with `fired=1`; misses are inserted with `fired=0`. This is an additional trigger producer beyond gate rejects and gap deflections. If Throw-Net monitoring is enabled, the current pending query treats every such unfired user-query miss as a pending session candidate, because it filters only `fired=0` and not trigger type/threshold.
 
 There is also a source-comment/call-path discrepancy: the chat handler comment says a substrate miss suppresses LLM fallback in `use_substrate` mode, but after `query_reply()` returns None, `text` remains None and the ordinary `if text is None` composition branch proceeds to call `state.voice.speak()`. In the inspected path, a miss therefore falls through to LLM composition rather than a demonstrated substrate-only deflection. Probe and instruction requests bypass VoiceEngine intentionally. The current source establishes a hybrid retrieval-first/fallback path, not a strict substrate-only mode on misses.
+
+
+
+## Chat provenance retry — current-branch source revalidation (24 Nov 2026)
+
+Rechecked against current PR #49 head `6eb6598ba8eae5a6bd0138e54ecd946276490437`. The admin-scoped path still logs the initial reply through `read_provenance()`, evaluates a cue-driven retry with `log=False`, and may deliver that retry if its mirror score is lower. No provenance-log entry is written for the accepted retry. Thus the log is not a delivered-reply sample for retry-accepted turns. This is conditional on `NEX5_PROVENANCE=1`, admin scope and retry acceptance; target-host activation and incidence remain UNKNOWN.
+
+The cue can cause one retry, so this is a conditional generation influence, not merely passive measurement. The module still refuses a self-grounded/authenticity verdict; its grounding hint remains explicitly unproven. Module tests do not cover the route-level retry/log identity.
+
+Current source hashes: `gui/server.py` `5ee8b167f386466c383090445c63a84810bbae52`; `theory_x/stage_provenance/provenance.py` `92671a3e120a1935fab33f6d659ab806f1eb4cc6`; `tests/test_provenance.py` `fcefbeccb6bedc3e20798142814d7b96b4e6dca5`. See DRAFT-012 and the current-branch revalidation in the Reality Report.
