@@ -74,16 +74,12 @@ def test_ledger_seed_from_graph_keeps_runtime_unclaimed(tmp_path):
     assert states["affect_state->chat_assembly"] == "SOURCE_CONFIRMED"
 
 
-def test_ledger_does_not_advance_test_state_without_test_reference(tmp_path):
+def test_graph_rejects_test_verified_edge_without_test_reference():
     from watcher.architecture import Edge, RuntimeGraph
     graph = RuntimeGraph()
-    graph.add(Edge("a", "b", "scoped source claim", True, True, False,
-                   source_ref="src.py:1", test_ref=""))
-    ledger = ConnectionLedger(str(tmp_path / "missing-test-ref.jsonl"))
-    seed_from_graph(ledger, graph)
-    assert ledger.current_state("a->b") == "SOURCE_CONFIRMED"
-    assert not any(item["to_state"] in ("TEST_WRITTEN", "TEST_PASSED")
-                   for item in ledger.history("a->b"))
+    with pytest.raises(ValueError, match="traceable test_ref"):
+        graph.add(Edge("a", "b", "scoped source claim", True, True, False,
+                       source_ref="src.py:1", test_ref=""))
 
 
 # ---- regression detection ----
