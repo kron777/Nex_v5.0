@@ -184,3 +184,10 @@ The same source pass found context_snapshot.py reads sense_events for a feed_act
 ### DRAFT-030 source qualification — internal streams in WorldBridge
 
 The selector's formatter explicitly converts internal.temporal, internal.meta_awareness and internal.interoception into compact prompt text; internal.proprioception falls through to a short raw JSON snippet. In particular, MetaAwareness's enabled/global-running fields can be presented in Fountain despite the separate SelfModel snapshot not using the fetched MetaAwareness payload. These values remain control-state telemetry, not feed-health or persistence proof. This is a source-path qualification to DRAFT-030, not a separate severity assessment.
+
+
+### Current update — DRAFT-031 (24 Nov 2026)
+
+**WorldBridge writes directly to beliefs.db outside the One-Pen Writer queue.** SPECIFICATION.md §8 requires exactly one writer thread per database and states that every write must submit to that queue; direct DB writes are bugs. WorldBridgeSelector._log_selection() imports substrate.connect, opens a normal beliefs.db connection and executes an INSERT into world_bridge_log. The selector is constructed by run.py and invoked by Fountain prompt assembly, so this path is reachable in the inspected boot graph. This is source-confirmed divergence from the inspected specification. An approved later exception/superseding rule has not been established; no contention event or live impact is claimed. No severity or remediation is assigned pending Frozen V2.1/Founder authority reconciliation.
+
+**DRAFT-031 test boundary:** tests/test_sense.py's one-pen ratchet checks for literal "import sqlite3" outside substrate. It does not detect the from-substrate-connect plus INSERT pattern. The inspected tests/test_strikes.py verifies context snapshot fields, not WorldBridge's database write route. No contention test or live write trace was run. Source anchors: SPECIFICATION.md §8, theory_x/world_bridge/selector.py, run.py, theory_x/stage6_fountain/generator.py and tests/test_sense.py.
