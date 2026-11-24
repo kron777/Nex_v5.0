@@ -1384,3 +1384,14 @@ The RSS ingestion findings were traced one step further into Stage 2:
 Source anchors at inspected PR #49 branch head `5dc5f8b13e18a716901a5b0296a50c7463156ebe`: `theory_x/stage1_sense/feeds/_helpers.py`, `feeds/arxiv_ai.py`, `substrate/schema/sense.sql`, `theory_x/stage2_dynamic/__init__.py` and `theory_x/stage2_dynamic/pipeline.py`. These findings supplement, rather than replace, the prior Stage 2 loop audit.
 
 Evidence remains source-level. No duplicate count, live tree/membrane mutation, target-host cursor state, or failure/restart outcome was measured. No runtime, schema, test, flag, host, experiment, merge or deployment change was made.
+
+
+### Stage 2 cadence, consolidation and crystallization readers — 24 Nov 2026
+
+Further backward inspection identified additional source paths:
+
+- `BonsaiTree.refresh_cadence()` reads non-internal sense rows from a 24-hour window, groups by stream, burst-clusters timestamps, derives median inter-burst gaps and maps recognised streams to branches. The minimum mapped interval is cached and later scales branch decay. This means stream frequency is a separate influence channel from an individual row's A–F magnitude/Step-F attention result.
+- `consolidation._external_quiet()` expects `seconds_since_last_user_message` in the latest `internal.temporal` payload and runs an extra decay/prune pass only when the value exceeds 300 seconds. The built-in `Temporal.poll()` implementation inspected in the Stage 1 factory emits clock fields but not this key. The inspected consolidation tests manually seed the expected key instead of using the real adapter. Another writer could theoretically supply it; a complete repository-wide writer census was not established. Record this as a source-level producer/consumer contract discrepancy with live impact UNKNOWN, not as proof consolidation never runs.
+- The Stage 2 Crystallizer reads `pipeline_events` (dynamic.db), selecting high-magnitude recent branch events and carrying stream provenance into a precipitated belief when the chosen metadata contains a sensed title. This is downstream of the A–F pipeline log rather than a direct sense.db read.
+
+No live cadence cache, temporal payload, consolidation run, crystallized belief or target-host effect was inspected.
