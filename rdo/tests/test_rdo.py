@@ -455,3 +455,23 @@ def test_grep_oserror_and_invalid_exit_remain_unknown(tmp_path, monkeypatch):
                         lambda *a, **k: SimpleNamespace(returncode=3, stdout="", stderr="bad regex"))
     ob = Obligation("invalid-grep", "invalid grep", "test")
     assert recon.reconcile(ob, str(tmp_path), [Signature("[")]) == RECON_UNKNOWN
+
+def test_active_experiment_registry_unreadable_or_invalid_fails_closed(tmp_path, monkeypatch):
+    import pytest
+    import watcher.registry as registry
+    from watcher.evidence import Evidence
+    from rdo.orchestrator import _active_experiments
+
+    def unavailable(_path):
+        return Evidence("experiment_registry", None, "cloud", "unknown", "fixture",
+                        modifier="unverified")
+    monkeypatch.setattr(registry, "ingest_registry", unavailable)
+    with pytest.raises(RuntimeError, match="registry unavailable"):
+        _active_experiments(str(tmp_path))
+
+    def unreadable(_path):
+        raise PermissionError("registry unreadable")
+    monkeypatch.setattr(registry, "ingest_registry", unreadable)
+    with pytest.raises(PermissionError):
+        _active_experiments(str(tmp_path))
+
