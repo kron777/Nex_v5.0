@@ -58,6 +58,8 @@ def test_checkout_and_process_requests_do_not_expose_credentials_or_raw_argv():
 
     # The collector must summarize worktree state without printing filenames,
     # and must not dump process arguments or a complete environment.
+    assert "df -P \"$checkout\"" in checkout
+    assert "df -P <verified-process-cwd>" in runtime
     assert "status --porcelain=v1" in checkout
     assert "dirty_entries=" in checkout
     assert "pgrep -af" not in combined
