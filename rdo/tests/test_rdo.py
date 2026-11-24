@@ -290,6 +290,7 @@ def test_cycle_metrics_pending_vs_recorded():
                           verification={"all_reuse_backed": True})
     mp = cycle_metrics(pending)
     assert mp["outcome_status"] == "pending" and mp["missed_obligation_count"] is None
+    assert mp["signature_evidence_coverage_complete"] is None
     recorded = CycleRecord(id="r", objective="o", predicted={"effort": 2})
     record_actual(recorded, {"missed": ["x"], "effort_actual": 3})
     mr = cycle_metrics(recorded)
