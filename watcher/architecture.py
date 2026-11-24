@@ -93,8 +93,8 @@ class Edge:
 
 
 class RuntimeGraph:
-    """A separate reconstruction of NEX's runtime wiring. Never writes to the DAG
-    or mind map."""
+    """A separate static/design view of source-present relationships. Never writes
+    to the build DAG or mind map, and never implies live execution."""
 
     def __init__(self) -> None:
         self.nodes: set[str] = set()
@@ -263,9 +263,11 @@ def build_runtime_graph() -> RuntimeGraph:
 
 def runtime_graph_evidence(g: RuntimeGraph) -> Evidence:
     cycles = g.find_cycles()
+    graph_data = g.to_dict()
     return Evidence(
         "runtime_graph",
-        {"nodes": sorted(g.nodes), "edge_count": len(g.edges), "feedback_cycles": cycles,
+        {"nodes": sorted(g.nodes), "edge_count": len(g.edges), "edges": graph_data["edges"],
+         "feedback_cycles": cycles,
          "level_legend": "weakest->strongest: " + " < ".join(LEVELS)},
         "cloud", "implemented",
         "watcher.architecture.build_runtime_graph",
