@@ -612,3 +612,15 @@ class TestExternalDrift(_Store):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+def test_valence_ownership_threshold_isolated():
+    """Ownership is an admission gate at 0.5, independent of other fixed inputs."""
+    below = X.valence("violated", 0.6, 2, 0.499, "stated_p", 0.8)
+    at = X.valence("violated", 0.6, 2, 0.5, "stated_p", 0.8)
+    above = X.valence("violated", 0.6, 2, 0.501, "stated_p", 0.8)
+
+    assert below == (0.0, 0, "external_basis")
+    assert at[1:] == (1, "violated") and at[0] < 0
+    assert above[1:] == (1, "violated") and above[0] < 0
