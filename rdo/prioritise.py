@@ -16,7 +16,8 @@ from __future__ import annotations
 from typing import Dict, List, Optional
 
 from .model import (ANTI_REQUIREMENT, FUTURE, MISSING, NECESSARY, OPTIONAL, PARTIAL,
-                    RECON_UNKNOWN, REUSE_EXISTING, Obligation, Relationship, WorkPackage)
+                    RECON_UNKNOWN, REUSE_EXISTING, SIGNATURE_MATCHED, Obligation,
+                    Relationship, WorkPackage)
 
 # obligation kinds that represent an active behavioural change to NEX and so
 # require an explicit, preregistered gate before any execution.
@@ -76,7 +77,7 @@ def eligibility(ob: Obligation, obligations: Dict[str, Obligation],
             dep = obligations.get(rel.dst)
             if dep is None:
                 blockers.append(f"depends on unresolved necessary mechanism '{rel.dst}' (target absent)")
-            elif dep.classification == NECESSARY and dep.recon_status in (MISSING, PARTIAL, RECON_UNKNOWN):
+            elif dep.classification == NECESSARY and dep.recon_status in (MISSING, PARTIAL, RECON_UNKNOWN, SIGNATURE_MATCHED):
                 state = "unbuilt" if dep.recon_status == MISSING else dep.recon_status
                 blockers.append(f"depends on necessary mechanism '{dep.key}' ({state})")
     return {"eligibility": "blocked" if blockers else "eligible", "blockers": blockers}
@@ -94,17 +95,18 @@ def build_work_packages(obligations: Dict[str, Obligation],
     for ob in obligations.values():
         if ob.classification == ANTI_REQUIREMENT:
             anti.append(f"{ob.key}: {ob.rationale}")
-        elif ob.recon_status == REUSE_EXISTING:
-            ev = ob.recon_evidence[0] if ob.recon_evidence else "reconciled"
-            anti.append(f"do NOT rebuild '{ob.key}' — exists ({ev})")
+        elif (ob.recon_status == REUSE_EXISTING and ob.recon_semantic_verified
+              and ob.recon_evidence and ob.confidence == "measured"):
+            ev = ob.recon_evidence[0]
+            anti.append(f"do NOT rebuild '{ob.key}' — semantic satisfaction reviewed ({ev})")
 
-    # net-new work: unbuilt necessary/conditional obligations (MISSING/PARTIAL),
-    # unverified ones (RECON_UNKNOWN — no signature, so not confirmed to exist;
-    # surfaced as candidate work to investigate), plus host-only verification
-    # (which source reconciliation can never satisfy). REUSE_EXISTING is excluded.
+    # net-new/investigation work: MISSING/PARTIAL obligations, UNKNOWN obligations
+    # without a signature, and SIGNATURE_MATCHED obligations whose full semantic
+    # satisfaction has not been reviewed. Only explicitly reviewed REUSE_EXISTING
+    # obligations are excluded. Runtime verification is host-only.
     net_new = [ob for ob in obligations.values()
                if ob.classification in (NECESSARY, "conditional")
-               and (ob.recon_status in (MISSING, PARTIAL, RECON_UNKNOWN)
+               and (ob.recon_status in (MISSING, PARTIAL, RECON_UNKNOWN, SIGNATURE_MATCHED)
                     or ob.kind in HOST_ONLY_KINDS)]
 
     # group by root target (key before first '.')
