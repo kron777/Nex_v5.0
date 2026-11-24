@@ -583,3 +583,14 @@ Added `TestGateWiring.test_anchor_read_failure_accept_still_triggers_resolver` i
 **Impact boundary:** this demonstrates that an ACCEPT produced with the anchor evidence unavailable is not merely a return-value classification: through the existing resolver sink, it can cause a held thought to be promoted when the corroboration threshold is met. It does not establish that the promotion is substantively wrong—the fixture only proves the source-path consequence—or that this sequence occurs in deployment. Whether partial-evidence ACCEPT should be allowed to trigger this sink remains a policy question. No production code, schema, live database, flags, or roadmap items changed.
 
 **Evidence classification:** source-level ACCEPT-to-resolver wiring and resolver actions [L1]; isolated sink-reaching fixture outcome [L1], pending CI on this test head; deployed frequency, operational harm and intended partial-evidence contract [L2/L4] UNKNOWN.
+
+
+## 13.19 Read-failure observability is separate from decision input
+
+A further qualification: the current implementation does not silently discard every read exception.
+
+- Each _read_substrate() handler calls errors.record(...) without overriding its default level, so the event is recorded as ERROR. Source: theory_x/stage_gate/coherence_gate.py blob 39f73108cb36e886cfc8dafe045646acba15549e, lines 408–451.
+- errors.py blob 01a6437bb7d0a0465a40aad1f8426585856683c6, lines 149–213: record() appends to the in-memory event ring and WARNING+ ring, and attempts the rotating disk sink at logs/errors.log; recent() and recent_errors() expose the in-memory rings. The disk sink deliberately swallows its own failures, so source configuration is not proof that a particular host wrote or retained a given event.
+- The gate's _read_substrate() return value remains only the four evidence lists; it does not return per-source read status to _evaluate(). GateDecision carries outcome, reason and latency, and gate_decisions persists those fields. The read-error record is therefore a separate diagnostic channel, not part of the decision contract.
+
+**Interpretation boundary:** the failure can be observable to diagnostics while remaining indistinguishable from a successful empty read to the evaluator and downstream decision consumers. This corrects any overly broad description of the behaviour as “silent”; the demonstrated limitation is decision-path conflation, not necessarily absence of logging. Actual log retention/availability on the deployed host remains UNKNOWN. No production code or runtime state changed.
