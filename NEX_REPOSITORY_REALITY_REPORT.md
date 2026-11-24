@@ -1365,3 +1365,8 @@ Test boundary: `tests/test_sense_extract.py` verifies extraction of title-like f
 Source anchors at inspected PR #49 evidence head `23e327e84b6b26b6e22eb27808514100c2802855`: `theory_x/stage1_sense/feeds/_helpers.py`, `feeds/exchange_prices.py`, `feeds/crypto_news.py`, `feeds/arxiv_ai.py`, `theory_x/stage6_fountain/generator.py` and `tests/test_sense_extract.py`. The later Stage 2 source audit already recorded in this report identifies separate all-stream attention and filtered/capped sense-distillation consumers; the Stage 1-to-Fountain paths documented here are additional, not an exhaustive inventory of all `sense_events` readers.
 
 Evidence remains source-level. No target-host environment, external-feed health, sense.db contents, duplicate rate, prompt inclusion frequency or row-level causal effect was observed. No runtime, schema, test, flag, host, experiment, merge or deployment change was made.
+
+
+### Stage 2 test review qualification — 24 Nov 2026
+
+The bounded tests inspected (`tests/test_dynamic.py`, `tests/test_sense.py`) establish successful pipeline/cursor basics and successful adapter submission. They do not exercise swallowed `run_pipeline()` errors with subsequent cursor movement, replay boundaries, partial pipeline side effects, or the five-write distillation cap. The internal-stream test asserts only a non-negative hit count and does not verify absence of tree/membrane influence. The inspected adapter tests do not inject a Writer failure into the concrete Adapter.submit() path. This is a bounded test-coverage observation; it is not a repository-wide claim that no related tests exist.
