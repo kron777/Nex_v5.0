@@ -1455,3 +1455,16 @@ A wider backward search from the Stage 1 sense table identified two additional c
 Source anchors at PR #49 source revision `e0ab228728094eacc22e3e51f10d5174523c6e18`: `run.py`; `theory_x/world_bridge/selector.py` (active stream selection, cadence/freshness, qualitative internal eligibility and formatting); `theory_x/stage6_fountain/generator.py` (selector invocation and prompt append around lines 4085–4105); `theory_x/probes/context_snapshot.py`; `theory_x/probes/probe_runner.py`; `strikes/protocols.py`; and `tests/test_strikes.py`.
 
 This closes another bounded consumer slice but does not establish target-host activation, which exact rows were selected, whether the resulting text changed a model response, or complete global reader closure. No runtime, test, schema, flag, host, experiment, merge or deployment change was made.
+
+
+### WorldBridge internal-payload reliance qualification — 24 Nov 2026
+
+The selector formatter confirms that eligible internal rows are not merely counted or logged before prompt assembly:
+
+- `internal.temporal` is reduced to its local ISO timestamp.
+- `internal.meta_awareness` is reduced to adapter count plus a running/idle label derived from `sense_adapter_count` and `sense_global_running`. Those source fields ultimately reflect scheduler/control-state telemetry, not verified feed health or successful persistence; WorldBridge can therefore present that narrower control-state signal in Fountain's prompt.
+- `internal.interoception` is reduced to total/locked belief counts, dominant tier and non-zero delta.
+- `internal.proprioception` has no dedicated formatter branch in the inspected selector. It falls through generic JSON handling; absent title/body/url fields, the payload's first 80 characters can be used as the prompt snippet.
+- Consequently, the earlier Stage 4 SelfModel finding that its fetched MetaAwareness payload is not used in the returned SelfModel snapshot must not be generalized to “MetaAwareness is unused”: WorldBridge is a separate, conditional prompt consumer of that stream. Eligibility remains dependent on recent-row freshness, selection cap and formatting.
+
+Source anchor: `theory_x/world_bridge/selector.py` at source revision `e0ab228728094eacc22e3e51f10d5174523c6e18`, `QUALITATIVE_INTERNAL_STREAMS`, `_pick_events()` and `_parse_payload()`. No target-host prompt or selected row was observed.
