@@ -1557,3 +1557,23 @@ The selector formatter confirms that eligible internal rows are not merely count
 - Consequently, the earlier Stage 4 SelfModel finding that its fetched MetaAwareness payload is not used in the returned SelfModel snapshot must not be generalized to “MetaAwareness is unused”: WorldBridge is a separate, conditional prompt consumer of that stream. Eligibility remains dependent on recent-row freshness, selection cap and formatting.
 
 Source anchor: `theory_x/world_bridge/selector.py` at source revision `e0ab228728094eacc22e3e51f10d5174523c6e18`, `QUALITATIVE_INTERNAL_STREAMS`, `_pick_events()` and `_parse_payload()`. No target-host prompt or selected row was observed.
+
+
+### Consolidated Stage 1 sense-table consumer index — 24 Nov 2026
+
+The following index consolidates the source paths identified so far. It is a navigational synthesis of inspected paths, **not** a claim that every repository reader has been found.
+
+| Consumer | Input scope | What the code does | Evidence boundary |
+|---|---|---|---|
+| Stage 2 sense poll loop → A–F pipeline | Every new row by id, including internal and external | Runs branch matching, magnitude/aperture, valence, tree attention, membrane accumulation and pipeline logging | Source path; row-level live effects and retry outcomes UNKNOWN |
+| Stage 2 sense distillation loop | Non-internal rows except external.other_mind | Extracts titles; exact/near-duplicate checks; up to five new belief writes per pass; cursor advances across fetched batch | Separate belief-promotion path; does not make A–F processing idempotent |
+| Stage 2 BonsaiTree cadence refresh | Previous 24 hours of non-internal rows | Derives per-stream burst/cadence measures that feed branch decay timing | Frequency influence can occur without a Step-F hit; target-host cadence values UNKNOWN |
+| Stage 2 consolidation quiet check | Latest internal.temporal row | Looks for seconds_since_last_user_message to trigger extra quiet-period decay/pruning | Inspected Temporal factory producer does not emit that key; another writer/live payload not ruled out |
+| Stage 4 SelfModel snapshot | Latest rows for four internal streams | Uses Proprioception, Temporal and Interoception fields; fetches but does not use MetaAwareness payload in that snapshot | Retrieval is not equivalent to reliance |
+| Stage 6 Fountain direct sampling | Latest non-internal row, recent distinct-stream sample, optional OVERWHELM and SELF lanes, optional external.other_mind SOCIAL lane | Several separate prompt-context paths with different filters and default-off flags | Target-host flags and exact included rows UNKNOWN |
+| WorldBridge selector called by Fountain | Fresh external plus eligible qualitative internal streams | Selects/formats up to five rows (at most two internal) and returned text is appended to the Fountain prompt | Actual source-level prompt contributor; host activation and model reliance UNKNOWN |
+| ProbeRunner / StrikeProtocol context snapshot | Grouped feed_activity within configurable window | Captures stream counts/latest timestamps into probe/strike records | Observational record, not direct Chat/Fountain prompt input |
+
+The index reconciles several apparent contradictions: “Fountain excludes internal streams” is true only for its specific non-internal SQL readers, not for WorldBridge or the optional SELF layer; “MetaAwareness is unused” is true only of the inspected SelfModel snapshot mapping, not of WorldBridge's conditional prompt formatting; and Stage 2 attention, belief distillation and cadence derivation are separate consumers with different inclusion and persistence rules.
+
+Remaining closure work: verify the complete repository-wide reader/writer census (including dynamic imports, direct SQLite connections, helpers and non-obvious table aliases), reconcile every faculty edge against the governing architecture documents, and distinguish source presence from target-host activation and causal influence. The current map remains bounded and provisional.
