@@ -1522,3 +1522,18 @@ The reviewed `tests/test_world_model.py` covers small-population keyword retriev
 ### WorldBridge test-tree spot check — 24 Nov 2026
 
 The recursive tracked-tree inventory at PR #49 source head 90b4ee4cd4dbee06abfdb54fc8f8111264259831 contains no dedicated tests/test_world_bridge*.py module. The inspected tests/test_fountain.py does not reference WorldBridgeSelector, select_and_log or world_bridge_log. By contrast, tests/test_probe_snapshot.py explicitly tests feed_activity grouping by stream and snapshot-window behavior. This narrows the test evidence: the probe/strike snapshot consumer has direct fixture coverage, while the selector-to-Fountain prompt and direct beliefs.db logging paths were not covered by the specific test modules inspected. This is not a claim that no assertion about WorldBridge exists anywhere in the entire suite.
+
+
+### Stage 4 SelfModel payload-use audit — 24 Nov 2026
+
+The SelfModel reads the latest rows for four Stage 1 streams using four independent `SELECT ... ORDER BY id DESC LIMIT 1` operations. It does not use one shared read snapshot, so the assembled self-state can combine different event times. This is a source-level consistency limitation, not a measured stale-data incident.
+
+The payload-use distinction is narrower than the snapshot field names suggest:
+
+- Proprioception payload fields populate CPU, memory, load and a selected thermal value. The prompt formatter surfaces CPU, memory and load, but not thermal.
+- Temporal contributes hour, weekday and local ISO time to the snapshot; the formatter surfaces local time/period, but not weekday.
+- Interoception contributes total belief count, tier distribution and locked count; the formatter surfaces total and locked counts, but not the tier distribution.
+- The latest `internal.meta_awareness` payload is fetched into `meta_p` but never read. The snapshot's `meta_awareness` fields are instead populated from `DynamicState.status()`. Those fields are returned in the snapshot object but `format_self_state()` does not render them into the INSIDE prompt block.
+- The inside-belief query selects at most 30 candidates from an explicit source allowlist, then scores by confidence × tier weight and returns five; the prompt formatter renders at most the first three.
+
+Thus “read”, “mapped into snapshot”, and “surfaced to the model” are separate stages. The inspected router calls `self_model.snapshot()` directly for each INSIDE route; the 30-second cache belongs to `tick()`/state reporting and is not used by that direct route call. No live snapshot contents or prompt payload were captured.
