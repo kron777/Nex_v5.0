@@ -117,6 +117,17 @@ def host_requests() -> List[HostRequest]:
                 "systemctl --user list-units --type=service --all --no-legend 2>/dev/null | "
                 "awk 'tolower($1) ~ /(nex|power_switch|keepalive)/ "
                 "{print $1, $3, $4}'",
+                "git -C <verified-process-cwd> rev-parse --show-toplevel; "
+                "git -C <verified-process-cwd> branch --show-current; "
+                "git -C <verified-process-cwd> rev-parse HEAD; "
+                "git -C <verified-process-cwd> status --porcelain=v1 --untracked-files=all | "
+                "awk 'BEGIN{n=0} {n++} END{printf \"dirty_entries=%d\\n\",n}'; "
+                "git -C <verified-process-cwd> remote get-url origin 2>/dev/null | "
+                "python3 -c 'import sys,urllib.parse; s=sys.stdin.read().strip(); "
+                "p=urllib.parse.urlsplit(s) if \"://\" in s else None; "
+                "host=(p.hostname or \"\") if p else \"\"; "
+                "host+=((\":\"+str(p.port)) if p and p.port else \"\"); "
+                "print(urllib.parse.urlunsplit((p.scheme,host,p.path,\"\",\"\")) if p else s.split(\"@\",1)[-1])'; "
                 "# Do not inspect /proc/PID/cmdline or print all of /proc/PID/environ. "
                 "Do not infer STANDBY merely because this filtered survey found no candidate.",
             ],
@@ -174,7 +185,7 @@ def host_requests() -> List[HostRequest]:
         HostRequest(
             "runtime_artifact_hashes", "Runtime DB + snapshot fingerprints",
             "Exact verified runtime data root and the separate known snapshot-archive path; DB/WAL/"
-            "SHM/journal and state_snapshot.json paths, sizes, modification times and SHA-256 "
+            "SHM/journal and state_snapshot.json paths, sizes, modification times and SHA-256 values. "
             "Record a digest as stable only when device, inode, size, mtime and ctime match "
             "before and after hashing. run.py passes the runtime data directory to "
             "StateSnapshotWriter, so state_snapshot.json is beside the DBs. The separate "
