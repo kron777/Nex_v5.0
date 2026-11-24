@@ -348,11 +348,11 @@ def test_system_readiness_does_not_promote_partial_or_unknown():
                              (REUSE_EXISTING, SUFFICIENT)):
         obs = {"required": Obligation("required", "required", "test",
                                       recon_status=status)}
-        readiness = next(t for t in assess_system(obs, []). if t.subject == "integration_readiness")
+        readiness = next(t for t in assess_system(obs, []) if t.subject == "integration_readiness")
         assert readiness.verdict == expected
     mixed = {"partial": Obligation("partial", "p", "test", recon_status=PARTIAL),
              "unknown": Obligation("unknown", "u", "test", recon_status=RECON_UNKNOWN)}
-    readiness = next(t for t in assess_system(mixed, []). if t.subject == "integration_readiness")
+    readiness = next(t for t in assess_system(mixed, []) if t.subject == "integration_readiness")
     assert readiness.verdict == UNDERDEVELOPED
 
 
