@@ -465,6 +465,9 @@ def test_pattern_memory_provenance_replay_is_idempotent_and_merges_origins(tmp_p
     assert initial.provenance == "cycle:one; cycle:two"
     reopened = PatternMemory(str(tmp_path / "patterns.jsonl")).patterns()[0]
     assert reopened.observed_count == 2 and reopened.provenance == initial.provenance
+    multi = Pattern("multi", "multiple origins in one call", "origin:a; origin:b")
+    mem.add(multi)
+    assert multi.observed_count == 1 and multi.provenance == "origin:a; origin:b"
 
 
 def test_arc_closers_execution_derives_lessons_once(tmp_path, monkeypatch):
