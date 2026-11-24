@@ -315,7 +315,7 @@ def host_requests() -> List[HostRequest]:
             "With one process candidate, use its NEX5_DATA_DIR or checkout default, labelled unverified until service/PID correlation. "
             "With zero or multiple process candidates, fingerprint only the two historically named checkout defaults, explicitly "
             "labelled as candidate roots with active-root identity UNKNOWN. No home scan, SQL/row counts or file copies. "
-            "Nested symlinks are skipped and counted; traversal errors mark the inventory INCOMPLETE.",
+            "No SQL queries or row counts and no file copies. Nested symlinks are skipped and counted; traversal errors mark the inventory INCOMPLETE.",
             [
                 "# Runtime artifact roots use a unique process candidate when available. "
                 "Without one, only the two historically named checkout defaults are fingerprinted, "
