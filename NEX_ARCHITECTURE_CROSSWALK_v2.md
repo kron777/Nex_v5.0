@@ -1484,3 +1484,14 @@ The Stage 2 backward scan found two further direct readers of `sense_events` bey
 - Stage 2 Crystallizer reads `pipeline_events`, not `sense_events`, and selects recent high-magnitude events for a branch when constructing a precipitated belief. This is a second-order consumer of the Stage 2 pipeline log, not a direct sense-table reader. The provenance stream can be carried into the resulting belief when the selected pipeline metadata contains a sensed title.
 
 These paths add three distinct mechanisms to the crosswalk: frequency-derived decay cadence, quiet-triggered decay/pruning based on a temporal payload field, and pipeline-log-driven belief crystallization. No runtime activity or causal effect is claimed from source inspection alone.
+
+
+### RSS parser identity and malformed-feed qualification — 24 Nov 2026
+
+A closer read of `feeds/_helpers.py::parse_rss()` adds two qualifications to the feed audit:
+
+- The helper does not inspect Feedparser's `bozo` / parse-warning status before accepting `feed.entries`. A malformed or partially parsed response may still yield entries and be treated as an ordinary poll result; no malformed response was supplied or observed in this audit.
+- The stored payload contains title, link, summary, published, authors and tags, but omits the RSS/Atom entry's stable `id`/`guid` field. The table therefore receives no dedicated item identity from this helper. Title/link may help downstream matching, but they are not guaranteed unique or stable identifiers.
+- Together with the absence of cross-poll deduplication and a unique source-item key in the inspected schema, this means the current source path cannot itself distinguish a repeated item from a newly observed item with the same content. This is a structural limitation, not a measured duplicate-ingestion incident.
+
+Source anchor: `theory_x/stage1_sense/feeds/_helpers.py` at PR #49 source revision `23e327e84b6b26b6e22eb27808514100c2802855`. No malformed-feed test or live feed response was run. No runtime or test behaviour changed.
