@@ -320,7 +320,7 @@ def host_requests() -> List[HostRequest]:
                 "# Runtime artifact roots use a unique process candidate when available. "
                 "Without one, only the two historically named checkout defaults are fingerprinted, "
                 "and are labelled as candidates rather than active runtime roots. No home scan.",
-                "                "python3 - <<'PY'\n"
+                "python3 - <<'PY'\n"
                 "import hashlib, os, pathlib, re, stat\n"
                 "\n"
                 "def choose_artifact_roots(candidates, known_checkouts):\n"
@@ -521,7 +521,6 @@ def host_requests() -> List[HostRequest]:
                 "\n"
                 "scan_artifact_roots(targets)\n"
                 "PY\n"
-
                 "\n"                "# Hashing is read-only but reads each complete file and can add disk I/O. "
                 "Do not hash a live-changing file repeatedly; record unstable status once.",
             ],
