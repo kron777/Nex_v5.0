@@ -134,8 +134,8 @@ def test_pattern_memory_no_universal_promotion(tmp_path):
     mem = PatternMemory(str(tmp_path / "p.jsonl"))
     mem.add(Pattern("k", "stmt", "cycle:1", confidence=0.3,
                     exceptions=["observed once"]))
-    for _ in range(20):
-        mem.add(Pattern("k", "stmt", "cycle:n"))
+    for i in range(2, 22):
+        mem.add(Pattern("k", "stmt", f"cycle:{i}"))
     p = mem.patterns()[0]
     assert p.confidence <= 0.9 and p.confidence < 1.0            # capped, never certain
     assert p.exceptions                                          # exceptions retained
@@ -474,4 +474,29 @@ def test_active_experiment_registry_unreadable_or_invalid_fails_closed(tmp_path,
     monkeypatch.setattr(registry, "ingest_registry", unreadable)
     with pytest.raises(PermissionError):
         _active_experiments(str(tmp_path))
+
+def test_cycle_store_preserves_evidence_refs_without_promoting_kind(tmp_path):
+    from rdo.model import NATIVE_PLANNING
+    from rdo.memory import metrics_series
+
+    cycle = CycleRecord(
+        id="evidence-metadata", objective="record evidence references",
+        kind=NATIVE_PLANNING,
+        verification={
+            "source_ref": "tests/test_example.py",
+            "artifact_ref": "ci-artifact:run-123",
+            "tested_commit": "abc123",
+            "observed_result": {"tests": 2, "passed": 2},
+        },
+    )
+    store = CycleStore(str(tmp_path / "cycles"))
+    store.save(cycle)
+    loaded = store.load(cycle.id)
+    assert loaded.verification["source_ref"] == "tests/test_example.py"
+    assert loaded.verification["artifact_ref"] == "ci-artifact:run-123"
+    assert loaded.verification["tested_commit"] == "abc123"
+    assert loaded.verification["observed_result"] == {"tests": 2, "passed": 2}
+    metrics = metrics_series([loaded])
+    assert metrics["efficiency_eligible_cycles"] == 0
+    assert metrics["comparability"]["efficiency_comparison_pool"] == []
 
