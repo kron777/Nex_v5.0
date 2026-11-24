@@ -271,7 +271,14 @@ def test_cycle_metrics_pending_vs_recorded():
     recorded = CycleRecord(id="r", objective="o", predicted={"effort": 2})
     record_actual(recorded, {"missed": ["x"], "effort_actual": 3})
     mr = cycle_metrics(recorded)
-    assert mr["outcome_status"] == "recorded" and mr["prediction_error_effort"] == 1
+    assert mr["outcome_status"] == "partial"
+    assert mr["missed_obligation_count"] == 1 and mr["rework"] is None
+    assert mr["prediction_error_effort"] == 1
+    empty = CycleRecord(id="empty", objective="o")
+    record_actual(empty, {})
+    me = cycle_metrics(empty)
+    assert me["missed_obligation_count"] is None and me["rework"] is None
+    assert me["outcome_status"] == "partial"
 
 
 # ---- generalisation: obligation scope taxonomy + engine non-contamination ----
@@ -348,6 +355,14 @@ def test_reconciliation_distinguishes_empty_scan_from_unavailable(tmp_path, monk
     assert recon.reconcile(ob, str(tmp_path),
                            [Signature("not_present", None, "empty")]) == MISSING
 
+    # SQL is text-readable and must be searched, not treated as an excluded format.
+    sql = tmp_path / "schema.sql"
+    sql.write_text("CREATE TABLE evidence_marker (id INTEGER);", encoding="utf-8")
+    monkeypatch.undo()
+    sql_ob = Obligation("sql", "SQL evidence", "schema")
+    assert recon.reconcile(sql_ob, str(tmp_path),
+                           [Signature("CREATE TABLE evidence_marker", "schema.sql")]) == REUSE_EXISTING
+
     ob = Obligation("partial-scan", "partial scan", "daemon")
     monkeypatch.setattr(recon.subprocess, "run",
                         lambda *a, **k: SimpleNamespace(returncode=2, stdout="x.py:1:match\n", stderr="read error"))
@@ -369,7 +384,7 @@ def test_system_readiness_does_not_promote_partial_or_unknown():
     from rdo.model import TENSION_UNKNOWN, UNDERDEVELOPED, SUFFICIENT
     for status, expected in ((MISSING, UNDERDEVELOPED), (PARTIAL, UNDERDEVELOPED),
                              (RECON_UNKNOWN, TENSION_UNKNOWN),
-                             (REUSE_EXISTING, SUFFICIENT)):
+                             (REUSE_EXISTING, TENSION_UNKNOWN)):
         obs = {"required": Obligation("required", "required", "test",
                                       recon_status=status)}
         readiness = next(t for t in assess_system(obs, []) if t.subject == "integration_readiness")
@@ -382,6 +397,12 @@ def test_system_readiness_does_not_promote_partial_or_unknown():
     all_reused = {"a": Obligation("a", "a", "test", recon_status=REUSE_EXISTING),
                   "b": Obligation("b", "b", "test", recon_status=REUSE_EXISTING)}
     readiness = next(t for t in assess_system(all_reused, []) if t.subject == "integration_readiness")
+    assert readiness.verdict == TENSION_UNKNOWN
+    reviewed = Obligation("reviewed", "reviewed", "test", recon_status=REUSE_EXISTING,
+                          recon_evidence=["src.py:12"], confidence="measured",
+                          recon_semantic_verified=True)
+    readiness = next(t for t in assess_system({"reviewed": reviewed}, [])
+                     if t.subject == "integration_readiness")
     assert readiness.verdict == SUFFICIENT
 
     no_necessary = {"optional": Obligation("optional", "optional", "test",
