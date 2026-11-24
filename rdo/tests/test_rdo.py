@@ -241,7 +241,7 @@ def test_defect_pattern_generalises_and_metrics(tmp_path):
                        if "regression_test" in key]
     assert regression_keys
     packages = defect["4_recommended_work"]
-    reused = set(defect["2_signature_matches_located"])
+    signature_matches = set(defect["2_signature_matches_located"])
     packaged = {key for w in packages for key in w["obligations"]}
     evidence = {item["key"]: item for item in defect["reconciliation_evidence"]}
     expected_test_paths = {
@@ -249,14 +249,15 @@ def test_defect_pattern_generalises_and_metrics(tmp_path):
         "arc_closers_migration.regression_test": "tests/test_arc_closers_migration.py",
     }
     for key in regression_keys:
-        assert (key in reused) != (key in packaged), (
-            f"{key} must be accounted for exactly once")
-        if key in reused:
-            item = evidence[key]
-            assert item["status"] == "signature_matched"
-            expected_path = expected_test_paths[key]
-            assert any(expected_path in ref for ref in item["evidence"]), (
-                f"{key} reuse is not backed by {expected_path}")
+        # The exact test declaration is source-located AND surfaced for separate
+        # semantic review; the source hit is not treated as completed reuse.
+        assert key in signature_matches
+        assert key in packaged
+        item = evidence[key]
+        assert item["status"] == "signature_matched"
+        expected_path = expected_test_paths[key]
+        assert any(expected_path in ref for ref in item["evidence"]), (
+            f"{key} source anchor is not in {expected_path}")
     # Any remaining package is blocked where necessary prerequisites remain
     # unresolved; unknown obligations remain investigable, not relabelled missing.
     assert any(w["eligibility"] == "blocked" and
