@@ -8,9 +8,9 @@ all signatures match -> `signature_matched`; some -> `partial`; none ->
 only a source anchor. `reuse_existing` is reserved for a separate
 semantic-satisfaction review.
 
-It also deduplicates obligations and prunes *false dependencies*: a "must build X
-first" edge whose X already exists independently is not net-new work, and is
-reclassified from `depends_on` to `reuses` with a recorded reason.
+It also deduplicates obligations. Candidate dependency edges are pruned only
+when a separate semantic-satisfaction review establishes that the target already
+meets the obligation; source-anchor matches alone do not remove dependencies.
 """
 from __future__ import annotations
 
