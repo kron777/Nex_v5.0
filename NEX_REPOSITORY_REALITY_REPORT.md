@@ -1537,3 +1537,10 @@ The payload-use distinction is narrower than the snapshot field names suggest:
 - The inside-belief query selects at most 30 candidates from an explicit source allowlist, then scores by confidence × tier weight and returns five; the prompt formatter renders at most the first three.
 
 Thus “read”, “mapped into snapshot”, and “surfaced to the model” are separate stages. The inspected router calls `self_model.snapshot()` directly for each INSIDE route; the 30-second cache belongs to `tick()`/state reporting and is not used by that direct route call. No live snapshot contents or prompt payload were captured.
+
+
+### Stage 4 BehaviouralSelfModel evidence qualification — 24 Nov 2026
+
+The BehaviouralSelfModel's `belief_usage_rate` is calculated by scanning the last 100 stored role=`nex` message contents for `her current beliefs` or `[tier`. The GUI persists the sanitized generated assistant reply as role `nex`, while the retrieved belief block is assembled into the system prompt before generation and separately captured in `_retrieved_belief_text`. The metric therefore measures whether the reply text echoes prompt-marker strings, not whether beliefs were actually injected into that turn's prompt. It is an unreliable proxy for prompt-injection frequency; the direction and magnitude of any live measurement error are unknown.
+
+That metric is compared against a seeded expectation and can generate a Tier 6 `behavioural_observation` belief via the membrane's four-hour loop. The resulting belief is a downstream artefact of the proxy metric. No live message sample, observed metric value, or resulting belief was inspected.
