@@ -319,6 +319,50 @@ class TestContradiction(unittest.TestCase):
         self.assertEqual(resolutions[0]["action"], "rejected")
 
 
+    def test_contradictory_accept_at_threshold_promotes_before_rejection_scan(self):
+        """A packet matching both heuristics is processed as corroboration first."""
+        held_content = "I attend to the world with wonder and care always."
+        held_id = self.zone.hold(
+            _packet(held_content), "fixture:corroboration_contradiction_overlap"
+        )
+        self.assertIsNotNone(held_id)
+        time.sleep(0.02)
+        self.assertEqual(self.zone.increment_corroboration(held_id), 1)
+        self.assertEqual(self.zone.increment_corroboration(held_id), 2)
+
+        contradictory_packet = _packet(
+            "I do not attend to the world with wonder or care."
+        )
+        # The same incoming packet satisfies both independent lexical predicates.
+        self.assertEqual(
+            [row["id"] for row in self.zone.find_corroborations(contradictory_packet)],
+            [held_id],
+        )
+        self.assertEqual(
+            [row["id"] for row in self.zone.find_contradictions(contradictory_packet)],
+            [held_id],
+        )
+
+        self.resolver.on_gate_accept(contradictory_packet)
+
+        held = self.readers["beliefs"].read_one(
+            "SELECT status, corroboration_count FROM held_thoughts WHERE id=?",
+            (held_id,),
+        )
+        self.assertEqual(held["corroboration_count"], 3)
+        self.assertEqual(held["status"], "accepted")
+        promoted = self.readers["beliefs"].read(
+            "SELECT id FROM beliefs WHERE content=?", (held_content,)
+        )
+        self.assertEqual(len(promoted), 1)
+        resolution = self.readers["beliefs"].read_one(
+            "SELECT action, reason FROM held_resolutions WHERE held_id=?",
+            (held_id,),
+        )
+        self.assertEqual(resolution["action"], "accepted")
+        self.assertEqual(resolution["reason"], "corroboration_threshold_3")
+
+
 class TestTimeFade(unittest.TestCase):
 
     def setUp(self):
