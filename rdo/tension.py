@@ -65,10 +65,18 @@ def assess_relationship(rel: Relationship, obligations: Dict[str, Obligation]) -
                                       "(capability != authority)")
     if rel.kind == "depends_on":
         tgt = obligations.get(rel.dst)
-        if tgt is not None and tgt.recon_status == MISSING and tgt.classification == NECESSARY:
-            return TensionAssessment("relationship", subj, UNDERDEVELOPED, inference=False,
-                                     evidence=["target MISSING"],
-                                     note="blocking dependency on an unbuilt necessary mechanism")
+        if tgt is not None and tgt.classification == NECESSARY:
+            if tgt.recon_status in (MISSING, PARTIAL):
+                return TensionAssessment("relationship", subj, UNDERDEVELOPED, inference=True,
+                                         evidence=[f"target {tgt.recon_status}"],
+                                         note="blocking dependency on an unresolved necessary mechanism")
+            if tgt.recon_status in (RECON_UNKNOWN, SIGNATURE_MATCHED) or (
+                    tgt.recon_status == REUSE_EXISTING and not
+                    (tgt.recon_evidence and tgt.confidence == "measured" and
+                     tgt.recon_semantic_verified)):
+                return TensionAssessment("relationship", subj, TENSION_UNKNOWN, inference=True,
+                                         evidence=[f"target {tgt.recon_status}"],
+                                         note="dependency target has not been semantically established")
     return TensionAssessment("relationship", subj, SUFFICIENT, inference=True,
                              note="no relationship tension detected")
 
