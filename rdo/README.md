@@ -40,8 +40,8 @@ WORK PACKAGE → EVIDENCE ACCOUNTING → (persist) → LEARN
   all configured signatures match → `signature_matched`; some → `partial`; none in a completed
   scan → `missing`; unavailable scan/no signature → `unknown`. A signature hit
   is a source anchor, not proof that the full obligation is satisfied. Necessary
-  obligations remain readiness-unknown until a separate semantic review is
-  explicitly recorded. Candidate dependency pruning also requires that separate
+  obligations remain readiness-unknown until a separate semantic review decision
+  and its traceable review-evidence reference are both recorded. Candidate dependency pruning also requires that separate
   semantic review; signature matches alone do not remove prerequisite work.
 - **Optimal Functional Tension** (`tension.py`) — node / relationship / system
   assessment. Not a single score: every verdict is evidence-backed or explicitly
@@ -208,7 +208,8 @@ forbids.
 - LLM/human reasoning seeds obligations and signatures (`knowledge.py`). The
   tree establishes only whether configured anchors were found; it does not
   independently establish semantic satisfaction. A separate review is required
-  before necessary obligations can contribute to a `sufficient` readiness verdict.
+  before necessary obligations can contribute to a `sufficient` readiness verdict;
+  the review flag alone is insufficient without a recorded review-evidence reference.
 - The maths (Pareto framing, weighted priority) is scaffolding and is labelled
   uncalibrated — the early value is in structure (obligations, reconciliation,
   anti-requirements, tension), not equations.
