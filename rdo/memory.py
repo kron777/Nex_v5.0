@@ -212,7 +212,8 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
         "reuse_claims": reuse_claims,
         "reuse_evidence_coverage": (round(reuse_verified / reuse_claims, 3)
                                      if reuse_verified is not None and reuse_claims else None),
-        "reuse_evidence_coverage_complete": cycle.verification.get("all_reuse_claims_have_file_evidence"),
+        "reuse_evidence_coverage_complete": cycle.verification.get(
+            "all_reuse_claims_have_file_evidence", cycle.verification.get("all_reuse_backed")),
         "expansion_grounded_fraction": round(grounded / discovered, 3),  # proxy for precision
         # OUTCOME (need actuals)
         "missed_obligation_count": (len(missed) if isinstance(missed, list) else None),
