@@ -237,6 +237,11 @@ def _six_outputs(cycle, summary, memory, learning) -> dict:
         "objective": cycle.objective,
         "1_discovered": {"count": summary["discovered"],
                          "obligations": [o["key"] for o in cycle.obligations]},
+        "reconciliation_evidence": [
+            {"key": o["key"], "status": o["recon_status"],
+             "evidence": o["recon_evidence"]}
+            for o in cycle.obligations
+        ],
         "2_correctly_reused": summary["reused"],
         "3_rejected_or_deferred": summary["rejected_or_deferred"],
         "4_recommended_work": summary["recommended_work"],
