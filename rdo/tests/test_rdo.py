@@ -79,6 +79,29 @@ def test_over_expansion_stopped_by_reuse():
     assert any("semantic satisfaction independently reviewed" in f["reason"] for f in frontier)
 
 
+def test_prepopulated_reuse_seed_is_freshly_reconciled_before_stopping():
+    stale = Obligation(
+        "stale-seed", "stale reviewed seed", "persistence",
+        recon_status=REUSE_EXISTING,
+        recon_evidence=["old-source.py:12"],
+        confidence="measured",
+        recon_semantic_verified=True,
+        recon_semantic_review_evidence=["old review from a previous source state"],
+    )
+    observed = []
+
+    def fresh_scan(ob):
+        observed.append((ob.recon_evidence[:], ob.recon_semantic_verified,
+                         ob.recon_semantic_review_evidence[:]))
+        return SIGNATURE_MATCHED
+
+    obligations, _, frontier = expand([stale], reconcile_fn=fresh_scan, max_depth=1)
+    assert observed == [([], False, [])]
+    assert stale.recon_status == SIGNATURE_MATCHED
+    assert "stale-seed.schema" in obligations
+    assert any("semantic satisfaction unreviewed" in f["reason"] for f in frontier)
+
+
 def test_signature_match_without_semantic_review_does_not_stop_expansion():
     obs, _, frontier = expand(
         [Obligation("store", "store", "persistence")],
