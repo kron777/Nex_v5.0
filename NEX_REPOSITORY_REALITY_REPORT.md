@@ -1298,3 +1298,14 @@ Static source inspection of `theory_x/stage1_sense/internal/interoception.py`, `
 - The scheduler docstring says external feeds begin paused, but its constructor unconditionally invokes `start_all()`. This is a source-level documentation/implementation discrepancy, not proof of what is running on the target host.
 
 The backward-consumer search for these two internal stream names remains open. No claim of global absence is made. No runtime/test behaviour, schema, flags, host state or experiment was changed.
+
+### Stage 1 persistence and read-consistency audit slice — 24 Nov 2026
+
+Further source inspection of the Stage 1 adapter base and SQLite substrate found an important qualification to the previously recorded scheduler-status semantics:
+
+- Adapter persistence is one synchronous `Writer.write()` call per SenseEvent, each committed as its own transaction. `Adapter.submit()` catches individual insert failures, records them to the error channel and continues; it returns only the number of writes that returned successfully. A multi-event poll is therefore not an atomic batch and can be partially persisted.
+- Because per-event persistence errors are swallowed inside `Adapter.submit()`, the scheduler can update `last_poll_at`, record a zero/partial event count and leave `last_error=None` even when one or more event inserts failed. Thus neither enabled state nor a clean scheduler iteration is a durable-persistence health signal.
+- The current `sense_events` schema stores stream, payload, provenance and timestamp with stream/timestamp indexes; it has no dedicated trace or parent identity columns. This does not exclude correlation carried inside payloads or elsewhere.
+- Each `Reader.read()` / `read_one()` call opens a fresh read-only connection. Interoception's four aggregate queries are therefore not enclosed in one explicit read snapshot; under concurrent writes their results could reflect different moments. No such inconsistency was observed or measured.
+
+This remains a bounded source-level finding. No live sense.db, emitted event, target-host runtime or downstream consumer was inspected. No runtime, test, schema, flag or host changes were made.
