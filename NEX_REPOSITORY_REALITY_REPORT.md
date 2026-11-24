@@ -1652,3 +1652,30 @@ Current PR #49 branch file hashes:
 - `tests/test_provenance.py`: `fcefbeccb6bedc3e20798142814d7b96b4e6dca5`
 
 This is a source revalidation only. No runtime/test behaviour, schema, flag, host state, experiment, merge or deployment was changed.
+
+
+
+## M0.3–M0.4 source audit — Stage 7 Moltbook optional integration (24 Nov 2026)
+
+The Moltbook integration was traced across its client, DM listener, DM responder, post loop, main boot path and HUD route.
+
+**Activation boundary.** The inspected main `run.py` does not import, construct or start `DMListenLoop`, `DMResponder` or `PostLoop`. The GUI's `/api/moltbook/chats` endpoint is a read-only activity-table aggregator and tolerates the tables being absent. The only Moltbook-specific test file found, `tests/test_moltbook_optional.py`, covers optional schema/HUD behaviour and daily-life fallback, not the external-action loops. A separately managed process or manual caller is not ruled out; host process inventory was not available. Module presence and HUD visibility are not evidence of an active integration.
+
+**Conditional inbound path.** If launched, `DMListenLoop` polls every 300 seconds, automatically approves pending requests when the sender profile is claimed, karma is greater than 100, and no configured red-flag substring appears in the sender name/description. It then reads conversations passing the same profile filter and writes inbound message text to both `sense_events` (stream `moltbook_dm`) and `moltbook_pending_replies`. The listener stores the raw inbound message in both destinations; the responder applies its own limited pattern/sentence sanitizer later, before constructing its LLM prompt. This establishes a possible external-content-to-sense/DM-response path if separately activated, not a live ingestion claim.
+
+**Conditional outbound paths.** If launched, `DMResponder` selects up to three `status='new'` queue rows per five-minute tick, builds a local LLM prompt from sanitized inbound text, up to five sanitized thread messages and up to six token-overlap beliefs, then sends a DM and updates the row status. `PostLoop` queues recent `fountain_insight` beliefs that pass its content filters, uses a belief-ID high-water mark, and attempts one public post per 30-minute interval from its recent queue window. The client defaults `MOLTBOOK_DRY_RUN` to `1`; non-GET calls then return a `dry_run` result object without contacting the service.
+
+**DRAFT-041 — dry-run/action-state mismatch.** The listener, responder and poster do not branch on the client's `dry_run` result. A dry-run approval can still be recorded locally as `approved=1`; a dry-run DM send can still be marked `sent`; and a dry-run post can still be marked `posted` (with an empty post ID), while other in-window candidates are marked `skipped`. Thus local action statuses can claim external completion when the client explicitly performed no external write. This is conditional on separately launching the loops; the default client mode is dry-run. The client also loads the credentials file during construction even in dry-run mode. No live account/daemon state or incidence is established.
+
+**DRAFT-042 — post candidate ordering mismatch.** `PostLoop._pick_best()` documentation says highest word count is the primary criterion and newest queue time breaks ties. The actual descending sort key is `(queued_at, word_count)`, so recency is primary and word count is secondary. A newer shorter candidate can outrank an older longer one within the same eligible window. No PostLoop-specific test was found; whether code or stated priority is authoritative remains unresolved.
+
+No external Moltbook calls were made. No credentials were accessed. No runtime/test behaviour, schema, flags, host state, experiment, merge or deployment was changed.
+
+Current source hashes:
+- `theory_x/stage7_moltbook/client.py`: `0b60ce8ab9ec2e935c9abb55311235f07e43631e`
+- `theory_x/stage7_moltbook/listener.py`: `54c5a1d91aa54525c768d0b0c4914d6d830e6d83`
+- `theory_x/stage7_moltbook/responder.py`: `0e568897167e458b61701b29e3fcd2538ab22923`
+- `theory_x/stage7_moltbook/poster.py`: `3acdf141685c28b60ea66102e3fcd2538ab22923`
+- `run.py`: `73a2c58a4f5f0348135a46eb83d6cdd61db874e7`
+- `gui/server.py`: `5ee8b167f386466c383090445c63a84810bbae52`
+- `tests/test_moltbook_optional.py`: `6bff5f1a331cd2133396853960e3cb3f9f39c3a6`
