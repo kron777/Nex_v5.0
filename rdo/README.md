@@ -171,7 +171,7 @@ multiplier or influence behaviour is changed until runtime evidence establishes 
 ## Cross-cycle learning (measured, not claimed)
 
 `run-all` reports eight comparable per-cycle measures — expansion precision proxy,
-missed-obligation count, duplicate-discovery rate, reuse evidence coverage,
+missed-obligation count, duplicate-discovery rate, signature evidence coverage,
 prediction error, rework, engineering effort, and completeness of file-anchor
 coverage — with **per-measure denominators and missing values**. Evidence coverage
 is not semantic reuse accuracy; coverage completeness is not successful test or
