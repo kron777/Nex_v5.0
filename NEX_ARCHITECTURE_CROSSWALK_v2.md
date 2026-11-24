@@ -1405,3 +1405,14 @@ Inspection of `theory_x/stage1_sense/__init__.py` closes another bounded forward
 - The source count is 28 constructed adapters in this factory. It is not evidence that all polls succeed, all rows persist, or the target host is running this version.
 
 This complements the scheduler and persistence slices; it does not close the backward-consumer audit for `sense_events` or prove live external-feed activity.
+
+### Stage 1 backward-consumer audit — verified source paths — 24 Nov 2026
+
+A backward trace from sense_events now establishes several concrete consumers; the earlier “consumer unverified” statement applies only to the two internal streams individually until this pass:
+
+- Stage 4 SelfModel.snapshot() queries the latest row by id DESC for internal.proprioception, internal.temporal, internal.interoception and internal.meta_awareness. It maps the first three payloads into CPU/memory/load/thermal, clock and belief-graph fields. It fetches the MetaAwareness payload, but the inspected snapshot code does not use that payload to populate its meta_awareness result; those values are instead read from the supplied DynamicState when available. Thus “row fetched” and “payload relied upon” differ.
+- Stage 6 FountainGenerator reads non-internal sense_events directly. The quiescent branch (every fifth fire under the inspected counter condition) selects the latest non-internal event and can surface its truncated payload as the thought. _recent_sense_sample() separately reads a recent multi-source window, skips internal streams and selected noise streams, extracts summaries, and returns up to the requested number of distinct streams for drift context.
+- Stage 6 also writes its own internal.fountain row to sense_events; that is a producer path, not evidence that its own internal row is consumed by the above non-internal readers.
+- Tests corroborate portions of these paths: tests/test_interoception_fixes.py seeds an internal.interoception row and verifies SelfModel field mapping; tests/test_sense_extract.py covers Fountain extraction and the external/internal filtering contract. These are isolated test fixtures, not live-host evidence.
+
+This establishes source-level consumers for three internal payloads and a fetch-but-not-use path for MetaAwareness, plus external-stream consumption in Fountain. It does not establish how often those paths execute on the target host, which rows were present, or whether any particular row changed a final decision/output.
