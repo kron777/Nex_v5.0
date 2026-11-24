@@ -1747,3 +1747,17 @@ Two source-level contract discrepancies are recorded in the Reality Report:
 - **DRAFT-042:** poster's stated priority is word-count first, recency second; implementation sorts recency first, word-count second.
 
 No external request or account access was performed. No runtime changes authorised.
+
+
+
+## Stage 37 / Stage 38 / Stage 45 source-to-runtime crosswalk (24 Nov 2026)
+
+**Stage 37 PersonaResponder.** Main boot path starts the sending loop only with `NEX5_PERSONA_RESPONDER=1`; Fountain's receiving SOCIAL block is independently controlled by `NEX5_SOCIAL_N`. The responder uses the same configured voice endpoint/model defaults as NEX, but a distinct persona prompt; it reads recent Fountain thoughts, bouncer-checks its generated reply, and writes accepted text to `sense_events` as `external.other_mind`. If both flags are enabled, Fountain can read this synthetic interlocutor output on later fires. The module explicitly disclaims a second conscious being. The stream name is not evidence of a human, independently operated model or external service. Target-host flags/processes are UNKNOWN. No end-to-end responder→sense→Fountain test was found in the inspected test tree.
+
+**Stage 38 SocialPresence.** Not active in inspected main boot: `_social_presence=None`, and Metacognition consumers are guarded for None. The module/test suite exists, but no production snapshot consumer is demonstrated. This agrees with the explicit cut comment in `run.py`.
+
+**Stage 45 EmphasisEngine / PredictionTracker.** Constructed inside Fountain generator initialization. For each generated thought, score is computed before inserting the current `fountain_events` row, preventing self-inclusion in the 20-fire novelty window. Result is persisted after the fire in `emphasis_log` with the event ID. The three combined signals are goal relevance, locked-keystone self relevance and recent-fire entity novelty; drive resonance is still recorded but excluded from the combined mean after a documented null/negative ground-truth result. Source says observation-only; inspected callsite does not feed score into prompt, generation, branch or selection. Other three signals remain unvalidated.
+
+**Self-maintenance / Warrant boundary.** SelfMaintainShadow is an env-gated log-only would-regulator; its table has no demonstrated reader. WarrantRecorder (default off) records use-day and survival evidence; it is distinct from the Warrant scoring pass. Main `run.py` constructs only the recorder under `NEX5_WARRANT_RECORD=1`, not `WarrantPass`; the scorer has its own `NEX5_WARRANT` gate. Do not conflate evidence accrual with scoring/consumption.
+
+See the Reality Report section “Stage 37 social interlocutor and Stage 45 emphasis” for source hashes, test boundaries and activation qualifications. No runtime changes authorised.
