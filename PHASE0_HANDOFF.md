@@ -47,7 +47,7 @@ is still owed** (see below).
 
 ## Gate 0
 
-**PENDING — not assumed.** No Phase-1 behavioural modification has been started.
+**PENDING — not assumed.** The old claim that no Phase-1 behavioural modification had started is stale: commit f9ac58d added a default-OFF Phase 1 continuity consumer. It has not been live-armed or behaviourally validated. Do not enable it before the Gate 0 review and explicit authorisation; see the current reconciliation.
 Enabling the overlay on the live NEX is itself a live-process change and awaits
 founder authorisation.
 
