@@ -140,6 +140,19 @@ def test_max_depth_bounds_expansion():
     assert set(obs) == {"store"} and any("max_depth" in f["reason"] for f in frontier)
 
 
+def test_terminal_kind_records_frontier_stop_reason():
+    obs, _, frontier = expand(
+        [Obligation("store.schema", "storage schema", "schema")],
+        reconcile_fn=lambda _ob: MISSING,
+        max_depth=4,
+    )
+    assert set(obs) == {"store.schema"}
+    assert frontier == [{
+        "key": "store.schema",
+        "reason": "terminal kind 'schema' (leaf; no further decomposition)",
+    }]
+
+
 # ---- under-expansion avoided: a MISSING necessary mechanism decomposes ----
 
 def test_under_expansion_builds_children_when_missing():
