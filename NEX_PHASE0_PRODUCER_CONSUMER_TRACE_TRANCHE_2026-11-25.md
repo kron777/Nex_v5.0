@@ -1107,3 +1107,14 @@ The active development branch claude/nex-continuity-wire does not contain that m
 This is a branch-integration discrepancy with a later owner decision recorded in main, not a change to apply silently. The October 26 commit spans multiple files beyond the four life loops, so selectively copying only those four files would be an incomplete backport. The active branch is already known to be materially behind main; do not merge/rebase wholesale or cherry-pick this commit without explicit approval.
 
 Operational consequence if the active checkout is run with its current source: the four scheduled loops use Europe/Amsterdam local time, not the main-branch NEX5_TZ/Africa-Johannesburg clock. This is source-level behavior only; no service was started and no current loop activity was observed. The timezone migration should be included in branch reconciliation after the founder confirms that the October 26 decision is intended for the active host branch.
+## 70. SignalToProblem bypasses the Tag Protocol for open_problems, unlike ProblemMemory
+
+TAG_PROTOCOL.md §4 explicitly defines content-derived tags for open_problems from title + description. theory_x/tag_protocol/tag_ops.py registers open_problems as a taggable table and provides generate()/normalize()/write() operations.
+
+The normal ProblemMemory creation path follows the spec: theory_x/stage7_sustained/problem_memory.py combines title and description, calls tag_protocol.generate(), JSON-serializes the result and includes it in its Writer INSERT.
+
+SignalToProblem is a different producer. theory_x/signals/signal_to_problem.py inserts open_problems directly through a SQLite connection and supplies tags as json.dumps(["auto", f"signal:{sig['signal_type']}"]). It does not call tag_protocol.generate(), normalize(), or tag_protocol.write(). The resulting stored values retain the source-style 'auto' and 'signal:<type>' labels rather than the content-derived tags required by §4; punctuation normalization would also change the latter label.
+
+Because SignalToProblem is appended and thread-started by the normal Stage 2 dynamic builder, this is a normal-wired open_problem producer, not merely a seed/admin utility. It creates open_problems entities through a path distinct from the compliant ProblemMemory writer.
+
+This is a source-level Tag Protocol divergence unless signal-created problems have an approved exception. It is separate from the seven life-loop belief paths and from the SurpriseLoop duplicate-tag defect. Do not change the producer or normalize existing rows before Gate 0 / explicit approval.
