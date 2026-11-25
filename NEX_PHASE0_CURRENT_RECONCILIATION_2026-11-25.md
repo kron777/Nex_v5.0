@@ -202,3 +202,12 @@ Gate 0 remains blocked. Founder must provide or identify the canonical Frozen V2
 The repo's May 9 `theory_x/DOCTRINE.md` remains marked DRAFT awaiting Jon's review/approval; its §7 amendment directs generative node writes through the Faculty Model + Coherence Gate. The May 10 `theory_x/FACULTY_MODEL.md` calls itself foundational and states the universal gate requirement, with an implementation-order note preserving legacy Fountain/Synergizer paths during the initial gate phase. Neither is labelled Frozen V2.1 and no founder sign-off record was found.
 
 Positive implementation cross-check: the reshape path is implemented and tested; HoldingZoneResolver processes up to 10 pending reshape rows, transforms, re-submits through the gate and records success/failure. The unresolved issue is authority/version reconciliation, not missing reshape machinery.
+
+
+## Source audit continuation — One-Pen and tag-wrapper boundaries
+
+The current source tranche now covers §§60–62 and the verified defect backlog includes D-36/G-24. New evidence: boot-time keystone/koan seeds use raw Writers before TaggingBeliefWriter construction; its .write_many() method passes batches through unchanged; and numerous normal-wired loops, Fountain persistence, Moltbook workers and GUI mutation endpoints write through direct substrate.connect() connections outside the per-database Writer queue. The WorldPredictionLoop is explicitly env-gated, default OFF.
+
+The repository April constitution's One-Pen rule is therefore in direct tension with multiple current source paths. This remains a source-level conformance finding pending exact Frozen V2.1 authority and approved amendments. No live contention, data loss, or host loop activity is inferred. No code or runtime behavior was changed.
+
+PR #98 remains draft. Latest additions are documentation-only. Exact-head CI must be checked against the current branch head before reporting a pass.
