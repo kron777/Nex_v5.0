@@ -50,6 +50,10 @@ The scheduler documentation mismatch found during this audit is corrected in thi
 
 **Signals/patterns/retention:** [NEX_PHASE0_SIGNAL_PIPELINE_RETENTION_AND_PATTERN_AUDIT_2026-11-25.md](NEX_PHASE0_SIGNAL_PIPELINE_RETENTION_AND_PATTERN_AUDIT_2026-11-25.md) traces the detector and direct Fountain signal producers, current-tick pattern matching, SignalToProblem promotion, reaper allowlist drift, cross-database commit boundary, and bounded readers. No live signal data was inspected.
 
+
+
+**Self-continuity Phase 1 seam:** [NEX_PHASE0_SELF_CONTINUITY_SEMANTICS_AUDIT_2026-11-25.md](NEX_PHASE0_SELF_CONTINUITY_SEMANTICS_AUDIT_2026-11-25.md) checks the default-OFF helper's tuple query, phrase semantics, tie ordering, resource cleanup and tests. The flag remains untouched; no live host state was inspected.
+
 **Important:** this boot inventory is a forward wiring map, not a complete producer/consumer DAG. It does not prove that every declared faculty is operationally consumed, nor does it establish L3/L4 runtime evidence. The two detailed paths below remain the only end-to-end output-path audits in this document.
 
 
