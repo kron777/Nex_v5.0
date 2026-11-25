@@ -1,5 +1,8 @@
 # NEX v5.0 — Repository Reality Report
 
+> **Historical snapshot — superseded for current branch status.** This report records the earlier audit at fb87e24. For the active host checkout at de93134f34adac07a3a41c2a05b33720510a2bfc, use [NEX_PHASE0_CURRENT_RECONCILIATION_2026-11-25.md](NEX_PHASE0_CURRENT_RECONCILIATION_2026-11-25.md). In particular, the old test baseline and the claim that no Phase 1 change had started are not current.
+
+
 **Master Roadmap v3.0 Phase 0 — Reality Audit (deliverables M0.1–M0.2)**
 
 - **Branch:** `claude/nex-v5-audit-review-53ouqv`
