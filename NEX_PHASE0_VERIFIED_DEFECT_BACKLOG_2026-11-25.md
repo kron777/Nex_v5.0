@@ -220,3 +220,9 @@
 - Evidence: `get_top_activated()` joins `belief_activation` to `beliefs` but does not filter Tier 8, paused or locked rows. Fountain calls it when `NEX5_SUBSTRATE_EMIT=1` (default OFF) and formats the selected beliefs into a substrate-emitted thought. Harmonizer can retire unlocked Tier 3–7 beliefs to Tier 8, while activation rows are not removed by the retirement update.
 - Impact: when substrate emission is armed, recently retired beliefs with sufficient remaining activation can be surfaced in the generated thought. The later normal crystallizer/gate path may still block a new belief insert, but it does not prevent this retired content from entering the generated output/event.
 - Disposition: preserve as a conditional source finding. Verify with an isolated fixture and resolve the intended retired-belief policy before changing the helper or flag.
+
+### D-23 — NovelAssociation can ingest Tier 8 retired beliefs into the graph
+- Type: source-level retrieval/graph contamination candidate; live incidence UNKNOWN.
+- Evidence: `NovelAssociation._pull_candidates()` filters by confidence, branch presence and `paused=0`, but not `tier < 8` or `locked=0`. Harmonizer can retire unlocked Tier 3–7 beliefs by setting tier 8, locked 0, paused 0. NovelAssociation's normal 30-minute loop can therefore embed retired rows, write `synthesises` edges and log cross-branch associations; high-similarity pairs can also create a SelfNarrative entry. A Fountain comment claims NovelAssociation already bounds tiers, but current SQL does not.
+- Impact: retired belief content can continue influencing graph topology and branch-level prompt annotations. Optional edge-weighted Fountain retrieval may also count edges connected to retired endpoints.
+- Disposition: verify with an isolated fixture and reconcile the retired-row policy across all graph/retrieval paths. Do not alter the candidate query or graph state before Gate 0 / explicit approval.
