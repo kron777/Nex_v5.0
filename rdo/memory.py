@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 from typing import Dict, List, Optional
 
 from watcher.evidence import utc_now
@@ -103,14 +104,22 @@ class CycleStore:
         self.dir = dir_path
         os.makedirs(dir_path, exist_ok=True)
 
+    def _cycle_path(self, cycle_id: str) -> str:
+        # Cycle IDs become filenames. Keep them portable and prevent caller-
+        # supplied separators, traversal components, and unbounded names.
+        if (not isinstance(cycle_id, str) or
+                not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", cycle_id)):
+            raise ValueError("cycle id must be 1-128 portable filename characters")
+        return os.path.join(self.dir, f"cycle_{cycle_id}.json")
+
     def save(self, cycle: CycleRecord) -> str:
-        p = os.path.join(self.dir, f"cycle_{cycle.id}.json")
+        p = self._cycle_path(cycle.id)
         with open(p, "w", encoding="utf-8") as fh:
             json.dump(cycle.to_dict(), fh, indent=2, default=str)
         return p
 
     def load(self, cycle_id: str) -> CycleRecord:
-        with open(os.path.join(self.dir, f"cycle_{cycle_id}.json"), "r", encoding="utf-8") as fh:
+        with open(self._cycle_path(cycle_id), "r", encoding="utf-8") as fh:
             return CycleRecord(**json.load(fh))
 
     def list_ids(self) -> List[str]:
