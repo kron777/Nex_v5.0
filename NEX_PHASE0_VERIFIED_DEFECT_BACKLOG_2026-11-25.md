@@ -250,3 +250,15 @@
 - Evidence: `fountain_retrieval_log` records per-fire retrieved belief IDs and is read by associative recall for the last three fires. Its startup migration drops it only if a legacy cross-database FK to `beliefs` exists, then recreates it without that FK. A nearby comment still says the table is destroyed on every restart. The table is not in `nex_db_reaper.TARGETS` and no ongoing pruning was found. By contrast, `fountain_prompt_blocks` is pruned at startup to 30 days.
 - Impact: the comment no longer accurately describes persistence after the FK migration; the retrieval log may grow indefinitely even though the observed runtime consumer needs only a short recent window.
 - Disposition: establish the intended continuity and retention policy, check for other consumers, then add isolated migration/retention tests. Do not drop or prune live history before that decision.
+
+### D-26 — DormancyScanner does not advance beyond the oldest 50 source rows
+- Type: source-level progress defect candidate; live incidence UNKNOWN.
+- Evidence: `DormancyScanner.scan_incremental()` selects source families `fountain_insight`, `synergized`, `behavioural_observation` ordered by `created_at ASC LIMIT 50`, with no cursor, no exclusion for existing dormant rows, no `reanimated_at` check and no tier/status filter. It upserts those same rows on every call. DiversityLoop invokes it every 60 seconds, and ClockRunner independently invokes a fresh scanner every 20 Fountain fires.
+- Impact: the same oldest 50 rows can be rescanned indefinitely, preventing discovery of newer dormant beliefs and refreshing their `flagged_at` repeatedly. Duplicate scan callsites add redundant work.
+- Disposition: reproduce in an isolated fixture with more than 50 eligible rows and define the intended incremental/cursor semantics before any code change.
+
+### D-27 — Dormancy reanimation does not revalidate belief status before Fountain injection
+- Type: source-level retired/paused content retrieval candidate; live incidence UNKNOWN.
+- Evidence: DormancyScanner source selection has no tier/paused/locked filter; `wake_one()` selects an un-reanimated dormant row without checking joined belief status; Fountain's `pop_reanimated()` consumer re-reads by ID without a tier/paused/locked predicate. Harmonizer can retire unlocked source-family beliefs to Tier 8 while leaving them unpaused.
+- Impact: retired or paused beliefs can be surfaced into Fountain context through the periodic reanimation slot even though the main own-content and residue retrieval paths explicitly exclude Tier 8.
+- Disposition: validate with isolated fixtures and reconcile whether reanimation should apply only to active beliefs. Do not mutate dormant rows or live prompts before Gate 0 / explicit approval.
