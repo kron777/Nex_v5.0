@@ -167,3 +167,6 @@ This tranche remains static-source evidence only. It does not complete the full 
 The life-loop modules are appended to the `build_dynamic()` loop list and started by its daemon-thread factory in source. This is static wiring evidence, not proof that any of those loops are active on the host. The new direct-write paths use their own SQLite connections and do not call CoherenceGate in the inspected insert functions. Their intended authority and gate scope remain unresolved pending Frozen V2.1 and founder approval evidence.
 
 The census remains partial: helper-mediated writes, alternate writers, and the remaining `theory_x` modules have not all been inspected. See sections 15–17 of the linked tranche. No architectural defect is declared solely from these source observations.
+
+
+**Further boot-path reconciliation (25 November 2026):** the linked trace now also records the Membrane Behavioural Self-Model as a gated belief producer under normal `run.py` wiring, and the boot-time ResumptionSeeder as an existing-belief/probe mutation path rather than a new producer. The trace separates normal-start loops, constructed-but-not-started components, and environment-gated loops. These are source wiring categories only; effective host flags and live thread state remain UNKNOWN. See sections 18–20 of the trace tranche.
