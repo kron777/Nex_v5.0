@@ -286,3 +286,9 @@
 - Evidence: the main own-source belief pool is retrieved and affects retrieval telemetry/activation/erosion, but its dedicated prompt block is gated by `NEX5_OWN_CONTENT_RENDER=1` (source default OFF). Associative recall and wide-focus are separate default-OFF flags. The always-present `own_sense` block is drawn from sense events, not the own-belief pool.
 - Impact: the comment that own lived content dominates retrieval allocation does not establish that own-belief text dominates the actual prompt. At source defaults, the main own-belief pool can be statefully used without being rendered.
 - Disposition: determine whether this separation is intentional and record the expected prompt composition. Do not arm own-content, associative-recall or wide-mode flags without explicit approval.
+
+### D-31 — World Model EdgeGenerator can create edges from retired source rows
+- Type: source-level graph-status candidate; live incidence UNKNOWN.
+- Evidence: `EdgeGeneratorLoop._tick()` selects unedged `fountain_insight`/`synergized` source rows without tier/paused/locked filters and re-reads each source by ID without a status predicate. Only the target-candidate query filters `tier <= 7`; it does not exclude paused or locked targets. The loop runs after a 60-second boot delay and every 30 minutes.
+- Impact: an unedged Tier 8 retired source can still create outgoing edges to tier<=7 targets; paused/locked target rows can also be linked. These edges can affect later graph propagation even though the direct retriever filters retired candidates.
+- Disposition: reproduce with isolated fixtures and define graph active/retired/paused semantics consistently across all three edge producers and ActivationEngine. Do not mutate live edges or code before Gate 0 / explicit approval.
