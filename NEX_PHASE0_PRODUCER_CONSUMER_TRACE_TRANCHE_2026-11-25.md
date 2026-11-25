@@ -684,7 +684,7 @@ No live table sizes or restart history were inspected. Do not drop or prune the 
 | Fountain recent Surprise block | `source='surprise'` and six-hour time window only | Can render recently retired surprise beliefs |
 | Stage 3 World Model BeliefRetriever | `tier <= 6`, `paused=0`, locked or confidence floor | Final result map excludes Tier 8 direct results |
 | Stage 3 ActivationEngine | No belief-status check while traversing `belief_edges` | Retired nodes can be intermediate propagation bridges; final retriever output still filters to its active row map |
-| Stage 3 EdgeGenerator | Explicit `tier <= 7` on candidate targets | Does not create new edges from Tier 8 rows in the inspected query |
+| Stage 3 EdgeGenerator | Source selection has no tier/status filter; target candidates have `tier <= 7` but no paused/locked filter | Can create edges from retired sources to tier<=7 targets, including paused/locked targets |
 | Diversity EdgeBuilder | No tier predicate; source excludes locked but not Tier 8; pool excludes only paused | Can create edges involving retired rows |
 | NovelAssociation | No tier or locked predicate; confidence/branch/paused filters only | Can create edges and branch annotations involving retired rows |
 | Chat spectrum standing points | Source `spectrum` allowlist, no tier predicate | Expected locked Tier 1 spectrum seed content |
