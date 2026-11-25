@@ -776,3 +776,14 @@ On a VoiceEngine miss, the route enters the LLM-composition block and executes t
 The VoiceEngine mode toggle is admin-visible in the GUI and changes only in-memory AppState; the app's initial state remains `use_substrate` on each process start unless changed. The front-end's initial `use_llm` string is only a display placeholder until `/api/system/status` refreshes it.
 
 This means the default source route attempts substrate-first replies, but actual host mode remains UNKNOWN. A direct hit is a distinct verbatim response path; a miss is not a substrate-only deflection in the current source.
+
+## 51. Fountain's always-on Favorites and Surprise prompt blocks bypass the main Tier 8 filter
+
+Two additional prompt blocks query belief content directly, outside `_retrieve_context_beliefs()`:
+
+- **Favorites:** `FountainGenerator._build_prompt()` selects the top 10 rows where `affinity IS NOT NULL AND affinity > 0.40`, then randomly renders up to two. The query has no `tier < 8`, `paused=0` or `locked` predicate. Harmonizer's retirement UPDATE changes tier/locked/paused/content but does not clear `affinity`, so a retired belief can remain eligible for this prompt block.
+- **Recent surprise:** the prompt selects the latest belief with `source='surprise'` created in the last six hours, without a tier/paused/locked predicate. `theory_x/life/surprise_loop.py` writes these as Tier 6 unlocked beliefs directly through SQLite, with source `surprise`; Harmonizer can later retire them to Tier 8 while leaving them within the six-hour prompt window.
+
+These blocks are separate from the main own-content query, which filters `tier < 8`. Therefore the main query's retired-row exclusion does not protect all Fountain prompt content. The Favorites block can select a retired row for as long as its affinity remains above 0.40; the Surprise block can select a recently retired surprise for the remainder of its six-hour window.
+
+No live affinity values, retired surprise rows or prompt manifests were inspected. These are source-level retrieval filter gaps, not proof that retired content has appeared in a live prompt.
