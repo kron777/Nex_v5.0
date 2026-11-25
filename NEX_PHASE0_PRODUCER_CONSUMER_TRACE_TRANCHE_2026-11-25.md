@@ -334,3 +334,21 @@ Two additional source paths can create or refresh Tier 1 locked beliefs, but nei
 These are operator/tooling pathways, not counted among the nine direct runtime producer paths. They should be represented separately as controlled seed/calibration operations with explicit operator intent, dry-run support and a different authority boundary. Their existence reinforces why a repository-wide census must distinguish boot seeds, runtime loops, manual tools and migration scripts rather than counting every `INSERT INTO beliefs` as one type of producer.
 
 Other checked utility paths include `nex_affinity_backfill.py`, which updates existing affinity fields under an explicit `--apply` plus environment guard, and the selected reporting/replay scripts, which use read-only connections. These are maintenance/analysis paths, not new runtime belief producers.
+
+## 23. TaggingBeliefWriter is not a universal belief-write chokepoint
+
+The wrapper's own source comment overstates its coverage:
+
+- `run.py:68–71` wraps the shared `writers["beliefs"]` object in `TaggingBeliefWriter` and passes that wrapped object through the normal boot dependency dictionary.
+- `theory_x/tag_protocol/writer_wrapper.py:1–16, 90–175` documents interception of explicit-column-list `INSERT [OR IGNORE] INTO beliefs` statements sent through that wrapper. It also describes its intake-resonance probe as a “UNIVERSAL chokepoint” through which “every belief from every writer passes here.”
+- The seven Stage 2 life-loop writers listed in §15 instead open the beliefs DB with `connect(BELIEFS_DB)` and execute `INSERT INTO beliefs` directly. They do not call the shared wrapper.
+- The operator utilities `scripts/seed_identity_beliefs.py` and `ground_self_belief.py` construct standalone `Writer` instances rather than obtaining `writers["beliefs"]` from `run.py`; they are also outside this wrapper instance.
+
+Therefore, the wrapper is a chokepoint only for eligible writes routed through the wrapped shared Writer. It does not intercept direct SQLite connections or independent Writer instances. The seven life-loop paths are sufficient source counterexamples to the universal claim. The operator tools are further separate counterexamples.
+
+**Consequences to represent accurately:**
+- Auto-tag generation is not universal across all belief inserts. Some direct paths supply their own tags; others rely on schema defaults or omit tags. Do not assume every stored belief passed through `tag_protocol.generate()`.
+- The wrapper's embedded `IntakeResonance.compute()` call is likewise not universal across every belief insert. Some modules call IntakeResonance separately; others do not. The exact set of producers covered by the wrapper and the separately invoked resonance hooks needs its own census.
+- CoherenceGate, TaggingBeliefWriter and IntakeResonance are three different mechanisms. Passing through one does not prove passage through either of the others.
+
+This is a source/documentation discrepancy, not a recommendation to route every writer through the wrapper. Whether the current coverage is intentional and what should be universal must be settled against the governing design. No runtime behaviour was changed.
