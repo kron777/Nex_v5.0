@@ -113,7 +113,7 @@ def host_requests() -> List[HostRequest]:
             "Record matching service state and MainPID values, or explicit manager unavailability. "
             "Do not read service unit contents or raw process arguments. Absolute paths can reveal usernames/data layout; redact before third-party sharing.",
             [
-                "pids=$(ps -eo pid=,comm= | awk -v collector_pid=\\"$NEX_WATCHER_COLLECTOR_PID\\" '$1 != collector_pid && $2 ~ /^python([0-9.]*)$/ {print $1}'); "
+                "pids=$(ps -eo pid=,comm= | awk -v collector_pid=\"$NEX_WATCHER_COLLECTOR_PID\" '$1 != collector_pid && $2 ~ /^python([0-9.]*)$/ {print $1}'); "
                 "candidate_count=0; "
                 "for pid in $pids; do "
                 "cwd=$(readlink -f \"/proc/$pid/cwd\" 2>/dev/null) || continue; "
@@ -202,7 +202,7 @@ def host_requests() -> List[HostRequest]:
                 "for f in /sys/fs/cgroup/memory.max /sys/fs/cgroup/memory.current "
                 "/sys/fs/cgroup/memory/memory.limit_in_bytes; do "
                 "if [ -r \"$f\" ]; then printf '%s=' \"$f\"; cat \"$f\"; fi; done",
-                "pids=$(ps -eo pid=,comm= | awk -v collector_pid=\\"$NEX_WATCHER_COLLECTOR_PID\\" '$1 != collector_pid && $2 ~ /^python([0-9.]*)$/ {print $1}'); "
+                "pids=$(ps -eo pid=,comm= | awk -v collector_pid=\"$NEX_WATCHER_COLLECTOR_PID\" '$1 != collector_pid && $2 ~ /^python([0-9.]*)$/ {print $1}'); "
                 "candidate_count=0; "
                 "for pid in $pids; do cwd=$(readlink -f \"/proc/$pid/cwd\" 2>/dev/null) || continue; "
                 "[ -f \"$cwd/run.py\" ] && [ -f \"$cwd/substrate/paths.py\" ] || continue; "
@@ -226,7 +226,7 @@ def host_requests() -> List[HostRequest]:
                 "for proc in pathlib.Path(\"/proc\").iterdir():\n"
                 "    if not proc.name.isdigit():\n"
                 "        continue\n"
-                "    if proc.name in {str(os.getpid()), os.environ.get(\\"NEX_WATCHER_COLLECTOR_PID\\", \\"\\")}:\n"
+                "    if proc.name in {str(os.getpid()), os.environ.get(\"NEX_WATCHER_COLLECTOR_PID\", \"\")}:\n"
                 "        continue\n"
                 "    try:\n"
                 "        if not re.fullmatch(r\"python[0-9.]*\", (proc / \"comm\").read_text().strip()):\n"
@@ -395,7 +395,7 @@ def host_requests() -> List[HostRequest]:
                 "for proc in pathlib.Path(\"/proc\").iterdir():\n"
                 "    if not proc.name.isdigit():\n"
                 "        continue\n"
-                "    if proc.name in {str(os.getpid()), os.environ.get(\\"NEX_WATCHER_COLLECTOR_PID\\", \\"\\")}:\n"
+                "    if proc.name in {str(os.getpid()), os.environ.get(\"NEX_WATCHER_COLLECTOR_PID\", \"\")}:\n"
                 "        continue\n"
                 "    try:\n"
                 "        if not re.fullmatch(r\"python[0-9.]*\", (proc / \"comm\").read_text().strip()):\n"
