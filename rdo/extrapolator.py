@@ -20,7 +20,8 @@ from __future__ import annotations
 from typing import Callable, Dict, List, Optional, Tuple
 
 from .model import (ANTI_REQUIREMENT, CONDITIONAL, NECESSARY, Obligation,
-                    RECON_UNKNOWN, REUSE_EXISTING, SIGNATURE_MATCHED, Relationship)
+                    RECON_UNKNOWN, REUSE_EXISTING, SIGNATURE_MATCHED, Relationship,
+                    has_valid_reuse_review)
 
 # A rule: (child_kind, classification, rationale, shared_target|None).
 # shared_target lets independent parents converge on one canonical obligation.
@@ -202,8 +203,7 @@ def expand(seeds: List[Obligation],
             frontier.append({"key": ob.key, "reason": f"max_depth {max_depth} reached"})
             continue
         if ob.recon_status == REUSE_EXISTING:
-            if (ob.recon_evidence and ob.confidence == "measured" and
-                    ob.recon_semantic_verified and ob.recon_semantic_review_evidence):
+            if has_valid_reuse_review(ob):
                 frontier.append({"key": ob.key,
                                  "reason": "semantic satisfaction independently reviewed"})
                 continue
