@@ -155,12 +155,26 @@ def _record_executed(store, memory, *, cycle_id, objective, predicted, reused, v
     return c
 
 
-def _active_experiments(repo_dir: str) -> List[str]:
-    """Reuse the Watcher's registry to learn which experiment windows are active/
-    pending, so the eligibility gate can protect them."""
+def _active_experiments(repo_dir: str) -> Optional[List[str]]:
+    """Read the Watcher's experiment registry without converting uncertainty to safety.
+
+    A measured, structurally valid registry returns its active/pending list (which may
+    legitimately be empty). Missing, unreadable, unknown, or malformed registry data
+    returns None. The eligibility gate treats None as a hard blocker.
+    """
     try:
         from watcher.registry import ingest_registry
         ev = ingest_registry(os.path.join(repo_dir, "observation_reports"))
-        return list(ev.data.get("active_or_pending", []))
+        if ev.evidence_class != "measured" or not isinstance(ev.data, dict):
+            return None
+        active = ev.data.get("active_or_pending")
+        if not isinstance(active, list) or any(
+            not isinstance(item, str) or not item.strip() for item in active
+        ):
+            return None
+        return active
     except Exception:
-        return []
+        # Fail closed: inability to establish experiment state is not proof of no
+        # active experiment. Keep the pipeline available for inspection, but block
+        # every proposed work package at eligibility.
+        return None
