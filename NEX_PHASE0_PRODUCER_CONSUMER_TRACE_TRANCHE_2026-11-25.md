@@ -789,3 +789,14 @@ Two additional prompt blocks query belief content directly, outside `_retrieve_c
 These blocks are separate from the main own-content query, which filters `tier < 8`. Therefore the main query's retired-row exclusion does not protect all Fountain prompt content. The Favorites block can select a retired row for as long as its affinity remains above 0.40; the Surprise block can select a recently retired surprise for the remainder of its six-hour window.
 
 No live affinity values, retired surprise rows or prompt manifests were inspected. These are source-level retrieval filter gaps, not proof that retired content has appeared in a live prompt.
+
+## 52. Fountain's main own-belief retrieval is not prompt rendering by default
+
+The `_retrieve_context_beliefs()` own-content pool and the prompt text are separate stages:
+
+- The retrieval function selects the configured own-source beliefs (default allocation around seven in the current mode), records their IDs in `fountain_retrieval_log`, and applies retrieval-side activation/erosion updates.
+- The dedicated `own_content` prompt block in `_build_prompt()` is added only when `NEX5_OWN_CONTENT_RENDER=1`; source default is OFF. The optional associative-recall block is separately gated by `NEX5_ASSOC_RECALL=1` (default OFF), and wide-focus selection is separately gated by `NEX5_WIDE_MODES=1` (default OFF).
+- The always-present `own_sense` block is built from recent sense events; it is not the same thing as the own-belief pool.
+- Other belief-derived prompt blocks (Favorites, recent Surprise, spectrum standing points and optional HotObserver/reanimation paths) are separate queries with their own filters, as recorded in §§35, 38, 44 and 51.
+
+Therefore the source comment that own lived content dominates the retrieval allocation does not establish that own-belief text dominates the actual Fountain prompt. With source defaults and absent environment overrides, the main own-belief pool is retrieved and statefully used but its dedicated text block is not rendered. Whether that separation is intentional is UNKNOWN; host-effective flags and actual prompt manifests were not inspected.
