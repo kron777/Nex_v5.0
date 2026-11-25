@@ -31,12 +31,24 @@ def test_collector_executes_only_fixed_request_commands_and_records_provenance(m
         )
 
     monkeypatch.setattr(host_runner.subprocess, "run", fake_run)
+    monkeypatch.setenv("BASH_ENV", "/tmp/untrusted-shell-startup")
+    monkeypatch.setenv("PYTHONPATH", "/tmp/untrusted-python")
+    monkeypatch.setenv("LD_PRELOAD", "/tmp/untrusted-library.so")
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
+    monkeypatch.setenv("XDG_RUNTIME_DIR", "/run/user/1000")
+    monkeypatch.setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/run/user/1000/bus")
     result = host_runner.collect_host_evidence(timeout=17, repo_root=tmp_path)
 
     assert len(calls) == 3
     assert all(call[0][:4] == ["bash", "--noprofile", "--norc", "-c"] for call in calls)
     assert all(call[1]["timeout"] == 17 for call in calls)
     assert all(call[1]["cwd"] == str(tmp_path) for call in calls)
+    env = calls[0][1]["env"]
+    assert env["PATH"] == "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    assert env["XDG_RUNTIME_DIR"] == "/run/user/1000"
+    assert env["DBUS_SESSION_BUS_ADDRESS"] == "unix:path=/run/user/1000/bus"
+    assert not {"BASH_ENV", "PYTHONPATH", "LD_PRELOAD", "GIT_CONFIG_COUNT"} & env.keys()
+    assert env["GIT_CONFIG_NOSYSTEM"] == "1"
     assert result["runtime_identity"]["evidence_class"] == "measured"
     assert result["classify_unknown_tools"]["evidence_class"] == "static"
     assert result["runtime_identity"]["source_ref"]
