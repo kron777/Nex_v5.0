@@ -140,3 +140,15 @@
 - Evidence: the current bounded trace verifies at least nine direct runtime producer paths (sense distillation, Fountain rut mirror, and seven life loops), five gated producer families (Dynamic crystallization, World Model synergizer, Fountain crystallization, CounterfactualNode and Behavioural Self-Model), plus EmergentDrive's conditional gate path. It separately identifies the self-location bootstrap anchor and resolver-mediated Holding Zone promotion. This is a verified subset, not an exhaustive repository-wide census; helper-mediated writes, alternate writers and remaining modules remain to be checked.
 - Impact: M0.3–M0.4 cannot be marked complete, and gate authority/scope cannot be assessed from the current source alone.
 - Disposition: continue bounded forward/backward source tracing. Preserve unknowns; do not change the gate, producers, flags, or live state pending the governing specification and explicit founder review.
+
+### D-12 — TaggingBeliefWriter / IntakeResonance universal-chokepoint claim is contradicted by source paths
+- Type: documentation/coverage discrepancy; no behaviour change proposed.
+- Evidence: `run.py` wraps the shared `writers["beliefs"]` instance, and `writer_wrapper.py` intercepts eligible belief INSERTs routed through that wrapper. However, seven Stage 2 life loops use direct SQLite connections to insert beliefs, and the operator identity/self-belief utilities create independent Writer instances. Those writes do not pass through the boot wrapper. The wrapper comment nevertheless calls its embedded IntakeResonance probe a universal chokepoint through which every belief from every writer passes.
+- Impact: neither auto-tagging nor the wrapper's IntakeResonance probe can be assumed to cover every stored belief. Some producers call resonance separately; the full producer-to-tag/resonance coverage is not yet mapped.
+- Disposition: document the actual wrapper boundary and complete a producer-by-producer coverage map. Do not refactor writers or force all paths through a shared mechanism without the governing specification and explicit founder approval.
+
+### G-08 — Tagging and intake-resonance coverage census incomplete
+- Type: evidence gap.
+- Evidence: source confirms direct SQLite and independent Writer paths outside the shared TaggingBeliefWriter. The current audit has not exhaustively identified every belief insert, whether it supplies tags explicitly, relies on schema defaults, invokes tag generation separately, or invokes IntakeResonance separately.
+- Impact: global claims about tagging or resonance coverage are not supported by the current trace.
+- Disposition: extend the producer inventory with separate columns for persistence path, wrapper interception, tag source and resonance invocation. Preserve UNKNOWN where untraced.
