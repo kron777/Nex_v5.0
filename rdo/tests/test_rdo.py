@@ -290,6 +290,22 @@ def test_pattern_memory_applicable_alias_cannot_persist_non_finite_confidence(tm
     assert len(path.read_text(encoding="utf-8").splitlines()) == 1
 
 
+def test_pattern_memory_clamps_finite_out_of_range_alias_before_replay_persistence(tmp_path):
+    path = tmp_path / "patterns.jsonl"
+    mem = PatternMemory(str(path))
+    mem.add(Pattern("aliased", "statement", "cycle:one", confidence=0.3))
+    mem.applicable("robotics")  # getter is also covered by the alias-boundary tests
+    mem.patterns()[0].confidence = 4.2
+
+    replayed = mem.add(Pattern("aliased", "statement", "cycle:one", confidence=0.3,
+                               exceptions=["new exception"]))
+
+    assert replayed.confidence == 0.9
+    reopened = PatternMemory(str(path)).patterns()[0]
+    assert reopened.confidence == 0.9
+    assert reopened.exceptions == ["new exception"]
+
+
 def test_pattern_memory_append_rejects_aliased_non_finite_confidence(tmp_path):
     mem = PatternMemory(str(tmp_path / "patterns.jsonl"))
     invalid = Pattern("invalid", "statement", "cycle:one", confidence=float("nan"))
