@@ -250,3 +250,10 @@ The audit confirms that construction, thread-start attempt, a loop body that imm
 The next bounded cross-faculty trace is complete at static-source level. `NEX_PHASE0_PREDICTION_SURPRISE_CROSS_FACULTY_AUDIT_2026-11-25.md` distinguishes three prediction systems and traces Stage 35 `surprise_events` to four consumers. It identifies a mismatch between external prediction generation and verification populations, a timestamp-only SurpriseLoop cursor with a conditional equal-timestamp/failed-write skip path, and stale PREDICTION_PROTOCOL wording for AffectState coupling. The separate WorldPredictionLoop is default-OFF, while ScorecardLoop remains normal-wired and refreshes its Tier 1 scorecard belief immediately and hourly.
 
 No live flags, DB rows, external APIs, or runtime state were inspected. These findings are source-level candidates and documentation discrepancies, not claims of live incidents or measured predictive effects.
+
+
+## Problem/goal lifecycle source audit — 2026-11-25
+
+The next bounded producer/consumer trace is complete at static-source level. `NEX_PHASE0_OPEN_PROBLEM_AND_GOAL_LIFECYCLE_AUDIT_2026-11-25.md` records the distinct ProblemMemory and GoalManager lifecycles, the `open`→`stuck` transition and its state-specific consumer visibility, the GoalManager `open` versus CoherenceGate `active` mismatch, and the absence of a normal boot scheduler for the two decay methods. The source registry is not a lifecycle orchestrator; it stores process-lifetime nodes only.
+
+No live problem/goal rows were inspected. The state and lifecycle contracts remain design questions; no code or runtime state was changed.
