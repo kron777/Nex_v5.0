@@ -54,6 +54,10 @@ The scheduler documentation mismatch found during this audit is corrected in thi
 
 **Self-continuity Phase 1 seam:** [NEX_PHASE0_SELF_CONTINUITY_SEMANTICS_AUDIT_2026-11-25.md](NEX_PHASE0_SELF_CONTINUITY_SEMANTICS_AUDIT_2026-11-25.md) checks the default-OFF helper's tuple query, phrase semantics, tie ordering, resource cleanup and tests. The flag remains untouched; no live host state was inspected.
 
+
+
+**M0.5 causal-trace coverage:** [NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md](NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md) checks the two actual output seams, missing trace/parent IDs and intermediate stages, L4 context declaration, fixture status and raw-preview retention boundary. The trace remains default-OFF; no runtime capture occurred.
+
 **Important:** this boot inventory is a forward wiring map, not a complete producer/consumer DAG. It does not prove that every declared faculty is operationally consumed, nor does it establish L3/L4 runtime evidence. The two detailed paths below remain the only end-to-end output-path audits in this document.
 
 
