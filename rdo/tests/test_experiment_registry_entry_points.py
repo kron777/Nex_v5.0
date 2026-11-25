@@ -26,7 +26,7 @@ def test_stage_entry_points_propagate_unknown_registry(monkeypatch, tmp_path, ru
             frontier=[],
             work_packages=[],
             verification={},
-        )
+        ), {}
 
     monkeypatch.setattr(report, "_active_experiments", lambda _repo: None)
     monkeypatch.setattr(report, "_run_one", fake_run_one)
