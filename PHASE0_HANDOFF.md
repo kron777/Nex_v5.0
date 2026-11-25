@@ -96,3 +96,9 @@ TaggingBeliefWriter does not provide a universal admission chokepoint: boot seed
 PR #98 remains draft. The new additions are documentation/evidence only; no runtime code, DB, flags, services, experiments, baselines or tripwires were changed. Exact-head checks must be re-read before claiming CI status for the latest docs commits.
 
 Gate 0 remains pending. Continue bounded read-only source tracing and isolated fixtures only. Normative remediation remains blocked on founder identification of the exact Frozen V2.1 specification and Gate 0 approval record, and clarification of whether April SPECIFICATION.md remains governing.
+
+## Database contract clarification — merged October migration
+
+Source-history review found owner-authored PR #11 merged 2026-10-17. It explicitly shipped the substrate.connect() factory migration across roughly 95 modules and retired the raw-sqlite import ratchet. The current test named TestNoDirectSqlite checks only for raw sqlite3 imports outside substrate; it does not enforce Writer.write() for every write. Direct substrate.connect() paths are therefore intentional under that merged migration and are not automatically defects.
+
+The April SPECIFICATION.md §3 and substrate/writer.py docstring still describe a stronger universal Writer-queue rule. The exact founder-approved transaction/serialization contract is unresolved; do not migrate direct connections back to Writer or assume substrate.connect() serializes callers. See trace §64 and reclassified backlog D-36/G-24.
