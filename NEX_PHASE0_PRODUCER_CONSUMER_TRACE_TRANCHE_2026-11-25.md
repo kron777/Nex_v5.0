@@ -85,8 +85,9 @@ The following concrete callers have been read and verified; this is **not yet an
 
 1. Dynamic crystallizer → gate → Tier 7 `precipitated_from_dynamic` belief on ACCEPT.
 2. World Model synergizer → gate → Tier 6 `synergized` belief on ACCEPT.
-3. Fountain drive probe → gate (source `drive_probe`); the probe itself is delivered to gate/holding/resolution rather than directly inserted by that function.
-4. Reshape resolver → transforms held candidate → re-submits through gate.
+3. Fountain generated thought → quality checks → `FountainCrystallizer` gate (source `fountain`) → Tier 6 belief insert on ACCEPT; see `stage6_fountain/crystallizer.py:383–400, 447–454`.
+4. Fountain drive probe → gate (source `drive_probe`); the probe itself is delivered to gate/holding/resolution rather than directly inserted by that function.
+5. Reshape resolver → transforms held candidate → re-submits through gate.
 
 The sense-distillation path is a verified direct-to-beliefs bypass. Additional direct belief writers and gate callers across the remaining faculties still need inventory.
 
@@ -113,3 +114,29 @@ This is recorded as a source fact and an additional gate-scope question, not lab
 6. Reconcile all gate bypasses and fail-open semantics against the missing Frozen V2.1 source and founder approval record before any behavioural modification.
 
 **Status:** partial source trace only. No live runtime observation, no L4 claims, no Gate 0 sign-off, no Phase 1 authorisation.
+
+
+## 9. Chat retrieval, self-model injection and reply persistence
+
+- `gui/server.py:1207–1255` routes a chat prompt through `state.membrane.route()` when both Membrane and World Model are present. Without Membrane it calls the retriever directly, filters to beliefs sharing at least two content tokens with the prompt, and caps the rendered belief block at about 800 characters.
+- `theory_x/stage4_membrane/router.py:28–95` separates INSIDE and OUTSIDE:
+  - INSIDE: snapshots SelfModel, formats its proprioception/temporal/interoception/attention/inside-belief content, and retrieves INSIDE-filtered beliefs (limit 5).
+  - OUTSIDE: retrieves ordinary relevant beliefs (limit 8) using active Dynamic branches as hints.
+- `gui/server.py:1268–1288` adds BehaviouralSelfModel metrics to the prompt-facing `belief_text` on INSIDE routes only. The metrics are derived from the last 100 NEX messages in `conversations.db`.
+- `gui/server.py:1291–1310` records SelfModel injection observability; the actual SelfModel text has already been added by the router's INSIDE route.
+- `gui/server.py:1900–2045` builds 13 named faculty/context blocks and passes them through `_assemble_chat_blocks()`. By default the blocks concatenate; `NEX5_CHAT_WORKSPACE=1` enables budgeted salience selection. Several blocks are independently flag- and admin-scoped. The final `voice_prompt` combines these blocks with the routed belief/self-model context and the user prompt.
+- `gui/server.py:2061–2130` sends the composed prompt through `state.voice.speak(VoiceRequest(...))`, with retry/regeneration and provenance handling on some paths. This is a direct chat voice path, not the persistent speech queue.
+- `gui/server.py:2163–2180` sanitizes the final reply, inserts the NEX message into `conversations.messages`, and then records the default-OFF InfluenceRecord chat-turn sidecar. The trace hook does not mutate the reply.
+
+**Route caveat:** the source establishes the two principal Membrane routes and the prompt assembly shown above. It does not yet establish every fallback/tool/repeat path's exact block inclusion or causal contribution to the final answer.
+
+## 10. Speech queue producer/consumer path
+
+- `theory_x/stage6_fountain/crystallizer.py:383–400` gates the generated Fountain thought after its quality checks and before the belief insert. On ACCEPT, it writes the belief and a `fountain_crystallizations` row at approximately lines 447–454.
+- `crystallizer.py:459–494` is a verified speech-queue producer. It checks `SpeechConfig`, limits eligible source categories to `fountain_insight`, `synergized`, `koan`, and `voice_fallback`, applies the `SpeechGovernor`, avoids duplicate queue rows for the belief, then inserts `speech_queue` with belief ID, content, voice and queued timestamp.
+- `run.py:611–629` constructs and starts `SpeechQueueConsumer` only when `SpeechConfig.enabled` is true. `speech/config.py:1–35` reads `NEX5_SPEECH_ENABLED` (default true in source); the current host's effective environment is not established here.
+- `speech/queue_consumer.py:79–160` reads the oldest pending row and updates its state through `speaking` then `spoken`, or `suppressed` / `failed`; it synthesizes with Kokoro and plays through `Player`. Quiet hours and pause state can defer consumption.
+- `gui/server.py:2557+` exposes `/api/speech/say` for immediate read-aloud through the consumer's backend/player. Its docstring explicitly says this on-demand path does not touch `speech_queue`.
+- Chat's `state.voice.speak()` path is also separate from this queue/consumer path.
+
+**Evidence gap:** FountainCrystallizer is a verified queue producer, but an exhaustive repository-wide `INSERT INTO speech_queue` census is still required before claiming it is the only producer. Live consumer activation and actual audio output remain UNKNOWN.
