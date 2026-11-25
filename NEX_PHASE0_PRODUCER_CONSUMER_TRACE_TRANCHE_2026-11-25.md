@@ -922,7 +922,7 @@ The following source-level paths were verified:
 
 These modules import substrate.connect and execute/commit SQL directly on the returned connections. The Stage 2 builder appends the listed life, focus, daily-life and signal-to-problem loops and starts each in its daemon-thread loop factory. This proves normal source wiring when build_dynamic() is invoked and the imports succeed; it does not prove the threads are currently active on the host.
 
-HotObserver is another direct beliefs.db writer: theory_x/stage_tom/hot_observer.py::observe() opens a connection with substrate.connect(), inserts a Tier-3 belief and commits. Its caller/runtime incidence is treated separately; this finding does not assume it is continuously active.
+HotObserver is another direct beliefs.db writer: theory_x/stage_tom/hot_observer.py::observe() opens a connection with substrate.connect(), inserts a Tier-3 belief and commits. Its call in stage6_fountain/generator.py is explicitly gated by NEX5_HOT_OBSERVER=1 (default OFF), so it is an optional direct-connection path rather than a normal-default active producer.
 
 Contrast: life.scorecard_loop delegates to ground_self_belief.refresh_self_belief(), whose belief insert/update uses substrate.Writer.write(), so that path is not included in the direct-connection list. Stage 2 DynamicCrystallizer and EmergentDrive belief inserts also use their injected Writer objects.
 
