@@ -688,3 +688,17 @@ No live table sizes or restart history were inspected. Do not drop or prune the 
 | Chat spectrum standing points | Source `spectrum` allowlist, no tier predicate | Expected locked Tier 1 spectrum seed content |
 
 This matrix shows that Tier 8 is consistently excluded from some direct retrieval pools but not from every special slot, graph producer or graph traversal. The policy cannot be inferred from one main query. Sections 38–42 and backlog D-21–D-24/G-14 capture the specific candidate gaps; the matrix is a source inventory, not a normative judgement.
+
+## 45. DormancyScanner's “incremental” scan does not advance beyond the oldest 50 rows
+
+`DormancyScanner.scan_incremental()` in `theory_x/diversity/dormancy.py` selects:
+
+- sources limited to `fountain_insight`, `synergized` and `behavioural_observation`;
+- ordered by `created_at ASC LIMIT 50`;
+- with no tier, paused, locked, `dormant_beliefs` membership or cursor predicate.
+
+For each qualifying row it upserts `dormant_beliefs` with `ON CONFLICT(belief_id) DO UPDATE`, refreshing `last_active_at`, `dormancy_score` and `flagged_at`. It does not advance a cursor, exclude already-flagged/reanimated rows, or remove rows after reanimation. The same oldest 50 therefore remain the first 50 candidates on each scan as long as they remain in `beliefs`.
+
+The normal `DiversityLoop._run()` calls `self.dormancy.scan_incremental()` every 60 seconds. The separate `ClockRunner._run_fast()` also constructs a new DormancyScanner and calls `scan_incremental()` every 20 Fountain fires. These are two scan callsites against the same tables; at some times they can repeat the same first-50 scan.
+
+This is a source-level progress defect candidate: despite its name, the scanner has no visible mechanism to advance through the source population. It may repeatedly refresh the same oldest rows and fail to discover newer dormant beliefs. No live dormant_beliefs table or scan logs were inspected.
