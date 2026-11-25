@@ -142,6 +142,11 @@ def test_checkout_and_process_requests_are_redacted_and_fail_closed():
     assert "<NEX_RUNTIME_ROOTS>" not in combined
 
 
+def test_unknown_tool_source_scan_is_case_insensitive():
+    commands = _commands("classify_unknown_tools")
+    assert "grep -nEi 'INSERT|UPDATE|DELETE|\\\\.commit|subprocess|connect\\\\('" in commands
+
+
 def test_artifact_fingerprint_is_derived_no_follow_and_failure_safe():
     request = _requests()["runtime_artifact_hashes"]
     commands = "\n".join(request.read_only_commands)
