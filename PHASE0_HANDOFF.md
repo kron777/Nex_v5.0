@@ -121,3 +121,11 @@ Main commit c247c240f8 (2026-10-26) records the owner decision for Africa/Johann
 ## Recursive self-model loop clarification — trace §68
 
 IdentityLoop → PatternLoop → WitnessLoop is not shown as a semantic closed loop in current source. PatternLoop reads identity_log and writes pattern_log; WitnessLoop reads pattern_log and writes witness_log; IdentityLoop composes from its previous identity_log statement plus aggregate metrics, not Pattern/Witness content. The new-belief count metric can reflect their rows, but no text-level feedback edge into the next IdentityLoop composition was found. Fountain separately injects the latest identity_log statement; no direct Pattern/Witness injection was found. See backlog G-28. This is a source/docstring discrepancy pending founder/design clarification, not permission to add a feedback dependency.
+
+## Frozen V2.1 recovery update — 25 November 2026
+
+Founder recollection identifies Frozen V2.1 as the intended governing specification (“I think Frozen V2.1”), but the founder cannot currently locate the sign-off record. This matches the hierarchy repeated in the November 19 research framework, November 20 roadmap and November 22 handover/carry-over.
+
+Expanded recovery searched the ChatGPT Library by exact phrases and title, inventoried filenames, inspected both NEX_Claude_Development_Export.zip and NEX_Development_Archive_for_Claude.zip, searched their contents, reviewed the context supplement/carry-over/framework/roadmap, and checked GitHub branches, repository search, PRs, issues and releases. No exact V2.1 proposal or sign-off artifact was recovered. The archive explicitly says the original was deliberately excluded because it was unavailable. A prior 24 Nov record also reports unsuccessful searches of local Claude JSONL transcripts.
+
+Working rule: V2.1 is the intended authority, but its exact normative clauses and sign-off evidence remain UNKNOWN. Do not substitute April SPECIFICATION.md, infer detailed criteria from roadmap summaries, or reconstruct V2.1. Continue source-only tracing and isolated tests; behavior remediation remains blocked pending source recovery or explicit founder re-establishment.
