@@ -92,7 +92,7 @@ def build_scheduler(
         Interoception(sense_writer, beliefs_reader=beliefs_reader),
         MetaAwareness(sense_writer, meta_state=_meta_state),
 
-        # External feeds (1-19) — start paused
+        # Core external feeds (15 currently wired; four retired source classes remain unconnected)
         ArxivAI(sense_writer),
         LabBlogs(sense_writer),
         MLConferences(sense_writer),
@@ -109,7 +109,7 @@ def build_scheduler(
         CryptoNews(sense_writer),
         BBCNews(sense_writer),
 
-        # Diversification feeds (20-25) — start paused
+        # Diversification feeds (7 currently wired)
         ArxivMath(sense_writer),
         AeonEssays(sense_writer),
         PsychologyScienceDaily(sense_writer),
@@ -118,7 +118,7 @@ def build_scheduler(
         WikipediaFeatured(sense_writer),
         Gutenberg(sense_writer),
 
-        # AGI/consciousness feeds (26-27) — start paused
+        # AGI/consciousness feeds (2 currently wired)
         ArxivCsAI(sense_writer),
         ArxivQbioNC(sense_writer),
     ]
