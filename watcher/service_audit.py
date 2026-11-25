@@ -156,7 +156,7 @@ def collect_service_audit(*, timeout: int = 15) -> dict[str, Any]:
 
     try:
         manager = subprocess.run(
-            [systemctl, "--user", "show-environment"],
+            [systemctl, "--user", "show", "--property=Version", "--no-pager"],
             capture_output=True, text=True, timeout=timeout, check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
