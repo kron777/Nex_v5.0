@@ -1237,3 +1237,18 @@ Verified source relationships:
 - ProblemMemory/GoalManager decay methods are callable but not scheduled in the inspected boot path. Theory X's registry stores nodes and returns the list; it does not invoke tick/decay.
 
 No live problem/goal states or process activity were inspected. These are source-level state/consumer and lifecycle findings; no behavior was changed.
+
+
+## 76. Signal producer, pattern and retention crosswalk
+
+The detailed map is in `NEX_PHASE0_SIGNAL_PIPELINE_RETENTION_AND_PATTERN_AUDIT_2026-11-25.md`.
+
+Verified source relationships:
+
+- Normal SignalLoop starts a 60-second detector thread; it runs CoOccurrence, Silence and Burst detectors, inserts `signals`, then passes only that tick's new signals to PatternTemplateLibrary. Fountain separately emits `advancements_drift` directly into the same table.
+- All three templates have `min_signals=1`; the matcher is current-tick only, and when multiple same-detector signals exist it records all IDs but builds prediction text from the first payload. Pattern validation fields are marked vestigial in schema and have no active validation writer.
+- SignalToProblem's current promotable set is `2_branch`, `3_branch`, `4_branch`, `advancements_drift`; the reaper allowlist is stale and differs in both directions. It preserves old burst types no longer promotable and omits two currently promotable types.
+- SignalToProblem commits `beliefs.db` actioned markers before committing `conversations.db` problem inserts; this is not an atomic cross-database transaction.
+- Inspected signal readers are SignalToProblem (6 h), CompetingDrives (24 h), probe context (10 min), and GUI latest 100. Pattern signal IDs are stored as JSON and not dereferenced by the GUI.
+
+No live rows, current reaper count, disk footprint or commit failure was inspected. No runtime change was made.
