@@ -53,6 +53,26 @@
 - Impact: cherry-picking the merge to restore Vitals would also import unrelated behaviour. Vitals scheduled --log mode appends persistent measurement history; its live environment reader trusts ~/.nex/nex.pid and reads /proc/<pid>/environ without verifying that the PID belongs to NEX.
 - Disposition: do not cherry-pick, restore, enable, start, disable or delete the timer. Recover the exact governing Vitals spec and review process identity, minimisation and measurement provenance first.
 
+## C2. Confirmed coherence-gate documentation and authority-scope discrepancies
+
+### D-08 — CoherenceGate header understates HOLD/RESHAPE handling
+- Type: documentation defect.
+- Evidence: the module header says HOLD and RESHAPE are only logged and not acted on. Current CoherenceGate.check() calls HoldingZone.hold() for HOLD and put_reshape_pending() for RESHAPE.
+- Impact: source documentation understates active persistence and downstream handling.
+- Disposition: correct the module documentation only after the intended current scope is reconciled; no gate behaviour changed.
+
+### D-09 — CoherenceGate fails open on evaluation exception
+- Type: authority/failure-policy issue requiring founder review.
+- Evidence: CoherenceGate.check() catches an _evaluate() exception and returns ACCEPT with reason gate_error_fallback.
+- Impact: an internal gate error does not block the candidate. This is an availability-oriented fail-open policy, not a fail-closed gate.
+- Disposition: document and assess against the governing Frozen V2.1 / safety authority. Do not change without explicit approval.
+
+### D-10 — Sense distillation bypasses CoherenceGate
+- Type: scope/architecture discrepancy, not automatically a defect.
+- Evidence: stage2_dynamic._sense_distillation_loop explicitly writes precipitated_from_sense beliefs while stating it bypasses CoherenceGate because external perceptions are substrate content rather than internally generated thoughts. The gate module separately states “Universal: no generative path bypasses the gate.”
+- Impact: the boundary between perception-derived belief writes and internally generated thought writes is not formally reconciled in the current source documents.
+- Disposition: define the gate's scope from the governing specification; do not label this an intentional exception or a violation without that authority.
+
 ## D. Phase 0 evidence and verification gaps
 
 ### G-01 — M0.5 trace contract does not yet match the roadmap
@@ -103,8 +123,8 @@
 
 1. Phase 0 documents versus current branch: stale handoff and continuity change.
 2. Sense scheduler docs versus code: 28 adapters and external auto-start, not 23/paused.
-3. Active branch versus main: 4 ahead / 205 behind; MIND_MAP and Vitals absent from active checkout.
-4. M0.5 roadmap contract versus InfluenceRecord implementation: flag/schema/lineage/sample mismatch.
-5. Continuity Wire note versus actual wiring: SelfMindView is constructed, passed into AppState and consumed by GUI chat.
+3. CoherenceGate docs versus code: HOLD/RESHAPE are persisted/queued, and evaluation exceptions return ACCEPT.
+4. Active branch versus main: 4 ahead / 205 behind; MIND_MAP and Vitals absent from active checkout.
+5. M0.5 roadmap contract versus InfluenceRecord implementation: flag/schema/lineage/sample mismatch.
 
 **No item in this backlog authorises a live change.**
