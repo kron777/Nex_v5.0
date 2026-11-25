@@ -152,3 +152,15 @@
 - Evidence: source confirms direct SQLite and independent Writer paths outside the shared TaggingBeliefWriter. The current audit has not exhaustively identified every belief insert, whether it supplies tags explicitly, relies on schema defaults, invokes tag generation separately, or invokes IntakeResonance separately.
 - Impact: global claims about tagging or resonance coverage are not supported by the current trace.
 - Disposition: extend the producer inventory with separate columns for persistence path, wrapper interception, tag source and resonance invocation. Preserve UNKNOWN where untraced.
+
+### D-13 — DailyLife module description overstates outreach and sleep behaviour
+- Type: source/documentation discrepancy; no behaviour change proposed.
+- Evidence: `theory_x/life/daily_life.py` header describes two outreach activities as Moltbook DMs and says 23:00–06:00 sleep mode doubles the Fountain interval. The inspected outreach function only writes an internal message saying it would reach out and explicitly states actual sending is wired separately. `daily_tick()` returns a sleep boolean, but `daily_loop()` ignores it; no ModeState transition or Fountain interval adjustment occurs in this module. ModeState's inspected implementation persists explicit mode changes.
+- Impact: the documented activity schedule and sleep effect should not be treated as implemented behaviour without locating another controlling path.
+- Disposition: keep the current runtime untouched; reconcile module documentation with the intended design and search for any separate sleep scheduler before changing either code or docs.
+
+### G-09 — Behavioural Self-Model may mix internal DailyLife messages with user-facing replies
+- Type: measurement-validity question / evidence gap.
+- Evidence: DailyLife writes generated internal entries into `conversations.messages` with `role='nex'` and `session_id='internal_daily_life'`. BehaviouralSelfModel.observe() selects the latest 100 rows where `role='nex'` and does not filter by session or register.
+- Impact: internal templated morning/reading/outreach/journal entries are eligible to influence the response-style metrics and subsequent `behavioural_observation` beliefs. The size of the effect is UNKNOWN because no live message rows or metric contributions were inspected.
+- Disposition: determine whether the intended observation population is all NEX-authored messages or only user-facing replies. Validate against isolated fixtures before any runtime change.
