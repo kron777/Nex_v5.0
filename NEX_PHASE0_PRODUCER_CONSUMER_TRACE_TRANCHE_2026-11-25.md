@@ -752,3 +752,11 @@ Consequently, Tier 8 retired, paused or locked belief content can be returned by
 The comment at `gui/server.py:2057–2058` says that in `use_substrate` mode the LLM fallback is suppressed and a substrate miss returns NEX's own deflection. The inspected control flow does not implement that claim: after a miss, `text` is still `None`, and the same route calls `state.voice.speak()` with the assembled Chat prompt. `VoiceClient.speak()` calls its configured LLM request function. This is a source/comment discrepancy; the actual miss behaviour is LLM composition, not a VoiceEngine-provided substrate deflection.
 
 This route is distinct from Fountain crystallization and the main Chat prompt path. It can serve a stored belief or novel-association pair verbatim without CoherenceGate, and it has a broader candidate status filter than the main World Model retriever. Whether this is intended Phase 30 behaviour or a retired-content leakage path requires founder/spec review. No mode, query, prompt or live belief state was changed.
+
+## 49. VoiceEngine misses can feed the optional ThrowNet monitor
+
+`VoiceEngine._record_query_trigger()` writes a `throw_net_triggers` row with `trigger_type='user_query'`. It sets `fired=1` when a substrate candidate is used and `fired=0` on a miss; the miss row has no `session_id` yet but preserves the session/turn string in `source_event_id`.
+
+`TriggerDetector.pending_triggers()` selects all rows with `fired=0` without filtering by trigger type. If `NEX5_THROWNET=1`, the normal boot path starts `ThrowNetMonitor`, which polls every 300 seconds and passes pending triggers to `ThrowNetEngine`. The engine calls TimeFetch for the trigger topic, runs its refiner, and sends each refined ThoughtPacket through CoherenceGate; it records the session/outcomes but does not itself insert each candidate as a belief in the inspected loop.
+
+Thus a VoiceEngine substrate miss can become an autonomous ThrowNet session when the monitor flag is enabled. A VoiceEngine hit is recorded as already fired and is not pending. This is a separate downstream path from the LLM fallback discrepancy in §48; it does not mean the direct VoiceEngine reply itself is gated.
