@@ -44,10 +44,17 @@ def _grep(pattern: str, repo_dir: str, path: Optional[str], max_hits: int = 3) -
     if not os.path.exists(target):
         return None
     try:
+        # Run grep in the byte-oriented C locale. Under a multibyte UTF-8
+        # locale GNU grep may classify invalid UTF-8 text as binary and -I
+        # will suppress it. C locale keeps byte-oriented matching while -I
+        # still excludes files containing binary NUL bytes.
+        grep_env = dict(os.environ)
+        grep_env["LC_ALL"] = "C"
         res = subprocess.run(
             ["grep", "-rnI", "-E", pattern, "--exclude-dir=__pycache__", "--exclude-dir=.git",
              "--exclude-dir=.venv", target],
-            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=30, env=grep_env,
         )
     except (OSError, subprocess.SubprocessError):
         return None
