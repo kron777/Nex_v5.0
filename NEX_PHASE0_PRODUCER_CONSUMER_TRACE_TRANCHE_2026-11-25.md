@@ -481,7 +481,7 @@ This is not a new belief INSERT; it is a generation-triggered replacement of exi
 
 1. **Readiness:** `theory_x/stage6_fountain/__init__.py` runs the Fountain loop after its configured interval; it checks `mode_state.current().fountain_enabled` and calls `generator.generate()` only when the mode allows it. `FountainGenerator.generate()` scores readiness and returns `None` when not ready.
 2. **Pre-generation state:** on an eligible fire it computes competing-drive activation, checks the optional substrate-voice branch, and applies the every-fifth-fire quiescent branch. Quiescent fires write a `fountain_events` row and return before the normal voice/crystallizer path.
-3. **Prompt/retrieval:** `_build_prompt()` assembles context from `_retrieve_context_beliefs()` (own-source beliefs, seed sources, optional associative recall, residue, periodic reanimation, a dedicated recent `hot_observer` slot), plus mode/focus blocks, world-bridge material or an input-gap problem injection, standing spectrum beliefs, and optional env-gated self/social/continuity/affect/metacognition blocks. The retrieval manifest records the belief IDs and slots selected for the fire. The `own_sense` and seed blocks render by default; the separate distilled-own-content render is gated by `NEX5_OWN_CONTENT_RENDER=1`.
+3. **Prompt/retrieval:** `_build_prompt()` calls `_retrieve_context_beliefs()` to build an intermediate candidate set (own-source beliefs, seed sources, optional associative recall, residue, periodic reanimation and a dedicated recent `hot_observer` query). It then renders only selected source allowlists and separately queried blocks; not every retrieved candidate is prompt text. Other inputs include mode/focus blocks, world-bridge material or an input-gap problem injection, standing spectrum beliefs, and optional env-gated self/social/continuity/affect/metacognition blocks. See §72 for the retrieval-versus-rendering boundary. The retrieval manifest records the belief IDs and slots selected for the fire. The `own_sense` and seed blocks render by default; the separate distilled-own-content render is gated by `NEX5_OWN_CONTENT_RENDER=1`.
 4. **Voice:** the normal path calls `VoiceClient.speak()` with the assembled prompt. The optional language guard can retry or drop a non-English output. If voice fails, the generator selects the latest external sense event (or a bare tick), writes a `voice_fallback` `fountain_events` row and returns without condenser, crystallizer or speech queue.
 5. **Pre-gate event writes:** on the normal path the generated thought is written to `sense_events` as `internal.fountain`; the condenser may derive a droplet; EmphasisEngine scores it; then the main `fountain_events` row is written. Retrieval manifest, prompt-block manifest, snapshots, emphasis and other telemetry are written as best-effort side channels. Optional duplicate-fire suppression can prevent crystallization while leaving the already-generated/persisted fire intact.
 
@@ -556,9 +556,9 @@ These are manual/one-time seed operations, not normal runtime producers. Whether
 - The callsite in `theory_x/stage6_fountain/generator.py:2004–2024` invokes `theory_x.stage_tom.hot_observer.observe()` only when `NEX5_HOT_OBSERVER=1`. The flag is not enabled by default in this source path.
 - `theory_x/stage_tom/hot_observer.py:1–90` classifies each eligible fire, increments an in-process counter, and writes on every third call. It opens the beliefs database directly with `connect()` and inserts a Tier 3, confidence 0.6 belief with source `hot_observer`, branch ID, and explicit state/provenance fields.
 - This direct SQL insert does not use the shared TaggingBeliefWriter, does not invoke its IntakeResonance probe, and does not call CoherenceGate.
-- The Fountain retrieval path has a dedicated `hot_observer` slot: `_retrieve_context_beliefs()` reads up to 300 `hot_observer` rows from the prior 72 hours, deduplicates near-identical first sentences, and randomly selects one to prepend to the next fire's context. This is separate from the main own-content and seed slots.
+- The Fountain retrieval function reads up to 300 `hot_observer` rows from the prior 72 hours, deduplicates near-identical first sentences, and randomly selects one into its intermediate context_beliefs candidate list. However, _build_prompt() subsequently derives renderable own and seeds lists using _OWN_CONTENT_SOURCES and _SEED_SOURCES; hot_observer belongs to neither allowlist, and no later prompt block renders it. The selected row is activation-bumped and passed to erosion's use recorder, but it is not shown as text to the normal Fountain LLM prompt. The source comments describing it as injected into every fire are therefore stronger than the current implementation.
 
-This adds one environment-gated direct runtime belief producer to the census. When armed, it creates a feedback path: Fountain fire → HotObserver meta-belief (one per three calls) → dedicated retrieval slot on a later fire. It is a source-level possibility only; the host flag and live rows are UNKNOWN.
+This remains one environment-gated direct runtime belief producer. When armed, it creates a feedback path from a Fountain fire to a HotObserver meta-belief, then to intermediate retrieval/activation on a later fire. A separate substrate-activation/emission path may consume activated rows; that is not the same as normal prompt injection. The host flag and live rows are UNKNOWN.
 
 ## 36. “Global Workspace” has two different route-specific mechanisms
 
@@ -596,18 +596,18 @@ The module's historical figures (~709k unconsumed rows, ~623k stranded backlog, 
 
 **Disposition:** correct the stale residue module documentation and add isolated temp-DB coverage for the 2-day target. Do not manually run the reaper, delete live rows, alter the retention window, or activate the timer without explicit approval.
 
-## 38. HotObserver retrieval can reintroduce Tier 8 retired beliefs
+## 38. HotObserver retrieval can select Tier 8 rows into intermediate candidates, but does not render them in the normal prompt
 
-A source-level filter mismatch exists between the main Fountain retrieval query and the dedicated HotObserver slot:
+A source-level filter mismatch exists between the main Fountain retrieval query and the dedicated HotObserver candidate query:
 
-- `FountainGenerator._retrieve_context_beliefs()` explicitly filters the main own-content query with `b.tier < 8`, and `fetch_residue_beliefs()` also filters `tier < 8`.
-- The dedicated `hot_observer` query fetches rows where `source='hot_observer'` and `created_at` is within 72 hours, but it has no `tier < 8`, `paused=0` or `locked=0` predicate. The randomly selected row is appended directly to the context result.
-- `hot_observer.observe()` inserts Tier 3 rows with `locked=0` and `paused=0`.
-- `Harmonizer.scan_for_conflicts()` scans beliefs with `tier BETWEEN 3 AND 7 AND locked=0 AND paused=0`, without excluding `source='hot_observer'`. Its escalation path can update selected originals to Tier 8 and prefix their content with `[RETIRED]`.
+- FountainGenerator._retrieve_context_beliefs() filters the main own-content query with b.tier < 8, and fetch_residue_beliefs() also filters tier < 8.
+- The dedicated hot_observer query fetches rows where source='hot_observer' and created_at is within 72 hours, but it has no tier < 8, paused=0 or locked=0 predicate. The randomly selected row is appended to the intermediate context_beliefs list.
+- hot_observer.observe() inserts Tier 3 rows with locked=0 and paused=0. Harmonizer can later retire eligible unlocked rows to Tier 8.
+- Crucially, _build_prompt() then partitions context_beliefs into own and seeds. hot_observer is in neither _OWN_CONTENT_SOURCES nor _SEED_SOURCES, and there is no later HotObserver text-render block. The row is activation-bumped and passed to erosion's use recorder, but is not directly rendered into the normal Fountain LLM prompt.
 
-Therefore, if a HotObserver belief is selected in a Harmonizer conflict pair and retired, it remains eligible for the dedicated Fountain slot until it ages beyond the 72-hour cutoff. This is a conditional source-level retrieval defect candidate: a tombstoned belief can be reintroduced through a special slot even though the main retrieval path explicitly excludes Tier 8.
+Therefore, a retired HotObserver row can still be selected into intermediate candidates and receive activation/use side effects until it ages beyond the 72-hour cutoff. The evidence does not support the earlier claim that it is reintroduced as text in the normal Fountain prompt. get_top_activated() has no tier/status filter; consequently, activated rows may still be eligible for the separately gated substrate-emission path and the periodic substrate parallel-fire path. Those are distinct output/telemetry surfaces, not the normal Fountain prompt.
 
-Additional flag nuance: `NEX5_HOT_OBSERVER` gates new HotObserver writes, but the 72-hour retrieval query itself is not gated by that flag. If the writer flag is turned off after prior rows exist, those rows remain eligible for prompt injection until they age out or are otherwise excluded.
+Additional flag nuance: NEX5_HOT_OBSERVER gates new HotObserver writes, but the 72-hour candidate query itself is not gated by that flag. If the writer flag is turned off after prior rows exist, those rows remain eligible for intermediate retrieval until they age out or are otherwise excluded.
 
 No live HotObserver rows, Harmonizer events or host flag values were inspected. No code or flag was changed.
 
@@ -678,7 +678,7 @@ No live table sizes or restart history were inspected. Do not drop or prune the 
 | Fountain associative recall | `tier < 8` only; no paused/locked predicate | Can select paused Tier<8 own-source rows |
 | Fountain residue fetch | `tier < 8` only; no paused/locked predicate | Rechecks retirement, but can still return paused rows |
 | Fountain seed-source slot | No tier predicate; source allowlist is intended for locked Tier 1 seed families | Expected protected seed content; status not independently enforced by query |
-| Fountain HotObserver slot | No tier/paused/locked predicate; 72-hour source/time filter only | Can directly inject retired HotObserver content |
+| Fountain HotObserver candidate query | No tier/paused/locked predicate; 72-hour source/time filter only | Selected into intermediate candidates; not rendered by normal prompt allowlists. Activation/use side effects remain; possible separate substrate-emission eligibility |
 | Fountain substrate emission | `get_top_activated()` has no tier/status predicate; flag default OFF | Can format retired activated beliefs into a generated thought |
 | Fountain Favorites block | `affinity > 0.40` only; no tier/paused/locked filter | Can render retired content while affinity remains high |
 | Fountain recent Surprise block | `source='surprise'` and six-hour time window only | Can render recently retired surprise beliefs |
@@ -797,7 +797,7 @@ The `_retrieve_context_beliefs()` own-content pool and the prompt text are separ
 - The retrieval function selects the configured own-source beliefs (default allocation around seven in the current mode), records their IDs in `fountain_retrieval_log`, and applies retrieval-side activation/erosion updates.
 - The dedicated `own_content` prompt block in `_build_prompt()` is added only when `NEX5_OWN_CONTENT_RENDER=1`; source default is OFF. The optional associative-recall block is separately gated by `NEX5_ASSOC_RECALL=1` (default OFF), and wide-focus selection is separately gated by `NEX5_WIDE_MODES=1` (default OFF).
 - The always-present `own_sense` block is built from recent sense events; it is not the same thing as the own-belief pool.
-- Other belief-derived prompt blocks (Favorites, recent Surprise, spectrum standing points and optional HotObserver/reanimation paths) are separate queries with their own filters, as recorded in §§35, 38, 44 and 51.
+- Other belief-derived prompt blocks (Favorites, recent Surprise and spectrum standing points) are separate queries. HotObserver and reanimation are added to the intermediate candidate list, but are not independently rendered: rows appear as prompt text only if their source also falls within the own or seed render allowlists. The main own-content block remains separately gated.
 
 Therefore the source comment that own lived content dominates the retrieval allocation does not establish that own-belief text dominates the actual Fountain prompt. With source defaults and absent environment overrides, the main own-belief pool is retrieved and statefully used but its dedicated text block is not rendered. Whether that separation is intentional is UNKNOWN; host-effective flags and actual prompt manifests were not inspected.
 
@@ -1128,3 +1128,65 @@ The active source explains why review_queue has a table and GUI read/unflag endp
 - substrate/init_db.py's schema comment still describes review_queue as a Phase 25b destination for problems promoted after three ACCEPTs; that comment is historical relative to the later disable decision.
 
 This is an intentional disabled capability, not an accidental missing writer. Do not re-enable promotion or remove the table/UI without explicit founder direction. The tests and source comments preserve the rationale; the schema comment could be updated in a future documentation-only reconciliation if the founder wants the disabled state made canonical.
+
+
+## 72. Fountain retrieval candidates, rendered prompt, snapshots, probes and tag/decoder sidecars — correction and completion
+
+This section completes the bounded Fountain input/output trace from §8 and corrects the retrieval-versus-rendering ambiguity in §§31, 35, 38, 44 and 52.
+
+### 72.1 Candidate retrieval is not equivalent to prompt inclusion
+
+_retrieve_context_beliefs() returns a mixed candidate list assembled in this order: residue rows (up to two, already marked consumed), periodic reanimation (every twentieth fire, or every fifth under the governor trough), one randomly selected HotObserver row from the 72-hour pool, optional associative-recall rows, the picked own-source rows, and random seed-source rows.
+
+_build_prompt() then derives:
+- own: only rows whose source is in _OWN_CONTENT_SOURCES;
+- own_sense: the precipitated_from_sense subset of own, rendered in its own block by default;
+- seeds: only rows whose source is in _SEED_SOURCES, rendered in the seed block;
+- optional own_render: non-sense rows from own, only when NEX5_OWN_CONTENT_RENDER=1.
+
+The hot_observer source is in neither allowlist. It is therefore retrieved into the intermediate list, activation-bumped and passed to erosion's use recorder, but not rendered as normal Fountain prompt text. Reanimation and residue are likewise not independent prompt blocks: they can be rendered only when the row's source lands in own_sense, seeds, or the optional own_render set. The main own-content render remains default OFF. This is a material difference between retrieval/candidate handling, substrate state mutation, and actual model input.
+
+The own-source SQL excludes Tier 8 but has no paused=0 or locked=0 predicate. Residue's final belief lookup excludes Tier 8 but not paused/locked. The seed-source query has no tier/paused/locked predicate. The HotObserver query has no tier/paused/locked predicate. These are distinct filter contracts; a single statement that “Fountain excludes retired/paused rows” is not supported.
+
+### 72.2 The two Fountain manifests are partial and have different meanings
+
+The retrieval manifest is built only when _build_prompt() explicitly appends an ID to it. The inspected append sites record spectrum, own_sense, seed, disturbance A/B and optional own_render. It does not enumerate every row in context_beliefs, and it does not have a dedicated residue, reanimation, associative-recall or HotObserver slot record. In particular, the manifest is not a complete inventory of all candidate retrievals or all activation/use side effects.
+
+The prompt-block manifest is generated from the assembled _prompt_text by splitting on blank lines and recording ordinal, a 48-character first-line label, BLAKE2 hash, character count and a 96-character prefix. It does not store full block text or belief IDs. It is created inside _build_prompt() before the optional phrasing rotation and before the later stillness/force-fire prompt prefix can modify the prompt. In addition, substrate-emission or reconcile branches can replace the LLM generation path after _build_prompt() has already assembled the prompt. Thus this record is a prompt-assembly manifest, not proof of the exact final bytes sent to the LLM or proof that the model attended to any block.
+
+Both manifests are persisted after the fountain_events row is written. They are best-effort sidecars; failure does not undo the fire. Early-return substrate-voice, quiescent and voice-fallback paths do not share the normal manifest persistence sequence.
+
+### 72.3 Snapshot mechanisms are separate
+
+There are at least two distinct runtime snapshot mechanisms:
+
+1. Per-fire substrate_snapshots table: FountainGenerator._capture_fire_snapshot() calls capture_snapshot() after the main fountain_events insert and before the normal crystallizer/Gate call. It is also called by the substrate-voice branch. The normal call passes hot_branch as the walk_state argument. The current payload fills drives and that value, but leaves coherence, voltage, hot_branches, harmonic_pairs, gate_composition, groove_severity and beliefs_in_attention empty/NULL; recent fire IDs are approximated by subtracting integers from the current event ID. It therefore does not currently capture the full field set described in SUBSTRATE_SNAPSHOTS.md. Quiescent and voice-fallback early-return paths do not call this capture function, so capture is not one row for every kind of Fountain event.
+
+2. state_snapshot.json via StateSnapshotWriter: this is a separate JSON state snapshot, containing mode, voice, active branches, recent fires, groove alerts, pending probes, register-run state and recent belief IDs. The Stage 6 loop calls write_snapshot() after generator.generate() on each loop iteration, outside the if thought logging condition; it can therefore write on a tick where no new fire was produced. It also writes on graceful shutdown. run.py constructs ResumptionSeeder at boot and passes it this same file, so the old snapshot_writer.py comment that “nothing reads them yet” is stale for the overall JSON file lifecycle.
+
+The substrate_snapshots scoring and pruning functions are exposed through tools/snapshots.py CLI commands. No automatic call to score_pending_snapshots() or prune_snapshots() was found in the inspected run.py or Stage 6 loop. Scoring and pruning therefore remain manual in the inspected runtime wiring; prune defaults to dry-run. The SUBSTRATE_SNAPSHOTS.md statement that capture is still unwired is stale relative to current source, while its description of manual scoring/pruning remains consistent with the current CLI path.
+
+### 72.4 Probe path is operator-invoked measurement, not a Fountain daemon
+
+run.py constructs a ProbeRunner and passes it into AppState; it does not start a ProbeRunner background loop. The GUI exposes POST /api/probes/run, which invokes run_probe() on demand. The runner captures snapshot_context() before the probe, posts the probe text to the existing /api/chat endpoint with is_probe=True, then stores the response and context rows in probes and probe_context.
+
+The context snapshot records active arcs, dormant_top5, open signals, recent Fountain fires, groove alerts, cooldowns, feed activity, branch activations and current mode. This is a measurement record; the snapshot dict is not appended to the probe prompt by ProbeRunner. The dormant_top5 query has no Tier 8/paused/locked filter, but that is a diagnostic snapshot exposure, not evidence that those rows were supplied to the model as prompt context. No automatic probe scheduling is shown in this path.
+
+### 72.5 Decoder and the four different tag vocabularies
+
+The normal decoder_loop starts from run.py, polls every 30 seconds and processes new fountain_events rows with non-empty thoughts not beginning with '['. It tokenizes each thought and writes one word_contexts row per unique token with pre-fire context fields. It reads fountain_events.tag into word_contexts.fountain_tag; it does not write beliefs or feed results back into the Fountain prompt. GUI decoder endpoints read these rows for the live ticker and word analytics. The field named belief_delta_1h is computed from the count of Fountain events in the prior hour, not a count of belief inserts.
+
+The source contains four distinct tag mechanisms; they must not be conflated:
+
+- beliefs.tags: normalized JSON semantic tags maintained by TaggingBeliefWriter/tag_protocol. FountainCrystallizer supplies the tags column explicitly (default [], or attribution tags), so the wrapper passes it through rather than generating tags. Fountain's retrieval SQL does not select or render beliefs.tags.
+- fountain_events.tag: manual coin / maybe / non annotation written by POST /api/coincidence/tag. That endpoint also updates matching word_contexts.fountain_tag, captures a tag-time coincidence_context snapshot, and attempts hypothesis auto-scoring.
+- genius_tags: automatic GeniusTagger score/class records in conversations.db; run.py starts the tagger on a 60-second loop. These labels are used by readiness and selected Fountain prompt/governor blocks. They are not the manual coin/maybe/non tags and not beliefs.tags.
+- word_tags: manual key / noise / unsure labels on decoder tokens, stored for word-level UI analytics. No path was found feeding them into Fountain or Chat prompt construction.
+
+The manual fountain_events.tag feedback can feed future prompts through coincidence.tag_retrieval: Chat constructs a summary and prompt-keyword matches; Fountain samples a tag block on a 25% per-fire draw. Both helpers return empty results unless NEX_TAG_FEEDBACK_ON=1. run.py contains no assignment of that variable, so source default is OFF; host-effective environment remains UNKNOWN. The decoder loop itself is not the tag-feedback mechanism; it records the event's existing tag for analytics.
+
+### 72.6 Disposition
+
+Confirmed: the current source distinguishes intermediate candidates from rendered prompt content; the retrieval and prompt-block manifests are partial; two separate snapshot systems exist; per-fire snapshot scoring/pruning is manual in the inspected wiring; ProbeRunner is operator-invoked; decoder output is an analytics sidecar; and four different tag mechanisms exist with different producers and consumers.
+
+Unverified: host-effective flags, live rows, actual prompt manifests, whether manual probes have been run, whether snapshot CLI scoring/pruning has ever been run, and the live influence of any retrieved/activated candidate. No prompt, DB, flag, snapshot, probe or runtime path was changed by this audit.
