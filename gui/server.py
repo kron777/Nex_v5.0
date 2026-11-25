@@ -12,7 +12,7 @@ Phase 1 endpoints:
     POST /api/chat            — {prompt, register?} → routes through voice/llm.py
 
 Phase 2 endpoints (sense stream):
-    GET  /api/sense/status              — scheduler status for all 23 adapters
+    GET  /api/sense/status              — scheduler status for all 28 adapters
     POST /api/sense/start               — start_all() external feeds
     POST /api/sense/stop                — stop_all() external feeds
     POST /api/sense/toggle/<adapter_id> — enable/disable individual feed
