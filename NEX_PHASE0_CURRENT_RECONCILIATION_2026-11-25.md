@@ -157,4 +157,19 @@ These are semantic/robustness review items. No continuity behaviour was changed 
 - Keep services untouched until the internal keepalive path correction is reviewed, merged/deployed through the approved process, and a separate activation decision is made.
 - Keep Watcher and RDO external to NEX's cognitive runtime.
 
+
+
+## 8. External RDO / Watcher progress cross-check
+
+These are development instruments, not NEX cognitive phases or runtime faculties.
+
+- RDO Stage 2–7 PRs #66–#71 all exist as open, draft, stacked pull requests. Their current branch heads match their PR heads, and GitHub Actions completed successfully on each exact head: Stage 2 847af858, Stage 3 c9cb9460, Stage 4 bdeeea60, Stage 5 25e186a8, Stage 6 0693e7f0, Stage 7 a80490ad.
+- The current Stage 7 head is a80490ad0336465f0d22172e4cae7b7c273c31ec; this differs from the older Stage 7 hash quoted in the carry-over. The PR body records explicit test-file authorisation, path containment and negative-path tests. It remains draft/unmerged.
+- The six RDO PRs form a stacked chain from Stage 2 through Stage 7. CI success verifies the branch test suites; it does not mean the stages are merged, founder-approved, or that their exit criteria requiring reviewed/measurable outcomes are satisfied.
+- Watcher PR #96 remains draft and passed CI on exact head 7162e52460c88bedcce75ca04cdb082a2a4b6bd9. It extends the existing host collector with read-only service/timer integrity diagnostics.
+- NEX keepalive path portability PR #97 is draft and passed CI on exact head d1b6111c066d1290a6f1725e1ea85d55d665fecf (1612 passed, 5 skipped, 30 subtests). It has not been merged or deployed.
+- This Phase 0 reconciliation PR #98 is documentation/comment/log-text only; its latest CI run is still pending at the time of this update.
+
+No RDO or Watcher observations are fed into NEX. No PR above was merged during this cross-check.
+
 **Gate 0 remains PENDING.** This document improves the evidence package; it does not ask the founder to approve Phase 1 and does not treat a general instruction to continue development as Gate 0 sign-off.
