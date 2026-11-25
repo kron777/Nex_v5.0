@@ -237,3 +237,9 @@ Current code shows IdentityLog → PatternLoop → PatternLog → WitnessLoop �
 G-28 records that the documented Identity→Pattern→Witness→Identity semantic feedback is not present in the inspected source; the actual path is a forward chain with aggregate-count feedback. G-29 records SignalToProblem's direct open_problems tags ['auto', 'signal:<type>'] and the dependent advancements_drift debounce query. §71 records the intentional 2026-05-16 disable of CounterfactualNode review_queue auto-promotion and explicitly skipped tests; this is not a missing-producer defect. D-38 records the active branch's missing NEX5_TZ migration from main.
 
 Trace extends through §71. PR #98 remains draft. The last observed workflow run targets an earlier commit and is not an exact-head validation for subsequent docs-only commits.
+
+## Dynamic-loop and boot-wiring continuation — 2026-11-25
+
+The next bounded M0.3–M0.4 increment is complete at static-source level. `NEX_PHASE0_DYNAMIC_LOOP_AND_BOOT_WIRING_AUDIT_2026-11-25.md` inventories 26 conditional Stage 2 loop registrations (9 core, 14 additional life/faculty and 3 Moltbook), six World Model thread wrappers, the delayed Membrane behavioural worker, normal and environment-gated startup loops, constructed-but-request-driven faculties, and the SIGTERM/AppState shutdown boundary. The active source starts daemon workers broadly, but no host thread or environment state was inspected.
+
+The audit confirms that construction, thread-start attempt, a loop body that immediately returns, a service-gated worker, and a request-driven faculty are separate activation states. It also confirms that AppState.close() does not stop/join most workers before SIGTERM's os._exit(0); this is a lifecycle design question, not evidence of a live shutdown failure. See the linked audit for the exact inventory and qualifications.
