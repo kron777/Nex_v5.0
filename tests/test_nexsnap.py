@@ -78,3 +78,53 @@ def test_write_state_extracts_runtime_once(monkeypatch, tmp_path):
     import json
     state = json.loads(path.read_text())
     assert state["fountain_by_branch_24h"] == {"x": 2}
+
+def _git(repo, *args):
+    return subprocess.run(
+        ["git", "-C", str(repo), *args],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+def test_git_commit_leaves_unrelated_pre_staged_changes_outside_snapshot_commit(
+    monkeypatch, tmp_path
+):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-b", "feature/nexsnap")
+    _git(repo, "config", "user.name", "NEXsnap test")
+    _git(repo, "config", "user.email", "nexsnap-test@example.invalid")
+
+    (repo / "unrelated.txt").write_text("baseline\\n", encoding="utf-8")
+    _git(repo, "add", "unrelated.txt")
+    _git(repo, "commit", "-m", "fixture baseline")
+
+    # User work is already staged before NEXsnap runs.
+    (repo / "unrelated.txt").write_text("user work, keep staged\\n", encoding="utf-8")
+    _git(repo, "add", "unrelated.txt")
+
+    corpus = repo / "CORPUS.md"
+    snapshot = repo / "snapshots" / "state.json"
+    snapshot.parent.mkdir()
+    corpus.write_text("# generated corpus\\n", encoding="utf-8")
+    snapshot.write_text('{"fixture": true}\\n', encoding="utf-8")
+
+    monkeypatch.setattr(nexsnap, "REPO", repo)
+    committed_branch = nexsnap.git_commit(corpus, snapshot)
+
+    assert committed_branch == "feature/nexsnap"
+    committed_files = set(_git(repo, "show", "--format=", "--name-only", "HEAD").splitlines())
+    assert committed_files == {"CORPUS.md", "snapshots/state.json"}
+    assert _git(repo, "diff", "--cached", "--name-only") == "unrelated.txt"
+    assert _git(repo, "diff", "--name-only") == ""
+
+
+def test_git_commit_refuses_artifact_outside_repository(monkeypatch, tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    monkeypatch.setattr(nexsnap, "REPO", repo)
+
+    with pytest.raises(RuntimeError, match="outside repository"):
+        nexsnap._repo_relative_path(tmp_path / "outside.json")
