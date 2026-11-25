@@ -323,3 +323,14 @@ A closer read of the producer callsites shows that “gated” is not one unifor
 These differences should be represented as separate evidence fields in the eventual producer/gate crosswalk: returned REJECT/HOLD/RESHAPE handling; exceptions escaping the gate call; pre-gate state changes; and post-decision lifecycle effects. A single binary “gate yes/no” column would conceal the actual control semantics.
 
 **Founder/spec question, not a change request:** does the governing gate obligation apply only to persistence of a belief candidate, or must it also govern upstream state changes that make the candidate consequential (such as adding a Bonsai branch)? What exception policy is required for each producer? The source establishes current behaviour but cannot answer the normative question without Frozen V2.1 and founder approval evidence. No code changes were made.
+
+## 22. Operator-invoked identity/self-belief seed utilities (outside normal boot)
+
+Two additional source paths can create or refresh Tier 1 locked beliefs, but neither appears in the normal `run.py` boot sequence inspected here:
+
+1. **Identity YAML seeder** — `scripts/seed_identity_beliefs.py:1–145` is an explicit CLI utility. It reads `seeds/identity.yaml`, supports `--dry-run`, and otherwise uses a standalone `Writer` to `INSERT OR IGNORE` Tier 1, confidence 1.0, source `identity`, locked beliefs. Its own documentation describes manual invocation and idempotence. It is not a normal runtime loop and does not call CoherenceGate.
+2. **Grounded scorecard self-belief** — `ground_self_belief.py:1–30, 105–145, 220–260` is an explicit CLI utility with `--dry-run` and `--remove`; its `refresh_self_belief()` entry point computes a sentence from the scorecard and `_write_self_belief()` inserts a Tier 1 locked belief if absent or updates the existing row in place. `_get_writer()` constructs a raw substrate Writer. No CoherenceGate call appears in the utility. Its own docstring mentions possible non-CLI callers, but no caller is established by the normal `run.py` boot path inspected in this tranche.
+
+These are operator/tooling pathways, not counted among the nine direct runtime producer paths. They should be represented separately as controlled seed/calibration operations with explicit operator intent, dry-run support and a different authority boundary. Their existence reinforces why a repository-wide census must distinguish boot seeds, runtime loops, manual tools and migration scripts rather than counting every `INSERT INTO beliefs` as one type of producer.
+
+Other checked utility paths include `nex_affinity_backfill.py`, which updates existing affinity fields under an explicit `--apply` plus environment guard, and the selected reporting/replay scripts, which use read-only connections. These are maintenance/analysis paths, not new runtime belief producers.
