@@ -140,7 +140,7 @@ Working rule: V2.1 is the intended authority, but its exact normative clauses an
 
 Trace now extends through §71. PR #98 remains draft. The most recent CI run observed was for an earlier head and was still in progress; subsequent documentation commits do not have an exact-head workflow result. Do not report latest-head CI as passed.
 
-## Latest Phase 0 continuation — 25 November 2026 (trace §§72–81)
+## Latest Phase 0 continuation — 25 November 2026 (trace §§72–82)
 
 The static producer/consumer trace now extends through §81. The current detailed documents are:
 
@@ -148,6 +148,13 @@ The static producer/consumer trace now extends through §81. The current detaile
 - `NEX_PHASE0_CHAT_ROUTE_VARIANTS_AUDIT_2026-11-25.md` and `NEX_PHASE0_CHAT_BELIEF_COUNT_FORMATTER_AUDIT_2026-11-25.md` — route-specific Chat context assembly and the composite-text Tier-marker count are mapped. Marker-shaped free text can inflate the count; no live malformed record is established.
 - `NEX_PHASE0_MEMBRANE_PROVENANCE_COVERAGE_AUDIT_2026-11-25.md` — INSIDE SelfModel standing-points are separate from Tier-formatted retrieval and are not normally parsed into provenance. The stored provenance snapshot is not a full final-prompt transcript.
 - `NEX_PHASE0_DYNAMIC_LOOP_AND_BOOT_WIRING_AUDIT_2026-11-25.md` — Stage 2/3/4/6 loops, other boot-wired faculties, external services, launcher flags and shutdown ownership are mapped.
+
+- `NEX_PHASE0_PREDICTION_SURPRISE_CROSS_FACULTY_AUDIT_2026-11-25.md` — three separate prediction systems, four surprise-event consumers, external-input population mismatch and timestamp cursor skip conditions.
+- `NEX_PHASE0_OPEN_PROBLEM_AND_GOAL_LIFECYCLE_AUDIT_2026-11-25.md` — problem/goal state transitions, stuck-state visibility, GoalManager/CoherenceGate state mismatch and unscheduled decay methods.
+- `NEX_PHASE0_SIGNAL_PIPELINE_RETENTION_AND_PATTERN_AUDIT_2026-11-25.md` — SignalLoop/advancements_drift producers, pattern template semantics, stale reaper allowlist and cross-database commit boundary.
+- `NEX_PHASE0_SELF_CONTINUITY_SEMANTICS_AUDIT_2026-11-25.md` — default-OFF Phase 1 continuity query/phrase semantics, missing-value handling, timestamp ties and cleanup.
+- `NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md` — actual M0.5 seams, missing trace/parent IDs, caller-declared L4, and raw-preview privacy/retention.
+- `NEX_PHASE0_MAIN_BRANCH_MIND_MAP_RECONCILIATION_2026-11-25.md` — main-only MIND_MAP lineage and 12 referenced files absent from active base; no import/merge/rebase performed.
 
 ### Deployment qualification
 
@@ -160,6 +167,6 @@ The tracked `nex_keepalive.sh` declares a high-activation environment, including
 - AppState.close does not stop/join most background producers before closing Writers. Writer sentinel/late-submit behavior and the keepalive wrapper's 15-second kill deadline create a conditional shutdown race. No shutdown was run.
 - WorldConsolidator and BeliefPromoter tier mutation paths do not consistently recheck paused state.
 
-Backlog additions: D-39, D-40 and G-34–G-37. These remain source-level findings and policy questions, not claims of live incidents. No runtime code, tests, flags, databases, services, probes, external APIs or deployments were changed or run.
+Backlog additions now extend through G-47, including conditional shutdown, Moltbook, launcher evidence, signal retention/transaction, problem/goal lifecycle, continuity semantics and influence-trace evidence gaps. These remain source-level findings and policy questions, not claims of live incidents. No runtime code, tests, flags, databases, services, probes, external APIs or deployments were changed or run.
 
 Gate 0 remains pending. The exact Frozen V2.1 normative text and founder sign-off record remain unavailable; do not remediate, activate, merge or deploy based on these findings until that authority is recovered or explicitly re-established by the founder.
