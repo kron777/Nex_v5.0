@@ -1,74 +1,61 @@
-# Phase 0 — Durable Handoff
+# Phase 0 — Current Durable Handoff
 
-**Master Roadmap v3.0 Phase 0 (Reality Audit & End-to-End Causal Trace).**
-Branch `claude/nex-v5-audit-review-53ouqv`, built on head `fb87e24`.
+**Date:** 25 November 2026
+**Primary repository:** https://github.com/kron777/Nex_v5.0
+**Active host checkout:** /mnt/games/storage/Desktop/Desktop/nex5
+**Active host branch:** claude/nex-continuity-wire
+**Active host HEAD:** de93134f34adac07a3a41c2a05b33720510a2bfc
+**Worktree:** host collector reported clean at this SHA.
 
-This is the state after one safe, authorised increment. It is written to be picked
-up cold.
+The earlier fb87e24 handoff is preserved as PHASE0_HANDOFF_HISTORICAL_fb87e24.md. Use this document together with:
+- NEX_REPOSITORY_REALITY_REPORT.md — current M0.1–M0.2 report.
+- NEX_ARCHITECTURE_CROSSWALK_v2.md — current partial crosswalk: boot inventory plus Fountain and Chat output paths.
+- NEX_PHASE0_CURRENT_RECONCILIATION_2026-11-25.md — branch comparison, M0.1–M0.5 status, boot wiring, Vitals, RDO/Watcher status and remaining gaps.
+- NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-25.md — founder-reviewable verified defects and evidence gaps.
+- ADR-001.md — historical design decision for the default-OFF InfluenceRecord overlay.
 
-## What is DONE (this increment)
+## Current Phase 0 position
 
-| Item | Deliverable | Artifact |
-|---|---|---|
-| Repository / DB / snapshot baseline | M0.1 | `NEX_REPOSITORY_REALITY_REPORT.md` §1,3,4 |
-| Test baseline (env-limited; CI authoritative) | M0.2 | reality report §5 |
-| Crosswalk of the two output paths + L0–L4 ladder | M0.3–M0.4 (seed) | `NEX_ARCHITECTURE_CROSSWALK_v2.md` |
-| ADR for the overlay decision | M0.3–M0.4 | `ADR-001.md` |
-| Minimal default-OFF InfluenceRecord overlay + 16 tests (off==on identity proven) | M0.5 | `influence_record.py`, `tests/test_influence_record.py` |
-| Fixture-level capture of one Fountain fire + one Chat turn | M0.5 (fixture) | `docs/phase0_influence_capture_fixture.jsonl` |
+| Item | Status |
+|---|---|
+| M0.1 repository identity | Exact active host URL, branch, SHA and clean-worktree report recorded |
+| M0.1 host/model/runtime baseline | Partial; DB/snapshot hashes, Python/SQLite exact versions, model digest, RAM/VRAM load and tokens/sec remain UNKNOWN |
+| M0.2 test baseline | Founder-provided host run: 1610 passed, 5 skipped, 30 subtests, 0 unexpected failures, 122.87s |
+| M0.3–M0.4 architecture crosswalk | Partial; first-pass boot wiring plus two output paths. Full producer/consumer DAG across theory_x, substrate, speech and GUI remains outstanding |
+| M0.5 InfluenceRecord | Default-OFF source and fixture tests exist; two coarse seams only |
+| M0.5 live L4 capture / zero-delta | UNKNOWN; not performed or authorised |
+| Gate 0 | PENDING founder review |
 
-**Zero-delta status:** proven at fixture/seam level (off==on output + DB writes).
-Default-OFF means the existing suite is unchanged. **Live zero-delta verification
-is still owed** (see below).
+## Important current findings
 
-## What remains INCOMPLETE (precise)
+1. Active host branch de93134 is 4 commits ahead and 205 behind main. Do not merge/rebase main wholesale.
+2. The active branch contains Phase 1 continuity code from f9ac58d. The flag defaults OFF; live activation and behavioural effect are UNKNOWN. Do not arm it before Gate 0 and explicit approval.
+3. The actual sense scheduler starts external feeds during construction. It has 28 adapters (4 internal, 24 external). Documentation was stale and is corrected in the current reconciliation PR; no scheduler logic was changed.
+4. CoherenceGate's module header understates current HOLD/RESHAPE handling; evaluation exceptions return ACCEPT; sense distillation explicitly bypasses the gate. These scope/failure-policy questions are in the defect backlog; do not change them without the governing spec and founder review.
+5. The four active user service units were corrected to the actual checkout path and passed systemd syntax verification, but no service was started. nex_keepalive.sh still has the old internal path in the active branch. Draft PR #97 fixes it and passed CI, but is not merged/deployed.
+6. Vitals is present on main but absent from the active branch; cherry-picking its merge would import unrelated behaviour. Its exact governing spec and PID-identity safeguards remain unresolved.
+7. The exact Frozen V2.1 source document and founder approval record have not been located. Do not recreate them or infer their detailed acceptance criteria.
 
-1. **Live L4 capture + live zero-delta verification.** Run the live NEX with
-   `NEX5_INFLUENCE_TRACE=1 NEX5_INFLUENCE_TRACE_CONTEXT=runtime`, capture one real
-   Fountain cycle and one real Chat turn, and diff behaviour/DB state against a
-   flag-off run. **Blocked on:** a running NEX (voice endpoint at
-   `NEX5_VOICE_URL`, `flask`) **and founder authorisation** to enable the flag on
-   the live process. Until then L4 = **UNKNOWN**.
-2. **Belief-level / faculty-block attribution.** The `L0/UNKNOWN` gaps in the
-   crosswalk — deeper hooks inside `FountainGenerator.generate()` and
-   `_assemble_chat_blocks()`. A separate, larger increment.
-3. **Full-system producer/consumer DAG** (M0.3–M0.4 complete) across `theory_x/`
-   (~40 stages), `substrate`, `speech`, `gui`. v2 covers only the two output paths.
-4. **RDO v1.3 Stage 1 Watcher increment** vs Watcher v3.0. **Not on this branch** —
-   it lives on the `claude/rdo-*` branch family (`git ls-files 'watcher/*'` is empty
-   here). Reconcile it there, preserving the three separate evidence dimensions and
-   the Watcher approval gates; do not merge the RDO line into this NEX line without
-   direction.
-5. **Governing PDFs.** Master Roadmap v3.0, RDO v1.3, Watcher v3.0 are absent from
-   the workspace. Supplying them would settle M0.5's exact field requirements, the
-   L0–L4 canonical definitions, and the **v1.3/v1.4 precedence (still UNRESOLVED)**.
-6. **Trace retention** (rotation/size cap for `logs/influence_trace.jsonl`) — only
-   relevant once the flag is enabled.
+## M0.5 trace discrepancy
 
-## Gate 0
+The roadmap extract asks for NEX5_TRACE_OVERLAY=0 and a full trace_id/parent_ids chain across input arrival, candidate generation, salience/workspace selection, gate, SQLite writer delta and output, with NEX_CAUSAL_TRACE_SAMPLE.json. The active branch instead uses NEX5_INFLUENCE_TRACE, NEX5_INFLUENCE_TRACE_CONTEXT and NEX5_INFLUENCE_TRACE_PATH, with two coarse seams and a JSONL fixture. The exact Frozen V2.1 contract must be recovered before extending or renaming the hook.
 
-**PENDING — not assumed.** The old claim that no Phase-1 behavioural modification had started is stale: commit f9ac58d added a default-OFF Phase 1 continuity consumer. It has not been live-armed or behaviourally validated. Do not enable it before the Gate 0 review and explicit authorisation; see the current reconciliation.
-Enabling the overlay on the live NEX is itself a live-process change and awaits
-founder authorisation.
+## Current external PR status
 
-## How to use the overlay
+- Watcher service integrity PR #96: draft; exact-head CI passed.
+- Keepalive path portability PR #97: draft; exact-head CI passed (1612 passed, 5 skipped, 30 subtests). Not merged/deployed.
+- Phase 0 reconciliation PR #98: draft; CI status is tracked on the PR. Documentation/comments/log text only; no execution/control-flow changes.
+- RDO Stage 2–7 PRs #66–#71: open/draft, stacked, exact-head CI passed; not merged and not NEX roadmap phases.
 
-```bash
-# default: OFF — nothing is traced, zero behavioural delta
-#
-# enable (fixture/dev):   produces L3 records
-export NEX5_INFLUENCE_TRACE=1
-# enable (authorised live run): produces L4 records
-export NEX5_INFLUENCE_TRACE=1 NEX5_INFLUENCE_TRACE_CONTEXT=runtime
-# optional sink override (default logs/influence_trace.jsonl, git-ignored)
-export NEX5_INFLUENCE_TRACE_PATH=/path/to/trace.jsonl
+## Safety and authority
 
-python -m pytest tests/test_influence_record.py -q   # 16 tests
-```
+- Gate 0 is not complete until the founder reviews and approves the current Reality Report, Crosswalk and verified defect backlog.
+- A general instruction to continue development is not treated as Gate 0 sign-off.
+- Do not start/restart services, activate NEX, change runtime flags, write live DBs, perform live trace capture, or change protected experiments/baselines/tripwires without the relevant explicit approval.
+- Protect experiment windows R79–R83.
+- Keep RDO and Watcher external to NEX's cognitive runtime.
+- Do not claim consciousness, sentience or phenomenal experience.
 
-## Branch / PR safety
+## Next safe work
 
-The RDO stage branches and PRs (#45–48) are untouched and preserved. This
-increment adds only Phase-0 files on `claude/nex-v5-audit-review-53ouqv`; the
-untracked `watcher/` directory (RDO-line leftover) was deliberately **not** added.
-No live NEX state, flags, databases, or runtime were altered.
+Continue the full forward/backward producer-consumer audit in bounded increments, beginning with the booted paths and their actual persistence/consumer relationships. Recover the exact Frozen V2.1 source/approval and reconcile the M0.5 trace contract. Keep live runtime and protected experiment state untouched. Review PR #97 and PR #98 independently; neither is permission to activate services or Phase 1 behaviour.
