@@ -855,3 +855,24 @@ The comment inside `write()` calling this a “UNIVERSAL chokepoint” is theref
 This differs from VoiceEngine: the VoiceEngine can return a TimeFetch candidate verbatim without a gate, whereas CounterfactualNode refines the candidate and requires CoherenceGate ACCEPT before creating a new Tier 3 belief. However, the gate evaluates the refined packet, not the active/retired status of the source candidate. Retired content can therefore be transformed into a new active candidate if the refinement passes the gate.
 
 ThrowNetEngine also uses TimeFetch candidates but gates/refines them and, in the inspected loop, records outcomes without inserting each candidate as a belief. The shared TimeFetch status policy is therefore an upstream dependency for three distinct consumers with different downstream controls.
+
+## 58. IntakeResonance coverage differs by belief producer
+
+Following the call chain through the main gate-approved producers shows that the wrapper's “universal” comment does not describe actual measurement coverage:
+
+| Producer | Gate before new belief? | Tags path | IntakeResonance calls in source |
+|---|---|---|---|
+| DynamicCrystallizer | Yes | INSERT omits `tags`; wrapped `.write()` injects tags | **Two**: explicit `_intake_resonance.compute()` before insert, then wrapper probe on the same `.write()` |
+| FountainCrystallizer | Yes | INSERT explicitly includes `tags` | **One**: explicit compute; wrapper returns early because caller supplied tags |
+| WorldModel Synergizer | Yes | INSERT explicitly includes `tags` (attribution tags or `[]`) | **Zero**: no explicit compute; wrapper skips because `tags` is present |
+| CounterfactualNode | Yes | INSERT omits `tags` | **One**: wrapper probe |
+| HoldingZone promotion | Prior three corroborating ACCEPT events | INSERT omits `tags` | **One**: wrapper probe |
+| SelfLocationCommitment | No; boot anchor | INSERT omits `tags` | **One**: wrapper probe |
+| Fountain rut mirror | No; threshold/telemetry mirror | INSERT omits `tags` | **One**: wrapper probe |
+| HotObserver | No; env-gated direct SQLite | Direct SQL | **Zero** |
+| Seven Stage 2 life loops | No; direct SQLite | Explicit tags in the inspected loops | **Zero** |
+| init_db keystone/koan seeds | No; boot seed authority | Raw Writer before wrapper | **Zero** |
+
+All rows assume `NEX5_INTAKE_RESONANCE_OFF` is not set to `1`; host-effective state is UNKNOWN. The dynamic duplicate is documented in §27. The Synergizer omission is the converse: it is a gated new-belief INSERT with explicit attribution tags, but no resonance measurement. Direct SQL/seed paths have their own tag/resonance contracts.
+
+This is not yet adjudicated as a defect because the Frozen V2.1 requirement for IntakeResonance coverage is unavailable. It does establish that the current source does not provide one uniform measurement per belief admission.
