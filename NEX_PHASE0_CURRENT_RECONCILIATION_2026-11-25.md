@@ -8,7 +8,7 @@
 
 The active host checkout is not the same source snapshot as GitHub main. The host checkout is branch claude/nex-continuity-wire at de93134f34adac07a3a41c2a05b33720510a2bfc. GitHub comparison reports this branch 4 commits ahead and 205 commits behind main, with merge base fb87e247a116221cc7d814e2ee5ff2e1300f5a87. Do not merge, rebase, or cherry-pick main wholesale: the branch contains active-host-specific work and main contains later changes, including unrelated behavioural changes.
 
-The original fb87e24 Reality Report is preserved as NEX_REPOSITORY_REALITY_REPORT_HISTORICAL_fb87e24.md; the canonical NEX_REPOSITORY_REALITY_REPORT.md has now been refreshed for the active host checkout. The Crosswalk and ADR remain historical seed artefacts, and the handoff's original branch/head and completion claims are stale. In particular, the active branch contains the default-OFF continuity consumer commit f9ac58d, despite the old Phase 0 handoff saying no Phase 1 behavioural modification had started.
+The original fb87e24 Reality Report and two-path Crosswalk are preserved as NEX_REPOSITORY_REALITY_REPORT_HISTORICAL_fb87e24.md and NEX_ARCHITECTURE_CROSSWALK_v2_HISTORICAL_fb87e24.md. The canonical NEX_REPOSITORY_REALITY_REPORT.md and NEX_ARCHITECTURE_CROSSWALK_v2.md have been refreshed for the active host checkout; the Crosswalk remains partial, with the full producer/consumer DAG outstanding. ADR-001 remains a historical design record. The Phase 0 handoff now points to this reconciliation and corrects its stale Phase 1 claim. In particular, the active branch contains the default-OFF continuity consumer commit f9ac58d, despite the old handoff saying no Phase 1 behavioural modification had started.
 
 ## 1. Repository identity and branch scope
 
