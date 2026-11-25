@@ -310,3 +310,9 @@
 - Evidence: `TaggingBeliefWriter.write()` intercepts eligible belief INSERTs, but `write_many()` delegates unchanged to the inner Writer. Direct SQLite, independent Writers, pre-wrapper init_db seeding, positional/no-content SQL and caller-supplied tags also bypass the wrapper. No current normal-runtime belief INSERT through the wrapped `write_many()` path was established in the scanned callsites.
 - Impact: the “universal chokepoint” comment overstates the actual interception boundary; a future or unscanned batch INSERT can bypass both tag generation and the wrapper's IntakeResonance probe.
 - Disposition: correct the comment and decide whether batch INSERT interception is required. Add isolated tests only after the intended writer contract is defined; do not change the wrapper's runtime behaviour now.
+
+### D-34 — CounterfactualNode can refine retired beliefs from the shared TimeFetch pool
+- Type: source-level upstream retrieval policy candidate; live incidence UNKNOWN.
+- Evidence: CounterfactualNode calls `TimeFetch.fetch_from_beliefs()` before refinement. TimeFetch filters confidence/length/keyword but not tier/paused/locked. CounterfactualNode then gates the refined ThoughtPacket and inserts only on ACCEPT via the wrapped Writer.
+- Impact: a retired/paused/locked belief can become the source material for a new Tier 3 counterfactual belief if the refined candidate passes CoherenceGate. The gate checks the refined packet, not the source belief's status.
+- Disposition: define whether retired content may be used as historical source material for counterfactual generation. If not, apply the status policy at TimeFetch or the caller boundary after Gate 0; do not change it now.
