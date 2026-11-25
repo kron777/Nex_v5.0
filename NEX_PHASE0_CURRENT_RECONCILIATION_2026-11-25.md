@@ -310,4 +310,14 @@ The following additional static audits are now committed on this branch:
 - `NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md` — actual M0.5 output seams, absent trace/parent IDs, L4 label integrity and raw-preview retention.
 - `NEX_PHASE0_MAIN_BRANCH_MIND_MAP_RECONCILIATION_2026-11-25.md` — main-only descriptive MIND_MAP, 12 source refs absent from active base, and separation from the active sentience DAG.
 
-The current defect backlog now includes conditional source findings through G-47. These remain source-level candidates and design questions; live incidence is not inferred. No runtime code, tests beyond the earlier isolated reaper test, flags, databases, services, external endpoints or deployment were changed or activated in these increments.
+The current defect backlog now includes conditional source findings through G-50. These remain source-level candidates and design questions; live incidence is not inferred. No runtime code, tests beyond the earlier isolated reaper test, flags, databases, services, external endpoints or deployment were changed or activated in these increments.
+
+
+## Moltbook external I/O source audit — 2026-11-25
+
+The three Stage 2 Moltbook workers have now been traced through client, listener, poster, responder, the tracked launcher and the sense-title extractor. See `NEX_PHASE0_MOLTBOOK_EXTERNAL_IO_AND_DRY_RUN_AUDIT_2026-11-25.md`. Dry-run is not offline: GET requests and local ingestion continue; synthetic POST responses can still advance local posted/approved/sent state. The tracked keepalive sets `MOLTBOOK_DRY_RUN=0`, but its known path blocker and the untracked active service unit mean actual host use remains UNKNOWN. Outbound belief queries do not filter paused/locked/retired/Tier 8 states. No credentials, external API or local DB was accessed.
+
+
+### Current source-audit package — trace §§72–83
+
+The handoff now includes detailed reports for Chat route variants, SpeechQueue, dynamic boot loops, prediction/surprise, problems/goals, signals/retention, self-continuity, InfluenceRecord, main-branch MIND_MAP divergence and Moltbook external I/O. The backlog numbering has been reconciled to unique IDs G-34 through G-50; existing G-34–G-37 deployment/lifecycle findings were retained and the new source findings are G-38–G-50. The full trace and linked docs are in the current branch.
