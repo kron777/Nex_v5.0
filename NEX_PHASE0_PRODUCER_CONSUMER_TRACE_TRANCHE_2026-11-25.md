@@ -1206,3 +1206,19 @@ The detailed source inventory is in `NEX_PHASE0_DYNAMIC_LOOP_AND_BOOT_WIRING_AUD
 - `AppState.close()` stops the SenseScheduler and closes Writers. The SIGTERM handler sets the decoder stop event, calls `state.close()`, then `os._exit(0)`; it does not individually stop/join the other daemon workers. This is a source-level lifecycle boundary, not evidence of an actual interrupted write or external operation.
 
 No thread inventory, environment state or live activity was inspected. No lifecycle or activation behavior was changed. Gate 0 and governing-spec authority remain pending.
+
+
+## 74. Prediction and surprise cross-faculty trace
+
+The detailed path map is in `NEX_PHASE0_PREDICTION_SURPRISE_CROSS_FACULTY_AUDIT_2026-11-25.md`. It distinguishes Stage 35 PredictiveSubstrate (`predictions`/`surprise_events` in dynamic.db), optional Stage C WorldPredictionLoop (`world_predictions` in conversations.db), and optional SelfPredictionLoop (`self_predictions` in conversations.db). They are different systems with different startup gates and consumers.
+
+Source-confirmed relationships:
+
+- Stage 35 PredictiveSubstrate is started in normal boot and writes internal-belief and external-input embedding predictions, then resolves them into surprise events.
+- External prediction generation excludes `internal.%` sense streams, while external verification does not. Generation also concatenates sense rows before user messages and truncates to ten rather than globally ordering the combined set by recency.
+- Surprise events have four inspected consumers: SurpriseLoop promotion into Tier 6 beliefs; AffectState arousal; Fountain curiosity re-ranking; and surprise-weighted crystallization confidence.
+- SurpriseLoop's timestamp-only cursor and `LIMIT 20` can skip equal-timestamp overflow rows; cursor advancement also occurs after failed belief inserts.
+- AffectState surprise coupling is already implemented/tested, although PREDICTION_PROTOCOL.md still calls it deferred and describes the wrong reader.
+- Stage C WorldPredictionLoop is default-OFF, but ScorecardLoop is normal-wired, runs immediately and hourly, and maintains a Tier 1 scorecard self-belief from the separate world_predictions table.
+
+These are static source findings. Host flags, DB rows, external calls, loop activity and practical score impact remain unknown. No prediction, network request, live DB read or runtime change was performed.
