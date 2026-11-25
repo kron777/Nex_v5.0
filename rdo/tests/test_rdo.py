@@ -621,6 +621,17 @@ def test_active_experiment_registry_empty_is_distinct_from_unavailable(tmp_path)
         _active_experiments(str(tmp_path))
 
 
+def test_grep_handles_non_utf8_text_without_crashing(tmp_path):
+    import rdo.reconcile as recon
+
+    source = tmp_path / "legacy.txt"
+    source.write_bytes(b"signature\\xff-anchor\\n")
+    result = recon._grep("signature", str(tmp_path), None)
+    assert result is not None
+    assert len(result) == 1
+    assert result[0].startswith("legacy.txt:1:signature")
+
+
 def test_grep_oserror_and_invalid_exit_remain_unknown(tmp_path, monkeypatch):
     import rdo.reconcile as recon
     ob = Obligation("scan-error", "scan error", "test")
