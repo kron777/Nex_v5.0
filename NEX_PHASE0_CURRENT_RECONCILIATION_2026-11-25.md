@@ -91,6 +91,30 @@ The technical roadmap extract names NEX5_TRACE_OVERLAY=0 and asks for trace_id/p
 
 The existing fixture is useful evidence that the two coarse seams can emit fixture records. It is not the requested full causal sample and does not establish live L4 evidence. The exact Frozen V2.1 document and approval record remain missing, so no unverified field-level requirements are to be invented.
 
+
+### M0.3 boot-wiring inventory — first pass
+
+Static inspection of run.py establishes a real boot graph, but not a complete producer/consumer DAG. The following are source-wired at this branch snapshot; they are L2 source evidence only, not proof of live activation or successful operation.
+
+| Boot seam | Source wiring | Evidence / qualification |
+|---|---|---|
+| Substrate initialization | run.py:60–70 calls init_all(), creates six Writer/Reader pairs, wraps the beliefs writer with TaggingBeliefWriter | substrate/paths.py:23–31 defines beliefs, sense, dynamic, intel, conversations and probes DBs. run.py's opening docstring still says “all 5 DBs” (run.py:5) |
+| Self-location | run.py:72–76 constructs SelfLocationCommitment and calls commit() | A boot-time beliefs write if run.py starts; not run or tested against live DB in this audit |
+| Sense | run.py:108–111 calls build_scheduler() | The factory builds 28 adapters: 4 internal and 24 external. SenseScheduler.__init__ calls start_all() (scheduler.py:149), so external feeds auto-start on construction. The stage1_sense module docs and scheduler module docstring still say external feeds start paused; run.py:109 correctly says auto-start, but run.py:7 incorrectly says PAUSED. The scheduler and GUI docs still say 23 adapters (scheduler.py:1, gui/server.py:15, run.py:111). This is a verified documentation mismatch with operational significance |
+| Dynamic formation | run.py:150–153 calls build_dynamic() | Factory starts nine core loops and attempts to append four life loops (witness, pattern, identity, affinity) before starting the loop set; writes/reads span sense, dynamic and beliefs |
+| World model | run.py:174–177 calls build_world_model() | Factory starts six loops: decay, harmonizer, cross-domain, erosion, synergizer and world consolidation; reads/writes beliefs and dynamic |
+| Membrane | run.py:179–187 calls build_membrane() | Factory starts the behavioural self-model loop when conversations reader exists; also receives dynamic, world model and coherence gate references |
+| Coherence / holding / reshape | run.py:124–148 constructs CoherenceGate, HoldingZone, HoldingZoneResolver and TriggerDetector; resolver loop starts at run.py:171 | These are operational gate/reshape mechanisms, distinct from the descriptive MIND_MAP taxonomy |
+| Fountain | run.py:538–584 calls build_fountain() | Factory starts the fountain thread; generator consumes sense/dynamic/belief context and its crystallizer can write sense, dynamic and beliefs. Existing Phase 0 trace hook is after generation, not full internal lineage |
+| Chat | gui/server.py api_chat() | As described in the output-path crosswalk; the route assembles context, invokes voice/tool paths and persists conversations.messages |
+| Speech | run.py:611–629 starts SpeechQueueConsumer only when SpeechConfig.enabled | Queue is in beliefs.db (substrate/schema/beliefs.sql), and consumer reads/updates speech_queue through the supplied beliefs reader/writer |
+| Ancillary loops | run.py starts SubstrateHarmonic, GeniusTagger, CounterfactualNode, DriveEmergence, CompetingDrives, AffectState, PredictiveSubstrate, SignalLoop, DiversityLoop, EdgeGeneratorLoop and decoder_loop | Several write diagnostic/derived state. Some are log-only; source comments are not proof of downstream consumption |
+| Conditional / retired paths | ThrowNet loop requires NEX5_THROWNET=1; WarrantRecorder requires NEX5_WARRANT_RECORD=1; PersonaResponder requires NEX5_PERSONA_RESPONDER=1; WorldPrediction requires NEX5_WORLD_PRED=1; SelfPrediction requires NEX5_SELF_PRED=1; SelfMaintainShadow requires NEX5_SELF_MAINTAIN_SHADOW=1; ArcLoop is explicitly not started | Preserve these flags and states. Do not activate during Phase 0. ProbeRunner is constructed but no start call appears in run.py. SocialPresence is explicitly set to None. |
+
+The adapter count and startup state need correction in the source documentation, but no runtime correction is proposed here. External feeds currently auto-start by constructor behaviour; this is not inferred from a log message alone—the call to start_all() in SenseScheduler.__init__ establishes it. No scheduler or feed was started during this audit.
+
+The boot inventory is a first forward pass. It does not yet trace each faculty's emitted records through every reader, downstream consumer, terminal output and persistence boundary. The full M0.3–M0.4 producer/consumer DAG remains outstanding.
+
 ## 5. Phase 1 continuity change already present on the active branch
 
 Commit f9ac58d adds a default-OFF continuity consumer: self_binding.continuity_for_prompt() reads recent self_state_history rows and SelfMindView.current_summary() appends a descriptive clause when NEX5_SELF_CONTINUITY=1.
