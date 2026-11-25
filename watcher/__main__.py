@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from pathlib import Path
 import sys
 
 from . import __version__
@@ -61,7 +62,7 @@ def _host_collect(args) -> int:
             timeout=args.timeout,
             include_artifact_hashes=not args.skip_artifact_hashes,
         )
-        path = write_results(results, __import__("pathlib").Path(args.out), force=args.force)
+        path = write_results(results, Path(args.out), force=args.force)
     except (OSError, ValueError) as exc:
         print(f"host collection failed: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 2
