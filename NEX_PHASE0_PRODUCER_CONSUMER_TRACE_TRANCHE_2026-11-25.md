@@ -1118,3 +1118,13 @@ SignalToProblem is a different producer. theory_x/signals/signal_to_problem.py i
 Because SignalToProblem is appended and thread-started by the normal Stage 2 dynamic builder, this is a normal-wired open_problem producer, not merely a seed/admin utility. It creates open_problems entities through a path distinct from the compliant ProblemMemory writer.
 
 This is a source-level Tag Protocol divergence unless signal-created problems have an approved exception. It is separate from the seven life-loop belief paths and from the SurpriseLoop duplicate-tag defect. Do not change the producer or normalize existing rows before Gate 0 / explicit approval.
+## 71. review_queue auto-promotion is intentionally disabled; the empty queue is not a missing-producer defect
+
+The active source explains why review_queue has a table and GUI read/unflag endpoints but no normal enqueue path:
+
+- theory_x/stage_counterfactual/counterfactual_node.py::_maybe_promote() returns immediately. Its source comment records the 2026-05-16 decision to disable automatic promotion because it removed problems from FocusLoop, DailyLife and morning entry within minutes, making them invisible. The stated policy is that Jon decides resolution, not a three-belief ACCEPT counter.
+- tests/test_counterfactual_node.py explicitly skips test_move_fires_when_threshold_reached and test_tags_copied_to_review_queue with messages that auto-promotion was intentionally disabled on 2026-05-16.
+- The GUI retains GET /api/review and POST /api/review/<id>/unflag; the latter moves an existing review_queue item back into open_problems. No active enqueue endpoint is present in gui/server.py.
+- substrate/init_db.py's schema comment still describes review_queue as a Phase 25b destination for problems promoted after three ACCEPTs; that comment is historical relative to the later disable decision.
+
+This is an intentional disabled capability, not an accidental missing writer. Do not re-enable promotion or remove the table/UI without explicit founder direction. The tests and source comments preserve the rationale; the schema comment could be updated in a future documentation-only reconciliation if the founder wants the disabled state made canonical.
