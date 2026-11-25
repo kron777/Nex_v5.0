@@ -458,3 +458,16 @@
 - Evidence: FocusLoop marks a problem `stuck` after surfacing a help message. GUI `GET /api/problems`, Chat matching, FocusLoop, CounterfactualNode, DailyLife, CoherenceGate, PredictiveSubstrate, CompetingDrives and SelfMindView all select only `state='open'`. The GUI has no dedicated stuck-list route in the inspected source, though a known ID can be fetched directly. Fountain ProblemMemory.select_for_injection() intentionally selects any state, including stuck/closed, subject to its age, real-question, pool-size and cooldown filters.
 - Impact: a stuck item is removed from most visible/active problem flows but may later be re-surfaced by Fountain's separate all-state injection mechanism. This may be intentional to pause automatic work while retaining reflective re-surfacing; no live stuck rows were inspected.
 - Disposition: founder/design defines whether stuck is a parked, user-visible, terminal or re-surfacing state. Do not change filters, routes or state transitions before Gate 0.
+
+
+### G-40 — Signal retention allowlist has drifted from SignalToProblem eligibility
+- Type: source-level retention-policy mismatch; live impact UNKNOWN.
+- Evidence: SignalToProblem currently promotes `2_branch`, `3_branch`, `4_branch` and `advancements_drift`. The signal reaper preserves un-actioned rows only for `2_branch`, `3_branch`, `t6_promotion_burst`, `pattern_recognition_burst`, `cross_branch_convergence`, `novel_arc` and `concept_emergence`. It therefore preserves obsolete burst types no longer promotable and omits two current types. Its seven-day age condition means omitted types are already outside SignalToProblem's six-hour lookback when deleted, but the stated “preserve unconsumed promotable rows” contract is not aligned. See `NEX_PHASE0_SIGNAL_PIPELINE_RETENTION_AND_PATTERN_AUDIT_2026-11-25.md`.
+- Impact: un-actioned obsolete types can remain indefinitely; current types can be deleted after seven days. Actual row counts and disk effect are UNKNOWN.
+- Disposition: decide whether retention should mirror the current promotion contract or preserve a separate historical set, then reconcile allowlists and test it. Do not change retention before Gate 0 / explicit approval.
+
+### G-41 — SignalToProblem cross-database writes are not atomic
+- Type: conditional cross-database consistency gap; live incidence UNKNOWN.
+- Evidence: `signal_to_problem_tick()` inserts an `open_problems` row using a conversations.db connection and updates `signals.actioned_at` using a beliefs.db connection. It commits beliefs first and conversations second. These are independent SQLite transactions; a successful first commit followed by a failed second commit can leave a signal marked actioned without the corresponding problem row.
+- Impact: under a commit failure in the second DB, a promotable signal may be consumed without a durable open problem. No such failure or missing problem was observed.
+- Disposition: founder/design confirms the required atomicity/recovery contract (idempotent replay, outbox, or reconciliation). Do not redesign the persistence boundary before Gate 0 / explicit approval.
