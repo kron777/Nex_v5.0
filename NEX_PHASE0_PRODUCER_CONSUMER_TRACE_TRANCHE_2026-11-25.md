@@ -993,3 +993,17 @@ This is a source-level gap against Faculty Model §3 if that document is governi
 
 
 **Doctrine phase-status cross-check:** the DOCTRINE §5 priority table still labels Counterfactual Simulation “UNBLOCKED” / queued for Phase 25+, and VoiceEngine “QUEUED (Phase 30)”, while the current branch contains `CounterfactualNode` and the substrate-first `VoiceEngine`. DOCTRINE §6 also requires five real-traffic HUD queries, route-class regression checks and Jon's quality greenlight for a node port. Code presence does not prove those acceptance criteria were completed; no founder quality approval or corresponding live-traffic evidence was established in this source audit. This may be stale status text or unrecorded approval, and requires founder clarification.
+
+## 64. Database contract correction: distinguish the old queue-only constitution from the merged connection-factory model
+
+PR #11, authored by the repository owner and merged 2026-10-17 (merge commit 64933125c5fabbdf8564a87d03f7b7a1a0c5f8b7), explicitly records that H4/H5 shipped a canonical substrate.connect() factory and a broad migration, with the one-pen ratchet retired. Its underlying implementation commit is 68bb3ec30b8f267cd0bdedca353116e8800e7010. The commit message says roughly 95 modules were migrated from raw sqlite3.connect() to substrate.connect(), which supplies WAL, busy_timeout and foreign_keys settings.
+
+The current test tests/test_edges.py::TestNoDirectSqlite::test_no_direct_sqlite3_outside_substrate searches for 'import sqlite3' outside substrate/ and permits two named maintenance-tool exceptions. It does not inspect callsites to require Writer.write() or Writer.write_many(). The word 'one-pen' in that test therefore names the raw-sqlite import/factory ratchet, not a universal single-Writer queue.
+
+This is positive evidence of deliberate owner acceptance of the connection-factory migration. It changes the interpretation of §§61–62: direct substrate.connect() calls are not automatically defects and must not be described as accidental bypasses of a current, enforced queue-only rule. The code inventory remains useful because substrate.connect() is a connection factory, not a queue; it applies consistent pragmas but does not serialize all callers through one worker.
+
+The repository still contains contradictory artifacts: April SPECIFICATION.md §3 says every write must go through exactly one Writer queue; substrate/writer.py still says every write goes through Writer; and the merged October migration deliberately uses substrate.connect() directly in many modules. The merged PR body says the ratchet was retired, but it does not itself contain a visible amendment to SPECIFICATION.md §3. The exact current founder-approved transaction contract therefore remains UNKNOWN.
+
+Revised classification: D-36 is a governing-document/architecture-contract divergence, not a confirmed code defect. G-24 is an inventory of direct-connection paths, not a defect list. No source path should be migrated back to Writer, and no direct-connect path should be assumed to provide serialized writes, until the founder-approved contract is identified.
+
+This correction was prompted by actively seeking disconfirming evidence. It supersedes any earlier wording in this tranche or crosswalk that classified the direct-connection paths themselves as confirmed One-Pen violations.
