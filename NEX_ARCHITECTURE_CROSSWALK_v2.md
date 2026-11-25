@@ -28,6 +28,12 @@
 
 The scheduler documentation mismatch found during this audit is corrected in this PR: six DBs, 28 adapters and external-feed auto-start are now stated consistently in run.py, stage1_sense, scheduler.py and the GUI API description. No scheduler or feed startup behaviour was changed.
 
+**Gate scope discrepancy discovered during this pass:**
+- The coherence_gate.py module header still says HOLD and RESHAPE are only logged and not acted on. Current check() code calls HoldingZone.hold() for HOLD and put_reshape_pending() for RESHAPE. The header is stale.
+- check() returns ACCEPT if _evaluate() raises an exception (reason gate_error_fallback). This is a fail-open availability policy and must be described explicitly; it is not equivalent to a fail-closed safety gate.
+- stage2_dynamic._sense_distillation_loop explicitly bypasses CoherenceGate for precipitated_from_sense beliefs, on the stated basis that external perceptions are substrate content rather than internally generated thoughts. The gate module's “Universal: no generative path bypasses the gate” design commitment therefore needs a precise scope definition; do not silently treat the perception path as either a violation or an exception without reconciling the governing spec.
+
+
 **Important:** this boot inventory is a forward wiring map, not a complete producer/consumer DAG. It does not prove that every declared faculty is operationally consumed, nor does it establish L3/L4 runtime evidence. The two detailed paths below remain the only end-to-end output-path audits in this document.
 
 
