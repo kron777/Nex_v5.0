@@ -140,13 +140,14 @@ A founder-reviewable standalone version is maintained in [NEX_PHASE0_VERIFIED_DE
 
 1. **Stale Phase 0 status documents.** The original Reality Report and handoff describe branch/head fb87e24 and pre-continuity status. They need this reconciliation attached and their stale claims explicitly superseded.
 2. **Active-branch architecture source gap.** mind_map/MIND_MAP.yaml is absent from the active branch but exists on main. Reconcile branch history and ownership before importing it.
-3. **Incomplete crosswalk.** The existing v2 crosswalk is a two-output-path seed, not the full producer/consumer DAG across theory_x, substrate, speech and GUI.
-4. **Trace contract mismatch.** Roadmap flag/schema/sample expectations differ from the current InfluenceRecord implementation; Frozen V2.1 and the exact governing roadmap source remain unavailable.
-5. **Live trace evidence absent.** No live Fountain/Chat capture, live zero-delta comparison or verified active process identity.
-6. **Phase 1 continuity code precedes Gate 0.** The branch contains the default-OFF consumer; the old handoff incorrectly says otherwise. Its semantic edge cases are untested.
-7. **Keepalive script path drift.** Systemd unit paths were corrected, but the script's own hard-coded cd still targets the missing old checkout. Draft PR #97 prepares a source-only fix; not merged or deployed.
-8. **Vitals branch divergence.** Vitals exists on main only, arrived with unrelated behavioural changes, and lacks its governing spec in the available archive.
-9. **Branch divergence.** The active branch is 4 ahead / 205 behind main. Integration must be deliberate and file-scoped; no wholesale merge/rebase.
+3. **Incomplete crosswalk.** The refreshed v2 crosswalk now includes the first-pass boot wiring and two detailed output paths, but not the full producer/consumer DAG across theory_x, substrate, speech and GUI.
+4. **CoherenceGate documentation/authority discrepancy.** Its header says HOLD/RESHAPE are only logged, while current code persists/queues them; evaluation exceptions return ACCEPT; sense distillation explicitly bypasses the gate. Scope and fail-open policy require specification review.
+5. **Trace contract mismatch.** Roadmap flag/schema/sample expectations differ from the current InfluenceRecord implementation; Frozen V2.1 and the exact governing roadmap source remain unavailable.
+6. **Live trace evidence absent.** No live Fountain/Chat capture, live zero-delta comparison or verified active process identity.
+7. **Phase 1 continuity code precedes Gate 0.** The branch contains the default-OFF consumer; the old handoff incorrectly says otherwise. Its semantic edge cases are untested.
+8. **Keepalive script path drift.** Systemd unit paths were corrected, but the active branch's script still has the old checkout path in its startup and journal references. Draft PR #97 fixes all references and passed CI; not merged or deployed.
+9. **Vitals branch divergence.** Vitals exists on main only, arrived with unrelated behavioural changes, and lacks its governing spec in the available archive.
+10. **Branch divergence.** The active branch is 4 ahead / 205 behind main. Integration must be deliberate and file-scoped; no wholesale merge/rebase.
 
 ## 7. Safe continuation
 
