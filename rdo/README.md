@@ -55,8 +55,10 @@ WORK PACKAGE → EVIDENCE ACCOUNTING → (persist) → LEARN
   reported **separately** (a provisional weighted figure is labelled
   uncalibrated). Work packages carry their **anti-requirements**.
 - **Memory & learning** (`memory.py`) — a Development Pattern Memory (patterns
-  keep provenance, bounded confidence and exceptions — never universal from one
-  success) and a learning loop that compares **predicted vs actual** outcomes
+  keep provenance, finite confidence bounded to 0.0–0.9, and exceptions — never
+  universal from one success). Finite out-of-range confidence is clamped; non-numeric
+  and non-finite values are rejected on insertion or load. The learning loop compares
+  **predicted vs actual** outcomes
   (missed obligations, over-expansion, inappropriate reuse, effort error) across
   cycles. No acceleration is claimed until enough cycles exist to support it.
   The per-cycle store accepts only 1–128 portable filename characters for cycle IDs;
