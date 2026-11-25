@@ -275,9 +275,9 @@ The current reconciliation's continuity candidate list has been checked against 
 
 The M0.5 overlay is now traced from its actual Fountain and Chat call sites through schema, evidence-level logic, fixture and tests. See `NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md`. The implementation is a default-OFF two-seam side-channel capture, not the full candidate→selection→Gate→writer→output lineage described in the recorded roadmap extract. It has no trace_id/parent_ids, Chat cycle_id is session-scoped, L4 is caller-declared, and enabled traces contain raw text previews without an in-module retention/redaction policy. The exact Frozen V2.1 authority is still missing; no expansion or activation was made.
 
-## Latest Phase 0 source-audit continuation — 25 November 2026 (trace §§72–81)
+## Latest Phase 0 source-audit continuation — 25 November 2026 (trace §§72–82)
 
-The current static trace now extends through §81. The new and refreshed detail documents are:
+The current static trace now extends through §82. The new and refreshed detail documents are:
 
 - NEX_PHASE0_GATE_AND_BELIEF_WRITER_CENSUS_2026-11-25.md — 350 Python source files scanned for literal Gate and beliefs-table write patterns; classifies Gate-wired writers, non-Gate producers, external perception, boot seeds, maintenance and experimental paths. D-39 records BehaviouralSelfModel's conditional Gate exception-fallthrough; D-40 records paused-row eligibility in tier promotion/decay.
 - NEX_PHASE0_CHAT_ROUTE_VARIANTS_AUDIT_2026-11-25.md and NEX_PHASE0_CHAT_BELIEF_COUNT_FORMATTER_AUDIT_2026-11-25.md — RAG-first, HYBRID/operator, VoiceEngine hit/miss and tool-assisted route assembly are separated. The Chat gap gate counts literal Tier-marker substrings in a composite text buffer, not structured belief rows; interpolated free text can inflate the count if it contains marker-shaped text. This is a structural risk, not a live incident.
@@ -296,3 +296,18 @@ Trace §§72–81 are source-level findings. The full M0.3–M0.4 producer/consu
 The branch/source-reference comparison is documented in `NEX_PHASE0_MAIN_BRANCH_MIND_MAP_RECONCILIATION_2026-11-25.md`. Main's MIND_MAP is a descriptive-only taxonomy with 34 node entries (30 substantive and four structural placeholders) plus five arms. Its 51 source references across 41 unique files include 12 files absent from the active-host base branch. The MIND_MAP directory, generator, generated diagram and CI validation step are absent from that base. Copying the map alone would fail its source-path checks.
 
 The active-host branch remains 4 ahead / 205 behind main; PR #98 targets `claude/nex-continuity-wire`, not main. The MIND_MAP's source history includes code/test changes on main. No map or code was imported, and no merge/rebase/cherry-pick occurred. The active-host `sentience_dag.json` and `nex_next_dev.py` remain the separate build-order mechanism; `live_unproven` counts as satisfied for dependency buildability.
+
+
+### Expanded audit inventory — trace §§73–82
+
+The following additional static audits are now committed on this branch:
+
+- `NEX_PHASE0_DYNAMIC_LOOP_AND_BOOT_WIRING_AUDIT_2026-11-25.md` — Stage 2 26-loop registration, remaining boot-wired workers, env/service gates and shutdown boundary.
+- `NEX_PHASE0_PREDICTION_SURPRISE_CROSS_FACULTY_AUDIT_2026-11-25.md` — three prediction systems and four SurpriseEvent consumers; external population mismatch and timestamp-cursor risk.
+- `NEX_PHASE0_OPEN_PROBLEM_AND_GOAL_LIFECYCLE_AUDIT_2026-11-25.md` — problem/goal state vocabularies, stuck-state consumers, GoalManager/CoherenceGate mismatch and unscheduled decay methods.
+- `NEX_PHASE0_SIGNAL_PIPELINE_RETENTION_AND_PATTERN_AUDIT_2026-11-25.md` — signal producers, pattern semantics, reaper allowlist drift and cross-DB commit boundary.
+- `NEX_PHASE0_SELF_CONTINUITY_SEMANTICS_AUDIT_2026-11-25.md` — default-OFF Phase 1 continuity phrase semantics, missing data, timestamp ordering and cleanup.
+- `NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md` — actual M0.5 output seams, absent trace/parent IDs, L4 label integrity and raw-preview retention.
+- `NEX_PHASE0_MAIN_BRANCH_MIND_MAP_RECONCILIATION_2026-11-25.md` — main-only descriptive MIND_MAP, 12 source refs absent from active base, and separation from the active sentience DAG.
+
+The current defect backlog now includes conditional source findings through G-47. These remain source-level candidates and design questions; live incidence is not inferred. No runtime code, tests beyond the earlier isolated reaper test, flags, databases, services, external endpoints or deployment were changed or activated in these increments.
