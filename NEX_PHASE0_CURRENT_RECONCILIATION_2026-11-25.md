@@ -215,3 +215,11 @@ PR #98 remains draft. Latest additions are documentation-only. Exact-head CI mus
 ## Database contract disconfirmation — 2026-11-25
 
 Owner-authored PR #11 merged on 2026-10-17 explicitly shipped the substrate.connect() factory migration and retired the raw-sqlite import ratchet. tests/test_edges.py enforces absence of raw sqlite3 imports outside substrate, not universal Writer queue use. The direct-connection paths enumerated in trace §§61–62 are therefore not confirmed defects; they are part of the merged connection-factory model. The April SPECIFICATION.md §3 and Writer docstrings still state queue-only semantics, so the current founder-approved transaction/serialization contract remains unresolved. D-36/G-24 have been reclassified. No migration or runtime changes were made.
+
+## Latest source-audit continuation — 2026-11-25 (trace §§63–67)
+
+Disconfirming source history corrected the initial One-Pen finding. Owner-authored PR #11 merged 2026-10-17 and explicitly shipped the substrate.connect() factory migration / retired the raw-sqlite import ratchet. tests/test_edges.py checks raw sqlite3 imports, not universal Writer queue use. Direct-connect paths are therefore not confirmed defects; April SPECIFICATION.md §3 and Writer docstrings remain in conflict with the merged factory model. D-36/G-24 now record contract ambiguity and inventory only.
+
+New candidates: G-25 seven post-Phase-22 life-loop belief producers have no ThoughtPacket/CoherenceGate path; G-26 IdentityLoop/PatternLoop/WitnessLoop beliefs are excluded from Stage 4 INSIDE and Fountain own-content allowlists; G-27 life-loop, boot-seed and optional HotObserver belief writes bypass TaggingBeliefWriter/tag_ops, with a concrete conditional duplicate-tag construction in SurpriseLoop. Each remains bounded to source evidence and policy scope; no behavior change.
+
+Current producer/consumer trace extends through §67. Gate 0 remains pending and exact Frozen V2.1 / founder sign-off remain absent from the searched archive/Library. No live runtime, DB, service or experiment state was touched.
