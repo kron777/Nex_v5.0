@@ -209,11 +209,11 @@
 - Impact: source configuration proves the intended retention policy, not that the host has executed it or that the 2-day cleanup is functioning operationally.
 - Disposition: add isolated tests; obtain service/timer and reaper-log evidence through the approved read-only host audit when available. Do not manually run retention against live DBs.
 
-### D-21 — Fountain HotObserver slot lacks the Tier 8 retirement filter
-- Type: conditional retrieval defect candidate; live incidence UNKNOWN.
+### D-21 — Fountain HotObserver candidate query lacks the Tier 8 retirement filter
+- Type: source-level candidate-selection/status-filter inconsistency; live incidence UNKNOWN.
 - Evidence: the main Fountain own-content query filters `tier < 8`, and residue lookup does too. The dedicated HotObserver query filters only `source='hot_observer'` and a 72-hour creation cutoff; it does not exclude Tier 8 or paused rows. HotObserver writes Tier 3 unlocked beliefs. Harmonizer scans Tier 3–7 unlocked/unpaused beliefs without excluding `hot_observer`, and can retire selected originals by setting tier 8 and prefixing `[RETIRED]`.
-- Impact: a HotObserver belief retired by Harmonizer can still be randomly selected and injected into Fountain context during the remaining 72-hour lookback. The writer flag `NEX5_HOT_OBSERVER` is not checked by the retrieval query, so old rows can remain eligible after new writes are disabled.
-- Disposition: preserve as a source-verified filter gap and verify with an isolated fixture. Do not alter the query or runtime flags before Gate 0 / explicit approval.
+- Impact: a retired HotObserver belief can still be randomly selected into Fountain's intermediate candidate list during the remaining 72-hour lookback. The selected row receives activation/use side effects, but source inspection shows it is not rendered into the normal Fountain prompt: hot_observer belongs to neither the own-content nor seed render allowlist. A separately gated substrate-emission/parallel-fire path may consume activated rows; that is distinct from normal prompt inclusion. The writer flag `NEX5_HOT_OBSERVER` is not checked by the candidate query, so old rows remain eligible after new writes are disabled.
+- Disposition: retain as a candidate-selection and activation filter gap, not a confirmed direct prompt-injection path. Do not alter the query or runtime flags before Gate 0 / explicit approval.
 
 ### D-22 — Optional substrate emission can select activated Tier 8 beliefs
 - Type: conditional retrieval defect candidate; live incidence UNKNOWN.
@@ -257,11 +257,11 @@
 - Impact: the same oldest 50 rows can be rescanned indefinitely, preventing discovery of newer dormant beliefs and refreshing their `flagged_at` repeatedly. Duplicate scan callsites add redundant work.
 - Disposition: reproduce in an isolated fixture with more than 50 eligible rows and define the intended incremental/cursor semantics before any code change.
 
-### D-27 — Dormancy reanimation does not revalidate belief status before Fountain injection
-- Type: source-level retired/paused content retrieval candidate; live incidence UNKNOWN.
-- Evidence: DormancyScanner source selection has no tier/paused/locked filter; `wake_one()` selects an un-reanimated dormant row without checking joined belief status; Fountain's `pop_reanimated()` consumer re-reads by ID without a tier/paused/locked predicate. Harmonizer can retire unlocked source-family beliefs to Tier 8 while leaving them unpaused.
-- Impact: retired or paused beliefs can be surfaced into Fountain context through the periodic reanimation slot even though the main own-content and residue retrieval paths explicitly exclude Tier 8.
-- Disposition: validate with isolated fixtures and reconcile whether reanimation should apply only to active beliefs. Do not mutate dormant rows or live prompts before Gate 0 / explicit approval.
+### D-27 — Dormancy reanimation does not revalidate belief status before Fountain candidate retrieval
+- Type: source-level retired/paused candidate-selection inconsistency; live incidence UNKNOWN.
+- Evidence: DormancyScanner source selection has no tier/paused/locked filter; `wake_one()` selects an un-reanimated dormant row without checking joined belief status; Fountain's `pop_reanimated()` consumer re-reads by ID without a tier/paused/locked predicate. Harmonizer can retire unlocked source-family beliefs to Tier 8 while leaving them unpaused. The reanimation sources are fountain_insight, synergized and behavioural_observation; they fall into Fountain's own-source allowlist but not the always-rendered precipitated_from_sense subset.
+- Impact: retired or paused beliefs can be selected into Fountain's intermediate candidate list and receive activation/use side effects. They are not independently rendered by the normal prompt builder; with source-default `NEX5_OWN_CONTENT_RENDER=0`, these non-sense rows are not direct prompt text. If that optional render flag is enabled, the own_render block has no tier/paused/locked recheck and can render them. Activated candidates may also be visible to the separately gated substrate-emission path.
+- Disposition: preserve as a candidate-selection/status gap with conditional prompt exposure. Reconcile whether reanimation should apply only to active beliefs. Do not mutate dormant rows or live prompts before Gate 0 / explicit approval.
 
 ### D-28 — VoiceEngine TimeFetch can return retired, paused or locked belief content
 - Type: source-level user-facing retrieval defect candidate; live incidence UNKNOWN.
@@ -330,10 +330,10 @@
 - Disposition: founder must identify the canonical Frozen V2.1 document and approval record, or explicitly confirm the April `SPECIFICATION.md` remains governing and identify its approved amendments. No behavior remediation, spec edits, or authority changes before that clarification.
 
 
-### D-35 — Fountain tier-only retrieval paths can still select paused beliefs
+### D-35 — Fountain tier-only candidate queries can still select paused beliefs
 - Type: source-level status-filter inconsistency; live incidence UNKNOWN.
-- Evidence: Fountain main own-content selection, associative-recall pool and residue re-read all filter `tier < 8` but omit `paused=0`. Stage 3 BeliefRetriever, NovelAssociation and EdgeBuilder candidate queries do filter paused rows.
-- Impact: a Tier<8 belief paused during Harmonizer resolution or by another path can still enter Fountain retrieval through these slots. Whether pause is intended to suppress all retrieval or only conflict processing is unspecified.
+- Evidence: Fountain's main own-source query, residue re-read and seed-source query omit `paused=0`; the own-source and residue paths do filter `tier < 8`, while the seed-source query has no tier/paused/locked filter. The optional associative-recall candidate pool also omits paused filtering. Stage 3 BeliefRetriever, NovelAssociation and EdgeBuilder candidate queries do filter paused rows.
+- Impact: paused rows can enter Fountain's intermediate candidate list. Paused `precipitated_from_sense` rows can be rendered in the always-on own_sense block; other own-source or associative candidates reach prompt text only through the optional own_render block (source default OFF), while seed-source rows are rendered by default. Thus the exposure differs by source slot and must not be described as every paused candidate being directly rendered.
 - Disposition: define paused-state semantics and apply them consistently only after Gate 0 / explicit approval. Do not change retrieval filters now.
 
 ### D-36 — April queue-only One-Pen wording conflicts with the merged October connection-factory migration
