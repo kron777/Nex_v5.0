@@ -81,6 +81,28 @@ def test_over_expansion_stopped_by_reuse():
     assert any("semantic satisfaction independently reviewed" in f["reason"] for f in frontier)
 
 
+def test_cycle_summary_reports_semantically_reviewed_reuse(monkeypatch):
+    from rdo import orchestrator as orch
+
+    def reviewed_reuse(ob):
+        ob.recon_evidence = ["store.py:1"]
+        ob.confidence = "measured"
+        ob.recon_semantic_verified = True
+        ob.recon_semantic_review_evidence = ["manual review: storage contract checked"]
+        return REUSE_EXISTING
+
+    monkeypatch.setattr(
+        orch.recon_mod, "make_reconciler",
+        lambda _repo_dir, _signatures: reviewed_reuse,
+    )
+    cycle, summary = orch.run_cycle(
+        "reviewed-reuse", "reviewed reuse summary", [],
+        [Obligation("store", "store", "persistence")], signatures={},
+    )
+
+    assert cycle.reused == ["store"]
+    assert summary["rejected_or_deferred"] == ["store"]
+
 def test_prepopulated_reuse_seed_is_freshly_reconciled_before_stopping():
     stale = Obligation(
         "stale-seed", "stale reviewed seed", "persistence",
