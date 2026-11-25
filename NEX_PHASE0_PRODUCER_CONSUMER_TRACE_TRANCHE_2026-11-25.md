@@ -106,14 +106,14 @@ This is recorded as a source fact and an additional gate-scope question, not lab
 
 ## 8. Evidence gaps / next bounded increment
 
-1. Complete gate caller census and direct `INSERT/UPDATE beliefs` writer census across the active branch, separating perception ingestion, internal synthesis, self-observation, and controlled promotion paths.
-2. Trace exact Fountain input selection/retrieval → generated thought → each writer/consumer, including residue, snapshots, probes and tag/decoder paths.
-3. Trace GUI Chat assembly through each route (RAG-first, HYBRID/operator, voice fallback, tool path) and connect SelfModel/BehaviouralSelfModel formatted blocks to actual inclusion points.
-4. Map SpeechQueue producers to `beliefs.db:speech_queue` and verify which routes enqueue, what the consumer updates, and which voice modes bypass it.
-5. Trace each dynamically imported Stage 2 loop and all remaining boot-wired faculties; distinguish constructed, thread-started, env-gated, retired and externally gated states.
-6. Reconcile all gate bypasses and fail-open semantics against the missing Frozen V2.1 source and founder approval record before any behavioural modification.
+1. **Completed at static Python-source level** — all 350 Python source files (tests excluded) were scanned for literal Gate references and belief INSERT/UPDATE/DELETE patterns; relevant hits and normal startup wiring were inspected. See `NEX_PHASE0_GATE_AND_BELIEF_WRITER_CENSUS_2026-11-25.md`. Caveat: this is not AST analysis; dynamically assembled SQL, non-Python code and runtime reflection may evade literal matching.
+2. **Completed** — Fountain input selection, candidate retrieval, reanimation, residue, HotObserver, substrate-emission and prompt/provenance consumers were traced, with candidate-versus-render distinctions corrected. See §72 and `NEX_PHASE0_MEMBRANE_PROVENANCE_COVERAGE_AUDIT_2026-11-25.md`.
+3. **Completed** — GUI Chat assembly, RAG-first/HYBRID/VoiceEngine-miss routes, tool ordering/attribution, SelfModel/BehaviouralSelfModel inclusion and provenance boundaries were traced. See `NEX_PHASE0_CHAT_ROUTE_VARIANTS_AUDIT_2026-11-25.md` and the linked Chat audits.
+4. **Completed at static Python-source level** — all 350 Python source files were scanned for queue references; one literal `INSERT INTO speech_queue` callsite was found and the consumer/status lifecycle traced. See `NEX_PHASE0_SPEECH_QUEUE_PRODUCER_CONSUMER_CENSUS_2026-11-25.md`.
+5. **Next bounded increment** — trace each dynamically imported Stage 2 loop and all remaining boot-wired faculties; distinguish constructed, thread-started, env-gated, retired and externally gated states.
+6. **Founder decision remains pending** — reconcile all Gate bypasses and fail-open semantics against the missing Frozen V2.1 source and founder approval record before any behavioural modification.
 
-**Status:** partial source trace only. No live runtime observation, no L4 claims, no Gate 0 sign-off, no Phase 1 authorisation.
+**Status:** expanded static-source trace; no live runtime observation, no L4 claims, no Gate 0 sign-off, no Phase 1 authorisation.
 
 
 ## 9. Chat retrieval, self-model injection and reply persistence
