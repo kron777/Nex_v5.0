@@ -376,8 +376,18 @@ def current_branch():
     return branch
 
 
+def _repo_relative_path(path):
+    """Resolve an artifact path and refuse anything outside the repository."""
+    root = REPO.resolve()
+    resolved = Path(path).resolve()
+    try:
+        return resolved.relative_to(root).as_posix()
+    except ValueError as exc:
+        raise RuntimeError(f"Refusing to commit artifact outside repository: {path}") from exc
+
+
 def git_commit(corpus_path, state_path):
-    """Stage and commit generated artifacts locally; never push implicitly."""
+    """Commit only the two generated artifacts locally; never include other staged work."""
     branch = current_branch()
     snap_label = datetime.now().strftime("%Y-%m-%d %H:%M")
     msg_lines = [
@@ -391,10 +401,13 @@ def git_commit(corpus_path, state_path):
         "",
         "Re-run with `python3 scripts/nexsnap.py --commit` to regenerate.",
     ]
-    subprocess.run(["git", "-C", str(REPO), "add",
-                    str(corpus_path), str(state_path)], check=True)
-    subprocess.run(["git", "-C", str(REPO), "commit", "-m", "\n".join(msg_lines)],
-                   check=True)
+    paths = [_repo_relative_path(corpus_path), _repo_relative_path(state_path)]
+    # --only commits the named paths and leaves unrelated pre-staged work staged.
+    subprocess.run(
+        ["git", "-C", str(REPO), "commit", "--only", "-m", "\n".join(msg_lines),
+         "--", *paths],
+        check=True,
+    )
     return branch
 
 
