@@ -20,12 +20,16 @@ SERVICES = (
     "nex5-keepalive.service",
     "nex5-power-switch.service",
 )
+TIMERS = ("nex-vitals.timer",)
+UNITS = SERVICES + TIMERS
 PROPERTIES = (
     "LoadState", "ActiveState", "SubState", "Result",
     "ExecMainCode", "ExecMainStatus", "MainPID", "NRestarts",
     "FragmentPath", "DropInPaths", "WorkingDirectory",
     "ExecStart", "Restart", "RestartUSec",
     "RestartPreventExitStatus", "KillMode",
+    "Unit", "Triggers", "NextElapseUSecRealtime",
+    "LastTriggerUSec", "Persistent",
 )
 
 
@@ -122,6 +126,8 @@ def build_service_record(unit: str, properties: dict[str, str]) -> dict[str, Any
             "LoadState", "ActiveState", "SubState", "Result",
             "ExecMainCode", "ExecMainStatus", "MainPID", "NRestarts",
             "Restart", "RestartUSec", "RestartPreventExitStatus", "KillMode",
+            "Unit", "Triggers", "NextElapseUSecRealtime",
+            "LastTriggerUSec", "Persistent",
         )
         if key in properties
     }
@@ -170,7 +176,7 @@ def collect_service_audit(*, timeout: int = 15) -> dict[str, Any]:
         }
 
     records = []
-    for unit in SERVICES:
+    for unit in UNITS:
         try:
             completed = subprocess.run(
                 [systemctl, "--user", "show", unit,
@@ -205,11 +211,12 @@ def collect_service_audit(*, timeout: int = 15) -> dict[str, Any]:
     return {
         "status": "COLLECTED",
         "services": records,
-        "scope": list(SERVICES),
+        "scope": {"services": list(SERVICES), "timers": list(TIMERS)},
         "properties_requested": list(PROPERTIES),
         "read_only": True,
         "note": (
-            "Only selected systemd properties and path-existence checks were collected. "
+            "Only selected systemd properties and path-existence checks were collected "
+            "for the fixed service and timer set. "
             "No unit file contents, environment values, or raw ExecStart arguments are emitted. "
             "No service lifecycle or configuration action was performed."
         ),
