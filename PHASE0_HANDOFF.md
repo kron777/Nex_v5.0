@@ -102,3 +102,14 @@ Gate 0 remains pending. Continue bounded read-only source tracing and isolated f
 Source-history review found owner-authored PR #11 merged 2026-10-17. It explicitly shipped the substrate.connect() factory migration across roughly 95 modules and retired the raw-sqlite import ratchet. The current test named TestNoDirectSqlite checks only for raw sqlite3 imports outside substrate; it does not enforce Writer.write() for every write. Direct substrate.connect() paths are therefore intentional under that merged migration and are not automatically defects.
 
 The April SPECIFICATION.md §3 and substrate/writer.py docstring still describe a stronger universal Writer-queue rule. The exact founder-approved transaction/serialization contract is unresolved; do not migrate direct connections back to Writer or assume substrate.connect() serializes callers. See trace §64 and reclassified backlog D-36/G-24.
+
+## Latest source-audit findings — trace §§63–67
+
+Disconfirming history corrected the One-Pen interpretation: owner-authored PR #11 merged 2026-10-17 and explicitly shipped the substrate.connect() factory migration while retiring the raw-sqlite import ratchet. The current compliance test checks imports, not universal Writer queue use. Direct connection paths are therefore an intentional inventory, not confirmed defects; the April SPECIFICATION.md queue-only language and Writer docstrings remain inconsistent with the merged migration. D-36/G-24 are reclassified.
+
+Three new candidate producer/consumer issues are recorded:
+- G-25: seven life-loop belief producers added 2026-05-16 after the Phase 22 universal-gating record write Tier-6 beliefs without ThoughtPacket/CoherenceGate references. Whether they count as generative paths under the approved Faculty Model is unresolved.
+- G-26: IdentityLoop, PatternLoop and WitnessLoop source labels are absent from Stage 4 INSIDE and Fountain own-content allowlists, so they are excluded from the explicit self-inquiry context and dedicated own-content slots. The classifier was deliberately refreshed on 2026-10-10 but still did not include/test these source labels.
+- G-27: life-loop beliefs, boot seeds and optional HotObserver bypass TaggingBeliefWriter/tag_ops. Several life loops hard-code tags or store []; SurpriseLoop can write duplicate 'surprise' tags when big_surprise is false. TAG_PROTOCOL.md's content-derived/helper-normalization requirements need to be reconciled with any intended exceptions.
+
+No code, runtime behavior, live DB, flags, services, experiments, baselines or tripwires were changed. The latest tranche is documentation/evidence only. Gate 0 remains pending; continue read-only source tracing and isolated tests until the exact Frozen V2.1 and founder approval record are identified.
