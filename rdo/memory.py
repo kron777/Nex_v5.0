@@ -248,6 +248,9 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
     raw_actual_effort = (cycle.actual.get("effort_actual")
                           if cycle.actual is not None else None)
     actual_effort = raw_actual_effort if _valid_effort(raw_actual_effort) else None
+    raw_predicted_effort = cycle.predicted.get("effort")
+    predicted_effort = (raw_predicted_effort
+                        if _valid_effort(raw_predicted_effort) else None)
     actual_field_map = {
         "missed": "under_expansion_missed",
         "unnecessary": "over_expansion_unnecessary",
@@ -280,10 +283,10 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
         "missed_obligation_count": (len(missed) if isinstance(missed, list) else None),
         "prediction_error_effort": (
             d.get("effort_error") if actual_effort is not None and
-            _valid_effort(cycle.predicted.get("effort")) else None),
+            predicted_effort is not None else None),
         "rework": (len(d["regressions"]) if isinstance(d.get("regressions"), list) else None),
         "engineering_effort": actual_effort,
-        "predicted_effort": cycle.predicted.get("effort"),
+        "predicted_effort": predicted_effort,
         "outcome_status": ("complete" if outcome_complete else
                            "partial" if cycle.actual is not None else "pending"),
     }
