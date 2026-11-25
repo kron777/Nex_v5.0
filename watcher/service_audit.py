@@ -40,7 +40,7 @@ def parse_properties(output: str) -> dict[str, str]:
 
 
 def _decode_systemd_path(value: str) -> str:
-    """Decode systemd's \xHH path escaping for filesystem checks."""
+    """Decode systemd's \\xHH path escaping for filesystem checks."""
     return re.sub(
         r"\\x([0-9a-fA-F]{2})",
         lambda match: chr(int(match.group(1), 16)),
