@@ -680,6 +680,8 @@ No live table sizes or restart history were inspected. Do not drop or prune the 
 | Fountain seed-source slot | No tier predicate; source allowlist is intended for locked Tier 1 seed families | Expected protected seed content; status not independently enforced by query |
 | Fountain HotObserver slot | No tier/paused/locked predicate; 72-hour source/time filter only | Can directly inject retired HotObserver content |
 | Fountain substrate emission | `get_top_activated()` has no tier/status predicate; flag default OFF | Can format retired activated beliefs into a generated thought |
+| Fountain Favorites block | `affinity > 0.40` only; no tier/paused/locked filter | Can render retired content while affinity remains high |
+| Fountain recent Surprise block | `source='surprise'` and six-hour time window only | Can render recently retired surprise beliefs |
 | Stage 3 World Model BeliefRetriever | `tier <= 6`, `paused=0`, locked or confidence floor | Final result map excludes Tier 8 direct results |
 | Stage 3 ActivationEngine | No belief-status check while traversing `belief_edges` | Retired nodes can be intermediate propagation bridges; final retriever output still filters to its active row map |
 | Stage 3 EdgeGenerator | Explicit `tier <= 7` on candidate targets | Does not create new edges from Tier 8 rows in the inspected query |
