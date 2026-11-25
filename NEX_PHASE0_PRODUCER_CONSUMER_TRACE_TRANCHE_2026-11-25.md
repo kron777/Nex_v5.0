@@ -595,3 +595,18 @@ A fresh source comparison corrects an earlier assumption that residue was absent
 The module's historical figures (~709k unconsumed rows, ~623k stranded backlog, and earlier daily growth rates) are dated 2026-09-18 source comments, not current host measurements. No live DB row counts, reaper logs, service runs or data were inspected/changed in this audit.
 
 **Disposition:** correct the stale residue module documentation and add isolated temp-DB coverage for the 2-day target. Do not manually run the reaper, delete live rows, alter the retention window, or activate the timer without explicit approval.
+
+## 38. HotObserver retrieval can reintroduce Tier 8 retired beliefs
+
+A source-level filter mismatch exists between the main Fountain retrieval query and the dedicated HotObserver slot:
+
+- `FountainGenerator._retrieve_context_beliefs()` explicitly filters the main own-content query with `b.tier < 8`, and `fetch_residue_beliefs()` also filters `tier < 8`.
+- The dedicated `hot_observer` query fetches rows where `source='hot_observer'` and `created_at` is within 72 hours, but it has no `tier < 8`, `paused=0` or `locked=0` predicate. The randomly selected row is appended directly to the context result.
+- `hot_observer.observe()` inserts Tier 3 rows with `locked=0` and `paused=0`.
+- `Harmonizer.scan_for_conflicts()` scans beliefs with `tier BETWEEN 3 AND 7 AND locked=0 AND paused=0`, without excluding `source='hot_observer'`. Its escalation path can update selected originals to Tier 8 and prefix their content with `[RETIRED]`.
+
+Therefore, if a HotObserver belief is selected in a Harmonizer conflict pair and retired, it remains eligible for the dedicated Fountain slot until it ages beyond the 72-hour cutoff. This is a conditional source-level retrieval defect candidate: a tombstoned belief can be reintroduced through a special slot even though the main retrieval path explicitly excludes Tier 8.
+
+Additional flag nuance: `NEX5_HOT_OBSERVER` gates new HotObserver writes, but the 72-hour retrieval query itself is not gated by that flag. If the writer flag is turned off after prior rows exist, those rows remain eligible for prompt injection until they age out or are otherwise excluded.
+
+No live HotObserver rows, Harmonizer events or host flag values were inspected. No code or flag was changed.
