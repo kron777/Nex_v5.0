@@ -621,3 +621,15 @@ A second Fountain retrieval path can surface activated beliefs independently of 
 - Harmonizer can retire unlocked Tier 3–7 beliefs to Tier 8. Fountain retrieval also bumps activation for beliefs selected into context, so a recently retired belief may retain a decaying activation record for this helper to read.
 
 This is another conditional retired-row retrieval gap, distinct from the unconditional dedicated HotObserver slot. It is relevant only if substrate emission is armed and a retired belief remains above the activation threshold. The host flag and live activation rows are UNKNOWN.
+
+## 40. NovelAssociation candidate scan does not exclude Tier 8 retired beliefs
+
+`NovelAssociation._pull_candidates()` reads belief rows with `confidence >= 0.15`, `branch_id IS NOT NULL` and `paused = 0`, ordered by branch and recency. It does not filter `tier < 8` or `locked=0`.
+
+`Harmonizer.scan_for_conflicts()` can retire unlocked Tier 3–7 beliefs by setting `tier=8`, `locked=0`, `paused=0` and prefixing `[RETIRED]`. Such rows still satisfy NovelAssociation's candidate query while they remain above the confidence threshold and have a branch ID.
+
+The loop runs every 30 minutes from normal boot wiring. It can therefore compute cross-branch similarity for retired rows and write `synthesises` edges plus `novel_association_log` entries. At similarity above the narrative threshold it also calls `SelfNarrative.write_narrative()` with the branch-pair observation. The GUI's `format_for_prompt()` later injects the branch-pair annotation into `belief_text` without exposing the underlying belief content.
+
+A nearby comment in `FountainGenerator._retrieve_context_beliefs()` says `novel_association.py` is among the paths that bound tiers to 5/6/7 and exclude retired beliefs. That statement does not match the current `_pull_candidates()` SQL.
+
+This is a source-level retired-row graph-ingestion candidate. Unlike the HotObserver and substrate-emission retrieval gaps, the NovelAssociation loop is started in the normal boot path; the extent depends on retired rows satisfying its confidence/branch/paused filters and on semantic similarity. The resulting edges may also affect the optional edge-weighted Fountain ranking. No live retired rows or edge history were inspected.
