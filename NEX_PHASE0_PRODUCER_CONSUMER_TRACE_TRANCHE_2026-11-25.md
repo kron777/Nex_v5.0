@@ -140,3 +140,26 @@ This is recorded as a source fact and an additional gate-scope question, not lab
 - Chat's `state.voice.speak()` path is also separate from this queue/consumer path.
 
 **Evidence gap:** FountainCrystallizer is a verified queue producer, but an exhaustive repository-wide `INSERT INTO speech_queue` census is still required before claiming it is the only producer. Live consumer activation and actual audio output remain UNKNOWN.
+
+
+## 11. Belief-writer wrapper and direct-write distinction
+
+The active boot path wraps the base beliefs writer in `TaggingBeliefWriter` at `run.py:70` before passing the writers dictionary to the faculties. The wrapper intercepts eligible explicit-column-list `INSERT INTO beliefs` statements, generates tags, and delegates to the underlying writer. This is a persistence/tagging wrapper, not a CoherenceGate call and not evidence that a candidate was coherence-evaluated.
+
+Consequently, a direct insertion can still receive tags while bypassing CoherenceGate. These are separate mechanisms and must not be conflated in the crosswalk.
+
+## 12. Additional direct belief paths verified
+
+The following source paths have now been verified against the active host source commit `de93134f34adac07a3a41c2a05b33720510a2bfc`:
+
+1. **Sense distillation:** `theory_x/stage2_dynamic/__init__.py:170–272` inserts eligible external-event titles as Tier 7 `precipitated_from_sense` beliefs without a gate call. The source explicitly frames this as perception ingestion.
+2. **Fountain rut mirror:** `theory_x/stage6_fountain/generator.py:2899–2935` inserts a Tier 6 `self_rut_notice` belief when the governor's recent STRIKING rate is at or below 5% (with at least four observations) and the two-hour throttle allows it. No CoherenceGate call appears in this insertion path. It is an internally generated self-observation, unlike external sense ingestion.
+3. **Holding-zone promotion:** `theory_x/stage_gate/holding_zone.py:170–199` inserts a held candidate as a belief when `promote_to_belief()` is invoked. The resolver's corroboration path invokes it after three corroborating ACCEPT events (`resolver.py:60–115`). This is a controlled resolution path with prior gate-derived corroboration, not a raw unreviewed producer insertion; retain it as a separate promotion mechanism.
+4. **Gated synthesis paths:** Dynamic crystallization, World Model synergizer, and normal Fountain crystallization each construct a ThoughtPacket, call CoherenceGate, and only insert the resulting belief on ACCEPT in the inspected path.
+
+The distinction is material: “all beliefs are written through the TaggingBeliefWriter” (boot wiring) does **not** imply “all belief candidates pass CoherenceGate.” The source currently demonstrates at least two direct producer bypasses (sense distillation and Fountain rut mirror), plus a separately controlled held-thought promotion route.
+
+### Census completeness
+
+This is a verified subset, not a repository-wide exhaustive direct-writer census. The remaining faculties and utility modules still require inspection for direct `INSERT INTO beliefs`, update-in-place paths, alternate writer instances, and gate calls. No claim is made that the two direct producer bypasses listed above are the only ones.
+
