@@ -1309,3 +1309,17 @@ The detailed branch/source-reference audit is in `NEX_PHASE0_MAIN_BRANCH_MIND_MA
 - The main-only map generator validates structure, source paths, freshness and absence claims, but not runtime callsites or authority invariants. The map's two meta.doctrine references to `VIRTUE_SLATE.md` and `mental_factors_inventory_alobha_spec.txt` are missing even on main and generate warnings.
 
 No map, source file, test or generated diagram was imported. No branch lineage or DAG status changed.
+
+
+## 83. Moltbook external I/O and dry-run semantics
+
+The detailed static audit is in `NEX_PHASE0_MOLTBOOK_EXTERNAL_IO_AND_DRY_RUN_AUDIT_2026-11-25.md`. It confirms:
+
+- Stage 2 registers Listener, Responder and Poster when the package imports; there is no dedicated master enable flag in the inspected factory.
+- `MOLTBOOK_DRY_RUN` defaults to exact string `"1"` and intercepts non-GET requests only. GET status/feed/DM reads still contact the remote API; any value other than exactly `"1"` permits real non-GET requests.
+- The tracked keepalive sets `MOLTBOOK_DRY_RUN=0`, but the known launcher path blocker and untracked active service unit mean live invocation/effective flags remain UNKNOWN.
+- Poster, Listener and Responder can mark local rows posted/approved/sent after synthetic dry-run responses.
+- Poster and Responder belief selection lacks paused/locked/retired/Tier 8 filters. Listener auto-approves filtered agents and creates pending replies with `needs_human=0`.
+- Raw DM JSON is stored as a `moltbook_dm` sense event, but the current title extractor does not extract the `message` field for generic Stage 2 distillation.
+
+No credentials, HTTP requests, external approval, post, DM, local DB operation or worker activation occurred. No live external activity is claimed.
