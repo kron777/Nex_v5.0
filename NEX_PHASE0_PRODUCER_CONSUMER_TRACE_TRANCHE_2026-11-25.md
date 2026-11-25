@@ -531,3 +531,12 @@ Because `init_all()` completes before `run.py` creates and wraps the shared Writ
 - **Operator-invoked seed utilities:** identity YAML and grounded scorecard self-belief tools from §22; independent Writers and explicit CLI/API invocation.
 
 These are intentional-looking authority classes in source, but the exact Frozen V2.1 doctrine governing Tier 1 seeding, tags and resonance remains unavailable. No seed was added, removed or refreshed on the host.
+
+## 34. Additional operator-invoked spectrum seed utilities
+
+Two further source paths can populate `beliefs` with `source='spectrum'`, but neither is called from the inspected `run.py` or `init_all()` boot path:
+
+- **Outward spectrum loader:** `substrate/seed/load_spectrum.py:1–81` is an explicit CLI script. It reads `substrate/seed/outward_spectrum.txt`, samples an existing spectrum row's tier/confidence/branch/tags, and inserts new rows with direct `sqlite3` calls. It bypasses TaggingBeliefWriter, IntakeResonance and CoherenceGate. It copies the sample's `tags` value rather than generating new tags.
+- **Process spectrum batch:** `substrate/spectrumizer_process.py:1–255` is a one-time batch script that inserts 100 Tier 1 locked `spectrum` variants with direct `sqlite3` calls, after checking schema columns and aborting if the `parent_belief_id=-2` cluster already exists. Its INSERT omits `tags`, so the schema migration default applies. It bypasses TaggingBeliefWriter, IntakeResonance and CoherenceGate.
+
+These are manual/one-time seed operations, not normal runtime producers. Whether either script has previously been run on the host is UNKNOWN; no live beliefs DB was inspected. They extend the operator-seed class in §22 and the producer matrix in §28, but do not change the runtime direct-producer count.
