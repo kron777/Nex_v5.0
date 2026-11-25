@@ -60,7 +60,19 @@ def _exec_paths(value: str) -> tuple[str | None, list[str]]:
     path_arguments: list[str] = []
     if argv_match:
         try:
-            tokens = [_decode_systemd_path(token) for token in shlex.split(argv_match.group(1))]
+            encoded = re.sub(
+                r"\\x([0-9a-fA-F]{2})",
+                lambda match: "__NEX_SYSTEMD_HEX_" + match.group(1) + "__",
+                argv_match.group(1),
+            )
+            tokens = [
+                re.sub(
+                    r"__NEX_SYSTEMD_HEX_([0-9a-fA-F]{2})__",
+                    lambda match: chr(int(match.group(1), 16)),
+                    token,
+                )
+                for token in shlex.split(encoded)
+            ]
         except ValueError:
             tokens = []
         for token in tokens[1:]:
