@@ -138,7 +138,7 @@ Working rule: V2.1 is the intended authority, but its exact normative clauses an
 - §71: review_queue auto-promotion is intentionally disabled since 2026-05-16; the two relevant tests are explicitly skipped because the three-ACCEPT counter hid problems from FocusLoop/DailyLife. Do not re-enable.
 - D-38: active branch still lacks main's October 26 NEX5_TZ/Africa-Johannesburg migration; four life loops still use Europe/Amsterdam. No partial cherry-pick or main merge.
 
-Trace now extends through §83. PR #98 remains draft with 36 changed files. Its current head is `8caed81f237d76818c855e5efb79f64b1d600079`; no workflow runs or commit statuses are reported for that exact head. The previous head's tests run was still in progress when checked. Do not report latest-head CI as passed.
+Trace now extends through §83. PR #98 remains draft with 36 changed files. At the last exact-head check, no workflow runs or commit statuses were reported for the queried head; the previous head's tests run 1045 had completed as cancelled. CI is unverified. Re-fetch the current PR head and its workflow/status records before making any CI claim; no pass is claimed here.
 
 ## Latest Phase 0 continuation — 25 November 2026 (trace §§72–83)
 
