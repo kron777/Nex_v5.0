@@ -47,7 +47,7 @@ def _grep(pattern: str, repo_dir: str, path: Optional[str], max_hits: int = 3) -
         res = subprocess.run(
             ["grep", "-rnI", "-E", pattern, "--exclude-dir=__pycache__", "--exclude-dir=.git",
              "--exclude-dir=.venv", target],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
         )
     except (OSError, subprocess.SubprocessError):
         return None
