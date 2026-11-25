@@ -247,7 +247,8 @@ def test_recognize_sufficiency_restrains_development():
                                recon_evidence=["src.py:1"], confidence="measured",
                                recon_semantic_verified=True,
                                recon_semantic_review_evidence=["manual review: source and test reviewed"]),
-           "opt": Obligation("opt", "o", "ui", classification="optional",                             recon_status=MISSING)}
+           "opt": Obligation("opt", "o", "ui", classification="optional",
+             recon_status=MISSING)}
     suff = {s["key"] for s in recognize_sufficiency(obs)}
     assert "built" in suff and "opt" in suff                     # neither needs more work
 
@@ -496,7 +497,8 @@ def test_system_readiness_does_not_promote_partial_or_unknown():
         assert readiness.verdict == expected
     mixed = {"partial": Obligation("partial", "p", "test", recon_status=PARTIAL),
              "unknown": Obligation("unknown", "u", "test", recon_status=RECON_UNKNOWN)}
-    readiness = next(t for t in assess_system(mixed, []) if t.subject == "integration_readiness")    assert readiness.verdict == UNDERDEVELOPED
+    readiness = next(t for t in assess_system(mixed, []) if t.subject == "integration_readiness")
+    assert readiness.verdict == UNDERDEVELOPED
 
     all_reused = {"a": Obligation("a", "a", "test", recon_status=REUSE_EXISTING),
                   "b": Obligation("b", "b", "test", recon_status=REUSE_EXISTING)}
