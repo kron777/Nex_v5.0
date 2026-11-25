@@ -298,3 +298,9 @@
 - Evidence: the successful `Harmonizer.resolve()` synthesis branch first sets both originals to Tier 8, `locked=0`, `paused=0`, and prefixes `[RETIRED]`. It then calls `BeliefPromoter.decisive_contradiction(belief_id_b)`. That method computes `min(7, current + 2)`, so a just-retired Tier 8 row is changed back to Tier 7 while retaining the `[RETIRED]` prefix. Its own docstring also claims a Tier 7 belief is discarded, but the code leaves it at Tier 7. The current escalation test checks only row A and does not create a synthesis bridge.
 - Impact: in the synthesis branch, one of the two beliefs is no longer Tier 8 and passes active-tier retrieval filters despite its retired marker. It can re-enter Fountain, VoiceEngine and graph paths that rely on tier<8 or do not filter tier.
 - Disposition: add an isolated fixture with a third bridging belief and assert both originals remain Tier 8. Prepare the smallest correction only after Gate 0 / explicit approval; do not change live Harmonizer behaviour now.
+
+### G-19 — Harmonizer scan coverage beyond 200 eligible rows is unspecified
+- Type: bounded-scan fairness/evidence gap.
+- Evidence: `Harmonizer.scan_for_conflicts()` selects Tier 3–7, unlocked/unpaused rows ordered only by tier ascending, with `LIMIT 200`; no cursor, rotation or time ordering is present. Rows without a detected conflict remain eligible on later two-hour scans.
+- Impact: if more than 200 eligible rows exist, the same low-tier/early rows can dominate repeated scans and higher-tier/later rows may be starved. Whether the host population exceeds the cap is UNKNOWN.
+- Disposition: measure eligible row counts and define scan fairness before changing the cap or ordering. Do not run scans against live state or modify Harmonizer behaviour without approval.
