@@ -990,3 +990,6 @@ These additions strengthen the source-level mismatch with SPECIFICATION.md §3 i
 Thus basic provenance (who/source, when, confidence, branch) is persisted, but arbitrary packet metadata is not queryable after admission or while held. For example, a counterfactual scenario descriptor carried only in packet metadata would not survive as structured substrate metadata unless separately embedded in content or another producer-specific table.
 
 This is a source-level gap against Faculty Model §3 if that document is governing. No live belief metadata or downstream consumer behavior was inspected.
+
+
+**Doctrine phase-status cross-check:** the DOCTRINE §5 priority table still labels Counterfactual Simulation “UNBLOCKED” / queued for Phase 25+, and VoiceEngine “QUEUED (Phase 30)”, while the current branch contains `CounterfactualNode` and the substrate-first `VoiceEngine`. DOCTRINE §6 also requires five real-traffic HUD queries, route-class regression checks and Jon's quality greenlight for a node port. Code presence does not prove those acceptance criteria were completed; no founder quality approval or corresponding live-traffic evidence was established in this source audit. This may be stale status text or unrecorded approval, and requires founder clarification.
