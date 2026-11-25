@@ -95,7 +95,7 @@ def test_collect_service_audit_queries_only_fixed_units_and_selected_properties(
     assert all(row["status"] == "COLLECTED" for row in result["services"])
     assert all(row["missing_paths"] for row in result["services"])
     assert len(calls) == 1 + len(service_audit.SERVICES)
-    assert all("start" not in call and "restart" not in call for call in calls)
+    assert all(call[2] == "show" for call in calls[1:])
     assert all("--property=ExecStart" in call for call in calls[1:])
     assert result["read_only"] is True
 
