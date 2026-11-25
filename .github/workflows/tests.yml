@@ -10,6 +10,9 @@ name: tests
 # all-MiniLM-L6-v2 model is downloaded once and cached; the test run itself is
 # then offline against that cache.
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main]
