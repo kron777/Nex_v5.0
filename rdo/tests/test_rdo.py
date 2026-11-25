@@ -248,7 +248,7 @@ def test_recognize_sufficiency_restrains_development():
                                recon_semantic_verified=True,
                                recon_semantic_review_evidence=["manual review: source and test reviewed"]),
            "opt": Obligation("opt", "o", "ui", classification="optional",
-             recon_status=MISSING)}
+                             recon_status=MISSING)}
     suff = {s["key"] for s in recognize_sufficiency(obs)}
     assert "built" in suff and "opt" in suff                     # neither needs more work
 
@@ -754,6 +754,7 @@ def test_signature_evidence_coverage_rejects_inconsistent_counts():
     assert metrics["signature_matches"] == 2
     assert metrics["signature_evidence_coverage"] is None
     assert metrics["signature_evidence_coverage_complete"] is None
+
     consistent = CycleRecord(
         id="consistent", objective="o",
         verification={
@@ -879,3 +880,4 @@ def test_cycle_store_preserves_evidence_refs_without_promoting_kind(tmp_path):
     metrics = metrics_series([loaded])
     assert metrics["efficiency_eligible_cycles"] == 0
     assert metrics["comparability"]["efficiency_comparison_pool"] == []
+
