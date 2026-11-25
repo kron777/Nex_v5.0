@@ -58,6 +58,10 @@ The scheduler documentation mismatch found during this audit is corrected in thi
 
 **M0.5 causal-trace coverage:** [NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md](NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md) checks the two actual output seams, missing trace/parent IDs and intermediate stages, L4 context declaration, fixture status and raw-preview retention boundary. The trace remains default-OFF; no runtime capture occurred.
 
+
+
+**Main-only MIND_MAP reconciliation:** [NEX_PHASE0_MAIN_BRANCH_MIND_MAP_RECONCILIATION_2026-11-25.md](NEX_PHASE0_MAIN_BRANCH_MIND_MAP_RECONCILIATION_2026-11-25.md) confirms the main/active-host divergence, 12 map source references absent from the active-host base, the descriptive-only constraint, and the separation from sentience_dag build order. No files were imported.
+
 **Important:** this boot inventory is a forward wiring map, not a complete producer/consumer DAG. It does not prove that every declared faculty is operationally consumed, nor does it establish L3/L4 runtime evidence. The two detailed paths below remain the only end-to-end output-path audits in this document.
 
 
