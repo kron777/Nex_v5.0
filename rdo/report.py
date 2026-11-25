@@ -403,7 +403,7 @@ def run_stage2_belief_decay(repo_dir: str = ".", workdir: str = "rdo/.cycles",
     touches the live belief store."""
     memory = PatternMemory(os.path.join(workdir, "patterns.jsonl"))
     store = CycleStore(workdir)
-    cycle, _summary = _run_one("belief_decay_mvp", belief_decay_idea(), repo_dir, memory, store, [])
+    cycle, _summary = _run_one("belief_decay_mvp", belief_decay_idea(), repo_dir, memory, store, _active_experiments(repo_dir))
     obls = cycle.obligations
 
     # ---- calibration ONLY from a genuine, authorised planning review ----
@@ -470,7 +470,7 @@ def run_stage3_graph_intelligence(repo_dir: str = ".", workdir: str = "rdo/.cycl
     never touched."""
     memory = PatternMemory(os.path.join(workdir, "patterns.jsonl"))
     store = CycleStore(workdir)
-    cycle, _summary = _run_one("belief_decay_mvp", belief_decay_idea(), repo_dir, memory, store, [])
+    cycle, _summary = _run_one("belief_decay_mvp", belief_decay_idea(), repo_dir, memory, store, _active_experiments(repo_dir))
     analysis = graph_analyse(cycle.obligations, cycle.relationships, cycle.frontier)
     path = os.path.join(workdir, "graph_analysis_belief_decay_mvp.json")
     with open(path, "w", encoding="utf-8") as fh:
