@@ -633,3 +633,13 @@ The loop runs every 30 minutes from normal boot wiring. It can therefore compute
 A nearby comment in `FountainGenerator._retrieve_context_beliefs()` says `novel_association.py` is among the paths that bound tiers to 5/6/7 and exclude retired beliefs. That statement does not match the current `_pull_candidates()` SQL.
 
 This is a source-level retired-row graph-ingestion candidate. Unlike the HotObserver and substrate-emission retrieval gaps, the NovelAssociation loop is started in the normal boot path; the extent depends on retired rows satisfying its confidence/branch/paused filters and on semantic similarity. The resulting edges may also affect the optional edge-weighted Fountain ranking. No live retired rows or edge history were inspected.
+
+## 41. Diversity EdgeBuilder also permits Tier 8 rows into belief_edges
+
+`theory_x/diversity/edge_builder.py:47–78` selects source candidates with fewer than the minimum outgoing-edge count, `paused=0`, `locked=0` and sufficient content length—but no tier bound. Its comparison pool selects sufficient-length beliefs with `paused=0`, also without a tier or locked filter. The loop then embeds candidates/pool members and inserts `cross_domain` edges in `belief_edges`.
+
+The Stage 2 dynamic factory includes `edge_builder_loop` in its loop list and starts it through the daemon-thread factory. Thus the path is normal source wiring, not an environment-gated optional path.
+
+Harmonizer retirement sets `tier=8`, `locked=0`, `paused=0`; retired rows therefore remain eligible both as EdgeBuilder source candidates and as comparison-pool targets. Locked Tier 1 beliefs are excluded as source candidates but may still be comparison targets because the pool has no `locked=0` condition.
+
+This is a separate graph-ingestion path from NovelAssociation (§40). It can create edges involving retired rows even though the Fountain main retrieval and World Model EdgeGenerator use tier bounds. Such edges may affect later graph consumers, including the optional edge-weighted Fountain ranking. No live edge table or retired belief population was inspected.
