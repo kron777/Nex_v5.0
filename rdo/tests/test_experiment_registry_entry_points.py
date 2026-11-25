@@ -16,6 +16,7 @@ def test_stage_entry_points_propagate_unknown_registry(monkeypatch, tmp_path, ru
     def fake_run_one(_cycle_id, _idea, _repo_dir, _memory, _store, active):
         captured["active"] = active
         return SimpleNamespace(
+            id="belief_decay_mvp",
             objective="isolated fixture objective",
             obligations=[{"depth": 0}],
             relationships=[],
