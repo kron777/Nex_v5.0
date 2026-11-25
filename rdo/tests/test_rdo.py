@@ -703,6 +703,12 @@ def test_grep_handles_non_utf8_text_without_crashing(tmp_path):
     assert result[0].startswith("legacy.txt:1:signature")
     assert "\ufffd" in result[0]
 
+    # The byte-oriented locale must not disable -I's binary-file exclusion.
+    binary_dir = tmp_path / "binary-only"
+    binary_dir.mkdir()
+    (binary_dir / "payload.bin").write_bytes(b"signature\x00-anchor\n")
+    assert recon._grep("signature", str(binary_dir), None) == []
+
 
 def test_grep_oserror_and_invalid_exit_remain_unknown(tmp_path, monkeypatch):
     import rdo.reconcile as recon
