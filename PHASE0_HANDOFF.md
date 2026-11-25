@@ -129,3 +129,13 @@ Founder recollection identifies Frozen V2.1 as the intended governing specificat
 Expanded recovery searched the ChatGPT Library by exact phrases and title, inventoried filenames, inspected both NEX_Claude_Development_Export.zip and NEX_Development_Archive_for_Claude.zip, searched their contents, reviewed the context supplement/carry-over/framework/roadmap, and checked GitHub branches, repository search, PRs, issues and releases. No exact V2.1 proposal or sign-off artifact was recovered. The archive explicitly says the original was deliberately excluded because it was unavailable. A prior 24 Nov record also reports unsuccessful searches of local Claude JSONL transcripts.
 
 Working rule: V2.1 is the intended authority, but its exact normative clauses and sign-off evidence remain UNKNOWN. Do not substitute April SPECIFICATION.md, infer detailed criteria from roadmap summaries, or reconstruct V2.1. Continue source-only tracing and isolated tests; behavior remediation remains blocked pending source recovery or explicit founder re-establishment.
+
+
+## Latest source tranche update — §§68–71
+
+- G-28: the Identity → Pattern → Witness loop is documented as closed, but current source only shows IdentityLog → PatternLoop → PatternLog → WitnessLoop → WitnessLog. IdentityLoop reads its previous statement plus aggregate metrics, not Pattern/Witness content. Fountain separately injects IdentityLog; no direct Pattern/Witness prompt injection was found.
+- G-29: SignalToProblem inserts open_problems with source-style tags ['auto', 'signal:<type>'] rather than TAG_PROTOCOL.md's title+description generation. Its advancements_drift debounce depends on the exact colon tag, so any future normalization must preserve/replace that idempotency key. ProblemMemory is the compliant contrast.
+- §71: review_queue auto-promotion is intentionally disabled since 2026-05-16; the two relevant tests are explicitly skipped because the three-ACCEPT counter hid problems from FocusLoop/DailyLife. Do not re-enable.
+- D-38: active branch still lacks main's October 26 NEX5_TZ/Africa-Johannesburg migration; four life loops still use Europe/Amsterdam. No partial cherry-pick or main merge.
+
+Trace now extends through §71. PR #98 remains draft. The most recent CI run observed was for an earlier head and was still in progress; subsequent documentation commits do not have an exact-head workflow result. Do not report latest-head CI as passed.
