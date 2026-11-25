@@ -34,6 +34,10 @@ The scheduler documentation mismatch found during this audit is corrected in thi
 - stage2_dynamic._sense_distillation_loop explicitly bypasses CoherenceGate for precipitated_from_sense beliefs, on the stated basis that external perceptions are substrate content rather than internally generated thoughts. The gate module's “Universal: no generative path bypasses the gate” design commitment therefore needs a precise scope definition; do not silently treat the perception path as either a violation or an exception without reconciling the governing spec.
 
 
+
+
+**Expanded boot/loop inventory:** The full Stage 2 registration list (26 conditional registrations), World Model/Membrane worker details, environment/service gates, request-driven versus autonomous faculty classification, and shutdown coordination are now traced in [NEX_PHASE0_DYNAMIC_LOOP_AND_BOOT_WIRING_AUDIT_2026-11-25.md](NEX_PHASE0_DYNAMIC_LOOP_AND_BOOT_WIRING_AUDIT_2026-11-25.md). This remains static L2 source evidence; the live thread set and effective flags are UNKNOWN.
+
 **Important:** this boot inventory is a forward wiring map, not a complete producer/consumer DAG. It does not prove that every declared faculty is operationally consumed, nor does it establish L3/L4 runtime evidence. The two detailed paths below remain the only end-to-end output-path audits in this document.
 
 
