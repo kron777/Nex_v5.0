@@ -247,8 +247,7 @@ def test_recognize_sufficiency_restrains_development():
                                recon_evidence=["src.py:1"], confidence="measured",
                                recon_semantic_verified=True,
                                recon_semantic_review_evidence=["manual review: source and test reviewed"]),
-           "opt": Obligation("opt", "o", "ui", classification="optional",
-                             recon_status=MISSING)}
+           "opt": Obligation("opt", "o", "ui", classification="optional",                             recon_status=MISSING)}
     suff = {s["key"] for s in recognize_sufficiency(obs)}
     assert "built" in suff and "opt" in suff                     # neither needs more work
 
@@ -497,8 +496,7 @@ def test_system_readiness_does_not_promote_partial_or_unknown():
         assert readiness.verdict == expected
     mixed = {"partial": Obligation("partial", "p", "test", recon_status=PARTIAL),
              "unknown": Obligation("unknown", "u", "test", recon_status=RECON_UNKNOWN)}
-    readiness = next(t for t in assess_system(mixed, []) if t.subject == "integration_readiness")
-    assert readiness.verdict == UNDERDEVELOPED
+    readiness = next(t for t in assess_system(mixed, []) if t.subject == "integration_readiness")    assert readiness.verdict == UNDERDEVELOPED
 
     all_reused = {"a": Obligation("a", "a", "test", recon_status=REUSE_EXISTING),
                   "b": Obligation("b", "b", "test", recon_status=REUSE_EXISTING)}
@@ -678,15 +676,21 @@ def test_reuse_review_requires_nonblank_text_evidence_across_consumers():
     assert has_valid_reuse_review(valid.to_dict())
 
     malformed_fields = (
+        ("recon_evidence", []),
         ("recon_evidence", [""]),
         ("recon_evidence", ["   "]),
         ("recon_evidence", [None]),
+        ("recon_evidence", [7]),
+        ("recon_evidence", [object()]),
         ("recon_evidence", ["src/mechanism.py:12", None]),
+        ("recon_semantic_review_evidence", []),
         ("recon_semantic_review_evidence", [""]),
         ("recon_semantic_review_evidence", ["   "]),
         ("recon_semantic_review_evidence", [None]),
         ("recon_semantic_review_evidence", ["manual review", ""]),
+        ("recon_semantic_review_evidence", ["manual review", None]),
         ("recon_semantic_verified", 1),
+        ("recon_semantic_verified", "true"),
     )
     for field, malformed in malformed_fields:
         candidate = reviewed_obligation(field)
@@ -748,7 +752,6 @@ def test_signature_evidence_coverage_rejects_inconsistent_counts():
     assert metrics["signature_matches"] == 2
     assert metrics["signature_evidence_coverage"] is None
     assert metrics["signature_evidence_coverage_complete"] is None
-
     consistent = CycleRecord(
         id="consistent", objective="o",
         verification={
@@ -874,4 +877,3 @@ def test_cycle_store_preserves_evidence_refs_without_promoting_kind(tmp_path):
     metrics = metrics_series([loaded])
     assert metrics["efficiency_eligible_cycles"] == 0
     assert metrics["comparability"]["efficiency_comparison_pool"] == []
-
