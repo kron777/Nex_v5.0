@@ -402,7 +402,8 @@ def git_commit(corpus_path, state_path):
         "Re-run with `python3 scripts/nexsnap.py --commit` to regenerate.",
     ]
     paths = [_repo_relative_path(corpus_path), _repo_relative_path(state_path)]
-    # --only commits the named paths and leaves unrelated pre-staged work staged.
+    # Add new generated files, then --only ensures unrelated pre-staged work is not committed.
+    subprocess.run(["git", "-C", str(REPO), "add", "--", *paths], check=True)
     subprocess.run(
         ["git", "-C", str(REPO), "commit", "--only", "-m", "\n".join(msg_lines),
          "--", *paths],
