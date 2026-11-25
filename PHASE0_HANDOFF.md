@@ -117,3 +117,7 @@ No code, runtime behavior, live DB, flags, services, experiments, baselines or t
 ## Active-branch timezone decision not integrated — trace §69
 
 Main commit c247c240f8 (2026-10-26) records the owner decision for Africa/Johannesburg and centralizes time under NEX5_TZ. The active development branch still hardcodes Europe/Amsterdam in IdentityLoop, PatternLoop, WitnessLoop and DailyLife; active nex_config.py lacks the timezone helper. The main migration spans multiple modules and tests, so do not cherry-pick only the four life loops or merge main wholesale. This is a branch-integration candidate, not a runtime fix applied. See backlog D-38.
+
+## Recursive self-model loop clarification — trace §68
+
+IdentityLoop → PatternLoop → WitnessLoop is not shown as a semantic closed loop in current source. PatternLoop reads identity_log and writes pattern_log; WitnessLoop reads pattern_log and writes witness_log; IdentityLoop composes from its previous identity_log statement plus aggregate metrics, not Pattern/Witness content. The new-belief count metric can reflect their rows, but no text-level feedback edge into the next IdentityLoop composition was found. Fountain separately injects the latest identity_log statement; no direct Pattern/Witness injection was found. See backlog G-28. This is a source/docstring discrepancy pending founder/design clarification, not permission to add a feedback dependency.
