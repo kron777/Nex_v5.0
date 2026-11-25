@@ -179,3 +179,6 @@ The census remains partial: helper-mediated writes, alternate writers, and the r
 
 
 **DailyLife / behavioural observation path:** the source trace now maps the Stage 2 DailyLife loop as a producer of internal `role='nex'` conversation messages, not beliefs. BehaviouralSelfModel's latest-100-NEX-message query and Metacognition's latest-five-NEX-message goal-drift query have no session/register filter, so these internal entries are eligible inputs to both observers. This is a verified source overlap, not a measured live effect. The DailyLife header also overstates Moltbook sending and scheduled sleep-mode effects; see trace §§25–26 and backlog D-13/G-09.
+
+
+**Fountain control boundary:** the expanded trace follows readiness → retrieval/prompt assembly → voice → pre-gate sense/Fountain event persistence → quality filter → CoherenceGate → belief insertion → optional speech enqueue. The gate does not govern initial thought generation or the already-persisted Fountain event; it governs normal belief admission and therefore the downstream speech-queue path. Quiescent/voice-fallback outputs bypass crystallization, and the optional best-of-cluster update can mutate an existing belief before the normal gate. See trace §§30–31 and backlog D-15.
