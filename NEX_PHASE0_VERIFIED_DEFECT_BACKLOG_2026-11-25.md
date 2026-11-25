@@ -238,3 +238,9 @@
 - Evidence: Stage 3 retrieval filters its direct candidate rows to tier<=6 and final results only emit IDs in that candidate map. But `ActivationEngine.activate()` traverses `belief_edges` without checking source/target belief tier, paused or locked state, and can propagate through Tier 8 nodes before final result assembly. It stamps all traversed edges. Harmonizer leaves graph edges in place when retiring beliefs; NovelAssociation and EdgeBuilder can also create edges involving retired rows under their current filters.
 - Impact: retired beliefs are hidden from direct retrieval results but can remain active as intermediate graph bridges that influence scores of active beliefs. It is unknown whether retirement is intended to remove a node from propagation or preserve its historical graph role.
 - Disposition: define active/retired graph semantics before changing edge generation, traversal, retirement or cleanup. Preserve current graph state pending founder/spec review.
+
+### G-15 — IntakeResonance log retention policy is not explicit
+- Type: data-lifecycle specification gap.
+- Evidence: `intake_resonance_log` is read by `scripts/intake_resonance_cli.py` for lifetime distribution/recent/top/bottom reports, but it is not in `nex_db_reaper.TARGETS` and no retention/compaction policy was found in the inspected source. Its table has no content uniqueness constraint.
+- Impact: the log is append-only in the inspected code and may grow with every resonance computation. Duplicate Dynamic crystallization measurements would be counted as independent events by the CLI's aggregate statistics.
+- Disposition: determine whether the intended dataset is lifetime-retained or time-bounded; document the choice and add isolated retention/aggregation tests only after the data-governance decision. Do not delete or prune live measurements.
