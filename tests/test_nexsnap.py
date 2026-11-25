@@ -130,3 +130,32 @@ def test_git_commit_refuses_artifact_outside_repository(monkeypatch, tmp_path):
 
     with pytest.raises(RuntimeError, match="outside repository"):
         nexsnap._repo_relative_path(tmp_path / "outside.json")
+
+def test_main_shares_one_runtime_capture_between_corpus_and_state(monkeypatch, tmp_path):
+    runtime = {"drives": {"coherence": 0.7}, "fountain_24h_by_branch": {"x": 3}}
+    extracted = []
+    received = {}
+
+    def extract_runtime():
+        extracted.append(runtime)
+        return runtime
+
+    def assemble(snap_ts, runtime=None):
+        received["corpus"] = runtime
+        return "# fixture corpus\\n"
+
+    def write_state(snap_ts, runtime=None):
+        received["state"] = runtime
+        return tmp_path / "state.json"
+
+    monkeypatch.setattr(nexsnap.ex, "extract_runtime_state", extract_runtime)
+    monkeypatch.setattr(nexsnap, "assemble_corpus", assemble)
+    monkeypatch.setattr(nexsnap, "write_state_json", write_state)
+    monkeypatch.setattr(nexsnap, "CORPUS_PATH", tmp_path / "CORPUS.md")
+    monkeypatch.setattr(nexsnap.time, "time", lambda: 1_700_000_000)
+
+    nexsnap.main([])
+
+    assert len(extracted) == 1
+    assert received["corpus"] is runtime
+    assert received["state"] is runtime
