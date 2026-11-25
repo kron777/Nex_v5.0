@@ -316,3 +316,9 @@
 - Evidence: CounterfactualNode calls `TimeFetch.fetch_from_beliefs()` before refinement. TimeFetch filters confidence/length/keyword but not tier/paused/locked. CounterfactualNode then gates the refined ThoughtPacket and inserts only on ACCEPT via the wrapped Writer.
 - Impact: a retired/paused/locked belief can become the source material for a new Tier 3 counterfactual belief if the refined candidate passes CoherenceGate. The gate checks the refined packet, not the source belief's status.
 - Disposition: define whether retired content may be used as historical source material for counterfactual generation. If not, apply the status policy at TimeFetch or the caller boundary after Gate 0; do not change it now.
+
+### G-21 — IntakeResonance measurement coverage is producer-dependent
+- Type: instrumentation coverage/specification gap.
+- Evidence: DynamicCrystallizer records twice (explicit compute plus wrapper probe); FountainCrystallizer records once (explicit compute, tags column skips wrapper); CounterfactualNode, HoldingZone promotion, SelfLocationCommitment and Fountain rut mirror record once through wrapper; WorldModel Synergizer is gated but supplies explicit tags and has no explicit resonance call, so records zero; HotObserver/life-loop direct SQL and raw boot seeds also record zero.
+- Impact: the log does not represent a uniform one-measurement-per-belief-admission population. Producer comparisons and aggregate CLI distributions are weighted differently; DynamicCrystallizer is double-counted while Synergizer and direct writers are absent.
+- Disposition: establish whether IntakeResonance is intended as universal, per-producer, or selective instrumentation. Then define a single measurement boundary and add isolated per-producer tests. Do not alter probes, tags or writer routing before the governing spec is available.
