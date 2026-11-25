@@ -246,8 +246,8 @@ def test_pattern_memory_rejects_invalid_confidence_on_insert(tmp_path, confidenc
 def test_pattern_memory_normalizes_finite_legacy_confidence_on_load(tmp_path):
     path = tmp_path / "patterns.jsonl"
     path.write_text(
-        '{"key":"low","statement":"s","provenance":"cycle:1","confidence":-0.2}\\n'
-        '{"key":"high","statement":"s","provenance":"cycle:2","confidence":1.2}\\n',
+        '{"key":"low","statement":"s","provenance":"cycle:1","confidence":-0.2}\n'
+        '{"key":"high","statement":"s","provenance":"cycle:2","confidence":1.2}\n',
         encoding="utf-8",
     )
     patterns = {p.key: p for p in PatternMemory(str(path)).patterns()}
@@ -258,7 +258,7 @@ def test_pattern_memory_normalizes_finite_legacy_confidence_on_load(tmp_path):
 def test_pattern_memory_rejects_non_finite_legacy_confidence_on_load(tmp_path):
     path = tmp_path / "patterns.jsonl"
     path.write_text(
-        '{"key":"bad","statement":"s","provenance":"cycle:1","confidence":NaN}\\n',
+        '{"key":"bad","statement":"s","provenance":"cycle:1","confidence":NaN}\n',
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="pattern confidence must be a finite number"):
