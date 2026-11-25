@@ -61,6 +61,7 @@ def _host_collect(args) -> int:
         results = collect_host_evidence(
             timeout=args.timeout,
             include_artifact_hashes=not args.skip_artifact_hashes,
+            repo_root=Path(args.repo_root).expanduser().resolve() if args.repo_root else None,
         )
         path = write_results(results, Path(args.out), force=args.force)
     except (OSError, ValueError) as exc:
@@ -143,6 +144,7 @@ def main(argv=None) -> int:
     hc = sub.add_parser("host-collect", help="run the fixed read-only host collection locally")
     hc.add_argument("--out", default="host_results.json", help="results JSON path")
     hc.add_argument("--timeout", type=int, default=600, help="timeout per command in seconds")
+    hc.add_argument("--repo-root", default=None, help="verified NEX checkout used as the working directory for relative read-only inspections")
     hc.add_argument("--skip-artifact-hashes", action="store_true", help="skip full-file DB/snapshot fingerprinting")
     hc.add_argument("--force", action="store_true", help="replace an existing output file")
     hc.set_defaults(fn=_host_collect)
