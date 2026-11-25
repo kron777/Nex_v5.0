@@ -674,9 +674,9 @@ No live table sizes or restart history were inspected. Do not drop or prune the 
 
 | Path | Tier 8 handling in source | Activation / graph effect |
 |---|---|---|
-| Fountain main own-content query | Explicit `tier < 8` | Directly rendered if selected |
-| Fountain associative recall | Explicit `tier < 8` | Token-overlap selection from active own-source pool |
-| Fountain residue fetch | Explicit `tier < 8` | Retrieved residue IDs are re-read only if still non-retired |
+| Fountain main own-content query | `tier < 8` only; no paused/locked predicate | Excludes Tier 8 but can surface paused Tier<8 rows |
+| Fountain associative recall | `tier < 8` only; no paused/locked predicate | Can select paused Tier<8 own-source rows |
+| Fountain residue fetch | `tier < 8` only; no paused/locked predicate | Rechecks retirement, but can still return paused rows |
 | Fountain seed-source slot | No tier predicate; source allowlist is intended for locked Tier 1 seed families | Expected protected seed content; status not independently enforced by query |
 | Fountain HotObserver slot | No tier/paused/locked predicate; 72-hour source/time filter only | Can directly inject retired HotObserver content |
 | Fountain substrate emission | `get_top_activated()` has no tier/status predicate; flag default OFF | Can format retired activated beliefs into a generated thought |
@@ -893,24 +893,9 @@ Git history for this path shows one commit (`f10ac308`, 2026-04-23, “Phase 1: 
 
 These conflicts make the missing Frozen V2.1 document material, not administrative. The April `SPECIFICATION.md` is clearly a governing artifact by its own terms, but it may have been superseded by a later founder-approved V2.1 spec that is not present in the searched archive/Library. Do not reconcile these meanings by assumption, edit the constitution, or implement behavior changes until the founder identifies the canonical governing version.
 
-## 60. Boot-time belief seeds execute before the TaggingBeliefWriter exists
 
-The two composition roots establish a clear ordering:
+## 60. Fountain's tier-only retrieval guards do not exclude paused rows
 
-- run.py calls init_all() before constructing the runtime writers dictionary and wrapping writers[beliefs] in TaggingBeliefWriter.
-- gui/server.py constructs and wraps its runtime writers inside build_state(), but its normal startup path also relies on the already-initialised substrate; it does not make the init_all() seed writers pass through that wrapper.
-- substrate.init_db.init_all() independently constructs raw Writer instances for each database, applies schema/migrations, performs seed operations, and closes those writers before returning.
+The main own-content query, associative-recall pool and residue re-read all use `tier < 8` as their status guard, but none of those queries checks `paused=0` (or `locked`). A Tier 3–7 belief temporarily paused by Harmonizer, or paused through another path, can therefore remain eligible for these Fountain paths. This differs from Stage 3 BeliefRetriever, NovelAssociation and EdgeBuilder, which explicitly filter paused rows in their candidate queries.
 
-The boot seed calls in init_all() are:
-
-1. keystone.reseed(writers[beliefs]). keystone.reseed() uses writer.write_many(statements) for its Tier 1 keystone and extended seed INSERTs. The normal call uses the default force=False; its DELETE branch is conditional on force=True and is not invoked by init_all().
-2. seed_blacklist(writers[beliefs]). This writes belief_blacklist rows, not beliefs rows, so it is outside the TaggingBeliefWriter target table even aside from the raw-writer boundary.
-3. seed_koans(writers[beliefs]). This issues individual INSERT OR IGNORE INTO beliefs statements through the raw Writer .write() method.
-
-Consequently, boot-time keystone and koan belief rows are created before the wrapper is constructed and do not receive its automatic tag generation or embedded IntakeResonance probe. The blacklist rows are not belief admissions and should not be counted as missing belief tags/resonance.
-
-A separate operator-invoked path, scripts/seed_identity_beliefs.py, also constructs a raw Writer for beliefs.db and writes identity Tier 1 rows without the wrapper. This is not part of the ordinary run.py boot path; its execution is conditional on an operator running that script.
-
-This is an instrumentation-coverage boundary, not automatically a defect. These are authored/bootstrap identity and reference seeds, not ordinary generated ThoughtPackets. There is no verified Frozen V2.1 acceptance criterion establishing that such seeds must pass through TaggingBeliefWriter, IntakeResonance, or CoherenceGate. Do not route them through the cognitive gate by assumption. The source comment in TaggingBeliefWriter claiming a UNIVERSAL chokepoint remains inaccurate: the precise coverage is limited to eligible single-statement belief INSERTs sent through the wrapped writer after wrapper construction. See §§56 and 58 for the separate .write_many() and per-producer measurement boundaries.
-
-Evidence locations: run.py database initialisation and wrapper construction; substrate/init_db.py::init_all; keystone.py::reseed; substrate/koan_seeds.py::seed_koans; substrate/blacklist_seeds.py::seed_blacklist; scripts/seed_identity_beliefs.py::seed_identity_beliefs.
+This may be intentional if `paused` is only a Harmonizer transaction marker rather than a general retrieval exclusion; the source does not establish that policy. No live paused rows or prompt manifests were inspected.

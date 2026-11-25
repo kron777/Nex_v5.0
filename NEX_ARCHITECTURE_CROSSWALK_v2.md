@@ -195,3 +195,12 @@ Other important conditional/source findings include unfiltered retired-row acces
 Residue retention source truth is corrected: `nex_db_reaper.py` includes a 2-day `beliefs.db:residue` target; the old residue module note claiming otherwise was stale. An isolated temp-DB test now covers that override. No live reaper was run.
 
 These are source-level findings only. No NEX DB, live flag, service, runtime behavior, experiment, baseline, tripwire or gate setting was changed. Gate 0 remains blocked pending founder review of the Reality Report, Crosswalk and verified defect backlog.
+
+
+## Governing specification version ambiguity
+
+A repository file `SPECIFICATION.md` has now been located. It is dated 2026-04-23, marked “Phase 0 Locked”, calls itself the NEX 5.0 Constitution, and states that it wins over later engineering until explicitly revised. Its path history contains one commit and no later amendment. It is not labelled Frozen V2.1 and is not identified by the handover as the exact Frozen V2.1 artifact.
+
+The April constitution materially conflicts with current source and the handover's later vocabulary: it defines Tier 8 as raw observations separate from the belief graph, while current code uses Tier 8 as retired tombstones; it specifies a new synthesized belief or deletion of both conflict originals, while current Harmonizer reuses an existing bridge and retains Tier 8 tombstones; it makes the one-pen writer queue non-negotiable, while several current modules write directly through SQLite; and it lists five databases while runtime paths define six.
+
+Do not assume this April constitution is the Frozen V2.1 spec or silently override it. The exact V2.1 spec and founder Gate 0 sign-off remain absent from the searched archive/Library. Founder must identify the canonical governing version and approved amendments before normative remediation.

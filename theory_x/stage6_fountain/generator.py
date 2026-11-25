@@ -2696,11 +2696,12 @@ class FountainGenerator:
         not rendered prompt share: the dedicated own-content prompt block is
         separately gated by NEX5_OWN_CONTENT_RENDER (source default OFF).
 
-        This main own-content query admits tiers 3-7 and explicitly excludes
-        tier=8 retired rows. That filter applies to this query only. Special
-        prompt slots, TimeFetch, reanimation and graph producers have their
-        own status predicates; do not infer universal retired-row exclusion
-        from this query. See the Phase 0 producer/consumer trace.
+        This main own-content query filters tier < 8, but has no paused or
+        locked predicate. That filter applies to this query only. Special
+        prompt slots, TimeFetch, reanimation and graph producers use separate
+        queries, several of which omit tier/paused/locked filters; do not
+        infer universal active-row filtering from this query. See the Phase 0
+        producer/consumer trace.
 
         Boost: beliefs with a belief_boost row rise in priority via additive
         time-bonus. A boost of B treats the belief as if created

@@ -67,3 +67,12 @@ The latest source-trace tranche and verified defect backlog are expanded; see th
 The current audit also records retired-row filter gaps across Fountain/VoiceEngine/reanimation/graph paths, a DormancyScanner scan-progress issue, VoiceEngine's separate substrate-first reply path, and non-uniform IntakeResonance measurement across producers. Residue retention documentation now matches the reaper's 2-day target, with an isolated temp-DB test added.
 
 **Founder help is now required to proceed from evidence into remediation:** provide the exact Frozen V2.1 specification and the founder approval/sign-off record for Gate 0 (or point to their canonical Library paths). The archive and Library searches returned the handover/roadmap references but not those governing artifacts. Until then, continue read-only source analysis and isolated tests only; do not implement behavior changes, change flags, run live retention, merge, deploy or activate services.
+
+
+## Founder clarification required — governing specification version
+
+The repo contains `SPECIFICATION.md`, dated 2026-04-23 and marked “Phase 0 Locked”. It calls itself the NEX 5.0 Constitution and says it wins over later engineering until explicitly amended; its Git path history shows no later amendment. It is not labelled Frozen V2.1. It conflicts with current code on Tier 8 meaning, Harmonizer synthesis/deletion behavior, the one-pen rule, and the database inventory.
+
+The exact Frozen V2.1 document and founder Gate 0 approval record were not found in the searched archive/Library. The April constitution may have been superseded, but that cannot be inferred.
+
+**Please provide or point me to the canonical Frozen V2.1 specification and Gate 0 founder sign-off record, and clarify whether the April `SPECIFICATION.md` remains governing or was superseded.** Until then, no behavior remediation, spec edits, live DB writes/retention, flag changes, service activation, merge or deployment.

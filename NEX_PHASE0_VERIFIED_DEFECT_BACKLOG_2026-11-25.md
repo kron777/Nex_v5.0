@@ -328,3 +328,10 @@
 - Evidence: repository `SPECIFICATION.md` is dated 2026-04-23, marked Phase 0 Locked, calls itself the Constitution of NEX 5.0, says it wins over later engineering until explicitly revised, and says revisions must be logged. Its path history shows one commit and no later amendment. It is not labelled Frozen V2.1. The handover separately identifies a Frozen V2.1 spec as higher authority, but that exact artifact and the founder approval record were not found in the searched archive/Library.
 - Impact: the April constitution conflicts with current source on Tier 8 meaning (raw observations vs retired tombstones), Harmonizer resolution (new synthesis/deletion vs existing bridge/retained tombstones), one-pen writes (queue-only vs direct SQLite writers), and database inventory (five vs six). Without knowing whether V2.1 superseded this constitution, source findings cannot all be classified as normative defects.
 - Disposition: founder must identify the canonical Frozen V2.1 document and approval record, or explicitly confirm the April `SPECIFICATION.md` remains governing and identify its approved amendments. No behavior remediation, spec edits, or authority changes before that clarification.
+
+
+### D-35 — Fountain tier-only retrieval paths can still select paused beliefs
+- Type: source-level status-filter inconsistency; live incidence UNKNOWN.
+- Evidence: Fountain main own-content selection, associative-recall pool and residue re-read all filter `tier < 8` but omit `paused=0`. Stage 3 BeliefRetriever, NovelAssociation and EdgeBuilder candidate queries do filter paused rows.
+- Impact: a Tier<8 belief paused during Harmonizer resolution or by another path can still enter Fountain retrieval through these slots. Whether pause is intended to suppress all retrieval or only conflict processing is unspecified.
+- Disposition: define paused-state semantics and apply them consistently only after Gate 0 / explicit approval. Do not change retrieval filters now.

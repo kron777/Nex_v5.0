@@ -102,9 +102,11 @@ def fetch_residue_beliefs(reader, belief_ids: list[int]) -> list[dict]:
     (activation_strength-ordered popping is not FIFO); a belief tombstoned
     (tier=8) after being saved as residue but before being popped would
     otherwise still surface here, since this lookup is by raw id with no
-    other filter -- own_rows now excludes tier=8 at the source too, but
-    this guards the pre-existing backlog and any future case of the same
-    shape.
+    other status filter. The tier < 8 predicate below rechecks retirement,
+    but paused and locked state are not checked; callers that require those
+    constraints must enforce them separately. own_rows now excludes tier=8
+    at the source too, but this guards the pre-existing backlog and any
+    future case of the same shape.
     """
     if not belief_ids:
         return []

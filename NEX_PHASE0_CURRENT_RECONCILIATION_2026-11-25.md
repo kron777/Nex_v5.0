@@ -186,3 +186,12 @@ The expanded audit also identifies route-specific retired-belief filters, graph 
 Residue retention was rechecked against current source: the reaper includes a 2-day residue target, contrary to the old residue module note. The stale note is corrected and an isolated temp-DB test covers the target override.
 
 **No Gate 0 crossing:** Frozen V2.1 specification and founder approval record remain absent from the searched archive/Library sources. No runtime behavior, live DB, service, active experiment, baseline, tripwire, safety/ethics/authority setting or deployment was changed. Founder review remains required before any behavior remediation.
+
+
+## Governing specification discovery and authority blocker
+
+The repository contains `SPECIFICATION.md` (2026-04-23, “Phase 0 Locked”), which explicitly calls itself the NEX 5.0 Constitution and says it wins over later engineering until explicitly amended. Its Git path history shows one commit and no later amendment. It is not labelled V2.1, so it cannot safely be equated with the Frozen V2.1 spec referenced by the handover.
+
+This April constitution conflicts with current source on Tier 8 meaning, Harmonizer synthesis/deletion semantics, the one-pen rule, and the number of databases. These may be approved later changes, but the exact Frozen V2.1 spec and founder approval record were not found in the searched archive/Library. The source audit therefore records evidence without treating these conflicts as automatically authorized deviations.
+
+Gate 0 remains blocked. Founder must provide or identify the canonical Frozen V2.1 specification and sign-off record, and clarify whether the April `SPECIFICATION.md` remains governing or has been superseded. No behavior changes, spec amendments, live DB changes, service activation, merge or deployment are authorized by the current approval to continue isolated work.
