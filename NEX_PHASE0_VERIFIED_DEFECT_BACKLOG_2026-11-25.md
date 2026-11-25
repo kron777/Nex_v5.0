@@ -274,3 +274,9 @@
 - Evidence: `gui/server.py` comment says `use_substrate` suppresses LLM fallback and a miss returns a substrate deflection. On a miss, however, `text` remains None and the route calls `state.voice.speak()`; `VoiceClient.speak()` invokes the configured LLM request function.
 - Impact: source comments misdescribe the actual fallback behaviour and may cause incorrect assumptions about whether the LLM is called on substrate misses.
 - Disposition: correct the comment after confirming intended Phase 30 behaviour. Do not change routing or fallback semantics without explicit approval.
+
+### D-30 — Fountain Favorites and Surprise blocks can render Tier 8 beliefs
+- Type: source-level prompt retrieval defect candidate; live incidence UNKNOWN.
+- Evidence: the Favorites block selects `affinity > 0.40` and renders two random rows without tier/paused/locked filters; Harmonizer retirement does not clear affinity. The recent Surprise block selects the latest `source='surprise'` belief within six hours without tier/status filters; the Surprise loop creates unlocked Tier 6 rows that Harmonizer can retire.
+- Impact: retired content can re-enter the Fountain prompt through these direct blocks even though the main own-content retrieval query filters `tier < 8`.
+- Disposition: validate with isolated fixtures and reconcile a single retired-belief retrieval policy across all prompt blocks. Do not change prompt queries or affinity state before Gate 0 / explicit approval.
