@@ -892,3 +892,25 @@ Git history for this path shows one commit (`f10ac308`, 2026-04-23, “Phase 1: 
 - **Database inventory:** the specification lists five DBs (beliefs, sense, dynamic, intel, conversations); current `substrate/paths.py` defines six, adding probes.db. This may be a later approved extension, but no amendment to `SPECIFICATION.md` was found.
 
 These conflicts make the missing Frozen V2.1 document material, not administrative. The April `SPECIFICATION.md` is clearly a governing artifact by its own terms, but it may have been superseded by a later founder-approved V2.1 spec that is not present in the searched archive/Library. Do not reconcile these meanings by assumption, edit the constitution, or implement behavior changes until the founder identifies the canonical governing version.
+
+## 60. Boot-time belief seeds execute before the TaggingBeliefWriter exists
+
+The two composition roots establish a clear ordering:
+
+- run.py calls init_all() before constructing the runtime writers dictionary and wrapping writers[beliefs] in TaggingBeliefWriter.
+- gui/server.py constructs and wraps its runtime writers inside build_state(), but its normal startup path also relies on the already-initialised substrate; it does not make the init_all() seed writers pass through that wrapper.
+- substrate.init_db.init_all() independently constructs raw Writer instances for each database, applies schema/migrations, performs seed operations, and closes those writers before returning.
+
+The boot seed calls in init_all() are:
+
+1. keystone.reseed(writers[beliefs]). keystone.reseed() uses writer.write_many(statements) for its Tier 1 keystone and extended seed INSERTs. The normal call uses the default force=False; its DELETE branch is conditional on force=True and is not invoked by init_all().
+2. seed_blacklist(writers[beliefs]). This writes belief_blacklist rows, not beliefs rows, so it is outside the TaggingBeliefWriter target table even aside from the raw-writer boundary.
+3. seed_koans(writers[beliefs]). This issues individual INSERT OR IGNORE INTO beliefs statements through the raw Writer .write() method.
+
+Consequently, boot-time keystone and koan belief rows are created before the wrapper is constructed and do not receive its automatic tag generation or embedded IntakeResonance probe. The blacklist rows are not belief admissions and should not be counted as missing belief tags/resonance.
+
+A separate operator-invoked path, scripts/seed_identity_beliefs.py, also constructs a raw Writer for beliefs.db and writes identity Tier 1 rows without the wrapper. This is not part of the ordinary run.py boot path; its execution is conditional on an operator running that script.
+
+This is an instrumentation-coverage boundary, not automatically a defect. These are authored/bootstrap identity and reference seeds, not ordinary generated ThoughtPackets. There is no verified Frozen V2.1 acceptance criterion establishing that such seeds must pass through TaggingBeliefWriter, IntakeResonance, or CoherenceGate. Do not route them through the cognitive gate by assumption. The source comment in TaggingBeliefWriter claiming a UNIVERSAL chokepoint remains inaccurate: the precise coverage is limited to eligible single-statement belief INSERTs sent through the wrapped writer after wrapper construction. See §§56 and 58 for the separate .write_many() and per-producer measurement boundaries.
+
+Evidence locations: run.py database initialisation and wrapper construction; substrate/init_db.py::init_all; keystone.py::reseed; substrate/koan_seeds.py::seed_koans; substrate/blacklist_seeds.py::seed_blacklist; scripts/seed_identity_beliefs.py::seed_identity_beliefs.
