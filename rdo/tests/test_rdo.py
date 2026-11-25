@@ -626,6 +626,37 @@ def test_metrics_fail_closed_on_malformed_legacy_signature_match_containers():
     assert cycle_metrics(valid)["signature_matches"] == 2
 
 
+def test_reconciliation_coverage_excludes_unreviewed_reuse_consistently():
+    from rdo.memory import cycle_metrics
+    from rdo.reconcile import summarize
+
+    invalid = Obligation("unreviewed", "unreviewed reuse", "test",
+                         recon_status=REUSE_EXISTING)
+    invalid_summary = summarize({invalid.key: invalid})
+    invalid_cycle = CycleRecord(
+        id="invalid-reuse-coverage", objective="o",
+        obligations=[invalid.to_dict()],
+    )
+    invalid_metrics = cycle_metrics(invalid_cycle)
+    assert invalid_summary[RECON_UNKNOWN] == ["unreviewed"]
+    assert invalid_metrics["reconciliation_status_coverage"] == 0.0
+
+    reviewed = Obligation(
+        "reviewed", "reviewed reuse", "test", recon_status=REUSE_EXISTING,
+        recon_evidence=["src/reuse.py:12"], confidence="measured",
+        recon_semantic_verified=True,
+        recon_semantic_review_evidence=["manual review: obligation satisfied"],
+    )
+    reviewed_summary = summarize({reviewed.key: reviewed})
+    reviewed_cycle = CycleRecord(
+        id="reviewed-reuse-coverage", objective="o",
+        obligations=[reviewed.to_dict()],
+    )
+    reviewed_metrics = cycle_metrics(reviewed_cycle)
+    assert reviewed_summary[REUSE_EXISTING] == ["reviewed"]
+    assert reviewed_metrics["reconciliation_status_coverage"] == 1.0
+
+
 def test_signature_evidence_coverage_rejects_inconsistent_counts():
     from rdo.memory import cycle_metrics
 
