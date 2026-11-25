@@ -108,6 +108,7 @@ def test_checkout_and_process_requests_are_redacted_and_fail_closed():
 
     assert "/home/rr/Desktop/Desktop/nex5" in checkout
     assert "/home/rr/Desktop/NEX_AUDIT/Nex_v5.0-main" in checkout
+    assert "/mnt/games/storage/Desktop/Desktop/nex5" in checkout
     assert "remote get-url origin" in checkout
     assert "origin_identity=" in checkout
     assert "origin_sanitized=" not in checkout
@@ -146,6 +147,7 @@ def test_artifact_fingerprint_is_derived_no_follow_and_failure_safe():
     commands = "\n".join(request.read_only_commands)
 
     assert "NEX5_DATA_DIR" in commands
+    assert "/mnt/games/storage/Desktop/Desktop/nex5" in commands
     assert "runtime_process_candidate_count=" in commands
     assert "UNKNOWN_NO_UNIQUE_PROCESS_CANDIDATE" in commands
     assert "UNVERIFIED_CANDIDATE" in commands
@@ -234,7 +236,7 @@ def test_artifact_roots_fallback_to_named_checkouts_and_execute_scan(tmp_path, c
     scan = helpers["scan_artifact_roots"]
 
     checkouts = []
-    for name in ("runtime_checkout", "audit_checkout"):
+    for name in ("runtime_checkout", "audit_checkout", "preserved_runtime_checkout"):
         checkout = tmp_path / name
         (checkout / "substrate").mkdir(parents=True)
         (checkout / "run.py").write_text("# fixture marker", encoding="utf-8")
@@ -250,6 +252,7 @@ def test_artifact_roots_fallback_to_named_checkouts_and_execute_scan(tmp_path, c
     assert [item[0] for item in targets] == [
         "known_checkout_1_data",
         "known_checkout_2_data",
+        "known_checkout_3_data",
     ]
     assert all(item[2] == "known_checkout_default_candidate_active_root_unknown" for item in targets)
     assert all(item[3] is None for item in targets)
@@ -261,6 +264,8 @@ def test_artifact_roots_fallback_to_named_checkouts_and_execute_scan(tmp_path, c
     assert "known_checkout_1_data_snapshot_archive_artifact stable=YES" in output
     assert "known_checkout_2_data_artifact stable=YES" in output
     assert "known_checkout_2_data_snapshot_archive_artifact stable=YES" in output
+    assert "known_checkout_3_data_artifact stable=YES" in output
+    assert "known_checkout_3_data_snapshot_archive_artifact stable=YES" in output
 
     # A unique process candidate remains the only authority for a custom data root.
     custom_data = tmp_path / "custom_runtime_data"
