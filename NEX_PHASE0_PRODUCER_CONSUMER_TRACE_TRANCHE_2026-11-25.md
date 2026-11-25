@@ -1092,3 +1092,18 @@ IdentityLoop's new_beliefs_6h metric does count all recent belief rows, so Patte
 BeliefRetriever's unfiltered outside route may still retrieve these beliefs for ordinary queries, so this is not a claim that the rows are globally unreadable. The narrower verified result is that the explicitly described recursive self-model feedback into the next IdentityLoop composition and the explicit INSIDE self-inquiry context are not established by current source.
 
 This is a source/documentation discrepancy and possible incomplete feedback edge, not an instruction to add a new dependency. The current design may intentionally use a feed-forward sequence plus an aggregate metric; if so, the module docstrings overstate the closed-loop semantics. Founder/design clarification is required before altering this architecture.
+## 69. Active branch has not integrated the October 26 owner timezone decision present on main
+
+Main contains commit c247c240f8 (2026-10-26), titled “clock: one timezone for NEX (NEX5_TZ, default Africa/Johannesburg)”. Its commit message records an owner decision for Africa/Johannesburg (SAST) and migrates four life loops plus decoder features, Fountain prompt time, temporal sense, downtime, quiet hours and GUI time bucketing to nex_config.local_tz/local_dt/local_utc_offset_seconds. It adds tests/test_local_tz.py, including a frozen-UTC test demonstrating the schedule difference between Johannesburg and Amsterdam.
+
+The active development branch claude/nex-continuity-wire does not contain that migration:
+
+- theory_x/life/identity_loop.py still imports ZoneInfo and sets TZ = ZoneInfo('Europe/Amsterdam').
+- theory_x/life/pattern_loop.py still hardcodes Europe/Amsterdam.
+- theory_x/life/witness_loop.py still hardcodes Europe/Amsterdam.
+- theory_x/life/daily_life.py still hardcodes Europe/Amsterdam.
+- The active-branch nex_config.py has no NEX5_TZ registry entry, DEFAULT_TZ, or local_tz helper. The main version has them, with Africa/Johannesburg as the default.
+
+This is a branch-integration discrepancy with a later owner decision recorded in main, not a change to apply silently. The October 26 commit spans multiple files beyond the four life loops, so selectively copying only those four files would be an incomplete backport. The active branch is already known to be materially behind main; do not merge/rebase wholesale or cherry-pick this commit without explicit approval.
+
+Operational consequence if the active checkout is run with its current source: the four scheduled loops use Europe/Amsterdam local time, not the main-branch NEX5_TZ/Africa-Johannesburg clock. This is source-level behavior only; no service was started and no current loop activity was observed. The timezone migration should be included in branch reconciliation after the founder confirms that the October 26 decision is intended for the active host branch.
