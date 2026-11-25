@@ -77,7 +77,7 @@ These are distinct from the drive-probe and ThrowNet paths, which submit packets
 
    These are normal-wired Stage 2 background loops in source, not just standalone scripts. They were introduced after the May 10 Phase 22 universal-gating record, as detailed in the prior trace §65. Whether each loop's output is a “thought” within the intended universal-gate scope is a governing-contract question, not something source inspection can decide.
 
-4. **HotObserver** — `theory_x/stage_tom/hot_observer.py` contains a direct Tier 3 belief insertion through `substrate.connect()`. However, the inspected `run.py`, `gui/server.py` and `theory_x/stage_tom/__init__.py` do not show a normal boot import/wiring path for HotObserver. It is therefore recorded as a module-level writer whose normal runtime activation is unverified, not counted as a confirmed boot-wired producer.
+4. **HotObserver** — `theory_x/stage_tom/hot_observer.py` contains a direct Tier 3 belief insertion through `substrate.connect()`. The import is dynamic: `FountainGenerator.generate()` imports and calls `hot_observer.observe()` on the normal Fountain path when `NEX5_HOT_OBSERVER=1` (around generator.py lines 2023–2025). Thus this is a conditional, Fountain-wired runtime producer, not an unreferenced module. The source default is OFF; the host-effective flag is UNKNOWN. The dedicated later retrieval query selects HotObserver rows into an intermediate candidate list, but the current prompt builder does not render them as normal Fountain prompt text (see the corrected producer/consumer trace §72).
 
 ### C. Self-knowledge and bootstrap writes — not ordinary generated-thought producers
 
