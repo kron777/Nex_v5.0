@@ -924,6 +924,29 @@ def test_active_experiment_registry_unreadable_or_invalid_fails_closed(tmp_path,
     with pytest.raises(PermissionError):
         _active_experiments(str(tmp_path))
 
+def test_cycle_store_rejects_unsafe_cycle_ids_before_file_access(tmp_path):
+    store = CycleStore(str(tmp_path / "cycles"))
+    unsafe_ids = [
+        "",
+        ".",
+        "..",
+        "../escape",
+        "../../../../tmp/escape",
+        "/absolute/path",
+        r"..\\escape",
+        "bad\x00id",
+        "x" * 129,
+    ]
+
+    for cycle_id in unsafe_ids:
+        with pytest.raises(ValueError, match="cycle id"):
+            store.save(CycleRecord(id=cycle_id, objective="unsafe id"))
+        with pytest.raises(ValueError, match="cycle id"):
+            store.load(cycle_id)
+
+    assert not (tmp_path / "escape.json").exists()
+
+
 def test_cycle_store_preserves_evidence_refs_without_promoting_kind(tmp_path):
     from rdo.model import NATIVE_PLANNING
     from rdo.memory import metrics_series
