@@ -155,6 +155,7 @@ The static producer/consumer trace now extends through §81. The current detaile
 - `NEX_PHASE0_SELF_CONTINUITY_SEMANTICS_AUDIT_2026-11-25.md` — default-OFF Phase 1 continuity query/phrase semantics, missing-value handling, timestamp ties and cleanup.
 - `NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md` — actual M0.5 seams, missing trace/parent IDs, caller-declared L4, and raw-preview privacy/retention.
 - `NEX_PHASE0_MAIN_BRANCH_MIND_MAP_RECONCILIATION_2026-11-25.md` — main-only MIND_MAP lineage and 12 referenced files absent from active base; no import/merge/rebase performed.
+- `NEX_PHASE0_MOLTBOOK_EXTERNAL_IO_AND_DRY_RUN_AUDIT_2026-11-25.md` — all three Moltbook workers, GET/non-GET dry-run, synthetic local success states, unfiltered outbound beliefs and inbound DM path; no external endpoint contacted.
 
 ### Deployment qualification
 
@@ -167,6 +168,6 @@ The tracked `nex_keepalive.sh` declares a high-activation environment, including
 - AppState.close does not stop/join most background producers before closing Writers. Writer sentinel/late-submit behavior and the keepalive wrapper's 15-second kill deadline create a conditional shutdown race. No shutdown was run.
 - WorldConsolidator and BeliefPromoter tier mutation paths do not consistently recheck paused state.
 
-Backlog additions now extend through G-47, including conditional shutdown, Moltbook, launcher evidence, signal retention/transaction, problem/goal lifecycle, continuity semantics and influence-trace evidence gaps. These remain source-level findings and policy questions, not claims of live incidents. No runtime code, tests, flags, databases, services, probes, external APIs or deployments were changed or run.
+Backlog now uses unique G-34 through G-50 IDs, including shutdown, Moltbook, launcher evidence, prediction/surprise, signal retention/transaction, problem/goal lifecycle, continuity semantics and influence-trace evidence gaps. These remain source-level findings and policy questions, not claims of live incidents. No runtime code, tests, flags, databases, services, probes, external APIs or deployments were changed or run.
 
 Gate 0 remains pending. The exact Frozen V2.1 normative text and founder sign-off record remain unavailable; do not remediate, activate, merge or deploy based on these findings until that authority is recovered or explicitly re-established by the founder.
