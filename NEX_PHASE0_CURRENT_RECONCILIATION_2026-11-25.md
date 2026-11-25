@@ -269,3 +269,8 @@ The reaper list preserves obsolete signal types and omits current promotable typ
 ## Self-continuity consumer audit — 2026-11-25
 
 The current reconciliation's continuity candidate list has been checked against the exact helper, SelfMindView, Chat call site and isolated tests. The detailed source audit is `NEX_PHASE0_SELF_CONTINUITY_SEMANTICS_AUDIT_2026-11-25.md`. The flag remains default-OFF; no host value was read or changed. Verified issues are limited to emotion-only phrase logic despite a three-field query, missing-value handling, generic fallback semantics, timestamp tie ordering and lack of finally-protected connection cleanup. No Phase 1 behaviour was modified.
+
+
+## M0.5 InfluenceRecord coverage audit — 2026-11-25
+
+The M0.5 overlay is now traced from its actual Fountain and Chat call sites through schema, evidence-level logic, fixture and tests. See `NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md`. The implementation is a default-OFF two-seam side-channel capture, not the full candidate→selection→Gate→writer→output lineage described in the recorded roadmap extract. It has no trace_id/parent_ids, Chat cycle_id is session-scoped, L4 is caller-declared, and enabled traces contain raw text previews without an in-module retention/redaction policy. The exact Frozen V2.1 authority is still missing; no expansion or activation was made.
