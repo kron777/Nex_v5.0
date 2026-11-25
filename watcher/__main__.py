@@ -3,7 +3,8 @@
   python -m watcher recon [--repo .] [--out DIR]    # cloud recon -> report.md + .json
   python -m watcher graph                           # runtime graph + feedback cycles (JSON)
   python -m watcher host-request                    # read-only host-side spec (for Claude Code)
-  python -m watcher host-template [--out FILE]      # blank host-results file for Claude Code to fill
+  python -m watcher host-template [--out FILE]      # blank host-results file
+  python -m watcher host-collect [--out FILE]       # execute fixed read-only host collection locally
   python -m watcher snapshot [--repo .] --label L [--out DIR] [--stage S]
                                                     # capture a before/after evidence snapshot
   python -m watcher combined [--repo .] [--results host.json] [--out DIR]
@@ -45,13 +46,44 @@ def _host_request(_args) -> int:
     return 0
 
 
+def _host_collect(args) -> int:
+    from .host_runner import collect_host_evidence, write_results
+
+    if not args.skip_artifact_hashes:
+        print(
+            "NOTICE: SHA-256 fingerprinting reads selected DB/snapshot files in full; "
+            "this may cause substantial disk I/O. Use --skip-artifact-hashes to omit it.",
+            file=sys.stderr,
+            flush=True,
+        )
+    try:
+        results = collect_host_evidence(
+            timeout=args.timeout,
+            include_artifact_hashes=not args.skip_artifact_hashes,
+        )
+        path = write_results(results, __import__("pathlib").Path(args.out), force=args.force)
+    except (OSError, ValueError) as exc:
+        print(f"host collection failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 2
+    failures = sum(
+        row.get("data", {}).get("failed_command_count", 0)
+        for key, row in results.items() if not key.startswith("_")
+    )
+    skipped = sum(
+        row.get("data", {}).get("status") == "SKIPPED_BY_OPERATOR"
+        for key, row in results.items() if not key.startswith("_")
+    )
+    print(f"wrote {path}; requests={len(results) - 1}; command_failures={failures}; skipped_requests={skipped}")
+    return 0 if failures == 0 else 1
+
+
 def _host_template(args) -> int:
     tpl = json.dumps(host_results_template(), indent=2)
     if args.out:
         with open(args.out, "w", encoding="utf-8") as fh:
             fh.write(tpl)
         print(f"wrote blank host-results template to {args.out} "
-              f"(Claude Code fills `data` on the machine, then: watcher combined --results {args.out})")
+              f"(fill `data` with provenance-bearing host observations, then: watcher combined --results {args.out})")
     else:
         print(tpl)
     return 0
@@ -107,7 +139,14 @@ def main(argv=None) -> int:
     sub.add_parser("graph", help="print the runtime graph + feedback cycles").set_defaults(fn=_graph)
     sub.add_parser("host-request", help="print the host-side read-only spec").set_defaults(fn=_host_request)
 
-    ht = sub.add_parser("host-template", help="emit a blank host-results file for Claude Code")
+    hc = sub.add_parser("host-collect", help="run the fixed read-only host collection locally")
+    hc.add_argument("--out", default="host_results.json", help="results JSON path")
+    hc.add_argument("--timeout", type=int, default=600, help="timeout per command in seconds")
+    hc.add_argument("--skip-artifact-hashes", action="store_true", help="skip full-file DB/snapshot fingerprinting")
+    hc.add_argument("--force", action="store_true", help="replace an existing output file")
+    hc.set_defaults(fn=_host_collect)
+
+    ht = sub.add_parser("host-template", help="emit a blank host-results file")
     ht.add_argument("--out", default=None)
     ht.set_defaults(fn=_host_template)
 
