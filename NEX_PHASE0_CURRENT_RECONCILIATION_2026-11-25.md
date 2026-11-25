@@ -231,3 +231,9 @@ Main commit c247c240f8 (2026-10-26) records the owner decision for Africa/Johann
 ## Recursive self-model feedback source check — trace §68
 
 Current code shows IdentityLog → PatternLoop → PatternLog → WitnessLoop → WitnessLog. IdentityLoop does not read Pattern/Witness content when composing its next statement; only aggregate new-belief count may change. Fountain directly injects IdentityLog, but no Pattern/Witness prompt injection was found. The documented closed L1→L2→L3→L1 semantic feedback is therefore unverified in source. See G-28.
+
+## Final source-tranche update — 2026-11-25 (trace §§68–71)
+
+G-28 records that the documented Identity→Pattern→Witness→Identity semantic feedback is not present in the inspected source; the actual path is a forward chain with aggregate-count feedback. G-29 records SignalToProblem's direct open_problems tags ['auto', 'signal:<type>'] and the dependent advancements_drift debounce query. §71 records the intentional 2026-05-16 disable of CounterfactualNode review_queue auto-promotion and explicitly skipped tests; this is not a missing-producer defect. D-38 records the active branch's missing NEX5_TZ migration from main.
+
+Trace extends through §71. PR #98 remains draft. The last observed workflow run targets an earlier commit and is not an exact-head validation for subsequent docs-only commits.
