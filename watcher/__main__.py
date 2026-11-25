@@ -4,7 +4,7 @@
   python -m watcher graph                           # runtime graph + feedback cycles (JSON)
   python -m watcher host-request                    # read-only host-side spec (for Claude Code)
   python -m watcher host-template [--out FILE]      # blank host-results file
-  python -m watcher host-collect [--out FILE]       # execute fixed read-only host collection locally
+  python -m watcher host-collect [--out FILE] [--repo-root DIR]  # execute fixed read-only host collection locally
   python -m watcher snapshot [--repo .] --label L [--out DIR] [--stage S]
                                                     # capture a before/after evidence snapshot
   python -m watcher combined [--repo .] [--results host.json] [--out DIR]
