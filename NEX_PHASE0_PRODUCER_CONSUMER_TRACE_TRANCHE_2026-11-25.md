@@ -1298,7 +1298,7 @@ The detailed route map is NEX_PHASE0_CHAT_ROUTE_VARIANTS_AUDIT_2026-11-25.md; th
 
 The detailed map is NEX_PHASE0_MEMBRANE_PROVENANCE_COVERAGE_AUDIT_2026-11-25.md. INSIDE routing combines formatted SelfModel state with a separate INSIDE belief retrieval. SelfModel standing-points are plain content lines, not Tier-formatted rows, and the provenance parser normally does not include them. The provenance snapshot is captured from the initial retrieval text before later Chat augmentations and tool results; it is therefore a narrow retrieval snapshot, not a complete transcript of every contextual influence in the final prompt. The audit also traces repeated beliefs_query retrieval and multiline marker-shaped content as conditional attribution risks, with no live incidence established.
 
-## 79. Main-only MIND_MAP and active-host branch reconciliation
+## 82. Main-only MIND_MAP and active-host branch reconciliation
 
 The detailed branch/source-reference audit is in `NEX_PHASE0_MAIN_BRANCH_MIND_MAP_RECONCILIATION_2026-11-25.md`.
 
