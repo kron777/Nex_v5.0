@@ -59,17 +59,25 @@ def eligibility(ob: Obligation, obligations: Dict[str, Obligation],
                 active_experiments: Optional[List[str]] = None,
                 authorised_gates: Optional[set] = None) -> Dict[str, object]:
     """Stage-1 hard-constraint check for a single obligation."""
-    active_experiments = active_experiments or []
     authorised_gates = authorised_gates or set()
     blockers: List[str] = []
+
+    # None means the registry could not be established. It is deliberately distinct
+    # from [] (a successfully read registry with no active/pending experiments).
+    # Unknown registry state must never be interpreted as "no protected experiments".
+    if active_experiments is None:
+        blockers.append(
+            "experiment registry unavailable or unverified — refusing to assume no active experiments"
+        )
+    else:
+        for exp in active_experiments:
+            if exp.lower() in (ob.title + ob.note).lower():
+                blockers.append(f"touches protected/active experiment window '{exp}'")
 
     if ob.kind in GATED_KINDS and ob.key not in authorised_gates:
         blockers.append("active behavioural change — needs a preregistered, authorised gate")
     if ob.kind in HOST_ONLY_KINDS:
         blockers.append("runtime evidence is host-only (NEX must be running; cloud cannot confirm)")
-    for exp in active_experiments:
-        if exp.lower() in (ob.title + ob.note).lower():
-            blockers.append(f"touches protected/active experiment window '{exp}'")
     # blocking dependency on an unbuilt necessary mechanism
     for rel in relationships:
         if rel.kind == "depends_on" and rel.src == ob.key:
