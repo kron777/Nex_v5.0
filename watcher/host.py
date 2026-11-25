@@ -174,7 +174,7 @@ def host_requests() -> List[HostRequest]:
             "classify_unknown_tools", "Classify the 5 unknown decryption tools (SOURCE ONLY)",
             "passive/isolated/active/unknown per tool, with cited side-effect lines",
             ["# read-only source inspection; DO NOT run them",
-             "grep -nE 'INSERT|UPDATE|DELETE|\\.commit|subprocess|connect\\(' "
+             "grep -nEi 'INSERT|UPDATE|DELETE|\\.commit|subprocess|connect\\(' "
              "decryption/{atlas_builder,classifier,differential_analyzer,spark_detector,"
              "nex_cognition_simulator}.py"]),
         HostRequest(
