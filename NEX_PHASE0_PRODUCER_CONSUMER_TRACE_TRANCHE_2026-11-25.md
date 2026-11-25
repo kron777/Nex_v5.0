@@ -974,6 +974,6 @@ Scope cautions:
 - The GUI writes require their respective endpoints to be invoked. Their presence is not evidence that a user invoked them.
 - The Fountain recursion_attrib write is in the normal generation path, but is best-effort and exceptions are swallowed. Source presence does not prove every fire persisted a row.
 - This is not an exhaustive audit of every GUI endpoint or every module in the repository. The One-Pen census remains open.
-- The world_predictions module also uses its own connect() helper for world_predictions inserts/updates, but its standalone status and current normal runtime wiring have not been established in this tranche; it is deliberately not classified as a normal-wired producer here.
+- The world_predictions module also uses its own connect() helper for world_predictions inserts/updates. Its WorldPredictionLoop is explicitly environment-gated by NEX5_WORLD_PRED=1 in run.py and defaults OFF; it is therefore an optional direct-connection path, not a normal-default active loop.
 
 These additions strengthen the source-level mismatch with SPECIFICATION.md §3 if that document remains authoritative. They do not establish contention, data loss, or a need to funnel every administrative or observational write through a cognition gate. Queue serialization and CoherenceGate scope are separate contracts. No code or runtime state was changed.
