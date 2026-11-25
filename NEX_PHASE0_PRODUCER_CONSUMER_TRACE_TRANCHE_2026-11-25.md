@@ -544,3 +544,6 @@ These are manual/one-time seed operations, not normal runtime producers. Whether
 
 
 **Downstream Fountain use:** the seed sources from `keystone.reseed()` and `seed_koans()` are members of `_SEED_SOURCES` in `generator.py`; `_retrieve_context_beliefs()` samples them as seed-reference material. `source='spectrum'` is handled in a separate standing-point block in `_build_prompt()`, which attempts one inward row (`id < 23000`) and one outward row (`id >= 23000`) per normal fire, with a random fallback if either pool is missing. Thus operator spectrum seeding is a prompt-input operation, not merely archival storage. Whether the manually seeded process/outward variants are present on the current host is UNKNOWN.
+
+
+**Chat consumption:** `gui/server.py:1670–1703` also samples `source='spectrum'` rows for the Chat prompt (up to six random standing-points in the main composition block, and a further up-to-four sample in the thin-belief Philosophical path). The source comment describes the block as always present when spectrum rows exist. Thus spectrum seed content is a shared prompt input to both autonomous Fountain generation and user-facing Chat composition. This does not apply CoherenceGate to the Chat reply; see §32.
