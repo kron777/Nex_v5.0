@@ -70,9 +70,15 @@ python -m watcher snapshot --label post-integration --stage s1 --out watcher/rep
 python -m watcher regression --before watcher/reports/snapshot_pre-integration_*.json \
                              --after  watcher/reports/snapshot_post-integration_*.json
 
-# the read-only host-side spec, and a blank results file for Claude Code to fill
+# inspect the fixed host-side read-only specification
 python -m watcher host-request
-python -m watcher host-template --out host_results.json
+
+# run the fixed collection locally on the NEX workstation
+# SHA-256 fingerprinting reads selected DB/snapshot files in full (disk I/O warning shown)
+python -m watcher host-collect --out host_results.json
+
+# optional: collect everything except full-file DB/snapshot fingerprints
+python -m watcher host-collect --skip-artifact-hashes --out host_results.json
 
 # cloud + host evidence in one report, origins preserved (host.json optional)
 python -m watcher combined --results host_results.json --out watcher/reports
@@ -97,7 +103,8 @@ python -m pytest watcher/tests -q
 | `regression.py` | regression detection between two snapshots (weakened evidence, passive→active tool, cycle-level drop) |
 | `longitudinal.py` | track a subject across an ordered series of snapshots (integration stages over time) |
 | `report.py` | structured Markdown/JSON reports |
-| `host.py` | the host-side read-only spec; host-results template + ingestion of Claude Code's host findings |
+| `host.py` | the host-side read-only spec; host-results template + provenance-aware ingestion |
+| `host_runner.py` | local executor for the fixed host request commands; writes a provenance-bearing JSON result |
 | `__main__.py` | CLI (`python -m watcher …`) |
 | `tests/` | passive-safety proofs + behaviour tests (isolated fixtures, temp data) |
 
@@ -105,8 +112,7 @@ python -m pytest watcher/tests -q
 
 This is the **passive observation + comparison foundation**. It performs no
 intervention: no live mutation, injection, flag change, DB write or restart.
-Host-side collection is *described* for Claude Code to run on the machine
-(`watcher host-request` / `host-template`), not executed here. Snapshots,
+Host-side collection is executed locally by the operator with `watcher host-collect`; cloud-side code never claims to have observed the workstation. Snapshots,
 regression detection and longitudinal series are the comparison layer over passive
 evidence — they observe change, they do not cause it. Isolated-testing and
 active-experiment modes are **not** built — they require explicit, per-experiment
