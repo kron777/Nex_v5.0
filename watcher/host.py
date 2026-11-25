@@ -75,7 +75,7 @@ def host_requests() -> List[HostRequest]:
                 "# Read-only process survey: process name only, never command-line arguments. "
                 "For Python candidates, accept only a working directory containing both "
                 "run.py and substrate/paths.py; record PID, /proc/PID/cwd and /proc/PID/exe.",
-                "ps -eo pid=,comm= | awk '$2 ~ /^python([0-9.]*)$/ {print $1}' | "
+                "ps -eo pid=,comm= | awk -v collector_pid="$NEX_WATCHER_COLLECTOR_PID" '$1 != collector_pid && $2 ~ /^python([0-9.]*)$/ {print $1}' | "
                 "while read -r pid; do "
                 "cwd=$(readlink -f \"/proc/$pid/cwd\" 2>/dev/null) || continue; "
                 "[ -f \"$cwd/run.py\" ] && [ -f \"$cwd/substrate/paths.py\" ] || continue; "
