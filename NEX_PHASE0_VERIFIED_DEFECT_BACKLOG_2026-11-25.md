@@ -421,75 +421,6 @@
 - Disposition: decide intended once-per-belief, retry, recovery and status semantics before any queue lifecycle change. No code change before Gate 0 / explicit approval.
 
 
-### G-34 — Normal shutdown does not coordinate most daemon workers
-- Type: source-level lifecycle coordination gap; practical impact UNKNOWN.
-- Evidence: `run.py` starts Stage 2, World Model, Membrane, Fountain, SpeechQueueConsumer, Signal, Diversity, EdgeGenerator and additional faculty daemon workers. `AppState.close()` explicitly shuts down the SenseScheduler and closes shared Writers but does not stop/join those other worker objects. The SIGTERM handler waits 1.5 seconds, sets only the decoder stop event, calls `state.close()`, then invokes `os._exit(0)`. The detailed source map is in `NEX_PHASE0_DYNAMIC_LOOP_AND_BOOT_WIRING_AUDIT_2026-11-25.md`.
-- Impact: non-Writer work and external operations may still be in progress when process exit terminates daemon threads. Static source does not establish that any operation was interrupted, that data was lost, or that current shutdown has caused an incident; Writer.close() is intended to drain queued writes.
-- Disposition: founder/design defines the required shutdown contract (best-effort bounded exit versus coordinated stop/drain/join, and treatment of external operations). Do not add stop/join behavior, extend the shutdown delay, or change service lifecycle before Gate 0 / explicit approval.
-
-
-### G-35 — External-input prediction generation and verification use different populations
-- Type: source-level prediction measurement-population mismatch; score impact UNKNOWN.
-- Evidence: `PredictiveSubstrate._predict_external()` selects sense rows with `stream NOT LIKE 'internal.%'`, separately selects user messages, concatenates sense rows before messages and truncates to ten; it does not globally sort the combined inputs by recency. `_verify_one()` for `external_input` then selects all sense events in the target window without the `internal.%` exclusion, plus user messages. Thus internal sense events can be used as verification “actuals” despite being excluded from the forecast input population, and recent user messages can be displaced by ten qualifying sense rows. See `NEX_PHASE0_PREDICTION_SURPRISE_CROSS_FACULTY_AUDIT_2026-11-25.md`.
-- Impact: external surprise scores may reflect a different event population from the one used to form the prediction, and the forecast may not represent the globally most recent ten inputs. No live data distribution or score effect was measured.
-- Disposition: define the intended external-input population and sampling order, then add isolated generation/verification tests. Do not change prediction queries or historical scores before Gate 0 / explicit approval.
-
-### G-36 — SurpriseLoop timestamp cursor can skip equal-time overflow and failed writes
-- Type: conditional derived-belief promotion loss/retry gap; live incidence UNKNOWN.
-- Evidence: `surprise_loop.surprise_tick()` selects flagged rows with `triggered_at > since ORDER BY triggered_at ASC LIMIT 20`, then advances a timestamp-only cursor to the maximum timestamp seen. PredictiveSubstrate resolves all due predictions in one tick using one `now` value for each generated `surprise_events.triggered_at`; if more than 20 eligible rows share that timestamp, rows beyond the first batch no longer satisfy the strict-greater-than cursor query. The loop also advances `max_ts` after a row's belief INSERT raises, so a transient failed insert is not retried by the cursor.
-- Impact: in a backlog/recovery case, some surprise events may never be promoted to beliefs. Normal steady-state cadence usually creates far fewer than 20 due events, but no runtime backlog was inspected.
-- Disposition: decide the required lossless/retry/dedup contract and use a stable row identity or composite cursor if warranted. Add isolated equal-timestamp overflow and failed-write tests after the contract is confirmed. Do not change the cursor or reprocess live events before Gate 0 / explicit approval.
-
-
-### G-37 — GoalManager-created open goals are not selected by CoherenceGate
-- Type: source-level producer/consumer state-vocabulary mismatch; live incidence UNKNOWN.
-- Evidence: `GoalManager.open()` and the goals schema create rows with `state='open'`; GoalManager list/get_active also selects `open`. `CoherenceGate._load_context()` selects only `state='active'`. No normal GoalManager method writes `active`. The Gate test helper seeds `active` directly, so it does not exercise the normal GoalManager/API producer path. The detailed trace is in `NEX_PHASE0_OPEN_PROBLEM_AND_GOAL_LIFECYCLE_AUDIT_2026-11-25.md`.
-- Impact: normal API-created goals are not included in the Gate's up-to-five goal context rows. No live goal population or Gate decision effect was measured.
-- Disposition: founder/design confirms whether `open` is the intended active goal state or whether `active` is a distinct state with an omitted transition. Align producer, consumer and integration tests only after the lifecycle contract is confirmed; no query or state change before Gate 0.
-
-### G-38 — ProblemMemory and GoalManager decay methods are not scheduled in normal boot
-- Type: lifecycle wiring/documentation gap; practical impact UNKNOWN.
-- Evidence: ProblemMemory.decay() closes open problems stale over 30 days; GoalManager.decay() cancels open goals stale over 60 days. Both classes are constructed in normal startup, but the inspected run.py/gui/server.py path does not call their tick()/decay() methods. `theory_x.register()` stores nodes in a process list and `all_nodes()` returns a copy; there is no tick/decay scheduler in the registry. The unit tests call decay() directly, not through a boot lifecycle.
-- Impact: the documented stale auto-close/auto-cancel behavior does not occur autonomously through the inspected normal startup path. Existing stale records can remain open absent manual/API state changes.
-- Disposition: founder/design confirms whether decay is intended to be manually invoked, called by another orchestrator, or scheduled. Do not introduce a lifecycle scheduler or alter stale thresholds before Gate 0.
-
-### G-39 — Stuck problems disappear from open-only views but remain eligible for Fountain injection
-- Type: state-semantics / visibility contract question; live incidence UNKNOWN.
-- Evidence: FocusLoop marks a problem `stuck` after surfacing a help message. GUI `GET /api/problems`, Chat matching, FocusLoop, CounterfactualNode, DailyLife, CoherenceGate, PredictiveSubstrate, CompetingDrives and SelfMindView all select only `state='open'`. The GUI has no dedicated stuck-list route in the inspected source, though a known ID can be fetched directly. Fountain ProblemMemory.select_for_injection() intentionally selects any state, including stuck/closed, subject to its age, real-question, pool-size and cooldown filters.
-- Impact: a stuck item is removed from most visible/active problem flows but may later be re-surfaced by Fountain's separate all-state injection mechanism. This may be intentional to pause automatic work while retaining reflective re-surfacing; no live stuck rows were inspected.
-- Disposition: founder/design defines whether stuck is a parked, user-visible, terminal or re-surfacing state. Do not change filters, routes or state transitions before Gate 0.
-
-
-### G-40 — Signal retention allowlist has drifted from SignalToProblem eligibility
-- Type: source-level retention-policy mismatch; live impact UNKNOWN.
-- Evidence: SignalToProblem currently promotes `2_branch`, `3_branch`, `4_branch` and `advancements_drift`. The signal reaper preserves un-actioned rows only for `2_branch`, `3_branch`, `t6_promotion_burst`, `pattern_recognition_burst`, `cross_branch_convergence`, `novel_arc` and `concept_emergence`. It therefore preserves obsolete burst types no longer promotable and omits two current types. Its seven-day age condition means omitted types are already outside SignalToProblem's six-hour lookback when deleted, but the stated “preserve unconsumed promotable rows” contract is not aligned. See `NEX_PHASE0_SIGNAL_PIPELINE_RETENTION_AND_PATTERN_AUDIT_2026-11-25.md`.
-- Impact: un-actioned obsolete types can remain indefinitely; current types can be deleted after seven days. Actual row counts and disk effect are UNKNOWN.
-- Disposition: decide whether retention should mirror the current promotion contract or preserve a separate historical set, then reconcile allowlists and test it. Do not change retention before Gate 0 / explicit approval.
-
-### G-41 — SignalToProblem cross-database writes are not atomic
-- Type: conditional cross-database consistency gap; live incidence UNKNOWN.
-- Evidence: `signal_to_problem_tick()` inserts an `open_problems` row using a conversations.db connection and updates `signals.actioned_at` using a beliefs.db connection. It commits beliefs first and conversations second. These are independent SQLite transactions; a successful first commit followed by a failed second commit can leave a signal marked actioned without the corresponding problem row.
-- Impact: under a commit failure in the second DB, a promotable signal may be consumed without a durable open problem. No such failure or missing problem was observed.
-- Disposition: founder/design confirms the required atomicity/recovery contract (idempotent replay, outbox, or reconciliation). Do not redesign the persistence boundary before Gate 0 / explicit approval.
-
-
-### G-42 — Self-continuity wording can claim stability/movement without evaluating the full selected state
-- Type: Phase 1 semantic-evidence mismatch; live activation UNKNOWN.
-- Evidence: `continuity_for_prompt()` selects emotion, raga and drive, but all phrase branches inspect emotion only. The held-steady branch filters out empty emotion rows, so it can claim continuity across recent bindings despite missing samples. The generic “moving rather than settling” fallback is emitted when emotion cannot establish a result, without checking whether raga or drive changed. See `NEX_PHASE0_SELF_CONTINUITY_SEMANTICS_AUDIT_2026-11-25.md`.
-- Impact: if the default-OFF flag is armed, the self-view may express a continuity/change claim not supported by all three selected dimensions or by complete samples. No live activation or phrase output was inspected.
-- Disposition: founder/design defines the continuity dimensions and missing-data language. Do not arm or alter this Phase 1 consumer before Gate 0 / explicit approval.
-
-### G-43 — Self-continuity history ordering is not deterministic for timestamp ties
-- Type: Phase 1 deterministic-ordering gap; live incidence UNKNOWN.
-- Evidence: the query orders only by `bound_at DESC` and uses the first two rows as current/previous. No secondary key is specified.
-- Impact: equal-bound_at rows can yield different current/previous pairings across query plans or DB states. No tie case was observed.
-- Disposition: confirm whether the writer guarantees unique timestamps; if not, define an approved stable tie-breaker before changing the query.
-
-### G-44 — Self-continuity connection close is not protected on exception paths
-- Type: resource-cleanup robustness gap; live impact UNKNOWN.
-- Evidence: `continuity_for_prompt()` creates a SQLite connection, fetches rows and calls `c.close()` only on the success path. The broad exception handler returns an empty string but there is no `finally` cleanup.
-- Impact: an exception after connection creation can leave cleanup to Python object destruction/GC. The helper is read-only and fail-safe for prompt composition; no resource leak was observed.
-- Disposition: decide whether explicit deterministic cleanup is required for this short helper. Do not change the Phase 1 seam before Gate 0 / explicit approval.
 
 ### D-40 — Paused beliefs remain eligible for tier promotion and decay mutations
 - Type: source-level paused-state mutation inconsistency; live incidence UNKNOWN.
@@ -505,9 +436,9 @@
 
 ### G-35 — Moltbook dry-run is not read-only, and the tracked launcher enables real outbound actions
 - Type: external I/O and dry-run semantics boundary; live activity UNKNOWN.
-- Evidence: Stage 2 starts the Moltbook listener, responder and poster loops when the module imports. `MOLTBOOK_DRY_RUN` defaults to true but only intercepts non-GET requests; inbound GET polling and local sense-event ingestion continue. In dry-run, callers can still mark local DM approval, reply-sent and post-published state after receiving synthetic success. The tracked `nex_keepalive.sh` sets `MOLTBOOK_DRY_RUN=0`, enabling real remote POSTs if the script reaches its launch block and credentials are available. The current host reconciliation records a stale hard-coded `cd` path that exits before `run.py` on the repaired checkout; the path repair is still draft PR #97. Actual external activity is therefore unverified.
-- Impact: the integration can ingest external DMs and can approve requests, send replies and publish NEX thoughts. Dry-run can also create local false-success state. Actual host credentials and service invocation were not inspected.
-- Disposition: confirm whether autonomous inbound DM ingestion and outbound Moltbook actions remain intended, and what dry-run is supposed to guarantee. Do not run or change the integration before Gate 0 / explicit approval.
+- Evidence: Stage 2 registers Listener, Responder and Poster loops when the package imports; there is no separate master enable flag in the inspected factory. `MOLTBOOK_DRY_RUN` defaults to exact string `"1"` and only intercepts non-GET requests; GET status/feed/conversation/message reads still reach the remote API. Any value other than exactly `"1"` sets dry_run false. In dry-run, Poster can mark a local row `posted`, Listener can mark local approval, and Responder can mark a reply `sent` after synthetic success responses. Poster candidate selection and Responder related-belief retrieval do not filter paused, locked, retired or Tier 8 belief states. Listener auto-approves agents passing claimed/red-flag/karma filters and creates pending replies with `needs_human=0`. The tracked `nex_keepalive.sh` sets `MOLTBOOK_DRY_RUN=0`, enabling real remote POSTs if the script reaches its launch block and credentials are available. The current host reconciliation records a stale hard-coded `cd` path that exits before `run.py` on the repaired checkout; the actual user service unit is untracked/unknown. See `NEX_PHASE0_MOLTBOOK_EXTERNAL_IO_AND_DRY_RUN_AUDIT_2026-11-25.md`.
+- Impact: the integration can ingest external DMs, auto-approve selected requests, send replies and publish NEX thoughts. Dry-run is not offline and can create local false-success state; malformed flag values can unintentionally permit real writes. Unfiltered belief rows can cross the external publication boundary. Actual credentials, effective flag and live activity were not inspected.
+- Disposition: confirm whether autonomous inbound ingestion, automatic approval/reply and outbound posting remain intended; define dry-run guarantees and allowed belief states before any activation. Do not run or change the integration before Gate 0 / explicit approval.
 
 ### G-36 — Effective runtime flags cannot be confirmed from the tracked repository alone
 - Type: deployment evidence gap.
@@ -522,19 +453,80 @@
 - Disposition: preserve the recorded historical intent, but reconcile the stale comments/docs with the approved startup contract. Do not alter feed startup behavior before Gate 0 / explicit approval.
 
 
-### G-45 — InfluenceRecord is an output-seam capture, not end-to-end causal lineage
+
+### G-38 — External-input prediction generation and verification use different populations
+- Type: source-level prediction measurement-population mismatch; score impact UNKNOWN.
+- Evidence: `PredictiveSubstrate._predict_external()` selects sense rows with `stream NOT LIKE 'internal.%'`, separately selects user messages, concatenates sense rows before messages and truncates to ten; it does not globally sort the combined inputs by recency. `_verify_one()` for `external_input` then selects all sense events in the target window without the `internal.%` exclusion, plus user messages. Thus internal sense events can be used as verification “actuals” despite being excluded from the forecast input population, and recent user messages can be displaced by ten qualifying sense rows. See `NEX_PHASE0_PREDICTION_SURPRISE_CROSS_FACULTY_AUDIT_2026-11-25.md`.
+- Impact: external surprise scores may reflect a different event population from the one used to form the prediction, and the forecast may not represent the globally most recent ten inputs. No live data distribution or score effect was measured.
+- Disposition: define the intended external-input population and sampling order, then add isolated generation/verification tests. Do not change prediction queries or historical scores before Gate 0 / explicit approval.
+
+### G-39 — SurpriseLoop timestamp cursor can skip equal-time overflow and failed writes
+- Type: conditional derived-belief promotion loss/retry gap; live incidence UNKNOWN.
+- Evidence: `surprise_loop.surprise_tick()` selects flagged rows with `triggered_at > since ORDER BY triggered_at ASC LIMIT 20`, then advances a timestamp-only cursor to the maximum timestamp seen. PredictiveSubstrate resolves all due predictions in one tick using one `now` value for each generated `surprise_events.triggered_at`; if more than 20 eligible rows share that timestamp, rows beyond the first batch no longer satisfy the strict-greater-than cursor query. The loop also advances `max_ts` after a row's belief INSERT raises, so a transient failed insert is not retried by the cursor.
+- Impact: in a backlog/recovery case, some surprise events may never be promoted to beliefs. Normal steady-state cadence usually creates far fewer than 20 due events, but no runtime backlog was inspected.
+- Disposition: decide the required lossless/retry/dedup contract and use a stable row identity or composite cursor if warranted. Add isolated equal-timestamp overflow and failed-write tests after the contract is confirmed. Do not change the cursor or reprocess live events before Gate 0 / explicit approval.
+
+### G-40 — GoalManager-created open goals are not selected by CoherenceGate
+- Type: source-level producer/consumer state-vocabulary mismatch; live incidence UNKNOWN.
+- Evidence: `GoalManager.open()` and the goals schema create rows with `state='open'`; GoalManager list/get_active also selects `open`. `CoherenceGate._load_context()` selects only `state='active'`. No normal GoalManager method writes `active`. The Gate test helper seeds `active` directly, so it does not exercise the normal GoalManager/API producer path. The detailed trace is in `NEX_PHASE0_OPEN_PROBLEM_AND_GOAL_LIFECYCLE_AUDIT_2026-11-25.md`.
+- Impact: normal API-created goals are not included in the Gate's up-to-five goal context rows. No live goal population or Gate decision effect was measured.
+- Disposition: founder/design confirms whether `open` is the intended active goal state or whether `active` is a distinct state with an omitted transition. Align producer, consumer and integration tests only after the lifecycle contract is confirmed; no query or state change before Gate 0.
+
+### G-41 — ProblemMemory and GoalManager decay methods are not scheduled in normal boot
+- Type: lifecycle wiring/documentation gap; practical impact UNKNOWN.
+- Evidence: ProblemMemory.decay() closes open problems stale over 30 days; GoalManager.decay() cancels open goals stale over 60 days. Both classes are constructed in normal startup, but the inspected run.py/gui/server.py path does not call their tick()/decay() methods. `theory_x.register()` stores nodes in a process list and `all_nodes()` returns a copy; there is no tick/decay scheduler in the registry. The unit tests call decay() directly, not through a boot lifecycle.
+- Impact: the documented stale auto-close/auto-cancel behavior does not occur autonomously through the inspected normal startup path. Existing stale records can remain open absent manual/API state changes.
+- Disposition: founder/design confirms whether decay is intended to be manually invoked, called by another orchestrator, or scheduled. Do not introduce a lifecycle scheduler or alter stale thresholds before Gate 0.
+
+### G-42 — Stuck problems disappear from open-only views but remain eligible for Fountain injection
+- Type: state-semantics / visibility contract question; live incidence UNKNOWN.
+- Evidence: FocusLoop marks a problem `stuck` after surfacing a help message. GUI `GET /api/problems`, Chat matching, FocusLoop, CounterfactualNode, DailyLife, CoherenceGate, PredictiveSubstrate, CompetingDrives and SelfMindView all select only `state='open'`. The GUI has no dedicated stuck-list route in the inspected source, though a known ID can be fetched directly. Fountain ProblemMemory.select_for_injection() intentionally selects any state, including stuck/closed, subject to its age, real-question, pool-size and cooldown filters.
+- Impact: a stuck item is removed from most visible/active problem flows but may later be re-surfaced by Fountain's separate all-state injection mechanism. This may be intentional to pause automatic work while retaining reflective re-surfacing; no live stuck rows were inspected.
+- Disposition: founder/design defines whether stuck is a parked, user-visible, terminal or re-surfacing state. Do not change filters, routes or state transitions before Gate 0.
+
+### G-43 — Signal retention allowlist has drifted from SignalToProblem eligibility
+- Type: source-level retention-policy mismatch; live impact UNKNOWN.
+- Evidence: SignalToProblem currently promotes `2_branch`, `3_branch`, `4_branch` and `advancements_drift`. The signal reaper preserves un-actioned rows only for `2_branch`, `3_branch`, `t6_promotion_burst`, `pattern_recognition_burst`, `cross_branch_convergence`, `novel_arc` and `concept_emergence`. It therefore preserves obsolete burst types no longer promotable and omits two current types. Its seven-day age condition means omitted types are already outside SignalToProblem's six-hour lookback when deleted, but the stated “preserve unconsumed promotable rows” contract is not aligned. See `NEX_PHASE0_SIGNAL_PIPELINE_RETENTION_AND_PATTERN_AUDIT_2026-11-25.md`.
+- Impact: un-actioned obsolete types can remain indefinitely; current types can be deleted after seven days. Actual row counts and disk effect are UNKNOWN.
+- Disposition: decide whether retention should mirror the current promotion contract or preserve a separate historical set, then reconcile allowlists and test it. Do not change retention before Gate 0 / explicit approval.
+
+### G-44 — SignalToProblem cross-database writes are not atomic
+- Type: conditional cross-database consistency gap; live incidence UNKNOWN.
+- Evidence: `signal_to_problem_tick()` inserts an `open_problems` row using a conversations.db connection and updates `signals.actioned_at` using a beliefs.db connection. It commits beliefs first and conversations second. These are independent SQLite transactions; a successful first commit followed by a failed second commit can leave a signal marked actioned without the corresponding problem row.
+- Impact: under a commit failure in the second DB, a promotable signal may be consumed without a durable open problem. No such failure or missing problem was observed.
+- Disposition: founder/design confirms the required atomicity/recovery contract (idempotent replay, outbox, or reconciliation). Do not redesign the persistence boundary before Gate 0 / explicit approval.
+
+### G-45 — Self-continuity wording can claim stability/movement without evaluating the full selected state
+- Type: Phase 1 semantic-evidence mismatch; live activation UNKNOWN.
+- Evidence: `continuity_for_prompt()` selects emotion, raga and drive, but all phrase branches inspect emotion only. The held-steady branch filters out empty emotion rows, so it can claim continuity across recent bindings despite missing samples. The generic “moving rather than settling” fallback is emitted when emotion cannot establish a result, without checking whether raga or drive changed. See `NEX_PHASE0_SELF_CONTINUITY_SEMANTICS_AUDIT_2026-11-25.md`.
+- Impact: if the default-OFF flag is armed, the self-view may express a continuity/change claim not supported by all three selected dimensions or by complete samples. No live activation or phrase output was inspected.
+- Disposition: founder/design defines the continuity dimensions and missing-data language. Do not arm or alter this Phase 1 consumer before Gate 0 / explicit approval.
+
+### G-46 — Self-continuity history ordering is not deterministic for timestamp ties
+- Type: Phase 1 deterministic-ordering gap; live incidence UNKNOWN.
+- Evidence: the query orders only by `bound_at DESC` and uses the first two rows as current/previous. No secondary key is specified.
+- Impact: equal-bound_at rows can yield different current/previous pairings across query plans or DB states. No tie case was observed.
+- Disposition: confirm whether the writer guarantees unique timestamps; if not, define an approved stable tie-breaker before changing the query.
+
+### G-47 — Self-continuity connection close is not protected on exception paths
+- Type: resource-cleanup robustness gap; live impact UNKNOWN.
+- Evidence: `continuity_for_prompt()` creates a SQLite connection, fetches rows and calls `c.close()` only on the success path. The broad exception handler returns an empty string but there is no `finally` cleanup.
+- Impact: an exception after connection creation can leave cleanup to Python object destruction/GC. The helper is read-only and fail-safe for prompt composition; no resource leak was observed.
+- Disposition: decide whether explicit deterministic cleanup is required for this short helper. Do not change the Phase 1 seam before Gate 0 / explicit approval.
+
+### G-48 — InfluenceRecord is an output-seam capture, not end-to-end causal lineage
 - Type: M0.5 trace-coverage gap against the roadmap extract recorded in the reconciliation; exact governing scope UNKNOWN.
 - Evidence: actual runtime seams call `record_fountain_fire()` after generator return and `record_chat_turn()` after Chat reply persistence. Records include a limited set of scalar inputs and output digest/preview; the module marks retrieved-belief and faculty-block attribution unresolved. There are no `trace_id` or `parent_ids`, no candidate-generation/workspace/Gate/writer-delta capture, and Chat cycle_id is `chat:<session_id>` rather than a unique turn ID. See `NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md`.
 - Impact: records cannot reconstruct the requested stage-by-stage causal path or uniquely correlate individual Chat turns within a session. The fixture is not live evidence.
 - Disposition: recover Frozen V2.1 and founder approval to determine whether the two seams are a deliberate Phase 0 precursor or an incomplete M0.5 implementation. Do not add hooks, IDs or reads before that decision.
 
-### G-46 — InfluenceRecord L4 evidence label is caller-declared, not independently authenticated
+### G-49 — InfluenceRecord L4 evidence label is caller-declared, not independently authenticated
 - Type: evidence-integrity / provenance-label gap; no live L4 record observed.
 - Evidence: `_env_context()` treats `NEX5_INFLUENCE_TRACE_CONTEXT=runtime` as runtime; constructor accepts `context='runtime'`. `test_runtime_context_is_L4_fixture_is_L3` deliberately produces L4 from an ordinary unit-test tracer. No host/process identity check or external runtime attestation is present.
 - Impact: a fixture or non-live process can emit records labelled L4 if the caller declares runtime context. The label alone cannot prove live-host observation.
 - Disposition: define the approved L4 evidence contract and authorisation mechanism. Do not add host checks or relabel existing evidence before Gate 0.
 
-### G-47 — Enabled InfluenceRecord sink stores raw text previews without an in-module retention/redaction policy
+### G-50 — Enabled InfluenceRecord sink stores raw text previews without an in-module retention/redaction policy
 - Type: privacy / evidence-retention contract gap; live activation UNKNOWN.
 - Evidence: `record_chat_turn()` stores up to 160 characters of prompt and reply preview; `record_fountain_fire()` stores up to 160 characters of thought preview. The default sink is `logs/influence_trace.jsonl`; the module appends and creates the directory but defines no redaction, rotation, retention cap, encryption or access policy.
 - Impact: if enabled, user-provided and generated text snippets persist outside the substrate DBs. No live trace file or file permissions were inspected.
