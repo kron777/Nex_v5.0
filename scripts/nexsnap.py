@@ -40,7 +40,7 @@ CORPUS_PATH = REPO / "CORPUS.md"
 SNAP_DIR = REPO / "snapshots"
 
 
-def write_state_json(snap_ts, runtime=None):
+def write_state_json(snap_ts, runtime=None, port_data=None):
     """Write the runtime state snapshot, reusing a caller's captured runtime state."""
     SNAP_DIR.mkdir(parents=True, exist_ok=True)
     fname = datetime.fromtimestamp(snap_ts).strftime("%Y-%m-%d_%H%M") + "_state.json"
@@ -48,11 +48,13 @@ def write_state_json(snap_ts, runtime=None):
 
     if runtime is None:
         runtime = ex.extract_runtime_state()
+    if port_data is None:
+        port_data = ex.extract_port_status()
     state = {
         "snapshot_at": snap_ts,
         "snapshot_at_str": datetime.fromtimestamp(snap_ts).strftime("%Y-%m-%d %H:%M:%S"),
         "runtime": runtime,
-        "port_status_counts": _port_counts(ex.extract_port_status()),
+        "port_status_counts": _port_counts(port_data),
         "fountain_by_branch_24h": runtime.get("fountain_24h_by_branch", {}),
     }
     path.write_text(json.dumps(state, indent=2, default=str))
@@ -82,14 +84,14 @@ def _port_counts(port_data):
     return counts
 
 
-def assemble_corpus(snap_ts, runtime=None):
+def assemble_corpus(snap_ts, runtime=None, port_data=None):
     """Produce the full CORPUS.md content from one optional runtime capture."""
     snap_str = datetime.fromtimestamp(snap_ts).strftime("%Y-%m-%d %H:%M:%S")
 
     # Extract once, reuse
     doctrine = ex.extract_doctrine_principles()
     faculty = ex.extract_faculty_outcomes()
-    port = ex.extract_port_status()
+    port = port_data if port_data is not None else ex.extract_port_status()
     stages = ex.extract_theory_x_stages()
     stage_map = ex.extract_stage_map()
     schema = ex.extract_substrate_schema()
@@ -442,9 +444,10 @@ def main(argv=None):
 
     snap_ts = time.time()
     runtime = ex.extract_runtime_state()
-    corpus_text = assemble_corpus(snap_ts, runtime=runtime)
+    port_data = ex.extract_port_status()
+    corpus_text = assemble_corpus(snap_ts, runtime=runtime, port_data=port_data)
     CORPUS_PATH.write_text(corpus_text)
-    state_path = write_state_json(snap_ts, runtime=runtime)
+    state_path = write_state_json(snap_ts, runtime=runtime, port_data=port_data)
     print(f"OK CORPUS.md written ({len(corpus_text)} bytes)")
     print(f"OK state snapshot at {state_path}")
     if args.commit:
