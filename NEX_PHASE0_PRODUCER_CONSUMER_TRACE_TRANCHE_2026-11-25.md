@@ -418,3 +418,32 @@ Therefore, when the path is active and `NEX5_INTAKE_RESONANCE_OFF` is not `1`, o
 - The seven direct-SQL life loops bypass TaggingBeliefWriter altogether and do not call IntakeResonance in their inspected insert functions.
 
 This demonstrates that the wrapper's embedded resonance probe is not a uniform single call per belief. The eventual coverage map must record each producer's explicit resonance call, whether it routes through the wrapper, whether the INSERT already includes `tags`, and the number of resulting log writes.
+
+## 28. Producer coverage matrix — gate, writer wrapper, tags and resonance
+
+The following matrix consolidates the source-verified subset. “Wrapper” means the normal boot `TaggingBeliefWriter` instance is called; “auto-tag” and “wrapper resonance” apply only when the INSERT is routed through that wrapper and its column list does not already include `tags`.
+
+| Producer / path | Belief write route | CoherenceGate | TaggingBeliefWriter | Tag value path | IntakeResonance path |
+|---|---|---|---|---|---|
+| Sense distillation | Shared beliefs Writer | No | Yes | Wrapper auto-generates | Wrapper probe once (unless disabled) |
+| Fountain rut mirror | Shared beliefs Writer | No | Yes | Wrapper auto-generates | Wrapper probe once (unless disabled) |
+| Dynamic crystallization | Shared beliefs Writer | Yes; escaping exception falls through | Yes | Wrapper auto-generates | Explicit Crystallizer call plus wrapper probe; potential double row |
+| Fountain crystallization | Shared beliefs Writer | Yes; non-ACCEPT blocks insert | Yes, but tags already supplied | Explicit `_attr_tags` (`[]` or attribution marker) | Explicit FountainCrystallizer call; wrapper early pass-through |
+| World Model synergizer | Shared beliefs Writer | Yes; non-ACCEPT blocks insert | Yes, but tags already supplied | Explicit `_attr_tags` (`[]` or attribution marker) | No explicit call observed; wrapper early pass-through |
+| Behavioural Self-Model | Shared beliefs Writer | Yes under normal boot wiring; method has no-gate fallback; escaping exception falls through | Yes | Wrapper auto-generates | Wrapper probe once (unless disabled) |
+| CounterfactualNode | Shared beliefs Writer | Yes; exception blocks insert | Yes | Wrapper auto-generates | Wrapper probe once (unless disabled) |
+| EmergentDrive | Shared beliefs Writer | Conditional on gate object; branch is added before gate | Yes | Wrapper auto-generates | Wrapper probe once (unless disabled) |
+| Holding Zone promotion | Shared beliefs Writer | Resolver-mediated after corroborating ACCEPTs | Yes | Wrapper auto-generates | Wrapper probe once (unless disabled) |
+| Self-location boot seed | Shared beliefs Writer | No; bootstrap anchor | Yes | Wrapper auto-generates | Wrapper probe once (unless disabled) |
+| Pattern / Witness / Identity / Surprise / Remember / Wonder / Fetch | Direct SQLite connections | No in inspected insert functions | No | Explicit semantic tags or explicit `[]` | No call observed |
+| Identity YAML seeder (operator CLI) | Independent Writer | No | No | Omits tags; schema migration default `[]` | No call observed |
+| Grounded scorecard self-belief (operator CLI/API) | Independent Writer | No | No | Omits tags; schema migration default `[]` | No call observed |
+
+**Interpretation limits:**
+- This matrix is a verified subset, not a complete repository census. It does not claim that every caller, alternate writer or helper has been found.
+- A row marked “Yes” under TaggingBeliefWriter does not imply generated tags: if the caller includes a `tags` column, the wrapper returns before tag generation and before its embedded IntakeResonance probe.
+- A non-empty explicit tag such as `identity` or `self_pattern` is not equivalent to generated semantic tags. An explicit `[]` is also a caller-supplied value, not a wrapper-generated result.
+- `NEX5_INTAKE_RESONANCE_OFF=1` disables the compute operation in the inspected implementation. Effective host state is UNKNOWN.
+- CoherenceGate, TaggingBeliefWriter/tag generation and IntakeResonance are independent controls/observations. Evidence for one must never be used as evidence for another.
+
+This matrix provides the next useful unit for completing M0.3–M0.4: each remaining candidate producer should be added with these same independent dimensions, then linked forward to its actual consumers.
