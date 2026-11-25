@@ -264,3 +264,8 @@ No live problem/goal rows were inspected. The state and lifecycle contracts rema
 The next bounded producer/consumer trace is complete at static-source level. `NEX_PHASE0_SIGNAL_PIPELINE_RETENTION_AND_PATTERN_AUDIT_2026-11-25.md` maps the three SignalLoop detectors plus Fountain's direct advancements_drift emitter, current-tick PatternTemplateLibrary semantics, SignalToProblem promotion and its two-database commit boundary, the four inspected signal readers, and the reaper preservation-list mismatch. The pattern validation columns are explicitly marked vestigial in schema.
 
 The reaper list preserves obsolete signal types and omits current promotable types; this is a source contract mismatch. The cross-database commit sequence creates a conditional partial-commit window. No live rows, reaper batches, disk footprint or commit failure was inspected.
+
+
+## Self-continuity consumer audit — 2026-11-25
+
+The current reconciliation's continuity candidate list has been checked against the exact helper, SelfMindView, Chat call site and isolated tests. The detailed source audit is `NEX_PHASE0_SELF_CONTINUITY_SEMANTICS_AUDIT_2026-11-25.md`. The flag remains default-OFF; no host value was read or changed. Verified issues are limited to emotion-only phrase logic despite a three-field query, missing-value handling, generic fallback semantics, timestamp tie ordering and lack of finally-protected connection cleanup. No Phase 1 behaviour was modified.
