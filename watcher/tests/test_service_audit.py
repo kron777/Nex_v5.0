@@ -3,6 +3,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from watcher import service_audit
+from watcher.host import host_requests
 
 
 def test_parse_properties_keeps_key_value_lines_only():
@@ -126,3 +127,10 @@ def test_missing_systemctl_is_unknown(monkeypatch):
 
     assert result["status"] == "SYSTEMCTL_UNAVAILABLE"
     assert result["services"] == []
+
+
+def test_service_audit_is_part_of_the_single_host_collection():
+    request = next(row for row in host_requests() if row.id == "service_integrity")
+    assert request.read_only_commands == ["python3 -m watcher.service_audit"]
+    assert "no " in request.collects.lower()
+    assert "unit file" in request.collects.lower()
