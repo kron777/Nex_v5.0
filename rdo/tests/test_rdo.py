@@ -610,6 +610,76 @@ def test_metrics_keep_predicted_and_actual_effort_separate():
     assert len(series["measure_keys"]) == 8
 
 
+def test_metrics_fail_closed_on_malformed_legacy_signature_match_containers():
+    from rdo.memory import cycle_metrics
+
+    malformed = ("signature", 3, {"match": "x"}, ["valid", 3], [None], ["  "])
+    for value in malformed:
+        cycle = CycleRecord(id="malformed", objective="o", signature_matches=value)
+        metrics = cycle_metrics(cycle)
+        assert metrics["signature_matches"] is None
+        assert metrics["signature_evidence_coverage"] is None
+        assert metrics["signature_evidence_coverage_complete"] is None
+
+    valid = CycleRecord(id="valid-legacy", objective="o",
+                        signature_matches=["src/a.py:1", "src/b.py:2"])
+    assert cycle_metrics(valid)["signature_matches"] == 2
+
+
+def test_signature_evidence_coverage_rejects_inconsistent_counts():
+    from rdo.memory import cycle_metrics
+
+    over_counted = CycleRecord(
+        id="over-counted", objective="o",
+        verification={
+            "signature_matches": 2,
+            "signature_matches_backed_by_file_evidence": 3,
+            "all_signature_matches_have_file_evidence": True,
+        },
+    )
+    metrics = cycle_metrics(over_counted)
+    assert metrics["signature_matches"] == 2
+    assert metrics["signature_evidence_coverage"] is None
+    assert metrics["signature_evidence_coverage_complete"] is None
+
+    consistent = CycleRecord(
+        id="consistent", objective="o",
+        verification={
+            "signature_matches": 2,
+            "signature_matches_backed_by_file_evidence": 2,
+            "all_signature_matches_have_file_evidence": True,
+        },
+    )
+    assert cycle_metrics(consistent)["signature_evidence_coverage"] == 1.0
+    assert cycle_metrics(consistent)["signature_evidence_coverage_complete"] is True
+
+
+def test_extreme_integer_effort_is_rejected_without_crashing_metrics():
+    import pytest
+    from rdo.memory import compare, cycle_metrics, record_actual
+
+    huge = 10 ** 10000
+    cycle = CycleRecord(
+        id="huge-effort", objective="o", predicted={"effort": huge},
+        actual={
+            "effort_actual": huge,
+            "missed": [],
+            "unnecessary": [],
+            "reuse_wrong": [],
+            "regressions": [],
+        },
+    )
+    assert compare(cycle)["effort_predicted"] is None
+    assert compare(cycle)["effort_actual"] is None
+    metrics = cycle_metrics(cycle)
+    assert metrics["engineering_effort"] is None
+    assert metrics["prediction_error_effort"] is None
+
+    with pytest.raises(ValueError, match="finite, non-negative"):
+        record_actual(CycleRecord(id="record", objective="o"),
+                      {"effort_actual": huge})
+
+
 def test_active_experiment_registry_empty_is_distinct_from_unavailable(tmp_path):
     from rdo.orchestrator import _active_experiments
     empty = tmp_path / "observation_reports"
@@ -625,7 +695,7 @@ def test_grep_handles_non_utf8_text_without_crashing(tmp_path):
     import rdo.reconcile as recon
 
     source = tmp_path / "legacy.txt"
-    source.write_bytes(b"signature\\xff-anchor\\n")
+    source.write_bytes(b"signature\xff-anchor\n")
     result = recon._grep("signature", str(tmp_path), None)
     assert result is not None
     assert len(result) == 1
