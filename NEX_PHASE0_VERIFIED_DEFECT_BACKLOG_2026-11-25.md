@@ -208,3 +208,9 @@
 - Evidence: `tests/test_retention_reaper.py` tests the 30-day and 90-day targets but does not test residue's 2-day target. Host service status was failed at the last evidence collection; no successful reaper run/log or live residue row count was verified.
 - Impact: source configuration proves the intended retention policy, not that the host has executed it or that the 2-day cleanup is functioning operationally.
 - Disposition: add isolated tests; obtain service/timer and reaper-log evidence through the approved read-only host audit when available. Do not manually run retention against live DBs.
+
+### D-21 — Fountain HotObserver slot lacks the Tier 8 retirement filter
+- Type: conditional retrieval defect candidate; live incidence UNKNOWN.
+- Evidence: the main Fountain own-content query filters `tier < 8`, and residue lookup does too. The dedicated HotObserver query filters only `source='hot_observer'` and a 72-hour creation cutoff; it does not exclude Tier 8 or paused rows. HotObserver writes Tier 3 unlocked beliefs. Harmonizer scans Tier 3–7 unlocked/unpaused beliefs without excluding `hot_observer`, and can retire selected originals by setting tier 8 and prefixing `[RETIRED]`.
+- Impact: a HotObserver belief retired by Harmonizer can still be randomly selected and injected into Fountain context during the remaining 72-hour lookback. The writer flag `NEX5_HOT_OBSERVER` is not checked by the retrieval query, so old rows can remain eligible after new writes are disabled.
+- Disposition: preserve as a source-verified filter gap and verify with an isolated fixture. Do not alter the query or runtime flags before Gate 0 / explicit approval.
