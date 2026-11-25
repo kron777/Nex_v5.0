@@ -226,3 +226,9 @@
 - Evidence: `NovelAssociation._pull_candidates()` filters by confidence, branch presence and `paused=0`, but not `tier < 8` or `locked=0`. Harmonizer can retire unlocked Tier 3–7 beliefs by setting tier 8, locked 0, paused 0. NovelAssociation's normal 30-minute loop can therefore embed retired rows, write `synthesises` edges and log cross-branch associations; high-similarity pairs can also create a SelfNarrative entry. A Fountain comment claims NovelAssociation already bounds tiers, but current SQL does not.
 - Impact: retired belief content can continue influencing graph topology and branch-level prompt annotations. Optional edge-weighted Fountain retrieval may also count edges connected to retired endpoints.
 - Disposition: verify with an isolated fixture and reconcile the retired-row policy across all graph/retrieval paths. Do not alter the candidate query or graph state before Gate 0 / explicit approval.
+
+### D-24 — Diversity EdgeBuilder can create graph edges involving Tier 8 retired beliefs
+- Type: source-level graph-ingestion candidate; live incidence UNKNOWN.
+- Evidence: `edge_builder_tick()` source-candidate query filters `paused=0`, `locked=0` and content length but not tier; its comparison pool filters only `paused=0` and content length. Harmonizer-retired rows are Tier 8, unlocked and unpaused, so they remain eligible as both candidates and targets. Locked Tier 1 rows are excluded as candidates but can appear as targets. The Stage 2 dynamic factory starts `edge_builder_loop` in normal boot wiring.
+- Impact: the graph can accumulate `cross_domain` edges involving retired belief IDs. These edges may affect downstream graph-degree consumers even though normal Fountain own-content retrieval excludes Tier 8.
+- Disposition: verify with an isolated fixture and define a consistent active-belief policy for graph producers. Do not rewrite or delete live graph edges before Gate 0 / explicit approval.
