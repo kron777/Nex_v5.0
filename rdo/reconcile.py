@@ -20,7 +20,7 @@ import subprocess
 from typing import Callable, Dict, List, Optional
 
 from .model import (MISSING, PARTIAL, RECON_UNKNOWN, REUSE_EXISTING, SIGNATURE_MATCHED,
-                    Obligation, Relationship)
+                    Obligation, Relationship, has_valid_reuse_review)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -159,9 +159,7 @@ def summarize(obligations: Dict[str, Obligation]) -> Dict[str, List[str]]:
     buckets: Dict[str, List[str]] = {REUSE_EXISTING: [], SIGNATURE_MATCHED: [],
                                      PARTIAL: [], MISSING: [], RECON_UNKNOWN: []}
     for ob in obligations.values():
-        if (ob.recon_status == REUSE_EXISTING and not
-                (ob.recon_evidence and ob.confidence == "measured" and
-                 ob.recon_semantic_verified and ob.recon_semantic_review_evidence)):
+        if ob.recon_status == REUSE_EXISTING and not has_valid_reuse_review(ob):
             buckets[RECON_UNKNOWN].append(ob.key)
         else:
             buckets.setdefault(ob.recon_status, []).append(ob.key)
