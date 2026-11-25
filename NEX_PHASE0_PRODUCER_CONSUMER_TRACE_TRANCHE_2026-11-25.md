@@ -725,3 +725,30 @@ When a Fountain prompt contains a pending problem injection, the generated outpu
 - If `NEX5_HOT_OBSERVER=1`, the same pre-crystallizer region also calls HotObserver, which can insert a Tier 3 belief directly (see §35).
 
 These are additional pre-gate state effects from the same generated output: open-problem feedback is persisted regardless of belief admission, and the optional HotObserver can persist a separate belief outside the normal gate. The gate is therefore a specific belief-admission control, not a transaction boundary around all consequences of a Fountain fire.
+
+## 48. VoiceEngine is a separate substrate-first Chat reply path
+
+The Phase 30 VoiceEngine is constructed in `run.py` and passed into AppState. `AppState.voice_mode` defaults to `use_substrate`; `/api/voice_mode` can switch the in-memory state between `use_substrate` and `use_llm`.
+
+On a normal non-probe, non-instruction Chat turn, `gui/server.py:1735–1768` calls `VoiceEngine.query_reply()` when the mode is `use_substrate`:
+
+- If a candidate is returned and operator composition is not active, the GUI sets `text` to the candidate's stored content verbatim and `voice_ok=True`; the normal LLM composition path is skipped.
+- If operator composition is active, the hit is prepended as grounding and the reply is still composed by the LLM.
+- If no candidate is returned, `text` remains `None` and the code continues into `state.voice.speak()` at the normal Chat output block.
+
+`VoiceEngine.query_reply()` itself is read-only with respect to the belief graph, but records a `throw_net_triggers` user-query row. It uses `TimeFetch.run()` across beliefs, novel-association pairs, arcs and open problems; it scores candidates and returns the highest one above `min_score=0.6`. It does not call CoherenceGate.
+
+### TimeFetch status filters
+
+- `TimeFetch.fetch_from_beliefs()` filters only `confidence > 0.4`, `LENGTH(content) > 30` and keyword match. It has no `tier`, `paused` or `locked` predicate.
+- `fetch_from_novel_associations()` joins `novel_association_log` to both belief rows and matches keywords in either content, with no belief-status filter.
+- `fetch_from_arcs()` excludes `return_transformation` arcs and requires quality/theme fields, but does not validate the current status of the beliefs from which an arc may have been derived.
+- `fetch_from_problems()` uses ProblemMemory's open-problem matching path.
+
+Consequently, Tier 8 retired, paused or locked belief content can be returned by the direct VoiceEngine route if it meets the confidence/length/semantic score conditions. The T8 score penalty is not an exclusion: `VoiceEngine._score_candidate()` assigns T8 a tier score of 0.5, and a strong semantic/confidence/recency candidate can still exceed 0.6. `tests/test_voice_engine.py` tests that T4 scores higher than T8 but does not test that T8 is excluded; no TimeFetch test file was found.
+
+### Substrate-miss fallback comment/source discrepancy
+
+The comment at `gui/server.py:2057–2058` says that in `use_substrate` mode the LLM fallback is suppressed and a substrate miss returns NEX's own deflection. The inspected control flow does not implement that claim: after a miss, `text` is still `None`, and the same route calls `state.voice.speak()` with the assembled Chat prompt. `VoiceClient.speak()` calls its configured LLM request function. This is a source/comment discrepancy; the actual miss behaviour is LLM composition, not a VoiceEngine-provided substrate deflection.
+
+This route is distinct from Fountain crystallization and the main Chat prompt path. It can serve a stored belief or novel-association pair verbatim without CoherenceGate, and it has a broader candidate status filter than the main World Model retriever. Whether this is intended Phase 30 behaviour or a retired-content leakage path requires founder/spec review. No mode, query, prompt or live belief state was changed.
