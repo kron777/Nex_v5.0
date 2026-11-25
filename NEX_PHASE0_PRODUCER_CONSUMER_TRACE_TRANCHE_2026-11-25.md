@@ -581,3 +581,17 @@ The same module exposes two distinct attention helpers, and the two output route
 The source therefore does not show one unified global-workspace arbiter controlling every NEX route. Fountain has a default-on single-frame prompt prefix over five candidates; Chat has a separate default-off budgeted selector over faculty blocks. Neither mechanism, as inspected, directly gates belief writes or user-facing output. The module's “broadcast” terminology refers to prompt framing, not a demonstrated cross-faculty control broadcast or causal change in module execution.
 
 Host-effective flags and the actual composition of either route's prompts remain UNKNOWN.
+
+## 37. Residue retention is implemented in the reaper; the residue module's status note is stale
+
+A fresh source comparison corrects an earlier assumption that residue was absent from the database reaper:
+
+- `nex_db_reaper.py` currently includes `("beliefs.db", "residue", "created_at", 2)` in `TARGETS`. The accompanying comment explicitly assigns residue a 2-day TTL because `pop_residue()` now orders by `created_at DESC` and older unconsumed rows become unreachable.
+- `deploy/systemd/nex5-db-reaper.timer` is configured for a persistent nightly trigger around 04:00. The service reference file still contains the old `/home/rr/Desktop/Desktop/nex5` checkout path; the host's loaded user unit was separately corrected to the actual `/mnt/games/storage/Desktop/Desktop/nex5` path, but the last host evidence showed the reaper service failed with `MainPID=0`. Whether the timer has since run successfully is UNKNOWN.
+- `theory_x/diversity/residue.py`'s module docstring still says residue is not in `nex_db_reaper.TARGETS`, calls the backlog unbounded, and proposes adding an external retention pass. That statement is contradicted by the current `nex_db_reaper.py` source.
+- The local `_reap()` inside `residue.py` removes only consumed rows older than 7 days. The external reaper's 2-day `created_at` cutoff is broader: if it runs, it deletes all residue rows older than 2 days, consumed or not. Thus the local 7-day consumed-row cleanup is a fallback/secondary path, not the effective maximum retention while the external reaper is operating.
+- `tests/test_retention_reaper.py` currently tests the 30-day and 90-day log targets but does not assert the residue target or exercise its 2-day cutoff.
+
+The module's historical figures (~709k unconsumed rows, ~623k stranded backlog, and earlier daily growth rates) are dated 2026-09-18 source comments, not current host measurements. No live DB row counts, reaper logs, service runs or data were inspected/changed in this audit.
+
+**Disposition:** correct the stale residue module documentation and add isolated temp-DB coverage for the 2-day target. Do not manually run the reaper, delete live rows, alter the retention window, or activate the timer without explicit approval.
