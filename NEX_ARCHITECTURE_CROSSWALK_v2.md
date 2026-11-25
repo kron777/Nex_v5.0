@@ -1,14 +1,45 @@
 # NEX v5.0 — Architecture Crosswalk v2 (Output Paths)
+ 
+## 0. Current branch and boot-wiring first pass (25 November 2026)
 
-> **Scope and branch note.** This remains a two-output-path seed at the earlier fb87e24 snapshot, not the full-system M0.3–M0.4 crosswalk. Current branch identity, missing MIND_MAP source, Phase 1 continuity wiring and outstanding trace lineage are recorded in [NEX_PHASE0_CURRENT_RECONCILIATION_2026-11-25.md](NEX_PHASE0_CURRENT_RECONCILIATION_2026-11-25.md).
+**Repository snapshot:** active host checkout at de93134f34adac07a3a41c2a05b33720510a2bfc. This branch is 4 commits ahead and 205 behind main; do not treat main as the active host source or merge it wholesale.
+
+**Inventory distinctions:**
+- The active branch has 42 top-level theory_x package directories. Package directories are not a count of cognitive faculties, MIND_MAP nodes or running loops.
+- mind_map/MIND_MAP.yaml is absent from this active branch but present on main. The main file contains 34 node entries plus five arm entries; its own bootstrap comment and older roadmap references still say 30.
+- The MIND_MAP metadata declares the map descriptive-only. Main's mind_map/mind_map.py --check --verify checks map structure, source references, freshness and declared absence claims; it does not inspect runtime callsites to prove that represented faculties cannot gate or veto decisions.
+- sentience_dag.json and nex_next_dev.py form a separate development/buildability graph. nex_next_dev.py treats both built and live_unproven as satisfied for buildability. Do not conflate that rule with MIND_MAP authority or the roadmap's evidence ladder.
+- This crosswalk's L0–L4 labels use the Watcher evidence_class vocabulary. They are not the Master Roadmap's separate L0–L5 capability ladder.
+
+### Boot sequence and main producer/consumer paths
+
+| Stage | Source wiring | Producer / consumer relationship | Evidence status |
+|---|---|---|---|
+| Substrate | run.py:60–70; substrate/paths.py:23–31 | Initializes six DBs: beliefs, sense, dynamic, intel, conversations, probes; creates Readers/Writers; beliefs Writer is wrapped by TaggingBeliefWriter | Static source |
+| Sense | run.py:108–111; stage1_sense/__init__.py; scheduler.py:149 | 28 adapters (4 internal, 24 external) write sense_events. External feeds auto-start because SenseScheduler.__init__ calls start_all(); internal sensors run from boot | Static source; no current live run observed |
+| Dynamic | stage2_dynamic/__init__.py | Reads sense_events into pipeline/tree state; cursor in dynamic.db; separate distillation loop promotes selected sense titles into beliefs; crystallization/consolidation/snapshot loops consume tree state | Static source; detailed per-loop DAG outstanding |
+| World model | stage3_world_model/__init__.py | Belief retrieval, promotion/decay, harmonization, provenance erosion, synergizer and optional world consolidation | Static source; downstream effect not measured |
+| Membrane | stage4_membrane/__init__.py | Classifies inside/outside and starts behavioural self-model loop when conversations reader is available | Static source |
+| Coherence / holding / reshape | run.py:124–171; stage_gate/coherence_gate.py | Evaluates ThoughtPackets into ACCEPT/REJECT/HOLD/RESHAPE, records gate decisions, routes HOLD/RESHAPE and eligible REJECT events to separate mechanisms | Static source; full upstream producers/consumer outcomes outstanding |
+| Fountain | run.py:538–584; stage6_fountain | Consumes sense, dynamic, belief, mode, drive and other state; generator produces a thought; output is consumed by sense/dynamic/belief writers and downstream snapshot/tag/decoder paths | Detailed output-path audit in §1; live L4 unknown |
+| Chat | gui/server.py:api_chat | Receives prompt, assembles faculty context, optional workspace selection, invokes voice/tool path, persists conversation messages and returns reply | Detailed output-path audit in §2; live L4 unknown |
+| Speech | run.py:611–629; speech/queue_consumer.py; beliefs.sql | If speech is enabled, SpeechQueueConsumer reads and updates speech_queue in beliefs.db and sends speakable items to the TTS backend | Static source; runtime enabled state unknown |
+| Ancillary loops | run.py:242–741 | Additional loops include gate resolver, harmonic, genius tagger, counterfactual, drive emergence, affect, predictive substrate, signals, diversity, edge generation and decoder; several write derived/diagnostic state | Static source; each downstream consumer still needs mapping |
+
+The scheduler documentation mismatch found during this audit is corrected in this PR: six DBs, 28 adapters and external-feed auto-start are now stated consistently in run.py, stage1_sense, scheduler.py and the GUI API description. No scheduler or feed startup behaviour was changed.
+
+**Important:** this boot inventory is a forward wiring map, not a complete producer/consumer DAG. It does not prove that every declared faculty is operationally consumed, nor does it establish L3/L4 runtime evidence. The two detailed paths below remain the only end-to-end output-path audits in this document.
+
+
+> **Current branch status (25 Nov 2026).** This crosswalk is refreshed against the active host branch claude/nex-continuity-wire at de93134f34adac07a3a41c2a05b33720510a2bfc. It contains a first-pass boot inventory plus the two detailed output-path audits below. It is still a partial M0.3–M0.4 crosswalk: the complete producer/consumer DAG across every theory_x faculty, substrate, speech and GUI remains outstanding. See [NEX_PHASE0_CURRENT_RECONCILIATION_2026-11-25.md](NEX_PHASE0_CURRENT_RECONCILIATION_2026-11-25.md) and [NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-25.md](NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-25.md) for current branch, runtime and defect evidence.
 
 
 **Master Roadmap v3.0 Phase 0 — deliverables M0.3–M0.4 (seed scope).**
 
-- **Branch:** `claude/nex-v5-audit-review-53ouqv` · **Head:** `fb87e24`
+- **Branch:** `claude/nex-continuity-wire` · **Head:** `de93134f34adac07a3a41c2a05b33720510a2bfc`
 - **Scope decision (Optimal Functional Tension).** A full producer/consumer DAG
-  over 96,220 Python LOC is a multi-increment effort and is **OUTSTANDING**
-  (see §5). This v2 crosswalk is grounded end-to-end for exactly the **two output
+  across the active branch's 42 top-level theory_x package directories is a
+  multi-increment effort and is **OUTSTANDING** (see §5). This v2 crosswalk is grounded end-to-end for exactly the **two output
   paths the Phase-0 causal trace instruments** — the Fountain cycle and the Chat
   turn — because an audit of the paths we hook is worth more than a speculative
   whole-system diagram. Every node cites a file:line read from the tree.
