@@ -55,7 +55,7 @@ No source/runtime behaviour was changed in this tranche. The Gate's documented p
 
 ### Retrieval and prompt consumption
 
-- `theory_x/stage3_world_model/retrieval.py:1–160` implements a belief retriever: it reads eligible unpaused beliefs at Tier 6 or above in the repository's tier ordering, scores keyword overlap and confidence, can apply membrane-side filtering, and optionally blends spreading activation. It returns selected beliefs for prompt injection; retrieval/formatting alone does not prove the resulting reply used or was changed by those beliefs.
+- `theory_x/stage3_world_model/retrieval.py:1–160` implements a belief retriever: it reads eligible unpaused beliefs with `tier <= 6`, scores keyword overlap and confidence, can apply membrane-side filtering, and optionally blends spreading activation. It returns selected beliefs for prompt injection; retrieval/formatting alone does not prove the resulting reply used or was changed by those beliefs.
 - Exact per-caller retrieval mapping (Fountain, Chat, tools, strikes and other callers) remains part of the outstanding crosswalk.
 
 ## 5. CoherenceGate, Holding Zone and Reshape
@@ -93,7 +93,7 @@ The sense-distillation path is a verified direct-to-beliefs bypass. Additional d
 ## 6. Membrane self-model and prompt-facing state
 
 - `theory_x/stage4_membrane/__init__.py:78–112` constructs a `SelfModel`, a `QueryRouter`, and (when conversations reader exists) a `BehaviouralSelfModel`; it starts the behavioural loop.
-- `stage4_membrane/self_model.py:47–190`: SelfModel reads the latest internal proprioception, temporal and interoception sense streams; reads DynamicState status for pipeline/attention data; and selects inside beliefs from `beliefs.db`. It caches the snapshot for 30 seconds. `format_self_state()` formats that snapshot for voice injection.
+- `stage4_membrane/self_model.py:47–190`: SelfModel reads the latest internal proprioception, temporal and interoception sense streams; reads DynamicState status for pipeline/attention data; and selects inside beliefs from `beliefs.db`. It caches the snapshot for 30 seconds. `format_self_state()` is a formatting helper; its exact route-by-route injection points are not established in this tranche.
 - `stage4_membrane/behavioural_self_model.py:66–115, 209–260`: BehaviouralSelfModel reads the last 100 NEX messages from `conversations.db` and derives response-style metrics; `format_for_prompt()` exposes those metrics as text.
 - The full route-by-route mapping of these formatted blocks into Voice/Chat prompt assembly, and whether each is present on each route, remains outstanding.
 
