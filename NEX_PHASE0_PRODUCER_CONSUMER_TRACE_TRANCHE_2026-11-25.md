@@ -447,3 +447,11 @@ The following matrix consolidates the source-verified subset. “Wrapper” mean
 - CoherenceGate, TaggingBeliefWriter/tag generation and IntakeResonance are independent controls/observations. Evidence for one must never be used as evidence for another.
 
 This matrix provides the next useful unit for completing M0.3–M0.4: each remaining candidate producer should be added with these same independent dimensions, then linked forward to its actual consumers.
+
+## 29. DailyLife catch-up can create a burst of internal messages at boot
+
+`daily_loop()` calls `daily_tick()` immediately on entering its loop, before its first 60-second wait. `daily_tick()` iterates every scheduled activity whose hour has already passed and fires any activity not yet recorded for the current local date. The module header explicitly describes this as boot catch-up.
+
+Consequently, a late-day boot can create several `role='nex'` internal messages in one initial tick (up to all six scheduled activities if the boot occurs after the final scheduled hour and none has fired that day). Those rows are ordered as recent messages and can therefore enter both the BehaviouralSelfModel's latest-100 sample and Metacognition's latest-five sample before ordinary user-facing replies have accumulated.
+
+This is a source-derived possibility, not an assertion about the current host's boot time, daily_activities ledger or message table. It makes the G-09 measurement question more consequential and should be included in any isolated fixture that tests observer input selection.
