@@ -177,3 +177,33 @@ A distinct boot-time write is also verified:
 - **Self-location commitment:** `run.py:70–75` wraps the beliefs writer, then calls `SelfLocationCommitment.commit()`. `theory_x/stage5_self_location/commitment.py:1–55` idempotently seeds the locked Tier 1 `self_location` belief if absent. This is a deliberate bootstrap anchor, not a generated thought candidate. It is not routed through CoherenceGate; its locked/axiomatic status must be interpreted under the governing doctrine rather than lumped together with runtime producer bypasses.
 
 These additions expand the verified caller/producer subset; they do not complete the census. In particular, modules that update existing beliefs, write through helper functions, or use alternate Writer instances still require inspection.
+
+
+## 14. Further gated producers and non-belief consumers
+
+Two more candidate-generation faculties were traced:
+
+- **CounterfactualNode** is a gated belief producer as described above. Its acceptance decision is followed by its own `_insert_belief()` helper; the helper writes Tier 3 `counterfactual_node` content. The gate decision and the writer call are adjacent in the same processing loop.
+- **ThrowNetEngine** is a gate consumer but not, in the inspected `run_session()` loop, a direct belief producer. It submits refined candidates to CoherenceGate and records outcome counts. This prevents an inaccurate edge in the DAG that would show every gate caller as automatically creating a belief.
+
+A separate review of the self-location bootstrap confirmed that its locked Tier 1 anchor is created before the rest of the runtime faculties are constructed. It should therefore appear in the graph as a boot-seeded substrate invariant/anchor, not as a normal runtime thought or an output of the gate.
+
+### Bounded negative findings
+
+The following inspected files contained no direct `INSERT INTO beliefs`, `UPDATE beliefs`, or obvious `beliefs_writer.write` call in the fetched source:
+
+- `theory_x/stage_warrant/warrant.py`
+- `theory_x/stage_provenance/provenance.py`
+- `theory_x/stage_self_narrative/self_narrative.py`
+- `theory_x/stage_world/prediction_generator.py`
+- `theory_x/stage_drives/competing_drives.py`
+- `theory_x/stage7_moltbook/poster.py`
+- `theory_x/stage7_moltbook/listener.py`
+- `theory_x/stage_affect/compassion.py`
+- `theory_x/stage_prediction/predictive_substrate.py`
+
+These are only file-local negative observations. They do not prove the faculties are write-free: a module may delegate to another helper, write another table, or be invoked by a different component. They are not evidence of absence for the whole repository.
+
+### Updated census status
+
+Verified gated candidate producers in this tranche: Dynamic crystallization, World Model synergizer, Fountain crystallization, CounterfactualNode. Verified gate consumers with no direct belief insert in their inspected main loop: ThrowNetEngine and Fountain drive probe. Verified direct producer/seed/promotion paths: sense distillation, Fountain rut mirror, self-location boot seed, and resolver-mediated Holding Zone promotion. Additional callsites and indirect writers remain unverified.
