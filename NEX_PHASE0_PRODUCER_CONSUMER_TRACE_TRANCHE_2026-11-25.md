@@ -510,3 +510,23 @@ The GUI chat route has a separate output contract from Fountain belief crystalli
 Therefore, a normal Chat reply can be generated and stored in conversation history without a CoherenceGate decision. That is distinct from Fountain's normal new-belief admission path. Chat replies are conversation records, not new rows in `beliefs`; the source does not establish that every chat reply should be a belief candidate.
 
 **Founder/spec question:** does “universal gate” mean all generated cognitive belief candidates, all autonomous outputs, or also every user-facing Chat reply? The code currently implements different boundaries for chat messages, Fountain events, and durable beliefs. Do not infer a violation or change the chat path until Frozen V2.1 and founder approval evidence resolve the intended scope.
+
+## 33. Database initialisation seeds are a separate Tier 1 boot authority path
+
+`run.py` calls `substrate.init_db.init_all()` before constructing the normal shared Writers and before wrapping `writers['beliefs']` in TaggingBeliefWriter. `init_all()` creates its own raw Writers, applies schema/migrations, and then performs three seed operations:
+
+1. **Keystone seeds:** `substrate/init_db.py:691–702` calls `keystone.reseed(writers['beliefs'])`. `keystone.py:60–101` uses `write_many()` with `INSERT OR IGNORE` to seed the core and extended Tier 1 locked keystone rows. The normal boot seed uses the raw Writer created inside `init_all()`, not the later TaggingBeliefWriter wrapper.
+2. **Koan/Tao/don't-know seeds:** `substrate/init_db.py:706–708` calls `seed_koans(writers['beliefs'])`. `substrate/koan_seeds.py:712–750` inserts Tier 1 locked rows with sources `koan`, `tao` and `dont_know` through that same raw Writer. These are idempotent inserts in the normal boot path.
+3. **Blacklist seeds:** `init_all()` also seeds the belief contamination blacklist; this writes blacklist state, not new belief rows.
+
+Because `init_all()` completes before `run.py` creates and wraps the shared Writer, the keystone and koan seed inserts do not pass through TaggingBeliefWriter, do not receive wrapper-generated tags, do not invoke its embedded IntakeResonance probe and do not call CoherenceGate. The `tags` migration default is `[]`. These are explicit boot-time Tier 1 seed operations, distinct from runtime-generated beliefs and from the later SelfLocationCommitment insertion.
+
+`keystone.reseed(force=True)` additionally exposes an explicit destructive re-seed ceremony that deletes Tier 1 locked rows before inserting them again. The normal boot call does not pass `force=True`; no destructive reseed was performed during this audit.
+
+### Seed authority classes now distinguished
+
+- **Database-init seeds:** keystone and koan/Tao/don't-know rows, raw Writer, Tier 1 locked, idempotent, normal `init_all()` boot operation.
+- **Post-init boot anchor:** SelfLocationCommitment, after TaggingBeliefWriter is installed; idempotent Tier 1 locked row through the wrapped Writer, no CoherenceGate.
+- **Operator-invoked seed utilities:** identity YAML and grounded scorecard self-belief tools from §22; independent Writers and explicit CLI/API invocation.
+
+These are intentional-looking authority classes in source, but the exact Frozen V2.1 doctrine governing Tier 1 seeding, tags and resonance remains unavailable. No seed was added, removed or refreshed on the host.
