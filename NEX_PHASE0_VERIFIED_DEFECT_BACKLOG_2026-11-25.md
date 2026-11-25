@@ -280,3 +280,9 @@
 - Evidence: the Favorites block selects `affinity > 0.40` and renders two random rows without tier/paused/locked filters; Harmonizer retirement does not clear affinity. The recent Surprise block selects the latest `source='surprise'` belief within six hours without tier/status filters; the Surprise loop creates unlocked Tier 6 rows that Harmonizer can retire.
 - Impact: retired content can re-enter the Fountain prompt through these direct blocks even though the main own-content retrieval query filters `tier < 8`.
 - Disposition: validate with isolated fixtures and reconcile a single retired-belief retrieval policy across all prompt blocks. Do not change prompt queries or affinity state before Gate 0 / explicit approval.
+
+### G-18 — Fountain own-belief retrieval/rendering relationship needs an explicit design statement
+- Type: architecture/configuration evidence gap.
+- Evidence: the main own-source belief pool is retrieved and affects retrieval telemetry/activation/erosion, but its dedicated prompt block is gated by `NEX5_OWN_CONTENT_RENDER=1` (source default OFF). Associative recall and wide-focus are separate default-OFF flags. The always-present `own_sense` block is drawn from sense events, not the own-belief pool.
+- Impact: the comment that own lived content dominates retrieval allocation does not establish that own-belief text dominates the actual prompt. At source defaults, the main own-belief pool can be statefully used without being rendered.
+- Disposition: determine whether this separation is intentional and record the expected prompt composition. Do not arm own-content, associative-recall or wide-mode flags without explicit approval.
