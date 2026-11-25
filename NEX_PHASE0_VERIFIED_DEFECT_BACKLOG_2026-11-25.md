@@ -214,3 +214,9 @@
 - Evidence: the main Fountain own-content query filters `tier < 8`, and residue lookup does too. The dedicated HotObserver query filters only `source='hot_observer'` and a 72-hour creation cutoff; it does not exclude Tier 8 or paused rows. HotObserver writes Tier 3 unlocked beliefs. Harmonizer scans Tier 3–7 unlocked/unpaused beliefs without excluding `hot_observer`, and can retire selected originals by setting tier 8 and prefixing `[RETIRED]`.
 - Impact: a HotObserver belief retired by Harmonizer can still be randomly selected and injected into Fountain context during the remaining 72-hour lookback. The writer flag `NEX5_HOT_OBSERVER` is not checked by the retrieval query, so old rows can remain eligible after new writes are disabled.
 - Disposition: preserve as a source-verified filter gap and verify with an isolated fixture. Do not alter the query or runtime flags before Gate 0 / explicit approval.
+
+### D-22 — Optional substrate emission can select activated Tier 8 beliefs
+- Type: conditional retrieval defect candidate; live incidence UNKNOWN.
+- Evidence: `get_top_activated()` joins `belief_activation` to `beliefs` but does not filter Tier 8, paused or locked rows. Fountain calls it when `NEX5_SUBSTRATE_EMIT=1` (default OFF) and formats the selected beliefs into a substrate-emitted thought. Harmonizer can retire unlocked Tier 3–7 beliefs to Tier 8, while activation rows are not removed by the retirement update.
+- Impact: when substrate emission is armed, recently retired beliefs with sufficient remaining activation can be surfaced in the generated thought. The later normal crystallizer/gate path may still block a new belief insert, but it does not prevent this retired content from entering the generated output/event.
+- Disposition: preserve as a conditional source finding. Verify with an isolated fixture and resolve the intended retired-belief policy before changing the helper or flag.
