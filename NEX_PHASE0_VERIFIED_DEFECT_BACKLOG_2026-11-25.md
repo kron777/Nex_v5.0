@@ -164,3 +164,16 @@
 - Evidence: DailyLife writes generated internal entries into `conversations.messages` with `role='nex'` and `session_id='internal_daily_life'`. BehaviouralSelfModel.observe() selects the latest 100 rows where `role='nex'` without filtering by session or register. Metacognition._detect_goal_drift() selects the latest five rows with the same role-only filter and compares their embeddings with the active goal.
 - Impact: internal templated morning/reading/outreach/journal entries are eligible to influence response-style metrics, subsequent `behavioural_observation` beliefs, and the recent-response sample used for goal-drift detection. The size of either effect is UNKNOWN because no live message rows or metric contributions were inspected.
 - Disposition: determine whether the intended observation population is all NEX-authored messages or only user-facing replies. Validate against isolated fixtures before any runtime change.
+
+### D-14 — Dynamic crystallization can invoke IntakeResonance twice for one belief
+- Type: candidate measurement defect; live incidence UNKNOWN.
+- Evidence: `build_dynamic()` constructs an IntakeResonance instance and passes it to the Dynamic Crystallizer. `Crystallizer._write_belief()` calls that instance's `compute(content)` before INSERT. The INSERT omits `tags` and uses the shared beliefs writer wrapped by TaggingBeliefWriter; the wrapper's `write()` method therefore runs its own separate lazy IntakeResonance probe before injecting tags. Each successful `compute()` writes a new row to `intake_resonance_log`, whose schema has no content deduplication/uniqueness constraint.
+- Condition: this duplicate path is active when the Dynamic crystallizer runs and `NEX5_INTAKE_RESONANCE_OFF` is not `1`. Effective host flag and live duplicate-row incidence were not inspected.
+- Impact: one Dynamic crystallization may contribute two measurements for the same content, potentially biasing resonance distributions or later analyses that treat log rows as independent observations.
+- Disposition: preserve as a candidate defect; verify with an isolated fixture and establish intended single-owner instrumentation before any runtime change. Do not remove either hook or alter the log without explicit approval.
+
+### G-10 — IntakeResonance call coverage and cardinality not yet mapped
+- Type: evidence gap.
+- Evidence: Dynamic crystallization appears to have two independent compute calls; FountainCrystallizer has an explicit call while its tagged INSERT bypasses the wrapper probe; the World Model synergizer supplies tags and no explicit call was observed; seven life-loop inserts bypass the wrapper and have no explicit call in the inspected functions.
+- Impact: current data cannot be assumed to contain one IntakeResonance row per belief, nor can every belief be assumed to have been measured.
+- Disposition: finish the producer-by-producer resonance coverage/cardinality map and validate on isolated fixtures before changing instrumentation.
