@@ -244,3 +244,9 @@
 - Evidence: `intake_resonance_log` is read by `scripts/intake_resonance_cli.py` for lifetime distribution/recent/top/bottom reports, but it is not in `nex_db_reaper.TARGETS` and no retention/compaction policy was found in the inspected source. Its table has no content uniqueness constraint.
 - Impact: the log is append-only in the inspected code and may grow with every resonance computation. Duplicate Dynamic crystallization measurements would be counted as independent events by the CLI's aggregate statistics.
 - Disposition: determine whether the intended dataset is lifetime-retained or time-bounded; document the choice and add isolated retention/aggregation tests only after the data-governance decision. Do not delete or prune live measurements.
+
+### G-16 — Fountain retrieval-log retention is undefined after FK migration
+- Type: data-lifecycle / documentation gap.
+- Evidence: `fountain_retrieval_log` records per-fire retrieved belief IDs and is read by associative recall for the last three fires. Its startup migration drops it only if a legacy cross-database FK to `beliefs` exists, then recreates it without that FK. A nearby comment still says the table is destroyed on every restart. The table is not in `nex_db_reaper.TARGETS` and no ongoing pruning was found. By contrast, `fountain_prompt_blocks` is pruned at startup to 30 days.
+- Impact: the comment no longer accurately describes persistence after the FK migration; the retrieval log may grow indefinitely even though the observed runtime consumer needs only a short recent window.
+- Disposition: establish the intended continuity and retention policy, check for other consumers, then add isolated migration/retention tests. Do not drop or prune live history before that decision.
