@@ -163,3 +163,17 @@ The distinction is material: “all beliefs are written through the TaggingBelie
 
 This is a verified subset, not a repository-wide exhaustive direct-writer census. The remaining faculties and utility modules still require inspection for direct `INSERT INTO beliefs`, update-in-place paths, alternate writer instances, and gate calls. No claim is made that the two direct producer bypasses listed above are the only ones.
 
+
+
+## 13. Additional gate callers and boot-time belief seed
+
+A further bounded caller check verified two additional gate consumers:
+
+- **CounterfactualNode:** `theory_x/stage_counterfactual/counterfactual_node.py:145–181` builds a ThoughtPacket for each buildable candidate, calls `CoherenceGate.check()`, and inserts the candidate as a Tier 3 `counterfactual_node` belief only on ACCEPT. This is a gated producer path.
+- **ThrowNetEngine:** `theory_x/stage_throw_net/throw_net_engine.py:125–175` refines candidates, submits each as a ThoughtPacket to CoherenceGate, and records outcome counts in the session metadata. In the inspected engine loop, it does not itself insert each candidate into `beliefs`; the gate's own ACCEPT side effects and any linked holding-zone corroboration are separate.
+
+A distinct boot-time write is also verified:
+
+- **Self-location commitment:** `run.py:70–75` wraps the beliefs writer, then calls `SelfLocationCommitment.commit()`. `theory_x/stage5_self_location/commitment.py:1–55` idempotently seeds the locked Tier 1 `self_location` belief if absent. This is a deliberate bootstrap anchor, not a generated thought candidate. It is not routed through CoherenceGate; its locked/axiomatic status must be interpreted under the governing doctrine rather than lumped together with runtime producer bypasses.
+
+These additions expand the verified caller/producer subset; they do not complete the census. In particular, modules that update existing beliefs, write through helper functions, or use alternate Writer instances still require inspection.
