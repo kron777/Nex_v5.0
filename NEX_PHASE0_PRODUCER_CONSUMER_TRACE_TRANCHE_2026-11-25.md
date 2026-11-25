@@ -977,3 +977,16 @@ Scope cautions:
 - The world_predictions module also uses its own connect() helper for world_predictions inserts/updates. Its WorldPredictionLoop is explicitly environment-gated by NEX5_WORLD_PRED=1 in run.py and defaults OFF; it is therefore an optional direct-connection path, not a normal-default active loop.
 
 These additions strengthen the source-level mismatch with SPECIFICATION.md §3 if that document remains authoritative. They do not establish contention, data loss, or a need to funnel every administrative or observational write through a cognition gate. Queue serialization and CoherenceGate scope are separate contracts. No code or runtime state was changed.
+## 63. ThoughtPacket arbitrary metadata is not persisted on accepted or held paths
+
+`ThoughtPacket` defines an arbitrary `metadata` dictionary. The Faculty Model §3 says packet metadata gives the substrate queryable provenance and can support downstream filtering/weighting. The current persistence path retains the core fields (`source_node` as `beliefs.source`, `confidence`, `branch_id`, and creation time), but not the arbitrary dictionary:
+
+- `beliefs.sql` has no metadata column or associated `belief_metadata` / `thought_packets` table.
+- `gate_decisions` stores source_node, outcome, reason, latency, content preview, branch_id and confidence; it does not store packet metadata.
+- `held_thoughts` schema has a `metadata TEXT` column, but `HoldingZone.hold()` and `put_reshape_pending()` omit that column from their INSERT statements.
+- `HoldingZone.promote_to_belief()` inserts content, tier, confidence, source and branch_id; it does not copy metadata from the held row.
+- Accepted producer INSERTs similarly persist the core belief fields but not `ThoughtPacket.metadata`. The gate currently consumes `reshape_hint` and `reshape_depth` transiently; the reshape path stores depth in its dedicated column and reconstructs those two keys, not the original arbitrary dictionary.
+
+Thus basic provenance (who/source, when, confidence, branch) is persisted, but arbitrary packet metadata is not queryable after admission or while held. For example, a counterfactual scenario descriptor carried only in packet metadata would not survive as structured substrate metadata unless separately embedded in content or another producer-specific table.
+
+This is a source-level gap against Faculty Model §3 if that document is governing. No live belief metadata or downstream consumer behavior was inspected.
