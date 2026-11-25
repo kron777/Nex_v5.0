@@ -471,3 +471,22 @@
 - Evidence: `signal_to_problem_tick()` inserts an `open_problems` row using a conversations.db connection and updates `signals.actioned_at` using a beliefs.db connection. It commits beliefs first and conversations second. These are independent SQLite transactions; a successful first commit followed by a failed second commit can leave a signal marked actioned without the corresponding problem row.
 - Impact: under a commit failure in the second DB, a promotable signal may be consumed without a durable open problem. No such failure or missing problem was observed.
 - Disposition: founder/design confirms the required atomicity/recovery contract (idempotent replay, outbox, or reconciliation). Do not redesign the persistence boundary before Gate 0 / explicit approval.
+
+
+### G-42 — Self-continuity wording can claim stability/movement without evaluating the full selected state
+- Type: Phase 1 semantic-evidence mismatch; live activation UNKNOWN.
+- Evidence: `continuity_for_prompt()` selects emotion, raga and drive, but all phrase branches inspect emotion only. The held-steady branch filters out empty emotion rows, so it can claim continuity across recent bindings despite missing samples. The generic “moving rather than settling” fallback is emitted when emotion cannot establish a result, without checking whether raga or drive changed. See `NEX_PHASE0_SELF_CONTINUITY_SEMANTICS_AUDIT_2026-11-25.md`.
+- Impact: if the default-OFF flag is armed, the self-view may express a continuity/change claim not supported by all three selected dimensions or by complete samples. No live activation or phrase output was inspected.
+- Disposition: founder/design defines the continuity dimensions and missing-data language. Do not arm or alter this Phase 1 consumer before Gate 0 / explicit approval.
+
+### G-43 — Self-continuity history ordering is not deterministic for timestamp ties
+- Type: Phase 1 deterministic-ordering gap; live incidence UNKNOWN.
+- Evidence: the query orders only by `bound_at DESC` and uses the first two rows as current/previous. No secondary key is specified.
+- Impact: equal-bound_at rows can yield different current/previous pairings across query plans or DB states. No tie case was observed.
+- Disposition: confirm whether the writer guarantees unique timestamps; if not, define an approved stable tie-breaker before changing the query.
+
+### G-44 — Self-continuity connection close is not protected on exception paths
+- Type: resource-cleanup robustness gap; live impact UNKNOWN.
+- Evidence: `continuity_for_prompt()` creates a SQLite connection, fetches rows and calls `c.close()` only on the success path. The broad exception handler returns an empty string but there is no `finally` cleanup.
+- Impact: an exception after connection creation can leave cleanup to Python object destruction/GC. The helper is read-only and fail-safe for prompt composition; no resource leak was observed.
+- Disposition: decide whether explicit deterministic cleanup is required for this short helper. Do not change the Phase 1 seam before Gate 0 / explicit approval.
