@@ -7,7 +7,14 @@
 #   - only ever kill OUR child ($NEX_PID), never a global pkill.
 #   - exit trap kills our child on shutdown (no orphans).
 set -u
-cd /home/rr/Desktop/Desktop/nex5 || { echo "FATAL: cannot cd to nex5 dir"; exit 1; }
+# Resolve the checkout from this script's location. The checkout may live on
+# a mounted data volume rather than under ~/Desktop; systemd supplies the
+# script path, so do not duplicate a host-specific absolute path here.
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" || {
+  echo "FATAL: cannot resolve nex5 script directory"
+  exit 1
+}
+cd -- "${SCRIPT_DIR}" || { echo "FATAL: cannot cd to nex5 dir"; exit 1; }
 
 # --- single-instance lock: only ONE keepalive may run ---
 LOCKFILE=/tmp/nex5_keepalive.lock
