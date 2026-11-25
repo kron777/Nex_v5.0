@@ -610,3 +610,14 @@ Therefore, if a HotObserver belief is selected in a Harmonizer conflict pair and
 Additional flag nuance: `NEX5_HOT_OBSERVER` gates new HotObserver writes, but the 72-hour retrieval query itself is not gated by that flag. If the writer flag is turned off after prior rows exist, those rows remain eligible for prompt injection until they age out or are otherwise excluded.
 
 No live HotObserver rows, Harmonizer events or host flag values were inspected. No code or flag was changed.
+
+## 39. Optional substrate-emission path also lacks a retired-belief filter
+
+A second Fountain retrieval path can surface activated beliefs independently of the normal own/seed query:
+
+- `theory_x/substrate/activation.py:get_top_activated()` joins `belief_activation` to `beliefs`, orders by effective activation and returns the top N rows, but its SQL has no `tier < 8`, `paused=0` or `locked=0` filter.
+- `FountainGenerator.generate()` calls `get_top_activated(..., n=4)` only when `NEX5_SUBSTRATE_EMIT=1`; source comments identify this flag as default OFF. It then formats the selected beliefs (including their tiers and activation values) into a `[substrate emit]` thought instead of calling the normal LLM for that fire.
+- The resulting thought continues through the normal Fountain event path and, when a crystallizer is present, reaches quality checks and CoherenceGate before a new belief can be inserted. The retrieval itself can nevertheless include a belief already retired to Tier 8.
+- Harmonizer can retire unlocked Tier 3–7 beliefs to Tier 8. Fountain retrieval also bumps activation for beliefs selected into context, so a recently retired belief may retain a decaying activation record for this helper to read.
+
+This is another conditional retired-row retrieval gap, distinct from the unconditional dedicated HotObserver slot. It is relevant only if substrate emission is armed and a retired belief remains above the activation threshold. The host flag and live activation rows are UNKNOWN.
