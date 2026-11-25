@@ -1267,3 +1267,17 @@ Verified source facts:
 - Tests cover default-off, emotion persistence/shift, thin history, read-only, missing-table fail-safe and SelfMindView integration, but not dimension disagreement, missing-value semantics, timestamp ties or forced cleanup failure.
 
 No host flag, history row or live behaviour was inspected. The Phase 1 feature was not armed or changed.
+
+
+## 78. InfluenceRecord M0.5 coverage and evidence-level audit
+
+The detailed audit is in `NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md`. The current implementation has two actual seams: Fountain after generation and Chat after reply persistence. It records a limited set of scalar inputs plus output digest/preview; the module itself marks belief-level and faculty-block attribution unresolved.
+
+Verified boundaries:
+
+- No `trace_id` or `parent_ids`; Chat's default `cycle_id` is `chat:<session_id>`, so it is shared by all turns in a session.
+- Candidate generation, salience/workspace selection, Gate decisions and SQLite writer deltas are not captured. The checked-in JSONL fixture is example/fixture evidence, not live runtime evidence.
+- L4 is selected by the caller-declared `NEX5_INFLUENCE_TRACE_CONTEXT=runtime` value or constructor context; a unit test can create L4 in an ordinary test process. No live host record was inspected.
+- When enabled, the side-channel file stores raw 160-character prompt/reply/thought previews and has no in-module redaction or retention/rotation policy.
+
+The current reconciliation's recorded roadmap extract and the exact Frozen V2.1 remain distinct authority sources. No deeper hook, new read, runtime activation or trace schema change was made.
