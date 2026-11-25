@@ -766,3 +766,13 @@ Thus a VoiceEngine substrate miss can become an autonomous ThrowNet session when
 
 
 **Additional TimeFetch detail:** the novel-association candidate query has no `detected_at` lookback and does not filter `annotated_at`; it can return any matching association-log row, regardless of age. These candidates have no belief `tier` or `confidence` fields, so VoiceEngine applies its non-belief defaults (tier score 0.7, confidence 0.5, recency 0.3, genius 0.5). With a perfect semantic match, the source weights yield approximately 0.762 before drive alignment—above the 0.6 threshold. Thus old/retired pair content can be eligible for a verbatim reply without any retired-tier penalty.
+
+## 50. VoiceEngine hit and miss paths have different Chat post-processing
+
+On a VoiceEngine hit, `gui/server.py` sets `text` before entering the `if text is None` LLM-composition block. The hit therefore bypasses the composed faculty prompt, LLM anti-repeat regeneration, and provenance-cue regeneration. The common final `_sanitize_reply(_strip_question_parrot(text, prompt))` still runs for both hit and LLM paths before the reply is persisted and returned.
+
+On a VoiceEngine miss, the route enters the LLM-composition block and executes the ordinary `VoiceClient.speak()` call. The miss also leaves an unfired `user_query` trigger for the optional ThrowNet monitor (§49).
+
+The VoiceEngine mode toggle is admin-visible in the GUI and changes only in-memory AppState; the app's initial state remains `use_substrate` on each process start unless changed. The front-end's initial `use_llm` string is only a display placeholder until `/api/system/status` refreshes it.
+
+This means the default source route attempts substrate-first replies, but actual host mode remains UNKNOWN. A direct hit is a distinct verbatim response path; a miss is not a substrate-only deflection in the current source.
