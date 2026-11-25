@@ -91,16 +91,6 @@ These are distinct from the drive-probe and ThrowNet paths, which submit packets
 
 ### D. Controlled promotion and maintenance
 
-
-### E. Manual, experimental and dry-run utilities
-
-- **Decryption ProbeRunner** — `decryption/probe_runner.py` is explicitly invoked through `run_condition()` / `run_matrix()`; it is not imported by normal startup. With its default `dry_run=False`, it can directly insert synthetic `fountain_insight` rows into the configured beliefs.db using raw `substrate.connect()`, tagged by `parent_belief_id=-99`, then delete those IDs in its `finally` teardown. It also changes the live mode through `POST /api/mode/set` and waits for a genuine Fountain fire. It bypasses CoherenceGate and the shared TaggingBeliefWriter wrapper. Cleanup is normal-path only; abrupt termination can leave synthetic rows. This is an experimental live-system utility, not an automatic loop. It was not run.
-- **Signal repetition cleanup** — `theory_x/diversity/signal_cleanup.py` deletes all but the newest `keep_n` exact-content copies of a fountain_insight belief. It is a one-time helper; no normal startup callsite was found in run.py or the Stage 2 builder. It does not call Gate.
-- **Affinity backfill** — `nex_affinity_backfill.py` is a manual affinity update/backfill path, not a new-belief producer and not a Gate path.
-- **Dry synergizer sample** — `tools/synth_dry_sample.py` constructs CoherenceGate with a RecordingWriter and enforces read-only SQLite connections; it is explicitly designed not to write to the live graph. It is not a live belief writer.
-- **Warrant and recorder paths** — `WarrantPass` and `WarrantRecorder` use the shared beliefs Writer to maintain side tables such as `belief_warrant`, `belief_survival` and `belief_use_day`; they do not insert/update the `beliefs` table. Their background activation is separately environment-gated.
-- **Other Writer parameters are not proof of belief writes** — voice state, mode state, signal loop, Warrant, and NovelAssociation modules accept a beliefs Writer or writer-like object but their inspected SQL targets their own state/log tables, not `beliefs`.
-
 - `HoldingZone.promote_to_belief()` inserts a held candidate after the resolver's three-ACCEPT corroboration threshold. Keep this separate from raw producer bypasses.
 - `BeliefPromoter`, `Harmonizer`, `Erosion`, `AffinityLoop`, `Fountain` refresh paths and `ground_self_belief` also update existing belief rows. These updates affect tier, affinity, erosion, timestamps or content; they are not automatically new thought admissions and should not be conflated with INSERT producer counts. AffinityLoop is appended to the normal Stage 2 loop list and updates affinity on its 30-minute cadence; it is not a new-belief producer.
 - `ResumptionSeeder` is called once during normal `run.py` startup. It updates `created_at` for up to five IDs in the prior `state_snapshot.json`; it does not call Gate or revalidate tier/paused/locked status. The snapshot writer's source filter is by selected source family, not an explicit active-status predicate. This is a boot-time recency promotion, not a new belief insert.
@@ -108,6 +98,13 @@ These are distinct from the drive-probe and ThrowNet paths, which submit packets
 - `nex_affinity_backfill.py` is a separate backfill/update utility, not a normal loop.
 - `IntakeResonance` writes to `intake_resonance_log`, not `beliefs`.
 - `ProblemMemory` and `SignalToProblem` write to `open_problems`, not `beliefs`.
+
+### E. Manual, experimental and dry-run utilities
+
+- **Decryption ProbeRunner** — `decryption/probe_runner.py` is explicitly invoked through `run_condition()` / `run_matrix()`; it is not imported by normal startup. With its default `dry_run=False`, it can directly insert synthetic `fountain_insight` rows into the configured beliefs.db using raw `substrate.connect()`, tagged by `parent_belief_id=-99`, then delete those IDs in its `finally` teardown. It also changes the live mode through `POST /api/mode/set` and waits for a genuine Fountain fire. It bypasses CoherenceGate and the shared TaggingBeliefWriter wrapper. Cleanup is normal-path only; abrupt termination can leave synthetic rows. This is an experimental live-system utility, not an automatic loop. It was not run.
+- **Dry synergizer sample** — `tools/synth_dry_sample.py` constructs CoherenceGate with a RecordingWriter and enforces read-only SQLite connections; it is explicitly designed not to write to the live graph. It is not a live belief writer.
+- **Warrant and recorder paths** — `WarrantPass` and `WarrantRecorder` use the shared beliefs Writer to maintain side tables such as `belief_warrant`, `belief_survival` and `belief_use_day`; they do not insert/update the `beliefs` table. Their background activation is separately environment-gated.
+- **Other Writer parameters are not proof of belief writes** — voice state, mode state, signal loop, Warrant, and NovelAssociation modules accept a beliefs Writer or writer-like object but their inspected SQL targets their own state/log tables, not `beliefs`.
 - `NovelAssociation` accepts a beliefs Writer but no `INSERT INTO beliefs` path was found in the inspected implementation; its presence in the dependency graph is not evidence of belief production.
 
 ## 4. Test-coverage observations
