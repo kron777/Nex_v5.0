@@ -1297,3 +1297,15 @@ The detailed route map is NEX_PHASE0_CHAT_ROUTE_VARIANTS_AUDIT_2026-11-25.md; th
 ## 81. Membrane and provenance coverage audit
 
 The detailed map is NEX_PHASE0_MEMBRANE_PROVENANCE_COVERAGE_AUDIT_2026-11-25.md. INSIDE routing combines formatted SelfModel state with a separate INSIDE belief retrieval. SelfModel standing-points are plain content lines, not Tier-formatted rows, and the provenance parser normally does not include them. The provenance snapshot is captured from the initial retrieval text before later Chat augmentations and tool results; it is therefore a narrow retrieval snapshot, not a complete transcript of every contextual influence in the final prompt. The audit also traces repeated beliefs_query retrieval and multiline marker-shaped content as conditional attribution risks, with no live incidence established.
+
+## 79. Main-only MIND_MAP and active-host branch reconciliation
+
+The detailed branch/source-reference audit is in `NEX_PHASE0_MAIN_BRANCH_MIND_MAP_RECONCILIATION_2026-11-25.md`.
+
+- The active-host base is 4 commits ahead and 205 behind main (merge base `fb87e24`); PR #98 targets `claude/nex-continuity-wire`, not main. No merge/rebase/cherry-pick occurred.
+- Main's MIND_MAP was introduced 9 November and last updated 20 November. The directory is absent from the active-host base. The YAML has 34 node entries (30 substantive plus four structural placeholders) and five arms.
+- MIND_MAP is explicitly descriptive-only, not the operational DAG or build-order tool. Its 51 source references across 41 files include 12 referenced files absent from the active-host base; copying the map alone would fail its own source-existence validation.
+- The active-host `sentience_dag.json`/`nex_next_dev.py` is a separate build-order mechanism; `live_unproven` is counted as a satisfied prerequisite and flagged rather than blocking.
+- The main-only map generator validates structure, source paths, freshness and absence claims, but not runtime callsites or authority invariants. The map's two meta.doctrine references to `VIRTUE_SLATE.md` and `mental_factors_inventory_alobha_spec.txt` are missing even on main and generate warnings.
+
+No map, source file, test or generated diagram was imported. No branch lineage or DAG status changed.
