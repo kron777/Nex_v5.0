@@ -78,7 +78,7 @@ def test_collect_service_audit_queries_only_fixed_units_and_selected_properties(
 
     def fake_run(argv, **kwargs):
         calls.append(argv)
-        if argv[1:] == ["--user", "show-environment"]:
+        if argv[1:] == ["--user", "show", "--property=Version", "--no-pager"]:
             return SimpleNamespace(returncode=0, stdout="", stderr="")
         unit = argv[3]
         return SimpleNamespace(
@@ -102,6 +102,7 @@ def test_collect_service_audit_queries_only_fixed_units_and_selected_properties(
     assert all(row["status"] == "COLLECTED" for row in result["services"])
     assert all(row["missing_paths"] for row in result["services"])
     assert len(calls) == 1 + len(service_audit.UNITS)
+    assert calls[0][1:] == ["--user", "show", "--property=Version", "--no-pager"]
     assert all(call[2] == "show" for call in calls[1:])
     assert all("--property=ExecStart" in call for call in calls[1:])
     assert result["scope"] == {
