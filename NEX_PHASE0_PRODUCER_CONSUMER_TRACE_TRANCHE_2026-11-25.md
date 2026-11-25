@@ -800,3 +800,15 @@ The `_retrieve_context_beliefs()` own-content pool and the prompt text are separ
 - Other belief-derived prompt blocks (Favorites, recent Surprise, spectrum standing points and optional HotObserver/reanimation paths) are separate queries with their own filters, as recorded in §§35, 38, 44 and 51.
 
 Therefore the source comment that own lived content dominates the retrieval allocation does not establish that own-belief text dominates the actual Fountain prompt. With source defaults and absent environment overrides, the main own-belief pool is retrieved and statefully used but its dedicated text block is not rendered. Whether that separation is intentional is UNKNOWN; host-effective flags and actual prompt manifests were not inspected.
+
+## 53. World Model EdgeGenerator filters target candidates but not source rows
+
+The earlier summary of EdgeGenerator's tier bound needs a source/target distinction:
+
+- `EdgeGeneratorLoop._tick()` selects source IDs from `beliefs` where `source IN ('fountain_insight','synergized')` and the ID appears in neither the `source_id` nor `target_id` columns of `belief_edges`. This source-selection query has no tier, paused or locked predicate.
+- `EdgeGenerator.propose_edges_for_belief()` re-reads the source row by ID without a status predicate. Its *candidate target* query filters `tier <= 7` and a seven-day creation window, but does not filter `paused` or `locked`.
+- The loop runs after a 60-second boot delay and then every 30 minutes in normal Stage 3 boot wiring.
+
+Therefore, a Tier 8 retired `fountain_insight` or `synergized` belief that has no existing incoming/outgoing edge can still be selected as an EdgeGenerator source and connected to a tier<=7 target. Paused or locked tier<=7 rows can also be selected as targets. The earlier statement that EdgeGenerator excludes Tier 8 applies only to its target-candidate query, not its source selection.
+
+This adds another normal-wiring path for retired rows to enter graph topology and broadens the paused/locked graph-status question. It does not directly return retired content from the Stage 3 retriever, but the graph can influence later spreading activation. No live graph state was inspected.
