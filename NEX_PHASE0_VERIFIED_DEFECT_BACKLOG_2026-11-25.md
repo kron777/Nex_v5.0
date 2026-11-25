@@ -196,3 +196,15 @@
 - Evidence: `gui/server.py` constructs and passes CoherenceGate to several faculties, but the user-facing chat route calls `state.voice.speak()`, performs optional bounded anti-repeat/provenance retries, sanitizes the final text and inserts it into `conversations.messages` without a `coherence_gate.check()` / ThoughtPacket / GateOutcome call.
 - Impact: chat reply generation and conversation persistence are outside the current CoherenceGate decision path. Chat messages are not themselves `beliefs` rows, so whether they fall within the intended gate obligation is a specification question.
 - Disposition: define whether the gate applies to autonomous belief candidates only, all autonomous outputs, or user-facing chat replies too. Do not add a chat gate or change reply persistence before the governing specification and founder review.
+
+### D-20 — Residue module status documentation contradicts the current reaper target
+- Type: documentation discrepancy plus test-coverage gap.
+- Evidence: `theory_x/diversity/residue.py` still states residue is absent from `nex_db_reaper.TARGETS` and proposes adding an external retention pass. The current `nex_db_reaper.py` includes `beliefs.db:residue` with a 2-day `created_at` retention override. The nightly timer is configured for 04:00. The local residue `_reap()` deletes consumed rows after 7 days, while the external reaper deletes all rows older than 2 days if it runs.
+- Impact: the module docstring's “unbounded” diagnosis and pending recommendation are stale. Actual cleanup depends on the external service/timer executing; the last host evidence showed the reaper service failed with `MainPID=0`, and current execution history is UNKNOWN. Historical row counts in the module docstring are not current host evidence.
+- Disposition: correct the docstring and add isolated temp-DB tests for the 2-day target. Do not run the reaper, delete live rows, change retention or activate services without approval.
+
+### G-12 — Residue retention operational evidence and test coverage incomplete
+- Type: evidence gap.
+- Evidence: `tests/test_retention_reaper.py` tests the 30-day and 90-day targets but does not test residue's 2-day target. Host service status was failed at the last evidence collection; no successful reaper run/log or live residue row count was verified.
+- Impact: source configuration proves the intended retention policy, not that the host has executed it or that the 2-day cleanup is functioning operationally.
+- Disposition: add isolated tests; obtain service/timer and reaper-log evidence through the approved read-only host audit when available. Do not manually run retention against live DBs.
