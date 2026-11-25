@@ -547,3 +547,14 @@ These are manual/one-time seed operations, not normal runtime producers. Whether
 
 
 **Chat consumption:** `gui/server.py:1670–1703` also samples `source='spectrum'` rows for the Chat prompt (up to six random standing-points in the main composition block, and a further up-to-four sample in the thin-belief Philosophical path). The source comment describes the block as always present when spectrum rows exist. Thus spectrum seed content is a shared prompt input to both autonomous Fountain generation and user-facing Chat composition. This does not apply CoherenceGate to the Chat reply; see §32.
+
+## 35. Environment-gated HotObserver is an additional direct belief producer
+
+`FountainGenerator.generate()` contains a separately gated self-observation write:
+
+- The callsite in `theory_x/stage6_fountain/generator.py:2004–2024` invokes `theory_x.stage_tom.hot_observer.observe()` only when `NEX5_HOT_OBSERVER=1`. The flag is not enabled by default in this source path.
+- `theory_x/stage_tom/hot_observer.py:1–90` classifies each eligible fire, increments an in-process counter, and writes on every third call. It opens the beliefs database directly with `connect()` and inserts a Tier 3, confidence 0.6 belief with source `hot_observer`, branch ID, and explicit state/provenance fields.
+- This direct SQL insert does not use the shared TaggingBeliefWriter, does not invoke its IntakeResonance probe, and does not call CoherenceGate.
+- The Fountain retrieval path has a dedicated `hot_observer` slot: `_retrieve_context_beliefs()` reads up to 300 `hot_observer` rows from the prior 72 hours, deduplicates near-identical first sentences, and randomly selects one to prepend to the next fire's context. This is separate from the main own-content and seed slots.
+
+This adds one environment-gated direct runtime belief producer to the census. When armed, it creates a feedback path: Fountain fire → HotObserver meta-belief (one per three calls) → dedicated retrieval slot on a later fire. It is a source-level possibility only; the host flag and live rows are UNKNOWN.
