@@ -708,10 +708,8 @@ def test_reuse_review_requires_nonblank_text_evidence_across_consumers():
 
     rel = Relationship("consumer", invalid.key, "depends_on")
     assert assess_relationship(rel, {invalid.key: invalid}).verdict == TENSION_UNKNOWN
-    readiness = next(
-        item for item in assess_system({invalid.key: invalid}, [])[0:1]
-        if item.subject == "integration_readiness"
-    )
+    readiness = next(item for item in assess_system({invalid.key: invalid}, [])
+                     if item.subject == "integration_readiness")
     assert readiness.verdict == TENSION_UNKNOWN
 
     unpruned = Relationship("consumer", invalid.key, "depends_on")
