@@ -136,6 +136,8 @@ These are semantic/robustness review items. No continuity behaviour was changed 
 
 ## 6. Verified defect and discrepancy backlog
 
+A founder-reviewable standalone version is maintained in [NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-25.md](NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-25.md). The list below is its concise summary.
+
 1. **Stale Phase 0 status documents.** The original Reality Report and handoff describe branch/head fb87e24 and pre-continuity status. They need this reconciliation attached and their stale claims explicitly superseded.
 2. **Active-branch architecture source gap.** mind_map/MIND_MAP.yaml is absent from the active branch but exists on main. Reconcile branch history and ownership before importing it.
 3. **Incomplete crosswalk.** The existing v2 crosswalk is a two-output-path seed, not the full producer/consumer DAG across theory_x, substrate, speech and GUI.
