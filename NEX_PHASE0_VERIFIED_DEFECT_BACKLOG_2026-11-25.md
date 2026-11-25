@@ -304,3 +304,9 @@
 - Evidence: `Harmonizer.scan_for_conflicts()` selects Tier 3–7, unlocked/unpaused rows ordered only by tier ascending, with `LIMIT 200`; no cursor, rotation or time ordering is present. Rows without a detected conflict remain eligible on later two-hour scans.
 - Impact: if more than 200 eligible rows exist, the same low-tier/early rows can dominate repeated scans and higher-tier/later rows may be starved. Whether the host population exceeds the cap is UNKNOWN.
 - Disposition: measure eligible row counts and define scan fairness before changing the cap or ordering. Do not run scans against live state or modify Harmonizer behaviour without approval.
+
+### G-20 — TaggingBeliefWriter batch-write coverage is not defined
+- Type: wrapper coverage / test gap.
+- Evidence: `TaggingBeliefWriter.write()` intercepts eligible belief INSERTs, but `write_many()` delegates unchanged to the inner Writer. Direct SQLite, independent Writers, pre-wrapper init_db seeding, positional/no-content SQL and caller-supplied tags also bypass the wrapper. No current normal-runtime belief INSERT through the wrapped `write_many()` path was established in the scanned callsites.
+- Impact: the “universal chokepoint” comment overstates the actual interception boundary; a future or unscanned batch INSERT can bypass both tag generation and the wrapper's IntakeResonance probe.
+- Disposition: correct the comment and decide whether batch INSERT interception is required. Add isolated tests only after the intended writer contract is defined; do not change the wrapper's runtime behaviour now.
