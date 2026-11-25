@@ -657,6 +657,84 @@ def test_reconciliation_coverage_excludes_unreviewed_reuse_consistently():
     assert reviewed_metrics["reconciliation_status_coverage"] == 1.0
 
 
+def test_reuse_review_requires_nonblank_text_evidence_across_consumers():
+    from rdo.memory import cycle_metrics
+    from rdo.model import has_valid_reuse_review
+    from rdo.prioritise import priority_dimensions
+    from rdo.reconcile import summarize
+    from rdo.tension import (TENSION_UNKNOWN, assess_node, assess_relationship,
+                             assess_system, recognize_sufficiency)
+
+    def reviewed_obligation(key="reuse"):
+        return Obligation(
+            key, key, "persistence", recon_status=REUSE_EXISTING,
+            recon_evidence=["src/mechanism.py:12"], confidence="measured",
+            recon_semantic_verified=True,
+            recon_semantic_review_evidence=["manual review: obligation satisfied"],
+        )
+
+    valid = reviewed_obligation()
+    assert has_valid_reuse_review(valid)
+    assert has_valid_reuse_review(valid.to_dict())
+
+    malformed_fields = (
+        ("recon_evidence", [""]),
+        ("recon_evidence", ["   "]),
+        ("recon_evidence", [None]),
+        ("recon_evidence", ["src/mechanism.py:12", None]),
+        ("recon_semantic_review_evidence", [""]),
+        ("recon_semantic_review_evidence", ["   "]),
+        ("recon_semantic_review_evidence", [None]),
+        ("recon_semantic_review_evidence", ["manual review", ""]),
+        ("recon_semantic_verified", 1),
+    )
+    for field, malformed in malformed_fields:
+        candidate = reviewed_obligation(field)
+        setattr(candidate, field, malformed)
+        assert not has_valid_reuse_review(candidate), (field, malformed)
+        assert not has_valid_reuse_review(candidate.to_dict()), (field, malformed)
+
+    # Every consumer must treat malformed review data as unreviewed.
+    invalid = reviewed_obligation("invalid")
+    invalid.recon_semantic_review_evidence = ["   "]
+    assert summarize({invalid.key: invalid})[RECON_UNKNOWN] == ["invalid"]
+
+    cycle = CycleRecord(id="malformed-reuse", objective="o",
+                        obligations=[invalid.to_dict()])
+    assert cycle_metrics(cycle)["reconciliation_status_coverage"] == 0.0
+    assert priority_dimensions(invalid, {})["readiness_to_build"] > 0.0
+    assert assess_node(invalid).verdict == TENSION_UNKNOWN
+    assert recognize_sufficiency({invalid.key: invalid}) == []
+
+    rel = Relationship("consumer", invalid.key, "depends_on")
+    assert assess_relationship(rel, {invalid.key: invalid}).verdict == TENSION_UNKNOWN
+    readiness = next(
+        item for item in assess_system({invalid.key: invalid}, [])[0:1]
+        if item.subject == "integration_readiness"
+    )
+    assert readiness.verdict == TENSION_UNKNOWN
+
+    unpruned = Relationship("consumer", invalid.key, "depends_on")
+    assert prune_false_dependencies({invalid.key: invalid}, [unpruned]) == []
+    assert unpruned.kind == "depends_on"
+
+    def malformed_review_callback(ob):
+        ob.recon_evidence = ["src/mechanism.py:12"]
+        ob.confidence = "measured"
+        ob.recon_semantic_verified = True
+        ob.recon_semantic_review_evidence = ["   "]
+        return REUSE_EXISTING
+
+    expanded, _, frontier = expand(
+        [Obligation("root", "root", "persistence")],
+        reconcile_fn=malformed_review_callback,
+        max_depth=1,
+    )
+    assert "root.schema" in expanded
+    assert any(item["reason"] == "reuse status lacks semantic-review evidence; "
+               "expanded conservatively" for item in frontier)
+
+
 def test_signature_evidence_coverage_rejects_inconsistent_counts():
     from rdo.memory import cycle_metrics
 
