@@ -35,7 +35,7 @@ def host_requests() -> List[HostRequest]:
         HostRequest(
             "checkouts_drift", "Known checkouts + deployment drift",
             "Git root, branch, full HEAD SHA, clean/dirty summary, redacted origin scheme/host, "
-            "locally available origin/main SHA and divergence for the two historically "
+            "locally available origin/main SHA and divergence for the three historically "
             "identified checkout paths, plus any additional checkout path established "
             "from Python process-working-directory candidates. Candidates require independent PID/service correlation. No home scan. "
             "The origin/main tracking ref is not refreshed; report its SHA and treat "
@@ -43,7 +43,8 @@ def host_requests() -> List[HostRequest]:
             [
                 "for checkout in "
                 "/home/rr/Desktop/Desktop/nex5 "
-                "/home/rr/Desktop/NEX_AUDIT/Nex_v5.0-main; do "
+                "/home/rr/Desktop/NEX_AUDIT/Nex_v5.0-main "
+                "/mnt/games/storage/Desktop/Desktop/nex5; do "
                 "if [ -d \"$checkout\" ] && git -C \"$checkout\" rev-parse "
                 "--is-inside-work-tree >/dev/null 2>&1; then "
                 "printf '\\ncheckout=%s\\n' \"$checkout\"; "
@@ -356,12 +357,12 @@ def host_requests() -> List[HostRequest]:
             "StateSnapshotWriter, so state_snapshot.json is beside the DBs. The separate "
             "scripts/snapshot.py archive is under the candidate checkout snapshots/ directory. "
             "With one process candidate, use its NEX5_DATA_DIR or checkout default, labelled unverified until service/PID correlation. "
-            "With zero or multiple process candidates, fingerprint only the two historically named checkout defaults, explicitly "
+            "With zero or multiple process candidates, fingerprint only the three historically named checkout defaults, explicitly "
             "labelled as candidate roots with active-root identity UNKNOWN. No home scan, SQL/row counts or file copies. "
             "No SQL queries or row counts and no file copies. Nested symlinks are skipped and counted; traversal errors mark the inventory INCOMPLETE.",
             [
                 "# Runtime artifact roots use a unique process candidate when available. "
-                "Without one, only the two historically named checkout defaults are fingerprinted, "
+                "Without one, only the three historically named checkout defaults are fingerprinted, "
                 "and are labelled as candidates rather than active runtime roots. No home scan.",
                 "python3 - <<'PY'\n"
                 "import hashlib, os, pathlib, re, stat\n"
@@ -416,6 +417,7 @@ def host_requests() -> List[HostRequest]:
                 "known_checkouts = [\n"
                 "    pathlib.Path(\"/home/rr/Desktop/Desktop/nex5\"),\n"
                 "    pathlib.Path(\"/home/rr/Desktop/NEX_AUDIT/Nex_v5.0-main\"),\n"
+                "    pathlib.Path(\"/mnt/games/storage/Desktop/Desktop/nex5\"),\n"
                 "]\n"
                 "targets = choose_artifact_roots(candidates, known_checkouts)\n"
                 "if len(candidates) != 1:\n"
