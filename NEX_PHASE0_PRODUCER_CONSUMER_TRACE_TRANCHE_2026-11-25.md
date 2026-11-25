@@ -714,3 +714,14 @@ The dormancy/reanimation chain has no active-belief status guard at any of its t
 Because Harmonizer can retire unlocked source-family beliefs to Tier 8 with `paused=0`, those rows remain eligible for dormancy scanning, reanimation and Fountain prompt injection. Paused rows are also not excluded. The residue path explicitly rechecks `tier < 8`; the reanimation path does not.
 
 This is a further normal-wiring retired/paused content path, separate from HotObserver, substrate emission, NovelAssociation and EdgeBuilder. It is conditional on a matching row being flagged, selected by `wake_one()` and consumed on a Fountain cadence. No live dormant row, pending reanimation or Fountain prompt was inspected.
+
+## 47. Fountain pre-gate output also updates open-problem state
+
+When a Fountain prompt contains a pending problem injection, the generated output is fed back into `ProblemMemory.observe()` before the normal crystallizer/gate stage:
+
+- `FountainGenerator.generate()` checks `_pending_problem_injection` and, when present, calls `self._problem_memory.observe(problem_id, thought, source='problem_injection')` before the later `FountainCrystallizer.crystallize()` call.
+- `ProblemMemory.observe()` in `theory_x/stage7_sustained/problem_memory.py:138–180` appends a timestamped observation to `open_problems.observations` and updates `last_touched_at`, deduplicating only if the new observation is byte-identical to the last entry.
+- This write is to the conversations DB's `open_problems` state, not to `beliefs`; it is not guarded by CoherenceGate and occurs even if the later crystallizer rejects the thought.
+- If `NEX5_HOT_OBSERVER=1`, the same pre-crystallizer region also calls HotObserver, which can insert a Tier 3 belief directly (see §35).
+
+These are additional pre-gate state effects from the same generated output: open-problem feedback is persisted regardless of belief admission, and the optional HotObserver can persist a separate belief outside the normal gate. The gate is therefore a specific belief-admission control, not a transaction boundary around all consequences of a Fountain fire.
