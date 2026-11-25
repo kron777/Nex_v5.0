@@ -763,3 +763,6 @@ Thus a VoiceEngine substrate miss can become an autonomous ThrowNet session when
 
 
 **Mode persistence:** `/api/voice_mode` changes only `AppState.voice_mode` in memory; no persistent settings write is made by the endpoint or the inspected front-end toggle. A process restart therefore returns to the dataclass source default `use_substrate` unless another caller changes it after boot. The host's current in-memory mode and any UI action history are UNKNOWN.
+
+
+**Additional TimeFetch detail:** the novel-association candidate query has no `detected_at` lookback and does not filter `annotated_at`; it can return any matching association-log row, regardless of age. These candidates have no belief `tier` or `confidence` fields, so VoiceEngine applies its non-belief defaults (tier score 0.7, confidence 0.5, recency 0.3, genius 0.5). With a perfect semantic match, the source weights yield approximately 0.762 before drive alignment—above the 0.6 threshold. Thus old/retired pair content can be eligible for a verbatim reply without any retired-tier penalty.
