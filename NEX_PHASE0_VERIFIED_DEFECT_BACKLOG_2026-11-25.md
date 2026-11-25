@@ -177,3 +177,10 @@
 - Evidence: Dynamic crystallization appears to have two independent compute calls; FountainCrystallizer has an explicit call while its tagged INSERT bypasses the wrapper probe; the World Model synergizer supplies tags and no explicit call was observed; seven life-loop inserts bypass the wrapper and have no explicit call in the inspected functions.
 - Impact: current data cannot be assumed to contain one IntakeResonance row per belief, nor can every belief be assumed to have been measured.
 - Disposition: finish the producer-by-producer resonance coverage/cardinality map and validate on isolated fixtures before changing instrumentation.
+
+### D-15 — Optional Fountain best-of-cluster update returns before CoherenceGate
+- Type: conditional gate-scope issue; not adjudicated as a defect.
+- Evidence: in `FountainCrystallizer.crystallize()`, the `NEX5_BESTOFCLUSTER=1` branch runs when quality checking returns `semantic_repeat`. If the new thought's genius-v2 score exceeds the matched belief's score, `_maybe_bestofcluster_upgrade()` updates the existing `beliefs.content` and matching `fountain_crystallizations.content`, then returns the existing belief ID. This branch occurs before the normal CoherenceGate call later in `crystallize()`.
+- Condition: the path is default-OFF in source; effective host flag is UNKNOWN. It is a content replacement of an existing belief, not a new row insert.
+- Impact: if the gate obligation covers every newly generated candidate that changes durable belief content, this path bypasses it. If the gate only governs new belief-row insertion, the current path may be intentional.
+- Disposition: resolve gate scope against Frozen V2.1 and founder approval evidence. Do not enable/disable the flag or change this update path before that review.
