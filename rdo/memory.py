@@ -97,6 +97,9 @@ class PatternMemory:
                 updated_confidence = _bounded_confidence(
                     round(existing_confidence + 0.1, 3)
                 )
+            # Restore the bounded value after validation; callers may also have
+            # supplied a finite but out-of-range value through a returned alias.
+            ex.confidence = existing_confidence
             exceptions_changed = False
             for x in pattern.exceptions:
                 if x not in ex.exceptions:
@@ -121,7 +124,7 @@ class PatternMemory:
     def _append(self, pattern: Pattern) -> None:
         # Last-line defence: never write a record whose confidence was altered
         # through a public mutable alias after the add() checks.
-        _bounded_confidence(pattern.confidence)
+        pattern.confidence = _bounded_confidence(pattern.confidence)
         os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
         with open(self.path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(pattern.to_dict(), default=str) + "\n")
