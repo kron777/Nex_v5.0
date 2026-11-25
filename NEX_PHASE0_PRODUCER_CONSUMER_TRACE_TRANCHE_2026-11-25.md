@@ -398,3 +398,23 @@ A second downstream observer uses the same broad `role='nex'` population:
 - Since DailyLife writes into the same `messages` table as role `nex`, its internal activity entries are eligible to enter this five-message sample as well as the BehaviouralSelfModel's 100-message sample.
 
 This expands G-09 from a single observer to a shared input-population issue affecting at least two distinct consumers: response-style measurement and goal-drift detection. Whether this is intentional (all NEX-authored language is relevant) or a confound (only user-facing responses should represent response behaviour) is a design question, not settled by source. No live rows were read and no metric was recomputed.
+
+## 27. Dynamic crystallization appears to double-record IntakeResonance
+
+A concrete duplicate-measurement path is visible across the Dynamic crystallizer and TaggingBeliefWriter:
+
+1. `run.py:68–71` wraps the shared beliefs Writer in `TaggingBeliefWriter` before `build_dynamic()` receives it.
+2. `theory_x/stage2_dynamic/__init__.py:470–490` constructs an `IntakeResonance` instance and passes it into the Dynamic `Crystallizer` as `intake_resonance`.
+3. `theory_x/stage2_dynamic/crystallization.py:198–212` calls `self._intake_resonance.compute(content)` before writing the new belief.
+4. The same belief INSERT has an explicit column list but does not include `tags`. The shared writer is the TaggingBeliefWriter wrapper, whose `write()` path parses that INSERT, and—because `tags` is absent—runs its own lazy `_intake_probe.compute(content)` before injecting tags.
+5. `theory_x/stage2_dynamic/intake_resonance.py:108–178` writes a new `intake_resonance_log` row on each successful `compute()` call. The table schema in `substrate/init_db.py:422–430` has an autoincrement ID and timestamp index but no content uniqueness or deduplication constraint.
+
+Therefore, when the path is active and `NEX5_INTAKE_RESONANCE_OFF` is not `1`, one Dynamic crystallization can invoke two separate IntakeResonance instances and create two log rows for the same content. The two calls may use separate cached standing-point/embedding state; no deduplication is present in the inspected compute path. This is a source-level duplicate-measurement finding. It is not evidence that the host has generated duplicate rows, because live DB state and effective environment flags were not inspected.
+
+### Contrast with other traced producers
+
+- FountainCrystallizer explicitly calls its own IntakeResonance before INSERT, but its INSERT includes a `tags` column (`_attr_tags`, defaulting to `[]`). TaggingBeliefWriter returns early when the caller already supplies `tags`, so its embedded probe does not run for that write; the explicit Fountain call is the observed measurement path.
+- The World Model synergizer also includes `tags` in its INSERT, so the wrapper's early `tags` pass-through prevents its embedded probe from running; no separate IntakeResonance call was observed in the inspected synthesize path.
+- The seven direct-SQL life loops bypass TaggingBeliefWriter altogether and do not call IntakeResonance in their inspected insert functions.
+
+This demonstrates that the wrapper's embedded resonance probe is not a uniform single call per belief. The eventual coverage map must record each producer's explicit resonance call, whether it routes through the wrapper, whether the INSERT already includes `tags`, and the number of resulting log writes.
