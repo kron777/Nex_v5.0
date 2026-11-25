@@ -559,3 +559,25 @@ These are manual/one-time seed operations, not normal runtime producers. Whether
 - The Fountain retrieval path has a dedicated `hot_observer` slot: `_retrieve_context_beliefs()` reads up to 300 `hot_observer` rows from the prior 72 hours, deduplicates near-identical first sentences, and randomly selects one to prepend to the next fire's context. This is separate from the main own-content and seed slots.
 
 This adds one environment-gated direct runtime belief producer to the census. When armed, it creates a feedback path: Fountain fire → HotObserver meta-belief (one per three calls) → dedicated retrieval slot on a later fire. It is a source-level possibility only; the host flag and live rows are UNKNOWN.
+
+## 36. “Global Workspace” has two different route-specific mechanisms
+
+The same module exposes two distinct attention helpers, and the two output routes use them differently:
+
+### Fountain: single leading-frame arbitration
+
+- `FountainGenerator._build_prompt()` invokes `global_workspace.arbitrate()` when `NEX5_GLOBAL_WORKSPACE` is unset or `1` (source default ON).
+- `global_workspace.arbitrate()` competes five candidate classes: recent surprise, active L4 stakes, live momentum, hottest Bonsai branch and dominant drive. It selects the highest weighted candidate and returns one `[WORKSPACE]` framing line.
+- That line is prepended to Fountain's `focus_block`. Other faculty blocks are still appended below; the function does not suppress the losing faculties or send a control signal back into them.
+
+### Chat: optional budgeted block selection
+
+- `gui/server.py` assembles approximately thirteen faculty/context blocks. `_assemble_chat_blocks()` concatenates all blocks unchanged unless `NEX5_CHAT_WORKSPACE=1` (source default OFF).
+- When enabled, it calls `global_workspace.select_within_budget()` with per-block salience and a configurable character budget (default 1400). Exempt safety blocks are always retained; remaining blocks are admitted by descending salience until the budget is reached, but returned in their original assembly order.
+- Optional `NEX5_SELF_PRESENT=1` updates the salience vector across turns. This is a block-budget selector, not the Fountain's single-winner framing mechanism.
+
+### Architectural distinction
+
+The source therefore does not show one unified global-workspace arbiter controlling every NEX route. Fountain has a default-on single-frame prompt prefix over five candidates; Chat has a separate default-off budgeted selector over faculty blocks. Neither mechanism, as inspected, directly gates belief writes or user-facing output. The module's “broadcast” terminology refers to prompt framing, not a demonstrated cross-faculty control broadcast or causal change in module execution.
+
+Host-effective flags and the actual composition of either route's prompts remain UNKNOWN.
