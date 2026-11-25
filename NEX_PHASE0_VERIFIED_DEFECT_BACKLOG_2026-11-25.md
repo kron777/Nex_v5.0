@@ -265,7 +265,7 @@
 
 ### D-28 — VoiceEngine TimeFetch can return retired, paused or locked belief content
 - Type: source-level user-facing retrieval defect candidate; live incidence UNKNOWN.
-- Evidence: the normal Chat path calls VoiceEngine when `voice_mode='use_substrate'` (AppState source default). `TimeFetch.fetch_from_beliefs()` filters confidence and content length but not tier/paused/locked; `fetch_from_novel_associations()` joins belief pairs without status filters. VoiceEngine assigns Tier 8 a lower score, not an exclusion, and returns a qualifying hit verbatim for the non-composition path. The route does not call CoherenceGate.
+- Evidence: the normal Chat path calls VoiceEngine when `voice_mode='use_substrate'` (AppState source default). `TimeFetch.fetch_from_beliefs()` filters confidence and content length but not tier/paused/locked; `fetch_from_novel_associations()` joins belief pairs without status filters or a detected-at lookback and returns old association-log rows. Those non-belief candidates receive default tier/confidence/recency/genius scores and can still exceed the 0.6 threshold. VoiceEngine assigns Tier 8 a lower score, not an exclusion, and returns a qualifying hit verbatim for the non-composition path. The route does not call CoherenceGate.
 - Impact: retired/paused/locked belief content can be selected as a direct user-facing reply if it scores above 0.6. Novel-association pairs can also contain retired content. The main World Model retriever's tier<=6/paused filters do not protect this separate route.
 - Disposition: verify with isolated TimeFetch/VoiceEngine fixtures and define whether substrate-as-voice may serve retired/paused/locked content. Do not change the query, mode or reply path before Gate 0 / explicit approval.
 
