@@ -133,4 +133,4 @@ def test_service_audit_is_part_of_the_single_host_collection():
     request = next(row for row in host_requests() if row.id == "service_integrity")
     assert request.read_only_commands == ["python3 -m watcher.service_audit"]
     assert "no " in request.collects.lower()
-    assert "unit file" in request.collects.lower()
+    assert "unit-file" in request.collects.lower()
