@@ -207,3 +207,60 @@ These are only file-local negative observations. They do not prove the faculties
 ### Updated census status
 
 Verified gated candidate producers in this tranche: Dynamic crystallization, World Model synergizer, Fountain crystallization, CounterfactualNode. Verified gate consumers with no direct belief insert in their inspected main loop: ThrowNetEngine and Fountain drive probe. Verified direct producer/seed/promotion paths: sense distillation, Fountain rut mirror, self-location boot seed, and resolver-mediated Holding Zone promotion. Additional callsites and indirect writers remain unverified.
+
+
+## 15. Stage 2 life-loop belief writers — additional direct paths
+
+A targeted pass over the optional life-loop modules found additional belief producers that were not in the earlier direct-writer subset. These functions open the beliefs database directly with `connect(BELIEFS_DB)` and issue SQL themselves; they do not use the shared `TaggingBeliefWriter` instance, and the inspected write functions contain no `CoherenceGate.check()` call.
+
+The modules are imported and appended to the `build_dynamic()` loop list in `theory_x/stage2_dynamic/__init__.py:526–628`; the factory starts every collected loop in daemon threads at approximately lines 665–667. This establishes source-level startup wiring when `build_dynamic()` runs and the imports succeed. It does not establish current live thread state or successful execution.
+
+Verified direct belief inserts:
+
+1. **Pattern loop** — `theory_x/life/pattern_loop.py:85–120`: composes a pattern statement from recent self-descriptions, writes `pattern_log` in `dynamic.db`, then directly inserts a Tier 6 belief at confidence 0.85 with the `self_pattern` tag. The loop is wired in `stage2_dynamic/__init__.py:546–554`.
+2. **Witness loop** — `theory_x/life/witness_loop.py:100–128`: composes a blind-spot observation from prior patterns, writes `witness_log`, then directly inserts a Tier 6 belief at confidence 0.85 with the `blind_spot` tag. Wired at `stage2_dynamic/__init__.py:526–534`.
+3. **Identity loop** — `theory_x/life/identity_loop.py:245–275`: composes a periodic identity statement, persists it to `identity_log`, then directly inserts a Tier 6 belief at confidence 0.90 with the `identity` tag. Wired at `stage2_dynamic/__init__.py:566–574`.
+4. **Surprise loop** — `theory_x/life/surprise_loop.py:85–124`: reads flagged surprise events with non-empty predicted and actual content, converts each event into a statement, and directly inserts Tier 6 beliefs at confidence 0.75 with `surprise` / `big_surprise` tags. It advances its promotion cursor after processing the batch. Wired at `stage2_dynamic/__init__.py:584–592`.
+5. **Remember loop** — `theory_x/life/remember_loop.py:94–126`: selects an older and a recent belief, asks the voice model to compose a link, enforces a daily cap, then directly inserts a Tier 6 belief at confidence 0.70. Wired by the dynamic factory's import loop at `stage2_dynamic/__init__.py:600–609`.
+6. **Wonder loop** — `theory_x/life/wonder_loop.py:120–166`: selects an entity, builds context and composes a question, checks for a question mark and a daily cap, then directly inserts a Tier 6 belief at confidence 0.60. Wired at `stage2_dynamic/__init__.py:600–609`.
+7. **Fetch loop** — `theory_x/life/fetch_loop.py:145–183`: fetches an eligible URL, checks for duplicate URLs and minimum body length, composes a response, then directly inserts a Tier 6 belief at confidence 0.65. Wired at `stage2_dynamic/__init__.py:600–609`.
+
+These are seven additional source-verified direct belief producers. They are distinct from the previously documented sense-distillation path, Fountain rut mirror, self-location bootstrap and resolver-mediated Holding Zone promotion. Their content is generated from self-history, prediction error, questions, or fetched external material; do not collapse them into one semantic class. In particular, the Fetch loop's content is model-composed from retrieved external material, while the Surprise loop converts already-recorded prediction events.
+
+### Related life-loop maintenance path
+
+- **Affinity loop** — `theory_x/life/affinity_loop.py:313–365` updates `beliefs.affinity` and `affinity_updated_at` for existing beliefs. It is a belief-state mutation, not a new belief producer. Its shadow mode logs deltas separately. It is wired in `stage2_dynamic/__init__.py:586–594`.
+- The checked `scorecard_loop.py` contains no direct belief insert/update match in the fetched file. That bounded observation is not a whole-module proof that it cannot cause writes through a helper.
+
+### Implication for the producer/gate crosswalk
+
+The earlier statement that only two direct producer bypasses had been verified is superseded by this expanded subset. At least nine direct runtime producer paths are now source-verified across the traced modules: sense distillation, Fountain rut mirror, and the seven life-loop writers above. This count excludes the self-location boot seed and the resolver-mediated Holding Zone promotion because they have different bootstrap/promotion semantics.
+
+The life-loop writes are not proof of an architectural defect by themselves. Their authority, intended gate scope, and relationship to any doctrine that prohibits faculty-level belief writes must be reconciled against the unavailable Frozen V2.1 specification and founder approval record. No behaviour has been changed, and no live loop state has been inferred.
+
+## 16. Emergent-drive proposal application is conditionally gated
+
+A further source check distinguishes emergent-drive proposals from the direct life-loop writers:
+
+- `theory_x/stage2_dynamic/__init__.py:430–455` calls `drive_detector.apply_approved(..., coherence_gate=state.coherence_gate)`.
+- `theory_x/stage2_dynamic/emergent_drives.py:149–214` reads proposals whose status is `approved`, adds the proposed branch to the Bonsai tree, constructs a natural-language drive statement, and—when a gate object is present—submits a ThoughtPacket with source `emergent_drives`. It inserts a Tier 5 belief only when the gate outcome is ACCEPT.
+- If `coherence_gate` is absent, the source explicitly permits the belief insert without a gate. The normal factory wiring passes `state.coherence_gate`, but the no-gate fallback remains part of the component's callable contract.
+- A non-ACCEPT decision still allows the proposal to be marked `applied`; the source comment says it is not retried. A gate exception is recorded and does not satisfy the ACCEPT condition for the write.
+
+This is a conditionally gated producer, not an unconditional bypass. The current runtime value of the gate reference and the existence/status of any approved proposals are UNKNOWN.
+
+## 17. Existing-belief mutations are a separate graph edge class
+
+The wider scan also confirmed several mutation-only components that should not be drawn as new belief producers:
+
+- `theory_x/stage3_world_model/promotion.py:74–299` writes belief edges and updates existing belief tiers, corroboration counters, promotion/demotion timestamps and logs. It does not create a new belief row in the inspected methods.
+- `theory_x/stage3_world_model/harmonizer.py:219–276` pauses, retires and changes tiers/content of existing beliefs while recording harmonizer events and edges; its inspected resolution path selects an existing synthesis belief rather than inserting a new one.
+- `theory_x/stage3_world_model/erosion.py:47–132` updates use/reinforcement counts and provenance erosion stage on existing beliefs.
+- `theory_x/life/affinity_loop.py:363–365` updates affinity fields on existing belief rows.
+- `theory_x/stage6_fountain/crystallizer.py:600–632` contains an optional best-of-cluster path that replaces content in an existing belief row and its crystallization record. It is an update-in-place path, not a new belief insert; the feature is environment-gated in source.
+
+This separation matters for the DAG: distinguish (a) candidate-to-new-belief production, (b) controlled promotion of held content, (c) boot-time anchor seeding, and (d) maintenance or replacement of existing belief state. A single generic “writes beliefs” edge would hide materially different control and provenance semantics.
+
+### Updated status
+
+The producer/consumer trace remains partial. This increment expands the source-verified direct writer subset and records conditional gating and mutation-only paths. It does not complete the 256-file `theory_x` inventory, prove the absence of helper-mediated writes, or establish any runtime-active/operational/behavioural evidence level. Frozen V2.1 and founder approval evidence remain blocking inputs for adjudicating the gate-scope questions.
