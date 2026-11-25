@@ -455,3 +455,6 @@ This matrix provides the next useful unit for completing M0.3–M0.4: each remai
 Consequently, a late-day boot can create several `role='nex'` internal messages in one initial tick (up to all six scheduled activities if the boot occurs after the final scheduled hour and none has fired that day). Those rows are ordered as recent messages and can therefore enter both the BehaviouralSelfModel's latest-100 sample and Metacognition's latest-five sample before ordinary user-facing replies have accumulated.
 
 This is a source-derived possibility, not an assertion about the current host's boot time, daily_activities ledger or message table. It makes the G-09 measurement question more consequential and should be included in any isolated fixture that tests observer input selection.
+
+
+**Invocation timing:** `Metacognition` has a `tick()` method but no `start_loop()` in the inspected module, and `run.py` constructs it without starting a daemon loop. `gui/server.py:1418–1424` calls `state.metacognition.tick()` during chat-context assembly. Thus the goal-drift comparison is evaluated on the chat path, using the latest five NEX-authored messages available at that time; it is not established as a continuously running background detector in this branch.
