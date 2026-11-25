@@ -436,7 +436,8 @@ The following matrix consolidates the source-verified subset. “Wrapper” mean
 | Holding Zone promotion | Shared beliefs Writer | Resolver-mediated after corroborating ACCEPTs | Yes | Wrapper auto-generates | Wrapper probe once (unless disabled) |
 | Database-init keystone + koan/Tao/don't-know seeds | Raw Writers inside `init_all()` before wrapper construction | No; Tier 1 seed authority | No | Schema migration default `[]` | No call observed |
 | Self-location boot seed | Shared beliefs Writer after wrapper construction | No; bootstrap anchor | Yes | Wrapper auto-generates | Wrapper probe once (unless disabled) |
-| Pattern / Witness / Identity / Surprise / Remember / Wonder / Fetch | Direct SQLite connections | No in inspected insert functions | No | Explicit semantic tags or explicit `[]` | No call observed |\n| HotObserver (env-gated `NEX5_HOT_OBSERVER=1`) | Direct SQLite connection | No | No | Omits tags; schema migration default `[]` | No call observed |
+| Pattern / Witness / Identity / Surprise / Remember / Wonder / Fetch | Direct SQLite connections | No in inspected insert functions | No | Explicit semantic tags or explicit `[]` | No call observed |
+| HotObserver (env-gated `NEX5_HOT_OBSERVER=1`) | Direct SQLite connection | No | No | Omits tags; schema migration default `[]` | No call observed |
 | Identity YAML seeder (operator CLI) | Independent Writer | No | No | Omits tags; schema migration default `[]` | No call observed |
 | Spectrum loaders/batch (operator CLI) | Direct `sqlite3` | No | No | Copies existing tags or schema migration default `[]` | No call observed |
 | Grounded scorecard self-belief (operator CLI/API) | Independent Writer | No | No | Omits tags; schema migration default `[]` | No call observed |
