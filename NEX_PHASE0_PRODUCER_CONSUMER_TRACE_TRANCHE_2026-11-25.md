@@ -702,3 +702,15 @@ For each qualifying row it upserts `dormant_beliefs` with `ON CONFLICT(belief_id
 The normal `DiversityLoop._run()` calls `self.dormancy.scan_incremental()` every 60 seconds. The separate `ClockRunner._run_fast()` also constructs a new DormancyScanner and calls `scan_incremental()` every 20 Fountain fires. These are two scan callsites against the same tables; at some times they can repeat the same first-50 scan.
 
 This is a source-level progress defect candidate: despite its name, the scanner has no visible mechanism to advance through the source population. It may repeatedly refresh the same oldest rows and fail to discover newer dormant beliefs. No live dormant_beliefs table or scan logs were inspected.
+
+## 46. Dormancy reanimation can surface retired or paused beliefs
+
+The dormancy/reanimation chain has no active-belief status guard at any of its three stages:
+
+1. `DormancyScanner.scan_incremental()` selects the three source families without `tier`, `paused` or `locked` predicates.
+2. `reanimate.wake_one()` selects the highest dormancy-score row where `reanimated_at IS NULL`, joins the belief by ID, and marks it reanimated. It does not check belief tier, paused or locked state.
+3. `FountainGenerator._retrieve_context_beliefs()` calls `pop_reanimated()` on its periodic cadence and re-reads the returned belief using `SELECT ... FROM beliefs WHERE id=?`, again without checking tier, paused or locked state.
+
+Because Harmonizer can retire unlocked source-family beliefs to Tier 8 with `paused=0`, those rows remain eligible for dormancy scanning, reanimation and Fountain prompt injection. Paused rows are also not excluded. The residue path explicitly rechecks `tier < 8`; the reanimation path does not.
+
+This is a further normal-wiring retired/paused content path, separate from HotObserver, substrate emission, NovelAssociation and EdgeBuilder. It is conditional on a matching row being flagged, selected by `wake_one()` and consumed on a Fountain cadence. No live dormant row, pending reanimation or Fountain prompt was inspected.
