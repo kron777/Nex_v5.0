@@ -110,8 +110,8 @@ This is recorded as a source fact and an additional gate-scope question, not lab
 2. **Completed** — Fountain input selection, candidate retrieval, reanimation, residue, HotObserver, substrate-emission and prompt/provenance consumers were traced, with candidate-versus-render distinctions corrected. See §72 and `NEX_PHASE0_MEMBRANE_PROVENANCE_COVERAGE_AUDIT_2026-11-25.md`.
 3. **Completed** — GUI Chat assembly, RAG-first/HYBRID/VoiceEngine-miss routes, tool ordering/attribution, SelfModel/BehaviouralSelfModel inclusion and provenance boundaries were traced. See `NEX_PHASE0_CHAT_ROUTE_VARIANTS_AUDIT_2026-11-25.md` and the linked Chat audits.
 4. **Completed at static Python-source level** — all 350 Python source files were scanned for queue references; one literal `INSERT INTO speech_queue` callsite was found and the consumer/status lifecycle traced. See `NEX_PHASE0_SPEECH_QUEUE_PRODUCER_CONSUMER_CENSUS_2026-11-25.md`.
-5. **Next bounded increment** — trace each dynamically imported Stage 2 loop and all remaining boot-wired faculties; distinguish constructed, thread-started, env-gated, retired and externally gated states.
-6. **Founder decision remains pending** — reconcile all Gate bypasses and fail-open semantics against the missing Frozen V2.1 source and founder approval record before any behavioural modification.
+5. **Completed at static-source level** — trace each dynamically imported Stage 2 loop and the remaining boot-wired faculties; distinguish constructed, thread-started, env-gated, retired, service-gated and request-driven states, including shutdown coordination. See `NEX_PHASE0_DYNAMIC_LOOP_AND_BOOT_WIRING_AUDIT_2026-11-25.md`.
+6. **Founder decision remains pending** — reconcile all Gate bypasses and fail-open semantics, loop lifecycle expectations, and the conflicting governing documents against the missing Frozen V2.1 source and founder approval record before any behavioural modification.
 
 **Status:** expanded static-source trace; no live runtime observation, no L4 claims, no Gate 0 sign-off, no Phase 1 authorisation.
 
@@ -1193,3 +1193,16 @@ The manual fountain_events.tag feedback can feed future prompts through coincide
 Confirmed: the current source distinguishes intermediate candidates from rendered prompt content; the retrieval and prompt-block manifests are partial; two separate snapshot systems exist; per-fire snapshot scoring/pruning is manual in the inspected wiring; ProbeRunner is operator-invoked; decoder output is an analytics sidecar; and four different tag mechanisms exist with different producers and consumers.
 
 Unverified: host-effective flags, live rows, actual prompt manifests, whether manual probes have been run, whether snapshot CLI scoring/pruning has ever been run, and the live influence of any retrieved/activated candidate. No prompt, DB, flag, snapshot, probe or runtime path was changed by this audit.
+
+
+## 73. Stage 2 dynamic-loop inventory, boot-wiring classes and shutdown boundary
+
+The detailed source inventory is in `NEX_PHASE0_DYNAMIC_LOOP_AND_BOOT_WIRING_AUDIT_2026-11-25.md`. It establishes the following distinctions against the active host source baseline:
+
+- `build_dynamic()` has nine core loop registrations, fourteen additional guarded life/faculty registrations and three Moltbook registrations: 26 total if all guarded imports succeed. The Stage 2 module docstring lists only eight core loops and omits emergent drives.
+- The three Moltbook workers are registered by default when the package imports; actual work depends on credentials and remote claimed status. The client defaults non-GET requests to dry-run, while GET status/read calls still use the remote service.
+- World Model starts six thread wrappers, but the consolidation worker returns immediately when `NEX5_WORLD_CONSOLIDATE` is empty. Membrane's BehaviouralSelfModel worker waits four hours before its first write attempt.
+- `run.py` starts or attempts a broader set of workers, while several faculties are constructed for request-driven use rather than autonomous loops. Explicit environment-gated and service-gated paths are separated from ordinary boot attempts.
+- `AppState.close()` stops the SenseScheduler and closes Writers. The SIGTERM handler sets the decoder stop event, calls `state.close()`, then `os._exit(0)`; it does not individually stop/join the other daemon workers. This is a source-level lifecycle boundary, not evidence of an actual interrupted write or external operation.
+
+No thread inventory, environment state or live activity was inspected. No lifecycle or activation behavior was changed. Gate 0 and governing-spec authority remain pending.
