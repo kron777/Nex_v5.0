@@ -653,3 +653,6 @@ However, `ActivationEngine.activate()` traverses `belief_edges` by source ID for
 Combined with the NovelAssociation and EdgeBuilder paths above—and with historical edges remaining after Harmonizer retires a belief—this means retired nodes may remain part of the graph's effective propagation topology even when retrieval excludes them from direct result content.
 
 This may be intentional graph-history semantics or an unintended stale-node influence. The source does not define whether retirement should remove a node from graph propagation, preserve it as a historical bridge, or merely hide it from direct retrieval. This is a specification question; no edges were deleted and no activation code was changed.
+
+
+**Log consumption and retention:** `scripts/intake_resonance_cli.py` is the only additional source consumer found in the inspected tree; its `show` command counts every row in `intake_resonance_log`, and `recent`/`top`/`bottom` read the full log by timestamp or score. `nex_db_reaper.py` has no `intake_resonance_log` target, and the table has no content uniqueness constraint. No retention policy was found in the inspected source. Whether indefinite retention is intentional for longitudinal analysis is UNKNOWN; duplicate rows from §27 would be counted as separate intake events by the CLI.
