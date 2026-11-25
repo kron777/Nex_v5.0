@@ -1072,3 +1072,23 @@ These are all Tier-6 belief admissions. They use substrate.connect() directly, s
 This is a direct source-level divergence from TAG_PROTOCOL.md's entity-creation and normalization requirements, unless the life-loop producers have an approved exception or their explicit labels are intentionally treated as manually curated tags. The SurpriseLoop duplicate is a concrete conditional data-quality defect independent of whether content-derived tags are required: on the non-big-surprise branch it constructs the same tag twice.
 
 Boot-time keystone/koan seeds also bypass TaggingBeliefWriter (see §60), but they are authored/bootstrap anchors; whether they are in scope for the tag protocol is a separate policy question. Do not retrofit tag generation or alter producer inserts before Gate 0 / explicit approval. Isolated regression coverage can be prepared once the intended tag contract for generated beliefs and seed beliefs is confirmed.
+## 68. The documented Identity → Pattern → Witness → Identity feedback loop is not closed in the inspected source
+
+The three life-loop module docstrings describe a closed recursive self-model:
+
+- PatternLoop says its belief enters retrieval and shapes the next IdentityLoop composition.
+- WitnessLoop says its belief enters retrieval and modifies IdentityLoop's next composition, closing the L1→L2→L3→L1 loop.
+
+The inspected implementation shows a narrower, mostly forward chain:
+
+1. IdentityLoop reads identity_log for the previous identity statement and gathers metrics. _gather_metrics() reads total new-belief count, top-affinity belief, sense-precipitation count, current focus title, last big surprise, Fountain fire count, Moltbook post count and optional tag counts. It does not read pattern_log, witness_log, pattern_loop beliefs or witness_loop beliefs. _compose_statement() is deterministic and uses only these metrics plus the previous identity statement.
+2. PatternLoop reads the last four identity_log statements, asks the LLM to name a pattern, writes pattern_log and inserts a Tier-6 pattern_loop belief.
+3. WitnessLoop reads the last two pattern_log statements, asks the LLM to identify a blind spot, writes witness_log and inserts a Tier-6 witness_loop belief.
+4. FountainGenerator separately reads the latest identity_log statement and injects it into the prompt (generator.py around line 3471). No equivalent direct pattern_log or witness_log prompt injection was found in the inspected generator source.
+5. The Stage 4 INSIDE self-inquiry route excludes all three loop belief sources through its source allowlist (see §66). Fountain's dedicated own-content pool also excludes pattern_loop and witness_loop.
+
+IdentityLoop's new_beliefs_6h metric does count all recent belief rows, so PatternLoop/WitnessLoop admissions can change the numeric count clause in a later identity statement. That is an indirect aggregate effect, not semantic feedback from the pattern or blind-spot content. The source does not show the documented text-level feedback edge from WitnessLoop output into IdentityLoop composition.
+
+BeliefRetriever's unfiltered outside route may still retrieve these beliefs for ordinary queries, so this is not a claim that the rows are globally unreadable. The narrower verified result is that the explicitly described recursive self-model feedback into the next IdentityLoop composition and the explicit INSIDE self-inquiry context are not established by current source.
+
+This is a source/documentation discrepancy and possible incomplete feedback edge, not an instruction to add a new dependency. The current design may intentionally use a feed-forward sequence plus an aggregate metric; if so, the module docstrings overstate the closed-loop semantics. Founder/design clarification is required before altering this architecture.
