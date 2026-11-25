@@ -520,3 +520,22 @@
 - Evidence: SenseScheduler class docstring and a `run.py` comment say external feeds start paused; constructor calls `start_all()` during normal boot, and `run.py` logs auto-start. A nearby code comment records the auto-start change as deliberate (“per Jon's request”, 2026-05-09). The active service unit and adapter credentials were not inspected.
 - Impact: a reader relying on the docstring/comment may incorrectly believe external feeds remain paused; source code starts the adapter threads.
 - Disposition: preserve the recorded historical intent, but reconcile the stale comments/docs with the approved startup contract. Do not alter feed startup behavior before Gate 0 / explicit approval.
+
+
+### G-45 — InfluenceRecord is an output-seam capture, not end-to-end causal lineage
+- Type: M0.5 trace-coverage gap against the roadmap extract recorded in the reconciliation; exact governing scope UNKNOWN.
+- Evidence: actual runtime seams call `record_fountain_fire()` after generator return and `record_chat_turn()` after Chat reply persistence. Records include a limited set of scalar inputs and output digest/preview; the module marks retrieved-belief and faculty-block attribution unresolved. There are no `trace_id` or `parent_ids`, no candidate-generation/workspace/Gate/writer-delta capture, and Chat cycle_id is `chat:<session_id>` rather than a unique turn ID. See `NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md`.
+- Impact: records cannot reconstruct the requested stage-by-stage causal path or uniquely correlate individual Chat turns within a session. The fixture is not live evidence.
+- Disposition: recover Frozen V2.1 and founder approval to determine whether the two seams are a deliberate Phase 0 precursor or an incomplete M0.5 implementation. Do not add hooks, IDs or reads before that decision.
+
+### G-46 — InfluenceRecord L4 evidence label is caller-declared, not independently authenticated
+- Type: evidence-integrity / provenance-label gap; no live L4 record observed.
+- Evidence: `_env_context()` treats `NEX5_INFLUENCE_TRACE_CONTEXT=runtime` as runtime; constructor accepts `context='runtime'`. `test_runtime_context_is_L4_fixture_is_L3` deliberately produces L4 from an ordinary unit-test tracer. No host/process identity check or external runtime attestation is present.
+- Impact: a fixture or non-live process can emit records labelled L4 if the caller declares runtime context. The label alone cannot prove live-host observation.
+- Disposition: define the approved L4 evidence contract and authorisation mechanism. Do not add host checks or relabel existing evidence before Gate 0.
+
+### G-47 — Enabled InfluenceRecord sink stores raw text previews without an in-module retention/redaction policy
+- Type: privacy / evidence-retention contract gap; live activation UNKNOWN.
+- Evidence: `record_chat_turn()` stores up to 160 characters of prompt and reply preview; `record_fountain_fire()` stores up to 160 characters of thought preview. The default sink is `logs/influence_trace.jsonl`; the module appends and creates the directory but defines no redaction, rotation, retention cap, encryption or access policy.
+- Impact: if enabled, user-provided and generated text snippets persist outside the substrate DBs. No live trace file or file permissions were inspected.
+- Disposition: define what content may be persisted, access controls and retention before any activation. Keep the overlay default-OFF until approved.
