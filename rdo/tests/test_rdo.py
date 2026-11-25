@@ -673,6 +673,7 @@ def test_extreme_integer_effort_is_rejected_without_crashing_metrics():
     assert compare(cycle)["effort_actual"] is None
     metrics = cycle_metrics(cycle)
     assert metrics["engineering_effort"] is None
+    assert metrics["predicted_effort"] is None
     assert metrics["prediction_error_effort"] is None
 
     with pytest.raises(ValueError, match="finite, non-negative"):
