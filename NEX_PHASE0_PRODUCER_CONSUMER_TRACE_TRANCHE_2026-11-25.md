@@ -388,3 +388,13 @@ This is a verified source-level overlap, not proof that it has materially change
 - The module header claims 23:00–06:00 sleep mode doubles the Fountain interval and reduces fires. `daily_tick()` returns a `sleep` boolean, but `daily_loop()` only logs activities and does not consume that value or change ModeState. `ModeState` persists explicit mode changes; no time-based sleep transition is shown in the inspected path. Treat the scheduled sleep effect as unverified/not implemented in this module, not as an active runtime behaviour.
 
 These findings add a separate internal-message producer and a cross-faculty measurement dependency. They do not establish that the daily activities have fired on the current host or that the BehaviouralSelfModel has consumed any such messages.
+
+## 26. DailyLife messages also enter Metacognition's goal-drift sample
+
+A second downstream observer uses the same broad `role='nex'` population:
+
+- `theory_x/stage9_metacognition/metacognition.py:284–335` selects the highest-priority open/active goal, then reads the latest five `messages` rows with `role='nex'` ordered by ID. It does not filter by session, register or user-facing route.
+- It embeds the goal title/description and those latest NEX messages, averages the message embeddings, and compares semantic distance to the goal. A sufficiently large distance produces a `goal_drift` event in `meta_cognition_events`.
+- Since DailyLife writes into the same `messages` table as role `nex`, its internal activity entries are eligible to enter this five-message sample as well as the BehaviouralSelfModel's 100-message sample.
+
+This expands G-09 from a single observer to a shared input-population issue affecting at least two distinct consumers: response-style measurement and goal-drift detection. Whether this is intentional (all NEX-authored language is relevant) or a confound (only user-facing responses should represent response behaviour) is a design question, not settled by source. No live rows were read and no metric was recomputed.
