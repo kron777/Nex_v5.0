@@ -29,6 +29,25 @@ MISSING = "missing"                 # no mechanism found
 RECON_UNKNOWN = "unknown"           # no signature to check -> honest inference
 RECON_STATES = (SIGNATURE_MATCHED, REUSE_EXISTING, PARTIAL, MISSING, RECON_UNKNOWN)
 
+
+def has_valid_reuse_review(obligation) -> bool:
+    """Return whether an obligation carries the evidence required for reuse.
+
+    Accept both the dataclass used by reconciliation and serialized obligation
+    dictionaries used by cycle metrics. Keep this predicate shared so summaries
+    and coverage metrics cannot disagree about completed semantic review.
+    """
+    if isinstance(obligation, dict):
+        get = obligation.get
+    else:
+        get = lambda name, default=None: getattr(obligation, name, default)
+    return bool(
+        get("recon_evidence") and
+        get("confidence") == "measured" and
+        get("recon_semantic_verified") is True and
+        get("recon_semantic_review_evidence")
+    )
+
 # ---- functional-tension verdicts (OFT) ----
 UNDERDEVELOPED = "underdeveloped"
 SUFFICIENT = "sufficient"
