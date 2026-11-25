@@ -99,6 +99,8 @@ this minimal increment — recorded as `L0/UNKNOWN` in the `unresolved` field.
 | **Consumer (write)** | `writer.write("INSERT INTO messages ...")` → `conversations.messages` | `gui/server.py:2168` |
 | **Return** | `jsonify({"text": text, "register": …, "voice_ok": …})` | `gui/server.py:2180` |
 
+**Current-branch continuity addition (Phase 1 source, default-OFF):** `run.py:473` constructs `SelfMindView`, `run.py:720` passes it into `AppState`, and `gui/server.py:1512` appends `current_summary()` to `belief_text` for this chat-composition path. The summary is implemented at `theory_x/stage_tom/self_mind_view.py:434` and calls `continuity_for_prompt()` in `self_binding.py:345`. It is enabled only by `NEX5_SELF_CONTINUITY=1`; default is OFF. This is a source-level Phase 1 context modification, not part of the InfluenceRecord trace hook. No live activation or behavioural effect is verified; do not arm it before Gate 0 and explicit approval.
+
 **Causal-trace hook (this increment):** between the `messages` insert and the
 `return jsonify(...)` (`gui/server.py:2180`), a **default-OFF**, fail-safe
 `influence_record.tracer().record_chat_turn(...)` reading `prompt`, final `text`,
