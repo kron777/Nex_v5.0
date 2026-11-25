@@ -133,22 +133,31 @@ def test_git_commit_refuses_artifact_outside_repository(monkeypatch, tmp_path):
 
 def test_main_shares_one_runtime_capture_between_corpus_and_state(monkeypatch, tmp_path):
     runtime = {"drives": {"coherence": 0.7}, "fountain_24h_by_branch": {"x": 3}}
-    extracted = []
+    port_data = {"rows": [{"status": "DONE"}]}
+    runtime_extractions = []
+    port_extractions = []
     received = {}
 
     def extract_runtime():
-        extracted.append(runtime)
+        runtime_extractions.append(runtime)
         return runtime
 
-    def assemble(snap_ts, runtime=None):
-        received["corpus"] = runtime
+    def extract_port():
+        port_extractions.append(port_data)
+        return port_data
+
+    def assemble(snap_ts, runtime=None, port_data=None):
+        received["corpus_runtime"] = runtime
+        received["corpus_port"] = port_data
         return "# fixture corpus\\n"
 
-    def write_state(snap_ts, runtime=None):
-        received["state"] = runtime
+    def write_state(snap_ts, runtime=None, port_data=None):
+        received["state_runtime"] = runtime
+        received["state_port"] = port_data
         return tmp_path / "state.json"
 
     monkeypatch.setattr(nexsnap.ex, "extract_runtime_state", extract_runtime)
+    monkeypatch.setattr(nexsnap.ex, "extract_port_status", extract_port)
     monkeypatch.setattr(nexsnap, "assemble_corpus", assemble)
     monkeypatch.setattr(nexsnap, "write_state_json", write_state)
     monkeypatch.setattr(nexsnap, "CORPUS_PATH", tmp_path / "CORPUS.md")
@@ -156,6 +165,9 @@ def test_main_shares_one_runtime_capture_between_corpus_and_state(monkeypatch, t
 
     nexsnap.main([])
 
-    assert len(extracted) == 1
-    assert received["corpus"] is runtime
-    assert received["state"] is runtime
+    assert len(runtime_extractions) == 1
+    assert len(port_extractions) == 1
+    assert received["corpus_runtime"] is runtime
+    assert received["state_runtime"] is runtime
+    assert received["corpus_port"] is port_data
+    assert received["state_port"] is port_data
