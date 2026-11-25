@@ -153,3 +153,10 @@ every captured value is at most **L3**, and **L4 is explicitly UNKNOWN** — mat
    the flag on the live process.
 4. **RDO v1.3 Stage 1 Watcher** reconciliation vs Watcher v3.0 — on the RDO branch
    family, not this tree.
+
+
+## 6. Additional source-trace tranche (25 November 2026)
+
+A bounded continuation of the first-pass boot inventory now traces Sense intake through the Dynamic A–F pipeline, separate sense-to-belief distillation, Dynamic crystallization, World Model maintenance/synthesis, CoherenceGate/Holding Zone/Reshape, and Membrane self-model inputs. It also records two direct belief-write/gate-scope questions and the current evidence limits. See [NEX_PHASE0_PRODUCER_CONSUMER_TRACE_TRANCHE_2026-11-25.md](NEX_PHASE0_PRODUCER_CONSUMER_TRACE_TRANCHE_2026-11-25.md).
+
+This tranche remains static-source evidence only. It does not complete the full faculty DAG, establish current thread/service activity, or resolve gate scope against Frozen V2.1. No runtime or behavioural changes were made.
