@@ -184,3 +184,9 @@
 - Condition: the path is default-OFF in source; effective host flag is UNKNOWN. It is a content replacement of an existing belief, not a new row insert.
 - Impact: if the gate obligation covers every newly generated candidate that changes durable belief content, this path bypasses it. If the gate only governs new belief-row insertion, the current path may be intentional.
 - Disposition: resolve gate scope against Frozen V2.1 and founder approval evidence. Do not enable/disable the flag or change this update path before that review.
+
+### D-16 — Fountain persists generated output before the normal CoherenceGate decision
+- Type: gate-scope clarification; not adjudicated as a defect.
+- Evidence: the normal Fountain path writes the generated thought to `sense_events` (`internal.fountain`) and `dynamic.db:fountain_events`, and records related telemetry, before calling `FountainCrystallizer.crystallize()`. The normal CoherenceGate call occurs inside the crystallizer after quality checks and before the new belief INSERT. A non-ACCEPT decision therefore blocks belief admission and subsequent speech enqueue, but does not retract the already-persisted Fountain event. Quiescent and voice-fallback paths return before crystallization entirely.
+- Impact: the phrase “universal gate” is ambiguous unless it specifies whether the gate governs raw generated outputs, durable belief admission, or downstream delivery. The current Fountain path implements the latter two boundaries only for the normal path.
+- Disposition: define the intended gate boundary from Frozen V2.1 and founder approval evidence. Do not move the gate or change event persistence before that review.
