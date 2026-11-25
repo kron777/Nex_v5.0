@@ -389,3 +389,33 @@
 - Evidence: tag_ops.TAGGABLE_TABLES includes open_problems; §4 says tags derive from title + description. ProblemMemory complies by calling tag_protocol.generate(title + description) before its Writer INSERT. SignalToProblem instead inserts open_problems directly and writes json.dumps(["auto", f"signal:{signal_type}"]) without generate()/normalize()/write(). The loop is registered and started by build_dynamic().
 - Impact: signal-created open problems receive a different tag dialect (source/status-like labels) from ProblemMemory-created problems, contrary to the shared semantic vocabulary/content-derived tagging design. The colon in signal:<type> is not preserved by the protocol normalizer. The module's durable advancements_drift debounce checks tags LIKE '%signal:advancements_drift%', so any future normalization/migration must preserve or deliberately replace that idempotency key. Existing TestTagProtocol tests exercise generate()/write() on synthetic open_problems rows but do not invoke SignalToProblem's producer path.
 - Disposition: confirm whether signal-created problems have a deliberate exception or should use the common title+description generation pipeline. Add isolated producer tests after contract confirmation; do not change runtime behavior or existing tags before Gate 0.
+
+### D-39 — BehaviouralSelfModel Gate exception handler can fall through to belief insertion
+- Type: conditional fail-open control-flow candidate; normative status depends on the founder-approved Gate contract.
+- Evidence: `BehaviouralSelfModel.write_behavioural_beliefs()` builds a ThoughtPacket and calls the supplied CoherenceGate. A non-ACCEPT returns without insertion. However, the surrounding `except Exception` logs the error and then continues to the shared beliefs Writer insert. Normal `build_membrane()` wiring supplies Gate and starts the BSM daemon loop on a four-hour cadence. CoherenceGate itself normally catches evaluation failures and returns `gate_error_fallback` ACCEPT; this BSM catch is a separate path if an exception escapes `check()`. The existing BSM test constructs the component without a Gate and does not exercise this branch.
+- Impact: an exception escaping the Gate call can result in a Tier 6 `behavioural_observation` belief being inserted without a successful ACCEPT result.
+- Disposition: define the required exception policy for all Gate-wired producers. Do not change the BSM catch or writer before Gate 0 / explicit approval.
+
+### G-30 — Manual Decryption ProbeRunner can inject synthetic beliefs into the live graph
+- Type: experimental-tool authorization and isolation boundary; not a normal runtime writer.
+- Evidence: `decryption/probe_runner.py` is explicitly invoked through `run_condition()` / `run_matrix()`, is not imported by normal startup, and defaults to `dry_run=False`. It uses raw `substrate.connect()` to insert synthetic `fountain_insight` rows with `parent_belief_id=-99`, changes live mode through `POST /api/mode/set`, waits for a genuine Fountain fire, and deletes the injected IDs during normal `finally` teardown. It does not call CoherenceGate or the shared TaggingBeliefWriter. Abrupt termination can bypass cleanup. The script was not run.
+- Impact: explicit invocation can temporarily place synthetic beliefs into normal retrieval paths and influence a live Fountain cycle; interrupted teardown can leave them behind.
+- Disposition: founder confirms whether this live-system experiment remains authorized and whether it must be isolated/sandboxed. Do not run it or alter it during Phase 0.
+
+### G-31 — ResumptionSeeder promotes recency without rechecking belief status
+- Type: boot-time status/recency semantics gap; live incidence UNKNOWN.
+- Evidence: normal `run.py` invokes ResumptionSeeder once at startup. It updates `created_at` for IDs in the prior state snapshot. StateSnapshotWriter selects recent IDs by source family (`fountain_insight`, `synergized`, `auto_probe`) without a tier/paused/locked predicate, and ResumptionSeeder updates those IDs without revalidating status. This changes recency, not belief content or tier.
+- Impact: a Tier 8 or paused row present in the snapshot can be made recent again. Downstream paths with incomplete status filters may then select it more readily.
+- Disposition: define whether boot resumption should exclude retired/paused/locked rows. Do not change snapshot selection or seeder behavior before Gate 0 / explicit approval.
+
+### G-32 — SpeechQueue consumer does not revalidate source-belief status before playback
+- Type: downstream output policy question; live incidence UNKNOWN.
+- Evidence: FountainCrystallizer enqueues a content snapshot after belief admission. SpeechQueueConsumer selects the pending queue row and speaks its stored content without joining back to `beliefs` or checking current tier/paused/locked state. No live queue row was inspected.
+- Impact: a belief that is paused or retired after enqueue can still be spoken later if its queue row remains pending. This may be intentional if admission is considered final authorization for the queued utterance; that contract is not established by the inspected source.
+- Disposition: founder/design defines whether post-enqueue status changes should cancel pending speech. Do not add a consumer-side recheck before Gate 0 / explicit approval.
+
+### G-33 — SpeechQueue producer and consumer have inconsistent eligibility and recovery rules
+- Type: source-level queue lifecycle inconsistency; runtime impact UNKNOWN.
+- Evidence: producer accepts 10–500 characters while consumer suppresses content over 400; producer deduplication blocks any prior row for a belief_id regardless of status; consumer has no startup recovery for rows left in `speaking`; flush and consumer claim are not atomic; API status does not verify worker thread liveness. Details are in `NEX_PHASE0_SPEECH_QUEUE_PRODUCER_CONSUMER_CENSUS_2026-11-25.md`.
+- Impact: some queued thoughts can be immediately suppressed, failed/skipped rows cannot be retried for the same belief, interrupted rows can remain stuck, and UI status can report enabled after worker exit.
+- Disposition: decide intended once-per-belief, retry, recovery and status semantics before any queue lifecycle change. No code change before Gate 0 / explicit approval.
