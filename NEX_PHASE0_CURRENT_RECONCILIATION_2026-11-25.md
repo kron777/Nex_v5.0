@@ -195,3 +195,10 @@ The repository contains `SPECIFICATION.md` (2026-04-23, “Phase 0 Locked”), w
 This April constitution conflicts with current source on Tier 8 meaning, Harmonizer synthesis/deletion semantics, the one-pen rule, and the number of databases. These may be approved later changes, but the exact Frozen V2.1 spec and founder approval record were not found in the searched archive/Library. The source audit therefore records evidence without treating these conflicts as automatically authorized deviations.
 
 Gate 0 remains blocked. Founder must provide or identify the canonical Frozen V2.1 specification and sign-off record, and clarify whether the April `SPECIFICATION.md` remains governing or has been superseded. No behavior changes, spec amendments, live DB changes, service activation, merge or deployment are authorized by the current approval to continue isolated work.
+
+
+## Additional authority evidence — Doctrine and Faculty Model
+
+The repo's May 9 `theory_x/DOCTRINE.md` remains marked DRAFT awaiting Jon's review/approval; its §7 amendment directs generative node writes through the Faculty Model + Coherence Gate. The May 10 `theory_x/FACULTY_MODEL.md` calls itself foundational and states the universal gate requirement, with an implementation-order note preserving legacy Fountain/Synergizer paths during the initial gate phase. Neither is labelled Frozen V2.1 and no founder sign-off record was found.
+
+Positive implementation cross-check: the reshape path is implemented and tested; HoldingZoneResolver processes up to 10 pending reshape rows, transforms, re-submits through the gate and records success/failure. The unresolved issue is authority/version reconciliation, not missing reshape machinery.

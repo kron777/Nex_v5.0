@@ -207,3 +207,9 @@ Do not assume this April constitution is the Frozen V2.1 spec or silently overri
 
 
 **One-Pen direct-connection census (25 November 2026):** the latest source tranche now enumerates direct write-capable connections outside the shared Writer queue in the normal-wired life/focus/daily-life/signal loops, plus HotObserver. Belief paths include affinity UPDATE and seven life-loop INSERT producers (Witness, Remember, Surprise, Wonder, Identity, Pattern, Fetch); FocusLoop, DailyLife and SignalToProblem also mutate dynamic/conversation/signal tables directly. The scorecard loop is a contrast: it delegates belief mutations through substrate.Writer. This is a source-level mismatch with SPECIFICATION.md §3 if that April constitution remains authoritative; exact Frozen V2.1 authority and host thread activity remain UNKNOWN. The same belief INSERT paths bypass TaggingBeliefWriter/embedded IntakeResonance. No migration or runtime change was made. See trace §61 and backlog D-36.
+
+## Later Doctrine / Faculty Model authority layer
+
+The repository also contains `theory_x/DOCTRINE.md` (May 9, header status DRAFT awaiting Jon's review/approval) and `theory_x/FACULTY_MODEL.md` (May 10, calls itself foundational). The Doctrine §7 amendment directs generative node writes through the Faculty Model + Coherence Gate; the Faculty Model says every node-generated thought passes the gate, while its implementation order preserves legacy Fountain/Synergizer paths during the initial gate phase.
+
+The reshape path is implemented: HoldingZoneResolver retrieves up to 10 `reshape_pending` rows per tick, transforms and re-submits them through CoherenceGate; `tests/test_reshape.py` covers the path. These later documents are not labelled Frozen V2.1 and no founder sign-off record was found. Their relationship to the April Constitution and the handover's Frozen V2.1 authority hierarchy remains for founder clarification.

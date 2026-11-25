@@ -76,3 +76,10 @@ The repo contains `SPECIFICATION.md`, dated 2026-04-23 and marked “Phase 0 Loc
 The exact Frozen V2.1 document and founder Gate 0 approval record were not found in the searched archive/Library. The April constitution may have been superseded, but that cannot be inferred.
 
 **Please provide or point me to the canonical Frozen V2.1 specification and Gate 0 founder sign-off record, and clarify whether the April `SPECIFICATION.md` remains governing or was superseded.** Until then, no behavior remediation, spec edits, live DB writes/retention, flag changes, service activation, merge or deployment.
+
+
+## Governing stack clarification
+
+The repository contains three relevant layers: April `SPECIFICATION.md` (Phase 0 Locked, self-described Constitution), May `theory_x/DOCTRINE.md` (DRAFT awaiting Jon's review/approval, with a §7 gate amendment), and May `theory_x/FACULTY_MODEL.md` (foundational, universal gate requirement, legacy-path implementation note). None is labelled Frozen V2.1, and the exact Frozen V2.1 artifact / founder sign-off remain missing from the searched archive/Library.
+
+The reshape path is implemented and covered by `tests/test_reshape.py`; it is not an outstanding missing mechanism. The unresolved blocker is which specification layer has founder approval and governs the current source.
