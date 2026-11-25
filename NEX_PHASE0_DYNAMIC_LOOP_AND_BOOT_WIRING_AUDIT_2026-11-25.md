@@ -10,7 +10,7 @@ Static source audit against host source baseline `de93134f34adac07a3a41c2a05b337
 - environment, import, service, and mode gates visible in those paths;
 - shutdown coordination visible in `AppState.close()` and the SIGTERM handler.
 
-This is not a live process inspection. It does not establish current environment-variable values, which imports succeeded on the host, which threads are alive, external service status, or actual database activity. No runtime state, code, tests, flags, DBs, or deployment settings were changed.
+This is not a live process inspection. It does not establish current environment-variable values, which imports succeeded on the host, which threads are alive, external service status, or actual database activity. No runtime state, code, tests, flags, DBs, services, or deployment settings were changed. The tracked `nex_keepalive.sh` and systemd README were read as source evidence but not executed; the active user unit and live environment remain unverified.
 
 ## 1. Stage 2 factory: 26 registered daemon loops
 
@@ -61,7 +61,7 @@ If `theory_x.stage7_moltbook` imports successfully, `get_moltbook_loops()` appen
 - `moltbook.listener` — polls every 300 s; reads remote activity and can write inbound messages to `sense_events` and `moltbook_pending_replies`.
 - `moltbook.responder` — polls every 300 s; composes replies to pending DMs and calls the remote DM-send endpoint.
 
-These threads are registered without a dedicated NEX5 enable flag in the inspected factory. Their work is service-gated by `_ensure_client()`: credentials must load and the remote status must report `claimed`. The client defaults `MOLTBOOK_DRY_RUN` to `1`; in dry-run mode non-GET requests are logged/mocked, while GET status/read calls still reach the external service. Setting `MOLTBOOK_DRY_RUN=0` permits non-GET external requests. The effective credential, service and dry-run state on the host are UNKNOWN.
+These threads are registered without a dedicated NEX5 enable flag in the inspected factory. Their work is service-gated by `_ensure_client()`: credentials must load and the remote status must report `claimed`. The client defaults `MOLTBOOK_DRY_RUN` to `1`; dry-run only intercepts non-GET requests, so GET status/read calls still reach the external service and inbound material can still be ingested locally. In dry-run, the listener/responder/poster callers can still mark local DM approval, reply-sent and post-published state after receiving a synthetic success object, even though no remote POST occurred. Setting `MOLTBOOK_DRY_RUN=0` permits real non-GET external requests. The tracked `nex_keepalive.sh` explicitly sets `MOLTBOOK_DRY_RUN=0`; if that script is the active launcher and credentials are available, remote DM approvals, DM replies and thought posts are enabled. The active user unit and credential state remain unverified.
 
 **Total:** 9 core + 14 additional life/faculty + 3 Moltbook = **26 loop registrations** in the executable factory list, conditional on the corresponding imports succeeding. The source does not prove all 26 threads actually started on the live host.
 
@@ -77,6 +77,8 @@ These threads are registered without a dedicated NEX5 enable flag in the inspect
 4. `world_model.erosion` — every six hours provenance-stage updates.
 5. `world_model.synergizer` — checks on a 60 s loop and synthesizes on its 25 min timer; candidate goes through CoherenceGate.
 6. `world_model.world_consolidation` — thread is started, but immediately returns if `NEX5_WORLD_CONSOLIDATE` is empty. Any non-empty value arms its 30 min loop; the source comment distinguishes dry reports from `=1` arming. The host value is unknown.
+
+The WorldConsolidator query selects unlocked Tier 7 rows with `erosion_stage != 'retired'` but does not exclude paused rows; `BeliefPromoter.corroborate()` also reads by ID without a paused predicate. The regular decay query and `NEX5_TIER_CLIMB` query likewise omit a paused predicate. The tracked launcher sets `NEX5_WORLD_CONSOLIDATE=1` and `NEX5_TIER_CLIMB=1`; if it is active, WorldConsolidation is armed and the Tier 6 extended idle-decay rule is enabled.
 
 Thus “six threads started” is not the same as “six active periodic workloads.”
 
@@ -110,7 +112,7 @@ The following separates actual thread-start calls from construction/wiring. “U
 | EdgeGeneratorLoop | constructed, then `.start()` | 30 min belief-edge generation (builder source/log) |
 | Decoder loop | daemon thread explicitly started after AppState construction | 30 s Fountain-output tokenization |
 
-The scheduler's source comments and startup log describe external feeds as auto-starting; the current process's adapter connection state is not established here.
+There is a source-documentation contradiction: the SenseScheduler class docstring and a `run.py` comment say external feeds start paused, but the constructor calls `start_all()` during normal boot and `run.py` logs “External feeds auto-start”. A nearby code comment records this as an intentional auto-start change (“per Jon's request”, 2026-05-09). There is no separate NEX5 environment gate for this start. Per-adapter weights/credentials can still affect whether polls yield data; the live adapter state is not established here.
 
 ### 3.2 Explicit environment-gated startup
 
@@ -124,7 +126,7 @@ The scheduler's source comments and startup log describe external feeds as auto-
 | SelfMaintainShadow | `NEX5_SELF_MAINTAIN_SHADOW=1` | Off unless set; source describes log-only shadow behaviour |
 | WorldConsolidation loop body | non-empty `NEX5_WORLD_CONSOLIDATE` | Thread exists but body returns immediately when empty |
 
-Additional subfeature controls do not gate the containing faculty's startup: examples include `NEX_TAG_FEEDBACK_ON` inside identity composition, `NEX5_DRIVE_CONTENT` inside DriveEmergence, and `NEX5_SOCIAL_N` on the Fountain social input path. Their effective values are unknown.
+Additional subfeature controls do not gate the containing faculty's startup: examples include `NEX_TAG_FEEDBACK_ON` inside identity composition, `NEX5_DRIVE_CONTENT` inside DriveEmergence, and `NEX5_SOCIAL_N` on the Fountain social input path. The tracked launcher sets `NEX5_DRIVE_CONTENT=1` and `NEX5_SOCIAL_N=1`; the active user unit remains unverified.
 
 ### 3.3 Constructed/wired but not started as background loops in the inspected startup path
 
@@ -137,7 +139,7 @@ Additional subfeature controls do not gate the containing faculty's startup: exa
 - GrooveBreaker instantiation is removed; its module is described as disabled/no-op in the startup comments.
 - DriveHistory is described as removed from startup because its output had no consumer.
 
-This classification is specific to the inspected `run.py` path; another entry point or manual invocation could differ.
+This classification is specific to the inspected `run.py` path; another entry point or manual invocation could differ. The DailyLife “outreach” activity description refers to a possible Moltbook DM, but the inspected implementation records “would reach out” and does not itself send a DM.
 
 ## 4. Shutdown coordination boundary
 
@@ -145,7 +147,9 @@ This classification is specific to the inspected `run.py` path; another entry po
 
 The custom SIGTERM handler waits 1.5 seconds, sets the decoder stop event, calls `state.close()` (which drains Writers and shuts down the scheduler), then calls `os._exit(0)`. It does not signal the Stage 2, World Model, Membrane, Fountain, SpeechQueueConsumer, Signal, Diversity, EdgeGenerator, or the other started faculty loops before process exit.
 
-The worker threads are predominantly daemon threads, so process exit terminates them. The code comment's intended guarantee is that in-flight work gets a short enqueue window and Writer queues are drained; it is not a coordinated per-faculty shutdown/join protocol. Whether this produces lost in-flight non-Writer work, partial external operations, or any practical incident is not established by static source.
+The worker threads are predominantly daemon threads, so process exit terminates them. The code comment's intended guarantee is that in-flight work gets a short enqueue window and Writer queues are drained; it is not a coordinated per-faculty shutdown/join protocol. `Fountain` is an uninterruptible `while True` daemon; Stage 2, World Model and Membrane stop events are not set by `AppState.close()`, and other stop methods (SpeechQueueConsumer, SignalLoop, DiversityLoop, EdgeGeneratorLoop, Resolver and faculty loops) are not invoked. `SenseScheduler.shutdown()` sets adapter stop events but does not join the adapter threads.
+
+`substrate/writer.py::Writer.close()` places a sentinel on the queue and joins the worker for up to 10 seconds. `submit()` has no closed-state guard; a submission after the sentinel/worker exit can leave its Future waiting indefinitely. `AppState.close()` closes Writers sequentially. The tracked `nex_keepalive.sh` supervisor waits up to 15 seconds after SIGTERM before sending SIGKILL. This creates a source-level race window: background producers may still be active while Writers close, and the supervisor deadline may expire before sequential Writer closes finish. No shutdown was executed; this is not evidence of a live incident.
 
 ## 5. Test coverage observations
 
@@ -170,9 +174,10 @@ These are test-scope observations, not a request to add tests or alter the start
 - World Model starts six thread wrappers, one of which can return immediately based on `NEX5_WORLD_CONSOLIDATE`.
 - Membrane starts a four-hour-delayed BehaviouralSelfModel writer when conversations are wired.
 - `run.py` starts a broader set of loops and constructs several request-driven or passive faculties; source construction alone does not make a faculty an autonomous worker.
-- Several explicitly environment-gated loops default off in source; host flag values are unknown.
-- Moltbook loops are registered by default if import succeeds, but external work depends on credentials/claimed status; write requests are dry-run by default unless `MOLTBOOK_DRY_RUN=0`.
-- Shutdown drains Writers and stops the scheduler/decoder only; other daemon loops are not individually stopped/joined before `os._exit(0)`.
+- Several explicitly environment-gated loops default off in source, but the tracked `nex_keepalive.sh` sets several of them on. The active user unit is not tracked, so host-effective values remain unverified.
+- Moltbook loops are registered by default if import succeeds and external work depends on credentials/claimed status. The source default is dry-run, but the tracked launcher sets `MOLTBOOK_DRY_RUN=0`; if active, outbound posts/DM approvals/replies are real external actions.
+- Shutdown drains Writers and stops the scheduler/decoder only; other daemon loops are not individually stopped/joined before `os._exit(0)`. Writer sentinel/timeout semantics and the supervisor's 15-second kill deadline create an additional race risk.
+- The tracked launcher enables several optional loops and external actions; source defaults alone do not describe the feature set declared by that script.
 
 ### Unverified
 
@@ -185,3 +190,37 @@ These are test-scope observations, not a request to add tests or alter the start
 ### Boundary
 
 No implementation changes proposed. Do not disable, re-enable, consolidate, retime, or refactor loops; do not change environment gates or shutdown behaviour until the governing Frozen V2.1 / roadmap authority and Gate 0 founder decision are recovered or explicitly re-established.
+
+## 7. Tracked launcher configuration (not proof of live state)
+
+The tracked `nex_keepalive.sh` declares a high-activation launch environment. It sets, among other values:
+
+- `NEX5_HOT_OBSERVER=1` — enables the conditional direct Tier 3 HotObserver writer.
+- `NEX5_WORLD_CONSOLIDATE=1` and `NEX5_TIER_CLIMB=1` — arms WorldConsolidator and the extended Tier 6 idle-decay rule.
+- `NEX5_WARRANT_RECORD=1`, `NEX5_WORLD_PRED=1`, `NEX5_SELF_PRED=1`, `NEX5_SELF_MAINTAIN_SHADOW=1` — starts the optional recorder/prediction/shadow loops.
+- `NEX5_PERSONA_RESPONDER=1` and `NEX5_SOCIAL_N=1` — starts the local synthetic-interlocutor loop and makes Fountain read its `external.other_mind` events. The PersonaResponder is a separate LLM-generated interlocutor simulation, not a second conscious entity.
+- `MOLTBOOK_DRY_RUN=0` — permits real Moltbook POST actions when credentials/claimed status are available.
+- `NEX5_DRIVE_CONTENT=1`, `NEX5_WIDE_MODES=1`, `NEX5_ASSOC_RECALL=1`, `NEX5_OPERATOR_MODEL=1`, `NEX5_CHAT_MEMORY=1`, `NEX5_GLOBAL_WORKSPACE=1` and other Chat/Fountain subfeature flags.
+- `NEX5_RECONCILE=1`, `NEX5_RECONCILE_WB=1`, `NEX5_ANTILOOP=1`, `NEX5_DELIVER_N=10` — enables the reconciliation fallback and related working-belief/anti-repeat/deliverable behavior.
+- `NEX5_GOVERNOR_OFF=1` — in the inspected FountainGenerator this disables the adaptive reanimation-cadence branch and its self-rut mirror; it does **not** disable SpeechQueue or the speech governor.
+
+The launcher does not set `NEX5_SPEECH_ENABLED`; its comments say the old disable assignment was removed, and SpeechConfig remains enabled by default. It does not set `NEX5_THROWNET` or `NEX5_SUBSTRATE_EMIT`, which remain default-off in this launcher. The active user systemd unit is not tracked in the repository, so these values are declared launcher settings, not confirmed live process values.
+
+## 8. Additional cross-loop and status findings
+
+- Two distinct edge-building loops are started: Stage 2 `diversity.edge_builder` ticks every 60 seconds and writes cross-domain edges via direct SQLite access; Stage 3 `EdgeGeneratorLoop` runs on a 30-minute cadence after its initial delay and uses the shared Writer for broader typed edges. Their scopes differ; overlap is possible, but this audit does not conclude that they are redundant.
+- The tracked launcher sets `NEX5_HOT_OBSERVER=1`. The source-default-off statement in earlier audits must not be mistaken for the launcher's declared configuration; the actual active unit is still unknown.
+- Moltbook's dry-run mode is not a read-only mode: GET polling and inbound sense ingestion continue. In dry-run, local status rows can say approved/sent/posted without a remote POST. The tracked launcher sets dry-run off, so if active it enables the actual external operations instead.
+- `NEX5_GOVERNOR_OFF=1` is not a speech-disable flag in the inspected code. SpeechQueueConsumer is started when SpeechConfig.enabled, whose source default is enabled; the tracked launcher removed the prior speech-disable assignment.
+
+## 9. Phase 0 decision boundary
+
+Before any remediation or activation change, the founder needs to confirm:
+
+1. Whether the tracked `nex_keepalive.sh` is the launcher invoked by the active user systemd unit, and whether its high-activation flags remain intended.
+2. Whether autonomous Moltbook inbound DM ingestion, DM approval/replies and public thought posting remain authorized.
+3. Whether the current SenseScheduler auto-start behavior remains the approved external-feed contract (the source comment records a prior request, while class/run comments are stale).
+4. Whether shutdown should be reworked into a coordinated quiesce → stop → join → drain → close sequence, and what should happen to uninterruptible loops.
+5. Whether paused beliefs should be frozen against tier promotion/decay, not merely excluded from selected retrieval paths.
+
+No decision is assumed by this audit. No runtime or code change is proposed before the Frozen V2.1 authority and Gate 0 founder review.
