@@ -60,7 +60,7 @@ def _exec_paths(value: str) -> tuple[str | None, list[str]]:
     path_arguments: list[str] = []
     if argv_match:
         try:
-            tokens = shlex.split(_decode_systemd_path(argv_match.group(1)))
+            tokens = [_decode_systemd_path(token) for token in shlex.split(argv_match.group(1))]
         except ValueError:
             tokens = []
         for token in tokens[1:]:
@@ -72,7 +72,7 @@ def _exec_paths(value: str) -> tuple[str | None, list[str]]:
 def _path_state(raw_path: str | None, *, executable: bool = False) -> dict[str, Any] | None:
     if not raw_path or raw_path == "-":
         return None
-    path = Path(raw_path).expanduser()
+    path = Path(_decode_systemd_path(raw_path)).expanduser()
     exists = path.exists()
     result: dict[str, Any] = {"path": str(path), "exists": exists}
     if exists and path.is_file():
