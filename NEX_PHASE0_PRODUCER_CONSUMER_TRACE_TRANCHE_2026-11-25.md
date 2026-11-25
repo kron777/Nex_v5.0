@@ -464,7 +464,7 @@ This is a source-derived possibility, not an assertion about the current host's 
 `FountainCrystallizer.crystallize()` has a separate existing-belief mutation path before the normal CoherenceGate call:
 
 - The method first runs `_quality_check()`. A semantic near-duplicate can return `ok=False, reason='semantic_repeat'` and populate `_last_semantic_match`.
-- If `NEX5_BESTOFCLUSTER=1`, the branch at `theory_x/stage6_fountain/crystallizer.py:315–365` (verify current exact range against the source revision before citing externally) calls `_maybe_bestofcluster_upgrade()` before the normal `if not ok` rejection and before the CoherenceGate block.
+- If `NEX5_BESTOFCLUSTER=1`, the branch at `theory_x/stage6_fountain/crystallizer.py:319–357` calls `_maybe_bestofcluster_upgrade()` before the normal `if not ok` rejection and before the CoherenceGate block.
 - `_maybe_bestofcluster_upgrade()` at `crystallizer.py:591–638` loads genius-v2 weights, scores the new thought against the matched existing belief, and if the new thought scores strictly higher performs an in-place `UPDATE beliefs SET content = ? WHERE id = ?` plus an update to `fountain_crystallizations.content` using `write_many()`. It retains the belief ID so graph references remain intact.
 - When the upgrade succeeds, `crystallize()` returns the existing belief ID immediately. The normal CoherenceGate check (which is later in the method) is not reached for this mutation.
 
