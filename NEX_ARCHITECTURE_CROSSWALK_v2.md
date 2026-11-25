@@ -42,6 +42,10 @@ The scheduler documentation mismatch found during this audit is corrected in thi
 
 **Prediction/surprise path:** [NEX_PHASE0_PREDICTION_SURPRISE_CROSS_FACULTY_AUDIT_2026-11-25.md](NEX_PHASE0_PREDICTION_SURPRISE_CROSS_FACULTY_AUDIT_2026-11-25.md) now maps Stage 35 prediction/surprise events and their four consumers, and separates them from the optional market and self-prediction systems. The findings remain static-source evidence; no live prediction or DB state was inspected.
 
+
+
+**Problem/goal lifecycle:** [NEX_PHASE0_OPEN_PROBLEM_AND_GOAL_LIFECYCLE_AUDIT_2026-11-25.md](NEX_PHASE0_OPEN_PROBLEM_AND_GOAL_LIFECYCLE_AUDIT_2026-11-25.md) maps problem producers, state transitions and consumers; separates the GoalManager state vocabulary from CoherenceGate's query; and checks whether SentienceNode tick/decay methods are actually orchestrated. Findings are source-only, with live rows and host state UNKNOWN.
+
 **Important:** this boot inventory is a forward wiring map, not a complete producer/consumer DAG. It does not prove that every declared faculty is operationally consumed, nor does it establish L3/L4 runtime evidence. The two detailed paths below remain the only end-to-end output-path audits in this document.
 
 
