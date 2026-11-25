@@ -113,3 +113,7 @@ Three new candidate producer/consumer issues are recorded:
 - G-27: life-loop beliefs, boot seeds and optional HotObserver bypass TaggingBeliefWriter/tag_ops. Several life loops hard-code tags or store []; SurpriseLoop can write duplicate 'surprise' tags when big_surprise is false. TAG_PROTOCOL.md's content-derived/helper-normalization requirements need to be reconciled with any intended exceptions.
 
 No code, runtime behavior, live DB, flags, services, experiments, baselines or tripwires were changed. The latest tranche is documentation/evidence only. Gate 0 remains pending; continue read-only source tracing and isolated tests until the exact Frozen V2.1 and founder approval record are identified.
+
+## Active-branch timezone decision not integrated — trace §69
+
+Main commit c247c240f8 (2026-10-26) records the owner decision for Africa/Johannesburg and centralizes time under NEX5_TZ. The active development branch still hardcodes Europe/Amsterdam in IdentityLoop, PatternLoop, WitnessLoop and DailyLife; active nex_config.py lacks the timezone helper. The main migration spans multiple modules and tests, so do not cherry-pick only the four life loops or merge main wholesale. This is a branch-integration candidate, not a runtime fix applied. See backlog D-38.
