@@ -86,7 +86,9 @@ class PatternMemory:
             # Public getters expose the stored mutable Pattern objects for
             # compatibility. Revalidate an existing record before any mutation:
             # callers may have changed its confidence through a returned alias.
-            existing_confidence = _bounded_confidence(ex.confidence)
+            original_confidence = ex.confidence
+            existing_confidence = _bounded_confidence(original_confidence)
+            confidence_normalized = original_confidence != existing_confidence
             existing = list(dict.fromkeys(
                 x.strip() for x in str(ex.provenance).split(";") if x.strip()
             ))
@@ -106,7 +108,10 @@ class PatternMemory:
                     ex.exceptions.append(x)
                     exceptions_changed = True
             if not new:
-                if exceptions_changed:
+                # Persist a finite out-of-range alias normalization even when
+                # provenance replay is otherwise idempotent. Without this, the
+                # in-memory value would differ from the durable JSONL record.
+                if confidence_normalized or exceptions_changed:
                     self._append(ex)
                 return ex
             ex.provenance = "; ".join(existing + new)
