@@ -277,7 +277,7 @@ The M0.5 overlay is now traced from its actual Fountain and Chat call sites thro
 
 ## Latest Phase 0 source-audit continuation — 25 November 2026 (trace §§72–82)
 
-The current static trace now extends through §82. The new and refreshed detail documents are:
+The current static trace now extends through §83. The new and refreshed detail documents are:
 
 - NEX_PHASE0_GATE_AND_BELIEF_WRITER_CENSUS_2026-11-25.md — 350 Python source files scanned for literal Gate and beliefs-table write patterns; classifies Gate-wired writers, non-Gate producers, external perception, boot seeds, maintenance and experimental paths. D-39 records BehaviouralSelfModel's conditional Gate exception-fallthrough; D-40 records paused-row eligibility in tier promotion/decay.
 - NEX_PHASE0_CHAT_ROUTE_VARIANTS_AUDIT_2026-11-25.md and NEX_PHASE0_CHAT_BELIEF_COUNT_FORMATTER_AUDIT_2026-11-25.md — RAG-first, HYBRID/operator, VoiceEngine hit/miss and tool-assisted route assembly are separated. The Chat gap gate counts literal Tier-marker substrings in a composite text buffer, not structured belief rows; interpolated free text can inflate the count if it contains marker-shaped text. This is a structural risk, not a live incident.
@@ -298,7 +298,7 @@ The branch/source-reference comparison is documented in `NEX_PHASE0_MAIN_BRANCH_
 The active-host branch remains 4 ahead / 205 behind main; PR #98 targets `claude/nex-continuity-wire`, not main. The MIND_MAP's source history includes code/test changes on main. No map or code was imported, and no merge/rebase/cherry-pick occurred. The active-host `sentience_dag.json` and `nex_next_dev.py` remain the separate build-order mechanism; `live_unproven` counts as satisfied for dependency buildability.
 
 
-### Expanded audit inventory — trace §§73–82
+### Expanded audit inventory — trace §§73–83
 
 The following additional static audits are now committed on this branch:
 
