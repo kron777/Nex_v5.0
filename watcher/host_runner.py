@@ -17,6 +17,32 @@ from typing import Any
 from .host import host_requests
 
 
+def _collector_environment() -> dict[str, str]:
+    """Use a controlled command environment; retain only the user bus needed by systemctl."""
+    env = {
+        "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": str(Path.home()),
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "SYSTEMD_COLORS": "0",
+        "SYSTEMD_PAGER": "cat",
+        "PAGER": "cat",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_OPTIONAL_LOCKS": "0",
+        "GIT_PAGER": "cat",
+        "NEX_WATCHER_COLLECTOR_PID": str(os.getpid()),
+    }
+    # systemctl --user needs the existing session bus; do not inherit the rest
+    # of the caller's environment (notably BASH_ENV, PYTHONPATH or loader hooks).
+    for key in ("XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"):
+        value = os.environ.get(key)
+        if value:
+            env[key] = value
+    return env
+
+
 def collect_host_evidence(
     *,
     timeout: int = 600,
@@ -64,10 +90,7 @@ def collect_host_evidence(
                     errors="replace",
                     timeout=timeout,
                     check=False,
-                    env={
-                    **os.environ,
-                    "NEX_WATCHER_COLLECTOR_PID": str(os.getpid()),
-                },
+                    env=_collector_environment(),
                 )
                 command_results.append({
                     "index": index,
