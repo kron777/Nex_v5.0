@@ -950,3 +950,30 @@ The reshape path is present; it is not an unimplemented queue. `HoldingZone.put_
 ### Authority consequence
 
 The Faculty Model's universal gate statement is a design requirement, but the implementation-order note preserves legacy Fountain/Synergizer paths during the initial gate phase. The current source now calls the gate from several such producers, while other direct belief writers remain. These paths must be classified as generative thought, perception ingestion, bootstrap anchor or telemetry mirror against the canonical Frozen V2.1 and founder-approved Doctrine; do not declare every direct writer a gate violation solely from its SQL shape.
+
+## 62. Additional direct-connection writes in Fountain, Moltbook and GUI action paths
+
+A second source pass found additional direct writes outside the shared Writer queue. These are distinct from the normal-wired life-loop list in §61:
+
+| Module/path | Direct write observed | Source activation category |
+|---|---|---|
+| theory_x/stage6_fountain/generator.py | INSERT OR REPLACE into dynamic.db recursion_attrib via substrate.connect() and commit | Inline in the Fountain fire path, inside a fail-safe try block |
+| theory_x/stage7_moltbook/listener.py | INSERT/REPLACE into dynamic.db moltbook_dms and moltbook_pending_replies; INSERT into sense.db sense_events | Moltbook listener loop is returned by get_moltbook_loops() and appended/started by build_dynamic(); API/client readiness affects whether it reaches writes |
+| theory_x/stage7_moltbook/responder.py | UPDATE dynamic.db moltbook_pending_replies status | Moltbook responder loop is returned and started in the same source wiring; client readiness affects execution |
+| theory_x/stage7_moltbook/poster.py | INSERT/UPDATE dynamic.db moltbook_post_queue, daemon_kv and moltbook_posts | Moltbook poster loop is returned and started in the same source wiring; real external posting is separately gated by MOLTBOOK_DRY_RUN |
+| gui/server.py /api/decoder/word_tag | DELETE or INSERT/UPSERT dynamic.db word_tags | Request-driven GUI/API action |
+| gui/server.py /api/fountain/tag | UPDATE dynamic.db fountain_events and word_contexts | Request-driven GUI/API action |
+| gui/server.py /api/ghost/flag and /unflag | INSERT/UPSERT or DELETE dynamic.db ghost_flags | Request-driven GUI/API action |
+| gui/server.py /api/hypothesis create/update/autoscore | INSERT/UPDATE dynamic.db hypotheses | Request-driven GUI/API action, including autoscore invoked by the fountain-tag endpoint |
+
+These are direct calls to substrate.connect() followed by SQL execution and commit; they do not use the shared Writer queue. The GUI's ordinary chat session/message persistence is a useful contrast: the inspected handlers use state.writers[conversations].write(). The drive-proposal approve/reject endpoints also use state.writers[dynamic].write().
+
+Scope cautions:
+
+- The Moltbook loop functions are in the normal build_dynamic() loop set, but client/auth readiness and external server state determine whether a given tick reaches these writes. No current host activity is asserted.
+- The GUI writes require their respective endpoints to be invoked. Their presence is not evidence that a user invoked them.
+- The Fountain recursion_attrib write is in the normal generation path, but is best-effort and exceptions are swallowed. Source presence does not prove every fire persisted a row.
+- This is not an exhaustive audit of every GUI endpoint or every module in the repository. The One-Pen census remains open.
+- The world_predictions module also uses its own connect() helper for world_predictions inserts/updates, but its standalone status and current normal runtime wiring have not been established in this tranche; it is deliberately not classified as a normal-wired producer here.
+
+These additions strengthen the source-level mismatch with SPECIFICATION.md §3 if that document remains authoritative. They do not establish contention, data loss, or a need to funnel every administrative or observational write through a cognition gate. Queue serialization and CoherenceGate scope are separate contracts. No code or runtime state was changed.
