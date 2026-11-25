@@ -40,13 +40,14 @@ CORPUS_PATH = REPO / "CORPUS.md"
 SNAP_DIR = REPO / "snapshots"
 
 
-def write_state_json(snap_ts):
-    """Write the runtime state snapshot to snapshots/."""
+def write_state_json(snap_ts, runtime=None):
+    """Write the runtime state snapshot, reusing a caller's captured runtime state."""
     SNAP_DIR.mkdir(parents=True, exist_ok=True)
     fname = datetime.fromtimestamp(snap_ts).strftime("%Y-%m-%d_%H%M") + "_state.json"
     path = SNAP_DIR / fname
 
-    runtime = ex.extract_runtime_state()
+    if runtime is None:
+        runtime = ex.extract_runtime_state()
     state = {
         "snapshot_at": snap_ts,
         "snapshot_at_str": datetime.fromtimestamp(snap_ts).strftime("%Y-%m-%d %H:%M:%S"),
@@ -81,8 +82,8 @@ def _port_counts(port_data):
     return counts
 
 
-def assemble_corpus(snap_ts):
-    """Produce the full CORPUS.md content."""
+def assemble_corpus(snap_ts, runtime=None):
+    """Produce the full CORPUS.md content from one optional runtime capture."""
     snap_str = datetime.fromtimestamp(snap_ts).strftime("%Y-%m-%d %H:%M:%S")
 
     # Extract once, reuse
@@ -96,7 +97,8 @@ def assemble_corpus(snap_ts):
     spec_docs = ex.extract_spec_docs()
     amendments = ex.extract_amendments()
     anti_patterns = ex.extract_anti_patterns()
-    runtime = ex.extract_runtime_state()
+    if runtime is None:
+        runtime = ex.extract_runtime_state()
     unmapped = ex.extract_unmapped_roster()
 
     parts = []
@@ -439,9 +441,10 @@ def main(argv=None):
         parser.error("--push requires --commit")
 
     snap_ts = time.time()
-    corpus_text = assemble_corpus(snap_ts)
+    runtime = ex.extract_runtime_state()
+    corpus_text = assemble_corpus(snap_ts, runtime=runtime)
     CORPUS_PATH.write_text(corpus_text)
-    state_path = write_state_json(snap_ts)
+    state_path = write_state_json(snap_ts, runtime=runtime)
     print(f"OK CORPUS.md written ({len(corpus_text)} bytes)")
     print(f"OK state snapshot at {state_path}")
     if args.commit:
