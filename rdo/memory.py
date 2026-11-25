@@ -25,7 +25,9 @@ from typing import Dict, List, Optional
 from watcher.evidence import utc_now
 
 from .model import (CycleRecord, EXECUTED_VERIFIED, IMPORTED_RETROSPECTIVE,
-                    NATIVE_PLANNING, Pattern)
+                    NATIVE_PLANNING, RECON_UNKNOWN, REUSE_EXISTING,
+                    SIGNATURE_MATCHED, PARTIAL, MISSING, Pattern,
+                    has_valid_reuse_review)
 
 MIN_CYCLES_FOR_TREND = 3
 CONFIDENCE_CAP = 0.9
@@ -241,8 +243,13 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
             or signature_matches <= 0 or signature_backed is None
             or coverage_complete != (signature_backed == signature_matches)):
         coverage_complete = None
-    reconciled = sum(1 for o in obligations if o.get("recon_status") in
-                     ("signature_matched", "reuse_existing", "missing", "partial"))
+    def _has_completed_reconciliation(obligation: dict) -> bool:
+        status = obligation.get("recon_status", RECON_UNKNOWN)
+        if status == REUSE_EXISTING:
+            return has_valid_reuse_review(obligation)
+        return status in (SIGNATURE_MATCHED, MISSING, PARTIAL)
+
+    reconciled = sum(1 for o in obligations if _has_completed_reconciliation(o))
     d = compare(cycle) if cycle.actual is not None else {}
     missed = d.get("under_expansion_missed")
     raw_actual_effort = (cycle.actual.get("effort_actual")
