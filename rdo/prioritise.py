@@ -17,7 +17,7 @@ from typing import Dict, List, Optional
 
 from .model import (ANTI_REQUIREMENT, FUTURE, MISSING, NECESSARY, OPTIONAL, PARTIAL,
                     RECON_UNKNOWN, REUSE_EXISTING, SIGNATURE_MATCHED, Obligation,
-                    Relationship, WorkPackage)
+                    Relationship, WorkPackage, has_valid_reuse_review)
 
 # obligation kinds that represent an active behavioural change to NEX and so
 # require an explicit, preregistered gate before any execution.
@@ -30,9 +30,7 @@ _IMPORTANCE = {NECESSARY: 1.0, "conditional": 0.6, OPTIONAL: 0.3, FUTURE: 0.1,
 
 
 def _semantic_reuse_is_reviewed(ob: Obligation) -> bool:
-    return bool(ob.recon_status == REUSE_EXISTING and ob.recon_evidence
-                and ob.confidence == "measured" and ob.recon_semantic_verified
-                and ob.recon_semantic_review_evidence)
+    return ob.recon_status == REUSE_EXISTING and has_valid_reuse_review(ob)
 
 
 def _indegree(relationships: List[Relationship]) -> Dict[str, int]:
