@@ -760,3 +760,6 @@ This route is distinct from Fountain crystallization and the main Chat prompt pa
 `TriggerDetector.pending_triggers()` selects all rows with `fired=0` without filtering by trigger type. If `NEX5_THROWNET=1`, the normal boot path starts `ThrowNetMonitor`, which polls every 300 seconds and passes pending triggers to `ThrowNetEngine`. The engine calls TimeFetch for the trigger topic, runs its refiner, and sends each refined ThoughtPacket through CoherenceGate; it records the session/outcomes but does not itself insert each candidate as a belief in the inspected loop.
 
 Thus a VoiceEngine substrate miss can become an autonomous ThrowNet session when the monitor flag is enabled. A VoiceEngine hit is recorded as already fired and is not pending. This is a separate downstream path from the LLM fallback discrepancy in §48; it does not mean the direct VoiceEngine reply itself is gated.
+
+
+**Mode persistence:** `/api/voice_mode` changes only `AppState.voice_mode` in memory; no persistent settings write is made by the endpoint or the inspected front-end toggle. A process restart therefore returns to the dataclass source default `use_substrate` unless another caller changes it after boot. The host's current in-memory mode and any UI action history are UNKNOWN.
