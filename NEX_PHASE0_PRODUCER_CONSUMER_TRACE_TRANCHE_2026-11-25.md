@@ -899,3 +899,38 @@ These conflicts make the missing Frozen V2.1 document material, not administrati
 The main own-content query, associative-recall pool and residue re-read all use `tier < 8` as their status guard, but none of those queries checks `paused=0` (or `locked`). A Tier 3–7 belief temporarily paused by Harmonizer, or paused through another path, can therefore remain eligible for these Fountain paths. This differs from Stage 3 BeliefRetriever, NovelAssociation and EdgeBuilder, which explicitly filter paused rows in their candidate queries.
 
 This may be intentional if `paused` is only a Harmonizer transaction marker rather than a general retrieval exclusion; the source does not establish that policy. No live paused rows or prompt manifests were inspected.
+
+## 61. Multiple normal-wired loops write directly through substrate.connect(), outside the One-Pen Writer queue
+
+The repository Phase 0 Locked constitution, SPECIFICATION.md §3, says each database has exactly one writer thread, all writes from all code paths submit to one writer queue per database, and no code acquires a write lock directly. substrate.connect() is the canonical SQLite connection factory, but it is not a Writer and does not submit statements to the Writer worker queue. A caller that executes UPDATE/INSERT and commits on a connection returned by connect() is therefore outside that queue.
+
+The following source-level paths were verified:
+
+| Module/path | Direct write observed | Database | Normal dynamic-builder wiring |
+|---|---|---|---|
+| theory_x/life/affinity_loop.py::affinity_tick | UPDATE beliefs SET affinity / affinity_updated_at | beliefs.db | appended and thread-started |
+| theory_x/life/witness_loop.py | INSERT Tier-6 witness belief; INSERT OR REPLACE witness_log | beliefs.db; dynamic.db | appended and thread-started |
+| theory_x/life/remember_loop.py | INSERT Tier-6 remember belief | beliefs.db | appended and thread-started |
+| theory_x/life/surprise_loop.py | INSERT Tier-6 surprise belief; daemon_kv writes | beliefs.db; dynamic.db | appended and thread-started |
+| theory_x/life/wonder_loop.py | INSERT Tier-6 wonder belief | beliefs.db | appended and thread-started |
+| theory_x/life/identity_loop.py | INSERT Tier-6 identity belief; identity_log writes | beliefs.db; dynamic.db | appended and thread-started |
+| theory_x/life/pattern_loop.py | INSERT Tier-6 pattern belief; pattern_log writes | beliefs.db; dynamic.db | appended and thread-started |
+| theory_x/life/fetch_loop.py | INSERT Tier-6 fetch belief | beliefs.db | appended and thread-started |
+| theory_x/sustained/focus_loop.py | current_focus INSERT; open_problems UPDATE; internal sessions/messages INSERT | dynamic.db; conversations.db | appended and thread-started |
+| theory_x/life/daily_life.py | daily_activities INSERT; internal sessions/messages INSERT | dynamic.db; conversations.db | appended and thread-started |
+| theory_x/signals/signal_to_problem.py | signals UPDATE; open_problems INSERT | beliefs.db; conversations.db | appended and thread-started |
+
+These modules import substrate.connect and execute/commit SQL directly on the returned connections. The Stage 2 builder appends the listed life, focus, daily-life and signal-to-problem loops and starts each in its daemon-thread loop factory. This proves normal source wiring when build_dynamic() is invoked and the imports succeed; it does not prove the threads are currently active on the host.
+
+HotObserver is another direct beliefs.db writer: theory_x/stage_tom/hot_observer.py::observe() opens a connection with substrate.connect(), inserts a Tier-3 belief and commits. Its caller/runtime incidence is treated separately; this finding does not assume it is continuously active.
+
+Contrast: life.scorecard_loop delegates to ground_self_belief.refresh_self_belief(), whose belief insert/update uses substrate.Writer.write(), so that path is not included in the direct-connection list. Stage 2 DynamicCrystallizer and EmergentDrive belief inserts also use their injected Writer objects.
+
+Effects on the evidence map:
+
+- These are source-level departures from the literal One-Pen rule in SPECIFICATION.md. The exact Frozen V2.1 spec and founder amendment record remain unavailable, so normative classification is unresolved.
+- The direct belief INSERT paths also bypass TaggingBeliefWriter, its auto-tag injection and its embedded IntakeResonance probe. Some insert statements explicitly supply hard-coded tags; others rely on the schema default. This adds to the producer-dependent measurement boundary in §§56 and 58.
+- These direct paths do not call CoherenceGate in the inspected insert functions. That is a separate gate-scope question; the source trace does not assume every authored life-loop observation is necessarily intended to be a generated ThoughtPacket.
+- Direct connections may contend with the per-database Writer thread, but no live lock contention, lost write or current thread activity is inferred from source alone.
+
+No code was changed. Do not migrate these paths, alter loop activation, or route their beliefs through CoherenceGate before Gate 0 and explicit founder approval. Evidence: SPECIFICATION.md §3; theory_x/stage2_dynamic/__init__.py loop registration/thread-start block; the module callsites listed in the table; ground_self_belief.py for the compliant scorecard contrast.
