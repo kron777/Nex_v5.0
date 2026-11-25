@@ -161,8 +161,8 @@
 
 ### G-09 — Behavioural Self-Model may mix internal DailyLife messages with user-facing replies
 - Type: measurement-validity question / evidence gap.
-- Evidence: DailyLife writes generated internal entries into `conversations.messages` with `role='nex'` and `session_id='internal_daily_life'`. BehaviouralSelfModel.observe() selects the latest 100 rows where `role='nex'` without filtering by session or register. Metacognition._detect_goal_drift() selects the latest five rows with the same role-only filter and compares their embeddings with the active goal.
-- Impact: internal templated morning/reading/outreach/journal entries are eligible to influence response-style metrics, subsequent `behavioural_observation` beliefs, and the recent-response sample used for goal-drift detection. The size of either effect is UNKNOWN because no live message rows or metric contributions were inspected.
+- Evidence: DailyLife writes generated internal entries into `conversations.messages` with `role='nex'` and `session_id='internal_daily_life'`. Its loop calls `daily_tick()` immediately on boot; that function catches up every scheduled activity whose hour has passed, potentially inserting several internal messages in one tick. BehaviouralSelfModel.observe() selects the latest 100 rows where `role='nex'` without filtering by session or register. Metacognition._detect_goal_drift() selects the latest five rows with the same role-only filter and compares their embeddings with the active goal.
+- Impact: internal templated morning/reading/outreach/journal entries are eligible to influence response-style metrics, subsequent `behavioural_observation` beliefs, and the recent-response sample used for goal-drift detection. The size of either effect is UNKNOWN because no live boot times, daily_activities rows, message rows or metric contributions were inspected.
 - Disposition: determine whether the intended observation population is all NEX-authored messages or only user-facing replies. Validate against isolated fixtures before any runtime change.
 
 ### D-14 — Dynamic crystallization can invoke IntakeResonance twice for one belief
