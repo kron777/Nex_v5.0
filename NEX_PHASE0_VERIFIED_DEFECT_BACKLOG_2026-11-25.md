@@ -419,3 +419,10 @@
 - Evidence: producer accepts 10–500 characters while consumer suppresses content over 400; producer deduplication blocks any prior row for a belief_id regardless of status; consumer has no startup recovery for rows left in `speaking`; flush and consumer claim are not atomic; API status does not verify worker thread liveness. Details are in `NEX_PHASE0_SPEECH_QUEUE_PRODUCER_CONSUMER_CENSUS_2026-11-25.md`.
 - Impact: some queued thoughts can be immediately suppressed, failed/skipped rows cannot be retried for the same belief, interrupted rows can remain stuck, and UI status can report enabled after worker exit.
 - Disposition: decide intended once-per-belief, retry, recovery and status semantics before any queue lifecycle change. No code change before Gate 0 / explicit approval.
+
+
+### G-34 — Normal shutdown does not coordinate most daemon workers
+- Type: source-level lifecycle coordination gap; practical impact UNKNOWN.
+- Evidence: `run.py` starts Stage 2, World Model, Membrane, Fountain, SpeechQueueConsumer, Signal, Diversity, EdgeGenerator and additional faculty daemon workers. `AppState.close()` explicitly shuts down the SenseScheduler and closes shared Writers but does not stop/join those other worker objects. The SIGTERM handler waits 1.5 seconds, sets only the decoder stop event, calls `state.close()`, then invokes `os._exit(0)`. The detailed source map is in `NEX_PHASE0_DYNAMIC_LOOP_AND_BOOT_WIRING_AUDIT_2026-11-25.md`.
+- Impact: non-Writer work and external operations may still be in progress when process exit terminates daemon threads. Static source does not establish that any operation was interrupted, that data was lost, or that current shutdown has caused an incident; Writer.close() is intended to drain queued writes.
+- Disposition: founder/design defines the required shutdown contract (best-effort bounded exit versus coordinated stop/drain/join, and treatment of external operations). Do not add stop/join behavior, extend the shutdown delay, or change service lifecycle before Gate 0 / explicit approval.
