@@ -64,6 +64,12 @@ def test_build_record_handles_systemd_escaped_path():
     assert executable == "/usr/bin/python3"
     assert arguments == ["/tmp/a-b.py"]
 
+    executable, arguments = service_audit._exec_paths(
+        r"{ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 /tmp/my\\x20script.py ; ignore_errors=no ; }"
+    )
+    assert executable == "/usr/bin/python3"
+    assert arguments == ["/tmp/my script.py"]
+
 
 def test_collect_service_audit_queries_only_fixed_units_and_selected_properties(monkeypatch):
     calls = []
