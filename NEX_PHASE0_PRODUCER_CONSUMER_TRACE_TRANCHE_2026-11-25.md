@@ -827,3 +827,11 @@ Therefore, when the synthesis branch is taken, the two originals do not both rem
 The current `tests/test_harmonizer_fixes.py::test_escalation_fires_after_incubation` checks only `row_a` after escalation, and its fixture does not establish a third bridging belief. It therefore does not exercise the successful-synthesis branch or assert that both originals remain Tier 8.
 
 This is a source-level defect, not a policy ambiguity: the method's own resolution contract says both originals are retired, but the subsequent demotion reverses that state for one of them. No code was changed and no live Harmonizer event was inspected.
+
+## 55. Harmonizer conflict scan is capped to the first 200 rows by tier
+
+`Harmonizer.scan_for_conflicts()` selects `tier BETWEEN 3 AND 7 AND locked=0 AND paused=0 ORDER BY tier ASC LIMIT 200`. It has no created-at ordering, cursor, offset, rotation or sampling strategy.
+
+If the eligible working-belief population exceeds 200, the scan repeatedly prioritises the same lowest-tier rows. If more than 200 eligible Tier 3 rows exist, Tier 4–7 rows are not examined at all; more generally, later rows at a given tier can be starved by earlier rows. Rows that are successfully resolved/retired leave the scan population, but rows with no detected conflict remain eligible on every two-hour scan.
+
+This may be an intentional compute cap, but the current source does not show a fairness/progress mechanism for the remainder of the working-belief population. Live eligible row counts and actual scan coverage are UNKNOWN.
