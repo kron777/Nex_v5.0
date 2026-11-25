@@ -162,6 +162,10 @@ def main(argv: list[str] | None = None) -> int:
         description="Run the Watcher's fixed, read-only host evidence requests locally.",
     )
     parser.add_argument("--out", default="host_results.json", help="results JSON path")
+    parser.add_argument(
+        "--repo-root", type=Path, default=None,
+        help="NEX checkout root to inspect (default: the collector's own checkout)",
+    )
     parser.add_argument("--timeout", type=int, default=600,
                         help="timeout per command in seconds (default: 600)")
     parser.add_argument("--skip-artifact-hashes", action="store_true",
@@ -183,6 +187,7 @@ def main(argv: list[str] | None = None) -> int:
         results = collect_host_evidence(
             timeout=args.timeout,
             include_artifact_hashes=not args.skip_artifact_hashes,
+            repo_root=args.repo_root,
         )
         path = write_results(results, Path(args.out), force=args.force)
     except (OSError, ValueError) as exc:
