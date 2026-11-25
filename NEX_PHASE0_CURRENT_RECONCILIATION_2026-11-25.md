@@ -20,7 +20,9 @@ The original Reality Report, Crosswalk, ADR and Phase 0 handoff remain useful hi
 - GitHub compare main...de93134 reports 4 commits ahead / 205 behind; merge base fb87e247a116221cc7d814e2ee5ff2e1300f5a87.
 - The active branch contains 757 tree entries at the audited SHA.
 - mind_map/MIND_MAP.yaml is absent from the active branch at this SHA, but is present on main. sentience_dag.json is present on the active branch.
-- The active branch's .github/workflows/tests.yml does not contain a test step enforcing the roadmap's descriptive-node-cannot-gate-or-veto invariant. Because MIND_MAP.yaml is absent from this branch, that invariant cannot be audited here against the expected source file.
+- The active branch's .github/workflows/tests.yml has no MIND_MAP validation step. On main, the workflow runs mind_map/mind_map.py --check --verify, but that script checks map structure, evidence/source references, freshness and declared absence claims; it does not inspect NEX runtime callsites or prove that represented faculties cannot gate/veto decisions.
+- The main-branch MIND_MAP.yaml declares a descriptive-only constraint in meta.constraint. It contains 34 node entries plus 5 arm entries, while its bootstrap comment and the handover/roadmap references still say 30 nodes. That count discrepancy needs reconciliation; do not silently delete or merge nodes to force the old count.
+- The separate sentience_dag.json on the active branch explicitly defines live_unproven as satisfied for buildability, and nex_next_dev.py confirms _SATISFIED = ("built", "live_unproven"). Its own note says this flags rather than blocks dependent work. This is a separate build-order policy from the descriptive MIND_MAP; preserve the distinction.
 
 **Branch discipline:** all findings below describe the active host branch unless explicitly labelled otherwise. Main is a comparison source, not a substitute for the running checkout. No branch merge, rebase or cherry-pick was performed.
 
