@@ -13,7 +13,7 @@ from typing import Dict, List
 from .model import (ANTI_REQUIREMENT, CONDITIONAL, FUTURE, MISSING, NECESSARY,
                     OPTIONAL, OVERDEVELOPED, PARTIAL, RECON_UNKNOWN, REUSE_EXISTING,
                     SIGNATURE_MATCHED, SUFFICIENT, TENSION_UNKNOWN, UNDERDEVELOPED,
-                    Obligation, Relationship, TensionAssessment)
+                    Obligation, Relationship, TensionAssessment, has_valid_reuse_review)
 
 
 # ---- node-level ----
@@ -37,8 +37,7 @@ def assess_node(ob: Obligation) -> TensionAssessment:
                                  note="configured source signature matched; semantic satisfaction "
                                       "has not been independently reviewed")
     if ob.recon_status == REUSE_EXISTING:
-        if not (ob.recon_evidence and ob.confidence == "measured" and ob.recon_semantic_verified
-                and ob.recon_semantic_review_evidence):
+        if not has_valid_reuse_review(ob):
             return TensionAssessment("node", ob.key, TENSION_UNKNOWN, inference=True,
                                      evidence=ev,
                                      note="reuse status lacks independent semantic-review evidence")
@@ -72,9 +71,7 @@ def assess_relationship(rel: Relationship, obligations: Dict[str, Obligation]) -
                                          evidence=[f"target {tgt.recon_status}"],
                                          note="blocking dependency on an unresolved necessary mechanism")
             if tgt.recon_status in (RECON_UNKNOWN, SIGNATURE_MATCHED) or (
-                    tgt.recon_status == REUSE_EXISTING and not
-                    (tgt.recon_evidence and tgt.confidence == "measured" and
-                     tgt.recon_semantic_verified and tgt.recon_semantic_review_evidence)):
+                    tgt.recon_status == REUSE_EXISTING and not has_valid_reuse_review(tgt)):
                 return TensionAssessment("relationship", subj, TENSION_UNKNOWN, inference=True,
                                          evidence=[f"target {tgt.recon_status}"],
                                          note="dependency target has not been semantically established")
@@ -137,9 +134,7 @@ def assess_system(obligations: Dict[str, Obligation],
     missing_nec = [k for k, o in necessary.items() if o.recon_status in (MISSING, PARTIAL)]
     unknown_nec = [k for k, o in necessary.items()
                     if o.recon_status in (RECON_UNKNOWN, SIGNATURE_MATCHED) or
-                    (o.recon_status == REUSE_EXISTING and not
-                     (o.recon_evidence and o.confidence == "measured" and
-                      o.recon_semantic_verified and o.recon_semantic_review_evidence))]
+                    (o.recon_status == REUSE_EXISTING and not has_valid_reuse_review(o))]
     if missing_nec:
         verdict = UNDERDEVELOPED
     elif unknown_nec or not necessary:
@@ -233,8 +228,7 @@ def recognize_sufficiency(obligations: Dict[str, Obligation]) -> List[dict]:
     out: List[dict] = []
     for ob in obligations.values():
         if (ob.recon_status == REUSE_EXISTING and ob.classification not in (OPTIONAL, FUTURE)
-                and ob.recon_evidence and ob.confidence == "measured"
-                and ob.recon_semantic_verified and ob.recon_semantic_review_evidence):
+                and has_valid_reuse_review(ob)):
             out.append({"key": ob.key, "reason": "semantic satisfaction reviewed; reuse, do not rebuild"})
         elif ob.recon_status == MISSING and ob.classification in (OPTIONAL, FUTURE, CONDITIONAL):
             out.append({"key": ob.key,
