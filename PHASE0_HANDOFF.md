@@ -140,7 +140,7 @@ Working rule: V2.1 is the intended authority, but its exact normative clauses an
 
 Trace now extends through §71. PR #98 remains draft. The most recent CI run observed was for an earlier head and was still in progress; subsequent documentation commits do not have an exact-head workflow result. Do not report latest-head CI as passed.
 
-## Latest Phase 0 continuation — 25 November 2026 (trace §§72–82)
+## Latest Phase 0 continuation — 25 November 2026 (trace §§72–83)
 
 The static producer/consumer trace now extends through §81. The current detailed documents are:
 
