@@ -1,5 +1,8 @@
 # NEX v5.0 — Architecture Crosswalk v2 (Output Paths)
 
+> **Scope and branch note.** This remains a two-output-path seed at the earlier fb87e24 snapshot, not the full-system M0.3–M0.4 crosswalk. Current branch identity, missing MIND_MAP source, Phase 1 continuity wiring and outstanding trace lineage are recorded in [NEX_PHASE0_CURRENT_RECONCILIATION_2026-11-25.md](NEX_PHASE0_CURRENT_RECONCILIATION_2026-11-25.md).
+
+
 **Master Roadmap v3.0 Phase 0 — deliverables M0.3–M0.4 (seed scope).**
 
 - **Branch:** `claude/nex-v5-audit-review-53ouqv` · **Head:** `fb87e24`
