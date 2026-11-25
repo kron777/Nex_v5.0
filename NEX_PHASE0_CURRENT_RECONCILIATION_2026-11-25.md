@@ -243,3 +243,10 @@ Trace extends through §71. PR #98 remains draft. The last observed workflow run
 The next bounded M0.3–M0.4 increment is complete at static-source level. `NEX_PHASE0_DYNAMIC_LOOP_AND_BOOT_WIRING_AUDIT_2026-11-25.md` inventories 26 conditional Stage 2 loop registrations (9 core, 14 additional life/faculty and 3 Moltbook), six World Model thread wrappers, the delayed Membrane behavioural worker, normal and environment-gated startup loops, constructed-but-request-driven faculties, and the SIGTERM/AppState shutdown boundary. The active source starts daemon workers broadly, but no host thread or environment state was inspected.
 
 The audit confirms that construction, thread-start attempt, a loop body that immediately returns, a service-gated worker, and a request-driven faculty are separate activation states. It also confirms that AppState.close() does not stop/join most workers before SIGTERM's os._exit(0); this is a lifecycle design question, not evidence of a live shutdown failure. See the linked audit for the exact inventory and qualifications.
+
+
+## Prediction/surprise source audit continuation — 2026-11-25
+
+The next bounded cross-faculty trace is complete at static-source level. `NEX_PHASE0_PREDICTION_SURPRISE_CROSS_FACULTY_AUDIT_2026-11-25.md` distinguishes three prediction systems and traces Stage 35 `surprise_events` to four consumers. It identifies a mismatch between external prediction generation and verification populations, a timestamp-only SurpriseLoop cursor with a conditional equal-timestamp/failed-write skip path, and stale PREDICTION_PROTOCOL wording for AffectState coupling. The separate WorldPredictionLoop is default-OFF, while ScorecardLoop remains normal-wired and refreshes its Tier 1 scorecard belief immediately and hourly.
+
+No live flags, DB rows, external APIs, or runtime state were inspected. These findings are source-level candidates and documentation discrepancies, not claims of live incidents or measured predictive effects.
