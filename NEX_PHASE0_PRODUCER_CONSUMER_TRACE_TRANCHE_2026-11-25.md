@@ -876,3 +876,19 @@ Following the call chain through the main gate-approved producers shows that the
 All rows assume `NEX5_INTAKE_RESONANCE_OFF` is not set to `1`; host-effective state is UNKNOWN. The dynamic duplicate is documented in §27. The Synergizer omission is the converse: it is a gated new-belief INSERT with explicit attribution tags, but no resonance measurement. Direct SQL/seed paths have their own tag/resonance contracts.
 
 This is not yet adjudicated as a defect because the Frozen V2.1 requirement for IntakeResonance coverage is unavailable. It does establish that the current source does not provide one uniform measurement per belief admission.
+
+## 59. Repository contains a Phase 0 Locked constitution, but it is not identified as Frozen V2.1
+
+`SPECIFICATION.md` exists in the active repository. Its header identifies it as “NEX 5.0 — SPECIFICATION”, author Jon Kron with Claude, dated April 2026, status “Phase 0 Locked”. Its preamble calls it the Constitution of NEX 5.0, states that it is the written ground against which later decisions are checked, and says it wins over later engineering until explicitly revised. Its closing says it is revised only through explicit amendment logged in the repository.
+
+Git history for this path shows one commit (`f10ac308`, 2026-04-23, “Phase 1: bones…”); no later amendment to this file was found in the path history. However, the file is not labelled V2.1 and is not identified by the handover as the exact Frozen V2.1 artifact. It cannot safely be assumed to be the same document.
+
+### Material conflicts between this constitution and current source
+
+- **Tier 8 meaning:** the specification defines Tier 8 as raw OBSERVATIONS, data rather than belief, stored in SenseDB/IntelDB and separate from the belief graph. Current code uses `beliefs.tier=8` as a `[RETIRED]` tombstone state. The handover/roadmap terminology also treats Tier 8 as retired. These are incompatible meanings unless a later spec explicitly amended the constitution.
+- **Harmonizer resolution:** the specification says common ground produces a *new synthesized belief* and retires both originals; if no common ground exists, both beliefs are deleted. Current source searches for an existing third bridging belief, links both originals to it, and does not create a new synthesis belief. The no-bridge branch labels its event `both_deleted` but updates both rows to Tier 8 with `[RETIRED]` content rather than deleting them.
+- **Harmonizer tier scope:** the specification describes conflict detection at Tier 4 or above; current query scans Tier 3–7. The intended ordering interpretation and any later amendment are UNKNOWN.
+- **One-pen rule:** the specification says every write must go through the per-database writer queue and direct DB writes are bugs. Current source contains direct SQLite belief writes in HotObserver, Stage 2 dynamic perception/life loops and other paths, as well as direct non-belief writes. This is a source-level conformance conflict if the constitution remains governing.
+- **Database inventory:** the specification lists five DBs (beliefs, sense, dynamic, intel, conversations); current `substrate/paths.py` defines six, adding probes.db. This may be a later approved extension, but no amendment to `SPECIFICATION.md` was found.
+
+These conflicts make the missing Frozen V2.1 document material, not administrative. The April `SPECIFICATION.md` is clearly a governing artifact by its own terms, but it may have been superseded by a later founder-approved V2.1 spec that is not present in the searched archive/Library. Do not reconcile these meanings by assumption, edit the constitution, or implement behavior changes until the founder identifies the canonical governing version.
