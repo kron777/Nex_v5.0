@@ -227,3 +227,7 @@ Current producer/consumer trace extends through §67. Gate 0 remains pending and
 ## Active-branch timezone divergence — trace §69
 
 Main commit c247c240f8 (2026-10-26) records the owner decision for Africa/Johannesburg and migrates NEX time handling to NEX5_TZ/local_tz. The active branch still hardcodes Europe/Amsterdam in IdentityLoop, PatternLoop, WitnessLoop and DailyLife, and active nex_config.py lacks the helper. The full migration is cross-cutting; no subset backport or main merge was made. See D-38.
+
+## Recursive self-model feedback source check — trace §68
+
+Current code shows IdentityLog → PatternLoop → PatternLog → WitnessLoop → WitnessLog. IdentityLoop does not read Pattern/Witness content when composing its next statement; only aggregate new-belief count may change. Fountain directly injects IdentityLog, but no Pattern/Witness prompt injection was found. The documented closed L1→L2→L3→L1 semantic feedback is therefore unverified in source. See G-28.
