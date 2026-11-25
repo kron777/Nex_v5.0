@@ -1205,7 +1205,9 @@ The detailed source inventory is in `NEX_PHASE0_DYNAMIC_LOOP_AND_BOOT_WIRING_AUD
 - `run.py` starts or attempts a broader set of workers, while several faculties are constructed for request-driven use rather than autonomous loops. Explicit environment-gated and service-gated paths are separated from ordinary boot attempts.
 - `AppState.close()` stops the SenseScheduler and closes Writers. The SIGTERM handler sets the decoder stop event, calls `state.close()`, then `os._exit(0)`; it does not individually stop/join the other daemon workers. This is a source-level lifecycle boundary, not evidence of an actual interrupted write or external operation.
 
-No thread inventory, environment state or live activity was inspected. No lifecycle or activation behavior was changed. Gate 0 and governing-spec authority remain pending.
+The tracked nex_keepalive.sh was read, but no live process environment, active user unit, credentials, thread inventory or external activity was inspected. The script declares MOLTBOOK_DRY_RUN=0 and multiple optional flags, but the current host reconciliation records that its hard-coded cd /home/rr/Desktop/Desktop/nex5 fails against the repaired checkout /mnt/games/storage/Desktop/Desktop/nex5; it exits before run.py. The path repair remains in draft PR #97, not merged/deployed, so these are not proven effective host flags.
+
+Further source findings: SenseScheduler constructor auto-starts external feeds despite stale “paused” comments; WorldConsolidator and BeliefPromoter tier mutation paths do not consistently recheck paused; Moltbook dry-run still performs GET polling and can write local approved/sent/posted status after synthetic POST success; and Writer shutdown has a sentinel/late-submit race while most background producers remain unstopped. The detailed boot audit contains exact evidence. No lifecycle or activation behavior was changed. Gate 0 and governing-spec authority remain pending.
 
 
 ## 74. Prediction and surprise cross-faculty trace
@@ -1281,3 +1283,17 @@ Verified boundaries:
 - When enabled, the side-channel file stores raw 160-character prompt/reply/thought previews and has no in-module redaction or retention/rotation policy.
 
 The current reconciliation's recorded roadmap extract and the exact Frozen V2.1 remain distinct authority sources. No deeper hook, new read, runtime activation or trace schema change was made.
+
+## 79. Gate and belief-writer census
+
+The detailed static inventory is NEX_PHASE0_GATE_AND_BELIEF_WRITER_CENSUS_2026-11-25.md. It scans all 350 Python source files in the audited branch (tests excluded) for literal Gate references and belief INSERT/UPDATE/DELETE patterns, then inspects the relevant callsites and boot wiring. It separates Gate-wired producers, no-Gate runtime writers, external-perception paths, boot seeds, self-observation, controlled promotion/maintenance and manual/experimental utilities. The scan is not AST-complete and cannot exclude dynamically assembled SQL or runtime reflection.
+
+Newly confirmed boundaries include BehaviouralSelfModel's conditional Gate exception-fallthrough to insertion (D-39), direct perception/self-observation writers, and paused-row eligibility in WorldConsolidator/BeliefPromoter tier mutation paths (D-40). The tracked launcher declares HotObserver and WorldConsolidation flags, but the known keepalive path blocker means they are not proven effective on the host. No producer was run or modified.
+
+## 80. Chat route variants and belief-count formatter audit
+
+The detailed route map is NEX_PHASE0_CHAT_ROUTE_VARIANTS_AUDIT_2026-11-25.md; the formatter/count audit is NEX_PHASE0_CHAT_BELIEF_COUNT_FORMATTER_AUDIT_2026-11-25.md. The route audit distinguishes RAG-first, HYBRID/operator, VoiceEngine substrate-hit and miss, fallback retrieval and tool-assisted turns. It records where each route gets belief context and where tool results are appended. The formatter audit confirms the Chat gap gate counts literal '- [Tier' substrings in a composite text buffer after several free-text augmentations, rather than counting structured belief rows; interpolated content can therefore inflate the count if it contains marker-shaped text. This is a structural risk, not evidence of a live malformed record or incident.
+
+## 81. Membrane and provenance coverage audit
+
+The detailed map is NEX_PHASE0_MEMBRANE_PROVENANCE_COVERAGE_AUDIT_2026-11-25.md. INSIDE routing combines formatted SelfModel state with a separate INSIDE belief retrieval. SelfModel standing-points are plain content lines, not Tier-formatted rows, and the provenance parser normally does not include them. The provenance snapshot is captured from the initial retrieval text before later Chat augmentations and tool results; it is therefore a narrow retrieval snapshot, not a complete transcript of every contextual influence in the final prompt. The audit also traces repeated beliefs_query retrieval and multiline marker-shaped content as conditional attribution risks, with no live incidence established.
