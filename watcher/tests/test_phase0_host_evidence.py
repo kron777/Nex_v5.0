@@ -144,7 +144,7 @@ def test_checkout_and_process_requests_are_redacted_and_fail_closed():
 
 def test_unknown_tool_source_scan_is_case_insensitive():
     commands = _commands("classify_unknown_tools")
-    assert "grep -nEi 'INSERT|UPDATE|DELETE|\\\\.commit|subprocess|connect\\\\('" in commands
+    assert "grep -nEi 'INSERT|UPDATE|DELETE|\\.commit|subprocess|connect\\('" in commands
 
 
 def test_artifact_fingerprint_is_derived_no_follow_and_failure_safe():
