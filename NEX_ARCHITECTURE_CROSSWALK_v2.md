@@ -176,3 +176,6 @@ The census remains partial: helper-mediated writes, alternate writers, and the r
 
 
 **Belief-graph topology path:** the source trace now distinguishes EdgeGeneratorLoop and NovelAssociation as `belief_edges` producers, not belief-content producers. NovelAssociation also has a verified GUI prompt consumer (`gui/server.py` calls `format_for_prompt()` and appends its one-shot annotation to `belief_text`). Both loop outputs remain source-level evidence; runtime activation and causal effect are UNKNOWN. See trace §24.
+
+
+**DailyLife / behavioural observation path:** the source trace now maps the Stage 2 DailyLife loop as a producer of internal `role='nex'` conversation messages, not beliefs. BehaviouralSelfModel's latest-100-NEX-message query has no session/register filter, so these internal entries are eligible inputs to its response metrics. This is a verified source overlap, not a measured live effect. The DailyLife header also overstates Moltbook sending and scheduled sleep-mode effects; see trace §25 and backlog D-13/G-09.
