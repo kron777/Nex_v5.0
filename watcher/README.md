@@ -105,6 +105,7 @@ python -m pytest watcher/tests -q
 | `report.py` | structured Markdown/JSON reports |
 | `host.py` | the host-side read-only spec; host-results template + provenance-aware ingestion |
 | `host_runner.py` | local executor for the fixed host request commands; writes a provenance-bearing JSON result |
+| `service_audit.py` | selected systemd state and referenced-path checks for four fixed NEX user services; emits no raw ExecStart arguments and performs no lifecycle actions |
 | `__main__.py` | CLI (`python -m watcher …`) |
 | `tests/` | passive-safety proofs + behaviour tests (isolated fixtures, temp data) |
 
