@@ -701,6 +701,7 @@ def test_grep_handles_non_utf8_text_without_crashing(tmp_path):
     assert result is not None
     assert len(result) == 1
     assert result[0].startswith("legacy.txt:1:signature")
+    assert "\ufffd" in result[0]
 
 
 def test_grep_oserror_and_invalid_exit_remain_unknown(tmp_path, monkeypatch):
