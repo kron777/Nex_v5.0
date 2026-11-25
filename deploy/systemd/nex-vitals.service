@@ -1,0 +1,10 @@
+[Unit]
+Description=NEX5 vitals snapshot
+Documentation=file:///mnt/games/storage/Desktop/Desktop/nex5/tools/NEX_VITALS_CRON.md
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/mnt/games/storage/Desktop/Desktop/nex5
+ExecStart=/mnt/games/storage/Desktop/Desktop/nex5/.venv/bin/python3 tools/nex_vitals.py --log
+Nice=10
