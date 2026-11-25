@@ -211,3 +211,7 @@ The current source tranche now covers §§60–62 and the verified defect backlo
 The repository April constitution's One-Pen rule is therefore in direct tension with multiple current source paths. This remains a source-level conformance finding pending exact Frozen V2.1 authority and approved amendments. No live contention, data loss, or host loop activity is inferred. No code or runtime behavior was changed.
 
 PR #98 remains draft. Latest additions are documentation-only. Exact-head CI must be checked against the current branch head before reporting a pass.
+
+## Database contract disconfirmation — 2026-11-25
+
+Owner-authored PR #11 merged on 2026-10-17 explicitly shipped the substrate.connect() factory migration and retired the raw-sqlite import ratchet. tests/test_edges.py enforces absence of raw sqlite3 imports outside substrate, not universal Writer queue use. The direct-connection paths enumerated in trace §§61–62 are therefore not confirmed defects; they are part of the merged connection-factory model. The April SPECIFICATION.md §3 and Writer docstrings still state queue-only semantics, so the current founder-approved transaction/serialization contract remains unresolved. D-36/G-24 have been reclassified. No migration or runtime changes were made.
