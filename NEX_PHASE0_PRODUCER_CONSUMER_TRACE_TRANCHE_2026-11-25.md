@@ -1036,3 +1036,18 @@ Related life-loop distinctions:
 This is a candidate gate-coverage discrepancy, not yet a confirmed defect. The Doctrine header still says DRAFT awaiting Jon's approval; the exact Frozen V2.1 and founder sign-off are absent. The seven loops were added after the Phase 22 universal-gating record, so the Phase 22 list may have been a snapshot of then-existing paths, or the new loops may have been expected to adopt the gate. Current source does not answer which.
 
 Do not retrofit gate calls, create packets, suppress these loops, or alter their belief outputs before Gate 0 and explicit founder approval. First establish whether background life-loop observations are thoughts subject to the universal gate, and whether their current behavior is an approved extension or an unrecorded exception.
+## 66. Identity / Pattern / Witness life-loop beliefs are excluded from INSIDE self-inquiry retrieval
+
+The three recursive self-model loops explicitly describe their outputs as internal self-description, pattern observation and blind-spot observation:
+
+- IdentityLoop stores a Tier-6 belief with source=identity_loop; its module header says it writes NEX's own self-description.
+- PatternLoop stores a Tier-6 belief with source=pattern_loop; its header describes a recursive self-model level that notices patterns in identity statements.
+- WitnessLoop stores a Tier-6 belief with source=witness_loop; its header describes the third recursive self-model level that questions blind spots in PatternLoop.
+
+However, Stage 4 membrane classification is source allowlist based. theory_x/stage4_membrane/classifier.py::_INSIDE_SOURCES includes the seed source identity but does not include identity_loop, pattern_loop or witness_loop. MembraneClassifier.classify_belief() returns INSIDE only when the belief's source is in that set.
+
+SelfModel._get_inside_beliefs() queries only paused=0, tier<=6 beliefs whose source is in _INSIDE_SOURCES. MembraneRouter._inside_route() uses that snapshot and separately calls BeliefRetriever.retrieve(..., side_filter='INSIDE'). Both paths therefore exclude these three life-loop sources from the structured self-inquiry context under the current classifier.
+
+Fountain's separate _OWN_CONTENT_SOURCES allowlist also contains fountain_insight, synergized, precipitated_from_dynamic, precipitated_from_sense, behavioural_observation and auto_probe, but not identity_loop, pattern_loop or witness_loop. These three beliefs are therefore also absent from the dedicated own-content retrieval slots. This does not prove they can never enter any broader retrieval slot; it establishes exclusion from the named inside and own-content paths.
+
+This is a high-confidence source-level producer/consumer mismatch: the producers explicitly describe themselves as recursive self-model content, but the self-inquiry membrane and dedicated Fountain own-content allowlists do not recognise their source labels. Whether the omission is intentional or an oversight needs founder/design clarification; do not add sources to allowlists without approval because that changes what counts as NEX's INSIDE state and what Fountain treats as its own content.
