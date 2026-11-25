@@ -38,6 +38,10 @@ The scheduler documentation mismatch found during this audit is corrected in thi
 
 **Expanded boot/loop inventory:** The full Stage 2 registration list (26 conditional registrations), World Model/Membrane worker details, environment/service gates, request-driven versus autonomous faculty classification, and shutdown coordination are now traced in [NEX_PHASE0_DYNAMIC_LOOP_AND_BOOT_WIRING_AUDIT_2026-11-25.md](NEX_PHASE0_DYNAMIC_LOOP_AND_BOOT_WIRING_AUDIT_2026-11-25.md). This remains static L2 source evidence; the live thread set and effective flags are UNKNOWN.
 
+
+
+**Prediction/surprise path:** [NEX_PHASE0_PREDICTION_SURPRISE_CROSS_FACULTY_AUDIT_2026-11-25.md](NEX_PHASE0_PREDICTION_SURPRISE_CROSS_FACULTY_AUDIT_2026-11-25.md) now maps Stage 35 prediction/surprise events and their four consumers, and separates them from the optional market and self-prediction systems. The findings remain static-source evidence; no live prediction or DB state was inspected.
+
 **Important:** this boot inventory is a forward wiring map, not a complete producer/consumer DAG. It does not prove that every declared faculty is operationally consumed, nor does it establish L3/L4 runtime evidence. The two detailed paths below remain the only end-to-end output-path audits in this document.
 
 
