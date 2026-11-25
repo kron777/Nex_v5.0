@@ -291,18 +291,18 @@ def record_arc_closers_execution(store, memory) -> CycleRecord:
                       "real_migration_runner_exercised": "_apply_migrations (not just a helper)",
                       "reuse_claims": 1, "reuse_claims_backed_by_file_evidence": 1,
                       "ci_evidence": {
-    "source_commit": "c352f6a83bec2136d5eff518deb210fc3cd4b3a2",
-    "workflow": "tests",
-    "workflow_run_id": 44855260626,
-    "workflow_run_number": 182,
-    "job_id": 136695850460,
-    "conclusion": "success",
-    "suite_result": {
-        "passed": 2219,
-        "skipped": 7,
-        "subtests_passed": 40
-    }
-}},
+                          "source_commit": "c352f6a83bec2136d5eff518deb210fc3cd4b3a2",
+                          "workflow": "tests",
+                          "workflow_run_id": 44855260626,
+                          "workflow_run_number": 182,
+                          "job_id": 136695850460,
+                          "conclusion": "success",
+                          "suite_result": {
+                              "passed": 2219,
+                              "skipped": 7,
+                              "subtests_passed": 40,
+                          },
+                      }},
     )
     record_actual(c, {
         # REVISED after the integration review: the first pass covered only the fresh-schema
@@ -357,18 +357,18 @@ def record_affinity_execution(store, memory) -> CycleRecord:
                       "fresh_init_exercises_migration": True, "all_reuse_claims_have_file_evidence": True,
                       "reuse_claims": 2, "reuse_claims_backed_by_file_evidence": 2,
                       "ci_evidence": {
-    "source_commit": "c352f6a83bec2136d5eff518deb210fc3cd4b3a2",
-    "workflow": "tests",
-    "workflow_run_id": 44855260626,
-    "workflow_run_number": 182,
-    "job_id": 136695850460,
-    "conclusion": "success",
-    "suite_result": {
-        "passed": 2219,
-        "skipped": 7,
-        "subtests_passed": 40
-    }
-}},
+                          "source_commit": "c352f6a83bec2136d5eff518deb210fc3cd4b3a2",
+                          "workflow": "tests",
+                          "workflow_run_id": 44855260626,
+                          "workflow_run_number": 182,
+                          "job_id": 136695850460,
+                          "conclusion": "success",
+                          "suite_result": {
+                              "passed": 2219,
+                              "skipped": 7,
+                              "subtests_passed": 40,
+                          },
+                      }},
     )
     record_actual(c, {
         "effort_actual": 1, "missed": [], "unnecessary": [], "reuse_wrong": [], "regressions": [],
