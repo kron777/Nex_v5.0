@@ -198,6 +198,8 @@ def expand(seeds: List[Obligation],
             frontier.append({"key": ob.key, "reason": "anti-requirement (not developed)"})
             continue
         if ob.kind in TERMINAL_KINDS:
+            frontier.append({"key": ob.key,
+                             "reason": f"terminal kind '{ob.kind}' (leaf; no further decomposition)"})
             continue
         if ob.depth >= max_depth:
             frontier.append({"key": ob.key, "reason": f"max_depth {max_depth} reached"})
