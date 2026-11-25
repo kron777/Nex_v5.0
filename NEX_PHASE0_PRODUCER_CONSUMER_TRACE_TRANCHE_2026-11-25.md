@@ -1046,7 +1046,7 @@ The three recursive self-model loops explicitly describe their outputs as intern
 
 However, Stage 4 membrane classification is source allowlist based. theory_x/stage4_membrane/classifier.py::_INSIDE_SOURCES includes the seed source identity but does not include identity_loop, pattern_loop or witness_loop. MembraneClassifier.classify_belief() returns INSIDE only when the belief's source is in that set.
 
-SelfModel._get_inside_beliefs() queries only paused=0, tier<=6 beliefs whose source is in _INSIDE_SOURCES. MembraneRouter._inside_route() uses that snapshot and separately calls BeliefRetriever.retrieve(..., side_filter='INSIDE'). Both paths therefore exclude these three life-loop sources from the structured self-inquiry context under the current classifier.
+SelfModel._get_inside_beliefs() queries only paused=0, tier<=6 beliefs whose source is in _INSIDE_SOURCES. MembraneRouter._inside_route() uses that snapshot and separately calls BeliefRetriever.retrieve(..., side_filter='INSIDE'); BeliefRetriever reclassifies candidate rows through the same MembraneClassifier before returning them. Both paths therefore exclude these three life-loop sources from the structured self-inquiry context under the current classifier.
 
 Fountain's separate _OWN_CONTENT_SOURCES allowlist also contains fountain_insight, synergized, precipitated_from_dynamic, precipitated_from_sense, behavioural_observation and auto_probe, but not identity_loop, pattern_loop or witness_loop. These three beliefs are therefore also absent from the dedicated own-content retrieval slots. This does not prove they can never enter any broader retrieval slot; it establishes exclusion from the named inside and own-content paths.
 
