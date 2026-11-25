@@ -257,3 +257,10 @@ No live flags, DB rows, external APIs, or runtime state were inspected. These fi
 The next bounded producer/consumer trace is complete at static-source level. `NEX_PHASE0_OPEN_PROBLEM_AND_GOAL_LIFECYCLE_AUDIT_2026-11-25.md` records the distinct ProblemMemory and GoalManager lifecycles, the `open`→`stuck` transition and its state-specific consumer visibility, the GoalManager `open` versus CoherenceGate `active` mismatch, and the absence of a normal boot scheduler for the two decay methods. The source registry is not a lifecycle orchestrator; it stores process-lifetime nodes only.
 
 No live problem/goal rows were inspected. The state and lifecycle contracts remain design questions; no code or runtime state was changed.
+
+
+## Signal pipeline and retention source audit — 2026-11-25
+
+The next bounded producer/consumer trace is complete at static-source level. `NEX_PHASE0_SIGNAL_PIPELINE_RETENTION_AND_PATTERN_AUDIT_2026-11-25.md` maps the three SignalLoop detectors plus Fountain's direct advancements_drift emitter, current-tick PatternTemplateLibrary semantics, SignalToProblem promotion and its two-database commit boundary, the four inspected signal readers, and the reaper preservation-list mismatch. The pattern validation columns are explicitly marked vestigial in schema.
+
+The reaper list preserves obsolete signal types and omits current promotable types; this is a source contract mismatch. The cross-database commit sequence creates a conditional partial-commit window. No live rows, reaper batches, disk footprint or commit failure was inspected.
