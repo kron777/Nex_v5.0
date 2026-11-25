@@ -223,3 +223,7 @@ Disconfirming source history corrected the initial One-Pen finding. Owner-author
 New candidates: G-25 seven post-Phase-22 life-loop belief producers have no ThoughtPacket/CoherenceGate path; G-26 IdentityLoop/PatternLoop/WitnessLoop beliefs are excluded from Stage 4 INSIDE and Fountain own-content allowlists; G-27 life-loop, boot-seed and optional HotObserver belief writes bypass TaggingBeliefWriter/tag_ops, with a concrete conditional duplicate-tag construction in SurpriseLoop. Each remains bounded to source evidence and policy scope; no behavior change.
 
 Current producer/consumer trace extends through §67. Gate 0 remains pending and exact Frozen V2.1 / founder sign-off remain absent from the searched archive/Library. No live runtime, DB, service or experiment state was touched.
+
+## Active-branch timezone divergence — trace §69
+
+Main commit c247c240f8 (2026-10-26) records the owner decision for Africa/Johannesburg and migrates NEX time handling to NEX5_TZ/local_tz. The active branch still hardcodes Europe/Amsterdam in IdentityLoop, PatternLoop, WitnessLoop and DailyLife, and active nex_config.py lacks the helper. The full migration is cross-cutting; no subset backport or main merge was made. See D-38.
