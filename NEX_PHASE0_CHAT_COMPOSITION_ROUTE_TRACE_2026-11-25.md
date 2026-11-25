@@ -72,6 +72,13 @@ Sources: `gui/server.py:1735–1768, 1985–2020`.
 5. This note does not adjudicate whether all Chat outputs, only autonomous belief candidates, or some narrower class fall under the governing CoherenceGate requirement. That remains blocked on the canonical Frozen V2.1 specification and founder authority clarification.
 6. This is a GUI Chat path trace, not a complete crosswalk of all Chat, VoiceEngine, tools, probes, retries, and external publication paths.
 
-## 6. Next bounded increment
+## 6. Completion and next bounded increment
 
-Continue the source-only audit by tracing the complete construction and use of the `belief_text` context: each append site, the exact provenance snapshot boundary, and the prompt variants for normal LLM, operator HYBRID, substrate-hit, and retry/regeneration routes. Keep runtime and behavioural state untouched until the governing authority and Gate 0 requirements are resolved.
+The requested `belief_text` append-site, provenance-boundary and route-variant trace is now covered across:
+
+- `NEX_PHASE0_CHAT_BELIEF_CONTEXT_TRACE_2026-11-25.md`;
+- `NEX_PHASE0_MEMBRANE_PROVENANCE_COVERAGE_AUDIT_2026-11-25.md`;
+- `NEX_PHASE0_CHAT_BELIEF_COUNT_FORMATTER_AUDIT_2026-11-25.md`;
+- `NEX_PHASE0_CHAT_ROUTE_VARIANTS_AUDIT_2026-11-25.md`.
+
+This closes Producer/Consumer Trace §8 item 3 at the static-source level. The next bounded increment is item 4: exhaustive `speech_queue` producer/consumer census, beyond the already verified FountainCrystallizer producer and SpeechQueueConsumer path. Runtime and behavioural state remain untouched until the governing authority and Gate 0 requirements are resolved.
