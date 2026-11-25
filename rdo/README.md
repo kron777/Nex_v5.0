@@ -59,6 +59,8 @@ WORK PACKAGE → EVIDENCE ACCOUNTING → (persist) → LEARN
   success) and a learning loop that compares **predicted vs actual** outcomes
   (missed obligations, over-expansion, inappropriate reuse, effort error) across
   cycles. No acceleration is claimed until enough cycles exist to support it.
+  The per-cycle store accepts only 1–128 portable filename characters for cycle IDs;
+  path separators and traversal-shaped IDs are rejected before any file access.
 
 ## Run it
 
