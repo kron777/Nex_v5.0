@@ -1222,3 +1222,18 @@ Source-confirmed relationships:
 - Stage C WorldPredictionLoop is default-OFF, but ScorecardLoop is normal-wired, runs immediately and hourly, and maintains a Tier 1 scorecard self-belief from the separate world_predictions table.
 
 These are static source findings. Host flags, DB rows, external calls, loop activity and practical score impact remain unknown. No prediction, network request, live DB read or runtime change was performed.
+
+
+## 75. Open-problem and goal lifecycle crosswalk
+
+The detailed state/consumer matrix is in `NEX_PHASE0_OPEN_PROBLEM_AND_GOAL_LIFECYCLE_AUDIT_2026-11-25.md`. It separates the `open_problems` working-question lifecycle from the `goals` commitment lifecycle.
+
+Verified source relationships:
+
+- Problem producers are ProblemMemory.open(), SignalToProblem and manual review_queue unflag; FocusLoop and Fountain RECONCILE update existing problem state/observations. Automatic Counterfactual review_queue promotion remains intentionally disabled.
+- FocusLoop moves a selected `open` problem to `stuck`. Most consumers (GUI list, Chat matching, FocusLoop, CounterfactualNode, DailyLife, Gate, PredictiveSubstrate, CompetingDrives and SelfMindView) query only `open`; Fountain's dedicated problem injection deliberately accepts any state. There is no dedicated stuck-list route in the inspected GUI.
+- GoalManager writes `state='open'`, while CoherenceGate reads only `state='active'`. Gate tests seed `active` directly rather than using GoalManager.open(), so normal API-created goals are not covered by the test path and are not selected by the current Gate query.
+- GoalManager is logged but not injected into Chat after SEAM 3; Fountain receives ProblemMemory, not GoalManager.
+- ProblemMemory/GoalManager decay methods are callable but not scheduled in the inspected boot path. Theory X's registry stores nodes and returns the list; it does not invoke tick/decay.
+
+No live problem/goal states or process activity were inspected. These are source-level state/consumer and lifecycle findings; no behavior was changed.
