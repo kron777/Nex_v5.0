@@ -26,9 +26,9 @@
 
 ### D-04 — Main-branch mind-map node count metadata is inconsistent
 - Type: source-document metadata discrepancy.
-- Evidence: main's mind_map/MIND_MAP.yaml contains 34 node entries and five arm entries, while its bootstrap comment and the older roadmap/handover refer to 30 nodes.
-- Impact: crosswalk counts and audit completeness can be misreported if the old 30-node count is assumed.
-- Disposition: reconcile the four additional entries and intended counting convention with the map owner; do not delete or merge entries to force 30.
+- Evidence: main's mind_map/MIND_MAP.yaml contains 34 entries under `nodes:` plus five arm entries. Thirty of those node entries are substantive mind-aspect nodes; four (`scope_void`, `prices_void`, `two_of_thirteen`, `dark_family`) are structural/placeholder entries. The bootstrap comment and older roadmap/handover refer to 30 nodes.
+- Impact: crosswalk counts and audit completeness can be misreported if the 30 substantive nodes, 34 YAML node entries and 39 total IDs (including arms) are conflated.
+- Disposition: preserve the entries and reconcile the counting convention with the map owner; do not delete or merge nodes to force 30.
 
 ## B. Confirmed source-level operational defect
 
@@ -43,9 +43,9 @@
 
 ### D-06 — Active host branch diverges substantially from main
 - Type: integration risk, not itself a code defect.
-- Evidence: active branch de93134 is 4 commits ahead and 205 commits behind main; merge base fb87e24. mind_map/MIND_MAP.yaml and Vitals are present on main but absent from the active branch.
-- Impact: wholesale merge/rebase risks importing many unrelated changes, including behavioural work. The active host checkout and main must not be treated as interchangeable.
-- Disposition: maintain branch-specific evidence; reconcile file-by-file under the governing authority hierarchy.
+- Evidence: active branch de93134 is 4 commits ahead and 205 commits behind main; merge base fb87e24. The main-only MIND_MAP was first added 2026-11-09 and last updated 2026-11-20. Its 51 source references across 41 unique files include 12 files absent from the active-host base. Vitals and other main-only files are also absent. PR #98 targets `claude/nex-continuity-wire`, not main.
+- Impact: wholesale merge/rebase risks importing many unrelated changes, including behavioural work; importing MIND_MAP alone would leave missing source references and fail its own source-existence check. The active host checkout and main must not be treated as interchangeable.
+- Disposition: maintain branch-specific evidence; reconcile file-by-file under the governing authority hierarchy. Do not import the map or cherry-pick its supporting code until branch lineage and scope are explicitly decided.
 
 ### D-07 — Vitals is absent from the active branch but present on main
 - Type: branch-content discrepancy and unresolved instrument-provenance issue.
@@ -95,9 +95,9 @@
 
 ### G-04 — MIND_MAP source and authority verification is incomplete on the active branch
 - Type: branch-source and verification gap.
-- Evidence: active branch lacks mind_map/MIND_MAP.yaml; main contains it. Main CI runs mind_map/mind_map.py --check --verify, but that script validates map structure, source references, freshness and declared absence claims; it does not inspect runtime callsites to prove represented faculties cannot gate/veto actions.
-- Impact: the descriptive-only constraint is declared in map metadata but not mechanically verified against runtime authority paths by that check.
-- Disposition: reconcile the active-branch map source and perform a separate source-level authority audit. Do not confuse the MIND_MAP with sentience_dag.json or RDO's buildability rules.
+- Evidence: active branch lacks `mind_map/MIND_MAP.yaml`; main contains it. The map has 34 node entries plus five arms and is explicitly descriptive-only. Its 51 source references across 41 unique files include 12 files absent from the active-host base. Main CI runs `mind_map/mind_map.py --check --verify`, but that script validates map structure, source references, freshness and declared absence claims; it does not inspect runtime callsites to prove represented faculties cannot gate/veto actions. Two `meta.doctrine` references are missing even on main and generate warnings.
+- Impact: the map cannot be copied into the active-host branch as a standalone file set; its own source-existence check would fail. Its descriptive-only constraint is declared in metadata but is not mechanically verified against runtime authority paths by that check.
+- Disposition: reconcile branch lineage and source dependencies first, then perform a separate source-level authority audit. Do not confuse the MIND_MAP with `sentience_dag.json` or RDO's buildability rules.
 
 ### G-05 — Host artifact and model-performance baseline is incomplete
 - Type: evidence gap.
