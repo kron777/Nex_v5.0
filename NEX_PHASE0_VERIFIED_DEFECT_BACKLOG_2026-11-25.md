@@ -439,3 +439,22 @@
 - Evidence: `surprise_loop.surprise_tick()` selects flagged rows with `triggered_at > since ORDER BY triggered_at ASC LIMIT 20`, then advances a timestamp-only cursor to the maximum timestamp seen. PredictiveSubstrate resolves all due predictions in one tick using one `now` value for each generated `surprise_events.triggered_at`; if more than 20 eligible rows share that timestamp, rows beyond the first batch no longer satisfy the strict-greater-than cursor query. The loop also advances `max_ts` after a row's belief INSERT raises, so a transient failed insert is not retried by the cursor.
 - Impact: in a backlog/recovery case, some surprise events may never be promoted to beliefs. Normal steady-state cadence usually creates far fewer than 20 due events, but no runtime backlog was inspected.
 - Disposition: decide the required lossless/retry/dedup contract and use a stable row identity or composite cursor if warranted. Add isolated equal-timestamp overflow and failed-write tests after the contract is confirmed. Do not change the cursor or reprocess live events before Gate 0 / explicit approval.
+
+
+### G-37 — GoalManager-created open goals are not selected by CoherenceGate
+- Type: source-level producer/consumer state-vocabulary mismatch; live incidence UNKNOWN.
+- Evidence: `GoalManager.open()` and the goals schema create rows with `state='open'`; GoalManager list/get_active also selects `open`. `CoherenceGate._load_context()` selects only `state='active'`. No normal GoalManager method writes `active`. The Gate test helper seeds `active` directly, so it does not exercise the normal GoalManager/API producer path. The detailed trace is in `NEX_PHASE0_OPEN_PROBLEM_AND_GOAL_LIFECYCLE_AUDIT_2026-11-25.md`.
+- Impact: normal API-created goals are not included in the Gate's up-to-five goal context rows. No live goal population or Gate decision effect was measured.
+- Disposition: founder/design confirms whether `open` is the intended active goal state or whether `active` is a distinct state with an omitted transition. Align producer, consumer and integration tests only after the lifecycle contract is confirmed; no query or state change before Gate 0.
+
+### G-38 — ProblemMemory and GoalManager decay methods are not scheduled in normal boot
+- Type: lifecycle wiring/documentation gap; practical impact UNKNOWN.
+- Evidence: ProblemMemory.decay() closes open problems stale over 30 days; GoalManager.decay() cancels open goals stale over 60 days. Both classes are constructed in normal startup, but the inspected run.py/gui/server.py path does not call their tick()/decay() methods. `theory_x.register()` stores nodes in a process list and `all_nodes()` returns a copy; there is no tick/decay scheduler in the registry. The unit tests call decay() directly, not through a boot lifecycle.
+- Impact: the documented stale auto-close/auto-cancel behavior does not occur autonomously through the inspected normal startup path. Existing stale records can remain open absent manual/API state changes.
+- Disposition: founder/design confirms whether decay is intended to be manually invoked, called by another orchestrator, or scheduled. Do not introduce a lifecycle scheduler or alter stale thresholds before Gate 0.
+
+### G-39 — Stuck problems disappear from open-only views but remain eligible for Fountain injection
+- Type: state-semantics / visibility contract question; live incidence UNKNOWN.
+- Evidence: FocusLoop marks a problem `stuck` after surfacing a help message. GUI `GET /api/problems`, Chat matching, FocusLoop, CounterfactualNode, DailyLife, CoherenceGate, PredictiveSubstrate, CompetingDrives and SelfMindView all select only `state='open'`. The GUI has no dedicated stuck-list route in the inspected source, though a known ID can be fetched directly. Fountain ProblemMemory.select_for_injection() intentionally selects any state, including stuck/closed, subject to its age, real-question, pool-size and cooldown filters.
+- Impact: a stuck item is removed from most visible/active problem flows but may later be re-surfaced by Fountain's separate all-state injection mechanism. This may be intentional to pause automatic work while retaining reflective re-surfacing; no live stuck rows were inspected.
+- Disposition: founder/design defines whether stuck is a parked, user-visible, terminal or re-surfacing state. Do not change filters, routes or state transitions before Gate 0.
