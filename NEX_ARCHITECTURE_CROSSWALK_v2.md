@@ -62,6 +62,10 @@ The scheduler documentation mismatch found during this audit is corrected in thi
 
 **Main-only MIND_MAP reconciliation:** [NEX_PHASE0_MAIN_BRANCH_MIND_MAP_RECONCILIATION_2026-11-25.md](NEX_PHASE0_MAIN_BRANCH_MIND_MAP_RECONCILIATION_2026-11-25.md) confirms the main/active-host divergence, 12 map source references absent from the active-host base, the descriptive-only constraint, and the separation from sentience_dag build order. No files were imported.
 
+
+
+**Moltbook external I/O:** [NEX_PHASE0_MOLTBOOK_EXTERNAL_IO_AND_DRY_RUN_AUDIT_2026-11-25.md](NEX_PHASE0_MOLTBOOK_EXTERNAL_IO_AND_DRY_RUN_AUDIT_2026-11-25.md) maps listener/responder/poster side effects, GET versus non-GET dry-run behavior, synthetic local success states, outbound belief filtering and inbound DM handling. No credentials or remote endpoints were accessed.
+
 **Important:** this boot inventory is a forward wiring map, not a complete producer/consumer DAG. It does not prove that every declared faculty is operationally consumed, nor does it establish L3/L4 runtime evidence. The two detailed paths below remain the only end-to-end output-path audits in this document.
 
 
