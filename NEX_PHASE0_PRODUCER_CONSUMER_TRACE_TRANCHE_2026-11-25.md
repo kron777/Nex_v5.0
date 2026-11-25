@@ -677,6 +677,7 @@ No live table sizes or restart history were inspected. Do not drop or prune the 
 | Fountain main own-content query | `tier < 8` only; no paused/locked predicate | Excludes Tier 8 but can surface paused Tier<8 rows |
 | Fountain associative recall | `tier < 8` only; no paused/locked predicate | Can select paused Tier<8 own-source rows |
 | Fountain residue fetch | `tier < 8` only; no paused/locked predicate | Rechecks retirement, but can still return paused rows |
+| Fountain dormancy reanimation | No tier/paused/locked predicate at scanner, wake_one or Fountain re-read; source families are own-content sources | Selected into intermediate candidates; rendered only through optional own_render when NEX5_OWN_CONTENT_RENDER=1 (default OFF); activation/use side effects remain |
 | Fountain seed-source slot | No tier predicate; source allowlist is intended for locked Tier 1 seed families | Expected protected seed content; status not independently enforced by query |
 | Fountain HotObserver candidate query | No tier/paused/locked predicate; 72-hour source/time filter only | Selected into intermediate candidates; not rendered by normal prompt allowlists. Activation/use side effects remain; possible separate substrate-emission eligibility |
 | Fountain substrate emission | `get_top_activated()` has no tier/status predicate; flag default OFF | Can format retired activated beliefs into a generated thought |
@@ -715,9 +716,9 @@ The dormancy/reanimation chain has no active-belief status guard at any of its t
 
 Because Harmonizer can retire unlocked source-family beliefs to Tier 8 with `paused=0`, those rows remain eligible for dormancy scanning, reanimation and Fountain's intermediate candidate list. Paused rows are also not excluded. The residue path explicitly rechecks `tier < 8`; the reanimation path does not.
 
-The reanimation sources (fountain_insight, synergized and behavioural_observation) are in `_OWN_CONTENT_SOURCES`, but they are not `precipitated_from_sense`; they therefore enter the optional own-content render block only when `NEX5_OWN_CONTENT_RENDER=1` (source default OFF). The evidence does not support unconditional/default prompt injection. They still receive retrieval-side activation/use effects, and the separate substrate-emission path is a distinct possible consumer.
+The reanimation sources (fountain_insight, synergized and behavioural_observation) are in `_OWN_CONTENT_SOURCES`, but they are not `precipitated_from_sense`. They therefore enter the optional own-content render block only when `NEX5_OWN_CONTENT_RENDER=1` (source default OFF). With source defaults, this is not direct prompt injection. If that flag is enabled, the own_render block itself does not add a tier/paused/locked predicate, so a retired or paused reanimated row can become prompt text through that conditional block. They always receive retrieval-side activation/use effects, and the separate substrate-emission path is another distinct possible consumer.
 
-This is a further normal-wiring retired/paused candidate path, separate from HotObserver, substrate emission, NovelAssociation and EdgeBuilder. It is conditional on a matching row being flagged, selected by `wake_one()` and consumed on a Fountain cadence. No live dormant row, pending reanimation or Fountain prompt was inspected.
+This is a further normal-wiring retired/paused candidate path, separate from HotObserver, substrate emission, NovelAssociation and EdgeBuilder. It is conditional on a matching row being flagged, selected by `wake_one()` and consumed on a Fountain cadence. No live dormant row, pending reanimation, host flag or Fountain prompt was inspected.
 
 ## 47. Fountain pre-gate output also updates open-problem state
 
