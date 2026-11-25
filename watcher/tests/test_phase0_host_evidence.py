@@ -247,7 +247,7 @@ def test_artifact_roots_fallback_to_named_checkouts_and_execute_scan(tmp_path, c
         (checkout / "snapshots" / (name + ".json")).write_text('{"fixture": true}', encoding="utf-8")
         checkouts.append(checkout)
 
-    # No live process: only the two explicit historical checkout defaults are considered.
+    # No live process: only the three explicit historical checkout defaults are considered.
     targets = choose([], checkouts)
     assert [item[0] for item in targets] == [
         "known_checkout_1_data",
@@ -406,3 +406,52 @@ def test_host_results_loader_drops_unanswered_placeholders(tmp_path):
     assert results["phase0_environment"]["data"] == {"python": "3.12"}
     assert results["phase0_environment"]["evidence_class"] == "measured"
     assert "_commands" not in results["phase0_environment"]
+
+
+def test_multiple_process_candidates_fall_back_to_named_historical_roots(tmp_path, capsys):
+    helpers = _artifact_helper_namespace()
+    choose = helpers["choose_artifact_roots"]
+    scan = helpers["scan_artifact_roots"]
+
+    checkouts = []
+    for name in ("runtime_checkout", "audit_checkout", "preserved_runtime_checkout"):
+        checkout = tmp_path / name
+        (checkout / "substrate").mkdir(parents=True)
+        (checkout / "run.py").write_text("# fixture marker", encoding="utf-8")
+        (checkout / "substrate" / "paths.py").write_text(
+            "# fixture marker", encoding="utf-8"
+        )
+        (checkout / "data").mkdir()
+        (checkout / "snapshots").mkdir()
+        checkouts.append(checkout)
+
+    custom_a = tmp_path / "custom_a"
+    custom_b = tmp_path / "custom_b"
+    custom_a.mkdir()
+    custom_b.mkdir()
+    candidates = [
+        ("1111", checkouts[0], str(custom_a)),
+        ("2222", checkouts[1], str(custom_b)),
+    ]
+
+    selected = choose(candidates, checkouts)
+
+    assert [item[0] for item in selected] == [
+        "known_checkout_1_data",
+        "known_checkout_2_data",
+        "known_checkout_3_data",
+    ]
+    assert all(
+        item[2] == "known_checkout_default_candidate_active_root_unknown"
+        for item in selected
+    )
+    assert all(item[3] is None for item in selected)
+    assert all(item[1] not in (custom_a, custom_b) for item in selected)
+
+    scan(selected)
+    output = capsys.readouterr().out
+    assert output.count(
+        "runtime_process_identity=UNKNOWN; no unique process candidate"
+    ) == 3
+    assert "pid=1111" not in output
+    assert "pid=2222" not in output
