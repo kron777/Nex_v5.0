@@ -812,3 +812,18 @@ The earlier summary of EdgeGenerator's tier bound needs a source/target distinct
 Therefore, a Tier 8 retired `fountain_insight` or `synergized` belief that has no existing incoming/outgoing edge can still be selected as an EdgeGenerator source and connected to a tier<=7 target. Paused or locked tier<=7 rows can also be selected as targets. The earlier statement that EdgeGenerator excludes Tier 8 applies only to its target-candidate query, not its source selection.
 
 This adds another normal-wiring path for retired rows to enter graph topology and broadens the paused/locked graph-status question. It does not directly return retired content from the Stage 3 retriever, but the graph can influence later spreading activation. No live graph state was inspected.
+
+## 54. Harmonizer synthesis branch retires both rows, then demotes one back to Tier 7
+
+A high-confidence control-flow defect is present in the successful-synthesis branch of `Harmonizer.resolve()`:
+
+1. When a bridging belief is found, the method updates both original conflict rows to `tier=8`, `locked=0`, `paused=0`, and prefixes both contents with `[RETIRED]`.
+2. It records the synthesis event and writes `synthesises` edges from both retired originals to the surviving bridge belief.
+3. It then calls `self._promoter.decisive_contradiction(belief_id_b)` on the second original row.
+4. `BeliefPromoter.decisive_contradiction()` reads the current tier and computes `new_tier = min(7, current + 2)`. Given the just-written Tier 8 value, it sets that row back to Tier 7, leaving the `[RETIRED]` content prefix in place. The method's docstring says “or discard if already at Tier 7”, but its implementation also leaves Tier 7 at Tier 7 rather than discarding it.
+
+Therefore, when the synthesis branch is taken, the two originals do not both remain retired: `belief_id_a` stays Tier 8, but `belief_id_b` is moved back to Tier 7 immediately after retirement. Because the update also leaves `paused=0` and `locked=0`, the Tier 7 `[RETIRED]` row passes main retrieval filters such as `tier < 8` and can be treated as active content.
+
+The current `tests/test_harmonizer_fixes.py::test_escalation_fires_after_incubation` checks only `row_a` after escalation, and its fixture does not establish a third bridging belief. It therefore does not exercise the successful-synthesis branch or assert that both originals remain Tier 8.
+
+This is a source-level defect, not a policy ambiguity: the method's own resolution contract says both originals are retired, but the subsequent demotion reverses that state for one of them. No code was changed and no live Harmonizer event was inspected.
