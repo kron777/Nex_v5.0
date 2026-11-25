@@ -471,3 +471,29 @@ This is a source-derived possibility, not an assertion about the current host's 
 This is not a new belief INSERT; it is a generation-triggered replacement of existing belief content. It is explicitly environment-gated and default OFF in source. The current host flag value is UNKNOWN.
 
 **Gate-scope question:** if CoherenceGate is required for every newly generated candidate that changes durable belief content, this path is a conditional bypass; if the intended contract only gates new belief-row insertion, it may be an authorised maintenance/upgrade path. The available source cannot adjudicate that. No runtime flag or code was changed.
+
+## 31. Fountain end-to-end output path and the actual scope of its gate
+
+### Generation and pre-gate persistence
+
+1. **Readiness:** `theory_x/stage6_fountain/__init__.py` runs the Fountain loop after its configured interval; it checks `mode_state.current().fountain_enabled` and calls `generator.generate()` only when the mode allows it. `FountainGenerator.generate()` scores readiness and returns `None` when not ready.
+2. **Pre-generation state:** on an eligible fire it computes competing-drive activation, checks the optional substrate-voice branch, and applies the every-fifth-fire quiescent branch. Quiescent fires write a `fountain_events` row and return before the normal voice/crystallizer path.
+3. **Prompt/retrieval:** `_build_prompt()` assembles context from `_retrieve_context_beliefs()` (own-source beliefs, seed sources, optional associative recall, residue, periodic reanimation, a dedicated recent `hot_observer` slot), plus mode/focus blocks, world-bridge material or an input-gap problem injection, standing spectrum beliefs, and optional env-gated self/social/continuity/affect/metacognition blocks. The retrieval manifest records the belief IDs and slots selected for the fire. The `own_sense` and seed blocks render by default; the separate distilled-own-content render is gated by `NEX5_OWN_CONTENT_RENDER=1`.
+4. **Voice:** the normal path calls `VoiceClient.speak()` with the assembled prompt. The optional language guard can retry or drop a non-English output. If voice fails, the generator selects the latest external sense event (or a bare tick), writes a `voice_fallback` `fountain_events` row and returns without condenser, crystallizer or speech queue.
+5. **Pre-gate event writes:** on the normal path the generated thought is written to `sense_events` as `internal.fountain`; the condenser may derive a droplet; EmphasisEngine scores it; then the main `fountain_events` row is written. Retrieval manifest, prompt-block manifest, snapshots, emphasis and other telemetry are written as best-effort side channels. Optional duplicate-fire suppression can prevent crystallization while leaving the already-generated/persisted fire intact.
+
+### Quality, CoherenceGate, belief and speech
+
+6. **Quality filter:** `FountainCrystallizer.crystallize()` applies its quality checks (length/on-subject, engagement, repetition/template and related checks) and records rejects. An active Stillness row can also suppress crystallization.
+7. **CoherenceGate:** after a candidate passes the quality filter, the normal path constructs a ThoughtPacket with source `fountain` and confidence `0.70`, calls CoherenceGate, and returns without inserting a new belief if the outcome is not ACCEPT.
+8. **Intake resonance and belief:** on the normal accepted path it explicitly computes IntakeResonance, derives confidence (surprise weighting is enabled by default in source unless disabled), applies optional attribution stamping, inserts a Tier 6 belief with explicit `tags`, and writes the matching `fountain_crystallizations` row.
+9. **Speech decision:** only after the belief exists does the SpeechGovernor decide whether to enqueue it. The category must be in the speakable source set, SpeechConfig must be enabled, length must be within configured bounds, and the governor must return `speak=True`; the code also checks for an existing queue row. `run.py` starts SpeechQueueConsumer only when `SpeechConfig.enabled` is true.
+
+### What CoherenceGate does and does not govern in this path
+
+- The gate is **not** a gate on generating the Fountain thought. It runs after the LLM has produced the thought and after the normal path has already written the internal sense event, condenser result (if any), emphasis score and `fountain_events` row.
+- A gate rejection prevents the normal new-belief INSERT and therefore prevents the downstream speech-queue step, but it does not erase or suppress the already-persisted Fountain event or its pre-gate telemetry.
+- The optional `NEX5_BESTOFCLUSTER=1` semantic-repeat upgrade can update an existing belief before the normal gate check; see §30.
+- Quiescent and voice-fallback paths return before normal crystallization. They are separate output classes, not gate rejections.
+
+This establishes a source-level distinction between generated thought/event persistence, durable belief crystallization and spoken delivery. The gate's current scope is belief admission in the normal Fountain path, not universal control over all prior output side effects. Runtime flags, live path frequency and causal influence remain UNKNOWN.
