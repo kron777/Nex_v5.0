@@ -139,9 +139,11 @@ class TaggingBeliefWriter:
             )
             return self._inner.write(sql, params)
 
-        # 4b — §8 intake resonance probe (UNIVERSAL chokepoint:
-        # every belief from every writer passes here). Observational,
-        # never raises. Writes via self._inner to avoid recursion.
+        # 4b — §8 intake resonance probe for eligible single-statement belief
+        # INSERTs routed through this wrapper's write() method. This is not a
+        # universal DB chokepoint: write_many(), direct SQLite, independent or
+        # pre-wrapper Writers, and caller-supplied tags bypass this probe.
+        # Observational, never raises. Writes via self._inner to avoid recursion.
         try:
             import os as _os
             if _os.environ.get('NEX5_INTAKE_RESONANCE_OFF') != '1':

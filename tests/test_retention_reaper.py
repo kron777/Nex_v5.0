@@ -41,6 +41,19 @@ class TestReaperObservabilityLogs(unittest.TestCase):
         con.commit()
         con.close()
 
+        self.beliefs_db = Path(self._tmp.name) / "beliefs.db"
+        bcon = sqlite3.connect(str(self.beliefs_db))
+        bcon.execute(
+            "CREATE TABLE residue "
+            "(id INTEGER PRIMARY KEY AUTOINCREMENT, created_at REAL NOT NULL)"
+        )
+        bcon.executemany(
+            "INSERT INTO residue (created_at) VALUES (?)",
+            [(self.now - 3 * 86400,)] * 4 + [(self.now - 1 * 86400,)] * 2,
+        )
+        bcon.commit()
+        bcon.close()
+
     def tearDown(self):
         reaper.DATA = self._orig_data
         self._tmp.cleanup()
@@ -72,6 +85,26 @@ class TestReaperObservabilityLogs(unittest.TestCase):
         tables = {(t[0], t[1]) for t in reaper.TARGETS}
         self.assertIn(("conversations.db", "drive_emergence_log"), tables)
         self.assertIn(("conversations.db", "substrate_coherence"), tables)
+
+    def test_residue_target_uses_two_day_override(self):
+        target = next(
+            t for t in reaper.TARGETS
+            if t[0] == "beliefs.db" and t[1] == "residue"
+        )
+        db_file, table, column, cutoff = reaper._unpack(
+            target, self.now, default_days=30
+        )
+        self.assertEqual((db_file, table, column), ("beliefs.db", "residue", "created_at"))
+        self.assertEqual(cutoff, self.now - 2 * 86400)
+
+        deleted = reaper.reap_table(db_file, table, column, cutoff)
+        con = sqlite3.connect(str(self.beliefs_db))
+        try:
+            remaining = con.execute("SELECT COUNT(*) FROM residue").fetchone()[0]
+        finally:
+            con.close()
+        self.assertEqual(deleted, 4)
+        self.assertEqual(remaining, 2)
 
 
 if __name__ == "__main__":

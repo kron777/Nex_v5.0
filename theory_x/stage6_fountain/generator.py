@@ -1098,13 +1098,12 @@ class FountainGenerator:
 
         # 2026-08-08 (round 37): PROMPT BLOCK MANIFEST.
         #
-        # fountain_retrieval_log above records which BELIEFS entered a prompt,
-        # but only for three slots (seed, own_sense, spectrum) and -- note the
-        # DROP TABLE at the top of this method -- it is destroyed on every
-        # restart, so it can never answer a retrospective question. Rounds 31,
-        # 32 and 33 each had to reconstruct "which block carried X into this
-        # fire" by live-sampling /tmp/nex5_last_prompt.log, which holds exactly
-        # one prompt and is overwritten every fire.
+        # fountain_retrieval_log above records selected belief IDs and their
+        # retrieval slots/ranks. Its startup migration drops the table only if
+        # a legacy foreign key to beliefs is detected; the current schema uses
+        # a same-database FK to fountain_events, so after that one-time
+        # migration the retrieval log persists across process restarts. It is
+        # read by associative recall for the last three fires.
         #
         # This table records the SHAPE of every prompt: one row per block, with
         # a content hash, its length, its ordinal position, and a bounded
@@ -1120,9 +1119,9 @@ class FountainGenerator:
         # measured dedup ratio across sampled prompts is only 1.13x (most
         # blocks embed a changing timestamp or count), so storing text would
         # cost ~2.8 MB/day for almost no sharing. Hence prefix-only + a reaper.
-        # REAPER: 30-day retention, run once per process start below, matching
-        # the retention pattern already used for gate_decisions. Steady state
-        # is ~27 MiB.
+        # PRUNE: 30-day retention is applied by the startup DELETE below,
+        # matching the retention pattern already used for gate_decisions.
+        # Steady state is ~27 MiB.
         try:
             self._dynamic_writer.write(
                 "CREATE TABLE IF NOT EXISTS fountain_prompt_blocks ("
@@ -2689,20 +2688,19 @@ class FountainGenerator:
             return []
 
     def _retrieve_context_beliefs(self, own_n: int = 7, seed_n: int = 2) -> list:  # noqa: E501
-        """Retrieve beliefs for fountain context.
+        """Retrieve beliefs for Fountain context.
 
-        Own lived content dominates (~80%): most recent N regardless of tier.
-        Seed reference material is minority (~20%): random sample so the same
-        3 seeds don't dominate forever. Tier is ignored for tiers 3-7 — T7 is
-        long-term memory, not archived content — but tier=8 (retired) is
-        explicitly excluded (2026-07-26): every other retrieval path in the
-        codebase (retrieval.py, pipeline_hooks.py, self_model.py,
-        promotion.py, harmonizer.py, drive_emergence.py, novel_association.py,
-        edge_builder.py, emergent_drives.py) bounds tier<=5/6/7 and so
-        already excludes retired beliefs without needing to; this was the
-        one path that had no tier bound at all, so a tombstoned belief
-        (harmonizer's own tier=8/[RETIRED] convention) could still surface
-        here as a live context candidate.
+        Own-source beliefs dominate the retrieval allocation (~80% of the
+        own/seed candidate mix); seed reference material is the minority
+        (~20%) and is randomly sampled. This describes candidate allocation,
+        not rendered prompt share: the dedicated own-content prompt block is
+        separately gated by NEX5_OWN_CONTENT_RENDER (source default OFF).
+
+        This main own-content query admits tiers 3-7 and explicitly excludes
+        tier=8 retired rows. That filter applies to this query only. Special
+        prompt slots, TimeFetch, reanimation and graph producers have their
+        own status predicates; do not infer universal retired-row exclusion
+        from this query. See the Phase 0 producer/consumer trace.
 
         Boost: beliefs with a belief_boost row rise in priority via additive
         time-bonus. A boost of B treats the belief as if created

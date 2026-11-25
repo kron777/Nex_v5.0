@@ -2054,8 +2054,9 @@ def create_app(state: AppState) -> Flask:
                     _cf.write(f"--- VOICE PROMPT SENT TO LLM ---\n{voice_prompt}\n=== END ===\n")
             except Exception:
                 pass
-            # EDIT B 2026-05-29 (v2, clean): in use_substrate mode, suppress LLM fallback.
-            # Substrate miss returns her own deflection. Probes + use_llm unaffected.
+            # VoiceEngine hits set text above and skip this LLM composition block.
+            # On a substrate miss, text remains None and this ordinary VoiceClient
+            # LLM path runs; this is not a substrate-only deflection.
             try:
                 resp = state.voice.speak(
                     VoiceRequest(prompt=voice_prompt, register=register),

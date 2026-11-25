@@ -182,3 +182,16 @@ The census remains partial: helper-mediated writes, alternate writers, and the r
 
 
 **Fountain control boundary:** the expanded trace follows readiness → retrieval/prompt assembly → voice → pre-gate sense/Fountain event persistence → quality filter → CoherenceGate → belief insertion → optional speech enqueue. The gate does not govern initial thought generation or the already-persisted Fountain event; it governs normal belief admission and therefore the downstream speech-queue path. Quiescent/voice-fallback outputs bypass crystallization, and the optional best-of-cluster update can mutate an existing belief before the normal gate. See trace §§30–31 and backlog D-15.
+
+
+## 2026-11-25 source-trace expansion
+
+The producer/consumer trace now covers Fountain generation and pre-gate persistence, Chat composition and the separate VoiceEngine substrate-first route, database-init and operator seed paths, HotObserver, dormant reanimation, graph producers/traversal, IntakeResonance coverage, DailyLife feedback, and retention telemetry. See `NEX_PHASE0_PRODUCER_CONSUMER_TRACE_TRANCHE_2026-11-25.md` §§29–58 and the expanded verified defect backlog.
+
+Highest-priority source finding: Harmonizer's successful-synthesis branch retires both originals to Tier 8 and then calls `BeliefPromoter.decisive_contradiction(belief_id_b)`; that method clamps the tier to 7, reactivating one just-retired row while retaining its `[RETIRED]` prefix (backlog D-32). The current test checks only row A and does not exercise a bridge-belief synthesis branch.
+
+Other important conditional/source findings include unfiltered retired-row access through HotObserver, Favorites/Surprise, reanimation, substrate emission and VoiceEngine; unfiltered graph ingestion through NovelAssociation/EdgeBuilder/EdgeGenerator; retired-node spreading activation; DormancyScanner's fixed oldest-50 scan; and producer-dependent IntakeResonance measurement (Dynamic double, Synergizer zero).
+
+Residue retention source truth is corrected: `nex_db_reaper.py` includes a 2-day `beliefs.db:residue` target; the old residue module note claiming otherwise was stale. An isolated temp-DB test now covers that override. No live reaper was run.
+
+These are source-level findings only. No NEX DB, live flag, service, runtime behavior, experiment, baseline, tripwire or gate setting was changed. Gate 0 remains blocked pending founder review of the Reality Report, Crosswalk and verified defect backlog.

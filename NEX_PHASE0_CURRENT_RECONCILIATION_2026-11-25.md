@@ -176,3 +176,13 @@ These are development instruments, not NEX cognitive phases or runtime faculties
 No RDO or Watcher observations are fed into NEX. No PR above was merged during this cross-check.
 
 **Gate 0 remains PENDING.** This document improves the evidence package; it does not ask the founder to approve Phase 1 and does not treat a general instruction to continue development as Gate 0 sign-off.
+
+## Source audit expansion — 2026-11-25
+
+The current producer/consumer trace has been expanded through §§29–58, with corresponding backlog entries through D-34 and G-21. New highest-priority finding: Harmonizer's successful-synthesis branch reactivates one original conflict belief at Tier 7 after setting it to Tier 8, because it subsequently calls `decisive_contradiction()` which clamps at 7. The existing escalation test checks only row A and does not exercise the synthesis-bridge branch.
+
+The expanded audit also identifies route-specific retired-belief filters, graph propagation through retired nodes, DormancyScanner's fixed oldest-50 selection, VoiceEngine's separate substrate-first Chat path and LLM miss fallback, Fountain's separate retrieval/rendering flags, and non-uniform IntakeResonance coverage. These remain source-level findings; host-effective flags and live DB incidence are unknown.
+
+Residue retention was rechecked against current source: the reaper includes a 2-day residue target, contrary to the old residue module note. The stale note is corrected and an isolated temp-DB test covers the target override.
+
+**No Gate 0 crossing:** Frozen V2.1 specification and founder approval record remain absent from the searched archive/Library sources. No runtime behavior, live DB, service, active experiment, baseline, tripwire, safety/ethics/authority setting or deployment was changed. Founder review remains required before any behavior remediation.

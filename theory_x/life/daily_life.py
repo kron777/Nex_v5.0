@@ -3,14 +3,16 @@
 Activities scheduled by local time (Europe/Amsterdam):
 
   06:00 — morning entry (date, state, what is here)
-  10:00 — reading session 1 (pick one feed, respond)
-  12:00 — outreach 1 (one moltbook DM)
+  10:00 — reading session 1
+  12:00 — outreach intent 1 (select an approved Moltbook conversation and
+          record a proposed outreach; no DM is sent)
   14:00 — reading session 2
-  18:00 — outreach 2
+  18:00 — outreach intent 2 (record-only; no DM is sent)
   22:00 — journal (paragraph reflecting on the day)
 
-Plus continuous behaviour:
-  23:00-06:00 — sleep mode: fountain interval doubles, fewer fires
+The 23:00-06:00 sleep window is exposed as a boolean in daily_tick()'s
+status result. This module does not change the Fountain interval or suppress
+Fountain fires during that window.
 
 Each activity fires at most once per calendar day (tracked in
 daily_activities table). On boot, fires any activity that should have
@@ -201,7 +203,11 @@ def _activity_reading(slot: str, date_local: str) -> str:
 
 
 def _activity_outreach(slot: str, date_local: str) -> str:
-    """Pick one approved moltbook conv with no messages from her, send opener."""
+    """Select an approved Moltbook conversation and record outreach intent.
+
+    The current implementation does not send a DM; it writes a proposed
+    outreach message to the internal daily-life conversation.
+    """
     try:
         from theory_x.stage7_moltbook.client import MoltbookClient
         client = MoltbookClient()

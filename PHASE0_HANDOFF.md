@@ -59,3 +59,11 @@ The roadmap extract asks for NEX5_TRACE_OVERLAY=0 and a full trace_id/parent_ids
 ## Next safe work
 
 Continue the full forward/backward producer-consumer audit in bounded increments, beginning with the booted paths and their actual persistence/consumer relationships. Recover the exact Frozen V2.1 source/approval and reconcile the M0.5 trace contract. Keep live runtime and protected experiment state untouched. Review PR #97 and PR #98 independently; neither is permission to activate services or Phase 1 behaviour.
+
+## Current handoff addendum — 2026-11-25 source audit
+
+The latest source-trace tranche and verified defect backlog are expanded; see the canonical Crosswalk and `NEX_PHASE0_PRODUCER_CONSUMER_TRACE_TRANCHE_2026-11-25.md`. A confirmed control-flow defect is recorded at D-32: Harmonizer's successful-synthesis branch demotes one just-retired original from Tier 8 back to Tier 7. No fix has been applied because Gate 0 has not been approved.
+
+The current audit also records retired-row filter gaps across Fountain/VoiceEngine/reanimation/graph paths, a DormancyScanner scan-progress issue, VoiceEngine's separate substrate-first reply path, and non-uniform IntakeResonance measurement across producers. Residue retention documentation now matches the reaper's 2-day target, with an isolated temp-DB test added.
+
+**Founder help is now required to proceed from evidence into remediation:** provide the exact Frozen V2.1 specification and the founder approval/sign-off record for Gate 0 (or point to their canonical Library paths). The archive and Library searches returned the handover/roadmap references but not those governing artifacts. Until then, continue read-only source analysis and isolated tests only; do not implement behavior changes, change flags, run live retention, merge, deploy or activate services.
