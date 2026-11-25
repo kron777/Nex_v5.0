@@ -262,3 +262,15 @@
 - Evidence: DormancyScanner source selection has no tier/paused/locked filter; `wake_one()` selects an un-reanimated dormant row without checking joined belief status; Fountain's `pop_reanimated()` consumer re-reads by ID without a tier/paused/locked predicate. Harmonizer can retire unlocked source-family beliefs to Tier 8 while leaving them unpaused.
 - Impact: retired or paused beliefs can be surfaced into Fountain context through the periodic reanimation slot even though the main own-content and residue retrieval paths explicitly exclude Tier 8.
 - Disposition: validate with isolated fixtures and reconcile whether reanimation should apply only to active beliefs. Do not mutate dormant rows or live prompts before Gate 0 / explicit approval.
+
+### D-28 — VoiceEngine TimeFetch can return retired, paused or locked belief content
+- Type: source-level user-facing retrieval defect candidate; live incidence UNKNOWN.
+- Evidence: the normal Chat path calls VoiceEngine when `voice_mode='use_substrate'` (AppState source default). `TimeFetch.fetch_from_beliefs()` filters confidence and content length but not tier/paused/locked; `fetch_from_novel_associations()` joins belief pairs without status filters. VoiceEngine assigns Tier 8 a lower score, not an exclusion, and returns a qualifying hit verbatim for the non-composition path. The route does not call CoherenceGate.
+- Impact: retired/paused/locked belief content can be selected as a direct user-facing reply if it scores above 0.6. Novel-association pairs can also contain retired content. The main World Model retriever's tier<=6/paused filters do not protect this separate route.
+- Disposition: verify with isolated TimeFetch/VoiceEngine fixtures and define whether substrate-as-voice may serve retired/paused/locked content. Do not change the query, mode or reply path before Gate 0 / explicit approval.
+
+### D-29 — VoiceEngine substrate-miss comment contradicts the Chat control flow
+- Type: source/comment discrepancy.
+- Evidence: `gui/server.py` comment says `use_substrate` suppresses LLM fallback and a miss returns a substrate deflection. On a miss, however, `text` remains None and the route calls `state.voice.speak()`; `VoiceClient.speak()` invokes the configured LLM request function.
+- Impact: source comments misdescribe the actual fallback behaviour and may cause incorrect assumptions about whether the LLM is called on substrate misses.
+- Disposition: correct the comment after confirming intended Phase 30 behaviour. Do not change routing or fallback semantics without explicit approval.
