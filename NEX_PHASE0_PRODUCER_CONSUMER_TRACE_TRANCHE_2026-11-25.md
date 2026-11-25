@@ -497,3 +497,16 @@ This is not a new belief INSERT; it is a generation-triggered replacement of exi
 - Quiescent and voice-fallback paths return before normal crystallization. They are separate output classes, not gate rejections.
 
 This establishes a source-level distinction between generated thought/event persistence, durable belief crystallization and spoken delivery. The gate's current scope is belief admission in the normal Fountain path, not universal control over all prior output side effects. Runtime flags, live path frequency and causal influence remain UNKNOWN.
+
+## 32. Chat replies are composed and persisted outside CoherenceGate
+
+The GUI chat route has a separate output contract from Fountain belief crystallization:
+
+- `gui/server.py:2027–2065` builds the pre-turn provenance snapshot when enabled, writes a diagnostic prompt log, calls `state.voice.speak()` and obtains the reply text.
+- `gui/server.py:2067–2130` may regenerate once for same-opening repetition or provenance-mirror dominance; these are bounded prompt/reply checks, not CoherenceGate calls.
+- `gui/server.py:2160–2175` sanitizes the final reply and inserts it into `conversations.messages` with role `nex` for the session.
+- A source-wide scan of `gui/server.py` found CoherenceGate construction and dependency wiring in `build_state()`, but no `coherence_gate.check()`, `ThoughtPacket` or `GateOutcome` in the chat response path. The gate is passed to Dynamic, World Model, Membrane, Fountain, ThrowNet and Counterfactual components; it is not applied to the final user-facing chat reply.
+
+Therefore, a normal Chat reply can be generated and stored in conversation history without a CoherenceGate decision. That is distinct from Fountain's normal new-belief admission path. Chat replies are conversation records, not new rows in `beliefs`; the source does not establish that every chat reply should be a belief candidate.
+
+**Founder/spec question:** does “universal gate” mean all generated cognitive belief candidates, all autonomous outputs, or also every user-facing Chat reply? The code currently implements different boundaries for chat messages, Fountain events, and durable beliefs. Do not infer a violation or change the chat path until Frozen V2.1 and founder approval evidence resolve the intended scope.
