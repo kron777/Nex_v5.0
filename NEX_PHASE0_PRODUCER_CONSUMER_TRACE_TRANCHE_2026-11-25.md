@@ -643,3 +643,13 @@ The Stage 2 dynamic factory includes `edge_builder_loop` in its loop list and st
 Harmonizer retirement sets `tier=8`, `locked=0`, `paused=0`; retired rows therefore remain eligible both as EdgeBuilder source candidates and as comparison-pool targets. Locked Tier 1 beliefs are excluded as source candidates but may still be comparison targets because the pool has no `locked=0` condition.
 
 This is a separate graph-ingestion path from NovelAssociation (§40). It can create edges involving retired rows even though the Fountain main retrieval and World Model EdgeGenerator use tier bounds. Such edges may affect later graph consumers, including the optional edge-weighted Fountain ranking. No live edge table or retired belief population was inspected.
+
+## 42. Stage 3 spreading activation can traverse retired nodes even when final results exclude them
+
+`BeliefRetriever.retrieve()` first builds `row_map` from beliefs satisfying `tier <= 6`, `paused=0`, and `(locked=1 OR confidence >= 0.15)`. Its final result assembly only emits IDs found in that active candidate `row_map`, so a Tier 8 row is not returned directly by this retriever.
+
+However, `ActivationEngine.activate()` traverses `belief_edges` by source ID for up to three hops without joining or checking the current status of source/target belief rows. It can therefore pass activation through Tier 8 retired nodes and onward to other IDs. Those retired IDs are omitted at final assembly because they are absent from `row_map`, but their outgoing edges can still contribute activation to active candidates reachable through them. The engine also stamps every traversed edge's `last_traversed_at`.
+
+Combined with the NovelAssociation and EdgeBuilder paths above—and with historical edges remaining after Harmonizer retires a belief—this means retired nodes may remain part of the graph's effective propagation topology even when retrieval excludes them from direct result content.
+
+This may be intentional graph-history semantics or an unintended stale-node influence. The source does not define whether retirement should remove a node from graph propagation, preserve it as a historical bridge, or merely hide it from direct retrieval. This is a specification question; no edges were deleted and no activation code was changed.
