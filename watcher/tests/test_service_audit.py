@@ -98,12 +98,16 @@ def test_collect_service_audit_queries_only_fixed_units_and_selected_properties(
     result = service_audit.collect_service_audit()
 
     assert result["status"] == "COLLECTED"
-    assert [row["unit"] for row in result["services"]] == list(service_audit.SERVICES)
+    assert [row["unit"] for row in result["services"]] == list(service_audit.UNITS)
     assert all(row["status"] == "COLLECTED" for row in result["services"])
     assert all(row["missing_paths"] for row in result["services"])
-    assert len(calls) == 1 + len(service_audit.SERVICES)
+    assert len(calls) == 1 + len(service_audit.UNITS)
     assert all(call[2] == "show" for call in calls[1:])
     assert all("--property=ExecStart" in call for call in calls[1:])
+    assert result["scope"] == {
+        "services": list(service_audit.SERVICES),
+        "timers": list(service_audit.TIMERS),
+    }
     assert result["read_only"] is True
 
 
@@ -134,3 +138,26 @@ def test_service_audit_is_part_of_the_single_host_collection():
     assert request.read_only_commands == ["python3 -m watcher.service_audit"]
     assert "no " in request.collects.lower()
     assert "unit-file" in request.collects.lower()
+
+
+def test_timer_properties_are_preserved_without_lifecycle_actions(monkeypatch):
+    fragment = Path("/tmp/nex-vitals.timer")
+    record = service_audit.build_service_record(
+        "nex-vitals.timer",
+        {
+            "LoadState": "loaded",
+            "ActiveState": "active",
+            "SubState": "waiting",
+            "FragmentPath": str(fragment),
+            "Unit": "nex-vitals.service",
+            "Triggers": "nex-vitals.service",
+            "NextElapseUSecRealtime": "Wed 2026-11-26 03:30:00 UTC",
+            "LastTriggerUSec": "n/a",
+            "Persistent": "yes",
+            "ExecStart": "",
+        },
+    )
+    assert record["properties"]["ActiveState"] == "active"
+    assert record["properties"]["Unit"] == "nex-vitals.service"
+    assert record["properties"]["Triggers"] == "nex-vitals.service"
+    assert record["properties"]["Persistent"] == "yes"
