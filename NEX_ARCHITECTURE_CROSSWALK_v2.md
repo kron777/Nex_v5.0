@@ -170,3 +170,6 @@ The census remains partial: helper-mediated writes, alternate writers, and the r
 
 
 **Further boot-path reconciliation (25 November 2026):** the linked trace now also records the Membrane Behavioural Self-Model as a gated belief producer under normal `run.py` wiring, and the boot-time ResumptionSeeder as an existing-belief/probe mutation path rather than a new producer. The trace separates normal-start loops, constructed-but-not-started components, and environment-gated loops. These are source wiring categories only; effective host flags and live thread state remain UNKNOWN. See sections 18–20 of the trace tranche.
+
+
+**Persistence-wrapper boundary:** the linked trace also establishes that `TaggingBeliefWriter` is only a chokepoint for eligible inserts routed through the wrapped shared Writer. Direct SQLite life-loop inserts and independent operator Writers bypass it. The wrapper's “universal chokepoint” comment therefore overstates source coverage; auto-tagging and its embedded IntakeResonance probe must not be assumed universal. CoherenceGate, tag generation and IntakeResonance remain distinct mechanisms. See trace §23 and backlog D-12/G-08.
