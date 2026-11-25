@@ -232,3 +232,9 @@
 - Evidence: `edge_builder_tick()` source-candidate query filters `paused=0`, `locked=0` and content length but not tier; its comparison pool filters only `paused=0` and content length. Harmonizer-retired rows are Tier 8, unlocked and unpaused, so they remain eligible as both candidates and targets. Locked Tier 1 rows are excluded as candidates but can appear as targets. The Stage 2 dynamic factory starts `edge_builder_loop` in normal boot wiring.
 - Impact: the graph can accumulate `cross_domain` edges involving retired belief IDs. These edges may affect downstream graph-degree consumers even though normal Fountain own-content retrieval excludes Tier 8.
 - Disposition: verify with an isolated fixture and define a consistent active-belief policy for graph producers. Do not rewrite or delete live graph edges before Gate 0 / explicit approval.
+
+### G-14 — Intended graph semantics for retired nodes are unspecified
+- Type: architecture/specification gap.
+- Evidence: Stage 3 retrieval filters its direct candidate rows to tier<=6 and final results only emit IDs in that candidate map. But `ActivationEngine.activate()` traverses `belief_edges` without checking source/target belief tier, paused or locked state, and can propagate through Tier 8 nodes before final result assembly. It stamps all traversed edges. Harmonizer leaves graph edges in place when retiring beliefs; NovelAssociation and EdgeBuilder can also create edges involving retired rows under their current filters.
+- Impact: retired beliefs are hidden from direct retrieval results but can remain active as intermediate graph bridges that influence scores of active beliefs. It is unknown whether retirement is intended to remove a node from propagation or preserve its historical graph role.
+- Disposition: define active/retired graph semantics before changing edge generation, traversal, retirement or cleanup. Preserve current graph state pending founder/spec review.
