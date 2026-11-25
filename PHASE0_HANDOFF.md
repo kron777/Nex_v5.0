@@ -83,3 +83,16 @@ The exact Frozen V2.1 document and founder Gate 0 approval record were not found
 The repository contains three relevant layers: April `SPECIFICATION.md` (Phase 0 Locked, self-described Constitution), May `theory_x/DOCTRINE.md` (DRAFT awaiting Jon's review/approval, with a §7 gate amendment), and May `theory_x/FACULTY_MODEL.md` (foundational, universal gate requirement, legacy-path implementation note). None is labelled Frozen V2.1, and the exact Frozen V2.1 artifact / founder sign-off remain missing from the searched archive/Library.
 
 The reshape path is implemented and covered by `tests/test_reshape.py`; it is not an outstanding missing mechanism. The unresolved blocker is which specification layer has founder approval and governs the current source.
+
+
+## Current source-audit continuation — 2026-11-25
+
+The producer/consumer tranche now extends through §§60–62. It records (a) boot-time keystone/koan seeds created before TaggingBeliefWriter is constructed, (b) the limited scope of the wrapper's single-statement .write() interception, and (c) direct write-capable substrate.connect() paths outside the One-Pen Writer queue.
+
+The direct-connection census includes normal-wired Stage 2 life/focus/daily-life/signal loops, Fountain's recursion_attrib write, and normal-wired Moltbook listener/responder/poster paths; it also identifies request-driven GUI mutation endpoints. The WorldPredictionLoop is separately env-gated by NEX5_WORLD_PRED=1 (default OFF). These are source-wiring findings, not proof of live thread activity, endpoint invocation, external client readiness, contention or data loss. See backlog D-36/G-24.
+
+TaggingBeliefWriter does not provide a universal admission chokepoint: boot seeds use raw Writers before wrapper construction, .write_many() passes through unchanged, and direct SQLite paths bypass it. This is an instrumentation boundary, not automatic authority to route every seed or observation through CoherenceGate.
+
+PR #98 remains draft. The new additions are documentation/evidence only; no runtime code, DB, flags, services, experiments, baselines or tripwires were changed. Exact-head checks must be re-read before claiming CI status for the latest docs commits.
+
+Gate 0 remains pending. Continue bounded read-only source tracing and isolated fixtures only. Normative remediation remains blocked on founder identification of the exact Frozen V2.1 specification and Gate 0 approval record, and clarification of whether April SPECIFICATION.md remains governing.
