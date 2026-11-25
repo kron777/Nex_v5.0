@@ -212,7 +212,7 @@
 ### D-21 — Fountain HotObserver candidate query lacks the Tier 8 retirement filter
 - Type: source-level candidate-selection/status-filter inconsistency; live incidence UNKNOWN.
 - Evidence: the main Fountain own-content query filters `tier < 8`, and residue lookup does too. The dedicated HotObserver query filters only `source='hot_observer'` and a 72-hour creation cutoff; it does not exclude Tier 8 or paused rows. HotObserver writes Tier 3 unlocked beliefs. Harmonizer scans Tier 3–7 unlocked/unpaused beliefs without excluding `hot_observer`, and can retire selected originals by setting tier 8 and prefixing `[RETIRED]`.
-- Impact: a retired HotObserver belief can still be randomly selected into Fountain's intermediate candidate list during the remaining 72-hour lookback. The selected row receives activation/use side effects, but source inspection shows it is not rendered into the normal Fountain prompt: hot_observer belongs to neither the own-content nor seed render allowlist. A separately gated substrate-emission/parallel-fire path may consume activated rows; that is distinct from normal prompt inclusion. The writer flag `NEX5_HOT_OBSERVER` is not checked by the candidate query, so old rows remain eligible after new writes are disabled.
+- Impact: a retired HotObserver belief can still be randomly selected into Fountain's intermediate candidate list during the remaining 72-hour lookback. The selected row receives activation/use side effects, but source inspection shows it is not rendered into the normal Fountain prompt: hot_observer belongs to neither the own-content nor seed render allowlist. A separately gated substrate-emission/parallel-fire path may consume activated rows; that is distinct from normal prompt inclusion. The writer flag `NEX5_HOT_OBSERVER` is not checked by the candidate query, so old rows remain eligible after new writes are disabled. The tracked `nex_keepalive.sh` sets `NEX5_HOT_OBSERVER=1`; whether the active user unit invokes that script is unverified.
 - Disposition: retain as a candidate-selection and activation filter gap, not a confirmed direct prompt-injection path. Do not alter the query or runtime flags before Gate 0 / explicit approval.
 
 ### D-22 — Optional substrate emission can select activated Tier 8 beliefs
@@ -490,3 +490,33 @@
 - Evidence: `continuity_for_prompt()` creates a SQLite connection, fetches rows and calls `c.close()` only on the success path. The broad exception handler returns an empty string but there is no `finally` cleanup.
 - Impact: an exception after connection creation can leave cleanup to Python object destruction/GC. The helper is read-only and fail-safe for prompt composition; no resource leak was observed.
 - Disposition: decide whether explicit deterministic cleanup is required for this short helper. Do not change the Phase 1 seam before Gate 0 / explicit approval.
+
+### D-40 — Paused beliefs remain eligible for tier promotion and decay mutations
+- Type: source-level paused-state mutation inconsistency; live incidence UNKNOWN.
+- Evidence: `BeliefPromoter.corroborate()` and `survive_challenge()` read target rows by ID without checking `paused`. The regular decay query and the `NEX5_TIER_CLIMB` query select unlocked beliefs by tier/age without `paused=0`. `WorldConsolidator` selects Tier 7 rows with `erosion_stage != 'retired'` and `locked=0`, but no paused predicate, then calls `corroborate()` for up to three promotions per run. The tracked launcher sets `NEX5_TIER_CLIMB=1` and `NEX5_WORLD_CONSOLIDATE=1`; actual active service invocation is unverified.
+- Impact: paused beliefs can still have their tier and corroboration state changed by background promotion/decay paths. Pause may therefore suppress retrieval without freezing all belief-state mutation.
+- Disposition: define whether pause means retrieval suppression only or full mutation freeze. Do not change promotion/decay predicates before Gate 0 / explicit approval.
+
+### G-34 — Shutdown does not quiesce all producers before closing Writers
+- Type: source-level shutdown coordination risk; live incident UNKNOWN.
+- Evidence: `AppState.close()` calls `scheduler.shutdown()` and then closes Writers; it does not set DynamicState, WorldModelState or Membrane stop events, nor call stop methods on the other started loops. Fountain runs an uninterruptible `while True` daemon. `SenseScheduler.shutdown()` sets adapter stop events but does not join. `Writer.close()` enqueues a sentinel and joins up to 10 seconds; `submit()` has no closed-state guard, so a post-sentinel submission can leave its Future waiting. `run.py` SIGTERM waits 1.5 seconds, calls `state.close()`, then `os._exit(0)`; tracked `nex_keepalive.sh` waits up to 15 seconds before SIGKILL.
+- Impact: active background producers can race with Writer shutdown; a late submission can block after the worker exits, and the supervisor deadline may expire before sequential Writer closes finish. No shutdown was executed.
+- Disposition: define a coordinated quiesce/stop/join/drain/close order before any lifecycle remediation. Do not modify shutdown code before Gate 0 / explicit approval.
+
+### G-35 — Moltbook dry-run is not read-only, and the tracked launcher enables real outbound actions
+- Type: external I/O and dry-run semantics boundary; live activity UNKNOWN.
+- Evidence: Stage 2 starts the Moltbook listener, responder and poster loops when the module imports. `MOLTBOOK_DRY_RUN` defaults to true but only intercepts non-GET requests; inbound GET polling and local sense-event ingestion continue. In dry-run, callers can still mark local DM approval, reply-sent and post-published state after receiving synthetic success. The tracked `nex_keepalive.sh` sets `MOLTBOOK_DRY_RUN=0`, enabling real remote POSTs if that launcher is active and credentials are available.
+- Impact: the integration can ingest external DMs and can approve requests, send replies and publish NEX thoughts. Dry-run can also create local false-success state. Actual host credentials and service invocation were not inspected.
+- Disposition: confirm whether autonomous inbound DM ingestion and outbound Moltbook actions remain intended, and what dry-run is supposed to guarantee. Do not run or change the integration before Gate 0 / explicit approval.
+
+### G-36 — Effective runtime flags cannot be confirmed from the tracked repository alone
+- Type: deployment evidence gap.
+- Evidence: tracked `nex_keepalive.sh` sets multiple optional flags, including `NEX5_HOT_OBSERVER=1`, `NEX5_WORLD_CONSOLIDATE=1`, `NEX5_WARRANT_RECORD=1`, `NEX5_PERSONA_RESPONDER=1`, `NEX5_WORLD_PRED=1`, `NEX5_SELF_PRED=1`, `NEX5_SELF_MAINTAIN_SHADOW=1`, `NEX5_SOCIAL_N=1`, `NEX5_TIER_CLIMB=1`, and `MOLTBOOK_DRY_RUN=0`. The tracked systemd README says active user units live under `~/.config/systemd/user` and are not in the repository. No live environment or unit was inspected.
+- Impact: source defaults alone understate the feature set declared by the tracked launcher, but the actual host-effective configuration remains unverified.
+- Disposition: verify the active user unit/launcher before any claim about current runtime state or any flag change. No local unit was accessed or changed.
+
+### G-37 — SenseScheduler documentation says paused while boot code auto-starts external feeds
+- Type: source documentation/activation-state discrepancy; live feed activity UNKNOWN.
+- Evidence: SenseScheduler class docstring and a `run.py` comment say external feeds start paused; constructor calls `start_all()` during normal boot, and `run.py` logs auto-start. A nearby code comment records the auto-start change as deliberate (“per Jon's request”, 2026-05-09). The active service unit and adapter credentials were not inspected.
+- Impact: a reader relying on the docstring/comment may incorrectly believe external feeds remain paused; source code starts the adapter threads.
+- Disposition: preserve the recorded historical intent, but reconcile the stale comments/docs with the approved startup contract. Do not alter feed startup behavior before Gate 0 / explicit approval.
