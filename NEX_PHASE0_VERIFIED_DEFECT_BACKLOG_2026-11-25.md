@@ -190,3 +190,9 @@
 - Evidence: the normal Fountain path writes the generated thought to `sense_events` (`internal.fountain`) and `dynamic.db:fountain_events`, and records related telemetry, before calling `FountainCrystallizer.crystallize()`. The normal CoherenceGate call occurs inside the crystallizer after quality checks and before the new belief INSERT. A non-ACCEPT decision therefore blocks belief admission and subsequent speech enqueue, but does not retract the already-persisted Fountain event. Quiescent and voice-fallback paths return before crystallization entirely.
 - Impact: the phrase “universal gate” is ambiguous unless it specifies whether the gate governs raw generated outputs, durable belief admission, or downstream delivery. The current Fountain path implements the latter two boundaries only for the normal path.
 - Disposition: define the intended gate boundary from Frozen V2.1 and founder approval evidence. Do not move the gate or change event persistence before that review.
+
+### D-17 — Chat response generation has no CoherenceGate call
+- Type: gate-scope clarification; not adjudicated as a defect.
+- Evidence: `gui/server.py` constructs and passes CoherenceGate to several faculties, but the user-facing chat route calls `state.voice.speak()`, performs optional bounded anti-repeat/provenance retries, sanitizes the final text and inserts it into `conversations.messages` without a `coherence_gate.check()` / ThoughtPacket / GateOutcome call.
+- Impact: chat reply generation and conversation persistence are outside the current CoherenceGate decision path. Chat messages are not themselves `beliefs` rows, so whether they fall within the intended gate obligation is a specification question.
+- Disposition: define whether the gate applies to autonomous belief candidates only, all autonomous outputs, or user-facing chat replies too. Do not add a chat gate or change reply persistence before the governing specification and founder review.
