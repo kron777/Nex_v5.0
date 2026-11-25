@@ -461,6 +461,39 @@ def test_executed_cycle_efficiency_eligibility(tmp_path):
     assert m["comparability"]["efficiency_comparison_pool"] == [c.id]
 
 
+def test_historical_execution_records_carry_exact_ci_provenance(tmp_path):
+    from rdo.orchestrator import record_arc_closers_execution, record_affinity_execution
+    from rdo.memory import CycleStore, PatternMemory
+
+    store = CycleStore(str(tmp_path / "cycles"))
+    memory = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    expected = {
+        "source_commit": "c352f6a83bec2136d5eff518deb210fc3cd4b3a2",
+        "workflow": "tests",
+        "workflow_run_id": 44855260626,
+        "workflow_run_number": 182,
+        "job_id": 136695850460,
+        "conclusion": "success",
+        "suite_result": {
+            "passed": 2219,
+            "skipped": 7,
+            "subtests_passed": 40,
+        },
+    }
+
+    cycles = [
+        record_arc_closers_execution(store, memory),
+        record_affinity_execution(store, memory),
+    ]
+    assert {cycle.id for cycle in cycles} == {
+        "arc_closers_regtest_2026-11",
+        "affinity_regtest_2026-11",
+    }
+    for cycle in cycles:
+        assert cycle.verification["ci_evidence"] == expected
+        assert store.load(cycle.id).verification["ci_evidence"] == expected
+
+
 # ---- the RDO subjected to its own Optimal Functional Tension ----
 
 def test_rdo_self_assessment_lean_and_independent():
