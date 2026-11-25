@@ -290,3 +290,9 @@ Important qualification on deployment flags: the tracked nex_keepalive.sh declar
 New backlog entries D-39/D-40 and G-34–G-37 capture the conditional BSM Gate fallthrough, paused-state tier mutation, shutdown coordination risk, Moltbook external I/O/dry-run semantics, launcher evidence gap and SenseScheduler documentation/startup discrepancy. No code, tests, runtime flags, database rows, service, external endpoint, or probe was changed or run.
 
 Trace §§72–81 are source-level findings. The full M0.3–M0.4 producer/consumer DAG remains outstanding; no live causal influence, active worker set, external posting, or runtime incident is claimed. Gate 0 remains pending because the exact Frozen V2.1 normative text and founder sign-off record have not been recovered.
+
+## Main-branch MIND_MAP reconciliation — 2026-11-25
+
+The branch/source-reference comparison is documented in `NEX_PHASE0_MAIN_BRANCH_MIND_MAP_RECONCILIATION_2026-11-25.md`. Main's MIND_MAP is a descriptive-only taxonomy with 34 node entries (30 substantive and four structural placeholders) plus five arms. Its 51 source references across 41 unique files include 12 files absent from the active-host base branch. The MIND_MAP directory, generator, generated diagram and CI validation step are absent from that base. Copying the map alone would fail its source-path checks.
+
+The active-host branch remains 4 ahead / 205 behind main; PR #98 targets `claude/nex-continuity-wire`, not main. The MIND_MAP's source history includes code/test changes on main. No map or code was imported, and no merge/rebase/cherry-pick occurred. The active-host `sentience_dag.json` and `nex_next_dev.py` remain the separate build-order mechanism; `live_unproven` counts as satisfied for dependency buildability.
