@@ -656,3 +656,16 @@ This may be intentional graph-history semantics or an unintended stale-node infl
 
 
 **Log consumption and retention:** `scripts/intake_resonance_cli.py` is the only additional source consumer found in the inspected tree; its `show` command counts every row in `intake_resonance_log`, and `recent`/`top`/`bottom` read the full log by timestamp or score. `nex_db_reaper.py` has no `intake_resonance_log` target, and the table has no content uniqueness constraint. No retention policy was found in the inspected source. Whether indefinite retention is intentional for longitudinal analysis is UNKNOWN; duplicate rows from §27 would be counted as separate intake events by the CLI.
+
+## 43. Fountain retrieval telemetry has two different persistence/retention contracts
+
+`FountainGenerator` creates and writes two dynamic-database telemetry tables:
+
+- **`fountain_retrieval_log`:** records `(fire_id, belief_id, slot, rank, boost_value, ts)` for the belief IDs actually retrieved. `_associative_recall()` reads the last three fires from this table to avoid re-serving the same own-content IDs in a short burst. The schema creation checks `PRAGMA foreign_key_list` and drops the table only if a legacy cross-database FK to `beliefs` is found; it then recreates it without that FK. The comment in the prompt-block section saying the retrieval log is destroyed on every restart is therefore stale after the no-FK migration has taken effect.
+- **`fountain_prompt_blocks`:** records each prompt block's name, hash, character count, prefix and fire ID. The code prunes rows older than 30 days during Fountain schema setup.
+
+`fountain_retrieval_log` is not in `nex_db_reaper.TARGETS`, and no other pruning was found in the inspected Fountain code. Its behavior only needs the last three fires for associative-recall dedup, but the table retains older rows unless the legacy-FK migration drops it. This creates a separate retention-policy question from the prompt-block table's explicit 30-day prune.
+
+The log is not merely diagnostic: it is read by associative recall to maintain the six-hour per-thread already-shown set across recent fires. The actual `_assoc_shown` cache is in memory; the last-three-fire DB history is a second short-window dedup mechanism.
+
+No live table sizes or restart history were inspected. Do not drop or prune the table without confirming the intended continuity semantics and any other consumers.
