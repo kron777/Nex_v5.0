@@ -669,3 +669,22 @@ This may be intentional graph-history semantics or an unintended stale-node infl
 The log is not merely diagnostic: it is read by associative recall to maintain the six-hour per-thread already-shown set across recent fires. The actual `_assoc_shown` cache is in memory; the last-three-fire DB history is a second short-window dedup mechanism.
 
 No live table sizes or restart history were inspected. Do not drop or prune the table without confirming the intended continuity semantics and any other consumers.
+
+## 44. Retired-belief handling matrix across retrieval and graph paths
+
+| Path | Tier 8 handling in source | Activation / graph effect |
+|---|---|---|
+| Fountain main own-content query | Explicit `tier < 8` | Directly rendered if selected |
+| Fountain associative recall | Explicit `tier < 8` | Token-overlap selection from active own-source pool |
+| Fountain residue fetch | Explicit `tier < 8` | Retrieved residue IDs are re-read only if still non-retired |
+| Fountain seed-source slot | No tier predicate; source allowlist is intended for locked Tier 1 seed families | Expected protected seed content; status not independently enforced by query |
+| Fountain HotObserver slot | No tier/paused/locked predicate; 72-hour source/time filter only | Can directly inject retired HotObserver content |
+| Fountain substrate emission | `get_top_activated()` has no tier/status predicate; flag default OFF | Can format retired activated beliefs into a generated thought |
+| Stage 3 World Model BeliefRetriever | `tier <= 6`, `paused=0`, locked or confidence floor | Final result map excludes Tier 8 direct results |
+| Stage 3 ActivationEngine | No belief-status check while traversing `belief_edges` | Retired nodes can be intermediate propagation bridges; final retriever output still filters to its active row map |
+| Stage 3 EdgeGenerator | Explicit `tier <= 7` on candidate targets | Does not create new edges from Tier 8 rows in the inspected query |
+| Diversity EdgeBuilder | No tier predicate; source excludes locked but not Tier 8; pool excludes only paused | Can create edges involving retired rows |
+| NovelAssociation | No tier or locked predicate; confidence/branch/paused filters only | Can create edges and branch annotations involving retired rows |
+| Chat spectrum standing points | Source `spectrum` allowlist, no tier predicate | Expected locked Tier 1 spectrum seed content |
+
+This matrix shows that Tier 8 is consistently excluded from some direct retrieval pools but not from every special slot, graph producer or graph traversal. The policy cannot be inferred from one main query. Sections 38–42 and backlog D-21–D-24/G-14 capture the specific candidate gaps; the matrix is a source inventory, not a normative judgement.
