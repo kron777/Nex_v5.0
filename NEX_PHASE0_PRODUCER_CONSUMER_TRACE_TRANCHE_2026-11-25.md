@@ -352,3 +352,16 @@ Therefore, the wrapper is a chokepoint only for eligible writes routed through t
 - CoherenceGate, TaggingBeliefWriter and IntakeResonance are three different mechanisms. Passing through one does not prove passage through either of the others.
 
 This is a source/documentation discrepancy, not a recommendation to route every writer through the wrapper. Whether the current coverage is intentional and what should be universal must be settled against the governing design. No runtime behaviour was changed.
+
+## 24. Belief-graph edge producers and the NovelAssociation prompt consumer
+
+Two active boot paths grow `belief_edges` without creating new belief rows:
+
+- **EdgeGeneratorLoop:** `run.py` constructs and starts it through `build_edge_generator_loop(...)`; `theory_x/stage3_world_model/edge_generator.py:175–220` persists `belief_edges` from existing belief candidates. Its loop declares a 60-second boot delay and a 30-minute tick. It is a graph-topology producer, not a belief producer and does not call CoherenceGate for each edge.
+- **NovelAssociation:** `run.py` constructs `NovelAssociation` and calls `start_loop()` in the Phase 17 block. `theory_x/stage10_imagination/novel_association.py:165–279` starts a daemon loop that sleeps 30 minutes before each scan, pulls beliefs with non-null branch IDs, computes cross-branch semantic similarity and writes `synthesises` edges plus `novel_association_log` rows. It does not insert a new belief row. `format_for_prompt()` selects one recent unannotated association, marks it annotated, and returns a templated self-observation.
+
+The GUI consumes that result: `gui/server.py:1445–1453` calls `state.novel_association.format_for_prompt()` during chat-context assembly and appends the returned text to `belief_text`. This is a verified source-level producer → graph/log persistence → prompt-injection path. It does not establish that the text changed a final reply.
+
+Graph topology is a distinct state channel from belief content. The EdgeGenerator and NovelAssociation write edges; the World Model's retrieval/activation mechanisms can consume belief graph structure; NovelAssociation additionally exposes a one-shot prompt annotation. Do not draw an edge write as if it were a new belief or assume that every graph edge is used by every retrieval route.
+
+**Evidence boundary:** source shows these components are wired and their loops are started in the normal boot path. Their 60-second / 30-minute delays mean construction is not equivalent to an immediate first output. Current host thread state and downstream causal effect remain UNKNOWN.
