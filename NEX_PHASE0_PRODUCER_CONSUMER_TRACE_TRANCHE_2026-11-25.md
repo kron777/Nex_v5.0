@@ -264,3 +264,47 @@ This separation matters for the DAG: distinguish (a) candidate-to-new-belief pro
 ### Updated status
 
 The producer/consumer trace remains partial. This increment expands the source-verified direct writer subset and records conditional gating and mutation-only paths. It does not complete the 256-file `theory_x` inventory, prove the absence of helper-mediated writes, or establish any runtime-active/operational/behavioural evidence level. Frozen V2.1 and founder approval evidence remain blocking inputs for adjudicating the gate-scope questions.
+
+
+## 18. Behavioural Self-Model is a gated belief producer
+
+The Membrane path contains a further belief-producing loop, distinct from the prompt-only metrics path:
+
+- `run.py:180–188` calls `build_membrane(..., coherence_gate=coherence_gate)`.
+- `theory_x/stage4_membrane/__init__.py:20–39` runs the behavioural loop; the loop calls `write_behavioural_beliefs(..., coherence_gate=state.coherence_gate)` when the BehaviouralSelfModel and shared writers/readers are present.
+- `stage4_membrane/__init__.py:55–95` constructs the BehaviouralSelfModel when the conversations reader is available, stores the shared writer/reader dictionaries and starts its daemon loop.
+- `theory_x/stage4_membrane/behavioural_self_model.py:150–215` compares observed response metrics against seeds, deduplicates existing `behavioural_observation` content, constructs a ThoughtPacket with source `bsm`, and inserts a Tier 6 belief only when the supplied CoherenceGate returns ACCEPT.
+- The write itself uses the shared beliefs writer. Under normal `run.py` wiring the gate is supplied; the callable method still accepts `coherence_gate=None`, in which case the source skips the gate and writes. This is a component-level fallback, not evidence that the normal boot path omits the gate.
+
+This adds a fifth verified gated producer family in the inspected source set (Dynamic crystallizer, World Model synergizer, Fountain crystallizer, CounterfactualNode, Behavioural Self-Model), alongside EmergentDrive's conditionally gated path. It is not a direct bypass under the normal boot wiring.
+
+The BehaviouralSelfModel also formats recent-response metrics for the Membrane INSIDE route; that prompt-consumption role and its separate belief-production role must be represented as two edges, not conflated.
+
+## 19. Boot-time resumption mutates existing state, not new belief content
+
+The `run.py` boot sequence constructs and runs `ResumptionSeeder` once after the World/ToM loops are wired and before Fountain construction:
+
+- `run.py` Phase B resumption block constructs `ResumptionSeeder` using the beliefs DB, probes DB and `state_snapshot.json`, then calls `seeder.run()`.
+- `theory_x/memory/resumption.py:65–106` reads a prior snapshot, checks its age against a three-day threshold, and if recent promotes up to five listed belief IDs and reissues up to three pending probes.
+- `resumption.py:137–162` updates the existing beliefs' `created_at` values to `now - 1`; it does not insert new belief rows.
+- `resumption.py:164–191` updates existing probe rows to re-issue them.
+- `resumption.py:193–200` renames the snapshot to a `.consumed` path after processing (or stale-snapshot handling).
+
+This is a boot-time recency/replay mutation with a filesystem side effect, not a belief producer and not a CoherenceGate path. Whether it executes on a given boot depends on the snapshot's existence, parseability and age. Current host snapshot state and whether this path has run are UNKNOWN; no host snapshot was read or altered for this audit.
+
+## 20. Startup and loop-state distinctions reinforced
+
+The boot source makes several different activation classes explicit; they should not be flattened into “all faculties run”:
+
+- **Constructed and loop-started in the normal boot path:** World Model's six daemon loops; Membrane behavioural loop (when conversations reader is available); NovelAssociation loop; SubstrateHarmonic; GeniusTagger; CounterfactualNode; DriveEmergence; SelfMindView; Fountain; Signal loop; Diversity loop; EdgeGenerator loop; Decoder daemon; plus Dynamic's collected loop list.
+- **Constructed but not started in the shown boot path:** ProbeRunner is instantiated and passed into AppState, but this code does not call `start_loop()`; ArcLoop is explicitly `None` following a documented cut; SocialPresence is explicitly `None` following a documented cut.
+- **Environment-gated in source:** ThrowNetMonitor loop (`NEX5_THROWNET=1`); PersonaResponder (`NEX5_PERSONA_RESPONDER=1`); WorldPredictionLoop (`NEX5_WORLD_PRED=1`); SelfPredictionLoop (`NEX5_SELF_PRED=1`); SelfMaintainShadow (`NEX5_SELF_MAINTAIN_SHADOW=1`); World Model consolidation (`NEX5_WORLD_CONSOLIDATE`); optional Moltbook posting behaviour (`MOLTBOOK_DRY_RUN=0`).
+- **Feature/consumer flags do not equal service activation:** e.g. the Phase 1 continuity consumer is default-OFF; speech consumer depends on SpeechConfig; no effective host environment values are inferred here.
+
+These are source-code activation categories only. They do not replace host process/service evidence and do not establish which optional flags are currently set.
+
+### Updated gated producer inventory
+
+Verified gated producers in the inspected paths: Dynamic crystallization, World Model synergizer, Fountain crystallization, CounterfactualNode and Behavioural Self-Model. EmergentDrive is conditionally gated by the gate object passed from normal boot wiring, with an explicit no-gate fallback in its callable method. The seven Stage 2 life-loop producers, sense distillation and Fountain rut mirror remain direct insert paths without a gate call in the inspected write functions. The self-location Tier 1 row remains a separate boot seed; Holding Zone promotion remains a resolver-controlled promotion.
+
+This is still not a complete repository-wide producer census. In particular, all helper-mediated writes and all remaining source modules have not been exhaustively examined.
