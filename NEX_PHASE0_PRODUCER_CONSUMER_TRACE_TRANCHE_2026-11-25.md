@@ -843,3 +843,15 @@ This may be an intentional compute cap, but the current source does not show a f
 This is another boundary on the wrapper's coverage: even a belief INSERT routed through the wrapped Writer's batch API would bypass tag generation and the embedded resonance probe. The current scanned runtime `write_many()` callsites on the wrapped beliefs Writer are primarily updates/edge writes rather than new belief-row INSERTs; database-init keystone/koan seeding uses raw Writers before the wrapper is constructed. No current normal-runtime belief INSERT through the wrapped `write_many()` path was established.
 
 The comment inside `write()` calling this a “UNIVERSAL chokepoint” is therefore too broad. The accurate claim is: it intercepts eligible explicit-column-list belief INSERTs routed through the wrapper's single-statement `.write()` method. Direct SQLite, independent Writers, pre-wrapper boot seeding, positional/no-content SQL, caller-supplied tags and `.write_many()` all bypass its tag/resonance logic.
+
+## 57. CounterfactualNode reuses the broad TimeFetch pool before its gate
+
+`CounterfactualNode` also consumes the shared `TimeFetch` retrieval layer:
+
+- For each selected open problem it calls `TimeFetch.fetch_from_beliefs(constraint, limit=10)`, then passes those candidates through its refinement engine.
+- `TimeFetch.fetch_from_beliefs()` has the same confidence/length/keyword filters described in §48, but no tier, paused or locked predicate. A retired/paused/locked belief can therefore become a counterfactual input.
+- Buildable refinements are wrapped in ThoughtPackets and sent through CoherenceGate. Only ACCEPT results call `_insert_belief()`; that INSERT is routed through the shared TaggingBeliefWriter without an explicit tags column, so the wrapper auto-tags and runs its single resonance probe.
+
+This differs from VoiceEngine: the VoiceEngine can return a TimeFetch candidate verbatim without a gate, whereas CounterfactualNode refines the candidate and requires CoherenceGate ACCEPT before creating a new Tier 3 belief. However, the gate evaluates the refined packet, not the active/retired status of the source candidate. Retired content can therefore be transformed into a new active candidate if the refinement passes the gate.
+
+ThrowNetEngine also uses TimeFetch candidates but gates/refines them and, in the inspected loop, records outcomes without inserting each candidate as a belief. The shared TimeFetch status policy is therefore an upstream dependency for three distinct consumers with different downstream controls.
