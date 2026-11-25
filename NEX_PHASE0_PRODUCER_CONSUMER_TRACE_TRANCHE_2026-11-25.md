@@ -835,3 +835,11 @@ This is a source-level defect, not a policy ambiguity: the method's own resoluti
 If the eligible working-belief population exceeds 200, the scan repeatedly prioritises the same lowest-tier rows. If more than 200 eligible Tier 3 rows exist, Tier 4–7 rows are not examined at all; more generally, later rows at a given tier can be starved by earlier rows. Rows that are successfully resolved/retired leave the scan population, but rows with no detected conflict remain eligible on every two-hour scan.
 
 This may be an intentional compute cap, but the current source does not show a fairness/progress mechanism for the remainder of the working-belief population. Live eligible row counts and actual scan coverage are UNKNOWN.
+
+## 56. TaggingBeliefWriter intercepts `.write()`, not `.write_many()`
+
+`theory_x/tag_protocol/writer_wrapper.py` implements tag injection and the IntakeResonance probe only in `TaggingBeliefWriter.write()`. Its `write_many()` method delegates the complete statement batch directly to `self._inner.write_many(statements)` without parsing or intercepting any contained SQL.
+
+This is another boundary on the wrapper's coverage: even a belief INSERT routed through the wrapped Writer's batch API would bypass tag generation and the embedded resonance probe. The current scanned runtime `write_many()` callsites on the wrapped beliefs Writer are primarily updates/edge writes rather than new belief-row INSERTs; database-init keystone/koan seeding uses raw Writers before the wrapper is constructed. No current normal-runtime belief INSERT through the wrapped `write_many()` path was established.
+
+The comment inside `write()` calling this a “UNIVERSAL chokepoint” is therefore too broad. The accurate claim is: it intercepts eligible explicit-column-list belief INSERTs routed through the wrapper's single-statement `.write()` method. Direct SQLite, independent Writers, pre-wrapper boot seeding, positional/no-content SQL, caller-supplied tags and `.write_many()` all bypass its tag/resonance logic.
