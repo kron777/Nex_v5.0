@@ -149,9 +149,9 @@ else
   {
     printf '%s\t%s\t%s\t%s\t%s\n' \
       "$(date -u '+%Y-%m-%dT%H:%M:%S%z')" "keepalive_start" \
-      "$(git -C /home/rr/Desktop/Desktop/nex5 rev-parse --short HEAD 2>/dev/null || echo '')" \
+      "$(git -C "${SCRIPT_DIR}" rev-parse --short HEAD 2>/dev/null || echo '')" \
       "${NEX_PID}" "auto" \
-      >> /home/rr/Desktop/Desktop/nex5/journal/keepalive_runtime.tsv
+       >> "${SCRIPT_DIR}/journal/keepalive_runtime.tsv"
   } 2>/dev/null || true
 
   sleep 45
