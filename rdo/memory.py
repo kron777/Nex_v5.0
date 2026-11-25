@@ -119,8 +119,15 @@ class CycleStore:
 # ---- the learning loop ----
 
 def _valid_effort(value) -> bool:
-    return (isinstance(value, (int, float)) and not isinstance(value, bool)
-            and math.isfinite(value) and value >= 0)
+    """Accept only non-negative numbers safely representable as finite floats."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(value) and value >= 0
+    except (OverflowError, TypeError, ValueError):
+        # Python integers are unbounded; float-based metrics must fail closed
+        # rather than crash when an integer is too large to convert.
+        return False
 
 
 def record_actual(cycle: CycleRecord, actual: Dict) -> CycleRecord:
@@ -211,18 +218,29 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
     # a historical reuse claim is not retroactively treated as a signature match.
     if "signature_matches" in cycle.verification:
         signature_matches = cycle.verification["signature_matches"]
-    elif cycle.signature_matches:
-        signature_matches = len(cycle.signature_matches)
     else:
-        signature_matches = None
+        legacy_matches = cycle.signature_matches
+        if (isinstance(legacy_matches, list) and
+                all(isinstance(item, str) and item.strip() for item in legacy_matches)):
+            signature_matches = len(legacy_matches) if legacy_matches else None
+        else:
+            signature_matches = None
     if (not isinstance(signature_matches, int) or isinstance(signature_matches, bool)
             or signature_matches < 0):
         signature_matches = None
     signature_backed = cycle.verification.get(
         "signature_matches_backed_by_file_evidence")
     if (not isinstance(signature_backed, int) or isinstance(signature_backed, bool)
-            or signature_backed < 0):
+            or signature_backed < 0 or signature_matches is None
+            or signature_backed > signature_matches):
+        # Inconsistent counts are unknown, never a coverage ratio above 100%.
         signature_backed = None
+    coverage_complete = cycle.verification.get(
+        "all_signature_matches_have_file_evidence")
+    if (not isinstance(coverage_complete, bool) or signature_matches is None
+            or signature_matches <= 0 or signature_backed is None
+            or coverage_complete != (signature_backed == signature_matches)):
+        coverage_complete = None
     reconciled = sum(1 for o in obligations if o.get("recon_status") in
                      ("signature_matched", "reuse_existing", "missing", "partial"))
     d = compare(cycle) if cycle.actual is not None else {}
@@ -256,18 +274,13 @@ def cycle_metrics(cycle: CycleRecord) -> Dict:
             round(signature_backed / signature_matches, 3)
             if isinstance(signature_matches, (int, float)) and signature_matches > 0
             and isinstance(signature_backed, (int, float)) else None),
-        "signature_evidence_coverage_complete": (
-            cycle.verification.get("all_signature_matches_have_file_evidence")
-            if isinstance(signature_matches, (int, float)) and signature_matches > 0 else None),
+        "signature_evidence_coverage_complete": coverage_complete,
         "reconciliation_status_coverage": (round(reconciled / discovered, 3) if discovered else None),  # completed scan/review status, not precision
         # OUTCOME (need actuals)
         "missed_obligation_count": (len(missed) if isinstance(missed, list) else None),
         "prediction_error_effort": (
             d.get("effort_error") if actual_effort is not None and
-            isinstance(cycle.predicted.get("effort"), (int, float)) and
-            not isinstance(cycle.predicted.get("effort"), bool) and
-            math.isfinite(cycle.predicted.get("effort")) and
-            cycle.predicted.get("effort") >= 0 else None),
+            _valid_effort(cycle.predicted.get("effort")) else None),
         "rework": (len(d["regressions"]) if isinstance(d.get("regressions"), list) else None),
         "engineering_effort": actual_effort,
         "predicted_effort": cycle.predicted.get("effort"),
