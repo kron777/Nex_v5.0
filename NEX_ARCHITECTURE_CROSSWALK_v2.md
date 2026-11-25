@@ -173,3 +173,6 @@ The census remains partial: helper-mediated writes, alternate writers, and the r
 
 
 **Persistence-wrapper boundary:** the linked trace also establishes that `TaggingBeliefWriter` is only a chokepoint for eligible inserts routed through the wrapped shared Writer. Direct SQLite life-loop inserts and independent operator Writers bypass it. The wrapper's “universal chokepoint” comment therefore overstates source coverage; auto-tagging and its embedded IntakeResonance probe must not be assumed universal. CoherenceGate, tag generation and IntakeResonance remain distinct mechanisms. See trace §23 and backlog D-12/G-08.
+
+
+**Belief-graph topology path:** the source trace now distinguishes EdgeGeneratorLoop and NovelAssociation as `belief_edges` producers, not belief-content producers. NovelAssociation also has a verified GUI prompt consumer (`gui/server.py` calls `format_for_prompt()` and appends its one-shot annotation to `belief_text`). Both loop outputs remain source-level evidence; runtime activation and causal effect are UNKNOWN. See trace §24.
