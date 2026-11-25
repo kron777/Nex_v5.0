@@ -1051,3 +1051,24 @@ SelfModel._get_inside_beliefs() queries only paused=0, tier<=6 beliefs whose sou
 Fountain's separate _OWN_CONTENT_SOURCES allowlist also contains fountain_insight, synergized, precipitated_from_dynamic, precipitated_from_sense, behavioural_observation and auto_probe, but not identity_loop, pattern_loop or witness_loop. These three beliefs are therefore also absent from the dedicated own-content retrieval slots. This does not prove they can never enter any broader retrieval slot; it establishes exclusion from the named inside and own-content paths.
 
 This is a high-confidence source-level producer/consumer mismatch: the producers explicitly describe themselves as recursive self-model content, but the self-inquiry membrane and dedicated Fountain own-content allowlists do not recognise their source labels. Whether the omission is intentional or an oversight needs founder/design clarification; do not add sources to allowlists without approval because that changes what counts as NEX's INSIDE state and what Fountain treats as its own content. Additional source-history evidence: classifier.py was last changed for this source classification on 2026-10-10 by commit 397aa695c8 (“sync classifier to own-content sources”). That change explicitly added precipitated_from_dynamic, precipitated_from_sense and auto_probe, but not identity_loop, pattern_loop or witness_loop. The accompanying tests/test_membrane.py update enumerates identity as an inside source but still does not test the three loop-specific source labels. This shows the omission survived a later deliberate allowlist/test refresh; it does not establish whether the omission was intentional or simply a missed source-family update.
+## 67. Life-loop belief inserts bypass the Tag Protocol; SurpriseLoop can persist duplicate tags
+
+TAG_PROTOCOL.md identifies itself as a foundational specification with design decisions locked in a session with Jon (2026-05-11). It says tags are auto-generated from entity content and, in §6, that every path into a tags column flows through the helper module so normalization/deduplication is enforced.
+
+The seven life-loop belief producers in §65 do not use TaggingBeliefWriter or the tag helper. Their direct INSERT statements specify:
+
+| Producer | Stored tags expression | Source-level concern |
+|---|---|---|
+| IdentityLoop | hard-coded JSON [identity] | bypasses content-derived generation/helper |
+| PatternLoop | hard-coded JSON [self_pattern] | bypasses content-derived generation/helper |
+| WitnessLoop | hard-coded JSON [blind_spot] | bypasses content-derived generation/helper |
+| RememberLoop | literal [] | no content-derived tags generated |
+| WonderLoop | literal [] | no content-derived tags generated |
+| FetchLoop | literal [] | no content-derived tags generated |
+| SurpriseLoop | json.dumps([surprise, big_surprise if true else surprise]) | when big_surprise is false, the resulting JSON array contains duplicate surprise entries; helper normalization would deduplicate |
+
+These are all Tier-6 belief admissions. They use substrate.connect() directly, so TaggingBeliefWriter cannot intercept them. The issue is separate from the October database factory migration: the connection factory may be the intended write model, but it does not provide tag generation or normalization.
+
+This is a direct source-level divergence from TAG_PROTOCOL.md's entity-creation and normalization requirements, unless the life-loop producers have an approved exception or their explicit labels are intentionally treated as manually curated tags. The SurpriseLoop duplicate is a concrete conditional data-quality defect independent of whether content-derived tags are required: on the non-big-surprise branch it constructs the same tag twice.
+
+Boot-time keystone/koan seeds also bypass TaggingBeliefWriter (see §60), but they are authored/bootstrap anchors; whether they are in scope for the tag protocol is a separate policy question. Do not retrofit tag generation or alter producer inserts before Gate 0 / explicit approval. Isolated regression coverage can be prepared once the intended tag contract for generated beliefs and seed beliefs is confirmed.
