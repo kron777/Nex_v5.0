@@ -44,7 +44,7 @@ The roadmap extract asks for NEX5_TRACE_OVERLAY=0 and a full trace_id/parent_ids
 
 - Watcher service integrity PR #96: draft; exact-head CI passed.
 - Keepalive path portability PR #97: draft; exact-head CI passed (1612 passed, 5 skipped, 30 subtests). Not merged/deployed.
-- Phase 0 reconciliation PR #98: draft; CI status is tracked on the PR. Documentation/comments/log text only; no execution/control-flow changes.
+- Phase 0 reconciliation PR #98: draft; CI status is tracked on the PR. Documentation/comments/log text plus one isolated temporary-DB test; no executable control-flow changes.
 - RDO Stage 2–7 PRs #66–#71: open/draft, stacked, exact-head CI passed; not merged and not NEX roadmap phases.
 
 ## Safety and authority
@@ -64,7 +64,7 @@ Continue the full forward/backward producer-consumer audit in bounded increments
 
 The latest source-trace tranche and verified defect backlog are expanded; see the canonical Crosswalk and `NEX_PHASE0_PRODUCER_CONSUMER_TRACE_TRANCHE_2026-11-25.md`. A confirmed control-flow defect is recorded at D-32: Harmonizer's successful-synthesis branch demotes one just-retired original from Tier 8 back to Tier 7. No fix has been applied because Gate 0 has not been approved.
 
-The current audit also records retired-row filter gaps across Fountain/VoiceEngine/reanimation/graph paths, a DormancyScanner scan-progress issue, VoiceEngine's separate substrate-first reply path, and non-uniform IntakeResonance measurement across producers. Residue retention documentation now matches the reaper's 2-day target, with an isolated temp-DB test added.
+The current audit also records retired-row filter gaps across Fountain/VoiceEngine/reanimation/graph paths, a DormancyScanner scan-progress issue, VoiceEngine's separate substrate-first reply path, non-uniform IntakeResonance measurement across producers, prediction/surprise and problem/goal state mismatches, signal retention and cross-database transaction risks, default-OFF continuity semantics, InfluenceRecord evidence limits, and Moltbook external-I/O/dry-run boundaries. Residue retention documentation now matches the reaper's 2-day target, with an isolated temp-DB test added.
 
 **Founder help is now required to proceed from evidence into remediation:** provide the exact Frozen V2.1 specification and the founder approval/sign-off record for Gate 0 (or point to their canonical Library paths). The archive and Library searches returned the handover/roadmap references but not those governing artifacts. Until then, continue read-only source analysis and isolated tests only; do not implement behavior changes, change flags, run live retention, merge, deploy or activate services.
 
@@ -87,7 +87,7 @@ The reshape path is implemented and covered by `tests/test_reshape.py`; it is no
 
 ## Current source-audit continuation — 2026-11-25
 
-The producer/consumer tranche now extends through §§60–62. It records (a) boot-time keystone/koan seeds created before TaggingBeliefWriter is constructed, (b) the limited scope of the wrapper's single-statement .write() interception, and (c) direct write-capable substrate.connect() paths outside the One-Pen Writer queue.
+The earlier producer/consumer tranche covered §§60–62; subsequent bounded source audits extend the trace through §83. It records (a) boot-time keystone/koan seeds created before TaggingBeliefWriter is constructed, (b) the limited scope of the wrapper's single-statement .write() interception, and (c) direct write-capable substrate.connect() paths outside the One-Pen Writer queue.
 
 The direct-connection census includes normal-wired Stage 2 life/focus/daily-life/signal loops, Fountain's recursion_attrib write, and normal-wired Moltbook listener/responder/poster paths; it also identifies request-driven GUI mutation endpoints. The WorldPredictionLoop is separately env-gated by NEX5_WORLD_PRED=1 (default OFF). These are source-wiring findings, not proof of live thread activity, endpoint invocation, external client readiness, contention or data loss. See backlog D-36/G-24.
 
@@ -138,11 +138,11 @@ Working rule: V2.1 is the intended authority, but its exact normative clauses an
 - §71: review_queue auto-promotion is intentionally disabled since 2026-05-16; the two relevant tests are explicitly skipped because the three-ACCEPT counter hid problems from FocusLoop/DailyLife. Do not re-enable.
 - D-38: active branch still lacks main's October 26 NEX5_TZ/Africa-Johannesburg migration; four life loops still use Europe/Amsterdam. No partial cherry-pick or main merge.
 
-Trace now extends through §71. PR #98 remains draft. The most recent CI run observed was for an earlier head and was still in progress; subsequent documentation commits do not have an exact-head workflow result. Do not report latest-head CI as passed.
+Trace now extends through §83. PR #98 remains draft with 36 changed files. Its current head is `8caed81f237d76818c855e5efb79f64b1d600079`; no workflow runs or commit statuses are reported for that exact head. The previous head's tests run was still in progress when checked. Do not report latest-head CI as passed.
 
 ## Latest Phase 0 continuation — 25 November 2026 (trace §§72–83)
 
-The static producer/consumer trace now extends through §81. The current detailed documents are:
+The static producer/consumer trace now extends through §83. The current detailed documents are:
 
 - `NEX_PHASE0_GATE_AND_BELIEF_WRITER_CENSUS_2026-11-25.md` — 350 Python source files scanned for literal Gate and belief-table write patterns; distinguishes Gate-wired writers, non-Gate producers, perception, boot seeds, maintenance and experimental paths. D-39 records BehaviouralSelfModel's conditional Gate exception-fallthrough; D-40 records paused-row tier promotion/decay eligibility.
 - `NEX_PHASE0_CHAT_ROUTE_VARIANTS_AUDIT_2026-11-25.md` and `NEX_PHASE0_CHAT_BELIEF_COUNT_FORMATTER_AUDIT_2026-11-25.md` — route-specific Chat context assembly and the composite-text Tier-marker count are mapped. Marker-shaped free text can inflate the count; no live malformed record is established.
