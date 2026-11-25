@@ -43,6 +43,32 @@ def test_collector_executes_only_fixed_request_commands_and_records_provenance(m
     assert result["runtime_identity"]["data"]["commands"][0]["stdout"] == "mock output 1"
 
 
+def test_host_collect_cli_passes_explicit_repo_root(monkeypatch, tmp_path, capsys):
+    requested_root = tmp_path / "verified-nex"
+    requested_root.mkdir()
+    observed = {}
+
+    def fake_collect(**kwargs):
+        observed.update(kwargs)
+        return {"_meta": {}, "runtime_identity": {"data": {"failed_command_count": 0}}}
+
+    monkeypatch.setattr(host_runner, "collect_host_evidence", fake_collect)
+    monkeypatch.setattr(host_runner, "write_results", lambda results, output, force=False: Path(output))
+    from watcher.__main__ import main
+
+    code = main([
+        "host-collect",
+        "--repo-root", str(requested_root),
+        "--out", str(tmp_path / "host.json"),
+        "--skip-artifact-hashes",
+    ])
+
+    assert code == 0
+    assert observed["repo_root"] == requested_root.resolve()
+    assert observed["include_artifact_hashes"] is False
+    assert "wrote" in capsys.readouterr().out
+
+
 def test_collector_marks_hashing_skip_as_unknown_not_empty(monkeypatch, tmp_path):
     request = SimpleNamespace(id="runtime_artifact_hashes", read_only_commands=["must not run"])
     monkeypatch.setattr(host_runner, "host_requests", lambda: [request])
