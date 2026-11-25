@@ -95,7 +95,7 @@ The existing fixture is useful evidence that the two coarse seams can emit fixtu
 
 Commit f9ac58d adds a default-OFF continuity consumer: self_binding.continuity_for_prompt() reads recent self_state_history rows and SelfMindView.current_summary() appends a descriptive clause when NEX5_SELF_CONTINUITY=1.
 
-Static wiring is present: run.py constructs SelfMindView and passes it into AppState; gui/server.py calls current_summary() and appends the result to belief_text for the chat composition path. This establishes a source-level route, not proof that every reply path consumes it or that it has been active in the live process.
+Static wiring is present: run.py constructs SelfMindView and passes it into AppState; gui/server.py calls current_summary() and appends the result to belief_text for the chat composition path. This establishes a source-level route, not proof that every reply path consumes it or that it has been active in the live process. The relevant call sites are run.py:473 and :720, gui/server.py:1512, SelfMindView.current_summary at theory_x/stage_tom/self_mind_view.py:434, and continuity_for_prompt at theory_x/stage_tom/self_binding.py:345. The CONTINUITY_WIRE.md description of SelfMindView as a zero-importer/leaf consumer is therefore incomplete: it is constructed by run.py and its summary is consumed by the GUI chat path.
 
 The old PHASE0_HANDOFF.md statement that no Phase 1 behavioural modification had started is therefore stale. The continuity feature is a Phase 1 context modification in source, even though its flag defaults OFF. No live flag activation or live behavioural effect has been verified. Do not arm it or expand it before the Gate 0 review and explicit authorisation.
 
