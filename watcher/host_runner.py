@@ -64,7 +64,10 @@ def collect_host_evidence(
                     errors="replace",
                     timeout=timeout,
                     check=False,
-                    env=os.environ.copy(),
+                    env={
+                    **os.environ,
+                    "NEX_WATCHER_COLLECTOR_PID": str(os.getpid()),
+                },
                 )
                 command_results.append({
                     "index": index,
