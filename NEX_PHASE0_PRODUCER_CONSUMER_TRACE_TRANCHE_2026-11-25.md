@@ -1252,3 +1252,18 @@ Verified source relationships:
 - Inspected signal readers are SignalToProblem (6 h), CompetingDrives (24 h), probe context (10 min), and GUI latest 100. Pattern signal IDs are stored as JSON and not dereferenced by the GUI.
 
 No live rows, current reaper count, disk footprint or commit failure was inspected. No runtime change was made.
+
+
+## 77. Self-continuity Phase 1 consumer semantics audit
+
+The detailed audit is in `NEX_PHASE0_SELF_CONTINUITY_SEMANTICS_AUDIT_2026-11-25.md`. The feature remains default-OFF behind `NEX5_SELF_CONTINUITY=1`; no host flag was read or changed.
+
+Verified source facts:
+
+- SelfMindView is constructed and started in normal boot; Chat appends its summary to `belief_text`. The continuity helper colours that summary only when armed and is not a Fountain call path.
+- The query retrieves emotion/raga/drive but phrase selection uses emotion only; empty emotion samples are excluded from the persistence test.
+- The generic “moving rather than settling” fallback can be emitted without a detected change in any retrieved dimension.
+- Ordering is only `bound_at DESC`, with no secondary tie-breaker; the explicit SQLite close is not in a `finally` block.
+- Tests cover default-off, emotion persistence/shift, thin history, read-only, missing-table fail-safe and SelfMindView integration, but not dimension disagreement, missing-value semantics, timestamp ties or forced cleanup failure.
+
+No host flag, history row or live behaviour was inspected. The Phase 1 feature was not armed or changed.
