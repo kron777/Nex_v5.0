@@ -365,3 +365,26 @@ The GUI consumes that result: `gui/server.py:1445–1453` calls `state.novel_ass
 Graph topology is a distinct state channel from belief content. The EdgeGenerator and NovelAssociation write edges; the World Model's retrieval/activation mechanisms can consume belief graph structure; NovelAssociation additionally exposes a one-shot prompt annotation. Do not draw an edge write as if it were a new belief or assume that every graph edge is used by every retrieval route.
 
 **Evidence boundary:** source shows these components are wired and their loops are started in the normal boot path. Their 60-second / 30-minute delays mean construction is not equivalent to an immediate first output. Current host thread state and downstream causal effect remain UNKNOWN.
+
+## 25. DailyLife produces internal conversation messages and feeds the behavioural observer
+
+`daily_life` is wired into the Stage 2 loop list and started by the same dynamic daemon-thread factory. It is not a belief writer, but it is a conversation-message producer with a downstream self-observation relationship:
+
+- `theory_x/stage2_dynamic/__init__.py` imports `daily_loop` and appends it to the loop list in the Daily life block; the factory starts the collected loop.
+- `theory_x/life/daily_life.py:1–35` declares six local-time activities (morning, two reading sessions, two outreach slots and journal), a once-per-day activity ledger, and a claimed 23:00–06:00 sleep behaviour.
+- `daily_life.py:70–100` creates/uses the fixed `internal_daily_life` conversation session and inserts its generated text into `conversations.messages` with `role='nex'`.
+- `daily_life.py:160–240` shows the activity implementations. Reading selects a recent external sense event and writes a templated internal message. Outreach selects an approved Moltbook conversation but the inspected implementation explicitly says it only records the intent; it does not send the DM. Morning and journal entries write status summaries.
+- `daily_life.py:240–302` runs scheduled activities once their hour has passed, records them in `dynamic.db:daily_activities`, and ticks every 60 seconds. On boot it can catch up activities whose scheduled hour has already passed.
+
+### Behavioural Self-Model measurement overlap
+
+`theory_x/stage4_membrane/behavioural_self_model.py:67–75` observes the last 100 rows with `role='nex'` from `conversations.messages`, without filtering by `session_id`, register or whether the row is a reply to a user. The `internal_daily_life` messages therefore fall inside the source query's eligible population. This creates a possible measurement-mix issue: templated internal diary/reading/outreach messages can influence response-style metrics that are described as observations of recent responses.
+
+This is a verified source-level overlap, not proof that it has materially changed any metric in the live database. The current trace has not inspected live message composition or calculated the contribution of the `internal_daily_life` session. It remains a candidate measurement-validity question: should behavioural self-observation include all NEX-authored messages, or only user-facing responses?
+
+### DailyLife doc/source discrepancies
+
+- The module header says outreach activities send one Moltbook DM; the inspected implementation only records a proposed outreach message and explicitly says actual sending is wired separately.
+- The module header claims 23:00–06:00 sleep mode doubles the Fountain interval and reduces fires. `daily_tick()` returns a `sleep` boolean, but `daily_loop()` only logs activities and does not consume that value or change ModeState. `ModeState` persists explicit mode changes; no time-based sleep transition is shown in the inspected path. Treat the scheduled sleep effect as unverified/not implemented in this module, not as an active runtime behaviour.
+
+These findings add a separate internal-message producer and a cross-faculty measurement dependency. They do not establish that the daily activities have fired on the current host or that the BehaviouralSelfModel has consumed any such messages.
