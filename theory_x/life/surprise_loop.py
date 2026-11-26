@@ -27,6 +27,7 @@ DYNAMIC_DB = DbPath("dynamic")
 TICK_SECONDS = 300
 SOURCE = "surprise"
 LAST_PROMOTED_TS_KEY = "surprise_loop_last_ts"
+LAST_PROMOTED_ID_KEY = "surprise_loop_last_id"
 
 
 def _ensure_kv_table(d_cx):
@@ -37,25 +38,45 @@ def _ensure_kv_table(d_cx):
     d_cx.commit()
 
 
-def _last_promoted_ts(d_cx):
-    row = d_cx.execute(
-        "SELECT value FROM daemon_kv WHERE key=?", (LAST_PROMOTED_TS_KEY,)
-    ).fetchone()
-    if row and row[0]:
-        try:
-            return float(row[0])
-        except Exception:
-            return 0.0
-    return 0.0
+def _last_promoted_cursor(d_cx):
+    """Read the lexicographic (triggered_at, id) checkpoint.
+
+    A missing id is the legacy timestamp-only format. Returning id=0
+    deliberately replays rows at that timestamp; duplicate belief writes
+    are idempotently treated as already handled.
+    """
+    rows = dict(d_cx.execute(
+        "SELECT key, value FROM daemon_kv WHERE key IN (?, ?)",
+        (LAST_PROMOTED_TS_KEY, LAST_PROMOTED_ID_KEY),
+    ).fetchall())
+    try:
+        ts = float(rows.get(LAST_PROMOTED_TS_KEY) or 0.0)
+    except (TypeError, ValueError):
+        ts = 0.0
+    try:
+        event_id = int(rows.get(LAST_PROMOTED_ID_KEY) or 0)
+    except (TypeError, ValueError):
+        event_id = 0
+    return ts, event_id
 
 
-def _set_last_promoted_ts(d_cx, ts):
-    d_cx.execute(
-        "INSERT INTO daemon_kv (key, value, updated_at) VALUES (?, ?, ?) "
-        "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
-        (LAST_PROMOTED_TS_KEY, str(ts), time.time())
-    )
+def _set_last_promoted_cursor(d_cx, ts, event_id):
+    """Persist both cursor dimensions atomically."""
+    now = time.time()
+    for key, value in (
+        (LAST_PROMOTED_TS_KEY, str(float(ts))),
+        (LAST_PROMOTED_ID_KEY, str(int(event_id))),
+    ):
+        d_cx.execute(
+            "INSERT INTO daemon_kv (key, value, updated_at) VALUES (?, ?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
+            (key, value, now),
+        )
     d_cx.commit()
+
+
+def _surprise_tags(big_surprise: bool) -> list[str]:
+    return ["surprise", "big_surprise"] if big_surprise else ["surprise"]
 
 
 def _surprise_to_belief(surprise_row):
@@ -89,22 +110,25 @@ def surprise_tick():
     d_cx.row_factory = Row
     try:
         _ensure_kv_table(d_cx)
-        since = _last_promoted_ts(d_cx)
+        since, last_id = _last_promoted_cursor(d_cx)
         if since == 0:
             # First run — start from 10 min ago, don't import full history
             since = time.time() - 600
+            last_id = 0
         rows = d_cx.execute(
             "SELECT * FROM surprise_events "
-            "WHERE triggered_at > ? AND surprise_flag = 1 "
+            "WHERE (triggered_at > ? OR (triggered_at = ? AND id > ?)) "
+            "  AND surprise_flag = 1 "
             "  AND actual_content IS NOT NULL AND actual_content != '' "
             "  AND predicted_content IS NOT NULL AND predicted_content != '' "
-            "ORDER BY triggered_at ASC LIMIT 20",
-            (since,)
+            "ORDER BY triggered_at ASC, id ASC LIMIT 20",
+            (since, since, last_id)
         ).fetchall()
         if not rows:
             return {"promoted": 0}
         promoted = 0
-        max_ts = since
+        processed = 0
+        cursor_ts, cursor_id = since, last_id
         for r in rows:
             try:
                 content = _surprise_to_belief(r)
@@ -113,18 +137,23 @@ def surprise_tick():
                     "(content, tier, confidence, created_at, source, branch_id, tags) "
                     "VALUES (?, 6, 0.75, ?, ?, ?, ?)",
                     (content, int(r["triggered_at"]), SOURCE,
-                     "cognition",
-                     json.dumps(["surprise", "big_surprise" if r["big_surprise"] else "surprise"]))
+                     "cognition", json.dumps(_surprise_tags(bool(r["big_surprise"]))))
                 )
                 b_cx.commit()
                 promoted += 1
             except IntegrityError:
-                # duplicate content — skip
+                # Duplicate content is already represented; it is safe to pass.
                 pass
             except Exception as e:
-                log.warning("surprise belief write failed: %s", e)
-            max_ts = max(max_ts, r["triggered_at"])
-        _set_last_promoted_ts(d_cx, max_ts)
+                # Do not checkpoint this event or anything after it. The next
+                # tick retries from the last fully handled event.
+                log.warning("surprise belief write failed for event %s: %s", r["id"], e)
+                break
+            cursor_ts = float(r["triggered_at"])
+            cursor_id = int(r["id"])
+            processed += 1
+        if processed:
+            _set_last_promoted_cursor(d_cx, cursor_ts, cursor_id)
         log.info("surprise_loop: promoted %d surprise events", promoted)
         return {"promoted": promoted}
     finally:
