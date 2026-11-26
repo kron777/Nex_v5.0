@@ -49,16 +49,36 @@ def _verb_density(content: str) -> float:
 class EmergentDriveDetector:
     def __init__(self, dynamic_writer: Writer) -> None:
         self._dynamic_writer = dynamic_writer
+        self._belief_cursor = 0
+
+    def _load_pressure_candidates(self, beliefs_reader: Reader,
+                                  limit: int = 500) -> tuple[list[dict], int]:
+        """Load a rotating ID window so later branches are not starved."""
+        cursor = self._belief_cursor
+        rows = [dict(r) for r in beliefs_reader.read(
+            "SELECT id, content, branch_id, confidence FROM beliefs "
+            "WHERE tier >= 4 AND confidence > 0.6 AND branch_id IS NOT NULL "
+            "AND paused = 0 AND locked = 0 AND id > ? "
+            "ORDER BY id ASC LIMIT ?",
+            (cursor, limit),
+        )]
+        if len(rows) < limit:
+            rows.extend(dict(r) for r in beliefs_reader.read(
+                "SELECT id, content, branch_id, confidence FROM beliefs "
+                "WHERE tier >= 4 AND confidence > 0.6 AND branch_id IS NOT NULL "
+                "AND paused = 0 AND locked = 0 AND id <= ? "
+                "ORDER BY id ASC LIMIT ?",
+                (cursor, limit - len(rows)),
+            ))
+        next_cursor = int(rows[-1]["id"]) if rows else cursor
+        return rows, next_cursor
 
     def scan_for_pressure(self, beliefs_reader: Reader,
                           dynamic_state) -> list[dict]:
         """Scan Tier 4+ beliefs grouped by branch; return pressure proposals."""
         try:
-            rows = beliefs_reader.read(
-                "SELECT id, content, branch_id, confidence FROM beliefs "
-                "WHERE tier >= 4 AND confidence > 0.6 AND branch_id IS NOT NULL "
-                "AND paused = 0 AND locked = 0 LIMIT 500"
-            )
+            rows, next_cursor = self._load_pressure_candidates(
+                beliefs_reader, limit=500)
         except Exception as exc:
             errors.record(f"scan_for_pressure read error: {exc}", source=_LOG_SOURCE, exc=exc)
             return []
@@ -117,6 +137,9 @@ class EmergentDriveDetector:
                     "proposed_curiosity": round(min(1.0, pressure), 3),
                 })
 
+        # Commit the rotating window only after the pressure pass completed.
+        # Cursor is in-memory and resets on process restart.
+        self._belief_cursor = next_cursor
         return proposals
 
     def log_proposals(self, proposals: list[dict]) -> None:
