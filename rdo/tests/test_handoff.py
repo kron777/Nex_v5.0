@@ -413,7 +413,7 @@ def test_watcher_bridge_uses_trusted_package_and_exclusive_temporary_request(tmp
     subprocess.run(["git", "-C", str(repo), "add", ".gitignore", "watcher"], check=True)
     subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "add ignored store and hostile package fixture"], check=True)
 
-    workdir = str(repo / "rdo" / ".cycles")
+    workdir = str(repo / "rdo" / ".cycles" / "test-store")
     import rdo.orchestrator as orchestrator
     monkeypatch.setattr(orchestrator, "_active_experiments", lambda _repo: [])
     result = submit_objective(_objective("README.md"), repo_dir=str(repo), workdir=workdir)
