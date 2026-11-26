@@ -95,7 +95,7 @@ def _safe_repo_path(value: Any, name: str) -> str:
     path = _text(value, name, max_length=512)
     # Paths are repository-relative POSIX paths. Reject traversal, absolute,
     # drive-qualified and platform-ambiguous paths before they reach the scanner.
-    if (path.startswith("/") or "\\" in path or ":" in path or
+    if (path.startswith("/") or "\\" in path or ":" in path or "\\n" in path or "\\r" in path or "\\x00" in path or
             any(part in ("", ".", "..") for part in path.split("/"))):
         raise ObjectiveInputError(f"{name} must be a clean repository-relative path")
     return path
@@ -114,7 +114,7 @@ def validate_objective(payload: Any) -> dict:
         "exclusions", "assumptions", "acceptance_criteria", "seed_obligations",
         "relationships", "reconciliation_signatures", "max_depth",
     })
-    if top["schema_version"] != SCHEMA_VERSION:
+    if not isinstance(top["schema_version"], str) or top["schema_version"] != SCHEMA_VERSION:
         raise ObjectiveInputError(f"schema_version must be {SCHEMA_VERSION!r}")
 
     objective_id = _text(top["objective_id"], "objective_id", max_length=64)
@@ -136,7 +136,7 @@ def validate_objective(payload: Any) -> dict:
 
     source = _object(top["source"], "source", {"kind", "reference"})
     source_kind = source["kind"]
-    if source_kind not in _SOURCE_KINDS:
+    if not isinstance(source_kind, str) or source_kind not in _SOURCE_KINDS:
         raise ObjectiveInputError(f"source.kind must be one of {sorted(_SOURCE_KINDS)}")
     source_reference = _text(source["reference"], "source.reference", max_length=512)
 
@@ -179,7 +179,7 @@ def validate_objective(payload: Any) -> dict:
         if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", kind):
             raise ObjectiveInputError(f"{name}.kind must be a lower_snake_case identifier")
         classification = seed["classification"]
-        if classification not in CLASSIFICATIONS:
+        if not isinstance(classification, str) or classification not in CLASSIFICATIONS:
             raise ObjectiveInputError(f"{name}.classification is not a supported obligation class")
         rationale = _text(seed["rationale"], f"{name}.rationale", max_length=4000)
         impact = _text(seed["impact"], f"{name}.impact", max_length=4000)
@@ -187,7 +187,7 @@ def validate_objective(payload: Any) -> dict:
                                     allow_empty=False)
         seed_assumptions = _text_list(seed["assumptions"], f"{name}.assumptions")
         confidence = seed["confidence"]
-        if confidence not in ("stated", "inferred"):
+        if not isinstance(confidence, str) or confidence not in ("stated", "inferred"):
             raise ObjectiveInputError(
                 f"{name}.confidence must be 'stated' or 'inferred'; measured is reserved for evidence"
             )
@@ -212,10 +212,10 @@ def validate_objective(payload: Any) -> dict:
         if src not in seed_keys or dst not in seed_keys:
             raise ObjectiveInputError(f"{name} must connect two declared seed obligation keys")
         kind = edge["kind"]
-        if kind not in _RELATIONSHIP_KINDS:
+        if not isinstance(kind, str) or kind not in _RELATIONSHIP_KINDS:
             raise ObjectiveInputError(f"{name}.kind is not a supported relationship type")
         authority = edge["authority"]
-        if authority not in _AUTHORITY_LEVELS:
+        if not isinstance(authority, str) or authority not in _AUTHORITY_LEVELS:
             raise ObjectiveInputError(f"{name}.authority is not a supported authority level")
         reversible = edge["reversible"]
         if reversible is not None and not isinstance(reversible, bool):
@@ -551,12 +551,3 @@ def resume_objective(workdir: str, objective_id: str, revision: int) -> dict:
         "cycles": cycles,
     }
 
-
-def _read_cli_json(path: str) -> dict:
-    if os.path.getsize(path) > MAX_INPUT_BYTES:
-        raise ObjectiveInputError(f"objective input exceeds {MAX_INPUT_BYTES} bytes")
-    with open(path, "r", encoding="utf-8") as fh:
-        try:
-            return json.load(fh, object_pairs_hook=_reject_duplicate_keys)
-        except json.JSONDecodeError as exc:
-            raise ObjectiveInputError(f"invalid objective JSON: {exc}") from exc
