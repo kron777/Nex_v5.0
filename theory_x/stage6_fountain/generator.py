@@ -2929,7 +2929,8 @@ class FountainGenerator:
                 if reanimated and self._beliefs_reader is not None:
                     rows = self._beliefs_reader.read(
                         "SELECT id, content, source, tier, confidence, created_at FROM beliefs "
-                        "WHERE id=?", (reanimated["belief_id"],)
+                        "WHERE id=? AND tier <= 7 AND paused = 0",
+                        (reanimated["belief_id"],)
                     )
                     if rows:
                         result.extend([dict(r) for r in rows])
