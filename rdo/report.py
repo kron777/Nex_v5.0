@@ -447,7 +447,7 @@ def run_stage2_belief_decay(repo_dir: str = ".", workdir: str = "rdo/.cycles",
         review_report = {
             "kind": ("controlled fixture review (not human review or execution)"
                      if review_kind == "controlled_fixture_review"
-                     else "reviewer-attributed planning review (not execution; reviewer identity is not independently verified)"),
+                     else "reviewer-attributed planning_review (not an execution outcome; reviewer identity is not independently verified)"),
             "reviewer": reviewer,
             "predicted": cycle.predicted,
             "reviewed": actual,
