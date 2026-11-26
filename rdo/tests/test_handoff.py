@@ -201,7 +201,7 @@ def test_human_acceptance_is_separate_and_does_not_rewrite_evidence_dimensions(t
     manifest = create_handoff(
         workdir, str(repo), "handoff_fixture", 1, result["cycle"]["id"], package["key"]
     )
-    with pytest.raises(HandoffError, match="requires a recorded approved scope review"):
+    with pytest.raises(HandoffError, match="requires a currently approved scope review"):
         record_human_acceptance(
             workdir, manifest["handoff_id"], "accepted", "reviewer",
             "acceptance-reference", "delivery-reference",
