@@ -115,7 +115,7 @@ class BeliefPromoter:
         """
         try:
             row = self._reader.read_one(
-                "SELECT id, content, tier, corroboration_count, locked FROM beliefs WHERE id = ?",
+                "SELECT id, content, tier, corroboration_count, locked, paused FROM beliefs WHERE id = ?",
                 (belief_id,),
             )
         except Exception as exc:
@@ -124,6 +124,8 @@ class BeliefPromoter:
 
         if row is None:
             return False
+        if row["paused"]:
+            return False  # Paused beliefs are not eligible for corroboration.
         if row["locked"] and row["tier"] <= 1:
             return False  # Tier 1 locked — untouchable
 
