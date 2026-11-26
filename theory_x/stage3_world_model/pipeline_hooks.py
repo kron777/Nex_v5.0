@@ -80,7 +80,7 @@ class PipelineHooks:
             try:
                 t6, t6_next_cursor = self._load_t6_climb_candidates(limit=500)
                 seen = {r["id"] for r in rows}
-                t6_ids = {r["id"] for r in t6 if r["id"] not in seen}
+                t6_ids = {r["id"] for r in t6}
                 rows = list(rows) + [r for r in t6 if r["id"] not in seen]
             except Exception as exc:
                 errors.record(f"pipeline_hooks T6-climb read error: {exc}",
