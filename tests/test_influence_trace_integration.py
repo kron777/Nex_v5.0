@@ -85,3 +85,52 @@ def test_fountain_global_workspace_trace_does_not_change_winner(tmp_path):
     assert records[0]["stage"] == "salience_workspace"
     assert records[0]["metadata"]["winner_kind"] == "bonsai"
     assert records[0]["metadata"]["winner_present"] is True
+
+def test_fountain_public_wrapper_is_output_identical_off_and_on(tmp_path, monkeypatch):
+    from theory_x.stage6_fountain.generator import FountainGenerator
+
+    generator = FountainGenerator.__new__(FountainGenerator)
+    generator._total_fires = 4
+    generator._last_fire_ts = 123.0
+    generator._generate = lambda dynamic_state, beliefs_reader, trace=None: (
+        "unchanged fixture thought"
+    )
+
+    sink = tmp_path / "fountain.jsonl"
+    monkeypatch.setenv("NEX5_TRACE_OVERLAY", "0")
+    monkeypatch.setenv("NEX5_TRACE_OVERLAY_PATH", str(sink))
+    off = generator.generate(object(), object())
+    assert off == "unchanged fixture thought"
+    assert not sink.exists()
+
+    monkeypatch.setenv("NEX5_TRACE_OVERLAY", "1")
+    monkeypatch.setenv("NEX5_TRACE_OVERLAY_CONTEXT", "fixture")
+    on = generator.generate(object(), object())
+    assert on == off
+    events = _read_events(sink)
+    assert [event["stage"] for event in events] == [
+        "input_arrival", "output"
+    ]
+    assert events[-1]["metadata"]["status"] == "produced"
+
+
+def test_sample_traces_are_complete_parent_linked_fixtures():
+    from pathlib import Path
+
+    sample_path = Path(__file__).resolve().parents[1] / "NEX_CAUSAL_TRACE_SAMPLE.json"
+    sample = json.loads(sample_path.read_text())
+    assert sample["schema"] == "nex_causal_trace_sample/v1"
+    assert len(sample["traces"]) == 2
+
+    for trace in sample["traces"]:
+        assert trace["capture_context"] == "fixture"
+        assert trace["evidence_level"] == "L3"
+        seen = set()
+        for event in trace["events"]:
+            assert event["trace_id"] == trace["trace_id"]
+            assert event["evidence_level"] == "L3"
+            assert event["capture_context"] == "fixture"
+            assert event["event_id"] not in seen
+            assert all(parent in seen for parent in event["parent_ids"])
+            seen.add(event["event_id"])
+        assert trace["events"][-1]["stage"] == "output"
