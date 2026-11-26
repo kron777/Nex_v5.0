@@ -441,3 +441,11 @@ def test_watcher_bridge_uses_trusted_package_and_exclusive_temporary_request(tmp
     assert sentinel.read_text(encoding="utf-8") == "must not be truncated"
     assert not marker.exists()
     assert list(handoff_root.glob(f"{manifest['handoff_id']}.watcher-request-*.json")) == []
+
+
+def test_handoff_history_missing_store_does_not_create_directories(tmp_path):
+    workdir = tmp_path / "cycles"
+    handoff_id = "handoff_" + "a" * 24
+    with pytest.raises(HandoffError):
+        handoff_history(str(workdir), handoff_id)
+    assert not workdir.exists()
