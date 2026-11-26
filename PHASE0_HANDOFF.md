@@ -44,12 +44,16 @@ Deliverable identity is separate from V2.1 M0.5 doctrine questions. See `NEX_PHA
 
 The roadmap extract asks for NEX5_TRACE_OVERLAY=0 and a full trace_id/parent_ids chain across input arrival, candidate generation, salience/workspace selection, gate, SQLite writer delta and output, with NEX_CAUSAL_TRACE_SAMPLE.json. The active branch instead uses NEX5_INFLUENCE_TRACE, NEX5_INFLUENCE_TRACE_CONTEXT and NEX5_INFLUENCE_TRACE_PATH, with two coarse seams and a JSONL fixture. The exact Frozen V2.1 contract must be recovered before extending or renaming the hook.
 
-## Current external PR status
+## Current external PR status — refreshed 26 November 2026
 
-- Watcher service integrity PR #96: draft; exact-head CI passed.
-- Keepalive path portability PR #97: draft; exact-head CI passed (1612 passed, 5 skipped, 30 subtests). Not merged/deployed.
-- Phase 0 reconciliation PR #98: draft; CI status is tracked on the PR. Documentation/comments/log text plus one isolated temporary-DB test; no executable control-flow changes.
-- RDO Stage 2–7 PRs #66–#71: open/draft, stacked, exact-head CI passed; not merged and not NEX roadmap phases.
+- Watcher service-integrity diagnostics PR #96: merged. This is the external Watcher tooling branch; it does not activate NEX services.
+- Keepalive path portability PR #97: open/draft against `claude/nex-continuity-wire`; exact-head CI previously passed. Not merged or deployed.
+- Phase 0 reconciliation PR #98: merged into `claude/nex-continuity-wire`. Its merge commit is `14b45ab139d919505eb423b865ec1a714f923388`; this is not a merge to `main`.
+- RDO integration PR #124: merged into `main` (merge commit `70db12169a8d38f2e93e6cdf536a1c71a3e66ee2`). It integrates RDO Stages 2–7 as an external engineering instrument; it does not change NEX cognitive/runtime behaviour.
+- Legacy stacked RDO PRs #66–#71: still open/draft and unmerged as individual PRs. Do not describe them as merged merely because the separate integration PR #124 landed on `main`.
+- RDO read-only handoff-history fix PR #130: open/draft; exact-head full-suite CI is running after a narrow stale-test-expectation correction. Not merged.
+- RDO v1.4 source-recovery record PR #131: open/draft; exact-head CI passed. It records supplied-source provenance but deliberately leaves v1.3/v1.4 precedence unresolved.
+- Phase 0 M0.5 deliverable-identity correction PR #132: open/draft; documentation-only; exact-head CI pending. It separates V2.1 doctrine questions from technical trace-overlay work.
 
 ## Safety and authority
 
