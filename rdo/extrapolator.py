@@ -135,8 +135,9 @@ def classify_scope(ob: dict) -> str:
         return "anti_requirement"
     if cls == CONDITIONAL:
         return "context_dependent"
-    if ob.get("provenance", "") == "seed":
-        return "domain_specific"          # the idea's top-level obligations are domain-shaped
+    provenance = {part.strip() for part in str(ob.get("provenance", "")).split(";")}
+    if "seed" in provenance:
+        return "domain_specific"          # preserve seed identity after convergent merges
     kind = ob.get("kind")
     if kind not in EXPANSION_RULES and kind not in TERMINAL_KINDS:
         return "novel"                    # no pattern covers it -> a new requirement class
