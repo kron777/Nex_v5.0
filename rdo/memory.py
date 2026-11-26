@@ -83,22 +83,40 @@ class PatternMemory:
         ))
         ex = self._current.get(pattern.key)
         if ex is not None:
+            # Public getters expose the stored mutable Pattern objects for
+            # compatibility. Revalidate an existing record before any mutation:
+            # callers may have changed its confidence through a returned alias.
+            original_confidence = ex.confidence
+            existing_confidence = _bounded_confidence(original_confidence)
+            confidence_normalized = original_confidence != existing_confidence
             existing = list(dict.fromkeys(
                 x.strip() for x in str(ex.provenance).split(";") if x.strip()
             ))
             new = [x for x in incoming if x not in existing]
+            updated_confidence = existing_confidence
+            if new:
+                # Compute/validate the new value before changing provenance/count.
+                updated_confidence = _bounded_confidence(
+                    round(existing_confidence + 0.1, 3)
+                )
+            # Restore the bounded value after validation; callers may also have
+            # supplied a finite but out-of-range value through a returned alias.
+            ex.confidence = existing_confidence
             exceptions_changed = False
             for x in pattern.exceptions:
                 if x not in ex.exceptions:
                     ex.exceptions.append(x)
                     exceptions_changed = True
             if not new:
-                if exceptions_changed:
+                # Persist a finite out-of-range alias normalization even when
+                # provenance replay is otherwise idempotent. Without this, the
+                # in-memory value would differ from the durable JSONL record.
+                if confidence_normalized or exceptions_changed:
                     self._append(ex)
                 return ex
             ex.provenance = "; ".join(existing + new)
             ex.observed_count += 1
-            ex.confidence = _bounded_confidence(round(ex.confidence + 0.1, 3))
+            ex.confidence = updated_confidence
             cur = ex
         else:
             pattern.confidence = incoming_confidence
@@ -109,6 +127,9 @@ class PatternMemory:
         return cur
 
     def _append(self, pattern: Pattern) -> None:
+        # Last-line defence: never write a record whose confidence was altered
+        # through a public mutable alias after the add() checks.
+        pattern.confidence = _bounded_confidence(pattern.confidence)
         os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
         with open(self.path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(pattern.to_dict(), default=str) + "\n")
