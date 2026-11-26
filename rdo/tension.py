@@ -11,9 +11,9 @@ from __future__ import annotations
 from typing import Dict, List
 
 from .model import (ANTI_REQUIREMENT, CONDITIONAL, FUTURE, MISSING, NECESSARY,
-                    OPTIONAL, OVERDEVELOPED, PARTIAL, RECON_UNKNOWN, REUSE_EXISTING,
+                    OPTIONAL, OVERDEVELOPED, PARTIAL, RECON_UNKNOWN, REUSE_EXISTING, SIGNATURE_MATCHED,
                     SUFFICIENT, TENSION_UNKNOWN, UNDERDEVELOPED, Obligation,
-                    Relationship, TensionAssessment)
+                    Relationship, TensionAssessment, has_valid_reuse_review)
 
 
 # ---- node-level ----
