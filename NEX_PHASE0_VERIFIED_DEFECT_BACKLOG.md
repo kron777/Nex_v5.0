@@ -20,7 +20,7 @@ This backlog distinguishes confirmed source defects from documentation drift, mi
 
 - Mainline last verified full disposable-suite baseline for the PR #148 mainline candidate: 2,453 passed, 7 skipped; sandbox probe and mind-map verification completed.
 - tests/known_failures.txt is empty at the pinned snapshot.
-- M0.5 trace PR #151 is a separate candidate and is not part of this pinned main baseline. One full run exposed five test-only issues in tests/test_influence_trace.py (three undefined _sink references and two TraceContext constructors missing producer). These were corrected on the PR branch; a new exact-head sandbox run is pending. Do not classify these transient branch test failures as main defects.
+- M0.5 trace PR #151 is a separate candidate and is not part of this pinned main baseline. An earlier intermediate run exposed five test-only fixture issues (three undefined _sink references and two TraceContext constructors missing producer); these were corrected on the PR branch and are not main defects. The candidate now has paired end-to-end OFF/ON Fountain and Chat fixture cycles, including confidence, selection/read-sequence and database-state comparisons. Direct recursion_attrib and momentum SQLite commits are identified as direct commits rather than Writer deltas. Exact-head disposable CI is still pending; do not mark M0.5 complete until it passes.
 
 ## Ordering constraints
 
