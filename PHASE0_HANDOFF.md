@@ -10,7 +10,8 @@
 The earlier fb87e24 handoff is preserved as PHASE0_HANDOFF_HISTORICAL_fb87e24.md. Use this document together with:
 - NEX_REPOSITORY_REALITY_REPORT.md — current M0.1–M0.2 report.
 - NEX_ARCHITECTURE_CROSSWALK_v2.md — current partial crosswalk: boot inventory plus Fountain and Chat output paths.
-- NEX_PHASE0_CURRENT_RECONCILIATION_2026-11-25.md — branch comparison, M0.1–M0.5 status, boot wiring, Vitals, RDO/Watcher status and remaining gaps.
+- NEX_PHASE0_CURRENT_RECONCILIATION_2026-11-25.md — branch comparison, Phase 0 evidence and remaining gaps.
+- NEX_PHASE0_M0_5_DELIVERABLE_IDENTITY_RECONCILIATION_2026-11-26.md — distinguishes the V2.1 doctrine-question deliverable from the technical trace-overlay work.
 - NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-25.md — founder-reviewable verified defects and evidence gaps.
 - ADR-001.md — historical design decision for the default-OFF InfluenceRecord overlay.
 
@@ -22,8 +23,9 @@ The earlier fb87e24 handoff is preserved as PHASE0_HANDOFF_HISTORICAL_fb87e24.md
 | M0.1 host/model/runtime baseline | Partial; DB/snapshot hashes, Python/SQLite exact versions, model digest, RAM/VRAM load and tokens/sec remain UNKNOWN |
 | M0.2 test baseline | Founder-provided host run: 1610 passed, 5 skipped, 30 subtests, 0 unexpected failures, 122.87s |
 | M0.3–M0.4 architecture crosswalk | Partial; first-pass boot wiring plus two output paths. Full producer/consumer DAG across theory_x, substrate, speech and GUI remains outstanding |
-| M0.5 InfluenceRecord | Default-OFF source and fixture tests exist; two coarse seams only |
-| M0.5 live L4 capture / zero-delta | UNKNOWN; not performed or authorised |
+| V2.1 M0.5 doctrine questions | Not evidenced as complete; current Phase 0 artifacts do not contain the six answers |
+| Technical trace overlay (previously labelled M0.5) | Default-OFF InfluenceRecord source and fixture tests exist; two coarse seams only |
+| Technical trace-overlay live L4 capture / zero-delta | UNKNOWN; not performed or authorised |
 | Gate 0 | PENDING founder review |
 
 ## Important current findings
@@ -36,16 +38,22 @@ The earlier fb87e24 handoff is preserved as PHASE0_HANDOFF_HISTORICAL_fb87e24.md
 6. Vitals is present on main but absent from the active branch; cherry-picking its merge would import unrelated behaviour. Its exact governing spec and PID-identity safeguards remain unresolved.
 7. The exact Frozen V2.1 source document and founder approval record have not been located. Do not recreate them or infer their detailed acceptance criteria.
 
-## M0.5 trace discrepancy
+## Technical trace-overlay discrepancy (previously labelled M0.5)
+
+Deliverable identity is separate from V2.1 M0.5 doctrine questions. See `NEX_PHASE0_M0_5_DELIVERABLE_IDENTITY_RECONCILIATION_2026-11-26.md`.
 
 The roadmap extract asks for NEX5_TRACE_OVERLAY=0 and a full trace_id/parent_ids chain across input arrival, candidate generation, salience/workspace selection, gate, SQLite writer delta and output, with NEX_CAUSAL_TRACE_SAMPLE.json. The active branch instead uses NEX5_INFLUENCE_TRACE, NEX5_INFLUENCE_TRACE_CONTEXT and NEX5_INFLUENCE_TRACE_PATH, with two coarse seams and a JSONL fixture. The exact Frozen V2.1 contract must be recovered before extending or renaming the hook.
 
-## Current external PR status
+## Current external PR status — refreshed 26 November 2026
 
-- Watcher service integrity PR #96: draft; exact-head CI passed.
-- Keepalive path portability PR #97: draft; exact-head CI passed (1612 passed, 5 skipped, 30 subtests). Not merged/deployed.
-- Phase 0 reconciliation PR #98: draft; CI status is tracked on the PR. Documentation/comments/log text plus one isolated temporary-DB test; no executable control-flow changes.
-- RDO Stage 2–7 PRs #66–#71: open/draft, stacked, exact-head CI passed; not merged and not NEX roadmap phases.
+- Watcher service-integrity diagnostics PR #96: merged. This is the external Watcher tooling branch; it does not activate NEX services.
+- Keepalive path portability PR #97: open/draft against `claude/nex-continuity-wire`; exact-head CI previously passed. Not merged or deployed.
+- Phase 0 reconciliation PR #98: merged into `claude/nex-continuity-wire`. Its merge commit is `14b45ab139d919505eb423b865ec1a714f923388`; this is not a merge to `main`.
+- RDO integration PR #124: merged into `main` (merge commit `70db12169a8d38f2e93e6cdf536a1c71a3e66ee2`). It integrates RDO Stages 2–7 as an external engineering instrument; it does not change NEX cognitive/runtime behaviour.
+- Legacy stacked RDO PRs #66–#71: still open/draft and unmerged as individual PRs. Do not describe them as merged merely because the separate integration PR #124 landed on `main`.
+- RDO read-only handoff-history fix PR #130: merged into `rdo/stage7-handoff-manifest-2026-11-26` at `698e80e4f20a95c9ffcf5445a9f598429781dacd`; exact-head full-suite CI passed (2,434 passed, 7 skipped, 40 subtests). Not merged to `main`.
+- RDO v1.4 source-recovery record PR #131: open/draft; exact-head CI passed. It records supplied-source provenance but deliberately leaves v1.3/v1.4 precedence unresolved.
+- Phase 0 M0.5 deliverable-identity correction PR #132: open/draft; documentation-only; exact-head CI pending. It separates V2.1 doctrine questions from technical trace-overlay work.
 
 ## Safety and authority
 
@@ -58,7 +66,7 @@ The roadmap extract asks for NEX5_TRACE_OVERLAY=0 and a full trace_id/parent_ids
 
 ## Next safe work
 
-Continue the full forward/backward producer-consumer audit in bounded increments, beginning with the booted paths and their actual persistence/consumer relationships. Recover the exact Frozen V2.1 source/approval and reconcile the M0.5 trace contract. Keep live runtime and protected experiment state untouched. Review PR #97 and PR #98 independently; neither is permission to activate services or Phase 1 behaviour.
+Continue the full forward/backward producer-consumer audit in bounded increments, beginning with the booted paths and their actual persistence/consumer relationships. Recover the exact Frozen V2.1 source/approval and reconcile the technical trace-overlay contract separately from the V2.1 M0.5 doctrine questions. Keep live runtime and protected experiment state untouched. Review PR #97 and PR #98 independently; neither is permission to activate services or Phase 1 behaviour.
 
 ## Current handoff addendum — 2026-11-25 source audit
 
@@ -153,7 +161,7 @@ The static producer/consumer trace now extends through §83. The current detaile
 - `NEX_PHASE0_OPEN_PROBLEM_AND_GOAL_LIFECYCLE_AUDIT_2026-11-25.md` — problem/goal state transitions, stuck-state visibility, GoalManager/CoherenceGate state mismatch and unscheduled decay methods.
 - `NEX_PHASE0_SIGNAL_PIPELINE_RETENTION_AND_PATTERN_AUDIT_2026-11-25.md` — SignalLoop/advancements_drift producers, pattern template semantics, stale reaper allowlist and cross-database commit boundary.
 - `NEX_PHASE0_SELF_CONTINUITY_SEMANTICS_AUDIT_2026-11-25.md` — default-OFF Phase 1 continuity query/phrase semantics, missing-value handling, timestamp ties and cleanup.
-- `NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md` — actual M0.5 seams, missing trace/parent IDs, caller-declared L4, and raw-preview privacy/retention.
+- `NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md` — technical trace-overlay seams, missing trace/parent IDs, caller-declared L4, and raw-preview privacy/retention.
 - `NEX_PHASE0_MAIN_BRANCH_MIND_MAP_RECONCILIATION_2026-11-25.md` — main-only MIND_MAP lineage and 12 referenced files absent from active base; no import/merge/rebase performed.
 - `NEX_PHASE0_MOLTBOOK_EXTERNAL_IO_AND_DRY_RUN_AUDIT_2026-11-25.md` — all three Moltbook workers, GET/non-GET dry-run, synthetic local success states, unfiltered outbound beliefs and inbound DM path; no external endpoint contacted.
 

@@ -56,7 +56,7 @@ The scheduler documentation mismatch found during this audit is corrected in thi
 
 
 
-**M0.5 causal-trace coverage:** [NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md](NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md) checks the two actual output seams, missing trace/parent IDs and intermediate stages, L4 context declaration, fixture status and raw-preview retention boundary. The trace remains default-OFF; no runtime capture occurred.
+**Technical trace-overlay coverage (previously labelled M0.5):** [NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md](NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md) checks the two actual output seams, missing trace/parent IDs and intermediate stages, L4 context declaration, fixture status and raw-preview retention boundary. The trace remains default-OFF; no runtime capture occurred.
 
 
 
