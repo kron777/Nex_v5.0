@@ -150,6 +150,23 @@ def test_sample_traces_are_complete_parent_linked_fixtures():
             seen.add(event["event_id"])
         assert trace["events"][-1]["stage"] == "output"
 
+    fountain = next(t for t in sample["traces"] if t["producer"] == "fountain_cycle")
+    f = {event["event_id"]: event for event in fountain["events"]}
+    assert f["f-005"]["parent_ids"] == ["f-001"]
+    assert set(f["f-006"]["parent_ids"]) == {"f-003", "f-005"}
+    assert set(f["f-011"]["parent_ids"]) == {"f-009", "f-010"}
+    assert set(f["f-016"]["parent_ids"]) == {"f-014", "f-015"}
+    assert set(f["f-018"]["parent_ids"]) == {"f-009", "f-011"}
+
+    chat = next(t for t in sample["traces"] if t["producer"] == "chat_turn")
+    c = {event["event_id"]: event for event in chat["events"]}
+    assert c["c-004"]["parent_ids"] == ["c-001"]
+    assert set(c["c-007"]["parent_ids"]) == {"c-001", "c-004", "c-006"}
+    assert c["c-008"]["parent_ids"] == ["c-007"]
+    assert c["c-009"]["parent_ids"] == ["c-001", "c-004", "c-006", "c-008"]
+    assert c["c-014"]["metadata"]["length"] == c["c-010"]["metadata"]["reply"]["length"]
+
+
 def _make_trace_test_substrate(tmp_path, monkeypatch):
     import os
     from pathlib import Path
