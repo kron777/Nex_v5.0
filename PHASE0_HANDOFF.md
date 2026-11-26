@@ -212,3 +212,8 @@ A bounded isolated regression and a stable composite cursor are the likely futur
 The Warrant crosscheck now records G-53 / trace §85: `WarrantPass.compute_all()` counts `substrate_snapshots.walk_anchor_id` as sustain evidence, but `WarrantRecorder.use_cycle()` does not include that table in its appended use-day stream. Fountain's substrate-voice branch can persist the anchor into snapshots, but the branch is conditional on `NEX5_RECONCILE != '1'`; the tracked keepalive sets `NEX5_RECONCILE=1`, and actual host-effective state is UNKNOWN. The Recorder's isolated tests do not cover snapshot walk anchors.
 
 This is a conditional source-inventory mismatch, not proof of live undercount. No behavior, database, cursor, schema, flag, snapshot retention, experiment, baseline, tripwire or frozen specification was changed. Gate 0 remains pending.
+
+
+## Current source-audit addendum — 26 November 2026 (Warrant eligibility)
+
+The Warrant crosscheck now records G-54 / trace §86: WarrantPass filters unpaused rows at or below Tier 7, and WarrantRecorder filters unlocked/unpaused Tier 3 / 5–6 / 7 rows, but neither checks the independent `erosion_stage='retired'` marker. The marker's canonical semantics and live row incidence remain UNKNOWN; Harmonizer's ordinary retirement writes Tier 8, and no normal runtime marker writer was established. Treat this as an operation-specific eligibility question, not a confirmed incident. No behavior changes were made pending Gate 0.
