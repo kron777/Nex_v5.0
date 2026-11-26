@@ -95,6 +95,33 @@ class TestTierFilter(unittest.TestCase):
         self.assertGreater(len(conflicts), 0,
                            "Tier-7 conflict pair must be detected")
 
+    def test_large_tier3_population_does_not_starve_tier7(self):
+        """A large Tier-3 population must not consume the Tier-7 scan budget."""
+        for index in range(205):
+            _seed(self.writers, f"Unrelated tier three observation number {index}", tier=3)
+        id_a = _seed(self.writers,
+                     "The weight of existence grows with each passing moment", tier=7)
+        id_b = _seed(self.writers,
+                     "The weight of existence does not concern me at all", tier=7)
+        h = _make_harmonizer(self.writers, self.readers)
+        conflicts = h.scan_for_conflicts()
+        self.assertIn((id_a, id_b), conflicts,
+                      "Tier-7 conflict must be detected despite >200 Tier-3 beliefs")
+
+    def test_large_tier_rotates_between_scan_passes(self):
+        """More than 40 same-tier beliefs are covered across successive passes."""
+        for index in range(80):
+            _seed(self.writers, f"Distinct tier seven candidate number {index}", tier=7)
+        h = _make_harmonizer(self.writers, self.readers)
+        first = h._load_scan_candidates()
+        second = h._load_scan_candidates()
+        first_ids = {row["id"] for row in first if row["tier"] == 7}
+        second_ids = {row["id"] for row in second if row["tier"] == 7}
+        self.assertEqual(len(first_ids), 40)
+        self.assertEqual(len(second_ids), 40)
+        self.assertTrue(first_ids.isdisjoint(second_ids),
+                        "The next pass should rotate to the next 40 Tier-7 IDs")
+
     def test_tier1_locked_excluded(self):
         """Tier-1 locked keystones must never be scanned."""
         _seed(self.writers, "I am NEX and I exist", tier=1, locked=1)
