@@ -4,10 +4,11 @@
 **Stage 4** (read-only belief audit): existing belief mechanisms are inspected
 **read-only** only to ground reconciliation; nothing here touches the live store.
 
-**Coordination.** Isolated workstream on `claude/rdo-stage2-extrapolator-mvp`, based on
-`0cada90ede00ef21602740f16f1481df0574704f` (PR #48 head). File ownership: `rdo/` only —
-no Watcher, NEX-runtime, experiment, baseline, tripwire or live-state edits. PRs #45–48
-remain open and unmerged.
+**Historical coordination.** The original implementation was isolated on
+`claude/rdo-stage2-extrapolator-mvp`, based on `0cada90` (the former PR #48 head), with
+`rdo/`-only ownership. As of 26 Nov 2026, foundational PR #46 has been merged and the Stage 2–7
+capabilities are being integrated together through PR #124 on the hardened mainline. The older
+stage branches are retained as source history, not as a separate merge sequence.
 
 ## The objective (a real belief-*development* objective)
 
@@ -41,8 +42,9 @@ No duplicate persistence, graph or reconciliation mechanism was created.
 
 ## Capabilities & acceptance rules → test evidence
 
-All in `rdo/tests/test_stage2_extrapolator_mvp.py` (12 tests, all passing); full `rdo`
-suite 48 passing.
+The original isolated-stage report recorded 12 Stage-2 tests and 48 RDO tests passing. The
+integration has since added semantic-reuse, fail-closed registry and evidence-provenance regressions;
+the current full repository CI on PR #124 is the authoritative integrated result.
 
 - **Accept/structure objective** → `test_accepts_and_structures_objective`
 - **Recursive discovery** (8 seeds → 35 obligations, depth 2) → `test_recursively_discovers_obligations`
