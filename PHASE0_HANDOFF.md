@@ -205,3 +205,10 @@ No behavior, database, service, environment flag, experiment, baseline, tripwire
 The Phase 0 producer-consumer trace now records G-52 / §84: WarrantRecorder's `belief_lineage` and `arc_members` use-day scans paginate only by timestamp (`created_at` / `joined_at`) with strict-greater-than cursors and a 20,000-row batch. Equal-timestamp rows that straddle a batch boundary can be skipped. `record_synergy()` writes two parent rows with a shared timestamp; ArcReader stamps all members of an arc with one shared timestamp, although the normal boot path currently leaves ArcLoop unstarted. The Warrant Recorder is default-off (`NEX5_WARRANT_RECORD=1` required); live activation and incidence remain UNKNOWN. Existing tests do not cover a tied-timestamp boundary.
 
 A bounded isolated regression and a stable composite cursor are the likely future correction, but implementation and cursor-state migration remain blocked by Gate 0. No runtime, database, flag, experiment, baseline, tripwire or frozen specification was changed.
+
+
+## Current source-audit addendum — 26 November 2026 (Warrant sustain coverage)
+
+The Warrant crosscheck now records G-53 / trace §85: `WarrantPass.compute_all()` counts `substrate_snapshots.walk_anchor_id` as sustain evidence, but `WarrantRecorder.use_cycle()` does not include that table in its appended use-day stream. Fountain's substrate-voice branch can persist the anchor into snapshots, but the branch is conditional on `NEX5_RECONCILE != '1'`; the tracked keepalive sets `NEX5_RECONCILE=1`, and actual host-effective state is UNKNOWN. The Recorder's isolated tests do not cover snapshot walk anchors.
+
+This is a conditional source-inventory mismatch, not proof of live undercount. No behavior, database, cursor, schema, flag, snapshot retention, experiment, baseline, tripwire or frozen specification was changed. Gate 0 remains pending.
