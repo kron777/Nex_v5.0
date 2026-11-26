@@ -167,10 +167,12 @@ def capture_momentum(thought: str, branch: str,
                           "status": "committed", "branch_id": branch,
                           "carry_count": new_carry,
                           "transaction_scope": "direct_connection_commit"},
-                parent_ids=(
-                    [trace.reference("fountain_output_candidate")]
-                    if trace.reference("fountain_output_candidate") else []
-                ),
+                parent_ids=[
+                    rid for rid in (
+                        trace.reference("fountain_output_candidate"),
+                        trace.reference("fountain_hot_branch_selection"),
+                    ) if rid
+                ],
             )
         return True
     except Exception:
