@@ -121,3 +121,25 @@ regression detection and longitudinal series are the comparison layer over passi
 evidence — they observe change, they do not cause it. Isolated-testing and
 active-experiment modes are **not** built — they require explicit, per-experiment
 approval and are out of scope until the gate review authorizes them.
+
+## Independent RDO handoff source verification
+
+The Watcher can independently verify a digest-bound RDO handoff from a versioned request file:
+
+\`\`\`bash
+python -m watcher verify-handoff --request rdo/.cycles/handoffs/<handoff-id>.watcher-request.json
+\`\`\`
+
+The command is deliberately source/path-only. It verifies the handoff manifest digest, the complete human scope-review event chain, the planning commit's ancestry, and the changed-file set derived from Git (committed, staged, unstaged and untracked). It checks each changed path against the manifest's exact file allowlist, resolves symlinks under the repository root, fingerprints in-scope changed regular files, and records source-only evidence in the Watcher connection ledger under a process lock.
+
+It does **not** run pytest, arbitrary commands, scripts, agents, services or NEX runtime operations. Its report always leaves \`test_verified=not_authorized\` and \`runtime_observed=unknown_host_only\`. A file hash proves that a file changed within scope; it does not prove semantic satisfaction or human acceptance. Reviewer attribution is integrity-checked but not identity-authenticated.
+
+The RDO invokes this fixed CLI in a separate Python process via \`python -m rdo handoff-verify\`. The request contains only repository-relative manifest, event-ledger and Watcher-ledger paths. The verifier does not import RDO modules.
+
+
+
+## Independent RDO handoff verification
+
+`python -m watcher verify-handoff --request <request.json>` verifies an approved RDO handoff in a separate Watcher process. It checks the immutable manifest and decision-event chain, current scope approval, planning-commit ancestry, Git-derived changed paths, and exact-file/symlink boundaries. It hashes bounded in-scope files and appends source-only transitions to the Watcher's evidence ledger under `rdo/.cycles`.
+
+This command is non-executing with respect to NEX: it does not run tests, project scripts, agents, services, deployments, or runtime operations. Its ledger write is a Watcher evidence record, not a NEX cognitive-state write. Test evidence remains `not_authorized`; runtime remains host-only `UNKNOWN`; file presence/hash is not semantic acceptance.
