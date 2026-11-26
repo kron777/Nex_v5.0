@@ -31,7 +31,7 @@ def _clean_repo(path: Path) -> Path:
     return path
 
 
-def _objective() -> dict:
+def _objective(affected_path: str = "docs/REQUIREMENTS.md") -> dict:
     return {
         "schema_version": "rdo.objective.v1",
         "objective_id": "handoff_fixture",
@@ -43,7 +43,7 @@ def _objective() -> dict:
         "source": {"kind": "human", "reference": "fixture-only"},
         "scope": {
             "in_scope": ["One documentation page"],
-            "affected_paths": ["docs/REQUIREMENTS.md"],
+            "affected_paths": [affected_path],
         },
         "constraints": ["Keep the patch within the exact path allowlist"],
         "exclusions": ["No runtime code", "No database changes", "No tests or arbitrary commands"],
@@ -69,12 +69,12 @@ def _objective() -> dict:
     }
 
 
-def _create_cycle(tmp_path, monkeypatch):
+def _create_cycle(tmp_path, monkeypatch, affected_path: str = "docs/REQUIREMENTS.md"):
     repo = _clean_repo(tmp_path / "repo")
     workdir = str(tmp_path / "cycles")
     import rdo.orchestrator as orchestrator
     monkeypatch.setattr(orchestrator, "_active_experiments", lambda _repo: [])
-    result = submit_objective(_objective(), repo_dir=str(repo), workdir=workdir)
+    result = submit_objective(_objective(affected_path), repo_dir=str(repo), workdir=workdir)
     cycle = result["cycle"]
     assert cycle["objective_input"]["objective_id"] == "handoff_fixture"
     assert cycle["work_packages"]
@@ -93,6 +93,7 @@ def test_real_intake_cycle_creates_immutable_handoff_manifest(tmp_path, monkeypa
     assert manifest["authority"]["execution_authority"] == "none"
     assert manifest["authority"]["tests_execution_authorized"] is False
     assert manifest["scope"]["allowed_paths"] == ["docs/REQUIREMENTS.md"]
+    assert manifest["scope"]["resolved_paths"] == {"docs/REQUIREMENTS.md": "docs/REQUIREMENTS.md"}
     assert manifest["objective"]["original_text"] == _objective()["original_text"]
     assert manifest["cycle"]["repository_revision"] == result["repository_revision"]
     assert manifest["manifest_sha256"]
@@ -317,4 +318,48 @@ def test_handoff_requires_exact_native_cycle_and_objective_revision(tmp_path, mo
         create_handoff(
             workdir, str(repo), "handoff_fixture", 1, result["cycle"]["id"], package["key"]
         )
+
+def test_handoff_refuses_a_symlink_that_resolves_outside_repository(tmp_path, monkeypatch):
+    outside = tmp_path / "outside.md"
+    outside.write_text("outside target\n", encoding="utf-8")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("# Fixture repository\n", encoding="utf-8")
+    os.symlink(outside, repo / "escape.md")
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.name", "RDO handoff test"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "rdo-handoff@example.invalid"], check=True)
+    subprocess.run(["git", "-C", str(repo), "add", "README.md", "escape.md"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "fixture with external symlink"], check=True)
+    workdir = str(tmp_path / "cycles")
+    import rdo.orchestrator as orchestrator
+    monkeypatch.setattr(orchestrator, "_active_experiments", lambda _repo: [])
+    result = submit_objective(_objective("escape.md"), repo_dir=str(repo), workdir=workdir)
+    package = result["cycle"]["work_packages"][0]
+    with pytest.raises(HandoffError, match="outside the repository"):
+        create_handoff(
+            workdir, str(repo), "handoff_fixture", 1, result["cycle"]["id"], package["key"]
+        )
+
+
+def test_handoff_records_internal_symlink_resolution(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("# Fixture repository\n", encoding="utf-8")
+    os.symlink("README.md", repo / "readme-alias.md")
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.name", "RDO handoff test"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "rdo-handoff@example.invalid"], check=True)
+    subprocess.run(["git", "-C", str(repo), "add", "README.md", "readme-alias.md"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "fixture with internal symlink"], check=True)
+    workdir = str(tmp_path / "cycles")
+    import rdo.orchestrator as orchestrator
+    monkeypatch.setattr(orchestrator, "_active_experiments", lambda _repo: [])
+    result = submit_objective(_objective("readme-alias.md"), repo_dir=str(repo), workdir=workdir)
+    package = result["cycle"]["work_packages"][0]
+    manifest = create_handoff(
+        workdir, str(repo), "handoff_fixture", 1, result["cycle"]["id"], package["key"]
+    )
+    assert manifest["scope"]["allowed_paths"] == ["readme-alias.md"]
+    assert manifest["scope"]["resolved_paths"] == {"readme-alias.md": "README.md"}
 
