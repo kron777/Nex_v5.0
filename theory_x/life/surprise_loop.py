@@ -58,6 +58,11 @@ def _set_last_promoted_ts(d_cx, ts):
     d_cx.commit()
 
 
+def _surprise_tags(big_surprise: bool) -> list[str]:
+    """Return the canonical, duplicate-free tags for a promoted surprise."""
+    return ["surprise", "big_surprise"] if bool(big_surprise) else ["surprise"]
+
+
 def _surprise_to_belief(surprise_row):
     """Render a surprise_events row as a first-person belief sentence."""
     ptype = surprise_row["prediction_type"]
@@ -114,7 +119,7 @@ def surprise_tick():
                     "VALUES (?, 6, 0.75, ?, ?, ?, ?)",
                     (content, int(r["triggered_at"]), SOURCE,
                      "cognition",
-                     json.dumps(["surprise", "big_surprise" if r["big_surprise"] else "surprise"]))
+                     json.dumps(_surprise_tags(r["big_surprise"])))
                 )
                 b_cx.commit()
                 promoted += 1
