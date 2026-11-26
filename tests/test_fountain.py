@@ -276,16 +276,17 @@ class TestFountainGenerator(unittest.TestCase):
             "UPDATE beliefs SET paused = 1 WHERE source = 'koan'"
         )
 
-        def add_koan(content, tier=5, paused=0):
+        def add_koan(content, tier=5, paused=0, erosion_stage="external"):
             return self.writers["beliefs"].write(
-                "INSERT INTO beliefs (content, source, tier, confidence, created_at, locked, paused) "
-                "VALUES (?, 'koan', ?, 0.8, ?, 1, ?)",
-                (content, tier, int(time.time()), paused),
+                "INSERT INTO beliefs (content, source, tier, confidence, created_at, locked, paused, erosion_stage) "
+                "VALUES (?, 'koan', ?, 0.8, ?, 1, ?, ?)",
+                (content, tier, int(time.time()), paused, erosion_stage),
             )
 
         active = add_koan("active koan sentinel")
         add_koan("paused koan sentinel", paused=1)
         add_koan("retired koan sentinel", tier=8)
+        add_koan("retired-marked koan sentinel", erosion_stage="retired")
         self.writers["beliefs"].write(
             "INSERT INTO koan_reads (gate_id, read_at) VALUES (?, ?)",
             (str(active), 1),
