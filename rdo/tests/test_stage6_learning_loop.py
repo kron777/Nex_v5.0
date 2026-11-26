@@ -74,7 +74,11 @@ def test_reviewed_vs_automated_vs_executed_provenance():
     executed = _cycle("exe", 2, kind=EXECUTED_VERIFIED, actual={"missed": [], "unnecessary": []})
     selfass = _cycle("self", 2, actual={"missed": [], "unnecessary": []})
     pending = _cycle("pend", 2)
-    assert learning_provenance(reviewed) == "human_reviewed:planning_review"
+    fixture = _cycle("fixture", 2, actual={"reviewer": "fixture label",
+                                           "review_kind": "controlled_fixture_review",
+                                           "missed": [], "unnecessary": [], "reuse_wrong": []})
+    assert learning_provenance(reviewed) == "reviewer_attributed:planning_review"
+    assert learning_provenance(fixture) == "controlled_fixture_review"
     assert learning_provenance(executed) == "executed_verified_outcome"
     assert learning_provenance(selfass) == "automated_self_assessment"
     assert learning_provenance(pending) == "unknown_no_outcome"
@@ -84,7 +88,7 @@ def test_planning_review_is_not_counted_as_execution():
     reviewed = _cycle("rev", 2, actual={"reviewer": "jon", "review_kind": "planning_review",
                                         "missed": ["m"], "unnecessary": [], "reuse_wrong": []})
     loop = learning_loop([reviewed])
-    assert loop["provenance_split"]["human_reviewed"] == 1
+    assert loop["provenance_split"]["reviewer_attributed"] == 1
     # a native_planning review contributes no genuinely-comparable executed cycle
     assert loop["comparability"]["largest_genuinely_comparable_group"] == 0
 
@@ -116,7 +120,8 @@ def test_real_stage_evidence_loop_persists_and_resumes(tmp_path):
     d = str(tmp_path / "s6")
     res = run_stage6_learning_loop(repo_dir=".", workdir=d)
     assert res["cycles_ingested"] >= 5
-    assert res["provenance_split"]["human_reviewed"] >= 1        # the reviewed planning cycle
+    assert res["provenance_split"]["controlled_fixture_review"] >= 1  # explicitly not human review
+    assert res["provenance_split"]["reviewer_attributed"] == 0
     assert res["unknown_outcomes"] >= 1                          # planning-only cycles are UNKNOWN
     # reopening demonstrated: source-match->missing reopens its review path, UNKNOWN does not
     reopen = {r["key"]: r["reopen"] for r in res["reopening"]}
