@@ -40,7 +40,10 @@ FIXTURE_REVIEW = {
 @pytest.fixture(scope="module")
 def sl(tmp_path_factory):
     objective, assumptions, seeds, signatures = belief_decay_idea()
-    cycle, summary = run_cycle(CID, objective, assumptions, seeds, signatures, repo_dir=".")
+    # The isolated fixture declares a known-empty experiment registry explicitly;
+    # None is UNKNOWN and must stay fail-closed in production.
+    cycle, summary = run_cycle(CID, objective, assumptions, seeds, signatures,
+                               repo_dir=".", active_experiments=[])
     d = str(tmp_path_factory.mktemp("cycles"))
     CycleStore(d).save(cycle)
     return {"objective": objective, "seeds": seeds, "cycle": cycle,
