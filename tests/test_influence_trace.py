@@ -110,6 +110,16 @@ def test_writer_delta_records_single_database_commit_scope(tmp_path):
     assert record["metadata"]["transaction_scope"] == "single_statement_single_database"
 
 
+def test_write_many_delta_records_atomic_single_database_scope(tmp_path):
+    tracer = InfluenceTracer(sink_path=_sink(tmp_path), enabled=True)
+    tracer.writer_delta(
+        database="dynamic", table="fountain_retrieval_log",
+        operation="WRITE_MANY", row_id=[1, 2], metadata={"row_count": 2},
+    )
+    record = json.loads(_sink(tmp_path).read_text())
+    assert record["metadata"]["transaction_scope"] == "single_database_atomic_write_many"
+
+
 def test_non_jsonl_sink_is_rejected_without_writing(tmp_path):
     sink = tmp_path / "beliefs.db"
     tracer = trace.TraceContext("fountain_cycle", sink_path=sink)
