@@ -1,9 +1,10 @@
-"""SenseScheduler — coordinates all 23 sense-stream adapters.
+"""SenseScheduler — coordinates all 28 adapters (4 internal, 24 external).
 
-One thread per adapter. Threads start **paused** (the global run-event
-is unset on boot). Feeds only run when Jon calls start_all() via the
-GUI ON switch. Internal sensors (is_internal=True) are exempt from the
-global toggle and run from boot.
+One thread is created per adapter. Internal sensors start immediately.
+External feed threads are initially locally paused, but the constructor
+calls start_all() before returning, so external feeds are auto-started during
+normal construction/boot. stop_all() pauses external feeds; start_all()
+resumes them. The global run-event gates external feeds, not internal ones.
 
 Pausing / resuming:
     SenseScheduler.start_all()  — sets global run-event; all external feeds wake
