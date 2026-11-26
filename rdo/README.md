@@ -214,12 +214,18 @@ deployed-host behaviour. Later CI runs are not substituted for this exact histor
 
 ## The RDO under its own OFT
 
-`rdo selfcheck` holds the RDO to the principle it applies to NEX: 9 modules,
-~1340 LOC, no NEX-runtime import, reuses Watcher infrastructure — functionally
-sufficient and lean. It honestly flags the largest module and one minor
-function overlap, and the OFT-correct response to both is restraint: splitting or
-deleting would trade a small smell for module proliferation, which OFT also
-forbids.
+`rdo selfcheck` now distinguishes the core reasoning package from its external
+input boundary. The core contains **14 modules / 3,775 non-comment LOC**; the
+provider-neutral objective-intake adapter is separately reported at
+**1 module / 491 non-comment LOC** under `rdo_adapters/`. This keeps input
+validation and revision persistence out of the deterministic reasoning engine
+without changing the 14-module core ceiling.
+
+The size result is intentionally not described as lean: the self-check's
+existing 1,800-LOC heuristic still returns **needs review** for the 3,775-LOC
+core. It flags the largest modules for examination. That is a review signal,
+not an instruction to split files mechanically; any restructuring must be
+justified by responsibility, coupling, tests and functional tension.
 
 ## Scope & limitations
 
