@@ -4429,12 +4429,13 @@ class FountainGenerator:
         self._record_rare_dwell_telemetry()
 
         if trace is not None:
-            trace.selection(
-                source="stage6_fountain._build_prompt",
-                candidate_order=[b["id"] for b in context_beliefs],
-                selected_order=[entry[0] for entry in retrieval_manifest],
-                strategy="belief_prompt_manifest",
+            trace.record(
+                "prompt_context_selection", "belief_manifest_recorded",
                 metadata={
+                    "source": "stage6_fountain._build_prompt",
+                    "candidate_order": [b["id"] for b in context_beliefs],
+                    "selected_order": [entry[0] for entry in retrieval_manifest],
+                    "strategy": "belief_prompt_manifest",
                     "retrieval_slots": [entry[1] for entry in retrieval_manifest],
                     "workspace_enabled": os.environ.get("NEX5_GLOBAL_WORKSPACE", "1") == "1",
                     "prompt_block_count": len(getattr(self, "_last_prompt_blocks", []) or []),
