@@ -3,6 +3,7 @@
 import json
 
 import influence_trace as trace
+from influence_trace import TraceContext as InfluenceTracer
 
 
 def test_overlay_is_default_off(monkeypatch, tmp_path):
