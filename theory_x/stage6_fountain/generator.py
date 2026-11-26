@@ -1594,10 +1594,51 @@ class FountainGenerator:
         return thought
 
     def generate(self, dynamic_state, beliefs_reader: Reader) -> Optional[str]:
+        trace = None
+        try:
+            from influence_trace import new_trace
+            trace = new_trace("fountain_cycle")
+        except Exception:
+            trace = None
+        if trace is not None:
+            trace.record(
+                "input_arrival", "fountain_tick",
+                metadata={"prior_fire_count": self._total_fires,
+                          "last_fire_timestamp": self._last_fire_ts},
+            )
+        try:
+            result = self._generate(dynamic_state, beliefs_reader, trace=trace)
+        except Exception as exc:
+            if trace is not None:
+                trace.record("output", "generation_error",
+                             metadata={"error_type": type(exc).__name__})
+            raise
+        if trace is not None:
+            trace.output(
+                result, output_kind="fountain_thought",
+                status="produced" if result is not None else "no_output",
+                metadata={"fire_count_after_call": self._total_fires},
+            )
+        return result
+
+    def _generate(self, dynamic_state, beliefs_reader: Reader, trace=None) -> Optional[str]:
         readiness = self._evaluator.score(
             dynamic_state, beliefs_reader, last_fire_ts=self._last_fire_ts
         )
+        if trace is not None:
+            trace.record(
+                "readiness", "threshold_evaluated",
+                metadata={"score": readiness,
+                          "threshold": self._evaluator.is_ready.__self__.FOUNTAIN_THRESHOLD
+                          if hasattr(self._evaluator.is_ready.__self__, "FOUNTAIN_THRESHOLD")
+                          else 0.7,
+                          "eligible": self._evaluator.is_ready(readiness)},
+            )
         if not self._evaluator.is_ready(readiness):
+            if trace is not None:
+                trace.gate("REJECT", gate="fountain_readiness",
+                           reason_code="below_threshold",
+                           metadata={"score": readiness})
             return None
         # Round 23 — per-fire mode/focal-item labels. Reset FIRST so a fire
         # that never reaches _build_prompt's wide-mode branch (substrate-voice)
@@ -1627,6 +1668,13 @@ class FountainGenerator:
             if os.environ.get("NEX5_RECONCILE") != "1":
                 _sv_thought = self._maybe_substrate_voice(beliefs_reader, readiness)
                 if _sv_thought is not None:
+                    if trace is not None:
+                        trace.record(
+                            "candidate_generation", "substrate_voice_replay",
+                            metadata={"source": "stored_belief",
+                                      "fresh_generation": False,
+                                      "crystallizer_path": "bypassed"},
+                        )
                     return _sv_thought
         except Exception as _sv_err:
             error_channel.record(
@@ -1656,11 +1704,16 @@ class FountainGenerator:
                 thought = f"[tick] {time.strftime('%H:%M:%S')}"
 
             ts_now = time.time()
-            self._dynamic_writer.write(
+            _quiescent_event_id = self._dynamic_writer.write(
                 "INSERT INTO fountain_events (ts, thought, readiness, hot_branch, word_count) "
                 "VALUES (?, ?, ?, ?, ?)",
                 (ts_now, thought, readiness, "quiescent", len(thought.split())),
             )
+            if trace is not None:
+                trace.writer_delta(
+                    database="dynamic", table="fountain_events", operation="INSERT",
+                    row_id=_quiescent_event_id, metadata={"path": "quiescent"},
+                )
             self._link_activation_to_event()
             self._last_fountain_output = _strip_metadata(thought)
             self._last_fire_ts = ts_now
@@ -1702,8 +1755,10 @@ class FountainGenerator:
         if self._total_fires % 8 == 7 and readiness >= 0.8 and belief_count >= 20:
             koan = self._select_koan(beliefs_reader)
 
-        prompt, retrieval_manifest = self._build_prompt(status, belief_count, tier_dist,
-                                                         disturbance=disturbance, koan=koan)
+        prompt, retrieval_manifest = self._build_prompt(
+            status, belief_count, tier_dist, disturbance=disturbance, koan=koan,
+            trace=trace,
+        )
 
         try:
             with open('/tmp/nex5_last_prompt.log', 'w') as _f:
@@ -1780,6 +1835,9 @@ class FountainGenerator:
                         source="stage6_fountain", level="INFO",
                     )
         if _went_still:
+            if trace is not None:
+                trace.gate("HOLD", gate="fountain_stillness",
+                           reason_code="duplicate_retrieval")
             return None
         if self._consecutive_stillness > 0 and _fountain_stillness_reason is None:
             # Coming out of a stillness streak — prepend quiet notice.
@@ -2125,11 +2183,16 @@ class FountainGenerator:
         # Voice was down — write a bare tick, skip condenser and crystallizer
         if not voice_ok:
             ts_now = time.time()
-            self._dynamic_writer.write(
+            _fallback_event_id = self._dynamic_writer.write(
                 "INSERT INTO fountain_events (ts, thought, readiness, hot_branch, word_count) "
                 "VALUES (?, ?, ?, ?, ?)",
                 (ts_now, thought, readiness, "voice_fallback", len(thought.split())),
             )
+            if trace is not None:
+                trace.writer_delta(
+                    database="dynamic", table="fountain_events", operation="INSERT",
+                    row_id=_fallback_event_id, metadata={"path": "voice_fallback"},
+                )
             self._link_activation_to_event()
             self._last_fountain_output = _strip_metadata(thought)
             self._last_fire_ts = ts_now
@@ -2286,11 +2349,16 @@ class FountainGenerator:
         payload = json.dumps(
             {"thought": thought, "readiness": readiness, "hot_branch": hot_branch}
         )
-        self._sense_writer.write(
+        _sense_event_id = self._sense_writer.write(
             "INSERT INTO sense_events (stream, payload, provenance, timestamp) "
             "VALUES (?, ?, ?, ?)",
             ("internal.fountain", payload, "fountain", int(ts_now)),
         )
+        if trace is not None:
+            trace.writer_delta(
+                database="sense", table="sense_events", operation="INSERT",
+                row_id=_sense_event_id, metadata={"stream": "internal.fountain"},
+            )
 
         droplet = None
         if self._condenser is not None:
@@ -2336,6 +2404,13 @@ class FountainGenerator:
             (ts_now, thought, droplet, readiness, hot_branch, word_count,
              _fountain_stillness_reason, _fire_mode, _fire_focal),
         )
+        if trace is not None:
+            trace.writer_delta(
+                database="dynamic", table="fountain_events", operation="INSERT",
+                row_id=fountain_event_id,
+                metadata={"mode": _fire_mode, "branch_id": hot_branch,
+                          "sense_event_id": _sense_event_id},
+            )
         self._link_activation_to_event()
 
         if _er is not None:
@@ -2535,6 +2610,7 @@ class FountainGenerator:
                     hot_branch=hot_branch,
                     focal_item=_fire_focal,
                     retained_candidate_id=_retained_candidate_id,
+                    trace=trace,
                 )
                 if crystallized_id:
                     error_channel.record(
@@ -3328,7 +3404,7 @@ class FountainGenerator:
 
     def _build_prompt(self, dynamic_status: dict, belief_count: int, tier_dist: dict,
                       disturbance: Optional[dict] = None,
-                      koan: Optional[dict] = None):
+                      koan: Optional[dict] = None, trace=None):
         """Build the fountain prompt. Returns (prompt_str, retrieval_manifest).
 
         retrieval_manifest is a list of (belief_id, slot, rank, boost_value) tuples
@@ -3351,6 +3427,14 @@ class FountainGenerator:
         context_beliefs = self._retrieve_context_beliefs(
             own_n=mode.retrieval_own_n, seed_n=mode.retrieval_seed_n
         )
+        if trace is not None:
+            trace.candidates(
+                [b["id"] for b in context_beliefs],
+                source="stage6_fountain._retrieve_context_beliefs",
+                candidate_kinds=[b["source"] for b in context_beliefs],
+                metadata={"own_limit": mode.retrieval_own_n,
+                          "seed_limit": mode.retrieval_seed_n},
+            )
         own = [b for b in context_beliefs if b["source"] in _OWN_CONTENT_SOURCES]
         own_sense = [b for b in own if b["source"] == "precipitated_from_sense"]
         seeds = [b for b in context_beliefs if b["source"] in _SEED_SOURCES]
@@ -4178,6 +4262,19 @@ class FountainGenerator:
         # independently decides for the NEXT fire. Never alters this fire.
         # No-op when the (same) NEX5_TOPIC_GATE_SHADOW flag is off.
         self._record_rare_dwell_telemetry()
+
+        if trace is not None:
+            trace.selection(
+                source="stage6_fountain._build_prompt",
+                candidate_order=[b["id"] for b in context_beliefs],
+                selected_order=[entry[0] for entry in retrieval_manifest],
+                strategy="retrieval_manifest_and_prompt_context",
+                metadata={
+                    "retrieval_slots": [entry[1] for entry in retrieval_manifest],
+                    "workspace_enabled": os.environ.get("NEX5_GLOBAL_WORKSPACE", "1") == "1",
+                    "prompt_block_count": len(getattr(self, "_last_prompt_blocks", []) or []),
+                },
+            )
 
         # L4 phrasing rotation (NEX5_PHRASING_ROTATE, default OFF): swap the item-referent
         # per fire so the opener frame can't lock in. OFF => _prompt_text byte-identical.
