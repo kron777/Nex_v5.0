@@ -426,7 +426,7 @@ class TestEscalation(unittest.TestCase):
                 "SELECT tier, paused FROM beliefs WHERE id=?", (id_a,))
             row_b = self.readers["beliefs"].read_one(
                 "SELECT tier, paused FROM beliefs WHERE id=?", (id_b,))
-            if "paused=1" in state_sql[0]:
+            if "paused=1" in state_sql:
                 self.assertEqual((row_a["tier"], row_a["paused"]), (5, 1))
             else:
                 self.assertEqual(row_a["tier"], 8)
