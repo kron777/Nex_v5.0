@@ -231,3 +231,10 @@ No loop wiring, score, flag, database, service, experiment, baseline, tripwire o
 The Dormancy trace now records G-55 / §88: the normal `DiversityLoop` owns one scanner called every 60 seconds, while its `ClockRunner` owns a second scanner called at the 20-fire fast boundary. Both scan/upsert the same population but have separate cursors. This predates PR #102; that draft preserves the ClockRunner scanner across fast cycles but does not consolidate the two owners. The actual frequency and impact were not measured, and the dual cadence may be intentional. Tests do not yet cover the combined DiversityLoop schedule.
 
 This is an ownership/scheduling question, not a confirmed incident. No scan path, frequency, database, service, flag or experiment was changed.
+
+
+## Current source-audit addendum — 26 November 2026 (RememberLoop lineage)
+
+The Phase 0 trace now records G-56 / §89: RememberLoop selects an old and recent belief, composes a linking sentence and inserts a new Tier-6 belief, but does not preserve the child ID or write either source ID to `belief_lineage`. Synergizer records both parents for two-input synthesis; RememberLoop has no equivalent lineage writer. The existing vocabulary distinguishes `synergy` and single-parent `reference`, but the intended relationship label for a temporal comparison is unresolved. This is separate from G-25 (CoherenceGate path) and G-27 (tagging path).
+
+Do not add a relationship label or alter the loop until the founder confirms whether temporal links should be first-class lineage descendants. No source, schema, data, cursor, flag, test or runtime behavior was changed.
