@@ -96,7 +96,7 @@ class WorldConsolidator:
             for bid in cluster:
                 if promoted >= _MAX_PROMOTE_PER_RUN: break
                 try:
-                    dup = self._reader.read("SELECT 1 FROM beliefs WHERE content = ? AND tier < 7 AND paused = 0 LIMIT 1", (contents.get(bid,""),))
+                    dup = self._reader.read("SELECT 1 FROM beliefs WHERE content = ? AND tier < 7 AND paused = 0 AND erosion_stage != 'retired' LIMIT 1", (contents.get(bid,""),))
                     if dup: _diag(f"  skip id={bid}: dup shallower"); continue
                 except Exception as exc:
                     _diag(f"  dup-check fail id={bid}: {exc!r} — skip"); continue
