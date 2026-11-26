@@ -259,9 +259,11 @@ testable capabilities:
 - **Stage 6 — Learning loop:** prediction/outcome comparison, explicit
   provenance, reopening on contradictory evidence, and confidence that can be
   reduced by disconfirmation. A planning review is not an execution outcome.
-- **Stage 7 — Execution verification:** independent source and explicitly
-  allowlisted test evidence, linked through the Watcher's ledger. Runtime
-  observation remains host-only and UNKNOWN in cloud execution.
+- **Stage 7 — Execution handoff and verification:** source evidence and any
+  explicitly authorized test evidence remain separate from the agent's claim;
+  the current verifier still runs in the RDO process while reusing Watcher formats.
+  Runtime observation remains host-only and UNKNOWN in cloud execution. The
+  objective-to-delivery handoff is not yet complete; see `STAGE7_HANDOFF.md`.
 
 Run a stage against the repository without touching live NEX state:
 
@@ -301,3 +303,29 @@ python -m rdo resume --objective-id my-objective --revision 1 --out rdo/.cycles
 Each input revision is append-only and linked by SHA-256. The original wording and intent are immutable; a cycle stores the input revision/digest and a clean repository commit SHA. The selected repository must be a clean Git snapshot. The Watcher experiment registry still controls eligibility and unknown registry state remains blocked.
 
 See [the intake contract](OBJECTIVE_INTAKE.md), [the JSON Schema](schemas/objective.v1.schema.json), and [an example input](examples/objective.v1.example.json). This is advisory planning only; it does not execute work or alter NEX runtime state.
+
+## Stage-7 handoff (non-executing)
+
+For an actual persisted objective cycle, create an immutable manifest for one
+work package:
+
+\`\`\`bash
+python -m rdo handoff-create \\
+  --objective-id my-objective --revision 1 \\
+  --cycle-id <cycle-id> --work-package <work-package-key> \\
+  --repo . --out rdo/.cycles
+python -m rdo handoff-history --handoff-id <handoff-id> --out rdo/.cycles
+\`\`\`
+
+A separate human scope review can be appended with \`handoff-review\`; human
+acceptance is a separate \`handoff-acceptance\` event. These records are
+caller-attributed, not identity-authenticated. Approval can only authorize a
+scoped proposal; it cannot authorize tests, arbitrary commands, live NEX writes,
+experiment changes, services or deployment. The handoff does not launch an
+agent. Test execution remains not authorized until a disposable, no-secrets
+sandbox is independently designed and verified.
+
+See [Stage-7 handoff boundaries](STAGE7_HANDOFF.md). **Stage 7 is not complete**
+until independent Watcher-process verification and a real objective-to-verified
+delivery have been demonstrated; issue #87 tracks the remaining work.
+
