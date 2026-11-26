@@ -336,12 +336,12 @@ class TestEscalation(unittest.TestCase):
     def tearDown(self):
         _cleanup(self.writers, self.tmp)
 
-    def _seed_conflict_pair(self, tier=5):
+    def _seed_conflict_pair(self, tier=5, suffix=""):
         id_a = _seed(self.writers,
-                     "Markets always trend upward over long time horizons",
+                     "Markets always trend upward over long time horizons" + suffix,
                      tier=tier)
         id_b = _seed(self.writers,
-                     "Markets do not always trend upward over long time horizons",
+                     "Markets do not always trend upward over long time horizons" + suffix,
                      tier=tier)
         time.sleep(0.05)
         return id_a, id_b
@@ -391,6 +391,46 @@ class TestEscalation(unittest.TestCase):
             "SELECT tier FROM beliefs WHERE id = ?", (id_a,))
         self.assertEqual(row_a["tier"], 8,
                          "Beliefs must be retired after escalated resolution")
+
+    def test_mark_paradox_rejects_pair_that_became_ineligible(self):
+        id_a, id_b = self._seed_conflict_pair()
+        self.writers["beliefs"].write(
+            "UPDATE beliefs SET paused=1 WHERE id=?", (id_a,))
+        h = _make_harmonizer(self.writers, self.readers)
+
+        self.assertEqual(h.mark_paradox(id_a, id_b), "ineligible")
+        self.assertIsNone(self.readers["dynamic"].read_one(
+            "SELECT id FROM harmonizer_events WHERE belief_id_a=? AND belief_id_b=?",
+            (id_a, id_b),
+        ))
+        self.assertIsNone(self.readers["beliefs"].read_one(
+            "SELECT id FROM belief_edges WHERE source_id=? AND target_id=? AND edge_type='opposes'",
+            (id_a, id_b),
+        ))
+
+    def test_resolve_rejects_pair_that_became_paused_or_retired(self):
+        h = _make_harmonizer(self.writers, self.readers)
+        for index, state_sql in enumerate((
+            "UPDATE beliefs SET paused=1 WHERE id=?",
+            "UPDATE beliefs SET tier=8 WHERE id=?",
+        )):
+            id_a, id_b = self._seed_conflict_pair(suffix=f" case {index}")
+            self.writers["dynamic"].write(
+                "INSERT INTO harmonizer_events (ts, belief_id_a, belief_id_b, resolution) "
+                "VALUES (?, ?, ?, 'paradox')",
+                (time.time() - 86400, id_a, id_b),
+            )
+            self.writers["beliefs"].write(state_sql, (id_a,))
+            self.assertEqual(h.resolve(id_a, id_b), "ineligible")
+            row_a = self.readers["beliefs"].read_one(
+                "SELECT tier, paused FROM beliefs WHERE id=?", (id_a,))
+            row_b = self.readers["beliefs"].read_one(
+                "SELECT tier, paused FROM beliefs WHERE id=?", (id_b,))
+            if "paused=1" in state_sql:
+                self.assertEqual((row_a["tier"], row_a["paused"]), (5, 1))
+            else:
+                self.assertEqual(row_a["tier"], 8)
+            self.assertEqual((row_b["tier"], row_b["paused"]), (5, 0))
 
     def test_check_paradox_entry_finds_both_orderings(self):
         """_check_paradox_entry must find the entry regardless of (a,b) vs (b,a) order."""
@@ -490,6 +530,105 @@ class TestHarmonizerSentienceNode(unittest.TestCase):
                             "format_for_prompt must return non-empty with active paradox")
         self.assertIn("tension", result.lower(),
                       "format_for_prompt output must mention tension")
+
+
+
+class TestRetiredMarkerEligibility(unittest.TestCase):
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_scan_excludes_tier_seven_rows_marked_retired(self):
+        id_a = _seed(
+            self.writers,
+            "Consciousness arises from neural complexity and integration",
+            tier=5,
+        )
+        id_b = _seed(
+            self.writers,
+            "Consciousness does not arise from neural complexity",
+            tier=5,
+        )
+        self.writers["beliefs"].write(
+            "UPDATE beliefs SET tier=7, erosion_stage='retired' WHERE id=?",
+            (id_a,),
+        )
+        time.sleep(0.1)
+        h = _make_harmonizer(self.writers, self.readers)
+        conflicts = h.scan_for_conflicts()
+        self.assertNotIn((id_a, id_b), conflicts)
+        self.assertNotIn((id_b, id_a), conflicts)
+
+    def test_mark_and_resolve_reject_retired_marker_even_below_tier_eight(self):
+        id_a = _seed(
+            self.writers,
+            "Markets always trend upward over long time horizons",
+            tier=5,
+        )
+        id_b = _seed(
+            self.writers,
+            "Markets do not always trend upward over long time horizons",
+            tier=5,
+        )
+        self.writers["beliefs"].write(
+            "UPDATE beliefs SET erosion_stage='retired' WHERE id=?",
+            (id_a,),
+        )
+        time.sleep(0.1)
+        h = _make_harmonizer(self.writers, self.readers)
+        self.assertEqual(h.mark_paradox(id_a, id_b), "ineligible")
+        self.assertEqual(h.resolve(id_a, id_b), "ineligible")
+
+
+
+class TestRetiredSynthesisCandidateEligibility(unittest.TestCase):
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_retired_marked_belief_cannot_be_used_as_synthesis_bridge(self):
+        id_a = _seed(
+            self.writers,
+            "Markets always trend upward over long time horizons",
+            tier=5,
+        )
+        id_b = _seed(
+            self.writers,
+            "Markets do not always trend upward over long time horizons",
+            tier=5,
+        )
+        retired_bridge = _seed(
+            self.writers,
+            "Markets trend upward over long time horizons in financial markets",
+            tier=5,
+        )
+        self.writers["beliefs"].write(
+            "UPDATE beliefs SET erosion_stage='retired' WHERE id=?",
+            (retired_bridge,),
+        )
+        time.sleep(0.1)
+        h = _make_harmonizer(self.writers, self.readers)
+
+        result = h.resolve(id_a, id_b)
+        event = self.readers["dynamic"].read_one(
+            "SELECT resolution, synthesis_belief_id FROM harmonizer_events "
+            "WHERE belief_id_a=? AND belief_id_b=? ORDER BY ts DESC LIMIT 1",
+            (id_a, id_b),
+        )
+        if result == "synthesized":
+            # init_all seeds locked keystones; another valid bridge may exist.
+            # The retired candidate itself must never be selected.
+            self.assertNotEqual(event["synthesis_belief_id"], retired_bridge)
+        else:
+            self.assertEqual(result, "both_deleted")
+            self.assertEqual(event["resolution"], "both_deleted")
+            self.assertIsNone(event["synthesis_belief_id"])
 
 
 if __name__ == "__main__":
