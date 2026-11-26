@@ -6,6 +6,10 @@ import influence_trace as trace
 from influence_trace import TraceContext as InfluenceTracer
 
 
+def _sink(tmp_path):
+    return tmp_path / "trace.jsonl"
+
+
 def test_overlay_is_default_off(monkeypatch, tmp_path):
     monkeypatch.delenv("NEX5_TRACE_OVERLAY", raising=False)
     monkeypatch.delenv("NEX5_TRACE_OVERLAY_PATH", raising=False)
@@ -182,7 +186,7 @@ def test_sink_rejects_symlink_to_substrate_database(tmp_path, monkeypatch):
     sink.symlink_to(database)
     monkeypatch.setenv("NEX5_DATA_DIR", str(data_dir))
 
-    tracer = InfluenceTracer(sink_path=sink, enabled=True)
+    tracer = InfluenceTracer("test", sink_path=sink, enabled=True)
     assert tracer.record("writer", "observed", metadata={}) is None
     assert database.read_bytes() == b"do-not-touch"
 
