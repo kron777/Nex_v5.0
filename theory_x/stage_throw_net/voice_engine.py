@@ -87,6 +87,7 @@ class VoiceEngine:
         query: str,
         session_id: Optional[str] = None,
         turn_n: int = 0,
+        trace=None,
     ) -> Optional[dict[str, Any]]:
         """Retrieve highest-relevance candidate for the user query.
 
@@ -95,10 +96,26 @@ class VoiceEngine:
         """
         try:
             candidates = self._retrieve_candidates(query)
+            if trace is not None:
+                trace.candidates(
+                    [candidate.get("origin_id") for candidate in candidates],
+                    source="voice_engine._retrieve_candidates",
+                    candidate_kinds=[candidate.get("source", "unknown")
+                                     for candidate in candidates],
+                    metadata={"candidate_count": len(candidates)},
+                )
             if not candidates:
+                if trace is not None:
+                    trace.selection(
+                        source="voice_engine.query_reply",
+                        candidate_order=[],
+                        selected_order=[],
+                        strategy="max_voice_engine_score",
+                        metadata={"used_as_reply": False, "reason_code": "no_candidates"},
+                    )
                 self._miss_count += 1
                 self._record_query_trigger(
-                    query, session_id, turn_n, None, 0.0, False
+                    query, session_id, turn_n, None, 0.0, False, trace=trace
                 )
                 return None
 
@@ -114,9 +131,28 @@ class VoiceEngine:
 
             self._last_score = best_score
             used = best_score >= self.min_score and best_candidate is not None
+            if trace is not None:
+                trace.selection(
+                    source="voice_engine.query_reply",
+                    candidate_order=[candidate.get("origin_id") for candidate in candidates],
+                    selected_order=(
+                        [best_candidate.get("origin_id")]
+                        if used and best_candidate is not None else []
+                    ),
+                    strategy="max_voice_engine_score",
+                    metadata={
+                        "best_candidate_id": (
+                            best_candidate.get("origin_id") if best_candidate else None
+                        ),
+                        "best_score": best_score,
+                        "minimum_score": self.min_score,
+                        "used_as_reply": used,
+                    },
+                )
 
             self._record_query_trigger(
-                query, session_id, turn_n, best_candidate, best_score, used
+                query, session_id, turn_n, best_candidate, best_score, used,
+                trace=trace,
             )
 
             if used:
@@ -132,6 +168,11 @@ class VoiceEngine:
             return None
 
         except Exception as exc:
+            if trace is not None:
+                trace.record(
+                    "candidate_generation", "voice_engine_error",
+                    metadata={"error_type": type(exc).__name__},
+                )
             errors.record(
                 f"voice_engine.query_reply: {exc}",
                 source=_LOG_SOURCE, exc=exc,
@@ -374,10 +415,11 @@ class VoiceEngine:
         best_candidate: Optional[dict[str, Any]],
         best_score: float,
         used_as_reply: bool,
+        trace=None,
     ) -> None:
         """Fire-and-forget write to throw_net_triggers. Never raises."""
         try:
-            self._writer.write(
+            _trigger_row_id = self._writer.write(
                 "INSERT INTO throw_net_triggers "
                 "(ts, trigger_type, topic, source_event_id, "
                 "threshold_state, fired, session_id) "
@@ -395,7 +437,22 @@ class VoiceEngine:
                     session_id if used_as_reply else None,
                 ),
             )
+            if trace is not None:
+                trace.writer_delta(
+                    database="beliefs", table="throw_net_triggers",
+                    operation="INSERT", row_id=_trigger_row_id,
+                    metadata={"trigger_type": "user_query",
+                              "fired": used_as_reply,
+                              "session_id_present": bool(session_id)},
+                )
         except Exception as exc:
+            if trace is not None:
+                trace.writer_delta(
+                    database="beliefs", table="throw_net_triggers",
+                    operation="INSERT", status="failed",
+                    metadata={"trigger_type": "user_query",
+                              "error_type": type(exc).__name__},
+                )
             errors.record(
                 f"voice_engine._record_query_trigger: {exc}",
                 source=_LOG_SOURCE, exc=exc,
