@@ -2,9 +2,11 @@
 
 This is the ONE place where LLM/human reasoning seeds the engine: the idea is
 decomposed into top-level obligations, and each gets a *reconciliation signature*
-— a read-only pattern that proves whether a real mechanism exists. The engine
-then expands, reconciles against the actual tree, assesses and prioritises
-deterministically. Seeds are proposals; the tree is the authority (RDO §22).
+— a read-only pattern that locates a source anchor for inspection. A match establishes
+source presence only; semantic satisfaction requires separate, explicit review.
+The engine expands, reconciles against the actual tree, assesses and prioritises
+deterministically. Seeds are proposals; the tree grounds source evidence, not
+semantic approval (RDO §22).
 
 Test case: WHATS_NEXT.md §3b / GENIUS_SCORE_v2.md §7 — "deploy the genius
 auto-tagger and its consumers." Chosen because the priority doc is from May 2026,
