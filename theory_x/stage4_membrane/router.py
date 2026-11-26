@@ -58,11 +58,13 @@ class QueryRouter:
                 side_filter="INSIDE",
             )
             if trace is not None:
-                trace.candidates(
+                _inside_candidate_id = trace.candidates(
                     [b.get("id") for b in beliefs],
                     source="membrane.inside_retriever",
                     metadata={"side": "INSIDE", "limit": 5, "branch_hints": ["systems"]},
+                    parent_ids=[trace.reference("input_arrival")],
                 )
+                trace.remember("chat_belief_candidates", _inside_candidate_id)
             if beliefs:
                 parts.append(format_beliefs_for_prompt(beliefs))
         except Exception as exc:
@@ -70,7 +72,8 @@ class QueryRouter:
             if trace is not None:
                 trace.record("candidate_generation", "retrieval_error",
                              metadata={"source": "membrane.inside_retriever",
-                                       "error_type": type(exc).__name__})
+                                       "error_type": type(exc).__name__},
+                             parent_ids=[trace.reference("input_arrival")])
 
         return {
             "side": "INSIDE",
@@ -95,19 +98,22 @@ class QueryRouter:
                 query=query, branch_hints=active_branches, limit=8
             )
             if trace is not None:
-                trace.candidates(
+                _outside_candidate_id = trace.candidates(
                     [b.get("id") for b in beliefs],
                     source="membrane.outside_retriever",
                     metadata={"side": "OUTSIDE", "limit": 8,
                               "branch_hints": active_branches},
+                    parent_ids=[trace.reference("input_arrival")],
                 )
+                trace.remember("chat_belief_candidates", _outside_candidate_id)
             belief_text = format_beliefs_for_prompt(beliefs) if beliefs else None
         except Exception as exc:
             errors.record(f"router outside beliefs error: {exc}", source=_LOG_SOURCE, exc=exc)
             if trace is not None:
                 trace.record("candidate_generation", "retrieval_error",
                              metadata={"source": "membrane.outside_retriever",
-                                       "error_type": type(exc).__name__})
+                                       "error_type": type(exc).__name__},
+                             parent_ids=[trace.reference("input_arrival")])
 
         return {
             "side": "OUTSIDE",
