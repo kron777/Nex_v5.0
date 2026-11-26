@@ -130,9 +130,9 @@ class TraceContext:
         self._enabled = bool(enabled)
         self._clock = clock or time.time
         self._sink_path = Path(sink_path) if sink_path is not None else self._default_sink()
-        self._last_event_id: Optional[str] = None
         self._sequence = 0
         self._events: list[dict] = []
+        self._references: dict[str, str] = {}
         self._lock = threading.Lock()
 
     @staticmethod
@@ -172,6 +172,28 @@ class TraceContext:
         with self._lock:
             return tuple(dict(item) for item in self._events)
 
+    def remember(self, name: str, event_id: Optional[str]) -> None:
+        """Retain an explicitly named event reference for a later causal edge."""
+        if not self._enabled or not event_id:
+            return
+        try:
+            key = str(name).strip()[:80]
+            if key:
+                with self._lock:
+                    self._references[key] = str(event_id)
+        except Exception:
+            return
+
+    def reference(self, name: str) -> Optional[str]:
+        """Return a previously remembered event ID; no parent is inferred."""
+        if not self._enabled:
+            return None
+        try:
+            with self._lock:
+                return self._references.get(str(name).strip()[:80])
+        except Exception:
+            return None
+
     def record(
         self,
         stage: str,
@@ -187,10 +209,7 @@ class TraceContext:
             with self._lock:
                 self._sequence += 1
                 event_id = uuid.uuid4().hex
-                if parent_ids is None:
-                    parents = [self._last_event_id] if self._last_event_id else []
-                else:
-                    parents = [str(item) for item in parent_ids if item][:100]
+                parents = [str(item) for item in (parent_ids or []) if item][:100]
                 safe = _safe_metadata(metadata or {})
                 record = {
                     "schema": SCHEMA,
@@ -216,19 +235,22 @@ class TraceContext:
                     with self._sink_path.open("a", encoding="utf-8") as stream:
                         stream.write(line)
                 self._events.append(record)
-                self._last_event_id = event_id
+                if stage == "input_arrival" and "input_arrival" not in self._references:
+                    self._references["input_arrival"] = event_id
                 return event_id
         except Exception:
             # Observability must never break the path it observes.
             return None
 
-    def input(self, text: str, *, source: str, metadata: Optional[dict] = None) -> Optional[str]:
+    def input(self, text: str, *, source: str, metadata: Optional[dict] = None,
+              parent_ids: Optional[list[str] | tuple[str, ...]] = None) -> Optional[str]:
         if not self._enabled:
             return None
         raw = (text or "").encode("utf-8", errors="replace")
         details = dict(metadata or {})
         details.update({"source": source, "sha256": _digest(raw), "length": len(raw)})
-        return self.record("input_arrival", "received", metadata=details)
+        return self.record("input_arrival", "received", metadata=details,
+                           parent_ids=parent_ids)
 
     def candidates(
         self,
@@ -237,6 +259,7 @@ class TraceContext:
         source: str,
         candidate_kinds=None,
         metadata: Optional[dict] = None,
+        parent_ids: Optional[list[str] | tuple[str, ...]] = None,
     ) -> Optional[str]:
         if not self._enabled:
             return None
@@ -247,7 +270,8 @@ class TraceContext:
             "candidate_kinds": list(candidate_kinds or []),
             "candidate_count": len(candidate_ids or []),
         })
-        return self.record("candidate_generation", "candidates_selected", metadata=details)
+        return self.record("candidate_generation", "candidates_selected",
+                           metadata=details, parent_ids=parent_ids)
 
     def selection(
         self,
@@ -257,6 +281,7 @@ class TraceContext:
         selected_order,
         strategy: str,
         metadata: Optional[dict] = None,
+        parent_ids: Optional[list[str] | tuple[str, ...]] = None,
     ) -> Optional[str]:
         if not self._enabled:
             return None
@@ -267,7 +292,8 @@ class TraceContext:
             "selected_order": list(selected_order or []),
             "strategy": strategy,
         })
-        return self.record("salience_workspace", "selection_recorded", metadata=details)
+        return self.record("salience_workspace", "selection_recorded",
+                           metadata=details, parent_ids=parent_ids)
 
     def gate(
         self,
@@ -276,12 +302,14 @@ class TraceContext:
         gate: str,
         reason_code: Optional[str] = None,
         metadata: Optional[dict] = None,
+        parent_ids: Optional[list[str] | tuple[str, ...]] = None,
     ) -> Optional[str]:
         if not self._enabled:
             return None
         details = dict(metadata or {})
         details.update({"gate": gate, "decision": decision, "reason_code": reason_code})
-        return self.record("gate", "decision", metadata=details)
+        return self.record("gate", "decision", metadata=details,
+                           parent_ids=parent_ids)
 
     def writer_delta(
         self,
@@ -292,6 +320,7 @@ class TraceContext:
         row_id=None,
         status: str = "committed",
         metadata: Optional[dict] = None,
+        parent_ids: Optional[list[str] | tuple[str, ...]] = None,
     ) -> Optional[str]:
         if not self._enabled:
             return None
@@ -308,7 +337,8 @@ class TraceContext:
                 else "single_statement_single_database"
             ),
         })
-        return self.record("sqlite_writer_delta", "write_result", metadata=details)
+        return self.record("sqlite_writer_delta", "write_result",
+                           metadata=details, parent_ids=parent_ids)
 
     def output(
         self,
@@ -317,6 +347,7 @@ class TraceContext:
         output_kind: str,
         status: str = "produced",
         metadata: Optional[dict] = None,
+        parent_ids: Optional[list[str] | tuple[str, ...]] = None,
     ) -> Optional[str]:
         if not self._enabled:
             return None
@@ -327,7 +358,8 @@ class TraceContext:
         else:
             details.update({"sha256": None, "length": 0})
         details.update({"output_kind": output_kind, "status": status})
-        return self.record("output", "result", metadata=details)
+        return self.record("output", "result", metadata=details,
+                           parent_ids=parent_ids)
 
 
 def new_trace(
