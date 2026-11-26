@@ -62,6 +62,19 @@ def test_text_is_hashed_and_never_persisted(tmp_path):
     assert records[2]["metadata"]["length"] == len(secret_reply)
 
 
+def test_nested_text_collections_are_hashed(tmp_path):
+    hidden_candidates = ["candidate secret alpha", "candidate secret beta"]
+    tracer = InfluenceTracer(sink_path=_sink(tmp_path), enabled=True)
+    tracer.record("candidate_generation", "candidates", metadata={
+        "candidate_texts": hidden_candidates,
+    })
+    content = _sink(tmp_path).read_text()
+    assert all(value not in content for value in hidden_candidates)
+    record = json.loads(content)
+    assert record["metadata"]["candidate_texts"]["value_type"] == "list"
+    assert record["metadata"]["candidate_texts"]["length"] > 0
+
+
 def test_trace_metadata_does_not_mutate_candidate_order_or_confidence(tmp_path):
     candidates = [
         {"id": 11, "confidence": 0.82},
