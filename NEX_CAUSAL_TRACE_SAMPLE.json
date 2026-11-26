@@ -849,7 +849,7 @@
           "capture_context": "fixture",
           "metadata": {
             "sha256": "sha256:376dae67a5b0a591c8a05cb46ab2c2dd99879785c20c6a3a07f2492f40a4a9b3",
-            "length": 28,
+            "length": 29,
             "output_kind": "chat_reply",
             "status": "produced",
             "voice_ok": true,
