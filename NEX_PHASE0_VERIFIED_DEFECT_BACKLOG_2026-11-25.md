@@ -518,7 +518,7 @@
 - Type: technical trace-overlay coverage gap (previously labelled M0.5) against the roadmap extract recorded in the reconciliation; exact governing scope UNKNOWN.
 - Evidence: actual runtime seams call `record_fountain_fire()` after generator return and `record_chat_turn()` after Chat reply persistence. Records include a limited set of scalar inputs and output digest/preview; the module marks retrieved-belief and faculty-block attribution unresolved. There are no `trace_id` or `parent_ids`, no candidate-generation/workspace/Gate/writer-delta capture, and Chat cycle_id is `chat:<session_id>` rather than a unique turn ID. See `NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md`.
 - Impact: records cannot reconstruct the requested stage-by-stage causal path or uniquely correlate individual Chat turns within a session. The fixture is not live evidence.
-- Disposition: recover Frozen V2.1 and founder approval to determine whether the two seams are a deliberate Phase 0 precursor or an incomplete M0.5 implementation. Do not add hooks, IDs or reads before that decision.
+- Disposition: recover Frozen V2.1 and founder approval to determine whether the two seams are a deliberate Phase 0 precursor or an incomplete technical trace-overlay implementation. Do not add hooks, IDs or reads before that decision.
 
 ### G-49 — InfluenceRecord L4 evidence label is caller-declared, not independently authenticated
 - Type: evidence-integrity / provenance-label gap; no live L4 record observed.
