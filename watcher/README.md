@@ -1,8 +1,10 @@
 # NEX Integration Watcher
 
-An **external, read-only** observation and test coordinator for NEX. It is an
-instrument to **understand** NEX, not a mechanism that changes it. Observation,
-interpretation and intervention are kept separate on purpose.
+An **external, non-mutating to NEX runtime** observation and test coordinator.
+It may write Watcher-owned reports and evidence ledgers, but it does not change
+NEX cognitive/runtime state. It is an instrument to **understand** NEX, not a
+mechanism that changes it. Observation, interpretation and intervention are
+kept separate on purpose.
 
 ## Guarantees
 
@@ -56,7 +58,7 @@ assumption.
 3. **Third runtime graph** — a separate artifact; the DAG and mind map are inputs,
    never rewritten.
 
-## Run it (all passive)
+## Run it (passive with respect to NEX)
 
 ```bash
 # cloud/static reconnaissance -> report.md + report.json
@@ -122,24 +124,13 @@ evidence — they observe change, they do not cause it. Isolated-testing and
 active-experiment modes are **not** built — they require explicit, per-experiment
 approval and are out of scope until the gate review authorizes them.
 
+
 ## Independent RDO handoff source verification
 
-The Watcher can independently verify a digest-bound RDO handoff from a versioned request file:
+Use the RDO-facing command: `python -m rdo handoff-verify --handoff-id <handoff-id> --repo . --out rdo/.cycles`.
 
-\`\`\`bash
-python -m watcher verify-handoff --request rdo/.cycles/handoffs/<handoff-id>.watcher-request.json
-\`\`\`
+The RDO adapter creates a versioned, exclusive temporary request in the handoff store, then starts `python -m watcher verify-handoff` as a separate process from the trusted RDO/Watcher installation root. The inspected repository is passed as data; its Python modules are never imported as the verifier. The request file is removed after the response is checked. The internal Watcher CLI accepts a request file, but users should invoke the RDO-facing command rather than hand-authoring or relying on a fixed request path.
 
-The command is deliberately source/path-only. It verifies the handoff manifest digest, the complete human scope-review event chain, the planning commit's ancestry, and the changed-file set derived from Git (committed, staged, unstaged and untracked). It checks each changed path against the manifest's exact file allowlist, resolves symlinks under the repository root, fingerprints in-scope changed regular files, and records source-only evidence in the Watcher connection ledger under a process lock.
+The Watcher verifies the immutable manifest digest, complete human scope-review event chain, current approved scope, planning-commit ancestry, Git-derived changed paths (committed, staged, unstaged and non-ignored untracked), exact-file allowlist and symlink boundaries. It fingerprints bounded in-scope changed files and appends source-only transitions to its own connection ledger under `rdo/.cycles` with a process lock covering ledger load, transition checks and append.
 
-It does **not** run pytest, arbitrary commands, scripts, agents, services or NEX runtime operations. Its report always leaves \`test_verified=not_authorized\` and \`runtime_observed=unknown_host_only\`. A file hash proves that a file changed within scope; it does not prove semantic satisfaction or human acceptance. Reviewer attribution is integrity-checked but not identity-authenticated.
-
-The RDO invokes this fixed CLI in a separate Python process via \`python -m rdo handoff-verify\`. The request contains only repository-relative manifest, event-ledger and Watcher-ledger paths. The verifier does not import RDO modules.
-
-
-
-## Independent RDO handoff verification
-
-`python -m watcher verify-handoff --request <request.json>` verifies an approved RDO handoff in a separate Watcher process. It checks the immutable manifest and decision-event chain, current scope approval, planning-commit ancestry, Git-derived changed paths, and exact-file/symlink boundaries. It hashes bounded in-scope files and appends source-only transitions to the Watcher's evidence ledger under `rdo/.cycles`.
-
-This command is non-executing with respect to NEX: it does not run tests, project scripts, agents, services, deployments, or runtime operations. Its ledger write is a Watcher evidence record, not a NEX cognitive-state write. Test evidence remains `not_authorized`; runtime remains host-only `UNKNOWN`; file presence/hash is not semantic acceptance.
+This is source/path verification only. It does not run pytest, arbitrary commands, project scripts, agents, services, deployments or NEX runtime operations. The report keeps `test_verified=not_authorized` and `runtime_observed=unknown_host_only`; file presence/hash does not prove semantic satisfaction or human acceptance. Reviewer attribution is integrity-checked but not identity-authenticated. The Watcher ledger write is a Watcher-owned evidence artifact, not a NEX cognitive/runtime write.
