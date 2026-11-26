@@ -7,7 +7,7 @@ is initialized; pass the live Writer/Reader maps from AppState.
 PhilPapers/PapersWithCode (Cloudflare JS-challenge / site retired) --
 see below.)
 
-Internal sensors start immediately. External feeds start paused.
+Internal sensors start immediately. The SenseScheduler constructor starts external feeds before build_scheduler() returns.
 """
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from .internal.temporal import Temporal
 from .internal.interoception import Interoception
 from .internal.meta_awareness import MetaAwareness
 
-# External feeds (1-19)
+# Primary external feeds (15 currently wired)
 from .feeds.arxiv_ai import ArxivAI
 from .feeds.lab_blogs import LabBlogs
 from .feeds.ml_conferences import MLConferences
@@ -47,7 +47,7 @@ from .feeds.bbc_news import BBCNews
 # still exist under theory_x/stage1_sense/feeds/ for their structure/
 # tests and in case any of them ship a working replacement.
 
-# Diversification feeds (20-25) — start paused
+# Diversification feeds — start paused
 from .feeds.arxiv_math import ArxivMath
 from .feeds.aeon import AeonEssays
 from .feeds.psychology_sciencedaily import PsychologyScienceDaily
@@ -56,7 +56,7 @@ from .feeds.lesswrong import LessWrong
 from .feeds.wikipedia_featured import WikipediaFeatured
 from .feeds.gutenberg import Gutenberg
 
-# AGI/consciousness feeds (26-27) — start paused
+# AGI/consciousness feeds — start paused
 from .feeds.arxiv_cs_ai import ArxivCsAI
 from .feeds.arxiv_qbio_nc import ArxivQbioNC
 
@@ -77,7 +77,7 @@ def build_scheduler(
     late-bound state dict that is populated with the scheduler reference
     after construction — poll() only reads it lazily.
 
-    External feeds start paused. Internal sensors start immediately.
+    The SenseScheduler constructor starts external feeds before this function returns. Internal sensors also start immediately.
     """
     sense_writer = writers["sense"]
     beliefs_reader = readers["beliefs"]
@@ -92,7 +92,7 @@ def build_scheduler(
         Interoception(sense_writer, beliefs_reader=beliefs_reader),
         MetaAwareness(sense_writer, meta_state=_meta_state),
 
-        # External feeds (1-19) — start paused
+        # Primary external feeds (15 currently wired) — start paused
         ArxivAI(sense_writer),
         LabBlogs(sense_writer),
         MLConferences(sense_writer),
@@ -109,7 +109,7 @@ def build_scheduler(
         CryptoNews(sense_writer),
         BBCNews(sense_writer),
 
-        # Diversification feeds (20-25) — start paused
+        # Diversification feeds — start paused
         ArxivMath(sense_writer),
         AeonEssays(sense_writer),
         PsychologyScienceDaily(sense_writer),
@@ -118,7 +118,7 @@ def build_scheduler(
         WikipediaFeatured(sense_writer),
         Gutenberg(sense_writer),
 
-        # AGI/consciousness feeds (26-27) — start paused
+        # AGI/consciousness feeds — start paused
         ArxivCsAI(sense_writer),
         ArxivQbioNC(sense_writer),
     ]
