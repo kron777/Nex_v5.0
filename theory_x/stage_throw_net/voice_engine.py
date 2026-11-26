@@ -114,9 +114,14 @@ class VoiceEngine:
                         metadata={"used_as_reply": False, "reason_code": "no_candidates"},
                     )
                 self._miss_count += 1
-                self._record_query_trigger(
-                    query, session_id, turn_n, None, 0.0, False, trace=trace
-                )
+                if trace is None:
+                    self._record_query_trigger(
+                        query, session_id, turn_n, None, 0.0, False
+                    )
+                else:
+                    self._record_query_trigger(
+                        query, session_id, turn_n, None, 0.0, False, trace=trace
+                    )
                 return None
 
             query_emb = self._embed(query)
@@ -150,10 +155,15 @@ class VoiceEngine:
                     },
                 )
 
-            self._record_query_trigger(
-                query, session_id, turn_n, best_candidate, best_score, used,
-                trace=trace,
-            )
+            if trace is None:
+                self._record_query_trigger(
+                    query, session_id, turn_n, best_candidate, best_score, used
+                )
+            else:
+                self._record_query_trigger(
+                    query, session_id, turn_n, best_candidate, best_score, used,
+                    trace=trace,
+                )
 
             if used:
                 self._reply_count += 1
