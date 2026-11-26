@@ -108,7 +108,7 @@ The history view validates the manifest digest and every decision-event link bef
 - Reviewer attribution is not authentication. Human scope approval and human acceptance are stored as separate append-only events.
 - A blocked package, changed repository snapshot, mismatched objective revision, or tampered manifest/ledger is refused.
 
-This increment enables objective → persisted cycle → exact handoff manifest → human scope review. It does **not** yet provide independent Watcher-process verification or the complete objective-to-verified-delivery pathway required by RDO v1.3 §16 Stage 7. Issue #87 remains open.
+The manifest and human-review increment is now joined by the independent Watcher source/path verifier described below. Together they cover objective → persisted cycle → exact handoff manifest → human scope review → independent source/path verification. This still does not complete the objective-to-verified-delivery pathway required by RDO v1.3 §16 Stage 7: test verification, host-only runtime observation and semantic human acceptance remain distinct gates. Issue #87 remains open.
 
 ## Independent Watcher-process source verification
 
