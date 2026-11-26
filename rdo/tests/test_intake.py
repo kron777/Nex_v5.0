@@ -102,6 +102,15 @@ def make_clean_repo(path: Path) -> Path:
     return path
 
 
+def test_published_example_matches_python_contract():
+    from rdo.intake import load_objective_file
+
+    example = Path(__file__).resolve().parents[1] / "examples" / "objective.v1.example.json"
+    checked = load_objective_file(str(example))
+    assert checked["schema_version"] == "rdo.objective.v1"
+    assert checked["objective_id"] == "read_only_route_example"
+
+
 def test_validation_preserves_original_text_and_all_scope_fields():
     raw = payload()
     checked = validate_objective(raw)
