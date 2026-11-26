@@ -6,7 +6,7 @@
 **HEAD:** de93134f34adac07a3a41c2a05b33720510a2bfc
 **Worktree:** host collector reported clean at this SHA.
 
-This is the current M0.1–M0.2 reality report for the active host checkout. The earlier fb87e24 snapshot is preserved in NEX_REPOSITORY_REALITY_REPORT_HISTORICAL_fb87e24.md. The full Phase 0 branch reconciliation, boot-wiring first pass, M0.3–M0.5 status and crosswalk gaps are in NEX_PHASE0_CURRENT_RECONCILIATION_2026-11-25.md. The founder-reviewable defect backlog is NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-25.md.
+This is the current M0.1–M0.2 reality report for the active host checkout. The earlier fb87e24 snapshot is preserved in NEX_REPOSITORY_REALITY_REPORT_HISTORICAL_fb87e24.md. The full Phase 0 branch reconciliation, boot-wiring first pass, M0.3–M0.5 status and crosswalk gaps are in NEX_PHASE0_CURRENT_RECONCILIATION_2026-11-25.md. The founder-reviewable defect backlog is NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-25.md. The `p12_selfreport` provenance distinction is recorded in NEX_PHASE0_P12_SELFREPORT_PROVENANCE_RECONCILIATION_2026-11-26.md.
 
 ## 1. Repository identity and branch divergence
 
@@ -95,10 +95,10 @@ The Vitals timer is not merely a read-only diagnostic: scheduled --log mode appe
 | Python / SQLite versions | UNKNOWN | Not recorded |
 | Runtime DB/snapshot SHA-256 | UNKNOWN | Hash request skipped by operator |
 | RAM/VRAM and token throughput | UNKNOWN | No idle/load benchmark captured |
-| Test baseline | Reported complete | 1610 passed, 5 skipped, 30 subtests, 0 unexpected failures |
-| Failure reconciliation | Partial | No current unexpected failures reported; older environment-limited result preserved as history |
+| Test baseline | Current run reported clean | 1610 passed, 5 skipped, 30 subtests, 0 unexpected failures |
+| Failure reconciliation | Partial | No current unexpected failures reported; older environment-limited result preserved as history; V2.1 `p12_selfreport` failure identity/classification unresolved |
 
-**M0.1 is partial. M0.2 is complete for the reported active-branch test run, subject to the provenance note above.**
+**M0.1 and M0.2 remain partial.** The 1610-pass run is the reported current active-branch baseline, but it does not close M0.2 while the V2.1 `p12_selfreport` failure identity/classification remains unresolved. See the provenance reconciliation note.
 
 ## 8. Governance and next gate
 
