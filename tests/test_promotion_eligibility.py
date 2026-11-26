@@ -36,6 +36,11 @@ def test_corroborate_rejects_paused_and_retired_beliefs_without_writes():
             "corroboration_count": 10, "locked": 0, "paused": 0,
             "erosion_stage": "external",
         },
+        {
+            "id": 20, "content": "locked working belief", "tier": 6,
+            "corroboration_count": 10, "locked": 1, "paused": 0,
+            "erosion_stage": "external",
+        },
     )
 
     for row in inactive_rows:
