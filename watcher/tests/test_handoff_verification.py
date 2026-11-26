@@ -37,7 +37,7 @@ def _git(repo: Path, *args: str) -> str:
 
 def _repo(tmp_path: Path):
     repo = tmp_path / "repo"
-    repo.mkdir()
+    repo.mkdir(parents=True)
     (repo / "docs").mkdir()
     (repo / "docs" / "REQUIREMENTS.md").write_text("# Base requirements\n", encoding="utf-8")
     (repo / "README.md").write_text("# Fixture\n", encoding="utf-8")
@@ -267,7 +267,7 @@ def test_watcher_waits_for_scope_ledger_writer_lock(tmp_path):
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
         proc = subprocess.Popen(
             [sys.executable, "-m", "watcher", "verify-handoff", "--request", str(request_path)],
-            cwd=str(Path(__file__).resolve().parents[2]), capture_output=True, text=True,
+            cwd=str(Path(__file__).resolve().parents[2]), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
         )
         time.sleep(1.5)
         blocked_on_lock = proc.poll() is None
@@ -315,7 +315,7 @@ def test_concurrent_verifiers_serialize_watcher_ledger_transitions(tmp_path):
         "--request", str(request_path),
     ]
     processes = [
-        subprocess.Popen(command, cwd=trusted_root, capture_output=True, text=True)
+        subprocess.Popen(command, cwd=trusted_root, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         for _ in range(2)
     ]
     outputs = [proc.communicate(timeout=20) for proc in processes]
