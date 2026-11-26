@@ -30,10 +30,10 @@ errors.py           central error channel (ring buffer + logging handler)
 theory_x/
   stage1_sense/
     base.py         Adapter ABC + SenseEvent dataclass (THEORY_X_STAGE=1)
-    scheduler.py    SenseScheduler — one thread per adapter, paused-by-default
-    internal/       feeds 20–23: proprioception, temporal, interoception, meta_awareness
-    feeds/          feeds 1–19: all external adapters, one file each
-    __init__.py     build_scheduler() factory — wires all 23 adapters
+    scheduler.py    SenseScheduler — one thread per adapter; external feeds auto-start on construction
+    internal/       internal sensors: proprioception, temporal, interoception, meta_awareness
+    feeds/          external feed adapters, one file each
+    __init__.py     build_scheduler() factory — wires all 28 adapters (4 internal, 24 external)
   stage2_dynamic/
     bonsai.py       BonsaiTree — 10 seed branches, decay/prune (THEORY_X_STAGE=2)
     membrane.py     Membrane — aperture + accumulator
@@ -309,35 +309,26 @@ Both conditions must be met for external feeds to run:
 _global_run (SenseScheduler.start_all/stop_all) AND _local_run (per-adapter enable/disable)
 ```
 
-Boot state: `_global_run` is NOT set → all external feeds paused. Internal sensors' `_local_run` is set immediately at construction.
+Construction state: each external adapter's `_local_run` starts unset, but `SenseScheduler.__init__()` calls `start_all()` before returning. The global run-event and external adapters' local run-events are therefore set during normal boot. Internal sensors' local run-event is set immediately and is independent of the global toggle.
 
-### The 23 adapters
+### The 28 adapters (4 internal, 24 external)
 
-| # | ID | Stream | Interval | Type |
-|---|---|---|---|---|
-| 1 | `arxiv_ai` | ai_research.arxiv | 1h | arXiv Atom API |
-| 2 | `papers_with_code` | ai_research.pwc | 1h | JSON API |
-| 3 | `lab_blogs` | ai_research.lab_blogs | 30m | 4 RSS feeds |
-| 4 | `ml_conferences` | ai_research.conferences | 24h | RSS |
-| 5 | `hacker_news` | emerging_tech.hn | 5m | Algolia HN JSON API |
-| 6 | `mit_tech_review` | emerging_tech.mit_tr | 30m | RSS |
-| 7 | `ieee_spectrum` | emerging_tech.ieee | 30m | RSS |
-| 8 | `arxiv_emerging` | emerging_tech.arxiv | 1h | arXiv Atom API |
-| 9 | `biorxiv_neuro` | cognition.biorxiv | 1h | RSS |
-| 10 | `frontiers_neuro` | cognition.frontiers | 1h | RSS |
-| 11 | `philpapers` | cognition.philpapers | 2h | RSS |
-| 12 | `arxiv_computing` | computing.arxiv | 1h | arXiv Atom API |
-| 13 | `tech_news` | computing.tech_news | 30m | 3 RSS feeds |
-| 14 | `coingecko` | crypto.coingecko | 60s | JSON API |
-| 15 | `exchange_prices` | crypto.exchanges | 60s | 3 exchange APIs |
-| 16 | `crypto_news` | crypto.news | 15m | 3 RSS feeds |
-| 17 | `reuters` | news.reuters | 15m | RSS |
-| 18 | `ap_news` | news.ap | 15m | RSS |
-| 19 | `bbc_news` | news.bbc | 15m | RSS |
-| 20 | `proprioception` | internal.proprioception | 10s | psutil (internal) |
-| 21 | `temporal` | internal.temporal | 60s | system clock (internal) |
-| 22 | `interoception` | internal.interoception | 30s | beliefs.db Reader (internal) |
-| 23 | `meta_awareness` | internal.meta_awareness | 10s | writers + scheduler (internal) |
+The active factory list in `theory_x/stage1_sense/__init__.py:build_scheduler()`
+constructs the following classes. This is a source inventory; it does not claim
+that any feed successfully reaches its remote source or emits events.
+
+| Group | Wired adapter classes | Count |
+|---|---|---:|
+| Internal sensors | `Proprioception`, `Temporal`, `Interoception`, `MetaAwareness` | 4 |
+| Primary external feeds | `ArxivAI`, `LabBlogs`, `MLConferences`, `HackerNews`, `MITTechReview`, `IEEESpectrum`, `ArxivEmerging`, `BiorxivNeuro`, `FrontiersNeuro`, `ArxivComputing`, `TechNews`, `CoinGecko`, `ExchangePrices`, `CryptoNews`, `BBCNews` | 15 |
+| Diversification feeds | `ArxivMath`, `AeonEssays`, `PsychologyScienceDaily`, `QuantaMagazine`, `LessWrong`, `WikipediaFeatured`, `Gutenberg` | 7 |
+| AGI/consciousness feeds | `ArxivCsAI`, `ArxivQbioNC` | 2 |
+| **Total** | **28 wired adapters** | **28** |
+
+The four internal adapters are not controlled by the global external-feed
+run-event. All 24 external adapters are enabled by the constructor's
+`start_all()` call. Adapter poll success and live event production require
+separate runtime evidence.
 
 ### GUI additions (Phase 2)
 
@@ -345,7 +336,7 @@ New endpoints:
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/sense/status` | Full scheduler status — all 23 adapters |
+| `GET` | `/api/sense/status` | Full scheduler status — all 28 adapters |
 | `POST` | `/api/sense/start` | `start_all()` — wake external feeds |
 | `POST` | `/api/sense/stop` | `stop_all()` — pause external feeds |
 | `POST` | `/api/sense/toggle/<id>` | Per-adapter enable/disable |
