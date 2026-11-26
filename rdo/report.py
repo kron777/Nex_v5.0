@@ -440,7 +440,7 @@ def run_stage2_belief_decay(repo_dir: str = ".", workdir: str = "rdo/.cycles",
         record_actual(cycle, actual)
         comparison = compare(cycle)                      # predicted vs reviewed discrepancies
         for p in derive_lessons(cycle, comparison):      # candidate patterns (low, capped confidence)
-            p.provenance = f"{p.provenance}|planning_review|reviewer={reviewer}"
+            p.provenance = f"{p.provenance}|{review_kind}|reviewer={reviewer}"
             memory.add(p)                                # durable: appended to patterns.jsonl
             calibration.append(p)
         store.save(cycle)                                # durable: cycle now carries the reviewed actual
@@ -596,7 +596,7 @@ def run_stage6_learning_loop(repo_dir: str = ".", workdir: str = "rdo/.cycles") 
         "provenance_split": loop["provenance_split"],
         "mean_prediction_accuracy": loop["mean_prediction_accuracy"],
         "accuracy_basis": loop["accuracy_basis"],
-        "unknown_outcomes": sum(1 for p in loop["per_cycle"] if p["accuracy"] is None),
+        "unknown_outcomes": sum(1 for p in loop["per_cycle"]\n                              if p["accuracy"] is None or p["accuracy"].get("accuracy") is None),
         "reopening": loop["reopening"],
         "comparability_largest_group": loop["comparability"]["largest_genuinely_comparable_group"],
         "anti_gaming": loop["anti_gaming"],
