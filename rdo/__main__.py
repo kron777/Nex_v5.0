@@ -18,9 +18,12 @@ import os
 import sys
 
 from . import __version__
+from .knowledge import genius_authority_audit
 from .memory import PatternMemory
-from .orchestrator import (assess_signal_authority, demo_genius_tagger, run_catalogue,
-                           self_assess)
+from .report import (demo_genius_tagger, run_catalogue, run_stage2_belief_decay,
+                     run_stage3_graph_intelligence, run_stage4_belief_audit,
+                     run_stage5_belief_pathway, run_stage6_learning_loop,
+                     run_stage7_execution_integration, self_assess)
 
 
 def _run_demo(args) -> int:
@@ -34,7 +37,37 @@ def _run_all(args) -> int:
 
 
 def _influence(args) -> int:
-    print(json.dumps(assess_signal_authority(args.repo, args.signal), indent=2, default=str))
+    print(json.dumps(genius_authority_audit(args.repo, args.signal), indent=2, default=str))
+    return 0
+
+
+def _stage2(args) -> int:
+    print(json.dumps(run_stage2_belief_decay(args.repo, args.out), indent=2, default=str))
+    return 0
+
+
+def _stage3(args) -> int:
+    print(json.dumps(run_stage3_graph_intelligence(args.repo, args.out), indent=2, default=str))
+    return 0
+
+
+def _stage4(args) -> int:
+    print(json.dumps(run_stage4_belief_audit(args.repo, args.out), indent=2, default=str))
+    return 0
+
+
+def _stage5(args) -> int:
+    print(json.dumps(run_stage5_belief_pathway(args.repo, args.out), indent=2, default=str))
+    return 0
+
+
+def _stage6(args) -> int:
+    print(json.dumps(run_stage6_learning_loop(args.repo, args.out), indent=2, default=str))
+    return 0
+
+
+def _stage7(args) -> int:
+    print(json.dumps(run_stage7_execution_integration(args.repo, args.out), indent=2, default=str))
     return 0
 
 
@@ -69,6 +102,36 @@ def main(argv=None) -> int:
     i.add_argument("--repo", default=".")
     i.add_argument("--signal", default="genius")
     i.set_defaults(fn=_influence)
+
+    s2 = sub.add_parser("stage2", help="RDO v1.3 §16 Stage-2 Extrapolator MVP (belief-decay objective)")
+    s2.add_argument("--repo", default=".")
+    s2.add_argument("--out", default="rdo/.cycles")
+    s2.set_defaults(fn=_stage2)
+
+    s3 = sub.add_parser("stage3", help="RDO v1.3 §16 Stage-3 graph intelligence (SCC / dedup / sequence)")
+    s3.add_argument("--repo", default=".")
+    s3.add_argument("--out", default="rdo/.cycles")
+    s3.set_defaults(fn=_stage3)
+
+    s4 = sub.add_parser("stage4", help="RDO v1.3 §16 Stage-4 read-only belief audit (lifecycle + gap map)")
+    s4.add_argument("--repo", default=".")
+    s4.add_argument("--out", default="rdo/.cycles")
+    s4.set_defaults(fn=_stage4)
+
+    s5 = sub.add_parser("stage5", help="RDO v1.3 §16 Stage-5 first belief-to-mechanism pathway (spec)")
+    s5.add_argument("--repo", default=".")
+    s5.add_argument("--out", default="rdo/.cycles")
+    s5.set_defaults(fn=_stage5)
+
+    s6 = sub.add_parser("stage6", help="RDO v1.3 §16 Stage-6 learning loop (calibration over real evidence)")
+    s6.add_argument("--repo", default=".")
+    s6.add_argument("--out", default="rdo/.cycles")
+    s6.set_defaults(fn=_stage6)
+
+    s7 = sub.add_parser("stage7", help="RDO v1.3 §16 Stage-7 execution integration verified via Watcher")
+    s7.add_argument("--repo", default=".")
+    s7.add_argument("--out", default="rdo/.cycles")
+    s7.set_defaults(fn=_stage7)
 
     sub.add_parser("selfcheck",
                    help="assess the RDO against its own Optimal Functional Tension").set_defaults(fn=_selfcheck)

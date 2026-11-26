@@ -235,3 +235,46 @@ forbids.
   anti-requirements, tension), not equations.
 - Runtime observation is **host-only**. Cloud-side cycles never claim a runtime
   behaviour was observed; they recommend verification and leave it blocked.
+
+## RDO staged capabilities (v1.3 §16)
+
+The staged development path is now represented in the repository as separate,
+testable capabilities:
+
+- **Stage 2 — Recursive expansion:** bounded recursive obligation discovery,
+  reconciliation, safe convergence, frontier accounting and resumable cycles.
+- **Stage 3 — Graph intelligence:** typed relationships, strongly connected
+  components, completeness and sequencing analysis. Similarity is surfaced as a
+  candidate; obligations are not silently merged.
+- **Stage 4 — Belief lifecycle audit:** source-grounded, read-only mapping of
+  belief mechanisms and lifecycle gaps. It does not query or modify the live DB.
+- **Stage 5 — Belief-to-retrieval pathway:** an isolated, gated pathway analysis;
+  no live confidence or retrieval write is performed.
+- **Stage 6 — Learning loop:** prediction/outcome comparison, explicit
+  provenance, reopening on contradictory evidence, and confidence that can be
+  reduced by disconfirmation. A planning review is not an execution outcome.
+- **Stage 7 — Execution verification:** independent source and explicitly
+  allowlisted test evidence, linked through the Watcher's ledger. Runtime
+  observation remains host-only and UNKNOWN in cloud execution.
+
+Run a stage against the repository without touching live NEX state:
+
+```bash
+python -m rdo stage2
+python -m rdo stage3
+python -m rdo stage4
+python -m rdo stage5
+python -m rdo stage6
+python -m rdo stage7
+```
+
+These commands produce RDO work artifacts under `rdo/.cycles`; they do not
+activate NEX, modify the live belief store, change feature flags, start or stop
+services, execute arbitrary tests, deploy code, or claim runtime verification.
+Stage 7's fixture authorizes only its own exact repository-relative test path.
+
+**Specification note:** the staged documents identify RDO v1.3 §16 as their
+sequence while some pre-existing docstrings cite v1.4. Version precedence has
+not been inferred. The discrepancy remains explicit pending review of the
+original governing specifications.
+
