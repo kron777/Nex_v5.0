@@ -17,6 +17,7 @@ cycles exist to support one.
 """
 from __future__ import annotations
 
+import dataclasses
 import json
 import math
 import os
@@ -54,85 +55,186 @@ def _bounded_confidence(value) -> float:
     return max(0.0, min(value, CONFIDENCE_CAP))
 
 
+CONFIDENCE_CAP = 0.9
+CONFIDENCE_STEP = 0.1
+
+
+def _confidence(base: float, observed_count: int, disconfirmed_count: int) -> float:
+    """Pure, order-independent heuristic confidence from deduplicated event counts."""
+    base = _bounded_confidence(base)
+    if (isinstance(observed_count, bool) or not isinstance(observed_count, int)
+            or observed_count < 0):
+        raise ValueError("pattern observed_count must be a non-negative integer")
+    if (isinstance(disconfirmed_count, bool) or not isinstance(disconfirmed_count, int)
+            or disconfirmed_count < 0):
+        raise ValueError("pattern disconfirmed_count must be a non-negative integer")
+    raw = base + CONFIDENCE_STEP * (observed_count - 1) - CONFIDENCE_STEP * disconfirmed_count
+    return _bounded_confidence(round(raw, 3))
+
+
+
+
 class PatternMemory:
+    """Append-only pattern memory with deduplicated corroboration and refutation.
+
+    The event lists are authoritative. Confidence is recomputed from bounded
+    base confidence and event counts. Every write revalidates mutable aliases.
+    """
     def __init__(self, path: str) -> None:
         self.path = path
         self._current: Dict[str, Pattern] = {}
         if os.path.exists(path):
             with open(path, "r", encoding="utf-8") as fh:
-                for line in fh:
-                    line = line.strip()
-                    if line:
-                        d = json.loads(line)
-                        pattern = Pattern(**d)
-                        pattern.confidence = _bounded_confidence(pattern.confidence)
-                        self._current[pattern.key] = pattern
+                lines = fh.readlines()
+            fields = {f.name for f in dataclasses.fields(Pattern)}
+            for index, line in enumerate(lines):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    data = json.loads(line)
+                except json.JSONDecodeError:
+                    if index == len(lines) - 1:
+                        continue
+                    raise
+                p = Pattern(**{k: v for k, v in data.items() if k in fields})
+                old_confidence = _bounded_confidence(p.confidence)
+                if "base_confidence" not in data:
+                    tokens = [x.strip() for x in str(p.provenance).split(";") if x.strip()]
+                    if not p.confirmations:
+                        p.confirmations = (tokens if len(tokens) == p.observed_count
+                                           else ([p.provenance] if p.provenance else []))
+                    p.base_confidence = _bounded_confidence(
+                        old_confidence - CONFIDENCE_STEP * max(0, p.observed_count - 1)
+                                    + CONFIDENCE_STEP * p.disconfirmed_count
+                    )
+                else:
+                    p.base_confidence = _bounded_confidence(p.base_confidence)
+                if not p.confirmations and p.provenance:
+                    p.confirmations = [p.provenance]
+                p.confirmations = self._clean_events(p.confirmations, "confirmation")
+                p.disconfirmations = self._clean_events(p.disconfirmations, "disconfirmation")
+                self._recompute(p)
+                self._current[p.key] = p
+
+    @staticmethod
+    def _clean_events(events, label: str) -> List[str]:
+        if not isinstance(events, list):
+            raise ValueError(f"pattern {label} events must be a list")
+        out = []
+        for event in events:
+            if not isinstance(event, str) or not event.strip():
+                raise ValueError(f"pattern {label} events must be non-empty strings")
+            event = event.strip()
+            if event not in out:
+                out.append(event)
+        return out
+
+    @staticmethod
+    def _reliable(pattern: Pattern) -> bool:
+        return pattern.confidence > 0.0 and pattern.observed_count > pattern.disconfirmed_count
+
+    def _recompute(self, pattern: Pattern) -> None:
+        pattern.base_confidence = _bounded_confidence(pattern.base_confidence)
+        pattern.confirmations = self._clean_events(pattern.confirmations, "confirmation")
+        pattern.disconfirmations = self._clean_events(pattern.disconfirmations, "disconfirmation")
+        pattern.observed_count = len(pattern.confirmations)
+        pattern.disconfirmed_count = len(pattern.disconfirmations)
+        pattern.confidence = _confidence(
+            pattern.base_confidence, pattern.observed_count, pattern.disconfirmed_count
+        )
 
     def add(self, pattern: Pattern) -> Pattern:
-        """Add or corroborate once per recorded provenance token.
-
-        Exact cycle replay is idempotent. A new recorded origin is retained and
-        counted once, but distinct provenance alone does not prove independent
-        underlying evidence; that interpretation remains a human judgement.
-        Multiple new semicolon-separated provenance tokens in one add() call are
-        retained together but increment observed_count once for that call.
-        """
+        """Add or corroborate one provenance event. Exact replay is idempotent."""
         incoming_confidence = _bounded_confidence(pattern.confidence)
-        incoming = list(dict.fromkeys(
-            x.strip() for x in str(pattern.provenance).split(";") if x.strip()
-        ))
-        ex = self._current.get(pattern.key)
-        if ex is not None:
-            # Public getters expose the stored mutable Pattern objects for
-            # compatibility. Revalidate an existing record before any mutation:
-            # callers may have changed its confidence through a returned alias.
-            original_confidence = ex.confidence
-            existing_confidence = _bounded_confidence(original_confidence)
-            confidence_normalized = original_confidence != existing_confidence
-            existing = list(dict.fromkeys(
-                x.strip() for x in str(ex.provenance).split(";") if x.strip()
-            ))
-            new = [x for x in incoming if x not in existing]
-            updated_confidence = existing_confidence
-            if new:
-                # Compute/validate the new value before changing provenance/count.
-                updated_confidence = _bounded_confidence(
-                    round(existing_confidence + 0.1, 3)
-                )
-            # Restore the bounded value after validation; callers may also have
-            # supplied a finite but out-of-range value through a returned alias.
-            ex.confidence = existing_confidence
-            exceptions_changed = False
-            for x in pattern.exceptions:
-                if x not in ex.exceptions:
-                    ex.exceptions.append(x)
-                    exceptions_changed = True
-            if not new:
-                # Persist a finite out-of-range alias normalization even when
-                # provenance replay is otherwise idempotent. Without this, the
-                # in-memory value would differ from the durable JSONL record.
-                if confidence_normalized or exceptions_changed:
-                    self._append(ex)
-                return ex
-            ex.provenance = "; ".join(existing + new)
-            ex.observed_count += 1
-            ex.confidence = updated_confidence
-            cur = ex
-        else:
-            pattern.confidence = incoming_confidence
-            pattern.provenance = "; ".join(incoming)
+        incoming_base = _bounded_confidence(pattern.base_confidence)
+        incoming = [x.strip() for x in str(pattern.provenance).split(";") if x.strip()]
+        if not incoming:
+            raise ValueError("pattern provenance must contain a non-empty source")
+        existing = self._current.get(pattern.key)
+        if existing is None:
+            if incoming_base == 0.3 and incoming_confidence != 0.3:
+                incoming_base = incoming_confidence
+            pattern.base_confidence = incoming_base
+            if not pattern.confirmations:
+                pattern.confirmations = ["; ".join(incoming)]
+            self._recompute(pattern)
             self._current[pattern.key] = pattern
-            cur = pattern
-        self._append(cur)
-        return cur
+            self._append(pattern)
+            return pattern
+
+        # Validate all caller-visible mutable state before changing it.
+        original_confidence = existing.confidence
+        normalized_confidence = _bounded_confidence(original_confidence)
+        normalized_base = _bounded_confidence(existing.base_confidence)
+        confidence_normalized = original_confidence != normalized_confidence
+        if not isinstance(existing.provenance, str):
+            raise ValueError("pattern provenance must be a string")
+        old_origins = [x.strip() for x in existing.provenance.split(";") if x.strip()]
+        old_confirmations = self._clean_events(existing.confirmations, "confirmation")
+        old_disconfirmations = self._clean_events(existing.disconfirmations, "disconfirmation")
+        new_origins = [x for x in incoming if x not in old_origins]
+        next_confirmations = list(old_confirmations)
+        if new_origins:
+            event = "; ".join(new_origins)
+            if event not in next_confirmations:
+                next_confirmations.append(event)
+        next_exceptions = list(existing.exceptions)
+        exception_set_before = list(next_exceptions)
+        for item in pattern.exceptions:
+            if item not in next_exceptions:
+                next_exceptions.append(item)
+        exceptions_changed = next_exceptions != exception_set_before
+
+        # A finite out-of-range alias is normalized at the public boundary. Treat
+        # the clamped value as the new base so it remains durable on idempotent replay.
+        if confidence_normalized:
+            normalized_base = normalized_confidence
+        existing.base_confidence = normalized_base
+        existing.confirmations = next_confirmations
+        existing.disconfirmations = old_disconfirmations
+        if new_origins:
+            existing.provenance = "; ".join(old_origins + new_origins)
+        existing.exceptions = next_exceptions
+        self._recompute(existing)
+        if new_origins or exceptions_changed or confidence_normalized:
+            self._append(existing)
+        return existing
 
     def _append(self, pattern: Pattern) -> None:
-        # Last-line defence: never write a record whose confidence was altered
-        # through a public mutable alias after the add() checks.
         pattern.confidence = _bounded_confidence(pattern.confidence)
+        pattern.base_confidence = _bounded_confidence(pattern.base_confidence)
+        pattern.confirmations = self._clean_events(pattern.confirmations, "confirmation")
+        pattern.disconfirmations = self._clean_events(pattern.disconfirmations, "disconfirmation")
         os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
         with open(self.path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(pattern.to_dict(), default=str) + "\n")
+
+    def refute(self, key: str, evidence: str) -> Optional[Pattern]:
+        """Record new disconfirming evidence; duplicate evidence cannot penalize twice."""
+        pattern = self._current.get(key)
+        if pattern is None:
+            return None
+        _bounded_confidence(pattern.confidence)  # validate aliases before mutation
+        base = _bounded_confidence(pattern.base_confidence)
+        confirmations = self._clean_events(pattern.confirmations, "confirmation")
+        disconfirmations = self._clean_events(pattern.disconfirmations, "disconfirmation")
+        if not isinstance(evidence, str) or not evidence.strip():
+            raise ValueError("disconfirming evidence must be a non-empty string")
+        evidence = evidence.strip()
+        if evidence in disconfirmations:
+            return pattern
+        exceptions = list(pattern.exceptions)
+        note = f"disconfirmed: {evidence}"
+        if note not in exceptions:
+            exceptions.append(note)
+        pattern.base_confidence = base
+        pattern.confirmations = confirmations
+        pattern.disconfirmations = disconfirmations + [evidence]
+        pattern.exceptions = exceptions
+        self._recompute(pattern)
+        self._append(pattern)
+        return pattern
 
     def patterns(self) -> List[Pattern]:
         return list(self._current.values())
@@ -140,7 +242,9 @@ class PatternMemory:
     def applicable(self, context: str) -> List[Pattern]:
         ctx = context.lower()
         return [p for p in self._current.values()
-                if not p.applicability or any(w in ctx for w in p.applicability.lower().split())]
+                if self._reliable(p)
+                and (not p.applicability
+                     or any(w in ctx for w in p.applicability.lower().split()))]
 
 
 class CycleStore:
@@ -452,3 +556,173 @@ def accuracy_series(cycles: List[CycleRecord]) -> Dict:
                         if len(completed) < MIN_CYCLES_FOR_TREND
                         else "enough cycles to begin assessing a trend (report values, not hype)"),
     }
+
+# Stage 6 evidence-provenance learning loop; outcomes remain UNKNOWN until recorded.
+
+def comparability_assessment(cycles: List[CycleRecord]) -> Dict:
+    """A lightweight per-cycle comparability signature (founder item 4). Sharing a coarse
+    work_type does NOT make objectives comparable; this derives the dimensions that matter
+    and groups by engineering_pattern. Better a small honest comparison group than a large
+    artificial one."""
+    rows = []
+    for c in cycles:
+        if c.kind != EXECUTED_VERIFIED or c.actual is None:
+            continue
+        a, v = c.actual, c.verification
+        # migration/DB involvement is taken from the AUTHORITATIVE engineering_pattern tag,
+        # not keyword-matched (config's notes mention 'migration' incidentally — a false positive).
+        is_migration = c.engineering_pattern == "migration_guard"
+        rows.append({
+            "cycle": c.id,
+            "engineering_pattern": c.engineering_pattern,
+            "obligations_built": len(a.get("obligations_built", [])),
+            "reuse_vs_new": f"{len(c.reused)} reused / {len(a.get('obligations_built', []))} new",
+            "migration_or_runtime": is_migration,
+            "verification_tests": v.get("tests") or v.get("equivalence_tests"),
+            "db_fixture_involved": is_migration,
+        })
+    groups: Dict[str, List[str]] = {}
+    for r in rows:
+        groups.setdefault(r["engineering_pattern"], []).append(r["cycle"])
+    return {
+        "per_cycle": rows,
+        "groups_by_engineering_pattern": groups,
+        "largest_genuinely_comparable_group": max((len(v) for v in groups.values()), default=0),
+        "finding": "sharing work_type='test_guard' did NOT make the three guards comparable: two are "
+                   "migration guards (DB fixtures + the real migration runner) and one is an "
+                   "invariant guard (source scan, no DB). The honest comparable group is the 2 "
+                   "migration guards, not 3 — a smaller honest set, not a larger artificial one.",
+    }
+
+
+_OUTCOME_MEASURES = ("missed_obligation_count", "prediction_error_effort", "rework")
+_PROCESS_MEASURES = ("expansion_grounded_fraction", "duplicate_discovery_rate",
+                     "reuse_accuracy", "verification_success")
+
+def transfer_observations(cycles: List[CycleRecord]) -> Dict:
+    """Record cross-cycle knowledge-transfer OBSERVATIONS explicitly, without
+    inflating any score (founder constraint). Reports each executed cycle's
+    predicted-vs-actual and whether the prediction matched; states plainly that
+    these are observed instances, not proof of a trend, and that transfer currently
+    lives in the reasoning, not autonomously in the keyword matcher."""
+    execs = [c for c in cycles if c.kind == EXECUTED_VERIFIED and c.actual is not None]
+    rows = []
+    for c in execs:
+        d = compare(c)
+        matched = d.get("effort_error") == 0 and not d.get("under_expansion_missed")
+        rows.append({
+            "cycle": c.id,
+            "predicted_effort": c.predicted.get("effort"),
+            "actual_effort": c.actual.get("effort_actual"),
+            "effort_error": d.get("effort_error"),
+            "missed_obligations": len(d.get("under_expansion_missed") or []),
+            "prediction_matched": matched,
+        })
+    return {
+        "executed_cycles": rows,
+        "observation": "Cycle 1 missed an obligation (actual effort exceeded prediction); later "
+                       "cycles matched prediction. An OBSERVED instance of cross-cycle knowledge "
+                       "transfer — NOT proof of a general improvement trend.",
+        "caveat": "Transfer is applied in the reasoning (reconcile-first + anticipate-the-hidden-"
+                  "obligation), not yet driven autonomously by Pattern Memory's keyword matcher. "
+                  "n is small; even three matched cycles are not statistical proof. Predictions "
+                  "are never rewritten after the fact.",
+    }
+
+def prediction_accuracy(cycle: CycleRecord) -> Optional[Dict]:
+    """Prediction accuracy from recorded discrepancies. UNKNOWN (None) until an actual is recorded.
+    Over-expansion (unnecessary), under-expansion (missed) and inappropriate reuse ALL enter the
+    denominator, so proposing MORE obligations than needed never raises the score."""
+    if cycle.actual is None:
+        return None                                   # UNKNOWN — never fabricated
+    d = compare(cycle)
+    missed = len(d["under_expansion_missed"])
+    unnecessary = len(d["over_expansion_unnecessary"])
+    bad_reuse = len(d["inappropriate_reuse"])
+    predicted_net_new = cycle.predicted.get("net_new_count", len(cycle.missing))
+    correct = max(0, predicted_net_new - unnecessary)  # unnecessary predictions are not "correct"
+    denom = correct + missed + unnecessary + bad_reuse
+    return {
+        "correct": correct, "missed": missed, "unnecessary": unnecessary,
+        "inappropriate_reuse": bad_reuse, "effort_error": d["effort_error"],
+        "accuracy": (round(correct / denom, 3) if denom else None),
+        "note": "missed + unnecessary both reduce accuracy; more obligations never raises it",
+    }
+
+def learning_provenance(cycle: CycleRecord) -> str:
+    """Distinguish a HUMAN-reviewed outcome from automated self-assessment and from a real
+    execution outcome. A planning review is tagged human_reviewed:planning_review and must NOT be
+    read as an independent execution outcome."""
+    a = cycle.actual or {}
+    if a.get("review_kind") == "watcher_verified_execution":
+        return "independent_watcher_verified"          # external observation, not human, not self
+    if a.get("reviewer"):
+        kind = "planning_review" if a.get("review_kind") == "planning_review" else "execution_review"
+        return f"human_reviewed:{kind}"
+    if cycle.actual is None:
+        return "unknown_no_outcome"
+    if cycle.kind == EXECUTED_VERIFIED:
+        return "executed_verified_outcome"
+    return "automated_self_assessment"
+
+def reopening_candidates(cycle: CycleRecord, new_evidence: List[Dict]) -> List[Dict]:
+    """New evidence can reopen a previously deferred or apparently-resolved branch. Each item is
+    {key, observation, now?, blocker_cleared?}. Reopen only on CONCRETE contradicting evidence;
+    UNKNOWN/insufficient evidence does not reopen (no manufactured certainty)."""
+    by_key = {o["key"]: o for o in cycle.obligations}
+    frontier_keys = {f["key"] for f in cycle.frontier}
+    out: List[Dict] = []
+    for ev in new_evidence or []:
+        k, obs = ev.get("key"), ev.get("observation", "")
+        if not obs or ev.get("now") == "unknown":
+            out.append({"key": k, "reopen": False, "reason": "insufficient/UNKNOWN evidence — not reopened"})
+        elif k in by_key and by_key[k].get("recon_status") == "reuse_existing" and ev.get("now") == "missing":
+            out.append({"key": k, "reopen": True, "reason": "reused mechanism now observed missing", "evidence": obs})
+        elif k in frontier_keys and ev.get("blocker_cleared"):
+            out.append({"key": k, "reopen": True, "reason": "deferred branch's blocker reported cleared", "evidence": obs})
+        else:
+            out.append({"key": k, "reopen": False, "reason": "no matching deferred/resolved branch"})
+    return out
+
+def learning_loop(cycles: List[CycleRecord], new_evidence: Optional[List[Dict]] = None,
+                  reopen_cycle: Optional[CycleRecord] = None) -> Dict:
+    """The assembled Stage-6 learning loop over real stage evidence. Per-cycle accuracy + provenance
+    with explicit UNKNOWNs and contradictory-evidence flags; aggregate accuracy only over recorded
+    outcomes; reopening on new evidence. Planning reviews are never counted as execution outcomes."""
+    per: List[Dict] = []
+    reviewed = other = unknown = 0
+    for c in cycles:
+        prov = learning_provenance(c)
+        acc = prediction_accuracy(c)
+        contradiction = None
+        if c.actual is not None:
+            d = compare(c)
+            overlap = set(d["under_expansion_missed"]) & set(d["over_expansion_unnecessary"])
+            contradiction = sorted(overlap) or None   # same obligation both missed AND unnecessary
+        per.append({
+            "cycle": c.id, "kind": c.kind, "provenance": prov,
+            "outcome_status": "recorded" if c.actual is not None else "UNKNOWN (pending)",
+            "accuracy": acc, "contradictory_evidence": contradiction,
+        })
+        if prov.startswith("human_reviewed"):
+            reviewed += 1
+        elif prov == "unknown_no_outcome":
+            unknown += 1
+        else:
+            other += 1
+    accs = [p["accuracy"]["accuracy"] for p in per
+            if p["accuracy"] and p["accuracy"]["accuracy"] is not None]
+    return {
+        "per_cycle": per,
+        "provenance_split": {"human_reviewed": reviewed,
+                             "executed_or_self_assessed": other, "unknown_no_outcome": unknown},
+        "mean_prediction_accuracy": (round(sum(accs) / len(accs), 3) if accs else None),
+        "accuracy_basis": f"{len(accs)} cycle(s) with recorded outcomes; the rest are UNKNOWN, not fabricated",
+        "series": accuracy_series(cycles),
+        "comparability": comparability_assessment(cycles),
+        "reopening": reopening_candidates(reopen_cycle, new_evidence) if (reopen_cycle and new_evidence) else [],
+        "anti_gaming": ("accuracy penalises missed AND unnecessary obligations, so more obligations "
+                        "never raises it; completeness is not an input; planning reviews are tagged "
+                        "human_reviewed and NOT counted as execution outcomes."),
+    }
+
