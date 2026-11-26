@@ -39,6 +39,18 @@ _TEXT_KEYS = frozenset({
     "candidate_texts", "prompt_text",
 })
 
+# Metadata strings are private by default. Preserve only bounded categorical
+# labels and identifiers whose semantics are defined by the trace contract.
+_SAFE_LABEL_KEYS = frozenset({
+    "source", "database", "table", "operation", "status", "transaction_scope",
+    "gate", "decision", "reason_code", "strategy", "stage", "event",
+    "candidate_kinds", "candidate_order", "selected_order", "retrieval_slots",
+    "branch_hints", "side", "register", "register_hint", "mode", "path",
+    "stream", "selection_rule", "purpose", "output_kind", "capture_context",
+    "error_type", "trigger_type", "role", "tool_name", "category",
+    "value_type",
+})
+
 
 def overlay_enabled() -> bool:
     """Return the explicit overlay switch; unset and '0' are OFF."""
@@ -72,12 +84,18 @@ def _safe_metadata(value: Any, key: str = "", depth: int = 0) -> Any:
     if value is None or isinstance(value, (bool, int, float)):
         return value
     if isinstance(value, str):
-        return value[:160]
+        if key.lower() in _SAFE_LABEL_KEYS:
+            return value[:160]
+        raw = value.encode("utf-8", errors="replace")
+        return {"sha256": _digest(raw), "length": len(raw), "value_type": "str"}
     if isinstance(value, bytes):
-        return {"sha256": _digest(value), "length": len(value)}
+        return {"sha256": _digest(value), "length": len(value), "value_type": "bytes"}
     if isinstance(value, (list, tuple, set, frozenset)):
         items = list(value)
-        return [_safe_metadata(item, depth=depth + 1) for item in items[:200]]
+        return [
+            _safe_metadata(item, key=key, depth=depth + 1)
+            for item in items[:200]
+        ]
     if isinstance(value, dict):
         result = {}
         for index, (child_key, child_value) in enumerate(value.items()):
