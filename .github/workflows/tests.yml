@@ -50,6 +50,7 @@ jobs:
             --env PYTHONDONTWRITEBYTECODE=1 \
             --env GIT_CONFIG_NOSYSTEM=1 \
             --env GIT_CONFIG_GLOBAL=/dev/null \
+            --env GIT_OPTIONAL_LOCKS=0 \
             --workdir /workspace \
             nex5-test-sandbox:${GITHUB_SHA} \
             /bin/sh -eu -c 'mkdir -p "$HOME" "$XDG_CACHE_HOME" "$TORCH_HOME" "$NEX5_DATA_DIR" && python ci/test-sandbox/probe.py && python scripts/check_test_baseline.py && python mind_map/mind_map.py --check --verify'
