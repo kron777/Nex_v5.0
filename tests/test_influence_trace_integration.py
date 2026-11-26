@@ -786,7 +786,8 @@ def _run_paired_fountain_once(
         mp.setenv("NEX5_DATA_DIR", str(data_dir))
         mp.setenv("NEX5_ADMIN_HASH_FILE", str(data_dir / "admin.argon2"))
         mp.setenv("NEX5_GLOBAL_WORKSPACE", "1")
-        mp.setenv("NEX5_MOMENTUM", "0")
+        mp.setenv("NEX5_MOMENTUM", "1")
+        mp.setenv("NEX5_CARRYOVER", "1")
         mp.setenv("NEX5_RECONCILE", "0")
         mp.setenv("NEX5_SUBSTRATE_EMIT", "0")
         mp.setenv("NEX5_SPEECH_ENABLED", "false")
@@ -908,6 +909,11 @@ def _run_paired_fountain_once(
                     "FROM fountain_events ORDER BY id"
                 )
             ]
+            momentum_row = readers["dynamic"].read_one(
+                "SELECT updated_at, branch, thought_fragment, surprise_score, "
+                "surprise_note, carry_count, resolved FROM momentum WHERE id=1"
+            )
+            momentum_snapshot = tuple(momentum_row) if momentum_row is not None else None
             table_counts = {}
             for db_name, reader in readers.items():
                 tables = reader.read(
@@ -932,6 +938,7 @@ def _run_paired_fountain_once(
                 "workspace_winners": workspace_winners,
                 "beliefs": beliefs,
                 "fires": fires,
+                "momentum_snapshot": momentum_snapshot,
                 "table_counts": table_counts,
                 "trace_rows": trace_rows,
                 "trace_path": sink,
@@ -970,6 +977,7 @@ def test_full_fountain_generator_trace_overlay_on_off_equivalence(tmp_path, monk
     assert on["workspace_winners"] == off["workspace_winners"]
     assert on["beliefs"] == off["beliefs"]
     assert on["fires"] == off["fires"]
+    assert on["momentum_snapshot"] == off["momentum_snapshot"]
     assert on["table_counts"] == off["table_counts"]
 
     rows = on["trace_rows"]
@@ -988,6 +996,14 @@ def test_full_fountain_generator_trace_overlay_on_off_equivalence(tmp_path, monk
         and row["metadata"].get("status") == "committed"
         for row in rows
     )
+    direct_commits = [
+        row for row in rows
+        if row["stage"] == "direct_sql_commit"
+    ]
+    assert any(row["event"] == "momentum_upsert" for row in direct_commits)
+    assert any(row["event"] == "momentum_resolution_update" for row in direct_commits)
+    for row in direct_commits:
+        assert row["metadata"]["transaction_scope"] == "direct_connection_commit"
     seen = set()
     for row in rows:
         assert all(parent in seen for parent in row["parent_ids"])
