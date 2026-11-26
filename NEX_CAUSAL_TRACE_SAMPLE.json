@@ -108,7 +108,7 @@
           "trace_id": "fixture-fountain-cycle-001",
           "event_id": "f-005",
           "parent_ids": [
-            "f-004"
+            "f-001"
           ],
           "sequence": 5,
           "producer": "fountain_cycle",
@@ -138,6 +138,7 @@
           "trace_id": "fixture-fountain-cycle-001",
           "event_id": "f-006",
           "parent_ids": [
+            "f-003",
             "f-005"
           ],
           "sequence": 6,
@@ -218,7 +219,8 @@
           "trace_id": "fixture-fountain-cycle-001",
           "event_id": "f-009",
           "parent_ids": [
-            "f-008"
+            "f-008",
+            "f-006"
           ],
           "sequence": 9,
           "producer": "fountain_cycle",
@@ -270,6 +272,7 @@
           "trace_id": "fixture-fountain-cycle-001",
           "event_id": "f-011",
           "parent_ids": [
+            "f-009",
             "f-010"
           ],
           "sequence": 11,
@@ -294,6 +297,7 @@
           "trace_id": "fixture-fountain-cycle-001",
           "event_id": "f-012",
           "parent_ids": [
+            "f-006",
             "f-011"
           ],
           "sequence": 12,
@@ -323,7 +327,8 @@
           "trace_id": "fixture-fountain-cycle-001",
           "event_id": "f-013",
           "parent_ids": [
-            "f-012"
+            "f-007",
+            "f-011"
           ],
           "sequence": 13,
           "producer": "fountain_cycle",
@@ -352,7 +357,8 @@
           "trace_id": "fixture-fountain-cycle-001",
           "event_id": "f-014",
           "parent_ids": [
-            "f-013"
+            "f-009",
+            "f-011"
           ],
           "sequence": 14,
           "producer": "fountain_cycle",
@@ -393,6 +399,7 @@
           "trace_id": "fixture-fountain-cycle-001",
           "event_id": "f-016",
           "parent_ids": [
+            "f-014",
             "f-015"
           ],
           "sequence": 16,
@@ -420,6 +427,7 @@
           "trace_id": "fixture-fountain-cycle-001",
           "event_id": "f-017",
           "parent_ids": [
+            "f-011",
             "f-016"
           ],
           "sequence": 17,
@@ -446,7 +454,8 @@
           "trace_id": "fixture-fountain-cycle-001",
           "event_id": "f-018",
           "parent_ids": [
-            "f-017"
+            "f-009",
+            "f-011"
           ],
           "sequence": 18,
           "producer": "fountain_cycle",
@@ -521,6 +530,7 @@
           "trace_id": "fixture-chat-turn-001",
           "event_id": "c-003",
           "parent_ids": [
+            "c-001",
             "c-002"
           ],
           "sequence": 3,
@@ -546,7 +556,7 @@
           "trace_id": "fixture-chat-turn-001",
           "event_id": "c-004",
           "parent_ids": [
-            "c-003"
+            "c-001"
           ],
           "sequence": 4,
           "producer": "chat_turn",
@@ -577,7 +587,8 @@
           "trace_id": "fixture-chat-turn-001",
           "event_id": "c-005",
           "parent_ids": [
-            "c-004"
+            "c-004",
+            "c-001"
           ],
           "sequence": 5,
           "producer": "chat_turn",
@@ -597,13 +608,82 @@
           "trace_id": "fixture-chat-turn-001",
           "event_id": "c-006",
           "parent_ids": [
+            "c-001",
             "c-005"
           ],
           "sequence": 6,
           "producer": "chat_turn",
+          "stage": "register_arbitration",
+          "event": "register_finalised",
+          "timestamp": 1795776100.05,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "initial_register": "Philosophical",
+            "final_register": "Philosophical",
+            "membrane_overrode": false
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-chat-turn-001",
+          "event_id": "c-007",
+          "parent_ids": [
+            "c-001",
+            "c-004",
+            "c-006"
+          ],
+          "sequence": 7,
+          "producer": "chat_turn",
+          "stage": "candidate_generation",
+          "event": "candidates_selected",
+          "timestamp": 1795776100.06,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "source": "gui.server._assemble_chat_blocks",
+            "candidate_ids": [
+              "operator",
+              "compassion",
+              "compass",
+              "equanimity",
+              "convo",
+              "spectrum"
+            ],
+            "candidate_kinds": [
+              "operator",
+              "compassion",
+              "compass",
+              "equanimity",
+              "convo",
+              "spectrum"
+            ],
+            "candidate_count": 6,
+            "pre_ablation_order": [
+              "operator",
+              "compassion",
+              "compass",
+              "equanimity",
+              "convo",
+              "spectrum"
+            ],
+            "ablation_changed_pool": false
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-chat-turn-001",
+          "event_id": "c-008",
+          "parent_ids": [
+            "c-007"
+          ],
+          "sequence": 8,
+          "producer": "chat_turn",
           "stage": "salience_workspace",
           "event": "selection_recorded",
-          "timestamp": 1795776100.05,
+          "timestamp": 1795776100.07,
           "evidence_level": "L3",
           "evidence_class": "implemented",
           "capture_context": "fixture",
@@ -633,15 +713,18 @@
         {
           "schema": "nex_causal_trace/v1",
           "trace_id": "fixture-chat-turn-001",
-          "event_id": "c-007",
+          "event_id": "c-009",
           "parent_ids": [
-            "c-006"
+            "c-001",
+            "c-004",
+            "c-006",
+            "c-008"
           ],
-          "sequence": 7,
+          "sequence": 9,
           "producer": "chat_turn",
           "stage": "prompt_assembly",
           "event": "chat_prompt_ready",
-          "timestamp": 1795776100.06,
+          "timestamp": 1795776100.08,
           "evidence_level": "L3",
           "evidence_class": "implemented",
           "capture_context": "fixture",
@@ -657,15 +740,15 @@
         {
           "schema": "nex_causal_trace/v1",
           "trace_id": "fixture-chat-turn-001",
-          "event_id": "c-008",
+          "event_id": "c-010",
           "parent_ids": [
-            "c-007"
+            "c-009"
           ],
-          "sequence": 8,
+          "sequence": 10,
           "producer": "chat_turn",
           "stage": "candidate_generation",
           "event": "voice_model_reply",
-          "timestamp": 1795776100.07,
+          "timestamp": 1795776100.09,
           "evidence_level": "L3",
           "evidence_class": "implemented",
           "capture_context": "fixture",
@@ -681,15 +764,38 @@
         {
           "schema": "nex_causal_trace/v1",
           "trace_id": "fixture-chat-turn-001",
-          "event_id": "c-009",
+          "event_id": "c-011",
           "parent_ids": [
-            "c-008"
+            "c-010"
           ],
-          "sequence": 9,
+          "sequence": 11,
+          "producer": "chat_turn",
+          "stage": "output_filter",
+          "event": "chat_reply_sanitized",
+          "timestamp": 1795776100.1,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "reply": {
+              "sha256": "sha256:376dae67a5b0a591c8a05cb46ab2c2dd99879785c20c6a3a07f2492f40a4a9b3",
+              "length": 29
+            },
+            "length": 28
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-chat-turn-001",
+          "event_id": "c-012",
+          "parent_ids": [
+            "c-011"
+          ],
+          "sequence": 12,
           "producer": "chat_turn",
           "stage": "sqlite_writer_delta",
           "event": "write_result",
-          "timestamp": 1795776100.08,
+          "timestamp": 1795776100.11,
           "evidence_level": "L3",
           "evidence_class": "implemented",
           "capture_context": "fixture",
@@ -706,15 +812,15 @@
         {
           "schema": "nex_causal_trace/v1",
           "trace_id": "fixture-chat-turn-001",
-          "event_id": "c-010",
+          "event_id": "c-013",
           "parent_ids": [
-            "c-009"
+            "c-011"
           ],
-          "sequence": 10,
+          "sequence": 13,
           "producer": "chat_turn",
           "stage": "gate",
           "event": "decision",
-          "timestamp": 1795776100.09,
+          "timestamp": 1795776100.12,
           "evidence_level": "L3",
           "evidence_class": "implemented",
           "capture_context": "fixture",
@@ -727,15 +833,17 @@
         {
           "schema": "nex_causal_trace/v1",
           "trace_id": "fixture-chat-turn-001",
-          "event_id": "c-011",
+          "event_id": "c-014",
           "parent_ids": [
-            "c-010"
+            "c-011",
+            "c-012",
+            "c-013"
           ],
-          "sequence": 11,
+          "sequence": 14,
           "producer": "chat_turn",
           "stage": "output",
           "event": "result",
-          "timestamp": 1795776100.1,
+          "timestamp": 1795776100.13,
           "evidence_level": "L3",
           "evidence_class": "implemented",
           "capture_context": "fixture",
