@@ -23,8 +23,8 @@ restarts or experiment modifications. `python -m rdo stage6`.
 - `learning_provenance(cycle)` — `human_reviewed:planning_review` · `executed_verified_outcome` ·
   `automated_self_assessment` · `unknown_no_outcome`. A planning review is **never** read as an
   execution outcome.
-- `reopening_candidates(cycle, new_evidence)` — reopens a reused mechanism now observed missing, or a
-  deferred branch whose blocker is reported cleared; **UNKNOWN/insufficient evidence does not reopen**.
+- `reopening_candidates(cycle, new_evidence)` — reopens a reviewed reuse or source-matched review branch
+  now observed missing, or a deferred branch whose blocker is reported cleared; **UNKNOWN/insufficient evidence does not reopen**.
 - `learning_loop(cycles, new_evidence, reopen_cycle)` — assembles per-cycle accuracy + provenance +
   contradictory-evidence flags, aggregates accuracy **only** over recorded outcomes, and keeps the
   rest UNKNOWN.
@@ -36,8 +36,7 @@ Ingested the real executed cycles (catalogue) + one reviewer-attributed planning
 - **Provenance split:** 1 `human_reviewed` (planning review) · 5 executed/self-assessed · **4 UNKNOWN**.
 - **Mean prediction accuracy:** ~0.84 over the recorded-outcome cycles; the 4 planning-only cycles are
   **UNKNOWN**, not averaged in. Per-cycle is traceable (e.g. `arc_closers` = 0.5: predicted 1, missed 1).
-- **Reopening (controlled fixtures on a real cycle):** `belief_staleness_input` (reused → reported
-  missing) **reopens**; `belief_decay_policy` (UNKNOWN observation) **does not**.
+- **Reopening (controlled fixture):** a prior source-match/review branch that is concretely reported missing **reopens**; `belief_decay_policy` (UNKNOWN observation) **does not**. A source match is not described as semantic reuse.
 - **Comparability:** the honest largest comparable group is unchanged (migration guards); a planning
   review contributes **no** executed comparable cycle.
 
@@ -69,3 +68,18 @@ Ingested the real executed cycles (catalogue) + one reviewer-attributed planning
 Per RDO v1.3 §16: **Stage 7 — execution integration verified through Watcher** (close the loop with
 Watcher observation of executed work). The host-only live confirmations and the **v1.3/v1.4
 precedence** remain open for your authority/ruling; no version reconciliation is assumed.
+
+
+## Integration evidence correction (26 Nov 2026)
+
+The Stage-2 belief-recency finding is a source signature match, not an independently reviewed
+semantic-reuse decision. Stage-6 reopening therefore covers both (a) a previously reviewed reuse
+that is later contradicted and (b) a source-matched review branch whose source anchor is later
+reported missing. It preserves the distinction in the emitted reason. Missing, empty or UNKNOWN
+observations do not reopen anything.
+
+The integrated learning loop also treats omitted discrepancy categories as UNKNOWN. It does not
+silently substitute zero for missing missed/unnecessary/inappropriate-reuse reports; a prediction
+accuracy value is emitted only when the required discrepancy categories have been explicitly
+reported. Earlier example averages in the pre-integration Stage-6 report predate this stricter rule
+and are not carried forward as verified results.
