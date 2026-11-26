@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from rdo.intake import (
+from rdo_adapters.objective_intake import (
     ObjectiveInputError,
     ObjectiveInputStore,
     compare_revisions,
@@ -32,7 +32,7 @@ def payload(objective_id="demo_objective") -> dict:
         "source": {"kind": "human", "reference": "founder-provided objective"},
         "scope": {
             "in_scope": ["RDO planning and repository reconciliation"],
-            "affected_paths": ["module.py", "rdo/"],
+            "affected_paths": ["module.py", "rdo"],
         },
         "constraints": ["Advisory only", "No runtime or live database changes"],
         "exclusions": ["No deployment", "No autonomous execution"],
@@ -103,7 +103,7 @@ def make_clean_repo(path: Path) -> Path:
 
 
 def test_published_example_matches_python_contract():
-    from rdo.intake import load_objective_file
+    from rdo_adapters.objective_intake import load_objective_file
 
     example = Path(__file__).resolve().parents[1] / "examples" / "objective.v1.example.json"
     checked = load_objective_file(str(example))
@@ -226,7 +226,7 @@ def test_revisions_must_be_sequential_and_revision_one_has_no_parent(tmp_path):
 
 
 def test_duplicate_json_properties_are_rejected(tmp_path):
-    from rdo.intake import load_objective_file
+    from rdo_adapters.objective_intake import load_objective_file
 
     path = tmp_path / "duplicate.json"
     path.write_text('{"schema_version":"rdo.objective.v1","schema_version":"other"}', encoding="utf-8")
@@ -284,7 +284,7 @@ def test_intake_smoke_on_real_rdo_repository(tmp_path):
     )
     raw["intent"] = "Check the current intake contract and test coverage without editing NEX."
     raw["scope"] = {"in_scope": ["RDO intake schema", "RDO validator and tests"],
-                    "affected_paths": ["rdo/intake.py", "rdo/tests/test_intake.py"]}
+                    "affected_paths": ["rdo_adapters/objective_intake.py", "rdo/tests/test_intake.py"]}
     raw["seed_obligations"] = [{
         "key": "intake_contract_guard",
         "title": "Verify the objective intake contract",
@@ -300,7 +300,7 @@ def test_intake_smoke_on_real_rdo_repository(tmp_path):
     raw["reconciliation_signatures"] = {
         "intake_contract_guard": [{
             "pattern": "def validate_objective",
-            "path": "rdo/intake.py",
+            "path": "rdo_adapters/objective_intake.py",
             "label": "intake validator source anchor",
         }]
     }
