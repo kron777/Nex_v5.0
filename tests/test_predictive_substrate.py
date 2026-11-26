@@ -257,20 +257,27 @@ class TestVerification(unittest.TestCase):
     def tearDown(self):
         _cleanup(self.writers, self.tmp)
 
-    def _insert_prediction(self, pred_type, centroid, window_end_offset=-1):
+    def _insert_prediction(self, pred_type, centroid, window_end_offset=-1,
+                           window_start_ts=None, window_end_ts=None):
         now = time.time()
         tags = json.dumps([])
+        made_at = now - 300 if window_start_ts is None else window_start_ts
+        target_end = now + window_end_offset if window_end_ts is None else window_end_ts
         return self.writers["dynamic"].write(
             "INSERT INTO predictions "
             "(made_at, target_window_end, prediction_type, centroid_embedding, "
             "representative_content, tags) VALUES (?, ?, ?, ?, ?, ?)",
-            (now - 300, now + window_end_offset, pred_type,
+            (made_at, target_end, pred_type,
              centroid.astype(np.float32).tobytes(), "test content", tags),
         )
 
     def test_verify_empty_window_scores_1(self):
         centroid = _fake_emb(seed=1)
-        self._insert_prediction("internal_belief", centroid, window_end_offset=-1)
+        # Use a timestamp interval before the test DB exists. init_all() seeds
+        # Tier-1 beliefs with current created_at values, so a recent window is
+        # not guaranteed to be empty.
+        self._insert_prediction("internal_belief", centroid,
+                                window_start_ts=1, window_end_ts=2)
         ps = _make_ps(self.writers, self.readers)
         ps._verify()
         rows = self.readers["dynamic"].read("SELECT * FROM surprise_events")
@@ -296,7 +303,9 @@ class TestVerification(unittest.TestCase):
 
     def test_verify_big_surprise_flag(self):
         centroid = _fake_emb(seed=7)
-        self._insert_prediction("internal_belief", centroid, window_end_offset=-1)
+        # Keep the verification interval outside init_all() seeded rows.
+        self._insert_prediction("internal_belief", centroid,
+                                window_start_ts=1, window_end_ts=2)
         ps = _make_ps(self.writers, self.readers)
         ps._verify()
         rows = self.readers["dynamic"].read("SELECT * FROM surprise_events")
