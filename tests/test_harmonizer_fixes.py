@@ -532,5 +532,56 @@ class TestHarmonizerSentienceNode(unittest.TestCase):
                       "format_for_prompt output must mention tension")
 
 
+
+class TestRetiredMarkerEligibility(unittest.TestCase):
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_scan_excludes_tier_seven_rows_marked_retired(self):
+        id_a = _seed(
+            self.writers,
+            "Consciousness arises from neural complexity and integration",
+            tier=5,
+        )
+        id_b = _seed(
+            self.writers,
+            "Consciousness does not arise from neural complexity",
+            tier=5,
+        )
+        self.writers["beliefs"].write(
+            "UPDATE beliefs SET tier=7, erosion_stage='retired' WHERE id=?",
+            (id_a,),
+        )
+        time.sleep(0.1)
+        h = _make_harmonizer(self.writers, self.readers)
+        conflicts = h.scan_for_conflicts()
+        self.assertNotIn((id_a, id_b), conflicts)
+        self.assertNotIn((id_b, id_a), conflicts)
+
+    def test_mark_and_resolve_reject_retired_marker_even_below_tier_eight(self):
+        id_a = _seed(
+            self.writers,
+            "Markets always trend upward over long time horizons",
+            tier=5,
+        )
+        id_b = _seed(
+            self.writers,
+            "Markets do not always trend upward over long time horizons",
+            tier=5,
+        )
+        self.writers["beliefs"].write(
+            "UPDATE beliefs SET erosion_stage='retired' WHERE id=?",
+            (id_a,),
+        )
+        time.sleep(0.1)
+        h = _make_harmonizer(self.writers, self.readers)
+        self.assertEqual(h.mark_paradox(id_a, id_b), "ineligible")
+        self.assertEqual(h.resolve(id_a, id_b), "ineligible")
+
+
 if __name__ == "__main__":
     unittest.main()
