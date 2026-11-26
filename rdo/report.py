@@ -440,8 +440,11 @@ def run_stage2_belief_decay(repo_dir: str = ".", workdir: str = "rdo/.cycles",
         comparison = compare(cycle)                      # predicted vs reviewed discrepancies
         for p in derive_lessons(cycle, comparison):      # candidate patterns (low, capped confidence)
             p.provenance = f"{p.provenance}|{review_kind}|reviewer={reviewer}"
-            memory.add(p)                                # durable: appended to patterns.jsonl
             calibration.append(p)
+            if review_kind == "planning_review":
+                memory.add(p)                            # caller-attributed review may seed durable learning
+            # controlled_fixture_review candidates are reported for the harness only;
+            # they never enter reusable PatternMemory or influence later cycles.
         store.save(cycle)                                # durable: cycle now carries the reviewed actual
         assert cycle.kind == NATIVE_PLANNING, "a reviewed plan must not be recorded as executed work"
         review_report = {
