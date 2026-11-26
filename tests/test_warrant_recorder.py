@@ -159,12 +159,8 @@ class TestRecorder(unittest.TestCase):
             )
             # The cursors are rowids, not timestamps, and advance through
             # all five records even though their timestamps are identical.
-            self.assertGreater(
-                self.r._cursor("use_lineage_rowid"), 1
-            )
-            self.assertGreater(
-                self.r._cursor("use_arc_rowid"), 1
-            )
+            self.assertEqual(self.r._cursor("use_lineage_rowid"), 6)
+            self.assertEqual(self.r._cursor("use_arc_rowid"), 6)
         finally:
             rec._USE_BATCH = old_batch
 
