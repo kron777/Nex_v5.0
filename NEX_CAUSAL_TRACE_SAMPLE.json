@@ -249,14 +249,20 @@
           ],
           "sequence": 10,
           "producer": "fountain_cycle",
-          "stage": "quality_gate",
-          "event": "accepted",
+          "stage": "sqlite_writer_delta",
+          "event": "write_result",
           "timestamp": 1795776000.09,
           "evidence_level": "L3",
           "evidence_class": "implemented",
           "capture_context": "fixture",
           "metadata": {
-            "reason_code": "quality_pass"
+            "database": "sense",
+            "table": "sense_events",
+            "operation": "INSERT",
+            "row_id": 501,
+            "status": "committed",
+            "transaction_scope": "single_statement_single_database",
+            "stream": "internal.fountain"
           }
         },
         {
@@ -268,17 +274,19 @@
           ],
           "sequence": 11,
           "producer": "fountain_cycle",
-          "stage": "gate",
-          "event": "decision",
+          "stage": "sqlite_writer_delta",
+          "event": "write_result",
           "timestamp": 1795776000.1,
           "evidence_level": "L3",
           "evidence_class": "implemented",
           "capture_context": "fixture",
           "metadata": {
-            "gate": "coherence_gate",
-            "decision": "ACCEPT",
-            "reason_code": "fixture_accept",
-            "source_node": "fountain"
+            "database": "dynamic",
+            "table": "fountain_events",
+            "operation": "INSERT",
+            "row_id": 801,
+            "status": "committed",
+            "transaction_scope": "single_statement_single_database"
           }
         },
         {
@@ -297,13 +305,17 @@
           "evidence_class": "implemented",
           "capture_context": "fixture",
           "metadata": {
-            "database": "sense",
-            "table": "sense_events",
-            "operation": "INSERT",
-            "row_id": 501,
+            "database": "dynamic",
+            "table": "fountain_retrieval_log",
+            "operation": "WRITE_MANY",
+            "row_id": [
+              810,
+              811
+            ],
             "status": "committed",
-            "transaction_scope": "single_statement_single_database",
-            "stream": "internal.fountain"
+            "transaction_scope": "single_database_atomic_write_many",
+            "fire_id": 801,
+            "row_count": 2
           }
         },
         {
@@ -323,11 +335,16 @@
           "capture_context": "fixture",
           "metadata": {
             "database": "dynamic",
-            "table": "fountain_events",
-            "operation": "INSERT",
-            "row_id": 801,
+            "table": "fountain_prompt_blocks",
+            "operation": "WRITE_MANY",
+            "row_id": [
+              820,
+              821
+            ],
             "status": "committed",
-            "transaction_scope": "single_statement_single_database"
+            "transaction_scope": "single_database_atomic_write_many",
+            "fire_id": 801,
+            "row_count": 2
           }
         },
         {
@@ -339,24 +356,14 @@
           ],
           "sequence": 14,
           "producer": "fountain_cycle",
-          "stage": "sqlite_writer_delta",
-          "event": "write_result",
+          "stage": "quality_gate",
+          "event": "accepted",
           "timestamp": 1795776000.13,
           "evidence_level": "L3",
           "evidence_class": "implemented",
           "capture_context": "fixture",
           "metadata": {
-            "database": "dynamic",
-            "table": "fountain_retrieval_log",
-            "operation": "WRITE_MANY",
-            "row_id": [
-              810,
-              811
-            ],
-            "status": "committed",
-            "transaction_scope": "single_statement_single_database",
-            "fire_id": 801,
-            "row_count": 2
+            "reason_code": "quality_pass"
           }
         },
         {
@@ -368,22 +375,17 @@
           ],
           "sequence": 15,
           "producer": "fountain_cycle",
-          "stage": "sqlite_writer_delta",
-          "event": "write_result",
+          "stage": "gate",
+          "event": "decision",
           "timestamp": 1795776000.14,
           "evidence_level": "L3",
           "evidence_class": "implemented",
           "capture_context": "fixture",
           "metadata": {
-            "database": "beliefs",
-            "table": "beliefs",
-            "operation": "INSERT",
-            "row_id": 1201,
-            "status": "committed",
-            "transaction_scope": "single_statement_single_database",
-            "tier": 6,
-            "confidence": 0.82,
-            "source": "fountain_insight"
+            "gate": "coherence_gate",
+            "decision": "ACCEPT",
+            "reason_code": "fixture_accept",
+            "source_node": "fountain"
           }
         },
         {
@@ -403,6 +405,33 @@
           "capture_context": "fixture",
           "metadata": {
             "database": "beliefs",
+            "table": "beliefs",
+            "operation": "INSERT",
+            "row_id": 1201,
+            "status": "committed",
+            "transaction_scope": "single_statement_single_database",
+            "tier": 6,
+            "confidence": 0.82,
+            "source": "fountain_insight"
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-fountain-cycle-001",
+          "event_id": "f-017",
+          "parent_ids": [
+            "f-016"
+          ],
+          "sequence": 17,
+          "producer": "fountain_cycle",
+          "stage": "sqlite_writer_delta",
+          "event": "write_result",
+          "timestamp": 1795776000.16,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "database": "beliefs",
             "table": "fountain_crystallizations",
             "operation": "INSERT",
             "row_id": 1301,
@@ -415,15 +444,15 @@
         {
           "schema": "nex_causal_trace/v1",
           "trace_id": "fixture-fountain-cycle-001",
-          "event_id": "f-017",
+          "event_id": "f-018",
           "parent_ids": [
-            "f-016"
+            "f-017"
           ],
-          "sequence": 17,
+          "sequence": 18,
           "producer": "fountain_cycle",
           "stage": "output",
           "event": "result",
-          "timestamp": 1795776000.16,
+          "timestamp": 1795776000.17,
           "evidence_level": "L3",
           "evidence_class": "implemented",
           "capture_context": "fixture",
@@ -479,12 +508,12 @@
           "capture_context": "fixture",
           "metadata": {
             "database": "conversations",
-            "table": "messages",
+            "table": "sessions",
             "operation": "INSERT",
-            "row_id": 2201,
+            "row_id": 201,
             "status": "committed",
             "transaction_scope": "single_statement_single_database",
-            "role": "user"
+            "session_id_present": true
           }
         },
         {
@@ -496,15 +525,20 @@
           ],
           "sequence": 3,
           "producer": "chat_turn",
-          "stage": "membrane_routing",
-          "event": "query_classified",
+          "stage": "sqlite_writer_delta",
+          "event": "write_result",
           "timestamp": 1795776100.02,
           "evidence_level": "L3",
           "evidence_class": "implemented",
           "capture_context": "fixture",
           "metadata": {
-            "side": "OUTSIDE",
-            "register_hint": null
+            "database": "conversations",
+            "table": "messages",
+            "operation": "INSERT",
+            "row_id": 2201,
+            "status": "committed",
+            "transaction_scope": "single_statement_single_database",
+            "role": "user"
           }
         },
         {
@@ -547,9 +581,29 @@
           ],
           "sequence": 5,
           "producer": "chat_turn",
+          "stage": "membrane_routing",
+          "event": "query_classified",
+          "timestamp": 1795776100.04,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "side": "OUTSIDE",
+            "register_hint": null
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-chat-turn-001",
+          "event_id": "c-006",
+          "parent_ids": [
+            "c-005"
+          ],
+          "sequence": 6,
+          "producer": "chat_turn",
           "stage": "salience_workspace",
           "event": "selection_recorded",
-          "timestamp": 1795776100.04,
+          "timestamp": 1795776100.05,
           "evidence_level": "L3",
           "evidence_class": "implemented",
           "capture_context": "fixture",
@@ -579,15 +633,15 @@
         {
           "schema": "nex_causal_trace/v1",
           "trace_id": "fixture-chat-turn-001",
-          "event_id": "c-006",
+          "event_id": "c-007",
           "parent_ids": [
-            "c-005"
+            "c-006"
           ],
-          "sequence": 6,
+          "sequence": 7,
           "producer": "chat_turn",
           "stage": "prompt_assembly",
           "event": "chat_prompt_ready",
-          "timestamp": 1795776100.05,
+          "timestamp": 1795776100.06,
           "evidence_level": "L3",
           "evidence_class": "implemented",
           "capture_context": "fixture",
@@ -603,15 +657,15 @@
         {
           "schema": "nex_causal_trace/v1",
           "trace_id": "fixture-chat-turn-001",
-          "event_id": "c-007",
+          "event_id": "c-008",
           "parent_ids": [
-            "c-006"
+            "c-007"
           ],
-          "sequence": 7,
+          "sequence": 8,
           "producer": "chat_turn",
           "stage": "candidate_generation",
           "event": "voice_model_reply",
-          "timestamp": 1795776100.06,
+          "timestamp": 1795776100.07,
           "evidence_level": "L3",
           "evidence_class": "implemented",
           "capture_context": "fixture",
@@ -622,27 +676,6 @@
             },
             "register": "Philosophical",
             "voice_ok": true
-          }
-        },
-        {
-          "schema": "nex_causal_trace/v1",
-          "trace_id": "fixture-chat-turn-001",
-          "event_id": "c-008",
-          "parent_ids": [
-            "c-007"
-          ],
-          "sequence": 8,
-          "producer": "chat_turn",
-          "stage": "gate",
-          "event": "decision",
-          "timestamp": 1795776100.07,
-          "evidence_level": "L3",
-          "evidence_class": "implemented",
-          "capture_context": "fixture",
-          "metadata": {
-            "gate": "chat_crystallization_gate",
-            "decision": "NOT_APPLICABLE",
-            "reason_code": "chat_reply_is_not_a_belief_write"
           }
         },
         {
@@ -679,9 +712,30 @@
           ],
           "sequence": 10,
           "producer": "chat_turn",
+          "stage": "gate",
+          "event": "decision",
+          "timestamp": 1795776100.09,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "gate": "chat_crystallization_gate",
+            "decision": "NOT_APPLICABLE",
+            "reason_code": "chat_reply_is_not_a_belief_write"
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-chat-turn-001",
+          "event_id": "c-011",
+          "parent_ids": [
+            "c-010"
+          ],
+          "sequence": 11,
+          "producer": "chat_turn",
           "stage": "output",
           "event": "result",
-          "timestamp": 1795776100.09,
+          "timestamp": 1795776100.1,
           "evidence_level": "L3",
           "evidence_class": "implemented",
           "capture_context": "fixture",
