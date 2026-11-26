@@ -197,6 +197,11 @@ def test_watcher_rejects_a_symlink_escape_in_allowed_path(tmp_path):
     outside.write_text("outside\n", encoding="utf-8")
     (repo / "docs" / "escape.md").symlink_to(outside)
     manifest, manifest_path = _manifest(repo, base, ["docs/escape.md"])
+    # Simulate a forged/stale resolution map to exercise the Watcher's independent
+    # realpath check rather than relying on the RDO creator to reject the link.
+    manifest["scope"]["resolved_paths"]["docs/escape.md"] = "docs/escape.md"
+    manifest["manifest_sha256"] = _sha({k:v for k,v in manifest.items() if k != "manifest_sha256"})
+    manifest_path.write_text(_canonical(manifest) + "\\n", encoding="utf-8")
     events_path = _events(repo, manifest)
     request_path = tmp_path / "request.json"
     request_path.write_text(_canonical(_request(repo, manifest_path, events_path)), encoding="utf-8")
