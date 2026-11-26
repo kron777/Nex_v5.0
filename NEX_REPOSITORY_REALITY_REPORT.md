@@ -36,7 +36,7 @@ The repository's tests/known_failures.txt was empty at the inspected main snapsh
 
 The test environment is a GitHub Actions-built disposable container. The verified isolation probe reported: unprivileged execution, no capabilities, no credentials, read-only source, disposable data/tmpfs, no default route and no outbound network. This is evidence about the CI container, not the founder's host.
 
-A separate candidate implementation for M0.5 causal tracing is being validated in PR #151. Its failed intermediate test runs are not part of the mainline baseline and must not be silently merged into this report's mainline result. The five failures in the latest completed candidate run were test-fixture mistakes (undefined test helper and missing TraceContext producer arguments); the candidate remains unmerged pending a green exact-head CI result.
+A separate candidate implementation for M0.5 causal tracing is being validated in PR #151. Its intermediate test runs are not part of the mainline baseline and must not be silently merged into this report's mainline result. An earlier completed intermediate run found five test-fixture mistakes (undefined _sink references and missing TraceContext producer arguments); those were corrected on the candidate branch. The candidate now includes paired full OFF/ON Fountain and Chat fixture cycles and explicitly distinguishes direct SQLite commits from Writer deltas. Its exact current head remains unmerged while disposable CI completes; this does not change the verified mainline baseline above.
 
 ## 4. Host, process, model and deployment facts
 
