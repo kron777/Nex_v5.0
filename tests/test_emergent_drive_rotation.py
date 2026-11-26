@@ -42,6 +42,18 @@ def test_emergent_drive_pressure_windows_rotate_beyond_first_500():
     assert cursor == 499
 
 
+def test_pressure_scan_commits_cursor_after_calculation():
+    rows = [
+        {"id": i, "content": "branch is exploring emerging patterns",
+         "branch_id": f"branch-{i}", "confidence": 0.8}
+        for i in range(1, 502)
+    ]
+    detector = EmergentDriveDetector(dynamic_writer=None)
+    proposals = detector.scan_for_pressure(_Reader(rows), dynamic_state=None)
+    assert proposals == []
+    assert detector._belief_cursor == 500
+
+
 def test_empty_emergent_drive_pressure_pool_keeps_cursor():
     detector = EmergentDriveDetector(dynamic_writer=None)
     detector._belief_cursor = 77
