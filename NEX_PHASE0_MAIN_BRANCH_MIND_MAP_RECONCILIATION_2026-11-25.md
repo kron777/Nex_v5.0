@@ -8,7 +8,7 @@ This is a branch-lineage and source-reference comparison, not an import or merge
 - the active-host base branch snapshot `claude/nex-continuity-wire` at `de93134f34adac07a3a41c2a05b33720510a2bfc`;
 - the current Phase 0 documentation branch, which is based on that active-host snapshot.
 
-The GitHub compare against current main `7f45642` reports the captured host checkout `de93134` as **4 commits ahead and 641 commits behind**, with merge base `fb87e247a116221cc7d814e2ee5ff2e1300f5a87`. The remote continuity branch at `84e696d` is separately 310 ahead / 641 behind main. PR #98 has merged into the remote continuity branch, not main. No host checkout fetch, merge, rebase, cherry-pick or MIND_MAP import was performed.
+The GitHub compare against current main `7f45642` reports the captured host checkout `de93134` as **4 commits ahead and 641 commits behind**, with merge base `fb87e247a116221cc7d814e2ee5ff2e1300f5a87`. The remote continuity branch at `30787db` is separately 311 ahead / 641 behind main. PR #98 has merged into the remote continuity branch, not main. No host checkout fetch, merge, rebase, cherry-pick or MIND_MAP import was performed.
 
 ## 1. Main-branch MIND_MAP lineage
 

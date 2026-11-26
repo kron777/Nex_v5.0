@@ -6,7 +6,7 @@
 
 ## Executive finding
 
-The active host checkout is not the same source snapshot as GitHub main. The captured host checkout is branch `claude/nex-continuity-wire` at `de93134f34adac07a3a41c2a05b33720510a2bfc`. Against current GitHub main `7f45642bfb0f389b98b3c0848dc1f78deb0cd621`, it is 4 commits ahead and 641 behind, with merge base `fb87e247a116221cc7d814e2ee5ff2e1300f5a87`. The remote continuity branch is now at `84e696d2a8eba50121ff0aa47c2d3deeb2a1e2c8` and is separately 310 ahead / 641 behind main. The host checkout and remote continuity branch must not be conflated. Local cached tracking refs are stale; no fetch, pull, rebase or cherry-pick was performed. Do not merge main wholesale: it contains later changes, including unrelated behavioural changes.
+The active host checkout is not the same source snapshot as GitHub main. The captured host checkout is branch `claude/nex-continuity-wire` at `de93134f34adac07a3a41c2a05b33720510a2bfc`. Against current GitHub main `7f45642bfb0f389b98b3c0848dc1f78deb0cd621`, it is 4 commits ahead and 641 behind, with merge base `fb87e247a116221cc7d814e2ee5ff2e1300f5a87`. At the 26 November comparison, the remote continuity branch was at `30787dbbc20a521c5f8399b414aef56165fa8e93`, 311 ahead / 641 behind main. The host checkout and remote continuity branch must not be conflated. Local cached tracking refs are stale; no fetch, pull, rebase or cherry-pick was performed. Do not merge main wholesale: it contains later changes, including unrelated behavioural changes.
 
 The original fb87e24 Reality Report and two-path Crosswalk are preserved as NEX_REPOSITORY_REALITY_REPORT_HISTORICAL_fb87e24.md and NEX_ARCHITECTURE_CROSSWALK_v2_HISTORICAL_fb87e24.md. The canonical NEX_REPOSITORY_REALITY_REPORT.md and NEX_ARCHITECTURE_CROSSWALK_v2.md have been refreshed for the active host checkout; the Crosswalk remains partial, with the full producer/consumer DAG outstanding. ADR-001 remains a historical design record. The Phase 0 handoff now points to this reconciliation and corrects its stale Phase 1 claim. In particular, the active branch contains the default-OFF continuity consumer commit f9ac58d, despite the old handoff saying no Phase 1 behavioural modification had started.
 
@@ -17,7 +17,7 @@ The original fb87e24 Reality Report and two-path Crosswalk are preserved as NEX_
 - Active host branch: claude/nex-continuity-wire
 - Active host HEAD: de93134f34adac07a3a41c2a05b33720510a2bfc
 - Host collector reported a clean worktree at that SHA.
-- GitHub compare current main...de93134 reports 4 commits ahead / 641 behind; merge base `fb87e247a116221cc7d814e2ee5ff2e1300f5a87`. Remote continuity branch `84e696d` is 310 ahead / 641 behind.
+- GitHub compare current main...de93134 reports 4 commits ahead / 641 behind; merge base `fb87e247a116221cc7d814e2ee5ff2e1300f5a87`. Remote continuity branch `30787db` is 311 ahead / 641 behind.
 - The active branch contains 757 tree entries at the audited SHA.
 - The active branch has 42 top-level theory_x package directories. This is a filesystem inventory only; it is not interchangeable with the MIND_MAP node count, sentience_dag faculty count, or number of booted worker loops.
 - mind_map/MIND_MAP.yaml is absent from the active branch at this SHA, but is present on main. sentience_dag.json is present on the active branch.

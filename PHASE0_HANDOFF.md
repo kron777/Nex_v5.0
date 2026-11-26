@@ -11,7 +11,7 @@ The earlier fb87e24 handoff is preserved as PHASE0_HANDOFF_HISTORICAL_fb87e24.md
 - NEX_REPOSITORY_REALITY_REPORT.md — current M0.1–M0.2 report.
 - NEX_ARCHITECTURE_CROSSWALK_v2.md — current partial crosswalk: boot inventory plus Fountain and Chat output paths.
 - NEX_PHASE0_CURRENT_RECONCILIATION_2026-11-25.md — branch comparison, Phase 0 evidence and remaining gaps.
-- NEX_PHASE0_M0_5_DELIVERABLE_IDENTITY_RECONCILIATION_2026-11-26.md — distinguishes the V2.1 doctrine-question deliverable from the technical trace-overlay work.
+- NEX_PHASE0_M0_5_DELIVERABLE_IDENTITY_RECONCILIATION_2026-11-26.md — distinguishes Roadmap v3.0 Phase 0 M0.5 causal-trace work from V2.1 M0.5's six doctrine questions.
 - NEX_PHASE0_P12_SELFREPORT_PROVENANCE_RECONCILIATION_2026-11-26.md — records the corrected historical MIND_MAP absence claim and the remaining aggregate environment-limited failure-classification gap.
 - NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-25.md — founder-reviewable verified defects and evidence gaps.
 - ADR-001.md — historical design decision for the default-OFF InfluenceRecord overlay.
@@ -31,19 +31,19 @@ The earlier fb87e24 handoff is preserved as PHASE0_HANDOFF_HISTORICAL_fb87e24.md
 
 ## Important current findings
 
-1. Host checkout `de93134` is 4 commits ahead and 641 behind current GitHub `main` (`7f45642`; merge base `fb87e247`). The remote continuity branch is now `84e696d` and is 310 ahead / 641 behind `main`; it is not the local host checkout. Local cached tracking refs are stale. No fetch, pull or rebase was performed; do not merge/rebase main wholesale.
+1. Host checkout `de93134` is 4 commits ahead and 641 behind current GitHub `main` (`7f45642`; merge base `fb87e247`). At the 26 November comparison, the remote continuity branch was `30787db` and 311 ahead / 641 behind `main`; it is not the local host checkout. Local cached tracking refs are stale. No fetch, pull or rebase was performed; do not merge/rebase main wholesale.
 2. The active branch contains Phase 1 continuity code from f9ac58d. The flag defaults OFF; live activation and behavioural effect are UNKNOWN. Do not arm it before Gate 0 and explicit approval.
 3. The actual sense scheduler starts external feeds during construction. It has 28 adapters (4 internal, 24 external). Documentation was stale and is corrected in the current reconciliation PR; no scheduler logic was changed.
 4. CoherenceGate's module header understates current HOLD/RESHAPE handling; evaluation exceptions return ACCEPT; sense distillation explicitly bypasses the gate. These scope/failure-policy questions are in the defect backlog; do not change them without the governing spec and founder review.
-5. The four active user service units were corrected to the actual checkout path and passed systemd syntax verification, but no service was started. PR #97's keepalive path fix is merged to the remote continuity branch, but the local host checkout `de93134` remains unchanged and still has the old internal path. No service was started or deployed.
+5. The four active user service units were corrected to the actual checkout path and passed systemd syntax verification, but no service was started. PR #97's keepalive path fix is merged to the remote continuity branch at `84e696d`, but the local host checkout `de93134` remains unchanged and still has the old internal path. No service was started or deployed.
 6. Vitals is present on main but absent from the active branch; cherry-picking its merge would import unrelated behaviour. Its exact governing spec and PID-identity safeguards remain unresolved.
 7. The exact Frozen V2.1 source document and founder approval record have not been located. Do not recreate them or infer their detailed acceptance criteria.
 
-## Technical trace-overlay discrepancy (previously labelled M0.5)
+## Roadmap v3.0 Phase 0 M0.5 — read-only causal trace-overlay status
 
-Deliverable identity is separate from V2.1 M0.5 doctrine questions. See `NEX_PHASE0_M0_5_DELIVERABLE_IDENTITY_RECONCILIATION_2026-11-26.md`.
+This is the Roadmap v3.0 Phase 0 M0.5 deliverable; V2.1 M0.5's six doctrine questions are separate. See `NEX_PHASE0_M0_5_DELIVERABLE_IDENTITY_RECONCILIATION_2026-11-26.md`.
 
-The roadmap extract asks for NEX5_TRACE_OVERLAY=0 and a full trace_id/parent_ids chain across input arrival, candidate generation, salience/workspace selection, gate, SQLite writer delta and output, with NEX_CAUSAL_TRACE_SAMPLE.json. The active branch instead uses NEX5_INFLUENCE_TRACE, NEX5_INFLUENCE_TRACE_CONTEXT and NEX5_INFLUENCE_TRACE_PATH, with two coarse seams and a JSONL fixture. The exact Frozen V2.1 contract must be recovered before extending or renaming the hook.
+The roadmap extract asks for NEX5_TRACE_OVERLAY=0 and a full trace_id/parent_ids chain across input arrival, candidate generation, salience/workspace selection, gate, SQLite writer delta and output, with NEX_CAUSAL_TRACE_SAMPLE.json. The active branch instead uses NEX5_INFLUENCE_TRACE, NEX5_INFLUENCE_TRACE_CONTEXT and NEX5_INFLUENCE_TRACE_PATH, with two coarse seams and a JSONL fixture. The Roadmap v3.0 M0.5 trace contract and the recovered extract must be reconciled before extending or renaming the hook; V2.1 M0.5 is the separate six-question doctrine deliverable.
 
 ## Current external PR status — refreshed 26 November 2026
 
@@ -55,7 +55,7 @@ The roadmap extract asks for NEX5_TRACE_OVERLAY=0 and a full trace_id/parent_ids
 - RDO read-only handoff-history fix PR #130: merged into `rdo/stage7-handoff-manifest-2026-11-26` at `698e80e4f20a95c9ffcf5445a9f598429781dacd`; exact-head full-suite CI passed (2,434 passed, 7 skipped, 40 subtests). Not merged to `main`.
 - RDO v1.4 source-recovery record PR #131: merged into `main` at `7f45642bfb0f389b98b3c0848dc1f78deb0cd621`; exact-head CI passed (2,415 passed, 7 skipped, 40 subtests). It records supplied-source provenance but deliberately leaves v1.3/v1.4 precedence unresolved.
 - Phase 0 M0.5 deliverable-identity correction PR #132: merged into `claude/nex-continuity-wire` at `702351edcba52628dec89f314c13a1c98d3f4923`; exact-head CI passed (1,611 passed, 5 skipped, 30 subtests). It distinguishes Roadmap v3.0 Phase 0 M0.5 trace work from V2.1 M0.5 doctrine questions.
-- Phase 0 `p12_selfreport` provenance correction PR #133: open/draft; documentation-only; classifies the historical MIND_MAP absence-claim failure and records why M0.2 remains partial. It separates V2.1 doctrine questions from technical trace-overlay work.
+- Phase 0 M0.2/M0.5/branch-evidence correction PR #133: merged into `claude/nex-continuity-wire` at `30787dbbc20a521c5f8399b414aef56165fa8e93`; exact-head CI passed (1,613 passed, 5 skipped, 30 subtests). It records p12 provenance, both M0.5 source identities and current branch divergence.
 
 ## Safety and authority
 
@@ -68,7 +68,7 @@ The roadmap extract asks for NEX5_TRACE_OVERLAY=0 and a full trace_id/parent_ids
 
 ## Next safe work
 
-Continue the full forward/backward producer-consumer audit in bounded increments, beginning with the booted paths and their actual persistence/consumer relationships. Recover the exact Frozen V2.1 source/approval and reconcile the technical trace-overlay contract separately from the V2.1 M0.5 doctrine questions. Keep live runtime and protected experiment state untouched. Review PR #97 and PR #98 independently; neither is permission to activate services or Phase 1 behaviour.
+Continue the full forward/backward producer-consumer audit in bounded increments, beginning with the booted paths and their actual persistence/consumer relationships. Recover the exact Frozen V2.1 source/approval and continue the Roadmap v3.0 M0.5 trace reconciliation separately from V2.1 M0.5's six doctrine questions. Keep live runtime and protected experiment state untouched. PRs #97 and #98 are merged into the remote continuity branch only; neither merge is permission to activate services or Phase 1 behaviour.
 
 ## Current handoff addendum — 2026-11-25 source audit
 
@@ -103,7 +103,7 @@ The direct-connection census includes normal-wired Stage 2 life/focus/daily-life
 
 TaggingBeliefWriter does not provide a universal admission chokepoint: boot seeds use raw Writers before wrapper construction, .write_many() passes through unchanged, and direct SQLite paths bypass it. This is an instrumentation boundary, not automatic authority to route every seed or observation through CoherenceGate.
 
-PR #98 remains draft. The new additions are documentation/evidence only; no runtime code, DB, flags, services, experiments, baselines or tripwires were changed. Exact-head checks must be re-read before claiming CI status for the latest docs commits.
+PR #98 subsequently merged into the remote continuity branch at `14b45ab139d919505eb423b865ec1a714f923388`, not into `main` or the local host checkout. The Phase 0 additions remain documentation/evidence only; no runtime code, DB, flags, services, experiments, baselines or tripwires were changed.
 
 Gate 0 remains pending. Continue bounded read-only source tracing and isolated fixtures only. Normative remediation remains blocked on founder identification of the exact Frozen V2.1 specification and Gate 0 approval record, and clarification of whether April SPECIFICATION.md remains governing.
 
@@ -148,7 +148,7 @@ Working rule: V2.1 is the intended authority, but its exact normative clauses an
 - §71: review_queue auto-promotion is intentionally disabled since 2026-05-16; the two relevant tests are explicitly skipped because the three-ACCEPT counter hid problems from FocusLoop/DailyLife. Do not re-enable.
 - D-38: active branch still lacks main's October 26 NEX5_TZ/Africa-Johannesburg migration; four life loops still use Europe/Amsterdam. No partial cherry-pick or main merge.
 
-Trace now extends through §83. PR #98 remains draft with 36 changed files. At the last exact-head check, no workflow runs or commit statuses were reported for the queried head; the previous head's tests run 1045 had completed as cancelled. CI is unverified. Re-fetch the current PR head and its workflow/status records before making any CI claim; no pass is claimed here.
+Trace now extends through §83. PR #98 subsequently merged into the remote continuity branch; it did not merge to `main` or the local host checkout. The current PR status and exact-head verification records are listed above; this paragraph's former draft/CI-pending status is historical and superseded.
 
 ## Latest Phase 0 continuation — 25 November 2026 (trace §§72–83)
 
@@ -169,7 +169,7 @@ The static producer/consumer trace now extends through §83. The current detaile
 
 ### Deployment qualification
 
-The tracked `nex_keepalive.sh` declares a high-activation environment, including HotObserver, WorldConsolidation, TierClimb, WarrantRecorder, PersonaResponder, WorldPrediction, SelfPrediction, SelfMaintainShadow, SocialN and `MOLTBOOK_DRY_RUN=0`. However, the current host reconciliation records that its hard-coded `cd /home/rr/Desktop/Desktop/nex5` fails against the repaired checkout at `/mnt/games/storage/Desktop/Desktop/nex5` and exits before launching `run.py`. The narrow path repair remains in draft PR #97, not merged/deployed. The active user systemd unit is not tracked or inspected. Therefore these are declared launcher settings, not proven effective host flags or proof of current external activity.
+The tracked `nex_keepalive.sh` declares a high-activation environment, including HotObserver, WorldConsolidation, TierClimb, WarrantRecorder, PersonaResponder, WorldPrediction, SelfPrediction, SelfMaintainShadow, SocialN and `MOLTBOOK_DRY_RUN=0`. However, the current host reconciliation records that its hard-coded `cd /home/rr/Desktop/Desktop/nex5` fails against the repaired checkout at `/mnt/games/storage/Desktop/Desktop/nex5` and exits before launching `run.py`. The narrow path repair merged into the remote continuity branch via PR #97, but the local host checkout `de93134` still has the old path and has not received the fix. No service was started or deployed. The active user systemd unit is not tracked or inspected. Therefore these are declared launcher settings, not proven effective host flags or proof of current external activity.
 
 ### Additional source-level risks
 
