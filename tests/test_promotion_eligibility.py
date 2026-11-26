@@ -138,3 +138,31 @@ def test_decisive_contradiction_rejects_inactive_and_retired_beliefs_without_wri
         promoter = BeliefPromoter(writer, Reader(row))
         assert promoter.decisive_contradiction(row["id"]) is False
         assert writer.calls == []
+
+
+def test_decay_pass_excludes_retired_tombstones_in_default_and_tier_climb_modes(monkeypatch):
+    from theory_x.stage3_world_model.promotion import BeliefPromoter
+
+    class Reader:
+        def __init__(self):
+            self.queries = []
+
+        def read(self, sql, params=()):
+            self.queries.append(sql)
+            return []
+
+    class Writer:
+        def write(self, sql, params=()):
+            return None
+
+    monkeypatch.delenv("NEX5_SYNTH_KEEP", raising=False)
+    monkeypatch.delenv("NEX5_TIER_CLIMB", raising=False)
+    reader = Reader()
+    promoter = BeliefPromoter(Writer(), reader)
+
+    assert promoter.decay_pass() == 0
+    assert "erosion_stage != 'retired'" in reader.queries[-1]
+
+    monkeypatch.setenv("NEX5_TIER_CLIMB", "1")
+    assert promoter.decay_pass() == 0
+    assert "erosion_stage != 'retired'" in reader.queries[-1]
