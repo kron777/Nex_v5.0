@@ -23,6 +23,8 @@ from .memory import PatternMemory
 from rdo_adapters.objective_intake import (ObjectiveInputError, load_objective_file,
                                            objective_history, resume_objective,
                                            submit_objective)
+from rdo_adapters.handoff import (HandoffError, create_handoff, handoff_history,
+                                  record_human_acceptance, record_scope_review)
 from .report import (demo_genius_tagger, run_catalogue, run_stage2_belief_decay,
                      run_stage3_graph_intelligence, run_stage4_belief_audit,
                      run_stage5_belief_pathway, run_stage6_learning_loop,
@@ -115,6 +117,56 @@ def _resume(args) -> int:
     print(json.dumps(result, indent=2, default=str))
     return 0
 
+def _handoff_create(args) -> int:
+    try:
+        result = create_handoff(args.out, args.repo, args.objective_id, args.revision,
+                                args.cycle_id, args.work_package)
+    except (HandoffError, ObjectiveInputError, OSError, ValueError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, default=str))
+    return 0
+
+
+def _handoff_history(args) -> int:
+    try:
+        result = handoff_history(args.out, args.handoff_id)
+    except (HandoffError, OSError, ValueError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, default=str))
+    return 0
+
+
+def _handoff_review(args) -> int:
+    try:
+        event = record_scope_review(
+            args.out, args.handoff_id, args.decision, args.reviewer,
+            args.source_reference, permitted_actions=args.permitted_action,
+            note=args.note,
+        )
+    except (HandoffError, OSError, ValueError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(event, indent=2, default=str))
+    return 0
+
+
+def _handoff_acceptance(args) -> int:
+    try:
+        with open(args.evidence_references, "r", encoding="utf-8") as fh:
+            evidence = json.load(fh)
+        event = record_human_acceptance(
+            args.out, args.handoff_id, args.decision, args.reviewer,
+            args.source_reference, args.delivery_reference, evidence,
+            note=args.note,
+        )
+    except (HandoffError, OSError, ValueError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(event, indent=2, default=str))
+    return 0
+
 
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="rdo",
@@ -190,6 +242,42 @@ def main(argv=None) -> int:
     resume.add_argument("--revision", required=True, type=int)
     resume.add_argument("--out", default="rdo/.cycles")
     resume.set_defaults(fn=_resume)
+
+    hc = sub.add_parser("handoff-create", help="create a non-executing Stage-7 handoff manifest")
+    hc.add_argument("--objective-id", required=True)
+    hc.add_argument("--revision", required=True, type=int)
+    hc.add_argument("--cycle-id", required=True)
+    hc.add_argument("--work-package", required=True)
+    hc.add_argument("--repo", default=".")
+    hc.add_argument("--out", default="rdo/.cycles")
+    hc.set_defaults(fn=_handoff_create)
+
+    hh = sub.add_parser("handoff-history", help="show an immutable handoff and its human decision ledger")
+    hh.add_argument("--handoff-id", required=True)
+    hh.add_argument("--out", default="rdo/.cycles")
+    hh.set_defaults(fn=_handoff_history)
+
+    hr = sub.add_parser("handoff-review", help="record a human-attributed non-executing scope decision")
+    hr.add_argument("--handoff-id", required=True)
+    hr.add_argument("--decision", required=True, choices=("approved", "rejected", "changes_requested"))
+    hr.add_argument("--reviewer", required=True)
+    hr.add_argument("--source-reference", required=True)
+    hr.add_argument("--permitted-action", action="append", default=[])
+    hr.add_argument("--note", default="")
+    hr.add_argument("--out", default="rdo/.cycles")
+    hr.set_defaults(fn=_handoff_review)
+
+    ha = sub.add_parser("handoff-acceptance", help="record a separate human acceptance decision")
+    ha.add_argument("--handoff-id", required=True)
+    ha.add_argument("--decision", required=True, choices=("accepted", "rejected", "changes_requested"))
+    ha.add_argument("--reviewer", required=True)
+    ha.add_argument("--source-reference", required=True)
+    ha.add_argument("--delivery-reference", required=True)
+    ha.add_argument("--evidence-references", required=True,
+                    help="JSON object with source_implemented, test_verified and runtime_observed arrays")
+    ha.add_argument("--note", default="")
+    ha.add_argument("--out", default="rdo/.cycles")
+    ha.set_defaults(fn=_handoff_acceptance)
 
     args = p.parse_args(argv)
     return args.fn(args)
