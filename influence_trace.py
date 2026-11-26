@@ -372,9 +372,12 @@ def new_trace(
     if not overlay_enabled():
         return None
     capture_context = context or os.environ.get("NEX5_TRACE_OVERLAY_CONTEXT", "fixture")
-    return TraceContext(
+    context_obj = TraceContext(
         producer,
         sink_path=sink_path,
         context=capture_context,
         enabled=True,
     )
+    # Reject unsafe sinks before a producer sees a non-None trace context.
+    # This preserves the original call shape when instrumentation cannot write.
+    return context_obj if context_obj._safe_sink() else None
