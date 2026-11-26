@@ -236,16 +236,35 @@ def _assemble_chat_blocks(ordered: "list[tuple[str, str]]", session_id=None,
                        if not (k in drop and k not in _CHAT_BLOCK_EXEMPT)]
         except Exception:
             pass  # never break the chat turn over an experiment flag
+    _faculty_candidate_trace_id = None
+    if trace is not None:
+        _faculty_candidate_trace_id = trace.candidates(
+            [kind for kind, _ in ordered],
+            source="gui.server._assemble_chat_blocks",
+            candidate_kinds=[kind for kind, _ in ordered],
+            metadata={"pre_ablation_order": _candidate_order,
+                      "ablation_changed_pool": _candidate_order != [kind for kind, _ in ordered]},
+            parent_ids=[
+                rid for rid in (
+                    trace.reference("input_arrival"),
+                    trace.reference("chat_belief_candidates"),
+                    trace.reference("chat_register_final"),
+                ) if rid
+            ],
+        )
+        trace.remember("chat_faculty_candidates", _faculty_candidate_trace_id)
     texts = [t for _, t in ordered]
     if os.environ.get("NEX5_CHAT_WORKSPACE") != "1":
         if trace is not None:
-            trace.selection(
+            _ordered_selection_id = trace.selection(
                 source="gui.server._assemble_chat_blocks",
-                candidate_order=_candidate_order,
+                candidate_order=[kind for kind, _ in ordered],
                 selected_order=[kind for kind, _ in ordered],
                 strategy="ordered_concatenation",
                 metadata={"workspace_enabled": False, "block_count": len(ordered)},
+                parent_ids=[_faculty_candidate_trace_id] if _faculty_candidate_trace_id else [],
             )
+            trace.remember("chat_workspace_selection", _ordered_selection_id)
         return "".join(texts)
     try:
         from theory_x.stage_tom.global_workspace import select_within_budget
@@ -292,24 +311,28 @@ def _assemble_chat_blocks(ordered: "list[tuple[str, str]]", session_id=None,
             selected_order = [ordered[_index][0]
                               for _index in range(len(ordered))
                               if _index in _kept_indexes]
-            trace.selection(
+            _workspace_selection_id = trace.selection(
                 source="gui.server._assemble_chat_blocks",
-                candidate_order=_candidate_order,
+                candidate_order=[kind for kind, _ in ordered],
                 selected_order=selected_order,
                 strategy="NEX5_CHAT_WORKSPACE",
                 metadata={"workspace_enabled": True, "budget_chars": budget,
                           "block_count": len(ordered)},
+                parent_ids=[_faculty_candidate_trace_id] if _faculty_candidate_trace_id else [],
             )
+            trace.remember("chat_workspace_selection", _workspace_selection_id)
         return "".join(selected_texts)
     except Exception as exc:
         if trace is not None:
-            trace.selection(
+            _fallback_selection_id = trace.selection(
                 source="gui.server._assemble_chat_blocks",
-                candidate_order=_candidate_order,
+                candidate_order=[kind for kind, _ in ordered],
                 selected_order=[kind for kind, _ in ordered],
                 strategy="workspace_error_full_concatenation",
                 metadata={"error_type": type(exc).__name__},
+                parent_ids=[_faculty_candidate_trace_id] if _faculty_candidate_trace_id else [],
             )
+            trace.remember("chat_workspace_selection", _fallback_selection_id)
         return "".join(texts)  # never break the chat turn
 
 
@@ -1230,10 +1253,11 @@ def create_app(state: AppState) -> Flask:
             from influence_trace import new_trace
             trace = new_trace("chat_turn")
             if trace is not None:
-                trace.input(
+                _chat_input_id = trace.input(
                     prompt, source="gui.server.api_chat",
                     metadata={"is_probe": bool(payload.get("is_probe", False))},
                 )
+                trace.remember("chat_input", _chat_input_id)
         except Exception:
             trace = None  # the trace overlay must never affect a chat turn
 
@@ -1263,6 +1287,7 @@ def create_app(state: AppState) -> Flask:
                         trace.writer_delta(
                             database="conversations", table="sessions", operation="INSERT",
                             row_id=_session_row_id, metadata={"session_id_present": True},
+                            parent_ids=[trace.reference("input_arrival")],
                         )
                 except Exception as e:
                     error_channel.record(
@@ -1277,10 +1302,12 @@ def create_app(state: AppState) -> Flask:
                     (session_id, prompt, register.name, state.now_fn()),
                 )
                 if trace is not None:
-                    trace.writer_delta(
+                    _user_message_trace_id = trace.writer_delta(
                         database="conversations", table="messages", operation="INSERT",
                         row_id=_user_message_id, metadata={"role": "user"},
+                        parent_ids=[trace.reference("input_arrival")],
                     )
+                    trace.remember("chat_user_message", _user_message_trace_id)
             except Exception as e:
                 error_channel.record(
                     f"conversations: user message insert failed: {e}",
@@ -1320,11 +1347,18 @@ def create_app(state: AppState) -> Flask:
                         dynamic_state=state.dynamic,
                     )
                 if trace is not None:
-                    trace.record(
+                    _route_event_id = trace.record(
                         "membrane_routing", "query_classified",
                         metadata={"side": route_result.get("side"),
                                   "register_hint": route_result.get("register_hint")},
+                        parent_ids=[
+                            rid for rid in (
+                                trace.reference("chat_belief_candidates"),
+                                trace.reference("input_arrival"),
+                            ) if rid
+                        ],
                     )
+                    trace.remember("chat_route", _route_event_id)
                 belief_text = route_result.get("belief_text")
                 register_override = route_result.get("register_hint")
             except Exception as e:
@@ -1360,12 +1394,14 @@ def create_app(state: AppState) -> Flask:
                             if len(_q_toks & _bt_tokenize(b.get("content", ""))) >= 2
                         ]
                 if trace is not None:
-                    trace.candidates(
+                    _fallback_belief_candidates_id = trace.candidates(
                         [b.get("id") for b in beliefs],
                         source="gui.server.fallback_retriever",
                         metadata={"side": "fallback", "limit": 3,
                                   "shared_token_filter": True},
+                        parent_ids=[trace.reference("input_arrival")],
                     )
+                    trace.remember("chat_belief_candidates", _fallback_belief_candidates_id)
                 belief_text = format_beliefs_for_prompt(beliefs) if beliefs else None
                 if belief_text and len(belief_text) > 800:
                     belief_text = belief_text[:800].rstrip() + " …"
@@ -1659,23 +1695,34 @@ def create_app(state: AppState) -> Flask:
                 if tool_name:
                     kwargs = state.tool_caller.build_tool_kwargs(prompt, tool_name)
                     tool_result = state.tool_registry.execute(tool_name, **kwargs)
+                    _tool_execution_trace_id = None
                     if trace is not None:
-                        trace.record(
+                        _tool_execution_trace_id = trace.record(
                             "tool_use", "tool_execution",
                             metadata={"tool_name": tool_name,
                                       "success": bool(tool_result.success),
                                       "error_type": type(getattr(tool_result, "error", None)).__name__
                                       if getattr(tool_result, "error", None) else None},
+                            parent_ids=[
+                                rid for rid in (
+                                    trace.reference("input_arrival"),
+                                    trace.reference("chat_belief_candidates"),
+                                ) if rid
+                            ],
                         )
+                        trace.remember("chat_tool_execution", _tool_execution_trace_id)
                     if tool_result.success:
                         tool_injection = state.tool_caller.build_tool_prompt(prompt, tool_result)
                         belief_text = (belief_text or "") + "\n" + tool_injection
                         if trace is not None:
-                            trace.record(
+                            _tool_injection_trace_id = trace.record(
                                 "tool_use", "tool_prompt_injected",
                                 metadata={"tool_name": tool_name,
                                           "injection_length": len(tool_injection)},
+                                parent_ids=[_tool_execution_trace_id]
+                                if _tool_execution_trace_id else [],
                             )
+                            trace.remember("chat_tool_injection", _tool_injection_trace_id)
             except Exception as exc:
                 error_channel.record(
                     f"tool use failed: {exc}", source="gui.server", exc=exc
@@ -1687,12 +1734,19 @@ def create_app(state: AppState) -> Flask:
         if register_override and not register_name:
             register = by_name(register_override) or register
         if trace is not None:
-            trace.record(
+            _register_trace_id = trace.record(
                 "register_arbitration", "register_finalised",
                 metadata={"initial_register": _ec_register,
                           "final_register": register.name,
                           "membrane_overrode": _ec_register != register.name},
+                parent_ids=[
+                    rid for rid in (
+                        trace.reference("input_arrival"),
+                        trace.reference("chat_route"),
+                    ) if rid
+                ],
             )
+            trace.remember("chat_register_final", _register_trace_id)
         try:
             with open(_EC_LOG, "a") as _ecf:
                 _ecf.write(json.dumps({
@@ -1919,14 +1973,21 @@ def create_app(state: AppState) -> Flask:
                     )
                 if _ve_result is not None:
                     if trace is not None:
-                        trace.record(
+                        _voice_engine_candidate_id = trace.record(
                             "candidate_generation", "voice_engine_stored_candidate",
                             metadata={"reply": _ve_result.get("content", ""),
                                       "source": "voice_engine.query_reply",
                                       "fresh_model_generation": False,
                                       "used_for_grounding": bool(_op_comp),
                                       "returned_verbatim": not _op_comp},
+                            parent_ids=[
+                                rid for rid in (
+                                    trace.reference("voice_engine_selection"),
+                                    trace.reference("input_arrival"),
+                                ) if rid
+                            ],
                         )
+                        trace.remember("chat_reply_candidate", _voice_engine_candidate_id)
                     if _op_comp:
                         # HYBRID: keep the sharp hit as grounding for the compose
                         # step below; do NOT short-circuit to verbatim.
@@ -2191,11 +2252,21 @@ def create_app(state: AppState) -> Flask:
                     f"{_blocks_concat}{prompt}" if _blocks_concat else prompt
                 )
             if trace is not None:
-                trace.record(
+                _chat_prompt_trace_id = trace.record(
                     "prompt_assembly", "chat_prompt_ready",
                     metadata={"prompt": voice_prompt, "belief_block_chars": len(belief_text or ""),
                               "faculty_block_chars": len(_blocks_concat)},
+                    parent_ids=[
+                        rid for rid in (
+                            trace.reference("input_arrival"),
+                            trace.reference("chat_belief_candidates"),
+                            trace.reference("chat_workspace_selection"),
+                            trace.reference("chat_register_final"),
+                            trace.reference("chat_tool_injection"),
+                        ) if rid
+                    ],
                 )
+                trace.remember("chat_voice_prompt", _chat_prompt_trace_id)
             # M5 measurement (D-C item 1): one line per chat turn so the owner can
             # see whether the assembled prompt approaches the model's context
             # window before deciding a hard token clamp is ever needed.
@@ -2243,11 +2314,13 @@ def create_app(state: AppState) -> Flask:
                 text = resp.text
                 voice_ok = True
                 if trace is not None:
-                    trace.record(
+                    _chat_voice_candidate_id = trace.record(
                         "candidate_generation", "voice_model_reply",
                         metadata={"reply": text, "register": register.name,
                                   "voice_ok": True},
+                        parent_ids=[_chat_prompt_trace_id] if _chat_prompt_trace_id else [],
                     )
+                    trace.remember("chat_reply_candidate", _chat_voice_candidate_id)
                 # ANTI-REPEAT (NEX5_CHAT_MEMORY, admin-scoped): if she opened like
                 # / echoed a recent reply (the same-opening groove), regenerate
                 # ONCE with an explicit "vary" instruction. One retry only — no
@@ -2278,11 +2351,19 @@ def create_app(state: AppState) -> Flask:
                                 and not _is_repeat_reply(_resp2.text, _prior)
                             )
                             if trace is not None and _resp2 is not None:
-                                trace.record(
+                                _anti_repeat_candidate_id = trace.record(
                                     "candidate_generation", "anti_repeat_retry_candidate",
                                     metadata={"reply": _resp2.text or "",
                                               "selected_as_final": _repeat_retry_accepted},
+                                    parent_ids=[
+                                        rid for rid in (
+                                            trace.reference("chat_voice_prompt"),
+                                            trace.reference("chat_reply_candidate"),
+                                        ) if rid
+                                    ],
                                 )
+                                if _repeat_retry_accepted:
+                                    trace.remember("chat_reply_candidate", _anti_repeat_candidate_id)
                             if _repeat_retry_accepted:
                                 text = _resp2.text
                     except Exception:
@@ -2321,13 +2402,21 @@ def create_app(state: AppState) -> Flask:
                                     _after["mirror"] < _prov["mirror"]
                                 )
                                 if trace is not None:
-                                    trace.record(
+                                    _provenance_candidate_id = trace.record(
                                         "candidate_generation", "provenance_retry_candidate",
                                         metadata={"reply": _resp3.text,
                                                   "mirror_before": _prov["mirror"],
                                                   "mirror_after": _after["mirror"],
                                                   "selected_as_final": _provenance_retry_accepted},
+                                        parent_ids=[
+                                            rid for rid in (
+                                                trace.reference("chat_voice_prompt"),
+                                                trace.reference("chat_reply_candidate"),
+                                            ) if rid
+                                        ],
                                     )
+                                    if _provenance_retry_accepted:
+                                        trace.remember("chat_reply_candidate", _provenance_candidate_id)
                                 if _provenance_retry_accepted:
                                     text = _resp3.text
                     except Exception:
@@ -2361,15 +2450,30 @@ def create_app(state: AppState) -> Flask:
                 )
                 voice_ok = False
                 if trace is not None:
-                    trace.record(
+                    _voice_fallback_candidate_id = trace.record(
                         "candidate_generation", "voice_unavailable_fallback",
                         metadata={"voice_ok": False, "error_type": type(e).__name__},
+                        parent_ids=[trace.reference("chat_voice_prompt")]
+                        if trace.reference("chat_voice_prompt") else
+                        [trace.reference("input_arrival")],
                     )
+                    trace.remember("chat_reply_candidate", _voice_fallback_candidate_id)
 
         # Storage boundary: strip any leaked scaffolding from the reply BEFORE it
         # is persisted AND before it is returned to the GUI, so neither the stored
         # history nor the displayed reply carries prompt frame. Fail-safe inside.
         text = _sanitize_reply(_strip_question_parrot(text, prompt))
+
+        _sanitized_reply_trace_id = None
+        if trace is not None:
+            _sanitized_reply_trace_id = trace.record(
+                "output_filter", "chat_reply_sanitized",
+                metadata={"reply": text, "length": len(text)},
+                parent_ids=[trace.reference("chat_reply_candidate")]
+                if trace.reference("chat_reply_candidate") else
+                [trace.reference("input_arrival")],
+            )
+            trace.remember("chat_sanitized_output", _sanitized_reply_trace_id)
 
         _assistant_message_id = None
         _assistant_store_status = "not_attempted"
@@ -2384,10 +2488,13 @@ def create_app(state: AppState) -> Flask:
                 )
                 _assistant_store_status = "committed"
                 if trace is not None:
-                    trace.writer_delta(
+                    _assistant_message_trace_id = trace.writer_delta(
                         database="conversations", table="messages", operation="INSERT",
                         row_id=_assistant_message_id, metadata={"role": "nex"},
+                        parent_ids=[_sanitized_reply_trace_id]
+                        if _sanitized_reply_trace_id else [],
                     )
+                    trace.remember("chat_assistant_message", _assistant_message_trace_id)
             except Exception as e:
                 _assistant_store_status = "failed"
                 error_channel.record(
@@ -2396,15 +2503,27 @@ def create_app(state: AppState) -> Flask:
                 )
 
         if trace is not None:
-            trace.gate("NOT_APPLICABLE", gate="chat_crystallization_gate",
-                       reason_code="chat_reply_is_not_a_belief_write")
-            trace.output(
+            _chat_gate_na_id = trace.gate(
+                "NOT_APPLICABLE", gate="chat_crystallization_gate",
+                reason_code="chat_reply_is_not_a_belief_write",
+                parent_ids=[_sanitized_reply_trace_id]
+                if _sanitized_reply_trace_id else [trace.reference("input_arrival")],
+            )
+            _chat_output_id = trace.output(
                 text, output_kind="chat_reply",
                 metadata={"voice_ok": voice_ok, "assistant_message_id": _assistant_message_id,
                           "assistant_store_status": _assistant_store_status,
                           "tool_used": tool_result.tool_name
                           if tool_result and tool_result.success else None},
+                parent_ids=[
+                    rid for rid in (
+                        _sanitized_reply_trace_id,
+                        trace.reference("chat_assistant_message"),
+                        _chat_gate_na_id,
+                    ) if rid
+                ],
             )
+            trace.remember("chat_output", _chat_output_id)
 
         return jsonify({
             "text": text,
