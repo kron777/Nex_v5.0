@@ -63,6 +63,17 @@ def _is_sleep_hour(hour: int) -> bool:
     return hour >= SLEEP_START_HOUR or hour < SLEEP_END_HOUR
 
 
+def _ensure_daily_activities(cx) -> None:
+    """Create the daily activity ledger on a fresh dynamic database."""
+    cx.execute(
+        "CREATE TABLE IF NOT EXISTS daily_activities ("
+        "activity TEXT NOT NULL, date_local TEXT NOT NULL, "
+        "fired_at REAL NOT NULL, details TEXT NOT NULL DEFAULT '', "
+        "UNIQUE(activity, date_local))"
+    )
+    cx.commit()
+
+
 def _already_fired(cx, activity: str, date_local: str) -> bool:
     row = cx.execute(
         "SELECT 1 FROM daily_activities WHERE activity=? AND date_local=?",
@@ -266,6 +277,7 @@ def daily_tick() -> dict:
     date_local = _date_str(now)
     d_cx = connect(DYNAMIC_DB, timeout=10)
     try:
+        _ensure_daily_activities(d_cx)
         # Fire any scheduled activity whose hour has been reached today
         fired = []
         for sched_hour, activity in SCHEDULE.items():
