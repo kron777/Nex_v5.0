@@ -399,7 +399,7 @@ def test_watcher_rejects_accepted_event_with_incomplete_evidence_dimensions(tmp_
 
 
 
-def test_source_hash_uses_resolved_target_if_internal_symlink_is_swapped(tmp_path, monkeypatch):
+def test_source_hash_fails_closed_if_internal_symlink_is_swapped(tmp_path, monkeypatch):
     repo, base = _repo(tmp_path)
     target = repo / "docs" / "REQUIREMENTS.md"
     alias = repo / "docs" / "alias.md"
@@ -412,6 +412,8 @@ def test_source_hash_uses_resolved_target_if_internal_symlink_is_swapped(tmp_pat
 
     from watcher import handoff_verify as hv
     real_inside = hv._inside_root
+    real_open = hv._open_resolved_regular_file
+    opened = []
     swapped = {"done": False}
 
     def swap_after_resolution(root, relative, label, **kwargs):
@@ -422,13 +424,15 @@ def test_source_hash_uses_resolved_target_if_internal_symlink_is_swapped(tmp_pat
             swapped["done"] = True
         return result
 
+    def track_open(root, relative):
+        opened.append(relative)
+        return real_open(root, relative)
+
     monkeypatch.setattr(hv, "_inside_root", swap_after_resolution)
-    record, evidence = hv._current_file_evidence(
-        str(repo), "docs/alias.md", base, head, ["unstaged"]
-    )
+    monkeypatch.setattr(hv, "_open_resolved_regular_file", track_open)
+    with pytest.raises(HandoffVerificationError, match="resolution changed"):
+        hv._current_file_evidence(str(repo), "docs/alias.md", base, head, ["unstaged"])
     assert swapped["done"]
-    assert record["status"] == "present_and_hashed"
-    assert record["resolved_path"] == "docs/REQUIREMENTS.md"
-    assert record["sha256"] == hashlib.sha256(target.read_bytes()).hexdigest()
-    assert record["sha256"] != hashlib.sha256(outside.read_bytes()).hexdigest()
-    assert evidence is not None
+    assert opened == ["docs/REQUIREMENTS.md"]
+    assert target.read_text(encoding="utf-8") == "# Base requirements\n"
+    assert outside.read_text(encoding="utf-8") == "secret outside source\n"
