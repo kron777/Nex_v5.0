@@ -1408,3 +1408,16 @@ This dual ownership predates PR #102: before the draft, ClockRunner recreated a 
 Existing `TestClockRunner` tests check fire-count cadence. They construct the clock before patching the `DormancyScanner` class, so they do not observe the constructor-created scanner instance. The follow-on test-only PR #145 injects a mock into `clock._dormancy` and asserts reuse across fast ticks, but no current integrated DiversityLoop test verifies the combined two-scanner schedule.
 
 **Disposition:** scheduling/ownership contract question, not a confirmed runtime defect. Confirm whether both scans are intentional. If one stream is intended, share one scanner or remove the duplicate owner only after choosing the desired cadence and adding an integration test. No scan path, cadence, DB rows or runtime behavior was changed.
+
+
+## 89. RememberLoop family-tree lineage is not preserved
+
+`remember_tick()` selects one old belief and one recent belief, preserving their IDs and contents in Python dictionaries. It sends both contents to `_compose_link()`, which asks the voice model for one sentence connecting them. On success, it inserts a new Tier-6 `remember_loop` belief with content, `created_at`, source, branch and literal `tags='[]'`.
+
+The insert does not capture its returned cursor/child ID and does not write either selected parent ID to `belief_lineage`. In contrast, the Stage-3 Synergizer inserts its child, retains `result_id`, and calls `record_synergy(writer, result_id, belief_a.id, belief_b.id)` to write both parent rows.
+
+The existing family-tree helper offers `record_synergy()` (two parents, relationship `synergy`) and `record_reference()` (one parent, relationship `reference`). The `belief_lineage.relationship` column is free text; no broader canonical relationship vocabulary or RememberLoop-specific lineage contract was found. RememberLoop's temporal comparison may be semantically distinct from Synergizer's synthesis, so selecting an existing label or inventing a new one would be premature.
+
+The current tests cover the generic lineage helpers in `tests/test_diversity.py`, but no inspected RememberLoop test verifies child-to-parent lineage. The Phase 0 trace already records G-25 (RememberLoop's direct belief insert has no CoherenceGate path) and G-27 (its direct insert bypasses TaggingBeliefWriter/tag generation). This §89 records a separate issue: even if the admission policy remains as presently implemented, the resulting belief has no family-tree connection to the two inputs.
+
+**Disposition:** confirm whether RememberLoop's generated temporal link should be represented as a two-parent lineage child. If yes, define the relationship label and add an isolated parentage test before changing code. Do not assume `synergy` is the correct label. No source, schema, test, data, Warrant cursor or runtime behavior was changed.
