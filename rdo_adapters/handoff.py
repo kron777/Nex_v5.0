@@ -151,6 +151,24 @@ def _write_manifest_exclusive(path: str, manifest: dict) -> bool:
     return True
 
 
+def _resolve_allowed_paths(repo_dir: str, paths: List[str]) -> Dict[str, str]:
+    """Resolve the declared file/path set and refuse symlink escapes from the repo."""
+    root = os.path.realpath(os.path.abspath(repo_dir))
+    resolved = {}
+    for relative in paths:
+        if not isinstance(relative, str) or not relative or os.path.isabs(relative):
+            raise HandoffError("allowed path must be repository-relative")
+        target = os.path.realpath(os.path.join(root, relative))
+        try:
+            common = os.path.commonpath((root, target))
+        except ValueError as exc:
+            raise HandoffError(f"allowed path cannot be resolved inside the repository: {relative}") from exc
+        if common != root:
+            raise HandoffError(f"allowed path resolves outside the repository through a symlink: {relative}")
+        resolved[relative] = os.path.relpath(target, root).replace(os.sep, "/")
+    return resolved
+
+
 def _read_objective(workdir: str, objective_id: str, revision: int,
                     expected_digest: str) -> dict:
     records = ObjectiveInputStore(os.path.join(workdir, "objectives")).history(objective_id)
@@ -217,6 +235,7 @@ def create_handoff(workdir: str, repo_dir: str, objective_id: str, revision: int
     ]
     scope = objective["scope"]
     allowed_paths = list(scope["affected_paths"])
+    resolved_paths = _resolve_allowed_paths(repo_dir, allowed_paths)
     eligibility = package.get("eligibility")
     blockers = list(package.get("blockers") or [])
     if eligibility != "eligible":
@@ -275,6 +294,7 @@ def create_handoff(workdir: str, repo_dir: str, objective_id: str, revision: int
         "scope": {
             "in_scope": list(scope["in_scope"]),
             "allowed_paths": allowed_paths,
+            "resolved_paths": resolved_paths,
             "path_semantics": "exact repository-relative paths only; no glob expansion",
         },
         "obligations": obligations,
