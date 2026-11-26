@@ -198,3 +198,10 @@ The audit was checked against the remote continuity branch at `30787dbbc20a521c5
 The open-problem lifecycle audit now records G-51: CounterfactualNode selects the oldest open problem by `last_touched_at` but does not refresh that timestamp after an attempt. With its default 300-second loop, the same row can be selected repeatedly when no other component touches it, potentially starving newer open problems. The multi-problem fairness behavior is not covered by the inspected tests; live impact is UNKNOWN. This is documented as a progress/fairness candidate, not remediated because Gate 0 remains pending.
 
 No behavior, database, service, environment flag, experiment, baseline, tripwire, specification or frozen register was changed. The exact Frozen V2.1 and founder Gate 0 approval record remain unresolved.
+
+
+## Current source-audit addendum — 26 November 2026 (Warrant use-day pagination)
+
+The Phase 0 producer-consumer trace now records G-52 / §84: WarrantRecorder's `belief_lineage` and `arc_members` use-day scans paginate only by timestamp (`created_at` / `joined_at`) with strict-greater-than cursors and a 20,000-row batch. Equal-timestamp rows that straddle a batch boundary can be skipped. `record_synergy()` writes two parent rows with a shared timestamp; ArcReader stamps all members of an arc with one shared timestamp, although the normal boot path currently leaves ArcLoop unstarted. The Warrant Recorder is default-off (`NEX5_WARRANT_RECORD=1` required); live activation and incidence remain UNKNOWN. Existing tests do not cover a tied-timestamp boundary.
+
+A bounded isolated regression and a stable composite cursor are the likely future correction, but implementation and cursor-state migration remain blocked by Gate 0. No runtime, database, flag, experiment, baseline, tripwire or frozen specification was changed.
