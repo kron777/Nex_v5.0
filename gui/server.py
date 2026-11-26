@@ -1670,6 +1670,12 @@ def create_app(state: AppState) -> Flask:
                     if tool_result.success:
                         tool_injection = state.tool_caller.build_tool_prompt(prompt, tool_result)
                         belief_text = (belief_text or "") + "\n" + tool_injection
+                        if trace is not None:
+                            trace.record(
+                                "tool_use", "tool_prompt_injected",
+                                metadata={"tool_name": tool_name,
+                                          "injection_length": len(tool_injection)},
+                            )
             except Exception as exc:
                 error_channel.record(
                     f"tool use failed: {exc}", source="gui.server", exc=exc
@@ -1680,6 +1686,13 @@ def create_app(state: AppState) -> Flask:
         _ec_register = register.name
         if register_override and not register_name:
             register = by_name(register_override) or register
+        if trace is not None:
+            trace.record(
+                "register_arbitration", "register_finalised",
+                metadata={"initial_register": _ec_register,
+                          "final_register": register.name,
+                          "membrane_overrode": _ec_register != register.name},
+            )
         try:
             with open(_EC_LOG, "a") as _ecf:
                 _ecf.write(json.dumps({
@@ -2160,7 +2173,7 @@ def create_app(state: AppState) -> Flask:
             ], session_id=session_id,
                conv_writer=state.writers.get("conversations"),
                conv_reader=state.readers.get("conversations"),
-               trace=trace)
+               **({"trace": trace} if trace is not None else {}))
             if belief_text:
                 voice_prompt = (
                     f"{_blocks_concat}"
@@ -2388,7 +2401,9 @@ def create_app(state: AppState) -> Flask:
             trace.output(
                 text, output_kind="chat_reply",
                 metadata={"voice_ok": voice_ok, "assistant_message_id": _assistant_message_id,
-                          "assistant_store_status": _assistant_store_status},
+                          "assistant_store_status": _assistant_store_status,
+                          "tool_used": tool_result.tool_name
+                          if tool_result and tool_result.success else None},
             )
 
         return jsonify({
