@@ -276,7 +276,7 @@ The current reconciliation's continuity candidate list has been checked against 
 
 ## Technical trace-overlay coverage audit — 2026-11-25 (previously labelled M0.5)
 
-The M0.5 overlay is now traced from its actual Fountain and Chat call sites through schema, evidence-level logic, fixture and tests. See `NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md`. The implementation is a default-OFF two-seam side-channel capture, not the full candidate→selection→Gate→writer→output lineage described in the recorded roadmap extract. It has no trace_id/parent_ids, Chat cycle_id is session-scoped, L4 is caller-declared, and enabled traces contain raw text previews without an in-module retention/redaction policy. The exact Frozen V2.1 authority is still missing; no expansion or activation was made.
+The technical trace overlay is now traced from its actual Fountain and Chat call sites through schema, evidence-level logic, fixture and tests. See `NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md`. The implementation is a default-OFF two-seam side-channel capture, not the full candidate→selection→Gate→writer→output lineage described in the recorded roadmap extract. It has no trace_id/parent_ids, Chat cycle_id is session-scoped, L4 is caller-declared, and enabled traces contain raw text previews without an in-module retention/redaction policy. The exact Frozen V2.1 authority is still missing; no expansion or activation was made.
 
 ## Latest Phase 0 source-audit continuation — 25 November 2026 (trace §§72–82)
 
@@ -310,7 +310,7 @@ The following additional static audits are now committed on this branch:
 - `NEX_PHASE0_OPEN_PROBLEM_AND_GOAL_LIFECYCLE_AUDIT_2026-11-25.md` — problem/goal state vocabularies, stuck-state consumers, GoalManager/CoherenceGate mismatch and unscheduled decay methods.
 - `NEX_PHASE0_SIGNAL_PIPELINE_RETENTION_AND_PATTERN_AUDIT_2026-11-25.md` — signal producers, pattern semantics, reaper allowlist drift and cross-DB commit boundary.
 - `NEX_PHASE0_SELF_CONTINUITY_SEMANTICS_AUDIT_2026-11-25.md` — default-OFF Phase 1 continuity phrase semantics, missing data, timestamp ordering and cleanup.
-- `NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md` — actual M0.5 output seams, absent trace/parent IDs, L4 label integrity and raw-preview retention.
+- `NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md` — technical trace-overlay output seams, absent trace/parent IDs, L4 label integrity and raw-preview retention.
 - `NEX_PHASE0_MAIN_BRANCH_MIND_MAP_RECONCILIATION_2026-11-25.md` — main-only descriptive MIND_MAP, 12 source refs absent from active base, and separation from the active sentience DAG.
 
 The current defect backlog now includes conditional source findings through G-50. These remain source-level candidates and design questions; live incidence is not inferred. No runtime code, tests beyond the earlier isolated reaper test, flags, databases, services, external endpoints or deployment were changed or activated in these increments.
