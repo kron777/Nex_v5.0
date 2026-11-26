@@ -6,7 +6,7 @@
 
 ## Finding
 
-The historical `p12_selfreport` finding has a documented connection to the MIND_MAP absence-claim validator. It is **not established from the available evidence that this is the same item meant by the V2.1 M0.2 reference to `p12_selfreport`**, nor is it established as an ordinary pytest node.
+The identifier `p12_selfreport` is a **MIND_MAP node**, as stated in the founder-provided frozen register/Part 3. The historical failure was the node's MIND_MAP absence-claim validator check, not a pytest node named `p12_selfreport`. V2.1 §13.2 describes the work as the “`p12_selfreport` test and callers”; the recovered founder context identifies the object as the MIND_MAP node and its absence-check, not an independent pytest test.
 
 A prior 18 November audit record reported:
 
@@ -14,7 +14,7 @@ A prior 18 November audit record reported:
 - eight matching lines in `theory_x/stage_tom/hri_apatrapya_prototype.py`;
 - a proposed resolution to correct the false absence claim or reclassify the node with a recorded reason.
 
-The source-history record is more specific: commit `ecf9c437528a9445f37020f8fadfa02de507520e` (20 November) explicitly states that CI's absence-grep was failing because this node still had `source.kind: absent` and `last_verified: 2026-11-09`, even though the prototype had been built on 10 November. The commit records the correction to `source.kind: inferred`, `source.from: hri_apatrapya`, `evidence: implemented`, `dark: true`, and `last_verified: 2026-11-20`. It identifies the exact CI step as `python mind_map/mind_map.py --check --verify` and records that it exited 0 after the correction, with the full suite at 2,166 passed, 7 skipped, 40 subtests and 0 failed. The raw failing workflow log itself has not been recovered, so the commit message is the preserved historical evidence rather than a raw CI transcript.
+The source-history record is specific: commit `ecf9c437528a9445f37020f8fadfa02de507520e` (20 November) explicitly states that CI's absence-grep was failing because this node still had `source.kind: absent` and `last_verified: 2026-11-09`, even though the prototype had been built on 10 November. The commit records the correction to `source.kind: inferred`, `source.from: hri_apatrapya`, `evidence: implemented`, `dark: true`, and `last_verified: 2026-11-20`. It identifies the exact CI step as `python mind_map/mind_map.py --check --verify` and records that it exited 0 after the correction, with the full suite at 2,166 passed, 7 skipped, 40 subtests and 0 failed. The raw failing workflow log itself has not been recovered, so the commit message is the preserved historical evidence rather than a raw CI transcript.
 
 ## Current main-branch source evidence
 
@@ -43,9 +43,10 @@ Consequently, the old MIND_MAP validator condition cannot be reproduced against 
 The evidence supports this narrow conclusion:
 
 - **Historical MIND_MAP finding:** classified as a genuine validator failure caused by a stale/obsolete absence claim; corrected on `main` by commit `ecf9c437` on 20 November. The current `p12_selfreport` node no longer carries the false absence check.
-- **V2.1 M0.2 `p12_selfreport` mapping:** the identifier and failure history strongly correspond, but the exact V2.1 §4.5 wording/source context is not available in the current audit record. It remains unproven whether V2.1 refers to this MIND_MAP validator failure or a separate pytest failure. No originating pytest node ID or raw pytest failure output has been recovered.
+- **V2.1 M0.2 `p12_selfreport` item:** the founder-provided frozen register identifies it as the MIND_MAP node. Its historical absence-check failure is reproduced in the repository's 20 November source-history record and classified as a genuine validator failure caused by a stale/obsolete absence claim. The node was reclassified to an inferred source relationship; the post-fix `--check --verify` step exited 0. No separate pytest node named `p12_selfreport` is identified in the current test inventory.
 - **Current active-host test baseline:** clean for the reported run. The active-host branch lacks both the MIND_MAP and prototype source, so the main-branch correction cannot be reproduced on that checkout.
+- **Remaining M0.2 scope:** the earlier environment-limited run (107 failures and 62 errors) remains only an aggregate historical result in the available report; per-test identities/classifications are not present. The current `tests/known_failures.txt` has no active allowlist entries.
 
-If V2.1's `p12_selfreport` refers to the documented MIND_MAP failure, its historical classification and correction are established. If it refers to a separate pytest failure, that separate item remains unidentified. M0.2 therefore remains **PARTIAL** until the V2.1 reference is mapped unambiguously.
+The `p12_selfreport` node's historical validator failure is now classified and corrected. M0.2 remains **PARTIAL** because the available evidence does not enumerate/classify the earlier environment-limited failures individually, and the active-host branch does not contain the MIND_MAP/source pair for an on-branch rerun.
 
 This note does not amend the frozen register, V2.1 proposal, roadmap, MIND_MAP authority, test baseline or runtime. It records the distinction between a corrected historical main-branch absence claim and the still-unresolved M0.2 failure reference.
