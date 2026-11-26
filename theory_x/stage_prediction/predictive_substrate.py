@@ -349,7 +349,9 @@ class PredictiveSubstrate:
         else:
             sense_items = self._sr.read(
                 "SELECT payload AS content FROM sense_events "
-                "WHERE timestamp >= ? AND timestamp <= ?",
+                "WHERE stream NOT LIKE 'internal.%' "
+                "AND payload IS NOT NULL AND payload != '' "
+                "AND timestamp >= ? AND timestamp <= ?",
                 (window_start, window_end),
             )
             msg_items = self._cr.read(
