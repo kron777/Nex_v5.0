@@ -295,6 +295,24 @@ class TestDormancyScanner(unittest.TestCase):
         self.assertEqual(first_cursor, 50)
         self.assertEqual(second_cursor, 100)
 
+    def test_dormancy_scan_and_pick_exclude_retired_markers(self):
+        from theory_x.diversity.dormancy import DormancyScanner
+
+        class _Reader:
+            def __init__(self):
+                self.queries = []
+            def read(self, sql, params=()):
+                self.queries.append(sql)
+                return []
+
+        reader = _Reader()
+        scanner = DormancyScanner(_StubWriter(), reader)
+        self.assertEqual(scanner.scan_incremental(), 0)
+        self.assertIn("erosion_stage != 'retired'", reader.queries[-1])
+
+        scanner.pick_dormant()
+        self.assertIn("b.erosion_stage != 'retired'", reader.queries[-1])
+
     def test_reanimation_query_excludes_paused_and_retired(self):
         from theory_x.diversity.reanimate import wake_one
         writer = _StubWriter()
@@ -307,6 +325,7 @@ class TestDormancyScanner(unittest.TestCase):
         wake_one(writer, reader)
         self.assertIn("b.tier <= 7", reader.sql)
         self.assertIn("b.paused = 0", reader.sql)
+        self.assertIn("b.erosion_stage != 'retired'", reader.sql)
 
 
 # ---------------------------------------------------------------------------
