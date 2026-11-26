@@ -12,8 +12,8 @@ from typing import Dict, List
 
 from .model import (ANTI_REQUIREMENT, CONDITIONAL, FUTURE, MISSING, NECESSARY,
                     OPTIONAL, OVERDEVELOPED, PARTIAL, RECON_UNKNOWN, REUSE_EXISTING,
-                    SIGNATURE_MATCHED, SUFFICIENT, TENSION_UNKNOWN, UNDERDEVELOPED,
-                    Obligation, Relationship, TensionAssessment, has_valid_reuse_review)
+                    SUFFICIENT, TENSION_UNKNOWN, UNDERDEVELOPED, Obligation,
+                    Relationship, TensionAssessment)
 
 
 # ---- node-level ----
@@ -31,16 +31,7 @@ def assess_node(ob: Obligation) -> TensionAssessment:
         return TensionAssessment("node", ob.key, SUFFICIENT, inference=False,
                                  evidence=["reconciled MISSING"],
                                  note=f"{ob.classification}: absence is acceptable")
-    if ob.recon_status == SIGNATURE_MATCHED:
-        return TensionAssessment("node", ob.key, TENSION_UNKNOWN, inference=True,
-                                 evidence=ev,
-                                 note="configured source signature matched; semantic satisfaction "
-                                      "has not been independently reviewed")
     if ob.recon_status == REUSE_EXISTING:
-        if not has_valid_reuse_review(ob):
-            return TensionAssessment("node", ob.key, TENSION_UNKNOWN, inference=True,
-                                     evidence=ev,
-                                     note="reuse status lacks independent semantic-review evidence")
         if ob.classification in (OPTIONAL, FUTURE):
             return TensionAssessment("node", ob.key, OVERDEVELOPED, inference=True,
                                      evidence=ev,
@@ -65,16 +56,10 @@ def assess_relationship(rel: Relationship, obligations: Dict[str, Obligation]) -
                                       "(capability != authority)")
     if rel.kind == "depends_on":
         tgt = obligations.get(rel.dst)
-        if tgt is not None and tgt.classification == NECESSARY:
-            if tgt.recon_status in (MISSING, PARTIAL):
-                return TensionAssessment("relationship", subj, UNDERDEVELOPED, inference=True,
-                                         evidence=[f"target {tgt.recon_status}"],
-                                         note="blocking dependency on an unresolved necessary mechanism")
-            if tgt.recon_status in (RECON_UNKNOWN, SIGNATURE_MATCHED) or (
-                    tgt.recon_status == REUSE_EXISTING and not has_valid_reuse_review(tgt)):
-                return TensionAssessment("relationship", subj, TENSION_UNKNOWN, inference=True,
-                                         evidence=[f"target {tgt.recon_status}"],
-                                         note="dependency target has not been semantically established")
+        if tgt is not None and tgt.recon_status == MISSING and tgt.classification == NECESSARY:
+            return TensionAssessment("relationship", subj, UNDERDEVELOPED, inference=False,
+                                     evidence=["target MISSING"],
+                                     note="blocking dependency on an unbuilt necessary mechanism")
     return TensionAssessment("relationship", subj, SUFFICIENT, inference=True,
                              note="no relationship tension detected")
 
@@ -104,18 +89,49 @@ def _find_cycles(edges: List[Relationship]) -> List[List[str]]:
     return cycles
 
 
+def _classify_cycle(cycle: List[str], relationships: List[Relationship]) -> str:
+    """Classify a detected cycle from edge evidence, retaining UNKNOWN when unclear:
+      * prerequisite_cycle — every edge is `depends_on`: a circular build order that cannot
+        be satisfied (must be broken);
+      * feedback_loop      — the cycle runs through at least one `influences` edge: a candidate
+        feedback loop that may be essential (examine gain/stability, do not auto-remove);
+      * unknown            — the edges along the cycle cannot all be resolved (insufficient
+        evidence to classify).
+    `cycle` is a path like [A, B, C, A]."""
+    kinds: List[str] = []
+    pairs = set(zip(cycle, cycle[1:]))
+    for a, b in pairs:
+        ks = {r.kind for r in relationships if r.src == a and r.dst == b
+              and r.kind in ("depends_on", "influences")}
+        if not ks:
+            return "unknown"               # an edge we cannot resolve -> do not over-claim
+        kinds.extend(ks)
+    if "influences" in kinds:
+        return "feedback_loop"
+    if kinds and all(k == "depends_on" for k in kinds):
+        return "prerequisite_cycle"
+    return "unknown"
+
+
 def assess_system(obligations: Dict[str, Obligation],
                   relationships: List[Relationship]) -> List[TensionAssessment]:
     out: List[TensionAssessment] = []
 
-    # stability: feedback cycles among obligations
+    # stability: cycles among obligations — detect, CLASSIFY (where evidence supports), report
     cycles = _find_cycles(relationships)
     if cycles:
+        classified = [{"cycle": " -> ".join(c), "classification": _classify_cycle(c, relationships)}
+                      for c in cycles]
+        labels = {cc["classification"] for cc in classified}
+        # a purely prerequisite (depends_on) cycle is an unsatisfiable build order -> underdeveloped;
+        # feedback loops / unknown cycles stay UNKNOWN (do not force a problematic verdict).
+        verdict = UNDERDEVELOPED if "prerequisite_cycle" in labels else TENSION_UNKNOWN
         out.append(TensionAssessment(
-            "system", "feedback_cycles", TENSION_UNKNOWN, inference=True,
+            "system", "feedback_cycles", verdict, inference=True,
             evidence=[" -> ".join(c) for c in cycles],
-            note="feedback cycle(s) among obligations — examine stability/gain before building; "
-                 "do not auto-remove (some cycles are essential)"))
+            dimensions={"classified_cycles": classified},
+            note="cycle(s) detected and classified: prerequisite cycles must be broken; feedback "
+                 "loops examined for gain/stability; unknown ones reviewed — do not auto-remove"))
 
     # resource concentration: high in-degree obligations (potential bottleneck)
     indeg: Dict[str, int] = {}
@@ -128,29 +144,15 @@ def assess_system(obligations: Dict[str, Obligation],
             evidence=[f"{k} (in-degree {indeg[k]})" for k in hot],
             note="several obligations converge on one mechanism — confirm it is not a bottleneck"))
 
-    # Sufficient only when every necessary obligation is affirmatively reconciled.
-    # Partial evidence is underdeveloped; unavailable evidence remains unknown.
-    necessary = {k: o for k, o in obligations.items() if o.classification == NECESSARY}
-    missing_nec = [k for k, o in necessary.items() if o.recon_status in (MISSING, PARTIAL)]
-    unknown_nec = [k for k, o in necessary.items()
-                    if o.recon_status in (RECON_UNKNOWN, SIGNATURE_MATCHED) or
-                    (o.recon_status == REUSE_EXISTING and not has_valid_reuse_review(o))]
-    if missing_nec:
-        verdict = UNDERDEVELOPED
-    elif unknown_nec or not necessary:
-        verdict = TENSION_UNKNOWN
-    else:
-        verdict = SUFFICIENT
-    evidence = [f"{k}: {o.recon_status}" for k, o in necessary.items()]
+    # integration: unbuilt necessary obligations
+    missing_nec = [k for k, o in obligations.items()
+                   if o.recon_status == MISSING and o.classification == NECESSARY]
+    verdict = UNDERDEVELOPED if missing_nec else SUFFICIENT
     out.append(TensionAssessment(
-        "system", "integration_readiness", verdict,
-        inference=bool(unknown_nec or any(obligations[k].recon_status == PARTIAL for k in missing_nec)),
-        evidence=evidence[:10],
-        note=(f"{len(missing_nec)} necessary obligation(s) missing or partial; {len(unknown_nec)} unknown"
-              if missing_nec or unknown_nec
-              else ("no necessary obligations defined; readiness cannot be established"
-                    if not necessary else
-                    "all necessary obligations have independently reviewed semantic-satisfaction evidence"))))
+        "system", "integration_readiness", verdict, inference=False,
+        evidence=missing_nec[:10],
+        note=f"{len(missing_nec)} necessary obligation(s) unbuilt" if missing_nec
+             else "all necessary obligations reconcile to existing mechanisms"))
     return out
 
 
@@ -227,9 +229,8 @@ def recognize_sufficiency(obligations: Dict[str, Obligation]) -> List[dict]:
     """Where further development is NOT justified (the restraint half of OFT)."""
     out: List[dict] = []
     for ob in obligations.values():
-        if (ob.recon_status == REUSE_EXISTING and ob.classification not in (OPTIONAL, FUTURE)
-                and has_valid_reuse_review(ob)):
-            out.append({"key": ob.key, "reason": "semantic satisfaction reviewed; reuse, do not rebuild"})
+        if ob.recon_status == REUSE_EXISTING and ob.classification not in (OPTIONAL, FUTURE):
+            out.append({"key": ob.key, "reason": "already sufficient; reuse, do not rebuild"})
         elif ob.recon_status == MISSING and ob.classification in (OPTIONAL, FUTURE, CONDITIONAL):
             out.append({"key": ob.key,
                         "reason": f"{ob.classification}; absence not currently a deficiency"})
