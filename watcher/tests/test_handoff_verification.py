@@ -300,3 +300,32 @@ def test_watcher_uses_trusted_system_git_not_caller_path(tmp_path, monkeypatch):
     report = verify_handoff_request(str(request_path))
     assert report["scope"]["scope_compliant"] is True
     assert not marker.exists()
+
+
+def test_concurrent_verifiers_serialize_watcher_ledger_transitions(tmp_path):
+    repo, base = _repo(tmp_path)
+    manifest, manifest_path = _manifest(repo, base)
+    events_path = _events(repo, manifest)
+    (repo / "docs" / "REQUIREMENTS.md").write_text("# Concurrent proposal\n", encoding="utf-8")
+    request_path = tmp_path / "request.json"
+    request_path.write_text(_canonical(_request(repo, manifest_path, events_path)), encoding="utf-8")
+    trusted_root = str(Path(__file__).resolve().parents[2])
+    command = [
+        sys.executable, "-m", "watcher", "verify-handoff",
+        "--request", str(request_path),
+    ]
+    processes = [
+        subprocess.Popen(command, cwd=trusted_root, capture_output=True, text=True)
+        for _ in range(2)
+    ]
+    outputs = [proc.communicate(timeout=20) for proc in processes]
+    for proc, (stdout, stderr) in zip(processes, outputs):
+        assert proc.returncode == 0, stderr + "\n" + stdout
+
+    ledger_path = repo / "rdo" / ".cycles" / "watcher_handoff_verification_ledger.jsonl"
+    entries = [json.loads(line) for line in ledger_path.read_text(encoding="utf-8").splitlines()]
+    assert len(entries) == 3
+    assert [entry["to_state"] for entry in entries].count("DECLARED") == 1
+    assert [entry["to_state"] for entry in entries].count("SOURCE_CONFIRMED") == 2
+    assert entries[1]["from_state"] == "DECLARED"
+    assert entries[2]["from_state"] == "SOURCE_CONFIRMED"
