@@ -1830,6 +1830,20 @@ def create_app(state: AppState) -> Flask:
                 and not _is_social_q
                 and register.name not in _ALLOW_THIN_REGISTERS
                 and belief_count < CHAT_GAP_MIN_BELIEFS):
+            _gap_candidate_trace_id = None
+            if trace is not None:
+                _gap_candidate_trace_id = trace.record(
+                    "candidate_generation", "chat_gap_refusal_candidate",
+                    metadata={"belief_count": belief_count,
+                              "minimum_beliefs": CHAT_GAP_MIN_BELIEFS},
+                    parent_ids=[
+                        rid for rid in (
+                            trace.reference("input_arrival"),
+                            trace.reference("chat_belief_candidates"),
+                        ) if rid
+                    ],
+                )
+                trace.remember("chat_reply_candidate", _gap_candidate_trace_id)
             if writer is not None and session_id is not None:
                 try:
                     _gap_message_id = writer.write(
@@ -1839,10 +1853,12 @@ def create_app(state: AppState) -> Flask:
                         (session_id, CHAT_GAP_REFUSAL, register.name, state.now_fn(), None),
                     )
                     if trace is not None:
-                        trace.writer_delta(
+                        _gap_message_trace_id = trace.writer_delta(
                             database="conversations", table="messages", operation="INSERT",
                             row_id=_gap_message_id, metadata={"role": "nex", "kind": "gap_refusal"},
+                            parent_ids=[_gap_candidate_trace_id] if _gap_candidate_trace_id else [],
                         )
+                        trace.remember("chat_assistant_message", _gap_message_trace_id)
                 except Exception as exc:
                     error_channel.record(
                         f"conversations: gap refusal insert failed: {exc}",
@@ -1860,10 +1876,23 @@ def create_app(state: AppState) -> Flask:
                         source="gui.server", exc=_td_exc,
                     )
             if trace is not None:
-                trace.gate("NOT_APPLICABLE", gate="chat_crystallization_gate",
-                           reason_code="chat_reply_is_not_a_belief_write")
-                trace.output(CHAT_GAP_REFUSAL, output_kind="chat_reply",
-                             status="gap_refusal")
+                _gap_gate_na_id = trace.gate(
+                    "NOT_APPLICABLE", gate="chat_crystallization_gate",
+                    reason_code="chat_reply_is_not_a_belief_write",
+                    parent_ids=[_gap_candidate_trace_id]
+                    if _gap_candidate_trace_id else [trace.reference("input_arrival")],
+                )
+                trace.output(
+                    CHAT_GAP_REFUSAL, output_kind="chat_reply",
+                    status="gap_refusal",
+                    parent_ids=[
+                        rid for rid in (
+                            _gap_candidate_trace_id,
+                            trace.reference("chat_assistant_message"),
+                            _gap_gate_na_id,
+                        ) if rid
+                    ],
+                )
             return jsonify({
                 "register": register.name,
                 "session_id": session_id,
