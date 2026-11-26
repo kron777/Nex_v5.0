@@ -663,9 +663,10 @@ def test_rdo_self_assessment_lean_and_independent():
     assert r["independence_no_nex_import"] is True
     assert r["reuses_watcher_infrastructure"] is True
     assert r["module_count"] <= 14  # core reasoning modules
-    assert r["boundary_adapter_count"] == 1
+    assert r["boundary_adapter_count"] == 2
     assert r["total_module_count"] == r["module_count"] + r["boundary_adapter_count"]
     assert "objective_intake.py" in r["boundary_adapters"]
+    assert "handoff.py" in r["boundary_adapters"]
     assert not any(f["verdict"] == "VIOLATION" for f in r["findings"])
 
 # ---- correction regressions: evidence availability and downstream interpretation ----
