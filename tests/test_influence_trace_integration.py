@@ -1000,8 +1000,23 @@ def test_full_fountain_generator_trace_overlay_on_off_equivalence(tmp_path, monk
         row for row in rows
         if row["stage"] == "direct_sql_commit"
     ]
+    assert any(row["event"] == "recursion_attrib_insert_or_replace" for row in direct_commits)
     assert any(row["event"] == "momentum_upsert" for row in direct_commits)
     assert any(row["event"] == "momentum_resolution_update" for row in direct_commits)
+    hot_branch_selection = next(
+        row for row in rows if row["stage"] == "salience_workspace"
+        and row["event"] == "selection_recorded"
+        and row["metadata"].get("strategy") == "focus_num_weighted_pick"
+    )
+    recursion_commit = next(
+        row for row in direct_commits
+        if row["event"] == "recursion_attrib_insert_or_replace"
+    )
+    momentum_commit = next(
+        row for row in direct_commits if row["event"] == "momentum_upsert"
+    )
+    assert hot_branch_selection["event_id"] in recursion_commit["parent_ids"]
+    assert hot_branch_selection["event_id"] in momentum_commit["parent_ids"]
     for row in direct_commits:
         assert row["metadata"]["transaction_scope"] == "direct_connection_commit"
     seen = set()
