@@ -116,13 +116,20 @@ The generic intake interface is merged and a first durable handoff path now exis
 
 Commands and file format are documented in [STAGE7_HANDOFF.md](STAGE7_HANDOFF.md).
 
+### Current implementation status after PR #135 (26 Nov 2026)
+
+The independent Watcher-process source/path verifier is now implemented and merged. The RDO adapter invokes the fixed `python -m watcher verify-handoff` command as a separate process, with the Watcher package resolved from the trusted installation rather than the inspected repository. The Watcher validates the immutable manifest and complete decision-event chain, current scope approval, planning-commit ancestry, Git-derived changed paths, exact-file/symlink boundaries and bounded source-file evidence. Ledger transitions are serialized under a process lock.
+
+This closes the earlier **same-process Watcher verification** gap for the handoff path. It does not replace or silently upgrade the legacy `rdo/execution.py::verify()` path described in the historical sections above: that older verifier remains a separate in-process execution integration. The new handoff subprocess is source/path-only and does not execute tests, project commands, agents, services or runtime operations.
+
+The merged regression suite also checks required reviewer/source attribution and the structure of separate acceptance evidence dimensions. Attribution remains caller-supplied, not identity-authenticated.
+
 ### What remains before Stage 7 can be called complete
 
-1. Verify source evidence through a separate Watcher process boundary rather than importing Watcher ledger/evidence into the RDO process.
-2. Retain distinct source, test, host-runtime and human-acceptance evidence with no substitution.
-3. Demonstrate a real, non-behavioural objective through intake → persisted cycle → exact manifest → human review → independent Watcher verification.
-4. Design and verify a disposable no-secrets/no-live-data test environment before any arbitrary repository test code is run. The existing exact-path allowlist is not a sandbox.
-5. Obtain the appropriate host/runtime approval before any runtime observation; runtime remains UNKNOWN until actually observed.
+1. **Real objective-to-delivery demonstration.** Run one real, non-behavioural, reversible documentation/tooling objective through intake → persisted native cycle → exact immutable manifest → explicit human scope review → independent Watcher verification → bounded delivery → independent source evidence → separate human acceptance. The existing temporary fixture is not that demonstration.
+2. **Disposable test-execution boundary.** Design and independently verify a no-secrets/no-live-NEX-data environment with restricted network access before enabling arbitrary repository test code. The existing exact-path allowlist is not a sandbox; test execution remains `not_authorized` in the new handoff path.
+3. **Host/runtime authority.** Any runtime observation remains host-only UNKNOWN and requires the appropriate experiment-specific founder approval. No cloud-side source evidence or CI result substitutes for it.
+4. **Evidence separation and learning.** Preserve source, test, host-runtime and human-acceptance dimensions independently; only feed a real, provenance-backed outcome into learning when its evidence and review are actually present.
 
-The handoff manifest is a planning/review artifact, not an execution launcher. The Stage-7 completion issue remains open; no RDO Stage 8 is inferred.
+The handoff manifest is a planning/review artifact, not an execution launcher. The Stage-7 completion issue remains open; no RDO Stage 8 is inferred. The RDO v1.3/v1.4 specification-authority question also remains unresolved.
 
