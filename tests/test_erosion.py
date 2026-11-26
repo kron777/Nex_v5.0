@@ -118,6 +118,33 @@ class TestErosionTracking(unittest.TestCase):
         row = r.read_one("SELECT erosion_stage FROM beliefs WHERE id = ?", (bid,))
         self.assertEqual(row["erosion_stage"], "external")
 
+    def test_erosion_pass_paginates_beyond_500_rows(self):
+        from theory_x.stage3_world_model.erosion import ProvenanceErosion, THRESHOLDS
+        w = self.writers["beliefs"]
+        r = self.readers["beliefs"]
+        erosion = ProvenanceErosion(w, r)
+
+        threshold = THRESHOLDS["external"]
+        belief_ids = []
+        for index in range(505):
+            bid = _insert_belief(w, f"Belief for paginated erosion test {index}")
+            belief_ids.append(bid)
+            w.write(
+                "UPDATE beliefs SET reinforce_count = ? WHERE id = ?",
+                (threshold, bid),
+            )
+
+        advanced = erosion.erosion_pass()
+        self.assertEqual(advanced, 505)
+
+        placeholders = ",".join("?" for _ in belief_ids)
+        rows = r.read(
+            f"SELECT id, erosion_stage FROM beliefs WHERE id IN ({placeholders})",
+            tuple(belief_ids),
+        )
+        self.assertEqual(len(rows), 505)
+        self.assertTrue(all(row["erosion_stage"] == "nex_absorbed" for row in rows))
+
     def test_erosion_pass(self):
         from theory_x.stage3_world_model.erosion import ProvenanceErosion, THRESHOLDS
         w = self.writers["beliefs"]
