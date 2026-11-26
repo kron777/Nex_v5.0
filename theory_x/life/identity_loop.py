@@ -78,6 +78,7 @@ def _gather_metrics(now):
         # Highest-affinity belief
         row = b.execute(
             "SELECT content FROM beliefs WHERE affinity IS NOT NULL "
+            "AND tier < 8 AND paused = 0 AND erosion_stage != 'retired' "
             "ORDER BY affinity DESC LIMIT 1"
         ).fetchone()
         m["top_affinity"] = row[0][:140] if row else None

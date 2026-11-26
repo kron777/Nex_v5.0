@@ -235,7 +235,9 @@ def _pick_candidates(cx, limit):
                (SELECT COUNT(*) FROM belief_edges WHERE source_id = b.id) AS edges_out
         FROM beliefs b
         WHERE (b.affinity IS NULL OR b.affinity_updated_at < ?)
-          AND b.tier >= 4
+          AND b.tier BETWEEN 4 AND 7
+          AND b.paused = 0
+          AND b.erosion_stage != 'retired'
           AND b.source NOT IN ('spectrum', 'demoted_confabulation')
           AND (
                 COALESCE(b.use_count, 0) >= ?          -- earned it through use
