@@ -208,6 +208,25 @@ class TestFountainGenerator(unittest.TestCase):
         add("PAUSED_SURPRISE_SENTINEL", "surprise", paused=1, created_at=now - 20)
         add("RETIRED_SURPRISE_SENTINEL", "surprise", tier=8, created_at=now - 10)
 
+        add("ACTIVE_SPECTRUM_INWARD_SENTINEL", "spectrum")
+        add("PAUSED_SPECTRUM_INWARD_SENTINEL", "spectrum", paused=1)
+        add("RETIRED_SPECTRUM_INWARD_SENTINEL", "spectrum", tier=8)
+        self.writers["beliefs"].write(
+            "INSERT INTO beliefs (id, content, source, tier, confidence, created_at, paused) "
+            "VALUES (23001, 'ACTIVE_SPECTRUM_OUTWARD_SENTINEL', 'spectrum', 5, 0.8, ?, 0)",
+            (now,),
+        )
+        self.writers["beliefs"].write(
+            "INSERT INTO beliefs (id, content, source, tier, confidence, created_at, paused) "
+            "VALUES (23002, 'PAUSED_SPECTRUM_OUTWARD_SENTINEL', 'spectrum', 5, 0.8, ?, 1)",
+            (now,),
+        )
+        self.writers["beliefs"].write(
+            "INSERT INTO beliefs (id, content, source, tier, confidence, created_at, paused) "
+            "VALUES (23003, 'RETIRED_SPECTRUM_OUTWARD_SENTINEL', 'spectrum', 8, 0.8, ?, 0)",
+            (now,),
+        )
+
         for i in range(21):
             self.writers["beliefs"].write(
                 "INSERT INTO beliefs (content, tier, confidence, created_at, source, locked) "
@@ -229,6 +248,34 @@ class TestFountainGenerator(unittest.TestCase):
         self.assertNotIn("RETIRED_FAVOURITE_SENTINEL", prompt)
         self.assertNotIn("PAUSED_SURPRISE_SENTINEL", prompt)
         self.assertNotIn("RETIRED_SURPRISE_SENTINEL", prompt)
+        self.assertIn("ACTIVE_SPECTRUM_INWARD_SENTINEL", prompt)
+        self.assertIn("ACTIVE_SPECTRUM_OUTWARD_SENTINEL", prompt)
+        self.assertNotIn("PAUSED_SPECTRUM_INWARD_SENTINEL", prompt)
+        self.assertNotIn("RETIRED_SPECTRUM_INWARD_SENTINEL", prompt)
+        self.assertNotIn("PAUSED_SPECTRUM_OUTWARD_SENTINEL", prompt)
+        self.assertNotIn("RETIRED_SPECTRUM_OUTWARD_SENTINEL", prompt)
+
+    def test_koan_selection_excludes_paused_and_retired(self):
+        gen = self._make_generator()
+
+        def add_koan(content, tier=5, paused=0):
+            return self.writers["beliefs"].write(
+                "INSERT INTO beliefs (content, source, tier, confidence, created_at, locked, paused) "
+                "VALUES (?, 'koan', ?, 0.8, ?, 1, ?)",
+                (content, tier, int(time.time()), paused),
+            )
+
+        active = add_koan("active koan sentinel")
+        add_koan("paused koan sentinel", paused=1)
+        add_koan("retired koan sentinel", tier=8)
+        self.writers["beliefs"].write(
+            "INSERT INTO koan_reads (gate_id, read_at) VALUES (?, ?)",
+            (str(active), 1),
+        )
+
+        selected = gen._select_koan(self.readers["beliefs"])
+        self.assertIsNotNone(selected)
+        self.assertEqual(selected["id"], active)
 
     def test_generate_returns_none_when_not_ready(self):
         gen = self._make_generator()
