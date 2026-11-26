@@ -1,6 +1,9 @@
 """Provenance Erosion — beliefs become NEX's own over time.
 
-A belief starts as 'external'. Through use and reinforcement it advances:
+A belief starts as 'external'. Retrieval/use and reinforcement are tracked
+separately: use increments use_count, while corroboration-driven reinforcement
+increments reinforce_count. Stage advancement is thresholded on reinforcement,
+not raw use, so repeated retrieval alone does not establish integration:
   external → nex_absorbed → nex_integrated → nex_core
 
 Protected sources never erode (keystone, heart_sutra, etc.).
