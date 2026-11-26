@@ -10,7 +10,8 @@ import subprocess
 import sys
 
 from rdo.memory import (CycleStore, learning_loop, learning_provenance,
-                        prediction_accuracy, record_actual, reopening_candidates)
+                        prediction_accuracy, record_actual, reopening_candidates,
+                        transfer_observations)
 from rdo.model import CycleRecord, EXECUTED_VERIFIED, NATIVE_PLANNING
 
 
@@ -107,6 +108,24 @@ def test_planning_review_is_not_counted_as_execution():
     assert loop["provenance_split"]["reviewer_attributed"] == 1
     # a native_planning review contributes no genuinely-comparable executed cycle
     assert loop["comparability"]["largest_genuinely_comparable_group"] == 0
+
+
+def test_transfer_match_requires_complete_empty_discrepancy_evidence():
+    matched = _cycle("matched", 1, kind=EXECUTED_VERIFIED, actual={
+        "effort_actual": 1, "missed": [], "unnecessary": [], "reuse_wrong": [],
+    })
+    unnecessary = _cycle("unnecessary", 1, kind=EXECUTED_VERIFIED, actual={
+        "effort_actual": 1, "missed": [], "unnecessary": ["extra"], "reuse_wrong": [],
+    })
+    incomplete = _cycle("incomplete", 1, kind=EXECUTED_VERIFIED, actual={
+        "effort_actual": 1, "missed": [],
+    })
+    result = transfer_observations([matched, unnecessary, incomplete])
+    by_id = {row["cycle"]: row for row in result["executed_cycles"]}
+    assert by_id["matched"]["prediction_matched"] is True
+    assert by_id["unnecessary"]["prediction_matched"] is False
+    assert by_id["incomplete"]["prediction_matched"] is None
+    assert result["unknown_cycles"] == ["incomplete"]
 
 
 # ------------------------------------- reopening --------------------------------------------
