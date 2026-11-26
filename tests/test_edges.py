@@ -354,10 +354,13 @@ class TestEdgeGeneratorEligibility(unittest.TestCase):
         r = self.readers["beliefs"]
         paused_id = _insert_belief(w, "A paused belief about attention and cognition", tier=5)
         retired_id = _insert_belief(w, "A retired belief about memory and perception", tier=8)
+        retired_marker_id = _insert_belief(w, "A stale-tier retired marker about cognition", tier=5)
         w.write("UPDATE beliefs SET paused=1 WHERE id=?", (paused_id,))
+        w.write("UPDATE beliefs SET erosion_stage='retired' WHERE id=?", (retired_marker_id,))
         generator = EdgeGenerator(w, r)
         self.assertEqual(generator.propose_edges_for_belief(paused_id), [])
         self.assertEqual(generator.propose_edges_for_belief(retired_id), [])
+        self.assertEqual(generator.propose_edges_for_belief(retired_marker_id), [])
 
     def test_paused_candidate_is_excluded(self):
         from theory_x.stage3_world_model.edge_generator import EdgeGenerator
@@ -369,10 +372,16 @@ class TestEdgeGeneratorEligibility(unittest.TestCase):
         paused_id = _insert_belief(
             w, "Attention guides cognition through focused memory systems", tier=5
         )
+        retired_marker_id = _insert_belief(
+            w, "Attention guides cognition through retired memory systems", tier=5
+        )
         w.write("UPDATE beliefs SET paused=1 WHERE id=?", (paused_id,))
+        w.write("UPDATE beliefs SET erosion_stage='retired' WHERE id=?", (retired_marker_id,))
         generator = EdgeGenerator(w, r)
         proposals = generator.propose_edges_for_belief(source_id)
-        self.assertNotIn(paused_id, {target_id for target_id, _, _ in proposals})
+        proposal_ids = {target_id for target_id, _, _ in proposals}
+        self.assertNotIn(paused_id, proposal_ids)
+        self.assertNotIn(retired_marker_id, proposal_ids)
 
 
 class TestNoDirectSqlite(unittest.TestCase):
