@@ -27,6 +27,12 @@ from .host import host_requests_as_data, host_results_template, load_host_result
 from .regression import detect, summarize
 from .report import render_json, render_markdown
 from .snapshot import load_snapshot, take_snapshot
+from .handoff_verify import verify_request_file
+
+
+def _verify_handoff(args) -> int:
+    """Verify only source/path scope from a bounded JSON request; never run tests."""
+    return verify_request_file(args.request)
 
 
 def _recon(args) -> int:
@@ -132,6 +138,10 @@ def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="watcher", description="NEX Watcher (passive, read-only)")
     p.add_argument("--version", action="version", version=f"watcher {__version__}")
     sub = p.add_subparsers(dest="cmd", required=True)
+
+    vh = sub.add_parser("verify-handoff", help="independently verify approved handoff source/path scope only")
+    vh.add_argument("--request", required=True, help="versioned watcher.handoff_verify_request.v1 JSON")
+    vh.set_defaults(fn=_verify_handoff)
 
     r = sub.add_parser("recon", help="run cloud/static reconnaissance")
     r.add_argument("--repo", default=".")
