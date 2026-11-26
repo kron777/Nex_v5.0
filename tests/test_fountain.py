@@ -168,7 +168,9 @@ class TestFountainGenerator(unittest.TestCase):
         active_hot = add("active self observation", "hot_observer")
         paused_hot = add("paused self observation", "hot_observer", paused=1)
 
-        rows = gen._retrieve_context_beliefs(own_n=10, seed_n=10)
+        # Seed retrieval is random; include the fixture corpus so this test checks
+        # eligibility rather than whether RANDOM() happens to select this row.
+        rows = gen._retrieve_context_beliefs(own_n=10, seed_n=10000)
         ids = {row["id"] for row in rows}
         self.assertIn(active_own, ids)
         self.assertIn(active_seed, ids)
