@@ -19,6 +19,8 @@ The Library contains the original file:
 
 A second Library copy, `NEX_Recursive_Development_Orchestrator_Specification_v1.3(1).pdf`, has the same byte size and identical SHA-256. It is a duplicate, not independent corroboration.
 
+The earlier original v1.2 PDF is also present in the Library (20 pages; cover says Version 1.2 | 20 November 2026). Its structure differs materially: its §12 is the provisional roadmap, §13 is the MVP acceptance criteria, §15 is the immediate assignment, and §16 is “Research basis, design rationale and limitations”. Its roadmap table begins with “2. RDO foundation” and uses a different stage grouping. The Library source-document index labels v1.2 the earlier specification and v1.3 the later specification; the 22 November carry-over likewise records v1.3 as the later working specification replacing v1.2. This supports the v1.2 → v1.3 chronology. It does not establish a subsequent v1.4 revision.
+
 The original v1.3 PDF's printed **§16, “Roadmap and immediate execution order” (PDF page 17)** specifies:
 
 | Stage | Work |
