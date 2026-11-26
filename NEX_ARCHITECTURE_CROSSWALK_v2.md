@@ -161,7 +161,7 @@ This crosswalk assigns L2 to source wiring and file inventories; L3 only to comp
 
 ## 8. Phase boundary and next gate
 
-The trace candidate in PR #151 is a separate M0.5 implementation candidate. This crosswalk is pinned to main before its merge. The trace branch has completed one full regression attempt but exposed five unit-test fixture mistakes; the corrected exact-head run is pending. It is not yet accepted as a completed M0.5 deliverable.
+The trace candidate in PR #151 is a separate M0.5 implementation candidate. This crosswalk is pinned to main before its merge. The candidate now includes paired OFF/ON fixture cycles for a complete FountainGenerator.generate() call and a complete Chat route, with comparisons of output/model requests, retrieval/selection, confidence and persisted state. Direct SQLite commits in recursion_attrib and momentum are recorded as direct commits, not Writer deltas. An earlier intermediate test run exposed five test-fixture mistakes; those were corrected on the candidate branch. The exact current PR head remains under disposable CI validation and is not accepted as a completed M0.5 deliverable yet.
 
 The Master Roadmap v3.0 Gate 0 exit condition requires founder review and approval of:
 - NEX_REPOSITORY_REALITY_REPORT.md
