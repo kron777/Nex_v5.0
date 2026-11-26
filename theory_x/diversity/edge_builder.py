@@ -62,6 +62,8 @@ def edge_builder_tick(db_path: Path = BELIEFS_DB) -> dict:
             WHERE COALESCE(e.n, 0) < ?
               AND b.paused = 0
               AND b.locked = 0
+              AND b.tier < 8
+              AND b.erosion_stage != 'retired'
               AND length(b.content) >= ?
             ORDER BY b.created_at DESC
             LIMIT ?
@@ -75,7 +77,9 @@ def edge_builder_tick(db_path: Path = BELIEFS_DB) -> dict:
             SELECT id, content
             FROM beliefs
             WHERE length(content) >= ?
+              AND tier < 8
               AND paused = 0
+              AND erosion_stage != 'retired'
             ORDER BY created_at DESC
             LIMIT ?
         """, (MIN_CONTENT_LEN, POOL_SIZE)).fetchall()
