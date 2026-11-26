@@ -111,7 +111,7 @@ def fetch_residue_beliefs(reader, belief_ids: list[int]) -> list[dict]:
     placeholders = ",".join("?" * len(belief_ids))
     rows = reader.read(
         f"SELECT id, content, source, tier, confidence, created_at FROM beliefs "
-        f"WHERE id IN ({placeholders}) AND tier < 8",
+        f"WHERE id IN ({placeholders}) AND tier < 8 AND paused = 0",
         tuple(belief_ids),
     )
     return [dict(r) for r in rows]
