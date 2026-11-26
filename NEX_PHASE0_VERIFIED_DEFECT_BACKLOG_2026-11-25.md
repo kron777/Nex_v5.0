@@ -75,7 +75,7 @@
 
 ## D. Phase 0 evidence and verification gaps
 
-### G-01 — Technical trace-overlay contract (previously labelled M0.5) does not yet match the roadmap
+### G-01 — Roadmap v3.0 Phase 0 M0.5 trace-overlay contract does not yet match the roadmap
 - Type: specification/instrumentation gap.
 - Evidence: roadmap asks for NEX5_TRACE_OVERLAY=0, trace_id/parent_ids across input, candidate generation, salience/workspace, gate, SQLite writer delta and output, plus NEX_CAUSAL_TRACE_SAMPLE.json. Active branch uses NEX5_INFLUENCE_TRACE / NEX5_INFLUENCE_TRACE_CONTEXT / NEX5_INFLUENCE_TRACE_PATH and has two coarse seams plus a JSONL fixture.
 - Impact: current fixture evidence does not establish full causal lineage or the requested contract.
@@ -125,7 +125,7 @@
 2. Sense scheduler docs versus code: 28 adapters and external auto-start, not 23/paused.
 3. CoherenceGate docs versus code: HOLD/RESHAPE are persisted/queued, and evaluation exceptions return ACCEPT.
 4. Active host checkout versus current main: 4 ahead / 641 behind; remote continuity branch 310 ahead / 641 behind; MIND_MAP and Vitals absent from the active checkout.
-5. Technical trace-overlay roadmap contract versus InfluenceRecord implementation: flag/schema/lineage/sample mismatch (previously tracked under M0.5).
+5. Roadmap v3.0 Phase 0 M0.5 trace-overlay contract versus InfluenceRecord implementation: flag/schema/lineage/sample mismatch.
 
 **No item in this backlog authorises a live change.**
 ### D-11 — Additional direct belief producers and gate-scope reconciliation required
@@ -515,7 +515,7 @@
 - Disposition: decide whether explicit deterministic cleanup is required for this short helper. Do not change the Phase 1 seam before Gate 0 / explicit approval.
 
 ### G-48 — InfluenceRecord is an output-seam capture, not end-to-end causal lineage
-- Type: technical trace-overlay coverage gap (previously labelled M0.5) against the roadmap extract recorded in the reconciliation; exact governing scope UNKNOWN.
+- Type: Roadmap v3.0 Phase 0 M0.5 technical trace-overlay coverage gap against the roadmap extract recorded in the reconciliation; exact governing scope UNKNOWN.
 - Evidence: actual runtime seams call `record_fountain_fire()` after generator return and `record_chat_turn()` after Chat reply persistence. Records include a limited set of scalar inputs and output digest/preview; the module marks retrieved-belief and faculty-block attribution unresolved. There are no `trace_id` or `parent_ids`, no candidate-generation/workspace/Gate/writer-delta capture, and Chat cycle_id is `chat:<session_id>` rather than a unique turn ID. See `NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md`.
 - Impact: records cannot reconstruct the requested stage-by-stage causal path or uniquely correlate individual Chat turns within a session. The fixture is not live evidence.
 - Disposition: recover Frozen V2.1 and founder approval to determine whether the two seams are a deliberate Phase 0 precursor or an incomplete technical trace-overlay implementation. Do not add hooks, IDs or reads before that decision.
