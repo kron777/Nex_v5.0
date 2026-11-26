@@ -20,6 +20,9 @@ import sys
 from . import __version__
 from .knowledge import genius_authority_audit
 from .memory import PatternMemory
+from rdo_adapters.objective_intake import (ObjectiveInputError, load_objective_file,
+                                           objective_history, resume_objective,
+                                           submit_objective)
 from .report import (demo_genius_tagger, run_catalogue, run_stage2_belief_decay,
                      run_stage3_graph_intelligence, run_stage4_belief_audit,
                      run_stage5_belief_pathway, run_stage6_learning_loop,
@@ -82,6 +85,37 @@ def _patterns(args) -> int:
     return 0
 
 
+def _intake(args) -> int:
+    try:
+        record = load_objective_file(args.input)
+        result = submit_objective(record, repo_dir=args.repo, workdir=args.out)
+    except (ObjectiveInputError, OSError, ValueError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, default=str))
+    return 0
+
+
+def _history(args) -> int:
+    try:
+        result = objective_history(args.out, args.objective_id)
+    except (ObjectiveInputError, OSError, ValueError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, default=str))
+    return 0
+
+
+def _resume(args) -> int:
+    try:
+        result = resume_objective(args.out, args.objective_id, args.revision)
+    except (ObjectiveInputError, OSError, ValueError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, default=str))
+    return 0
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="rdo",
                                 description="NEX Recursive Development Orchestrator (advisory)")
@@ -139,6 +173,23 @@ def main(argv=None) -> int:
     pt = sub.add_parser("patterns", help="print accumulated development patterns")
     pt.add_argument("--dir", default="rdo/.cycles")
     pt.set_defaults(fn=_patterns)
+
+    intake = sub.add_parser("intake", help="validate and run a versioned external objective")
+    intake.add_argument("--input", required=True, help="path to objective.v1 JSON")
+    intake.add_argument("--repo", default=".", help="clean Git repository snapshot to reconcile")
+    intake.add_argument("--out", default="rdo/.cycles", help="RDO objective/cycle store")
+    intake.set_defaults(fn=_intake)
+
+    history = sub.add_parser("history", help="show immutable objective input revisions")
+    history.add_argument("--objective-id", required=True)
+    history.add_argument("--out", default="rdo/.cycles")
+    history.set_defaults(fn=_history)
+
+    resume = sub.add_parser("resume", help="reload an objective revision and its persisted cycles")
+    resume.add_argument("--objective-id", required=True)
+    resume.add_argument("--revision", required=True, type=int)
+    resume.add_argument("--out", default="rdo/.cycles")
+    resume.set_defaults(fn=_resume)
 
     args = p.parse_args(argv)
     return args.fn(args)

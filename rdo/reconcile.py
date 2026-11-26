@@ -40,7 +40,16 @@ def _grep(pattern: str, repo_dir: str, path: Optional[str], max_hits: int = 3) -
     hard-coded extension allowlist. Partial stdout from a failing scan is never
     accepted as complete evidence.
     """
-    target = os.path.join(repo_dir, path) if path else repo_dir
+    # Resolve both the repository root and scoped target before invoking grep.
+    # A lexically repository-relative path can still escape through a symlink;
+    # such a target is unavailable evidence, never a valid repository anchor.
+    repo_root = os.path.realpath(repo_dir)
+    target = os.path.realpath(os.path.join(repo_root, path)) if path else repo_root
+    try:
+        if os.path.commonpath((repo_root, target)) != repo_root:
+            return None
+    except ValueError:
+        return None
     if not os.path.exists(target):
         return None
     try:
@@ -71,7 +80,7 @@ def _grep(pattern: str, repo_dir: str, path: Optional[str], max_hits: int = 3) -
     # make paths repo-relative for stable evidence
     out = []
     for ln in lines[:max_hits]:
-        out.append(ln.replace(repo_dir.rstrip("/") + "/", "", 1))
+        out.append(ln.replace(repo_root.rstrip("/") + "/", "", 1))
     return out
 
 

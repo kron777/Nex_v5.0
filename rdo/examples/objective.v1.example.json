@@ -1,0 +1,84 @@
+{
+  "schema_version": "rdo.objective.v1",
+  "objective_id": "read_only_route_example",
+  "revision": 1,
+  "supersedes_sha256": null,
+  "original_text": "Demonstrate one bounded, read-only route capability using existing repository mechanisms where possible.",
+  "intent": "Produce an evidence-backed RDO plan for a small route capability without changing runtime behaviour.",
+  "owner": "human-review-required",
+  "source": {
+    "kind": "human",
+    "reference": "illustrative-example-only"
+  },
+  "scope": {
+    "in_scope": [
+      "RDO planning",
+      "Read-only repository reconciliation"
+    ],
+    "affected_paths": [
+      "rdo",
+      "module.py"
+    ]
+  },
+  "constraints": [
+    "Reuse existing mechanisms where evidence supports reuse",
+    "Preserve uncertainty"
+  ],
+  "exclusions": [
+    "No NEX runtime changes",
+    "No live data writes",
+    "No deployment"
+  ],
+  "assumptions": [
+    "The selected Git snapshot is the intended repository baseline"
+  ],
+  "acceptance_criteria": [
+    "A durable cycle records the original request and input revision",
+    "Every proposed obligation traces to a seed and has explicit evidence needs"
+  ],
+  "seed_obligations": [
+    {
+      "key": "route_api",
+      "title": "Expose the read-only route",
+      "kind": "api",
+      "classification": "necessary",
+      "rationale": "A route is the requested capability's external interface.",
+      "impact": "Without a route the capability cannot be consumed by a client.",
+      "evidence_needs": [
+        "Current route and router registration source anchors",
+        "A test or contract establishing read-only response semantics"
+      ],
+      "assumptions": [
+        "No state-changing method is required"
+      ],
+      "confidence": "stated"
+    },
+    {
+      "key": "route_storage",
+      "title": "Determine whether route configuration needs persistence",
+      "kind": "persistence",
+      "classification": "conditional",
+      "rationale": "Persistence is required only if the route has durable configuration.",
+      "impact": "Without required persistence, configuration may not survive process restart.",
+      "evidence_needs": [
+        "Evidence of an existing persistence mechanism or a reviewed reason it is unnecessary"
+      ],
+      "assumptions": [
+        "Persistence requirement is not yet established"
+      ],
+      "confidence": "inferred"
+    }
+  ],
+  "relationships": [
+    {
+      "src": "route_api",
+      "dst": "route_storage",
+      "kind": "depends_on",
+      "authority": "none",
+      "reversible": null,
+      "note": "Investigate configuration persistence before recommending implementation."
+    }
+  ],
+  "reconciliation_signatures": {},
+  "max_depth": 3
+}

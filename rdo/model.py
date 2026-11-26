@@ -84,6 +84,8 @@ class Obligation:
     confidence: str = "stated"      # stated | measured | inferred
     note: str = ""
     impact: Optional[str] = None  # consequence if this obligation is omitted
+    # Required proof needs for this candidate; these are requests for evidence, not evidence itself.
+    evidence_needs: List[str] = dataclasses.field(default_factory=list)
 
     def __post_init__(self) -> None:
         if self.classification not in CLASSIFICATIONS:
@@ -196,6 +198,8 @@ class CycleRecord:
     verification: Dict[str, Any] = dataclasses.field(default_factory=dict)
     lessons: List[str] = dataclasses.field(default_factory=list)
     created_at: str = dataclasses.field(default_factory=utc_now)
+    # Exact immutable intake revision reference; empty for legacy/domain-demo cycles.
+    objective_input: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.kind not in CYCLE_KINDS:
