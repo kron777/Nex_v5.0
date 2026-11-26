@@ -1346,3 +1346,23 @@ The tie is a real source data shape: `theory_x.diversity.lineage.record_synergy(
 `WarrantRecorder.start_loop()` is inert unless `NEX5_WARRANT_RECORD == '1'`, and normal `run.py` construction is behind the same default-off flag. Host-effective state and live cursor/table contents remain UNKNOWN.
 
 **Disposition:** this is a source-level pagination risk, not an observed undercount. Before a future approved fix, add an isolated small-page tie-boundary regression and define a stable composite cursor (timestamp plus a unique row key), including cursor storage compatibility. No runtime cursor, schema, flag or test state was changed.
+
+
+## 85. Warrant sustain source inventory is broader than the Recorder's use-day feed
+
+`theory_x/stage_warrant/warrant.py::compute_all()` defines the Warrant `sustain` input from these evidence paths:
+
+- `belief_lineage.parent_id` rows;
+- both parents in `synergizer_log`;
+- `arc_members.belief_id`;
+- `fountain_events.anchor_belief_id`;
+- `substrate_snapshots.walk_anchor_id`;
+- `fountain_retrieval_log.belief_id`.
+
+`WarrantRecorder.use_cycle()` currently feeds `belief_use_day` / `belief_use_days` from the first four families plus `fountain_retrieval_log`, but it does not read `substrate_snapshots.walk_anchor_id`. This is a source-inventory discrepancy between the scoring module's sustain definition and the recorder's append-only use-day population.
+
+The snapshot field has a concrete conditional producer. `FountainGenerator._maybe_substrate_voice()` writes a `fountain_events` row with `anchor_belief_id`, then calls `_capture_fire_snapshot(..., "substrate_voice", anchor_id)`. `capture_snapshot()` persists that value to `substrate_snapshots.walk_anchor_id`. However, the caller invokes `_maybe_substrate_voice()` only when `NEX5_RECONCILE != '1'`; the tracked keepalive declares `NEX5_RECONCILE=1`, and the effective host launch/configuration remains UNKNOWN.
+
+`substrate_snapshots.id` is a stable row key and could support an incremental cursor if an approved collector update is eventually made. `tests/test_warrant_recorder.py` currently does not create the `substrate_snapshots` table or exercise walk-anchor use-days.
+
+**Disposition:** conditional evidence-coverage gap, not a live undercount claim. Confirm the intended Warrant revalidation source contract, then add a fixture for repeated walk-anchor uses on same and distinct days. No collector, cursor, schema, flag, snapshot retention, or runtime behavior was changed.
