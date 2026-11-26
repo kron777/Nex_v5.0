@@ -91,12 +91,15 @@ class EdgeGenerator:
         self, belief_id: int, max_edges: int = 5
     ) -> list[tuple[int, str, float]]:
         rows = self._reader.read(
-            "SELECT id, content, source, branch_id FROM beliefs WHERE id = ?",
+            "SELECT id, content, source, branch_id, tier, paused FROM beliefs WHERE id = ?",
             (belief_id,),
         )
         if not rows:
             return []
         src = rows[0]
+        # Retired and paused beliefs are not live graph participants.
+        if int(src["tier"] or 0) > 7 or bool(src["paused"]):
+            return []
         src_content = src["content"] or ""
         src_source = src["source"] or ""
         src_branch = src["branch_id"] or ""
@@ -104,7 +107,7 @@ class EdgeGenerator:
         cutoff = time.time() - 7 * 86400
         candidates = self._reader.read(
             "SELECT id, content, source, branch_id FROM beliefs "
-            "WHERE id != ? AND tier <= 7 AND created_at >= ? "
+            "WHERE id != ? AND tier <= 7 AND paused = 0 AND created_at >= ? "
             "ORDER BY created_at DESC LIMIT 100",
             (belief_id, cutoff),
         )
@@ -234,6 +237,7 @@ class EdgeGeneratorLoop:
         beliefs = self._reader.read(
             "SELECT id FROM beliefs "
             "WHERE source IN ('fountain_insight', 'synergized') "
+            "AND tier <= 7 AND paused = 0 "
             "AND id NOT IN (SELECT source_id FROM belief_edges) "
             "AND id NOT IN (SELECT target_id FROM belief_edges) "
             "ORDER BY created_at DESC LIMIT ?",
