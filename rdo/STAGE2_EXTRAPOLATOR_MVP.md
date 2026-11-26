@@ -16,8 +16,8 @@ remain open and unmerged.
 > deleting beliefs or breaking consumers.
 
 This is a *development* objective (build a mechanism), not an audit. It was chosen because
-it reconciles against real belief infrastructure with an honest mix of reuse and net-new
-work, and recurses into a multi-level obligation graph.
+it reconciles against real belief infrastructure, distinguishes source anchors from semantic reuse,
+and recurses into a multi-level obligation graph.
 
 Run it: `python -m rdo stage2 --out rdo/.cycles` → prints the result and persists
 `cycle_belief_decay_mvp.json`. Resume in a new process:
@@ -49,7 +49,7 @@ suite 48 passing.
 - **Per-obligation parent/rationale/class/confidence/impact/evidence** → `test_records_each_obligation_attribute`
 - **Bounded reconciliation** (REUSE `belief_activation` recency table; MISSING decay policy + daemon) → `test_reconciles_against_repository_evidence`
 - **Duplication → anti-requirements** → `test_identifies_duplication_as_anti_requirements`
-- **No verification without acceptance evidence** (every reuse claim file-backed) → `test_no_verification_without_acceptance_evidence`
+- **No verification without acceptance evidence** (source matches remain separate from reviewed reuse; no semantic reuse is claimed without an explicit current review) → `test_no_verification_without_acceptance_evidence`
 - **Stable canonical IDs, no silent merge** → `test_stable_canonical_ids_and_no_silent_merge`
 - **Traceable acyclic graph** (every node traces to a seed; `depends_on` depth-monotonic) → `test_traceable_acyclic_dependency_graph`
 - **Cycles are actively detected** (`tension._find_cycles` flags a deliberate cycle; slice is clean) → `test_dependency_cycles_are_detected`
@@ -162,3 +162,21 @@ Four correctness refinements on top of the §15 closures, bounded to Stage 2, re
 
 Tests: +3 focused regressions (26 Stage-2 tests; **59** RDO tests pass). The default CLI artefact
 carries no production pattern; a reviewer-attributed calibration is durable and resumable.
+
+
+## Integration evidence correction (26 Nov 2026)
+
+The current hardened RDO distinguishes three states that earlier Stage-2 notes conflated:
+a source signature match, independently reviewed semantic reuse, and missing/partial/unknown.
+The `belief_activation` table is **source-matched** as the recency mechanism, but this Stage-2
+slice does not carry a current semantic-review decision for its exact obligation. It is therefore
+reported in `signature_matches`, not `reused`, and its dependent work is not cleared by the
+signature alone. The decay policy and applier remain net-new/missing.
+
+The stage runner now obtains active experiment state from the Watcher registry. An unavailable,
+unmeasured or malformed registry returns UNKNOWN and blocks eligibility; only an explicitly
+verified empty list represents no active/pending experiment. Tests that need a known-empty registry
+must pass `active_experiments=[]` explicitly.
+
+This correction preserves the reuse-first design while preventing source presence from being
+promoted into semantic satisfaction without review.
