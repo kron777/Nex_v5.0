@@ -185,16 +185,24 @@ class WarrantRecorder:
             "SELECT id, belief_id_a, belief_id_b, ts FROM synergizer_log WHERE id > ? "
             "ORDER BY id LIMIT ?", (int(c), _USE_BATCH)),
             "id", ("belief_id_a", "belief_id_b"), "ts")
-        c = self._cursor("use_lineage_ts")
-        take("use_lineage_ts", self._br.read(
-            "SELECT created_at, parent_id FROM belief_lineage WHERE created_at > ? "
-            "ORDER BY created_at LIMIT ?", (c, _USE_BATCH)),
-            "created_at", ("parent_id",), "created_at")
-        c = self._cursor("use_arc_ts")
-        take("use_arc_ts", self._br.read(
-            "SELECT joined_at, belief_id FROM arc_members WHERE joined_at > ? "
-            "ORDER BY joined_at LIMIT ?", (c, _USE_BATCH)),
-            "joined_at", ("belief_id",), "joined_at")
+        # Timestamps are not unique. A timestamp cursor with a strict '>'
+        # predicate can permanently skip rows when a batch ends part-way
+        # through a same-timestamp group. These tables are ordinary SQLite
+        # rowid tables, so use their stable rowid as the incremental cursor.
+        # New cursor keys intentionally replay the historical rows once;
+        # belief_use_day's composite PK makes that migration idempotent.
+        c = int(self._cursor("use_lineage_rowid"))
+        take("use_lineage_rowid", self._br.read(
+            "SELECT rowid AS _cursor_id, created_at, parent_id "
+            "FROM belief_lineage WHERE rowid > ? ORDER BY rowid LIMIT ?",
+            (c, _USE_BATCH)),
+            "_cursor_id", ("parent_id",), "created_at")
+        c = int(self._cursor("use_arc_rowid"))
+        take("use_arc_rowid", self._br.read(
+            "SELECT rowid AS _cursor_id, joined_at, belief_id "
+            "FROM arc_members WHERE rowid > ? ORDER BY rowid LIMIT ?",
+            (c, _USE_BATCH)),
+            "_cursor_id", ("belief_id",), "joined_at")
 
         if pairs:
             write_batch(self._w, [(
