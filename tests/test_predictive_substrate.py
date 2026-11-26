@@ -383,3 +383,37 @@ class TestSchemaMigrations(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+def test_external_verification_excludes_internal_sense_events():
+    from unittest.mock import MagicMock
+    from theory_x.stage_prediction import PredictiveSubstrate
+
+    sense_reader = MagicMock()
+    sense_reader.read.return_value = []
+    conversations_reader = MagicMock()
+    conversations_reader.read.return_value = []
+    dynamic_writer = MagicMock()
+
+    ps = PredictiveSubstrate(
+        dynamic_reader=MagicMock(),
+        dynamic_writer=dynamic_writer,
+        beliefs_reader=MagicMock(),
+        conversations_reader=conversations_reader,
+        sense_reader=sense_reader,
+    )
+    pred = {
+        "id": 1,
+        "prediction_type": "external_input",
+        "centroid_embedding": np.zeros(384, dtype=np.float32).tobytes(),
+        "representative_content": "external input prediction",
+        "made_at": 100.0,
+        "target_window_end": 200.0,
+    }
+
+    ps._verify_one(pred, now=201.0)
+
+    query = sense_reader.read.call_args.args[0]
+    assert "stream NOT LIKE 'internal.%'" in query
+    assert "payload IS NOT NULL AND payload != ''" in query
