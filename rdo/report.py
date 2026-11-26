@@ -419,19 +419,18 @@ def run_stage2_belief_decay(repo_dir: str = ".", workdir: str = "rdo/.cycles",
     cycle, _summary = _run_one("belief_decay_mvp", belief_decay_idea(), repo_dir, memory, store, _active_experiments(repo_dir))
     obls = cycle.obligations
 
-    # ---- calibration ONLY from a genuine, authorised planning review ----
-    # A predetermined demonstration finding must NOT become a learned production pattern. When no
-    # review is supplied (the default, and the CLI path), nothing is written to PatternMemory.
-    # A genuine review is a reviewed PLANNING outcome (NOT an execution outcome): the cycle stays
-    # kind=native_planning (nothing was built), and every derived calibration pattern carries the
-    # reviewer's explicit provenance so it is attributable and never confused with execution.
+    # ---- calibration only from an explicit caller-supplied review record ----
+    # The caller's reviewer string is attribution, not independent identity verification.
+    # Controlled fixtures are explicitly labelled and are excluded from aggregate accuracy.
+    # When no review is supplied (the default and CLI path), no calibration pattern is written.
+    # Any review remains a planning record (never execution): the cycle stays native_planning.
     comparison = None
     calibration: List[Pattern] = []
     review_report: object = "no review supplied — no calibration pattern written"
     if review is not None:
         reviewer = review.get("reviewer")
         if not reviewer:
-            raise ValueError("a genuine planning review must name its reviewer (provenance)")
+            raise ValueError("a review record must name its attributed reviewer/source")
         actual = dict(review)
         review_kind = actual.get("review_kind", "planning_review")
         if review_kind not in ("planning_review", "controlled_fixture_review"):
