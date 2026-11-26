@@ -36,16 +36,18 @@ def _beliefs(path):
         " locked INTEGER DEFAULT 0, paused INTEGER DEFAULT 0);"
         "CREATE TABLE synergizer_log (id INTEGER PRIMARY KEY, ts REAL, belief_id_a INTEGER, "
         " belief_id_b INTEGER);"
-        "CREATE TABLE belief_lineage (child_id INTEGER, parent_id INTEGER, created_at REAL);"
-        "CREATE TABLE arc_members (belief_id INTEGER, joined_at REAL);")
+        "CREATE TABLE belief_lineage (child_id INTEGER, parent_id INTEGER, relationship TEXT, created_at REAL, "
+        " PRIMARY KEY (child_id, parent_id, relationship));"
+        "CREATE TABLE arc_members (arc_id INTEGER, belief_id INTEGER, position INTEGER, role TEXT, "
+        " joined_at REAL, PRIMARY KEY (arc_id, belief_id));")
     rows = [(i, f"plain belief number {i} about ordinary things", t, 0, 0)
             for i, t in [(1, 3), (2, 3), (3, 3), (4, 6), (5, 6), (6, 7), (7, 7), (8, 7)]]
     rows += [(9, "a locked keystone", 1, 1, 0), (10, "paused one", 7, 0, 1)]
     c.executemany("INSERT INTO beliefs VALUES (?,?,?,?,?)", rows)
     c.executemany("INSERT INTO synergizer_log VALUES (?,?,?,?)",
                   [(1, _T0, 4, 6), (2, _T0 + 3600, 4, 7)])          # 4 used twice same day
-    c.execute("INSERT INTO belief_lineage VALUES (50, 4, ?)", (_T0 + 2 * _DAY,))
-    c.execute("INSERT INTO arc_members VALUES (6, ?)", (_T0 + 5 * _DAY,))
+    c.execute("INSERT INTO belief_lineage VALUES (50, 4, 'test', ?)", (_T0 + 2 * _DAY,))
+    c.execute("INSERT INTO arc_members VALUES (1, 6, 0, 'test', ?)", (_T0 + 5 * _DAY,))
     c.commit(); c.close()
 
 
@@ -132,7 +134,7 @@ class TestRecorder(unittest.TestCase):
             c.executemany(
                 "INSERT INTO arc_members (arc_id, belief_id, position, role, joined_at) "
                 "VALUES (1, ?, ?, 'test', ?)",
-                [(102, i, same_ts) for i in range(5)],
+                [(102 + i, i, same_ts) for i in range(5)],
             )
             c.commit()
             c.close()
@@ -159,8 +161,10 @@ class TestRecorder(unittest.TestCase):
             )
             # The cursors are rowids, not timestamps, and advance through
             # all five records even though their timestamps are identical.
-            self.assertEqual(self.r._cursor("use_lineage_rowid"), 6)
-            self.assertEqual(self.r._cursor("use_arc_rowid"), 6)
+            self.assertEqual(self.r._tuple_cursor("use_lineage_pk", (0, 0, "")),
+                             (104, 101, "test"))
+            self.assertEqual(self.r._tuple_cursor("use_arc_pk", (0, 0)),
+                             (1, 106))
         finally:
             rec._USE_BATCH = old_batch
 
