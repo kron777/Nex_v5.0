@@ -766,8 +766,18 @@ def learning_loop(cycles: List[CycleRecord], new_evidence: Optional[List[Dict]] 
             unknown += 1
         else:
             automated += 1
-    accs = [p["accuracy"]["accuracy"] for p in per
-            if p["accuracy"] and p["accuracy"]["accuracy"] is not None]
+    # Controlled fixtures exercise the pipeline but are not development outcomes
+    # and must not influence its aggregate accuracy.
+    eligible_accuracy = [
+        p for p in per
+        if p["provenance"] != "controlled_fixture_review"
+        and p["accuracy"] is not None
+        and p["accuracy"].get("accuracy") is not None
+    ]
+    accs = [p["accuracy"]["accuracy"] for p in eligible_accuracy]
+    controlled_fixtures_excluded = sum(
+        1 for p in per if p["provenance"] == "controlled_fixture_review"
+    )
     return {
         "per_cycle": per,
         "provenance_split": {
@@ -779,7 +789,10 @@ def learning_loop(cycles: List[CycleRecord], new_evidence: Optional[List[Dict]] 
             "unknown_no_outcome": unknown,
         },
         "mean_prediction_accuracy": (round(sum(accs) / len(accs), 3) if accs else None),
-        "accuracy_basis": f"{len(accs)} cycle(s) with recorded outcomes; the rest are UNKNOWN, not fabricated",
+        "accuracy_basis": (f"{len(accs)} non-fixture cycle(s) with complete recorded discrepancy categories; "
+                           f"{controlled_fixtures_excluded} controlled fixture(s) excluded; "
+                           "incomplete outcomes remain UNKNOWN, not fabricated"),
+        "controlled_fixtures_excluded": controlled_fixtures_excluded,
         "series": accuracy_series(cycles),
         "comparability": comparability_assessment(cycles),
         "reopening": reopening_candidates(reopen_cycle, new_evidence) if (reopen_cycle and new_evidence) else [],
