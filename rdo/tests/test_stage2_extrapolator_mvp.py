@@ -350,6 +350,23 @@ def test_stage2_end_to_end(tmp_path):
 
 # --------------------- integrity pass: four correctness points ----------------------
 
+def test_controlled_fixture_review_never_writes_reusable_patterns(tmp_path):
+    from rdo.report import run_stage2_belief_decay
+    from rdo.memory import CycleStore, PatternMemory
+
+    workdir = str(tmp_path / "controlled")
+    run_stage2_belief_decay(repo_dir=".", workdir=workdir, review={
+        "reviewer": "fixture-only label",
+        "review_kind": "controlled_fixture_review",
+        "missed": ["fixture_missing_obligation"],
+        "unnecessary": [],
+        "reuse_wrong": [],
+    })
+    cycle = CycleStore(workdir).load("belief_decay_mvp")
+    assert cycle.actual["review_kind"] == "controlled_fixture_review"
+    assert PatternMemory(workdir + "/patterns.jsonl").patterns() == []
+
+
 def test_calibration_requires_an_authorised_review(tmp_path):
     """#1 A predetermined demonstration never becomes a learned production pattern. With no
     review the default runner writes NO pattern; a review without a named reviewer is refused;
