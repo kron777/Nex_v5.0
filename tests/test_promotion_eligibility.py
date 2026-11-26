@@ -31,6 +31,11 @@ def test_corroborate_rejects_paused_and_retired_beliefs_without_writes():
             "corroboration_count": 10, "locked": 0, "paused": 0,
             "erosion_stage": "retired",
         },
+        {
+            "id": 19, "content": "tier eight tombstone", "tier": 8,
+            "corroboration_count": 10, "locked": 0, "paused": 0,
+            "erosion_stage": "external",
+        },
     )
 
     for row in inactive_rows:
