@@ -384,3 +384,91 @@ def test_voice_engine_trace_preserves_selected_reply_and_records_trigger(tmp_pat
                 pass
         for writer in writers.values():
             writer.close()
+
+def test_chat_route_voice_engine_shortcut_is_traced_without_llm_call(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    monkeypatch.setenv("NEX5_DATA_DIR", str(data_dir))
+    monkeypatch.setenv("NEX5_ADMIN_HASH_FILE", str(tmp_path / "admin.argon2"))
+    monkeypatch.setenv("NEX5_SPEECH_ENABLED", "false")
+    monkeypatch.setenv("NEX5_TRACE_OVERLAY", "1")
+    monkeypatch.setenv("NEX5_TRACE_OVERLAY_CONTEXT", "fixture")
+    sink = tmp_path / "chat-voice-engine.jsonl"
+    monkeypatch.setenv("NEX5_TRACE_OVERLAY_PATH", str(sink))
+    llm_calls = []
+
+    from substrate.init_db import init_all
+    from substrate import Reader, Writer, db_paths
+    from voice.llm import VoiceClient
+    from theory_x.stage_throw_net.voice_engine import VoiceEngine
+    from gui.server import AppState, create_app
+
+    init_all()
+    paths = db_paths()
+    writers = {name: Writer(path, name=name) for name, path in paths.items()}
+    readers = {name: Reader(path) for name, path in paths.items()}
+
+    engine = VoiceEngine(
+        beliefs_reader=readers["beliefs"],
+        problem_memory=None,
+        beliefs_writer=writers["beliefs"],
+        min_score=0.5,
+    )
+    candidates = [{
+        "origin_id": 88,
+        "source": "fountain_insight",
+        "content": "stored private answer from the substrate",
+    }]
+    engine._retrieve_candidates = lambda query: candidates
+    engine._embed = lambda query: None
+    engine._score_candidate = lambda candidate, query_emb: 0.95
+
+    def forbidden_llm_call(url, payload):
+        llm_calls.append(payload)
+        return {"choices": [{"message": {"content": "LLM must not run"}}]}
+
+    state = AppState(
+        writers=writers,
+        readers=readers,
+        voice=VoiceClient(request_fn=forbidden_llm_call),
+        voice_engine=engine,
+    )
+    client = create_app(state).test_client()
+    try:
+        response = client.post("/api/chat", json={"prompt": "hi"})
+        assert response.status_code == 200
+        assert response.get_json()["text"] == "stored private answer from the substrate"
+        assert llm_calls == []
+
+        records = _read_events(sink)
+        assert any(
+            event["stage"] == "candidate_generation"
+            and event["event"] == "candidates_selected"
+            and event["metadata"]["source"] == "voice_engine._retrieve_candidates"
+            and event["metadata"]["candidate_ids"] == [88]
+            for event in records
+        )
+        assert any(
+            event["stage"] == "salience_workspace"
+            and event["metadata"]["source"] == "voice_engine.query_reply"
+            and event["metadata"]["selected_order"] == [88]
+            for event in records
+        )
+        assert any(
+            event["stage"] == "candidate_generation"
+            and event["event"] == "voice_engine_stored_candidate"
+            and event["metadata"]["returned_verbatim"] is True
+            for event in records
+        )
+        assert any(
+            event["stage"] == "sqlite_writer_delta"
+            and event["metadata"]["table"] == "throw_net_triggers"
+            and event["metadata"]["fired"] is True
+            for event in records
+        )
+        serialized = sink.read_text()
+        assert "stored private answer from the substrate" not in serialized
+    finally:
+        state.close()
