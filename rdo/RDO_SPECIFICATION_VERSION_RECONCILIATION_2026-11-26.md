@@ -1,7 +1,7 @@
 # RDO specification-version reconciliation
 
 **Date:** 26 November 2026  
-**Status:** Evidence reconciled; version precedence remains **UNRESOLVED**.  
+**Status:** Original v1.4 text recovered from the founder's prior conversation attachment; version precedence remains **UNRESOLVED**.  
 **Authority:** This is a non-normative audit note. It does not amend, replace or interpret either specification.
 
 ## Question
@@ -55,52 +55,77 @@ The following references are in the RDO foundation at base commit `ef704e1f33c92
 
 These references predate PR #124; they were not introduced by the Stage 2–7 integration. They establish that the earlier RDO foundation was written with a v1.4-labelled section structure in mind. **They do not establish the contents, authorship, approval status or precedence of an original v1.4 specification.**
 
-## 3. What was not located
+## 3. Original v1.4 source recovered; archival availability limits
 
-The Library filename inventory and searches for the exact v1.4 title, “RDO v1.4”, and “Recursive Development Orchestrator Version 1.4” found:
+The original v1.4 text **was supplied by the founder in a prior conversation on 24 November 2026**. It is not merely the later assistant-authored commentary file.
 
-- Original v1.1, v1.2 and v1.3 PDFs.
-- Two byte-identical copies of v1.3.
-- A pasted Claude conversation/analysis dated in its filename 21 November 2026, which discusses an alleged v1.4 and cites §§6, 7, 15, 17, 21–24, 29 and 30.
+Recorded attachment metadata from that prior session:
 
-No original v1.4 PDF, DOCX or complete source text was located in the available Library material. No v1.4 branch was returned by the repository branch search. Repository code references are not substitutes for the specification they cite.
+- Title: **NEX — RECURSIVE DEVELOPMENT ORCHESTRATOR**
+- Version: **1.4 — Optimal Functional Tension**
+- Date: **20 November 2026**
+- Status on cover: **Proposed implementation specification**
+- Intended recipient: Claude / Claude Code
+- Project/repository: NEX v5.0 / kron777/Nex_v5.0
+- Local attachment name recorded at the time: NEX — RECURSIVE DEVELOPMENT ORCHESTRATOR## Version 1.4.txt
+- Size: **47,172 bytes**
+- SHA-256 recorded in the prior session: 382d634d03bc15701d9de4dcbc2629b966ffd8370c370f0307a57a853f4db926
 
-The pasted Claude conversation is commentary about a purported v1.4, not the original normative document. It includes an opinion that v1.4 was a “green light”, but it does not provide the complete source, version metadata, approval record or an auditable change history. It cannot establish approval or supersession.
+The original text is not currently present as a standalone file in the Library inventory or either inspected NEX archive, and it is not in the repository. The metadata/hash above are recovered from the prior conversation record; the attachment bytes have not been re-hashed in this session. This is an access/archival limitation, **not evidence that the founder never supplied the original**.
 
-The 22 November carry-over handoff independently identifies the Library v1.3 PDF as the RDO governing specification, records the v1.3/v1.4 precedence question as unresolved, and explicitly instructs the next assistant not to assume precedence or treat the pasted analysis as the original v1.4 document. The Library's source-document index also lists v1.2 and v1.3 as the original RDO PDFs; it does not list a v1.4 source.
+The prior-session extraction identifies these v1.4 sections:
+
+- §6 — **Capability Versus Authority**
+- §15 — **Anti-Requirements**
+- §17 — **Feedback Cycles**
+- §24 — **The RDO Must Learn from Its Own Performance**
+- §29 — **Recommended Development Order**
+- §31 — governing development philosophy
+
+The recorded §29 sequence is: repository reconciliation → Watcher → Extrapolator MVP → graph intelligence → tension assessment → belief audit → bounded pathway → learning loop → expansion. This is a recovered summary of the founder-supplied source, not a fresh byte-level transcription; exact numbered stage labels, exit conditions and surrounding wording are not reproduced here until the original attachment is available for direct reinspection.
+
+### Approval and precedence evidence
+
+When asked on 24 November whether v1.4 had been approved, the founder replied: **“yeah i think i did, we devd RDO couple days ago”**. This supports that v1.4 was intended as the current working specification. It is not an unambiguous written Founder Sign-Off or an explicit statement that v1.4 formally supersedes v1.3. The cover itself says “Proposed implementation specification”. Therefore, do not upgrade this evidence into a claim that v1.4 was formally frozen or that version precedence was settled.
+
+The separate file Pasted text(20261121-011034).txt is assistant-authored commentary discussing v1.4. Its opinion that v1.4 was a “green light” is not the original specification and is not approval evidence.
+
+The 22 November carry-over handoff correctly instructed the next assistant not to assume v1.3/v1.4 precedence. Its statement that no original v1.4 had been located is now superseded by the recovered 24 November founder-attachment record. The distinction remains: v1.4 was supplied; formal supersession/approval remains unresolved.
 
 ## 4. Findings and safe interim treatment
 
 **Established:**
 
-1. An original v1.3 specification exists and its §16 unambiguously defines the eight-stage (0–7) RDO sequence.
-2. PR #124's stage sequence is consistent with that v1.3 §16 sequence.
-3. Multiple RDO foundation docstrings already cite a differently numbered v1.4 structure before PR #124.
-4. The retrieved v1.3 PDF has only 20 numbered sections, so the v1.4 §23/§24 citations are not valid references to v1.3.
-5. The original v1.4 source and its approval/precedence evidence have not been located in the available Library/repository material.
+1. The original v1.3 PDF exists; its §16 unambiguously defines Stage 0–7, including Stage 7 execution integration through Watcher.
+2. PR #124's integrated Stage 2–7 sequence is consistent with v1.3 §16.
+3. The founder also supplied the original v1.4 text in a prior conversation; its cover status is “Proposed implementation specification”, and its recorded section structure extends through §31.
+4. v1.4 contains substantive concepts not represented by the v1.3 section numbering, including capability-versus-authority (§6), anti-requirements (§15), feedback cycles (§17), learning from RDO performance (§24), and a distinct recommended development order (§29).
+5. The recorded v1.4 §29 order includes a tension-assessment step and a later expansion step, so it is not safe to describe the v1.3 Stage 0–7 sequence as a complete implementation of v1.4.
+6. The v1.4 attachment's prior-session metadata and SHA-256 are known, but its raw bytes are not available in the current Library/repository for a fresh hash or full section-by-section comparison.
 
 **Not established:**
 
-- That v1.4 was formally issued.
-- That v1.4 was approved by the founder or superseded v1.3.
-- That the v1.4 references in code are accurate rather than stale, copied from a draft, or erroneous.
-- That the pasted v1.4 analysis is itself an authority-bearing document.
+- That v1.4 was formally frozen or signed off.
+- That the founder's recollection on 24 November constitutes explicit approval or formally supersedes v1.3.
+- That all pre-existing v1.4 code citations accurately implement the corresponding v1.4 clauses.
+- That the v1.3 Stage 0–7 sequence should be replaced, renumbered or retroactively reinterpreted under v1.4.
 
 **Interim handling (not a version-precedence decision):**
 
-- Use the located v1.3 §16 as the source for claims about the already-merged Stage 0–7 sequence.
-- Keep the v1.4 citations marked as unresolved provenance. Do not silently remap them to v1.3 or infer missing v1.4 clauses from their section numbers.
-- Do not rewrite the existing code docstrings or change implementation requirements on the basis of the pasted analysis.
-- Once the original v1.4 is supplied or recovered, compare its title/version/date, authorship, approval status, section text and revision history against v1.3, then map every affected code/document reference before deciding precedence.
+- Use v1.3 §16 when describing the sequence actually implemented and merged through PR #124.
+- Treat founder-supplied v1.4 as the intended current working specification for comparison, but do not claim formal supersession until the founder confirms the precedence decision.
+- Preserve v1.4 citations in code as unresolved provenance; do not silently remap them to v1.3.
+- Do not rewrite the existing stage documents, code docstrings or implementation requirements until the exact v1.4 source is available for direct comparison and the founder confirms which version governs.
 
 ## 5. Required founder resolution
 
-One of the following is needed to close the authority question:
+The original v1.4 text has already been supplied by the founder; asking the founder to re-supply it should not be the default. To complete the direct section-by-section comparison, the original 47,172-byte attachment must be available again in the active working context, or an equivalent exact source copy must be made accessible.
 
-1. The original v1.4 document and, where applicable, its approval/revision record; or
-2. Founder confirmation that no approved original v1.4 governs this work and that v1.3 remains the governing RDO specification.
+The remaining founder decision is narrow:
 
-Until then, version precedence remains **UNKNOWN**. This note records evidence; it does not make that decision.
+**Does RDO v1.4 — Optimal Functional Tension formally supersede v1.3 as the governing RDO specification for future work, or should v1.3 §16 remain the controlling roadmap while v1.4 is treated as a proposed/current-working refinement pending explicit sign-off?**
+
+Until that precedence decision is explicit, version precedence remains **UNKNOWN**. This note records evidence; it does not make that decision.
 
 ## Scope and integrity
 
