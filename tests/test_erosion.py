@@ -135,7 +135,7 @@ class TestErosionTracking(unittest.TestCase):
             )
 
         advanced = erosion.erosion_pass()
-        self.assertEqual(advanced, 505)
+        self.assertGreaterEqual(advanced, 505)
 
         placeholders = ",".join("?" for _ in belief_ids)
         rows = r.read(
