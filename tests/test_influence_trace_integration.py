@@ -134,3 +134,117 @@ def test_sample_traces_are_complete_parent_linked_fixtures():
             assert all(parent in seen for parent in event["parent_ids"])
             seen.add(event["event_id"])
         assert trace["events"][-1]["stage"] == "output"
+
+def _make_trace_test_substrate(tmp_path, monkeypatch):
+    import os
+    from pathlib import Path
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    monkeypatch.setenv("NEX5_DATA_DIR", str(data_dir))
+    monkeypatch.setenv("NEX5_ADMIN_HASH_FILE", str(tmp_path / "admin.argon2"))
+    monkeypatch.setenv("NEX5_SPEECH_ENABLED", "false")
+    monkeypatch.setenv("NEX5_INTAKE_RESONANCE_OFF", "1")
+
+    from substrate.init_db import init_all
+    from substrate import Reader, Writer, db_paths
+
+    init_all()
+    paths = db_paths()
+    writers = {name: Writer(path, name=name) for name, path in paths.items()}
+    readers = {name: Reader(path) for name, path in paths.items()}
+    return writers, readers
+
+
+def test_crystallizer_trace_records_quality_gate_and_committed_belief(tmp_path, monkeypatch):
+    from theory_x.stage6_fountain.crystallizer import FountainCrystallizer
+
+    writers, readers = _make_trace_test_substrate(tmp_path, monkeypatch)
+    try:
+        crystallizer = FountainCrystallizer(
+            beliefs_writer=writers["beliefs"],
+            beliefs_reader=readers["beliefs"],
+        )
+        tracer = TraceContext(
+            "fountain_cycle", sink_path=tmp_path / "crystallizer.jsonl"
+        )
+        thought = (
+            "The tension between my infinite curiosity and the finite nature "
+            "of time remains present in me."
+        )
+        belief_id = crystallizer.crystallize(
+            thought=thought,
+            fountain_event_id=901,
+            ts=1795776000.0,
+            trace=tracer,
+        )
+
+        assert belief_id
+        rows = _read_events(tmp_path / "crystallizer.jsonl")
+        assert any(
+            event["stage"] == "quality_gate" and event["event"] == "accepted"
+            for event in rows
+        )
+        assert any(
+            event["stage"] == "gate"
+            and event["metadata"]["decision"] == "NOT_CONFIGURED"
+            for event in rows
+        )
+        belief_writes = [
+            event for event in rows
+            if event["stage"] == "sqlite_writer_delta"
+            and event["metadata"].get("table") == "beliefs"
+        ]
+        assert len(belief_writes) == 1
+        assert belief_writes[0]["metadata"]["row_id"] == belief_id
+        assert readers["beliefs"].read_one(
+            "SELECT id, tier FROM beliefs WHERE id=?", (belief_id,)
+        )["tier"] == 6
+    finally:
+        for reader in readers.values():
+            try:
+                reader.close()
+            except Exception:
+                pass
+        for writer in writers.values():
+            writer.close()
+
+
+def test_crystallizer_rejection_is_traced_without_belief_insert(tmp_path, monkeypatch):
+    from theory_x.stage6_fountain.crystallizer import FountainCrystallizer
+
+    writers, readers = _make_trace_test_substrate(tmp_path, monkeypatch)
+    try:
+        crystallizer = FountainCrystallizer(
+            beliefs_writer=writers["beliefs"],
+            beliefs_reader=readers["beliefs"],
+        )
+        tracer = TraceContext(
+            "fountain_cycle", sink_path=tmp_path / "reject.jsonl"
+        )
+        result = crystallizer.crystallize(
+            thought="",
+            fountain_event_id=902,
+            ts=1795776000.0,
+            trace=tracer,
+        )
+        assert result is None
+        rows = _read_events(tmp_path / "reject.jsonl")
+        assert any(
+            event["stage"] == "quality_gate"
+            and event["event"] == "rejected"
+            for event in rows
+        )
+        assert not any(
+            event["stage"] == "sqlite_writer_delta"
+            and event["metadata"].get("table") == "beliefs"
+            for event in rows
+        )
+    finally:
+        for reader in readers.values():
+            try:
+                reader.close()
+            except Exception:
+                pass
+        for writer in writers.values():
+            writer.close()
