@@ -910,7 +910,7 @@ def _run_paired_fountain_once(
                 )
             ]
             momentum_row = readers["dynamic"].read_one(
-                "SELECT updated_at, branch, thought_fragment, surprise_score, "
+                "SELECT branch, thought_fragment, surprise_score, "
                 "surprise_note, carry_count, resolved FROM momentum WHERE id=1"
             )
             momentum_snapshot = tuple(momentum_row) if momentum_row is not None else None
