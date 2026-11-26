@@ -16,7 +16,7 @@ def wake_one(writer, reader) -> Optional[dict]:
     rows = reader.read(
         "SELECT d.belief_id, b.content FROM dormant_beliefs d "
         "JOIN beliefs b ON d.belief_id = b.id "
-        "WHERE d.reanimated_at IS NULL "
+        "WHERE d.reanimated_at IS NULL AND b.tier <= 7 AND b.paused = 0 AND b.erosion_stage != 'retired' "
         "ORDER BY d.dormancy_score DESC LIMIT 1"
     )
     if not rows:

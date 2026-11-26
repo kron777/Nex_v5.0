@@ -14,14 +14,32 @@ class DormancyScanner:
     def __init__(self, beliefs_writer, beliefs_reader):
         self._writer = beliefs_writer
         self._reader = beliefs_reader
+        self._last_id = 0
 
     def scan_incremental(self) -> int:
         """Update dormancy scores for a batch of beliefs. Returns count updated."""
+        # Rotate through the eligible ID space instead of repeatedly
+        # examining only the oldest 50 records.
         rows = self._reader.read(
             "SELECT id, created_at, last_referenced_at FROM beliefs "
             "WHERE source IN ('fountain_insight', 'synergized', 'behavioural_observation') "
-            "ORDER BY created_at ASC LIMIT 50"
+            "AND tier <= 7 AND paused = 0 AND erosion_stage != 'retired' AND id > ? "
+            "ORDER BY id ASC LIMIT 50",
+            (self._last_id,),
         )
+        selected = list(rows)
+        if self._last_id > 0 and len(selected) < 50:
+            wrapped = self._reader.read(
+                "SELECT id, created_at, last_referenced_at FROM beliefs "
+                "WHERE source IN ('fountain_insight', 'synergized', 'behavioural_observation') "
+                "AND tier <= 7 AND paused = 0 AND erosion_stage != 'retired' AND id <= ? "
+                "ORDER BY id ASC LIMIT ?",
+                (self._last_id, 50 - len(selected)),
+            )
+            selected.extend(wrapped)
+        rows = selected
+        if rows:
+            self._last_id = int(rows[-1]["id"])
         if len(rows) < MIN_BELIEFS_FOR_SCAN:
             return 0
 
@@ -72,7 +90,7 @@ class DormancyScanner:
         rows = self._reader.read(
             "SELECT d.belief_id, d.dormancy_score, b.content "
             "FROM dormant_beliefs d JOIN beliefs b ON d.belief_id = b.id "
-            "WHERE d.reanimated_at IS NULL "
+            "WHERE d.reanimated_at IS NULL AND b.tier <= 7 AND b.paused = 0 AND b.erosion_stage != 'retired' "
             "ORDER BY d.dormancy_score DESC LIMIT 5"
         )
         return [dict(r) for r in rows]
