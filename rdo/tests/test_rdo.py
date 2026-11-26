@@ -81,6 +81,28 @@ def test_over_expansion_stopped_by_reuse():
     assert any("semantic satisfaction independently reviewed" in f["reason"] for f in frontier)
 
 
+def test_cycle_summary_reports_semantically_reviewed_reuse(monkeypatch):
+    from rdo import orchestrator as orch
+
+    def reviewed_reuse(ob):
+        ob.recon_evidence = ["store.py:1"]
+        ob.confidence = "measured"
+        ob.recon_semantic_verified = True
+        ob.recon_semantic_review_evidence = ["manual review: storage contract checked"]
+        return REUSE_EXISTING
+
+    monkeypatch.setattr(
+        orch.recon_mod, "make_reconciler",
+        lambda _repo_dir, _signatures: reviewed_reuse,
+    )
+    cycle, summary = orch.run_cycle(
+        "reviewed-reuse", "reviewed reuse summary", [],
+        [Obligation("store", "store", "persistence")], signatures={},
+    )
+
+    assert cycle.reused == ["store"]
+    assert summary["rejected_or_deferred"] == ["store"]
+
 def test_prepopulated_reuse_seed_is_freshly_reconciled_before_stopping():
     stale = Obligation(
         "stale-seed", "stale reviewed seed", "persistence",
@@ -116,6 +138,19 @@ def test_max_depth_bounds_expansion():
     obs, _, frontier = expand([Obligation("store", "s", "persistence")],
                               reconcile_fn=None, max_depth=0)
     assert set(obs) == {"store"} and any("max_depth" in f["reason"] for f in frontier)
+
+
+def test_terminal_kind_records_frontier_stop_reason():
+    obs, _, frontier = expand(
+        [Obligation("store.schema", "storage schema", "schema")],
+        reconcile_fn=lambda _ob: MISSING,
+        max_depth=4,
+    )
+    assert set(obs) == {"store.schema"}
+    assert frontier == [{
+        "key": "store.schema",
+        "reason": "terminal kind 'schema' (leaf; no further decomposition)",
+    }]
 
 
 # ---- under-expansion avoided: a MISSING necessary mechanism decomposes ----
@@ -184,6 +219,142 @@ def test_pattern_memory_no_universal_promotion(tmp_path):
     assert p.exceptions                                          # exceptions retained
     # persistence across reopen
     assert PatternMemory(str(tmp_path / "p.jsonl")).patterns()[0].observed_count == p.observed_count
+
+@pytest.mark.parametrize(
+    "confidence, expected",
+    [(-0.25, 0.0), (0, 0.0), (0.45, 0.45), (0.9, 0.9), (1.0, 0.9), (25, 0.9)],
+)
+def test_pattern_memory_confidence_is_bounded_on_insert(tmp_path, confidence, expected):
+    mem = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    pattern = mem.add(Pattern("bounded", "statement", "cycle:one",
+                              confidence=confidence))
+    assert pattern.confidence == expected
+    assert PatternMemory(str(tmp_path / "patterns.jsonl")).patterns()[0].confidence == expected
+
+
+@pytest.mark.parametrize(
+    "confidence",
+    [float("nan"), float("inf"), float("-inf"), "0.4", True, None],
+)
+def test_pattern_memory_rejects_invalid_confidence_on_insert(tmp_path, confidence):
+    mem = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    with pytest.raises(ValueError, match="pattern confidence must be a finite number"):
+        mem.add(Pattern("invalid", "statement", "cycle:one", confidence=confidence))
+    assert mem.patterns() == []
+
+
+def test_pattern_memory_rejects_aliased_non_finite_confidence_before_replay_mutation(tmp_path):
+    path = tmp_path / "patterns.jsonl"
+    mem = PatternMemory(str(path))
+    mem.add(Pattern("aliased", "statement", "cycle:one", confidence=0.3))
+    stored = mem.patterns()[0]
+    stored.confidence = float("nan")
+    before = path.read_text(encoding="utf-8")
+
+    with pytest.raises(ValueError, match="pattern confidence must be a finite number"):
+        mem.add(Pattern("aliased", "statement", "cycle:one", confidence=0.3,
+                        exceptions=["new exception"]))
+
+    assert stored.confidence != stored.confidence  # remains the caller-injected NaN
+    assert stored.exceptions == []
+    assert path.read_text(encoding="utf-8") == before
+
+
+def test_pattern_memory_rejects_aliased_non_finite_confidence_before_corroboration_mutation(tmp_path):
+    path = tmp_path / "patterns.jsonl"
+    mem = PatternMemory(str(path))
+    mem.add(Pattern("aliased", "statement", "cycle:one", confidence=0.3))
+    stored = mem.patterns()[0]
+    stored.confidence = float("nan")
+    before = (stored.provenance, stored.observed_count, list(stored.exceptions))
+    persisted_before = path.read_text(encoding="utf-8")
+
+    with pytest.raises(ValueError, match="pattern confidence must be a finite number"):
+        mem.add(Pattern("aliased", "statement", "cycle:two", confidence=0.3))
+
+    assert (stored.provenance, stored.observed_count, stored.exceptions) == before
+    assert path.read_text(encoding="utf-8") == persisted_before
+
+
+def test_pattern_memory_applicable_alias_cannot_persist_non_finite_confidence(tmp_path):
+    path = tmp_path / "patterns.jsonl"
+    mem = PatternMemory(str(path))
+    mem.add(Pattern("aliased", "statement", "cycle:one",
+                    applicability="robotics", confidence=0.3))
+    mem.applicable("robotics")[0].confidence = float("nan")
+
+    with pytest.raises(ValueError, match="pattern confidence must be a finite number"):
+        mem.add(Pattern("aliased", "statement", "cycle:one", confidence=0.3,
+                        exceptions=["new exception"]))
+
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 1
+
+
+def test_pattern_memory_clamps_finite_out_of_range_alias_before_replay_persistence(tmp_path):
+    path = tmp_path / "patterns.jsonl"
+    mem = PatternMemory(str(path))
+    mem.add(Pattern("aliased", "statement", "cycle:one", confidence=0.3))
+    mem.applicable("robotics")  # getter is also covered by the alias-boundary tests
+    mem.patterns()[0].confidence = 4.2
+
+    replayed = mem.add(Pattern("aliased", "statement", "cycle:one", confidence=0.3,
+                               exceptions=["new exception"]))
+
+    assert replayed.confidence == 0.9
+    reopened = PatternMemory(str(path)).patterns()[0]
+    assert reopened.confidence == 0.9
+    assert reopened.exceptions == ["new exception"]
+
+
+def test_pattern_memory_persists_alias_normalization_on_idempotent_replay(tmp_path):
+    path = tmp_path / "patterns.jsonl"
+    mem = PatternMemory(str(path))
+    mem.add(Pattern("aliased", "statement", "cycle:one", confidence=0.3))
+    stored = mem.patterns()[0]
+    stored.confidence = 4.2
+
+    replayed = mem.add(Pattern("aliased", "statement", "cycle:one", confidence=0.3))
+
+    assert replayed.confidence == 0.9
+    lines = path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 2
+    reopened = PatternMemory(str(path)).patterns()[0]
+    assert reopened.confidence == 0.9
+    assert reopened.provenance == "cycle:one"
+    assert reopened.observed_count == 1
+    assert reopened.exceptions == []
+
+
+def test_pattern_memory_append_rejects_aliased_non_finite_confidence(tmp_path):
+    mem = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    invalid = Pattern("invalid", "statement", "cycle:one", confidence=float("nan"))
+    with pytest.raises(ValueError, match="pattern confidence must be a finite number"):
+        mem._append(invalid)
+    assert not (tmp_path / "patterns.jsonl").exists()
+
+
+def test_pattern_memory_normalizes_finite_legacy_confidence_on_load(tmp_path):
+    path = tmp_path / "patterns.jsonl"
+    path.write_text(
+        '{"key":"low","statement":"s","provenance":"cycle:1","confidence":-0.2}\n'
+        '{"key":"high","statement":"s","provenance":"cycle:2","confidence":1.2}\n',
+        encoding="utf-8",
+    )
+    patterns = {p.key: p for p in PatternMemory(str(path)).patterns()}
+    assert patterns["low"].confidence == 0.0
+    assert patterns["high"].confidence == 0.9
+
+
+def test_pattern_memory_rejects_non_finite_legacy_confidence_on_load(tmp_path):
+    path = tmp_path / "patterns.jsonl"
+    path.write_text(
+        '{"key":"bad","statement":"s","provenance":"cycle:1","confidence":NaN}\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="pattern confidence must be a finite number"):
+        PatternMemory(str(path))
+
+
 
 
 # ---- learning loop: predicted vs actual, no acceleration claim ----
@@ -426,6 +597,39 @@ def test_executed_cycle_efficiency_eligibility(tmp_path):
     assert m["comparability"]["efficiency_comparison_pool"] == [c.id]
 
 
+def test_historical_execution_records_carry_exact_ci_provenance(tmp_path):
+    from rdo.orchestrator import record_arc_closers_execution, record_affinity_execution
+    from rdo.memory import CycleStore, PatternMemory
+
+    store = CycleStore(str(tmp_path / "cycles"))
+    memory = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    expected = {
+        "source_commit": "c352f6a83bec2136d5eff518deb210fc3cd4b3a2",
+        "workflow": "tests",
+        "workflow_run_id": 44855260626,
+        "workflow_run_number": 182,
+        "job_id": 136695850460,
+        "conclusion": "success",
+        "suite_result": {
+            "passed": 2219,
+            "skipped": 7,
+            "subtests_passed": 40,
+        },
+    }
+
+    cycles = [
+        record_arc_closers_execution(store, memory),
+        record_affinity_execution(store, memory),
+    ]
+    assert {cycle.id for cycle in cycles} == {
+        "arc_closers_regtest_2026-11",
+        "affinity_regtest_2026-11",
+    }
+    for cycle in cycles:
+        assert cycle.verification["ci_evidence"] == expected
+        assert store.load(cycle.id).verification["ci_evidence"] == expected
+
+
 # ---- the RDO subjected to its own Optimal Functional Tension ----
 
 def test_rdo_self_assessment_lean_and_independent():
@@ -657,6 +861,88 @@ def test_reconciliation_coverage_excludes_unreviewed_reuse_consistently():
     assert reviewed_metrics["reconciliation_status_coverage"] == 1.0
 
 
+def test_reuse_review_requires_nonblank_text_evidence_across_consumers():
+    from rdo.memory import cycle_metrics
+    from rdo.model import has_valid_reuse_review
+    from rdo.prioritise import priority_dimensions
+    from rdo.reconcile import summarize
+    from rdo.tension import (TENSION_UNKNOWN, assess_node, assess_relationship,
+                             assess_system, recognize_sufficiency)
+
+    def reviewed_obligation(key="reuse"):
+        return Obligation(
+            key, key, "persistence", recon_status=REUSE_EXISTING,
+            recon_evidence=["src/mechanism.py:12"], confidence="measured",
+            recon_semantic_verified=True,
+            recon_semantic_review_evidence=["manual review: obligation satisfied"],
+        )
+
+    valid = reviewed_obligation()
+    assert has_valid_reuse_review(valid)
+    assert has_valid_reuse_review(valid.to_dict())
+
+    malformed_fields = (
+        ("recon_evidence", []),
+        ("recon_evidence", [""]),
+        ("recon_evidence", ["   "]),
+        ("recon_evidence", [None]),
+        ("recon_evidence", [7]),
+        ("recon_evidence", [object()]),
+        ("recon_evidence", ["src/mechanism.py:12", None]),
+        ("recon_semantic_review_evidence", []),
+        ("recon_semantic_review_evidence", [""]),
+        ("recon_semantic_review_evidence", ["   "]),
+        ("recon_semantic_review_evidence", [None]),
+        ("recon_semantic_review_evidence", ["manual review", ""]),
+        ("recon_semantic_review_evidence", ["manual review", None]),
+        ("recon_semantic_verified", 1),
+        ("recon_semantic_verified", "true"),
+    )
+    for field, malformed in malformed_fields:
+        candidate = reviewed_obligation(field)
+        setattr(candidate, field, malformed)
+        assert not has_valid_reuse_review(candidate), (field, malformed)
+        assert not has_valid_reuse_review(candidate.to_dict()), (field, malformed)
+
+    # Every consumer must treat malformed review data as unreviewed.
+    invalid = reviewed_obligation("invalid")
+    invalid.recon_semantic_review_evidence = ["   "]
+    assert summarize({invalid.key: invalid})[RECON_UNKNOWN] == ["invalid"]
+
+    cycle = CycleRecord(id="malformed-reuse", objective="o",
+                        obligations=[invalid.to_dict()])
+    assert cycle_metrics(cycle)["reconciliation_status_coverage"] == 0.0
+    assert priority_dimensions(invalid, {})["readiness_to_build"] > 0.0
+    assert assess_node(invalid).verdict == TENSION_UNKNOWN
+    assert recognize_sufficiency({invalid.key: invalid}) == []
+
+    rel = Relationship("consumer", invalid.key, "depends_on")
+    assert assess_relationship(rel, {invalid.key: invalid}).verdict == TENSION_UNKNOWN
+    readiness = next(item for item in assess_system({invalid.key: invalid}, [])
+                     if item.subject == "integration_readiness")
+    assert readiness.verdict == TENSION_UNKNOWN
+
+    unpruned = Relationship("consumer", invalid.key, "depends_on")
+    assert prune_false_dependencies({invalid.key: invalid}, [unpruned]) == []
+    assert unpruned.kind == "depends_on"
+
+    def malformed_review_callback(ob):
+        ob.recon_evidence = ["src/mechanism.py:12"]
+        ob.confidence = "measured"
+        ob.recon_semantic_verified = True
+        ob.recon_semantic_review_evidence = ["   "]
+        return REUSE_EXISTING
+
+    expanded, _, frontier = expand(
+        [Obligation("root", "root", "persistence")],
+        reconcile_fn=malformed_review_callback,
+        max_depth=1,
+    )
+    assert "root.schema" in expanded
+    assert any(item["reason"] == "reuse status lacks semantic-review evidence; "
+               "expanded conservatively" for item in frontier)
+
+
 def test_signature_evidence_coverage_rejects_inconsistent_counts():
     from rdo.memory import cycle_metrics
 
@@ -773,6 +1059,29 @@ def test_active_experiment_registry_unreadable_or_invalid_fails_closed(tmp_path,
     monkeypatch.setattr(registry, "ingest_registry", unreadable)
     with pytest.raises(PermissionError):
         _active_experiments(str(tmp_path))
+
+def test_cycle_store_rejects_unsafe_cycle_ids_before_file_access(tmp_path):
+    store = CycleStore(str(tmp_path / "cycles"))
+    unsafe_ids = [
+        "",
+        ".",
+        "..",
+        "../escape",
+        "../../../../tmp/escape",
+        "/absolute/path",
+        r"..\\escape",
+        "bad\x00id",
+        "x" * 129,
+    ]
+
+    for cycle_id in unsafe_ids:
+        with pytest.raises(ValueError, match="cycle id"):
+            store.save(CycleRecord(id=cycle_id, objective="unsafe id"))
+        with pytest.raises(ValueError, match="cycle id"):
+            store.load(cycle_id)
+
+    assert not (tmp_path / "escape.json").exists()
+
 
 def test_cycle_store_preserves_evidence_refs_without_promoting_kind(tmp_path):
     from rdo.model import NATIVE_PLANNING

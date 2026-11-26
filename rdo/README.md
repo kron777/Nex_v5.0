@@ -55,10 +55,14 @@ WORK PACKAGE → EVIDENCE ACCOUNTING → (persist) → LEARN
   reported **separately** (a provisional weighted figure is labelled
   uncalibrated). Work packages carry their **anti-requirements**.
 - **Memory & learning** (`memory.py`) — a Development Pattern Memory (patterns
-  keep provenance, bounded confidence and exceptions — never universal from one
-  success) and a learning loop that compares **predicted vs actual** outcomes
+  keep provenance, finite confidence bounded to 0.0–0.9, and exceptions — never
+  universal from one success). Finite out-of-range confidence is clamped; non-numeric
+  and non-finite values are rejected on insertion or load. The learning loop compares
+  **predicted vs actual** outcomes
   (missed obligations, over-expansion, inappropriate reuse, effort error) across
   cycles. No acceleration is claimed until enough cycles exist to support it.
+  The per-cycle store accepts only 1–128 portable filename characters for cycle IDs;
+  path separators and traversal-shaped IDs are rejected before any file access.
 
 ## Run it
 
@@ -186,13 +190,27 @@ cycle contributes process measures only. The report makes **no efficiency or
 acceleration claim** until at least three *comparable* cycles exist. There are
 currently two recorded executed+verified test-work cycles: `arc_closers` and
 `beliefs.affinity`. The catalogue has six rows: one imported retrospective, three
-native discovery cycles and two execution records. The historical execution
-records retain their recorded test claims but do not yet carry independently
-checkable CI-run/artifact references. The Founder has directed that both remain
-classified as `EXECUTED_VERIFIED` and eligible for efficiency comparisons while
-historical supporting evidence is sought. Current CI is not retroactive proof of
-those historical test runs. Patterns corroborate slowly and never become universal
-rules merely for appearing twice.
+native discovery cycles and two execution records. Both historical execution records now carry exact, independently checkable CI provenance:
+
+- **`arc_closers`** — source commit `c352f6a83bec2136d5eff518deb210fc3cd4b3a2`,
+  workflow run [`44855260626` (#182)](https://github.com/kron777/Nex_v5.0/actions/runs/44855260626),
+  pytest job `136695850460`: success. The commit contains all six tests in
+  `tests/test_arc_closers_migration.py`, including the real `_apply_migrations`
+  legacy-upgrade fixture, backfill, default-on-insert and idempotent re-run.
+- **`beliefs.affinity`** — the same exact commit and successful workflow run. The commit
+  contains both tests in `tests/test_affinity_columns_migration.py`, covering fresh
+  migration provisioning, nullable columns and the unrated-state query.
+
+The workflow ran `scripts/check_test_baseline.py`, which invoked the full `pytest -q`
+suite with zero known-intentional tests deselected. Result: **2,219 passed, 7 skipped,
+40 subtests passed**. The earlier successful run `44853759854` (#181, 2,214 passed)
+was on the initial `arc_closers` test commit before the legacy-upgrade fixture was added;
+it is intermediate evidence, not the final verification used above.
+
+These are source-commit and CI-run/job references, not a separate database snapshot or
+runtime artifact. They verify the committed regression tests in CI; they do not establish
+deployed-host behaviour. Later CI runs are not substituted for this exact historical run.
+
 
 ## The RDO under its own OFT
 
