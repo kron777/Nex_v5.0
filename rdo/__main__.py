@@ -24,7 +24,8 @@ from rdo_adapters.objective_intake import (ObjectiveInputError, load_objective_f
                                            objective_history, resume_objective,
                                            submit_objective)
 from rdo_adapters.handoff import (HandoffError, create_handoff, handoff_history,
-                                  record_human_acceptance, record_scope_review)
+                                  record_human_acceptance, record_scope_review,
+                                  verify_with_watcher)
 from .report import (demo_genius_tagger, run_catalogue, run_stage2_belief_decay,
                      run_stage3_graph_intelligence, run_stage4_belief_audit,
                      run_stage5_belief_pathway, run_stage6_learning_loop,
@@ -136,6 +137,17 @@ def _handoff_history(args) -> int:
         return 2
     print(json.dumps(result, indent=2, default=str))
     return 0
+
+
+def _handoff_verify(args) -> int:
+    try:
+        result = verify_with_watcher(args.out, args.repo, args.handoff_id,
+                                     timeout_seconds=args.timeout)
+    except (HandoffError, OSError, ValueError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, default=str))
+    return 1 if result.get("exit_status") == "scope_violation" else 0
 
 
 def _handoff_review(args) -> int:
@@ -256,6 +268,13 @@ def main(argv=None) -> int:
     hh.add_argument("--handoff-id", required=True)
     hh.add_argument("--out", default="rdo/.cycles")
     hh.set_defaults(fn=_handoff_history)
+
+    hv = sub.add_parser("handoff-verify", help="invoke independent Watcher source/path verification")
+    hv.add_argument("--handoff-id", required=True)
+    hv.add_argument("--repo", default=".")
+    hv.add_argument("--out", default="rdo/.cycles")
+    hv.add_argument("--timeout", type=int, default=120)
+    hv.set_defaults(fn=_handoff_verify)
 
     hr = sub.add_parser("handoff-review", help="record a human-attributed non-executing scope decision")
     hr.add_argument("--handoff-id", required=True)
