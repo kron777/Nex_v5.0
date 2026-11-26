@@ -205,3 +205,139 @@ def test_sink_rejects_hardlink_to_substrate_database(tmp_path, monkeypatch):
     tracer = InfluenceTracer("test", sink_path=sink, enabled=True)
     assert tracer.record("writer", "observed", metadata={}) is None
     assert database.read_bytes() == b"do-not-touch"
+
+
+def test_chat_workspace_trace_is_observational_and_order_preserving(tmp_path, monkeypatch):
+    from gui.server import _assemble_chat_blocks
+
+    for name in ("NEX5_CHAT_WORKSPACE", "NEX5_CHAT_WORKSPACE_BUDGET",
+                 "NEX5_SELF_PRESENT", "NEX5_CHAT_ABLATE"):
+        monkeypatch.delenv(name, raising=False)
+
+    original = [
+        ("operator", "operator block"),
+        ("compassion", "compassion block"),
+        ("convo", "conversation block"),
+        ("spectrum", "spectrum block"),
+    ]
+    untouched_snapshot = list(original)
+    expected = _assemble_chat_blocks(list(original))
+
+    tracer = InfluenceTracer("chat_turn", sink_path=_sink(tmp_path), enabled=True)
+    observed = _assemble_chat_blocks(list(original), trace=tracer)
+
+    assert observed == expected
+    assert original == untouched_snapshot
+    events = tracer.events
+    selection = [event for event in events
+                 if event["stage"] == "salience_workspace"]
+    assert len(selection) == 1
+    metadata = selection[0]["metadata"]
+    assert metadata["candidate_order"] == ["operator", "compassion", "convo", "spectrum"]
+    assert metadata["selected_order"] == metadata["candidate_order"]
+
+
+def test_chat_workspace_budget_trace_does_not_change_selected_text(tmp_path, monkeypatch):
+    from gui.server import _assemble_chat_blocks
+
+    monkeypatch.setenv("NEX5_CHAT_WORKSPACE", "1")
+    monkeypatch.setenv("NEX5_CHAT_WORKSPACE_BUDGET", "38")
+    monkeypatch.delenv("NEX5_CHAT_ABLATE", raising=False)
+    monkeypatch.delenv("NEX5_SELF_PRESENT", raising=False)
+    original = [
+        ("operator", "short operator block"),
+        ("compassion", "short compassion block"),
+        ("spectrum", "a much longer spectrum block that will not fit"),
+        ("tag", "short tag block"),
+    ]
+
+    expected = _assemble_chat_blocks(list(original))
+    tracer = InfluenceTracer("chat_turn", sink_path=_sink(tmp_path), enabled=True)
+    observed = _assemble_chat_blocks(list(original), trace=tracer)
+
+    assert observed == expected
+    assert original[0][0] == "operator"
+    selection = [event for event in tracer.events
+                 if event["stage"] == "salience_workspace"][-1]
+    assert selection["metadata"]["strategy"] == "NEX5_CHAT_WORKSPACE"
+    assert selection["metadata"]["selected_order"]
+
+
+def test_fountain_generate_trace_wrapper_preserves_result(tmp_path, monkeypatch):
+    from types import MethodType
+    from theory_x.stage6_fountain.generator import FountainGenerator
+
+    generator = object.__new__(FountainGenerator)
+    generator._total_fires = 4
+    generator._last_fire_ts = 123.0
+    calls = []
+
+    def fake_generate(self, dynamic_state, beliefs_reader, trace=None):
+        calls.append(trace)
+        if trace is not None:
+            trace.record("candidate_generation", "fixture_candidate",
+                         metadata={"candidate_ids": [7, 8]})
+        return "same fountain thought"
+
+    generator._generate = MethodType(fake_generate, generator)
+    monkeypatch.setenv("NEX5_TRACE_OVERLAY", "0")
+    monkeypatch.setenv("NEX5_TRACE_OVERLAY_PATH", str(_sink(tmp_path / "off")))
+    off_result = generator.generate(None, None)
+    assert off_result == "same fountain thought"
+    assert calls[-1] is None
+    assert not (tmp_path / "off" / "trace.jsonl").exists()
+
+    monkeypatch.setenv("NEX5_TRACE_OVERLAY", "1")
+    monkeypatch.setenv("NEX5_TRACE_OVERLAY_PATH", str(_sink(tmp_path / "on")))
+    on_result = generator.generate(None, None)
+    assert on_result == off_result
+    assert calls[-1] is not None
+    records = [json.loads(line) for line in _sink(tmp_path / "on").read_text().splitlines()]
+    assert [record["stage"] for record in records] == [
+        "input_arrival", "candidate_generation", "output"
+    ]
+    assert records[1]["parent_ids"] == [records[0]["event_id"]]
+    assert records[2]["parent_ids"] == [records[1]["event_id"]]
+
+
+def test_membrane_route_trace_preserves_retrieval_and_return_value(tmp_path):
+    from theory_x.stage4_membrane.classifier import MembraneSide
+    from theory_x.stage4_membrane.router import QueryRouter
+
+    class OutsideClassifier:
+        def classify_query(self, query):
+            return MembraneSide.OUTSIDE
+
+    class DynamicState:
+        def status(self):
+            return {"branches": [{"branch_id": "systems", "focus_num": 0.4}]}
+
+    class Retriever:
+        def __init__(self):
+            self.calls = []
+
+        def retrieve(self, **kwargs):
+            self.calls.append(dict(kwargs))
+            return [{
+                "id": 901,
+                "tier": 6,
+                "confidence": 0.82,
+                "content": "A grounded candidate belief",
+            }]
+
+    router = QueryRouter(classifier=OutsideClassifier())
+    retriever_off = Retriever()
+    retriever_on = Retriever()
+    dynamic = DynamicState()
+
+    off = router.route("a query", retriever_off, object(), dynamic_state=dynamic)
+    tracer = InfluenceTracer("chat_turn", sink_path=_sink(tmp_path), enabled=True)
+    on = router.route("a query", retriever_on, object(), dynamic_state=dynamic,
+                      trace=tracer)
+
+    assert on == off
+    assert retriever_on.calls == retriever_off.calls
+    candidate_events = [event for event in tracer.events
+                        if event["stage"] == "candidate_generation"]
+    assert len(candidate_events) == 1
+    assert candidate_events[0]["metadata"]["candidate_ids"] == [901]
