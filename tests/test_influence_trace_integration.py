@@ -33,6 +33,21 @@ def test_chat_workspace_trace_does_not_change_assembled_prompt(tmp_path, monkeyp
     assert event["metadata"]["candidate_order"] == [kind for kind, _ in ordered]
     assert event["metadata"]["selected_order"] == [kind for kind, _ in ordered]
 
+    # Exercise the budgeted selector as well: tracing must not change the
+    # selected faculty set or the assembled prompt under competition.
+    monkeypatch.setenv("NEX5_CHAT_WORKSPACE", "1")
+    monkeypatch.setenv("NEX5_CHAT_WORKSPACE_BUDGET", "40")
+    baseline_selected = _assemble_chat_blocks(ordered)
+    traced_selected = _assemble_chat_blocks(
+        ordered, trace=TraceContext(
+            "chat_turn", sink_path=tmp_path / "chat-workspace.jsonl"
+        )
+    )
+    assert traced_selected == baseline_selected
+    workspace_event = _read_events(tmp_path / "chat-workspace.jsonl")[-1]
+    assert workspace_event["metadata"]["workspace_enabled"] is True
+    assert workspace_event["metadata"]["selected_order"] == ["compassion", "compass"]
+
 
 def test_membrane_candidate_trace_uses_existing_retrieval_result(tmp_path):
     from theory_x.stage4_membrane.router import QueryRouter
