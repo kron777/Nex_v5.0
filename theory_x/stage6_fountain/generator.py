@@ -2540,11 +2540,26 @@ class FountainGenerator:
             _branch_prev = _prev[0] if _prev else ""
             _moved = 1 if (hot_branch and _branch_prev and hot_branch != _branch_prev) else 0
             _nudge = 1 if getattr(self, "_pending_nudge_active", False) else 0
+            _recursion_ts = _tt2.time()
             _acon.execute(
                 "INSERT OR REPLACE INTO recursion_attrib VALUES (?,?,?,?,?)",
-                (_tt2.time(), _nudge, hot_branch or "", _branch_prev, _moved)
+                (_recursion_ts, _nudge, hot_branch or "", _branch_prev, _moved)
             )
             _acon.commit(); _acon.close()
+            if trace is not None:
+                _recursion_trace_id = trace.record(
+                    "direct_sql_commit", "recursion_attrib_insert_or_replace",
+                    metadata={"database": "dynamic", "table": "recursion_attrib",
+                              "operation": "INSERT_OR_REPLACE", "status": "committed",
+                              "timestamp": _recursion_ts, "branch_id": hot_branch,
+                              "previous_branch_id": _branch_prev, "moved": bool(_moved),
+                              "nudge_active": bool(_nudge),
+                              "transaction_scope": "direct_connection_commit"},
+                    parent_ids=[trace.reference("fountain_readiness")]
+                    if trace.reference("fountain_readiness") else
+                    [trace.reference("input_arrival")],
+                )
+                trace.remember("fountain_recursion_attrib_delta", _recursion_trace_id)
         except Exception:
             pass  # never stall a fire
         # L4_stakes: check world-contact ratio every 5 fires (fail-safe).
@@ -2622,7 +2637,10 @@ class FountainGenerator:
         if os.environ.get("NEX5_MOMENTUM", "1") == "1":
             try:
                 from theory_x.stage_tom.momentum import capture_momentum
-                capture_momentum(thought or "", _carry_branch or "")
+                if trace is None:
+                    capture_momentum(thought or "", _carry_branch or "")
+                else:
+                    capture_momentum(thought or "", _carry_branch or "", trace=trace)
             except Exception:
                 pass  # never stall a fire
 
@@ -2956,7 +2974,10 @@ class FountainGenerator:
         if os.environ.get("NEX5_CARRYOVER") == "1":
             try:
                 from theory_x.stage_tom.momentum import stamp_resolution
-                stamp_resolution(bool(crystallized_id))
+                if trace is None:
+                    stamp_resolution(bool(crystallized_id))
+                else:
+                    stamp_resolution(bool(crystallized_id), trace=trace)
             except Exception:
                 pass
 
