@@ -166,3 +166,28 @@ def test_decay_pass_excludes_retired_tombstones_in_default_and_tier_climb_modes(
     monkeypatch.setenv("NEX5_TIER_CLIMB", "1")
     assert promoter.decay_pass() == 0
     assert "erosion_stage != 'retired'" in reader.queries[-1]
+
+
+def test_promotion_edge_matching_excludes_paused_and_retired_peers():
+    from theory_x.stage3_world_model.promotion import BeliefPromoter
+
+    class Reader:
+        def __init__(self):
+            self.queries = []
+
+        def read(self, sql, params=()):
+            self.queries.append(sql)
+            return []
+
+    class Writer:
+        def write(self, sql, params=()):
+            return None
+
+    reader = Reader()
+    promoter = BeliefPromoter(Writer(), reader)
+    promoter._write_corroboration_edge(41, "The river carries water through the valley.")
+    promoter._write_contradiction_edges(41, "The river carries water through the valley.")
+
+    assert len(reader.queries) == 2
+    assert all("paused = 0" in sql for sql in reader.queries)
+    assert all("erosion_stage != 'retired'" in sql for sql in reader.queries)
