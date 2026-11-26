@@ -24,6 +24,7 @@ class ClockRunner:
         self._last_medium = 0
         self._last_slow = 0
         self._reanimated_belief: dict | None = None
+        self._dormancy = DormancyScanner(writers["beliefs"], readers["beliefs"])
 
     def tick(self, fire_count: int) -> None:
         if fire_count - self._last_fast >= FAST_INTERVAL:
@@ -53,8 +54,7 @@ class ClockRunner:
             log.warning("fast clock: boost decay failed: %s", e)
 
         try:
-            dormancy = DormancyScanner(self._writers["beliefs"], self._readers["beliefs"])
-            updated = dormancy.scan_incremental()
+            updated = self._dormancy.scan_incremental()
             actions["dormancy_updated"] = updated
         except Exception as e:
             log.warning("fast clock: dormancy scan failed: %s", e)
