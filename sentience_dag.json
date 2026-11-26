@@ -1,5 +1,5 @@
 {
-  "_about": "NEX sentience-layer dependency DAG. Each node lists its prerequisites (edges pointing IN) and status. The build order is the topological sort of this graph. A node is 'buildable now' iff every prereq is 'built'. Run nex_next_dev.py to compute what's buildable / blocked / gap. This is the formal structure behind NEX_MIND_MAP_COMPLETE.md — the math the diagram visualizes.",
+  "_about": "NEX sentience-layer dependency DAG. Each node lists its prerequisites (edges pointing IN) and status. The build order is the topological sort of this graph. A node is 'buildable now' iff every prerequisite has a status in nex_next_dev.py's satisfied set ('built', 'live_unproven', 'terminal'); the latter two remain explicitly surfaced as caveats, not proof. Run nex_next_dev.py to compute what's buildable / blocked / gap. This is the formal structure behind NEX_MIND_MAP_COMPLETE.md — the math the diagram visualizes.",
   "_status_values": [
     "built",
     "live_unproven",
