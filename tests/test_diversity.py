@@ -526,6 +526,19 @@ class TestClockRunner(unittest.TestCase):
             clock.tick(20)
             self.assertEqual(clock._last_fast, 20)
 
+    def test_fast_clock_reuses_persistent_dormancy_scanner(self):
+        clock, _, _ = self._make_clock()
+        scanner = MagicMock()
+        clock._dormancy = scanner
+
+        with patch("theory_x.diversity.consolidation.apply_decay", return_value=0), \
+             patch("theory_x.diversity.consolidation.wake_one", return_value=None):
+            clock.tick(20)
+            clock.tick(39)  # below the next 20-fire boundary
+            clock.tick(40)
+
+        self.assertEqual(scanner.scan_incremental.call_count, 2)
+
     def test_medium_clock_triggers_at_200(self):
         clock, writers, readers = self._make_clock()
         with patch("theory_x.diversity.consolidation.apply_decay", return_value=0), \
