@@ -358,12 +358,16 @@ class TestSelectPairEligibility(unittest.TestCase):
             "anchor",
             source="koan",
         )
-        fresh_id = _seed_belief(
+        _seed_belief(
             self.writers,
             "Entropy grows in open systems without sustained energy input.",
             "fresh",
             source="fountain_insight",
         )
+        fresh_id = self.readers["beliefs"].read_one(
+            "SELECT id FROM beliefs WHERE content = ?",
+            ("Entropy grows in open systems without sustained energy input.",),
+        )["id"]
         s = _make_synergizer(self.writers, self.readers)
 
         self.writers["beliefs"].write(
