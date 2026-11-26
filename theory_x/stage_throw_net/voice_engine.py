@@ -97,22 +97,26 @@ class VoiceEngine:
         try:
             candidates = self._retrieve_candidates(query)
             if trace is not None:
-                trace.candidates(
+                _voice_candidate_set_id = trace.candidates(
                     [candidate.get("origin_id") for candidate in candidates],
                     source="voice_engine._retrieve_candidates",
                     candidate_kinds=[candidate.get("source", "unknown")
                                      for candidate in candidates],
                     metadata={"candidate_count": len(candidates)},
+                    parent_ids=[trace.reference("input_arrival")],
                 )
+                trace.remember("voice_engine_candidates", _voice_candidate_set_id)
             if not candidates:
                 if trace is not None:
-                    trace.selection(
+                    _voice_empty_selection_id = trace.selection(
                         source="voice_engine.query_reply",
                         candidate_order=[],
                         selected_order=[],
                         strategy="max_voice_engine_score",
                         metadata={"used_as_reply": False, "reason_code": "no_candidates"},
+                        parent_ids=[_voice_candidate_set_id] if _voice_candidate_set_id else [],
                     )
+                    trace.remember("voice_engine_selection", _voice_empty_selection_id)
                 self._miss_count += 1
                 if trace is None:
                     self._record_query_trigger(
@@ -137,7 +141,7 @@ class VoiceEngine:
             self._last_score = best_score
             used = best_score >= self.min_score and best_candidate is not None
             if trace is not None:
-                trace.selection(
+                _voice_selection_id = trace.selection(
                     source="voice_engine.query_reply",
                     candidate_order=[candidate.get("origin_id") for candidate in candidates],
                     selected_order=(
@@ -153,7 +157,9 @@ class VoiceEngine:
                         "minimum_score": self.min_score,
                         "used_as_reply": used,
                     },
+                    parent_ids=[_voice_candidate_set_id] if _voice_candidate_set_id else [],
                 )
+                trace.remember("voice_engine_selection", _voice_selection_id)
 
             if trace is None:
                 self._record_query_trigger(
@@ -182,6 +188,7 @@ class VoiceEngine:
                 trace.record(
                     "candidate_generation", "voice_engine_error",
                     metadata={"error_type": type(exc).__name__},
+                    parent_ids=[trace.reference("input_arrival")],
                 )
             errors.record(
                 f"voice_engine.query_reply: {exc}",
@@ -454,6 +461,8 @@ class VoiceEngine:
                     metadata={"trigger_type": "user_query",
                               "fired": used_as_reply,
                               "session_id_present": bool(session_id)},
+                    parent_ids=[trace.reference("voice_engine_selection")]
+                    if trace.reference("voice_engine_selection") else [],
                 )
         except Exception as exc:
             if trace is not None:
@@ -462,6 +471,9 @@ class VoiceEngine:
                     operation="INSERT", status="failed",
                     metadata={"trigger_type": "user_query",
                               "error_type": type(exc).__name__},
+                    parent_ids=[trace.reference("voice_engine_selection")]
+                    if trace.reference("voice_engine_selection") else
+                    [trace.reference("input_arrival")],
                 )
             errors.record(
                 f"voice_engine._record_query_trigger: {exc}",
