@@ -999,7 +999,9 @@ def test_full_fountain_generator_trace_overlay_on_off_equivalence(tmp_path, monk
 
 def _run_paired_chat_once(run_root, *, trace_on, monkeypatch):
     import copy
+    import datetime
     import os
+    from pathlib import Path
 
     run_root.mkdir(parents=True, exist_ok=True)
     data_dir = run_root / "data"
@@ -1021,7 +1023,12 @@ def _run_paired_chat_once(run_root, *, trace_on, monkeypatch):
         from substrate import Reader, Writer, db_paths
         from voice.llm import VoiceClient
         from gui.server import AppState, create_app, _working_memory_by_session
+        import nex_config
 
+        mp.setattr(
+            nex_config, "local_now",
+            lambda: datetime.datetime(2026, 11, 27, 12, 0, 0),
+        )
         init_all()
         paths = db_paths()
         writers = {name: Writer(path, name=name) for name, path in paths.items()}
@@ -1033,11 +1040,11 @@ def _run_paired_chat_once(run_root, *, trace_on, monkeypatch):
         original_read_one = Reader.read_one
 
         def logged_read(reader, sql, params=()):
-            read_sequence.append((reader.db_path, "read", sql, tuple(params or ())))
+            read_sequence.append((Path(reader.db_path).name, "read", sql, tuple(params or ())))
             return original_read(reader, sql, params)
 
         def logged_read_one(reader, sql, params=()):
-            read_sequence.append((reader.db_path, "read_one", sql, tuple(params or ())))
+            read_sequence.append((Path(reader.db_path).name, "read_one", sql, tuple(params or ())))
             return original_read_one(reader, sql, params)
 
         mp.setattr(Reader, "read", logged_read)
