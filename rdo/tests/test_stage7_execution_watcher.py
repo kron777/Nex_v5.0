@@ -118,7 +118,9 @@ def test_failed_verification_reopens_and_feeds_learning_with_provenance(tmp_path
     c.actual = actual
     assert learning_provenance(c) == "independent_watcher_verified"
     loop = learning_loop([c])
-    assert loop["provenance_split"]["human_reviewed"] == 0     # watcher is NOT human
+    assert loop["provenance_split"]["reviewer_attributed"] == 0
+    assert loop["provenance_split"]["controlled_fixture_review"] == 0
+    assert loop["provenance_split"]["independent_watcher_verified"] == 1  # watcher evidence is independent
     assert loop["per_cycle"][0]["provenance"] == "independent_watcher_verified"
 
 
