@@ -336,12 +336,12 @@ class TestEscalation(unittest.TestCase):
     def tearDown(self):
         _cleanup(self.writers, self.tmp)
 
-    def _seed_conflict_pair(self, tier=5):
+    def _seed_conflict_pair(self, tier=5, suffix=""):
         id_a = _seed(self.writers,
-                     "Markets always trend upward over long time horizons",
+                     "Markets always trend upward over long time horizons" + suffix,
                      tier=tier)
         id_b = _seed(self.writers,
-                     "Markets do not always trend upward over long time horizons",
+                     "Markets do not always trend upward over long time horizons" + suffix,
                      tier=tier)
         time.sleep(0.05)
         return id_a, id_b
@@ -410,11 +410,11 @@ class TestEscalation(unittest.TestCase):
 
     def test_resolve_rejects_pair_that_became_paused_or_retired(self):
         h = _make_harmonizer(self.writers, self.readers)
-        for state_sql in (
+        for index, state_sql in enumerate((
             "UPDATE beliefs SET paused=1 WHERE id=?",
             "UPDATE beliefs SET tier=8 WHERE id=?",
-        ):
-            id_a, id_b = self._seed_conflict_pair()
+        )):
+            id_a, id_b = self._seed_conflict_pair(suffix=f" case {index}")
             self.writers["dynamic"].write(
                 "INSERT INTO harmonizer_events (ts, belief_id_a, belief_id_b, resolution) "
                 "VALUES (?, ?, ?, 'paradox')",
