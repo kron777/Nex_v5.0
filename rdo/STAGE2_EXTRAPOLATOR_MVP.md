@@ -47,7 +47,7 @@ suite 48 passing.
 - **Accept/structure objective** → `test_accepts_and_structures_objective`
 - **Recursive discovery** (8 seeds → 35 obligations, depth 2) → `test_recursively_discovers_obligations`
 - **Per-obligation parent/rationale/class/confidence/impact/evidence** → `test_records_each_obligation_attribute`
-- **Bounded reconciliation** (REUSE `belief_activation` recency table; MISSING decay policy + daemon) → `test_reconciles_against_repository_evidence`
+- **Bounded reconciliation** (`belief_activation` is `signature_matched` pending independent semantic review; MISSING decay policy + daemon) → `test_reconciles_against_repository_evidence`
 - **Duplication → anti-requirements** → `test_identifies_duplication_as_anti_requirements`
 - **No verification without acceptance evidence** (source matches remain separate from reviewed reuse; no semantic reuse is claimed without an explicit current review) → `test_no_verification_without_acceptance_evidence`
 - **Stable canonical IDs, no silent merge** → `test_stable_canonical_ids_and_no_silent_merge`
@@ -101,7 +101,7 @@ graph-intelligence (SCC/typed-edges/completeness) was started.
 | # | §15 requirement | Implementation (path · symbol) | Test | Status |
 |---|---|---|---|---|
 | 1 | Shared prerequisite / converging branch demonstrated in real expansion | `extrapolator.py` — `consumer` rule's `runtime_verification` now a **shared** target (`shared_runtime_effect`); `knowledge.belief_decay_idea` has a 2nd consumer, so both converge via `_merge` (in-degree 2) | `test_convergence_shared_prerequisite` | **VERIFIED** |
-| 2 | Prediction vs reviewed outcome + calibration | `report.run_stage2_belief_decay` records a controlled **planning review** (`review_kind="planning_review"`, `kind` stays `native_planning`), `compare` → `derive_lessons` → `PatternMemory` (durable) | `test_planning_review_and_calibration_are_durable` | **VERIFIED** (reviewed plan, **not** an execution outcome) |
+| 2 | Prediction vs reviewed outcome + calibration | `report.run_stage2_belief_decay` records a caller-attributed **planning review** (`review_kind="planning_review"`, `kind` stays `native_planning`); the reviewer label is not independently authenticated, `compare` → `derive_lessons` → `PatternMemory` (durable) | `test_planning_review_and_calibration_are_durable` | **VERIFIED** (reviewer-attributed planning record, **not** an authenticated identity or execution outcome) |
 | 3 | Expansion-budget frontier preserved + resumable | `run_cycle(max_depth=…)` exposed; full `frontier` (with reasons) persisted on `CycleRecord.frontier` | `test_frontier_preserved_under_expansion_budget` | **VERIFIED** |
 | 4 | Complete, consistent six counts | `orchestrator.run_cycle` → `CycleRecord.counts` {discovered, unique, reuse, net_new, deferred, unresolved}, definitions in-code; `unique == discovered` proves no silent collision | `test_complete_counts_persisted_and_consistent` | **VERIFIED** |
 | 5 | Meaningful work-package ordering + unresolved visible | `prioritise.build_work_packages` sorts packages eligible-first, then priority desc, then key (deterministic); `net_new` includes `RECON_UNKNOWN`; anti-requirements excluded | `test_work_packages_priority_ordered_not_alphabetical` | **VERIFIED** |
