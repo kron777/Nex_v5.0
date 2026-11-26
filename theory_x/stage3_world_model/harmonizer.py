@@ -115,6 +115,9 @@ class Harmonizer:
         self._dynamic_writer = dynamic_writer
         self._dynamic_reader = dynamic_reader
         self._promoter = promoter
+        # In-memory per-tier cursors rotate bounded scan coverage between passes.
+        # The 200-candidate ceiling is preserved (40 per tier, Tiers 3–7).
+        self._scan_cursors: dict[int, int] = {tier: 0 for tier in range(3, 8)}
         self._lock = threading.Lock()
         # SentienceNode state cache — refreshed by tick()
         self._cached: dict = {
@@ -126,6 +129,40 @@ class Harmonizer:
 
     # ── Conflict detection ────────────────────────────────────────────────────
 
+    def _load_scan_candidates(self) -> list:
+        """Load at most 200 candidates with rotating, equal tier coverage.
+
+        Each pass takes up to 40 beliefs from each of Tiers 3–7. A per-tier
+        keyset cursor advances between passes and wraps at the end of that
+        tier's eligible IDs. This prevents a large low-tier population from
+        permanently excluding higher tiers while preserving the old total
+        candidate ceiling and deterministic ID ordering.
+        """
+        candidates = []
+        per_tier_limit = 40
+        for tier in range(3, 8):
+            cursor = self._scan_cursors[tier]
+            rows = self._beliefs_reader.read(
+                "SELECT id, content, tier FROM beliefs "
+                "WHERE tier = ? AND locked = 0 AND paused = 0 AND id > ? "
+                "ORDER BY id ASC LIMIT ?",
+                (tier, cursor, per_tier_limit),
+            )
+            selected = list(rows)
+            if len(selected) < per_tier_limit:
+                remaining = per_tier_limit - len(selected)
+                wrapped = self._beliefs_reader.read(
+                    "SELECT id, content, tier FROM beliefs "
+                    "WHERE tier = ? AND locked = 0 AND paused = 0 AND id <= ? "
+                    "ORDER BY id ASC LIMIT ?",
+                    (tier, cursor, remaining),
+                )
+                selected.extend(wrapped)
+            if selected:
+                self._scan_cursors[tier] = int(selected[-1]["id"])
+                candidates.extend(selected)
+        return candidates
+
     def scan_for_conflicts(self) -> list[tuple[int, int]]:
         """Find conflicting belief pairs in the working belief body (Tier 3-7).
 
@@ -133,14 +170,12 @@ class Harmonizer:
         Tier 8 retired/observation beliefs. Locked beliefs are excluded
         regardless of tier.
 
+        Each pass samples up to 40 eligible beliefs per tier (3–7), rotating
+        within each tier across passes. The total candidate budget remains 200.
         Returns list of (belief_id_a, belief_id_b) pairs.
         """
         try:
-            rows = self._beliefs_reader.read(
-                "SELECT id, content, tier FROM beliefs "
-                "WHERE tier BETWEEN 3 AND 7 AND locked = 0 AND paused = 0 "
-                "ORDER BY tier ASC LIMIT 200",
-            )
+            rows = self._load_scan_candidates()
         except Exception as exc:
             errors.record(f"scan_for_conflicts read error: {exc}", source=_LOG_SOURCE, exc=exc)
             return []
