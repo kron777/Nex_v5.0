@@ -238,3 +238,12 @@ This is an ownership/scheduling question, not a confirmed incident. No scan path
 The Phase 0 trace now records G-56 / §89: RememberLoop selects an old and recent belief, composes a linking sentence and inserts a new Tier-6 belief, but does not preserve the child ID or write either source ID to `belief_lineage`. Synergizer records both parents for two-input synthesis; RememberLoop has no equivalent lineage writer. The existing vocabulary distinguishes `synergy` and single-parent `reference`, but the intended relationship label for a temporal comparison is unresolved. This is separate from G-25 (CoherenceGate path) and G-27 (tagging path).
 
 Do not add a relationship label or alter the loop until the founder confirms whether temporal links should be first-class lineage descendants. No source, schema, data, cursor, flag, test or runtime behavior was changed.
+
+
+## Current source-audit addendum — 26 November 2026 (graph producer interaction)
+
+The Stage-2/Stage-3 graph audit now records G-57 / §90: Stage-2 Diversity EdgeBuilder runs every 60 seconds and writes generic `cross_domain` edges; Stage-3 EdgeGenerator runs every 30 minutes but selects only Fountain/Synergizer beliefs with no edge in either direction. A Stage-2 edge can therefore remove a belief from the Stage-3 candidate queue before Stage 3 classifies potential typed relations. This may be intentional early saturation; no live graph or actual coverage loss was measured.
+
+## Current source-audit addendum — 26 November 2026 (edge-builder telemetry)
+
+The graph audit also records G-58 / §91: Stage-2 Diversity EdgeBuilder increments its `wrote` metric whenever the connection-wide cumulative `total_changes` is positive. After one successful insert, later ignored duplicates in the same tick can be counted as writes. This affects log/stat accuracy only, not persisted edge rows. A per-statement cursor `rowcount` and a duplicate-edge fixture are the bounded future correction. No implementation change was made.
