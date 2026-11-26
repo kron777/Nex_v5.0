@@ -737,7 +737,7 @@ def test_unresolved_dependency_blocks_dependent_but_remains_investigable():
         obs = {"target": target, "feature": work}
         rels = [Relationship("feature", "target", "depends_on")]
         assert eligibility(work, obs, rels)["eligibility"] == "blocked"
-        assert eligibility(target, obs, rels)["eligibility"] == "eligible"
+        assert eligibility(target, obs, rels, active_experiments=[])["eligibility"] == "eligible"
         packages = {p.key: p for p in build_work_packages(obs, rels)}
         assert packages["wp:feature"].eligibility == "blocked"
         assert "target" in packages["wp:target"].obligation_keys
@@ -1004,10 +1004,39 @@ def test_active_experiment_registry_empty_is_distinct_from_unavailable(tmp_path)
     empty.mkdir()
     assert _active_experiments(str(tmp_path)) == []
     empty.rmdir()
-    import pytest
-    with pytest.raises(RuntimeError, match="registry unavailable"):
-        _active_experiments(str(tmp_path))
+    assert _active_experiments(str(tmp_path)) is None
 
+
+
+def test_unverified_experiment_registry_blocks_direct_eligibility():
+    ob = Obligation("docs", "documentation-only change", "documentation")
+    unknown = eligibility(ob, {}, [], active_experiments=None)
+    verified_empty = eligibility(ob, {}, [], active_experiments=[])
+    assert unknown["eligibility"] == "blocked"
+    assert any("registry unavailable or unverified" in item for item in unknown["blockers"])
+    assert verified_empty == {"eligibility": "eligible", "blockers": []}
+
+
+def test_active_experiment_registry_rejects_malformed_payload(tmp_path, monkeypatch):
+    import watcher.registry as registry
+    from watcher.evidence import Evidence
+    from rdo.orchestrator import _active_experiments
+
+    malformed = [
+        {"active_or_pending": "r77"},
+        {"active_or_pending": ["r77", 7]},
+        {"active_or_pending": ["   "]},
+        {"reported": []},
+    ]
+    for data in malformed:
+        monkeypatch.setattr(
+            registry,
+            "ingest_registry",
+            lambda _path, data=data: Evidence(
+                "experiment_registry", data, "cloud", "measured", "fixture"
+            ),
+        )
+        assert _active_experiments(str(tmp_path)) is None
 
 def test_grep_handles_non_utf8_text_without_crashing(tmp_path):
     import rdo.reconcile as recon
@@ -1051,14 +1080,12 @@ def test_active_experiment_registry_unreadable_or_invalid_fails_closed(tmp_path,
         return Evidence("experiment_registry", None, "cloud", "unknown", "fixture",
                         modifier="unverified")
     monkeypatch.setattr(registry, "ingest_registry", unavailable)
-    with pytest.raises(RuntimeError, match="registry unavailable"):
-        _active_experiments(str(tmp_path))
+    assert _active_experiments(str(tmp_path)) is None
 
     def unreadable(_path):
         raise PermissionError("registry unreadable")
     monkeypatch.setattr(registry, "ingest_registry", unreadable)
-    with pytest.raises(PermissionError):
-        _active_experiments(str(tmp_path))
+    assert _active_experiments(str(tmp_path)) is None
 
 def test_cycle_store_rejects_unsafe_cycle_ids_before_file_access(tmp_path):
     store = CycleStore(str(tmp_path / "cycles"))

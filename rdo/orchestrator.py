@@ -470,13 +470,25 @@ def run_catalogue(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
     }
 
 
-def _active_experiments(repo_dir: str) -> List[str]:
-    """Reuse the Watcher's registry to learn which experiment windows are active/
-    pending, so the eligibility gate can protect them."""
-    from watcher.registry import ingest_registry
-    ev = ingest_registry(os.path.join(repo_dir, "observation_reports"))
-    if ev.data is None or ev.evidence_class != "measured":
-        raise RuntimeError(
-            "experiment registry unavailable; refusing to treat unknown windows as none"
-        )
-    return list(ev.data.get("active_or_pending", []))
+def _active_experiments(repo_dir: str) -> Optional[List[str]]:
+    """Read the Watcher's registry without converting uncertainty into permission.
+
+    A measured, structurally valid registry returns its active/pending list (which
+    may legitimately be empty). Missing, unreadable, unknown or malformed registry
+    state returns None; prioritisation treats None as a hard blocker.
+    """
+    try:
+        from watcher.registry import ingest_registry
+        ev = ingest_registry(os.path.join(repo_dir, "observation_reports"))
+        if ev.evidence_class != "measured" or not isinstance(ev.data, dict):
+            return None
+        active = ev.data.get("active_or_pending")
+        if not isinstance(active, list) or any(
+            not isinstance(item, str) or not item.strip() for item in active
+        ):
+            return None
+        return [item.strip() for item in active]
+    except Exception:
+        # Inability to establish experiment state is not proof that no experiment
+        # is active. Keep the RDO inspectable, but block proposed work packages.
+        return None
