@@ -49,4 +49,4 @@ The evidence supports this narrow conclusion:
 
 The `p12_selfreport` node's historical validator failure is now classified and corrected. M0.2 remains **PARTIAL** because the available evidence does not enumerate/classify the earlier environment-limited failures individually, and the active-host branch does not contain the MIND_MAP/source pair for an on-branch rerun.
 
-This note does not amend the frozen register, V2.1 proposal, roadmap, MIND_MAP authority, test baseline or runtime. It records the distinction between a corrected historical main-branch absence claim and the still-unresolved M0.2 failure reference.
+This note does not amend the frozen register, V2.1 proposal, roadmap, MIND_MAP authority, test baseline or runtime. It records the corrected historical main-branch absence claim and the remaining aggregate environment-limited failure-classification gap.
