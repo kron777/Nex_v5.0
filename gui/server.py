@@ -200,7 +200,7 @@ _chat_ablation_logged: set = set()
 
 
 def _assemble_chat_blocks(ordered: "list[tuple[str, str]]", session_id=None,
-                          conv_writer=None, conv_reader=None) -> str:
+                          conv_writer=None, conv_reader=None, trace=None) -> str:
     """Combine the chat faculty blocks into one string (de-dups the old twin
     f-string). ordered = [(kind, text), ...] in prompt order.
 
@@ -218,6 +218,7 @@ def _assemble_chat_blocks(ordered: "list[tuple[str, str]]", session_id=None,
     # zero change. Exempt (safety) blocks are never droppable. Logged ONCE per distinct
     # ablation set -- never per tick (a per-tick emitter would inflate the soak
     # line-rate health metric). Fail-safe: any error leaves `ordered` untouched.
+    _candidate_order = [kind for kind, _ in ordered]
     _ablate = os.environ.get("NEX5_CHAT_ABLATE", "").strip()
     if _ablate:
         try:
@@ -237,6 +238,14 @@ def _assemble_chat_blocks(ordered: "list[tuple[str, str]]", session_id=None,
             pass  # never break the chat turn over an experiment flag
     texts = [t for _, t in ordered]
     if os.environ.get("NEX5_CHAT_WORKSPACE") != "1":
+        if trace is not None:
+            trace.selection(
+                source="gui.server._assemble_chat_blocks",
+                candidate_order=_candidate_order,
+                selected_order=[kind for kind, _ in ordered],
+                strategy="ordered_concatenation",
+                metadata={"workspace_enabled": False, "block_count": len(ordered)},
+            )
         return "".join(texts)
     try:
         from theory_x.stage_tom.global_workspace import select_within_budget
@@ -259,8 +268,34 @@ def _assemble_chat_blocks(ordered: "list[tuple[str, str]]", session_id=None,
             logger.info("chat workspace: exempt blocks alone (%d chars) meet/exceed "
                         "budget %d; no non-exempt block admitted",
                         exempt_chars, budget)
-        return "".join(select_within_budget(cands, budget))
-    except Exception:
+        selected_texts = select_within_budget(cands, budget)
+        selected_order = []
+        used_indexes = set()
+        for selected_text in selected_texts:
+            for index, (kind, candidate_text) in enumerate(ordered):
+                if index not in used_indexes and candidate_text == selected_text:
+                    selected_order.append(kind)
+                    used_indexes.add(index)
+                    break
+        if trace is not None:
+            trace.selection(
+                source="gui.server._assemble_chat_blocks",
+                candidate_order=_candidate_order,
+                selected_order=selected_order,
+                strategy="NEX5_CHAT_WORKSPACE",
+                metadata={"workspace_enabled": True, "budget_chars": budget,
+                          "block_count": len(ordered)},
+            )
+        return "".join(selected_texts)
+    except Exception as exc:
+        if trace is not None:
+            trace.selection(
+                source="gui.server._assemble_chat_blocks",
+                candidate_order=_candidate_order,
+                selected_order=[kind for kind, _ in ordered],
+                strategy="workspace_error_full_concatenation",
+                metadata={"error_type": type(exc).__name__},
+            )
         return "".join(texts)  # never break the chat turn
 
 
@@ -1176,6 +1211,18 @@ def create_app(state: AppState) -> Flask:
         if not prompt:
             return jsonify({"error": "empty prompt"}), 400
 
+        trace = None
+        try:
+            from influence_trace import new_trace
+            trace = new_trace("chat_turn")
+            if trace is not None:
+                trace.input(
+                    prompt, source="gui.server.api_chat",
+                    metadata={"is_probe": bool(payload.get("is_probe", False))},
+                )
+        except Exception:
+            trace = None  # the trace overlay must never affect a chat turn
+
         is_probe = bool(payload.get("is_probe", False))
         register_name = payload.get("register")
         # EDIT A 2026-05-29: default chat to Philosophical (probe-quality richness).
@@ -1205,11 +1252,16 @@ def create_app(state: AppState) -> Flask:
                     )
 
             try:
-                writer.write(
+                _user_message_id = writer.write(
                     "INSERT INTO messages (session_id, role, content, register, timestamp) "
                     "VALUES (?, 'user', ?, ?, ?)",
                     (session_id, prompt, register.name, state.now_fn()),
                 )
+                if trace is not None:
+                    trace.writer_delta(
+                        database="conversations", table="messages", operation="INSERT",
+                        row_id=_user_message_id, metadata={"role": "user"},
+                    )
             except Exception as e:
                 error_channel.record(
                     f"conversations: user message insert failed: {e}",
@@ -1239,6 +1291,7 @@ def create_app(state: AppState) -> Flask:
                     query=prompt,
                     belief_retriever=state.world_model.retriever,
                     dynamic_state=state.dynamic,
+                    trace=trace,
                 )
                 belief_text = route_result.get("belief_text")
                 register_override = route_result.get("register_hint")
@@ -1274,6 +1327,13 @@ def create_app(state: AppState) -> Flask:
                             b for b in beliefs
                             if len(_q_toks & _bt_tokenize(b.get("content", ""))) >= 2
                         ]
+                if trace is not None:
+                    trace.candidates(
+                        [b.get("id") for b in beliefs],
+                        source="gui.server.fallback_retriever",
+                        metadata={"side": "fallback", "limit": 3,
+                                  "shared_token_filter": True},
+                    )
                 belief_text = format_beliefs_for_prompt(beliefs) if beliefs else None
                 if belief_text and len(belief_text) > 800:
                     belief_text = belief_text[:800].rstrip() + " …"
@@ -1665,12 +1725,17 @@ def create_app(state: AppState) -> Flask:
                 and belief_count < CHAT_GAP_MIN_BELIEFS):
             if writer is not None and session_id is not None:
                 try:
-                    writer.write(
+                    _gap_message_id = writer.write(
                         "INSERT INTO messages "
                         "(session_id, role, content, register, timestamp, tool_used) "
                         "VALUES (?, 'nex', ?, ?, ?, ?)",
                         (session_id, CHAT_GAP_REFUSAL, register.name, state.now_fn(), None),
                     )
+                    if trace is not None:
+                        trace.writer_delta(
+                            database="conversations", table="messages", operation="INSERT",
+                            row_id=_gap_message_id, metadata={"role": "nex", "kind": "gap_refusal"},
+                        )
                 except Exception as exc:
                     error_channel.record(
                         f"conversations: gap refusal insert failed: {exc}",
@@ -1687,6 +1752,11 @@ def create_app(state: AppState) -> Flask:
                         f"trigger_detector.record_gap_deflection error: {_td_exc}",
                         source="gui.server", exc=_td_exc,
                     )
+            if trace is not None:
+                trace.gate("NOT_APPLICABLE", gate="chat_crystallization_gate",
+                           reason_code="chat_reply_is_not_a_belief_write")
+                trace.output(CHAT_GAP_REFUSAL, output_kind="chat_reply",
+                             status="gap_refusal")
             return jsonify({
                 "register": register.name,
                 "session_id": session_id,
@@ -2029,7 +2099,8 @@ def create_app(state: AppState) -> Flask:
                 ("tag", _tag_block),
             ], session_id=session_id,
                conv_writer=state.writers.get("conversations"),
-               conv_reader=state.readers.get("conversations"))
+               conv_reader=state.readers.get("conversations"),
+               trace=trace)
             if belief_text:
                 voice_prompt = (
                     f"{_blocks_concat}"
@@ -2045,6 +2116,12 @@ def create_app(state: AppState) -> Flask:
             else:
                 voice_prompt = (
                     f"{_blocks_concat}{prompt}" if _blocks_concat else prompt
+                )
+            if trace is not None:
+                trace.record(
+                    "prompt_assembly", "chat_prompt_ready",
+                    metadata={"prompt": voice_prompt, "belief_block_chars": len(belief_text or ""),
+                              "faculty_block_chars": len(_blocks_concat)},
                 )
             # M5 measurement (D-C item 1): one line per chat turn so the owner can
             # see whether the assembled prompt approaches the model's context
@@ -2190,20 +2267,38 @@ def create_app(state: AppState) -> Flask:
         # history nor the displayed reply carries prompt frame. Fail-safe inside.
         text = _sanitize_reply(_strip_question_parrot(text, prompt))
 
+        _assistant_message_id = None
+        _assistant_store_status = "not_attempted"
         if writer is not None and session_id is not None:
             try:
                 used_tool = tool_result.tool_name if tool_result and tool_result.success else None
-                writer.write(
+                _assistant_message_id = writer.write(
                     "INSERT INTO messages "
                     "(session_id, role, content, register, timestamp, tool_used) "
                     "VALUES (?, 'nex', ?, ?, ?, ?)",
                     (session_id, text, register.name, state.now_fn(), used_tool),
                 )
+                _assistant_store_status = "committed"
+                if trace is not None:
+                    trace.writer_delta(
+                        database="conversations", table="messages", operation="INSERT",
+                        row_id=_assistant_message_id, metadata={"role": "nex"},
+                    )
             except Exception as e:
+                _assistant_store_status = "failed"
                 error_channel.record(
                     f"conversations: nex message insert failed: {e}",
                     source="gui.server", exc=e,
                 )
+
+        if trace is not None:
+            trace.gate("NOT_APPLICABLE", gate="chat_crystallization_gate",
+                       reason_code="chat_reply_is_not_a_belief_write")
+            trace.output(
+                text, output_kind="chat_reply",
+                metadata={"voice_ok": voice_ok, "assistant_message_id": _assistant_message_id,
+                          "assistant_store_status": _assistant_store_status},
+            )
 
         return jsonify({
             "text": text,
