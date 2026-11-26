@@ -214,6 +214,31 @@ class TestFountainGenerator(unittest.TestCase):
         self.assertIn("Beliefs held: 5", prompt)
 
 
+    def test_special_prompt_belief_slots_exclude_paused_and_retired(self):
+        gen = self._make_generator()
+        reader = self.readers["beliefs"]
+        gen._beliefs_reader = reader
+        queries = []
+        original_read = reader.read
+
+        def capture_read(sql, params=()):
+            queries.append(sql)
+            return original_read(sql, params)
+
+        reader.read = capture_read
+        ds = _mock_dynamic_state(hot_branch="curiosity")
+        gen._build_prompt(ds.status(), 5, {"5": 5})
+
+        surprise_queries = [q for q in queries if "source='surprise'" in q]
+        favourite_queries = [q for q in queries if "affinity IS NOT NULL" in q]
+        self.assertTrue(surprise_queries)
+        self.assertTrue(favourite_queries)
+        for query in surprise_queries + favourite_queries:
+            self.assertIn("tier < 8", query)
+            self.assertIn("paused = 0", query)
+            self.assertIn("erosion_stage != 'retired'", query)
+
+
 # ---- FountainState ------------------------------------------------------------
 
 class TestFountainState(unittest.TestCase):
