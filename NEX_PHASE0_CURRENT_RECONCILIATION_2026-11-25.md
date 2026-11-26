@@ -71,7 +71,7 @@ Python and SQLite exact versions, Qwen2.5 3B model digest, idle/load RAM and VRA
 
 ### p12_selfreport provenance
 
-The historical MIND_MAP absence-claim failure is classified as a stale/obsolete absence claim corrected on main by commit `ecf9c437` (20 November). Whether that is exactly the V2.1 M0.2 `p12_selfreport` reference, or whether a separate pytest failure was intended, remains unresolved. The active-host branch lacks both the map and referenced prototype source. See `NEX_PHASE0_P12_SELFREPORT_PROVENANCE_RECONCILIATION_2026-11-26.md`. M0.2 remains PARTIAL.
+The historical MIND_MAP `p12_selfreport` absence-claim failure is classified as a genuine validator failure caused by a stale/obsolete absence claim and corrected on main by commit `ecf9c437` (20 November). The earlier environment-limited run (107 failures, 62 errors) remains an aggregate without per-test identities/classifications, and the active-host branch lacks both the map and referenced prototype source for rerun. See `NEX_PHASE0_P12_SELFREPORT_PROVENANCE_RECONCILIATION_2026-11-26.md`. M0.2 remains PARTIAL.
 
 ## 4. Phase 0 deliverable status
 
