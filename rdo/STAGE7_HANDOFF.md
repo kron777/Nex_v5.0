@@ -109,3 +109,18 @@ The history view validates the manifest digest and every decision-event link bef
 - A blocked package, changed repository snapshot, mismatched objective revision, or tampered manifest/ledger is refused.
 
 This increment enables objective → persisted cycle → exact handoff manifest → human scope review. It does **not** yet provide independent Watcher-process verification or the complete objective-to-verified-delivery pathway required by RDO v1.3 §16 Stage 7. Issue #87 remains open.
+
+## Independent Watcher-process source verification
+
+After scope review, invoke the separate Watcher process:
+
+\`\`\`bash
+python -m rdo handoff-verify --handoff-id <handoff-id> --repo . --out rdo/.cycles
+\`\`\`
+
+The RDO adapter creates a versioned request and invokes the fixed \`python -m watcher verify-handoff\` command as a subprocess. The Watcher independently checks the manifest digest, the full decision-event chain, current approved scope review, planning-commit ancestry, Git-derived changed paths and exact-file/symlink boundaries. It fingerprints in-scope changed files and records file-level source evidence in the Watcher ledger under a process lock.
+
+The result is a Watcher-produced JSON report. The RDO bridge checks that the returned handoff ID and manifest digest match the requested handoff. No test runner, project script, user command, agent, service or runtime operation is invoked. The Watcher process uses a reduced environment and does not receive common provider/API credential variables.
+
+This closes the **process separation for source/path inspection only**. It does not make the Watcher a sandbox, authenticate the caller, validate semantic acceptance criteria, execute tests or establish runtime behaviour. Tests remain \`not_authorized\`; runtime remains host-only UNKNOWN; human acceptance stays separate.
+
