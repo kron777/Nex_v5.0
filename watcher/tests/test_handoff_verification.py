@@ -348,3 +348,51 @@ def test_watcher_rejects_non_string_allowlist_entries(tmp_path):
     from watcher.handoff_verify import verify_handoff_request
     with pytest.raises(HandoffVerificationError, match="allowlist"):
         verify_handoff_request(str(request_path))
+
+
+@pytest.mark.parametrize("field", ["reviewer", "source_reference"])
+def test_watcher_rejects_decision_event_without_attribution_text(tmp_path, field):
+    repo, base = _repo(tmp_path)
+    manifest, manifest_path = _manifest(repo, base)
+    events_path = _events(repo, manifest)
+    event = json.loads(events_path.read_text(encoding="utf-8"))
+    event[field] = "   "
+    event["event_sha256"] = _sha({k: v for k, v in event.items() if k != "event_sha256"})
+    events_path.write_text(_canonical(event) + "\n", encoding="utf-8")
+    request_path = tmp_path / "request.json"
+    request_path.write_text(_canonical(_request(repo, manifest_path, events_path)), encoding="utf-8")
+    from watcher.handoff_verify import verify_handoff_request
+    with pytest.raises(HandoffVerificationError, match=field):
+        verify_handoff_request(str(request_path))
+
+
+def test_watcher_rejects_accepted_event_with_incomplete_evidence_dimensions(tmp_path):
+    repo, base = _repo(tmp_path)
+    manifest, manifest_path = _manifest(repo, base)
+    events_path = _events(repo, manifest)
+    first = json.loads(events_path.read_text(encoding="utf-8"))
+    acceptance = {
+        "schema_version": "rdo.handoff_event.v1",
+        "sequence": 2,
+        "handoff_id": manifest["handoff_id"],
+        "manifest_sha256": manifest["manifest_sha256"],
+        "previous_event_sha256": first["event_sha256"],
+        "recorded_at": "2026-11-26T00:02:00Z",
+        "reviewer_identity_status": "caller_attributed_not_authenticated",
+        "event_kind": "human_acceptance",
+        "decision": "accepted",
+        "reviewer": "fixture-reviewer",
+        "source_reference": "fixture-acceptance-reference",
+        "delivery_reference": "fixture-delivery-reference",
+        "evidence_references": {"source_implemented": ["source-ref"]},
+        "note": "",
+        "acceptance_authority": "human_judgement_only; does_not_rewrite_source_test_runtime_evidence",
+    }
+    acceptance["event_sha256"] = _sha(acceptance)
+    with events_path.open("a", encoding="utf-8") as fh:
+        fh.write(_canonical(acceptance) + "\n")
+    request_path = tmp_path / "request.json"
+    request_path.write_text(_canonical(_request(repo, manifest_path, events_path)), encoding="utf-8")
+    from watcher.handoff_verify import verify_handoff_request
+    with pytest.raises(HandoffVerificationError, match="evidence dimensions"):
+        verify_handoff_request(str(request_path))
