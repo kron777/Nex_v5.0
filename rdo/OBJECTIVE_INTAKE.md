@@ -8,9 +8,15 @@ The generic intake interface lets a human or an external language model submit o
 
 The machine-readable contract is [`schemas/objective.v1.schema.json`](schemas/objective.v1.schema.json). It is versioned as `rdo.objective.v1`. The Python validator is deliberately stricter in several cross-field checks that JSON Schema alone cannot express.
 
+The implementation is isolated in `rdo_adapters/objective_intake.py`, outside the
+14-module RDO reasoning package. It is an input/persistence boundary adapter, not
+a new reasoning faculty or a provider-specific LLM integration. The RDO self-check
+reports the adapter separately from the core module count.
+
+
 Required information:
 
-- **Identity and provenance:** `objective_id`, sequential `revision`, `owner`, `source.kind` and `source.reference`.
+- **Identity and provenance:** `objective_id`, sequential `revision`, `owner`, `source.kind` and `source.reference`. These are caller-supplied attribution fields, not authentication of the owner, approver or source identity.
 - **Original intent:** `original_text` retains the original request exactly; `intent` records the submitted interpretation. Both remain immutable across revisions. A genuinely different objective gets a new ID.
 - **Scope and limits:** in-scope description, affected repository-relative paths, constraints, exclusions and assumptions.
 - **Acceptance:** one or more reviewable acceptance criteria.
