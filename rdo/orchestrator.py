@@ -18,7 +18,7 @@ from . import prioritise, reconcile as recon_mod, tension
 from .extrapolator import expand, frontier_breakdown
 from .memory import PatternMemory, compare, derive_lessons, record_actual
 from .model import (ANTI_REQUIREMENT, EXECUTED_VERIFIED, MISSING, PARTIAL, RECON_UNKNOWN,
-                    REUSE_EXISTING, SIGNATURE_MATCHED, CycleRecord, Obligation)
+                    REUSE_EXISTING, SIGNATURE_MATCHED, CycleRecord, Obligation, Relationship)
 from .reconcile import Signature
 
 
@@ -27,13 +27,18 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
               repo_dir: str = ".", active_experiments: Optional[List[str]] = None,
               authorised_gates: Optional[set] = None,
               memory: Optional[PatternMemory] = None,
-              max_depth: int = 4) -> Tuple[CycleRecord, dict]:
+              max_depth: int = 4,
+              initial_relationships: Optional[List[Relationship]] = None,
+              objective_input: Optional[Dict] = None) -> Tuple[CycleRecord, dict]:
     applied = [p.key for p in memory.applicable(objective)] if memory else []
 
     # EXPAND (+ reconcile interleaved) -> DEDUP (done in expand) -> RECONCILE children.
     # max_depth is the expansion budget; items stopped at the budget stay on the frontier.
     reconciler = recon_mod.make_reconciler(repo_dir, signatures)
     obligations, relationships, frontier = expand(seeds, reconciler, max_depth=max_depth)
+    # Preserve externally supplied, typed seed relationships alongside rule-derived edges.
+    if initial_relationships:
+        relationships = list(initial_relationships) + relationships
 
     # PRUNE false dependencies (a "build X first" on an already-existing X)
     pruned = recon_mod.prune_false_dependencies(obligations, relationships)
@@ -126,6 +131,7 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
         tension=[t.to_dict() for t in (node_t + rel_t + sys_t)],
         work_packages=[p.to_dict() for p in packages],
         predicted=predicted, verification=verification,
+        objective_input=dict(objective_input or {}),
     )
     summary = {
         "objective": objective,
