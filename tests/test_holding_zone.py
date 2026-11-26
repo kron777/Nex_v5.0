@@ -186,6 +186,103 @@ class TestCorroborationThreshold(unittest.TestCase):
         self.assertEqual(resolutions[0]["action"], "accepted")
 
 
+    def test_failed_promotion_write_still_marks_held_thought_accepted(self):
+        """Characterize the non-atomic promotion/resolution failure path."""
+        from theory_x.stage_gate.holding_zone import HoldingZone
+
+        held_content = (
+            "sustained attention crypto involves pattern recognition carefully always."
+        )
+        held_id = self.zone.hold(
+            _packet(held_content), "fixture:promotion_write_failure"
+        )
+        self.assertIsNotNone(held_id)
+
+        delegate = self.writers["beliefs"]
+
+        class PromotionFailingWriter:
+            def write(self, query, params=()):
+                if query.lstrip().lower().startswith("insert into beliefs"):
+                    raise RuntimeError("isolated fixture: promotion write unavailable")
+                return delegate.write(query, params)
+
+        failing_zone = HoldingZone(
+            PromotionFailingWriter(), self.readers["beliefs"]
+        )
+        resolver = _make_resolver(failing_zone, self.writers)
+        corroborating_packet = _packet(
+            "sustained attention crypto reveals pattern recognition emerging."
+        )
+
+        for _ in range(3):
+            resolver.on_gate_accept(corroborating_packet)
+            time.sleep(0.02)
+
+        held = self.readers["beliefs"].read_one(
+            "SELECT status, corroboration_count FROM held_thoughts WHERE id=?",
+            (held_id,),
+        )
+        self.assertEqual(held["corroboration_count"], 3)
+        self.assertEqual(held["status"], "accepted")
+
+        promoted = self.readers["beliefs"].read(
+            "SELECT id FROM beliefs WHERE content=?", (held_content,)
+        )
+        self.assertEqual(promoted, [])
+
+        resolution = self.readers["beliefs"].read_one(
+            "SELECT action, reason FROM held_resolutions WHERE held_id=?",
+            (held_id,),
+        )
+        self.assertEqual(resolution["action"], "accepted")
+        self.assertEqual(
+            resolution["reason"], "corroboration_threshold_3"
+        )
+
+
+class TestResolutionPersistenceFailure(unittest.TestCase):
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+        self.zone = _make_zone(self.writers, self.readers)
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_resolution_audit_insert_failure_leaves_terminal_status_without_audit(self):
+        """Characterize the split status-update / resolution-audit write path."""
+        from theory_x.stage_gate.holding_zone import HoldingZone
+
+        held_id = self.zone.hold(
+            _packet("I retain a clear distinction between evidence and inference."),
+            "fixture:resolution_audit_failure",
+        )
+        self.assertIsNotNone(held_id)
+        delegate = self.writers["beliefs"]
+
+        class AuditFailingWriter:
+            def write(self, query, params=()):
+                if query.lstrip().lower().startswith("insert into held_resolutions"):
+                    raise RuntimeError("isolated fixture: resolution audit unavailable")
+                return delegate.write(query, params)
+
+        failing_zone = HoldingZone(
+            AuditFailingWriter(), self.readers["beliefs"]
+        )
+        failing_zone.mark_resolved(
+            held_id, "accepted", "fixture:audit_insert_failure"
+        )
+
+        held = self.readers["beliefs"].read_one(
+            "SELECT status FROM held_thoughts WHERE id=?", (held_id,)
+        )
+        self.assertEqual(held["status"], "accepted")
+        audit_rows = self.readers["beliefs"].read(
+            "SELECT action FROM held_resolutions WHERE held_id=?", (held_id,)
+        )
+        self.assertEqual(audit_rows, [])
+
+
 class TestContradiction(unittest.TestCase):
 
     def setUp(self):
@@ -198,15 +295,15 @@ class TestContradiction(unittest.TestCase):
 
     def test_contradiction_rejects_held(self):
         """Held thought contradicted by an incoming ACCEPT becomes 'rejected'."""
-        # Held: affirmative statement about attending with wonder
-        held_content = "I attend to the world with wonder and care always."
+        # Held: affirmative statement about cultivating patient curiosity
+        held_content = "I cultivate patient curiosity across unfamiliar systems and contexts."
         p = _packet(held_content)
         held_id = self.zone.hold(p, "hold:negates_goal_1")
         self.assertIsNotNone(held_id)
         time.sleep(0.02)
 
         # Contradicting: negates the held content (overlap>=2, different negation)
-        contra_content = "I do not attend to the world with wonder or care."
+        contra_content = "I do not cultivate patient curiosity across unfamiliar systems or contexts."
         self.resolver.on_gate_accept(_packet(contra_content))
         time.sleep(0.05)
 
@@ -220,6 +317,59 @@ class TestContradiction(unittest.TestCase):
         )
         self.assertEqual(len(resolutions), 1)
         self.assertEqual(resolutions[0]["action"], "rejected")
+
+
+    def test_contradictory_accept_at_threshold_promotes_before_rejection_scan(self):
+        """A packet matching both heuristics is processed as corroboration first."""
+        held_content = "I cultivate patient curiosity across unfamiliar systems and contexts."
+        held_id = self.zone.hold(
+            _packet(held_content), "fixture:corroboration_contradiction_overlap"
+        )
+        self.assertIsNotNone(held_id)
+        time.sleep(0.02)
+        self.assertEqual(self.zone.increment_corroboration(held_id), 1)
+        self.assertEqual(self.zone.increment_corroboration(held_id), 2)
+
+        contradictory_packet = _packet(
+            "I do not cultivate patient curiosity across unfamiliar systems or contexts."
+        )
+        # The same incoming packet satisfies both lexical predicates.
+        self.assertEqual(
+            [row["id"] for row in self.zone.find_corroborations(contradictory_packet)],
+            [held_id],
+        )
+        self.assertEqual(
+            [row["id"] for row in self.zone.find_contradictions(contradictory_packet)],
+            [held_id],
+        )
+
+        from theory_x.stage_gate.coherence_gate import GateOutcome
+
+        gate = _make_gate(
+            self.writers,
+            self.readers,
+            holding_zone=self.zone,
+            resolver=self.resolver,
+        )
+        decision = gate.check(contradictory_packet)
+        self.assertEqual(decision.outcome, GateOutcome.ACCEPT)
+
+        held = self.readers["beliefs"].read_one(
+            "SELECT status, corroboration_count FROM held_thoughts WHERE id=?",
+            (held_id,),
+        )
+        self.assertEqual(held["corroboration_count"], 3)
+        self.assertEqual(held["status"], "accepted")
+        promoted = self.readers["beliefs"].read(
+            "SELECT id FROM beliefs WHERE content=?", (held_content,)
+        )
+        self.assertEqual(len(promoted), 1)
+        resolution = self.readers["beliefs"].read_one(
+            "SELECT action, reason FROM held_resolutions WHERE held_id=?",
+            (held_id,),
+        )
+        self.assertEqual(resolution["action"], "accepted")
+        self.assertEqual(resolution["reason"], "corroboration_threshold_3")
 
 
 class TestTimeFade(unittest.TestCase):
@@ -342,6 +492,132 @@ class TestGateWiring(unittest.TestCase):
             (held_content,),
         )
         self.assertEqual(rows[0]["corroboration_count"], 1)
+
+    def test_anchor_read_failure_accept_still_triggers_resolver(self):
+        """An ACCEPT caused by missing anchor evidence reaches the normal resolver sink."""
+        from theory_x.stage_gate.coherence_gate import (
+            CoherenceGate, GateOutcome,
+        )
+
+        anchor = "I attend to the world with wonder, stillness, presence, and care."
+        self.writers["beliefs"].write(
+            "INSERT INTO beliefs "
+            "(content, tier, confidence, created_at, source, branch_id, locked) "
+            "VALUES (?, 1, 0.9, ?, 'keystone_seed', 'phase0_fixture', 1)",
+            (anchor, time.time()),
+        )
+        time.sleep(0.03)
+
+        packet = _packet(
+            "I do not attend to the world with wonder, stillness, presence, and care."
+        )
+        held_id = self.zone.hold(packet, "fixture:pre-existing-held-thought")
+        self.writers["beliefs"].write(
+            "UPDATE held_thoughts SET corroboration_count=2 WHERE id=?",
+            (held_id,),
+        )
+        time.sleep(0.02)
+
+        delegate = self.readers["beliefs"]
+
+        class AnchorFailingReader:
+            def read(self, query, *args, **kwargs):
+                if "tier=1" in query:
+                    raise RuntimeError("isolated fixture: anchor query unavailable")
+                return delegate.read(query, *args, **kwargs)
+
+        gate = CoherenceGate(
+            beliefs_reader=AnchorFailingReader(),
+            beliefs_writer=self.writers["beliefs"],
+            conversations_reader=self.readers["conversations"],
+            holding_zone=self.zone,
+            resolver=self.resolver,
+        )
+        decision = gate.check(packet)
+        self.assertEqual(decision.outcome, GateOutcome.ACCEPT)
+        time.sleep(0.03)
+
+        row = self.readers["beliefs"].read_one(
+            "SELECT corroboration_count, status FROM held_thoughts WHERE content=?",
+            (packet.content,),
+        )
+        self.assertEqual(row["corroboration_count"], 3)
+        self.assertEqual(row["status"], "accepted")
+        promoted = self.readers["beliefs"].read(
+            "SELECT content, source FROM beliefs WHERE content=?",
+            (packet.content,),
+        )
+        self.assertEqual(len(promoted), 1)
+        self.assertEqual(promoted[0]["source"], "fountain")
+
+    def test_evaluation_error_fallback_accept_still_triggers_resolver(self):
+        """Characterize that the outer evaluation-error ACCEPT reaches resolver."""
+        mock_resolver = MagicMock()
+        gate = _make_gate(
+            self.writers, self.readers,
+            holding_zone=self.zone,
+            resolver=mock_resolver,
+        )
+        gate._evaluate = MagicMock(side_effect=RuntimeError("isolated evaluation failure"))
+
+        from theory_x.stage_gate.coherence_gate import GateOutcome
+        decision = gate.check(_packet(
+            "A novel thought about careful evidence and patient reasoning."
+        ))
+
+        self.assertEqual(decision.outcome, GateOutcome.ACCEPT)
+        self.assertEqual(decision.reason, "gate_error_fallback")
+        mock_resolver.on_gate_accept.assert_called_once()
+
+    def test_anchor_read_failure_accept_can_reject_held_thought(self):
+        """An ACCEPT after an unavailable anchor read reaches contradiction resolution."""
+        from theory_x.stage_gate.coherence_gate import CoherenceGate, GateOutcome
+
+        affirmative = "I attend to the world with wonder and care always."
+        self.writers["beliefs"].write(
+            "INSERT INTO beliefs "
+            "(content, tier, confidence, created_at, source, branch_id, locked) "
+            "VALUES (?, 1, 0.9, ?, 'keystone_seed', 'phase0_fixture', 1)",
+            (affirmative, time.time()),
+        )
+        held_id = self.zone.hold(
+            _packet(affirmative), "fixture:held_affirmative_thought"
+        )
+        self.assertIsNotNone(held_id)
+        time.sleep(0.02)
+
+        delegate = self.readers["beliefs"]
+
+        class AnchorFailingReader:
+            def read(self, query, *args, **kwargs):
+                if "tier=1" in query:
+                    raise RuntimeError("isolated fixture: anchor query unavailable")
+                return delegate.read(query, *args, **kwargs)
+
+        packet = _packet("I do not attend to the world with wonder or care.")
+        gate = CoherenceGate(
+            beliefs_reader=AnchorFailingReader(),
+            beliefs_writer=self.writers["beliefs"],
+            conversations_reader=self.readers["conversations"],
+            holding_zone=self.zone,
+            resolver=self.resolver,
+        )
+        decision = gate.check(packet)
+        self.assertEqual(decision.outcome, GateOutcome.ACCEPT)
+        time.sleep(0.03)
+
+        held = self.readers["beliefs"].read_one(
+            "SELECT corroboration_count, status FROM held_thoughts WHERE id=?",
+            (held_id,),
+        )
+        self.assertEqual(held["corroboration_count"], 1)
+        self.assertEqual(held["status"], "rejected")
+        resolution = self.readers["beliefs"].read_one(
+            "SELECT action, reason FROM held_resolutions WHERE held_id=?",
+            (held_id,),
+        )
+        self.assertEqual(resolution["action"], "rejected")
+        self.assertEqual(resolution["reason"], "contradicted_by_accept")
 
     def test_resolver_error_does_not_break_gate(self):
         """Gate ACCEPT is returned correctly even when resolver raises."""

@@ -478,3 +478,277 @@ class TestStage2Wiring(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAnchorNegationMinimalPairs(unittest.TestCase):
+    """Characterize the gate's lexical negation heuristic, not semantic truth."""
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+        self.gate = _make_gate(self.writers, self.readers)
+        self.anchor = (
+            "I attend to the world with wonder, stillness, presence, and care."
+        )
+        _seed_belief(
+            self.writers, self.anchor, tier=1, confidence=0.9,
+            locked=1, source="keystone_seed",
+        )
+        time.sleep(0.05)
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def _check(self, content):
+        from theory_x.stage_gate.coherence_gate import ThoughtPacket
+        return self.gate.check(ThoughtPacket(
+            content=content, source_node="phase0_negation_fixture",
+            confidence=0.7,
+        ))
+
+    def test_double_negation_is_still_classified_as_negated(self):
+        """'not fail to attend' is semantically affirmative but trips XOR."""
+        from theory_x.stage_gate.coherence_gate import GateOutcome
+        decision = self._check(
+            "I do not fail to attend to the world with wonder, stillness, "
+            "presence, and care."
+        )
+        # Current implementation sees the token 'not', not the scope of
+        # negation; this expected REJECT records the observed limitation.
+        self.assertEqual(decision.outcome, GateOutcome.REJECT)
+        self.assertIn("contradicts_anchor", decision.reason)
+
+    def test_not_only_is_exempted_from_negation_detection(self):
+        """The explicit 'not only' exception avoids a negation-XOR rejection."""
+        from theory_x.stage_gate.coherence_gate import GateOutcome
+        decision = self._check(
+            "I not only attend to the world with wonder, stillness, "
+            "presence, and care."
+        )
+        self.assertNotEqual(decision.outcome, GateOutcome.REJECT)
+
+    def test_punctuated_negation_is_not_detected_by_whitespace_token_check(self):
+        """A comma after 'not' hides the token from the current negation set."""
+        from theory_x.stage_gate.coherence_gate import GateOutcome
+        direct = self._check(
+            "I do not attend to the world with wonder, stillness, presence, and care."
+        )
+        punctuated = self._check(
+            "I do not, however, attend to the world with wonder, stillness, "
+            "presence, and care."
+        )
+        self.assertEqual(direct.outcome, GateOutcome.REJECT)
+        # The punctuation-sensitive detector misses 'not,'; despite near-
+        # identical content-word overlap, the candidate is not classified as
+        # contradicting the affirmative anchor.
+        self.assertNotEqual(punctuated.outcome, GateOutcome.REJECT)
+
+
+class TestGateSubstrateReadFailure(unittest.TestCase):
+    """Characterize per-query failures, partial reads, and successful empty reads."""
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+        _seed_belief(
+            self.writers,
+            "I attend to the world with wonder, stillness, presence, and care.",
+            tier=1, confidence=0.9, locked=1, source="keystone_seed",
+        )
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_unavailable_belief_reader_allows_anchor_contradiction(self):
+        """A failed evidence read currently becomes an empty anchor set."""
+        from theory_x.stage_gate.coherence_gate import (
+            CoherenceGate, GateOutcome, ThoughtPacket,
+        )
+
+        class FailingReader:
+            def read(self, *args, **kwargs):
+                raise RuntimeError("isolated fixture: belief store unavailable")
+
+        gate = CoherenceGate(
+            beliefs_reader=FailingReader(),
+            beliefs_writer=self.writers["beliefs"],
+            conversations_reader=self.readers["conversations"],
+        )
+        decision = gate.check(ThoughtPacket(
+            content=(
+                "I do not attend to the world with wonder, stillness, "
+                "presence, and care."
+            ),
+            source_node="phase0_read_failure_fixture",
+            confidence=0.7,
+        ))
+        self.assertEqual(decision.outcome, GateOutcome.ACCEPT)
+        self.assertEqual(decision.reason, "accept:novel_no_conflict")
+
+    def _gate_with_selective_failure(self, reader_key, query_fragment):
+        from theory_x.stage_gate.coherence_gate import CoherenceGate
+
+        delegate = self.readers[reader_key]
+
+        class SelectiveFailureReader:
+            def read(self, query, *args, **kwargs):
+                if query_fragment in query:
+                    raise RuntimeError(f"isolated fixture: {query_fragment} unavailable")
+                return delegate.read(query, *args, **kwargs)
+
+        beliefs_reader = (
+            SelectiveFailureReader()
+            if reader_key == "beliefs" else self.readers["beliefs"]
+        )
+        conversations_reader = (
+            SelectiveFailureReader()
+            if reader_key == "conversations" else self.readers["conversations"]
+        )
+        return CoherenceGate(
+            beliefs_reader=beliefs_reader,
+            beliefs_writer=self.writers["beliefs"],
+            conversations_reader=conversations_reader,
+        )
+
+    def _contradictory_packet(self):
+        from theory_x.stage_gate.coherence_gate import ThoughtPacket
+        return ThoughtPacket(
+            content=(
+                "I do not attend to the world with wonder, stillness, "
+                "presence, and care."
+            ),
+            source_node="phase0_read_failure_fixture",
+            confidence=0.7,
+        )
+
+    def test_anchor_read_failure_alone_removes_anchor_comparison(self):
+        from theory_x.stage_gate.coherence_gate import GateOutcome
+        gate = self._gate_with_selective_failure("beliefs", "tier=1")
+        decision = gate.check(self._contradictory_packet())
+        self.assertEqual(decision.outcome, GateOutcome.ACCEPT)
+        self.assertEqual(decision.reason, "accept:novel_no_conflict")
+
+    def test_recent_belief_read_failure_does_not_remove_anchor_comparison(self):
+        from theory_x.stage_gate.coherence_gate import GateOutcome
+        gate = self._gate_with_selective_failure(
+            "beliefs", "SELECT content FROM beliefs"
+        )
+        decision = gate.check(self._contradictory_packet())
+        self.assertEqual(decision.outcome, GateOutcome.REJECT)
+        self.assertIn("contradicts_anchor", decision.reason)
+
+    def test_goal_read_failure_does_not_remove_anchor_comparison(self):
+        from theory_x.stage_gate.coherence_gate import GateOutcome
+        gate = self._gate_with_selective_failure("conversations", "FROM goals")
+        decision = gate.check(self._contradictory_packet())
+        self.assertEqual(decision.outcome, GateOutcome.REJECT)
+        self.assertIn("contradicts_anchor", decision.reason)
+
+    def test_problem_read_failure_does_not_remove_anchor_comparison(self):
+        from theory_x.stage_gate.coherence_gate import GateOutcome
+        gate = self._gate_with_selective_failure(
+            "conversations", "FROM open_problems"
+        )
+        decision = gate.check(self._contradictory_packet())
+        self.assertEqual(decision.outcome, GateOutcome.REJECT)
+        self.assertIn("contradicts_anchor", decision.reason)
+
+    def test_successful_empty_substrate_matches_anchor_read_failure_decision(self):
+        from theory_x.stage_gate.coherence_gate import (
+            CoherenceGate, GateOutcome, ThoughtPacket,
+        )
+
+        class EmptyReader:
+            def read(self, *args, **kwargs):
+                return []
+
+        gate = CoherenceGate(
+            beliefs_reader=EmptyReader(),
+            beliefs_writer=self.writers["beliefs"],
+            conversations_reader=EmptyReader(),
+        )
+        packet = ThoughtPacket(
+            content=(
+                "I do not attend to the world with wonder, stillness, "
+                "presence, and care."
+            ),
+            source_node="phase0_empty_substrate_fixture",
+            confidence=0.7,
+        )
+        empty_decision = gate.check(packet)
+        failed_anchor_decision = self._gate_with_selective_failure(
+            "beliefs", "tier=1"
+        ).check(packet)
+
+        self.assertEqual(empty_decision.outcome, GateOutcome.ACCEPT)
+        self.assertEqual(empty_decision.reason, "accept:novel_no_conflict")
+        # The evaluator currently cannot distinguish a successful empty
+        # anchor query from an unavailable anchor query in its decision.
+        self.assertEqual(
+            (empty_decision.outcome, empty_decision.reason),
+            (failed_anchor_decision.outcome, failed_anchor_decision.reason),
+        )
+
+    def test_goal_read_failure_suppresses_goal_negation_hold(self):
+        from theory_x.stage_gate.coherence_gate import GateOutcome, ThoughtPacket
+        _seed_goal(self.writers, "support open source architecture")
+        packet = ThoughtPacket(
+            content="I do not support open source architecture through careful design.",
+            source_node="phase0_goal_read_fixture",
+            confidence=0.7,
+        )
+        normal = _make_gate(self.writers, self.readers).check(packet)
+        self.assertEqual(normal.outcome, GateOutcome.HOLD)
+        failed = self._gate_with_selective_failure(
+            "conversations", "FROM goals"
+        ).check(packet)
+        self.assertEqual(failed.outcome, GateOutcome.ACCEPT)
+        self.assertEqual(failed.reason, "accept:novel_no_conflict")
+
+    def test_problem_read_failure_suppresses_problem_negation_hold(self):
+        from theory_x.stage_gate.coherence_gate import GateOutcome, ThoughtPacket
+        _seed_problem(self.writers, "maintain robust memory continuity")
+        packet = ThoughtPacket(
+            content="I do not maintain robust memory continuity through careful design.",
+            source_node="phase0_problem_read_fixture",
+            confidence=0.7,
+        )
+        normal = _make_gate(self.writers, self.readers).check(packet)
+        self.assertEqual(normal.outcome, GateOutcome.HOLD)
+        failed = self._gate_with_selective_failure(
+            "conversations", "FROM open_problems"
+        ).check(packet)
+        self.assertEqual(failed.outcome, GateOutcome.ACCEPT)
+        self.assertEqual(failed.reason, "accept:novel_no_conflict")
+
+    def test_goal_read_failure_removes_positive_goal_connection_reason(self):
+        from theory_x.stage_gate.coherence_gate import GateOutcome, ThoughtPacket
+        _seed_goal(self.writers, "support open source architecture")
+        packet = ThoughtPacket(
+            content="Support open source architecture through careful design.",
+            source_node="phase0_goal_connection_fixture",
+            confidence=0.7,
+        )
+        normal = _make_gate(self.writers, self.readers).check(packet)
+        self.assertEqual(normal.outcome, GateOutcome.ACCEPT)
+        self.assertIn("accept:novel_connects_goal_", normal.reason)
+        failed = self._gate_with_selective_failure(
+            "conversations", "FROM goals"
+        ).check(packet)
+        self.assertEqual(failed.outcome, GateOutcome.ACCEPT)
+        self.assertEqual(failed.reason, "accept:novel_no_conflict")
+
+    def test_problem_read_failure_removes_positive_problem_connection_reason(self):
+        from theory_x.stage_gate.coherence_gate import GateOutcome, ThoughtPacket
+        _seed_problem(self.writers, "maintain robust memory continuity")
+        packet = ThoughtPacket(
+            content="Maintain robust memory continuity through careful design.",
+            source_node="phase0_problem_connection_fixture",
+            confidence=0.7,
+        )
+        normal = _make_gate(self.writers, self.readers).check(packet)
+        self.assertEqual(normal.outcome, GateOutcome.ACCEPT)
+        self.assertIn("accept:novel_connects_problem_", normal.reason)
+        failed = self._gate_with_selective_failure(
+            "conversations", "FROM open_problems"
+        ).check(packet)
+        self.assertEqual(failed.outcome, GateOutcome.ACCEPT)
+        self.assertEqual(failed.reason, "accept:novel_no_conflict")
