@@ -396,3 +396,43 @@ def test_watcher_rejects_accepted_event_with_incomplete_evidence_dimensions(tmp_
     from watcher.handoff_verify import verify_handoff_request
     with pytest.raises(HandoffVerificationError, match="evidence dimensions"):
         verify_handoff_request(str(request_path))
+
+
+
+def test_source_hash_fails_closed_if_internal_symlink_is_swapped(tmp_path, monkeypatch):
+    repo, base = _repo(tmp_path)
+    target = repo / "docs" / "REQUIREMENTS.md"
+    alias = repo / "docs" / "alias.md"
+    alias.symlink_to("REQUIREMENTS.md")
+    outside = tmp_path / "outside.md"
+    outside.write_text("secret outside source\n", encoding="utf-8")
+    _git(repo, "add", "docs/alias.md")
+    _git(repo, "commit", "-q", "-m", "add internal alias")
+    head = _git(repo, "rev-parse", "HEAD")
+
+    from watcher import handoff_verify as hv
+    real_inside = hv._inside_root
+    real_open = hv._open_resolved_regular_file
+    opened = []
+    swapped = {"done": False}
+
+    def swap_after_resolution(root, relative, label, **kwargs):
+        result = real_inside(root, relative, label, **kwargs)
+        if label == "changed path" and not swapped["done"]:
+            alias.unlink()
+            alias.symlink_to(outside)
+            swapped["done"] = True
+        return result
+
+    def track_open(root, relative):
+        opened.append(relative)
+        return real_open(root, relative)
+
+    monkeypatch.setattr(hv, "_inside_root", swap_after_resolution)
+    monkeypatch.setattr(hv, "_open_resolved_regular_file", track_open)
+    with pytest.raises(HandoffVerificationError, match="resolution changed"):
+        hv._current_file_evidence(str(repo), "docs/alias.md", base, head, ["unstaged"])
+    assert swapped["done"]
+    assert opened == ["docs/REQUIREMENTS.md"]
+    assert target.read_text(encoding="utf-8") == "# Base requirements\n"
+    assert outside.read_text(encoding="utf-8") == "secret outside source\n"

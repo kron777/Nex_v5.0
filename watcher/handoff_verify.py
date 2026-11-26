@@ -316,6 +316,35 @@ def _latest_acceptance(events: List[dict]) -> Optional[dict]:
     return next((e for e in reversed(events) if e.get("event_kind") == "human_acceptance"), None)
 
 
+def _open_resolved_regular_file(root: str, relative: str) -> int:
+    """Open a resolved in-repository file without following a raced symlink.
+
+    _inside_root resolves approved internal aliases first. This helper then
+    traverses that resolved path with directory file descriptors and O_NOFOLLOW
+    on every component, so a concurrent replacement cannot redirect the final
+    source read outside the inspected tree.
+    """
+    relative = _safe_relative(relative, "resolved source path")
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    directory = getattr(os, "O_DIRECTORY", 0)
+    if not nofollow or not directory or not hasattr(os, "supports_dir_fd") or os.open not in os.supports_dir_fd:
+        raise HandoffVerificationError("platform lacks safe descriptor-relative no-follow file opening")
+    directory_fd = os.open(root, os.O_RDONLY | directory)
+    try:
+        parts = relative.split("/")
+        for part in parts[:-1]:
+            next_fd = os.open(part, os.O_RDONLY | directory | nofollow, dir_fd=directory_fd)
+            os.close(directory_fd)
+            directory_fd = next_fd
+        file_fd = os.open(parts[-1], os.O_RDONLY | nofollow, dir_fd=directory_fd)
+        if not stat.S_ISREG(os.fstat(file_fd).st_mode):
+            os.close(file_fd)
+            raise HandoffVerificationError(f"changed path is not a regular file: {relative}")
+        return file_fd
+    finally:
+        os.close(directory_fd)
+
+
 def _current_file_evidence(root: str, relative: str, base_sha: str, head_sha: str,
                            changed_kinds: List[str]) -> Tuple[dict, Optional[Evidence]]:
     target, resolved = _inside_root(root, relative, "changed path", allow_missing=True)
@@ -329,17 +358,32 @@ def _current_file_evidence(root: str, relative: str, base_sha: str, head_sha: st
             "sha256": None,
             "size_bytes": None,
         }, None
-    if os.path.isdir(target) or not os.path.isfile(target):
-        raise HandoffVerificationError(f"changed path is not a regular file: {relative}")
-    size = os.path.getsize(target)
-    if size > MAX_SOURCE_FILE_BYTES:
+    try:
+        fd = _open_resolved_regular_file(root, resolved)
+    except FileNotFoundError:
         return {
-            "path": relative, "resolved_path": resolved,
-            "change_kinds": changed_kinds, "status": "size_limit_exceeded",
-            "sha256": None, "size_bytes": size,
+            "path": relative,
+            "resolved_path": resolved,
+            "change_kinds": changed_kinds,
+            "status": "deleted_or_missing",
+            "sha256": None,
+            "size_bytes": None,
         }, None
-    digest = hashlib.sha256()
-    with open(target, "rb") as fh:
+    expected_target = os.path.join(root, *resolved.split("/"))
+    if os.path.realpath(target) != expected_target:
+        os.close(fd)
+        raise HandoffVerificationError(
+            f"changed path resolution changed during source verification: {relative}"
+        )
+    with os.fdopen(fd, "rb") as fh:
+        size = os.fstat(fh.fileno()).st_size
+        if size > MAX_SOURCE_FILE_BYTES:
+            return {
+                "path": relative, "resolved_path": resolved,
+                "change_kinds": changed_kinds, "status": "size_limit_exceeded",
+                "sha256": None, "size_bytes": size,
+            }, None
+        digest = hashlib.sha256()
         while True:
             chunk = fh.read(1024 * 1024)
             if not chunk:
