@@ -34,9 +34,12 @@ class QueryRouter:
         side = self._classifier.classify_query(query)
 
         if side == MembraneSide.INSIDE:
+            if trace is None:
+                return self._inside_route(query, belief_retriever, self_model)
             return self._inside_route(query, belief_retriever, self_model, trace=trace)
-        else:
-            return self._outside_route(query, belief_retriever, dynamic_state, trace=trace)
+        if trace is None:
+            return self._outside_route(query, belief_retriever, dynamic_state)
+        return self._outside_route(query, belief_retriever, dynamic_state, trace=trace)
 
     def _inside_route(self, query: str, belief_retriever, self_model: SelfModel,
                       trace=None) -> dict:
