@@ -91,7 +91,8 @@ class BeliefPromoter:
         try:
             candidates = self._reader.read(
                 "SELECT id, content, confidence FROM beliefs "
-                "WHERE id != ? AND tier <= 6 AND paused = 0 ORDER BY confidence DESC LIMIT 50",
+                "WHERE id != ? AND tier <= 6 AND paused = 0 AND erosion_stage != 'retired' "
+                "ORDER BY confidence DESC LIMIT 50",
                 (belief_id,),
             )
         except Exception:
@@ -115,7 +116,7 @@ class BeliefPromoter:
         """
         try:
             row = self._reader.read_one(
-                "SELECT id, content, tier, corroboration_count, locked FROM beliefs WHERE id = ?",
+                "SELECT id, content, tier, corroboration_count, locked, paused, erosion_stage FROM beliefs WHERE id = ?",
                 (belief_id,),
             )
         except Exception as exc:
@@ -124,8 +125,10 @@ class BeliefPromoter:
 
         if row is None:
             return False
-        if row["locked"] and row["tier"] <= 1:
-            return False  # Tier 1 locked — untouchable
+        if row["paused"] or row["tier"] >= 8 or row["erosion_stage"] == "retired":
+            return False  # Inactive and retired beliefs are not eligible for corroboration.
+        if row["locked"]:
+            return False  # Locked beliefs are not eligible for promotion.
 
         new_count = row["corroboration_count"] + 1
         now = int(time.time())
@@ -169,14 +172,23 @@ class BeliefPromoter:
         """
         try:
             row = self._reader.read_one(
-                "SELECT id, tier, locked FROM beliefs WHERE id = ?",
+                "SELECT id, tier, locked, paused, erosion_stage FROM beliefs WHERE id = ?",
                 (belief_id,),
             )
         except Exception as exc:
             errors.record(f"survive_challenge read error: {exc}", source=_LOG_SOURCE, exc=exc)
             return False
 
-        if row is None or row["tier"] <= 1:
+        # A retired Tier-8 tombstone must never be promoted back into the
+        # active Tier-7 belief population by surviving a later challenge.
+        if (
+            row is None
+            or row["tier"] <= 1
+            or row["tier"] >= 8
+            or row["locked"]
+            or row["paused"]
+            or row["erosion_stage"] == "retired"
+        ):
             return False
 
         now = int(time.time())
@@ -222,7 +234,7 @@ class BeliefPromoter:
         # falls through to the unchanged read below.
         _sql = (
             "SELECT id, tier FROM beliefs "
-            "WHERE tier BETWEEN 5 AND 7 AND locked = 0 "
+            "WHERE tier BETWEEN 5 AND 7 AND locked = 0 AND erosion_stage != 'retired' "
             "AND COALESCE(last_referenced_at, created_at) < ?"
         )
         _params: tuple = (cutoff,)
@@ -238,7 +250,7 @@ class BeliefPromoter:
         if os.environ.get("NEX5_TIER_CLIMB") == "1":
             t6_cutoff = int(time.time()) - _TIER6_CLIMB_IDLE_HOURS * 3600
             _sql = (
-                "SELECT id, tier FROM beliefs WHERE locked = 0 AND ("
+                "SELECT id, tier FROM beliefs WHERE locked = 0 AND erosion_stage != 'retired' AND ("
                 "(tier IN (5, 7) AND COALESCE(last_referenced_at, created_at) < ?) "
                 "OR (tier = 6 AND COALESCE(last_referenced_at, created_at) < ?))"
             )
@@ -275,20 +287,26 @@ class BeliefPromoter:
         return count
 
     def decisive_contradiction(self, belief_id: int) -> bool:
-        """Demote belief by 2 tiers (or discard if already at Tier 7).
+        """Demote belief by 2 tiers, capped at Tier 7.
 
-        Returns True if demotion/discard occurred.
+        Returns True if the demotion operation was applied.
         """
         try:
             row = self._reader.read_one(
-                "SELECT id, content, tier, locked FROM beliefs WHERE id = ?",
+                "SELECT id, content, tier, locked, paused, erosion_stage FROM beliefs WHERE id = ?",
                 (belief_id,),
             )
         except Exception as exc:
             errors.record(f"decisive_contradiction read error: {exc}", source=_LOG_SOURCE, exc=exc)
             return False
 
-        if row is None or row["locked"]:
+        if (
+            row is None
+            or row["locked"]
+            or row["paused"]
+            or row["tier"] >= 8
+            or row["erosion_stage"] == "retired"
+        ):
             return False
 
         now = int(time.time())
@@ -322,7 +340,8 @@ class BeliefPromoter:
         try:
             candidates = self._reader.read(
                 "SELECT id, content FROM beliefs "
-                "WHERE id != ? AND tier <= 6 AND locked = 0 LIMIT 50",
+                "WHERE id != ? AND tier <= 6 AND locked = 0 AND paused = 0 "
+                "AND erosion_stage != 'retired' LIMIT 50",
                 (belief_id,),
             )
         except Exception:

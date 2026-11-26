@@ -1,0 +1,193 @@
+"""Belief promotion eligibility regression tests."""
+
+
+def test_corroborate_rejects_paused_and_retired_beliefs_without_writes():
+    from theory_x.stage3_world_model.promotion import BeliefPromoter
+
+    class Reader:
+        def __init__(self, row):
+            self.row = row
+
+        def read_one(self, sql, params=()):
+            assert "paused" in sql
+            assert "erosion_stage" in sql
+            return self.row
+
+    class Writer:
+        def __init__(self):
+            self.calls = []
+
+        def write(self, sql, params=()):
+            self.calls.append((sql, params))
+
+    inactive_rows = (
+        {
+            "id": 17, "content": "paused belief", "tier": 7,
+            "corroboration_count": 10, "locked": 0, "paused": 1,
+            "erosion_stage": "external",
+        },
+        {
+            "id": 18, "content": "retired belief", "tier": 7,
+            "corroboration_count": 10, "locked": 0, "paused": 0,
+            "erosion_stage": "retired",
+        },
+        {
+            "id": 19, "content": "tier eight tombstone", "tier": 8,
+            "corroboration_count": 10, "locked": 0, "paused": 0,
+            "erosion_stage": "external",
+        },
+        {
+            "id": 20, "content": "locked working belief", "tier": 6,
+            "corroboration_count": 10, "locked": 1, "paused": 0,
+            "erosion_stage": "external",
+        },
+    )
+
+    for row in inactive_rows:
+        writer = Writer()
+        promoter = BeliefPromoter(writer, Reader(row))
+        assert promoter.corroborate(row["id"]) is False
+        assert writer.calls == []
+
+
+def test_survive_challenge_rejects_inactive_and_retired_beliefs_without_writes():
+    from theory_x.stage3_world_model.promotion import BeliefPromoter
+
+    class Reader:
+        def __init__(self, row):
+            self.row = row
+
+        def read_one(self, sql, params=()):
+            assert "paused" in sql
+            assert "erosion_stage" in sql
+            return self.row
+
+    class Writer:
+        def __init__(self):
+            self.calls = []
+
+        def write(self, sql, params=()):
+            self.calls.append((sql, params))
+
+    ineligible_rows = (
+        {
+            "id": 21, "tier": 6, "locked": 0, "paused": 1,
+            "erosion_stage": "external",
+        },
+        {
+            "id": 22, "tier": 7, "locked": 0, "paused": 0,
+            "erosion_stage": "retired",
+        },
+        {
+            "id": 23, "tier": 8, "locked": 0, "paused": 0,
+            "erosion_stage": "retired",
+        },
+        {
+            "id": 24, "tier": 8, "locked": 0, "paused": 0,
+            "erosion_stage": "external",
+        },
+        {
+            "id": 25, "tier": 6, "locked": 1, "paused": 0,
+            "erosion_stage": "external",
+        },
+    )
+
+    for row in ineligible_rows:
+        writer = Writer()
+        promoter = BeliefPromoter(writer, Reader(row))
+        assert promoter.survive_challenge(row["id"]) is False
+        assert writer.calls == []
+
+
+def test_decisive_contradiction_rejects_inactive_and_retired_beliefs_without_writes():
+    from theory_x.stage3_world_model.promotion import BeliefPromoter
+
+    class Reader:
+        def __init__(self, row):
+            self.row = row
+
+        def read_one(self, sql, params=()):
+            assert "paused" in sql
+            assert "erosion_stage" in sql
+            return self.row
+
+    class Writer:
+        def __init__(self):
+            self.calls = []
+
+        def write(self, sql, params=()):
+            self.calls.append((sql, params))
+
+    ineligible_rows = (
+        {
+            "id": 31, "content": "paused", "tier": 6, "locked": 0,
+            "paused": 1, "erosion_stage": "external",
+        },
+        {
+            "id": 32, "content": "retired", "tier": 7, "locked": 0,
+            "paused": 0, "erosion_stage": "retired",
+        },
+        {
+            "id": 33, "content": "tier eight tombstone", "tier": 8, "locked": 0,
+            "paused": 0, "erosion_stage": "external",
+        },
+    )
+
+    for row in ineligible_rows:
+        writer = Writer()
+        promoter = BeliefPromoter(writer, Reader(row))
+        assert promoter.decisive_contradiction(row["id"]) is False
+        assert writer.calls == []
+
+
+def test_decay_pass_excludes_retired_tombstones_in_default_and_tier_climb_modes(monkeypatch):
+    from theory_x.stage3_world_model.promotion import BeliefPromoter
+
+    class Reader:
+        def __init__(self):
+            self.queries = []
+
+        def read(self, sql, params=()):
+            self.queries.append(sql)
+            return []
+
+    class Writer:
+        def write(self, sql, params=()):
+            return None
+
+    monkeypatch.delenv("NEX5_SYNTH_KEEP", raising=False)
+    monkeypatch.delenv("NEX5_TIER_CLIMB", raising=False)
+    reader = Reader()
+    promoter = BeliefPromoter(Writer(), reader)
+
+    assert promoter.decay_pass() == 0
+    assert "erosion_stage != 'retired'" in reader.queries[-1]
+
+    monkeypatch.setenv("NEX5_TIER_CLIMB", "1")
+    assert promoter.decay_pass() == 0
+    assert "erosion_stage != 'retired'" in reader.queries[-1]
+
+
+def test_promotion_edge_matching_excludes_paused_and_retired_peers():
+    from theory_x.stage3_world_model.promotion import BeliefPromoter
+
+    class Reader:
+        def __init__(self):
+            self.queries = []
+
+        def read(self, sql, params=()):
+            self.queries.append(sql)
+            return []
+
+    class Writer:
+        def write(self, sql, params=()):
+            return None
+
+    reader = Reader()
+    promoter = BeliefPromoter(Writer(), reader)
+    promoter._write_corroboration_edge(41, "The river carries water through the valley.")
+    promoter._write_contradiction_edges(41, "The river carries water through the valley.")
+
+    assert len(reader.queries) == 2
+    assert all("paused = 0" in sql for sql in reader.queries)
+    assert all("erosion_stage != 'retired'" in sql for sql in reader.queries)

@@ -55,7 +55,7 @@ class WorldConsolidator:
         _diag("step1: import embeddings")
         from theory_x.diversity.embeddings import embed, cosine
         _diag(f"step2: pull T7 window={_WINDOW}")
-        rows = self._reader.read("SELECT id, content FROM beliefs WHERE tier = 7 AND erosion_stage != 'retired' AND locked = 0 ORDER BY created_at DESC LIMIT ?", (_WINDOW*2,)) or []
+        rows = self._reader.read("SELECT id, content FROM beliefs WHERE tier = 7 AND erosion_stage != 'retired' AND locked = 0 AND paused = 0 ORDER BY created_at DESC LIMIT ?", (_WINDOW*2,)) or []
         _diag(f"  pulled {len(rows)} rows")
         items = []
         for r in rows:
@@ -96,7 +96,7 @@ class WorldConsolidator:
             for bid in cluster:
                 if promoted >= _MAX_PROMOTE_PER_RUN: break
                 try:
-                    dup = self._reader.read("SELECT 1 FROM beliefs WHERE content = ? AND tier < 7 LIMIT 1", (contents.get(bid,""),))
+                    dup = self._reader.read("SELECT 1 FROM beliefs WHERE content = ? AND tier < 7 AND paused = 0 AND erosion_stage != 'retired' LIMIT 1", (contents.get(bid,""),))
                     if dup: _diag(f"  skip id={bid}: dup shallower"); continue
                 except Exception as exc:
                     _diag(f"  dup-check fail id={bid}: {exc!r} — skip"); continue
