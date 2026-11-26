@@ -194,13 +194,13 @@ def migration_defect_idea() -> Tuple[str, List[str], List[Obligation], Dict[str,
                       "root cause handled in writer")],
         "beliefs_content_uniq.regression_test": [
             Signature(r"idx_beliefs_content|IntegrityError.*content|UNIQUE.*beliefs.*content",
-                      "tests", "DB-level dedup regression test")],
+                      "tests/test_beliefs_content_dedup.py", "DB-level dedup regression test")],
         # --- arc_closers column migration ---
         "arc_closers_migration.fix": [
             Signature(r"ALTER TABLE arc_closers ADD COLUMN", "substrate/init_db.py",
                       "arc_closers migration applied")],
         "arc_closers_migration.regression_test": [
-            Signature(r"arc_closers", "tests", "arc_closers regression test")],
+            Signature(r"arc_closers", "tests/test_arc_closers_migration.py", "arc_closers regression test")],
     }
     return objective, assumptions, seeds, signatures
 
