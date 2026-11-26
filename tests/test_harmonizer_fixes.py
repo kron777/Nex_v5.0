@@ -583,5 +583,47 @@ class TestRetiredMarkerEligibility(unittest.TestCase):
         self.assertEqual(h.resolve(id_a, id_b), "ineligible")
 
 
+
+class TestRetiredSynthesisCandidateEligibility(unittest.TestCase):
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_retired_marked_belief_cannot_be_used_as_synthesis_bridge(self):
+        id_a = _seed(
+            self.writers,
+            "Markets always trend upward over long time horizons",
+            tier=5,
+        )
+        id_b = _seed(
+            self.writers,
+            "Markets do not always trend upward over long time horizons",
+            tier=5,
+        )
+        retired_bridge = _seed(
+            self.writers,
+            "Markets trend upward over long time horizons in financial markets",
+            tier=5,
+        )
+        self.writers["beliefs"].write(
+            "UPDATE beliefs SET erosion_stage='retired' WHERE id=?",
+            (retired_bridge,),
+        )
+        time.sleep(0.1)
+        h = _make_harmonizer(self.writers, self.readers)
+
+        self.assertEqual(h.resolve(id_a, id_b), "both_deleted")
+        event = self.readers["dynamic"].read_one(
+            "SELECT resolution, synthesis_belief_id FROM harmonizer_events "
+            "WHERE belief_id_a=? AND belief_id_b=? ORDER BY ts DESC LIMIT 1",
+            (id_a, id_b),
+        )
+        self.assertEqual(event["resolution"], "both_deleted")
+        self.assertIsNone(event["synthesis_belief_id"])
+
+
 if __name__ == "__main__":
     unittest.main()
