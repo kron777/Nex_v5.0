@@ -124,13 +124,14 @@ class TestErosionTracking(unittest.TestCase):
         r = self.readers["beliefs"]
         erosion = ProvenanceErosion(w, r)
 
-        threshold = THRESHOLDS["external"]
+        threshold = THRESHOLDS["nex_integrated"]
         belief_ids = []
         for index in range(505):
             bid = _insert_belief(w, f"Belief for paginated erosion test {index}")
             belief_ids.append(bid)
             w.write(
-                "UPDATE beliefs SET reinforce_count = ? WHERE id = ?",
+                "UPDATE beliefs SET erosion_stage = 'nex_integrated', "
+                "reinforce_count = ? WHERE id = ?",
                 (threshold, bid),
             )
 
@@ -143,7 +144,7 @@ class TestErosionTracking(unittest.TestCase):
             tuple(belief_ids),
         )
         self.assertEqual(len(rows), 505)
-        self.assertTrue(all(row["erosion_stage"] == "nex_absorbed" for row in rows))
+        self.assertTrue(all(row["erosion_stage"] == "nex_core" for row in rows))
 
     def test_erosion_pass(self):
         from theory_x.stage3_world_model.erosion import ProvenanceErosion, THRESHOLDS
