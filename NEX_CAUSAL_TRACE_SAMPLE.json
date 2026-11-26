@@ -1,6 +1,6 @@
 {
   "schema": "nex_causal_trace_sample/v1",
-  "evidence_note": "Synthetic fixture examples shaped to the implemented trace schema. These are not captures from the live NEX runtime. They establish L3 test-fixture structure only; L4 remains UNKNOWN until a separately authorised live capture.",
+  "evidence_note": "Synthetic fixture examples shaped to the implemented trace schema. These are not captures from the live NEX runtime. They establish L3 test-fixture structure only; L4 remains UNKNOWN until a separately authorised live capture. Parent IDs are explicit dependency claims supplied at producer seams; sequence and timestamp express capture order only and never imply causality.",
   "traces": [
     {
       "trace_id": "fixture-fountain-cycle-001",
