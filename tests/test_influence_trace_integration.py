@@ -487,3 +487,52 @@ def test_chat_route_voice_engine_shortcut_is_traced_without_llm_call(tmp_path, m
         assert "stored private answer from the substrate" not in serialized
     finally:
         state.close()
+
+def test_crystallizer_trace_does_not_change_belief_confidence(tmp_path, monkeypatch):
+    from theory_x.stage6_fountain.crystallizer import FountainCrystallizer
+
+    writers, readers = _make_trace_test_substrate(tmp_path, monkeypatch)
+    monkeypatch.setenv("NEX5_SURPRISE_WEIGHT", "0")
+    try:
+        crystallizer = FountainCrystallizer(
+            beliefs_writer=writers["beliefs"],
+            beliefs_reader=readers["beliefs"],
+        )
+        baseline_id = crystallizer.crystallize(
+            thought="The tension between my infinite curiosity and the finite nature of time.",
+            fountain_event_id=910,
+            ts=1795776200.0,
+        )
+        tracer = TraceContext(
+            "fountain_cycle", sink_path=tmp_path / "confidence.jsonl"
+        )
+        traced_id = crystallizer.crystallize(
+            thought="I notice how Saturn's rings trace a quiet regularity around the planet.",
+            fountain_event_id=911,
+            ts=1795776201.0,
+            trace=tracer,
+        )
+
+        assert baseline_id and traced_id
+        baseline = readers["beliefs"].read_one(
+            "SELECT confidence FROM beliefs WHERE id=?", (baseline_id,)
+        )
+        traced = readers["beliefs"].read_one(
+            "SELECT confidence FROM beliefs WHERE id=?", (traced_id,)
+        )
+        assert baseline["confidence"] == traced["confidence"] == 0.7
+        events = _read_events(tmp_path / "confidence.jsonl")
+        assert any(
+            event["stage"] == "sqlite_writer_delta"
+            and event["metadata"].get("table") == "beliefs"
+            and event["metadata"].get("row_id") == traced_id
+            for event in events
+        )
+    finally:
+        for reader in readers.values():
+            try:
+                reader.close()
+            except Exception:
+                pass
+        for writer in writers.values():
+            writer.close()
