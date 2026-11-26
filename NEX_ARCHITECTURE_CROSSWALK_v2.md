@@ -2,7 +2,7 @@
  
 ## 0. Current branch and boot-wiring first pass (25 November 2026)
 
-**Repository snapshot:** active host checkout at de93134f34adac07a3a41c2a05b33720510a2bfc. This branch is 4 commits ahead and 205 behind main; do not treat main as the active host source or merge it wholesale.
+**Repository snapshot:** captured host checkout at `de93134f34adac07a3a41c2a05b33720510a2bfc`. Against current GitHub `main`, it is 4 commits ahead and 641 behind; the remote continuity branch is separately 310 ahead / 641 behind. Do not conflate the remote branch with the host checkout or merge main wholesale.
 
 **Inventory distinctions:**
 - The active branch has 42 top-level theory_x package directories. Package directories are not a count of cognitive faculties, MIND_MAP nodes or running loops.
@@ -56,7 +56,7 @@ The scheduler documentation mismatch found during this audit is corrected in thi
 
 
 
-**Technical trace-overlay coverage (previously labelled M0.5):** [NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md](NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md) checks the two actual output seams, missing trace/parent IDs and intermediate stages, L4 context declaration, fixture status and raw-preview retention boundary. The trace remains default-OFF; no runtime capture occurred.
+**Roadmap v3.0 Phase 0 M0.5 technical trace-overlay coverage:** [NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md](NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md) checks the two actual output seams, missing trace/parent IDs and intermediate stages, L4 context declaration, fixture status and raw-preview retention boundary. The trace remains default-OFF; no runtime capture occurred.
 
 
 

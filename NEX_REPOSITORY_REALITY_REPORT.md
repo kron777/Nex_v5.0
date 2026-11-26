@@ -6,7 +6,7 @@
 **HEAD:** de93134f34adac07a3a41c2a05b33720510a2bfc
 **Worktree:** host collector reported clean at this SHA.
 
-This is the current M0.1–M0.2 reality report for the active host checkout. The earlier fb87e24 snapshot is preserved in NEX_REPOSITORY_REALITY_REPORT_HISTORICAL_fb87e24.md. The full Phase 0 branch reconciliation, boot-wiring first pass, M0.3–M0.5 status and crosswalk gaps are in NEX_PHASE0_CURRENT_RECONCILIATION_2026-11-25.md. The founder-reviewable defect backlog is NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-25.md.
+This is the current M0.1–M0.2 reality report for the active host checkout. The earlier fb87e24 snapshot is preserved in NEX_REPOSITORY_REALITY_REPORT_HISTORICAL_fb87e24.md. The full Phase 0 branch reconciliation, boot-wiring first pass, M0.3–M0.5 status and crosswalk gaps are in NEX_PHASE0_CURRENT_RECONCILIATION_2026-11-25.md. The founder-reviewable defect backlog is NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-25.md. The `p12_selfreport` provenance distinction is recorded in NEX_PHASE0_P12_SELFREPORT_PROVENANCE_RECONCILIATION_2026-11-26.md.
 
 ## 1. Repository identity and branch divergence
 
@@ -15,7 +15,7 @@ This is the current M0.1–M0.2 reality report for the active host checkout. The
 - Active branch: claude/nex-continuity-wire
 - Active HEAD: de93134f34adac07a3a41c2a05b33720510a2bfc
 - Host collector reported a clean worktree at this SHA.
-- GitHub comparison against main: active branch is 4 commits ahead and 205 commits behind; merge base fb87e247a116221cc7d814e2ee5ff2e1300f5a87.
+- GitHub comparison against current `main` (`7f45642bfb0f389b98b3c0848dc1f78deb0cd621`): the captured host checkout at `de93134f34adac07a3a41c2a05b33720510a2bfc` is 4 commits ahead and 641 behind; merge base `fb87e247a116221cc7d814e2ee5ff2e1300f5a87`. The remote continuity branch at `84e696d2a8eba50121ff0aa47c2d3deeb2a1e2c8` is separately 310 ahead / 641 behind. Local cached tracking refs are stale; no fetch/pull/rebase was performed.
 - The active branch has 757 tree entries and 42 top-level theory_x package directories. These counts are filesystem inventories, not faculty/node counts.
 - mind_map/MIND_MAP.yaml is absent from the active branch but present on main. Vitals files are also present on main but absent from the active branch.
 
@@ -89,16 +89,16 @@ The Vitals timer is not merely a read-only diagnostic: scheduled --log mode appe
 |---|---|---|
 | Repository URL, branch, full SHA | Recorded | Exact active host checkout identity above |
 | Worktree state | Reported clean | Host collector snapshot at de93134 |
-| Main-branch divergence | Known | 4 ahead / 205 behind; no wholesale merge |
+| Main-branch divergence | Known | Host checkout 4 ahead / 641 behind current GitHub main; remote continuity branch 310 ahead / 641 behind; no wholesale merge |
 | Host hardware and OS | Partial | OS, kernel, CPU, RAM, GPU and disk reported |
 | Ollama and model | Partial | Ollama version and installed model known; model digest/load unknown |
 | Python / SQLite versions | UNKNOWN | Not recorded |
 | Runtime DB/snapshot SHA-256 | UNKNOWN | Hash request skipped by operator |
 | RAM/VRAM and token throughput | UNKNOWN | No idle/load benchmark captured |
-| Test baseline | Reported complete | 1610 passed, 5 skipped, 30 subtests, 0 unexpected failures |
-| Failure reconciliation | Partial | No current unexpected failures reported; older environment-limited result preserved as history |
+| Test baseline | Current run reported clean | 1610 passed, 5 skipped, 30 subtests, 0 unexpected failures |
+| Failure reconciliation | Partial | No current unexpected failures; historical p12 MIND_MAP validator failure classified as a genuine failure caused by a stale/obsolete absence claim and corrected on main; earlier environment-limited run (107 failures, 62 errors) remains only an aggregate without per-test classifications |
 
-**M0.1 is partial. M0.2 is complete for the reported active-branch test run, subject to the provenance note above.**
+**M0.1 and M0.2 remain partial.** The 1610-pass run is the reported current active-branch baseline. The historical MIND_MAP `p12_selfreport` validator failure is classified as a genuine validator failure caused by a stale/obsolete absence claim, corrected on `main`. M0.2 remains open because the earlier environment-limited run (107 failures, 62 errors) is not individually enumerated/classified in the available evidence, and the active-host branch lacks the MIND_MAP/source pair for an on-branch rerun. See the provenance reconciliation note.
 
 ## 8. Governance and next gate
 

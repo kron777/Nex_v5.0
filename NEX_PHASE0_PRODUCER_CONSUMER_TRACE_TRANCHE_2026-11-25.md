@@ -1271,7 +1271,7 @@ Verified source facts:
 No host flag, history row or live behaviour was inspected. The Phase 1 feature was not armed or changed.
 
 
-## 78. InfluenceRecord M0.5 coverage and evidence-level audit
+## 78. Roadmap v3.0 Phase 0 M0.5 — technical trace-overlay coverage and evidence-level audit
 
 The detailed audit is in `NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md`. The current implementation has two actual seams: Fountain after generation and Chat after reply persistence. It records a limited set of scalar inputs plus output digest/preview; the module itself marks belief-level and faculty-block attribution unresolved.
 
@@ -1302,7 +1302,7 @@ The detailed map is NEX_PHASE0_MEMBRANE_PROVENANCE_COVERAGE_AUDIT_2026-11-25.md.
 
 The detailed branch/source-reference audit is in `NEX_PHASE0_MAIN_BRANCH_MIND_MAP_RECONCILIATION_2026-11-25.md`.
 
-- The active-host base is 4 commits ahead and 205 behind main (merge base `fb87e24`); PR #98 targets `claude/nex-continuity-wire`, not main. No merge/rebase/cherry-pick occurred.
+- The captured host checkout is 4 commits ahead and 641 behind current main (merge base `fb87e24`); the remote continuity branch is separately 310 ahead / 641 behind. PR #98 merged into the remote continuity branch, not main or the host checkout. No host fetch/merge/rebase/cherry-pick occurred.
 - Main's MIND_MAP was introduced 9 November and last updated 20 November. The directory is absent from the active-host base. The YAML has 34 node entries (30 substantive plus four structural placeholders) and five arms.
 - MIND_MAP is explicitly descriptive-only, not the operational DAG or build-order tool. Its 51 source references across 41 files include 12 referenced files absent from the active-host base; copying the map alone would fail its own source-existence validation.
 - The active-host `sentience_dag.json`/`nex_next_dev.py` is a separate build-order mechanism; `live_unproven` is counted as a satisfied prerequisite and flagged rather than blocking.
