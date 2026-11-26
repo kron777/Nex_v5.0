@@ -3492,6 +3492,7 @@ class FountainGenerator:
                     dynamic_status,
                     stakes_active=getattr(self, "_stakes_active", False),
                     drive_line=_drive_hint,
+                    trace=trace,
                 )
                 if _gw_line:
                     focus_block = f"\n{_gw_line}\n" + focus_block
