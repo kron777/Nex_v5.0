@@ -48,7 +48,7 @@ _SAFE_LABEL_KEYS = frozenset({
     "branch_hints", "side", "register", "register_hint", "mode", "path",
     "stream", "selection_rule", "purpose", "output_kind", "capture_context",
     "error_type", "trigger_type", "role", "tool_name", "category",
-    "value_type", "winner_kind", "crystallizer_path", "source_node",
+    "sha256", "value_type", "winner_kind", "crystallizer_path", "source_node",
     "assistant_store_status",
 })
 
