@@ -10,7 +10,8 @@
 The earlier fb87e24 handoff is preserved as PHASE0_HANDOFF_HISTORICAL_fb87e24.md. Use this document together with:
 - NEX_REPOSITORY_REALITY_REPORT.md — current M0.1–M0.2 report.
 - NEX_ARCHITECTURE_CROSSWALK_v2.md — current partial crosswalk: boot inventory plus Fountain and Chat output paths.
-- NEX_PHASE0_CURRENT_RECONCILIATION_2026-11-25.md — branch comparison, Phase 0 evidence and remaining gaps.\n- NEX_PHASE0_M0_5_DELIVERABLE_IDENTITY_RECONCILIATION_2026-11-26.md — distinguishes the V2.1 doctrine-question deliverable from the technical trace-overlay work.
+- NEX_PHASE0_CURRENT_RECONCILIATION_2026-11-25.md — branch comparison, Phase 0 evidence and remaining gaps.
+- NEX_PHASE0_M0_5_DELIVERABLE_IDENTITY_RECONCILIATION_2026-11-26.md — distinguishes the V2.1 doctrine-question deliverable from the technical trace-overlay work.
 - NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-25.md — founder-reviewable verified defects and evidence gaps.
 - ADR-001.md — historical design decision for the default-OFF InfluenceRecord overlay.
 
@@ -22,7 +23,7 @@ The earlier fb87e24 handoff is preserved as PHASE0_HANDOFF_HISTORICAL_fb87e24.md
 | M0.1 host/model/runtime baseline | Partial; DB/snapshot hashes, Python/SQLite exact versions, model digest, RAM/VRAM load and tokens/sec remain UNKNOWN |
 | M0.2 test baseline | Founder-provided host run: 1610 passed, 5 skipped, 30 subtests, 0 unexpected failures, 122.87s |
 | M0.3–M0.4 architecture crosswalk | Partial; first-pass boot wiring plus two output paths. Full producer/consumer DAG across theory_x, substrate, speech and GUI remains outstanding |
-| V2.1 M0.5 doctrine questions | Six doctrine questions must be answered at the achieved evidence level; current Phase 0 artifacts do not contain those answers | Not evidenced as complete |\n| Technical trace overlay (previously labelled M0.5) | Default-OFF InfluenceRecord source and fixture tests exist; two coarse seams only |
+| V2.1 M0.5 doctrine questions | Not evidenced as complete; current Phase 0 artifacts do not contain the six answers |\n| Technical trace overlay (previously labelled M0.5) | Default-OFF InfluenceRecord source and fixture tests exist; two coarse seams only |
 | Technical trace-overlay live L4 capture / zero-delta | UNKNOWN; not performed or authorised |
 | Gate 0 | PENDING founder review |
 
@@ -36,7 +37,9 @@ The earlier fb87e24 handoff is preserved as PHASE0_HANDOFF_HISTORICAL_fb87e24.md
 6. Vitals is present on main but absent from the active branch; cherry-picking its merge would import unrelated behaviour. Its exact governing spec and PID-identity safeguards remain unresolved.
 7. The exact Frozen V2.1 source document and founder approval record have not been located. Do not recreate them or infer their detailed acceptance criteria.
 
-## Technical trace-overlay discrepancy (previously labelled M0.5)\n\nDeliverable identity is separate from V2.1 M0.5 doctrine questions. See `NEX_PHASE0_M0_5_DELIVERABLE_IDENTITY_RECONCILIATION_2026-11-26.md`.
+## Technical trace-overlay discrepancy (previously labelled M0.5)
+
+Deliverable identity is separate from V2.1 M0.5 doctrine questions. See `NEX_PHASE0_M0_5_DELIVERABLE_IDENTITY_RECONCILIATION_2026-11-26.md`.
 
 The roadmap extract asks for NEX5_TRACE_OVERLAY=0 and a full trace_id/parent_ids chain across input arrival, candidate generation, salience/workspace selection, gate, SQLite writer delta and output, with NEX_CAUSAL_TRACE_SAMPLE.json. The active branch instead uses NEX5_INFLUENCE_TRACE, NEX5_INFLUENCE_TRACE_CONTEXT and NEX5_INFLUENCE_TRACE_PATH, with two coarse seams and a JSONL fixture. The exact Frozen V2.1 contract must be recovered before extending or renaming the hook.
 
