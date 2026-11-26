@@ -1323,3 +1323,26 @@ The detailed static audit is in `NEX_PHASE0_MOLTBOOK_EXTERNAL_IO_AND_DRY_RUN_AUD
 - Raw DM JSON is stored as a `moltbook_dm` sense event, but the current title extractor does not extract the `message` field for generic Stage 2 distillation.
 
 No credentials, HTTP requests, external approval, post, DM, local DB operation or worker activation occurred. No live external activity is claimed.
+
+
+## 84. WarrantRecorder use-day cursor tie semantics
+
+`WarrantRecorder.use_cycle()` reads historical use evidence from five sources. Four use stable ID cursors; the `belief_lineage` and `arc_members` sources use timestamp-only cursors:
+
+```sql
+SELECT created_at, parent_id FROM belief_lineage
+WHERE created_at > ? ORDER BY created_at LIMIT 20000
+
+SELECT joined_at, belief_id FROM arc_members
+WHERE joined_at > ? ORDER BY joined_at LIMIT 20000
+```
+
+The shared `take()` helper saves only the last timestamp as the next cursor. If rows with the same timestamp straddle the 20,000-row page boundary, the next strict-greater-than query skips the remaining rows at that timestamp. There is no secondary key in either ordering or cursor.
+
+The tie is a real source data shape: `theory_x.diversity.lineage.record_synergy()` computes `now` once and writes both parent rows with that same `created_at`. `ArcReader._write_arc()` also computes one `now` and applies it to every member row inserted for an arc. However, `run.py` currently assigns `arc_loop = None` and does not start ArcReader in normal boot, so new arc-member production is not established as a normal active path; historical rows can still be consumed by WarrantRecorder.
+
+`tests/test_warrant_recorder.py` verifies day deduplication, cursor idempotency, and use-day aggregation with a single seeded lineage row. It does not exercise equal timestamps spanning a page boundary. The current page size is `_USE_BATCH = 20000`.
+
+`WarrantRecorder.start_loop()` is inert unless `NEX5_WARRANT_RECORD == '1'`, and normal `run.py` construction is behind the same default-off flag. Host-effective state and live cursor/table contents remain UNKNOWN.
+
+**Disposition:** this is a source-level pagination risk, not an observed undercount. Before a future approved fix, add an isolated small-page tie-boundary regression and define a stable composite cursor (timestamp plus a unique row key), including cursor storage compatibility. No runtime cursor, schema, flag or test state was changed.
