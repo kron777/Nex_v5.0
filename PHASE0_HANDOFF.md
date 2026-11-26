@@ -51,7 +51,7 @@ The roadmap extract asks for NEX5_TRACE_OVERLAY=0 and a full trace_id/parent_ids
 - Phase 0 reconciliation PR #98: merged into `claude/nex-continuity-wire`. Its merge commit is `14b45ab139d919505eb423b865ec1a714f923388`; this is not a merge to `main`.
 - RDO integration PR #124: merged into `main` (merge commit `70db12169a8d38f2e93e6cdf536a1c71a3e66ee2`). It integrates RDO Stages 2–7 as an external engineering instrument; it does not change NEX cognitive/runtime behaviour.
 - Legacy stacked RDO PRs #66–#71: still open/draft and unmerged as individual PRs. Do not describe them as merged merely because the separate integration PR #124 landed on `main`.
-- RDO read-only handoff-history fix PR #130: open/draft; exact-head full-suite CI is running after a narrow stale-test-expectation correction. Not merged.
+- RDO read-only handoff-history fix PR #130: merged into `rdo/stage7-handoff-manifest-2026-11-26` at `698e80e4f20a95c9ffcf5445a9f598429781dacd`; exact-head full-suite CI passed (2,434 passed, 7 skipped, 40 subtests). Not merged to `main`.
 - RDO v1.4 source-recovery record PR #131: open/draft; exact-head CI passed. It records supplied-source provenance but deliberately leaves v1.3/v1.4 precedence unresolved.
 - Phase 0 M0.5 deliverable-identity correction PR #132: open/draft; documentation-only; exact-head CI pending. It separates V2.1 doctrine questions from technical trace-overlay work.
 
