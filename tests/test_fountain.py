@@ -147,6 +147,155 @@ class TestFountainGenerator(unittest.TestCase):
             dynamic_reader=self.readers["dynamic"],
         )
 
+
+    def test_context_retrieval_excludes_paused_and_retired_beliefs(self):
+        gen = self._make_generator()
+        gen._beliefs_reader = self.readers["beliefs"]
+        gen._beliefs_writer = self.writers["beliefs"]
+
+        def add(content, source, tier=5, paused=0, erosion_stage="external"):
+            return self.writers["beliefs"].write(
+                "INSERT INTO beliefs (content, source, tier, confidence, created_at, paused, erosion_stage) "
+                "VALUES (?, ?, ?, 0.8, ?, ?, ?)",
+                (content, source, tier, int(time.time()), paused, erosion_stage),
+            )
+
+        active_own = add("active own memory", "fountain_insight")
+        paused_own = add("paused own memory", "fountain_insight", paused=1)
+        retired_own = add("retired own memory", "fountain_insight", tier=8)
+        retired_marked_own = add("retired-marked own memory", "fountain_insight", erosion_stage="retired")
+        active_seed = add("active seed", "koan")
+        paused_seed = add("paused seed", "koan", paused=1)
+        retired_marked_seed = add("retired-marked seed", "koan", erosion_stage="retired")
+        active_hot = add("active self observation", "hot_observer")
+        paused_hot = add("paused self observation", "hot_observer", paused=1)
+        retired_marked_hot = add("retired-marked self observation", "hot_observer", erosion_stage="retired")
+
+        # Seed retrieval is random; include the fixture corpus so this test checks
+        # eligibility rather than whether RANDOM() happens to select this row.
+        rows = gen._retrieve_context_beliefs(own_n=10, seed_n=10000)
+        ids = {row["id"] for row in rows}
+        self.assertIn(active_own, ids)
+        self.assertIn(active_seed, ids)
+        self.assertIn(active_hot, ids)
+        self.assertNotIn(paused_own, ids)
+        self.assertNotIn(retired_own, ids)
+        self.assertNotIn(retired_marked_own, ids)
+        self.assertNotIn(paused_seed, ids)
+        self.assertNotIn(retired_marked_seed, ids)
+        self.assertNotIn(paused_hot, ids)
+        self.assertNotIn(retired_marked_hot, ids)
+
+    def test_prompt_side_channels_exclude_paused_and_retired_beliefs(self):
+        from unittest.mock import patch
+        from voice.llm import VoiceClient
+
+        captured = {}
+
+        def request_fn(url, payload):
+            captured["prompt"] = payload["messages"][1]["content"]
+            return {"choices": [{"message": {"content": "a grounded thought"}}]}
+
+        gen = self._make_generator()
+        gen._voice = VoiceClient(request_fn=request_fn)
+        gen._beliefs_reader = self.readers["beliefs"]
+
+        now = int(time.time())
+        def add(content, source, tier=5, paused=0, affinity=None, created_at=now, erosion_stage="external"):
+            self.writers["beliefs"].write(
+                "INSERT INTO beliefs (content, source, tier, confidence, created_at, "
+                "paused, affinity, erosion_stage) VALUES (?, ?, ?, 0.8, ?, ?, ?, ?)",
+                (content, source, tier, created_at, paused, affinity, erosion_stage),
+            )
+
+        add("ACTIVE_FAVOURITE_SENTINEL", "fountain_insight", affinity=0.90)
+        add("PAUSED_FAVOURITE_SENTINEL", "fountain_insight", paused=1, affinity=0.99)
+        add("RETIRED_FAVOURITE_SENTINEL", "fountain_insight", tier=8, affinity=0.98)
+        add("RETIRED_MARKED_FAVOURITE_SENTINEL", "fountain_insight", affinity=0.97, erosion_stage="retired")
+        add("ACTIVE_SURPRISE_SENTINEL", "surprise", created_at=now - 30)
+        add("PAUSED_SURPRISE_SENTINEL", "surprise", paused=1, created_at=now - 20)
+        add("RETIRED_SURPRISE_SENTINEL", "surprise", tier=8, created_at=now - 10)
+        add("RETIRED_MARKED_SURPRISE_SENTINEL", "surprise", created_at=now - 5, erosion_stage="retired")
+
+        add("ACTIVE_SPECTRUM_INWARD_SENTINEL", "spectrum")
+        add("PAUSED_SPECTRUM_INWARD_SENTINEL", "spectrum", paused=1)
+        add("RETIRED_SPECTRUM_INWARD_SENTINEL", "spectrum", tier=8)
+        add("RETIRED_MARKED_SPECTRUM_INWARD_SENTINEL", "spectrum", erosion_stage="retired")
+        self.writers["beliefs"].write(
+            "INSERT INTO beliefs (id, content, source, tier, confidence, created_at, paused, erosion_stage) "
+            "VALUES (23001, 'ACTIVE_SPECTRUM_OUTWARD_SENTINEL', 'spectrum', 5, 0.8, ?, 0, 'external')",
+            (now,),
+        )
+        self.writers["beliefs"].write(
+            "INSERT INTO beliefs (id, content, source, tier, confidence, created_at, paused, erosion_stage) "
+            "VALUES (23002, 'PAUSED_SPECTRUM_OUTWARD_SENTINEL', 'spectrum', 5, 0.8, ?, 1, 'external')",
+            (now,),
+        )
+        self.writers["beliefs"].write(
+            "INSERT INTO beliefs (id, content, source, tier, confidence, created_at, paused, erosion_stage) "
+            "VALUES (23003, 'RETIRED_SPECTRUM_OUTWARD_SENTINEL', 'spectrum', 8, 0.8, ?, 0, 'external')",
+            (now,),
+        )
+
+        for i in range(21):
+            self.writers["beliefs"].write(
+                "INSERT INTO beliefs (content, tier, confidence, created_at, source, locked) "
+                "VALUES (?, 5, 0.5, ?, 'auto_growth', 0)",
+                (f"readiness filler {i}", now),
+            )
+
+        with patch("random.sample", side_effect=lambda population, k: list(population)[:k]):
+            result = gen.generate(
+                _mock_dynamic_state(hot_branch="systems", consolidation=True),
+                self.readers["beliefs"],
+            )
+
+        self.assertEqual(result, "a grounded thought")
+        prompt = captured["prompt"]
+        self.assertIn("ACTIVE_FAVOURITE_SENTINEL", prompt)
+        self.assertIn("ACTIVE_SURPRISE_SENTINEL", prompt)
+        self.assertNotIn("PAUSED_FAVOURITE_SENTINEL", prompt)
+        self.assertNotIn("RETIRED_FAVOURITE_SENTINEL", prompt)
+        self.assertNotIn("RETIRED_MARKED_FAVOURITE_SENTINEL", prompt)
+        self.assertNotIn("PAUSED_SURPRISE_SENTINEL", prompt)
+        self.assertNotIn("RETIRED_SURPRISE_SENTINEL", prompt)
+        self.assertNotIn("RETIRED_MARKED_SURPRISE_SENTINEL", prompt)
+        self.assertIn("ACTIVE_SPECTRUM_INWARD_SENTINEL", prompt)
+        self.assertIn("ACTIVE_SPECTRUM_OUTWARD_SENTINEL", prompt)
+        self.assertNotIn("PAUSED_SPECTRUM_INWARD_SENTINEL", prompt)
+        self.assertNotIn("RETIRED_SPECTRUM_INWARD_SENTINEL", prompt)
+        self.assertNotIn("RETIRED_MARKED_SPECTRUM_INWARD_SENTINEL", prompt)
+        self.assertNotIn("PAUSED_SPECTRUM_OUTWARD_SENTINEL", prompt)
+        self.assertNotIn("RETIRED_SPECTRUM_OUTWARD_SENTINEL", prompt)
+
+    def test_koan_selection_excludes_paused_and_retired(self):
+        gen = self._make_generator()
+        # The initialized fixture includes seed koans; pause them so the
+        # test's active row is the only eligible candidate.
+        self.writers["beliefs"].write(
+            "UPDATE beliefs SET paused = 1 WHERE source = 'koan'"
+        )
+
+        def add_koan(content, tier=5, paused=0, erosion_stage="external"):
+            return self.writers["beliefs"].write(
+                "INSERT INTO beliefs (content, source, tier, confidence, created_at, locked, paused, erosion_stage) "
+                "VALUES (?, 'koan', ?, 0.8, ?, 1, ?, ?)",
+                (content, tier, int(time.time()), paused, erosion_stage),
+            )
+
+        active = add_koan("active koan sentinel")
+        add_koan("paused koan sentinel", paused=1)
+        add_koan("retired koan sentinel", tier=8)
+        add_koan("retired-marked koan sentinel", erosion_stage="retired")
+        self.writers["beliefs"].write(
+            "INSERT INTO koan_reads (gate_id, read_at) VALUES (?, ?)",
+            (str(active), 1),
+        )
+
+        selected = gen._select_koan(self.readers["beliefs"])
+        self.assertIsNotNone(selected)
+        self.assertEqual(selected["id"], active)
+
     def test_generate_returns_none_when_not_ready(self):
         gen = self._make_generator()
 

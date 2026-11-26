@@ -771,7 +771,7 @@ def _select_wide_mode(seeds, drift_fallback_prob=0.30):
             from substrate.paths import db_paths as _dbp_wm
             _c = connect(str(_dbp_wm()["beliefs"]), timeout=5)
             _rows = _c.execute(
-                "SELECT content FROM beliefs WHERE source='precipitated_from_sense' "
+                "SELECT content FROM beliefs WHERE source='precipitated_from_sense' AND tier < 8 AND paused = 0 AND erosion_stage != 'retired' "
                 "AND length(content) > 25 ORDER BY rowid DESC LIMIT 40").fetchall()
             _c.close()
             import re as _re_wm
@@ -1233,7 +1233,7 @@ class FountainGenerator:
         try:
             rows = beliefs_reader.read(
                 "SELECT id, content FROM beliefs "
-                "WHERE tier <= 2 AND erosion_stage != 'retired' "
+                "WHERE tier <= 2 AND erosion_stage != 'retired' AND paused = 0 "
                 "  AND content IS NOT NULL AND length(content) >= 20 "
                 "ORDER BY COALESCE(last_voiced_at, 0) ASC, id ASC LIMIT 1"
             )
@@ -2316,7 +2316,7 @@ class FountainGenerator:
                 "  (SELECT MAX(r.read_at) FROM koan_reads r "
                 "   WHERE r.gate_id = CAST(b.id AS TEXT)) AS last_read "
                 "FROM beliefs b "
-                "WHERE b.source = 'koan' AND b.locked = 1 "
+                "WHERE b.source = 'koan' AND b.locked = 1 AND b.tier < 8 AND b.paused = 0 AND b.erosion_stage != 'retired' "
                 "ORDER BY last_read ASC "
                 "LIMIT 1"
             )
@@ -2652,7 +2652,7 @@ class FountainGenerator:
             rows = self._beliefs_reader.read(
                 f"SELECT id, content, source, tier, confidence, created_at, branch_id, "
                 f"1.0 AS boost_value FROM beliefs "
-                f"WHERE source IN ({own_placeholders}) AND tier < 8 "
+                f"WHERE source IN ({own_placeholders}) AND tier < 8 AND paused = 0 AND erosion_stage != 'retired' "
                 f"ORDER BY created_at DESC LIMIT ?",
                 (*_OWN_CONTENT_SOURCES, pool_lim),
             )
@@ -2746,7 +2746,7 @@ class FountainGenerator:
                 f"SELECT b.id, b.content, b.source, b.tier, b.confidence, b.created_at, b.branch_id, "
                 f"       COALESCE(bb.boost_value, 1.0) AS boost_value "
                 f"FROM beliefs b LEFT JOIN belief_boost bb ON b.id = bb.belief_id "
-                f"WHERE b.source IN ({own_placeholders}) AND b.tier < 8 "
+                f"WHERE b.source IN ({own_placeholders}) AND b.tier < 8 AND b.paused = 0 AND b.erosion_stage != 'retired' "
                 f"ORDER BY (b.created_at + (COALESCE(bb.boost_value, 1.0) - 1.0) * ?) DESC LIMIT ?",
                 (*_OWN_CONTENT_SOURCES, BOOST_TIME_BONUS_SECONDS, oversample_n),
             )
@@ -2840,7 +2840,7 @@ class FountainGenerator:
                 f"SELECT b.id, b.content, b.source, b.tier, b.confidence, b.created_at, "
                 f"       1.0 AS boost_value "
                 f"FROM beliefs b "
-                f"WHERE b.source IN ({seed_placeholders}) "
+                f"WHERE b.source IN ({seed_placeholders}) AND b.tier < 8 AND b.paused = 0 AND b.erosion_stage != 'retired' "
                 f"ORDER BY RANDOM() LIMIT ?",
                 (*_SEED_SOURCES, seed_n),
             )
@@ -2929,7 +2929,7 @@ class FountainGenerator:
                 if reanimated and self._beliefs_reader is not None:
                     rows = self._beliefs_reader.read(
                         "SELECT id, content, source, tier, confidence, created_at FROM beliefs "
-                        "WHERE id=?", (reanimated["belief_id"],)
+                        "WHERE id=? AND tier < 8 AND paused = 0 AND erosion_stage != 'retired'", (reanimated["belief_id"],)
                     )
                     if rows:
                         result.extend([dict(r) for r in rows])
@@ -2970,7 +2970,7 @@ class FountainGenerator:
                 _hot_rows = self._beliefs_reader.read(
                     "SELECT id, content, source, tier, confidence, created_at, branch_id, "
                     "1.0 AS boost_value FROM beliefs "
-                    "WHERE source='hot_observer' AND created_at > ? "
+                    "WHERE source='hot_observer' AND tier < 8 AND paused = 0 AND erosion_stage != 'retired' AND created_at > ? "
                     "ORDER BY RANDOM() LIMIT ?",
                     (_hot_cutoff, _HOT_OBSERVER_POOL_LIMIT)
                 )
@@ -3495,7 +3495,7 @@ class FountainGenerator:
             try:
                 _surp = self._beliefs_reader.read(
                     "SELECT content, created_at FROM beliefs "
-                    "WHERE source='surprise' AND created_at > ? "
+                    "WHERE source='surprise' AND tier < 8 AND paused = 0 AND erosion_stage != 'retired' AND created_at > ? "
                     "ORDER BY created_at DESC LIMIT 1",
                     (now - 21600,)  # 6h — surprises are rare, longer window
                 )
@@ -3534,7 +3534,7 @@ class FountainGenerator:
             try:
                 _favs = self._beliefs_reader.read(
                     "SELECT id, content FROM beliefs "
-                    "WHERE affinity IS NOT NULL AND affinity > 0.40 "
+                    "WHERE affinity IS NOT NULL AND affinity > 0.40 AND tier < 8 AND paused = 0 AND erosion_stage != 'retired' "
                     "ORDER BY affinity DESC LIMIT 10"
                 )
                 if _favs:
@@ -3585,18 +3585,18 @@ class FountainGenerator:
                 # outweighing the new 25-strong outward pool ~80/20 by chance;
                 # this forces equal foundational pull each fire.
                 _spec_inward = self._beliefs_reader.read(
-                    "SELECT id, content FROM beliefs WHERE source='spectrum' "
+                    "SELECT id, content FROM beliefs WHERE source='spectrum' AND tier < 8 AND paused = 0 AND erosion_stage != 'retired' "
                     "AND id < 23000 ORDER BY RANDOM() LIMIT 1"
                 )
                 _spec_outward = self._beliefs_reader.read(
-                    "SELECT id, content FROM beliefs WHERE source='spectrum' "
+                    "SELECT id, content FROM beliefs WHERE source='spectrum' AND tier < 8 AND paused = 0 AND erosion_stage != 'retired' "
                     "AND id >= 23000 ORDER BY RANDOM() LIMIT 1"
                 )
                 spec_rows = list(_spec_outward or []) + list(_spec_inward or [])
                 # Fallback: if either pool is empty, fill from the other
                 if len(spec_rows) < 2:
                     extra = self._beliefs_reader.read(
-                        "SELECT id, content FROM beliefs WHERE source='spectrum' "
+                        "SELECT id, content FROM beliefs WHERE source='spectrum' AND tier < 8 AND paused = 0 AND erosion_stage != 'retired' "
                         "ORDER BY RANDOM() LIMIT 2"
                     )
                     spec_rows = extra

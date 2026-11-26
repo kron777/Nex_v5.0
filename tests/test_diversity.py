@@ -309,6 +309,19 @@ class TestLineage(unittest.TestCase):
         self.assertEqual(result[0]["parent_id"], 3)
 
 
+    def test_fetch_residue_excludes_paused_beliefs(self):
+        from theory_x.diversity.residue import fetch_residue_beliefs
+        class _Reader:
+            def __init__(self): self.sql = ""
+            def read(self, sql, params=()):
+                self.sql = sql
+                return []
+        reader = _Reader()
+        self.assertEqual(fetch_residue_beliefs(reader, [1]), [])
+        self.assertIn("paused = 0", reader.sql)
+        self.assertIn("erosion_stage != 'retired'", reader.sql)
+
+
 # ---------------------------------------------------------------------------
 # TestBoost
 # ---------------------------------------------------------------------------
