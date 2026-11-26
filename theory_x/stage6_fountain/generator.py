@@ -2652,7 +2652,7 @@ class FountainGenerator:
             rows = self._beliefs_reader.read(
                 f"SELECT id, content, source, tier, confidence, created_at, branch_id, "
                 f"1.0 AS boost_value FROM beliefs "
-                f"WHERE source IN ({own_placeholders}) AND tier < 8 "
+                f"WHERE source IN ({own_placeholders}) AND tier < 8 AND paused = 0 "
                 f"ORDER BY created_at DESC LIMIT ?",
                 (*_OWN_CONTENT_SOURCES, pool_lim),
             )
@@ -2746,7 +2746,7 @@ class FountainGenerator:
                 f"SELECT b.id, b.content, b.source, b.tier, b.confidence, b.created_at, b.branch_id, "
                 f"       COALESCE(bb.boost_value, 1.0) AS boost_value "
                 f"FROM beliefs b LEFT JOIN belief_boost bb ON b.id = bb.belief_id "
-                f"WHERE b.source IN ({own_placeholders}) AND b.tier < 8 "
+                f"WHERE b.source IN ({own_placeholders}) AND b.tier < 8 AND b.paused = 0 "
                 f"ORDER BY (b.created_at + (COALESCE(bb.boost_value, 1.0) - 1.0) * ?) DESC LIMIT ?",
                 (*_OWN_CONTENT_SOURCES, BOOST_TIME_BONUS_SECONDS, oversample_n),
             )
@@ -2840,7 +2840,7 @@ class FountainGenerator:
                 f"SELECT b.id, b.content, b.source, b.tier, b.confidence, b.created_at, "
                 f"       1.0 AS boost_value "
                 f"FROM beliefs b "
-                f"WHERE b.source IN ({seed_placeholders}) "
+                f"WHERE b.source IN ({seed_placeholders}) AND b.tier < 8 AND b.paused = 0 "
                 f"ORDER BY RANDOM() LIMIT ?",
                 (*_SEED_SOURCES, seed_n),
             )
@@ -2970,7 +2970,7 @@ class FountainGenerator:
                 _hot_rows = self._beliefs_reader.read(
                     "SELECT id, content, source, tier, confidence, created_at, branch_id, "
                     "1.0 AS boost_value FROM beliefs "
-                    "WHERE source='hot_observer' AND created_at > ? "
+                    "WHERE source='hot_observer' AND tier < 8 AND paused = 0 AND created_at > ? "
                     "ORDER BY RANDOM() LIMIT ?",
                     (_hot_cutoff, _HOT_OBSERVER_POOL_LIMIT)
                 )
