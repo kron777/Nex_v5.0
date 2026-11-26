@@ -420,7 +420,7 @@ class TestEscalation(unittest.TestCase):
                 "VALUES (?, ?, ?, 'paradox')",
                 (time.time() - 86400, id_a, id_b),
             )
-            self.writers["beliefs"].write(state_sql[0], (id_a,))
+            self.writers["beliefs"].write(state_sql, (id_a,))
             self.assertEqual(h.resolve(id_a, id_b), "ineligible")
             row_a = self.readers["beliefs"].read_one(
                 "SELECT tier, paused FROM beliefs WHERE id=?", (id_a,))
