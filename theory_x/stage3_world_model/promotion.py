@@ -124,8 +124,8 @@ class BeliefPromoter:
 
         if row is None:
             return False
-        if row["paused"] or row["erosion_stage"] == "retired":
-            return False  # Inactive beliefs are not eligible for corroboration.
+        if row["paused"] or row["tier"] >= 8 or row["erosion_stage"] == "retired":
+            return False  # Inactive and retired beliefs are not eligible for corroboration.
         if row["locked"] and row["tier"] <= 1:
             return False  # Tier 1 locked — untouchable
 
