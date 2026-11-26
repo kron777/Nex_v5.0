@@ -77,9 +77,13 @@ review and **not** RDO self-assessment. Failed/unverified obligations are **reop
 
 ## Roadmap status
 
-This completes the RDO v1.3 §16 stage sequence (Stage 0 reconciliation → Stage 7). The seven stage
-branches (`claude/rdo-stage{1..7}-*` plus the earlier PRs #45–48) remain **open and unmerged** pending
-review. The **v1.3/v1.4 precedence** is still **not** resolved by assumption, and the host-only live
+This completes the RDO v1.3 §16 stage sequence (Stage 0 reconciliation → Stage 7). At the
+original stage-branch review, the source branches were open and unmerged. **Integration status
+(26 Nov 2026):** foundational PR #46 has since merged; the Stage 2–7 capabilities are carried into
+the consolidated hardened-mainline integration PR #124. The older stage PRs remain source-history
+references and are not to be merged separately ahead of that consolidated integration.
+
+The **v1.3/v1.4 precedence** is still **not** resolved by assumption, and the host-only live
 confirmations across Stages 1/5/7 remain for founder authority.
 
 
