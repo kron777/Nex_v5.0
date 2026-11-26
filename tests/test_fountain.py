@@ -180,6 +180,56 @@ class TestFountainGenerator(unittest.TestCase):
         self.assertNotIn(paused_seed, ids)
         self.assertNotIn(paused_hot, ids)
 
+    def test_prompt_side_channels_exclude_paused_and_retired_beliefs(self):
+        from unittest.mock import patch
+        from voice.llm import VoiceClient
+
+        captured = {}
+
+        def request_fn(url, payload):
+            captured["prompt"] = payload["messages"][1]["content"]
+            return {"choices": [{"message": {"content": "a grounded thought"}}]}
+
+        gen = self._make_generator()
+        gen._voice = VoiceClient(request_fn=request_fn)
+
+        now = int(time.time())
+        def add(content, source, tier=5, paused=0, affinity=None, created_at=now):
+            self.writers["beliefs"].write(
+                "INSERT INTO beliefs (content, source, tier, confidence, created_at, "
+                "paused, affinity) VALUES (?, ?, ?, 0.8, ?, ?, ?)",
+                (content, source, tier, created_at, paused, affinity),
+            )
+
+        add("ACTIVE_FAVOURITE_SENTINEL", "fountain_insight", affinity=0.90)
+        add("PAUSED_FAVOURITE_SENTINEL", "fountain_insight", paused=1, affinity=0.99)
+        add("RETIRED_FAVOURITE_SENTINEL", "fountain_insight", tier=8, affinity=0.98)
+        add("ACTIVE_SURPRISE_SENTINEL", "surprise", created_at=now - 30)
+        add("PAUSED_SURPRISE_SENTINEL", "surprise", paused=1, created_at=now - 20)
+        add("RETIRED_SURPRISE_SENTINEL", "surprise", tier=8, created_at=now - 10)
+
+        for i in range(21):
+            self.writers["beliefs"].write(
+                "INSERT INTO beliefs (content, tier, confidence, created_at, source, locked) "
+                "VALUES (?, 5, 0.5, ?, 'auto_growth', 0)",
+                (f"readiness filler {i}", now),
+            )
+
+        with patch("random.sample", side_effect=lambda population, k: list(population)[:k]):
+            result = gen.generate(
+                _mock_dynamic_state(hot_branch="systems", consolidation=True),
+                self.readers["beliefs"],
+            )
+
+        self.assertEqual(result, "a grounded thought")
+        prompt = captured["prompt"]
+        self.assertIn("ACTIVE_FAVOURITE_SENTINEL", prompt)
+        self.assertIn("ACTIVE_SURPRISE_SENTINEL", prompt)
+        self.assertNotIn("PAUSED_FAVOURITE_SENTINEL", prompt)
+        self.assertNotIn("RETIRED_FAVOURITE_SENTINEL", prompt)
+        self.assertNotIn("PAUSED_SURPRISE_SENTINEL", prompt)
+        self.assertNotIn("RETIRED_SURPRISE_SENTINEL", prompt)
+
     def test_generate_returns_none_when_not_ready(self):
         gen = self._make_generator()
 
