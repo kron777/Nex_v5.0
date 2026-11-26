@@ -59,8 +59,8 @@ def _recent_t6(beliefs_db: str, n: int = 3) -> list[str]:
     try:
         con = connect(beliefs_db, timeout=3)
         rows = con.execute(
-            "SELECT content FROM beliefs WHERE tier=6 "
-            "AND content NOT LIKE '[%' "
+            "SELECT content FROM beliefs WHERE tier=6 AND paused=0 "
+            "AND erosion_stage != 'retired' AND content NOT LIKE '[%' "
             "ORDER BY created_at DESC LIMIT ?", (n * 4,)
         ).fetchall()
         con.close()
@@ -105,7 +105,8 @@ def _recent_hot(beliefs_db: str) -> Optional[str]:
         con = connect(beliefs_db, timeout=3)
         row = con.execute(
             "SELECT content FROM beliefs WHERE source='hot_observer' "
-            "AND tier < 8 ORDER BY created_at DESC LIMIT 1"
+            "AND tier < 8 AND paused = 0 AND erosion_stage != 'retired' "
+            "ORDER BY created_at DESC LIMIT 1"
         ).fetchone()
         con.close()
         if row and row[0]:

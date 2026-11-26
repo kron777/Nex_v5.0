@@ -48,6 +48,7 @@ def aggregate_self_model(beliefs_db: str | None = None,
         rows = con.execute(
             "SELECT content, created_at FROM beliefs "
             "WHERE source='hot_observer' AND created_at > ? "
+            "AND tier < 8 AND paused = 0 AND erosion_stage != 'retired' "
             "ORDER BY created_at DESC",
             (cutoff,)
         ).fetchall()
