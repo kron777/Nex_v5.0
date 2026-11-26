@@ -103,7 +103,7 @@ The history view validates the manifest digest and every decision-event link bef
 - Creating, reviewing and inspecting a handoff does not launch Claude Code or any other agent.
 - No tests or arbitrary commands are run by this adapter.
 - The initial evidence dimensions are \`source_implemented=not_collected\`, \`test_verified=not_authorized\`, \`runtime_observed=unknown_host_only\`, and \`human_acceptance=not_recorded\`.
-- The existing \`rdo/execution.py::verify()\` still performs source inspection and test invocation inside the RDO process; it is not yet an independent Watcher process boundary.
+- The existing \`rdo/execution.py::verify()\` still performs source inspection and its fixed test invocation in the RDO process. It is separate from the new `handoff-verify` subprocess, which verifies source/path evidence only and never runs tests.
 - Its exact-path pytest allowlist is not an OS sandbox. Pytest configuration, \`conftest.py\`, plugins and test code may execute. Arbitrary test execution remains unapproved until a disposable environment with no secrets, no live NEX data mounts and restricted network access is independently designed and verified.
 - Reviewer attribution is not authentication. Human scope approval and human acceptance are stored as separate append-only events.
 - A blocked package, changed repository snapshot, mismatched objective revision, or tampered manifest/ledger is refused.
