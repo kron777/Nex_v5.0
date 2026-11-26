@@ -737,7 +737,7 @@ def learning_loop(cycles: List[CycleRecord], new_evidence: Optional[List[Dict]] 
     with explicit UNKNOWNs and contradictory-evidence flags; aggregate accuracy only over recorded
     outcomes; reopening on new evidence. Planning reviews are never counted as execution outcomes."""
     per: List[Dict] = []
-    reviewer_attributed = controlled_fixture = other = unknown = 0
+    reviewer_attributed = controlled_fixture = executed_verified = watcher_verified = automated = unknown = 0
     for c in cycles:
         prov = learning_provenance(c)
         acc = prediction_accuracy(c)
@@ -758,17 +758,26 @@ def learning_loop(cycles: List[CycleRecord], new_evidence: Optional[List[Dict]] 
             reviewer_attributed += 1
         elif prov == "controlled_fixture_review":
             controlled_fixture += 1
+        elif prov == "independent_watcher_verified":
+            watcher_verified += 1
+        elif prov == "executed_verified_outcome":
+            executed_verified += 1
         elif prov == "unknown_no_outcome":
             unknown += 1
         else:
-            other += 1
+            automated += 1
     accs = [p["accuracy"]["accuracy"] for p in per
             if p["accuracy"] and p["accuracy"]["accuracy"] is not None]
     return {
         "per_cycle": per,
-        "provenance_split": {"reviewer_attributed": reviewer_attributed,
-                             "controlled_fixture_review": controlled_fixture,
-                             "executed_or_self_assessed": other, "unknown_no_outcome": unknown},
+        "provenance_split": {
+            "reviewer_attributed": reviewer_attributed,
+            "controlled_fixture_review": controlled_fixture,
+            "executed_verified_outcome": executed_verified,
+            "independent_watcher_verified": watcher_verified,
+            "automated_self_assessment": automated,
+            "unknown_no_outcome": unknown,
+        },
         "mean_prediction_accuracy": (round(sum(accs) / len(accs), 3) if accs else None),
         "accuracy_basis": f"{len(accs)} cycle(s) with recorded outcomes; the rest are UNKNOWN, not fabricated",
         "series": accuracy_series(cycles),
