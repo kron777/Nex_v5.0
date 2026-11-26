@@ -8,8 +8,8 @@ recurses but is bounded by stopping rules (RDO spec v1.4 §14):
 
   * depth cap,
   * terminal (leaf) kinds that do not decompose,
-  * an obligation already satisfied by a real mechanism (reconciled REUSE_EXISTING)
-    is NOT expanded — you don't rediscover the internals of something that exists.
+  * an obligation is NOT skipped merely because a configured source signature
+    matched; expansion stops only after explicit semantic-satisfaction review.
 
 Convergent branches merge during expansion (dedup by canonical key), so the same
 obligation discovered two ways is recorded once, with both provenances. Every
@@ -20,7 +20,8 @@ from __future__ import annotations
 from typing import Callable, Dict, List, Optional, Tuple
 
 from .model import (ANTI_REQUIREMENT, CONDITIONAL, NECESSARY, Obligation,
-                    RECON_UNKNOWN, REUSE_EXISTING, Relationship)
+                    RECON_UNKNOWN, REUSE_EXISTING, SIGNATURE_MATCHED, Relationship,
+                    has_valid_reuse_review)
 
 # A rule: (child_kind, classification, rationale, shared_target|None).
 # shared_target lets independent parents converge on one canonical obligation.
@@ -110,8 +111,9 @@ def classify_scope(ob: dict) -> str:
         return "anti_requirement"
     if cls == CONDITIONAL:
         return "context_dependent"
-    if ob.get("provenance", "") == "seed":
-        return "domain_specific"          # the idea's top-level obligations are domain-shaped
+    provenance = {part.strip() for part in str(ob.get("provenance", "")).split(";")}
+    if "seed" in provenance:
+        return "domain_specific"          # preserve seed identity after convergent merges
     kind = ob.get("kind")
     if kind not in EXPANSION_RULES and kind not in TERMINAL_KINDS:
         return "novel"                    # no pattern covers it -> a new requirement class
@@ -173,7 +175,21 @@ def expand(seeds: List[Obligation],
 
     while queue:
         ob = queue.pop(0)
-        # reconcile first so stopping can consult "already exists"
+        # A caller-supplied REUSE_EXISTING seed is never trusted as current.
+        # Force a fresh reconciliation on every cycle, even when its review fields
+        # look complete: otherwise a stale review can bypass the source scan and
+        # suppress expansion. The callback may return REUSE_EXISTING only if it
+        # performs a fresh scan and supplies a current semantic-review decision.
+        if ob.recon_status == REUSE_EXISTING:
+            ob.recon_status = RECON_UNKNOWN
+            ob.recon_evidence = []
+            ob.recon_semantic_verified = False
+            ob.recon_semantic_review_evidence = []
+            ob.confidence = "inferred"
+            ob.note = (ob.note + " ; prior reuse assertion invalidated; fresh review required").strip(" ;")
+
+        # Reconcile every non-terminal status before stopping decisions.
+        # make_reconciler performs a source scan, never semantic approval.
         if ob.recon_status == RECON_UNKNOWN:
             ob.recon_status = reconcile_fn(ob)
 
@@ -182,14 +198,24 @@ def expand(seeds: List[Obligation],
             frontier.append({"key": ob.key, "reason": "anti-requirement (not developed)"})
             continue
         if ob.kind in TERMINAL_KINDS:
+            frontier.append({"key": ob.key,
+                             "reason": f"terminal kind '{ob.kind}' (leaf; no further decomposition)"})
             continue
         if ob.depth >= max_depth:
             frontier.append({"key": ob.key, "reason": f"max_depth {max_depth} reached"})
             continue
         if ob.recon_status == REUSE_EXISTING:
+            if has_valid_reuse_review(ob):
+                frontier.append({"key": ob.key,
+                                 "reason": "semantic satisfaction independently reviewed"})
+                continue
             frontier.append({"key": ob.key,
-                             "reason": "already satisfied by an existing mechanism; not expanded"})
-            continue
+                             "reason": "reuse status lacks semantic-review evidence; "
+                                       "expanded conservatively"})
+        elif ob.recon_status == SIGNATURE_MATCHED:
+            frontier.append({"key": ob.key,
+                             "reason": "source signature matched; semantic satisfaction unreviewed; "
+                                       "expanded conservatively"})
         rules = EXPANSION_RULES.get(ob.kind)
         if not rules:
             frontier.append({"key": ob.key, "reason": f"no expansion rule for kind '{ob.kind}'"})

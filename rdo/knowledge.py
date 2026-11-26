@@ -2,9 +2,10 @@
 
 This is the ONE place where LLM/human reasoning seeds the engine: the idea is
 decomposed into top-level obligations, and each gets a *reconciliation signature*
-— a read-only pattern that proves whether a real mechanism exists. The engine
+— a read-only pattern that locates a source anchor for later semantic review. The engine
 then expands, reconciles against the actual tree, assesses and prioritises
-deterministically. Seeds are proposals; the tree is the authority (RDO §22).
+deterministically. Seeds are proposals; the tree establishes source presence, while
+semantic satisfaction requires a separate, traceable review (RDO §22).
 
 Test case: WHATS_NEXT.md §3b / GENIUS_SCORE_v2.md §7 — "deploy the genius
 auto-tagger and its consumers." Chosen because the priority doc is from May 2026,
@@ -109,14 +110,19 @@ def migration_defect_idea() -> Tuple[str, List[str], List[Obligation], Dict[str,
             Signature(r"UNIQUE constraint on beliefs\.content is EXPECTED", "substrate/writer.py",
                       "root cause handled in writer")],
         "beliefs_content_uniq.regression_test": [
-            Signature(r"idx_beliefs_content|IntegrityError.*content|UNIQUE.*beliefs.*content",
-                      "tests", "DB-level dedup regression test")],
+            Signature(
+                r"def test_partial_unique_indexes_reject_duplicates_and_allow_distinct_problems",
+                "tests/test_beliefs_content_dedup.py",
+                "DB-level regression test exercises both production partial unique indexes")],
         # --- arc_closers column migration ---
         "arc_closers_migration.fix": [
             Signature(r"ALTER TABLE arc_closers ADD COLUMN", "substrate/init_db.py",
                       "arc_closers migration applied")],
         "arc_closers_migration.regression_test": [
-            Signature(r"arc_closers", "tests", "arc_closers regression test")],
+            Signature(
+                r"def test_legacy_upgrade_adds_column_with_constraint_and_backfills",
+                "tests/test_arc_closers_migration.py",
+                "legacy-upgrade regression test runs the real migration runner")],
     }
     return objective, assumptions, seeds, signatures
 

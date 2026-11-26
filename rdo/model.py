@@ -22,11 +22,37 @@ CLASSIFICATIONS = (NECESSARY, CONDITIONAL, OPTIONAL, FUTURE, HYPOTHESIS, UNKNOWN
                    ANTI_REQUIREMENT)
 
 # ---- reconciliation outcome (vs the real codebase) ----
-REUSE_EXISTING = "reuse_existing"   # a real mechanism already satisfies this
+SIGNATURE_MATCHED = "signature_matched"  # configured source signatures matched; not semantic satisfaction
+REUSE_EXISTING = "reuse_existing"   # semantic satisfaction separately reviewed
 PARTIAL = "partial"                 # some evidence, not complete
 MISSING = "missing"                 # no mechanism found
 RECON_UNKNOWN = "unknown"           # no signature to check -> honest inference
-RECON_STATES = (REUSE_EXISTING, PARTIAL, MISSING, RECON_UNKNOWN)
+RECON_STATES = (SIGNATURE_MATCHED, REUSE_EXISTING, PARTIAL, MISSING, RECON_UNKNOWN)
+
+
+def _has_traceable_evidence(value) -> bool:
+    """Evidence fields must be non-empty lists of non-blank text references."""
+    return (isinstance(value, list) and bool(value) and
+            all(isinstance(item, str) and bool(item.strip()) for item in value))
+
+
+def has_valid_reuse_review(obligation) -> bool:
+    """Return whether an obligation carries the evidence required for reuse.
+
+    Accept both the dataclass used by reconciliation and serialized obligation
+    dictionaries used by cycle metrics. Both evidence lists must contain only
+    non-blank text references; a truthy container is not sufficient evidence.
+    """
+    if isinstance(obligation, dict):
+        get = obligation.get
+    else:
+        get = lambda name, default=None: getattr(obligation, name, default)
+    return bool(
+        _has_traceable_evidence(get("recon_evidence")) and
+        get("confidence") == "measured" and
+        get("recon_semantic_verified") is True and
+        _has_traceable_evidence(get("recon_semantic_review_evidence"))
+    )
 
 # ---- functional-tension verdicts (OFT) ----
 UNDERDEVELOPED = "underdeveloped"
@@ -51,6 +77,10 @@ class Obligation:
     assumptions: List[str] = dataclasses.field(default_factory=list)
     recon_status: str = RECON_UNKNOWN
     recon_evidence: List[str] = dataclasses.field(default_factory=list)
+    # Source-anchor matches do not establish semantic satisfaction. A reviewed
+    # reuse claim needs both an explicit decision and traceable review evidence.
+    recon_semantic_verified: bool = False
+    recon_semantic_review_evidence: List[str] = dataclasses.field(default_factory=list)
     confidence: str = "stated"      # stated | measured | inferred
     note: str = ""
 
@@ -144,6 +174,7 @@ class CycleRecord:
     obligations: List[dict] = dataclasses.field(default_factory=list)
     relationships: List[dict] = dataclasses.field(default_factory=list)
     reused: List[str] = dataclasses.field(default_factory=list)
+    signature_matches: List[str] = dataclasses.field(default_factory=list)
     missing: List[str] = dataclasses.field(default_factory=list)
     anti_requirements: List[str] = dataclasses.field(default_factory=list)
     uncertainties: List[str] = dataclasses.field(default_factory=list)
@@ -154,6 +185,10 @@ class CycleRecord:
     verification: Dict[str, Any] = dataclasses.field(default_factory=dict)
     lessons: List[str] = dataclasses.field(default_factory=list)
     created_at: str = dataclasses.field(default_factory=utc_now)
+
+    def __post_init__(self) -> None:
+        if self.kind not in CYCLE_KINDS:
+            raise ValueError(f"bad cycle kind {self.kind!r}")
 
     def to_dict(self) -> dict:
         return dataclasses.asdict(self)

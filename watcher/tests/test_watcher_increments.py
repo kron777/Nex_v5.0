@@ -57,13 +57,29 @@ def test_ledger_lifecycle_and_illegal_transition(tmp_path):
 
 def test_ledger_seed_from_graph_keeps_runtime_unclaimed(tmp_path):
     led = ConnectionLedger(str(tmp_path / "l.jsonl"))
-    seed_from_graph(led, build_runtime_graph())
+    graph = build_runtime_graph()
+    seed_from_graph(led, graph)
     states = led.current_states()
     # a test_verified edge reaches TEST_PASSED; nothing reaches RUNTIME_OBSERVED (STANDBY)
     assert states["reconciler->beliefs.confidence"] == "TEST_PASSED"
+    test_edge = next(e for e in graph.edges
+                     if f"{e.src}->{e.dst}" == "reconciler->beliefs.confidence")
+    history = led.history("reconciler->beliefs.confidence")
+    test_entries = [h for h in history if h["to_state"] in ("TEST_WRITTEN", "TEST_PASSED")]
+    assert test_edge.test_ref
+    assert all(h["evidence_refs"] == [test_edge.test_ref] for h in test_entries)
     assert "RUNTIME_OBSERVED" not in states.values()
-    # a hypothesis edge only gets DECLARED (not source_confirmed)
-    assert states["affect_state->chat_assembly"] == "DECLARED"
+    # the scoped prompt-content relationship is source-confirmed, but remains
+    # untested and unobserved at runtime; the broader feedback loop is still a hypothesis.
+    assert states["affect_state->chat_assembly"] == "SOURCE_CONFIRMED"
+
+
+def test_graph_rejects_test_verified_edge_without_test_reference():
+    from watcher.architecture import Edge, RuntimeGraph
+    graph = RuntimeGraph()
+    with pytest.raises(ValueError, match="traceable test_ref"):
+        graph.add(Edge("a", "b", "scoped source claim", True, True, False,
+                       source_ref="src.py:1", test_ref=""))
 
 
 # ---- regression detection ----

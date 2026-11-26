@@ -1,6 +1,8 @@
 """Core Watcher behaviour: evidence schema, runtime graph + cycles, readers,
 registry, tool classification, provenance."""
+import ast
 import json
+import re
 
 import pytest
 
@@ -116,3 +118,110 @@ def test_provenance_real_repo_and_host_placeholder():
     # the deployed/home checkouts are recorded as host-only, never guessed
     host = [r for r in drift if r.origin == "host"]
     assert host and host[0].evidence_class == "unknown"
+
+def test_git_empty_success_is_measured_but_failure_is_unknown(monkeypatch):
+    from types import SimpleNamespace
+    import watcher.provenance as provenance
+
+    monkeypatch.setattr(provenance.subprocess, "run",
+                        lambda *a, **k: SimpleNamespace(returncode=0, stdout="", stderr=""))
+    assert provenance._git(".", "remote", "-v") == ""
+    measured = provenance.collect_repo_provenance(".")
+    by_subject = {r.subject: r for r in measured}
+    assert by_subject["checkout.HEAD"].evidence_class == "unknown"
+    assert by_subject["checkout.branch"].evidence_class == "unknown"
+    assert by_subject["checkout.last_commit"].evidence_class == "unknown"
+    assert by_subject["checkout.remotes"].evidence_class == "measured"
+    dirty = by_subject["checkout.dirty"]
+    assert dirty.evidence_class == "measured" and dirty.data is False
+
+    monkeypatch.setattr(provenance.subprocess, "run",
+                        lambda *a, **k: SimpleNamespace(returncode=128, stdout="", stderr="fatal"))
+    assert provenance._git(".", "rev-parse", "HEAD") is None
+    failed = provenance.collect_repo_provenance(".")
+    head = next(r for r in failed if r.subject == "checkout.HEAD")
+    dirty = next(r for r in failed if r.subject == "checkout.dirty")
+    assert head.evidence_class == "unknown" and head.modifier == "unverified"
+    assert dirty.evidence_class == "unknown" and dirty.data is None
+
+
+
+def test_runtime_graph_edges_have_scoped_source_and_test_evidence():
+    graph = build_runtime_graph()
+    evidence = runtime_graph_evidence(graph)
+    assert len(evidence.data["edges"]) == 14
+    assert len(graph.edges) == 14  # thirteen source-backed edges + one remaining hypothesis
+    source_edges = [edge for edge in graph.edges if edge.source_implemented]
+    assert len(source_edges) == 13
+    assert all(edge.source_ref and edge.claim and edge.scope and edge.caveat
+               for edge in source_edges)
+    from pathlib import Path
+    repo_root = Path(__file__).resolve().parents[2]
+    for edge in source_edges:
+        for source_ref in edge.source_ref.split(";"):
+            source_ref = source_ref.strip()
+            match = re.fullmatch(r"(.+?):(.+)", source_ref)
+            assert match, f"malformed source reference: {source_ref}"
+            source_path, spans = match.groups()
+            source_file = repo_root / source_path
+            assert source_file.is_file(), f"source reference does not resolve: {source_ref}"
+            line_count = len(source_file.read_text(encoding="utf-8").splitlines())
+            for span in spans.split(","):
+                span_match = re.fullmatch(r"(\d+)(?:-(\d+))?", span.strip())
+                assert span_match, f"malformed source line span: {source_ref}"
+                first = int(span_match.group(1))
+                last = int(span_match.group(2) or first)
+                assert 1 <= first <= last <= line_count, (
+                    f"source line span is outside file: {source_ref}")
+
+    def _test_node_exists(test_file, node_parts):
+        tree = ast.parse(test_file.read_text(encoding="utf-8"))
+        scope = tree.body
+        for part in node_parts:
+            # Ignore pytest parameter IDs; validate the underlying declared node.
+            part = part.split("[", 1)[0]
+            candidates = [n for n in scope if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                                               ast.ClassDef)) and n.name == part]
+            if not candidates:
+                return False
+            node = candidates[0]
+            scope = node.body if isinstance(node, ast.ClassDef) else []
+        return bool(node_parts)
+
+    for edge in source_edges:
+        if edge.test_verified:
+            for test_ref in edge.test_ref.split(";"):
+                test_ref = test_ref.strip()
+                parts = test_ref.split("::")
+                assert len(parts) >= 2 and all(parts), f"malformed test reference: {test_ref}"
+                test_file = repo_root / parts[0]
+                assert test_file.is_file(), f"test reference does not resolve: {test_ref}"
+                assert _test_node_exists(test_file, parts[1:]), (
+                    f"pytest node ID does not resolve to a declared test: {test_ref}")
+    assert all(edge.runtime_observed is False for edge in graph.edges)
+    # Test verification is an edge-specific claim, not a blanket graph assertion.
+    assert all(edge.test_ref for edge in source_edges if edge.test_verified)
+    for edge in source_edges:
+        if edge.test_verified:
+            for test_ref in edge.test_ref.split(";"):
+                test_path = test_ref.strip().split("::", 1)[0]
+                assert (repo_root / test_path).is_file(), (
+                    f"test reference does not resolve: {test_ref}")
+    ownership_gate = next(edge for edge in source_edges
+                          if edge.src == "ownership" and edge.dst == "valence_gate")
+    assert ownership_gate.test_verified is True
+    assert ownership_gate.test_ref == "tests/test_expectations.py::test_valence_ownership_threshold_isolated"
+    assert "0.499, 0.5, and 0.501" in ownership_gate.caveat
+    assert "upstream ownership derivation" in ownership_gate.scope
+    # Bundled producer claims are narrowed to the evidence actually asserted.
+    producer = next(edge for edge in source_edges
+                    if edge.src == "beliefs.confidence")
+    assert producer.dst == "producers"
+    assert "Internal-surprise" in producer.caveat
+    affect_prompt = next(edge for edge in graph.edges
+                         if edge.src == "affect_state" and edge.dst == "chat_assembly")
+    assert affect_prompt.source_implemented is True
+    assert affect_prompt.test_verified is False
+    assert affect_prompt.source_ref == "gui/server.py:1510-1520"
+    assert "not that the model uses it" in affect_prompt.caveat
+    assert affect_prompt.claim and affect_prompt.scope

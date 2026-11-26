@@ -12,8 +12,9 @@ Lifecycle states (strength-ordered):
 
     DECLARED            a connection is asserted (from the architecture model)
     SOURCE_CONFIRMED    the code implementing it was read in source
-    TEST_WRITTEN        a test targets it
-    TEST_PASSED         that test passes               (test-verified)
+    TEST_WRITTEN        a curated test reference is recorded for it
+    TEST_PASSED         the curated graph asserts the cited test passed; the ledger
+                        does not execute the test or independently verify its result
     TEST_FAILED         that test fails
     RUNTIME_OBSERVED    seen firing in a live trace    (host only)
     REGRESSED           was verified, now failing/absent
@@ -111,7 +112,8 @@ def seed_from_graph(ledger: ConnectionLedger, graph) -> List[dict]:
     """Seed/advance the ledger from a RuntimeGraph: each edge becomes a connection,
     recorded at the strongest state its evidence dimensions justify. Idempotent per
     run only in that it appends the current reading; repeated identical readings are
-    allowed (to_state == current) and recorded as confirmations."""
+    allowed (to_state == current) and recorded as confirmations. TEST_PASSED is
+    copied from the curated graph flag, not established by running the cited test."""
     out: List[dict] = []
     for e in graph.edges:
         cid = f"{e.src}->{e.dst}"
@@ -122,9 +124,12 @@ def seed_from_graph(ledger: ConnectionLedger, graph) -> List[dict]:
         if e.source_implemented and ledger.current_state(cid) in ("DECLARED",):
             out.append(ledger.record(cid, "SOURCE_CONFIRMED",
                                      evidence_refs=[e.source_ref], note=e.label))
-        if e.test_verified and ledger.current_state(cid) in ("SOURCE_CONFIRMED",):
-            out.append(ledger.record(cid, "TEST_WRITTEN", evidence_refs=[e.source_ref]))
-            out.append(ledger.record(cid, "TEST_PASSED", evidence_refs=[e.source_ref]))
+        if e.test_verified and e.test_ref and ledger.current_state(cid) in ("SOURCE_CONFIRMED",):
+            test_refs = [e.test_ref]
+            out.append(ledger.record(cid, "TEST_WRITTEN", evidence_refs=test_refs,
+                                     note="curated test_verified graph assertion; test not run by ledger"))
+            out.append(ledger.record(cid, "TEST_PASSED", evidence_refs=test_refs,
+                                     note="curated graph assertion; not an independently recorded test result"))
         if e.runtime_observed and ledger.current_state(cid) in ("TEST_PASSED", "SOURCE_CONFIRMED"):
             out.append(ledger.record(cid, "RUNTIME_OBSERVED", origin="host"))
     return out

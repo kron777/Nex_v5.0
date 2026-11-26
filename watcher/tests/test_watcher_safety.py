@@ -84,3 +84,29 @@ def _all_files(root):
         for f in fs:
             out.append(os.path.join(d, f))
     return sorted(out)
+
+def test_watcher_production_sqlite_and_nex_import_boundaries():
+    import ast
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    sqlite_users = []
+    nex_imports = []
+    for source in root.rglob("*.py"):
+        if "tests" in source.relative_to(root).parts or "__pycache__" in source.parts:
+            continue
+        tree = ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name == "sqlite3" or alias.name.startswith("sqlite3."):
+                        sqlite_users.append(source.relative_to(root).as_posix())
+                    if alias.name.split(".")[0] in {"theory_x", "substrate"}:
+                        nex_imports.append(source.relative_to(root).as_posix())
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                if node.module.split(".")[0] == "sqlite3":
+                    sqlite_users.append(source.relative_to(root).as_posix())
+                if node.module.split(".")[0] in {"theory_x", "substrate"}:
+                    nex_imports.append(source.relative_to(root).as_posix())
+    assert sorted(set(sqlite_users)) == ["safety.py"]
+    assert nex_imports == []

@@ -20,7 +20,8 @@ from .knowledge import affinity_drift_idea, genius_tagger_idea, migration_defect
 from .memory import (CycleStore, PatternMemory, accuracy_series, compare,
                      derive_lessons, metrics_series, record_actual)
 from .model import (ANTI_REQUIREMENT, EXECUTED_VERIFIED, IMPORTED_RETROSPECTIVE, MISSING,
-                    PARTIAL, REUSE_EXISTING, CycleRecord, Obligation, Pattern)
+                    PARTIAL, RECON_UNKNOWN, REUSE_EXISTING, SIGNATURE_MATCHED,
+                    CycleRecord, Obligation, Pattern)
 from .reconcile import Signature
 
 
@@ -35,7 +36,7 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
     reconciler = recon_mod.make_reconciler(repo_dir, signatures)
     obligations, relationships, frontier = expand(seeds, reconciler)
 
-    # PRUNE false dependencies (a "build X first" on an already-existing X)
+    # PRUNE dependencies only when the target's semantic satisfaction is reviewed
     pruned = recon_mod.prune_false_dependencies(obligations, relationships)
 
     # OPTIMAL FUNCTIONAL TENSION (node / relationship / system)
@@ -50,17 +51,28 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
 
     recon_buckets = recon_mod.summarize(obligations)
     reused = recon_buckets.get(REUSE_EXISTING, [])
+    signature_matches = recon_buckets.get(SIGNATURE_MATCHED, [])
+    unknowns = recon_buckets.get(RECON_UNKNOWN, [])
     missing = recon_buckets.get(MISSING, []) + recon_buckets.get(PARTIAL, [])
     anti = [o.key for o in obligations.values() if o.classification == ANTI_REQUIREMENT]
     uncertainties = [f["key"] + ": " + f["reason"] for f in frontier
-                     if "no reconciliation" in f["reason"] or "max_depth" in f["reason"]]
+                     if ("no reconciliation" in f["reason"] or "max_depth" in f["reason"]
+                         or "semantic satisfaction unreviewed" in f["reason"]
+                         or "lacks semantic-review evidence" in f["reason"]) ] + [
+        f"{key}: reconciliation unknown; investigate" for key in unknowns]
 
-    # VERIFICATION — every reuse claim must be backed by real evidence
+    # SOURCE-EVIDENCE ACCOUNTING — source anchors are counted separately from semantic reuse
     backed = [k for k in reused if obligations[k].recon_evidence]
     verification = {
         "reuse_claims": len(reused),
+        "signature_matches": len(signature_matches),
+        "signature_matches_backed_by_file_evidence": sum(
+            1 for k in signature_matches if obligations[k].recon_evidence),
         "reuse_claims_backed_by_file_evidence": len(backed),
-        "all_reuse_backed": len(backed) == len(reused),
+        "all_semantic_reuse_claims_have_file_evidence": len(backed) == len(reused),
+        "all_signature_matches_have_file_evidence": (
+            sum(1 for k in signature_matches if obligations[k].recon_evidence)
+            == len(signature_matches)),
         "net_new_work_packages": sum(1 for p in packages),
         "blocked_work_packages": sum(1 for p in packages if p.eligibility == "blocked"),
         "unbacked_reuse_claims": [k for k in reused if k not in backed],
@@ -68,16 +80,20 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
 
     predicted = {
         "reused_count": len(reused),
+        "signature_matches_requiring_semantic_review": len(signature_matches),
         "net_new_count": len(missing),
-        "effort": len(missing),  # 1 unit ~= one obligation to build (uncalibrated count)
-        "note": "effort units are uncalibrated counts, not hours",
+        "signature_review_count": len(signature_matches),
+        "unknown_investigation_count": len(unknowns),
+        "effort": len(missing) + len(signature_matches) + len(unknowns),
+        "note": "uncalibrated count of unresolved build, semantic-review and investigation obligations; not hours",
     }
 
     cycle = CycleRecord(
         id=cycle_id, objective=objective, assumptions=assumptions,
         obligations=[o.to_dict() for o in obligations.values()],
         relationships=[r.to_dict() for r in relationships],
-        reused=reused, missing=missing, anti_requirements=anti,
+        reused=reused, signature_matches=signature_matches, missing=missing,
+        anti_requirements=anti,
         uncertainties=uncertainties + [f"applied_patterns={applied}"],
         tension=[t.to_dict() for t in (node_t + rel_t + sys_t)],
         work_packages=[p.to_dict() for p in packages],
@@ -87,8 +103,10 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
         "objective": objective,
         "discovered": len(obligations),
         "reused": reused,
+        "signature_matches": signature_matches,
+        "unknowns": unknowns,
         "rejected_or_deferred": anti + [f["key"] for f in frontier
-                                        if "already satisfied" in f["reason"]],
+                                        if "semantic satisfaction independently reviewed" in f["reason"]],
         "recommended_work": [{"package": p.key, "eligibility": p.eligibility,
                               "blockers": p.blockers, "obligations": p.obligation_keys}
                              for p in packages],
@@ -105,8 +123,9 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
 def assess_signal_authority(repo_dir: str, signal: str = "genius") -> dict:
     """Assess the genius signal's influence AUTHORITY from the actual relationships,
     not the consumer count (RDO §6/§20). Each consumer in the grounded table
-    (knowledge.genius_consumers) is grep-verified against its cited file so the
-    classification cannot go stale, then `tension.assess_signal_authority`
+    (knowledge.genius_consumers) is checked for cited-anchor presence in its file.
+    This is not semantic verification of the row or proof that the behaviour occurs.
+    Then `tension.assess_signal_authority`
     distinguishes read/behavioural, direct/indirect, conditional/unconditional,
     magnitude, safeguards and evidence class, and flags the material/unconditional
     path(s) + self-reinforcement risk rather than the raw file count."""
@@ -236,10 +255,16 @@ def _six_outputs(cycle, summary, memory, learning) -> dict:
         "objective": cycle.objective,
         "1_discovered": {"count": summary["discovered"],
                          "obligations": [o["key"] for o in cycle.obligations]},
-        "2_correctly_reused": summary["reused"],
+        "reconciliation_evidence": [
+            {"key": o["key"], "status": o["recon_status"],
+             "evidence": o["recon_evidence"]}
+            for o in cycle.obligations
+        ],
+        "2_signature_matches_located": summary["signature_matches"],
+        "2_semantically_reviewed_reuse": summary["reused"],
         "3_rejected_or_deferred": summary["rejected_or_deferred"],
         "4_recommended_work": summary["recommended_work"],
-        "5_verification": summary["verification"],
+        "5_source_evidence_coverage": summary["verification"],
         "6_learned": {"patterns": [p.to_dict() for p in memory.patterns()],
                       "learning_series": learning},
         "optimal_functional_tension": {
@@ -261,10 +286,23 @@ def record_arc_closers_execution(store, memory) -> CycleRecord:
                    "note": "one regression-test obligation; no runtime/migration change"},
         reused=["arc_closers_migration.fix (init_db.py:236 + beliefs.sql:319)"],
         verification={"test_file": "tests/test_arc_closers_migration.py", "tests": 6,
-                      "all_pass": True, "catches_regression": True, "all_reuse_backed": True,
+                      "all_pass": True, "catches_regression": True, "all_reuse_claims_have_file_evidence": True,
                       "fresh_schema_path_verified": True, "legacy_upgrade_path_verified": True,
                       "real_migration_runner_exercised": "_apply_migrations (not just a helper)",
-                      "reuse_claims": 1, "reuse_claims_backed_by_file_evidence": 1},
+                      "reuse_claims": 1, "reuse_claims_backed_by_file_evidence": 1,
+                      "ci_evidence": {
+                          "source_commit": "c352f6a83bec2136d5eff518deb210fc3cd4b3a2",
+                          "workflow": "tests",
+                          "workflow_run_id": 44855260626,
+                          "workflow_run_number": 182,
+                          "job_id": 136695850460,
+                          "conclusion": "success",
+                          "suite_result": {
+                              "passed": 2219,
+                              "skipped": 7,
+                              "subtests_passed": 40,
+                          },
+                      }},
     )
     record_actual(c, {
         # REVISED after the integration review: the first pass covered only the fresh-schema
@@ -298,8 +336,6 @@ def record_arc_closers_execution(store, memory) -> CycleRecord:
         exceptions=["for a migration-only column, a fresh init DOES exercise the migration"]))
     for p in derive_lessons(c, compare(c)):
         memory.add(p)
-    for p in derive_lessons(c, compare(c)):
-        memory.add(p)
     return c
 
 
@@ -318,8 +354,21 @@ def record_affinity_execution(store, memory) -> CycleRecord:
         reused=["beliefs_affinity.fix (init_db.py:247-248)", "beliefs_affinity.root_cause (note)"],
         verification={"test_file": "tests/test_affinity_columns_migration.py", "tests": 2,
                       "all_pass": True, "guards_defect": "no such column: affinity",
-                      "fresh_init_exercises_migration": True, "all_reuse_backed": True,
-                      "reuse_claims": 2, "reuse_claims_backed_by_file_evidence": 2},
+                      "fresh_init_exercises_migration": True, "all_reuse_claims_have_file_evidence": True,
+                      "reuse_claims": 2, "reuse_claims_backed_by_file_evidence": 2,
+                      "ci_evidence": {
+                          "source_commit": "c352f6a83bec2136d5eff518deb210fc3cd4b3a2",
+                          "workflow": "tests",
+                          "workflow_run_id": 44855260626,
+                          "workflow_run_number": 182,
+                          "job_id": 136695850460,
+                          "conclusion": "success",
+                          "suite_result": {
+                              "passed": 2219,
+                              "skipped": 7,
+                              "subtests_passed": 40,
+                          },
+                      }},
     )
     record_actual(c, {
         "effort_actual": 1, "missed": [], "unnecessary": [], "reuse_wrong": [], "regressions": [],
@@ -424,9 +473,10 @@ def run_catalogue(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
 def _active_experiments(repo_dir: str) -> List[str]:
     """Reuse the Watcher's registry to learn which experiment windows are active/
     pending, so the eligibility gate can protect them."""
-    try:
-        from watcher.registry import ingest_registry
-        ev = ingest_registry(os.path.join(repo_dir, "observation_reports"))
-        return list(ev.data.get("active_or_pending", []))
-    except Exception:
-        return []
+    from watcher.registry import ingest_registry
+    ev = ingest_registry(os.path.join(repo_dir, "observation_reports"))
+    if ev.data is None or ev.evidence_class != "measured":
+        raise RuntimeError(
+            "experiment registry unavailable; refusing to treat unknown windows as none"
+        )
+    return list(ev.data.get("active_or_pending", []))

@@ -8,15 +8,16 @@ Stage 2 — PRIORITISATION: compare eligible work along dimensions reported
 SEPARATELY. A provisional weighted figure is included only for sorting and is
 explicitly labelled uncalibrated — it is never presented as established science.
 
-Work packages bundle the genuinely net-new obligations and carry their
-anti-requirements (what must deliberately NOT be built).
+Work packages bundle unresolved build and semantic-review obligations and carry
+their anti-requirements (what must deliberately NOT be built).
 """
 from __future__ import annotations
 
 from typing import Dict, List, Optional
 
 from .model import (ANTI_REQUIREMENT, FUTURE, MISSING, NECESSARY, OPTIONAL, PARTIAL,
-                    RECON_UNKNOWN, REUSE_EXISTING, Obligation, Relationship, WorkPackage)
+                    RECON_UNKNOWN, REUSE_EXISTING, SIGNATURE_MATCHED, Obligation,
+                    Relationship, WorkPackage, has_valid_reuse_review)
 
 # obligation kinds that represent an active behavioural change to NEX and so
 # require an explicit, preregistered gate before any execution.
@@ -26,6 +27,10 @@ HOST_ONLY_KINDS = {"runtime_verification"}
 
 _IMPORTANCE = {NECESSARY: 1.0, "conditional": 0.6, OPTIONAL: 0.3, FUTURE: 0.1,
                "hypothesis": 0.2, "unknown": 0.2, ANTI_REQUIREMENT: 0.0}
+
+
+def _semantic_reuse_is_reviewed(ob: Obligation) -> bool:
+    return ob.recon_status == REUSE_EXISTING and has_valid_reuse_review(ob)
 
 
 def _indegree(relationships: List[Relationship]) -> Dict[str, int]:
@@ -39,7 +44,8 @@ def priority_dimensions(ob: Obligation, indeg: Dict[str, int]) -> Dict[str, obje
     """Separate, un-blended dimensions. The weighted figure is a sorting aid only."""
     importance = _IMPORTANCE.get(ob.classification, 0.3)
     centrality = min(indeg.get(ob.key, 0) / 5.0, 1.0)
-    readiness = {MISSING: 1.0, PARTIAL: 0.6, REUSE_EXISTING: 0.0}.get(ob.recon_status, 0.4)
+    readiness = (0.0 if _semantic_reuse_is_reviewed(ob) else
+                 {MISSING: 1.0, PARTIAL: 0.6}.get(ob.recon_status, 0.4))
     uncertainty = 1.0 if ob.confidence == "inferred" else (0.5 if ob.confidence == "stated" else 0.2)
     dims = {
         "importance": round(importance, 2),
@@ -74,8 +80,16 @@ def eligibility(ob: Obligation, obligations: Dict[str, Obligation],
     for rel in relationships:
         if rel.kind == "depends_on" and rel.src == ob.key:
             dep = obligations.get(rel.dst)
-            if dep is not None and dep.recon_status == MISSING and dep.classification == NECESSARY:
-                blockers.append(f"depends on unbuilt necessary mechanism '{dep.key}'")
+            if dep is None:
+                blockers.append(f"depends on unresolved necessary mechanism '{rel.dst}' (target absent)")
+            elif dep.classification == NECESSARY and (
+                    dep.recon_status in (MISSING, PARTIAL, RECON_UNKNOWN, SIGNATURE_MATCHED)
+                    or (dep.recon_status == REUSE_EXISTING and
+                        not _semantic_reuse_is_reviewed(dep))):
+                state = ("unbuilt" if dep.recon_status == MISSING else
+                         "semantic review required" if dep.recon_status == REUSE_EXISTING
+                         else dep.recon_status)
+                blockers.append(f"depends on necessary mechanism '{dep.key}' ({state})")
     return {"eligibility": "blocked" if blockers else "eligible", "blockers": blockers}
 
 
@@ -83,25 +97,27 @@ def build_work_packages(obligations: Dict[str, Obligation],
                         relationships: List[Relationship],
                         active_experiments: Optional[List[str]] = None,
                         authorised_gates: Optional[set] = None) -> List[WorkPackage]:
-    """Bundle net-new (missing/partial) necessary obligations by root target, with
-    their anti-requirements. Reused and anti-requirement obligations are NOT work."""
+    """Bundle unresolved necessary/conditional obligations by root target.
+    Signature-matched obligations are review work, not automatic rebuild claims."""
     indeg = _indegree(relationships)
     # global anti-requirements: explicit anti-reqs + "do not rebuild what exists"
     anti: List[str] = []
     for ob in obligations.values():
         if ob.classification == ANTI_REQUIREMENT:
             anti.append(f"{ob.key}: {ob.rationale}")
-        elif ob.recon_status == REUSE_EXISTING:
-            ev = ob.recon_evidence[0] if ob.recon_evidence else "reconciled"
-            anti.append(f"do NOT rebuild '{ob.key}' — exists ({ev})")
+        elif _semantic_reuse_is_reviewed(ob):
+            ev = ob.recon_evidence[0]
+            anti.append(f"do NOT rebuild '{ob.key}' — semantic satisfaction reviewed ({ev})")
 
-    # net-new work: unbuilt necessary/conditional obligations (MISSING/PARTIAL),
-    # unverified ones (RECON_UNKNOWN — no signature, so not confirmed to exist;
-    # surfaced as candidate work to investigate), plus host-only verification
-    # (which source reconciliation can never satisfy). REUSE_EXISTING is excluded.
+    # net-new/investigation work: MISSING/PARTIAL obligations, UNKNOWN obligations
+    # without a signature, and SIGNATURE_MATCHED obligations whose full semantic
+    # satisfaction has not been reviewed. Only explicitly reviewed REUSE_EXISTING
+    # obligations are excluded. Runtime verification is host-only.
     net_new = [ob for ob in obligations.values()
                if ob.classification in (NECESSARY, "conditional")
-               and (ob.recon_status in (MISSING, PARTIAL, RECON_UNKNOWN)
+               and (ob.recon_status in (MISSING, PARTIAL, RECON_UNKNOWN, SIGNATURE_MATCHED)
+                    or (ob.recon_status == REUSE_EXISTING and
+                        not _semantic_reuse_is_reviewed(ob))
                     or ob.kind in HOST_ONLY_KINDS)]
 
     # group by root target (key before first '.')
@@ -124,5 +140,5 @@ def build_work_packages(obligations: Dict[str, Obligation],
             eligibility="blocked" if blockers else "eligible",
             blockers=sorted(set(blockers)), priority_dimensions=dims,
             anti_requirements=anti, reversible=reversible,
-            note="net-new necessary/conditional obligations not satisfied by existing mechanisms"))
+            note="unresolved build/review obligations; signature matches require semantic review, not automatic rebuild"))
     return packages

@@ -26,19 +26,23 @@ Nothing here imports `theory_x` or `substrate` (enforced by a test).
 ```
 IDEA → RECURSIVE EXPANSION → RECONCILIATION → DEDUPLICATION →
 RELATIONSHIP MAPPING → OPTIMAL FUNCTIONAL TENSION → PRIORITISATION →
-WORK PACKAGE → VERIFICATION → (persist) → LEARN
+WORK PACKAGE → EVIDENCE ACCOUNTING → (persist) → LEARN
 ```
 
 - **Expansion** (`extrapolator.py`) — a small seed of obligations expands via
   generic engineering rules (a persistence obligation implies a schema, a write
   path, provenance, a test…). Recursion is **bounded**: depth cap, terminal
-  kinds, and — crucially — an obligation already satisfied by a real mechanism is
-  **not** expanded. Convergent branches merge; every stop records its reason.
+  kinds, and — crucially — a source-signature match alone does **not** stop
+  expansion. Expansion stops only after explicit semantic-satisfaction review.
+  Convergent branches merge; every stop records its reason.
 - **Reconciliation** (`reconcile.py`) — each obligation with a *signature* is
-  checked against the **actual tree** (read-only grep): all signatures match →
-  `reuse_existing`; some → `partial`; none → `missing`; no signature → `unknown`
-  (an honest gap, never a fabricated status). It also prunes *false dependencies*
-  (a "build X first" edge whose X already exists).
+  checked against text-readable files in the **actual tree** (read-only grep):
+  all configured signatures match → `signature_matched`; some → `partial`; none in a completed
+  scan → `missing`; unavailable scan/no signature → `unknown`. A signature hit
+  is a source anchor, not proof that the full obligation is satisfied. Necessary
+  obligations remain readiness-unknown until a separate semantic review decision
+  and its traceable review-evidence reference are both recorded. Candidate dependency pruning also requires that separate
+  semantic review; signature matches alone do not remove prerequisite work.
 - **Optimal Functional Tension** (`tension.py`) — node / relationship / system
   assessment. Not a single score: every verdict is evidence-backed or explicitly
   marked `inference`. It also **recognises when further development is not
@@ -51,10 +55,14 @@ WORK PACKAGE → VERIFICATION → (persist) → LEARN
   reported **separately** (a provisional weighted figure is labelled
   uncalibrated). Work packages carry their **anti-requirements**.
 - **Memory & learning** (`memory.py`) — a Development Pattern Memory (patterns
-  keep provenance, bounded confidence and exceptions — never universal from one
-  success) and a learning loop that compares **predicted vs actual** outcomes
+  keep provenance, finite confidence bounded to 0.0–0.9, and exceptions — never
+  universal from one success). Finite out-of-range confidence is clamped; non-numeric
+  and non-finite values are rejected on insertion or load. The learning loop compares
+  **predicted vs actual** outcomes
   (missed obligations, over-expansion, inappropriate reuse, effort error) across
   cycles. No acceleration is claimed until enough cycles exist to support it.
+  The per-cycle store accepts only 1–128 portable filename characters for cycle IDs;
+  path separators and traversal-shaped IDs are rejected before any file access.
 
 ## Run it
 
@@ -62,7 +70,7 @@ WORK PACKAGE → VERIFICATION → (persist) → LEARN
 # one full cycle on the real genius-tagger objective -> the six demonstration outputs
 python -m rdo run-demo
 
-# TWO cycles of different patterns (feature-deploy + defect) + cross-cycle learning metrics
+# three discovery cycles (feature-deploy + two defect variants) + cross-cycle learning metrics
 python -m rdo run-all
 
 # source-grounded influence-AUTHORITY audit of a signal (relationships, not a file count)
@@ -86,41 +94,56 @@ point is reconciliation against HEAD. The cycle finds:
 
 1. **Discovered** — the full obligation network (table, daemon, boot wiring, API,
    panel, score, two consumers, runtime verification, + anti-requirements).
-2. **Correctly reused** (each backed by a real `file:line`): `genius_tags`
-   (`substrate/init_db.py`), the `GeniusTagger` daemon (`theory_x/genius/tagger.py`
-   + boot in `run.py`), `/api/genius/recent` + panel, the v2 score, **and** the
-   fountain consumer (`generator.py` reads `genius_tags`).
-3. **Rejected / deferred** — rebuilding any of the above, plus two explicit
-   anti-requirements (no second score; no duplicate tags store).
-4. **Recommended work** — only the genuinely-missing **retrieval consumer** (with
-   its `bounded_influence` / `reversibility` / `gate` sub-obligations) and
-   **runtime verification**. Both **blocked**: an active behavioural change needs a
-   preregistered gate, and runtime evidence is host-only while NEX is in STANDBY.
-5. **Verified** — every reuse claim re-checked against file evidence.
-6. **Learned** — the stale-doc pattern (*planning docs and code docstrings older
-   than HEAD understate built state; reconcile first*), corroborated by the
-   just-completed Watcher cycle, and an OFT flag: the genius signal is consumed by
-   ~9 files → recommend an influence-authority review.
+2. **Signature matches located** (each backed by a configured `file:line`
+   anchor): `genius_tags` (`substrate/init_db.py`), the `GeniusTagger` daemon
+   (`theory_x/genius/tagger.py` + boot in `run.py`), `/api/genius/recent` + panel,
+   the v2 score, **and** a fountain-source reference (`generator.py` contains a
+   `genius_tags` read). These matches locate relevant source; they do not by
+   themselves establish that each complete API, UI, calibration or consumer
+   obligation is semantically satisfied.
+3. **Anti-requirements retained** — no second score and no duplicate tags store.
+   Source-signature matches do not, by themselves, justify rejecting further
+   discovery or implementation work.
+4. **Recommended work** — the remaining obligation network is expanded
+   conservatively where semantic satisfaction has not been reviewed. Active
+   behavioural work remains subject to its preregistered gate; runtime verification
+   remains host-only while NEX is in STANDBY.
+5. **Evidence coverage** — each reported signature match has a file anchor.
+   This is not semantic verification, test execution, or runtime verification.
+6. **Learned** — candidate patterns retain their recorded provenance and are not
+   promoted to universal rules merely by repeated appearance. The influence-authority
+   review remains a source-based assessment, not a runtime finding.
 
-The headline result: the May-2026 "build the tagger (≈2.5h)" item is **already
-built**, and so are most of its consumers — so the honest recommendation is *don't
-rebuild; verify at runtime and review the signal's influence*, not a checklist.
+The bounded result: the May-2026 proposal has several **source signature matches**
+   in the current tree. Those matches identify locations for review; they do not
+   establish that the full tagger, API, score, panel or consumer obligations are
+   satisfied. The recursive expansion remains active unless a separate semantic
+   review is recorded; no runtime behaviour is inferred.
 
-## Generalisation — a second cycle, a different pattern
+## Generalisation — three discovery cycles across two patterns
 
-The second cycle (`run-all`) runs a **defect-remediation** objective (the
+The second and third discovery cycles (`run-all`) run **defect-remediation** objectives (the
 `WHATS_NEXT.md` open-question migration bugs: `beliefs.content` UNIQUE dedup and
 the `arc_closers` column) through the *same* engine. Generalising to a new pattern
 required **one** new expansion rule set (`defect` → reproduce / root_cause / fix /
 regression_test / migration / verification); reconciliation, OFT, prioritisation
 and learning applied unchanged. The result is genuinely different from the genius
-cycle: the `beliefs.content` fix is both applied **and guarded** (reused), while
-the `arc_closers` fix is applied but **unguarded** — so the RDO recommends a
-regression test, and this time the work is **eligible** (adding a test is not an
-active NEX behavioural change, unlike the gated genius consumer). The prioritiser
-distinguishes safe net-new work from work that needs a preregistered gate. That
-eligible item was then **actually executed and verified**
-(`tests/test_arc_closers_migration.py`) — the first executed+verified cycle.
+cycle: the `beliefs.content` fix is applied and guarded by
+`tests/test_beliefs_content_dedup.py`, which exercises both production partial
+unique indexes: duplicates within one problem and among orphan beliefs are rejected,
+while equal content across different problems remains allowed. The RDO now matches
+the specific regression-test declaration in that file, rather than accepting an
+incidental token anywhere under `tests`; obligation-level reconciliation evidence
+is included in cycle output. The
+`arc_closers` migration is also already guarded by `tests/test_arc_closers_migration.py`,
+including the actual legacy-upgrade path; it should not be described as unguarded
+or recommended as net-new test work. The work remains surfaced, but its package is blocked while
+necessary prerequisite evidence is unresolved; unknown obligations remain
+investigable and are not treated as confirmed missing. This is distinct from the
+behavioural gate applied to the genius consumer. The historical
+`tests/test_arc_closers_migration.py` work is recorded as executed+verified. A third
+discovery cycle covers the separate `beliefs.affinity` migration-only schema-drift
+guard; its regression test is also recorded as executed+verified.
 
 Every obligation is scope-tagged — **general** (reusable engineering rule) /
 **domain-specific** (the idea's seeds) / **context-dependent** (conditional) /
@@ -134,7 +157,11 @@ be added, compared and reused without contaminating it.
 The genius signal is read by nine files, but **authority is not the count**. The
 audit (`rdo influence`) classifies each consumer from source — direct vs indirect,
 read vs behavioural, conditional vs unconditional, magnitude, safeguards, evidence
-class — and verifies every citation against the tree. Six are behavioural and
+class — and checks that each curated source anchor is present in the cited file.
+This is an **anchor-presence check**, not semantic verification of the row's
+classification or proof that the described behaviour occurs. The graph's
+`source_implemented` and `test_verified` flags are curated assertions; they are not
+automatically derived links to per-edge source and test evidence. Six are behavioural and
 **all six are safeguarded** (bounded weights, clamps, neutral defaults, opt-in
 flags, strict gates). Exactly one path — `quality_synthesis → attention`
 (a 1.20×/0.82× multiplier) — is both unconditional and material; that path, plus
@@ -147,19 +174,43 @@ multiplier or influence behaviour is changed until runtime evidence establishes 
 
 ## Cross-cycle learning (measured, not claimed)
 
-`run-all` reports eight comparable per-cycle measures — expansion precision proxy,
-missed-obligation count, duplicate-discovery rate, reuse accuracy, prediction
-error, rework, engineering effort, verification success — with **explicit
-denominators, missing values and comparability**. Cycles are tagged by kind:
+`run-all` reports eight per-cycle measures — reconciliation-status coverage (completed scan/review result, not precision),
+missed-obligation count, duplicate-discovery rate, signature evidence coverage,
+prediction error, rework, engineering effort, and completeness of file-anchor
+coverage — with **per-measure denominators and missing values**. Evidence coverage
+is not semantic reuse accuracy; coverage completeness is not successful test or
+execution verification. Omitted actual outcome fields remain unknown (not zero),
+and an outcome record is complete only when all four outcome lists are explicitly
+reported. Cycles are tagged by kind:
 `imported_retrospective` (seeded history), `native_planning` (RDO ran it, no work
 executed yet), and `executed_verified` (recommended work actually built + verified).
 **Only executed+verified cycles are efficiency-comparable** — an imported
 retrospective is never counted as a completed RDO-guided cycle, and a planning-only
 cycle contributes process measures only. The report makes **no efficiency or
-acceleration claim** until at least three *comparable* cycles exist (there is
-currently one: the `arc_closers` regression test). Patterns corroborate slowly (the
-stale-doc pattern is at 0.5 after three observations) and never become universal
-rules merely for appearing twice.
+acceleration claim** until at least three *comparable* cycles exist. There are
+currently two recorded executed+verified test-work cycles: `arc_closers` and
+`beliefs.affinity`. The catalogue has six rows: one imported retrospective, three
+native discovery cycles and two execution records. Both historical execution records now carry exact, independently checkable CI provenance:
+
+- **`arc_closers`** — source commit `c352f6a83bec2136d5eff518deb210fc3cd4b3a2`,
+  workflow run [`44855260626` (#182)](https://github.com/kron777/Nex_v5.0/actions/runs/44855260626),
+  pytest job `136695850460`: success. The commit contains all six tests in
+  `tests/test_arc_closers_migration.py`, including the real `_apply_migrations`
+  legacy-upgrade fixture, backfill, default-on-insert and idempotent re-run.
+- **`beliefs.affinity`** — the same exact commit and successful workflow run. The commit
+  contains both tests in `tests/test_affinity_columns_migration.py`, covering fresh
+  migration provisioning, nullable columns and the unrated-state query.
+
+The workflow ran `scripts/check_test_baseline.py`, which invoked the full `pytest -q`
+suite with zero known-intentional tests deselected. Result: **2,219 passed, 7 skipped,
+40 subtests passed**. The earlier successful run `44853759854` (#181, 2,214 passed)
+was on the initial `arc_closers` test commit before the legacy-upgrade fixture was added;
+it is intermediate evidence, not the final verification used above.
+
+These are source-commit and CI-run/job references, not a separate database snapshot or
+runtime artifact. They verify the committed regression tests in CI; they do not establish
+deployed-host behaviour. Later CI runs are not substituted for this exact historical run.
+
 
 ## The RDO under its own OFT
 
@@ -174,8 +225,11 @@ forbids.
 
 - The RDO **obeys its own principle**: it reuses Watcher infrastructure, it is
   lean, and it stays advisory. It is not a development bureaucracy.
-- LLM/human reasoning seeds obligations and signatures (`knowledge.py`); the
-  **tree is the authority**. Proposals never silently become fact.
+- LLM/human reasoning seeds obligations and signatures (`knowledge.py`). The
+  tree establishes only whether configured anchors were found; it does not
+  independently establish semantic satisfaction. A separate review is required
+  before necessary obligations can contribute to a `sufficient` readiness verdict;
+  the review flag alone is insufficient without a recorded review-evidence reference.
 - The maths (Pareto framing, weighted priority) is scaffolding and is labelled
   uncalibrated — the early value is in structure (obligations, reconciliation,
   anti-requirements, tension), not equations.
