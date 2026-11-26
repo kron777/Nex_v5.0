@@ -3495,7 +3495,7 @@ class FountainGenerator:
             try:
                 _surp = self._beliefs_reader.read(
                     "SELECT content, created_at FROM beliefs "
-                    "WHERE source='surprise' AND created_at > ? "
+                    "WHERE source='surprise' AND tier < 8 AND paused = 0 AND created_at > ? "
                     "ORDER BY created_at DESC LIMIT 1",
                     (now - 21600,)  # 6h — surprises are rare, longer window
                 )
@@ -3534,7 +3534,7 @@ class FountainGenerator:
             try:
                 _favs = self._beliefs_reader.read(
                     "SELECT id, content FROM beliefs "
-                    "WHERE affinity IS NOT NULL AND affinity > 0.40 "
+                    "WHERE affinity IS NOT NULL AND affinity > 0.40 AND tier < 8 AND paused = 0 "
                     "ORDER BY affinity DESC LIMIT 10"
                 )
                 if _favs:
