@@ -21,7 +21,7 @@ class QueryRouter:
         self._classifier = classifier or CLASSIFIER
 
     def route(self, query: str, belief_retriever, self_model: SelfModel,
-              dynamic_state=None) -> dict:
+              dynamic_state=None, trace=None) -> dict:
         """Route a query to the appropriate retrieval path.
 
         Returns:
@@ -34,11 +34,12 @@ class QueryRouter:
         side = self._classifier.classify_query(query)
 
         if side == MembraneSide.INSIDE:
-            return self._inside_route(query, belief_retriever, self_model)
+            return self._inside_route(query, belief_retriever, self_model, trace=trace)
         else:
-            return self._outside_route(query, belief_retriever, dynamic_state)
+            return self._outside_route(query, belief_retriever, dynamic_state, trace=trace)
 
-    def _inside_route(self, query: str, belief_retriever, self_model: SelfModel) -> dict:
+    def _inside_route(self, query: str, belief_retriever, self_model: SelfModel,
+                      trace=None) -> dict:
         from theory_x.stage3_world_model.retrieval import format_beliefs_for_prompt
         parts = []
         snap = None  # passed through for observability log (Option C, B1)
@@ -53,10 +54,20 @@ class QueryRouter:
                 query=query, branch_hints=["systems"], limit=5,
                 side_filter="INSIDE",
             )
+            if trace is not None:
+                trace.candidates(
+                    [b.get("id") for b in beliefs],
+                    source="membrane.inside_retriever",
+                    metadata={"side": "INSIDE", "limit": 5, "branch_hints": ["systems"]},
+                )
             if beliefs:
                 parts.append(format_beliefs_for_prompt(beliefs))
         except Exception as exc:
             errors.record(f"router inside beliefs error: {exc}", source=_LOG_SOURCE, exc=exc)
+            if trace is not None:
+                trace.record("candidate_generation", "retrieval_error",
+                             metadata={"source": "membrane.inside_retriever",
+                                       "error_type": type(exc).__name__})
 
         return {
             "side": "INSIDE",
@@ -65,7 +76,8 @@ class QueryRouter:
             "self_model_snap": snap,
         }
 
-    def _outside_route(self, query: str, belief_retriever, dynamic_state) -> dict:
+    def _outside_route(self, query: str, belief_retriever, dynamic_state,
+                       trace=None) -> dict:
         from theory_x.stage3_world_model.retrieval import format_beliefs_for_prompt
         belief_text = None
         try:
@@ -79,9 +91,20 @@ class QueryRouter:
             beliefs = belief_retriever.retrieve(
                 query=query, branch_hints=active_branches, limit=8
             )
+            if trace is not None:
+                trace.candidates(
+                    [b.get("id") for b in beliefs],
+                    source="membrane.outside_retriever",
+                    metadata={"side": "OUTSIDE", "limit": 8,
+                              "branch_hints": active_branches},
+                )
             belief_text = format_beliefs_for_prompt(beliefs) if beliefs else None
         except Exception as exc:
             errors.record(f"router outside beliefs error: {exc}", source=_LOG_SOURCE, exc=exc)
+            if trace is not None:
+                trace.record("candidate_generation", "retrieval_error",
+                             metadata={"source": "membrane.outside_retriever",
+                                       "error_type": type(exc).__name__})
 
         return {
             "side": "OUTSIDE",
