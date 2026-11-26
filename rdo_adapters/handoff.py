@@ -333,22 +333,14 @@ def create_handoff(workdir: str, repo_dir: str, objective_id: str, revision: int
     created = _write_manifest_exclusive(path, manifest)
     if not created:
         existing = load_handoff(workdir, handoff_id)
-        if _manifest_body(existing) != _manifest_body(manifest):
-            # created_at differs on replay; compare the immutable identity instead.
-            existing_identity = {
-                "objective": existing.get("objective"),
-                "cycle": existing.get("cycle"),
-                "work_package": existing.get("work_package", {}).get("key"),
-                "scope": existing.get("scope"),
-            }
-            expected_identity = {
-                "objective": manifest.get("objective"),
-                "cycle": manifest.get("cycle"),
-                "work_package": manifest.get("work_package", {}).get("key"),
-                "scope": manifest.get("scope"),
-            }
-            if existing_identity != expected_identity:
-                raise HandoffError("handoff ID already exists with different source content")
+        # created_at is expected to differ on replay. Every other field must
+        # match exactly; a changed cycle/package under the same identity is a conflict.
+        existing_body = _manifest_body(existing)
+        expected_body = _manifest_body(manifest)
+        existing_body.pop("created_at", None)
+        expected_body.pop("created_at", None)
+        if existing_body != expected_body:
+            raise HandoffError("handoff ID already exists with different immutable content")
         return existing
     return manifest
 
@@ -446,8 +438,12 @@ def record_scope_review(workdir: str, handoff_id: str, decision: str, reviewer: 
     manifest = load_handoff(workdir, handoff_id)
     reviewer = _text(reviewer, "reviewer", 256)
     source_reference = _text(source_reference, "source_reference", 1000)
-    if decision not in ("approved", "rejected", "changes_requested"):
+    if not isinstance(decision, str) or decision not in ("approved", "rejected", "changes_requested"):
         raise HandoffError("scope decision must be approved, rejected or changes_requested")
+    if permitted_actions is not None and (
+            not isinstance(permitted_actions, list)
+            or any(not isinstance(a, str) for a in permitted_actions)):
+        raise HandoffError("permitted_actions must be a list of action names")
     actions = list(permitted_actions or [])
     if len(actions) != len(set(actions)):
         raise HandoffError("permitted_actions contains duplicates")
@@ -494,7 +490,7 @@ def record_human_acceptance(workdir: str, handoff_id: str, decision: str, review
     reviewer = _text(reviewer, "reviewer", 256)
     source_reference = _text(source_reference, "source_reference", 1000)
     delivery_reference = _text(delivery_reference, "delivery_reference", 1000)
-    if decision not in ("accepted", "rejected", "changes_requested"):
+    if not isinstance(decision, str) or decision not in ("accepted", "rejected", "changes_requested"):
         raise HandoffError("human acceptance decision must be accepted, rejected or changes_requested")
     required_dimensions = {"source_implemented", "test_verified", "runtime_observed"}
     if not isinstance(evidence_references, dict) or set(evidence_references) != required_dimensions:
@@ -502,8 +498,9 @@ def record_human_acceptance(workdir: str, handoff_id: str, decision: str, review
     normalized = {}
     for dimension in sorted(required_dimensions):
         values = evidence_references[dimension]
-        if not isinstance(values, list) or any(not isinstance(v, str) or not v.strip() for v in values):
-            raise HandoffError(f"{dimension} evidence references must be a list of non-empty strings")
+        if (not isinstance(values, list) or len(values) > 200
+                or any(not isinstance(v, str) or not v.strip() or len(v) > 1000 for v in values)):
+            raise HandoffError(f"{dimension} evidence references must be a bounded list of non-empty strings")
         normalized[dimension] = list(values)
     return _append_event(workdir, manifest, {
         "event_kind": "human_acceptance",
