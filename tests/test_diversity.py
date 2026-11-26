@@ -266,6 +266,49 @@ class TestDormancyScanner(unittest.TestCase):
         self.assertEqual(count, 0)
 
 
+    def test_scan_rotates_beyond_first_fifty_ids(self):
+        class _PagedReader:
+            def __init__(self):
+                self.calls = []
+            def read(self, sql, params=()):
+                self.calls.append((sql, params))
+                if "FROM beliefs" not in sql:
+                    return []
+                cursor = params[0] if params else 0
+                start = 1 if "id > ?" in sql and cursor == 0 else cursor + 1
+                if "id <= ?" in sql:
+                    start = 1
+                return [
+                    {"id": i, "created_at": time.time() - 86400 * 30,
+                     "last_referenced_at": None}
+                    for i in range(start, min(start + 49, 101))
+                ]
+        reader = _PagedReader()
+        writer = _StubWriter()
+        from theory_x.diversity.dormancy import DormancyScanner
+        scanner = DormancyScanner(writer, reader)
+        with patch.object(scanner, "_average_gap", return_value=3600.0):
+            scanner.scan_incremental()
+            first_cursor = scanner._last_id
+            scanner.scan_incremental()
+            second_cursor = scanner._last_id
+        self.assertEqual(first_cursor, 50)
+        self.assertEqual(second_cursor, 100)
+
+    def test_reanimation_query_excludes_paused_and_retired(self):
+        from theory_x.diversity.reanimate import wake_one
+        writer = _StubWriter()
+        class _Reader:
+            def __init__(self): self.sql = ""
+            def read(self, sql, params=()):
+                self.sql = sql
+                return []
+        reader = _Reader()
+        wake_one(writer, reader)
+        self.assertIn("b.tier <= 7", reader.sql)
+        self.assertIn("b.paused = 0", reader.sql)
+
+
 # ---------------------------------------------------------------------------
 # TestLineage
 # ---------------------------------------------------------------------------
