@@ -248,3 +248,71 @@ def test_crystallizer_rejection_is_traced_without_belief_insert(tmp_path, monkey
                 pass
         for writer in writers.values():
             writer.close()
+
+def test_chat_route_trace_off_on_preserves_reply_and_voice_prompt(tmp_path, monkeypatch):
+    import os
+    from pathlib import Path
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    monkeypatch.setenv("NEX5_DATA_DIR", str(data_dir))
+    monkeypatch.setenv("NEX5_ADMIN_HASH_FILE", str(tmp_path / "admin.argon2"))
+    monkeypatch.setenv("NEX5_SPEECH_ENABLED", "false")
+    monkeypatch.setenv("NEX5_TRACE_OVERLAY_PATH", str(tmp_path / "chat-route.jsonl"))
+    calls = []
+
+    from substrate.init_db import init_all
+    from substrate import Reader, Writer, db_paths
+    from voice.llm import VoiceClient
+    from gui.server import AppState, create_app
+
+    init_all()
+    paths = db_paths()
+    writers = {name: Writer(path, name=name) for name, path in paths.items()}
+    readers = {name: Reader(path) for name, path in paths.items()}
+
+    def mocked_request(url, payload):
+        calls.append(payload)
+        return {"choices": [{"message": {"content": "trace fixture reply"}}]}
+
+    state = AppState(
+        writers=writers,
+        readers=readers,
+        voice=VoiceClient(request_fn=mocked_request),
+    )
+    app = create_app(state)
+    client = app.test_client()
+    sink = tmp_path / "chat-route.jsonl"
+    try:
+        monkeypatch.setenv("NEX5_TRACE_OVERLAY", "0")
+        off_response = client.post("/api/chat", json={"prompt": "hi"})
+        assert off_response.status_code == 200
+        assert off_response.get_json()["text"] == "trace fixture reply"
+        off_voice_prompt = calls[-1]["messages"][1]["content"]
+        assert not sink.exists()
+
+        monkeypatch.setenv("NEX5_TRACE_OVERLAY", "1")
+        monkeypatch.setenv("NEX5_TRACE_OVERLAY_CONTEXT", "fixture")
+        on_response = client.post("/api/chat", json={"prompt": "hi"})
+        assert on_response.status_code == 200
+        assert on_response.get_json()["text"] == off_response.get_json()["text"]
+        on_voice_prompt = calls[-1]["messages"][1]["content"]
+
+        assert on_voice_prompt == off_voice_prompt
+        records = _read_events(sink)
+        stages = [event["stage"] for event in records]
+        assert "input_arrival" in stages
+        assert "prompt_assembly" in stages
+        assert "candidate_generation" in stages
+        assert "sqlite_writer_delta" in stages
+        assert "output" in stages
+        assert any(
+            event["stage"] == "gate"
+            and event["metadata"]["decision"] == "NOT_APPLICABLE"
+            for event in records
+        )
+        serialized = sink.read_text()
+        assert "hi" not in serialized
+        assert "trace fixture reply" not in serialized
+    finally:
+        state.close()
