@@ -708,8 +708,17 @@ def reopening_candidates(cycle: CycleRecord, new_evidence: List[Dict]) -> List[D
         k, obs = ev.get("key"), ev.get("observation", "")
         if not obs or ev.get("now") == "unknown":
             out.append({"key": k, "reopen": False, "reason": "insufficient/UNKNOWN evidence — not reopened"})
-        elif k in by_key and by_key[k].get("recon_status") == "reuse_existing" and ev.get("now") == "missing":
-            out.append({"key": k, "reopen": True, "reason": "reused mechanism now observed missing", "evidence": obs})
+        elif (k in by_key
+              and by_key[k].get("recon_status") in ("reuse_existing", "signature_matched")
+              and ev.get("now") == "missing"):
+            prior = by_key[k].get("recon_status")
+            out.append({
+                "key": k, "reopen": True,
+                "reason": ("previously reviewed reuse now observed missing"
+                           if prior == "reuse_existing"
+                           else "previous source match now observed missing; semantic review remains open"),
+                "evidence": obs,
+            })
         elif k in frontier_keys and ev.get("blocker_cleared"):
             out.append({"key": k, "reopen": True, "reason": "deferred branch's blocker reported cleared", "evidence": obs})
         else:
