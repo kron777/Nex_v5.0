@@ -455,7 +455,14 @@ def run_stage2_belief_decay(repo_dir: str = ".", workdir: str = "rdo/.cycles",
             "predicted": cycle.predicted,
             "reviewed": actual,
             "comparison": comparison,
-            "calibration_patterns": [p.key for p in calibration],
+            "lesson_candidates": [p.key for p in calibration],
+            "calibration_patterns": ([p.key for p in calibration]
+                                     if review_kind == "planning_review" else []),
+            "controlled_fixture_candidates_not_persisted": (
+                [p.key for p in calibration]
+                if review_kind == "controlled_fixture_review" else []
+            ),
+            "patterns_persisted": bool(calibration) and review_kind == "planning_review",
         }
     return {
         "stage": "RDO v1.3 §16 Stage 2 — Extrapolator MVP",
