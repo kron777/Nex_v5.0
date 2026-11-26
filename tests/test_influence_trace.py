@@ -29,10 +29,11 @@ def test_events_have_trace_ids_parent_ids_and_monotonic_sequence(tmp_path):
     tracer = trace.TraceContext("fountain_cycle", sink_path=tmp_path / "trace.jsonl",
                                 context="fixture", trace_id="fixture-trace")
     first = tracer.input("prompt must not be stored", source="fixture.input")
-    second = tracer.candidates([41, 42], source="fixture.retrieval")
+    second = tracer.candidates([41, 42], source="fixture.retrieval",
+                               parent_ids=[first])
     third = tracer.selection(source="fixture.workspace",
                              candidate_order=[41, 42], selected_order=[42, 41],
-                             strategy="fixture_order")
+                             strategy="fixture_order", parent_ids=[second])
 
     assert first and second and third
     events = [json.loads(line) for line in (tmp_path / "trace.jsonl").read_text().splitlines()]
@@ -275,8 +276,12 @@ def test_fountain_generate_trace_wrapper_preserves_result(tmp_path, monkeypatch)
     def fake_generate(self, dynamic_state, beliefs_reader, trace=None):
         calls.append(trace)
         if trace is not None:
-            trace.record("candidate_generation", "fixture_candidate",
-                         metadata={"candidate_ids": [7, 8]})
+            candidate_id = trace.record(
+                "candidate_generation", "fixture_candidate",
+                metadata={"candidate_ids": [7, 8]},
+                parent_ids=[trace.reference("input_arrival")],
+            )
+            trace.remember("fountain_output_parent", candidate_id)
         return "same fountain thought"
 
     generator._generate = MethodType(fake_generate, generator)
@@ -341,3 +346,27 @@ def test_membrane_route_trace_preserves_retrieval_and_return_value(tmp_path):
                         if event["stage"] == "candidate_generation"]
     assert len(candidate_events) == 1
     assert candidate_events[0]["metadata"]["candidate_ids"] == [901]
+
+
+def test_events_without_declared_parent_remain_unparented(tmp_path):
+    tracer = TraceContext("fixture", sink_path=_sink(tmp_path), enabled=True)
+    first = tracer.record("observation", "earlier_event", metadata={})
+    second = tracer.record("observation", "later_event", metadata={})
+    assert first and second
+    records = [json.loads(line) for line in _sink(tmp_path).read_text().splitlines()]
+    assert records[0]["parent_ids"] == []
+    assert records[1]["parent_ids"] == []
+    assert records[0]["event_id"] != records[1]["event_id"]
+
+
+def test_named_references_do_not_create_implicit_edges(tmp_path):
+    tracer = TraceContext("fixture", sink_path=_sink(tmp_path), enabled=True)
+    first = tracer.record("candidate_generation", "candidate", metadata={})
+    tracer.remember("candidate", first)
+    unlinked = tracer.record("observation", "independent", metadata={})
+    linked = tracer.record("output", "derived", metadata={},
+                           parent_ids=[tracer.reference("candidate")])
+    records = [json.loads(line) for line in _sink(tmp_path).read_text().splitlines()]
+    assert records[1]["parent_ids"] == []
+    assert records[2]["parent_ids"] == [first]
+    assert unlinked != linked
