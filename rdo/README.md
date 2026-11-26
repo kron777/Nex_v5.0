@@ -217,7 +217,7 @@ deployed-host behaviour. Later CI runs are not substituted for this exact histor
 `rdo selfcheck` now distinguishes the core reasoning package from its external
 input boundary. The core contains **14 modules / 3,775 non-comment LOC**; the
 provider-neutral objective-intake and Stage-7 handoff adapters are separately
-reported at **2 modules / 970 non-comment LOC** under `rdo_adapters/`. They
+reported at **2 modules / 980 non-comment LOC** under `rdo_adapters/`. They
 preserve input/revision and handoff/decision boundaries outside the deterministic
 reasoning engine without changing the 14-module core ceiling.
 
