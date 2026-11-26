@@ -1396,7 +1396,7 @@ class FountainGenerator:
     _SUBSTRATE_VOICE_COOLDOWN_FIRES = 5
 
     def _maybe_substrate_voice(
-        self, beliefs_reader, readiness: float,
+        self, beliefs_reader, readiness: float, trace=None,
     ) -> Optional[str]:
         """Substrate-as-voice path. Returns the emitted thought if we fired
         this way, or None to fall through to normal generation.
@@ -1471,6 +1471,11 @@ class FountainGenerator:
                     "UPDATE beliefs SET last_voiced_at = ? WHERE id = ?",
                     (ts_now, anchor_id),
                 )
+                if trace is not None:
+                    trace.writer_delta(
+                        database="beliefs", table="beliefs", operation="UPDATE",
+                        row_id=anchor_id, metadata={"purpose": "substrate_voice_last_voiced_at"},
+                    )
             except Exception:
                 pass
 
@@ -1482,6 +1487,12 @@ class FountainGenerator:
                 (ts_now, anchor_content, readiness,
                  "substrate_voice", len(anchor_content.split()), anchor_id),
             )
+            if trace is not None:
+                trace.writer_delta(
+                    database="dynamic", table="fountain_events", operation="INSERT",
+                    row_id=_sv_fid,
+                    metadata={"path": "substrate_voice", "anchor_belief_id": anchor_id},
+                )
             self._link_activation_to_event()
             # Snapshot the substrate_voice fire (Mode A walks). Fire-and-forget.
             try:
@@ -1664,7 +1675,9 @@ class FountainGenerator:
             # _maybe_substrate_voice() already never runs live -- dropping
             # the SYNTH_EMIT half changes nothing observable either way.
             if os.environ.get("NEX5_RECONCILE") != "1":
-                _sv_thought = self._maybe_substrate_voice(beliefs_reader, readiness)
+                _sv_thought = self._maybe_substrate_voice(
+                    beliefs_reader, readiness, trace=trace,
+                )
                 if _sv_thought is not None:
                     if trace is not None:
                         trace.record(
@@ -1789,7 +1802,7 @@ class FountainGenerator:
                         f"{self._consecutive_stillness} cycles.\n\n{prompt}"
                     )
                     try:
-                        self._dynamic_writer.write(
+                        _stillness_row_id = self._dynamic_writer.write(
                             "INSERT INTO stillness_log "
                             "(ts, reason, retrieval_signature, "
                             " consecutive_stillness_count, jaccard) "
@@ -1797,6 +1810,12 @@ class FountainGenerator:
                             (time.time(), "force_fire", _sig,
                              self._consecutive_stillness, _jaccard),
                         )
+                        if trace is not None:
+                            trace.writer_delta(
+                                database="dynamic", table="stillness_log",
+                                operation="INSERT", row_id=_stillness_row_id,
+                                metadata={"reason": "force_fire"},
+                            )
                     except Exception:
                         pass
                     self._consecutive_stillness = 0
@@ -1805,7 +1824,7 @@ class FountainGenerator:
                     self._consecutive_stillness += 1
                     _ts_still = time.time()
                     try:
-                        self._dynamic_writer.write(
+                        _still_event_id = self._dynamic_writer.write(
                             "INSERT INTO fountain_events "
                             "(ts, thought, readiness, hot_branch, "
                             " word_count, stillness_reason) "
@@ -1813,7 +1832,13 @@ class FountainGenerator:
                             (_ts_still, "", readiness, None, 0,
                              "duplicate_retrieval"),
                         )
-                        self._dynamic_writer.write(
+                        if trace is not None:
+                            trace.writer_delta(
+                                database="dynamic", table="fountain_events",
+                                operation="INSERT", row_id=_still_event_id,
+                                metadata={"path": "stillness", "reason": "duplicate_retrieval"},
+                            )
+                        _stillness_row_id = self._dynamic_writer.write(
                             "INSERT INTO stillness_log "
                             "(ts, reason, retrieval_signature, "
                             " consecutive_stillness_count, jaccard) "
@@ -1821,6 +1846,12 @@ class FountainGenerator:
                             (_ts_still, "duplicate_retrieval", _sig,
                              self._consecutive_stillness, _jaccard),
                         )
+                        if trace is not None:
+                            trace.writer_delta(
+                                database="dynamic", table="stillness_log",
+                                operation="INSERT", row_id=_stillness_row_id,
+                                metadata={"reason": "duplicate_retrieval"},
+                            )
                     except Exception as _se:
                         error_channel.record(
                             f"stillness write failed: {_se}",
@@ -2477,7 +2508,7 @@ class FountainGenerator:
         try:
             _blocks = getattr(self, "_last_prompt_blocks", None)
             if _blocks and fountain_event_id:
-                self._dynamic_writer.write_many(
+                _prompt_block_row_ids = self._dynamic_writer.write_many(
                     [
                         (
                             "INSERT INTO fountain_prompt_blocks "
@@ -2489,6 +2520,14 @@ class FountainGenerator:
                         for _ordinal, _name, _hash, _nchars, _prefix in _blocks
                     ]
                 )
+                if trace is not None:
+                    trace.writer_delta(
+                        database="dynamic", table="fountain_prompt_blocks",
+                        operation="WRITE_MANY",
+                        row_id=list(_prompt_block_row_ids or []),
+                        metadata={"fire_id": fountain_event_id,
+                                  "row_count": len(_prompt_block_row_ids or [])},
+                    )
             self._last_prompt_blocks = []
         except Exception as e:
             error_channel.record(
