@@ -147,4 +147,20 @@ def build_work_packages(obligations: Dict[str, Obligation],
             blockers=sorted(set(blockers)), priority_dimensions=dims,
             anti_requirements=anti, reversible=reversible,
             note="unresolved build/review obligations; signature matches require semantic review, not automatic rebuild"))
+
+    # Global deterministic ordering: hard eligibility first, then the highest
+    # provisional score within each package, then its canonical key. The score
+    # remains explicitly uncalibrated and never overrides a blocker.
+    def package_score(package: WorkPackage) -> float:
+        return max(
+            (dimensions["_provisional_sort_score_uncalibrated"]
+             for dimensions in package.priority_dimensions.values()),
+            default=0.0,
+        )
+
+    packages.sort(key=lambda package: (
+        0 if package.eligibility == "eligible" else 1,
+        -package_score(package),
+        package.key,
+    ))
     return packages
