@@ -32,6 +32,13 @@ for name in os.environ:
 
 workspace = Path("/workspace")
 require(workspace.is_dir(), "workspace is missing")
+git_config = workspace / ".git" / "config"
+require(git_config.is_file(), "credential-free checkout metadata is required for repository provenance tests")
+git_config_text = git_config.read_text(encoding="utf-8").lower()
+require("extraheader" not in git_config_text and "credential" not in git_config_text,
+        "checkout Git configuration must not contain persisted credentials")
+require((workspace / ".git").stat().st_uid == os.geteuid(),
+        "checkout metadata must be owned by the unprivileged test UID")
 try:
     with (workspace / ".sandbox-write-probe").open("x", encoding="utf-8"):
         pass
