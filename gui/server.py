@@ -1885,6 +1885,7 @@ def create_app(state: AppState) -> Flask:
                     query=prompt,
                     session_id=session_id,
                     turn_n=_turn_n,
+                    trace=trace,
                 )
                 if _ve_result is not None:
                     if trace is not None:
