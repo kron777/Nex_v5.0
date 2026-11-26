@@ -115,8 +115,10 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
         "objective": objective,
         "discovered": len(obligations),
         "reused": reused,
+        "signature_matches": signature_matches,
         "rejected_or_deferred": anti + [f["key"] for f in frontier
-                                        if "already satisfied" in f["reason"]],
+                                        if ("already satisfied" in f["reason]
+                                            or "semantic satisfaction independently reviewed" in f["reason"])],
         "recommended_work": [{"package": p.key, "eligibility": p.eligibility,
                               "blockers": p.blockers, "obligations": p.obligation_keys}
                              for p in packages],
