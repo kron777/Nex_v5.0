@@ -295,6 +295,57 @@ class TestDormancyScanner(unittest.TestCase):
         self.assertEqual(first_cursor, 50)
         self.assertEqual(second_cursor, 100)
 
+    def test_scan_wraps_partial_tail_with_bounded_wrap_query(self):
+        """The final short forward page wraps only enough IDs to fill 50."""
+        class _PagedReader:
+            def __init__(self):
+                self.ids = list(range(1, 71))
+                self.last_batch_ids = []
+                self.queries = []
+
+            def read(self, sql, params=()):
+                self.queries.append((sql, params))
+                if "FROM beliefs" not in sql:
+                    return []
+                if "id > ?" in sql:
+                    cursor = int(params[0])
+                    candidates = [i for i in self.ids if i > cursor]
+                    rows = candidates[:50]
+                elif "id <= ?" in sql:
+                    cursor, limit = int(params[0]), int(params[1])
+                    candidates = [i for i in self.ids if i <= cursor]
+                    rows = candidates[:limit]
+                else:
+                    return []
+                self.last_batch_ids = list(rows)
+                return [
+                    {"id": i, "created_at": time.time() - 86400 * 30,
+                     "last_referenced_at": None}
+                    for i in rows
+                ]
+
+        reader = _PagedReader()
+        writer = _StubWriter()
+        from theory_x.diversity.dormancy import DormancyScanner
+        scanner = DormancyScanner(writer, reader)
+
+        with patch.object(scanner, "_average_gap", return_value=3600.0):
+            scanner.scan_incremental()
+            self.assertEqual(scanner._last_id, 50)
+            scanner.scan_incremental()
+            second_batch = list(reader.last_batch_ids)
+            self.assertEqual(second_batch, list(range(51, 71)) + list(range(1, 31)))
+            self.assertEqual(scanner._last_id, 30)
+            scanner.scan_incremental()
+            third_batch = list(reader.last_batch_ids)
+
+        self.assertEqual(third_batch, list(range(31, 71)) + list(range(1, 11)))
+        self.assertEqual(scanner._last_id, 10)
+        wrap_queries = [
+            params for sql, params in reader.queries if "id <= ?" in sql
+        ]
+        self.assertEqual(wrap_queries, [(50, 30), (30, 10)])
+
     def test_dormancy_scan_and_pick_exclude_retired_markers(self):
         from theory_x.diversity.dormancy import DormancyScanner
 
