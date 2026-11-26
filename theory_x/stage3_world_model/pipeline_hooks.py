@@ -72,8 +72,8 @@ class PipelineHooks:
 
         # NEX5_TIER_CLIMB (default OFF): the 50-newest window ages T6 beliefs out
         # before they can accrue the corroborations needed to promote to T5 (the
-        # "6->5 wall"). When armed, also give the whole T6 population a corroboration
-        # shot, not just whichever few are newest. Fail-safe; bounded at 500.
+        # "6->5 wall"). When armed, rotate a bounded 500-belief window through
+        # the T6 population, not just whichever few happen to be first by rowid.
         t6_next_cursor = None
         t6_ids = set()
         if os.environ.get("NEX5_TIER_CLIMB") == "1":
