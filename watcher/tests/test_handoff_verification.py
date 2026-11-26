@@ -396,3 +396,39 @@ def test_watcher_rejects_accepted_event_with_incomplete_evidence_dimensions(tmp_
     from watcher.handoff_verify import verify_handoff_request
     with pytest.raises(HandoffVerificationError, match="evidence dimensions"):
         verify_handoff_request(str(request_path))
+
+
+
+def test_source_hash_uses_resolved_target_if_internal_symlink_is_swapped(tmp_path, monkeypatch):
+    repo, base = _repo(tmp_path)
+    target = repo / "docs" / "REQUIREMENTS.md"
+    alias = repo / "docs" / "alias.md"
+    alias.symlink_to("REQUIREMENTS.md")
+    outside = tmp_path / "outside.md"
+    outside.write_text("secret outside source\n", encoding="utf-8")
+    _git(repo, "add", "docs/alias.md")
+    _git(repo, "commit", "-q", "-m", "add internal alias")
+    head = _git(repo, "rev-parse", "HEAD")
+
+    from watcher import handoff_verify as hv
+    real_inside = hv._inside_root
+    swapped = {"done": False}
+
+    def swap_after_resolution(root, relative, label, **kwargs):
+        result = real_inside(root, relative, label, **kwargs)
+        if label == "changed path" and not swapped["done"]:
+            alias.unlink()
+            alias.symlink_to(outside)
+            swapped["done"] = True
+        return result
+
+    monkeypatch.setattr(hv, "_inside_root", swap_after_resolution)
+    record, evidence = hv._current_file_evidence(
+        str(repo), "docs/alias.md", base, head, ["unstaged"]
+    )
+    assert swapped["done"]
+    assert record["status"] == "present_and_hashed"
+    assert record["resolved_path"] == "docs/REQUIREMENTS.md"
+    assert record["sha256"] == hashlib.sha256(target.read_bytes()).hexdigest()
+    assert record["sha256"] != hashlib.sha256(outside.read_bytes()).hexdigest()
+    assert evidence is not None
