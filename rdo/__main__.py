@@ -20,7 +20,9 @@ import sys
 from . import __version__
 from .knowledge import genius_authority_audit
 from .memory import PatternMemory
-from rdo_adapters.objective_intake import (ObjectiveInputError, load_objective_file,\n                                           objective_history, resume_objective,\n                                           submit_objective)
+from rdo_adapters.objective_intake import (ObjectiveInputError, load_objective_file,
+                                           objective_history, resume_objective,
+                                           submit_objective)
 from .report import (demo_genius_tagger, run_catalogue, run_stage2_belief_decay,
                      run_stage3_graph_intelligence, run_stage4_belief_audit,
                      run_stage5_belief_pathway, run_stage6_learning_loop,
