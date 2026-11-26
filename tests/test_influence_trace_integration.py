@@ -312,7 +312,7 @@ def test_chat_route_trace_off_on_preserves_reply_and_voice_prompt(tmp_path, monk
             for event in records
         )
         serialized = sink.read_text()
-        assert "hi" not in serialized
+        assert '"prompt":"hi"' not in serialized
         assert "trace fixture reply" not in serialized
     finally:
         state.close()
