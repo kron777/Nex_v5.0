@@ -492,5 +492,30 @@ class TestHarmonizerSentienceNode(unittest.TestCase):
                       "format_for_prompt output must mention tension")
 
 
+
+class TestCrossDomainRetiredEligibility(unittest.TestCase):
+
+    def test_both_rotating_windows_exclude_retired_markers(self):
+        from theory_x.stage3_world_model.harmonizer import Harmonizer
+
+        class Reader:
+            def __init__(self):
+                self.queries = []
+            def read(self, sql, params=()):
+                self.queries.append(sql)
+                return []
+
+        reader = Reader()
+        harmonizer = Harmonizer(None, reader, None, None)
+        rows, cursor = harmonizer._load_cross_domain_candidates(limit=1)
+
+        self.assertEqual(rows, [])
+        self.assertEqual(cursor, 0)
+        self.assertEqual(len(reader.queries), 2)
+        self.assertTrue(
+            all("erosion_stage != 'retired'" in sql for sql in reader.queries)
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
