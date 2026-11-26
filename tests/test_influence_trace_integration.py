@@ -316,3 +316,71 @@ def test_chat_route_trace_off_on_preserves_reply_and_voice_prompt(tmp_path, monk
         assert "trace fixture reply" not in serialized
     finally:
         state.close()
+
+def test_voice_engine_trace_preserves_selected_reply_and_records_trigger(tmp_path, monkeypatch):
+    from theory_x.stage_throw_net.voice_engine import VoiceEngine
+
+    writers, readers = _make_trace_test_substrate(tmp_path, monkeypatch)
+    try:
+        engine = VoiceEngine(
+            beliefs_reader=readers["beliefs"],
+            problem_memory=None,
+            beliefs_writer=writers["beliefs"],
+            min_score=0.5,
+        )
+        candidates = [{
+            "origin_id": 77,
+            "source": "fountain_insight",
+            "content": "A private stored answer that must not appear in the trace.",
+        }]
+        engine._retrieve_candidates = lambda query: candidates
+        engine._embed = lambda query: None
+        engine._score_candidate = lambda candidate, query_emb: 0.91
+
+        baseline = engine.query_reply(
+            "a private question", session_id="fixture-session", turn_n=1
+        )
+        tracer = TraceContext(
+            "chat_turn", sink_path=tmp_path / "voice-engine.jsonl"
+        )
+        observed = engine.query_reply(
+            "a private question", session_id="fixture-session", turn_n=1,
+            trace=tracer,
+        )
+
+        assert observed == baseline
+        assert observed["belief_id"] == 77
+        records = _read_events(tmp_path / "voice-engine.jsonl")
+        candidate_event = next(
+            event for event in records
+            if event["stage"] == "candidate_generation"
+        )
+        assert candidate_event["metadata"]["candidate_ids"] == [77]
+        selection_event = next(
+            event for event in records
+            if event["stage"] == "salience_workspace"
+        )
+        assert selection_event["metadata"]["selected_order"] == [77]
+        trigger_event = next(
+            event for event in records
+            if event["stage"] == "sqlite_writer_delta"
+        )
+        assert trigger_event["metadata"]["table"] == "throw_net_triggers"
+        assert trigger_event["metadata"]["status"] == "committed"
+        trigger_row = readers["beliefs"].read_one(
+            "SELECT id, fired FROM throw_net_triggers WHERE id=?",
+            (trigger_event["metadata"]["row_id"],),
+        )
+        assert trigger_row is not None
+        assert trigger_row["fired"] == 1
+        serialized = (tmp_path / "voice-engine.jsonl").read_text()
+        assert "a private question" not in serialized
+        assert "A private stored answer" not in serialized
+    finally:
+        for reader in readers.values():
+            try:
+                reader.close()
+            except Exception:
+                pass
+        for writer in writers.values():
+            writer.close()
