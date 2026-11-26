@@ -26,7 +26,7 @@ The command accepts only an RDO-native planning cycle whose objective ID, revisi
 
 A work package must be eligible and the objective must include explicit affected paths to be considered pending human review. A blocked or unbounded work package can still be represented as a blocked manifest for inspection, but it cannot receive scope approval.
 
-The manifest records both the caller-declared path and its resolved in-repository target. A lexical path or parent symlink that resolves outside the checkout is refused; internal symlink aliases retain both names for traceability.
+Allowed paths must name exact files, not directories or globs. The manifest records both the caller-declared path and its resolved in-repository target. A lexical path or parent symlink that resolves outside the checkout is refused; internal file-symlink aliases retain both names for traceability.
 
 The manifest is stored once at:
 
