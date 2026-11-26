@@ -267,7 +267,7 @@ def test_watcher_waits_for_scope_ledger_writer_lock(tmp_path):
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
         proc = subprocess.Popen(
             [sys.executable, "-m", "watcher", "verify-handoff", "--request", str(request_path)],
-            cwd=str(repo), capture_output=True, text=True,
+            cwd=str(Path(__file__).resolve().parents[2]), capture_output=True, text=True,
         )
         time.sleep(1.5)
         blocked_on_lock = proc.poll() is None
