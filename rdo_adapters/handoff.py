@@ -12,7 +12,6 @@ import hashlib
 import json
 import os
 import re
-import subprocess
 from typing import Any, Dict, List, Optional
 
 from watcher.evidence import utc_now
@@ -405,7 +404,8 @@ def handoff_history(workdir: str, handoff_id: str) -> dict:
     }
 
 
-def _append_event(workdir: str, manifest: dict, event_fields: dict,\n                  require_approved_scope: bool = False) -> dict:
+def _append_event(workdir: str, manifest: dict, event_fields: dict,
+                  require_approved_scope: bool = False) -> dict:
     handoff_id = manifest["handoff_id"]
     path = _event_path(workdir, handoff_id)
     with open(path, "a+", encoding="utf-8") as fh:
@@ -528,11 +528,3 @@ def record_human_acceptance(workdir: str, handoff_id: str, decision: str, review
     }, require_approved_scope=True)
 
 
-def _read_cli_int(value: str) -> int:
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError) as exc:
-        raise HandoffError("revision must be an integer") from exc
-    if parsed < 1:
-        raise HandoffError("revision must be positive")
-    return parsed
