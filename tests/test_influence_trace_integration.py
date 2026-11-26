@@ -597,8 +597,8 @@ def test_fountain_prompt_builder_trace_is_byte_identical(tmp_path, monkeypatch):
         events = _read_events(tmp_path / "fountain-prompt.jsonl")
         assert any(event["stage"] == "candidate_generation" for event in events)
         assert any(
-            event["stage"] == "salience_workspace"
-            and event["event"] == "selection_recorded"
+            event["stage"] == "prompt_context_selection"
+            and event["event"] == "belief_manifest_recorded"
             for event in events
         )
         serialized = (tmp_path / "fountain-prompt.jsonl").read_text()
