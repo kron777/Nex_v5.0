@@ -243,7 +243,8 @@ def _maybe_log_decision(candidates: "list[tuple[float, str]]",
 
 
 def arbitrate(status: dict, stakes_active: bool = False,
-              drive_line: str = "", dynamic_db: str = _DYNAMIC_DB) -> str:
+              drive_line: str = "", dynamic_db: str = _DYNAMIC_DB,
+              trace=None) -> str:
     """
     Survey candidates, score salience, return the winner's framing line.
     Returns "" if nothing is salient enough to lead (calm fire).
@@ -284,8 +285,27 @@ def arbitrate(status: dict, stakes_active: bool = False,
         # Competition: highest salience wins and is broadcast as the frame.
         line = arbitrate_candidates(candidates)
         _maybe_log_decision(candidates, kinds, gated_surprise=_gated_surprise)  # NEX5_GW_LOG; fail-safe
+        if trace is not None:
+            winner_kind = None
+            if candidates:
+                winner_index = max(range(len(candidates)), key=lambda i: candidates[i][0])
+                winner_kind = kinds[winner_index]
+            trace.record(
+                "salience_workspace", "global_workspace_arbitration",
+                metadata={
+                    "candidate_kinds": list(kinds),
+                    "candidate_salience": [round(float(item[0]), 6) for item in candidates],
+                    "winner_kind": winner_kind,
+                    "winner_present": bool(line),
+                },
+            )
         return line
-    except Exception:
+    except Exception as exc:
+        if trace is not None:
+            trace.record(
+                "salience_workspace", "global_workspace_error",
+                metadata={"error_type": type(exc).__name__},
+            )
         return ""
 
 
