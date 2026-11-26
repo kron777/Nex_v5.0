@@ -12,6 +12,8 @@ import hashlib
 import json
 import os
 import re
+import subprocess
+import sys
 from typing import Any, Dict, List, Optional
 
 from watcher.evidence import utc_now
@@ -551,4 +553,99 @@ def record_human_acceptance(workdir: str, handoff_id: str, decision: str, review
         "acceptance_authority": "human_judgement_only; does_not_rewrite_source_test_runtime_evidence",
     }, require_approved_scope=True)
 
+def verify_with_watcher(workdir: str, repo_dir: str, handoff_id: str,
+                        timeout_seconds: int = 120) -> dict:
+    """Invoke the fixed Watcher handoff verifier in a separate Python process.
+
+    Only repository-relative request paths are passed. No shell, user-supplied
+    executable, test runner or arbitrary command is accepted. The Watcher process
+    independently revalidates the manifest and human scope-review ledger.
+    """
+    manifest = load_handoff(workdir, handoff_id)
+    if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, int) or not 1 <= timeout_seconds <= 120:
+        raise HandoffError("timeout_seconds must be an integer between 1 and 120")
+
+    root = os.path.realpath(os.path.abspath(repo_dir))
+    work = os.path.realpath(os.path.abspath(workdir))
+    try:
+        if os.path.commonpath((root, work)) != root:
+            raise HandoffError("Watcher verification workdir must be inside the selected repository")
+    except ValueError as exc:
+        raise HandoffError("Watcher verification workdir cannot be resolved inside the repository") from exc
+    work_rel = os.path.relpath(work, root).replace(os.sep, "/")
+    if not (work_rel == "rdo/.cycles" or work_rel.startswith("rdo/.cycles/")):
+        raise HandoffError("Watcher verification workdir must be under rdo/.cycles")
+
+    manifest_path = _manifest_path(work, handoff_id)
+    events_path = _event_path(work, handoff_id)
+    request_path = os.path.join(_handoff_root(work), f"{_safe_id(handoff_id)}.watcher-request.json")
+    ledger_path = os.path.join(work, "watcher_handoff_verification_ledger.jsonl")
+
+    def relative(path: str, label: str) -> str:
+        real = os.path.realpath(os.path.abspath(path))
+        try:
+            if os.path.commonpath((root, real)) != root:
+                raise HandoffError(f"{label} is outside the repository")
+        except ValueError as exc:
+            raise HandoffError(f"{label} cannot be resolved inside the repository") from exc
+        value = os.path.relpath(real, root).replace(os.sep, "/")
+        if value.startswith("../") or value == "..":
+            raise HandoffError(f"{label} is outside the repository")
+        return value
+
+    request = {
+        "schema_version": "watcher.handoff_verify_request.v1",
+        "repo_root": root,
+        "manifest_path": relative(manifest_path, "manifest"),
+        "events_path": relative(events_path, "decision ledger"),
+        "ledger_path": relative(ledger_path, "Watcher ledger"),
+    }
+    payload = _canonical(request) + "\n"
+    os.makedirs(os.path.dirname(request_path), exist_ok=True)
+    fd = os.open(request_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(payload)
+            fh.flush()
+            os.fsync(fh.fileno())
+    except Exception:
+        try:
+            os.unlink(request_path)
+        except OSError:
+            pass
+        raise
+
+    # Keep secrets and provider tokens out of the verifier process environment.
+    permitted_env = ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "TEMP", "TMP",
+                     "SYSTEMROOT", "WINDIR", "PATHEXT")
+    env = {key: os.environ[key] for key in permitted_env if key in os.environ}
+    env["GIT_CONFIG_NOSYSTEM"] = "1"
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "watcher", "verify-handoff", "--request", request_path],
+            cwd=root,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise HandoffError(f"independent Watcher verification timed out after {timeout_seconds}s") from exc
+    except OSError as exc:
+        raise HandoffError(f"could not start the independent Watcher process: {exc}") from exc
+    try:
+        report = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        detail = (result.stderr or result.stdout or "no output").strip()[-2000:]
+        raise HandoffError(f"Watcher returned no valid JSON report (exit {result.returncode}): {detail}") from exc
+    if not isinstance(report, dict) or report.get("schema_version") != "watcher.handoff_verification.v1":
+        raise HandoffError("Watcher response schema/version is invalid")
+    if report.get("handoff", {}).get("handoff_id") != handoff_id:
+        raise HandoffError("Watcher response refers to another handoff")
+    if report.get("handoff", {}).get("manifest_sha256") != manifest["manifest_sha256"]:
+        raise HandoffError("Watcher response manifest digest does not match the requested handoff")
+    if result.returncode not in (0, 1):
+        raise HandoffError(f"Watcher verification was blocked: {report.get('error', result.stderr)}")
+    return report
 
