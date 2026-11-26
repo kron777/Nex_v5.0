@@ -171,14 +171,22 @@ class BeliefPromoter:
         """
         try:
             row = self._reader.read_one(
-                "SELECT id, tier, locked FROM beliefs WHERE id = ?",
+                "SELECT id, tier, locked, paused, erosion_stage FROM beliefs WHERE id = ?",
                 (belief_id,),
             )
         except Exception as exc:
             errors.record(f"survive_challenge read error: {exc}", source=_LOG_SOURCE, exc=exc)
             return False
 
-        if row is None or row["tier"] <= 1:
+        # A retired Tier-8 tombstone must never be promoted back into the
+        # active Tier-7 belief population by surviving a later challenge.
+        if (
+            row is None
+            or row["tier"] <= 1
+            or row["tier"] >= 8
+            or row["paused"]
+            or row["erosion_stage"] == "retired"
+        ):
             return False
 
         now = int(time.time())
