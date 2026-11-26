@@ -220,6 +220,142 @@ def test_pattern_memory_no_universal_promotion(tmp_path):
     # persistence across reopen
     assert PatternMemory(str(tmp_path / "p.jsonl")).patterns()[0].observed_count == p.observed_count
 
+@pytest.mark.parametrize(
+    "confidence, expected",
+    [(-0.25, 0.0), (0, 0.0), (0.45, 0.45), (0.9, 0.9), (1.0, 0.9), (25, 0.9)],
+)
+def test_pattern_memory_confidence_is_bounded_on_insert(tmp_path, confidence, expected):
+    mem = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    pattern = mem.add(Pattern("bounded", "statement", "cycle:one",
+                              confidence=confidence))
+    assert pattern.confidence == expected
+    assert PatternMemory(str(tmp_path / "patterns.jsonl")).patterns()[0].confidence == expected
+
+
+@pytest.mark.parametrize(
+    "confidence",
+    [float("nan"), float("inf"), float("-inf"), "0.4", True, None],
+)
+def test_pattern_memory_rejects_invalid_confidence_on_insert(tmp_path, confidence):
+    mem = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    with pytest.raises(ValueError, match="pattern confidence must be a finite number"):
+        mem.add(Pattern("invalid", "statement", "cycle:one", confidence=confidence))
+    assert mem.patterns() == []
+
+
+def test_pattern_memory_rejects_aliased_non_finite_confidence_before_replay_mutation(tmp_path):
+    path = tmp_path / "patterns.jsonl"
+    mem = PatternMemory(str(path))
+    mem.add(Pattern("aliased", "statement", "cycle:one", confidence=0.3))
+    stored = mem.patterns()[0]
+    stored.confidence = float("nan")
+    before = path.read_text(encoding="utf-8")
+
+    with pytest.raises(ValueError, match="pattern confidence must be a finite number"):
+        mem.add(Pattern("aliased", "statement", "cycle:one", confidence=0.3,
+                        exceptions=["new exception"]))
+
+    assert stored.confidence != stored.confidence  # remains the caller-injected NaN
+    assert stored.exceptions == []
+    assert path.read_text(encoding="utf-8") == before
+
+
+def test_pattern_memory_rejects_aliased_non_finite_confidence_before_corroboration_mutation(tmp_path):
+    path = tmp_path / "patterns.jsonl"
+    mem = PatternMemory(str(path))
+    mem.add(Pattern("aliased", "statement", "cycle:one", confidence=0.3))
+    stored = mem.patterns()[0]
+    stored.confidence = float("nan")
+    before = (stored.provenance, stored.observed_count, list(stored.exceptions))
+    persisted_before = path.read_text(encoding="utf-8")
+
+    with pytest.raises(ValueError, match="pattern confidence must be a finite number"):
+        mem.add(Pattern("aliased", "statement", "cycle:two", confidence=0.3))
+
+    assert (stored.provenance, stored.observed_count, stored.exceptions) == before
+    assert path.read_text(encoding="utf-8") == persisted_before
+
+
+def test_pattern_memory_applicable_alias_cannot_persist_non_finite_confidence(tmp_path):
+    path = tmp_path / "patterns.jsonl"
+    mem = PatternMemory(str(path))
+    mem.add(Pattern("aliased", "statement", "cycle:one",
+                    applicability="robotics", confidence=0.3))
+    mem.applicable("robotics")[0].confidence = float("nan")
+
+    with pytest.raises(ValueError, match="pattern confidence must be a finite number"):
+        mem.add(Pattern("aliased", "statement", "cycle:one", confidence=0.3,
+                        exceptions=["new exception"]))
+
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 1
+
+
+def test_pattern_memory_clamps_finite_out_of_range_alias_before_replay_persistence(tmp_path):
+    path = tmp_path / "patterns.jsonl"
+    mem = PatternMemory(str(path))
+    mem.add(Pattern("aliased", "statement", "cycle:one", confidence=0.3))
+    mem.applicable("robotics")  # getter is also covered by the alias-boundary tests
+    mem.patterns()[0].confidence = 4.2
+
+    replayed = mem.add(Pattern("aliased", "statement", "cycle:one", confidence=0.3,
+                               exceptions=["new exception"]))
+
+    assert replayed.confidence == 0.9
+    reopened = PatternMemory(str(path)).patterns()[0]
+    assert reopened.confidence == 0.9
+    assert reopened.exceptions == ["new exception"]
+
+
+def test_pattern_memory_persists_alias_normalization_on_idempotent_replay(tmp_path):
+    path = tmp_path / "patterns.jsonl"
+    mem = PatternMemory(str(path))
+    mem.add(Pattern("aliased", "statement", "cycle:one", confidence=0.3))
+    stored = mem.patterns()[0]
+    stored.confidence = 4.2
+
+    replayed = mem.add(Pattern("aliased", "statement", "cycle:one", confidence=0.3))
+
+    assert replayed.confidence == 0.9
+    lines = path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 2
+    reopened = PatternMemory(str(path)).patterns()[0]
+    assert reopened.confidence == 0.9
+    assert reopened.provenance == "cycle:one"
+    assert reopened.observed_count == 1
+    assert reopened.exceptions == []
+
+
+def test_pattern_memory_append_rejects_aliased_non_finite_confidence(tmp_path):
+    mem = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    invalid = Pattern("invalid", "statement", "cycle:one", confidence=float("nan"))
+    with pytest.raises(ValueError, match="pattern confidence must be a finite number"):
+        mem._append(invalid)
+    assert not (tmp_path / "patterns.jsonl").exists()
+
+
+def test_pattern_memory_normalizes_finite_legacy_confidence_on_load(tmp_path):
+    path = tmp_path / "patterns.jsonl"
+    path.write_text(
+        '{"key":"low","statement":"s","provenance":"cycle:1","confidence":-0.2}\n'
+        '{"key":"high","statement":"s","provenance":"cycle:2","confidence":1.2}\n',
+        encoding="utf-8",
+    )
+    patterns = {p.key: p for p in PatternMemory(str(path)).patterns()}
+    assert patterns["low"].confidence == 0.0
+    assert patterns["high"].confidence == 0.9
+
+
+def test_pattern_memory_rejects_non_finite_legacy_confidence_on_load(tmp_path):
+    path = tmp_path / "patterns.jsonl"
+    path.write_text(
+        '{"key":"bad","statement":"s","provenance":"cycle:1","confidence":NaN}\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="pattern confidence must be a finite number"):
+        PatternMemory(str(path))
+
+
+
 
 # ---- learning loop: predicted vs actual, no acceleration claim ----
 
