@@ -746,3 +746,235 @@ def test_complete_fountain_cycle_traces_generation_gate_and_belief_write(
                 pass
         for writer in writers.values():
             writer.close()
+
+
+def _run_paired_fountain_once(
+    run_root, *, trace_on, monkeypatch, original_reader_open, original_gw_arbitrate
+):
+    import copy
+    import datetime
+    import os
+    import random
+    import time
+
+    run_root.mkdir(parents=True, exist_ok=True)
+    data_dir = run_root / "data"
+    data_dir.mkdir()
+    sink = run_root / "fountain-trace.jsonl"
+
+    with monkeypatch.context() as mp:
+        for key in list(os.environ):
+            if key.startswith("NEX5_"):
+                mp.delenv(key, raising=False)
+        mp.setenv("NEX5_DATA_DIR", str(data_dir))
+        mp.setenv("NEX5_ADMIN_HASH_FILE", str(data_dir / "admin.argon2"))
+        mp.setenv("NEX5_GLOBAL_WORKSPACE", "1")
+        mp.setenv("NEX5_MOMENTUM", "0")
+        mp.setenv("NEX5_RECONCILE", "0")
+        mp.setenv("NEX5_SUBSTRATE_EMIT", "0")
+        mp.setenv("NEX5_SPEECH_ENABLED", "false")
+        mp.setenv("NEX5_SURPRISE_WEIGHT", "0")
+        mp.setenv("NEX5_INTAKE_RESONANCE_OFF", "1")
+        mp.setenv("NEX5_FRAME_GATE", "0")
+        mp.setenv("NEX5_FIRE_LANG_GUARD", "0")
+        mp.setenv("NEX5_TRACE_OVERLAY", "1" if trace_on else "0")
+        mp.setenv("NEX5_TRACE_OVERLAY_CONTEXT", "fixture")
+        mp.setenv("NEX5_TRACE_OVERLAY_PATH", str(sink))
+
+        from substrate.init_db import init_all
+        from substrate import Reader, Writer, db_paths
+        from voice.llm import VoiceClient
+        import nex_config
+        import theory_x.stage_tom.global_workspace as global_workspace
+        from theory_x.stage6_fountain.generator import FountainGenerator
+        from theory_x.stage6_fountain.crystallizer import FountainCrystallizer
+
+        # Control SQLite RANDOM() on every reader connection so paired runs
+        # retrieve the same records. This modifies only the test fixture.
+        def deterministic_reader_open(reader):
+            connection = original_reader_open(reader)
+            sqlite_rng = random.Random(8675309)
+            connection.create_function(
+                "random", 0, lambda: sqlite_rng.getrandbits(63)
+            )
+            return connection
+
+        mp.setattr(Reader, "_open", deterministic_reader_open)
+        fixed_local_now = datetime.datetime(2026, 11, 27, 12, 0, 0)
+        mp.setattr(nex_config, "local_now", lambda: fixed_local_now)
+
+        workspace_winners = []
+        def capture_workspace(*args, **kwargs):
+            winner = original_gw_arbitrate(*args, **kwargs)
+            workspace_winners.append(winner)
+            return winner
+        mp.setattr(global_workspace, "arbitrate", capture_workspace)
+
+        init_all()
+        paths = db_paths()
+        writers = {name: Writer(path, name=name) for name, path in paths.items()}
+        readers = {name: Reader(path) for name, path in paths.items()}
+        model_requests = []
+        retrieval_manifests = []
+
+        def deterministic_model(url, payload):
+            model_requests.append(copy.deepcopy(payload))
+            return {"choices": [{"message": {
+                "content": (
+                    "A small observation can change how a familiar pattern "
+                    "is understood."
+                )
+            }}]}
+
+        for index in range(21):
+            writers["beliefs"].write(
+                "INSERT INTO beliefs "
+                "(content, tier, confidence, created_at, source, locked, tags) "
+                "VALUES (?, 5, 0.7, ?, 'auto_growth', 0, '[]')",
+                (f"fixture belief number {index} about a stable topic", 1795776000),
+            )
+
+        class DynamicState:
+            def status(self):
+                return {
+                    "branches": [{
+                        "branch_id": "phase0-test",
+                        "focus_increment": "f",
+                        "focus_num": 0.8,
+                    }],
+                    "consolidation_active": True,
+                }
+
+        crystallizer = FountainCrystallizer(
+            beliefs_writer=writers["beliefs"],
+            beliefs_reader=readers["beliefs"],
+            conversations_reader=readers.get("conversations"),
+            dynamic_reader=readers["dynamic"],
+            dynamic_writer=writers["dynamic"],
+        )
+        generator = FountainGenerator(
+            sense_writer=writers["sense"],
+            dynamic_writer=writers["dynamic"],
+            voice_client=VoiceClient(request_fn=deterministic_model),
+            dynamic_reader=readers["dynamic"],
+            beliefs_writer=writers["beliefs"],
+            beliefs_reader=readers["beliefs"],
+            crystallizer=crystallizer,
+            sense_reader=readers["sense"],
+            conversations_reader=readers.get("conversations"),
+        )
+        original_build_prompt = generator._build_prompt
+
+        def capture_prompt_and_manifest(*args, **kwargs):
+            prompt, manifest = original_build_prompt(*args, **kwargs)
+            retrieval_manifests.append(list(manifest))
+            return prompt, manifest
+
+        generator._build_prompt = capture_prompt_and_manifest
+        random.seed(8675309)
+        try:
+            thought = generator.generate(DynamicState(), readers["beliefs"])
+
+            beliefs = [
+                tuple(row[key] for key in
+                      ("content", "tier", "confidence", "source", "branch_id"))
+                for row in readers["beliefs"].read(
+                    "SELECT content, tier, confidence, source, branch_id "
+                    "FROM beliefs ORDER BY id"
+                )
+            ]
+            fires = [
+                tuple(row[key] for key in
+                      ("thought", "readiness", "hot_branch", "word_count"))
+                for row in readers["dynamic"].read(
+                    "SELECT thought, readiness, hot_branch, word_count "
+                    "FROM fountain_events ORDER BY id"
+                )
+            ]
+            table_counts = {}
+            for db_name, reader in readers.items():
+                tables = reader.read(
+                    "SELECT name FROM sqlite_master "
+                    "WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+                )
+                table_counts[db_name] = {
+                    row["name"]: reader.count(row["name"])
+                    for row in tables
+                }
+
+            trace_rows = (
+                _read_events(sink) if trace_on else []
+            )
+            if not trace_on:
+                assert not sink.exists()
+
+            return {
+                "thought": thought,
+                "model_requests": model_requests,
+                "retrieval_manifests": retrieval_manifests,
+                "workspace_winners": workspace_winners,
+                "beliefs": beliefs,
+                "fires": fires,
+                "table_counts": table_counts,
+                "trace_rows": trace_rows,
+                "trace_path": sink,
+            }
+        finally:
+            for reader in readers.values():
+                try:
+                    reader.close()
+                except Exception:
+                    pass
+            for writer in writers.values():
+                writer.close()
+
+
+def test_full_fountain_generator_trace_overlay_on_off_equivalence(tmp_path, monkeypatch):
+    from substrate import Reader
+    import theory_x.stage_tom.global_workspace as global_workspace
+
+    original_reader_open = Reader._open
+    original_gw_arbitrate = global_workspace.arbitrate
+
+    off = _run_paired_fountain_once(
+        tmp_path / "off", trace_on=False, monkeypatch=monkeypatch,
+        original_reader_open=original_reader_open,
+        original_gw_arbitrate=original_gw_arbitrate,
+    )
+    on = _run_paired_fountain_once(
+        tmp_path / "on", trace_on=True, monkeypatch=monkeypatch,
+        original_reader_open=original_reader_open,
+        original_gw_arbitrate=original_gw_arbitrate,
+    )
+
+    assert on["thought"] == off["thought"]
+    assert on["model_requests"] == off["model_requests"]
+    assert on["retrieval_manifests"] == off["retrieval_manifests"]
+    assert on["workspace_winners"] == off["workspace_winners"]
+    assert on["beliefs"] == off["beliefs"]
+    assert on["fires"] == off["fires"]
+    assert on["table_counts"] == off["table_counts"]
+
+    rows = on["trace_rows"]
+    assert rows
+    assert rows[0]["stage"] == "input_arrival"
+    assert rows[-1]["stage"] == "output"
+    assert {row["stage"] for row in rows} >= {
+        "input_arrival", "readiness", "candidate_generation",
+        "salience_workspace", "prompt_context_selection",
+        "prompt_assembly", "output_filter", "sqlite_writer_delta",
+        "quality_gate", "gate", "output",
+    }
+    assert any(
+        row["stage"] == "sqlite_writer_delta"
+        and row["metadata"].get("table") == "beliefs"
+        and row["metadata"].get("status") == "committed"
+        for row in rows
+    )
+    seen = set()
+    for row in rows:
+        assert all(parent in seen for parent in row["parent_ids"])
+        seen.add(row["event_id"])
+        assert row["evidence_level"] == "L3"
+    serialized = on["trace_path"].read_text(encoding="utf-8")
+    assert "A small observation can change how a familiar pattern is understood." not in serialized
