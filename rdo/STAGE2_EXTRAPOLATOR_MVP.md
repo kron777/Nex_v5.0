@@ -182,3 +182,12 @@ must pass `active_experiments=[]` explicitly.
 
 This correction preserves the reuse-first design while preventing source presence from being
 promoted into semantic satisfaction without review.
+
+
+### Controlled-fixture persistence boundary
+
+A `controlled_fixture_review` can exercise the comparison and lesson-candidate pipeline, but its
+candidate lessons are **not** written to reusable `PatternMemory`. Its cycle record and provenance
+remain available for the test/report; fixture-derived candidates cannot influence later RDO cycles.
+Only an explicitly caller-attributed `planning_review` follows the durable calibration path, and the
+reviewer identity remains unverified by the tool.
