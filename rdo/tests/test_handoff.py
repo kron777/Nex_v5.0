@@ -249,6 +249,22 @@ def test_handoff_decision_ledger_is_hash_chained_and_tamper_evident(tmp_path, mo
         handoff_history(workdir, manifest["handoff_id"])
 
 
+def test_handoff_history_does_not_create_an_empty_event_ledger(tmp_path, monkeypatch):
+    repo, workdir, result, package = _create_cycle(tmp_path, monkeypatch)
+    manifest = create_handoff(
+        workdir, str(repo), "handoff_fixture", 1, result["cycle"]["id"], package["key"]
+    )
+    path = Path(workdir) / "handoffs" / f"{manifest['handoff_id']}.events.jsonl"
+    assert not path.exists()
+
+    history = handoff_history(workdir, manifest["handoff_id"])
+
+    assert history["events"] == []
+    assert history["latest_scope_review"] is None
+    assert history["latest_human_acceptance"] is None
+    assert not path.exists()
+
+
 def test_handoff_history_survives_new_process(tmp_path, monkeypatch):
     repo, workdir, result, package = _create_cycle(tmp_path, monkeypatch)
     manifest = create_handoff(
