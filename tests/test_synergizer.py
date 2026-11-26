@@ -364,10 +364,20 @@ class TestSelectPairEligibility(unittest.TestCase):
             "fresh",
             source="fountain_insight",
         )
+        anchor_id = self.readers["beliefs"].read_one(
+            "SELECT id FROM beliefs WHERE content = ?",
+            ("Attention is the rarest resource in complex systems.",),
+        )["id"]
         fresh_id = self.readers["beliefs"].read_one(
             "SELECT id FROM beliefs WHERE content = ?",
             ("Entropy grows in open systems without sustained energy input.",),
         )["id"]
+        # init_all seeds default keystones; isolate this selector test to its
+        # explicit pair so fallback cannot choose unrelated seeded beliefs.
+        self.writers["beliefs"].write(
+            "UPDATE beliefs SET paused=1 WHERE id NOT IN (?, ?)",
+            (anchor_id, fresh_id),
+        )
         s = _make_synergizer(self.writers, self.readers)
 
         self.writers["beliefs"].write(
