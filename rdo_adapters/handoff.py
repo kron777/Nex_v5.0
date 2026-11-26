@@ -69,18 +69,19 @@ def _safe_id(value: Any) -> str:
     return value
 
 
-def _handoff_root(workdir: str) -> str:
+def _handoff_root(workdir: str, *, create: bool = True) -> str:
     path = os.path.join(workdir, "handoffs")
-    os.makedirs(path, exist_ok=True)
+    if create:
+        os.makedirs(path, exist_ok=True)
     return path
 
 
-def _manifest_path(workdir: str, handoff_id: str) -> str:
-    return os.path.join(_handoff_root(workdir), f"{_safe_id(handoff_id)}.json")
+def _manifest_path(workdir: str, handoff_id: str, *, create: bool = True) -> str:
+    return os.path.join(_handoff_root(workdir, create=create), f"{_safe_id(handoff_id)}.json")
 
 
-def _event_path(workdir: str, handoff_id: str) -> str:
-    return os.path.join(_handoff_root(workdir), f"{_safe_id(handoff_id)}.events.jsonl")
+def _event_path(workdir: str, handoff_id: str, *, create: bool = True) -> str:
+    return os.path.join(_handoff_root(workdir, create=create), f"{_safe_id(handoff_id)}.events.jsonl")
 
 
 def _manifest_body(manifest: dict) -> dict:
@@ -124,7 +125,7 @@ def _validate_manifest(manifest: Any) -> dict:
 
 
 def load_handoff(workdir: str, handoff_id: str) -> dict:
-    path = _manifest_path(workdir, handoff_id)
+    path = _manifest_path(workdir, handoff_id, create=False)
     try:
         with open(path, "r", encoding="utf-8") as fh:
             manifest = json.load(fh)
@@ -381,7 +382,7 @@ def _event_body(event: dict) -> dict:
 
 
 def _read_events_unlocked(workdir: str, handoff_id: str, manifest_sha256: str) -> List[dict]:
-    path = _event_path(workdir, handoff_id)
+    path = _event_path(workdir, handoff_id, create=False)
     if not os.path.exists(path):
         return []
     events = []
@@ -412,7 +413,7 @@ def _read_events_unlocked(workdir: str, handoff_id: str, manifest_sha256: str) -
 
 def handoff_history(workdir: str, handoff_id: str) -> dict:
     manifest = load_handoff(workdir, handoff_id)
-    path = _event_path(workdir, handoff_id)
+    path = _event_path(workdir, handoff_id, create=False)
     # History is observational: do not create an empty ledger merely by reading.
     # If a writer creates the ledger after this check, returning the empty
     # pre-append snapshot is valid; an existing ledger is read under a shared lock.
@@ -582,8 +583,8 @@ def verify_with_watcher(workdir: str, repo_dir: str, handoff_id: str,
     work_rel = os.path.relpath(work, root).replace(os.sep, "/")
     if not (work_rel == "rdo/.cycles" or work_rel.startswith("rdo/.cycles/")):
         raise HandoffError("Watcher verification workdir must be under rdo/.cycles")
-    manifest_path = _manifest_path(work, handoff_id)
-    events_path = _event_path(work, handoff_id)
+    manifest_path = _manifest_path(work, handoff_id, create=False)
+    events_path = _event_path(work, handoff_id, create=False)
     ledger_path = os.path.join(work, "watcher_handoff_verification_ledger.jsonl")
 
     def relative(path: str, label: str) -> str:
@@ -609,7 +610,7 @@ def verify_with_watcher(workdir: str, repo_dir: str, handoff_id: str,
     request_fd, request_path = tempfile.mkstemp(
         prefix=f"{_safe_id(handoff_id)}.watcher-request-",
         suffix=".json",
-        dir=_handoff_root(work),
+        dir=_handoff_root(work, create=False),
     )
     try:
         with os.fdopen(request_fd, "w", encoding="utf-8") as fh:
