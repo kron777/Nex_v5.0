@@ -216,6 +216,10 @@ def test_watcher_rejects_a_symlink_escape_in_allowed_path(tmp_path):
 def test_watcher_requires_planning_commit_to_be_an_ancestor(tmp_path):
     repo, base = _repo(tmp_path)
     other, other_base = _repo(tmp_path / "other")
+    (other / "OTHER.md").write_text("# Distinct repository root\n", encoding="utf-8")
+    _git(other, "add", "OTHER.md")
+    _git(other, "commit", "--amend", "-q", "--no-edit")
+    other_base = _git(other, "rev-parse", "HEAD")
     manifest, manifest_path = _manifest(repo, other_base)
     events_path = _events(repo, manifest)
     request_path = tmp_path / "request.json"
@@ -329,3 +333,18 @@ def test_concurrent_verifiers_serialize_watcher_ledger_transitions(tmp_path):
     assert [entry["to_state"] for entry in entries].count("SOURCE_CONFIRMED") == 2
     assert entries[1]["from_state"] == "DECLARED"
     assert entries[2]["from_state"] == "SOURCE_CONFIRMED"
+
+
+def test_watcher_rejects_non_string_allowlist_entries(tmp_path):
+    repo, base = _repo(tmp_path)
+    manifest, manifest_path = _manifest(repo, base)
+    manifest["scope"]["allowed_paths"] = [{}]
+    manifest["scope"]["resolved_paths"] = {}
+    manifest["manifest_sha256"] = _sha({k: v for k, v in manifest.items() if k != "manifest_sha256"})
+    manifest_path.write_text(_canonical(manifest) + "\n", encoding="utf-8")
+    events_path = _events(repo, manifest)
+    request_path = tmp_path / "request.json"
+    request_path.write_text(_canonical(_request(repo, manifest_path, events_path)), encoding="utf-8")
+    from watcher.handoff_verify import verify_handoff_request
+    with pytest.raises(HandoffVerificationError, match="allowlist"):
+        verify_handoff_request(str(request_path))
