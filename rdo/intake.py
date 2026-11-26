@@ -411,7 +411,7 @@ def _repository_revision(repo_dir: str) -> str:
         ).stdout
     except (OSError, subprocess.SubprocessError) as exc:
         raise ObjectiveInputError(f"cannot establish a repository snapshot: {exc}") from exc
-    if not _SHA256.fullmatch(head):
+    if not _GIT_SHA.fullmatch(head):
         raise ObjectiveInputError("repository HEAD is not a full commit SHA")
     if status.strip():
         raise ObjectiveInputError(
