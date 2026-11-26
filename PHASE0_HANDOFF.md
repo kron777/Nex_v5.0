@@ -217,3 +217,10 @@ This is a conditional source-inventory mismatch, not proof of live undercount. N
 ## Current source-audit addendum — 26 November 2026 (Warrant eligibility)
 
 The Warrant crosscheck now records G-54 / trace §86: WarrantPass filters unpaused rows at or below Tier 7, and WarrantRecorder filters unlocked/unpaused Tier 3 / 5–6 / 7 rows, but neither checks the independent `erosion_stage='retired'` marker. The marker's canonical semantics and live row incidence remain UNKNOWN; Harmonizer's ordinary retirement writes Tier 8, and no normal runtime marker writer was established. Treat this as an operation-specific eligibility question, not a confirmed incident. No behavior changes were made pending Gate 0.
+
+
+## Current source-audit addendum — 26 November 2026 (Warrant boot boundary)
+
+The source crosscheck distinguishes `WarrantRecorder` from `WarrantPass`. Normal `run.py` construction starts only the recorder behind `NEX5_WARRANT_RECORD=1`; the tracked launcher declares this flag but not `NEX5_WARRANT`. No normal boot construction/start for `WarrantPass` was found, despite its module docstring claiming `run.py` wiring. `tools/warrant_validate.py` runs one-shot `compute_all()` and does not start the periodic loop. This may be deliberate record-only operation while Warrant evidence accrues; no runtime or live `belief_warrant` state was inspected.
+
+No loop wiring, score, flag, database, service, experiment, baseline, tripwire or frozen specification was changed. Gate 0 remains pending.
