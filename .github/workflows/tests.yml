@@ -25,7 +25,7 @@ jobs:
           persist-credentials: false
 
       - name: Build disposable test image
-        run: docker build --pull --tag nex5-test-sandbox:${GITHUB_SHA} .
+        run: docker build --pull --file ci/test-sandbox/Dockerfile --tag nex5-test-sandbox:${GITHUB_SHA} .
 
       - name: Verify sandbox and run full baseline suite
         run: |
