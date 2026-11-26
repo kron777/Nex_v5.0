@@ -132,11 +132,24 @@ def _seed_watcher_cycle(memory: PatternMemory, store: CycleStore) -> CycleRecord
 
 
 def _six_outputs(cycle, summary, memory, learning) -> dict:
+    # Keep source-anchor matches distinct from semantically reviewed reuse. The former
+    # are investigation/review work; they must never be presented as completed reuse.
+    reconciliation_evidence = [
+        {
+            "key": obligation["key"],
+            "status": obligation["recon_status"],
+            "evidence": list(obligation.get("recon_evidence") or []),
+            "semantic_reviewed": bool(obligation.get("recon_semantic_verified")),
+        }
+        for obligation in cycle.obligations
+    ]
     return {
         "objective": cycle.objective,
         "1_discovered": {"count": summary["discovered"],
                          "obligations": [o["key"] for o in cycle.obligations]},
         "2_correctly_reused": summary["reused"],
+        "2_signature_matches_located": summary.get("signature_matches", []),
+        "reconciliation_evidence": reconciliation_evidence,
         "3_rejected_or_deferred": summary["rejected_or_deferred"],
         "4_recommended_work": summary["recommended_work"],
         "5_verification": summary["verification"],
