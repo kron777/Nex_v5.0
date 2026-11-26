@@ -571,6 +571,15 @@ def host_requests() -> List[HostRequest]:
             ],
         ),
         HostRequest(
+            "service_integrity", "NEX user-service integrity (read-only)",
+            "Selected state/properties for four fixed NEX user services and the paired Vitals timer; "
+            "configured fragment, drop-in, working-directory, executable and absolute "
+            "ExecStart path-argument existence, plus timer-to-service linkage. "
+            "ExecStart arguments and unit contents are redacted. This is diagnosis only: no "
+            "start/stop/restart/enable/disable/daemon-reload or unit-file write.",
+            ["python3 -m watcher.service_audit"],
+        ),
+        HostRequest(
             "registry_state", "Experiment registry state",
             "observation_reports r78-r84 status + any open tripwire flag files (read-only)",
             ["ls observation_reports/ | grep -E 'r7[8-9]|r8[0-4]'"]),
