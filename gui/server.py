@@ -1249,17 +1249,20 @@ def create_app(state: AppState) -> Flask:
             return jsonify({"error": "empty prompt"}), 400
 
         trace = None
-        try:
-            from influence_trace import new_trace
-            trace = new_trace("chat_turn")
-            if trace is not None:
-                _chat_input_id = trace.input(
-                    prompt, source="gui.server.api_chat",
-                    metadata={"is_probe": bool(payload.get("is_probe", False))},
-                )
-                trace.remember("chat_input", _chat_input_id)
-        except Exception:
-            trace = None  # the trace overlay must never affect a chat turn
+        if os.environ.get("NEX5_TRACE_OVERLAY", "0").strip().lower() in {
+            "1", "true", "on", "yes", "y",
+        }:
+            try:
+                from influence_trace import new_trace
+                trace = new_trace("chat_turn")
+                if trace is not None:
+                    _chat_input_id = trace.input(
+                        prompt, source="gui.server.api_chat",
+                        metadata={"is_probe": bool(payload.get("is_probe", False))},
+                    )
+                    trace.remember("chat_input", _chat_input_id)
+            except Exception:
+                trace = None  # the trace overlay must never affect a chat turn
 
         is_probe = bool(payload.get("is_probe", False))
         register_name = payload.get("register")
