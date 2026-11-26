@@ -256,6 +256,13 @@ def _read_event_chain(path: str, manifest: dict) -> List[dict]:
             raise HandoffVerificationError(f"decision-ledger digest mismatch on line {number}")
         if event.get("reviewer_identity_status") != "caller_attributed_not_authenticated":
             raise HandoffVerificationError(f"reviewer identity status is invalid on line {number}")
+        for field, maximum in (("recorded_at", 128), ("reviewer", 256), ("source_reference", 1000)):
+            value = event.get(field)
+            if not isinstance(value, str) or not value.strip() or len(value) > maximum:
+                raise HandoffVerificationError(f"decision event {field} is missing or invalid on line {number}")
+        note = event.get("note", "")
+        if not isinstance(note, str) or len(note) > 2000:
+            raise HandoffVerificationError(f"decision event note is invalid on line {number}")
         kind = event.get("event_kind")
         if kind == "scope_review":
             decision = event.get("decision")
@@ -277,6 +284,21 @@ def _read_event_chain(path: str, manifest: dict) -> List[dict]:
                 raise HandoffVerificationError(f"invalid human acceptance on line {number}")
             if not isinstance(event.get("delivery_reference"), str) or not event["delivery_reference"].strip():
                 raise HandoffVerificationError(f"acceptance has no delivery reference on line {number}")
+            if event.get("acceptance_authority") != "human_judgement_only; does_not_rewrite_source_test_runtime_evidence":
+                raise HandoffVerificationError(f"acceptance authority is invalid on line {number}")
+            references = event.get("evidence_references")
+            required_dimensions = {"source_implemented", "test_verified", "runtime_observed"}
+            if not isinstance(references, dict) or set(references) != required_dimensions:
+                raise HandoffVerificationError(f"acceptance evidence dimensions are incomplete on line {number}")
+            for dimension, values in references.items():
+                if (not isinstance(values, list) or len(values) > 200
+                        or any(not isinstance(value, str) or not value.strip() or len(value) > 1000
+                               for value in values)):
+                    raise HandoffVerificationError(
+                        f"acceptance evidence references are invalid for {dimension} on line {number}"
+                    )
+            if event["decision"] == "accepted" and not any(references.values()):
+                raise HandoffVerificationError(f"accepted delivery has no evidence references on line {number}")
         else:
             raise HandoffVerificationError(f"unsupported decision event kind on line {number}")
         previous = claimed
