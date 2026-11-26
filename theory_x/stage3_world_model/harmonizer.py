@@ -379,7 +379,8 @@ class Harmonizer:
         rows = [dict(r) for r in self._beliefs_reader.read(
             "SELECT id, content, branch_id FROM beliefs "
             "WHERE tier BETWEEN 3 AND 7 AND locked = 0 AND paused = 0 "
-            "AND branch_id IS NOT NULL AND id > ? ORDER BY id ASC LIMIT ?",
+            "AND erosion_stage != 'retired' AND branch_id IS NOT NULL "
+            "AND id > ? ORDER BY id ASC LIMIT ?",
             (cursor, limit),
         )]
         if len(rows) < limit:
@@ -387,7 +388,8 @@ class Harmonizer:
             rows.extend(dict(r) for r in self._beliefs_reader.read(
                 "SELECT id, content, branch_id FROM beliefs "
                 "WHERE tier BETWEEN 3 AND 7 AND locked = 0 AND paused = 0 "
-                "AND branch_id IS NOT NULL AND id <= ? ORDER BY id ASC LIMIT ?",
+                "AND erosion_stage != 'retired' AND branch_id IS NOT NULL "
+                "AND id <= ? ORDER BY id ASC LIMIT ?",
                 (cursor, limit - len(rows)),
             ))
         next_cursor = int(rows[-1]["id"]) if rows else cursor
