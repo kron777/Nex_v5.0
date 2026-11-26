@@ -1390,3 +1390,21 @@ The source distinguishes two components:
 Therefore the normal source wiring establishes a separately gated recording worker, not a periodic score/persistence worker. Setting `NEX5_WARRANT=1` alone does not construct `WarrantPass` through the inspected boot path. Manual or uninspected callers are not excluded. No `belief_warrant` table or live process state was inspected, so no claim is made about existing persisted rows or host activation.
 
 **Disposition:** record-only operation may be intentional while evidence accrues after Warrant's failed validation gate. The inaccurate `WarrantPass` module docstring is a documentation/source-wiring discrepancy; do not wire the scoring loop, alter flags, or change the Warrant gate until the governing approval and desired lifecycle are confirmed.
+
+
+## 88. Dormancy scanner ownership and dual scheduling
+
+The normally started `DiversityLoop` has a direct scanner path:
+
+- `DiversityLoop.__init__()` constructs `self.dormancy = DormancyScanner(writers['beliefs'], readers['beliefs'])`.
+- `DiversityLoop._run()` calls `self.dormancy.scan_incremental()` once every loop iteration, then waits 60 seconds.
+
+The same `DiversityLoop` constructor creates `self.clock = ClockRunner(writers, readers)`. PR #102 adds a second scanner inside `ClockRunner.__init__()` as `self._dormancy`, and `ClockRunner._run_fast()` invokes it on the `FAST_INTERVAL = 20` fire-count boundary. Both instances target the same beliefs DB, use the same `DormancyScanner.scan_incremental()` source query and upsert `dormant_beliefs`, but keep independent `_last_id` cursors.
+
+`run.py` constructs and starts the `DiversityLoop` normally. Therefore both call paths are reachable in the inspected boot source. The 60-second loop path always attempts a scan; the ClockRunner path adds a second scan when the fire-count interval is reached. If the threshold is crossed during a loop iteration, both can run sequentially in that same iteration.
+
+This dual ownership predates PR #102: before the draft, ClockRunner recreated a scanner inside each fast run, while DiversityLoop held its own scanner instance. PR #102 makes ClockRunner's scanner persistent but does not unify the two instances. The change may deliberately add a second independent maintenance cadence, but that intent and acceptable work rate are not established by the inspected tests.
+
+Existing `TestClockRunner` tests check fire-count cadence. They construct the clock before patching the `DormancyScanner` class, so they do not observe the constructor-created scanner instance. The follow-on test-only PR #145 injects a mock into `clock._dormancy` and asserts reuse across fast ticks, but no current integrated DiversityLoop test verifies the combined two-scanner schedule.
+
+**Disposition:** scheduling/ownership contract question, not a confirmed runtime defect. Confirm whether both scans are intentional. If one stream is intended, share one scanner or remove the duplicate owner only after choosing the desired cadence and adding an integration test. No scan path, cadence, DB rows or runtime behavior was changed.
