@@ -355,3 +355,13 @@ def test_history_and_resume_cli_work_in_a_fresh_python_process(tmp_path, monkeyp
     assert history.returncode == 0, history.stderr
     parsed = json.loads(history.stdout)
     assert parsed["revisions"][0]["revision"] == 1
+
+
+def test_stage7_real_objective_example_is_valid():
+    project_root = Path(__file__).resolve().parents[2]
+    objective_path = project_root / "rdo" / "objectives" / "stage7_real_objective.json"
+    raw = json.loads(objective_path.read_text(encoding="utf-8"))
+    record = validate_objective(raw)
+    assert record["objective_id"] == "stage7-real-objective-record"
+    assert record["scope"]["affected_paths"] == ["rdo/STAGE7_HANDOFF.md"]
+    assert record["seed_obligations"][0]["key"] == "record-stage7-real-objective-run"
