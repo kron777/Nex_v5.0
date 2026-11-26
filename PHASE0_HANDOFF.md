@@ -12,7 +12,7 @@ The earlier fb87e24 handoff is preserved as PHASE0_HANDOFF_HISTORICAL_fb87e24.md
 - NEX_ARCHITECTURE_CROSSWALK_v2.md — current partial crosswalk: boot inventory plus Fountain and Chat output paths.
 - NEX_PHASE0_CURRENT_RECONCILIATION_2026-11-25.md — branch comparison, Phase 0 evidence and remaining gaps.
 - NEX_PHASE0_M0_5_DELIVERABLE_IDENTITY_RECONCILIATION_2026-11-26.md — distinguishes the V2.1 doctrine-question deliverable from the technical trace-overlay work.
-- NEX_PHASE0_P12_SELFREPORT_PROVENANCE_RECONCILIATION_2026-11-26.md — separates the corrected historical MIND_MAP absence claim from the still-unresolved V2.1 M0.2 failure reference.
+- NEX_PHASE0_P12_SELFREPORT_PROVENANCE_RECONCILIATION_2026-11-26.md — records the corrected historical MIND_MAP absence claim and the remaining aggregate environment-limited failure-classification gap.
 - NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-25.md — founder-reviewable verified defects and evidence gaps.
 - ADR-001.md — historical design decision for the default-OFF InfluenceRecord overlay.
 
