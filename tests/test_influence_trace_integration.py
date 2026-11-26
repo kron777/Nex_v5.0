@@ -536,3 +536,78 @@ def test_crystallizer_trace_does_not_change_belief_confidence(tmp_path, monkeypa
                 pass
         for writer in writers.values():
             writer.close()
+
+def test_fountain_prompt_builder_trace_is_byte_identical(tmp_path, monkeypatch):
+    import datetime
+    import random
+
+    from theory_x.stage6_fountain.generator import FountainGenerator
+    from voice.llm import VoiceClient
+    import nex_config
+
+    writers, readers = _make_trace_test_substrate(tmp_path, monkeypatch)
+    try:
+        fixed_now = datetime.datetime(2026, 11, 27, 12, 34)
+        monkeypatch.setattr(nex_config, "local_now", lambda: fixed_now)
+        for name in (
+            "NEX5_GLOBAL_WORKSPACE", "NEX5_TOPIC_GATE_SHADOW",
+            "NEX5_PHRASING_ROTATE", "NEX5_FRAME_DEDUP",
+            "NEX5_SENSE_OVERWHELM_N", "NEX5_SELF_LAYER_N",
+            "NEX5_CONTINUITY_N", "NEX5_SOCIAL_N",
+        ):
+            monkeypatch.delenv(name, raising=False)
+        monkeypatch.setenv("NEX5_GLOBAL_WORKSPACE", "0")
+
+        generator = FountainGenerator(
+            sense_writer=writers["sense"],
+            dynamic_writer=writers["dynamic"],
+            voice_client=VoiceClient(
+                request_fn=lambda url, payload: {
+                    "choices": [{"message": {"content": "unused fixture"}}]
+                }
+            ),
+            dynamic_reader=readers["dynamic"],
+        )
+        dynamic_status = {
+            "branches": [
+                {"branch_id": "systems", "focus_num": 0.7,
+                 "focus_increment": "f"},
+            ],
+            "consolidation_active": False,
+            "active_branch_count": 1,
+            "total_branches": 1,
+            "aggregate_focus": "d",
+            "aggregate_texture": "b",
+        }
+
+        random.seed(314159)
+        baseline_prompt, baseline_manifest = generator._build_prompt(
+            dynamic_status, 0, {}
+        )
+        tracer = TraceContext(
+            "fountain_cycle", sink_path=tmp_path / "fountain-prompt.jsonl"
+        )
+        random.seed(314159)
+        traced_prompt, traced_manifest = generator._build_prompt(
+            dynamic_status, 0, {}, trace=tracer
+        )
+
+        assert traced_prompt == baseline_prompt
+        assert traced_manifest == baseline_manifest
+        events = _read_events(tmp_path / "fountain-prompt.jsonl")
+        assert any(event["stage"] == "candidate_generation" for event in events)
+        assert any(
+            event["stage"] == "salience_workspace"
+            and event["event"] == "selection_recorded"
+            for event in events
+        )
+        serialized = (tmp_path / "fountain-prompt.jsonl").read_text()
+        assert traced_prompt not in serialized
+    finally:
+        for reader in readers.values():
+            try:
+                reader.close()
+            except Exception:
+                pass
+        for writer in writers.values():
+            writer.close()
