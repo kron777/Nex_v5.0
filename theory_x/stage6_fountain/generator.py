@@ -1463,6 +1463,20 @@ class FountainGenerator:
         if not anchor_content:
             return None
 
+        if trace is not None:
+            trace.candidates(
+                [anchor_id],
+                source="stage6_fountain.substrate_voice_anchor",
+                candidate_kinds=["stored_tier_1_or_2_belief"],
+                metadata={"selection_rule": "least_recently_voiced"},
+            )
+            trace.selection(
+                source="stage6_fountain.substrate_voice_anchor",
+                candidate_order=[anchor_id],
+                selected_order=[anchor_id],
+                strategy="least_recently_voiced_anchor",
+            )
+
         ts_now = time.time()
 
         if self._beliefs_writer is not None:
@@ -1579,7 +1593,7 @@ class FountainGenerator:
             except Exception:
                 pass
 
-    def _apply_frame_gate(self, thought: str, prompt: str) -> str:
+    def _apply_frame_gate(self, thought: str, prompt: str, trace=None) -> str:
         """NEX5_FRAME_GATE (default OFF): if a draft trips the register-template
         detector, regenerate ONCE with the B1 concreteness demand and use the clean
         retry; otherwise keep the original (never drop, never degrade). Returns
@@ -1589,16 +1603,33 @@ class FountainGenerator:
             return thought
         if not _register_template_trips(thought):
             return thought
+        _retry_prompt = prompt + _FRAME_GATE_RETRY_SUFFIX
+        if trace is not None:
+            trace.record(
+                "prompt_assembly", "frame_gate_retry_prompt",
+                metadata={"prompt": _retry_prompt, "reason_code": "register_template_trip"},
+            )
         try:
             _rg = self._voice.speak(
-                VoiceRequest(prompt=prompt + _FRAME_GATE_RETRY_SUFFIX,
+                VoiceRequest(prompt=_retry_prompt,
                              register=PHILOSOPHICAL, self_report_examples=False),
                 beliefs=None,
             )
             _rgt = (_rg.text or "").strip()
-        except Exception:
+        except Exception as exc:
             _rgt = ""
-        if _rgt and not _register_template_trips(_rgt):
+            if trace is not None:
+                trace.record(
+                    "candidate_generation", "frame_gate_retry_error",
+                    metadata={"error_type": type(exc).__name__},
+                )
+        _retry_accepted = bool(_rgt and not _register_template_trips(_rgt))
+        if trace is not None:
+            trace.record(
+                "candidate_generation", "frame_gate_retry_candidate",
+                metadata={"thought": _rgt, "selected_as_final": _retry_accepted},
+            )
+        if _retry_accepted:
             logger.info("frame_gate: regenerated concrete (original tripped register detector)")
             return _rgt
         logger.info("frame_gate: retry unclean/empty, kept original")
@@ -1708,6 +1739,14 @@ class FountainGenerator:
                         row = rows[0]
                         payload = (row["payload"] or "")[:100].strip()
                         thought = f"[{row['stream']}] {payload}"
+                        if trace is not None:
+                            trace.record(
+                                "candidate_generation", "quiescent_sense_candidate",
+                                metadata={"source": "existing_sense_event",
+                                          "stream": row["stream"],
+                                          "timestamp": row["timestamp"],
+                                          "payload": payload},
+                            )
             except Exception:
                 pass
 
@@ -1891,6 +1930,24 @@ class FountainGenerator:
             except Exception:
                 _hot = []
             if _hot:
+                if trace is not None:
+                    _hot_ids = [item.get("belief_id") for item in _hot]
+                    _hot_sources = [item.get("source") for item in _hot]
+                    trace.candidates(
+                        _hot_ids,
+                        source="theory_x.substrate.activation.get_top_activated",
+                        candidate_kinds=_hot_sources,
+                        metadata={"limit": 4, "selection_rule": "effective_activation_desc"},
+                    )
+                    trace.selection(
+                        source="theory_x.substrate.activation.get_top_activated",
+                        candidate_order=_hot_ids,
+                        selected_order=_hot_ids,
+                        strategy="top_effective_activation",
+                        metadata={"effective_activation": [
+                            item.get("eff_activation") for item in _hot
+                        ]},
+                    )
                 _parts = ["[substrate emit]"]
                 for _h in _hot:
                     _c = (_h.get("content") or "").strip().replace("\n", " ")
@@ -1900,6 +1957,12 @@ class FountainGenerator:
                     _tier = _h.get("tier", "?")
                     _parts.append(f"  T{_tier} a={_act:.2f}: {_c}")
                 thought = "\n".join(_parts)
+                if trace is not None:
+                    trace.record(
+                        "candidate_generation", "substrate_emit_candidate",
+                        metadata={"thought": thought, "fresh_model_generation": False,
+                                  "belief_ids": [item.get("belief_id") for item in _hot]},
+                    )
                 _emitted = True
         # ── SYNTHESIS EMIT: removed 2026-07-25 (session 49) ────────────
         # NEX5_SYNTH_EMIT was never set in any launch path this deployment
@@ -2215,7 +2278,7 @@ class FountainGenerator:
             # NEX5_FRAME_GATE (default OFF): register-moha exit guard — detector-gated
             # single regeneration (the FIRE_LANG_GUARD analogue; see _apply_frame_gate).
             _before_frame_gate = thought
-            thought = self._apply_frame_gate(thought, prompt)
+            thought = self._apply_frame_gate(thought, prompt, trace=trace)
             if trace is not None:
                 trace.record(
                     "output_filter", "frame_gate_applied",
