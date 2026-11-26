@@ -131,3 +131,32 @@ def test_disabled_context_is_a_complete_noop(tmp_path):
     assert tracer.output("reply", output_kind="chat_reply") is None
     assert tracer.events == ()
     assert not (tmp_path / "trace.jsonl").exists()
+
+def test_sink_rejects_symlink_to_substrate_database(tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    database = data_dir / "beliefs.db"
+    database.write_bytes(b"do-not-touch")
+    sink = tmp_path / "trace.jsonl"
+    sink.symlink_to(database)
+    monkeypatch.setenv("NEX5_DATA_DIR", str(data_dir))
+
+    tracer = InfluenceTracer(sink_path=sink, enabled=True)
+    assert tracer.record("writer", "observed", metadata={}) is None
+    assert database.read_bytes() == b"do-not-touch"
+
+
+def test_sink_rejects_hardlink_to_substrate_database(tmp_path, monkeypatch):
+    import os
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    database = data_dir / "beliefs.db"
+    database.write_bytes(b"do-not-touch")
+    sink = tmp_path / "trace.jsonl"
+    os.link(database, sink)
+    monkeypatch.setenv("NEX5_DATA_DIR", str(data_dir))
+
+    tracer = InfluenceTracer(sink_path=sink, enabled=True)
+    assert tracer.record("writer", "observed", metadata={}) is None
+    assert database.read_bytes() == b"do-not-touch"
