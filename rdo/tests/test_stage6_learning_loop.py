@@ -94,14 +94,18 @@ def test_planning_review_is_not_counted_as_execution():
 def test_reopening_only_on_concrete_contradicting_evidence():
     c = _cycle("reopen", 1,
                obligations=[{"key": "A", "recon_status": "reuse_existing"},
+                            {"key": "C", "recon_status": "signature_matched"},
                             {"key": "B", "recon_status": "unknown"}],
                frontier=[{"key": "D", "reason": "max_depth 1 reached"}])
     out = {e["key"]: e for e in reopening_candidates(c, [
-        {"key": "A", "now": "missing", "observation": "mechanism A deleted"},     # reopen
-        {"key": "D", "blocker_cleared": True, "observation": "budget raised"},     # reopen deferred
-        {"key": "B", "now": "unknown", "observation": ""},                         # insufficient -> no
+        {"key": "A", "now": "missing", "observation": "reviewed mechanism A deleted"},
+        {"key": "C", "now": "missing", "observation": "previous source anchor no longer found"},
+        {"key": "D", "blocker_cleared": True, "observation": "budget raised"},
+        {"key": "B", "now": "unknown", "observation": ""},
     ])}
-    assert out["A"]["reopen"] is True and out["D"]["reopen"] is True
+    assert out["A"]["reopen"] is True
+    assert out["C"]["reopen"] is True and "semantic review remains open" in out["C"]["reason"]
+    assert out["D"]["reopen"] is True
     assert out["B"]["reopen"] is False and "UNKNOWN" in out["B"]["reason"]
 
 
@@ -114,7 +118,7 @@ def test_real_stage_evidence_loop_persists_and_resumes(tmp_path):
     assert res["cycles_ingested"] >= 5
     assert res["provenance_split"]["human_reviewed"] >= 1        # the reviewed planning cycle
     assert res["unknown_outcomes"] >= 1                          # planning-only cycles are UNKNOWN
-    # reopening demonstrated on real cycle: reuse->missing reopens, UNKNOWN does not
+    # reopening demonstrated: source-match->missing reopens its review path, UNKNOWN does not
     reopen = {r["key"]: r["reopen"] for r in res["reopening"]}
     assert reopen.get("belief_staleness_input") is True
     assert reopen.get("belief_decay_policy") is False
