@@ -58,9 +58,17 @@ def _safe_metadata(value: Any, key: str = "", depth: int = 0) -> Any:
     """Bound metadata size and hash any value under a text-bearing key."""
     if depth > 5:
         return "[depth-limited]"
-    if key.lower() in _TEXT_KEYS and isinstance(value, (str, bytes)):
-        raw = value if isinstance(value, bytes) else value.encode("utf-8", errors="replace")
-        return {"sha256": _digest(raw), "length": len(raw)}
+    if key.lower() in _TEXT_KEYS and value is not None:
+        if isinstance(value, bytes):
+            raw = value
+        elif isinstance(value, str):
+            raw = value.encode("utf-8", errors="replace")
+        else:
+            raw = json.dumps(value, ensure_ascii=False, sort_keys=True, default=str).encode(
+                "utf-8", errors="replace"
+            )
+        return {"sha256": _digest(raw), "length": len(raw),
+                "value_type": type(value).__name__}
     if value is None or isinstance(value, (bool, int, float)):
         return value
     if isinstance(value, str):
