@@ -63,7 +63,7 @@ def test_t6_climb_does_not_advance_after_corroboration_failure(monkeypatch):
         {"id": 2, "content": "quantum coherence has consequences", "tier": 6},
     ]
     promoter = _Promoter(fail_ids={1})
-    hooks = PipelineHooks(promoter, _Reader(rows))
+    hooks = PipelineHooks(promoter, _Reader(rows, newest=[rows[0]]))
 
     hooks.on_pipeline_event({
         "magnitude": 0.9,
