@@ -33,7 +33,8 @@ def _pick_old_belief(cx):
     cutoff = time.time() - OLD_MIN_AGE_DAYS * 86400
     row = cx.execute(
         "SELECT id, content, branch_id, created_at "
-        "FROM beliefs WHERE created_at < ? AND tier >= 6 "
+        "FROM beliefs WHERE created_at < ? AND tier BETWEEN 6 AND 7 "
+        "AND paused = 0 AND erosion_stage != 'retired' "
         "AND source NOT IN ('remember_loop', 'spectrum') "
         "ORDER BY RANDOM() LIMIT 1",
         (cutoff,)
@@ -47,7 +48,8 @@ def _pick_recent_belief(cx):
     cutoff = time.time() - RECENT_MAX_AGE_SECONDS
     row = cx.execute(
         "SELECT id, content, branch_id, created_at "
-        "FROM beliefs WHERE created_at > ? AND tier >= 6 "
+        "FROM beliefs WHERE created_at > ? AND tier BETWEEN 6 AND 7 "
+        "AND paused = 0 AND erosion_stage != 'retired' "
         "AND source NOT IN ('remember_loop', 'spectrum') "
         "ORDER BY RANDOM() LIMIT 1",
         (cutoff,)
