@@ -18,7 +18,7 @@ from . import prioritise, reconcile as recon_mod, tension
 from .extrapolator import expand, frontier_breakdown
 from .memory import PatternMemory, compare, derive_lessons, record_actual
 from .model import (ANTI_REQUIREMENT, EXECUTED_VERIFIED, MISSING, PARTIAL, RECON_UNKNOWN,
-                    REUSE_EXISTING, CycleRecord, Obligation)
+                    REUSE_EXISTING, SIGNATURE_MATCHED, CycleRecord, Obligation)
 from .reconcile import Signature
 
 
