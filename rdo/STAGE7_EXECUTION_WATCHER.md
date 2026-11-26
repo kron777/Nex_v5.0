@@ -108,7 +108,7 @@ The generic intake interface is merged and a first durable handoff path now exis
 - The intake revision digest and original wording/intent are preserved.
 - The selected repository must still be clean and at the exact commit used by the cycle.
 - The exact affected paths, obligations, dependencies, acceptance criteria, constraints, exclusions, anti-requirements and evidence needs are included.
-- Allowed paths are resolved against the repository root; outside-pointing symlinks are refused and internal aliases retain their resolved target.
+- Allowed paths must identify exact files, not directories or globs. They are resolved against the repository root; outside-pointing symlinks are refused and internal file aliases retain their resolved target.
 - The manifest is immutable and SHA-256 checked. A separate append-only, hash-chained event ledger records human-attributed scope reviews and a separate human-acceptance event.
 - Reviewer/source fields are caller-attributed and **not authenticated** by this local mechanism.
 - A scope approval can only record preparation of a proposed patch within scope. It cannot authorize pytest, arbitrary commands, live NEX changes, database writes, experiment changes, services or deployment.
