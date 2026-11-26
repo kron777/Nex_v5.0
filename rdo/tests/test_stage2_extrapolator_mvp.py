@@ -343,7 +343,9 @@ def test_stage2_end_to_end(tmp_path):
     r = _sp.run([_sys.executable, "-c", code], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
     out = _json.loads(r.stdout)
-    assert out["counts"]["discovered"] == res["counts"]["discovered"]\n    assert out["frontier"] == len(res["deferred_frontier"])\n    assert out["kind"] == "native_planning"
+    assert out["counts"]["discovered"] == res["counts"]["discovered"]
+    assert out["frontier"] == len(res["deferred_frontier"])
+    assert out["kind"] == "native_planning"
 
 
 # --------------------- integrity pass: four correctness points ----------------------
