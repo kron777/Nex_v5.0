@@ -276,5 +276,7 @@ Stage 7's fixture authorizes only its own exact repository-relative test path.
 **Specification note:** the staged documents identify RDO v1.3 §16 as their
 sequence while some pre-existing docstrings cite v1.4. Version precedence has
 not been inferred. The discrepancy remains explicit pending review of the
-original governing specifications.
+original governing specifications. See the
+[RDO specification-version reconciliation](RDO_SPECIFICATION_VERSION_RECONCILIATION_2026-11-26.md)
+for the source comparison and the unresolved founder decision.
 
