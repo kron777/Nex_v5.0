@@ -204,6 +204,9 @@ def expand(seeds: List[Obligation],
         # classification (recording the raise) so convergence never weakens an obligation.
         if ob.provenance not in existing.provenance:
             existing.provenance += f"; {ob.provenance}"
+        for evidence_need in ob.evidence_needs:
+            if evidence_need not in existing.evidence_needs:
+                existing.evidence_needs.append(evidence_need)
         if (existing.classification != ob.classification
                 and _CLASS_RANK.get(ob.classification, 0) > _CLASS_RANK.get(existing.classification, 0)):
             existing.note = (existing.note
@@ -268,6 +271,7 @@ def expand(seeds: List[Obligation],
                 key=ck, title=f"{child_kind.replace('_', ' ')} for {ob.title}",
                 kind=child_kind, classification=classification,
                 parent_key=ob.key, depth=ob.depth + 1, rationale=rationale,
+                evidence_needs=[f"Evidence needed to verify: {rationale}"],
                 provenance=f"expansion_rule:{ob.kind}->{child_kind}")
             merged = _merge(child)
             relationships.append(Relationship(ob.key, merged.key, "depends_on",
