@@ -1,6 +1,6 @@
 """Daily life daemon — gives her a day-shape, not just continuous fire.
 
-Activities scheduled by local time (Europe/Amsterdam):
+Activities scheduled by NEX local time (NEX5_TZ):
 
   06:00 — morning entry (date, state, what is here)
   10:00 — reading session 1 (pick one feed, respond)
@@ -24,7 +24,6 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 log = logging.getLogger("theory_x.life.daily_life")
 
@@ -34,7 +33,7 @@ CONVERSATIONS_DB = DbPath("conversations")
 BELIEFS_DB = DbPath("beliefs")
 SENSE_DB = DbPath("sense")
 
-TZ = ZoneInfo("Europe/Amsterdam")
+from nex_config import local_tz
 TICK_SECONDS = 60
 SESSION_ID = "internal_daily_life"
 
@@ -53,7 +52,7 @@ SLEEP_END_HOUR   = 6
 
 
 def _now_local() -> datetime:
-    return datetime.now(TZ)
+    return datetime.now(local_tz())
 
 
 def _date_str(dt: datetime) -> str:
@@ -62,6 +61,17 @@ def _date_str(dt: datetime) -> str:
 
 def _is_sleep_hour(hour: int) -> bool:
     return hour >= SLEEP_START_HOUR or hour < SLEEP_END_HOUR
+
+
+def _ensure_daily_activities(cx) -> None:
+    """Create the daily activity ledger on a fresh dynamic database."""
+    cx.execute(
+        "CREATE TABLE IF NOT EXISTS daily_activities ("
+        "activity TEXT NOT NULL, date_local TEXT NOT NULL, "
+        "fired_at REAL NOT NULL, details TEXT NOT NULL DEFAULT '', "
+        "UNIQUE(activity, date_local))"
+    )
+    cx.commit()
 
 
 def _already_fired(cx, activity: str, date_local: str) -> bool:
@@ -267,6 +277,7 @@ def daily_tick() -> dict:
     date_local = _date_str(now)
     d_cx = connect(DYNAMIC_DB, timeout=10)
     try:
+        _ensure_daily_activities(d_cx)
         # Fire any scheduled activity whose hour has been reached today
         fired = []
         for sched_hour, activity in SCHEDULE.items():
@@ -288,7 +299,7 @@ def daily_tick() -> dict:
 
 def daily_loop(state, stop: threading.Event) -> None:
     log.info("daily_loop started (tz=%s, %d activities)",
-             TZ.key, len(SCHEDULE))
+             local_tz().key, len(SCHEDULE))
     while not stop.is_set():
         try:
             stats = daily_tick()

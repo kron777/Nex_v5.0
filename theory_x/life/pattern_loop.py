@@ -20,13 +20,12 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
+from nex_config import local_tz
 
 log = logging.getLogger("theory_x.life.pattern_loop")
 
 BELIEFS_DB = Path(str(db_paths()["beliefs"]))
 DYNAMIC_DB = Path(str(db_paths()["dynamic"]))
-TZ = ZoneInfo("Europe/Amsterdam")
 TICK_SECONDS = 600
 SOURCE = "pattern_loop"
 COMPOSE_HOURS = {3, 15}  # twice a day, off-cycle from identity_loop
@@ -85,7 +84,7 @@ def _compose_pattern(voice, statements):
 
 def pattern_tick(voice, force=False):
     now = time.time()
-    local = datetime.fromtimestamp(now, TZ)
+    local = datetime.fromtimestamp(now, local_tz())
     hour = local.hour
     date_local = local.strftime("%Y-%m-%d")
     if not force and hour not in COMPOSE_HOURS:

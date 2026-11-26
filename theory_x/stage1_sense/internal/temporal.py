@@ -27,7 +27,8 @@ class Temporal(Adapter):
         super().__init__(writer, request_fn=request_fn)
 
     def poll(self) -> list[SenseEvent]:
-        now = datetime.datetime.now()
+        from nex_config import local_now
+        now = local_now()
         utc_now = datetime.datetime.now(datetime.timezone.utc)
         ts = int(now.timestamp())
         payload = self.pack(
