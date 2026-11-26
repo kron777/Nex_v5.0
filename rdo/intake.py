@@ -95,8 +95,9 @@ def _safe_repo_path(value: Any, name: str) -> str:
     path = _text(value, name, max_length=512)
     # Paths are repository-relative POSIX paths. Reject traversal, absolute,
     # drive-qualified and platform-ambiguous paths before they reach the scanner.
-    if (path.startswith("/") or "\\" in path or ":" in path or "\\n" in path or "\\r" in path or "\\x00" in path or
-            any(part in ("", ".", "..") for part in path.split("/"))):
+    if (path.startswith("/") or "\\" in path or ":" in path
+            or any(ord(char) < 32 for char in path)
+            or any(part in ("", ".", "..") for part in path.split("/"))):
         raise ObjectiveInputError(f"{name} must be a clean repository-relative path")
     return path
 
