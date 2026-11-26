@@ -271,7 +271,9 @@ def expand(seeds: List[Obligation],
                 key=ck, title=f"{child_kind.replace('_', ' ')} for {ob.title}",
                 kind=child_kind, classification=classification,
                 parent_key=ob.key, depth=ob.depth + 1, rationale=rationale,
+                impact=f"Inferred impact if omitted: {rationale}",
                 evidence_needs=[f"Evidence needed to verify: {rationale}"],
+                confidence="inferred",
                 provenance=f"expansion_rule:{ob.kind}->{child_kind}")
             merged = _merge(child)
             relationships.append(Relationship(ob.key, merged.key, "depends_on",
