@@ -17,6 +17,32 @@ from typing import Any
 from .host import host_requests
 
 
+def _collector_environment() -> dict[str, str]:
+    """Use a controlled command environment; retain only the user bus needed by systemctl."""
+    env = {
+        "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": str(Path.home()),
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "SYSTEMD_COLORS": "0",
+        "SYSTEMD_PAGER": "cat",
+        "PAGER": "cat",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_OPTIONAL_LOCKS": "0",
+        "GIT_PAGER": "cat",
+        "NEX_WATCHER_COLLECTOR_PID": str(os.getpid()),
+    }
+    # systemctl --user needs the existing session bus; do not inherit the rest
+    # of the caller's environment (notably BASH_ENV, PYTHONPATH or loader hooks).
+    for key in ("XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"):
+        value = os.environ.get(key)
+        if value:
+            env[key] = value
+    return env
+
+
 def collect_host_evidence(
     *,
     timeout: int = 600,
@@ -64,10 +90,7 @@ def collect_host_evidence(
                     errors="replace",
                     timeout=timeout,
                     check=False,
-                    env={
-                    **os.environ,
-                    "NEX_WATCHER_COLLECTOR_PID": str(os.getpid()),
-                },
+                    env=_collector_environment(),
                 )
                 command_results.append({
                     "index": index,
@@ -162,6 +185,10 @@ def main(argv: list[str] | None = None) -> int:
         description="Run the Watcher's fixed, read-only host evidence requests locally.",
     )
     parser.add_argument("--out", default="host_results.json", help="results JSON path")
+    parser.add_argument(
+        "--repo-root", type=Path, default=None,
+        help="NEX checkout root to inspect (default: the collector's own checkout)",
+    )
     parser.add_argument("--timeout", type=int, default=600,
                         help="timeout per command in seconds (default: 600)")
     parser.add_argument("--skip-artifact-hashes", action="store_true",
@@ -183,6 +210,7 @@ def main(argv: list[str] | None = None) -> int:
         results = collect_host_evidence(
             timeout=args.timeout,
             include_artifact_hashes=not args.skip_artifact_hashes,
+            repo_root=args.repo_root,
         )
         path = write_results(results, Path(args.out), force=args.force)
     except (OSError, ValueError) as exc:
