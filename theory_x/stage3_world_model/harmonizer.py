@@ -116,6 +116,10 @@ class Harmonizer:
         self._dynamic_reader = dynamic_reader
         self._promoter = promoter
         self._lock = threading.Lock()
+        # In-memory keyset cursor for cross-domain edge discovery. The scan
+        # runs every six hours; rotation prevents the first 200 IDs starving
+        # the remainder of a growing belief store.
+        self._cross_domain_cursor = 0
         # SentienceNode state cache — refreshed by tick()
         self._cached: dict = {
             "active_paradox": 0,
@@ -369,6 +373,27 @@ class Harmonizer:
 
         return acted
 
+    def _load_cross_domain_candidates(self, limit: int = 200) -> list[dict]:
+        """Load a rotating ID window of eligible cross-domain candidates."""
+        cursor = self._cross_domain_cursor
+        rows = [dict(r) for r in self._beliefs_reader.read(
+            "SELECT id, content, branch_id FROM beliefs "
+            "WHERE tier BETWEEN 3 AND 7 AND locked = 0 AND paused = 0 "
+            "AND branch_id IS NOT NULL AND id > ? ORDER BY id ASC LIMIT ?",
+            (cursor, limit),
+        )]
+        if len(rows) < limit:
+            # Wrap to the start of the eligible ID range, without overlap.
+            rows.extend(dict(r) for r in self._beliefs_reader.read(
+                "SELECT id, content, branch_id FROM beliefs "
+                "WHERE tier BETWEEN 3 AND 7 AND locked = 0 AND paused = 0 "
+                "AND branch_id IS NOT NULL AND id <= ? ORDER BY id ASC LIMIT ?",
+                (cursor, limit - len(rows)),
+            ))
+        if rows:
+            self._cross_domain_cursor = int(rows[-1]["id"])
+        return rows
+
     def detect_cross_domain(self) -> int:
         """Scan Tier 3-7 beliefs for cross-domain pattern matches.
 
@@ -377,16 +402,11 @@ class Harmonizer:
         Returns count of new edges written.
         """
         try:
-            rows = self._beliefs_reader.read(
-                "SELECT id, content, branch_id FROM beliefs "
-                "WHERE tier BETWEEN 3 AND 7 AND locked = 0 AND paused = 0 "
-                "AND branch_id IS NOT NULL LIMIT 200",
-            )
+            beliefs = self._load_cross_domain_candidates(limit=200)
         except Exception as exc:
             errors.record(f"detect_cross_domain read error: {exc}", source=_LOG_SOURCE, exc=exc)
             return 0
 
-        beliefs = [dict(r) for r in rows]
         if len(beliefs) < 2:
             return 0
 
