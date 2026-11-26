@@ -11,9 +11,11 @@ persist reproducibly, and report **UNKNOWN** rather than manufacture certainty.
 `PatternMemory.refute`) and adds only the genuinely-new pieces, in the same module (no 14th module;
 module count stays 13).
 
-**Coordination.** Branch `claude/rdo-stage6-learning-loop`, based on `25e186a` (Stage 5 head).
-`rdo/`-only; earlier branches untouched. No live NEX writes, injections, flag/config changes,
-restarts or experiment modifications. `python -m rdo stage6`.
+**Historical coordination.** The original implementation was isolated on
+`claude/rdo-stage6-learning-loop`, based on the Stage-5 head `25e186a`. The integrated
+Stage 2–7 capability set is now carried in PR #124 on the hardened mainline. No live NEX writes,
+injections, flag/config changes, restarts or experiment modifications are performed.
+`python -m rdo stage6`.
 
 ## What was added (reuse-first, in `memory.py`)
 
@@ -29,24 +31,31 @@ restarts or experiment modifications. `python -m rdo stage6`.
   contradictory-evidence flags, aggregates accuracy **only** over recorded outcomes, and keeps the
   rest UNKNOWN.
 
-## Results on real evidence (`rdo stage6`)
+## Integrated demonstration provenance (`rdo stage6`)
 
-Ingested the real executed cycles (catalogue) + one reviewer-attributed planning cycle (10 cycles):
+The integrated runner ingests the RDO catalogue's recorded development-cycle outcomes and adds
+one `controlled_fixture_review` solely to exercise the provenance and reopening paths. That
+fixture is **not** an authenticated human review and is excluded from aggregate prediction accuracy.
+Caller-supplied reviewer labels are reported as `reviewer_attributed`; the system does not claim
+to authenticate the reviewer identity.
 
-- **Provenance and accuracy values:** the earlier demonstration counts and mean (~0.84) predate the integrated UNKNOWN-preserving rule and used a generated reviewer label. They are not carried forward as verified human-review or accuracy results; the integrated runner labels its own review as `controlled_fixture_review`.
-- **Reopening (controlled fixture):** a prior source-match/review branch that is concretely reported missing **reopens**; `belief_decay_policy` (UNKNOWN observation) **does not**. A source match is not described as semantic reuse.
-- **Comparability:** the honest largest comparable group is unchanged (migration guards); a planning
-  review contributes **no** executed comparable cycle.
+The runner also exercises a concrete contradiction: the prior `belief_staleness_input`
+source-match branch is reported missing and reopens its semantic-review path, while the
+`belief_decay_policy` UNKNOWN observation does not reopen. These are controlled evidence
+fixtures, not observations of the live NEX runtime. The catalogue comparability group remains
+limited to genuinely comparable migration-guard cycles.
 
 ## Requirements → evidence (tests)
 
-`rdo/tests/test_stage6_learning_loop.py` (9 tests), full RDO suite **98 passing**:
+`rdo/tests/test_stage6_learning_loop.py` contains focused tests for the following behaviours;
+the full integrated suite is verified by the current exact-head PR #124 CI, not by the historical
+stage-only count:
 
 - predicted vs actual obligations / reuse / effort → `test_predicted_vs_actual_reuse_and_effort_tracked`, `test_missed_obligations_lower_accuracy`
 - **anti-gaming** (over-generation never raises accuracy) → `test_over_generation_never_raises_accuracy`
 - UNKNOWN for no/insufficient actual → `test_no_actual_is_unknown_not_fabricated`
 - contradictory evidence flagged, not silenced → `test_contradictory_evidence_is_flagged`
-- reviewer-attributed vs controlled-fixture vs automated vs executed provenance → `test_reviewed_vs_automated_vs_executed_provenance`
+- reviewer-attributed vs controlled-fixture vs automated vs executed provenance → `test_reviewed_vs_automated_vs_executed_provenance`, `test_controlled_fixture_does_not_influence_accuracy_aggregate`
 - planning review ≠ execution outcome → `test_planning_review_is_not_counted_as_execution`
 - reopening only on concrete contradicting evidence → `test_reopening_only_on_concrete_contradicting_evidence`
 - real stage evidence + persistence + fresh-process resume → `test_real_stage_evidence_loop_persists_and_resumes`
@@ -63,9 +72,9 @@ Ingested the real executed cycles (catalogue) + one reviewer-attributed planning
 
 ## Next roadmap step
 
-Per RDO v1.3 §16: **Stage 7 — execution integration verified through Watcher** (close the loop with
-Watcher observation of executed work). The host-only live confirmations and the **v1.3/v1.4
-precedence** remain open for your authority/ruling; no version reconciliation is assumed.
+The Stage-7 Watcher execution-verification capability is integrated alongside Stage 6 in PR #124.
+The remaining live-runtime confirmation is host-only and UNKNOWN from cloud execution. The
+**v1.3/v1.4 precedence** remains open; no version reconciliation is assumed.
 
 
 ## Integration evidence correction (26 Nov 2026)
