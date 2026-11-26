@@ -202,14 +202,14 @@ No behavior, database, service, environment flag, experiment, baseline, tripwire
 
 ## Current source-audit addendum — 26 November 2026 (Warrant use-day pagination)
 
-The Phase 0 producer-consumer trace now records G-52 / §84: WarrantRecorder's `belief_lineage` and `arc_members` use-day scans paginate only by timestamp (`created_at` / `joined_at`) with strict-greater-than cursors and a 20,000-row batch. Equal-timestamp rows that straddle a batch boundary can be skipped. `record_synergy()` writes two parent rows with a shared timestamp; ArcReader stamps all members of an arc with one shared timestamp, although the normal boot path currently leaves ArcLoop unstarted. The Warrant Recorder is default-off (`NEX5_WARRANT_RECORD=1` required); live activation and incidence remain UNKNOWN. Existing tests do not cover a tied-timestamp boundary.
+The Phase 0 producer-consumer trace now records G-52 / §84: WarrantRecorder's `belief_lineage` and `arc_members` use-day scans paginate only by timestamp (`created_at` / `joined_at`) with strict-greater-than cursors and a 20,000-row batch. Equal-timestamp rows that straddle a batch boundary can be skipped. `record_synergy()` writes two parent rows with a shared timestamp; ArcReader stamps all members of an arc with one shared timestamp, although the normal boot path currently leaves ArcLoop unstarted. The code guard requires `NEX5_WARRANT_RECORD=1`, and the tracked launcher sets that flag; however the known launcher path blocker and uninspected user unit leave host-effective activation UNKNOWN. Existing tests do not cover a tied-timestamp boundary.
 
 A bounded isolated regression and a stable composite cursor are the likely future correction, but implementation and cursor-state migration remain blocked by Gate 0. No runtime, database, flag, experiment, baseline, tripwire or frozen specification was changed.
 
 
 ## Current source-audit addendum — 26 November 2026 (Warrant sustain coverage)
 
-The Warrant crosscheck now records G-53 / trace §85: `WarrantPass.compute_all()` counts `substrate_snapshots.walk_anchor_id` as sustain evidence, but `WarrantRecorder.use_cycle()` does not include that table in its appended use-day stream. Fountain's substrate-voice branch can persist the anchor into snapshots, but the branch is conditional on `NEX5_RECONCILE != '1'`; the tracked keepalive sets `NEX5_RECONCILE=1`, and actual host-effective state is UNKNOWN. The Recorder's isolated tests do not cover snapshot walk anchors.
+The Warrant crosscheck now records G-53 / trace §85: `WarrantPass.compute_all()` counts `substrate_snapshots.walk_anchor_id` as sustain evidence, but `WarrantRecorder.use_cycle()` does not include that table in its appended use-day stream. Fountain's substrate-voice branch can persist the anchor into snapshots, but the branch is conditional on `NEX5_RECONCILE != '1'`; the tracked keepalive sets `NEX5_RECONCILE=1` while also setting `NEX5_WARRANT_RECORD=1`. Thus the tracked configuration enables the Recorder but suppresses this producer path. Effective host state remains UNKNOWN because the known launcher path blocker and uninspected user unit may alter startup. The Recorder's isolated tests do not cover snapshot walk anchors.
 
 This is a conditional source-inventory mismatch, not proof of live undercount. No behavior, database, cursor, schema, flag, snapshot retention, experiment, baseline, tripwire or frozen specification was changed. Gate 0 remains pending.
 
@@ -221,7 +221,7 @@ The Warrant crosscheck now records G-54 / trace §86: WarrantPass filters unpaus
 
 ## Current source-audit addendum — 26 November 2026 (Warrant boot boundary)
 
-The source crosscheck distinguishes `WarrantRecorder` from `WarrantPass`. Normal `run.py` construction starts only the recorder behind `NEX5_WARRANT_RECORD=1`; the tracked launcher declares this flag but not `NEX5_WARRANT`. No normal boot construction/start for `WarrantPass` was found, despite its module docstring claiming `run.py` wiring. `tools/warrant_validate.py` runs one-shot `compute_all()` and does not start the periodic loop. This may be deliberate record-only operation while Warrant evidence accrues; no runtime or live `belief_warrant` state was inspected.
+The source crosscheck distinguishes `WarrantRecorder` from `WarrantPass`. Normal `run.py` construction starts only the recorder behind `NEX5_WARRANT_RECORD=1`, and the tracked launcher explicitly sets that flag; it does not set `NEX5_WARRANT`. No normal boot construction/start for `WarrantPass` was found, despite its module docstring claiming `run.py` wiring. `tools/warrant_validate.py` runs one-shot `compute_all()` and does not start the periodic loop. This may be deliberate record-only operation while Warrant evidence accrues. The known launcher path blocker and uninspected user unit mean host-effective flags/runtime remain UNKNOWN; no live `belief_warrant` state was inspected.
 
 No loop wiring, score, flag, database, service, experiment, baseline, tripwire or frozen specification was changed. Gate 0 remains pending.
 
