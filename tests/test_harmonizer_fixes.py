@@ -410,9 +410,9 @@ class TestEscalation(unittest.TestCase):
 
     def test_resolve_rejects_pair_that_became_paused_or_retired(self):
         h = _make_harmonizer(self.writers, self.readers)
-        for state_sql, params in (
-            ("UPDATE beliefs SET paused=1 WHERE id=?",),
-            ("UPDATE beliefs SET tier=8 WHERE id=?",),
+        for state_sql in (
+            "UPDATE beliefs SET paused=1 WHERE id=?",
+            "UPDATE beliefs SET tier=8 WHERE id=?",
         ):
             id_a, id_b = self._seed_conflict_pair()
             self.writers["dynamic"].write(
