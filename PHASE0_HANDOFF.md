@@ -10,7 +10,7 @@
 The earlier fb87e24 handoff is preserved as PHASE0_HANDOFF_HISTORICAL_fb87e24.md. Use this document together with:
 - NEX_REPOSITORY_REALITY_REPORT.md — current M0.1–M0.2 report.
 - NEX_ARCHITECTURE_CROSSWALK_v2.md — current partial crosswalk: boot inventory plus Fountain and Chat output paths.
-- NEX_PHASE0_CURRENT_RECONCILIATION_2026-11-25.md — branch comparison, M0.1–M0.5 status, boot wiring, Vitals, RDO/Watcher status and remaining gaps.
+- NEX_PHASE0_CURRENT_RECONCILIATION_2026-11-25.md — branch comparison, Phase 0 evidence and remaining gaps.\n- NEX_PHASE0_M0_5_DELIVERABLE_IDENTITY_RECONCILIATION_2026-11-26.md — distinguishes the V2.1 doctrine-question deliverable from the technical trace-overlay work.
 - NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-25.md — founder-reviewable verified defects and evidence gaps.
 - ADR-001.md — historical design decision for the default-OFF InfluenceRecord overlay.
 
@@ -22,8 +22,8 @@ The earlier fb87e24 handoff is preserved as PHASE0_HANDOFF_HISTORICAL_fb87e24.md
 | M0.1 host/model/runtime baseline | Partial; DB/snapshot hashes, Python/SQLite exact versions, model digest, RAM/VRAM load and tokens/sec remain UNKNOWN |
 | M0.2 test baseline | Founder-provided host run: 1610 passed, 5 skipped, 30 subtests, 0 unexpected failures, 122.87s |
 | M0.3–M0.4 architecture crosswalk | Partial; first-pass boot wiring plus two output paths. Full producer/consumer DAG across theory_x, substrate, speech and GUI remains outstanding |
-| M0.5 InfluenceRecord | Default-OFF source and fixture tests exist; two coarse seams only |
-| M0.5 live L4 capture / zero-delta | UNKNOWN; not performed or authorised |
+| V2.1 M0.5 doctrine questions | Six doctrine questions must be answered at the achieved evidence level; current Phase 0 artifacts do not contain those answers | Not evidenced as complete |\n| Technical trace overlay (previously labelled M0.5) | Default-OFF InfluenceRecord source and fixture tests exist; two coarse seams only |
+| Technical trace-overlay live L4 capture / zero-delta | UNKNOWN; not performed or authorised |
 | Gate 0 | PENDING founder review |
 
 ## Important current findings
@@ -36,7 +36,7 @@ The earlier fb87e24 handoff is preserved as PHASE0_HANDOFF_HISTORICAL_fb87e24.md
 6. Vitals is present on main but absent from the active branch; cherry-picking its merge would import unrelated behaviour. Its exact governing spec and PID-identity safeguards remain unresolved.
 7. The exact Frozen V2.1 source document and founder approval record have not been located. Do not recreate them or infer their detailed acceptance criteria.
 
-## M0.5 trace discrepancy
+## Technical trace-overlay discrepancy (previously labelled M0.5)\n\nDeliverable identity is separate from V2.1 M0.5 doctrine questions. See `NEX_PHASE0_M0_5_DELIVERABLE_IDENTITY_RECONCILIATION_2026-11-26.md`.
 
 The roadmap extract asks for NEX5_TRACE_OVERLAY=0 and a full trace_id/parent_ids chain across input arrival, candidate generation, salience/workspace selection, gate, SQLite writer delta and output, with NEX_CAUSAL_TRACE_SAMPLE.json. The active branch instead uses NEX5_INFLUENCE_TRACE, NEX5_INFLUENCE_TRACE_CONTEXT and NEX5_INFLUENCE_TRACE_PATH, with two coarse seams and a JSONL fixture. The exact Frozen V2.1 contract must be recovered before extending or renaming the hook.
 
@@ -58,7 +58,7 @@ The roadmap extract asks for NEX5_TRACE_OVERLAY=0 and a full trace_id/parent_ids
 
 ## Next safe work
 
-Continue the full forward/backward producer-consumer audit in bounded increments, beginning with the booted paths and their actual persistence/consumer relationships. Recover the exact Frozen V2.1 source/approval and reconcile the M0.5 trace contract. Keep live runtime and protected experiment state untouched. Review PR #97 and PR #98 independently; neither is permission to activate services or Phase 1 behaviour.
+Continue the full forward/backward producer-consumer audit in bounded increments, beginning with the booted paths and their actual persistence/consumer relationships. Recover the exact Frozen V2.1 source/approval and reconcile the technical trace-overlay contract separately from the V2.1 M0.5 doctrine questions. Keep live runtime and protected experiment state untouched. Review PR #97 and PR #98 independently; neither is permission to activate services or Phase 1 behaviour.
 
 ## Current handoff addendum — 2026-11-25 source audit
 
