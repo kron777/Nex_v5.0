@@ -250,7 +250,8 @@ class Harmonizer:
         try:
             candidates = self._beliefs_reader.read(
                 "SELECT id, content, tier FROM beliefs "
-                "WHERE id NOT IN (?, ?) AND paused = 0 AND tier <= 5 LIMIT 50",
+                "WHERE id NOT IN (?, ?) AND paused = 0 AND tier <= 5 "
+                "AND erosion_stage != 'retired' LIMIT 50",
                 (belief_id_a, belief_id_b),
             )
             for c in candidates:
