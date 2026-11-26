@@ -416,10 +416,13 @@ def verify_handoff_request(request_path: str) -> dict:
     manifest_rel = _safe_relative(request["manifest_path"], "manifest_path")
     events_rel = _safe_relative(request["events_path"], "events_path")
     ledger_rel = _safe_relative(request["ledger_path"], "ledger_path")
-    if not manifest_rel.startswith("rdo/.cycles/handoffs/"):
-        raise HandoffVerificationError("manifest must be in the RDO handoff store")
-    if not events_rel.startswith("rdo/.cycles/handoffs/"):
-        raise HandoffVerificationError("decision ledger must be in the RDO handoff store")
+    manifest_dir = os.path.dirname(manifest_rel)
+    events_dir = os.path.dirname(events_rel)
+    if (not manifest_dir.startswith("rdo/.cycles/")
+            or os.path.basename(manifest_dir) != "handoffs"):
+        raise HandoffVerificationError("manifest must be in a handoffs directory under the RDO cycle store")
+    if events_dir != manifest_dir:
+        raise HandoffVerificationError("manifest and decision ledger must share the same handoffs directory")
     if not ledger_rel.startswith("rdo/.cycles/"):
         raise HandoffVerificationError("Watcher ledger must be under the ignored RDO cycle store")
     manifest_path, _ = _inside_root(root, manifest_rel, "manifest_path", require_file=True)
