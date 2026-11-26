@@ -2406,16 +2406,30 @@ class FountainGenerator:
                         payload = (rows[0]["payload"] or "")[:80].strip()
                         thought = f"[{rows[0]['stream']}] {payload}"
                         if trace is not None:
-                            trace.record(
+                            _sense_fallback_candidate_id = trace.record(
                                 "candidate_generation", "sense_fallback_candidate",
                                 metadata={"stream": rows[0]["stream"],
                                           "source": "existing_sense_event",
                                           "fresh_model_generation": False},
+                                parent_ids=[
+                                    trace.reference("fountain_voice_prompt")
+                                ] if trace.reference("fountain_voice_prompt") else
+                                [trace.reference("fountain_readiness")],
                             )
+                            trace.remember("fountain_output_candidate", _sense_fallback_candidate_id)
+                            trace.remember("fountain_output_parent", _sense_fallback_candidate_id)
                 except Exception:
                     pass
             if not thought:
                 thought = f"[tick] {time.strftime('%H:%M:%S')}"
+            if trace is not None and not trace.reference("fountain_output_candidate"):
+                _fallback_tick_candidate_id = trace.record(
+                    "candidate_generation", "voice_fallback_tick_candidate",
+                    metadata={"source": "clock_tick", "fresh_model_generation": False},
+                    parent_ids=[trace.reference("fountain_readiness")],
+                )
+                trace.remember("fountain_output_candidate", _fallback_tick_candidate_id)
+                trace.remember("fountain_output_parent", _fallback_tick_candidate_id)
 
         if not thought:
             return None
@@ -2429,10 +2443,15 @@ class FountainGenerator:
                 (ts_now, thought, readiness, "voice_fallback", len(thought.split())),
             )
             if trace is not None:
-                trace.writer_delta(
+                _fallback_event_trace_id = trace.writer_delta(
                     database="dynamic", table="fountain_events", operation="INSERT",
                     row_id=_fallback_event_id, metadata={"path": "voice_fallback"},
+                    parent_ids=(
+                        [trace.reference("fountain_output_candidate")]
+                        if trace.reference("fountain_output_candidate") else []
+                    ),
                 )
+                trace.remember("fountain_fallback_event_delta", _fallback_event_trace_id)
             self._link_activation_to_event()
             self._last_fountain_output = _strip_metadata(thought)
             self._last_fire_ts = ts_now
@@ -2594,11 +2613,17 @@ class FountainGenerator:
             "VALUES (?, ?, ?, ?)",
             ("internal.fountain", payload, "fountain", int(ts_now)),
         )
+        _sense_event_trace_id = None
         if trace is not None:
-            trace.writer_delta(
+            _sense_event_trace_id = trace.writer_delta(
                 database="sense", table="sense_events", operation="INSERT",
                 row_id=_sense_event_id, metadata={"stream": "internal.fountain"},
+                parent_ids=(
+                    [trace.reference("fountain_output_candidate")]
+                    if trace.reference("fountain_output_candidate") else []
+                ),
             )
+            trace.remember("fountain_sense_event_delta", _sense_event_trace_id)
 
         droplet = None
         if self._condenser is not None:
@@ -2644,13 +2669,21 @@ class FountainGenerator:
             (ts_now, thought, droplet, readiness, hot_branch, word_count,
              _fountain_stillness_reason, _fire_mode, _fire_focal),
         )
+        _fountain_event_trace_id = None
         if trace is not None:
-            trace.writer_delta(
+            _fountain_event_trace_id = trace.writer_delta(
                 database="dynamic", table="fountain_events", operation="INSERT",
                 row_id=fountain_event_id,
                 metadata={"mode": _fire_mode, "branch_id": hot_branch,
                           "sense_event_id": _sense_event_id},
+                parent_ids=[
+                    rid for rid in (
+                        trace.reference("fountain_output_candidate"),
+                        _sense_event_trace_id,
+                    ) if rid
+                ],
             )
+            trace.remember("fountain_event_delta", _fountain_event_trace_id)
         self._link_activation_to_event()
 
         if _er is not None:
@@ -2713,6 +2746,12 @@ class FountainGenerator:
                         operation="WRITE_MANY", row_id=list(_retrieval_row_ids or []),
                         metadata={"fire_id": fountain_event_id,
                                   "row_count": len(_retrieval_row_ids or [])},
+                        parent_ids=[
+                            rid for rid in (
+                                trace.reference("fountain_prompt_context_selection"),
+                                _fountain_event_trace_id,
+                            ) if rid
+                        ],
                     )
         except Exception as e:
             error_channel.record(
@@ -2745,6 +2784,12 @@ class FountainGenerator:
                         row_id=list(_prompt_block_row_ids or []),
                         metadata={"fire_id": fountain_event_id,
                                   "row_count": len(_prompt_block_row_ids or [])},
+                        parent_ids=[
+                            rid for rid in (
+                                trace.reference("fountain_voice_prompt"),
+                                _fountain_event_trace_id,
+                            ) if rid
+                        ],
                     )
             self._last_prompt_blocks = []
         except Exception as e:
