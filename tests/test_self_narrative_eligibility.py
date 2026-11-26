@@ -34,6 +34,7 @@ class TestSelfNarrativeEligibility(unittest.TestCase):
         from theory_x.stage_tom.self_narrative import _recent_t6, _recent_hot
 
         now = time.time()
+        self.writer.write("UPDATE beliefs SET paused=1 WHERE tier=6 OR source='hot_observer'")
         self._insert("active deep belief", "fountain_insight", tier=6, created_at=now - 30)
         self._insert("paused deep belief", "fountain_insight", tier=6, paused=1, created_at=now - 20)
         self._insert("retired marker deep belief", "fountain_insight", tier=6, erosion_stage="retired", created_at=now - 10)
@@ -49,6 +50,7 @@ class TestSelfNarrativeEligibility(unittest.TestCase):
         from theory_x.stage_tom.self_model_aggregator import aggregate_self_model
 
         now = time.time()
+        self.writer.write("UPDATE beliefs SET paused=1 WHERE source='hot_observer'")
         for i in range(4):
             self._insert(
                 f"engaged the world directly (branch: systems) active {i}",
