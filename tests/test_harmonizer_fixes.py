@@ -392,6 +392,46 @@ class TestEscalation(unittest.TestCase):
         self.assertEqual(row_a["tier"], 8,
                          "Beliefs must be retired after escalated resolution")
 
+    def test_mark_paradox_rejects_pair_that_became_ineligible(self):
+        id_a, id_b = self._seed_conflict_pair()
+        self.writers["beliefs"].write(
+            "UPDATE beliefs SET paused=1 WHERE id=?", (id_a,))
+        h = _make_harmonizer(self.writers, self.readers)
+
+        self.assertEqual(h.mark_paradox(id_a, id_b), "ineligible")
+        self.assertIsNone(self.readers["dynamic"].read_one(
+            "SELECT id FROM harmonizer_events WHERE belief_id_a=? AND belief_id_b=?",
+            (id_a, id_b),
+        ))
+        self.assertIsNone(self.readers["beliefs"].read_one(
+            "SELECT id FROM belief_edges WHERE source_id=? AND target_id=? AND edge_type='opposes'",
+            (id_a, id_b),
+        ))
+
+    def test_resolve_rejects_pair_that_became_paused_or_retired(self):
+        h = _make_harmonizer(self.writers, self.readers)
+        for state_sql, params in (
+            ("UPDATE beliefs SET paused=1 WHERE id=?",),
+            ("UPDATE beliefs SET tier=8 WHERE id=?",),
+        ):
+            id_a, id_b = self._seed_conflict_pair()
+            self.writers["dynamic"].write(
+                "INSERT INTO harmonizer_events (ts, belief_id_a, belief_id_b, resolution) "
+                "VALUES (?, ?, ?, 'paradox')",
+                (time.time() - 86400, id_a, id_b),
+            )
+            self.writers["beliefs"].write(state_sql[0], (id_a,))
+            self.assertEqual(h.resolve(id_a, id_b), "ineligible")
+            row_a = self.readers["beliefs"].read_one(
+                "SELECT tier, paused FROM beliefs WHERE id=?", (id_a,))
+            row_b = self.readers["beliefs"].read_one(
+                "SELECT tier, paused FROM beliefs WHERE id=?", (id_b,))
+            if "paused=1" in state_sql[0]:
+                self.assertEqual((row_a["tier"], row_a["paused"]), (5, 1))
+            else:
+                self.assertEqual(row_a["tier"], 8)
+            self.assertEqual((row_b["tier"], row_b["paused"]), (5, 0))
+
     def test_check_paradox_entry_finds_both_orderings(self):
         """_check_paradox_entry must find the entry regardless of (a,b) vs (b,a) order."""
         id_a, id_b = self._seed_conflict_pair()
