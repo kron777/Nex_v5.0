@@ -447,7 +447,7 @@ def test_rdo_never_imports_nex_runtime():
 # ---- full cycle against the real repository (integration smoke) ----
 
 def test_demo_cycle_against_real_repo(tmp_path):
-    from rdo.orchestrator import demo_genius_tagger
+    from rdo.report import demo_genius_tagger
     res = demo_genius_tagger(repo_dir=".", workdir=str(tmp_path / "cycles"))
     for k in ("1_discovered", "2_signature_matches_located", "3_rejected_or_deferred",
               "4_recommended_work", "5_source_evidence_coverage", "6_learned"):
@@ -469,7 +469,7 @@ def test_demo_cycle_against_real_repo(tmp_path):
 # ---- generalisation: a second cycle of a DIFFERENT pattern (defect remediation) ----
 
 def test_defect_pattern_generalises_and_metrics(tmp_path):
-    from rdo.orchestrator import run_catalogue
+    from rdo.report import run_catalogue
     res = run_catalogue(repo_dir=".", workdir=str(tmp_path / "cycles"))
     cycles = res["cycles"]
     assert len(cycles) == 3  # genius + migration_defect + affinity_drift
@@ -583,7 +583,7 @@ def test_genius_feedback_is_hypothesis():
 
 
 def test_executed_cycle_efficiency_eligibility(tmp_path):
-    from rdo.orchestrator import record_arc_closers_execution
+    from rdo.report import record_arc_closers_execution
     from rdo.memory import CycleStore, PatternMemory, metrics_series, record_actual
     from rdo.model import CycleRecord, IMPORTED_RETROSPECTIVE
     store = CycleStore(str(tmp_path))
@@ -598,7 +598,7 @@ def test_executed_cycle_efficiency_eligibility(tmp_path):
 
 
 def test_historical_execution_records_carry_exact_ci_provenance(tmp_path):
-    from rdo.orchestrator import record_arc_closers_execution, record_affinity_execution
+    from rdo.report import record_arc_closers_execution, record_affinity_execution
     from rdo.memory import CycleStore, PatternMemory
 
     store = CycleStore(str(tmp_path / "cycles"))
@@ -633,7 +633,7 @@ def test_historical_execution_records_carry_exact_ci_provenance(tmp_path):
 # ---- the RDO subjected to its own Optimal Functional Tension ----
 
 def test_rdo_self_assessment_lean_and_independent():
-    from rdo.orchestrator import self_assess
+    from rdo.report import self_assess
     r = self_assess()
     assert r["independence_no_nex_import"] is True
     assert r["reuses_watcher_infrastructure"] is True
@@ -764,11 +764,12 @@ def test_pattern_memory_provenance_replay_is_idempotent_and_merges_origins(tmp_p
 
 
 def test_arc_closers_execution_derives_lessons_once(tmp_path, monkeypatch):
-    import rdo.orchestrator as orch
+    import rdo.orchestrator as driver
+    from rdo.report import record_arc_closers_execution
     calls = []
-    monkeypatch.setattr(orch, "derive_lessons", lambda c, d: calls.append(c.id) or [])
-    orch.record_arc_closers_execution(CycleStore(str(tmp_path / "cycles")),
-                                      PatternMemory(str(tmp_path / "patterns.jsonl")))
+    monkeypatch.setattr(driver, "derive_lessons", lambda c, d: calls.append(c.id) or [])
+    record_arc_closers_execution(CycleStore(str(tmp_path / "cycles")),
+                                 PatternMemory(str(tmp_path / "patterns.jsonl")))
     assert calls == ["arc_closers_regtest_2026-11"]
 
 
