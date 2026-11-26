@@ -525,8 +525,7 @@ def metrics_series(cycles: List[CycleRecord]) -> Dict:
 
 
 def accuracy_series(cycles: List[CycleRecord]) -> Dict:
-    """Per-cycle learning metrics across time. Reports the series; makes NO
-    acceleration claim until there are enough cycles to support one."""
+    """Per-cycle series that distinguishes pending, partial and complete outcomes."""
     rows: List[Dict] = []
     for c in cycles:
         if c.actual is None:
@@ -545,7 +544,8 @@ def accuracy_series(cycles: List[CycleRecord]) -> Dict:
                             if isinstance(d.get("over_expansion_unnecessary"), list) else None),
             "inappropriate_reuse": (len(d["inappropriate_reuse"])
                                     if isinstance(d.get("inappropriate_reuse"), list) else None),
-            "effort_error": d["effort_error"],
+            "effort_error": d.get("effort_error"),
+            "unknown_measures": [k for k in required if not isinstance(d.get(k), list)],
         })
     completed = [r for r in rows if r.get("status") == "complete"]
     return {
@@ -630,23 +630,55 @@ def transfer_observations(cycles: List[CycleRecord]) -> Dict:
     }
 
 def prediction_accuracy(cycle: CycleRecord) -> Optional[Dict]:
-    """Prediction accuracy from recorded discrepancies. UNKNOWN (None) until an actual is recorded.
-    Over-expansion (unnecessary), under-expansion (missed) and inappropriate reuse ALL enter the
-    denominator, so proposing MORE obligations than needed never raises the score."""
+    """Score only when all discrepancy dimensions were explicitly reported.
+
+    Missing actuals and omitted discrepancy categories remain UNKNOWN; omission is
+    not proof of zero missed/unnecessary/inappropriate-reuse outcomes. A measured
+    empty list is the explicit zero case. Over-generation cannot improve accuracy.
+    """
     if cycle.actual is None:
-        return None                                   # UNKNOWN — never fabricated
+        return None
     d = compare(cycle)
-    missed = len(d["under_expansion_missed"])
-    unnecessary = len(d["over_expansion_unnecessary"])
-    bad_reuse = len(d["inappropriate_reuse"])
+    keys = {
+        "missed": "under_expansion_missed",
+        "unnecessary": "over_expansion_unnecessary",
+        "inappropriate_reuse": "inappropriate_reuse",
+    }
+    unknown = [name for name, key in keys.items() if not isinstance(d.get(key), list)]
+    counts = {
+        name: len(d[key]) if isinstance(d.get(key), list) else None
+        for name, key in keys.items()
+    }
+    if unknown:
+        return {
+            "status": "incomplete", "correct": None,
+            "missed": counts["missed"], "unnecessary": counts["unnecessary"],
+            "inappropriate_reuse": counts["inappropriate_reuse"],
+            "effort_error": d.get("effort_error"), "accuracy": None,
+            "unknown_measures": unknown,
+            "note": "incomplete actual evidence; omitted categories remain UNKNOWN, not zero",
+        }
     predicted_net_new = cycle.predicted.get("net_new_count", len(cycle.missing))
-    correct = max(0, predicted_net_new - unnecessary)  # unnecessary predictions are not "correct"
-    denom = correct + missed + unnecessary + bad_reuse
+    if (isinstance(predicted_net_new, bool) or not isinstance(predicted_net_new, int)
+            or predicted_net_new < 0):
+        return {
+            "status": "incomplete", "correct": None,
+            "missed": counts["missed"], "unnecessary": counts["unnecessary"],
+            "inappropriate_reuse": counts["inappropriate_reuse"],
+            "effort_error": d.get("effort_error"), "accuracy": None,
+            "unknown_measures": ["predicted_net_new_count"],
+            "note": "predicted count unavailable or invalid; accuracy remains UNKNOWN",
+        }
+    correct = max(0, predicted_net_new - counts["unnecessary"])
+    denom = correct + counts["missed"] + counts["unnecessary"] + counts["inappropriate_reuse"]
     return {
-        "correct": correct, "missed": missed, "unnecessary": unnecessary,
-        "inappropriate_reuse": bad_reuse, "effort_error": d["effort_error"],
+        "status": "recorded", "correct": correct,
+        "missed": counts["missed"], "unnecessary": counts["unnecessary"],
+        "inappropriate_reuse": counts["inappropriate_reuse"],
+        "effort_error": d.get("effort_error"),
         "accuracy": (round(correct / denom, 3) if denom else None),
-        "note": "missed + unnecessary both reduce accuracy; more obligations never raises it",
+        "unknown_measures": [],
+        "note": "missed + unnecessary + inappropriate reuse reduce accuracy; over-generation never raises it",
     }
 
 def learning_provenance(cycle: CycleRecord) -> str:
@@ -697,8 +729,11 @@ def learning_loop(cycles: List[CycleRecord], new_evidence: Optional[List[Dict]] 
         contradiction = None
         if c.actual is not None:
             d = compare(c)
-            overlap = set(d["under_expansion_missed"]) & set(d["over_expansion_unnecessary"])
-            contradiction = sorted(overlap) or None   # same obligation both missed AND unnecessary
+            missed = d.get("under_expansion_missed")
+            unnecessary = d.get("over_expansion_unnecessary")
+            if isinstance(missed, list) and isinstance(unnecessary, list):
+                overlap = set(missed) & set(unnecessary)
+                contradiction = sorted(overlap) or None  # same obligation both missed AND unnecessary
         per.append({
             "cycle": c.id, "kind": c.kind, "provenance": prov,
             "outcome_status": "recorded" if c.actual is not None else "UNKNOWN (pending)",
