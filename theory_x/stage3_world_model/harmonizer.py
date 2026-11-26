@@ -162,14 +162,33 @@ class Harmonizer:
 
     # ── Resolution ───────────────────────────────────────────────────────────
 
+    def _read_eligible_pair(self, belief_id_a: int, belief_id_b: int):
+        """Revalidate both members immediately before a paradox write/action.
+
+        Scan results can become stale between detection and resolution. Only
+        active, unpaused, unlocked Tier 3-7 beliefs belong to this operation.
+        """
+        rows = self._beliefs_reader.read(
+            "SELECT id, content, tier, confidence FROM beliefs "
+            "WHERE id IN (?, ?) AND tier BETWEEN 3 AND 7 "
+            "AND locked = 0 AND paused = 0",
+            (belief_id_a, belief_id_b),
+        )
+        by_id = {row["id"]: row for row in rows}
+        if belief_id_a == belief_id_b or len(by_id) != 2:
+            return None
+        return by_id[belief_id_a], by_id[belief_id_b]
+
     def mark_paradox(self, belief_id_a: int, belief_id_b: int) -> str:
         """First-pass resolution: write 'opposes' edge, log paradox, set
         disturbance. Does NOT pause or retire beliefs — they remain in the
         graph. Escalation to synthesize/delete happens after incubation.
 
-        Returns 'paradox' or 'error'.
+        Returns 'paradox', 'ineligible', or 'error'.
         """
         try:
+            if self._read_eligible_pair(belief_id_a, belief_id_b) is None:
+                return "ineligible"
             self._promoter.write_edge(belief_id_a, belief_id_b, "opposes", 0.6)
         except Exception as exc:
             errors.record(f"mark_paradox edge error: {exc}", source=_LOG_SOURCE, exc=exc)
@@ -197,27 +216,22 @@ class Harmonizer:
         Called only after PARADOX_INCUBATION_SECONDS has elapsed since the
         pair was first marked paradox.
 
-        Returns: 'synthesized', 'both_deleted', or 'error'.
+        Returns: 'synthesized', 'both_deleted', 'ineligible', or 'error'.
         """
         try:
-            row_a = self._beliefs_reader.read_one(
-                "SELECT id, content, tier, confidence FROM beliefs WHERE id = ?",
-                (belief_id_a,),
-            )
-            row_b = self._beliefs_reader.read_one(
-                "SELECT id, content, tier, confidence FROM beliefs WHERE id = ?",
-                (belief_id_b,),
-            )
+            pair = self._read_eligible_pair(belief_id_a, belief_id_b)
         except Exception as exc:
             errors.record(f"harmonizer resolve read error: {exc}", source=_LOG_SOURCE, exc=exc)
             return "error"
 
-        if row_a is None or row_b is None:
-            return "error"
+        if pair is None:
+            return "ineligible"
+        row_a, row_b = pair
 
         # Pause both during resolution
         self._beliefs_writer.write(
-            "UPDATE beliefs SET paused = 1 WHERE id IN (?, ?)",
+            "UPDATE beliefs SET paused = 1 WHERE id IN (?, ?) "
+            "AND tier BETWEEN 3 AND 7 AND locked = 0 AND paused = 0",
             (belief_id_a, belief_id_b),
         )
 
@@ -358,7 +372,7 @@ class Harmonizer:
             elif entry["age_seconds"] >= PARADOX_INCUBATION_SECONDS:
                 # Incubated — escalate
                 result = self.resolve(a_id, b_id)
-                if result != "error":
+                if result in ("synthesized", "both_deleted"):
                     acted += 1
                     errors.record(
                         f"harmonizer escalated ({a_id}, {b_id}) → {result} "
