@@ -995,3 +995,161 @@ def test_full_fountain_generator_trace_overlay_on_off_equivalence(tmp_path, monk
         assert row["evidence_level"] == "L3"
     serialized = on["trace_path"].read_text(encoding="utf-8")
     assert "A small observation can change how a familiar pattern is understood." not in serialized
+
+
+def _run_paired_chat_once(run_root, *, trace_on, monkeypatch):
+    import copy
+    import os
+
+    run_root.mkdir(parents=True, exist_ok=True)
+    data_dir = run_root / "data"
+    data_dir.mkdir()
+    sink = run_root / "chat-trace.jsonl"
+
+    with monkeypatch.context() as mp:
+        for key in list(os.environ):
+            if key.startswith("NEX5_"):
+                mp.delenv(key, raising=False)
+        mp.setenv("NEX5_DATA_DIR", str(data_dir))
+        mp.setenv("NEX5_ADMIN_HASH_FILE", str(data_dir / "admin.argon2"))
+        mp.setenv("NEX5_SPEECH_ENABLED", "false")
+        mp.setenv("NEX5_TRACE_OVERLAY", "1" if trace_on else "0")
+        mp.setenv("NEX5_TRACE_OVERLAY_CONTEXT", "fixture")
+        mp.setenv("NEX5_TRACE_OVERLAY_PATH", str(sink))
+
+        from substrate.init_db import init_all
+        from substrate import Reader, Writer, db_paths
+        from voice.llm import VoiceClient
+        from gui.server import AppState, create_app, _working_memory_by_session
+
+        init_all()
+        paths = db_paths()
+        writers = {name: Writer(path, name=name) for name, path in paths.items()}
+        readers = {name: Reader(path) for name, path in paths.items()}
+        model_requests = []
+        read_sequence = []
+
+        original_read = Reader.read
+        original_read_one = Reader.read_one
+
+        def logged_read(reader, sql, params=()):
+            read_sequence.append((reader.db_path, "read", sql, tuple(params or ())))
+            return original_read(reader, sql, params)
+
+        def logged_read_one(reader, sql, params=()):
+            read_sequence.append((reader.db_path, "read_one", sql, tuple(params or ())))
+            return original_read_one(reader, sql, params)
+
+        mp.setattr(Reader, "read", logged_read)
+        mp.setattr(Reader, "read_one", logged_read_one)
+
+        def deterministic_model(url, payload):
+            model_requests.append(copy.deepcopy(payload))
+            return {"choices": [{"message": {"content": "A deterministic reply."}}]}
+
+        _working_memory_by_session.clear()
+        state = AppState(
+            writers=writers,
+            readers=readers,
+            voice=VoiceClient(request_fn=deterministic_model),
+            now_fn=lambda: 1_700_000_000,
+        )
+        writers["conversations"].write(
+            "INSERT INTO sessions (id, started_at, admin) VALUES (?, ?, ?)",
+            ("phase0-equivalence-session", 1_700_000_000, 0),
+        )
+        try:
+            client = create_app(state).test_client()
+            with client.session_transaction() as session:
+                session["chat_session_id"] = "phase0-equivalence-session"
+
+            response = client.post(
+                "/api/chat",
+                json={"prompt": "Hello, NEX. Give me one observation."},
+            )
+            assert response.status_code == 200, response.get_json()
+            response_payload = response.get_json()
+
+            messages = [
+                tuple(row[key] for key in
+                      ("role", "content", "register", "timestamp", "tool_used"))
+                for row in readers["conversations"].read(
+                    "SELECT role, content, register, timestamp, tool_used "
+                    "FROM messages ORDER BY id"
+                )
+            ]
+            sessions = [
+                tuple(row[key] for key in ("id", "started_at", "admin"))
+                for row in readers["conversations"].read(
+                    "SELECT id, started_at, admin FROM sessions ORDER BY id"
+                )
+            ]
+            table_counts = {}
+            for db_name, reader in readers.items():
+                tables = reader.read(
+                    "SELECT name FROM sqlite_master "
+                    "WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+                )
+                table_counts[db_name] = {
+                    row["name"]: reader.count(row["name"])
+                    for row in tables
+                }
+
+            trace_rows = _read_events(sink) if trace_on else []
+            if not trace_on:
+                assert not sink.exists()
+
+            return {
+                "response": {
+                    key: response_payload.get(key)
+                    for key in ("text", "register", "voice_ok", "tool_used")
+                },
+                "model_requests": model_requests,
+                "read_sequence": read_sequence,
+                "messages": messages,
+                "sessions": sessions,
+                "table_counts": table_counts,
+                "trace_rows": trace_rows,
+                "trace_path": sink,
+            }
+        finally:
+            state.close()
+
+
+def test_full_chat_route_trace_overlay_on_off_equivalence(tmp_path, monkeypatch):
+    off = _run_paired_chat_once(
+        tmp_path / "off", trace_on=False, monkeypatch=monkeypatch
+    )
+    on = _run_paired_chat_once(
+        tmp_path / "on", trace_on=True, monkeypatch=monkeypatch
+    )
+
+    assert on["response"] == off["response"]
+    assert on["model_requests"] == off["model_requests"]
+    assert on["read_sequence"] == off["read_sequence"]
+    assert on["messages"] == off["messages"]
+    assert on["sessions"] == off["sessions"]
+    assert on["table_counts"] == off["table_counts"]
+
+    rows = on["trace_rows"]
+    assert rows
+    assert rows[0]["stage"] == "input_arrival"
+    assert rows[-1]["stage"] == "output"
+    assert {row["stage"] for row in rows} >= {
+        "input_arrival", "candidate_generation", "salience_workspace",
+        "prompt_assembly", "output_filter", "sqlite_writer_delta",
+        "gate", "output",
+    }
+    assert any(
+        row["stage"] == "gate"
+        and row["metadata"]["decision"] == "NOT_APPLICABLE"
+        for row in rows
+    )
+    seen = set()
+    for row in rows:
+        assert all(parent in seen for parent in row["parent_ids"])
+        seen.add(row["event_id"])
+        assert row["evidence_level"] == "L3"
+    serialized = on["trace_path"].read_text(encoding="utf-8")
+    assert "Hello, NEX. Give me one observation." not in serialized
+    assert "A deterministic reply." not in serialized
