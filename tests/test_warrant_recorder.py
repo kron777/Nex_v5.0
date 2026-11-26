@@ -118,6 +118,56 @@ class TestRecorder(unittest.TestCase):
         self.r.use_cycle(now=_T0 + 21 * _DAY)
         self.assertEqual(self._q("SELECT days FROM belief_use_days WHERE belief_id=5")[0][0], 3)
 
+    def test_lineage_and_arc_cursors_do_not_skip_same_timestamp_rows(self):
+        old_batch = rec._USE_BATCH
+        rec._USE_BATCH = 2
+        try:
+            same_ts = _T0 + 30 * _DAY
+            c = sqlite3.connect(self.bdb)
+            c.executemany(
+                "INSERT INTO belief_lineage (child_id, parent_id, relationship, created_at) "
+                "VALUES (?, ?, 'test', ?)",
+                [(100 + i, 101, same_ts) for i in range(5)],
+            )
+            c.executemany(
+                "INSERT INTO arc_members (arc_id, belief_id, position, role, joined_at) "
+                "VALUES (1, ?, ?, 'test', ?)",
+                [(102, i, same_ts) for i in range(5)],
+            )
+            c.commit()
+            c.close()
+
+            # Existing fixture rows are consumed first; then each same-ts
+            # group spans multiple batches. Every row must eventually count.
+            for offset in range(5):
+                self.r.use_cycle(now=same_ts + offset)
+            lineage = self._q(
+                "SELECT days FROM belief_use_days WHERE belief_id=101"
+            )
+            arc = self._q(
+                "SELECT days FROM belief_use_days WHERE belief_id=102"
+            )
+            self.assertEqual(lineage[0][0], 1)
+            self.assertEqual(arc[0][0], 1)
+            self.assertEqual(
+                self._q("SELECT COUNT(*) FROM belief_use_day WHERE belief_id=101")[0][0],
+                1,
+            )
+            self.assertEqual(
+                self._q("SELECT COUNT(*) FROM belief_use_day WHERE belief_id=102")[0][0],
+                1,
+            )
+            # The cursors are rowids, not timestamps, and advance through
+            # all five records even though their timestamps are identical.
+            self.assertGreater(
+                self.r._cursor("use_lineage_rowid"), 1
+            )
+            self.assertGreater(
+                self.r._cursor("use_arc_rowid"), 1
+            )
+        finally:
+            rec._USE_BATCH = old_batch
+
     def test_write_batch_prefers_write_many(self):
         calls = []
 
