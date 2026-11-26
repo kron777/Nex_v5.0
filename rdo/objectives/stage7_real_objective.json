@@ -1,0 +1,75 @@
+{
+  "schema_version": "rdo.objective.v1",
+  "objective_id": "stage7-real-objective-record",
+  "revision": 1,
+  "supersedes_sha256": null,
+  "source": {
+    "kind": "human",
+    "reference": "GitHub issue #87, Step E; user instruction to continue NEX development, 2026-11-26"
+  },
+  "owner": "NEX development",
+  "original_text": "Demonstrate one real, non-behavioural RDO documentation objective through intake, persisted cycle, exact handoff manifest, human scope review, and independent read-only Watcher source/path verification. Record the resulting run identifiers and verification outcome in rdo/STAGE7_HANDOFF.md.",
+  "intent": "Produce traceable evidence that the Stage-7 handoff pipeline works on a real NEX repository objective without executing tests or NEX runtime operations.",
+  "scope": {
+    "in_scope": [
+      "Add one factual real-objective verification record to rdo/STAGE7_HANDOFF.md after the handoff has been reviewed and the Watcher has verified the change."
+    ],
+    "affected_paths": [
+      "rdo/STAGE7_HANDOFF.md"
+    ]
+  },
+  "constraints": [
+    "Documentation-only delivery; no NEX cognitive, decision, or runtime code changes.",
+    "Do not execute pytest or any NEX project test suite; test_verified must remain not_authorized.",
+    "Do not perform host/runtime actions; runtime_observed must remain unknown_host_only.",
+    "Use only the independent Watcher source/path verifier; it must not run tests or arbitrary project commands.",
+    "The handoff must be explicitly reviewed before the documentation delivery is made."
+  ],
+  "exclusions": [
+    "No Stage-8 work.",
+    "No changes to the frozen S-01–S-25 specification/register.",
+    "No changes to the RDO reasoning core or Watcher verification implementation.",
+    "No human-acceptance event as part of this objective; acceptance remains a separate judgement."
+  ],
+  "assumptions": [],
+  "acceptance_criteria": [
+    "The final documentation record identifies the objective revision, cycle ID, work-package key, handoff ID, manifest digest, and scope-review event digest.",
+    "The immutable handoff allowlist contains exactly rdo/STAGE7_HANDOFF.md and the approved action is edit_documentation_within_scope.",
+    "The independent Watcher report confirms scope_compliant=true and source_implemented=source_confirmed for the changed documentation file.",
+    "The Watcher report and changed-file SHA-256 are retained in the run evidence bundle and referenced from the PR or issue record.",
+    "test_verified remains not_authorized, runtime_observed remains unknown_host_only, and human_acceptance remains not_recorded."
+  ],
+  "seed_obligations": [
+    {
+      "key": "record-stage7-real-objective-run",
+      "title": "Record a real Stage-7 objective-to-source-verification run",
+      "kind": "documentation_traceability",
+      "classification": "necessary",
+      "rationale": "GitHub issue #87 Step E requires a real non-behavioural objective to pass through intake, persisted cycle, exact handoff manifest, human scope review, and independent Watcher verification.",
+      "impact": "Without this record, the independent verifier has fixture-level regression coverage but no demonstrated real objective-to-delivery run on the NEX repository.",
+      "evidence_needs": [
+        "objective_input_sha256",
+        "cycle_id",
+        "work_package_key",
+        "handoff_id",
+        "manifest_sha256",
+        "scope_review_event_sha256",
+        "watcher_report_sha256",
+        "changed_file_sha256"
+      ],
+      "assumptions": [],
+      "confidence": "stated"
+    }
+  ],
+  "relationships": [],
+  "reconciliation_signatures": {
+    "record-stage7-real-objective-run": [
+      {
+        "pattern": "Real objective verification record",
+        "path": "rdo/STAGE7_HANDOFF.md",
+        "label": "Stage-7 real objective verification record"
+      }
+    ]
+  },
+  "max_depth": 1
+}
