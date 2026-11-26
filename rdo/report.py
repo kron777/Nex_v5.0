@@ -60,6 +60,28 @@ def self_assess(rdo_dir: Optional[str] = None) -> dict:
                 reuses_watcher = True
     total_loc = sum(m["loc"] for m in modules.values())
 
+    # Input adapters are boundary code, not additional RDO reasoning modules.
+    # Count and inspect them separately rather than hiding their footprint or
+    # relaxing the established core-engine module ceiling.
+    adapter_dir = os.path.join(os.path.dirname(os.path.abspath(rdo_dir)), "rdo_adapters")
+    adapters: Dict[str, dict] = {}
+    if os.path.isdir(adapter_dir):
+        for f in sorted(os.listdir(adapter_dir)):
+            if not f.endswith(".py") or f == "__init__.py":
+                continue
+            adapter_path = os.path.join(adapter_dir, f)
+            adapter_text = open(adapter_path, encoding="utf-8").read()
+            loc = sum(1 for ln in adapter_text.splitlines()
+                      if ln.strip() and not ln.strip().startswith("#"))
+            defs = sum(1 for ln in adapter_text.splitlines() if ln.strip().startswith("def "))
+            adapters[f] = {"loc": loc, "defs": defs}
+            for ln in adapter_text.splitlines():
+                s = ln.strip()
+                if s.startswith(("import theory_x", "from theory_x",
+                                 "import substrate", "from substrate")):
+                    imports_nex.append(f"rdo_adapters/{f}")
+    adapter_loc = sum(m["loc"] for m in adapters.values())
+
     findings: List[dict] = []
     for name, m in sorted(modules.items(), key=lambda kv: -kv[1]["loc"]):
         if m["loc"] > 230:
@@ -78,10 +100,20 @@ def self_assess(rdo_dir: Optional[str] = None) -> dict:
         findings.append({"level": "system", "subject": "independence", "verdict": "VIOLATION",
                          "note": f"imports NEX runtime in {sorted(set(imports_nex))}"})
 
+    if adapters:
+        findings.append({"level": "boundary", "subject": "rdo_adapters",
+                         "verdict": "separated",
+                         "note": "Provider-neutral input/transport concerns are isolated outside "
+                                 "the core reasoning package; adapter count and LOC are reported separately."})
+
     lean = total_loc < 1800 and len(modules) <= 14 and not imports_nex
     return {
         "modules": modules,
-        "module_count": len(modules),
+        "module_count": len(modules),  # core reasoning modules only
+        "boundary_adapters": adapters,
+        "boundary_adapter_count": len(adapters),
+        "boundary_adapter_loc_excl_comments": adapter_loc,
+        "total_module_count": len(modules) + len(adapters),
         "total_loc_excl_comments": total_loc,
         "independence_no_nex_import": not imports_nex,
         "reuses_watcher_infrastructure": reuses_watcher,
