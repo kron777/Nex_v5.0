@@ -139,7 +139,8 @@ class BeliefRetriever:
             try:
                 rr_row = self._reader.read_one(
                     "SELECT id, content, tier, confidence, branch_id, source, locked "
-                    "FROM beliefs WHERE source = 'reification_recognition' LIMIT 1"
+                    "FROM beliefs WHERE source = 'reification_recognition' "
+                    "AND tier < 8 AND paused = 0 AND erosion_stage != 'retired' LIMIT 1"
                 )
                 if rr_row:
                     _reification_id = rr_row["id"]
