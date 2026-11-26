@@ -257,7 +257,7 @@ def test_submit_runs_existing_pipeline_and_persists_intake_provenance(tmp_path, 
     assert by_key["api"]["impact"] == raw["seed_obligations"][0]["impact"]
     assert by_key["api"]["evidence_needs"] == raw["seed_obligations"][0]["evidence_needs"]
     assert "intake:human:founder-provided objective" in by_key["api"]["provenance"]
-    assert all(item["evidence_needs"] for item in cycle["obligations"])
+    assert all(item["evidence_needs"] and item["impact"] for item in cycle["obligations"])\n    assert all(item["confidence"] == "inferred" for item in cycle["obligations"] if item["depth"] > 0)
     assert any(
         edge["src"] == "api" and edge["dst"] == "store" and edge["kind"] == "depends_on"
         for edge in cycle["relationships"]
@@ -271,6 +271,47 @@ def test_submit_runs_existing_pipeline_and_persists_intake_provenance(tmp_path, 
     assert resumed["objective"]["original_text"] == raw["original_text"]
     assert len(resumed["cycles"]) == 1
     assert resumed["cycles"][0]["objective_input"]["sha256"] == result["input_sha256"]
+
+
+def test_intake_smoke_on_real_rdo_repository(tmp_path):
+    """A real, read-only RDO documentation/tooling objective against this checkout."""
+    repo = Path(__file__).resolve().parents[2]
+    raw = payload("rdo_intake_contract_smoke")
+    raw["original_text"] = (
+        "Produce a reviewable, read-only plan to verify the RDO objective intake "
+        "contract and its evidence/provenance boundaries."
+    )
+    raw["intent"] = "Check the current intake contract and test coverage without editing NEX."
+    raw["scope"] = {"in_scope": ["RDO intake schema", "RDO validator and tests"],
+                    "affected_paths": ["rdo/intake.py", "rdo/tests/test_intake.py"]}
+    raw["seed_obligations"] = [{
+        "key": "intake_contract_guard",
+        "title": "Verify the objective intake contract",
+        "kind": "invariant",
+        "classification": "necessary",
+        "rationale": "A versioned input contract must reject claims outside its evidence authority.",
+        "impact": "Without a guard, proposal data could be confused with verified evidence or approval.",
+        "evidence_needs": ["JSON Schema and validator contract", "Adversarial regression tests"],
+        "assumptions": [],
+        "confidence": "stated",
+    }]
+    raw["relationships"] = []
+    raw["reconciliation_signatures"] = {
+        "intake_contract_guard": [{
+            "pattern": "def validate_objective",
+            "path": "rdo/intake.py",
+            "label": "intake validator source anchor",
+        }]
+    }
+    result = submit_objective(raw, repo_dir=str(repo), workdir=str(tmp_path / "real-cycles"))
+    cycle = result["cycle"]
+    assert result["repository_revision"]
+    assert cycle["objective"] == raw["original_text"]
+    assert any(o["key"] == "intake_contract_guard" for o in cycle["obligations"])
+    assert cycle["signature_matches"] == ["intake_contract_guard"]
+    # A source anchor is not semantic satisfaction; this stays review work.
+    assert "intake_contract_guard" not in cycle["reused"]
+    assert cycle["objective_input"]["objective_id"] == raw["objective_id"]
 
 
 def test_dirty_repository_refuses_to_claim_a_snapshot(tmp_path, monkeypatch):
