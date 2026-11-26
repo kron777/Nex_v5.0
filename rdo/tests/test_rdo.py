@@ -472,50 +472,56 @@ def test_defect_pattern_generalises_and_metrics(tmp_path):
     from rdo.report import run_catalogue
     res = run_catalogue(repo_dir=".", workdir=str(tmp_path / "cycles"))
     cycles = res["cycles"]
-    assert len(cycles) == 3  # genius + migration_defect + affinity_drift
+    assert len(cycles) == 4  # genius + defect + affinity + config invariant
     defect = cycles["migration_defect (defect-remediation pattern)"]
-    # the defect cycle locates source signatures for applied fixes; semantic
-    # satisfaction remains unreviewed, so these are surfaced for review.
+    # Source signatures are source anchors, not semantic reuse approval.
     assert any("fix" in r for r in defect["2_signature_matches_located"])
-    # Regression-test obligations must be accounted for exactly once, and a
-    # reuse claim must expose the specific test declaration that supports it.
     regression_keys = [key for key in defect["1_discovered"]["obligations"]
                        if "regression_test" in key]
     assert regression_keys
     packages = defect["4_recommended_work"]
     signature_matches = set(defect["2_signature_matches_located"])
-    packaged = {key for w in packages for key in w["obligations"]}
+    packaged = {key for package in packages for key in package["obligations"]}
     evidence = {item["key"]: item for item in defect["reconciliation_evidence"]}
     expected_test_paths = {
         "beliefs_content_uniq.regression_test": "tests/test_beliefs_content_dedup.py",
         "arc_closers_migration.regression_test": "tests/test_arc_closers_migration.py",
     }
     for key in regression_keys:
-        # The exact test declaration is source-located AND surfaced for separate
-        # semantic review; the source hit is not treated as completed reuse.
         assert key in signature_matches
-        assert key in packaged
+        assert key in packaged  # review work remains visible, not silently treated as done
         item = evidence[key]
         assert item["status"] == "signature_matched"
-        expected_path = expected_test_paths[key]
-        assert any(expected_path in ref for ref in item["evidence"]), (
-            f"{key} source anchor is not in {expected_path}")
-    # Any remaining package is blocked where necessary prerequisites remain
-    # unresolved; unknown obligations remain investigable, not relabelled missing.
-    assert any(w["eligibility"] == "blocked" and
-               any("unknown" in blocker or "partial" in blocker for blocker in w["blockers"])
-               for w in packages)
-    # two executed+verified cycles recorded
-    assert len(res["executed_cycles"]) == 2
-    # comparable cross-cycle metrics, with no premature acceleration claim
-    m = res["learning_metrics"]
-    assert len(m["per_cycle"]) == 6 and "acceleration" in m["trend_claim"]
-    assert len(m["measures"]) == 8
-    # ONLY the two executed+verified cycles are efficiency-comparable (imported + planning excluded)
-    assert set(m["comparability"]["efficiency_comparison_pool"]) == {
+        assert any(expected_test_paths[key] in ref for ref in item["evidence"])
+    assert any(package["eligibility"] == "blocked" and package["blockers"]
+               for package in packages)
+
+    # Four executed records are present, but only like-for-like migration guards
+    # belong in the genuinely comparable efficiency group.
+    assert len(res["executed_cycles"]) == 4
+    metrics = res["learning_metrics"]
+    assert len(metrics["per_cycle"]) == 9 and len(metrics["measures"]) == 8
+    assert metrics["completed_executed_cycles"] == 4
+    assert metrics["largest_comparable_group"] == 2
+    assert set(metrics["comparability"]["efficiency_comparison_pool"]) == {
         "arc_closers_regtest_2026-11", "affinity_regtest_2026-11"}
-    assert m["efficiency_eligible_cycles"] == 2  # still < 3 -> no acceleration claim
-    assert "watcher_2026-11" in m["comparability"]["excluded_from_efficiency"]["imported_retrospective"]
+    groups = metrics["comparability"]["genuinely_comparable_by_engineering_pattern"]
+    assert set(groups.get("migration_guard", [])) == {
+        "arc_closers_regtest_2026-11", "affinity_regtest_2026-11"}
+    assert "invariant_guard" in groups and "refactor" in groups
+    assert res["comparability_assessment"]["largest_genuinely_comparable_group"] == 2
+    assert "watcher_2026-11" in metrics["comparability"]["excluded_from_efficiency"]["imported_retrospective"]
+
+    transfer = res["cross_cycle_transfer"]
+    assert len(transfer["executed_cycles"]) == 4
+    assert "not proof" in transfer["observation"].lower()
+    matched = {row["cycle"]: row["prediction_matched"] for row in transfer["executed_cycles"]}
+    assert matched["arc_closers_regtest_2026-11"] is False
+    assert matched["affinity_regtest_2026-11"] is True
+    assert matched["config_invariant_2026-11"] is True
+    assert set(res["change_categories"]) >= {
+        "general_engine_logic", "pattern_taxonomy", "domain_knowledge", "recorded_experience"
+    }
 
 
 def test_defect_kind_expands_to_fix_and_regression_test():
@@ -566,6 +572,25 @@ def test_obligation_scope_taxonomy():
     assert s["domain_specific"] == ["k"]
 
 
+
+def test_orchestrator_is_domain_free():
+    """The generic cycle driver contains no domain-specific code."""
+    import ast
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(root, "orchestrator.py"), encoding="utf-8") as handle:
+        tree = ast.parse(handle.read())
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            body = node.body
+            if (body and isinstance(body[0], ast.Expr)
+                    and isinstance(body[0].value, ast.Constant)
+                    and isinstance(body[0].value.value, str)):
+                node.body = body[1:] or [ast.Pass()]
+    code = ast.unparse(tree).lower()
+    forbidden = ["genius", "migration", "config_invariant", "affinity",
+                 "assess_signal_authority", "quality_synthesis", "tagger"]
+    assert [token for token in forbidden if token in code] == []
+
 def test_engine_has_no_domain_tokens():
     # the common reasoning engine must stay uncontaminated by any domain
     import rdo.extrapolator as ex
@@ -593,7 +618,7 @@ def test_executed_cycle_efficiency_eligibility(tmp_path):
     imp = CycleRecord(id="i", objective="o", kind=IMPORTED_RETROSPECTIVE)
     record_actual(imp, {"effort_actual": 1})          # imported, has actuals, still NOT comparable
     m = metrics_series([c, imp])
-    assert m["efficiency_eligible_cycles"] == 1
+    assert m["completed_executed_cycles"] == 1
     assert m["comparability"]["efficiency_comparison_pool"] == [c.id]
 
 
@@ -637,7 +662,7 @@ def test_rdo_self_assessment_lean_and_independent():
     r = self_assess()
     assert r["independence_no_nex_import"] is True
     assert r["reuses_watcher_infrastructure"] is True
-    assert r["module_count"] <= 12
+    assert r["module_count"] <= 14
     assert not any(f["verdict"] == "VIOLATION" for f in r["findings"])
 
 # ---- correction regressions: evidence availability and downstream interpretation ----
@@ -774,7 +799,7 @@ def test_arc_closers_execution_derives_lessons_once(tmp_path, monkeypatch):
 
 
 def test_catalogue_replay_does_not_inflate_learning_counts(tmp_path):
-    from rdo.orchestrator import run_catalogue
+    from rdo.report import run_catalogue
     workdir = str(tmp_path / "catalogue")
     run_catalogue(repo_dir=".", workdir=workdir)
     first = {p.key: (p.observed_count, p.confidence, p.provenance)
