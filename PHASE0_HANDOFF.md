@@ -25,7 +25,7 @@ The earlier fb87e24 handoff is preserved as PHASE0_HANDOFF_HISTORICAL_fb87e24.md
 | M0.2 test baseline | Founder-provided host run: 1610 passed, 5 skipped, 30 subtests, 0 unexpected failures, 122.87s; M0.2 closure remains PARTIAL: the historical MIND_MAP `p12_selfreport` validator failure is classified as a genuine failure caused by a stale absence claim and corrected on main; the earlier environment-limited run (107 failures, 62 errors) still lacks per-test identities/classifications, and the active-host branch lacks the map/source pair for rerun |
 | M0.3–M0.4 architecture crosswalk | Partial; first-pass boot wiring plus two output paths. Full producer/consumer DAG across theory_x, substrate, speech and GUI remains outstanding |
 | V2.1 M0.5 doctrine questions | Not evidenced as complete; current Phase 0 artifacts do not contain the six answers |
-| Technical trace overlay (previously labelled M0.5) | Default-OFF InfluenceRecord source and fixture tests exist; two coarse seams only |
+| Roadmap v3.0 Phase 0 M0.5 — technical trace overlay | Default-OFF InfluenceRecord source and fixture tests exist; two coarse seams only |
 | Technical trace-overlay live L4 capture / zero-delta | UNKNOWN; not performed or authorised |
 | Gate 0 | PENDING founder review |
 
