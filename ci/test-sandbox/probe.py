@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import socket
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -39,6 +40,13 @@ require("extraheader" not in git_config_text and "credential" not in git_config_
         "checkout Git configuration must not contain persisted credentials")
 require((workspace / ".git").stat().st_uid == os.geteuid(),
         "checkout metadata must be owned by the unprivileged test UID")
+git_status = subprocess.run(
+    ["git", "-C", str(workspace), "status", "--porcelain", "--untracked-files=all"],
+    capture_output=True, text=True, check=False,
+)
+require(git_status.returncode == 0, f"Git provenance command failed: {git_status.stderr.strip()}")
+print(f"Sandbox checkout status: {git_status.stdout!r}")
+require(not git_status.stdout.strip(), "checkout must be clean before tests start")
 try:
     with (workspace / ".sandbox-write-probe").open("x", encoding="utf-8"):
         pass
