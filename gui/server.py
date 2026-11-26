@@ -897,6 +897,20 @@ def create_app(state: AppState) -> Flask:
     # server restarts during development without requiring re-auth every process.
     app.secret_key = _ensure_secret()
 
+    @app.teardown_request
+    def _trace_request_teardown(exc):
+        # A failed/unexpected Chat exit must not leak its ContextVar into a
+        # reused request thread. Normal api_chat returns have already closed it.
+        if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+            try:
+                from substrate.trace_overlay import close_current_trace
+                close_current_trace(
+                    source_ref="gui/server.py::teardown_request",
+                    outcome="exception" if exc is not None else "unfinished_request",
+                )
+            except Exception:
+                pass
+
     # -- auth gate: deny-by-default for state-changing requests --------------
     # Each mutating route was historically expected to re-check session["admin"]
     # itself; most never did, leaving the write surface (mode/voice/strikes/
@@ -1176,6 +1190,30 @@ def create_app(state: AppState) -> Flask:
         if not prompt:
             return jsonify({"error": "empty prompt"}), 400
 
+        # Phase 0 causal trace — metadata-only and default OFF.
+        _trace_handle = None
+        _trace_api = None
+        if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+            try:
+                from substrate import trace_overlay as _trace_api
+                _trace_handle = _trace_api.begin_trace(
+                    "chat_turn",
+                    source_ref="gui/server.py::api_chat",
+                    payload=prompt,
+                )
+                if _trace_handle is not None:
+                    _trace_api.record(
+                        "input_arrival",
+                        producer="gui.server.api_chat",
+                        consumer="ChatRouting",
+                        source_ref="gui/server.py::api_chat:prompt_validation",
+                        outcome="accepted",
+                        payload=prompt,
+                    )
+            except Exception:
+                _trace_handle = None
+                _trace_api = None
+
         is_probe = bool(payload.get("is_probe", False))
         register_name = payload.get("register")
         # EDIT A 2026-05-29: default chat to Philosophical (probe-quality richness).
@@ -1205,11 +1243,22 @@ def create_app(state: AppState) -> Flask:
                     )
 
             try:
-                writer.write(
+                _user_message_id = writer.write(
                     "INSERT INTO messages (session_id, role, content, register, timestamp) "
                     "VALUES (?, 'user', ?, ?, ?)",
                     (session_id, prompt, register.name, state.now_fn()),
                 )
+                if _trace_handle is not None:
+                    _trace_api.record(
+                        "writer_delta",
+                        producer="gui.server.api_chat",
+                        consumer="Membrane/WorldModel",
+                        source_ref="gui/server.py::api_chat:user_message_insert",
+                        entity_ref=f"conversations.messages:{_user_message_id}",
+                        outcome="persisted",
+                        payload={"table": "messages", "message_id": _user_message_id,
+                                 "session_id": session_id, "role": "user"},
+                    )
             except Exception as e:
                 error_channel.record(
                     f"conversations: user message insert failed: {e}",
@@ -1289,6 +1338,15 @@ def create_app(state: AppState) -> Flask:
         # checked against; the 25-most-recently-touched list the snapshot used
         # before was a recency proxy and measured as a null (2026-09-21).
         _retrieved_belief_text = belief_text
+        if _trace_handle is not None:
+            _trace_api.record(
+                "retrieval",
+                producer="Membrane/WorldModel",
+                consumer="ChatContextAssembly",
+                source_ref="gui/server.py::api_chat:belief_retrieval",
+                outcome="retrieved" if belief_text else "no_belief_context",
+                payload=belief_text,
+            )
 
         # BehaviouralSelfModel injection — INSIDE routes only (Phase 5.3).
         # Adds observed behavioural metrics (hedge rate, register pattern, avg length)
@@ -1663,14 +1721,33 @@ def create_app(state: AppState) -> Flask:
                 and not _is_social_q
                 and register.name not in _ALLOW_THIN_REGISTERS
                 and belief_count < CHAT_GAP_MIN_BELIEFS):
+            if _trace_handle is not None:
+                _trace_api.record(
+                    "chat_gap_gate",
+                    producer="gui.server.api_chat",
+                    source_ref="gui/server.py::api_chat:belief_count_gate",
+                    outcome="deflect",
+                    payload={"belief_count": belief_count, "minimum": CHAT_GAP_MIN_BELIEFS},
+                )
             if writer is not None and session_id is not None:
                 try:
-                    writer.write(
+                    _gap_message_id = writer.write(
                         "INSERT INTO messages "
                         "(session_id, role, content, register, timestamp, tool_used) "
                         "VALUES (?, 'nex', ?, ?, ?, ?)",
                         (session_id, CHAT_GAP_REFUSAL, register.name, state.now_fn(), None),
                     )
+                    if _trace_handle is not None:
+                        _trace_api.record(
+                            "writer_delta",
+                            producer="gui.server.api_chat",
+                            consumer="HTTP response",
+                            source_ref="gui/server.py::api_chat:gap_refusal_insert",
+                            entity_ref=f"conversations.messages:{_gap_message_id}",
+                            outcome="persisted",
+                            payload={"table": "messages", "message_id": _gap_message_id,
+                                     "role": "nex", "kind": "gap_refusal"},
+                        )
                 except Exception as exc:
                     error_channel.record(
                         f"conversations: gap refusal insert failed: {exc}",
@@ -1687,6 +1764,15 @@ def create_app(state: AppState) -> Flask:
                         f"trigger_detector.record_gap_deflection error: {_td_exc}",
                         source="gui.server", exc=_td_exc,
                     )
+            if _trace_handle is not None:
+                _trace_api.end_trace(
+                    _trace_handle,
+                    source_ref="gui/server.py::api_chat:gap_refusal",
+                    entity_ref=(f"conversations.messages:{_gap_message_id}"
+                                if "_gap_message_id" in locals() else None),
+                    outcome="gap_deflection",
+                    payload=CHAT_GAP_REFUSAL,
+                )
             return jsonify({
                 "register": register.name,
                 "session_id": session_id,
@@ -1694,6 +1780,15 @@ def create_app(state: AppState) -> Flask:
                 "tool_used": None,
                 "voice_ok": True,
             })
+
+        if _trace_handle is not None:
+            _trace_api.record(
+                "chat_gap_gate",
+                producer="gui.server.api_chat",
+                source_ref="gui/server.py::api_chat:belief_count_gate",
+                outcome="pass",
+                payload={"belief_count": belief_count, "minimum": CHAT_GAP_MIN_BELIEFS},
+            )
 
         # Sample spectrum foundation — always present in chat composition.
         _spectrum_block = ""
@@ -1778,11 +1873,46 @@ def create_app(state: AppState) -> Flask:
                         _turn_n = _tn_row[0]["n"] if _tn_row else 0
                     except Exception:
                         pass
+                if _trace_handle is not None:
+                    _trace_api.record(
+                        "model_input",
+                        producer="ChatContextAssembly",
+                        consumer="VoiceEngine.query_reply",
+                        source_ref="gui/server.py::api_chat:voice_engine_input",
+                        outcome="substrate_query",
+                        payload={"query": prompt, "session_id": session_id, "turn_n": _turn_n},
+                    )
                 _ve_result = state.voice_engine.query_reply(
                     query=prompt,
                     session_id=session_id,
                     turn_n=_turn_n,
                 )
+                if _trace_handle is not None:
+                    _voice_source = (
+                        str(_ve_result.get("source") or "unknown")
+                        if _ve_result is not None else None
+                    )
+                    _voice_candidate_id = (
+                        _ve_result.get("belief_id") if _ve_result is not None else None
+                    )
+                    _voice_entity_ref = (
+                        f"voice_candidate:{_voice_source}:{_voice_candidate_id}"
+                        if _voice_candidate_id is not None else None
+                    )
+                    _trace_api.record(
+                        "substrate_voice",
+                        producer="VoiceEngine.query_reply",
+                        consumer="ChatResponse",
+                        source_ref="gui/server.py::api_chat:voice_engine",
+                        entity_ref=_voice_entity_ref,
+                        outcome="hit" if _ve_result is not None else "miss",
+                        payload=({
+                            "candidate_id": _voice_candidate_id,
+                            "source": _voice_source,
+                            "score": _ve_result.get("score"),
+                            "content": _ve_result.get("content"),
+                        } if _ve_result is not None else None),
+                    )
                 if _ve_result is not None:
                     if _op_comp:
                         # HYBRID: keep the sharp hit as grounding for the compose
@@ -2051,6 +2181,16 @@ def create_app(state: AppState) -> Flask:
             # window before deciding a hard token clamp is ever needed.
             logger.info("chat prompt chars: blocks=%d voice_prompt=%d",
                         len(_blocks_concat), len(voice_prompt))
+            if _trace_handle is not None:
+                _trace_api.record(
+                    "context_selection",
+                    producer="ChatContextAssembly",
+                    consumer="VoiceEngine/VoiceClient",
+                    source_ref="gui/server.py::_assemble_chat_blocks",
+                    outcome="assembled",
+                    payload={"blocks": _blocks_concat, "belief_text": belief_text,
+                             "voice_prompt": voice_prompt},
+                )
 
         if text is None:
             # PROVENANCE (NEX5_PROVENANCE, admin-scoped) — snapshot what she holds
@@ -2085,12 +2225,30 @@ def create_app(state: AppState) -> Flask:
             # EDIT B 2026-05-29 (v2, clean): in use_substrate mode, suppress LLM fallback.
             # Substrate miss returns her own deflection. Probes + use_llm unaffected.
             try:
+                if _trace_handle is not None:
+                    _trace_api.record(
+                        "model_input",
+                        producer="ChatContextAssembly",
+                        consumer="VoiceClient.speak",
+                        source_ref="gui/server.py::api_chat:voice_prompt",
+                        outcome="composed_prompt",
+                        payload=voice_prompt,
+                    )
                 resp = state.voice.speak(
                     VoiceRequest(prompt=voice_prompt, register=register),
                     beliefs=None,
                     belief_count=belief_count,
                 )
                 text = resp.text
+                if _trace_handle is not None:
+                    _trace_api.record(
+                        "model_output",
+                        producer="VoiceClient.speak",
+                        consumer="ChatSanitization",
+                        source_ref="gui/server.py::api_chat:voice_speak",
+                        outcome="composed" if text else "empty",
+                        payload=text,
+                    )
                 voice_ok = True
                 # ANTI-REPEAT (NEX5_CHAT_MEMORY, admin-scoped): if she opened like
                 # / echoed a recent reply (the same-opening groove), regenerate
@@ -2189,22 +2347,51 @@ def create_app(state: AppState) -> Flask:
         # is persisted AND before it is returned to the GUI, so neither the stored
         # history nor the displayed reply carries prompt frame. Fail-safe inside.
         text = _sanitize_reply(_strip_question_parrot(text, prompt))
+        if _trace_handle is not None:
+            _trace_api.record(
+                "output_sanitized",
+                producer="ChatSanitization",
+                consumer="conversations.Writer",
+                source_ref="gui/server.py::api_chat:reply_sanitization",
+                outcome="ready",
+                payload=text,
+            )
 
         if writer is not None and session_id is not None:
             try:
                 used_tool = tool_result.tool_name if tool_result and tool_result.success else None
-                writer.write(
+                _assistant_message_id = writer.write(
                     "INSERT INTO messages "
                     "(session_id, role, content, register, timestamp, tool_used) "
                     "VALUES (?, 'nex', ?, ?, ?, ?)",
                     (session_id, text, register.name, state.now_fn(), used_tool),
                 )
+                if _trace_handle is not None:
+                    _trace_api.record(
+                        "writer_delta",
+                        producer="gui.server.api_chat",
+                        consumer="HTTP response",
+                        source_ref="gui/server.py::api_chat:assistant_message_insert",
+                        entity_ref=f"conversations.messages:{_assistant_message_id}",
+                        outcome="persisted",
+                        payload={"table": "messages", "message_id": _assistant_message_id,
+                                 "role": "nex"},
+                    )
             except Exception as e:
                 error_channel.record(
                     f"conversations: nex message insert failed: {e}",
                     source="gui.server", exc=e,
                 )
 
+        if _trace_handle is not None:
+            _trace_api.end_trace(
+                _trace_handle,
+                source_ref="gui/server.py::api_chat:response",
+                entity_ref=(f"conversations.messages:{_assistant_message_id}"
+                            if "_assistant_message_id" in locals() else None),
+                outcome="reply_returned" if voice_ok else "fallback_returned",
+                payload=text,
+            )
         return jsonify({
             "text": text,
             "register": register.name,

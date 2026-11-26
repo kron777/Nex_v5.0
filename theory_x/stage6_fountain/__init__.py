@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import time
 from dataclasses import dataclass, field
@@ -157,7 +158,7 @@ def build_fountain(
                     except Exception:
                         pass
 
-                # Diagnostic: log what the loop is deciding this tick
+                # Diagnostic: log what the loop is deciding this tick.
                 try:
                     _readiness = generator._evaluator.score(
                         dynamic_state, readers["beliefs"],
@@ -174,7 +175,57 @@ def build_fountain(
                 except Exception:
                     pass
 
-                thought = generator.generate(dynamic_state, readers["beliefs"])
+                # Phase 0 causal trace — observational only, default OFF.
+                # Do not call dynamic_state.status() here: that would add an
+                # extra state/DB read solely for the observer.
+                _trace_handle = None
+                _trace_api = None
+                if (os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1"
+                        and os.environ.get("NEX5_TRACE_PATH", "").strip()):
+                    try:
+                        from substrate import trace_overlay as _trace_api
+                        _trace_handle = _trace_api.begin_trace(
+                            "fountain_cycle",
+                            source_ref="theory_x/stage6_fountain/__init__.py::fountain_loop",
+                            payload={"interval_seconds": interval},
+                        )
+                        if _trace_handle is not None:
+                            _trace_api.record(
+                                "input_arrival",
+                                producer="FountainLoop",
+                                consumer="FountainGenerator.generate",
+                                source_ref="theory_x/stage6_fountain/__init__.py::fountain_loop",
+                                outcome="scheduler_tick",
+                                payload={"interval_seconds": interval},
+                            )
+                    except Exception:
+                        _trace_handle = None
+                        _trace_api = None
+                try:
+                    thought = generator.generate(dynamic_state, readers["beliefs"])
+                    if _trace_handle is not None:
+                        if not thought:
+                            _trace_api.record(
+                                "candidate_generation",
+                                producer="FountainGenerator.generate",
+                                consumer="FountainCrystallizer",
+                                source_ref="theory_x/stage6_fountain/generator.py::generate",
+                                outcome="no_fire",
+                            )
+                        _trace_api.end_trace(
+                            _trace_handle,
+                            source_ref="theory_x/stage6_fountain/__init__.py::fountain_loop",
+                            outcome="thought_returned" if thought else "no_fire",
+                            payload=thought,
+                        )
+                except Exception:
+                    if _trace_handle is not None:
+                        _trace_api.end_trace(
+                            _trace_handle,
+                            source_ref="theory_x/stage6_fountain/__init__.py::fountain_loop",
+                            outcome="generation_exception",
+                        )
+                    raise
                 if thought:
                     logger.info("Fountain fired: %s", thought[:100])
                 # Phase 29: drive probe opportunity each fountain tick

@@ -188,6 +188,8 @@ KNOWN_FLAGS: dict[str, str] = {
     "NEX5_SYNTH_FRESH_SIBLING": "bool",
     "NEX5_SYNTH_KEEP": "bool",
     "NEX5_THROWNET": "bool",
+    "NEX5_TRACE_OVERLAY": "bool",
+    "NEX5_TRACE_PATH": "str",
     "NEX5_TIER_CLIMB": "bool",
     "NEX5_TZ": "str",
     "NEX5_VALENCE_DRIVE": "bool",

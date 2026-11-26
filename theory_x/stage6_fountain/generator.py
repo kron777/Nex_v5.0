@@ -2122,6 +2122,20 @@ class FountainGenerator:
         if not thought:
             return None
 
+        if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+            try:
+                from substrate.trace_overlay import record as _trace_record
+                _trace_record(
+                    "candidate_generation",
+                    producer="FountainGenerator.generate",
+                    consumer="FountainCrystallizer",
+                    source_ref="theory_x/stage6_fountain/generator.py::generate",
+                    outcome="voice_generated" if voice_ok else "voice_fallback",
+                    payload=thought,
+                )
+            except Exception:
+                pass
+
         # Voice was down — write a bare tick, skip condenser and crystallizer
         if not voice_ok:
             ts_now = time.time()
@@ -2336,6 +2350,20 @@ class FountainGenerator:
             (ts_now, thought, droplet, readiness, hot_branch, word_count,
              _fountain_stillness_reason, _fire_mode, _fire_focal),
         )
+        if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+            try:
+                from substrate.trace_overlay import record as _trace_record
+                _trace_record(
+                    "writer_delta",
+                    producer="FountainGenerator.generate",
+                    consumer="FountainCrystallizer",
+                    source_ref="theory_x/stage6_fountain/generator.py::fountain_events_insert",
+                    entity_ref=f"dynamic.fountain_events:{fountain_event_id}",
+                    outcome="inserted",
+                    payload={"table": "fountain_events", "row_id": fountain_event_id},
+                )
+            except Exception:
+                pass
         self._link_activation_to_event()
 
         if _er is not None:
@@ -2416,8 +2444,37 @@ class FountainGenerator:
                         for _ordinal, _name, _hash, _nchars, _prefix in _blocks
                     ]
                 )
+                if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+                    try:
+                        from substrate.trace_overlay import record as _trace_record
+                        _trace_record(
+                            "writer_delta",
+                            producer="FountainGenerator.generate",
+                            consumer="FountainTrace",
+                            source_ref="theory_x/stage6_fountain/generator.py::prompt_block_manifest",
+                            entity_ref=f"dynamic.fountain_prompt_blocks:fire_id={fountain_event_id}",
+                            outcome="inserted",
+                            payload={"table": "fountain_prompt_blocks",
+                                     "fire_id": fountain_event_id,
+                                     "block_count": len(_blocks)},
+                        )
+                    except Exception:
+                        pass
             self._last_prompt_blocks = []
         except Exception as e:
+            if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+                try:
+                    from substrate.trace_overlay import record as _trace_record
+                    _trace_record(
+                        "writer_delta",
+                        producer="FountainGenerator.generate",
+                        consumer="FountainTrace",
+                        source_ref="theory_x/stage6_fountain/generator.py::prompt_block_manifest",
+                        entity_ref=f"dynamic.fountain_prompt_blocks:fire_id={fountain_event_id}",
+                        outcome="write_failed",
+                    )
+                except Exception:
+                    pass
             error_channel.record(
                 f"prompt_blocks write failed: {e}",
                 source="stage6_fountain", exc=e,
@@ -3397,6 +3454,7 @@ class FountainGenerator:
         # single most salient, and let it LEAD the focus_block. The other
         # module blocks still append below — but the winner sets the frame.
         # Competition -> broadcast. Fail-safe: prepends nothing on error.
+        _gw_line = ""
         if os.environ.get("NEX5_GLOBAL_WORKSPACE", "1") == "1":
             try:
                 from theory_x.stage_tom.global_workspace import arbitrate as _gw_arb
@@ -3419,6 +3477,20 @@ class FountainGenerator:
                     # the item (on-subject 43->35/60 in the item-2 probe).
             except Exception:
                 pass  # never break a fire
+        if os.environ.get("NEX5_TRACE_OVERLAY", "0") == "1":
+            try:
+                from substrate.trace_overlay import record as _trace_record
+                _trace_record(
+                    "workspace_selection",
+                    producer="GlobalWorkspace.arbitrate",
+                    consumer="FountainGenerator.focus_block",
+                    source_ref="theory_x/stage6_fountain/generator.py::workspace",
+                    outcome=("disabled" if os.environ.get("NEX5_GLOBAL_WORKSPACE", "1") != "1"
+                             else "winner_selected" if _gw_line else "no_winner"),
+                    payload=_gw_line,
+                )
+            except Exception:
+                pass
         # Echo-and-extend: if substrate-voice just fired (and a normal LLM
         # fire is now happening), prepend the anchor to the prompt with
         # instructions to extend from it, not paraphrase. One-shot consume.
