@@ -201,7 +201,7 @@ def test_human_acceptance_is_separate_and_does_not_rewrite_evidence_dimensions(t
     manifest = create_handoff(
         workdir, str(repo), "handoff_fixture", 1, result["cycle"]["id"], package["key"]
     )
-    with pytest.raises(HandoffError, match="requires a recorded approved scope review"):
+    with pytest.raises(HandoffError, match="requires a currently approved scope review"):
         record_human_acceptance(
             workdir, manifest["handoff_id"], "accepted", "reviewer",
             "acceptance-reference", "delivery-reference",
@@ -247,6 +247,22 @@ def test_handoff_decision_ledger_is_hash_chained_and_tamper_evident(tmp_path, mo
     path.write_text(json.dumps(event) + "\n", encoding="utf-8")
     with pytest.raises(HandoffError, match="digest mismatch"):
         handoff_history(workdir, manifest["handoff_id"])
+
+
+def test_handoff_history_does_not_create_an_empty_event_ledger(tmp_path, monkeypatch):
+    repo, workdir, result, package = _create_cycle(tmp_path, monkeypatch)
+    manifest = create_handoff(
+        workdir, str(repo), "handoff_fixture", 1, result["cycle"]["id"], package["key"]
+    )
+    path = Path(workdir) / "handoffs" / f"{manifest['handoff_id']}.events.jsonl"
+    assert not path.exists()
+
+    history = handoff_history(workdir, manifest["handoff_id"])
+
+    assert history["events"] == []
+    assert history["latest_scope_review"] is None
+    assert history["latest_human_acceptance"] is None
+    assert not path.exists()
 
 
 def test_handoff_history_survives_new_process(tmp_path, monkeypatch):

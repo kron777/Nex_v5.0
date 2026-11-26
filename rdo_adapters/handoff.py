@@ -410,14 +410,18 @@ def _read_events_unlocked(workdir: str, handoff_id: str, manifest_sha256: str) -
 def handoff_history(workdir: str, handoff_id: str) -> dict:
     manifest = load_handoff(workdir, handoff_id)
     path = _event_path(workdir, handoff_id)
-    # Use a shared lock so readers never observe a partially appended decision.
-    with open(path, "a+", encoding="utf-8") as fh:
-        fcntl.flock(fh.fileno(), fcntl.LOCK_SH)
-        try:
-            fh.seek(0)
-            events = _read_events_unlocked(workdir, handoff_id, manifest["manifest_sha256"])
-        finally:
-            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+    # History is observational: do not create an empty ledger merely by reading.
+    # If a writer creates the ledger after this check, returning the empty
+    # pre-append snapshot is valid; an existing ledger is read under a shared lock.
+    if not os.path.exists(path):
+        events = []
+    else:
+        with open(path, "r", encoding="utf-8") as fh:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_SH)
+            try:
+                events = _read_events_unlocked(workdir, handoff_id, manifest["manifest_sha256"])
+            finally:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
     last_scope = next((e for e in reversed(events) if e["event_kind"] == "scope_review"), None)
     last_acceptance = next((e for e in reversed(events) if e["event_kind"] == "human_acceptance"), None)
     return {
