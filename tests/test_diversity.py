@@ -319,6 +319,7 @@ class TestLineage(unittest.TestCase):
         reader = _Reader()
         self.assertEqual(fetch_residue_beliefs(reader, [1]), [])
         self.assertIn("paused = 0", reader.sql)
+        self.assertIn("erosion_stage != 'retired'", reader.sql)
 
 
 # ---------------------------------------------------------------------------
