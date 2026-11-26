@@ -62,6 +62,29 @@ def test_cross_domain_windows_rotate_past_first_two_hundred_ids():
     assert cursor == 198
 
 
+def test_failed_edge_write_does_not_advance_cross_domain_cursor():
+    rows = [
+        {"id": 1, "content": "shared quantum coherence concept alpha",
+         "branch_id": "branch-a"},
+        {"id": 2, "content": "shared quantum coherence concept beta",
+         "branch_id": "branch-b"},
+    ]
+    h = _harmonizer(rows)
+
+    class FailingPromoter:
+        def write_edge(self, *args):
+            raise RuntimeError("injected edge write failure")
+
+    h._promoter = FailingPromoter()
+    try:
+        h.detect_cross_domain()
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError("expected injected edge write failure")
+    assert h._cross_domain_cursor == 0
+
+
 def test_cross_domain_empty_store_keeps_cursor():
     h = _harmonizer([])
     rows, cursor = h._load_cross_domain_candidates(limit=200)
