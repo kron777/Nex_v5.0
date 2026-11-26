@@ -1306,12 +1306,19 @@ def create_app(state: AppState) -> Flask:
         route_result = None
         if state.membrane is not None and state.world_model is not None:
             try:
-                route_result = state.membrane.route(
-                    query=prompt,
-                    belief_retriever=state.world_model.retriever,
-                    dynamic_state=state.dynamic,
-                    trace=trace,
-                )
+                if trace is not None:
+                    route_result = state.membrane.route(
+                        query=prompt,
+                        belief_retriever=state.world_model.retriever,
+                        dynamic_state=state.dynamic,
+                        trace=trace,
+                    )
+                else:
+                    route_result = state.membrane.route(
+                        query=prompt,
+                        belief_retriever=state.world_model.retriever,
+                        dynamic_state=state.dynamic,
+                    )
                 if trace is not None:
                     trace.record(
                         "membrane_routing", "query_classified",
@@ -1881,12 +1888,22 @@ def create_app(state: AppState) -> Flask:
                         _turn_n = _tn_row[0]["n"] if _tn_row else 0
                     except Exception:
                         pass
-                _ve_result = state.voice_engine.query_reply(
-                    query=prompt,
-                    session_id=session_id,
-                    turn_n=_turn_n,
-                    trace=trace,
-                )
+                if trace is not None:
+                    _ve_result = state.voice_engine.query_reply(
+                        query=prompt,
+                        session_id=session_id,
+                        turn_n=_turn_n,
+                        trace=trace,
+                    )
+                else:
+                    # Preserve the pre-overlay call signature exactly while OFF.
+                    # External test doubles and downstream adapters need not know
+                    # about the optional trace parameter.
+                    _ve_result = state.voice_engine.query_reply(
+                        query=prompt,
+                        session_id=session_id,
+                        turn_n=_turn_n,
+                    )
                 if _ve_result is not None:
                     if trace is not None:
                         trace.record(
