@@ -1271,7 +1271,7 @@ Verified source facts:
 No host flag, history row or live behaviour was inspected. The Phase 1 feature was not armed or changed.
 
 
-## 78. InfluenceRecord M0.5 coverage and evidence-level audit
+## 78. Technical trace-overlay coverage and evidence-level audit (previously labelled M0.5)
 
 The detailed audit is in `NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md`. The current implementation has two actual seams: Fountain after generation and Chat after reply persistence. It records a limited set of scalar inputs plus output digest/preview; the module itself marks belief-level and faculty-block attribution unresolved.
 
