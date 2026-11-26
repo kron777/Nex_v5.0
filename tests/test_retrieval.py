@@ -142,5 +142,59 @@ class TestFountainRetrieval(unittest.TestCase):
         self.assertIn("Beliefs held: 42", prompt)
 
 
+
+class TestReificationOverrideEligibility(unittest.TestCase):
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def _insert(self, content, source, tier=5, paused=0, erosion_stage="external"):
+        return self.writers["beliefs"].write(
+            "INSERT INTO beliefs "
+            "(content, tier, confidence, created_at, source, branch_id, locked, paused, erosion_stage) "
+            "VALUES (?, ?, 0.9, ?, ?, 'self', 0, ?, ?)",
+            (content, tier, int(time.time()), source, paused, erosion_stage),
+        )
+
+    def test_reification_override_excludes_paused_tier_eight_and_retired_rows(self):
+        from theory_x.stage3_world_model.retrieval import BeliefRetriever
+
+        self._insert(
+            "I am aware of consciousness and my own inner experience.",
+            "fountain_insight",
+        )
+        reification_id = self._insert(
+            "Reification recognition: consciousness awareness is not the self.",
+            "reification_recognition",
+            paused=1,
+        )
+        retriever = BeliefRetriever(self.readers["beliefs"])
+
+        def result_ids():
+            rows = retriever.retrieve(
+                "consciousness awareness",
+                limit=10,
+                side_filter="INSIDE",
+            )
+            return {row["id"] for row in rows}
+
+        self.assertNotIn(reification_id, result_ids())
+
+        self.writers["beliefs"].write(
+            "UPDATE beliefs SET paused=0, tier=8 WHERE id=?",
+            (reification_id,),
+        )
+        self.assertNotIn(reification_id, result_ids())
+
+        self.writers["beliefs"].write(
+            "UPDATE beliefs SET tier=5, erosion_stage='retired' WHERE id=?",
+            (reification_id,),
+        )
+        self.assertNotIn(reification_id, result_ids())
+
+
 if __name__ == "__main__":
     unittest.main()
