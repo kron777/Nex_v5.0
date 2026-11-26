@@ -83,3 +83,44 @@ def test_survive_challenge_rejects_inactive_and_retired_beliefs_without_writes()
         promoter = BeliefPromoter(writer, Reader(row))
         assert promoter.survive_challenge(row["id"]) is False
         assert writer.calls == []
+
+
+def test_decisive_contradiction_rejects_inactive_and_retired_beliefs_without_writes():
+    from theory_x.stage3_world_model.promotion import BeliefPromoter
+
+    class Reader:
+        def __init__(self, row):
+            self.row = row
+
+        def read_one(self, sql, params=()):
+            assert "paused" in sql
+            assert "erosion_stage" in sql
+            return self.row
+
+    class Writer:
+        def __init__(self):
+            self.calls = []
+
+        def write(self, sql, params=()):
+            self.calls.append((sql, params))
+
+    ineligible_rows = (
+        {
+            "id": 31, "content": "paused", "tier": 6, "locked": 0,
+            "paused": 1, "erosion_stage": "external",
+        },
+        {
+            "id": 32, "content": "retired", "tier": 7, "locked": 0,
+            "paused": 0, "erosion_stage": "retired",
+        },
+        {
+            "id": 33, "content": "tier eight tombstone", "tier": 8, "locked": 0,
+            "paused": 0, "erosion_stage": "external",
+        },
+    )
+
+    for row in ineligible_rows:
+        writer = Writer()
+        promoter = BeliefPromoter(writer, Reader(row))
+        assert promoter.decisive_contradiction(row["id"]) is False
+        assert writer.calls == []
