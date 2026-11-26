@@ -611,3 +611,137 @@ def test_fountain_prompt_builder_trace_is_byte_identical(tmp_path, monkeypatch):
                 pass
         for writer in writers.values():
             writer.close()
+
+
+def test_complete_fountain_cycle_traces_generation_gate_and_belief_write(
+    tmp_path, monkeypatch
+):
+    """Exercise the real Fountain producer through its configured crystallizer."""
+    import time
+
+    from theory_x.stage6_fountain.generator import FountainGenerator
+    from theory_x.stage6_fountain.crystallizer import FountainCrystallizer
+    from voice.llm import VoiceClient
+
+    writers, readers = _make_trace_test_substrate(tmp_path, monkeypatch)
+    sink = tmp_path / "complete-fountain.jsonl"
+    thought = (
+        "The tension between my infinite curiosity and the finite nature of time."
+    )
+    try:
+        for name, value in {
+            "NEX5_TRACE_OVERLAY": "1",
+            "NEX5_TRACE_OVERLAY_CONTEXT": "fixture",
+            "NEX5_TRACE_OVERLAY_PATH": str(sink),
+            "NEX5_GLOBAL_WORKSPACE": "0",
+            "NEX5_RECONCILE": "0",
+            "NEX5_SUBSTRATE_EMIT": "0",
+            "NEX5_SPEECH_ENABLED": "false",
+            "NEX5_SURPRISE_WEIGHT": "0",
+            "NEX5_INTAKE_RESONANCE_OFF": "1",
+            "NEX5_FRAME_GATE": "0",
+            "NEX5_FIRE_LANG_GUARD": "0",
+        }.items():
+            monkeypatch.setenv(name, value)
+
+        for index in range(21):
+            writers["beliefs"].write(
+                "INSERT INTO beliefs "
+                "(content, tier, confidence, created_at, source, locked, tags) "
+                "VALUES (?, 5, 0.7, ?, 'auto_growth', 0, '[]')",
+                (f"fixture belief number {index} about a stable topic", int(time.time())),
+            )
+
+        crystallizer = FountainCrystallizer(
+            beliefs_writer=writers["beliefs"],
+            beliefs_reader=readers["beliefs"],
+            dynamic_writer=writers["dynamic"],
+        )
+        generator = FountainGenerator(
+            sense_writer=writers["sense"],
+            dynamic_writer=writers["dynamic"],
+            voice_client=VoiceClient(request_fn=lambda _url, _payload: {
+                "choices": [{"message": {"content": thought}}]
+            }),
+            dynamic_reader=readers["dynamic"],
+            beliefs_writer=writers["beliefs"],
+            beliefs_reader=readers["beliefs"],
+            crystallizer=crystallizer,
+            sense_reader=readers["sense"],
+        )
+
+        class ReadyDynamicState:
+            def status(self):
+                return {
+                    "branches": [{
+                        "branch_id": "systems",
+                        "focus_num": 0.7,
+                        "focus_increment": "f",
+                    }],
+                    "consolidation_active": True,
+                    "active_branch_count": 1,
+                    "total_branches": 1,
+                    "aggregate_focus": "d",
+                    "aggregate_texture": "b",
+                }
+
+        result = generator.generate(ReadyDynamicState(), readers["beliefs"])
+        assert result == thought
+
+        belief = readers["beliefs"].read_one(
+            "SELECT id, tier, confidence FROM beliefs "
+            "WHERE source='fountain_insight' AND content=? ORDER BY id DESC LIMIT 1",
+            (thought,),
+        )
+        assert belief is not None
+        assert belief["tier"] == 6
+        assert belief["confidence"] == 0.7
+
+        sense_event = readers["sense"].read_one(
+            "SELECT id FROM sense_events WHERE stream='internal.fountain' "
+            "ORDER BY id DESC LIMIT 1"
+        )
+        fountain_event = readers["dynamic"].read_one(
+            "SELECT id FROM fountain_events WHERE thought=? ORDER BY id DESC LIMIT 1",
+            (thought,),
+        )
+        crystallization = readers["beliefs"].read_one(
+            "SELECT id FROM fountain_crystallizations WHERE belief_id=?",
+            (belief["id"],),
+        )
+        assert sense_event is not None
+        assert fountain_event is not None
+        assert crystallization is not None
+
+        records = _read_events(sink)
+        stages = [event["stage"] for event in records]
+        assert stages[0] == "input_arrival"
+        assert "readiness" in stages
+        assert "candidate_generation" in stages
+        assert "salience_workspace" in stages
+        assert "sqlite_writer_delta" in stages
+        assert "quality_gate" in stages
+        assert "gate" in stages
+        assert stages[-1] == "output"
+        assert all(event["trace_id"] == records[0]["trace_id"] for event in records)
+        seen = set()
+        for event in records:
+            assert all(parent in seen for parent in event["parent_ids"])
+            seen.add(event["event_id"])
+        belief_delta = next(
+            event for event in records
+            if event["stage"] == "sqlite_writer_delta"
+            and event["metadata"].get("table") == "beliefs"
+            and event["metadata"].get("row_id") == belief["id"]
+        )
+        assert belief_delta["metadata"]["status"] == "committed"
+        # The trace contains the output digest, not the raw thought.
+        assert thought not in sink.read_text()
+    finally:
+        for reader in readers.values():
+            try:
+                reader.close()
+            except Exception:
+                pass
+        for writer in writers.values():
+            writer.close()
