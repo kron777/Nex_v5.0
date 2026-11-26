@@ -187,8 +187,15 @@ class Harmonizer:
         Returns 'paradox', 'ineligible', or 'error'.
         """
         try:
-            if self._read_eligible_pair(belief_id_a, belief_id_b) is None:
-                return "ineligible"
+            pair = self._read_eligible_pair(belief_id_a, belief_id_b)
+        except Exception as exc:
+            errors.record(f"mark_paradox eligibility read error: {exc}",
+                          source=_LOG_SOURCE, exc=exc)
+            return "error"
+        if pair is None:
+            return "ineligible"
+
+        try:
             self._promoter.write_edge(belief_id_a, belief_id_b, "opposes", 0.6)
         except Exception as exc:
             errors.record(f"mark_paradox edge error: {exc}", source=_LOG_SOURCE, exc=exc)
