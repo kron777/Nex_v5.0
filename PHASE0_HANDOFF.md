@@ -31,11 +31,11 @@ The earlier fb87e24 handoff is preserved as PHASE0_HANDOFF_HISTORICAL_fb87e24.md
 
 ## Important current findings
 
-1. Host checkout `de93134` is 4 commits ahead and 641 behind current GitHub `main` (`7f45642`; merge base `fb87e247`). The remote continuity branch is now `702351e` and is 305 ahead / 641 behind `main`; it is not the local host checkout. Local cached tracking refs are stale. No fetch, pull or rebase was performed; do not merge/rebase main wholesale.
+1. Host checkout `de93134` is 4 commits ahead and 641 behind current GitHub `main` (`7f45642`; merge base `fb87e247`). The remote continuity branch is now `84e696d` and is 310 ahead / 641 behind `main`; it is not the local host checkout. Local cached tracking refs are stale. No fetch, pull or rebase was performed; do not merge/rebase main wholesale.
 2. The active branch contains Phase 1 continuity code from f9ac58d. The flag defaults OFF; live activation and behavioural effect are UNKNOWN. Do not arm it before Gate 0 and explicit approval.
 3. The actual sense scheduler starts external feeds during construction. It has 28 adapters (4 internal, 24 external). Documentation was stale and is corrected in the current reconciliation PR; no scheduler logic was changed.
 4. CoherenceGate's module header understates current HOLD/RESHAPE handling; evaluation exceptions return ACCEPT; sense distillation explicitly bypasses the gate. These scope/failure-policy questions are in the defect backlog; do not change them without the governing spec and founder review.
-5. The four active user service units were corrected to the actual checkout path and passed systemd syntax verification, but no service was started. nex_keepalive.sh still has the old internal path in the active branch. Draft PR #97 fixes it and passed CI, but is not merged/deployed.
+5. The four active user service units were corrected to the actual checkout path and passed systemd syntax verification, but no service was started. PR #97's keepalive path fix is merged to the remote continuity branch, but the local host checkout `de93134` remains unchanged and still has the old internal path. No service was started or deployed.
 6. Vitals is present on main but absent from the active branch; cherry-picking its merge would import unrelated behaviour. Its exact governing spec and PID-identity safeguards remain unresolved.
 7. The exact Frozen V2.1 source document and founder approval record have not been located. Do not recreate them or infer their detailed acceptance criteria.
 
@@ -48,7 +48,7 @@ The roadmap extract asks for NEX5_TRACE_OVERLAY=0 and a full trace_id/parent_ids
 ## Current external PR status — refreshed 26 November 2026
 
 - Watcher service-integrity diagnostics PR #96: merged. This is the external Watcher tooling branch; it does not activate NEX services.
-- Keepalive path portability PR #97: open/draft against `claude/nex-continuity-wire`; exact-head CI previously passed. Not merged or deployed.
+- Keepalive path portability PR #97: merged into remote `claude/nex-continuity-wire` at `84e696d2a8eba50121ff0aa47c2d3deeb2a1e2c8`; exact-head CI passed (1,612 passed, 5 skipped, 30 subtests). Not deployed; local host checkout `de93134` remains unchanged and does not yet contain this fix.
 - Phase 0 reconciliation PR #98: merged into `claude/nex-continuity-wire`. Its merge commit is `14b45ab139d919505eb423b865ec1a714f923388`; this is not a merge to `main`.
 - RDO integration PR #124: merged into `main` (merge commit `70db12169a8d38f2e93e6cdf536a1c71a3e66ee2`). It integrates RDO Stages 2–7 as an external engineering instrument; it does not change NEX cognitive/runtime behaviour.
 - Legacy stacked RDO PRs #66–#71: still open/draft and unmerged as individual PRs. Do not describe them as merged merely because the separate integration PR #124 landed on `main`.
