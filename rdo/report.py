@@ -152,6 +152,7 @@ def _six_outputs(cycle, summary, memory, learning) -> dict:
         "reconciliation_evidence": reconciliation_evidence,
         "3_rejected_or_deferred": summary["rejected_or_deferred"],
         "4_recommended_work": summary["recommended_work"],
+        "5_source_evidence_coverage": summary["verification"],
         "5_verification": summary["verification"],
         "6_learned": {"patterns": [p.to_dict() for p in memory.patterns()],
                       "learning_series": learning},
@@ -178,7 +179,20 @@ def record_arc_closers_execution(store, memory) -> CycleRecord:
                       "all_pass": True, "catches_regression": True, "all_reuse_backed": True,
                       "fresh_schema_path_verified": True, "legacy_upgrade_path_verified": True,
                       "real_migration_runner_exercised": "_apply_migrations (not just a helper)",
-                      "reuse_claims": 1, "reuse_claims_backed_by_file_evidence": 1},
+                      "reuse_claims": 1, "reuse_claims_backed_by_file_evidence": 1,
+                      "ci_evidence": {
+                          "source_commit": "c352f6a83bec2136d5eff518deb210fc3cd4b3a2",
+                          "workflow": "tests",
+                          "workflow_run_id": 44855260626,
+                          "workflow_run_number": 182,
+                          "job_id": 136695850460,
+                          "conclusion": "success",
+                          "suite_result": {
+                              "passed": 2219,
+                              "skipped": 7,
+                              "subtests_passed": 40,
+                          },
+                      }},
         actual={
             "effort_actual": 2,   # predicted 1; the legacy upgrade needed a 2nd fixture the first pass missed
             "missed": ["arc_closers_migration.legacy_upgrade_path"],
@@ -222,7 +236,20 @@ def record_affinity_execution(store, memory) -> CycleRecord:
         verification={"test_file": "tests/test_affinity_columns_migration.py", "tests": 2,
                       "all_pass": True, "guards_defect": "no such column: affinity",
                       "fresh_init_exercises_migration": True, "all_reuse_backed": True,
-                      "reuse_claims": 2, "reuse_claims_backed_by_file_evidence": 2},
+                      "reuse_claims": 2, "reuse_claims_backed_by_file_evidence": 2,
+                      "ci_evidence": {
+                          "source_commit": "c352f6a83bec2136d5eff518deb210fc3cd4b3a2",
+                          "workflow": "tests",
+                          "workflow_run_id": 44855260626,
+                          "workflow_run_number": 182,
+                          "job_id": 136695850460,
+                          "conclusion": "success",
+                          "suite_result": {
+                              "passed": 2219,
+                              "skipped": 7,
+                              "subtests_passed": 40,
+                          },
+                      }},
         actual={
             "effort_actual": 1, "missed": [], "unnecessary": [], "reuse_wrong": [], "regressions": [],
             "obligations_built": ["beliefs_affinity.regression_test"],
