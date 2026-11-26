@@ -291,14 +291,20 @@ class BeliefPromoter:
         """
         try:
             row = self._reader.read_one(
-                "SELECT id, content, tier, locked FROM beliefs WHERE id = ?",
+                "SELECT id, content, tier, locked, paused, erosion_stage FROM beliefs WHERE id = ?",
                 (belief_id,),
             )
         except Exception as exc:
             errors.record(f"decisive_contradiction read error: {exc}", source=_LOG_SOURCE, exc=exc)
             return False
 
-        if row is None or row["locked"]:
+        if (
+            row is None
+            or row["locked"]
+            or row["paused"]
+            or row["tier"] >= 8
+            or row["erosion_stage"] == "retired"
+        ):
             return False
 
         now = int(time.time())
