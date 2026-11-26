@@ -1887,6 +1887,15 @@ def create_app(state: AppState) -> Flask:
                     turn_n=_turn_n,
                 )
                 if _ve_result is not None:
+                    if trace is not None:
+                        trace.record(
+                            "candidate_generation", "voice_engine_stored_candidate",
+                            metadata={"reply": _ve_result.get("content", ""),
+                                      "source": "voice_engine.query_reply",
+                                      "fresh_model_generation": False,
+                                      "used_for_grounding": bool(_op_comp),
+                                      "returned_verbatim": not _op_comp},
+                        )
                     if _op_comp:
                         # HYBRID: keep the sharp hit as grounding for the compose
                         # step below; do NOT short-circuit to verbatim.
@@ -2233,8 +2242,17 @@ def create_app(state: AppState) -> Flask:
                                     register=register),
                                 beliefs=None, belief_count=belief_count,
                             )
-                            if (_resp2 and _resp2.text
-                                    and not _is_repeat_reply(_resp2.text, _prior)):
+                            _repeat_retry_accepted = bool(
+                                _resp2 and _resp2.text
+                                and not _is_repeat_reply(_resp2.text, _prior)
+                            )
+                            if trace is not None and _resp2 is not None:
+                                trace.record(
+                                    "candidate_generation", "anti_repeat_retry_candidate",
+                                    metadata={"reply": _resp2.text or "",
+                                              "selected_as_final": _repeat_retry_accepted},
+                                )
+                            if _repeat_retry_accepted:
                                 text = _resp2.text
                     except Exception:
                         pass   # fail-safe: keep the original composed reply
@@ -2268,7 +2286,18 @@ def create_app(state: AppState) -> Flask:
                                 _after = read_provenance(_resp3.text, prompt,
                                                          _prov_snap, session_id,
                                                          log=False)
-                                if _after["mirror"] < _prov["mirror"]:
+                                _provenance_retry_accepted = (
+                                    _after["mirror"] < _prov["mirror"]
+                                )
+                                if trace is not None:
+                                    trace.record(
+                                        "candidate_generation", "provenance_retry_candidate",
+                                        metadata={"reply": _resp3.text,
+                                                  "mirror_before": _prov["mirror"],
+                                                  "mirror_after": _after["mirror"],
+                                                  "selected_as_final": _provenance_retry_accepted},
+                                    )
+                                if _provenance_retry_accepted:
                                     text = _resp3.text
                     except Exception:
                         pass   # fail-safe: keep the original composed reply
