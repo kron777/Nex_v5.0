@@ -156,11 +156,13 @@ class TestRecorder(unittest.TestCase):
                 1,
             )
             self.assertEqual(
-                self._q("SELECT COUNT(*) FROM belief_use_day WHERE belief_id=102")[0][0],
-                1,
+                {row[0] for row in self._q(
+                    "SELECT belief_id FROM belief_use_day WHERE belief_id BETWEEN 102 AND 106"
+                )},
+                {102, 103, 104, 105, 106},
             )
-            # The cursors are rowids, not timestamps, and advance through
-            # all five records even though their timestamps are identical.
+            # Stable composite-key cursors advance through every tied
+            # timestamp row without depending on mutable SQLite rowids.
             self.assertEqual(self.r._tuple_cursor("use_lineage_pk", (0, 0, "")),
                              (104, 101, "test"))
             self.assertEqual(self.r._tuple_cursor("use_arc_pk", (0, 0)),
