@@ -3,8 +3,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
-import sqlite3
 import subprocess
 from pathlib import Path
 
@@ -269,3 +267,54 @@ def test_handoff_history_survives_new_process(tmp_path, monkeypatch):
     restored = json.loads(proc.stdout)
     assert restored["manifest"]["manifest_sha256"] == manifest["manifest_sha256"]
     assert restored["latest_scope_review"]["decision"] == "approved"
+
+def test_human_acceptance_requires_evidence_and_current_scope_approval(tmp_path, monkeypatch):
+    repo, workdir, result, package = _create_cycle(tmp_path, monkeypatch)
+    manifest = create_handoff(
+        workdir, str(repo), "handoff_fixture", 1, result["cycle"]["id"], package["key"]
+    )
+    record_scope_review(
+        workdir, manifest["handoff_id"], "approved", "reviewer",
+        "approval-reference", ["prepare_scoped_patch"],
+    )
+    empty_evidence = {
+        "source_implemented": [],
+        "test_verified": [],
+        "runtime_observed": [],
+    }
+    with pytest.raises(HandoffError, match="at least one evidence reference"):
+        record_human_acceptance(
+            workdir, manifest["handoff_id"], "accepted", "reviewer",
+            "acceptance-reference", "delivery-reference", empty_evidence,
+        )
+
+    record_scope_review(
+        workdir, manifest["handoff_id"], "changes_requested", "reviewer",
+        "superseding-review-reference", [],
+    )
+    with pytest.raises(HandoffError, match="currently approved scope review"):
+        record_human_acceptance(
+            workdir, manifest["handoff_id"], "accepted", "reviewer",
+            "acceptance-reference", "delivery-reference",
+            {
+                "source_implemented": ["diff://change"],
+                "test_verified": [],
+                "runtime_observed": [],
+            },
+        )
+
+
+def test_handoff_requires_exact_native_cycle_and_objective_revision(tmp_path, monkeypatch):
+    repo, workdir, result, package = _create_cycle(tmp_path, monkeypatch)
+    with pytest.raises(HandoffError, match="does not belong"):
+        create_handoff(
+            workdir, str(repo), "handoff_fixture", 2, result["cycle"]["id"], package["key"]
+        )
+    cycle = CycleStore(workdir).load(result["cycle"]["id"])
+    cycle.kind = "imported_retrospective"
+    CycleStore(workdir).save(cycle)
+    with pytest.raises(HandoffError, match="native planning cycle"):
+        create_handoff(
+            workdir, str(repo), "handoff_fixture", 1, result["cycle"]["id"], package["key"]
+        )
+
