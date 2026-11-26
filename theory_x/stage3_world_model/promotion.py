@@ -286,9 +286,9 @@ class BeliefPromoter:
         return count
 
     def decisive_contradiction(self, belief_id: int) -> bool:
-        """Demote belief by 2 tiers (or discard if already at Tier 7).
+        """Demote belief by 2 tiers, capped at Tier 7.
 
-        Returns True if demotion/discard occurred.
+        Returns True if the demotion operation was applied.
         """
         try:
             row = self._reader.read_one(
