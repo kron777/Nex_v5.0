@@ -2053,12 +2053,22 @@ class FountainGenerator:
                                 "Do not describe how you would do it. Do not propose to create anything. "
                                 "Just write the actual finished answer, in full."
                             )
+                    if trace is not None:
+                        trace.record(
+                            "prompt_assembly", "fountain_voice_prompt_ready",
+                            metadata={"prompt": _rcprompt, "route": "reconcile"},
+                        )
                     _rcresp = self._voice.speak(
                         VoiceRequest(prompt=_rcprompt, register=_rcreg,
                                      self_report_examples=False),
                         beliefs=None,
                     )
                     thought = (_rcresp.text or "").strip()
+                    if trace is not None:
+                        trace.record(
+                            "candidate_generation", "reconcile_voice_candidate",
+                            metadata={"thought": thought, "route": "reconcile"},
+                        )
                     if thought:
                         _emitted = True
                         if os.environ.get("NEX5_RECONCILE_WB") == "1" and self._problem_memory is not None:
@@ -2140,12 +2150,22 @@ class FountainGenerator:
         # removed. Full code recoverable at commit 1c71238.
         if not _emitted:
           try:
+            if trace is not None:
+                trace.record(
+                    "prompt_assembly", "fountain_voice_prompt_ready",
+                    metadata={"prompt": prompt, "route": "normal"},
+                )
             resp = self._voice.speak(
                 VoiceRequest(prompt=prompt, register=PHILOSOPHICAL,
                              self_report_examples=False),
                 beliefs=None,
             )
             thought = resp.text.strip()
+            if trace is not None:
+                trace.record(
+                    "candidate_generation", "voice_model_candidate",
+                    metadata={"thought": thought, "route": "normal"},
+                )
             # Leak detector: strip "Real drift" prompt-structure prefix if LLM echoed it
             if thought.lower().startswith("real drift"):
                 # Drop first line; keep what came after
@@ -2166,13 +2186,24 @@ class FountainGenerator:
                     and _non_ascii_letter_share(thought) > _FIRE_LANG_MAX_NON_ASCII):
                 _first_share = _non_ascii_letter_share(thought)
                 try:
+                    _retry_prompt = prompt + _FIRE_LANG_RETRY_SUFFIX
+                    if trace is not None:
+                        trace.record(
+                            "prompt_assembly", "fountain_voice_prompt_retry",
+                            metadata={"prompt": _retry_prompt, "reason_code": "non_ascii_language_guard"},
+                        )
                     _retry = self._voice.speak(
-                        VoiceRequest(prompt=prompt + _FIRE_LANG_RETRY_SUFFIX,
+                        VoiceRequest(prompt=_retry_prompt,
                                      register=PHILOSOPHICAL,
                                      self_report_examples=False),
                         beliefs=None,
                     )
                     _rt = (_retry.text or "").strip()
+                    if trace is not None:
+                        trace.record(
+                            "candidate_generation", "voice_model_retry_candidate",
+                            metadata={"thought": _rt, "reason_code": "non_ascii_language_guard"},
+                        )
                 except Exception:
                     _rt = ""
                 if _rt and _non_ascii_letter_share(_rt) <= _FIRE_LANG_MAX_NON_ASCII:
@@ -2183,7 +2214,14 @@ class FountainGenerator:
                     logger.info("fire_lang_guard: dropped non-English fire (non-ascii %.2f)", _first_share)
             # NEX5_FRAME_GATE (default OFF): register-moha exit guard — detector-gated
             # single regeneration (the FIRE_LANG_GUARD analogue; see _apply_frame_gate).
+            _before_frame_gate = thought
             thought = self._apply_frame_gate(thought, prompt)
+            if trace is not None:
+                trace.record(
+                    "output_filter", "frame_gate_applied",
+                    metadata={"before": _before_frame_gate, "after": thought,
+                              "changed": _before_frame_gate != thought},
+                )
           except Exception as e:
             voice_ok = False
             logger.warning("Fountain: voice unreachable, using sense fallback: %s", e)
@@ -2201,6 +2239,13 @@ class FountainGenerator:
                     if rows:
                         payload = (rows[0]["payload"] or "")[:80].strip()
                         thought = f"[{rows[0]['stream']}] {payload}"
+                        if trace is not None:
+                            trace.record(
+                                "candidate_generation", "sense_fallback_candidate",
+                                metadata={"stream": rows[0]["stream"],
+                                          "source": "existing_sense_event",
+                                          "fresh_model_generation": False},
+                            )
                 except Exception:
                     pass
             if not thought:
