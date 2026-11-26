@@ -85,13 +85,13 @@ The historical MIND_MAP `p12_selfreport` absence-claim failure is classified as 
 | M0.3–M0.4 MIND_MAP reconciliation | MIND_MAP absent from active branch, present on main | Outstanding; branch-source discrepancy |
 | M0.3–M0.4 descriptive-node authority invariant | No matching CI enforcement step in active branch workflow; expected MIND_MAP file absent | UNKNOWN / outstanding |
 | V2.1 M0.5 doctrine questions | V2.1 requires six doctrine questions to be answered at achieved evidence level | Not evidenced as complete in current Phase 0 artifacts |
-| Technical trace-overlay source and fixture tests (previously labelled M0.5) | Default-OFF overlay, two coarse seams, 16 tests and two fixture records | Implemented/test-verified at fixture level |
-| Technical trace-overlay requested sample (previously labelled M0.5) | Roadmap asks for NEX_CAUSAL_TRACE_SAMPLE.json; active branch has docs/phase0_influence_capture_fixture.jsonl instead | Naming/schema reconciliation outstanding |
-| Technical trace-overlay full causal lineage (previously labelled M0.5) | No demonstrated trace across candidate generation, salience/workspace selection, gate decision, SQLite writer delta and output | Incomplete |
-| Technical trace-overlay live L4 capture and live zero-delta (previously labelled M0.5) | No authorised live capture; runtime process identity not verified | UNKNOWN / outstanding |
+| Roadmap v3.0 Phase 0 M0.5 — technical trace-overlay source and fixture tests | Default-OFF overlay, two coarse seams, 16 tests and two fixture records | Implemented/test-verified at fixture level |
+| Roadmap v3.0 Phase 0 M0.5 — requested trace sample | Roadmap asks for NEX_CAUSAL_TRACE_SAMPLE.json; active branch has docs/phase0_influence_capture_fixture.jsonl instead | Naming/schema reconciliation outstanding |
+| Roadmap v3.0 Phase 0 M0.5 — full causal lineage | No demonstrated trace across candidate generation, salience/workspace selection, gate decision, SQLite writer delta and output | Incomplete |
+| Roadmap v3.0 Phase 0 M0.5 — live L4 capture and live zero-delta | No authorised live capture; runtime process identity not verified | UNKNOWN / outstanding |
 | Gate 0 | Founder has not yet reviewed and approved the complete Reality Report, Crosswalk and verified defect backlog | PENDING |
 
-### Technical trace-overlay contract discrepancy (previously labelled M0.5)
+### Roadmap v3.0 Phase 0 M0.5 trace-overlay contract discrepancy
 
 The separate V2.1 M0.5 doctrine-question requirement is not satisfied by this trace-overlay work. See `NEX_PHASE0_M0_5_DELIVERABLE_IDENTITY_RECONCILIATION_2026-11-26.md`.
 
@@ -278,7 +278,7 @@ The reaper list preserves obsolete signal types and omits current promotable typ
 The current reconciliation's continuity candidate list has been checked against the exact helper, SelfMindView, Chat call site and isolated tests. The detailed source audit is `NEX_PHASE0_SELF_CONTINUITY_SEMANTICS_AUDIT_2026-11-25.md`. The flag remains default-OFF; no host value was read or changed. Verified issues are limited to emotion-only phrase logic despite a three-field query, missing-value handling, generic fallback semantics, timestamp tie ordering and lack of finally-protected connection cleanup. No Phase 1 behaviour was modified.
 
 
-## Technical trace-overlay coverage audit — 2026-11-25 (previously labelled M0.5)
+## Roadmap v3.0 Phase 0 M0.5 — technical trace-overlay coverage audit (25 November 2026)
 
 The technical trace overlay is now traced from its actual Fountain and Chat call sites through schema, evidence-level logic, fixture and tests. See `NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md`. The implementation is a default-OFF two-seam side-channel capture, not the full candidate→selection→Gate→writer→output lineage described in the recorded roadmap extract. It has no trace_id/parent_ids, Chat cycle_id is session-scoped, L4 is caller-declared, and enabled traces contain raw text previews without an in-module retention/redaction policy. The exact Frozen V2.1 authority is still missing; no expansion or activation was made.
 
