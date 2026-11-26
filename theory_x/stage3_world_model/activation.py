@@ -71,8 +71,15 @@ class ActivationEngine:
             placeholders = ",".join("?" * len(source_ids))
             try:
                 edges = self._reader.read(
-                    f"SELECT id, source_id, target_id, edge_type, weight "
-                    f"FROM belief_edges WHERE source_id IN ({placeholders})",
+                    f"SELECT e.id, e.source_id, e.target_id, e.edge_type, e.weight "
+                    f"FROM belief_edges e "
+                    f"JOIN beliefs source_b ON source_b.id = e.source_id "
+                    f"JOIN beliefs target_b ON target_b.id = e.target_id "
+                    f"WHERE e.source_id IN ({placeholders}) "
+                    f"AND source_b.tier < 8 AND source_b.paused = 0 "
+                    f"AND source_b.erosion_stage != 'retired' "
+                    f"AND target_b.tier < 8 AND target_b.paused = 0 "
+                    f"AND target_b.erosion_stage != 'retired'",
                     tuple(source_ids),
                 )
             except Exception as exc:
