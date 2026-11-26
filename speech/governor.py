@@ -87,7 +87,8 @@ class SpeechGovernor:
             if situation.get("open_problems"):
                 prob = min(0.95, prob * 1.5)
 
-        hour = time.localtime(now).tm_hour
+        from nex_config import local_dt
+        hour = local_dt(now).hour
         if hour >= 22 or hour < 7:
             prob *= self._quiet_damping
 
