@@ -108,6 +108,8 @@ def _validate_manifest(manifest: Any) -> dict:
         raise HandoffError("manifest digest is invalid")
     if _digest(_manifest_body(manifest)) != digest:
         raise HandoffError("manifest digest mismatch; immutable handoff record was changed")
+    if not isinstance(manifest["authority"], dict) or not isinstance(manifest["evidence_dimensions"], dict):
+        raise HandoffError("manifest authority and evidence_dimensions must be objects")
     if manifest["authority"].get("execution_authority") != "none":
         raise HandoffError("handoff cannot contain execution authority")
     if manifest["evidence_dimensions"].get("test_verified") != "not_authorized":
@@ -445,6 +447,8 @@ def record_scope_review(workdir: str, handoff_id: str, decision: str, reviewer: 
             not isinstance(permitted_actions, list)
             or any(not isinstance(a, str) for a in permitted_actions)):
         raise HandoffError("permitted_actions must be a list of action names")
+    if not isinstance(note, str) or len(note) > 2000:
+        raise HandoffError("note must be text of at most 2000 characters")
     actions = list(permitted_actions or [])
     if len(actions) != len(set(actions)):
         raise HandoffError("permitted_actions contains duplicates")
@@ -491,7 +495,9 @@ def record_human_acceptance(workdir: str, handoff_id: str, decision: str, review
     reviewer = _text(reviewer, "reviewer", 256)
     source_reference = _text(source_reference, "source_reference", 1000)
     delivery_reference = _text(delivery_reference, "delivery_reference", 1000)
-    if not isinstance(decision, str) or decision not in ("accepted", "rejected", "changes_requested"):
+    if not isinstance(note, str) or len(note) > 2000:
+        raise HandoffError("note must be text of at most 2000 characters")
+    if decision not in ("accepted", "rejected", "changes_requested"):
         raise HandoffError("human acceptance decision must be accepted, rejected or changes_requested")
     required_dimensions = {"source_implemented", "test_verified", "runtime_observed"}
     if not isinstance(evidence_references, dict) or set(evidence_references) != required_dimensions:
@@ -503,6 +509,8 @@ def record_human_acceptance(workdir: str, handoff_id: str, decision: str, review
                 or any(not isinstance(v, str) or not v.strip() or len(v) > 1000 for v in values)):
             raise HandoffError(f"{dimension} evidence references must be a bounded list of non-empty strings")
         normalized[dimension] = list(values)
+    if decision == "accepted" and not any(normalized.values()):
+        raise HandoffError("accepted delivery requires at least one evidence reference")
     return _append_event(workdir, manifest, {
         "event_kind": "human_acceptance",
         "decision": decision,
