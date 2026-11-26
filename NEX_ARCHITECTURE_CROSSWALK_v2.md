@@ -2,7 +2,7 @@
  
 ## 0. Current branch and boot-wiring first pass (25 November 2026)
 
-**Repository snapshot:** captured host checkout at `de93134f34adac07a3a41c2a05b33720510a2bfc`. Against current GitHub `main`, it is 4 commits ahead and 641 behind; the remote continuity branch is separately 305 ahead / 641 behind. Do not conflate the remote branch with the host checkout or merge main wholesale.
+**Repository snapshot:** captured host checkout at `de93134f34adac07a3a41c2a05b33720510a2bfc`. Against current GitHub `main`, it is 4 commits ahead and 641 behind; the remote continuity branch is separately 310 ahead / 641 behind. Do not conflate the remote branch with the host checkout or merge main wholesale.
 
 **Inventory distinctions:**
 - The active branch has 42 top-level theory_x package directories. Package directories are not a count of cognitive faculties, MIND_MAP nodes or running loops.
