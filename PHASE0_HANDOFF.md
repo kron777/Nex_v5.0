@@ -191,3 +191,10 @@ The new `NEX_PHASE0_STAGE9_STAGE10_COGNITIVE_TRACE_AUDIT_2026-11-26.md` records 
 The Stage 10 audit records the broader-than-description candidate query, the `edges_written_total` counter semantics, Chat's at-most-once annotation read, and the known Tier-7/retrieval boundary. These are evidence and contract questions, not authorisation to change runtime behaviour.
 
 The audit was checked against the remote continuity branch at `30787dbbc20a521c5f8399b414aef56165fa8e93`; the four relevant Stage 9/10 source blobs were identical to the captured host baseline `de93134f34adac07a3a41c2a05b33720510a2bfc`. The audit document and this handoff update are documentation-only commits. The host checkout was not altered. No tests, runtime services, flags, databases, external APIs or experiments were run or changed.
+
+
+## Current source-audit addendum — 26 November 2026
+
+The open-problem lifecycle audit now records G-51: CounterfactualNode selects the oldest open problem by `last_touched_at` but does not refresh that timestamp after an attempt. With its default 300-second loop, the same row can be selected repeatedly when no other component touches it, potentially starving newer open problems. The multi-problem fairness behavior is not covered by the inspected tests; live impact is UNKNOWN. This is documented as a progress/fairness candidate, not remediated because Gate 0 remains pending.
+
+No behavior, database, service, environment flag, experiment, baseline, tripwire, specification or frozen register was changed. The exact Frozen V2.1 and founder Gate 0 approval record remain unresolved.
