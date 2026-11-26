@@ -77,11 +77,10 @@ review and **not** RDO self-assessment. Failed/unverified obligations are **reop
 
 ## Roadmap status
 
-This completes the RDO v1.3 §16 stage sequence (Stage 0 reconciliation → Stage 7). At the
-original stage-branch review, the source branches were open and unmerged. **Integration status
-(26 Nov 2026):** foundational PR #46 has since merged; the Stage 2–7 capabilities are carried into
-the consolidated hardened-mainline integration PR #124. The older stage PRs remain source-history
-references and are not to be merged separately ahead of that consolidated integration.
+The fixture demonstrates the Stage-7 verification mechanism, but it does **not** complete
+the Stage-7 objective-to-verified-delivery exit criterion. **Integration status (26 Nov 2026):**
+foundational PR #46 and the consolidated Stage 2–7 integration PR #124 have merged. The older
+stage PRs remain source-history references and are not to be merged separately.
 
 The **v1.3/v1.4 precedence** is still **not** resolved by assumption, and the host-only live
 confirmations across Stages 1/5/7 remain for founder authority.
@@ -100,3 +99,30 @@ The controlled Stage-7 demonstration explicitly allowlists only `test_demo_guard
 throwaway temporary repository. New tests prove that a declared but unapproved test is not executed
 and that even an allowlisted path cannot escape the repository root. This is a per-call explicit
 authorization boundary; it does not claim arbitrary test suites are side-effect-free.
+
+## Bounded objective-to-handoff increment (26 Nov 2026)
+
+The generic intake interface is merged and a first durable handoff path now exists:
+
+- A manifest is derived from an RDO-native persisted cycle and one named work package.
+- The intake revision digest and original wording/intent are preserved.
+- The selected repository must still be clean and at the exact commit used by the cycle.
+- The exact affected paths, obligations, dependencies, acceptance criteria, constraints, exclusions, anti-requirements and evidence needs are included.
+- Allowed paths must identify exact files, not directories or globs. They are resolved against the repository root; outside-pointing symlinks are refused and internal file aliases retain their resolved target.
+- The manifest is immutable and SHA-256 checked. A separate append-only, hash-chained event ledger records human-attributed scope reviews and a separate human-acceptance event.
+- Reviewer/source fields are caller-attributed and **not authenticated** by this local mechanism.
+- A scope approval can only record preparation of a proposed patch within scope. It cannot authorize pytest, arbitrary commands, live NEX changes, database writes, experiment changes, services or deployment.
+- Human acceptance is a distinct judgement and does not rewrite source/test/runtime evidence.
+
+Commands and file format are documented in [STAGE7_HANDOFF.md](STAGE7_HANDOFF.md).
+
+### What remains before Stage 7 can be called complete
+
+1. Verify source evidence through a separate Watcher process boundary rather than importing Watcher ledger/evidence into the RDO process.
+2. Retain distinct source, test, host-runtime and human-acceptance evidence with no substitution.
+3. Demonstrate a real, non-behavioural objective through intake → persisted cycle → exact manifest → human review → independent Watcher verification.
+4. Design and verify a disposable no-secrets/no-live-data test environment before any arbitrary repository test code is run. The existing exact-path allowlist is not a sandbox.
+5. Obtain the appropriate host/runtime approval before any runtime observation; runtime remains UNKNOWN until actually observed.
+
+The handoff manifest is a planning/review artifact, not an execution launcher. The Stage-7 completion issue remains open; no RDO Stage 8 is inferred.
+
