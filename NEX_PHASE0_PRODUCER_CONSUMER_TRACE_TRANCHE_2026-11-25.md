@@ -1343,7 +1343,7 @@ The tie is a real source data shape: `theory_x.diversity.lineage.record_synergy(
 
 `tests/test_warrant_recorder.py` verifies day deduplication, cursor idempotency, and use-day aggregation with a single seeded lineage row. It does not exercise equal timestamps spanning a page boundary. The current page size is `_USE_BATCH = 20000`.
 
-`WarrantRecorder.start_loop()` is inert unless `NEX5_WARRANT_RECORD == '1'`, and normal `run.py` construction is behind the same default-off flag. Host-effective state and live cursor/table contents remain UNKNOWN.
+`WarrantRecorder.start_loop()` is inert unless `NEX5_WARRANT_RECORD == '1'`, and normal `run.py` construction is behind the same code-level default-off guard. The tracked `nex_keepalive.sh` explicitly sets `NEX5_WARRANT_RECORD=1`, so that launcher configures the recorder on; the known launcher path blocker and uninspected user systemd unit leave host-effective state UNKNOWN. Live cursor/table contents were not inspected.
 
 **Disposition:** this is a source-level pagination risk, not an observed undercount. Before a future approved fix, add an isolated small-page tie-boundary regression and define a stable composite cursor (timestamp plus a unique row key), including cursor storage compatibility. No runtime cursor, schema, flag or test state was changed.
 
@@ -1361,7 +1361,7 @@ The tie is a real source data shape: `theory_x.diversity.lineage.record_synergy(
 
 `WarrantRecorder.use_cycle()` currently feeds `belief_use_day` / `belief_use_days` from the first four families plus `fountain_retrieval_log`, but it does not read `substrate_snapshots.walk_anchor_id`. This is a source-inventory discrepancy between the scoring module's sustain definition and the recorder's append-only use-day population.
 
-The snapshot field has a concrete conditional producer. `FountainGenerator._maybe_substrate_voice()` writes a `fountain_events` row with `anchor_belief_id`, then calls `_capture_fire_snapshot(..., "substrate_voice", anchor_id)`. `capture_snapshot()` persists that value to `substrate_snapshots.walk_anchor_id`. However, the caller invokes `_maybe_substrate_voice()` only when `NEX5_RECONCILE != '1'`; the tracked keepalive declares `NEX5_RECONCILE=1`, and the effective host launch/configuration remains UNKNOWN.
+The snapshot field has a concrete conditional producer. `FountainGenerator._maybe_substrate_voice()` writes a `fountain_events` row with `anchor_belief_id`, then calls `_capture_fire_snapshot(..., "substrate_voice", anchor_id)`. `capture_snapshot()` persists that value to `substrate_snapshots.walk_anchor_id`. However, the caller invokes `_maybe_substrate_voice()` only when `NEX5_RECONCILE != '1'`; the tracked keepalive declares `NEX5_RECONCILE=1` while also setting `NEX5_WARRANT_RECORD=1`. So the tracked launch enables the recorder but suppresses this producer path. Effective host launch/configuration remains UNKNOWN because the known launcher path blocker and uninspected user systemd unit may change which entry point is used.
 
 `substrate_snapshots.id` is a stable row key and could support an incremental cursor if an approved collector update is eventually made. `tests/test_warrant_recorder.py` currently does not create the `substrate_snapshots` table or exercise walk-anchor use-days.
 
@@ -1370,7 +1370,7 @@ The snapshot field has a concrete conditional producer. `FountainGenerator._mayb
 
 ## 86. Warrant eligibility and the independent retired-stage marker
 
-`WarrantPass.compute_all()` scores rows selected by `paused = 0 AND tier <= max_tier` (default maximum Tier 7). Its query does not select or filter `erosion_stage`. `WarrantRecorder.survival_cycle()` rotates through unlocked, unpaused Tier 3 / 5–6 / 7 rows; its query also does not select or filter `erosion_stage`.
+`WarrantPass.compute_all()` scores rows selected by `paused = 0 AND tier <= max_tier` (default maximum Tier 7). Its query does not select or filter `erosion_stage`. `WarrantRecorder.survival_cycle()` rotates through unlocked, unpaused Tier 3 / 5–6 / 7 rows; its query also does not select or filter `erosion_stage`. The tracked launcher sets `NEX5_WARRANT_RECORD=1`, so the Recorder is configured on in that launch profile. `WarrantPass` itself remains absent from normal boot construction and is only invoked through the one-shot validation tool in the inspected paths.
 
 The newer inactive-belief eligibility work treats `erosion_stage='retired'` as an independent tombstone marker that can exist below Tier 8. By contrast, Harmonizer's normal retirement path writes Tier 8 and does not set this marker. No normal runtime writer for `erosion_stage='retired'` was established in this source audit, and no live rows were read.
 
@@ -1387,7 +1387,7 @@ The source distinguishes two components:
 - `WarrantPass` in `theory_x/stage_warrant/warrant.py` has a `start_loop()` guard for `NEX5_WARRANT`, but no construction or start of `WarrantPass` was found in the inspected normal `run.py` or `gui/server.py` paths. The class docstring says it is constructed and started from `run.py`, which does not match the inspected source.
 - `tools/warrant_validate.py` imports `compute_all()` and performs a one-shot read-only validation; it does not start the background `WarrantPass` loop.
 
-Therefore the normal source wiring establishes a separately gated recording worker, not a periodic score/persistence worker. Setting `NEX5_WARRANT=1` alone does not construct `WarrantPass` through the inspected boot path. Manual or uninspected callers are not excluded. No `belief_warrant` table or live process state was inspected, so no claim is made about existing persisted rows or host activation.
+Therefore normal source wiring establishes a recording worker configured by the tracked launcher, not a periodic score/persistence worker. The tracked launcher sets `NEX5_WARRANT_RECORD=1` but not `NEX5_WARRANT`. Setting `NEX5_WARRANT=1` alone does not construct `WarrantPass` through the inspected boot path. Manual or uninspected callers are not excluded. The known launcher path blocker may prevent the tracked script from starting, and the active user systemd unit was not inspected. No `belief_warrant` table or live process state was inspected.
 
 **Disposition:** record-only operation may be intentional while evidence accrues after Warrant's failed validation gate. The inaccurate `WarrantPass` module docstring is a documentation/source-wiring discrepancy; do not wire the scoring loop, alter flags, or change the Warrant gate until the governing approval and desired lifecycle are confirmed.
 
