@@ -147,6 +147,37 @@ class TestFountainGenerator(unittest.TestCase):
             dynamic_reader=self.readers["dynamic"],
         )
 
+
+    def test_context_retrieval_excludes_paused_and_retired_beliefs(self):
+        gen = self._make_generator()
+        gen._beliefs_reader = self.readers["beliefs"]
+        gen._beliefs_writer = self.writers["beliefs"]
+
+        def add(content, source, tier=5, paused=0):
+            return self.writers["beliefs"].write(
+                "INSERT INTO beliefs (content, source, tier, confidence, created_at, paused) "
+                "VALUES (?, ?, ?, 0.8, ?, ?)",
+                (content, source, tier, int(time.time()), paused),
+            )
+
+        active_own = add("active own memory", "fountain_insight")
+        paused_own = add("paused own memory", "fountain_insight", paused=1)
+        retired_own = add("retired own memory", "fountain_insight", tier=8)
+        active_seed = add("active seed", "koan")
+        paused_seed = add("paused seed", "koan", paused=1)
+        active_hot = add("active self observation", "hot_observer")
+        paused_hot = add("paused self observation", "hot_observer", paused=1)
+
+        rows = gen._retrieve_context_beliefs(own_n=10, seed_n=10)
+        ids = {row["id"] for row in rows}
+        self.assertIn(active_own, ids)
+        self.assertIn(active_seed, ids)
+        self.assertIn(active_hot, ids)
+        self.assertNotIn(paused_own, ids)
+        self.assertNotIn(retired_own, ids)
+        self.assertNotIn(paused_seed, ids)
+        self.assertNotIn(paused_hot, ids)
+
     def test_generate_returns_none_when_not_ready(self):
         gen = self._make_generator()
 
