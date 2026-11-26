@@ -69,7 +69,7 @@ def test_text_is_hashed_and_never_persisted(tmp_path):
 
 def test_nested_text_collections_are_hashed(tmp_path):
     hidden_candidates = ["candidate secret alpha", "candidate secret beta"]
-    tracer = InfluenceTracer(sink_path=_sink(tmp_path), enabled=True)
+    tracer = InfluenceTracer("test", sink_path=_sink(tmp_path), enabled=True)
     tracer.record("candidate_generation", "candidates", metadata={
         "candidate_texts": hidden_candidates,
     })
@@ -82,7 +82,7 @@ def test_nested_text_collections_are_hashed(tmp_path):
 
 def test_unrecognised_metadata_strings_are_hashed_by_default(tmp_path):
     private_note = "unexpected free-form diagnostic with private content"
-    tracer = InfluenceTracer(sink_path=_sink(tmp_path), enabled=True)
+    tracer = InfluenceTracer("test", sink_path=_sink(tmp_path), enabled=True)
     tracer.record("diagnostic", "observed", metadata={
         "unexpected_future_field": private_note,
         "source": "stage6_fountain",
@@ -133,7 +133,7 @@ def test_writer_delta_records_single_database_commit_scope(tmp_path):
 
 
 def test_write_many_delta_records_atomic_single_database_scope(tmp_path):
-    tracer = InfluenceTracer(sink_path=_sink(tmp_path), enabled=True)
+    tracer = InfluenceTracer("test", sink_path=_sink(tmp_path), enabled=True)
     tracer.writer_delta(
         database="dynamic", table="fountain_retrieval_log",
         operation="WRITE_MANY", row_id=[1, 2], metadata={"row_count": 2},
