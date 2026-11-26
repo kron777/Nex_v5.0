@@ -83,6 +83,7 @@ class Obligation:
     recon_semantic_review_evidence: List[str] = dataclasses.field(default_factory=list)
     confidence: str = "stated"      # stated | measured | inferred
     note: str = ""
+    impact: Optional[str] = None  # consequence if this obligation is omitted
 
     def __post_init__(self) -> None:
         if self.classification not in CLASSIFICATIONS:
@@ -142,18 +143,24 @@ class WorkPackage:
 
 @dataclasses.dataclass
 class Pattern:
-    """A reusable lesson from a completed cycle. Never a universal rule just
-    because it worked once: confidence is bounded and exceptions are kept."""
+    """A reusable, defeasible lesson. Confidence is derived from bounded evidence
+    counts; corroboration and disconfirmation remain separately traceable."""
     key: str
     statement: str
-    provenance: str                 # cycle id + source
-    confidence: float = 0.3         # starts low; rises slowly with corroboration
-    applicability: str = ""         # when this pattern applies
+    provenance: str
+    confidence: float = 0.3
+    applicability: str = ""
     exceptions: List[str] = dataclasses.field(default_factory=list)
     observed_count: int = 1
+    base_confidence: float = 0.3
+    disconfirmed_count: int = 0
+    confirmations: List[str] = dataclasses.field(default_factory=list)
+    disconfirmations: List[str] = dataclasses.field(default_factory=list)
 
     def to_dict(self) -> dict:
-        return dataclasses.asdict(self)
+        d = dataclasses.asdict(self)
+        d["reliable"] = self.confidence > 0.0 and self.observed_count > self.disconfirmed_count
+        return d
 
 
 # cycle provenance kinds — kept DISTINCT so imported history is never counted as a
@@ -170,6 +177,8 @@ class CycleRecord:
     id: str
     objective: str
     kind: str = NATIVE_PLANNING
+    work_type: str = "unspecified"
+    engineering_pattern: str = "unspecified"
     assumptions: List[str] = dataclasses.field(default_factory=list)
     obligations: List[dict] = dataclasses.field(default_factory=list)
     relationships: List[dict] = dataclasses.field(default_factory=list)
@@ -178,6 +187,8 @@ class CycleRecord:
     missing: List[str] = dataclasses.field(default_factory=list)
     anti_requirements: List[str] = dataclasses.field(default_factory=list)
     uncertainties: List[str] = dataclasses.field(default_factory=list)
+    frontier: List[dict] = dataclasses.field(default_factory=list)
+    counts: Dict[str, int] = dataclasses.field(default_factory=dict)
     tension: List[dict] = dataclasses.field(default_factory=list)
     work_packages: List[dict] = dataclasses.field(default_factory=list)
     predicted: Dict[str, Any] = dataclasses.field(default_factory=dict)
