@@ -17,6 +17,7 @@ against mind_map/MIND_MAP.yaml before trusting the output.
 from __future__ import annotations
 
 import argparse
+import ast
 import re
 import subprocess
 import sys
@@ -59,6 +60,91 @@ REF_RE = re.compile(r"^(?P<path>[^:]+)(?::(?P<a>\d+)(?:-(?P<b>\d+))?)?$")
 # A shadow/stand-in's self-declared wiring deadline, e.g. "UNBLOCK 2026-11-21".
 UNBLOCK_RE = re.compile(r"UNBLOCK:?\s*(\d{4}-\d{2}-\d{2})")
 
+# The mind map is a descriptive index, never a runtime decision authority.
+# "blocked" is deliberately NOT forbidden: it is an evidence/status modifier,
+# not permission to block an action.
+FORBIDDEN_AUTHORITY_KEYS = {
+    "gate", "veto", "authority", "permission", "priority", "score", "block",
+    "action_gate", "action_veto", "action_score", "decision_gate", "decision_score",
+    "decision_authority", "action_authority", "execution_authority",
+    "blocks_action", "vetoes_action", "scores_action",
+    "can_gate", "can_veto", "can_block", "can_score",
+}
+RUNTIME_ROOTS = (
+    "run.py", "gui", "theory_x", "substrate", "speech", "voice", "admin",
+    "nex_config.py", "power_switch.py", "keystone.py", "alpha.py", "errors.py",
+    "nex5_rate.py",
+)
+
+
+def check_descriptive_only(doc: dict, root: Path = ROOT) -> list[str]:
+    """Enforce that MIND_MAP is descriptive and is not consumed by NEX runtime code.
+
+    The RDO/Watcher and developer tooling may read the map as evidence. Runtime
+    modules may not import it or load MIND_MAP.yaml as a decision input.
+    """
+    errs: list[str] = []
+    constraint = " ".join(str(doc.get("meta", {}).get("constraint", "")).split()).lower()
+    if ("descriptive only" not in constraint
+            or "no node in this map may gate, score, block, or veto an action" not in constraint):
+        errs.append("meta.constraint must preserve the descriptive-only / no-action-authority rule")
+
+    for node in doc.get("nodes", []):
+        forbidden = sorted(set(str(k).lower() for k in node) & FORBIDDEN_AUTHORITY_KEYS)
+        if forbidden:
+            errs.append(f"{node.get('id', '<missing id>')}: forbidden action-authority field(s): {', '.join(forbidden)}")
+
+    runtime_files = []
+    for rel in RUNTIME_ROOTS:
+        candidate = root / rel
+        if candidate.is_file() and candidate.suffix == ".py":
+            runtime_files.append(candidate)
+        elif candidate.is_dir():
+            runtime_files.extend(candidate.rglob("*.py"))
+
+    for path in sorted(set(runtime_files)):
+        relative = path.relative_to(root)
+        if any(part in {".git", ".venv", "venv", "__pycache__"} for part in relative.parts):
+            continue
+        try:
+            source = path.read_text(encoding="utf-8")
+            tree = ast.parse(source, filename=str(relative))
+        except SyntaxError:
+            # A syntactically invalid module cannot be imported by the runtime;
+            # syntax validity is handled by the Python test/build checks.
+            continue
+        except (OSError, UnicodeError) as exc:
+            errs.append(f"{relative}: cannot inspect runtime source for mind-map authority use: {exc}")
+            continue
+
+        docstrings = set()
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and node.body:
+                first = node.body[0]
+                if (isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant)
+                        and isinstance(first.value.value, str)):
+                    docstrings.add(id(first.value))
+
+        for node in ast.walk(tree):
+            imported = False
+            if isinstance(node, ast.Import):
+                imported = any(
+                    alias.name == "mind_map" or alias.name.startswith("mind_map.")
+                    for alias in node.names
+                )
+            elif isinstance(node, ast.ImportFrom):
+                imported = bool(node.module and (
+                    node.module == "mind_map" or node.module.startswith("mind_map.")
+                ))
+            if imported:
+                errs.append(f"{relative}:{getattr(node, 'lineno', 1)}: runtime code imports mind_map")
+            if (isinstance(node, ast.Constant) and isinstance(node.value, str)
+                    and "MIND_MAP.yaml" in node.value and id(node) not in docstrings):
+                errs.append(f"{relative}:{getattr(node, 'lineno', 1)}: runtime code references MIND_MAP.yaml")
+    return errs
+
+
+
 
 # ─────────────────────────────── loading ───────────────────────────────
 def load(path: Path = MAP) -> dict:
@@ -93,7 +179,7 @@ def last_commit_ts(rel: str) -> float | None:
 
 # ─────────────────────────────── checking ──────────────────────────────
 def check(doc: dict, verify_absent: bool = False) -> tuple[list, list]:
-    errs: list[str] = []
+    errs: list[str] = check_descriptive_only(doc, ROOT)
     warns: list[str] = []
     arm_ids = {a["id"] for a in doc.get("arms", [])}
     seen: set[str] = set()
