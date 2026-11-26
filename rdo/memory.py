@@ -472,56 +472,102 @@ _MEASURE_LABELS = {
 
 
 def metrics_series(cycles: List[CycleRecord]) -> Dict:
-    """The 8 comparable measures across cycles, with EXPLICIT denominators,
-    comparability and missing values (founder constraint). Efficiency comparison
-    uses ONLY executed+verified RDO-guided cycles — an imported retrospective is
-    never counted as a completed cycle, and a native planning cycle with no
-    executed work contributes process measures only. No acceleration trend is
-    computed from incomplete or incomparable data."""
+    """Report process/outcome measures while restricting efficiency comparisons to
+    the largest like-for-like executed engineering-pattern group.
+
+    Executed records are not automatically comparable merely because they are
+    completed. Native plans and imported retrospectives remain outside the
+    execution pool; incomplete outcome fields remain UNKNOWN.
+    """
     rows = [cycle_metrics(c) for c in cycles]
     by_kind: Dict[str, int] = {}
-    for r in rows:
-        by_kind[r["kind"]] = by_kind.get(r["kind"], 0) + 1
-    outcome_complete = [r for r in rows if r["outcome_complete"]]
-    # efficiency-eligible: RDO ran it AND work was executed+verified (exclude imported)
-    efficiency_eligible = [r for r in rows
-                           if r["kind"] == EXECUTED_VERIFIED and r["outcome_complete"]
-                           and _valid_effort(r["engineering_effort"])]
+    for row in rows:
+        by_kind[row["kind"]] = by_kind.get(row["kind"], 0) + 1
+
+    outcome_complete = [row for row in rows if row["outcome_complete"]]
+    completed_executed = [
+        cycle for cycle in cycles
+        if cycle.kind == EXECUTED_VERIFIED and cycle.actual is not None
+    ]
+
+    # Engineering-pattern attribution is the explicit comparability boundary.
+    # Unspecified patterns are intentionally isolated rather than pooled.
+    comparable_groups: Dict[str, List[str]] = {}
+    for cycle in completed_executed:
+        pattern = cycle.engineering_pattern
+        group_key = pattern if pattern and pattern != "unspecified" else f"unclassified:{cycle.id}"
+        comparable_groups.setdefault(group_key, []).append(cycle.id)
+
+    largest_comparable_group = max(
+        (len(group) for group in comparable_groups.values()), default=0
+    )
+    largest_groups = sorted(
+        key for key, group in comparable_groups.items()
+        if len(group) == largest_comparable_group and largest_comparable_group > 0
+    )
+    # If different patterns tie for largest, do not combine them or choose
+    # one silently; the efficiency pool stays empty pending a clearer comparison.
+    selected_group = largest_groups[0] if len(largest_groups) == 1 else None
+    row_by_id = {row["cycle"]: row for row in rows}
+    selected_ids = comparable_groups.get(selected_group, []) if selected_group else []
+    efficiency_pool = [
+        cycle_id for cycle_id in selected_ids
+        if row_by_id[cycle_id]["outcome_complete"]
+        and _valid_effort(row_by_id[cycle_id]["engineering_effort"])
+    ]
+    efficiency_ids = set(efficiency_pool)
 
     def _denominator(measure: str) -> dict:
-        contributing = [r for r in rows if r.get(measure) is not None]
-        return {"contributing_cycles": [r["cycle"] for r in contributing],
-                "n": len(contributing), "missing": len(rows) - len(contributing)}
+        contributing = [row for row in rows if row.get(measure) is not None]
+        return {
+            "contributing_cycles": [row["cycle"] for row in contributing],
+            "n": len(contributing),
+            "missing": len(rows) - len(contributing),
+        }
 
-    denominators = {m: _denominator(m) for m in _MEASURE_KEYS}
+    denominators = {measure: _denominator(measure) for measure in _MEASURE_KEYS}
     return {
-        "measures": [_MEASURE_LABELS[m] for m in _MEASURE_KEYS],
+        "measures": [_MEASURE_LABELS[measure] for measure in _MEASURE_KEYS],
         "measure_keys": list(_MEASURE_KEYS),
         "per_cycle": rows,
         "cycles_by_kind": by_kind,
         "comparability": {
             "process_measures_available_for": "every cycle the RDO ran (native + executed)",
-            "outcome_measures_available_for": [r["cycle"] for r in outcome_complete],
-            "efficiency_comparison_pool": [r["cycle"] for r in efficiency_eligible],
+            "outcome_measures_available_for": [row["cycle"] for row in outcome_complete],
+            "genuinely_comparable_by_engineering_pattern": comparable_groups,
+            "selected_efficiency_comparison_group": selected_group,
+            "efficiency_comparison_pool": efficiency_pool,
             "excluded_from_efficiency": {
-                "imported_retrospective": [r["cycle"] for r in rows
-                                           if r["kind"] == IMPORTED_RETROSPECTIVE],
-                "native_planning_no_actuals": [r["cycle"] for r in rows
-                                               if r["kind"] == NATIVE_PLANNING and not r["outcome_complete"]],
+                "imported_retrospective": [
+                    row["cycle"] for row in rows if row["kind"] == IMPORTED_RETROSPECTIVE
+                ],
+                "native_planning_no_actuals": [
+                    row["cycle"] for row in rows
+                    if row["kind"] == NATIVE_PLANNING and not row["outcome_complete"]
+                ],
+                "executed_outside_selected_group_or_incomplete": [
+                    cycle.id for cycle in completed_executed if cycle.id not in efficiency_ids
+                ],
             },
         },
         "denominators": denominators,
-        "efficiency_eligible_cycles": len(efficiency_eligible),
+        "completed_executed_cycles": len(completed_executed),
+        "largest_comparable_group": largest_comparable_group,
+        "efficiency_eligible_cycles": len(efficiency_pool),
         "trend_claim": (
-            f"NO efficiency/acceleration claim: only {len(efficiency_eligible)} executed+verified "
-            f"RDO-guided cycle(s); need >= {MIN_CYCLES_FOR_TREND} comparable cycles. An imported "
-            f"retrospective and a planning-only cycle are NOT comparable to a completed cycle."
-            if len(efficiency_eligible) < MIN_CYCLES_FOR_TREND
-            else "enough comparable executed+verified cycles to begin assessing a trend; report "
-                 "values, not hype"),
-        "note": "process measures every cycle; outcome measures need executed work + recorded "
-                "actuals; efficiency compares only executed+verified cycles of comparable kind.",
+            f"NO efficiency/acceleration claim: only {len(efficiency_pool)} like-for-like "
+            f"executed+verified RDO-guided cycle(s); need >= {MIN_CYCLES_FOR_TREND} comparable "
+            "cycles. Imported retrospectives, planning-only cycles, other engineering patterns "
+            "and incomplete outcomes are NOT pooled."
+            if len(efficiency_pool) < MIN_CYCLES_FOR_TREND
+            else "enough like-for-like executed+verified cycles to begin assessing a trend; "
+                 "report values, not hype"
+        ),
+        "note": "Process measures remain available across cycles; outcome measures need recorded "
+                "actuals; efficiency compares only the largest unambiguous like-for-like executed "
+                "engineering-pattern group with complete outcomes and valid effort.",
     }
+
 
 
 def accuracy_series(cycles: List[CycleRecord]) -> Dict:
