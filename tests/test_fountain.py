@@ -201,36 +201,39 @@ class TestFountainGenerator(unittest.TestCase):
         gen._beliefs_reader = self.readers["beliefs"]
 
         now = int(time.time())
-        def add(content, source, tier=5, paused=0, affinity=None, created_at=now):
+        def add(content, source, tier=5, paused=0, affinity=None, created_at=now, erosion_stage="external"):
             self.writers["beliefs"].write(
                 "INSERT INTO beliefs (content, source, tier, confidence, created_at, "
-                "paused, affinity) VALUES (?, ?, ?, 0.8, ?, ?, ?)",
-                (content, source, tier, created_at, paused, affinity),
+                "paused, affinity, erosion_stage) VALUES (?, ?, ?, 0.8, ?, ?, ?, ?)",
+                (content, source, tier, created_at, paused, affinity, erosion_stage),
             )
 
         add("ACTIVE_FAVOURITE_SENTINEL", "fountain_insight", affinity=0.90)
         add("PAUSED_FAVOURITE_SENTINEL", "fountain_insight", paused=1, affinity=0.99)
         add("RETIRED_FAVOURITE_SENTINEL", "fountain_insight", tier=8, affinity=0.98)
+        add("RETIRED_MARKED_FAVOURITE_SENTINEL", "fountain_insight", affinity=0.97, erosion_stage="retired")
         add("ACTIVE_SURPRISE_SENTINEL", "surprise", created_at=now - 30)
         add("PAUSED_SURPRISE_SENTINEL", "surprise", paused=1, created_at=now - 20)
         add("RETIRED_SURPRISE_SENTINEL", "surprise", tier=8, created_at=now - 10)
+        add("RETIRED_MARKED_SURPRISE_SENTINEL", "surprise", created_at=now - 5, erosion_stage="retired")
 
         add("ACTIVE_SPECTRUM_INWARD_SENTINEL", "spectrum")
         add("PAUSED_SPECTRUM_INWARD_SENTINEL", "spectrum", paused=1)
         add("RETIRED_SPECTRUM_INWARD_SENTINEL", "spectrum", tier=8)
+        add("RETIRED_MARKED_SPECTRUM_INWARD_SENTINEL", "spectrum", erosion_stage="retired")
         self.writers["beliefs"].write(
-            "INSERT INTO beliefs (id, content, source, tier, confidence, created_at, paused) "
-            "VALUES (23001, 'ACTIVE_SPECTRUM_OUTWARD_SENTINEL', 'spectrum', 5, 0.8, ?, 0)",
+            "INSERT INTO beliefs (id, content, source, tier, confidence, created_at, paused, erosion_stage) "
+            "VALUES (23001, 'ACTIVE_SPECTRUM_OUTWARD_SENTINEL', 'spectrum', 5, 0.8, ?, 0, 'external')",
             (now,),
         )
         self.writers["beliefs"].write(
-            "INSERT INTO beliefs (id, content, source, tier, confidence, created_at, paused) "
-            "VALUES (23002, 'PAUSED_SPECTRUM_OUTWARD_SENTINEL', 'spectrum', 5, 0.8, ?, 1)",
+            "INSERT INTO beliefs (id, content, source, tier, confidence, created_at, paused, erosion_stage) "
+            "VALUES (23002, 'PAUSED_SPECTRUM_OUTWARD_SENTINEL', 'spectrum', 5, 0.8, ?, 1, 'external')",
             (now,),
         )
         self.writers["beliefs"].write(
-            "INSERT INTO beliefs (id, content, source, tier, confidence, created_at, paused) "
-            "VALUES (23003, 'RETIRED_SPECTRUM_OUTWARD_SENTINEL', 'spectrum', 8, 0.8, ?, 0)",
+            "INSERT INTO beliefs (id, content, source, tier, confidence, created_at, paused, erosion_stage) "
+            "VALUES (23003, 'RETIRED_SPECTRUM_OUTWARD_SENTINEL', 'spectrum', 8, 0.8, ?, 0, 'external')",
             (now,),
         )
 
@@ -253,12 +256,15 @@ class TestFountainGenerator(unittest.TestCase):
         self.assertIn("ACTIVE_SURPRISE_SENTINEL", prompt)
         self.assertNotIn("PAUSED_FAVOURITE_SENTINEL", prompt)
         self.assertNotIn("RETIRED_FAVOURITE_SENTINEL", prompt)
+        self.assertNotIn("RETIRED_MARKED_FAVOURITE_SENTINEL", prompt)
         self.assertNotIn("PAUSED_SURPRISE_SENTINEL", prompt)
         self.assertNotIn("RETIRED_SURPRISE_SENTINEL", prompt)
+        self.assertNotIn("RETIRED_MARKED_SURPRISE_SENTINEL", prompt)
         self.assertIn("ACTIVE_SPECTRUM_INWARD_SENTINEL", prompt)
         self.assertIn("ACTIVE_SPECTRUM_OUTWARD_SENTINEL", prompt)
         self.assertNotIn("PAUSED_SPECTRUM_INWARD_SENTINEL", prompt)
         self.assertNotIn("RETIRED_SPECTRUM_INWARD_SENTINEL", prompt)
+        self.assertNotIn("RETIRED_MARKED_SPECTRUM_INWARD_SENTINEL", prompt)
         self.assertNotIn("PAUSED_SPECTRUM_OUTWARD_SENTINEL", prompt)
         self.assertNotIn("RETIRED_SPECTRUM_OUTWARD_SENTINEL", prompt)
 
