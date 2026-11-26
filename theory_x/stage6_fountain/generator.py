@@ -2512,6 +2512,7 @@ class FountainGenerator:
 
         hot_branch = None
         branches = status.get("branches", [])
+        sorted_b = []
         if branches:
             sorted_b = sorted(branches, key=lambda b: b.get("focus_num", 0), reverse=True)
             if sorted_b:
@@ -2520,6 +2521,25 @@ class FountainGenerator:
                 # default OFF -> exact top-pick) so a lifted cold branch can
                 # occasionally win the credit+carry loop. Fail-safe to top-pick.
                 hot_branch = _weighted_branch_pick(sorted_b, hot_branch)
+        if trace is not None:
+            _hot_branch_candidates_id = trace.candidates(
+                [item.get("branch_id") for item in sorted_b],
+                source="stage6_fountain.hot_branch_selection",
+                candidate_kinds=["dynamic_branch"] * len(sorted_b),
+                metadata={"focus_values": [item.get("focus_num", 0) for item in sorted_b],
+                          "selection_rule": "focus_num_weighted_pick"},
+                parent_ids=[trace.reference("fountain_readiness")]
+                if trace.reference("fountain_readiness") else [],
+            )
+            _hot_branch_selection_id = trace.selection(
+                source="stage6_fountain.hot_branch_selection",
+                candidate_order=[item.get("branch_id") for item in sorted_b],
+                selected_order=[hot_branch] if hot_branch is not None else [],
+                strategy="focus_num_weighted_pick",
+                metadata={"branch_temperature_flag": os.environ.get("NEX5_BRANCH_TEMP", "0")},
+                parent_ids=[_hot_branch_candidates_id] if _hot_branch_candidates_id else [],
+            )
+            trace.remember("fountain_hot_branch_selection", _hot_branch_selection_id)
 
         # teeth-test v2: ONE sample per REAL fire (fail-safe — never stalls a fire).
         # Compares this fire's branch to previous fire's branch for real movement signal.
@@ -2555,9 +2575,12 @@ class FountainGenerator:
                               "previous_branch_id": _branch_prev, "moved": bool(_moved),
                               "nudge_active": bool(_nudge),
                               "transaction_scope": "direct_connection_commit"},
-                    parent_ids=[trace.reference("fountain_readiness")]
-                    if trace.reference("fountain_readiness") else
-                    [trace.reference("input_arrival")],
+                    parent_ids=[
+                        rid for rid in (
+                            trace.reference("fountain_hot_branch_selection"),
+                            trace.reference("fountain_readiness"),
+                        ) if rid
+                    ] or [trace.reference("input_arrival")],
                 )
                 trace.remember("fountain_recursion_attrib_delta", _recursion_trace_id)
         except Exception:
