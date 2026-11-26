@@ -682,15 +682,21 @@ def prediction_accuracy(cycle: CycleRecord) -> Optional[Dict]:
     }
 
 def learning_provenance(cycle: CycleRecord) -> str:
-    """Distinguish a HUMAN-reviewed outcome from automated self-assessment and from a real
-    execution outcome. A planning review is tagged human_reviewed:planning_review and must NOT be
-    read as an independent execution outcome."""
+    """Classify provenance without treating a label as proof of human identity.
+
+    A caller-supplied reviewer is attributed provenance, not independently verified
+    identity. Controlled test/demonstration reviews are kept in their own category.
+    Watcher verification is independently sourced and remains separate from both.
+    """
     a = cycle.actual or {}
-    if a.get("review_kind") == "watcher_verified_execution":
-        return "independent_watcher_verified"          # external observation, not human, not self
+    kind = a.get("review_kind")
+    if kind == "watcher_verified_execution":
+        return "independent_watcher_verified"
+    if kind == "controlled_fixture_review":
+        return "controlled_fixture_review"
     if a.get("reviewer"):
-        kind = "planning_review" if a.get("review_kind") == "planning_review" else "execution_review"
-        return f"human_reviewed:{kind}"
+        review_type = "planning_review" if kind == "planning_review" else "execution_review"
+        return f"reviewer_attributed:{review_type}"
     if cycle.actual is None:
         return "unknown_no_outcome"
     if cycle.kind == EXECUTED_VERIFIED:
@@ -731,7 +737,7 @@ def learning_loop(cycles: List[CycleRecord], new_evidence: Optional[List[Dict]] 
     with explicit UNKNOWNs and contradictory-evidence flags; aggregate accuracy only over recorded
     outcomes; reopening on new evidence. Planning reviews are never counted as execution outcomes."""
     per: List[Dict] = []
-    reviewed = other = unknown = 0
+    reviewer_attributed = controlled_fixture = other = unknown = 0
     for c in cycles:
         prov = learning_provenance(c)
         acc = prediction_accuracy(c)
@@ -748,8 +754,10 @@ def learning_loop(cycles: List[CycleRecord], new_evidence: Optional[List[Dict]] 
             "outcome_status": "recorded" if c.actual is not None else "UNKNOWN (pending)",
             "accuracy": acc, "contradictory_evidence": contradiction,
         })
-        if prov.startswith("human_reviewed"):
-            reviewed += 1
+        if prov.startswith("reviewer_attributed:"):
+            reviewer_attributed += 1
+        elif prov == "controlled_fixture_review":
+            controlled_fixture += 1
         elif prov == "unknown_no_outcome":
             unknown += 1
         else:
@@ -758,15 +766,16 @@ def learning_loop(cycles: List[CycleRecord], new_evidence: Optional[List[Dict]] 
             if p["accuracy"] and p["accuracy"]["accuracy"] is not None]
     return {
         "per_cycle": per,
-        "provenance_split": {"human_reviewed": reviewed,
+        "provenance_split": {"reviewer_attributed": reviewer_attributed,
+                             "controlled_fixture_review": controlled_fixture,
                              "executed_or_self_assessed": other, "unknown_no_outcome": unknown},
         "mean_prediction_accuracy": (round(sum(accs) / len(accs), 3) if accs else None),
         "accuracy_basis": f"{len(accs)} cycle(s) with recorded outcomes; the rest are UNKNOWN, not fabricated",
         "series": accuracy_series(cycles),
         "comparability": comparability_assessment(cycles),
         "reopening": reopening_candidates(reopen_cycle, new_evidence) if (reopen_cycle and new_evidence) else [],
-        "anti_gaming": ("accuracy penalises missed AND unnecessary obligations, so more obligations "
-                        "never raises it; completeness is not an input; planning reviews are tagged "
-                        "human_reviewed and NOT counted as execution outcomes."),
+        "anti_gaming": ("accuracy penalises missed, unnecessary and inappropriate-reuse obligations; "
+                        "incomplete actuals remain UNKNOWN. Reviewer-attributed inputs and controlled "
+                        "fixtures are separate from independently verified execution outcomes."),
     }
 
