@@ -223,6 +223,8 @@ class TraceContext:
             return None
 
     def input(self, text: str, *, source: str, metadata: Optional[dict] = None) -> Optional[str]:
+        if not self._enabled:
+            return None
         raw = (text or "").encode("utf-8", errors="replace")
         details = dict(metadata or {})
         details.update({"source": source, "sha256": _digest(raw), "length": len(raw)})
@@ -236,6 +238,8 @@ class TraceContext:
         candidate_kinds=None,
         metadata: Optional[dict] = None,
     ) -> Optional[str]:
+        if not self._enabled:
+            return None
         details = dict(metadata or {})
         details.update({
             "source": source,
@@ -254,6 +258,8 @@ class TraceContext:
         strategy: str,
         metadata: Optional[dict] = None,
     ) -> Optional[str]:
+        if not self._enabled:
+            return None
         details = dict(metadata or {})
         details.update({
             "source": source,
@@ -271,6 +277,8 @@ class TraceContext:
         reason_code: Optional[str] = None,
         metadata: Optional[dict] = None,
     ) -> Optional[str]:
+        if not self._enabled:
+            return None
         details = dict(metadata or {})
         details.update({"gate": gate, "decision": decision, "reason_code": reason_code})
         return self.record("gate", "decision", metadata=details)
@@ -285,6 +293,8 @@ class TraceContext:
         status: str = "committed",
         metadata: Optional[dict] = None,
     ) -> Optional[str]:
+        if not self._enabled:
+            return None
         details = dict(metadata or {})
         details.update({
             "database": database,
@@ -308,6 +318,8 @@ class TraceContext:
         status: str = "produced",
         metadata: Optional[dict] = None,
     ) -> Optional[str]:
+        if not self._enabled:
+            return None
         details = dict(metadata or {})
         if text is not None:
             raw = str(text).encode("utf-8", errors="replace")
