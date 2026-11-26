@@ -1,21 +1,13 @@
 name: tests
 
-# Runs the full suite under the live-data guard (tests/conftest.py redirects
-# NEX5_DATA_DIR to a temp dir and forbids writes under data/). The gate
-# (scripts/check_test_baseline.py) deselects the known-intentional failures
-# listed in tests/known_failures.txt and fails on anything else.
-#
-# Several tests exercise the real sentence-transformers model indirectly
-# (synergizer, compassion, novel-association, predictive-substrate, …), so the
-# all-MiniLM-L6-v2 model is downloaded once and cached; the test run itself is
-# then offline against that cache.
-
+# The suite runs inside a disposable Docker container. Test code receives no
+# host mounts, credentials, network, writable source tree, or live NEX data.
+# Dependency/model acquisition occurs while building the image, before tests.
 on:
   push:
     branches: [main]
   pull_request:
 
-# The test process needs no repository write permission or checkout credential.
 permissions:
   contents: read
 
@@ -26,44 +18,38 @@ concurrency:
 jobs:
   pytest:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      PYTHONPATH: ${{ github.workspace }}
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: |
-            requirements.txt
-            requirements-dev.txt
+      - name: Build disposable test image
+        run: docker build --pull --tag nex5-test-sandbox:${GITHUB_SHA} .
 
-      - name: Cache the embeddings model
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/huggingface
-          key: hf-all-MiniLM-L6-v2-v1
-
-      - name: Install CPU torch (avoid the CUDA wheel pulled transitively)
-        run: pip install "torch" --index-url https://download.pytorch.org/whl/cpu
-
-      - name: Install dependencies
+      - name: Verify sandbox and run full baseline suite
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
-
-      - name: Pre-download embeddings model (cached across runs)
-        run: python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
-
-      - name: Run suite with baseline gate
-        env:
-          HF_HUB_OFFLINE: "1"
-          TRANSFORMERS_OFFLINE: "1"
-        run: python scripts/check_test_baseline.py
-
-      - name: Mind map stays sourced (no stale status claims)
-        run: python mind_map/mind_map.py --check --verify
+          docker run --rm \
+            --network none \
+            --read-only \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --pids-limit 512 \
+            --memory 6g \
+            --cpus 2 \
+            --tmpfs /tmp:rw,nosuid,nodev,size=4g,mode=1777 \
+            --env HOME=/tmp/home \
+            --env TMPDIR=/tmp \
+            --env XDG_CACHE_HOME=/tmp/cache \
+            --env TORCH_HOME=/tmp/torch \
+            --env NEX5_DATA_DIR=/tmp/nex5-data \
+            --env HF_HOME=/opt/hf-cache \
+            --env HF_HUB_OFFLINE=1 \
+            --env TRANSFORMERS_OFFLINE=1 \
+            --env PYTHONPATH=/workspace \
+            --env PYTHONDONTWRITEBYTECODE=1 \
+            --env GIT_CONFIG_NOSYSTEM=1 \
+            --env GIT_CONFIG_GLOBAL=/dev/null \
+            --workdir /workspace \
+            nex5-test-sandbox:${GITHUB_SHA} \
+            /bin/sh -eu -c 'mkdir -p "$HOME" "$XDG_CACHE_HOME" "$TORCH_HOME" "$NEX5_DATA_DIR" && python ci/test-sandbox/probe.py && python scripts/check_test_baseline.py && python mind_map/mind_map.py --check --verify'
