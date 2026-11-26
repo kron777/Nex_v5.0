@@ -1,4 +1,3 @@
-.github
 .env
 .env.*
 .flask_secret
