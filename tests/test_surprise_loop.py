@@ -56,6 +56,22 @@ def _insert_event(db_path, timestamp, index):
         )
 
 
+def test_first_run_promotes_only_events_from_last_ten_minutes(tmp_path, monkeypatch):
+    loop, dynamic_path, beliefs_path = _prepare_databases(
+        tmp_path, monkeypatch, initial_ts=0.0
+    )
+    now = time.time()
+    _insert_event(dynamic_path, now - 7200, 1)  # old history must remain untouched
+    _insert_event(dynamic_path, now - 120, 2)  # inside first-run window
+
+    assert loop.surprise_tick() == {"promoted": 1}
+
+    with sqlite3.connect(beliefs_path) as db:
+        rows = db.execute("SELECT content FROM beliefs").fetchall()
+    assert len(rows) == 1
+    assert "prediction-2" in rows[0][0]
+    assert "prediction-1" not in rows[0][0]
+
 def test_equal_timestamp_events_continue_across_batches(tmp_path, monkeypatch):
     loop, dynamic_path, beliefs_path = _prepare_databases(tmp_path, monkeypatch)
     for i in range(25):
