@@ -76,6 +76,10 @@ def test_survive_challenge_rejects_inactive_and_retired_beliefs_without_writes()
             "id": 24, "tier": 8, "locked": 0, "paused": 0,
             "erosion_stage": "external",
         },
+        {
+            "id": 25, "tier": 6, "locked": 1, "paused": 0,
+            "erosion_stage": "external",
+        },
     )
 
     for row in ineligible_rows:
