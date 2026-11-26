@@ -20,10 +20,10 @@ _LOG_SOURCE = "emergent_drives"
 # 2026-09-09: lowered 0.4 -> 0.06. At 0.4 no proposal ever fired. Measured on
 # live T6/T7 content, the STABLE per-non-seed-branch pressure tops out ~0.085
 # (agi), with cognition ~0.06-0.07 and news ~0.05 (an earlier "~0.18" reading
-# was a LIMIT-500 sampling artifact, not the real signal). 0.06 admits the
-# top one/occasionally-two branches per 12h scan (~2 proposals/day) without
-# becoming a firehose; 0.15 would fire ~0/day. Proposals still land 'pending'
-# — the human-approval gate (apply_approved) is unchanged.
+# was a fixed-window LIMIT-500 sampling artifact, not the real signal). The
+# detector now rotates its bounded 500-belief window; each pass remains a
+# sample, not a whole-graph measurement. Proposals still land 'pending' — the
+# human-approval gate (apply_approved) is unchanged.
 PRESSURE_THRESHOLD = 0.06
 
 _VERB_SUFFIXES = ("ing", "ed", "ize", "ise", "ate", "ify")
