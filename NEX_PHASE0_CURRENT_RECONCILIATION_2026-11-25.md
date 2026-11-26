@@ -80,13 +80,16 @@ Python and SQLite exact versions, Qwen2.5 3B model digest, idle/load RAM and VRA
 | M0.3–M0.4 architecture crosswalk | Existing v2 crosswalk covers Fountain and Chat output paths only | Seeded; full-system DAG outstanding |
 | M0.3–M0.4 MIND_MAP reconciliation | MIND_MAP absent from active branch, present on main | Outstanding; branch-source discrepancy |
 | M0.3–M0.4 descriptive-node authority invariant | No matching CI enforcement step in active branch workflow; expected MIND_MAP file absent | UNKNOWN / outstanding |
-| V2.1 M0.5 doctrine questions | Six doctrine questions answered at achieved evidence level | Not evidenced as complete in current Phase 0 artifacts |\n| Technical trace-overlay source and fixture tests (previously labelled M0.5) | Default-OFF overlay, two coarse seams, 16 tests and two fixture records | Implemented/test-verified at fixture level |
+| V2.1 M0.5 doctrine questions | V2.1 requires six doctrine questions to be answered at achieved evidence level | Not evidenced as complete in current Phase 0 artifacts |
+| Technical trace-overlay source and fixture tests (previously labelled M0.5) | Default-OFF overlay, two coarse seams, 16 tests and two fixture records | Implemented/test-verified at fixture level |
 | Technical trace-overlay requested sample (previously labelled M0.5) | Roadmap asks for NEX_CAUSAL_TRACE_SAMPLE.json; active branch has docs/phase0_influence_capture_fixture.jsonl instead | Naming/schema reconciliation outstanding |
 | Technical trace-overlay full causal lineage (previously labelled M0.5) | No demonstrated trace across candidate generation, salience/workspace selection, gate decision, SQLite writer delta and output | Incomplete |
 | Technical trace-overlay live L4 capture and live zero-delta (previously labelled M0.5) | No authorised live capture; runtime process identity not verified | UNKNOWN / outstanding |
 | Gate 0 | Founder has not yet reviewed and approved the complete Reality Report, Crosswalk and verified defect backlog | PENDING |
 
-### Technical trace-overlay contract discrepancy (previously labelled M0.5)\n\nThe separate V2.1 M0.5 doctrine-question requirement is not satisfied by this trace-overlay work. See `NEX_PHASE0_M0_5_DELIVERABLE_IDENTITY_RECONCILIATION_2026-11-26.md`.
+### Technical trace-overlay contract discrepancy (previously labelled M0.5)
+
+The separate V2.1 M0.5 doctrine-question requirement is not satisfied by this trace-overlay work. See `NEX_PHASE0_M0_5_DELIVERABLE_IDENTITY_RECONCILIATION_2026-11-26.md`.
 
 The technical roadmap extract names NEX5_TRACE_OVERLAY=0 and asks for trace_id/parent_ids across Input Arrival → Candidate Generation → Salience/Workspace Selection → Gate → SQLite Writer Delta → Output. The active branch's implementation instead uses NEX5_INFLUENCE_TRACE, NEX5_INFLUENCE_TRACE_CONTEXT and NEX5_INFLUENCE_TRACE_PATH. Its current seams record a Fountain fire after generation and a Chat turn after reply finalisation. The records do not yet establish full parent-child lineage through the intermediate stages or the writer delta.
 
