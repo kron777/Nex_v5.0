@@ -35,4 +35,4 @@ def test_scoped_reconciliation_allows_internal_symlink_targets(tmp_path):
 
     result = _grep("needle", str(repo), "alias.txt")
     assert result
-    assert result[0].startswith("source.txt:")
+    assert result[0].startswith("alias.txt:")
