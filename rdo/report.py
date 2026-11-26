@@ -583,7 +583,7 @@ def run_stage6_learning_loop(repo_dir: str = ".", workdir: str = "rdo/.cycles") 
     # controlled reopening fixtures: concrete contradicting evidence reopens; UNKNOWN does not
     new_evidence = [
         {"key": "belief_staleness_input", "now": "missing",
-         "observation": "fixture: belief_activation table reported dropped — reused mechanism gone"},
+         "observation": "fixture: belief_activation source anchor reported missing — semantic-review branch reopened"},
         {"key": "belief_decay_policy", "now": "unknown", "observation": ""},   # insufficient -> no reopen
     ]
     loop = learning_loop(cycles, new_evidence=new_evidence, reopen_cycle=bd)
