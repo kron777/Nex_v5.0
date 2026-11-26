@@ -20,8 +20,8 @@ restarts or experiment modifications. `python -m rdo stage6`.
 - `prediction_accuracy(cycle)` — UNKNOWN (`None`) until an actual is recorded; otherwise
   `correct / (correct + missed + unnecessary + inappropriate_reuse)` where
   `correct = predicted_net_new − unnecessary`. **Over-generation can only lower it.**
-- `learning_provenance(cycle)` — `human_reviewed:planning_review` · `executed_verified_outcome` ·
-  `automated_self_assessment` · `unknown_no_outcome`. A planning review is **never** read as an
+- `learning_provenance(cycle)` — `reviewer_attributed:planning_review` · `controlled_fixture_review` · `executed_verified_outcome` ·
+  `independent_watcher_verified` · `automated_self_assessment` · `unknown_no_outcome`. A reviewer string is attribution, not authenticated identity. A planning review is **never** read as an
   execution outcome.
 - `reopening_candidates(cycle, new_evidence)` — reopens a reviewed reuse or source-matched review branch
   now observed missing, or a deferred branch whose blocker is reported cleared; **UNKNOWN/insufficient evidence does not reopen**.
@@ -33,9 +33,7 @@ restarts or experiment modifications. `python -m rdo stage6`.
 
 Ingested the real executed cycles (catalogue) + one reviewer-attributed planning cycle (10 cycles):
 
-- **Provenance split:** 1 `human_reviewed` (planning review) · 5 executed/self-assessed · **4 UNKNOWN**.
-- **Mean prediction accuracy:** ~0.84 over the recorded-outcome cycles; the 4 planning-only cycles are
-  **UNKNOWN**, not averaged in. Per-cycle is traceable (e.g. `arc_closers` = 0.5: predicted 1, missed 1).
+- **Provenance and accuracy values:** the earlier demonstration counts and mean (~0.84) predate the integrated UNKNOWN-preserving rule and used a generated reviewer label. They are not carried forward as verified human-review or accuracy results; the integrated runner labels its own review as `controlled_fixture_review`.
 - **Reopening (controlled fixture):** a prior source-match/review branch that is concretely reported missing **reopens**; `belief_decay_policy` (UNKNOWN observation) **does not**. A source match is not described as semantic reuse.
 - **Comparability:** the honest largest comparable group is unchanged (migration guards); a planning
   review contributes **no** executed comparable cycle.
@@ -48,7 +46,7 @@ Ingested the real executed cycles (catalogue) + one reviewer-attributed planning
 - **anti-gaming** (over-generation never raises accuracy) → `test_over_generation_never_raises_accuracy`
 - UNKNOWN for no/insufficient actual → `test_no_actual_is_unknown_not_fabricated`
 - contradictory evidence flagged, not silenced → `test_contradictory_evidence_is_flagged`
-- reviewed vs automated vs executed provenance → `test_reviewed_vs_automated_vs_executed_provenance`
+- reviewer-attributed vs controlled-fixture vs automated vs executed provenance → `test_reviewed_vs_automated_vs_executed_provenance`
 - planning review ≠ execution outcome → `test_planning_review_is_not_counted_as_execution`
 - reopening only on concrete contradicting evidence → `test_reopening_only_on_concrete_contradicting_evidence`
 - real stage evidence + persistence + fresh-process resume → `test_real_stage_evidence_loop_persists_and_resumes`
