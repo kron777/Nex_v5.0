@@ -8,7 +8,7 @@ This is a branch-lineage and source-reference comparison, not an import or merge
 - the active-host base branch snapshot `claude/nex-continuity-wire` at `de93134f34adac07a3a41c2a05b33720510a2bfc`;
 - the current Phase 0 documentation branch, which is based on that active-host snapshot.
 
-The GitHub compare reports the active-host base as **4 commits ahead and 205 commits behind main**, with merge base `fb87e247a116221cc7d814e2ee5ff2e1300f5a87`. The Phase 0 PR #98 targets `claude/nex-continuity-wire`, not main, and remains draft. No branch merge, rebase, cherry-pick or import was performed.
+The GitHub compare against current main `7f45642` reports the captured host checkout `de93134` as **4 commits ahead and 641 commits behind**, with merge base `fb87e247a116221cc7d814e2ee5ff2e1300f5a87`. The remote continuity branch at `702351e` is separately 305 ahead / 641 behind main. PR #98 has merged into the remote continuity branch, not main. No host checkout fetch, merge, rebase, cherry-pick or MIND_MAP import was performed.
 
 ## 1. Main-branch MIND_MAP lineage
 
@@ -68,7 +68,7 @@ These documents form different kinds of evidence: draft doctrine, faculty archit
 
 ### Confirmed
 
-- Main and the active-host base are substantially diverged (4 ahead / 205 behind); the current PR targets the active-host base branch, not main.
+- Main and the captured active-host base are substantially diverged (4 ahead / 641 behind); the remote continuity branch is 305 ahead / 641 behind. PR #98 merged into the remote continuity branch, not main or the host checkout.
 - MIND_MAP was introduced on main 9 November and last updated 20 November; the entire map directory is absent from the active-host base.
 - MIND_MAP is explicitly descriptive-only and does not enforce runtime authority.
 - Its 51 source references cover 41 files; 12 referenced files are absent from the active-host base, although all are present on main.
