@@ -342,5 +342,49 @@ class TestBeliefsStatsEndpoint(unittest.TestCase):
         self.assertIn("synergizer_runs", data)
 
 
+
+class TestSelectPairEligibility(unittest.TestCase):
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_paused_tier_eight_and_retired_marker_candidates_are_excluded(self):
+        _seed_belief(
+            self.writers,
+            "Attention is the rarest resource in complex systems.",
+            "anchor",
+            source="koan",
+        )
+        fresh_id = _seed_belief(
+            self.writers,
+            "Entropy grows in open systems without sustained energy input.",
+            "fresh",
+            source="fountain_insight",
+        )
+        s = _make_synergizer(self.writers, self.readers)
+
+        self.writers["beliefs"].write(
+            "UPDATE beliefs SET paused=1 WHERE id=?", (fresh_id,)
+        )
+        self.assertIsNone(s._select_pair(), "paused fresh beliefs must not be paired")
+
+        self.writers["beliefs"].write(
+            "UPDATE beliefs SET paused=0, tier=8 WHERE id=?", (fresh_id,)
+        )
+        self.assertIsNone(s._select_pair(), "Tier-8 tombstones must not be paired")
+
+        self.writers["beliefs"].write(
+            "UPDATE beliefs SET tier=5, erosion_stage='retired' WHERE id=?",
+            (fresh_id,),
+        )
+        self.assertIsNone(
+            s._select_pair(),
+            "retired-marked beliefs must not be paired even if their tier is stale",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
