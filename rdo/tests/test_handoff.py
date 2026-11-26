@@ -205,7 +205,7 @@ def test_human_acceptance_is_separate_and_does_not_rewrite_evidence_dimensions(t
         record_human_acceptance(
             workdir, manifest["handoff_id"], "accepted", "reviewer",
             "acceptance-reference", "delivery-reference",
-            {"source_implemented": [], "test_verified": [], "runtime_observed": []},
+            {"source_implemented": ["diff://proposal"], "test_verified": [], "runtime_observed": []},
         )
 
     record_scope_review(
