@@ -28,16 +28,16 @@ def _cycle(cid, predicted_net_new, *, actual=None, kind=NATIVE_PLANNING, missing
 # ----------------------------- prediction accuracy / anti-gaming -----------------------------
 
 def test_over_generation_never_raises_accuracy():
-    tight = _cycle("tight", 2, actual={"missed": [], "unnecessary": [], "effort_actual": 2})
+    tight = _cycle("tight", 2, actual={"missed": [], "unnecessary": [], "reuse_wrong": [], "effort_actual": 2})
     inflated = _cycle("inflated", 10,
-                      actual={"missed": [], "unnecessary": [f"x{i}" for i in range(8)], "effort_actual": 10})
+                      actual={"missed": [], "unnecessary": [f"x{i}" for i in range(8)], "reuse_wrong": [], "effort_actual": 10})
     a_tight = prediction_accuracy(tight)["accuracy"]
     a_inflated = prediction_accuracy(inflated)["accuracy"]
     assert a_tight == 1.0 and a_inflated < a_tight     # proposing unnecessary work LOWERS accuracy
 
 
 def test_missed_obligations_lower_accuracy():
-    c = _cycle("miss", 2, actual={"missed": ["m1"], "unnecessary": [], "effort_actual": 2})
+    c = _cycle("miss", 2, actual={"missed": ["m1"], "unnecessary": [], "reuse_wrong": [], "effort_actual": 2})
     acc = prediction_accuracy(c)
     assert acc["missed"] == 1 and acc["accuracy"] == round(2 / 3, 3)
 
@@ -61,7 +61,7 @@ def test_no_actual_is_unknown_not_fabricated():
 
 def test_contradictory_evidence_is_flagged():
     # the same obligation reported BOTH missed and unnecessary -> contradictory, surfaced not silenced
-    c = _cycle("contra", 1, actual={"missed": ["z"], "unnecessary": ["z"], "effort_actual": 1})
+    c = _cycle("contra", 1, actual={"missed": ["z"], "unnecessary": ["z"], "reuse_wrong": [], "effort_actual": 1})
     loop = learning_loop([c])
     assert loop["per_cycle"][0]["contradictory_evidence"] == ["z"]
 
@@ -82,7 +82,7 @@ def test_reviewed_vs_automated_vs_executed_provenance():
 
 def test_planning_review_is_not_counted_as_execution():
     reviewed = _cycle("rev", 2, actual={"reviewer": "jon", "review_kind": "planning_review",
-                                        "missed": ["m"], "unnecessary": []})
+                                        "missed": ["m"], "unnecessary": [], "reuse_wrong": []})
     loop = learning_loop([reviewed])
     assert loop["provenance_split"]["human_reviewed"] == 1
     # a native_planning review contributes no genuinely-comparable executed cycle
