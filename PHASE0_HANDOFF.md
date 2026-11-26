@@ -13,6 +13,7 @@ The earlier fb87e24 handoff is preserved as PHASE0_HANDOFF_HISTORICAL_fb87e24.md
 - NEX_PHASE0_CURRENT_RECONCILIATION_2026-11-25.md — branch comparison, Phase 0 evidence and remaining gaps.
 - NEX_PHASE0_M0_5_DELIVERABLE_IDENTITY_RECONCILIATION_2026-11-26.md — distinguishes the V2.1 doctrine-question deliverable from the technical trace-overlay work.
 - NEX_PHASE0_P12_SELFREPORT_PROVENANCE_RECONCILIATION_2026-11-26.md — records the corrected historical MIND_MAP absence claim and the remaining aggregate environment-limited failure-classification gap.
+- NEX_PHASE0_STAGE9_STAGE10_COGNITIVE_TRACE_AUDIT_2026-11-26.md — traces Metacognition and Novel Association lifecycle, Chat/Fountain consumers, groove-alert repeat risk, candidate eligibility and annotation semantics.
 - NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-25.md — founder-reviewable verified defects and evidence gaps.
 - ADR-001.md — historical design decision for the default-OFF InfluenceRecord overlay.
 
@@ -181,3 +182,12 @@ The tracked `nex_keepalive.sh` declares a high-activation environment, including
 Backlog now uses unique G-34 through G-50 IDs, including shutdown, Moltbook, launcher evidence, prediction/surprise, signal retention/transaction, problem/goal lifecycle, continuity semantics and influence-trace evidence gaps. These remain source-level findings and policy questions, not claims of live incidents. No runtime code, tests, flags, databases, services, probes, external APIs or deployments were changed or run.
 
 Gate 0 remains pending. The exact Frozen V2.1 normative text and founder sign-off record remain unavailable; do not remediate, activate, merge or deploy based on these findings until that authority is recovered or explicitly re-established by the founder.
+
+
+## Latest source-audit continuation — Stage 9 / Stage 10 (26 November 2026)
+
+The new `NEX_PHASE0_STAGE9_STAGE10_COGNITIVE_TRACE_AUDIT_2026-11-26.md` records the Stage 9 Metacognition and Stage 10a Novel Association producer/consumer paths. It confirms that Metacognition ticks on Chat turns (the lifecycle protocol's stated cadence), while Fountain reads its cached observation only behind `NEX5_METACOG_VOICE=1`. It also records a source-level repeated-event risk where unacknowledged GrooveSpotter alerts can be re-emitted by successive Chat ticks, and distinguishes this from the detector's own in-memory alert-creation deduplication.
+
+The Stage 10 audit records the broader-than-description candidate query, the `edges_written_total` counter semantics, Chat's at-most-once annotation read, and the known Tier-7/retrieval boundary. These are evidence and contract questions, not authorisation to change runtime behaviour.
+
+The audit was checked against the remote continuity branch at `30787dbbc20a521c5f8399b414aef56165fa8e93`; the four relevant Stage 9/10 source blobs were identical to the captured host baseline `de93134f34adac07a3a41c2a05b33720510a2bfc`. The audit document and this handoff update are documentation-only commits. The host checkout was not altered. No tests, runtime services, flags, databases, external APIs or experiments were run or changed.
