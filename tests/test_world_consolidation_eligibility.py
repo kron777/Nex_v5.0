@@ -57,3 +57,4 @@ def test_paused_shallow_duplicate_does_not_suppress_active_candidate(monkeypatch
     duplicate_queries = [sql for sql, _ in reader.queries if "tier < 7" in sql]
     assert duplicate_queries
     assert all("paused = 0" in sql for sql in duplicate_queries)
+    assert all("erosion_stage != 'retired'" in sql for sql in duplicate_queries)
