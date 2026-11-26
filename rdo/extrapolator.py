@@ -8,20 +8,31 @@ recurses but is bounded by stopping rules (RDO spec v1.4 §14):
 
   * depth cap,
   * terminal (leaf) kinds that do not decompose,
-  * an obligation is NOT skipped merely because a configured source signature
-    matched; expansion stops only after explicit semantic-satisfaction review.
+  * an obligation already satisfied by a real mechanism (reconciled REUSE_EXISTING)
+    is NOT expanded — you don't rediscover the internals of something that exists.
 
 Convergent branches merge during expansion (dedup by canonical key), so the same
-obligation discovered two ways is recorded once, with both provenances. Every
-stop is recorded with its reason, so the unresolved frontier stays visible.
+obligation discovered two ways is recorded once, with both provenances. Merging is
+SAFE: only obligations that mean the same thing (same kind, compatible classification)
+may collapse onto one key; an incompatible collision is SURFACED as a MergeConflict,
+never silently merged. Every stop is recorded with its reason, so the unresolved
+frontier stays visible.
 """
 from __future__ import annotations
 
 from typing import Callable, Dict, List, Optional, Tuple
 
-from .model import (ANTI_REQUIREMENT, CONDITIONAL, NECESSARY, Obligation,
-                    RECON_UNKNOWN, REUSE_EXISTING, SIGNATURE_MATCHED, Relationship,
-                    has_valid_reuse_review)
+from .model import (ANTI_REQUIREMENT, CONDITIONAL, FUTURE, HYPOTHESIS, NECESSARY,
+                    OPTIONAL, UNKNOWN, Obligation, RECON_UNKNOWN, REUSE_EXISTING,
+                    Relationship)
+
+# classification strength, strongest -> weakest, for resolving a compatible convergence
+_CLASS_RANK = {NECESSARY: 5, CONDITIONAL: 4, OPTIONAL: 3, FUTURE: 2, HYPOTHESIS: 1, UNKNOWN: 0}
+
+
+class MergeConflict(ValueError):
+    """Two obligations share a canonical key but do not mean the same thing. Surfaced
+    rather than silently merged, so a key collision can never hide incompatible work."""
 
 # A rule: (child_kind, classification, rationale, shared_target|None).
 # shared_target lets independent parents converge on one canonical obligation.
@@ -66,12 +77,25 @@ EXPANSION_RULES: Dict[str, List[Rule]] = {
          "a consumer's influence on other nodes must be bounded (capability != authority)", None),
         ("reversibility", NECESSARY, "the influence must be reversible / flag-gated", None),
         ("gate", NECESSARY, "an active behavioural change needs a preregistered gate", None),
-        ("runtime_verification", NECESSARY, "the effect must be observed at runtime", None),
+        # SHARED prerequisite: multiple consumers of one objective's signal are verified
+        # in a SINGLE live runtime-observation session (OFT: observe once, not per consumer).
+        # Independent consumer parents converge on this one obligation via `_merge`.
+        ("runtime_verification", NECESSARY, "the effect must be observed at runtime",
+         "shared_runtime_effect"),
         ("test", NECESSARY, "the consumer must be tested", None),
     ],
     "score": [
         ("calibration", NECESSARY, "a score must be calibrated against evidence", None),
         ("persistence", CONDITIONAL, "scores are usually persisted", None),
+    ],
+    # a THIRD pattern class: proactively guarding an invariant that currently holds
+    # (no defect to fix) — distinct responsibility from defect remediation, so it
+    # earns its own rule rather than being forced into 'defect' (OFT).
+    "invariant": [
+        ("specify", NECESSARY, "state the invariant precisely", None),
+        ("scope", NECESSARY, "define what it ranges over, with exclusions", None),
+        ("guard_test", NECESSARY, "a test that fails if the invariant is violated", None),
+        ("verification", NECESSARY, "confirm the guard is non-vacuous", None),
     ],
     # a DIFFERENT development pattern: defect remediation (vs feature deployment).
     "defect": [
@@ -91,7 +115,7 @@ TERMINAL_KINDS = {
     "serializer", "data_source", "training_data", "fit", "refit_handling",
     "bounded_influence", "reversibility", "gate", "runtime_verification",
     "anti_second_model", "reproduce", "root_cause", "fix", "regression_test",
-    "verification",
+    "verification", "specify", "scope", "guard_test",
 }
 
 
@@ -111,9 +135,8 @@ def classify_scope(ob: dict) -> str:
         return "anti_requirement"
     if cls == CONDITIONAL:
         return "context_dependent"
-    provenance = {part.strip() for part in str(ob.get("provenance", "")).split(";")}
-    if "seed" in provenance:
-        return "domain_specific"          # preserve seed identity after convergent merges
+    if ob.get("provenance", "") == "seed":
+        return "domain_specific"          # the idea's top-level obligations are domain-shaped
     kind = ob.get("kind")
     if kind not in EXPANSION_RULES and kind not in TERMINAL_KINDS:
         return "novel"                    # no pattern covers it -> a new requirement class
@@ -164,9 +187,28 @@ def expand(seeds: List[Obligation],
         if existing is None:
             obligations[ob.key] = ob
             return ob
-        # convergent discovery: keep one record, accumulate provenance
+        # SAFE convergence — refuse to collapse obligations that do not mean the same thing:
+        #   * a different KIND under one key is a genuine collision (e.g. a schema vs a daemon);
+        #   * a build obligation and an ANTI_REQUIREMENT under one key is a build/don't-build
+        #     contradiction. Either is surfaced, never silently merged.
+        if existing.kind != ob.kind:
+            raise MergeConflict(
+                f"canonical key {ob.key!r} reached as kind {existing.kind!r} and {ob.kind!r} "
+                f"— incompatible, not merged")
+        if (existing.classification == ANTI_REQUIREMENT) != (ob.classification == ANTI_REQUIREMENT):
+            raise MergeConflict(
+                f"canonical key {ob.key!r} is both an anti-requirement and buildable work "
+                f"({existing.classification!r} vs {ob.classification!r}) — not merged")
+        # compatible: keep one record, accumulate provenance, and take the STRONGER
+        # classification (recording the raise) so convergence never weakens an obligation.
         if ob.provenance not in existing.provenance:
             existing.provenance += f"; {ob.provenance}"
+        if (existing.classification != ob.classification
+                and _CLASS_RANK.get(ob.classification, 0) > _CLASS_RANK.get(existing.classification, 0)):
+            existing.note = (existing.note
+                             + f" ; classification raised {existing.classification}->"
+                               f"{ob.classification} on convergence").strip(" ;")
+            existing.classification = ob.classification
         return existing
 
     queue: List[Obligation] = []
@@ -175,21 +217,7 @@ def expand(seeds: List[Obligation],
 
     while queue:
         ob = queue.pop(0)
-        # A caller-supplied REUSE_EXISTING seed is never trusted as current.
-        # Force a fresh reconciliation on every cycle, even when its review fields
-        # look complete: otherwise a stale review can bypass the source scan and
-        # suppress expansion. The callback may return REUSE_EXISTING only if it
-        # performs a fresh scan and supplies a current semantic-review decision.
-        if ob.recon_status == REUSE_EXISTING:
-            ob.recon_status = RECON_UNKNOWN
-            ob.recon_evidence = []
-            ob.recon_semantic_verified = False
-            ob.recon_semantic_review_evidence = []
-            ob.confidence = "inferred"
-            ob.note = (ob.note + " ; prior reuse assertion invalidated; fresh review required").strip(" ;")
-
-        # Reconcile every non-terminal status before stopping decisions.
-        # make_reconciler performs a source scan, never semantic approval.
+        # reconcile first so stopping can consult "already exists"
         if ob.recon_status == RECON_UNKNOWN:
             ob.recon_status = reconcile_fn(ob)
 
@@ -198,24 +226,14 @@ def expand(seeds: List[Obligation],
             frontier.append({"key": ob.key, "reason": "anti-requirement (not developed)"})
             continue
         if ob.kind in TERMINAL_KINDS:
-            frontier.append({"key": ob.key,
-                             "reason": f"terminal kind '{ob.kind}' (leaf; no further decomposition)"})
             continue
         if ob.depth >= max_depth:
             frontier.append({"key": ob.key, "reason": f"max_depth {max_depth} reached"})
             continue
         if ob.recon_status == REUSE_EXISTING:
-            if has_valid_reuse_review(ob):
-                frontier.append({"key": ob.key,
-                                 "reason": "semantic satisfaction independently reviewed"})
-                continue
             frontier.append({"key": ob.key,
-                             "reason": "reuse status lacks semantic-review evidence; "
-                                       "expanded conservatively"})
-        elif ob.recon_status == SIGNATURE_MATCHED:
-            frontier.append({"key": ob.key,
-                             "reason": "source signature matched; semantic satisfaction unreviewed; "
-                                       "expanded conservatively"})
+                             "reason": "already satisfied by an existing mechanism; not expanded"})
+            continue
         rules = EXPANSION_RULES.get(ob.kind)
         if not rules:
             frontier.append({"key": ob.key, "reason": f"no expansion rule for kind '{ob.kind}'"})
@@ -236,3 +254,25 @@ def expand(seeds: List[Obligation],
                 queue.append(child)
 
     return obligations, relationships, frontier
+
+
+def frontier_breakdown(frontier: List[dict]) -> Dict[str, int]:
+    """Categorise frontier stops by their reason, so the complete frontier is retained but
+    intentional stops are not miscounted as deferred work:
+      * deferred         — budget (`max_depth`) or no expansion rule: genuinely unexpanded;
+      * anti_requirement — a deliberate 'do not build' stop;
+      * already_satisfied— reconciled to an existing mechanism (counted under reuse);
+      * other            — any other terminal stop reason.
+    """
+    out = {"deferred": 0, "anti_requirement": 0, "already_satisfied": 0, "other": 0}
+    for f in frontier:
+        r = f.get("reason", "")
+        if "max_depth" in r or "no expansion rule" in r:
+            out["deferred"] += 1
+        elif "anti-requirement" in r:
+            out["anti_requirement"] += 1
+        elif "already satisfied" in r:
+            out["already_satisfied"] += 1
+        else:
+            out["other"] += 1
+    return out
