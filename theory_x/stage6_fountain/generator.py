@@ -1464,18 +1464,22 @@ class FountainGenerator:
             return None
 
         if trace is not None:
-            trace.candidates(
+            _anchor_candidates_id = trace.candidates(
                 [anchor_id],
                 source="stage6_fountain.substrate_voice_anchor",
                 candidate_kinds=["stored_tier_1_or_2_belief"],
                 metadata={"selection_rule": "least_recently_voiced"},
+                parent_ids=[trace.reference("fountain_readiness")],
             )
-            trace.selection(
+            trace.remember("substrate_voice_anchor_candidates", _anchor_candidates_id)
+            _anchor_selection_id = trace.selection(
                 source="stage6_fountain.substrate_voice_anchor",
                 candidate_order=[anchor_id],
                 selected_order=[anchor_id],
                 strategy="least_recently_voiced_anchor",
+                parent_ids=[_anchor_candidates_id] if _anchor_candidates_id else [],
             )
+            trace.remember("substrate_voice_anchor_selection", _anchor_selection_id)
 
         ts_now = time.time()
 
@@ -1486,10 +1490,13 @@ class FountainGenerator:
                     (ts_now, anchor_id),
                 )
                 if trace is not None:
-                    trace.writer_delta(
+                    _anchor_touch_id = trace.writer_delta(
                         database="beliefs", table="beliefs", operation="UPDATE",
                         row_id=anchor_id, metadata={"purpose": "substrate_voice_last_voiced_at"},
+                        parent_ids=[trace.reference("substrate_voice_anchor_selection")]
+                        if trace.reference("substrate_voice_anchor_selection") else [],
                     )
+                    trace.remember("substrate_voice_anchor_touch", _anchor_touch_id)
             except Exception:
                 pass
 
@@ -1502,11 +1509,18 @@ class FountainGenerator:
                  "substrate_voice", len(anchor_content.split()), anchor_id),
             )
             if trace is not None:
-                trace.writer_delta(
+                _substrate_event_trace_id = trace.writer_delta(
                     database="dynamic", table="fountain_events", operation="INSERT",
                     row_id=_sv_fid,
                     metadata={"path": "substrate_voice", "anchor_belief_id": anchor_id},
+                    parent_ids=[
+                        rid for rid in (
+                            trace.reference("substrate_voice_anchor_selection"),
+                            trace.reference("substrate_voice_anchor_touch"),
+                        ) if rid
+                    ],
                 )
+                trace.remember("substrate_voice_event", _substrate_event_trace_id)
             self._link_activation_to_event()
             # Snapshot the substrate_voice fire (Mode A walks). Fire-and-forget.
             try:
@@ -2176,10 +2190,17 @@ class FountainGenerator:
                                 "Just write the actual finished answer, in full."
                             )
                     if trace is not None:
-                        trace.record(
+                        _reconcile_prompt_id = trace.record(
                             "prompt_assembly", "fountain_voice_prompt_ready",
                             metadata={"prompt": _rcprompt, "route": "reconcile"},
+                            parent_ids=[
+                                rid for rid in (
+                                    trace.reference("fountain_prompt_context_selection"),
+                                    trace.reference("fountain_workspace_selection"),
+                                ) if rid
+                            ],
                         )
+                        trace.remember("fountain_voice_prompt", _reconcile_prompt_id)
                     _rcresp = self._voice.speak(
                         VoiceRequest(prompt=_rcprompt, register=_rcreg,
                                      self_report_examples=False),
@@ -2187,10 +2208,13 @@ class FountainGenerator:
                     )
                     thought = (_rcresp.text or "").strip()
                     if trace is not None:
-                        trace.record(
+                        _reconcile_candidate_id = trace.record(
                             "candidate_generation", "reconcile_voice_candidate",
                             metadata={"thought": thought, "route": "reconcile"},
+                            parent_ids=[_reconcile_prompt_id] if _reconcile_prompt_id else [],
                         )
+                        trace.remember("fountain_output_candidate", _reconcile_candidate_id)
+                        trace.remember("fountain_output_parent", _reconcile_candidate_id)
                     if thought:
                         _emitted = True
                         if os.environ.get("NEX5_RECONCILE_WB") == "1" and self._problem_memory is not None:
@@ -2273,10 +2297,17 @@ class FountainGenerator:
         if not _emitted:
           try:
             if trace is not None:
-                trace.record(
+                _normal_prompt_id = trace.record(
                     "prompt_assembly", "fountain_voice_prompt_ready",
                     metadata={"prompt": prompt, "route": "normal"},
+                    parent_ids=[
+                        rid for rid in (
+                            trace.reference("fountain_prompt_context_selection"),
+                            trace.reference("fountain_workspace_selection"),
+                        ) if rid
+                    ],
                 )
+                trace.remember("fountain_voice_prompt", _normal_prompt_id)
             resp = self._voice.speak(
                 VoiceRequest(prompt=prompt, register=PHILOSOPHICAL,
                              self_report_examples=False),
@@ -2284,10 +2315,12 @@ class FountainGenerator:
             )
             thought = resp.text.strip()
             if trace is not None:
-                trace.record(
+                _voice_candidate_id = trace.record(
                     "candidate_generation", "voice_model_candidate",
                     metadata={"thought": thought, "route": "normal"},
+                    parent_ids=[_normal_prompt_id] if _normal_prompt_id else [],
                 )
+                trace.remember("fountain_model_candidate", _voice_candidate_id)
             # Leak detector: strip "Real drift" prompt-structure prefix if LLM echoed it
             if thought.lower().startswith("real drift"):
                 # Drop first line; keep what came after
@@ -2342,11 +2375,19 @@ class FountainGenerator:
             else:
                 thought = self._apply_frame_gate(thought, prompt, trace=trace)
             if trace is not None:
-                trace.record(
+                _frame_gate_id = trace.record(
                     "output_filter", "frame_gate_applied",
                     metadata={"before": _before_frame_gate, "after": thought,
                               "changed": _before_frame_gate != thought},
+                    parent_ids=[
+                        rid for rid in (
+                            trace.reference("fountain_model_candidate"),
+                            trace.reference("fountain_prompt_context_selection"),
+                        ) if rid
+                    ],
                 )
+                trace.remember("fountain_output_candidate", _frame_gate_id)
+                trace.remember("fountain_output_parent", _frame_gate_id)
           except Exception as e:
             voice_ok = False
             logger.warning("Fountain: voice unreachable, using sense fallback: %s", e)
