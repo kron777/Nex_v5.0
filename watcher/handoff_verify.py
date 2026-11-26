@@ -129,6 +129,7 @@ def _git_environment() -> dict:
     env["GIT_CONFIG_GLOBAL"] = os.devnull
     env["GIT_CONFIG_SYSTEM"] = os.devnull
     env["GIT_OPTIONAL_LOCKS"] = "0"
+    env["GIT_NO_REPLACE_OBJECTS"] = "1"
     return env
 
 
@@ -200,8 +201,9 @@ def _read_manifest(path: str) -> dict:
         raise HandoffVerificationError("manifest scope must be an object")
     allowed = scope.get("allowed_paths")
     resolved = scope.get("resolved_paths")
-    if not isinstance(allowed, list) or not allowed or len(allowed) > MAX_CHANGED_PATHS:
-        raise HandoffVerificationError("manifest must contain a bounded non-empty exact-file allowlist")
+    if (not isinstance(allowed, list) or not allowed or len(allowed) > MAX_CHANGED_PATHS
+            or any(not isinstance(rel, str) for rel in allowed)):
+        raise HandoffVerificationError("manifest must contain a bounded non-empty string exact-file allowlist")
     if len(allowed) != len(set(allowed)):
         raise HandoffVerificationError("manifest contains duplicate allowed paths")
     normalized = [_safe_relative(x, "scope.allowed_paths") for x in allowed]
