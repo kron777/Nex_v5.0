@@ -2,10 +2,9 @@
 
 This is the ONE place where LLM/human reasoning seeds the engine: the idea is
 decomposed into top-level obligations, and each gets a *reconciliation signature*
-— a read-only pattern that locates a source anchor for later semantic review. The engine
+— a read-only pattern that proves whether a real mechanism exists. The engine
 then expands, reconciles against the actual tree, assesses and prioritises
-deterministically. Seeds are proposals; the tree establishes source presence, while
-semantic satisfaction requires a separate, traceable review (RDO §22).
+deterministically. Seeds are proposals; the tree is the authority (RDO §22).
 
 Test case: WHATS_NEXT.md §3b / GENIUS_SCORE_v2.md §7 — "deploy the genius
 auto-tagger and its consumers." Chosen because the priority doc is from May 2026,
@@ -79,6 +78,88 @@ def genius_tagger_idea() -> Tuple[str, List[str], List[Obligation], Dict[str, Li
     return objective, assumptions, seeds, signatures
 
 
+def belief_decay_idea() -> Tuple[str, List[str], List[Obligation], Dict[str, List[Signature]]]:
+    """Stage-2 Extrapolator demonstration on a real belief-DEVELOPMENT objective.
+
+    Objective: add staleness-based confidence decay for beliefs — a belief not
+    reactivated within a window has its confidence decayed on a bounded schedule,
+    never below a floor, without deleting beliefs or breaking consumers. This is a
+    development objective (build a mechanism), NOT the Stage-4 read-only belief
+    audit. Existing belief mechanisms are inspected read-only ONLY to ground the
+    reconciliation signatures; nothing here touches the live store.
+
+    It exercises the Extrapolator end to end: structure the objective, recurse
+    obligations (each with parent, rationale, class, confidence, impact, evidence
+    need), reconcile against bounded repository evidence (the real `belief_activation`
+    recency table is REUSE; the decay policy/daemon are MISSING), surface duplication
+    as anti-requirements, build a traceable dependency graph, and persist for resume.
+    """
+    objective = ("Add staleness-based confidence decay for beliefs: decay the confidence of "
+                 "beliefs not reactivated within a window, on a bounded schedule, never below a "
+                 "floor, without deleting beliefs or breaking consumers.")
+    assumptions = [
+        "belief recency is already tracked in belief_activation(last_touched_at) (substrate/init_db.py)",
+        "confidence is an existing belief column; decay must reuse it, not add a second store",
+        "decay is bounded + advisory to lifecycle: it lowers confidence to a floor, it never deletes",
+    ]
+    seeds = [
+        Obligation("belief_decay_policy", "staleness decay policy (rate, window, floor)", "score",
+                   rationale="define how much confidence decays per staleness unit, with a floor",
+                   impact="without a calibrated policy, decay is arbitrary and could de-rank valid beliefs"),
+        Obligation("belief_staleness_input", "read per-belief recency (last_touched_at)", "persistence",
+                   rationale="decay needs a recency input per belief",
+                   impact="if recency is unavailable, decay cannot target stale beliefs"),
+        Obligation("belief_decay_daemon", "apply decay on a bounded schedule", "daemon",
+                   rationale="decay must run continuously, not once",
+                   impact="without a scheduled applier, confidence never actually decays at runtime"),
+        Obligation("belief_decay_consumer_safety", "consumers tolerate decayed confidence", "consumer",
+                   rationale="downstream readers must not break when confidence drops",
+                   impact="an unguarded consumer could regress when a belief's confidence falls"),
+        Obligation("belief_decay_consumer_generation", "generation re-ranks beliefs by decayed confidence",
+                   "consumer",
+                   rationale="a SECOND consumer of the same decayed-confidence signal (generation path); "
+                             "it shares the single runtime-verification session with the safety consumer",
+                   impact="without re-ranking, generation keeps surfacing stale beliefs despite decay"),
+        Obligation("belief_decay_floor_invariant", "confidence never below floor; beliefs never deleted",
+                   "invariant",
+                   rationale="decay is bounded and non-destructive by construction",
+                   impact="an unbounded decay could silently erase belief signal"),
+        Obligation("belief_decay_runtime_verification", "observe decay firing on the live store",
+                   "runtime_verification", classification=NECESSARY,
+                   rationale="source existence does not prove the decay actually runs",
+                   impact="without runtime observation, 'decay works' is an unverified claim"),
+        Obligation("anti_second_confidence_store", "do NOT add a second confidence field/store",
+                   "anti_requirement", classification=ANTI_REQUIREMENT,
+                   rationale="beliefs already persist a confidence value; a second store fragments it",
+                   impact="duplicate confidence stores would diverge and corrupt the lifecycle"),
+        Obligation("anti_delete_stale_beliefs", "do NOT delete or hard-expire stale beliefs",
+                   "anti_requirement", classification=ANTI_REQUIREMENT,
+                   rationale="decay lowers confidence to a floor; deletion loses provenance + history",
+                   impact="deleting stale beliefs would destroy auditable history irreversibly"),
+    ]
+    signatures: Dict[str, List[Signature]] = {
+        # REUSE: the recency table the decay depends on already exists
+        "belief_staleness_input": [
+            Signature(r"CREATE TABLE IF NOT EXISTS belief_activation", "substrate/init_db.py",
+                      "belief_activation recency table (reuse)"),
+            Signature(r"last_touched_at", "substrate/init_db.py", "recency column (reuse)")],
+        # MISSING: no decay policy / applier exists yet (net-new development)
+        "belief_decay_policy": [
+            Signature(r"confidence.{0,20}decay|staleness.{0,20}decay|def .*decay", "substrate",
+                      "staleness decay policy")],
+        # scoped to substrate CODE (not prose): a belief-confidence decay applier is
+        # genuinely absent — an earlier repo-wide signature matched only a journal note,
+        # a false reuse that would violate "no verification without acceptance evidence".
+        "belief_decay_daemon": [
+            Signature(r"confidence_decay|class .*ConfidenceDecay|def run_decay", "substrate",
+                      "belief-confidence decay applier (code)")],
+        # the confidence store the anti-requirement protects DOES exist
+        "anti_second_confidence_store": [
+            Signature(r"confidence", "substrate/init_db.py", "confidence already persisted (do not duplicate)")],
+    }
+    return objective, assumptions, seeds, signatures
+
+
 def migration_defect_idea() -> Tuple[str, List[str], List[Obligation], Dict[str, List[Signature]]]:
     """A DIFFERENT development pattern from the genius deploy cycle: defect
     remediation. Objective = the two pre-existing migration bugs listed under
@@ -110,19 +191,14 @@ def migration_defect_idea() -> Tuple[str, List[str], List[Obligation], Dict[str,
             Signature(r"UNIQUE constraint on beliefs\.content is EXPECTED", "substrate/writer.py",
                       "root cause handled in writer")],
         "beliefs_content_uniq.regression_test": [
-            Signature(
-                r"def test_partial_unique_indexes_reject_duplicates_and_allow_distinct_problems",
-                "tests/test_beliefs_content_dedup.py",
-                "DB-level regression test exercises both production partial unique indexes")],
+            Signature(r"idx_beliefs_content|IntegrityError.*content|UNIQUE.*beliefs.*content",
+                      "tests", "DB-level dedup regression test")],
         # --- arc_closers column migration ---
         "arc_closers_migration.fix": [
             Signature(r"ALTER TABLE arc_closers ADD COLUMN", "substrate/init_db.py",
                       "arc_closers migration applied")],
         "arc_closers_migration.regression_test": [
-            Signature(
-                r"def test_legacy_upgrade_adds_column_with_constraint_and_backfills",
-                "tests/test_arc_closers_migration.py",
-                "legacy-upgrade regression test runs the real migration runner")],
+            Signature(r"arc_closers", "tests", "arc_closers regression test")],
     }
     return objective, assumptions, seeds, signatures
 
@@ -212,6 +288,57 @@ def affinity_drift_idea() -> Tuple[str, List[str], List[Obligation], Dict[str, L
                       "fresh-init affinity-provisioning regression test")],
     }
     return objective, assumptions, seeds, signatures
+
+
+def config_invariant_idea() -> Tuple[str, List[str], List[Obligation], Dict[str, List[Signature]]]:
+    """Third objective, a genuinely different pattern (config/observability, NOT a
+    migration): guard the nex_config flag-registry forward-consistency. Every NEX5_
+    flag READ in NEX source must be registered in KNOWN_FLAGS, else unknown_flags()
+    silently mis-flags a real flag as a typo. Reconciled: 167 registered, 151 read,
+    0 read-but-unregistered — the invariant holds, so this is a proactive guard."""
+    objective = ("Guard nex_config flag-registry forward-consistency: every NEX5_ flag read in "
+                 "NEX source must be registered in KNOWN_FLAGS (so unknown_flags() cannot "
+                 "mis-flag a real flag as a typo).")
+    assumptions = [
+        "KNOWN_FLAGS (nex_config.py) is the authoritative registry",
+        "flag reads use literal os.environ.get/getenv/environ[] patterns",
+        "the invariant currently holds (reconciled: 0 read-but-unregistered)",
+    ]
+    seeds = [
+        Obligation("flag_registry_consistency", "every read NEX5_ flag is registered", "invariant",
+                   rationale="a read flag missing from the registry is silently mis-flagged as a "
+                             "typo by unknown_flags(); the registry can drift from usage"),
+    ]
+    signatures: Dict[str, List[Signature]] = {
+        "flag_registry_consistency.specify": [
+            Signature(r"def unknown_flags|def is_known", "nex_config.py",
+                      "detection mechanism (KNOWN_FLAGS registry) exists")],
+        "flag_registry_consistency.guard_test": [
+            Signature(r"def test_every_read_flag_is_registered", "tests",
+                      "registry/usage consistency guard test")],
+    }
+    return objective, assumptions, seeds, signatures
+
+
+def genius_authority_audit(repo_dir: str, signal: str = "genius") -> dict:
+    """Assess the genius signal's influence AUTHORITY from the actual relationships, not
+    the consumer count (RDO §6/§20). Each consumer in the grounded table (genius_consumers)
+    is grep-verified against its cited file so the classification cannot go stale, then the
+    GENERIC tension.assess_signal_authority distinguishes read/behavioural, direct/indirect,
+    conditional/unconditional, magnitude, safeguards and evidence class, and flags the
+    material/unconditional path(s) + self-reinforcement risk rather than the raw file count.
+    (Moved here from the generic orchestrator so the driver stays domain-free.)"""
+    from . import tension
+    from .reconcile import _grep
+    consumers = genius_consumers()
+    for c in consumers:
+        hits = _grep(c["anchor"], repo_dir, c["file"])
+        c["verified"] = bool(hits)
+        c["verified_evidence"] = hits[0] if hits else None
+    report = tension.assess_signal_authority(consumers, signal)
+    if signal == "genius":
+        report["feedback_hypothesis"] = genius_feedback_hypothesis()
+    return report
 
 
 def genius_consumers() -> List[dict]:
