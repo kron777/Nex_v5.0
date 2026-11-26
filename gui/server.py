@@ -269,15 +269,29 @@ def _assemble_chat_blocks(ordered: "list[tuple[str, str]]", session_id=None,
                         "budget %d; no non-exempt block admitted",
                         exempt_chars, budget)
         selected_texts = select_within_budget(cands, budget)
-        selected_order = []
-        used_indexes = set()
-        for selected_text in selected_texts:
-            for index, (kind, candidate_text) in enumerate(ordered):
-                if index not in used_indexes and candidate_text == selected_text:
-                    selected_order.append(kind)
-                    used_indexes.add(index)
-                    break
         if trace is not None:
+            # Reconstruct selected indices from the selector's documented rule,
+            # rather than matching text values (duplicate faculty text can make
+            # value-based attribution ambiguous). This is observational only.
+            _kept_indexes = set()
+            _used_chars = 0
+            for _index, (_salience, _candidate_text, _exempt) in enumerate(cands):
+                if _exempt and _candidate_text:
+                    _kept_indexes.add(_index)
+                    _used_chars += len(_candidate_text)
+            _remaining_indexes = sorted(
+                (_index for _index, (_salience, _candidate_text, _exempt) in enumerate(cands)
+                 if _candidate_text and not _exempt),
+                key=lambda _index: cands[_index][0], reverse=True,
+            )
+            for _index in _remaining_indexes:
+                _candidate_text = cands[_index][1]
+                if _used_chars + len(_candidate_text) <= budget:
+                    _kept_indexes.add(_index)
+                    _used_chars += len(_candidate_text)
+            selected_order = [ordered[_index][0]
+                              for _index in range(len(ordered))
+                              if _index in _kept_indexes]
             trace.selection(
                 source="gui.server._assemble_chat_blocks",
                 candidate_order=_candidate_order,
