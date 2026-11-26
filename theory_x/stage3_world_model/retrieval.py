@@ -66,7 +66,7 @@ class BeliefRetriever:
                  limit: int = 10, side_filter: Optional[str] = None) -> list[dict]:
         """Retrieve top beliefs relevant to query.
 
-        Filters: tier <= 6, (locked=1 OR confidence >= 0.15), paused=0.
+        Filters: tier <= 6, (locked=1 OR confidence >= 0.15), paused=0, not retired.
         Scores by keyword overlap * confidence, boosted by branch match.
         When belief_edges exist, blends in spreading activation (60/40).
         Returns top limit results sorted descending.
@@ -113,7 +113,8 @@ class BeliefRetriever:
             rows = self._reader.read(
                 "SELECT id, content, tier, confidence, branch_id, source, locked "
                 "FROM beliefs "
-                "WHERE tier <= 6 AND paused = 0 AND (locked = 1 OR confidence >= 0.15) "
+                "WHERE tier <= 6 AND paused = 0 AND erosion_stage != 'retired' "
+                "AND (locked = 1 OR confidence >= 0.15) "
                 "ORDER BY confidence DESC "
                 "LIMIT 20000",
             )
