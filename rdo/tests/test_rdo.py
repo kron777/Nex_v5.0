@@ -306,6 +306,25 @@ def test_pattern_memory_clamps_finite_out_of_range_alias_before_replay_persisten
     assert reopened.exceptions == ["new exception"]
 
 
+def test_pattern_memory_persists_alias_normalization_on_idempotent_replay(tmp_path):
+    path = tmp_path / "patterns.jsonl"
+    mem = PatternMemory(str(path))
+    mem.add(Pattern("aliased", "statement", "cycle:one", confidence=0.3))
+    stored = mem.patterns()[0]
+    stored.confidence = 4.2
+
+    replayed = mem.add(Pattern("aliased", "statement", "cycle:one", confidence=0.3))
+
+    assert replayed.confidence == 0.9
+    lines = path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 2
+    reopened = PatternMemory(str(path)).patterns()[0]
+    assert reopened.confidence == 0.9
+    assert reopened.provenance == "cycle:one"
+    assert reopened.observed_count == 1
+    assert reopened.exceptions == []
+
+
 def test_pattern_memory_append_rejects_aliased_non_finite_confidence(tmp_path):
     mem = PatternMemory(str(tmp_path / "patterns.jsonl"))
     invalid = Pattern("invalid", "statement", "cycle:one", confidence=float("nan"))
