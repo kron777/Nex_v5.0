@@ -1366,3 +1366,14 @@ The snapshot field has a concrete conditional producer. `FountainGenerator._mayb
 `substrate_snapshots.id` is a stable row key and could support an incremental cursor if an approved collector update is eventually made. `tests/test_warrant_recorder.py` currently does not create the `substrate_snapshots` table or exercise walk-anchor use-days.
 
 **Disposition:** conditional evidence-coverage gap, not a live undercount claim. Confirm the intended Warrant revalidation source contract, then add a fixture for repeated walk-anchor uses on same and distinct days. No collector, cursor, schema, flag, snapshot retention, or runtime behavior was changed.
+
+
+## 86. Warrant eligibility and the independent retired-stage marker
+
+`WarrantPass.compute_all()` scores rows selected by `paused = 0 AND tier <= max_tier` (default maximum Tier 7). Its query does not select or filter `erosion_stage`. `WarrantRecorder.survival_cycle()` rotates through unlocked, unpaused Tier 3 / 5–6 / 7 rows; its query also does not select or filter `erosion_stage`.
+
+The newer inactive-belief eligibility work treats `erosion_stage='retired'` as an independent tombstone marker that can exist below Tier 8. By contrast, Harmonizer's normal retirement path writes Tier 8 and does not set this marker. No normal runtime writer for `erosion_stage='retired'` was established in this source audit, and no live rows were read.
+
+If a lower-tier, unpaused row carries the retired marker, both Warrant populations can include it: WarrantPass may compute/persist a score and WarrantRecorder may record a shadow survival check. This is conditional and depends on the authoritative meaning of the marker and whether such rows exist.
+
+**Disposition:** operation-specific eligibility contract question, not a confirmed live defect. Confirm whether the retired-stage marker overrides lower tier for Warrant scoring and survival. If so, add `erosion_stage` to both queries, filter retired rows, and add isolated lower-tier-retired fixtures. No scoring, recorder, schema or runtime behavior was changed.
