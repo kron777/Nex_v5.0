@@ -273,7 +273,11 @@ class TraceContext:
             "operation": operation,
             "row_id": row_id,
             "status": status,
-            "transaction_scope": "single_statement_single_database",
+            "transaction_scope": (
+                "single_database_atomic_write_many"
+                if operation == "WRITE_MANY"
+                else "single_statement_single_database"
+            ),
         })
         return self.record("sqlite_writer_delta", "write_result", metadata=details)
 
