@@ -1,4 +1,8 @@
-"""RDO CLI — `python -m rdo ...`. Advisory/read-only; proposes work, changes nothing.
+"""RDO CLI — `python -m rdo ...`.
+
+Planning and handoff commands write RDO-owned cycle/evidence artifacts but do not
+write NEX runtime state. The legacy `stage7` command runs its fixed test in a
+temporary fixture; `handoff-verify` is source/path-only and never runs tests.
 
   python -m rdo run-demo [--repo .] [--out rdo/.cycles]
         run the full cycle on the real genius-tagger objective; print the six
@@ -9,6 +13,9 @@
 
   python -m rdo patterns [--dir rdo/.cycles]
         print the accumulated Development Pattern Memory.
+
+  python -m rdo handoff-verify --handoff-id <handoff-id> [--repo .] [--out rdo/.cycles]
+        invoke independent Watcher source/path verification; no tests or runtime actions.
 """
 from __future__ import annotations
 
@@ -182,7 +189,7 @@ def _handoff_acceptance(args) -> int:
 
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="rdo",
-                                description="NEX Recursive Development Orchestrator (advisory)")
+                                description="NEX Recursive Development Orchestrator (planning/evidence tools; no NEX runtime writes)")
     p.add_argument("--version", action="version", version=f"rdo {__version__}")
     sub = p.add_subparsers(dest="cmd", required=True)
 
@@ -226,7 +233,7 @@ def main(argv=None) -> int:
     s6.add_argument("--out", default="rdo/.cycles")
     s6.set_defaults(fn=_stage6)
 
-    s7 = sub.add_parser("stage7", help="RDO v1.3 §16 Stage-7 execution integration verified via Watcher")
+    s7 = sub.add_parser("stage7", help="legacy Stage-7 execution-loop demo on a temporary fixture (runs its fixed fixture test)")
     s7.add_argument("--repo", default=".")
     s7.add_argument("--out", default="rdo/.cycles")
     s7.set_defaults(fn=_stage7)
