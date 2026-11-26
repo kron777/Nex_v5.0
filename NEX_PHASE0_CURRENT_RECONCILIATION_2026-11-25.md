@@ -69,6 +69,10 @@ tests/known_failures.txt contains no active test-node allowlist entries. This is
 
 Python and SQLite exact versions, Qwen2.5 3B model digest, idle/load RAM and VRAM, and median tokens/sec were not established in the evidence available for this refresh. They remain UNKNOWN, not inferred from the hardware or installed-model listing.
 
+### p12_selfreport provenance
+
+The historical MIND_MAP absence-claim finding and the V2.1 M0.2 failure reference are not yet proven to be the same item. The current main-branch MIND_MAP records the stale absence-claim correction; the active-host branch lacks both the map and the referenced prototype source. No originating pytest node ID, raw failure output or run context has been recovered for the V2.1 item. See `NEX_PHASE0_P12_SELFREPORT_PROVENANCE_RECONCILIATION_2026-11-26.md`. M0.2 remains PARTIAL.
+
 ## 4. Phase 0 deliverable status
 
 | Roadmap item | Current evidence | Status |
@@ -76,7 +80,7 @@ Python and SQLite exact versions, Qwen2.5 3B model digest, idle/load RAM and VRA
 | M0.1 repository identity | Exact active URL, branch, SHA and clean-worktree report | Partial; remote divergence is now known |
 | M0.1 runtime DB/snapshot fingerprints | Explicitly skipped by operator | UNKNOWN / outstanding |
 | M0.1 host/model performance baseline | Hardware and Ollama version known; model digest, exact Python/SQLite, RAM/VRAM load and tokens/sec absent | Partial |
-| M0.2 test baseline | 1610 passed, 5 skipped, 30 subtests; 0 unexpected failures, founder-provided host run | Reported complete for this branch snapshot |
+| M0.2 test baseline | 1610 passed, 5 skipped, 30 subtests; 0 unexpected failures, founder-provided host run | Baseline reported; M0.2 closure PARTIAL because the V2.1 `p12_selfreport` failure identity/classification remains unresolved |
 | M0.3–M0.4 architecture crosswalk | Existing v2 crosswalk covers Fountain and Chat output paths only | Seeded; full-system DAG outstanding |
 | M0.3–M0.4 MIND_MAP reconciliation | MIND_MAP absent from active branch, present on main | Outstanding; branch-source discrepancy |
 | M0.3–M0.4 descriptive-node authority invariant | No matching CI enforcement step in active branch workflow; expected MIND_MAP file absent | UNKNOWN / outstanding |
