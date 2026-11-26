@@ -25,6 +25,7 @@ HANDOFF_SCHEMA = "rdo.handoff.v1"
 EVENT_SCHEMA = "rdo.handoff_event.v1"
 _HANDOFF_ID = re.compile(r"handoff_[0-9a-f]{24}\Z")
 _TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
+_WORK_PACKAGE_KEY = re.compile(r"wp:[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 _ALLOWED_ACTIONS = {
     "prepare_scoped_patch",
     "edit_documentation_within_scope",
@@ -173,7 +174,7 @@ def create_handoff(workdir: str, repo_dir: str, objective_id: str, revision: int
         raise HandoffError("invalid cycle_id")
     if not isinstance(objective_id, str) or not _TOKEN.fullmatch(objective_id):
         raise HandoffError("invalid objective_id")
-    if not isinstance(work_package_key, str) or not _TOKEN.fullmatch(work_package_key):
+    if not isinstance(work_package_key, str) or not _WORK_PACKAGE_KEY.fullmatch(work_package_key):
         raise HandoffError("invalid work_package_key")
     if isinstance(revision, bool) or not isinstance(revision, int) or revision < 1:
         raise HandoffError("revision must be a positive integer")
