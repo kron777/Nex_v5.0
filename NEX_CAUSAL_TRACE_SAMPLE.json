@@ -142,8 +142,8 @@
           ],
           "sequence": 6,
           "producer": "fountain_cycle",
-          "stage": "salience_workspace",
-          "event": "selection_recorded",
+          "stage": "prompt_context_selection",
+          "event": "belief_manifest_recorded",
           "timestamp": 1795776000.05,
           "evidence_level": "L3",
           "evidence_class": "implemented",
@@ -158,7 +158,7 @@
               201,
               202
             ],
-            "strategy": "retrieval_manifest_and_prompt_context",
+            "strategy": "belief_prompt_manifest",
             "retrieval_slots": [
               "own",
               "own_sense"
