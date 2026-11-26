@@ -224,3 +224,10 @@ The Warrant crosscheck now records G-54 / trace §86: WarrantPass filters unpaus
 The source crosscheck distinguishes `WarrantRecorder` from `WarrantPass`. Normal `run.py` construction starts only the recorder behind `NEX5_WARRANT_RECORD=1`; the tracked launcher declares this flag but not `NEX5_WARRANT`. No normal boot construction/start for `WarrantPass` was found, despite its module docstring claiming `run.py` wiring. `tools/warrant_validate.py` runs one-shot `compute_all()` and does not start the periodic loop. This may be deliberate record-only operation while Warrant evidence accrues; no runtime or live `belief_warrant` state was inspected.
 
 No loop wiring, score, flag, database, service, experiment, baseline, tripwire or frozen specification was changed. Gate 0 remains pending.
+
+
+## Current source-audit addendum — 26 November 2026 (Dormancy scanner ownership)
+
+The Dormancy trace now records G-55 / §88: the normal `DiversityLoop` owns one scanner called every 60 seconds, while its `ClockRunner` owns a second scanner called at the 20-fire fast boundary. Both scan/upsert the same population but have separate cursors. This predates PR #102; that draft preserves the ClockRunner scanner across fast cycles but does not consolidate the two owners. The actual frequency and impact were not measured, and the dual cadence may be intentional. Tests do not yet cover the combined DiversityLoop schedule.
+
+This is an ownership/scheduling question, not a confirmed incident. No scan path, frequency, database, service, flag or experiment was changed.
