@@ -92,7 +92,7 @@ def build_scheduler(
         Interoception(sense_writer, beliefs_reader=beliefs_reader),
         MetaAwareness(sense_writer, meta_state=_meta_state),
 
-        # Primary external feeds (15 currently wired) — start paused
+        # Primary external feeds (15 currently wired) — auto-start with scheduler
         ArxivAI(sense_writer),
         LabBlogs(sense_writer),
         MLConferences(sense_writer),
