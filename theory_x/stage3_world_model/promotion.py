@@ -233,7 +233,7 @@ class BeliefPromoter:
         # falls through to the unchanged read below.
         _sql = (
             "SELECT id, tier FROM beliefs "
-            "WHERE tier BETWEEN 5 AND 7 AND locked = 0 "
+            "WHERE tier BETWEEN 5 AND 7 AND locked = 0 AND erosion_stage != 'retired' "
             "AND COALESCE(last_referenced_at, created_at) < ?"
         )
         _params: tuple = (cutoff,)
@@ -249,7 +249,7 @@ class BeliefPromoter:
         if os.environ.get("NEX5_TIER_CLIMB") == "1":
             t6_cutoff = int(time.time()) - _TIER6_CLIMB_IDLE_HOURS * 3600
             _sql = (
-                "SELECT id, tier FROM beliefs WHERE locked = 0 AND ("
+                "SELECT id, tier FROM beliefs WHERE locked = 0 AND erosion_stage != 'retired' AND ("
                 "(tier IN (5, 7) AND COALESCE(last_referenced_at, created_at) < ?) "
                 "OR (tier = 6 AND COALESCE(last_referenced_at, created_at) < ?))"
             )
