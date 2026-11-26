@@ -2530,7 +2530,7 @@ class FountainGenerator:
         # Write retrieval manifest for this fire (never blocks cognition)
         try:
             if retrieval_manifest and fountain_event_id:
-                self._dynamic_writer.write_many(
+                _retrieval_row_ids = self._dynamic_writer.write_many(
                     [
                         (
                             "INSERT INTO fountain_retrieval_log "
@@ -2541,6 +2541,13 @@ class FountainGenerator:
                         for bel_id, slot, rank, boost in retrieval_manifest
                     ]
                 )
+                if trace is not None:
+                    trace.writer_delta(
+                        database="dynamic", table="fountain_retrieval_log",
+                        operation="WRITE_MANY", row_id=list(_retrieval_row_ids or []),
+                        metadata={"fire_id": fountain_event_id,
+                                  "row_count": len(_retrieval_row_ids or [])},
+                    )
         except Exception as e:
             error_channel.record(
                 f"retrieval_log write failed: {e}",
@@ -3529,6 +3536,12 @@ class FountainGenerator:
                     bid = belief["id"] if hasattr(belief, "__getitem__") else None
                     if bid:
                         bump_activation(self._beliefs_writer, bid)
+                        if trace is not None:
+                            trace.writer_delta(
+                                database="beliefs", table="belief_activation",
+                                operation="UPSERT", row_id=bid,
+                                metadata={"purpose": "retrieval_activation"},
+                            )
             except Exception as e:
                 logger.error("activation_bump_failed: %s", e)
 
