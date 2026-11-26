@@ -139,7 +139,7 @@ class Harmonizer:
             rows = self._beliefs_reader.read(
                 "SELECT id, content, tier FROM beliefs "
                 "WHERE tier BETWEEN 3 AND 7 AND locked = 0 AND paused = 0 "
-                "ORDER BY tier ASC LIMIT 200",
+                "AND erosion_stage != 'retired' ORDER BY tier ASC LIMIT 200",
             )
         except Exception as exc:
             errors.record(f"scan_for_conflicts read error: {exc}", source=_LOG_SOURCE, exc=exc)
@@ -171,7 +171,7 @@ class Harmonizer:
         rows = self._beliefs_reader.read(
             "SELECT id, content, tier, confidence FROM beliefs "
             "WHERE id IN (?, ?) AND tier BETWEEN 3 AND 7 "
-            "AND locked = 0 AND paused = 0",
+            "AND locked = 0 AND paused = 0 AND erosion_stage != 'retired'",
             (belief_id_a, belief_id_b),
         )
         by_id = {row["id"]: row for row in rows}
