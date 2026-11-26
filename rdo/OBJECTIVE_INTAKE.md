@@ -70,7 +70,7 @@ Each completed cycle stores a reference to the objective ID, input revision, can
 
 ## Snapshot and reconciliation requirements
 
-The selected repository must be a clean Git working tree with a full identifiable commit SHA. Dirty, untracked or unidentified repository state is rejected rather than being presented as a stable snapshot. Reconciliation signatures are bounded to repository-relative paths and read-only grep patterns. A signature hit is a source anchor, not semantic proof that a mechanism satisfies an obligation.
+The selected repository must be a clean Git working tree with a full identifiable commit SHA. Dirty, untracked or unidentified repository state is rejected rather than being presented as a stable snapshot. Reconciliation signatures are bounded to repository-relative paths and read-only grep patterns. Scoped paths are resolved before scanning; symlink targets outside the selected repository are treated as unavailable rather than read. A signature hit is a source anchor, not semantic proof that a mechanism satisfies an obligation.
 
 ## Minimal example
 
