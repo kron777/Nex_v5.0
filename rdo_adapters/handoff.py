@@ -405,7 +405,7 @@ def handoff_history(workdir: str, handoff_id: str) -> dict:
     }
 
 
-def _append_event(workdir: str, manifest: dict, event_fields: dict) -> dict:
+def _append_event(workdir: str, manifest: dict, event_fields: dict,\n                  require_approved_scope: bool = False) -> dict:
     handoff_id = manifest["handoff_id"]
     path = _event_path(workdir, handoff_id)
     with open(path, "a+", encoding="utf-8") as fh:
@@ -413,6 +413,15 @@ def _append_event(workdir: str, manifest: dict, event_fields: dict) -> dict:
         try:
             fh.seek(0)
             events = _read_events_unlocked(workdir, handoff_id, manifest["manifest_sha256"])
+            if require_approved_scope:
+                latest_scope = next(
+                    (e for e in reversed(events) if e.get("event_kind") == "scope_review"),
+                    None,
+                )
+                if latest_scope is None or latest_scope.get("decision") != "approved":
+                    raise HandoffError(
+                        "human acceptance requires a currently approved scope review"
+                    )
             previous = events[-1]["event_sha256"] if events else None
             event = {
                 "schema_version": EVENT_SCHEMA,
@@ -488,10 +497,6 @@ def record_human_acceptance(workdir: str, handoff_id: str, decision: str, review
     substitutes for another. The caller/reviewer attribution is not authenticated.
     """
     manifest = load_handoff(workdir, handoff_id)
-    history = handoff_history(workdir, handoff_id)
-    latest_scope = history["latest_scope_review"]
-    if not latest_scope or latest_scope["decision"] != "approved":
-        raise HandoffError("human acceptance requires a recorded approved scope review")
     reviewer = _text(reviewer, "reviewer", 256)
     source_reference = _text(source_reference, "source_reference", 1000)
     delivery_reference = _text(delivery_reference, "delivery_reference", 1000)
@@ -520,7 +525,7 @@ def record_human_acceptance(workdir: str, handoff_id: str, decision: str, review
         "evidence_references": normalized,
         "note": note if isinstance(note, str) else "",
         "acceptance_authority": "human_judgement_only; does_not_rewrite_source_test_runtime_evidence",
-    })
+    }, require_approved_scope=True)
 
 
 def _read_cli_int(value: str) -> int:
