@@ -596,7 +596,8 @@ def run_stage6_learning_loop(repo_dir: str = ".", workdir: str = "rdo/.cycles") 
         "provenance_split": loop["provenance_split"],
         "mean_prediction_accuracy": loop["mean_prediction_accuracy"],
         "accuracy_basis": loop["accuracy_basis"],
-        "unknown_outcomes": sum(1 for p in loop["per_cycle"]\n                              if p["accuracy"] is None or p["accuracy"].get("accuracy") is None),
+        "unknown_outcomes": sum(1 for p in loop["per_cycle"]
+                              if p["accuracy"] is None or p["accuracy"].get("accuracy") is None),
         "reopening": loop["reopening"],
         "comparability_largest_group": loop["comparability"]["largest_genuinely_comparable_group"],
         "anti_gaming": loop["anti_gaming"],
