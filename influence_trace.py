@@ -6,7 +6,7 @@ SQLite database). It does not read databases, mutate prompts/candidates, change
 selection order, or participate in any decision.
 
 Each trace event has a trace_id, event_id and parent_ids. Callers pass values
-already in scope. Text is represented by a SHA-256 digest and character length;
+already in scope. Text is represented by a SHA-256 digest and UTF-8 byte length;
 raw prompt, belief, output and payload text are never persisted.
 
 Evidence is L3 (observed in a fixture/test) by default. L4 is emitted only when
@@ -28,7 +28,6 @@ SCHEMA = "nex_causal_trace/v1"
 _REPO_ROOT = Path(__file__).resolve().parent
 _FILE_LOCK = threading.Lock()
 _TRUTHY = frozenset({"1", "true", "on", "yes", "y"})
-_FALSEY = frozenset({"", "0", "false", "off", "no", "n"})
 
 # Generic event metadata is deliberately defensive. These keys are always
 # replaced with digest/length pairs when a caller accidentally passes text.
@@ -116,6 +115,30 @@ class TraceContext:
             return Path(override)
         return _REPO_ROOT / "logs" / "nex_causal_trace.jsonl"
 
+    def _safe_sink(self) -> bool:
+        """Reject non-JSONL paths, symlinks, and paths aliasing a substrate DB.
+
+        Path metadata checks do not open or query any database. Refusing
+        symlinks also prevents an innocently named .jsonl path from following
+        a link into one of the six live substrate files.
+        """
+        try:
+            if self._sink_path.suffix.lower() != ".jsonl" or self._sink_path.is_symlink():
+                return False
+            from substrate.paths import db_paths
+            target = self._sink_path.resolve(strict=False)
+            for database_path in db_paths().values():
+                database = Path(database_path)
+                if target == database.resolve(strict=False):
+                    return False
+                if self._sink_path.exists() and database.exists():
+                    if self._sink_path.samefile(database):
+                        return False
+            return True
+        except Exception:
+            # Unknown path-safety state is not permission to write.
+            return False
+
     @property
     def events(self) -> tuple[dict, ...]:
         """An immutable snapshot of events recorded by this context."""
@@ -157,8 +180,8 @@ class TraceContext:
                     "capture_context": self.context,
                     "metadata": safe if isinstance(safe, dict) else {"value": safe},
                 }
-                # A .jsonl-only sink prevents accidental writes to substrate DBs.
-                if self._sink_path.suffix.lower() != ".jsonl":
+                # Sidecar-only path guard: extension, symlink and substrate identity.
+                if not self._safe_sink():
                     return None
                 line = json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n"
                 self._sink_path.parent.mkdir(parents=True, exist_ok=True)
