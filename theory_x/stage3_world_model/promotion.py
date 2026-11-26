@@ -184,6 +184,7 @@ class BeliefPromoter:
             row is None
             or row["tier"] <= 1
             or row["tier"] >= 8
+            or row["locked"]
             or row["paused"]
             or row["erosion_stage"] == "retired"
         ):
