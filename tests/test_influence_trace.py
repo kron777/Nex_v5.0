@@ -202,6 +202,6 @@ def test_sink_rejects_hardlink_to_substrate_database(tmp_path, monkeypatch):
     os.link(database, sink)
     monkeypatch.setenv("NEX5_DATA_DIR", str(data_dir))
 
-    tracer = InfluenceTracer(sink_path=sink, enabled=True)
+    tracer = InfluenceTracer("test", sink_path=sink, enabled=True)
     assert tracer.record("writer", "observed", metadata={}) is None
     assert database.read_bytes() == b"do-not-touch"
