@@ -27,6 +27,7 @@ DYNAMIC_DB = DbPath("dynamic")
 TICK_SECONDS = 300
 SOURCE = "surprise"
 LAST_PROMOTED_TS_KEY = "surprise_loop_last_ts"
+LAST_PROMOTED_ID_KEY = "surprise_loop_last_id"
 
 
 def _ensure_kv_table(d_cx):
@@ -47,6 +48,34 @@ def _last_promoted_ts(d_cx):
         except Exception:
             return 0.0
     return 0.0
+
+
+def _last_promoted_id(d_cx, since: float) -> int:
+    """Read the durable event-id cursor, migrating safely from the old timestamp."""
+    row = d_cx.execute(
+        "SELECT value FROM daemon_kv WHERE key=?", (LAST_PROMOTED_ID_KEY,)
+    ).fetchone()
+    if row and row[0]:
+        try:
+            return int(row[0])
+        except (TypeError, ValueError):
+            pass
+    # Include events exactly at the old timestamp: the former timestamp-only
+    # cursor could have advanced past a failed row sharing a timestamp with a
+    # successful one. Reprocessing prior rows is safe (duplicates are skipped).
+    row = d_cx.execute(
+        "SELECT COALESCE(MAX(id), 0) FROM surprise_events WHERE triggered_at < ?",
+        (since,),
+    ).fetchone()
+    return int(row[0] or 0)
+
+
+def _set_last_promoted_id(d_cx, event_id: int) -> None:
+    d_cx.execute(
+        "INSERT INTO daemon_kv (key, value, updated_at) VALUES (?, ?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
+        (LAST_PROMOTED_ID_KEY, str(int(event_id)), time.time()),
+    )
 
 
 def _set_last_promoted_ts(d_cx, ts):
@@ -98,13 +127,14 @@ def surprise_tick():
         if since == 0:
             # First run — start from 10 min ago, don't import full history
             since = time.time() - 600
+        last_id = _last_promoted_id(d_cx, since)
         rows = d_cx.execute(
             "SELECT * FROM surprise_events "
-            "WHERE triggered_at > ? AND surprise_flag = 1 "
+            "WHERE id > ? AND surprise_flag = 1 "
             "  AND actual_content IS NOT NULL AND actual_content != '' "
             "  AND predicted_content IS NOT NULL AND predicted_content != '' "
-            "ORDER BY triggered_at ASC LIMIT 20",
-            (since,)
+            "ORDER BY id ASC LIMIT 20",
+            (last_id,)
         ).fetchall()
         if not rows:
             return {"promoted": 0}
@@ -124,12 +154,18 @@ def surprise_tick():
                 b_cx.commit()
                 promoted += 1
             except IntegrityError:
-                # duplicate content — skip
+                # Duplicate content is already represented; advance past it.
                 pass
             except Exception as e:
+                # Do not advance the cursor past a transient failure. Later
+                # events (including same-timestamp events) must wait for retry.
                 log.warning("surprise belief write failed: %s", e)
+                break
+            last_id = int(r["id"])
             max_ts = max(max_ts, r["triggered_at"])
         _set_last_promoted_ts(d_cx, max_ts)
+        _set_last_promoted_id(d_cx, last_id)
+        d_cx.commit()
         log.info("surprise_loop: promoted %d surprise events", promoted)
         return {"promoted": promoted}
     finally:
