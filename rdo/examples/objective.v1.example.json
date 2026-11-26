@@ -16,7 +16,7 @@
       "Read-only repository reconciliation"
     ],
     "affected_paths": [
-      "rdo/",
+      "rdo",
       "module.py"
     ]
   },
