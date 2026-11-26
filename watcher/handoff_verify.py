@@ -369,6 +369,12 @@ def _current_file_evidence(root: str, relative: str, base_sha: str, head_sha: st
             "sha256": None,
             "size_bytes": None,
         }, None
+    expected_target = os.path.join(root, *resolved.split("/"))
+    if os.path.realpath(target) != expected_target:
+        os.close(fd)
+        raise HandoffVerificationError(
+            f"changed path resolution changed during source verification: {relative}"
+        )
     with os.fdopen(fd, "rb") as fh:
         size = os.fstat(fh.fileno()).st_size
         if size > MAX_SOURCE_FILE_BYTES:
