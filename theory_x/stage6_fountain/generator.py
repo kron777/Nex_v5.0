@@ -1651,11 +1651,14 @@ class FountainGenerator:
 
     def generate(self, dynamic_state, beliefs_reader: Reader) -> Optional[str]:
         trace = None
-        try:
-            from influence_trace import new_trace
-            trace = new_trace("fountain_cycle")
-        except Exception:
-            trace = None
+        if os.environ.get("NEX5_TRACE_OVERLAY", "0").strip().lower() in {
+            "1", "true", "on", "yes", "y",
+        }:
+            try:
+                from influence_trace import new_trace
+                trace = new_trace("fountain_cycle")
+            except Exception:
+                trace = None
         if trace is not None:
             _tick_record_id = trace.record(
                 "input_arrival", "fountain_tick",
@@ -1664,7 +1667,10 @@ class FountainGenerator:
             )
             trace.remember("fountain_tick", _tick_record_id)
         try:
-            result = self._generate(dynamic_state, beliefs_reader, trace=trace)
+            if trace is None:
+                result = self._generate(dynamic_state, beliefs_reader)
+            else:
+                result = self._generate(dynamic_state, beliefs_reader, trace=trace)
         except Exception as exc:
             if trace is not None:
                 trace.record("output", "generation_error",
