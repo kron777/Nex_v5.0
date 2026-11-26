@@ -309,6 +309,21 @@ def _count_recent_opens(cv_cx: Connection, hours: int = 24) -> int:
     return row[0] if row else 0
 
 
+def _problem_tags(title: str, description: str, signal_type: str) -> str:
+    """Generate content tags and normalize the legacy origin tags."""
+    from theory_x.tag_protocol import generate, normalize
+
+    content_tags = generate((title or "") + " " + (description or ""))
+    origin_tags = [
+        normalize("auto"),
+        normalize(f"signal:{signal_type}"),
+    ]
+    tags = list(dict.fromkeys(
+        tag for tag in content_tags + origin_tags if tag is not None
+    ))
+    return json.dumps(tags)
+
+
 def signal_to_problem_tick() -> dict:
     """One pass. Convert eligible recent signals into open problems."""
     b_cx = connect(BELIEFS_DB, timeout=15)
@@ -477,7 +492,7 @@ def signal_to_problem_tick() -> dict:
                     " plan, observations, tags) "
                     "VALUES (?, ?, 'open', ?, ?, '', '[]', ?)",
                     (title, desc, now, now,
-                     json.dumps(["auto", f"signal:{sig['signal_type']}"]))
+                     _problem_tags(title, desc, sig["signal_type"]))
                 )
                 b_cx.execute(
                     "UPDATE signals SET actioned_at=? WHERE id=?",
