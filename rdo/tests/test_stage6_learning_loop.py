@@ -84,6 +84,22 @@ def test_reviewed_vs_automated_vs_executed_provenance():
     assert learning_provenance(pending) == "unknown_no_outcome"
 
 
+def test_controlled_fixture_does_not_influence_accuracy_aggregate():
+    reviewed = _cycle("reviewed", 2, actual={
+        "reviewer": "reviewer-id", "review_kind": "planning_review",
+        "missed": ["m1"], "unnecessary": [], "reuse_wrong": [],
+    })
+    fixture = _cycle("fixture", 10, actual={
+        "reviewer": "fixture label", "review_kind": "controlled_fixture_review",
+        "missed": [], "unnecessary": [f"x{i}" for i in range(8)], "reuse_wrong": [],
+    })
+    loop = learning_loop([reviewed, fixture])
+    assert loop["provenance_split"]["reviewer_attributed"] == 1
+    assert loop["provenance_split"]["controlled_fixture_review"] == 1
+    assert loop["controlled_fixtures_excluded"] == 1
+    assert loop["mean_prediction_accuracy"] == prediction_accuracy(reviewed)["accuracy"]
+
+
 def test_planning_review_is_not_counted_as_execution():
     reviewed = _cycle("rev", 2, actual={"reviewer": "jon", "review_kind": "planning_review",
                                         "missed": ["m"], "unnecessary": [], "reuse_wrong": []})
