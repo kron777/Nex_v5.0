@@ -1,0 +1,133 @@
+"""Tests for the Phase 0 default-OFF causal trace writer."""
+
+import json
+
+import influence_trace as trace
+
+
+def test_overlay_is_default_off(monkeypatch, tmp_path):
+    monkeypatch.delenv("NEX5_TRACE_OVERLAY", raising=False)
+    monkeypatch.delenv("NEX5_TRACE_OVERLAY_PATH", raising=False)
+    assert trace.overlay_enabled() is False
+    assert trace.new_trace("chat_turn") is None
+    assert not (tmp_path / "trace.jsonl").exists()
+
+
+def test_zero_value_is_off_and_truthy_value_is_on(monkeypatch):
+    monkeypatch.setenv("NEX5_TRACE_OVERLAY", "0")
+    assert trace.new_trace("fountain_cycle") is None
+    monkeypatch.setenv("NEX5_TRACE_OVERLAY", "1")
+    assert trace.new_trace("fountain_cycle") is not None
+
+
+def test_events_have_trace_ids_parent_ids_and_monotonic_sequence(tmp_path):
+    tracer = trace.TraceContext("fountain_cycle", sink_path=tmp_path / "trace.jsonl",
+                                context="fixture", trace_id="fixture-trace")
+    first = tracer.input("prompt must not be stored", source="fixture.input")
+    second = tracer.candidates([41, 42], source="fixture.retrieval")
+    third = tracer.selection(source="fixture.workspace",
+                             candidate_order=[41, 42], selected_order=[42, 41],
+                             strategy="fixture_order")
+
+    assert first and second and third
+    events = [json.loads(line) for line in (tmp_path / "trace.jsonl").read_text().splitlines()]
+    assert [event["sequence"] for event in events] == [1, 2, 3]
+    assert all(event["trace_id"] == "fixture-trace" for event in events)
+    assert events[0]["parent_ids"] == []
+    assert events[1]["parent_ids"] == [first]
+    assert events[2]["parent_ids"] == [second]
+    assert all(event["evidence_level"] == "L3" for event in events)
+    assert all(event["capture_context"] == "fixture" for event in events)
+
+
+def test_text_is_hashed_and_never_persisted(tmp_path):
+    secret_prompt = "distinctive prompt text not to persist"
+    secret_reply = "distinctive assistant output not to persist"
+    tracer = trace.TraceContext("chat_turn", sink_path=tmp_path / "trace.jsonl")
+    tracer.input(secret_prompt, source="chat.user")
+    tracer.record("prompt_assembly", "blocks_ready", metadata={
+        "prompt": secret_prompt,
+        "block_names": ["operator", "compassion"],
+        "text": secret_reply,
+    })
+    tracer.output(secret_reply, output_kind="chat_reply")
+
+    content = (tmp_path / "trace.jsonl").read_text()
+    assert secret_prompt not in content
+    assert secret_reply not in content
+    records = [json.loads(line) for line in content.splitlines()]
+    assert records[0]["metadata"]["sha256"].startswith("sha256:")
+    assert records[1]["metadata"]["prompt"]["length"] == len(secret_prompt)
+    assert records[1]["metadata"]["text"]["length"] == len(secret_reply)
+    assert records[2]["metadata"]["length"] == len(secret_reply)
+
+
+def test_trace_metadata_does_not_mutate_candidate_order_or_confidence(tmp_path):
+    candidates = [
+        {"id": 11, "confidence": 0.82},
+        {"id": 12, "confidence": 0.65},
+        {"id": 13, "confidence": 0.91},
+    ]
+    original_order = [item["id"] for item in candidates]
+    original_confidence = [item["confidence"] for item in candidates]
+    selected_order = [11, 13]
+    original_selected = list(selected_order)
+
+    tracer = trace.TraceContext("chat_turn", sink_path=tmp_path / "trace.jsonl")
+    tracer.candidates(original_order, source="fixture.retrieval")
+    tracer.selection(source="fixture.workspace",
+                     candidate_order=original_order,
+                     selected_order=selected_order,
+                     strategy="fixture")
+    tracer.record("quality", "observed", metadata={
+        "confidence_values": original_confidence,
+    })
+
+    assert [item["id"] for item in candidates] == original_order
+    assert [item["confidence"] for item in candidates] == original_confidence
+    assert selected_order == original_selected
+
+
+def test_writer_delta_records_single_database_commit_scope(tmp_path):
+    tracer = trace.TraceContext("fountain_cycle", sink_path=tmp_path / "trace.jsonl")
+    tracer.writer_delta(database="beliefs", table="beliefs", operation="INSERT", row_id=77)
+    record = json.loads((tmp_path / "trace.jsonl").read_text())
+    assert record["stage"] == "sqlite_writer_delta"
+    assert record["metadata"]["row_id"] == 77
+    assert record["metadata"]["transaction_scope"] == "single_statement_single_database"
+
+
+def test_non_jsonl_sink_is_rejected_without_writing(tmp_path):
+    sink = tmp_path / "beliefs.db"
+    tracer = trace.TraceContext("fountain_cycle", sink_path=sink)
+    assert tracer.record("sqlite_writer_delta", "write", metadata={}) is None
+    assert not sink.exists()
+
+
+def test_sink_failure_is_non_fatal(tmp_path):
+    blocker = tmp_path / "not_a_directory"
+    blocker.write_text("file")
+    tracer = trace.TraceContext("chat_turn", sink_path=blocker / "trace.jsonl")
+    assert tracer.record("output", "result", metadata={}) is None
+
+
+def test_runtime_evidence_requires_explicit_runtime_context(tmp_path):
+    fixture = trace.TraceContext("fixture", sink_path=tmp_path / "fixture.jsonl")
+    runtime = trace.TraceContext("runtime", sink_path=tmp_path / "runtime.jsonl",
+                                 context="runtime")
+    fixture.record("output", "result", metadata={})
+    runtime.record("output", "result", metadata={})
+    fixture_record = json.loads((tmp_path / "fixture.jsonl").read_text())
+    runtime_record = json.loads((tmp_path / "runtime.jsonl").read_text())
+    assert fixture_record["evidence_level"] == "L3"
+    assert fixture_record["evidence_class"] == "implemented"
+    assert runtime_record["evidence_level"] == "L4"
+    assert runtime_record["evidence_class"] == "measured"
+
+
+def test_disabled_context_is_a_complete_noop(tmp_path):
+    tracer = trace.TraceContext("chat_turn", sink_path=tmp_path / "trace.jsonl", enabled=False)
+    assert tracer.input("prompt", source="chat.user") is None
+    assert tracer.output("reply", output_kind="chat_reply") is None
+    assert tracer.events == ()
+    assert not (tmp_path / "trace.jsonl").exists()
