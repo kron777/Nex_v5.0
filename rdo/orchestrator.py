@@ -51,16 +51,29 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
     recon_buckets = recon_mod.summarize(obligations)
     reused = recon_buckets.get(REUSE_EXISTING, [])
     signature_matches = recon_buckets.get(SIGNATURE_MATCHED, [])
+    unknowns = recon_buckets.get(RECON_UNKNOWN, [])
     missing = recon_buckets.get(MISSING, []) + recon_buckets.get(PARTIAL, [])
     anti = [o.key for o in obligations.values() if o.classification == ANTI_REQUIREMENT]
     uncertainties = [f["key"] + ": " + f["reason"] for f in frontier
-                     if "no reconciliation" in f["reason"] or "max_depth" in f["reason"]]
+                     if ("no reconciliation" in f["reason"] or "max_depth" in f["reason"]
+                         or "semantic satisfaction unreviewed" in f["reason"]
+                         or "lacks semantic-review evidence" in f["reason"])] + [
+        f"{key}: reconciliation unknown; investigate" for key in unknowns
+    ]
 
     # VERIFICATION — every reuse claim must be backed by real evidence
     backed = [k for k in reused if obligations[k].recon_evidence]
+    signature_matches_backed = [
+        k for k in signature_matches if obligations[k].recon_evidence
+    ]
     verification = {
         "reuse_claims": len(reused),
+        "signature_matches": len(signature_matches),
+        "signature_matches_backed_by_file_evidence": len(signature_matches_backed),
+        "all_signature_matches_have_file_evidence": (
+            len(signature_matches_backed) == len(signature_matches)),
         "reuse_claims_backed_by_file_evidence": len(backed),
+        "all_semantic_reuse_claims_have_file_evidence": len(backed) == len(reused),
         "all_reuse_backed": len(backed) == len(reused),
         "net_new_work_packages": sum(1 for p in packages),
         "blocked_work_packages": sum(1 for p in packages if p.eligibility == "blocked"),
@@ -69,9 +82,12 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
 
     predicted = {
         "reused_count": len(reused),
+        "signature_matches_requiring_semantic_review": len(signature_matches),
         "net_new_count": len(missing),
-        "effort": len(missing),  # 1 unit ~= one obligation to build (uncalibrated count)
-        "note": "effort units are uncalibrated counts, not hours",
+        "signature_review_count": len(signature_matches),
+        "unknown_investigation_count": len(unknowns),
+        "effort": len(missing) + len(signature_matches) + len(unknowns),
+        "note": "uncalibrated count of unresolved build, semantic-review and investigation obligations; not hours",
     }
 
     # COMPLETE ACCOUNTING — six counts with explicit, internally consistent definitions:
@@ -116,6 +132,7 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
         "discovered": len(obligations),
         "reused": reused,
         "signature_matches": signature_matches,
+        "unknowns": unknowns,
         "rejected_or_deferred": anti + [f["key"] for f in frontier
                                         if ("already satisfied" in f["reason"]
                                             or "semantic satisfaction independently reviewed" in f["reason"])],
