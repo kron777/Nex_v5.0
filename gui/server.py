@@ -1241,10 +1241,15 @@ def create_app(state: AppState) -> Flask:
                 session_id = uuid.uuid4().hex
                 session["chat_session_id"] = session_id
                 try:
-                    writer.write(
+                    _session_row_id = writer.write(
                         "INSERT INTO sessions (id, started_at, admin) VALUES (?, ?, ?)",
                         (session_id, state.now_fn(), int(bool(session.get("admin")))),
                     )
+                    if trace is not None:
+                        trace.writer_delta(
+                            database="conversations", table="sessions", operation="INSERT",
+                            row_id=_session_row_id, metadata={"session_id_present": True},
+                        )
                 except Exception as e:
                     error_channel.record(
                         f"conversations: session insert failed: {e}",
@@ -1293,6 +1298,12 @@ def create_app(state: AppState) -> Flask:
                     dynamic_state=state.dynamic,
                     trace=trace,
                 )
+                if trace is not None:
+                    trace.record(
+                        "membrane_routing", "query_classified",
+                        metadata={"side": route_result.get("side"),
+                                  "register_hint": route_result.get("register_hint")},
+                    )
                 belief_text = route_result.get("belief_text")
                 register_override = route_result.get("register_hint")
             except Exception as e:
@@ -1627,6 +1638,14 @@ def create_app(state: AppState) -> Flask:
                 if tool_name:
                     kwargs = state.tool_caller.build_tool_kwargs(prompt, tool_name)
                     tool_result = state.tool_registry.execute(tool_name, **kwargs)
+                    if trace is not None:
+                        trace.record(
+                            "tool_use", "tool_execution",
+                            metadata={"tool_name": tool_name,
+                                      "success": bool(tool_result.success),
+                                      "error_type": type(getattr(tool_result, "error", None)).__name__
+                                      if getattr(tool_result, "error", None) else None},
+                        )
                     if tool_result.success:
                         tool_injection = state.tool_caller.build_tool_prompt(prompt, tool_result)
                         belief_text = (belief_text or "") + "\n" + tool_injection
@@ -2169,6 +2188,12 @@ def create_app(state: AppState) -> Flask:
                 )
                 text = resp.text
                 voice_ok = True
+                if trace is not None:
+                    trace.record(
+                        "candidate_generation", "voice_model_reply",
+                        metadata={"reply": text, "register": register.name,
+                                  "voice_ok": True},
+                    )
                 # ANTI-REPEAT (NEX5_CHAT_MEMORY, admin-scoped): if she opened like
                 # / echoed a recent reply (the same-opening groove), regenerate
                 # ONCE with an explicit "vary" instruction. One retry only — no
@@ -2261,6 +2286,11 @@ def create_app(state: AppState) -> Flask:
                     "Still running, still watching, just can't compose a reply."
                 )
                 voice_ok = False
+                if trace is not None:
+                    trace.record(
+                        "candidate_generation", "voice_unavailable_fallback",
+                        metadata={"voice_ok": False, "error_type": type(e).__name__},
+                    )
 
         # Storage boundary: strip any leaked scaffolding from the reply BEFORE it
         # is persisted AND before it is returned to the GUI, so neither the stored
