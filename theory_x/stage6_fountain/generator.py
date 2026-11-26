@@ -1659,18 +1659,18 @@ class FountainGenerator:
                 trace = new_trace("fountain_cycle")
             except Exception:
                 trace = None
-        if trace is not None:
-            _tick_record_id = trace.record(
-                "input_arrival", "fountain_tick",
-                metadata={"prior_fire_count": self._total_fires,
-                          "last_fire_timestamp": self._last_fire_ts},
-            )
-            trace.remember("fountain_tick", _tick_record_id)
+        if trace is None:
+            # The default-OFF path keeps the original direct call and exception path.
+            return self._generate(dynamic_state, beliefs_reader)
+
+        _tick_record_id = trace.record(
+            "input_arrival", "fountain_tick",
+            metadata={"prior_fire_count": self._total_fires,
+                      "last_fire_timestamp": self._last_fire_ts},
+        )
+        trace.remember("fountain_tick", _tick_record_id)
         try:
-            if trace is None:
-                result = self._generate(dynamic_state, beliefs_reader)
-            else:
-                result = self._generate(dynamic_state, beliefs_reader, trace=trace)
+            result = self._generate(dynamic_state, beliefs_reader, trace=trace)
         except Exception as exc:
             if trace is not None:
                 trace.record("output", "generation_error",
