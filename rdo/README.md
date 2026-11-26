@@ -13,7 +13,7 @@ It is **not** a NEX cognitive faculty and **not** a replacement for the Watcher.
 | Layer | Role | This package |
 |---|---|---|
 | **NEX** | the cognitive architecture (`theory_x` / `substrate`) | never imported |
-| **Watcher** | observation & evidence (read-only) | **consumed** (reuses `watcher.evidence`, `watcher.registry`) |
+| **Watcher** | read-only NEX observation; writes its own evidence artefacts | **consumed** (reuses `watcher.evidence`, `watcher.registry`; independent source/path verifier) |
 | **RDO** | development reasoning, planning, learning | **this package** |
 | **Claude** | engineering execution (bounded, authorised) | acts on RDO output |
 | **Human** | objectives & consequential decisions | approves gated work |
@@ -217,7 +217,7 @@ deployed-host behaviour. Later CI runs are not substituted for this exact histor
 `rdo selfcheck` now distinguishes the core reasoning package from its external
 input boundary. The core contains **14 modules / 3,775 non-comment LOC**; the
 provider-neutral objective-intake and Stage-7 handoff adapters are separately
-reported at **2 modules / 1,097 non-comment LOC** under `rdo_adapters/`. They
+reported at **2 modules / 1,098 non-comment LOC** under `rdo_adapters/`. They
 preserve input/revision and handoff/decision boundaries outside the deterministic
 reasoning engine without changing the 14-module core ceiling.
 
@@ -259,11 +259,13 @@ testable capabilities:
 - **Stage 6 — Learning loop:** prediction/outcome comparison, explicit
   provenance, reopening on contradictory evidence, and confidence that can be
   reduced by disconfirmation. A planning review is not an execution outcome.
-- **Stage 7 — Execution handoff and verification:** source evidence and any
-  explicitly authorized test evidence remain separate from the agent's claim;
-  the current verifier still runs in the RDO process while reusing Watcher formats.
-  Runtime observation remains host-only and UNKNOWN in cloud execution. The
-  objective-to-delivery handoff is not yet complete; see `STAGE7_HANDOFF.md`.
+- **Stage 7 — Execution handoff and verification:** an immutable real-objective
+  handoff, human scope-review/acceptance records, and an independent Watcher
+  subprocess for source/path evidence are now implemented. The legacy execution
+  verifier remains a separate in-process path; the new subprocess does not run
+  tests. Runtime observation remains host-only and UNKNOWN in cloud execution.
+  The full objective-to-verified-delivery exit criterion remains open; see
+  `STAGE7_HANDOFF.md` and `STAGE7_EXECUTION_WATCHER.md`.
 
 Run a stage against the repository without touching live NEX state:
 
@@ -325,7 +327,13 @@ experiment changes, services or deployment. The handoff does not launch an
 agent. Test execution remains not authorized until a disposable, no-secrets
 sandbox is independently designed and verified.
 
-See [Stage-7 handoff boundaries](STAGE7_HANDOFF.md). **Stage 7 is not complete**
-until independent Watcher-process verification and a real objective-to-verified
-delivery have been demonstrated; issue #87 tracks the remaining work.
+After an explicit human scope review, run independent source/path verification
+with `python -m rdo handoff-verify --handoff-id <handoff-id> --repo . --out rdo/.cycles`.
+This starts the trusted Watcher package as a separate process; it does not execute
+tests or project commands. **Stage 7 is not complete** until test evidence is
+safely authorised and independently verified, host-only runtime evidence is
+addressed under founder authority, and a real objective-to-verified delivery is
+demonstrated. Issue #87 tracks the remaining work.
+
+See [Stage-7 handoff boundaries](STAGE7_HANDOFF.md).
 
