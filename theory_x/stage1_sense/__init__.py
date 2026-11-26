@@ -47,7 +47,7 @@ from .feeds.bbc_news import BBCNews
 # still exist under theory_x/stage1_sense/feeds/ for their structure/
 # tests and in case any of them ship a working replacement.
 
-# Diversification feeds — start paused
+# Diversification feeds — auto-start with scheduler
 from .feeds.arxiv_math import ArxivMath
 from .feeds.aeon import AeonEssays
 from .feeds.psychology_sciencedaily import PsychologyScienceDaily
@@ -56,7 +56,7 @@ from .feeds.lesswrong import LessWrong
 from .feeds.wikipedia_featured import WikipediaFeatured
 from .feeds.gutenberg import Gutenberg
 
-# AGI/consciousness feeds — start paused
+# AGI/consciousness feeds — auto-start with scheduler
 from .feeds.arxiv_cs_ai import ArxivCsAI
 from .feeds.arxiv_qbio_nc import ArxivQbioNC
 
@@ -109,7 +109,7 @@ def build_scheduler(
         CryptoNews(sense_writer),
         BBCNews(sense_writer),
 
-        # Diversification feeds — start paused
+        # Diversification feeds — auto-start with scheduler
         ArxivMath(sense_writer),
         AeonEssays(sense_writer),
         PsychologyScienceDaily(sense_writer),
@@ -118,7 +118,7 @@ def build_scheduler(
         WikipediaFeatured(sense_writer),
         Gutenberg(sense_writer),
 
-        # AGI/consciousness feeds — start paused
+        # AGI/consciousness feeds — auto-start with scheduler
         ArxivCsAI(sense_writer),
         ArxivQbioNC(sense_writer),
     ]
