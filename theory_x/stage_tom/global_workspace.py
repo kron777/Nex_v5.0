@@ -290,7 +290,7 @@ def arbitrate(status: dict, stakes_active: bool = False,
             if candidates:
                 winner_index = max(range(len(candidates)), key=lambda i: candidates[i][0])
                 winner_kind = kinds[winner_index]
-            trace.record(
+            _workspace_record_id = trace.record(
                 "salience_workspace", "global_workspace_arbitration",
                 metadata={
                     "candidate_kinds": list(kinds),
@@ -298,13 +298,16 @@ def arbitrate(status: dict, stakes_active: bool = False,
                     "winner_kind": winner_kind,
                     "winner_present": bool(line),
                 },
+                parent_ids=[trace.reference("input_arrival")],
             )
+            trace.remember("fountain_workspace_selection", _workspace_record_id)
         return line
     except Exception as exc:
         if trace is not None:
             trace.record(
                 "salience_workspace", "global_workspace_error",
                 metadata={"error_type": type(exc).__name__},
+                parent_ids=[trace.reference("input_arrival")],
             )
         return ""
 
