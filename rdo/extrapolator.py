@@ -24,7 +24,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 from .model import (ANTI_REQUIREMENT, CONDITIONAL, FUTURE, HYPOTHESIS, NECESSARY,
                     OPTIONAL, UNKNOWN, Obligation, RECON_UNKNOWN, REUSE_EXISTING,
-                    Relationship)
+                    SIGNATURE_MATCHED, Relationship, has_valid_reuse_review)
 
 # classification strength, strongest -> weakest, for resolving a compatible convergence
 _CLASS_RANK = {NECESSARY: 5, CONDITIONAL: 4, OPTIONAL: 3, FUTURE: 2, HYPOTHESIS: 1, UNKNOWN: 0}
@@ -217,7 +217,18 @@ def expand(seeds: List[Obligation],
 
     while queue:
         ob = queue.pop(0)
-        # reconcile first so stopping can consult "already exists"
+        # A caller-supplied reuse assertion is stale until this cycle performs a
+        # fresh source scan and a current semantic-satisfaction review.
+        if ob.recon_status == REUSE_EXISTING:
+            ob.recon_status = RECON_UNKNOWN
+            ob.recon_evidence = []
+            ob.recon_semantic_verified = False
+            ob.recon_semantic_review_evidence = []
+            ob.confidence = "inferred"
+            ob.note = (ob.note + " ; prior reuse assertion invalidated; fresh review required").strip(" ;")
+
+        # Reconcile before any stopping decision. A source signature is an anchor,
+        # not proof that the existing mechanism semantically satisfies this obligation.
         if ob.recon_status == RECON_UNKNOWN:
             ob.recon_status = reconcile_fn(ob)
 
@@ -226,14 +237,24 @@ def expand(seeds: List[Obligation],
             frontier.append({"key": ob.key, "reason": "anti-requirement (not developed)"})
             continue
         if ob.kind in TERMINAL_KINDS:
+            frontier.append({"key": ob.key,
+                             "reason": f"terminal kind '{ob.kind}' (leaf; no further decomposition)"})
             continue
         if ob.depth >= max_depth:
             frontier.append({"key": ob.key, "reason": f"max_depth {max_depth} reached"})
             continue
         if ob.recon_status == REUSE_EXISTING:
+            if has_valid_reuse_review(ob):
+                frontier.append({"key": ob.key,
+                                 "reason": "semantic satisfaction independently reviewed"})
+                continue
             frontier.append({"key": ob.key,
-                             "reason": "already satisfied by an existing mechanism; not expanded"})
-            continue
+                             "reason": "reuse status lacks semantic-review evidence; "
+                                       "expanded conservatively"})
+        elif ob.recon_status == SIGNATURE_MATCHED:
+            frontier.append({"key": ob.key,
+                             "reason": "source signature matched; semantic satisfaction unreviewed; "
+                                       "expanded conservatively"})
         rules = EXPANSION_RULES.get(ob.kind)
         if not rules:
             frontier.append({"key": ob.key, "reason": f"no expansion rule for kind '{ob.kind}'"})
@@ -271,7 +292,8 @@ def frontier_breakdown(frontier: List[dict]) -> Dict[str, int]:
             out["deferred"] += 1
         elif "anti-requirement" in r:
             out["anti_requirement"] += 1
-        elif "already satisfied" in r:
+        elif ("already satisfied" in r
+              or "semantic satisfaction independently reviewed" in r):
             out["already_satisfied"] += 1
         else:
             out["other"] += 1
