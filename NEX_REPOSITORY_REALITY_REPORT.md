@@ -15,7 +15,7 @@ This is the current M0.1–M0.2 reality report for the active host checkout. The
 - Active branch: claude/nex-continuity-wire
 - Active HEAD: de93134f34adac07a3a41c2a05b33720510a2bfc
 - Host collector reported a clean worktree at this SHA.
-- GitHub comparison against current `main` (`7f45642bfb0f389b98b3c0848dc1f78deb0cd621`): the captured host checkout at `de93134f34adac07a3a41c2a05b33720510a2bfc` is 4 commits ahead and 641 behind; merge base `fb87e247a116221cc7d814e2ee5ff2e1300f5a87`. The remote continuity branch at `702351edcba52628dec89f314c13a1c98d3f4923` is separately 305 ahead / 641 behind. Local cached tracking refs are stale; no fetch/pull/rebase was performed.
+- GitHub comparison against current `main` (`7f45642bfb0f389b98b3c0848dc1f78deb0cd621`): the captured host checkout at `de93134f34adac07a3a41c2a05b33720510a2bfc` is 4 commits ahead and 641 behind; merge base `fb87e247a116221cc7d814e2ee5ff2e1300f5a87`. The remote continuity branch at `84e696d2a8eba50121ff0aa47c2d3deeb2a1e2c8` is separately 310 ahead / 641 behind. Local cached tracking refs are stale; no fetch/pull/rebase was performed.
 - The active branch has 757 tree entries and 42 top-level theory_x package directories. These counts are filesystem inventories, not faculty/node counts.
 - mind_map/MIND_MAP.yaml is absent from the active branch but present on main. Vitals files are also present on main but absent from the active branch.
 
@@ -89,7 +89,7 @@ The Vitals timer is not merely a read-only diagnostic: scheduled --log mode appe
 |---|---|---|
 | Repository URL, branch, full SHA | Recorded | Exact active host checkout identity above |
 | Worktree state | Reported clean | Host collector snapshot at de93134 |
-| Main-branch divergence | Known | Host checkout 4 ahead / 641 behind current GitHub main; remote continuity branch 305 ahead / 641 behind; no wholesale merge |
+| Main-branch divergence | Known | Host checkout 4 ahead / 641 behind current GitHub main; remote continuity branch 310 ahead / 641 behind; no wholesale merge |
 | Host hardware and OS | Partial | OS, kernel, CPU, RAM, GPU and disk reported |
 | Ollama and model | Partial | Ollama version and installed model known; model digest/load unknown |
 | Python / SQLite versions | UNKNOWN | Not recorded |
