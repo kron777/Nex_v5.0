@@ -1676,13 +1676,16 @@ class FountainGenerator:
                 result, output_kind="fountain_thought",
                 status="produced" if result is not None else "no_output",
                 metadata={"fire_count_after_call": self._total_fires},
-                parent_ids=(
-                    [trace.reference("fountain_output_parent")]
-                    if trace.reference("fountain_output_parent") else
-                    [trace.reference("fountain_readiness")]
-                    if trace.reference("fountain_readiness") else
-                    [trace.reference("input_arrival")]
-                ),
+                parent_ids=list(dict.fromkeys(
+                    rid for rid in (
+                        trace.reference("fountain_output_candidate"),
+                        trace.reference("fountain_event_delta"),
+                        trace.reference("fountain_fallback_event_delta"),
+                        trace.reference("fountain_output_parent"),
+                        trace.reference("fountain_readiness"),
+                        trace.reference("input_arrival"),
+                    ) if rid
+                ))[:4],
             )
         return result
 
@@ -1755,6 +1758,7 @@ class FountainGenerator:
                                 [trace.reference("fountain_readiness")]
                             ),
                         )
+                        trace.remember("fountain_output_candidate", _substrate_replay_id)
                         trace.remember("fountain_output_parent", _substrate_replay_id)
                     return _sv_thought
         except Exception as _sv_err:
@@ -1815,12 +1819,14 @@ class FountainGenerator:
                 (ts_now, thought, readiness, "quiescent", len(thought.split())),
             )
             if trace is not None:
-                trace.writer_delta(
+                _quiescent_event_trace_id = trace.writer_delta(
                     database="dynamic", table="fountain_events", operation="INSERT",
                     row_id=_quiescent_event_id, metadata={"path": "quiescent"},
                     parent_ids=[_quiescent_candidate_id] if _quiescent_candidate_id else [],
                 )
-                trace.remember("fountain_output_parent", trace.events[-1]["event_id"] if trace.events else None)
+                trace.remember("fountain_output_candidate", _quiescent_candidate_id)
+                trace.remember("fountain_event_delta", _quiescent_event_trace_id)
+                trace.remember("fountain_output_parent", _quiescent_event_trace_id)
             self._link_activation_to_event()
             self._last_fountain_output = _strip_metadata(thought)
             self._last_fire_ts = ts_now
@@ -1966,8 +1972,17 @@ class FountainGenerator:
                     )
         if _went_still:
             if trace is not None:
-                trace.gate("HOLD", gate="fountain_stillness",
-                           reason_code="duplicate_retrieval")
+                _stillness_gate_id = trace.gate(
+                    "HOLD", gate="fountain_stillness",
+                    reason_code="duplicate_retrieval",
+                    parent_ids=[
+                        rid for rid in (
+                            trace.reference("fountain_prompt_candidates"),
+                            trace.reference("fountain_event_delta"),
+                        ) if rid
+                    ],
+                )
+                trace.remember("fountain_output_parent", _stillness_gate_id)
             return None
         if self._consecutive_stillness > 0 and _fountain_stillness_reason is None:
             # Coming out of a stillness streak — prepend quiet notice.
@@ -2452,6 +2467,7 @@ class FountainGenerator:
                     ),
                 )
                 trace.remember("fountain_fallback_event_delta", _fallback_event_trace_id)
+                trace.remember("fountain_event_delta", _fallback_event_trace_id)
             self._link_activation_to_event()
             self._last_fountain_output = _strip_metadata(thought)
             self._last_fire_ts = ts_now
