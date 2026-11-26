@@ -96,9 +96,9 @@ The Vitals timer is not merely a read-only diagnostic: scheduled --log mode appe
 | Runtime DB/snapshot SHA-256 | UNKNOWN | Hash request skipped by operator |
 | RAM/VRAM and token throughput | UNKNOWN | No idle/load benchmark captured |
 | Test baseline | Current run reported clean | 1610 passed, 5 skipped, 30 subtests, 0 unexpected failures |
-| Failure reconciliation | Partial | No current unexpected failures; older environment-limited result preserved; historical p12 MIND_MAP validator failure classified as stale/obsolete absence claim and corrected on main; exact mapping to V2.1 M0.2 or a separate pytest failure remains unresolved |
+| Failure reconciliation | Partial | No current unexpected failures; historical p12 MIND_MAP validator failure classified as a genuine failure caused by a stale/obsolete absence claim and corrected on main; earlier environment-limited run (107 failures, 62 errors) remains only an aggregate without per-test classifications |
 
-**M0.1 and M0.2 remain partial.** The 1610-pass run is the reported current active-branch baseline. The historical MIND_MAP `p12_selfreport` validator failure is classified as a stale/obsolete absence claim corrected on `main`; M0.2 remains open until that finding is mapped unambiguously to the V2.1 reference and any separate pytest failure is ruled out. See the provenance reconciliation note.
+**M0.1 and M0.2 remain partial.** The 1610-pass run is the reported current active-branch baseline. The historical MIND_MAP `p12_selfreport` validator failure is classified as a genuine validator failure caused by a stale/obsolete absence claim, corrected on `main`. M0.2 remains open because the earlier environment-limited run (107 failures, 62 errors) is not individually enumerated/classified in the available evidence, and the active-host branch lacks the MIND_MAP/source pair for an on-branch rerun. See the provenance reconciliation note.
 
 ## 8. Governance and next gate
 
