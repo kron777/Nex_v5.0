@@ -300,7 +300,7 @@ class TestDormancyScanner(unittest.TestCase):
         class _PagedReader:
             def __init__(self):
                 self.ids = list(range(1, 71))
-                self.last_batch_ids = []
+                self.returned_batches = []
                 self.queries = []
 
             def read(self, sql, params=()):
@@ -317,7 +317,7 @@ class TestDormancyScanner(unittest.TestCase):
                     rows = candidates[:limit]
                 else:
                     return []
-                self.last_batch_ids = list(rows)
+                self.returned_batches.append(list(rows))
                 return [
                     {"id": i, "created_at": time.time() - 86400 * 30,
                      "last_referenced_at": None}
@@ -333,13 +333,13 @@ class TestDormancyScanner(unittest.TestCase):
             scanner.scan_incremental()
             self.assertEqual(scanner._last_id, 50)
             scanner.scan_incremental()
-            second_batch = list(reader.last_batch_ids)
-            self.assertEqual(second_batch, list(range(51, 71)) + list(range(1, 31)))
+            second_batch = reader.returned_batches[1:3]
+            self.assertEqual(second_batch, [list(range(51, 71)), list(range(1, 31))])
             self.assertEqual(scanner._last_id, 30)
             scanner.scan_incremental()
-            third_batch = list(reader.last_batch_ids)
+            third_batch = reader.returned_batches[3:5]
 
-        self.assertEqual(third_batch, list(range(31, 71)) + list(range(1, 11)))
+        self.assertEqual(third_batch, [list(range(31, 71)), list(range(1, 11))])
         self.assertEqual(scanner._last_id, 10)
         wrap_queries = [
             params for sql, params in reader.queries if "id <= ?" in sql
