@@ -1,22 +1,22 @@
 """Save Half-Thoughts — captures pre-propositional residue across fountain cycles.
 
-STATUS 2026-09-18 (dev-sweep item 2 — consumer stall investigation):
-The consumer is NOT stalled. It was BROKEN May->2026-08-03 (degenerate ORDER BY
-tie made pop_residue return 3-month-old rows), FIXED in round 27 (created_at
-DESC), and has run steadily since: ~1,100 rows consumed/day, output fed live
-into the fountain (generator._retrieve_context_beliefs prepends <=2 residue
-beliefs/cycle). Verified: 0 dangling belief refs among recently-consumed rows.
-Do NOT "revive" it — nothing to revive.
+Historical status (2026-09-18 dev sweep):
+The consumer had been fixed in round 27 (created_at DESC) and was observed
+consuming roughly 1,100 rows/day at that time. The ~709k unconsumed and ~623k
+stranded counts, and the earlier daily growth estimates, are historical
+measurements from that sweep — not current host row counts.
 
-The ~709k unconsumed rows are NOT a stall: ~623k are the permanently-stranded
-pre-Aug-3 backlog (unreachable under DESC ordering) plus ongoing overflow from a
-buffer that saves ~9-13.8k/day but by design reuses only 2/cycle. Real issue is
-unbounded DB bloat: _reap() below deletes only CONSUMED rows, and residue is not
-in nex_db_reaper TARGETS, so unconsumed rows never age out. RECOMMENDATION
-(pending owner go/no-go, no data deleted here): add an unconsumed-residue
-retention pass (drop unconsumed older than a short TTL — under DESC anything not
-popped within ~a cycle is unreachable anyway) to bound growth and reclaim the
-stranded backlog. This is a data-hygiene decision, not a consumer revival.
+Current source retention:
+- The local _reap() below deletes consumed rows older than 7 days.
+- nex_db_reaper.py also includes beliefs.db:residue with a 2-day created_at
+  retention override. When the scheduled reaper runs, it deletes ALL residue
+  rows older than 2 days, consumed or unconsumed. This supersedes the older
+  statement that residue was absent from the reaper target list.
+- Whether the host timer/service has executed successfully, and the current
+  residue population, must be established from current host evidence.
+
+Do not infer current DB growth or recommend another retention pass from the
+2026-09-18 figures. No live data was deleted or inspected by this module note.
 """
 from __future__ import annotations
 
@@ -102,9 +102,11 @@ def fetch_residue_beliefs(reader, belief_ids: list[int]) -> list[dict]:
     (activation_strength-ordered popping is not FIFO); a belief tombstoned
     (tier=8) after being saved as residue but before being popped would
     otherwise still surface here, since this lookup is by raw id with no
-    other filter -- own_rows now excludes tier=8 at the source too, but
-    this guards the pre-existing backlog and any future case of the same
-    shape.
+    other status filter. The tier < 8 predicate below rechecks retirement,
+    but paused and locked state are not checked; callers that require those
+    constraints must enforce them separately. own_rows now excludes tier=8
+    at the source too, but this guards the pre-existing backlog and any
+    future case of the same shape.
     """
     if not belief_ids:
         return []

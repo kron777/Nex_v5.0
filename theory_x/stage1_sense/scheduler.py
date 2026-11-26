@@ -1,25 +1,14 @@
-"""SenseScheduler — coordinates all 23 sense-stream adapters.
+"""SenseScheduler — coordinates all 28 sense-stream adapters.
 
-One thread per adapter. Threads start **paused** (the global run-event
-is unset on boot). Feeds only run when Jon calls start_all() via the
-GUI ON switch. Internal sensors (is_internal=True) are exempt from the
-global toggle and run from boot.
-
-Pausing / resuming:
-    SenseScheduler.start_all()  — sets global run-event; all external feeds wake
-    SenseScheduler.stop_all()   — clears global run-event; external feeds pause
-
-Per-adapter control:
-    SenseScheduler.enable(adapter_id)   — sets per-adapter local event
-    SenseScheduler.disable(adapter_id)  — clears per-adapter local event
-
-Both conditions must be met for an external adapter to poll:
-    global_run IS SET  AND  per-adapter local IS SET
-
-Internal adapters check only their local event (always set from boot).
+One thread per adapter. Internal sensors start immediately; external feeds
+are enabled during construction because __init__ calls start_all(). The GUI
+may pause/resume external feeds with stop_all()/start_all(). Per-adapter
+enable/disable remains available for external feeds. Internal sensors are
+exempt from the global toggle and remain active from boot.
 
 See SPECIFICATION.md §4 — Sense Streams, and Phase 2 build prompt.
 """
+
 from __future__ import annotations
 
 import logging

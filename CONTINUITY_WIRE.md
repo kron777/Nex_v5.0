@@ -56,3 +56,16 @@ self-view carries the continuity clause and that fountain behaviour is unchanged
 
 Isolated branch `claude/nex-continuity-wire` (on the NEX dev head). Nothing merged;
 no live NEX state/flag/DB/runtime touched.
+
+
+## Audit correction — 25 November 2026
+
+The earlier statement that SelfMindView has zero importers and is a leaf consumer is incomplete. Static wiring on the active branch shows:
+
+- run.py:473 constructs SelfMindView.
+- run.py:720 passes the instance into AppState.
+- gui/server.py:1512 calls current_summary() and appends its result to the chat context.
+- theory_x/stage_tom/self_mind_view.py:434 implements current_summary().
+- theory_x/stage_tom/self_binding.py:345 implements continuity_for_prompt().
+
+This confirms a source-level GUI chat consumption path. It does not prove that every reply route uses the composed context or that the feature has been live-armed. The flag remains default-OFF and live behavioural effect remains UNKNOWN.

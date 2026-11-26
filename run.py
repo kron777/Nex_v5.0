@@ -2,9 +2,9 @@
 """NEX 5.0 — unified boot.
 
 Starts the full stack in order:
-  1. init_db (all 5 DBs, WAL mode, schema, keystone seeds, migrations)
+  1. init_db (all 6 DBs, WAL mode, schema, keystone seeds, migrations)
   2. self-location commitment (Tier 1 locked belief)
-  3. sense scheduler (external feeds PAUSED — flip GUI switch to start)
+  3. sense scheduler (external feeds auto-start; GUI can pause/resume)
   4. dynamic formation (A-F pipeline, bonsai, crystallization)
   5. world model (belief retrieval, promotion, harmonizer)
   6. membrane (inside/outside classifier, self-model, router)
@@ -105,10 +105,10 @@ def main() -> None:
     voice_state = build_voice_state(writers, readers)
     log.info("Voice state ready — current voice: %s", voice_state.current_name())
 
-    # 5. Sense scheduler (external feeds PAUSED)
+    # 5. Sense scheduler (external feeds auto-start; GUI can pause/resume)
     log.info("Starting sense scheduler (external feeds auto-start)...")
     scheduler = build_scheduler(writers, readers, mode_state=mode_state)
-    log.info("Sense scheduler started — 23 adapters wired")
+    log.info("Sense scheduler started — 28 adapters wired")
 
     # 9b-pre. SelfNarrative — autobiographical accumulation (Phase 26)
     # Constructed early so CoherenceGate, ProblemMemory, and NovelAssociation
