@@ -342,5 +342,63 @@ class TestBeliefsStatsEndpoint(unittest.TestCase):
         self.assertIn("synergizer_runs", data)
 
 
+
+class TestSelectPairEligibility(unittest.TestCase):
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_paused_tier_eight_and_retired_marker_candidates_are_excluded(self):
+        _seed_belief(
+            self.writers,
+            "Attention is the rarest resource in complex systems.",
+            "anchor",
+            source="koan",
+        )
+        _seed_belief(
+            self.writers,
+            "Entropy grows in open systems without sustained energy input.",
+            "fresh",
+            source="fountain_insight",
+        )
+        anchor_id = self.readers["beliefs"].read_one(
+            "SELECT id FROM beliefs WHERE content = ?",
+            ("Attention is the rarest resource in complex systems.",),
+        )["id"]
+        fresh_id = self.readers["beliefs"].read_one(
+            "SELECT id FROM beliefs WHERE content = ?",
+            ("Entropy grows in open systems without sustained energy input.",),
+        )["id"]
+        # init_all seeds default keystones; isolate this selector test to its
+        # explicit pair so fallback cannot choose unrelated seeded beliefs.
+        self.writers["beliefs"].write(
+            "UPDATE beliefs SET paused=1 WHERE id NOT IN (?, ?)",
+            (anchor_id, fresh_id),
+        )
+        s = _make_synergizer(self.writers, self.readers)
+
+        self.writers["beliefs"].write(
+            "UPDATE beliefs SET paused=1 WHERE id=?", (fresh_id,)
+        )
+        self.assertIsNone(s._select_pair(), "paused fresh beliefs must not be paired")
+
+        self.writers["beliefs"].write(
+            "UPDATE beliefs SET paused=0, tier=8 WHERE id=?", (fresh_id,)
+        )
+        self.assertIsNone(s._select_pair(), "Tier-8 tombstones must not be paired")
+
+        self.writers["beliefs"].write(
+            "UPDATE beliefs SET tier=5, erosion_stage='retired' WHERE id=?",
+            (fresh_id,),
+        )
+        self.assertIsNone(
+            s._select_pair(),
+            "retired-marked beliefs must not be paired even if their tier is stale",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

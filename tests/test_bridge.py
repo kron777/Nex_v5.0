@@ -45,7 +45,9 @@ class _Fixture:
         b = sqlite3.connect(self.bdb)
         b.executescript(
             "CREATE TABLE beliefs (id INTEGER PRIMARY KEY, content TEXT, branch_id TEXT, "
-            " confidence REAL, created_at REAL, source TEXT, tags TEXT DEFAULT '[]');"
+            " confidence REAL, created_at REAL, source TEXT, tags TEXT DEFAULT '[]', "
+            " tier INTEGER DEFAULT 5, paused INTEGER DEFAULT 0, "
+            " erosion_stage TEXT DEFAULT 'external');"
             "CREATE TABLE synergizer_log (id INTEGER PRIMARY KEY, ts REAL, belief_id_a INTEGER, "
             " belief_id_b INTEGER, result_content TEXT, result_belief_id INTEGER);"
             "CREATE TABLE belief_lineage (child_id INTEGER, parent_id INTEGER, relationship TEXT, "

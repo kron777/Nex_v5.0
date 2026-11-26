@@ -425,7 +425,8 @@ class BeliefSynergizer:
             "SELECT id, content, branch_id, confidence, created_at, source, tags "
             "FROM beliefs "
             "WHERE source NOT IN ('precipitated_from_dynamic') "
-            "AND confidence > 0.5"
+            "AND confidence > 0.5 AND tier < 8 AND paused = 0 "
+            "AND erosion_stage != 'retired'"
         )
         if not rows:
             return None
