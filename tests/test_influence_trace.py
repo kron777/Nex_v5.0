@@ -75,6 +75,23 @@ def test_nested_text_collections_are_hashed(tmp_path):
     assert record["metadata"]["candidate_texts"]["length"] > 0
 
 
+def test_unrecognised_metadata_strings_are_hashed_by_default(tmp_path):
+    private_note = "unexpected free-form diagnostic with private content"
+    tracer = InfluenceTracer(sink_path=_sink(tmp_path), enabled=True)
+    tracer.record("diagnostic", "observed", metadata={
+        "unexpected_future_field": private_note,
+        "source": "stage6_fountain",
+    })
+    content = _sink(tmp_path).read_text()
+    assert private_note not in content
+    record = json.loads(content)
+    assert record["metadata"]["source"] == "stage6_fountain"
+    assert record["metadata"]["unexpected_future_field"]["value_type"] == "str"
+    assert record["metadata"]["unexpected_future_field"]["length"] == len(
+        private_note.encode("utf-8")
+    )
+
+
 def test_trace_metadata_does_not_mutate_candidate_order_or_confidence(tmp_path):
     candidates = [
         {"id": 11, "confidence": 0.82},
