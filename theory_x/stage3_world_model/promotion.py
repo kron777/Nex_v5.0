@@ -91,7 +91,8 @@ class BeliefPromoter:
         try:
             candidates = self._reader.read(
                 "SELECT id, content, confidence FROM beliefs "
-                "WHERE id != ? AND tier <= 6 AND paused = 0 ORDER BY confidence DESC LIMIT 50",
+                "WHERE id != ? AND tier <= 6 AND paused = 0 AND erosion_stage != 'retired' "
+                "ORDER BY confidence DESC LIMIT 50",
                 (belief_id,),
             )
         except Exception:
@@ -339,7 +340,8 @@ class BeliefPromoter:
         try:
             candidates = self._reader.read(
                 "SELECT id, content FROM beliefs "
-                "WHERE id != ? AND tier <= 6 AND locked = 0 LIMIT 50",
+                "WHERE id != ? AND tier <= 6 AND locked = 0 AND paused = 0 "
+                "AND erosion_stage != 'retired' LIMIT 50",
                 (belief_id,),
             )
         except Exception:
