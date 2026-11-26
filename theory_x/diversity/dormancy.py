@@ -23,7 +23,7 @@ class DormancyScanner:
         rows = self._reader.read(
             "SELECT id, created_at, last_referenced_at FROM beliefs "
             "WHERE source IN ('fountain_insight', 'synergized', 'behavioural_observation') "
-            "AND tier <= 7 AND paused = 0 AND id > ? "
+            "AND tier <= 7 AND paused = 0 AND erosion_stage != 'retired' AND id > ? "
             "ORDER BY id ASC LIMIT 50",
             (self._last_id,),
         )
@@ -32,7 +32,7 @@ class DormancyScanner:
             wrapped = self._reader.read(
                 "SELECT id, created_at, last_referenced_at FROM beliefs "
                 "WHERE source IN ('fountain_insight', 'synergized', 'behavioural_observation') "
-                "AND tier <= 7 AND paused = 0 AND id <= ? "
+                "AND tier <= 7 AND paused = 0 AND erosion_stage != 'retired' AND id <= ? "
                 "ORDER BY id ASC LIMIT ?",
                 (self._last_id, 50 - len(selected)),
             )
@@ -90,7 +90,7 @@ class DormancyScanner:
         rows = self._reader.read(
             "SELECT d.belief_id, d.dormancy_score, b.content "
             "FROM dormant_beliefs d JOIN beliefs b ON d.belief_id = b.id "
-            "WHERE d.reanimated_at IS NULL AND b.tier <= 7 AND b.paused = 0 "
+            "WHERE d.reanimated_at IS NULL AND b.tier <= 7 AND b.paused = 0 AND b.erosion_stage != 'retired' "
             "ORDER BY d.dormancy_score DESC LIMIT 5"
         )
         return [dict(r) for r in rows]
