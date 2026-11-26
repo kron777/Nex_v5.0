@@ -1,6 +1,6 @@
 # NEX Phase 0 — Technical Trace-Overlay Causal Coverage Audit (25 November 2026)
 
-**Scope clarification:** This audit concerns the technical InfluenceRecord/causal trace overlay previously labelled M0.5 in Phase 0 records. It does not answer the separate V2.1 M0.5 requirement to answer six doctrine questions. See `NEX_PHASE0_M0_5_DELIVERABLE_IDENTITY_RECONCILIATION_2026-11-26.md`.
+**Scope clarification:** This audit concerns the technical InfluenceRecord/causal trace overlay the Roadmap v3.0 Phase 0 M0.5 deliverable. It does not answer the separate V2.1 M0.5 requirement to answer six doctrine questions. See `NEX_PHASE0_M0_5_DELIVERABLE_IDENTITY_RECONCILIATION_2026-11-26.md`.
 
 ## Scope and evidence boundary
 
