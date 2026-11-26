@@ -1,4 +1,6 @@
-# NEX Phase 0 — InfluenceRecord M0.5 Causal Trace Coverage Audit (25 November 2026)
+# NEX Phase 0 — Technical Trace-Overlay Causal Coverage Audit (25 November 2026)
+
+**Scope clarification:** This audit concerns the technical InfluenceRecord/causal trace overlay previously labelled M0.5 in Phase 0 records. It does not answer the separate V2.1 M0.5 requirement to answer six doctrine questions. See `NEX_PHASE0_M0_5_DELIVERABLE_IDENTITY_RECONCILIATION_2026-11-26.md`.
 
 ## Scope and evidence boundary
 
@@ -132,7 +134,7 @@ The exact Frozen V2.1 and approval record are still needed to determine whether 
 ### Unverified / authority-dependent
 
 - Whether the recorded roadmap extract is still authoritative or superseded by Frozen V2.1.
-- Whether M0.5 requires full stage-by-stage causal lineage or only the two output seams as a preliminary capture.
+- Whether the technical trace-overlay work requires full stage-by-stage causal lineage or only the two output seams as a preliminary capture.
 - Required identity scope: per fire, per Chat turn, per session, per process, or parent/child graph.
 - Which exact candidate, retrieval, workspace, Gate and writer fields are required and which can be captured without adding reads.
 - Whether L4 should be authenticated by host/process evidence rather than environment declaration.
