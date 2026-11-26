@@ -218,7 +218,7 @@ def _assemble_chat_blocks(ordered: "list[tuple[str, str]]", session_id=None,
     # zero change. Exempt (safety) blocks are never droppable. Logged ONCE per distinct
     # ablation set -- never per tick (a per-tick emitter would inflate the soak
     # line-rate health metric). Fail-safe: any error leaves `ordered` untouched.
-    _candidate_order = [kind for kind, _ in ordered]
+    _candidate_order = [kind for kind, _ in ordered] if trace is not None else None
     _ablate = os.environ.get("NEX5_CHAT_ABLATE", "").strip()
     if _ablate:
         try:
