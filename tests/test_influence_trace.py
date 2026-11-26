@@ -370,3 +370,9 @@ def test_named_references_do_not_create_implicit_edges(tmp_path):
     assert records[1]["parent_ids"] == []
     assert records[2]["parent_ids"] == [first]
     assert unlinked != linked
+
+
+def test_new_trace_rejects_unsafe_sink_before_returning_context(monkeypatch, tmp_path):
+    monkeypatch.setenv("NEX5_TRACE_OVERLAY", "1")
+    monkeypatch.setenv("NEX5_TRACE_OVERLAY_PATH", str(tmp_path / "unsafe.db"))
+    assert trace.new_trace("chat_turn") is None
