@@ -55,7 +55,7 @@ The roadmap extract asks for NEX5_TRACE_OVERLAY=0 and a full trace_id/parent_ids
 - RDO read-only handoff-history fix PR #130: merged into `rdo/stage7-handoff-manifest-2026-11-26` at `698e80e4f20a95c9ffcf5445a9f598429781dacd`; exact-head full-suite CI passed (2,434 passed, 7 skipped, 40 subtests). Not merged to `main`.
 - RDO v1.4 source-recovery record PR #131: open/draft; exact-head CI passed. It records supplied-source provenance but deliberately leaves v1.3/v1.4 precedence unresolved.
 - Phase 0 M0.5 deliverable-identity correction PR #132: merged into `claude/nex-continuity-wire` at `702351edcba52628dec89f314c13a1c98d3f4923`; exact-head CI passed (1,611 passed, 5 skipped, 30 subtests).
-- Phase 0 `p12_selfreport` provenance correction PR #133: open/draft, stacked on PR #132; documentation-only; exact failure identity remains unresolved. It separates V2.1 doctrine questions from technical trace-overlay work.
+- Phase 0 `p12_selfreport` provenance correction PR #133: open/draft; documentation-only; classifies the historical MIND_MAP absence-claim failure and records why M0.2 remains partial. It separates V2.1 doctrine questions from technical trace-overlay work.
 
 ## Safety and authority
 
