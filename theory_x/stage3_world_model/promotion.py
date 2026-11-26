@@ -126,8 +126,8 @@ class BeliefPromoter:
             return False
         if row["paused"] or row["tier"] >= 8 or row["erosion_stage"] == "retired":
             return False  # Inactive and retired beliefs are not eligible for corroboration.
-        if row["locked"] and row["tier"] <= 1:
-            return False  # Tier 1 locked — untouchable
+        if row["locked"]:
+            return False  # Locked beliefs are not eligible for promotion.
 
         new_count = row["corroboration_count"] + 1
         now = int(time.time())
