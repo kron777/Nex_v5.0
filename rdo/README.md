@@ -13,7 +13,7 @@ It is **not** a NEX cognitive faculty and **not** a replacement for the Watcher.
 | Layer | Role | This package |
 |---|---|---|
 | **NEX** | the cognitive architecture (`theory_x` / `substrate`) | never imported |
-| **Watcher** | observation & evidence (read-only) | **consumed** (reuses `watcher.evidence`, `watcher.registry`) |
+| **Watcher** | read-only NEX observation; writes its own evidence artefacts | **consumed** (reuses `watcher.evidence`, `watcher.registry`; independent source/path verifier) |
 | **RDO** | development reasoning, planning, learning | **this package** |
 | **Claude** | engineering execution (bounded, authorised) | acts on RDO output |
 | **Human** | objectives & consequential decisions | approves gated work |
@@ -216,10 +216,10 @@ deployed-host behaviour. Later CI runs are not substituted for this exact histor
 
 `rdo selfcheck` now distinguishes the core reasoning package from its external
 input boundary. The core contains **14 modules / 3,775 non-comment LOC**; the
-provider-neutral objective-intake adapter is separately reported at
-**1 module / 491 non-comment LOC** under `rdo_adapters/`. This keeps input
-validation and revision persistence out of the deterministic reasoning engine
-without changing the 14-module core ceiling.
+provider-neutral objective-intake and Stage-7 handoff adapters are separately
+reported at **2 modules / 1,098 non-comment LOC** under `rdo_adapters/`. They
+preserve input/revision and handoff/decision boundaries outside the deterministic
+reasoning engine without changing the 14-module core ceiling.
 
 The size result is intentionally not described as lean: the self-check's
 existing 1,800-LOC heuristic still returns **needs review** for the 3,775-LOC
@@ -259,9 +259,13 @@ testable capabilities:
 - **Stage 6 — Learning loop:** prediction/outcome comparison, explicit
   provenance, reopening on contradictory evidence, and confidence that can be
   reduced by disconfirmation. A planning review is not an execution outcome.
-- **Stage 7 — Execution verification:** independent source and explicitly
-  allowlisted test evidence, linked through the Watcher's ledger. Runtime
-  observation remains host-only and UNKNOWN in cloud execution.
+- **Stage 7 — Execution handoff and verification:** an immutable real-objective
+  handoff, human scope-review/acceptance records, and an independent Watcher
+  subprocess for source/path evidence are now implemented. The legacy execution
+  verifier remains a separate in-process path; the new subprocess does not run
+  tests. Runtime observation remains host-only and UNKNOWN in cloud execution.
+  The full objective-to-verified-delivery exit criterion remains open; see
+  `STAGE7_HANDOFF.md` and `STAGE7_EXECUTION_WATCHER.md`.
 
 Run a stage against the repository without touching live NEX state:
 
@@ -301,3 +305,35 @@ python -m rdo resume --objective-id my-objective --revision 1 --out rdo/.cycles
 Each input revision is append-only and linked by SHA-256. The original wording and intent are immutable; a cycle stores the input revision/digest and a clean repository commit SHA. The selected repository must be a clean Git snapshot. The Watcher experiment registry still controls eligibility and unknown registry state remains blocked.
 
 See [the intake contract](OBJECTIVE_INTAKE.md), [the JSON Schema](schemas/objective.v1.schema.json), and [an example input](examples/objective.v1.example.json). This is advisory planning only; it does not execute work or alter NEX runtime state.
+
+## Stage-7 handoff (non-executing)
+
+For an actual persisted objective cycle, create an immutable manifest for one
+work package:
+
+\`\`\`bash
+python -m rdo handoff-create \\
+  --objective-id my-objective --revision 1 \\
+  --cycle-id <cycle-id> --work-package <work-package-key> \\
+  --repo . --out rdo/.cycles
+python -m rdo handoff-history --handoff-id <handoff-id> --out rdo/.cycles
+\`\`\`
+
+A separate human scope review can be appended with \`handoff-review\`; human
+acceptance is a separate \`handoff-acceptance\` event. These records are
+caller-attributed, not identity-authenticated. Approval can only authorize a
+scoped proposal; it cannot authorize tests, arbitrary commands, live NEX writes,
+experiment changes, services or deployment. The handoff does not launch an
+agent. Test execution remains not authorized until a disposable, no-secrets
+sandbox is independently designed and verified.
+
+After an explicit human scope review, run independent source/path verification
+with `python -m rdo handoff-verify --handoff-id <handoff-id> --repo . --out rdo/.cycles`.
+This starts the trusted Watcher package as a separate process; it does not execute
+tests or project commands. **Stage 7 is not complete** until test evidence is
+safely authorised and independently verified, host-only runtime evidence is
+addressed under founder authority, and a real objective-to-verified delivery is
+demonstrated. Issue #87 tracks the remaining work.
+
+See [Stage-7 handoff boundaries](STAGE7_HANDOFF.md).
+

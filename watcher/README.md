@@ -1,8 +1,10 @@
 # NEX Integration Watcher
 
-An **external, read-only** observation and test coordinator for NEX. It is an
-instrument to **understand** NEX, not a mechanism that changes it. Observation,
-interpretation and intervention are kept separate on purpose.
+An **external, non-mutating to NEX runtime** observation and test coordinator.
+It may write Watcher-owned reports and evidence ledgers, but it does not change
+NEX cognitive/runtime state. It is an instrument to **understand** NEX, not a
+mechanism that changes it. Observation, interpretation and intervention are
+kept separate on purpose.
 
 ## Guarantees
 
@@ -56,7 +58,7 @@ assumption.
 3. **Third runtime graph** — a separate artifact; the DAG and mind map are inputs,
    never rewritten.
 
-## Run it (all passive)
+## Run it (passive with respect to NEX)
 
 ```bash
 # cloud/static reconnaissance -> report.md + report.json
@@ -121,3 +123,14 @@ regression detection and longitudinal series are the comparison layer over passi
 evidence — they observe change, they do not cause it. Isolated-testing and
 active-experiment modes are **not** built — they require explicit, per-experiment
 approval and are out of scope until the gate review authorizes them.
+
+
+## Independent RDO handoff source verification
+
+Use the RDO-facing command: `python -m rdo handoff-verify --handoff-id <handoff-id> --repo . --out rdo/.cycles`.
+
+The RDO adapter creates a versioned, exclusive temporary request in the handoff store, then starts `python -m watcher verify-handoff` as a separate process from the trusted RDO/Watcher installation root. The inspected repository is passed as data; its Python modules are never imported as the verifier. The request file is removed after the response is checked. The internal Watcher CLI accepts a request file, but users should invoke the RDO-facing command rather than hand-authoring or relying on a fixed request path.
+
+The Watcher verifies the immutable manifest digest, complete human scope-review event chain, current approved scope, planning-commit ancestry, Git-derived changed paths (committed, staged, unstaged and non-ignored untracked), exact-file allowlist and symlink boundaries. It fingerprints bounded in-scope changed files and appends source-only transitions to its own connection ledger under `rdo/.cycles` with a process lock covering ledger load, transition checks and append.
+
+This is source/path verification only. It does not run pytest, arbitrary commands, project scripts, agents, services, deployments or NEX runtime operations. The report keeps `test_verified=not_authorized` and `runtime_observed=unknown_host_only`; file presence/hash does not prove semantic satisfaction or human acceptance. Reviewer attribution is integrity-checked but not identity-authenticated. The Watcher ledger write is a Watcher-owned evidence artifact, not a NEX cognitive/runtime write.
