@@ -100,7 +100,8 @@ class SpeechQueueConsumer(threading.Thread):
                     time.sleep(self.config.poll_interval_sec)
                     continue
 
-                now_hour = datetime.now().hour
+                from nex_config import local_now
+                now_hour = local_now().hour
                 if self.config.in_quiet_hours(now_hour):
                     time.sleep(self.config.poll_interval_sec * 5)
                     continue
