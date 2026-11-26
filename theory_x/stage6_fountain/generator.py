@@ -1705,9 +1705,12 @@ class FountainGenerator:
             # _maybe_substrate_voice() already never runs live -- dropping
             # the SYNTH_EMIT half changes nothing observable either way.
             if os.environ.get("NEX5_RECONCILE") != "1":
-                _sv_thought = self._maybe_substrate_voice(
-                    beliefs_reader, readiness, trace=trace,
-                )
+                if trace is None:
+                    _sv_thought = self._maybe_substrate_voice(beliefs_reader, readiness)
+                else:
+                    _sv_thought = self._maybe_substrate_voice(
+                        beliefs_reader, readiness, trace=trace,
+                    )
                 if _sv_thought is not None:
                     if trace is not None:
                         trace.record(
@@ -2282,7 +2285,10 @@ class FountainGenerator:
             # NEX5_FRAME_GATE (default OFF): register-moha exit guard — detector-gated
             # single regeneration (the FIRE_LANG_GUARD analogue; see _apply_frame_gate).
             _before_frame_gate = thought
-            thought = self._apply_frame_gate(thought, prompt, trace=trace)
+            if trace is None:
+                thought = self._apply_frame_gate(thought, prompt)
+            else:
+                thought = self._apply_frame_gate(thought, prompt, trace=trace)
             if trace is not None:
                 trace.record(
                     "output_filter", "frame_gate_applied",
@@ -3654,12 +3660,19 @@ class FountainGenerator:
                         _drive_hint = self._drive_emergence.format_for_prompt() or ""
                     except Exception:
                         _drive_hint = ""
-                _gw_line = _gw_arb(
-                    dynamic_status,
-                    stakes_active=getattr(self, "_stakes_active", False),
-                    drive_line=_drive_hint,
-                    trace=trace,
-                )
+                if trace is None:
+                    _gw_line = _gw_arb(
+                        dynamic_status,
+                        stakes_active=getattr(self, "_stakes_active", False),
+                        drive_line=_drive_hint,
+                    )
+                else:
+                    _gw_line = _gw_arb(
+                        dynamic_status,
+                        stakes_active=getattr(self, "_stakes_active", False),
+                        drive_line=_drive_hint,
+                        trace=trace,
+                    )
                 if _gw_line:
                     focus_block = f"\n{_gw_line}\n" + focus_block
                     # NOT carried into wide fires (repair queue item 2b): its
