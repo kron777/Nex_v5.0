@@ -35,7 +35,9 @@ injections, flag/config changes, restarts or experiment modifications are perfor
 
 The integrated runner ingests the RDO catalogue's recorded development-cycle outcomes and adds
 one `controlled_fixture_review` solely to exercise the provenance and reopening paths. That
-fixture is **not** an authenticated human review and is excluded from aggregate prediction accuracy.
+fixture is **not** an authenticated human review, does not write derived lessons into reusable
+`PatternMemory`, and is excluded from aggregate prediction accuracy. Its cycle/provenance record
+remains available for inspection.
 Caller-supplied reviewer labels are reported as `reviewer_attributed`; the system does not claim
 to authenticate the reviewer identity.
 
