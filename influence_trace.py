@@ -35,6 +35,9 @@ _FALSEY = frozenset({"", "0", "false", "off", "no", "n"})
 _TEXT_KEYS = frozenset({
     "prompt", "thought", "content", "text", "reply", "output", "payload",
     "belief_text", "raw", "raw_output", "system_prompt",
+    "voice_prompt", "before", "after", "query", "message", "answer",
+    "input", "output", "focal_item", "tool_output", "result_text",
+    "candidate_texts", "prompt_text",
 })
 
 
