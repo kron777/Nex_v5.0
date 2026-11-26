@@ -34,14 +34,14 @@ class PipelineHooks:
         cursor = self._t6_climb_cursor
         rows = [dict(r) for r in self._beliefs_reader.read(
             "SELECT id, content FROM beliefs "
-            "WHERE tier = 6 AND paused = 0 AND locked = 0 AND id > ? "
+            "WHERE tier = 6 AND paused = 0 AND locked = 0 AND erosion_stage != 'retired' AND id > ? "
             "ORDER BY id ASC LIMIT ?",
             (cursor, limit),
         )]
         if len(rows) < limit:
             rows.extend(dict(r) for r in self._beliefs_reader.read(
                 "SELECT id, content FROM beliefs "
-                "WHERE tier = 6 AND paused = 0 AND locked = 0 AND id <= ? "
+                "WHERE tier = 6 AND paused = 0 AND locked = 0 AND erosion_stage != 'retired' AND id <= ? "
                 "ORDER BY id ASC LIMIT ?",
                 (cursor, limit - len(rows)),
             ))
@@ -63,7 +63,7 @@ class PipelineHooks:
         try:
             rows = self._beliefs_reader.read(
                 "SELECT id, content FROM beliefs "
-                "WHERE tier <= 7 AND paused = 0 AND locked = 0 "
+                "WHERE tier <= 7 AND paused = 0 AND locked = 0 AND erosion_stage != 'retired' "
                 "ORDER BY id DESC LIMIT 50",
             )
         except Exception as exc:
