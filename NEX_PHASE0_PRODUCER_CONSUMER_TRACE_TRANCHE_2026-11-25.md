@@ -1377,3 +1377,16 @@ The newer inactive-belief eligibility work treats `erosion_stage='retired'` as a
 If a lower-tier, unpaused row carries the retired marker, both Warrant populations can include it: WarrantPass may compute/persist a score and WarrantRecorder may record a shadow survival check. This is conditional and depends on the authoritative meaning of the marker and whether such rows exist.
 
 **Disposition:** operation-specific eligibility contract question, not a confirmed live defect. Confirm whether the retired-stage marker overrides lower tier for Warrant scoring and survival. If so, add `erosion_stage` to both queries, filter retired rows, and add isolated lower-tier-retired fixtures. No scoring, recorder, schema or runtime behavior was changed.
+
+
+## 87. Warrant score pass versus recorder boot boundary
+
+The source distinguishes two components:
+
+- `WarrantRecorder` is constructed and started in `run.py` only when `NEX5_WARRANT_RECORD == '1'`. The tracked `nex_keepalive.sh` declares that recording flag; it does not declare `NEX5_WARRANT`.
+- `WarrantPass` in `theory_x/stage_warrant/warrant.py` has a `start_loop()` guard for `NEX5_WARRANT`, but no construction or start of `WarrantPass` was found in the inspected normal `run.py` or `gui/server.py` paths. The class docstring says it is constructed and started from `run.py`, which does not match the inspected source.
+- `tools/warrant_validate.py` imports `compute_all()` and performs a one-shot read-only validation; it does not start the background `WarrantPass` loop.
+
+Therefore the normal source wiring establishes a separately gated recording worker, not a periodic score/persistence worker. Setting `NEX5_WARRANT=1` alone does not construct `WarrantPass` through the inspected boot path. Manual or uninspected callers are not excluded. No `belief_warrant` table or live process state was inspected, so no claim is made about existing persisted rows or host activation.
+
+**Disposition:** record-only operation may be intentional while evidence accrues after Warrant's failed validation gate. The inaccurate `WarrantPass` module docstring is a documentation/source-wiring discrepancy; do not wire the scoring loop, alter flags, or change the Warrant gate until the governing approval and desired lifecycle are confirmed.
