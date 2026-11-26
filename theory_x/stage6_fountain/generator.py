@@ -1667,14 +1667,13 @@ class FountainGenerator:
         readiness = self._evaluator.score(
             dynamic_state, beliefs_reader, last_fire_ts=self._last_fire_ts
         )
+        _ready = self._evaluator.is_ready(readiness)
         if trace is not None:
             trace.record(
                 "readiness", "threshold_evaluated",
-                metadata={"score": readiness,
-                          "threshold": 0.7,
-                          "eligible": self._evaluator.is_ready(readiness)},
+                metadata={"score": readiness, "threshold": 0.7, "eligible": _ready},
             )
-        if not self._evaluator.is_ready(readiness):
+        if not _ready:
             if trace is not None:
                 trace.gate("REJECT", gate="fountain_readiness",
                            reason_code="below_threshold",
@@ -1805,10 +1804,15 @@ class FountainGenerator:
         if self._total_fires % 8 == 7 and readiness >= 0.8 and belief_count >= 20:
             koan = self._select_koan(beliefs_reader)
 
-        prompt, retrieval_manifest = self._build_prompt(
-            status, belief_count, tier_dist, disturbance=disturbance, koan=koan,
-            trace=trace,
-        )
+        if trace is None:
+            prompt, retrieval_manifest = self._build_prompt(
+                status, belief_count, tier_dist, disturbance=disturbance, koan=koan,
+            )
+        else:
+            prompt, retrieval_manifest = self._build_prompt(
+                status, belief_count, tier_dist, disturbance=disturbance, koan=koan,
+                trace=trace,
+            )
 
         try:
             with open('/tmp/nex5_last_prompt.log', 'w') as _f:
@@ -2754,16 +2758,18 @@ class FountainGenerator:
             except Exception:
                 _retained_candidate_id = None
             try:
-                crystallized_id = self._crystallizer.crystallize(
-                    thought=thought,
-                    fountain_event_id=fountain_event_id,
-                    ts=ts_now,
-                    droplet=droplet,
-                    hot_branch=hot_branch,
-                    focal_item=_fire_focal,
-                    retained_candidate_id=_retained_candidate_id,
-                    trace=trace,
-                )
+                _crystallize_kwargs = {
+                    "thought": thought,
+                    "fountain_event_id": fountain_event_id,
+                    "ts": ts_now,
+                    "droplet": droplet,
+                    "hot_branch": hot_branch,
+                    "focal_item": _fire_focal,
+                    "retained_candidate_id": _retained_candidate_id,
+                }
+                if trace is not None:
+                    _crystallize_kwargs["trace"] = trace
+                crystallized_id = self._crystallizer.crystallize(**_crystallize_kwargs)
                 if crystallized_id:
                     error_channel.record(
                         f"Fountain insight crystallized as belief {crystallized_id}",
@@ -4427,7 +4433,7 @@ class FountainGenerator:
                 source="stage6_fountain._build_prompt",
                 candidate_order=[b["id"] for b in context_beliefs],
                 selected_order=[entry[0] for entry in retrieval_manifest],
-                strategy="retrieval_manifest_and_prompt_context",
+                strategy="belief_prompt_manifest",
                 metadata={
                     "retrieval_slots": [entry[1] for entry in retrieval_manifest],
                     "workspace_enabled": os.environ.get("NEX5_GLOBAL_WORKSPACE", "1") == "1",
