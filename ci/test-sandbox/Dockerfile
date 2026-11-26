@@ -26,7 +26,7 @@ COPY . /workspace
 
 # Tests exercise Flask's persistent-secret path. Seed a per-image throwaway
 # value at build time so the source tree can stay read-only during execution.
-RUN python -c "from pathlib import Path; import secrets; p=Path('/workspace/.flask_secret'); p.write_bytes(secrets.token_bytes(32)); p.chmod(0o400)" \
+RUN python -c "from pathlib import Path; import secrets; p=Path('/workspace/.flask_secret'); p.write_bytes(secrets.token_bytes(32)); p.chmod(0o444)" \
     && if [ ! -e /usr/bin/python3 ]; then ln -s /usr/local/bin/python3 /usr/bin/python3; fi
 
 # The test process runs unprivileged; the image filesystem remains read-only at runtime.
