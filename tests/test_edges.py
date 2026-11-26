@@ -341,6 +341,40 @@ class TestGuiEdgeStats(unittest.TestCase):
             self.assertIn("epistemic_temperature", data)
 
 
+class TestEdgeGeneratorEligibility(unittest.TestCase):
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_paused_or_retired_source_is_not_used(self):
+        from theory_x.stage3_world_model.edge_generator import EdgeGenerator
+        w = self.writers["beliefs"]
+        r = self.readers["beliefs"]
+        paused_id = _insert_belief(w, "A paused belief about attention and cognition", tier=5)
+        retired_id = _insert_belief(w, "A retired belief about memory and perception", tier=8)
+        w.write("UPDATE beliefs SET paused=1 WHERE id=?", (paused_id,))
+        generator = EdgeGenerator(w, r)
+        self.assertEqual(generator.propose_edges_for_belief(paused_id), [])
+        self.assertEqual(generator.propose_edges_for_belief(retired_id), [])
+
+    def test_paused_candidate_is_excluded(self):
+        from theory_x.stage3_world_model.edge_generator import EdgeGenerator
+        w = self.writers["beliefs"]
+        r = self.readers["beliefs"]
+        source_id = _insert_belief(
+            w, "Attention guides cognition through focused memory", tier=5
+        )
+        paused_id = _insert_belief(
+            w, "Attention guides cognition through focused memory systems", tier=5
+        )
+        w.write("UPDATE beliefs SET paused=1 WHERE id=?", (paused_id,))
+        generator = EdgeGenerator(w, r)
+        proposals = generator.propose_edges_for_belief(source_id)
+        self.assertNotIn(paused_id, {target_id for target_id, _, _ in proposals})
+
+
 class TestNoDirectSqlite(unittest.TestCase):
     def test_no_direct_sqlite3_outside_substrate(self):
         # One-pen ratchet: every module outside substrate/ must open databases
