@@ -50,6 +50,7 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
 
     recon_buckets = recon_mod.summarize(obligations)
     reused = recon_buckets.get(REUSE_EXISTING, [])
+    signature_matches = recon_buckets.get(SIGNATURE_MATCHED, [])
     missing = recon_buckets.get(MISSING, []) + recon_buckets.get(PARTIAL, [])
     anti = [o.key for o in obligations.values() if o.classification == ANTI_REQUIREMENT]
     uncertainties = [f["key"] + ": " + f["reason"] for f in frontier
@@ -102,7 +103,8 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
         id=cycle_id, objective=objective, assumptions=assumptions,
         obligations=[o.to_dict() for o in obligations.values()],
         relationships=[r.to_dict() for r in relationships],
-        reused=reused, missing=missing, anti_requirements=anti,
+        reused=reused, signature_matches=signature_matches, missing=missing,
+        anti_requirements=anti,
         uncertainties=uncertainties + [f"applied_patterns={applied}"],
         frontier=list(frontier), counts=counts,
         tension=[t.to_dict() for t in (node_t + rel_t + sys_t)],
