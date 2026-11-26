@@ -124,3 +124,8 @@ The result is a Watcher-produced JSON report. The RDO bridge checks that the ret
 
 This closes the **process separation for source/path inspection only**. It does not make the Watcher a sandbox, authenticate the caller, validate semantic acceptance criteria, execute tests or establish runtime behaviour. Tests remain \`not_authorized\`; runtime remains host-only UNKNOWN; human acceptance stays separate.
 
+
+
+## Process-isolation hardening
+
+The RDO bridge starts the Watcher module from the trusted installation root containing the RDO adapter. The inspected repository is supplied only as a versioned request field; its Python modules are never imported to perform verification. The request uses an exclusive temporary file in the handoff store and is removed after response validation. Git is resolved from the trusted system path, with global/system Git configuration and optional index writes disabled.
