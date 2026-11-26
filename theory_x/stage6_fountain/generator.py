@@ -1629,9 +1629,7 @@ class FountainGenerator:
             trace.record(
                 "readiness", "threshold_evaluated",
                 metadata={"score": readiness,
-                          "threshold": self._evaluator.is_ready.__self__.FOUNTAIN_THRESHOLD
-                          if hasattr(self._evaluator.is_ready.__self__, "FOUNTAIN_THRESHOLD")
-                          else 0.7,
+                          "threshold": 0.7,
                           "eligible": self._evaluator.is_ready(readiness)},
             )
         if not self._evaluator.is_ready(readiness):
