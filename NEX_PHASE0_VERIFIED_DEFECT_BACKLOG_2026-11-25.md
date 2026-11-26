@@ -43,7 +43,7 @@
 
 ### D-06 — Active host branch diverges substantially from main
 - Type: integration risk, not itself a code defect.
-- Evidence: captured host branch de93134 is 4 commits ahead and 641 behind current main; merge base fb87e24. The remote continuity branch is separately 305 ahead / 641 behind. The main-only MIND_MAP was first added 2026-11-09 and last updated 2026-11-20. Its 51 source references across 41 unique files include 12 files absent from the active-host base. Vitals and other main-only files are also absent. PR #98 merged into the remote continuity branch, not main or the host checkout.
+- Evidence: captured host branch de93134 is 4 commits ahead and 641 behind current main; merge base fb87e24. The remote continuity branch is separately 310 ahead / 641 behind. The main-only MIND_MAP was first added 2026-11-09 and last updated 2026-11-20. Its 51 source references across 41 unique files include 12 files absent from the active-host base. Vitals and other main-only files are also absent. PR #98 merged into the remote continuity branch, not main or the host checkout.
 - Impact: wholesale merge/rebase risks importing many unrelated changes, including behavioural work; importing MIND_MAP alone would leave missing source references and fail its own source-existence check. The active host checkout and main must not be treated as interchangeable.
 - Disposition: maintain branch-specific evidence; reconcile file-by-file under the governing authority hierarchy. Do not import the map or cherry-pick its supporting code until branch lineage and scope are explicitly decided.
 
@@ -124,7 +124,7 @@
 1. Phase 0 documents versus current branch: stale handoff and continuity change.
 2. Sense scheduler docs versus code: 28 adapters and external auto-start, not 23/paused.
 3. CoherenceGate docs versus code: HOLD/RESHAPE are persisted/queued, and evaluation exceptions return ACCEPT.
-4. Active host checkout versus current main: 4 ahead / 641 behind; remote continuity branch 305 ahead / 641 behind; MIND_MAP and Vitals absent from the active checkout.
+4. Active host checkout versus current main: 4 ahead / 641 behind; remote continuity branch 310 ahead / 641 behind; MIND_MAP and Vitals absent from the active checkout.
 5. Technical trace-overlay roadmap contract versus InfluenceRecord implementation: flag/schema/lineage/sample mismatch (previously tracked under M0.5).
 
 **No item in this backlog authorises a live change.**
