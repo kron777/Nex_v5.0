@@ -6,7 +6,7 @@
 
 ## Executive finding
 
-The active host checkout is not the same source snapshot as GitHub main. The host checkout is branch claude/nex-continuity-wire at de93134f34adac07a3a41c2a05b33720510a2bfc. GitHub comparison reports this branch 4 commits ahead and 205 commits behind main, with merge base fb87e247a116221cc7d814e2ee5ff2e1300f5a87. Do not merge, rebase, or cherry-pick main wholesale: the branch contains active-host-specific work and main contains later changes, including unrelated behavioural changes.
+The active host checkout is not the same source snapshot as GitHub main. The captured host checkout is branch `claude/nex-continuity-wire` at `de93134f34adac07a3a41c2a05b33720510a2bfc`. Against current GitHub main `7f45642bfb0f389b98b3c0848dc1f78deb0cd621`, it is 4 commits ahead and 641 behind, with merge base `fb87e247a116221cc7d814e2ee5ff2e1300f5a87`. The remote continuity branch is now at `702351edcba52628dec89f314c13a1c98d3f4923` and is separately 305 ahead / 641 behind main. The host checkout and remote continuity branch must not be conflated. Local cached tracking refs are stale; no fetch, pull, rebase or cherry-pick was performed. Do not merge main wholesale: it contains later changes, including unrelated behavioural changes.
 
 The original fb87e24 Reality Report and two-path Crosswalk are preserved as NEX_REPOSITORY_REALITY_REPORT_HISTORICAL_fb87e24.md and NEX_ARCHITECTURE_CROSSWALK_v2_HISTORICAL_fb87e24.md. The canonical NEX_REPOSITORY_REALITY_REPORT.md and NEX_ARCHITECTURE_CROSSWALK_v2.md have been refreshed for the active host checkout; the Crosswalk remains partial, with the full producer/consumer DAG outstanding. ADR-001 remains a historical design record. The Phase 0 handoff now points to this reconciliation and corrects its stale Phase 1 claim. In particular, the active branch contains the default-OFF continuity consumer commit f9ac58d, despite the old handoff saying no Phase 1 behavioural modification had started.
 
@@ -17,7 +17,7 @@ The original fb87e24 Reality Report and two-path Crosswalk are preserved as NEX_
 - Active host branch: claude/nex-continuity-wire
 - Active host HEAD: de93134f34adac07a3a41c2a05b33720510a2bfc
 - Host collector reported a clean worktree at that SHA.
-- GitHub compare main...de93134 reports 4 commits ahead / 205 behind; merge base fb87e247a116221cc7d814e2ee5ff2e1300f5a87.
+- GitHub compare current main...de93134 reports 4 commits ahead / 641 behind; merge base `fb87e247a116221cc7d814e2ee5ff2e1300f5a87`. Remote continuity branch `702351e` is 305 ahead / 641 behind.
 - The active branch contains 757 tree entries at the audited SHA.
 - The active branch has 42 top-level theory_x package directories. This is a filesystem inventory only; it is not interchangeable with the MIND_MAP node count, sentience_dag faculty count, or number of booted worker loops.
 - mind_map/MIND_MAP.yaml is absent from the active branch at this SHA, but is present on main. sentience_dag.json is present on the active branch.
@@ -154,7 +154,7 @@ A founder-reviewable standalone version is maintained in [NEX_PHASE0_VERIFIED_DE
 7. **Phase 1 continuity code precedes Gate 0.** The branch contains the default-OFF consumer; the old handoff incorrectly says otherwise. Its semantic edge cases are untested.
 8. **Keepalive script path drift.** Systemd unit paths were corrected, but the active branch's script still has the old checkout path in its startup and journal references. Draft PR #97 fixes all references and passed CI; not merged or deployed.
 9. **Vitals branch divergence.** Vitals exists on main only, arrived with unrelated behavioural changes, and lacks its governing spec in the available archive.
-10. **Branch divergence.** The active branch is 4 ahead / 205 behind main. Integration must be deliberate and file-scoped; no wholesale merge/rebase.
+10. **Branch divergence.** The captured host checkout is 4 ahead / 641 behind current main; the remote continuity branch is 305 ahead / 641 behind. Integration must be deliberate and file-scoped; no wholesale merge/rebase.
 
 ## 7. Safe continuation
 
@@ -302,7 +302,7 @@ Trace §§72–81 are source-level findings. The full M0.3–M0.4 producer/consu
 
 The branch/source-reference comparison is documented in `NEX_PHASE0_MAIN_BRANCH_MIND_MAP_RECONCILIATION_2026-11-25.md`. Main's MIND_MAP is a descriptive-only taxonomy with 34 node entries (30 substantive and four structural placeholders) plus five arms. Its 51 source references across 41 unique files include 12 files absent from the active-host base branch. The MIND_MAP directory, generator, generated diagram and CI validation step are absent from that base. Copying the map alone would fail its source-path checks.
 
-The active-host branch remains 4 ahead / 205 behind main; PR #98 targets `claude/nex-continuity-wire`, not main. The MIND_MAP's source history includes code/test changes on main. No map or code was imported, and no merge/rebase/cherry-pick occurred. The active-host `sentience_dag.json` and `nex_next_dev.py` remain the separate build-order mechanism; `live_unproven` counts as satisfied for dependency buildability.
+The captured host checkout remains 4 ahead / 641 behind current main; the remote continuity branch is 305 ahead / 641 behind. PR #98 targeted `claude/nex-continuity-wire`, not main. The MIND_MAP's source history includes code/test changes on main. No map or code was imported into the host checkout, and no host fetch/rebase/cherry-pick occurred. The active-host `sentience_dag.json` and `nex_next_dev.py` remain the separate build-order mechanism; `live_unproven` counts as satisfied for dependency buildability.
 
 
 ### Expanded audit inventory — trace §§73–83
