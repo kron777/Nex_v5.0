@@ -157,7 +157,7 @@ The static producer/consumer trace now extends through §83. The current detaile
 - `NEX_PHASE0_OPEN_PROBLEM_AND_GOAL_LIFECYCLE_AUDIT_2026-11-25.md` — problem/goal state transitions, stuck-state visibility, GoalManager/CoherenceGate state mismatch and unscheduled decay methods.
 - `NEX_PHASE0_SIGNAL_PIPELINE_RETENTION_AND_PATTERN_AUDIT_2026-11-25.md` — SignalLoop/advancements_drift producers, pattern template semantics, stale reaper allowlist and cross-database commit boundary.
 - `NEX_PHASE0_SELF_CONTINUITY_SEMANTICS_AUDIT_2026-11-25.md` — default-OFF Phase 1 continuity query/phrase semantics, missing-value handling, timestamp ties and cleanup.
-- `NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md` — actual M0.5 seams, missing trace/parent IDs, caller-declared L4, and raw-preview privacy/retention.
+- `NEX_PHASE0_INFLUENCE_TRACE_COVERAGE_AUDIT_2026-11-25.md` — technical trace-overlay seams, missing trace/parent IDs, caller-declared L4, and raw-preview privacy/retention.
 - `NEX_PHASE0_MAIN_BRANCH_MIND_MAP_RECONCILIATION_2026-11-25.md` — main-only MIND_MAP lineage and 12 referenced files absent from active base; no import/merge/rebase performed.
 - `NEX_PHASE0_MOLTBOOK_EXTERNAL_IO_AND_DRY_RUN_AUDIT_2026-11-25.md` — all three Moltbook workers, GET/non-GET dry-run, synthetic local success states, unfiltered outbound beliefs and inbound DM path; no external endpoint contacted.
 
