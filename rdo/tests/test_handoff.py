@@ -363,3 +363,19 @@ def test_handoff_records_internal_symlink_resolution(tmp_path, monkeypatch):
     assert manifest["scope"]["allowed_paths"] == ["readme-alias.md"]
     assert manifest["scope"]["resolved_paths"] == {"readme-alias.md": "README.md"}
 
+def test_handoff_rejects_directory_as_an_allowed_path(tmp_path, monkeypatch):
+    repo = _clean_repo(tmp_path / "repo")
+    (repo / "docs").mkdir()
+    (repo / "docs" / "guide.md").write_text("# Guide\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "docs/guide.md"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "add docs directory"], check=True)
+    workdir = str(tmp_path / "cycles")
+    import rdo.orchestrator as orchestrator
+    monkeypatch.setattr(orchestrator, "_active_experiments", lambda _repo: [])
+    result = submit_objective(_objective("docs"), repo_dir=str(repo), workdir=workdir)
+    package = result["cycle"]["work_packages"][0]
+    with pytest.raises(HandoffError, match="exact file, not a directory"):
+        create_handoff(
+            workdir, str(repo), "handoff_fixture", 1, result["cycle"]["id"], package["key"]
+        )
+
