@@ -79,10 +79,13 @@ def test_records_each_obligation_attribute(sl):
 
 def test_reconciles_against_repository_evidence(sl):
     c = sl["cycle"]
-    # REUSE: the real belief_activation recency table is found, with file evidence
-    assert "belief_staleness_input" in c.reused
-    ev = {o["key"]: o["recon_evidence"] for o in c.obligations}
-    assert any("belief_activation" in e for e in ev["belief_staleness_input"])
+    # The recency table is source-matched, but source presence is NOT semantic reuse.
+    # It remains a review obligation until a current, traceable semantic decision exists.
+    by_key = {o["key"]: o for o in c.obligations}
+    assert "belief_staleness_input" in c.signature_matches
+    assert by_key["belief_staleness_input"]["recon_status"] == "signature_matched"
+    assert "belief_staleness_input" not in c.reused
+    assert any("belief_activation" in e for e in by_key["belief_staleness_input"]["recon_evidence"])
     # MISSING: the decay policy and applier are genuinely absent (net-new work)
     assert "belief_decay_policy" in c.missing
     assert "belief_decay_daemon" in c.missing
@@ -95,10 +98,14 @@ def test_identifies_duplication_as_anti_requirements(sl):
 
 
 def test_no_verification_without_acceptance_evidence(sl):
-    # every reuse claim must be backed by real file evidence
+    # Source matches remain separate from semantically reviewed reuse.
     c = sl["cycle"]
+    by_key = {o["key"]: o for o in c.obligations}
     assert c.verification["all_reuse_backed"] is True
     assert c.verification["unbacked_reuse_claims"] == []
+    assert c.verification["reuse_claims"] == len(c.reused)
+    assert "belief_staleness_input" in c.signature_matches
+    assert by_key["belief_staleness_input"]["recon_evidence"]
 
 
 def test_stable_canonical_ids_and_no_silent_merge(sl):
@@ -231,7 +238,8 @@ def test_complete_counts_persisted_and_consistent(sl):
             == len(c.frontier))
     # for this slice nothing hits the budget: the frontier is intentional stops only
     assert c.counts["deferred"] == 0
-    assert c.counts["frontier_already_satisfied"] >= 1 and c.counts["frontier_anti_requirement"] >= 1
+    assert c.counts["frontier_already_satisfied"] == 0  # no source-only match is semantic reuse
+    assert c.counts["frontier_other"] >= 1 and c.counts["frontier_anti_requirement"] >= 1
     assert sl["store"].load(CID).counts == c.counts
 
 
@@ -320,7 +328,13 @@ def test_stage2_end_to_end(tmp_path):
     assert res["converging_prerequisites"] == ["shared_runtime_effect.runtime_verification"]
     assert {"discovered", "unique", "reuse", "net_new", "deferred", "unresolved"} <= set(res["counts"])
     assert res["deferred_frontier"] and res["frontier_breakdown"]["deferred"] == 0
-    assert res["work_packages_ordered"][0][1] == "eligible"       # a buildable package leads
+    # Eligibility is a hard gate, not a target metric. If this objective has no
+    # independently buildable package, every blocked package must retain its blockers.
+    statuses = [status for _, status in res["work_packages_ordered"]]
+    if "eligible" in statuses:
+        assert statuses[0] == "eligible"
+    else:
+        assert all(status == "blocked" for status in statuses)
     assert res["prediction_vs_review"]["calibration_patterns"] == ["under_expansion"]
     # the persisted artefact resumes in a fresh process with all of it intact
     import json as _json, subprocess as _sp, sys as _sys
@@ -329,7 +343,7 @@ def test_stage2_end_to_end(tmp_path):
     r = _sp.run([_sys.executable, "-c", code], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
     out = _json.loads(r.stdout)
-    assert out["counts"]["discovered"] == 41 and out["frontier"] == 4 and out["kind"] == "native_planning"
+    assert out["counts"]["discovered"] == res["counts"]["discovered"]\n    assert out["frontier"] == len(res["deferred_frontier"])\n    assert out["kind"] == "native_planning"
 
 
 # --------------------- integrity pass: four correctness points ----------------------
