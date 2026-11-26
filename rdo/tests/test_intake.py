@@ -257,7 +257,8 @@ def test_submit_runs_existing_pipeline_and_persists_intake_provenance(tmp_path, 
     assert by_key["api"]["impact"] == raw["seed_obligations"][0]["impact"]
     assert by_key["api"]["evidence_needs"] == raw["seed_obligations"][0]["evidence_needs"]
     assert "intake:human:founder-provided objective" in by_key["api"]["provenance"]
-    assert all(item["evidence_needs"] and item["impact"] for item in cycle["obligations"])\n    assert all(item["confidence"] == "inferred" for item in cycle["obligations"] if item["depth"] > 0)
+    assert all(item["evidence_needs"] and item["impact"] for item in cycle["obligations"])
+    assert all(item["confidence"] == "inferred" for item in cycle["obligations"] if item["depth"] > 0)
     assert any(
         edge["src"] == "api" and edge["dst"] == "store" and edge["kind"] == "depends_on"
         for edge in cycle["relationships"]
