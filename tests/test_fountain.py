@@ -192,6 +192,7 @@ class TestFountainGenerator(unittest.TestCase):
 
         gen = self._make_generator()
         gen._voice = VoiceClient(request_fn=request_fn)
+        gen._beliefs_reader = self.readers["beliefs"]
 
         now = int(time.time())
         def add(content, source, tier=5, paused=0, affinity=None, created_at=now):
@@ -257,6 +258,11 @@ class TestFountainGenerator(unittest.TestCase):
 
     def test_koan_selection_excludes_paused_and_retired(self):
         gen = self._make_generator()
+        # The initialized fixture includes seed koans; pause them so the
+        # test's active row is the only eligible candidate.
+        self.writers["beliefs"].write(
+            "UPDATE beliefs SET paused = 1 WHERE source = 'koan'"
+        )
 
         def add_koan(content, tier=5, paused=0):
             return self.writers["beliefs"].write(
