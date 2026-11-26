@@ -433,7 +433,10 @@ def run_stage2_belief_decay(repo_dir: str = ".", workdir: str = "rdo/.cycles",
         if not reviewer:
             raise ValueError("a genuine planning review must name its reviewer (provenance)")
         actual = dict(review)
-        actual["review_kind"] = "planning_review"       # distinguishes a reviewed plan from execution
+        review_kind = actual.get("review_kind", "planning_review")
+        if review_kind not in ("planning_review", "controlled_fixture_review"):
+            raise ValueError("review_kind must be planning_review or controlled_fixture_review")
+        actual["review_kind"] = review_kind             # never an execution outcome
         record_actual(cycle, actual)
         comparison = compare(cycle)                      # predicted vs reviewed discrepancies
         for p in derive_lessons(cycle, comparison):      # candidate patterns (low, capped confidence)
@@ -443,7 +446,9 @@ def run_stage2_belief_decay(repo_dir: str = ".", workdir: str = "rdo/.cycles",
         store.save(cycle)                                # durable: cycle now carries the reviewed actual
         assert cycle.kind == NATIVE_PLANNING, "a reviewed plan must not be recorded as executed work"
         review_report = {
-            "kind": "planning_review (not an execution outcome)",
+            "kind": ("controlled fixture review (not human review or execution)"
+                     if review_kind == "controlled_fixture_review"
+                     else "reviewer-attributed planning review (not execution; reviewer identity is not independently verified)"),
             "reviewer": reviewer,
             "predicted": cycle.predicted,
             "reviewed": actual,
@@ -563,14 +568,15 @@ def run_stage5_belief_pathway(repo_dir: str = ".", workdir: str = "rdo/.cycles")
 
 
 def run_stage6_learning_loop(repo_dir: str = ".", workdir: str = "rdo/.cycles") -> dict:
-    """RDO v1.3 §16 Stage 6 — the learning loop over REAL Stage 2-5 development evidence: the
-    executed cycles (catalogue) plus one reviewer-attributed planning cycle. Reuses the memory
-    primitives; adds reviewed-vs-automated provenance, reopening on new evidence and explicit
-    UNKNOWNs. Persisted for resume. No live NEX writes; planning reviews are NOT execution."""
-    run_catalogue(repo_dir, workdir)                       # executed cycles (real actuals)
-    run_stage2_belief_decay(repo_dir, workdir, review={    # one human-reviewed planning cycle
-        "reviewer": "stage6 controlled review", "missed": ["belief_decay_rollback"],
-        "notes": "planning review (not an execution outcome)"})
+    """RDO v1.3 §16 Stage 6 — learning loop over executed evidence plus an explicitly
+    labelled controlled fixture review. The fixture exercises reviewer-provenance handling;
+    it is NOT represented as a real human review or an execution outcome."""
+    run_catalogue(repo_dir, workdir)                       # executed cycles (recorded outcomes)
+    run_stage2_belief_decay(repo_dir, workdir, review={    # controlled fixture only
+        "reviewer": "stage6 controlled fixture (not a person)",
+        "review_kind": "controlled_fixture_review",
+        "missed": ["belief_decay_rollback"], "unnecessary": [], "reuse_wrong": [],
+        "notes": "deterministic controlled fixture; not a human review or execution outcome"})
     store = CycleStore(workdir)
     cycles = [store.load(i) for i in store.list_ids()]
     bd = store.load("belief_decay_mvp")
