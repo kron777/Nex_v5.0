@@ -61,6 +61,8 @@ _DDL = (
     " last_day INTEGER, updated_at REAL)",
     "CREATE TABLE IF NOT EXISTS warrant_record_cursor ("
     " name TEXT PRIMARY KEY, value REAL NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS warrant_record_cursor_v2 ("
+    " name TEXT PRIMARY KEY, value TEXT NOT NULL)",
 )
 
 
@@ -125,6 +127,26 @@ class WarrantRecorder:
             "ON CONFLICT(name) DO UPDATE SET value=excluded.value", (k, v))
             for k, v in vals.items()])
 
+    def _tuple_cursor(self, name: str, default: tuple) -> tuple:
+        import json
+        r = self._br.read_one(
+            "SELECT value FROM warrant_record_cursor_v2 WHERE name=?", (name,))
+        if not r:
+            return default
+        try:
+            value = tuple(json.loads(r["value"]))
+            return value if len(value) == len(default) else default
+        except Exception:
+            return default
+
+    def _set_tuple_cursors(self, vals: dict) -> None:
+        import json
+        write_batch(self._w, [(
+            "INSERT INTO warrant_record_cursor_v2 (name, value) VALUES (?, ?) "
+            "ON CONFLICT(name) DO UPDATE SET value=excluded.value",
+            (k, json.dumps(v)))
+            for k, v in vals.items()])
+
     # ── 1. survival ─────────────────────────────────────────────────────────
     def survival_cycle(self, now: Optional[float] = None) -> int:
         self._ensure()
@@ -185,24 +207,33 @@ class WarrantRecorder:
             "SELECT id, belief_id_a, belief_id_b, ts FROM synergizer_log WHERE id > ? "
             "ORDER BY id LIMIT ?", (int(c), _USE_BATCH)),
             "id", ("belief_id_a", "belief_id_b"), "ts")
-        # Timestamps are not unique. A timestamp cursor with a strict '>'
-        # predicate can permanently skip rows when a batch ends part-way
-        # through a same-timestamp group. These tables are ordinary SQLite
-        # rowid tables, so use their stable rowid as the incremental cursor.
-        # New cursor keys intentionally replay the historical rows once;
-        # belief_use_day's composite PK makes that migration idempotent.
-        c = int(self._cursor("use_lineage_rowid"))
-        take("use_lineage_rowid", self._br.read(
-            "SELECT rowid AS _cursor_id, created_at, parent_id "
-            "FROM belief_lineage WHERE rowid > ? ORDER BY rowid LIMIT ?",
-            (c, _USE_BATCH)),
-            "_cursor_id", ("parent_id",), "created_at")
-        c = int(self._cursor("use_arc_rowid"))
-        take("use_arc_rowid", self._br.read(
-            "SELECT rowid AS _cursor_id, joined_at, belief_id "
-            "FROM arc_members WHERE rowid > ? ORDER BY rowid LIMIT ?",
-            (c, _USE_BATCH)),
-            "_cursor_id", ("belief_id",), "joined_at")
+        # Timestamps are not unique, and rowids on these tables are not
+        # durable across VACUUM. Use their declared composite primary keys as
+        # stable lexicographic cursors; timestamps remain the day attribution.
+        # New keys replay history once; belief_use_day makes that idempotent.
+        last = self._tuple_cursor("use_lineage_pk", (0, 0, ""))
+        rows = self._br.read(
+            "SELECT child_id, parent_id, relationship, created_at "
+            "FROM belief_lineage WHERE (child_id, parent_id, relationship) > (?, ?, ?) "
+            "ORDER BY child_id, parent_id, relationship LIMIT ?",
+            (*last, _USE_BATCH))
+        for row in rows:
+            pairs.add((int(row["parent_id"]), int(float(row["created_at"]) // _DAY)))
+        if rows:
+            row = rows[-1]
+            cur_new["use_lineage_pk"] = (
+                int(row["child_id"]), int(row["parent_id"]), str(row["relationship"]))
+
+        last = self._tuple_cursor("use_arc_pk", (0, 0))
+        rows = self._br.read(
+            "SELECT arc_id, belief_id, joined_at FROM arc_members "
+            "WHERE (arc_id, belief_id) > (?, ?) ORDER BY arc_id, belief_id LIMIT ?",
+            (*last, _USE_BATCH))
+        for row in rows:
+            pairs.add((int(row["belief_id"]), int(float(row["joined_at"]) // _DAY)))
+        if rows:
+            row = rows[-1]
+            cur_new["use_arc_pk"] = (int(row["arc_id"]), int(row["belief_id"]))
 
         if pairs:
             write_batch(self._w, [(
@@ -219,7 +250,12 @@ class WarrantRecorder:
                     "ON CONFLICT(belief_id) DO UPDATE SET days=excluded.days, "
                     "first_day=excluded.first_day, last_day=excluded.last_day, "
                     "updated_at=excluded.updated_at", (now, *chunk))
-        self._set_cursors(cur_new)
+        scalar_cursors = {k: v for k, v in cur_new.items()
+                          if not isinstance(v, tuple)}
+        tuple_cursors = {k: v for k, v in cur_new.items()
+                         if isinstance(v, tuple)}
+        self._set_cursors(scalar_cursors)
+        self._set_tuple_cursors(tuple_cursors)
         self._stats["use_pairs"] += len(pairs)
         return len(pairs)
 
