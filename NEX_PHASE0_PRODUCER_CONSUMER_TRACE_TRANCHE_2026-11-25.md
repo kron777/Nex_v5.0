@@ -1421,3 +1421,27 @@ The existing family-tree helper offers `record_synergy()` (two parents, relation
 The current tests cover the generic lineage helpers in `tests/test_diversity.py`, but no inspected RememberLoop test verifies child-to-parent lineage. The Phase 0 trace already records G-25 (RememberLoop's direct belief insert has no CoherenceGate path) and G-27 (its direct insert bypasses TaggingBeliefWriter/tag generation). This §89 records a separate issue: even if the admission policy remains as presently implemented, the resulting belief has no family-tree connection to the two inputs.
 
 **Disposition:** confirm whether RememberLoop's generated temporal link should be represented as a two-parent lineage child. If yes, define the relationship label and add an isolated parentage test before changing code. Do not assume `synergy` is the correct label. No source, schema, test, data, Warrant cursor or runtime behavior was changed.
+
+
+## 90. Stage-2 and Stage-3 edge producers share an admission surface
+
+Two graph-edge producers are started by the normal source boot path:
+
+- Stage 2: `build_dynamic()` appends and starts `theory_x.diversity.edge_builder.edge_builder_loop`, with a 60-second tick. It considers the newest 30 unlocked, unpaused beliefs with fewer than three outgoing edges and writes up to three generic `cross_domain` similarity edges per source from a recent-800 comparison pool.
+- Stage 3: `run.py` constructs and starts `theory_x.stage3_world_model.EdgeGeneratorLoop`, with a 60-second boot delay and 30-minute tick. Its `_tick()` selects only `fountain_insight` / `synergized` rows that appear in neither `belief_edges.source_id` nor `belief_edges.target_id`; `propose_edges_for_belief()` then classifies typed `supports`, `refines`, `opposes`, or `cross_domain` edges.
+
+Because Stage 2's broad source pool and comparison pool can include recent Fountain/Synergizer beliefs, a Stage-2 edge can touch a Stage-3-eligible belief as either source or target. Stage 3's `NOT IN` checks then exclude that belief from its later queue, even where the Stage-2 contribution is only one generic cross-domain edge and the Stage-3 source's potential typed relationships were not assessed. Thus Stage 3 can become a fallback for candidates not yet touched by Stage 2, rather than an independent classifier over the whole recent Fountain/Synergizer population.
+
+This may be intentional early saturation: once a belief is connected, the Stage-3 generator deliberately stops. The source does not establish whether the design is 'classify every recent Fountain/Synergizer belief' or 'classify only fully unconnected beliefs after general similarity links'. No live graph or cadence history was inspected.
+
+**Disposition:** define the producer precedence/coverage contract and add an isolated two-producer ordering test before changing either candidate query or loop cadence. No graph rows, edge semantics, source filters or loop behavior were changed.
+
+
+## 91. Diversity EdgeBuilder write-count telemetry is cumulative
+
+`theory_x.diversity.edge_builder.edge_builder_tick()` loops over its proposed edges and executes `INSERT OR IGNORE INTO belief_edges`. After each statement it checks `cx.total_changes > 0` to decide whether to increment the tick's `wrote` metric.
+
+`Connection.total_changes` is cumulative for the connection, not scoped to the immediately preceding statement. If the first insert succeeds, `total_changes` remains positive for subsequent duplicate/ignored inserts, so those attempts also increment `wrote`. The returned statistic and `edge_builder_loop()` log can therefore over-report new edges within a tick. The insert semantics themselves remain `OR IGNORE`; the defect concerns only the count/log signal.
+
+No test was found asserting per-statement write counts for this tick. A future isolated fixture should arrange one new edge followed by a duplicate and assert that only the new edge increments `wrote`; the likely local correction is to use the returned cursor's `rowcount` for each statement. No source or runtime counter was changed.
+
