@@ -600,33 +600,57 @@ _PROCESS_MEASURES = ("expansion_grounded_fraction", "duplicate_discovery_rate",
                      "reuse_accuracy", "verification_success")
 
 def transfer_observations(cycles: List[CycleRecord]) -> Dict:
-    """Record cross-cycle knowledge-transfer OBSERVATIONS explicitly, without
-    inflating any score (founder constraint). Reports each executed cycle's
-    predicted-vs-actual and whether the prediction matched; states plainly that
-    these are observed instances, not proof of a trend, and that transfer currently
-    lives in the reasoning, not autonomously in the keyword matcher."""
+    """Report observed cross-cycle transfer without manufacturing a match.
+
+    A prediction is matched only when effort is known and every obligation/reuse
+    discrepancy category was explicitly reported empty. Missing categories leave
+    the match UNKNOWN (None), not implicitly successful.
+    """
     execs = [c for c in cycles if c.kind == EXECUTED_VERIFIED and c.actual is not None]
     rows = []
-    for c in execs:
-        d = compare(c)
-        matched = d.get("effort_error") == 0 and not d.get("under_expansion_missed")
+    required = {
+        "missed": "under_expansion_missed",
+        "unnecessary": "over_expansion_unnecessary",
+        "inappropriate_reuse": "inappropriate_reuse",
+    }
+    for cycle in execs:
+        data = compare(cycle)
+        complete = (data.get("effort_error") is not None
+                    and all(isinstance(data.get(key), list) for key in required.values()))
+        counts = {
+            name: (len(data[key]) if isinstance(data.get(key), list) else None)
+            for name, key in required.items()
+        }
+        matched = None
+        if complete:
+            matched = (data["effort_error"] == 0
+                       and all(count == 0 for count in counts.values()))
         rows.append({
-            "cycle": c.id,
-            "predicted_effort": c.predicted.get("effort"),
-            "actual_effort": c.actual.get("effort_actual"),
-            "effort_error": d.get("effort_error"),
-            "missed_obligations": len(d.get("under_expansion_missed") or []),
+            "cycle": cycle.id,
+            "predicted_effort": cycle.predicted.get("effort"),
+            "actual_effort": cycle.actual.get("effort_actual"),
+            "effort_error": data.get("effort_error"),
+            "missed_obligations": counts["missed"],
+            "unnecessary_obligations": counts["unnecessary"],
+            "inappropriate_reuse": counts["inappropriate_reuse"],
             "prediction_matched": matched,
         })
+    matched_cycles = [row["cycle"] for row in rows if row["prediction_matched"] is True]
+    contradicted_cycles = [row["cycle"] for row in rows if row["prediction_matched"] is False]
+    unknown_cycles = [row["cycle"] for row in rows if row["prediction_matched"] is None]
     return {
         "executed_cycles": rows,
-        "observation": "Cycle 1 missed an obligation (actual effort exceeded prediction); later "
-                       "cycles matched prediction. An OBSERVED instance of cross-cycle knowledge "
-                       "transfer — NOT proof of a general improvement trend.",
-        "caveat": "Transfer is applied in the reasoning (reconcile-first + anticipate-the-hidden-"
-                  "obligation), not yet driven autonomously by Pattern Memory's keyword matcher. "
-                  "n is small; even three matched cycles are not statistical proof. Predictions "
-                  "are never rewritten after the fact.",
+        "matched_cycles": matched_cycles,
+        "contradicted_cycles": contradicted_cycles,
+        "unknown_cycles": unknown_cycles,
+        "observation": "Observed matched cycles: " + (", ".join(matched_cycles) or "none established")
+                       + "; contradicted cycles: " + (", ".join(contradicted_cycles) or "none established")
+                       + "; unknown cycles: " + (", ".join(unknown_cycles) or "none") +
+                       ". These are observations, NOT proof of a general improvement trend.",
+        "caveat": "Transfer is currently applied in reasoning (reconcile-first + anticipate-the-hidden-"
+                  "obligation), not autonomously by Pattern Memory's keyword matcher. Incomplete evidence "
+                  "does not count as a match; small samples are not statistical proof. Predictions are "
+                  "never rewritten after the fact.",
     }
 
 def prediction_accuracy(cycle: CycleRecord) -> Optional[Dict]:
