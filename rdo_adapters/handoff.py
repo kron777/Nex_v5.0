@@ -165,6 +165,10 @@ def _resolve_allowed_paths(repo_dir: str, paths: List[str]) -> Dict[str, str]:
             raise HandoffError(f"allowed path cannot be resolved inside the repository: {relative}") from exc
         if common != root:
             raise HandoffError(f"allowed path resolves outside the repository through a symlink: {relative}")
+        if os.path.isdir(target):
+            raise HandoffError(f"allowed path must identify an exact file, not a directory: {relative}")
+        if os.path.exists(target) and not os.path.isfile(target):
+            raise HandoffError(f"allowed path must identify a regular file: {relative}")
         resolved[relative] = os.path.relpath(target, root).replace(os.sep, "/")
     return resolved
 
@@ -295,7 +299,7 @@ def create_handoff(workdir: str, repo_dir: str, objective_id: str, revision: int
             "in_scope": list(scope["in_scope"]),
             "allowed_paths": allowed_paths,
             "resolved_paths": resolved_paths,
-            "path_semantics": "exact repository-relative paths only; no glob expansion",
+            "path_semantics": "exact repository-relative file paths only; no directories or glob expansion",
         },
         "obligations": obligations,
         "relationships": relationships,
