@@ -281,7 +281,7 @@ class TestDormancyScanner(unittest.TestCase):
                 return [
                     {"id": i, "created_at": time.time() - 86400 * 30,
                      "last_referenced_at": None}
-                    for i in range(start, min(start + 49, 101))
+                    for i in range(start, min(start + 50, 102))
                 ]
         reader = _PagedReader()
         writer = _StubWriter()
