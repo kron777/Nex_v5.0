@@ -12,10 +12,19 @@ state and applies the current question set:
 
 Returns one of four outcomes: ACCEPT, REJECT, HOLD, RESHAPE.
 
-Phase 22 scope:
-  - HOLD and RESHAPE are logged but not acted on (soft rejects).
-    Phase 23 builds the holding zone; Phase 24 builds reshape path.
-  - Decision thresholds are v1; expected to tune from production data.
+Current outcome handling (see check()):
+  - ACCEPT: notify the HoldingZoneResolver when one is configured.
+  - REJECT: record a throw-net trigger for eligible non-throw-net sources
+    when a TriggerDetector is configured.
+  - HOLD: persist the packet through HoldingZone.hold() when configured.
+  - RESHAPE: enqueue the packet through put_reshape_pending() when configured.
+  - Evaluation exceptions are recorded and return ACCEPT with reason
+    gate_error_fallback. This is the current fail-open availability policy;
+    it is not a fail-closed decision boundary.
+
+Decision thresholds remain an implementation version, not a validated
+measure of cognitive quality; any recalibration requires separate evidence
+and the applicable approval.
 
 Design commitments (FACULTY_MODEL.md + 2026-05-10 session):
   - Universal: no generative path bypasses the gate.
