@@ -31,7 +31,7 @@ The earlier fb87e24 handoff is preserved as PHASE0_HANDOFF_HISTORICAL_fb87e24.md
 
 ## Important current findings
 
-1. Host checkout `de93134` is 4 commits ahead and 641 behind current GitHub `main` (`7f45642`; merge base `fb87e247`). The remote continuity branch is now `30787db` and is 311 ahead / 641 behind `main`; it is not the local host checkout. Local cached tracking refs are stale. No fetch, pull or rebase was performed; do not merge/rebase main wholesale.
+1. Host checkout `de93134` is 4 commits ahead and 641 behind current GitHub `main` (`7f45642`; merge base `fb87e247`). At the 26 November comparison, the remote continuity branch was `30787db` and 311 ahead / 641 behind `main`; it is not the local host checkout. Local cached tracking refs are stale. No fetch, pull or rebase was performed; do not merge/rebase main wholesale.
 2. The active branch contains Phase 1 continuity code from f9ac58d. The flag defaults OFF; live activation and behavioural effect are UNKNOWN. Do not arm it before Gate 0 and explicit approval.
 3. The actual sense scheduler starts external feeds during construction. It has 28 adapters (4 internal, 24 external). Documentation was stale and is corrected in the current reconciliation PR; no scheduler logic was changed.
 4. CoherenceGate's module header understates current HOLD/RESHAPE handling; evaluation exceptions return ACCEPT; sense distillation explicitly bypasses the gate. These scope/failure-policy questions are in the defect backlog; do not change them without the governing spec and founder review.
