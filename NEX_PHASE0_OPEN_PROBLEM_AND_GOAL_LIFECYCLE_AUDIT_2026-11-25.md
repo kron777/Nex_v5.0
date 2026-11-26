@@ -122,3 +122,15 @@ Consequently the 30-day ProblemMemory auto-close and 60-day GoalManager auto-can
 ### Boundary
 
 No state vocabulary, prompt injection, decay scheduling, review promotion, problem lifecycle, or Gate query was changed. Do not alter any of these until the governing Frozen V2.1 / roadmap authority and Gate 0 decision are recovered or explicitly re-established.
+
+## 8. CounterfactualNode selection progress is not advanced by its own tick
+
+`CounterfactualNode._process_one()` selects exactly one `open_problems` row with `ORDER BY last_touched_at ASC LIMIT 1`. Its default loop interval is 300 seconds. After selecting a row, `_process_one()` does not update `last_touched_at` or call `ProblemMemory.touch()`.
+
+The absence matters on every path: no candidate, no buildable refinement, all Gate decisions non-ACCEPT, and successful insertion all leave the selected problem's timestamp unchanged in CounterfactualNode itself. The next tick therefore selects the same row again unless another component independently touches it or changes its state. This can starve newer open problems behind one unchanged oldest row.
+
+`ProblemMemory.touch()` already exists and documents its purpose as LRU rotation after an attempted reconciliation that did not append an observation. CounterfactualNode is not wired to ProblemMemory and does not use the helper. Whether the same rotation contract should apply to this distinct consumer remains a design question.
+
+Coverage is incomplete: the existing `test_open_problem_is_processed` exercises one open problem only. No test was found that seeds two or more open problems, runs repeated ticks, and checks whether selection advances after an empty result, Gate rejection or ACCEPT.
+
+**Disposition:** treat this as a source-level progress/fairness candidate, not a confirmed live starvation incident. Define whether CounterfactualNode should retain focus on the oldest problem until an external update or rotate after each attempt. If rotation is intended, define which outcomes advance the timestamp and add multi-problem isolated fixtures. No code, live data, problem state or loop behaviour was changed.
