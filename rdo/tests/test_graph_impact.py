@@ -1,0 +1,133 @@
+"""Differential before/after analysis for relationships around changed capabilities."""
+from rdo.graph import compare_adjacent_relationship_impacts
+
+
+def _cycle(relationships, tension):
+    return {"relationships": relationships, "tension": tension}
+
+
+def _assessment(subject, verdict="unknown", dimensions=None, note=""):
+    return {
+        "level": "relationship",
+        "subject": subject,
+        "verdict": verdict,
+        "inference": True,
+        "evidence": [],
+        "dimensions": dimensions or {},
+        "note": note,
+    }
+
+
+def test_changed_capability_reports_incident_relationship_and_assessment_deltas():
+    subject = "reader -depends_on-> store"
+    before = _cycle(
+        [{
+            "src": "reader", "dst": "store", "kind": "depends_on",
+            "interface_profile": {"latency": {"status": "unknown"}},
+        }, {
+            "src": "other", "dst": "unrelated", "kind": "depends_on",
+        }],
+        [_assessment(subject, dimensions={
+            "profile_status": "supplied",
+            "performance_margins": {"status": "not_supplied"},
+        })],
+    )
+    after = _cycle(
+        [{
+            "src": "reader", "dst": "store", "kind": "depends_on",
+            "interface_profile": {"latency": {"status": "measured", "value": 0.8}},
+            "performance_margins": {"latency_utility": {"margin": 0.1}},
+        }, {
+            "src": "other", "dst": "unrelated", "kind": "depends_on",
+        }],
+        [_assessment(subject, dimensions={
+            "profile_status": "supplied",
+            "performance_margins": {"status": "evidence_recorded"},
+        })],
+    )
+
+    report = compare_adjacent_relationship_impacts(before, after, ["store"])
+    assert report["status"] == "compared"
+    assert report["changed_capabilities"] == ["store"]
+    assert len(report["affected_relationships"]) == 1
+    item = report["affected_relationships"][0]
+    assert item["identity"] == subject
+    assert item["neighbours"] == ["reader"]
+    assert item["relationship_status"] == "changed"
+    assert item["assessment_status"] == "compared"
+    assert item["assessment_changed"] is True
+    assert item["verdict_changed"] is False
+    assert "performance_margins" in item["changed_dimensions"]
+    assert "not proof of causality" in report["note"]
+
+
+def test_unchanged_relationship_can_still_have_changed_assessment():
+    subject = "reader -depends_on-> store"
+    relationships = [{"src": "reader", "dst": "store", "kind": "depends_on"}]
+    before = _cycle(relationships, [_assessment(subject, dimensions={
+        "operating_envelope": {"status": "unknown"},
+    })])
+    after = _cycle(relationships, [_assessment(subject, dimensions={
+        "operating_envelope": {"status": "evidence_recorded"},
+    })])
+
+    report = compare_adjacent_relationship_impacts(before, after, ["store"])
+    item = report["affected_relationships"][0]
+    assert item["relationship_status"] == "unchanged"
+    assert item["assessment_changed"] is True
+    assert item["changed_dimensions"] == ["operating_envelope"]
+    assert report["status"] == "compared"
+
+
+def test_added_and_removed_neighbour_relationships_are_reported_separately():
+    before = _cycle(
+        [{"src": "old_reader", "dst": "store", "kind": "depends_on"}],
+        [_assessment("old_reader -depends_on-> store")],
+    )
+    after = _cycle(
+        [{"src": "new_reader", "dst": "store", "kind": "depends_on"}],
+        [_assessment("new_reader -depends_on-> store")],
+    )
+
+    report = compare_adjacent_relationship_impacts(before, after, ["store"])
+    by_identity = {item["identity"]: item for item in report["affected_relationships"]}
+    assert by_identity["old_reader -depends_on-> store"]["relationship_status"] == "removed"
+    assert by_identity["old_reader -depends_on-> store"]["assessment_status"] == "assessment_removed"
+    assert by_identity["new_reader -depends_on-> store"]["relationship_status"] == "added"
+    assert by_identity["new_reader -depends_on-> store"]["assessment_status"] == "newly_assessed"
+    assert report["status"] == "compared"
+
+
+def test_missing_assessment_keeps_differential_report_partial():
+    relationships = [{"src": "reader", "dst": "store", "kind": "depends_on"}]
+    before = _cycle(relationships, [_assessment("reader -depends_on-> store")])
+    after = _cycle(relationships, [])
+
+    report = compare_adjacent_relationship_impacts(before, after, ["store"])
+    assert report["status"] == "partial"
+    assert report["affected_relationships"][0]["assessment_status"] == "missing_after"
+
+
+def test_non_incident_relationships_are_excluded_and_missing_scope_stays_unknown():
+    before = _cycle(
+        [{"src": "reader", "dst": "database", "kind": "depends_on"}],
+        [_assessment("reader -depends_on-> database")],
+    )
+    after = before
+
+    report = compare_adjacent_relationship_impacts(before, after, ["store"])
+    assert report["status"] == "no_adjacent_relationships"
+    assert report["affected_relationships"] == []
+
+    no_scope = compare_adjacent_relationship_impacts(before, after, [])
+    assert no_scope["status"] == "not_supplied"
+
+
+def test_invalid_cycle_snapshots_fail_closed():
+    report = compare_adjacent_relationship_impacts(
+        {"relationships": "bad", "tension": []},
+        {"relationships": [], "tension": []},
+        ["store"],
+    )
+    assert report["status"] == "partial"
+    assert report["invalid_relationship_records"] == 1
