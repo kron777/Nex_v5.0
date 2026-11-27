@@ -419,7 +419,7 @@ def compare_adjacent_relationship_impacts(
             except (TypeError, ValueError):
                 invalid += 1
                 continue
-            groups.setdefault(identity, []).append((encoded, record))
+            groups.setdefault(identity, []).append((encoded, json.loads(encoded)))
         return {
             key: [record for _, record in sorted(items, key=lambda pair: pair[0])]
             for key, items in groups.items()
@@ -441,8 +441,16 @@ def compare_adjacent_relationship_impacts(
             if not isinstance(subject, str) or not subject.strip() or subject != subject.strip():
                 invalid += 1
                 continue
-            groups.setdefault(subject, []).append(record)
-        return groups, invalid
+            try:
+                encoded = json.dumps(record, sort_keys=True, separators=(",", ":"))
+            except (TypeError, ValueError):
+                invalid += 1
+                continue
+            groups.setdefault(subject, []).append((encoded, json.loads(encoded)))
+        return {
+            key: [record for _, record in sorted(items, key=lambda pair: pair[0])]
+            for key, items in groups.items()
+        }, invalid
 
     before_nodes, invalid_before_obligations = _obligation_keys(before_cycle)
     after_nodes, invalid_after_obligations = _obligation_keys(after_cycle)
