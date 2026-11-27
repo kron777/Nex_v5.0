@@ -385,6 +385,12 @@ A fresh-schema static-SQL compilation failure exposed a missing shared schema de
 - **PR #239 — SurpriseLoop monotonic event cursor: OPEN; exact-head CI passed.** It proposes tie-safe event paging, retry-safe checkpoint handling and related duplicate-content treatment. Despite green tests, it remains **held for founder Gate 0 review** because it changes which events may enter the belief corpus. Do not merge, deploy or activate it before that approval.
 - **PR #243 CI** is still running at the time of writing; the result must be checked before any merge decision. A green result on another PR or on a prior base does not substitute for #243's exact-head result.
 
+### G-70 refinement — speech outcome state versus causal trace
+
+A targeted source recheck refines the wording of G-70. The speech path is not wholly unobservable after enqueue: `speech/queue_consumer.py` updates each queue row through `speaking` and then `spoken`, or `failed` on synthesis/playback exceptions; non-speakable content is marked `suppressed`. `speech/player.py` calls `sounddevice.play(..., blocking=True)` and `sd.wait()`. Therefore a persisted `spoken` status means the playback call returned without raising; it is not independent acoustic confirmation that sound reached a listener.
+
+The remaining G-70 gap is specifically **cross-thread causal trace continuity**: the Fountain trace records the `speech_queue` enqueue Writer delta and queue-row ID, but the consumer does not continue that trace with parent-linked dequeue, synthesis, playback-start/completion or failure events. The queue status columns are operational outcome state, not a substitute for a parent-linked trace. This refinement does not change the finding's OPEN status and does not authorize speech-path changes.
+
 ### Development and evidence interpretation
 
 The current work continues the research → bounded implementation → rescan → consequence analysis → documentation cycle. Persistence ownership fixes and schema completeness are kept separate from cognitive-policy changes. A green unit or full-suite result demonstrates only the tested repository state and paths; it does not prove that a feature flag is enabled, a worker is running, a host database has migrated, or a behavioural effect is beneficial.
