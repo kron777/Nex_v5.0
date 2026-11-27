@@ -610,6 +610,12 @@ The source-level G-70 gap is now addressed by a bounded development proposal, **
 - **Safety boundary:** no speech text/audio is added to trace metadata; no schema, speech selection, queue ordering, cadence, synthesis/playback behaviour, flags or cognitive decisions are intentionally changed. The trace overlay remains default OFF. The registry is process-local and does not reconstruct lineage after restart.
 - **Evidence limitation:** `spoken` remains an operational status meaning the blocking playback call returned without raising; it is not acoustic confirmation that a listener heard sound. This PR does not establish live L4 capture or complete M0.5 acceptance.
 - **Tests:** dedicated regression coverage includes registry bound/expiry/one-shot behaviour, successful playback lineage, synthesis/playback failures, suppression and queue-status write failure.
-- **CI:** exact-head full-suite run `46018844996` is still **IN PROGRESS** at the time of this update; the disposable test image built successfully and the baseline suite step is running. No passing result is claimed yet.
+- **CI:** exact-head full-suite run `46018844996` **PASSED**: 2,606 passed, 7 skipped, 45 subtests; baseline OK. The sandbox probe also passed (unprivileged, no capabilities/credentials, read-only source, disposable data, no outbound network). Mind-map verification reported 30 nodes, 0 unverified, 14 dark, 2 blocked, with the two missing doctrine references and overdue P13 warning retained. It also surfaced a stale P9 schema line anchor; the schema/table was rechecked and its reference was corrected in this documentation branch, pending its own exact-head mind-map verification.
 - **Disposition:** G-70 remains **OPEN / implementation proposed pending exact-head verification and review**. PR #261 is draft and unmerged. No live runtime, speech device, database or feature flag was touched.
+
+
+
+## 34. P9 source-anchor re-verification after daemon_kv schema insertion (27 November 2026)
+
+The PR #261 exact-head mind-map check reported P9 as stale because `substrate/schema/dynamic.sql` changed on current main. A comparison of the prior and current schema blobs showed the entire change was an eight-line `daemon_kv` table insertion at the beginning of the file. The `held_tensions` definition itself was byte-for-byte unchanged and moved from lines 144–159 to 152–167. The P9 Harmonizer path and focused held-tension/retry tests were re-read. The source anchor and `last_verified` date were updated in the current documentation branch only; no P9 status or runtime behaviour changed. The next documentation-branch CI must confirm the mind-map verifier is clean apart from the known missing-doctrine/P13 warnings.
 
