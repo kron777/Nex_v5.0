@@ -486,7 +486,7 @@ def reconcile(
         stats = conversation_writer.transaction(_reconcile_transaction)
         try:
             from theory_x.stage_world import learning_guards as _lg
-            _lg.record_tick(now, conversations_writer=conversation_writer)
+            _lg.record_tick(now)
         except Exception as exc:
             log.warning("learning guard tick failed: %s", exc)
         if any(stats[k] for k in ("confirmed", "violated", "unresolved")):
