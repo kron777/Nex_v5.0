@@ -293,3 +293,19 @@ These findings were rechecked against current main after the bounded persistence
 - **Pending proposal:** PR #102 adds an in-memory ID-keyset cursor with wraparound, makes ClockRunner's scanner persistent, and adds tier/paused/retired filters to scan, dormant selection and reanimation. PR #145 adds tests for partial-tail wraparound and persistent-instance reuse. Both exact-head runs passed on their own older base, but neither branch has been revalidated on current main. The proposal still leaves DiversityLoop and ClockRunner with separate scanner instances/cursors.
 - **Defence-in-depth gap in the proposal:** its final Fountain reanimation fetch rechecks `tier <= 7` and `paused = 0` but does not recheck `erosion_stage != 'retired'`, unlike the preceding dormant/reanimation queries. Add a regression for a belief retired between selection and final injection before treating the path as fully guarded.
 - **Disposition:** **OPEN — scan coverage/ownership and eligibility contract.** Confirm whether two scan cadences are intentional and whether the retired marker must be enforced at every injection boundary. Do not merge/replay the behavioural filters or alter maintenance cadence before the governing policy/Gate 0 review. No live dormancy rows or runtime scan frequency were inspected.
+
+
+### G-74 — Warrant scoring and survival scans do not filter the retired-stage marker (OPEN / eligibility contract)
+
+- **Sources:** `theory_x/stage_warrant/warrant.py::compute_all()`; `theory_x/stage_warrant/recorder.py::survival_cycle()`.
+- **Verified on current main:** WarrantPass selects unpaused beliefs with `tier <= max_tier` (default 7) but does not read/filter `erosion_stage`. WarrantRecorder survival selects unlocked, unpaused Tier 3 / 5–6 / 7 rows and likewise does not filter `erosion_stage`.
+- **Qualification:** `erosion_stage='retired'` is an independent marker in the broader eligibility system. Harmonizer's normal retirement path writes Tier 8; no normal runtime writer for a lower-tier retired marker was established, and no live rows were inspected.
+- **Conditional impact:** if a lower-tier, unpaused row carries the retired marker, WarrantPass may include it in scoring and WarrantRecorder may include it in shadow survival checks.
+- **Disposition:** confirm whether the retired marker overrides tier for Warrant scoring and survival. If yes, add isolated lower-tier-retired fixtures and filters to both paths. No scoring, recorder, schema or runtime behavior changed.
+
+### G-75 — WarrantRecorder and WarrantPass have distinct normal-boot boundaries (OPEN / lifecycle question)
+
+- **Sources:** `run.py`, `theory_x/stage_warrant/recorder.py`, `theory_x/stage_warrant/warrant.py`, `gui/server.py`, `tools/warrant_validate.py`, and tracked `nex_keepalive.sh`.
+- **Verified on current main:** `run.py` constructs and starts WarrantRecorder only behind `NEX5_WARRANT_RECORD == '1'`. No normal construction/start of the periodic WarrantPass loop was found in the inspected `run.py` or `gui/server.py` paths, although WarrantPass has its own `NEX5_WARRANT` start guard and its module docstring describes background operation. `tools/warrant_validate.py` calls `compute_all()` once for read-only validation; it does not start the periodic loop.
+- **Configuration qualification:** the tracked keepalive declares `NEX5_WARRANT_RECORD=1` but not `NEX5_WARRANT`. The known launcher path blocker and uninspected user systemd unit mean host-effective activation remains UNKNOWN.
+- **Disposition:** record-only operation may be intentional while Warrant evidence accrues after its failed validation gate. Clarify the intended lifecycle and correct the module documentation if needed; do not wire WarrantPass, alter flags or change its gate without founder approval. No live process or `belief_warrant` state was inspected.
