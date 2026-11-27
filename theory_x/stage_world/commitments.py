@@ -44,7 +44,7 @@ import re
 import time
 from typing import Optional
 
-from substrate import connect, Row
+from substrate import connect, Row, Reader, Writer
 from substrate.paths import DbPath
 from theory_x.stage_world.frozen_at_made import (
     FROZEN_INSERT_COLS, FROZEN_PLACEHOLDERS, ensure_frozen_columns, frozen_values,
@@ -128,18 +128,36 @@ def enabled() -> bool:
     return os.environ.get("NEX5_COMMITMENTS") == "1"
 
 
-def ensure_schema(db_path=None) -> None:
-    cx = connect(str(db_path or CONVERSATIONS_DB), timeout=10)
+def ensure_schema(
+    db_path=None,
+    conversations_writer: Writer | None = None,
+) -> None:
+    """Create/upgrade the commitment schema through the conversations Writer."""
+    owns_writer = conversations_writer is None
+    writer = conversations_writer
     try:
-        cx.execute(_SCHEMA)
-        cx.execute("CREATE INDEX IF NOT EXISTS idx_commitments_state ON commitments(state, kind)")
-        cx.execute("CREATE TABLE IF NOT EXISTS commitment_cursor ("
-                   "source TEXT PRIMARY KEY, last_id INTEGER NOT NULL)")
-        ensure_frozen_columns(cx, "commitments")
-        cx.execute(_RELEASE_GUARD)
-        cx.commit()
+        if writer is None:
+            writer = Writer(
+                str(db_path or CONVERSATIONS_DB), name="commitments_schema"
+            )
+
+        def _ensure(cx):
+            cx.execute(_SCHEMA)
+            cx.execute(
+                "CREATE INDEX IF NOT EXISTS idx_commitments_state "
+                "ON commitments(state, kind)"
+            )
+            cx.execute(
+                "CREATE TABLE IF NOT EXISTS commitment_cursor ("
+                "source TEXT PRIMARY KEY, last_id INTEGER NOT NULL)"
+            )
+            ensure_frozen_columns(cx, "commitments")
+            cx.execute(_RELEASE_GUARD)
+
+        writer.transaction(_ensure)
     finally:
-        cx.close()
+        if owns_writer and writer is not None:
+            writer.close()
 
 
 # ------------------------------------------------------------------- parsing --
@@ -255,46 +273,79 @@ def _set_cursor(cx, source, last_id):
                "ON CONFLICT(source) DO UPDATE SET last_id=excluded.last_id", (source, last_id))
 
 
-def scan(conv_db=None, dyn_db=None) -> dict:
-    """Read her new utterances (fountain thoughts; her chat replies), record any
-    commitments/intentions, and any releases of open commitments."""
-    conv_db = str(conv_db or CONVERSATIONS_DB)
-    ensure_schema(conv_db)
-    stats = {"commitments": 0, "intentions": 0, "releases": 0}
-    cx = connect(conv_db, timeout=10)
-    cx.row_factory = Row
+def scan(
+    conv_db=None,
+    dyn_db=None,
+    *,
+    conversations_writer: Writer | None = None,
+    dynamic_reader: Reader | None = None,
+) -> dict:
+    """Read new utterances and record commitments through the canonical Writer.
+
+    The entire conversations scan is one Writer transaction. Fountain events
+    are read through the dynamic Reader; no write-capable connection is opened
+    to the dynamic database.
+    """
+    owns_writer = conversations_writer is None
+    writer = conversations_writer
     try:
-        dx = connect(f"file:{dyn_db or DYNAMIC_DB}?mode=ro", uri=True, timeout=10)
-        try:
-            fires = dx.execute("SELECT id, ts, thought FROM fountain_events WHERE id > ? "
-                               "AND thought IS NOT NULL AND thought != '' ORDER BY id",
-                               (_cursor(cx, "fountain"),)).fetchall()
-        finally:
-            dx.close()
-        msgs = cx.execute(
-            "SELECT m.id, m.timestamp, m.role, m.content, COALESCE(s.admin, 0) AS admin "
-            "FROM messages m LEFT JOIN sessions s ON s.id = m.session_id "
-            "WHERE m.id > ? ORDER BY m.id", (_cursor(cx, "chat"),)).fetchall()
-        utterances = [("fountain", r[0], float(r[1]), r[2], False, "nex") for r in fires]
-        utterances += [("chat", r["id"], float(r["timestamp"]), r["content"], bool(r["admin"]),
-                        r["role"]) for r in msgs]
-        for source, rid, ts, text, admin, role in utterances:
-            if role == "nex":
-                for i, c in enumerate(parse(text, ts, operator_present=admin)):
-                    if _record(cx, source, rid, i, ts, c):
-                        stats["commitments" if c["kind"] == "commitment" else "intentions"] += 1
-                if _RELEASE.search(text or ""):
-                    stats["releases"] += _release_matching(cx, "self", text, ts, f"{source}:{rid}")
-            elif role == "user" and admin and _CP_RELEASE.search(text or ""):
-                stats["releases"] += _release_matching(cx, "counterparty", text, ts,
-                                                       f"chat:{rid}", counterparty="operator")
-        if fires:
-            _set_cursor(cx, "fountain", fires[-1][0])
-        if msgs:
-            _set_cursor(cx, "chat", msgs[-1]["id"])
-        cx.commit()
+        if writer is None:
+            writer = Writer(
+                str(conv_db or CONVERSATIONS_DB), name="commitments"
+            )
+        reader = dynamic_reader or Reader(str(dyn_db or DYNAMIC_DB))
+        ensure_schema(conversations_writer=writer)
+
+        def _scan(cx):
+            cx.row_factory = Row
+            stats = {"commitments": 0, "intentions": 0, "releases": 0}
+            fires = reader.read(
+                "SELECT id, ts, thought FROM fountain_events WHERE id > ? "
+                "AND thought IS NOT NULL AND thought != '' ORDER BY id",
+                (_cursor(cx, "fountain"),),
+            )
+            msgs = cx.execute(
+                "SELECT m.id, m.timestamp, m.role, m.content, "
+                "COALESCE(s.admin, 0) AS admin "
+                "FROM messages m LEFT JOIN sessions s ON s.id = m.session_id "
+                "WHERE m.id > ? ORDER BY m.id",
+                (_cursor(cx, "chat"),),
+            ).fetchall()
+            utterances = [
+                ("fountain", r["id"], float(r["ts"]), r["thought"], False, "nex")
+                for r in fires
+            ]
+            utterances += [
+                ("chat", r["id"], float(r["timestamp"]), r["content"],
+                 bool(r["admin"]), r["role"])
+                for r in msgs
+            ]
+            for source, rid, ts, text, admin, role in utterances:
+                if role == "nex":
+                    for i, item in enumerate(parse(text, ts, operator_present=admin)):
+                        if _record(cx, source, rid, i, ts, item):
+                            stats[
+                                "commitments" if item["kind"] == "commitment" else "intentions"
+                            ] += 1
+                    if _RELEASE.search(text or ""):
+                        stats["releases"] += _release_matching(
+                            cx, "self", text, ts, f"{source}:{rid}"
+                        )
+                elif role == "user" and admin and _CP_RELEASE.search(text or ""):
+                    stats["releases"] += _release_matching(
+                        cx, "counterparty", text, ts, f"chat:{rid}",
+                        counterparty="operator",
+                    )
+            if fires:
+                _set_cursor(cx, "fountain", fires[-1]["id"])
+            if msgs:
+                _set_cursor(cx, "chat", msgs[-1]["id"])
+            return stats
+
+        stats = writer.transaction(_scan)
     finally:
-        cx.close()
+        if owns_writer and writer is not None:
+            writer.close()
     if any(stats.values()):
         log.info("commitments: %s", stats)
     return stats
@@ -318,20 +369,35 @@ def _release_matching(cx, by, text, ts, ref, counterparty=None) -> int:
     return n
 
 
-def record_release(commitment_id, by, at, ref, cx=None) -> None:
-    """The only way a release is recorded. The schema refuses any `by` other than
-    'self' or 'counterparty' (the system can never release) and any release at
-    or after the deadline."""
-    own = cx is None
-    cx = cx or connect(str(CONVERSATIONS_DB), timeout=10)
+def record_release(
+    commitment_id,
+    by,
+    at,
+    ref,
+    cx=None,
+    conversations_writer: Writer | None = None,
+) -> None:
+    """Record a release; caller transaction or canonical conversations Writer."""
+    if cx is not None:
+        cx.execute(
+            "UPDATE commitments SET released_by=?, released_at=?, release_ref=? "
+            "WHERE id=?",
+            (by, at, ref, commitment_id),
+        )
+        return
+    owns_writer = conversations_writer is None
+    writer = conversations_writer
     try:
-        cx.execute("UPDATE commitments SET released_by=?, released_at=?, release_ref=? "
-                   "WHERE id=?", (by, at, ref, commitment_id))
-        if own:
-            cx.commit()
+        if writer is None:
+            writer = Writer(str(CONVERSATIONS_DB), name="commitments_release")
+        writer.write(
+            "UPDATE commitments SET released_by=?, released_at=?, release_ref=? "
+            "WHERE id=?",
+            (by, at, ref, commitment_id),
+        )
     finally:
-        if own:
-            cx.close()
+        if owns_writer and writer is not None:
+            writer.close()
 
 
 # ----------------------------------------------------------------- evidence --
