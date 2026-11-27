@@ -73,8 +73,9 @@ Roadmap v3.0 M0.5 (technical causal trace) is distinct from V2.1 M0.5 (six doctr
 ## D. Test / CI evidence
 
 - Exact M0.5 PR head `6d371fe385fc02a2c238247b39aff82681888745`: 2,491 passed, 7 skipped, 40 subtests, baseline OK, CI run #1392.
-- Mind-map verification: completed with warnings only; no hard errors. Warnings include 2 missing doctrine references, stale verification dates and one past-due unblock marker.
-- The post-merge push run `45939220368` on `66a97964f0531c16d60637dc8291b42e0b73f00b` was still pending/in progress at the time this backlog was drafted. Append its final result after completion.
+- Push run #1393 (`45939220368`) is on parent commit `612022e81f749a99de665372704d7acc0645de67`, before PR #153 merged; it is not post-merge evidence for `66a9796`.
+- Current main `ae406fa8fcb1abdf25cdf4ae1bd65333e1148ca8`: 2,508 passed, 7 skipped, 40 subtests, baseline OK, CI run `45951932639`.
+- Current mind-map verification: 30 nodes, 0 unverified, 14 dark, 2 blocked; 61 verifier warnings (58 stale-source, 2 missing doctrine references, 1 past-due `p13_finitude` marker).
 
 ## E. Additional bounded producer/consumer findings verified on current main
 
