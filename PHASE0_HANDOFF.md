@@ -2,7 +2,7 @@
 
 **Date:** 27 November 2026  
 **Repository:** https://github.com/kron777/Nex_v5.0  
-**Evidence snapshot:** `main` at `e4f439e6aef4383795ccc7e3e29b1d242ed0f98c`  
+**Evidence snapshot:** `main` at `8d2121d121931d37afcb1c3d23d27e7ccc9145d1`  
 **Gate 0:** **PENDING — founder review required**
 
 ## Read these together
@@ -242,3 +242,23 @@ The canonical manual is `INDEX.md`; its plain-text mirror is `NEX_5.0_DEVELOPMEN
 ## Post-PR #274 merge — mind-map freshness evidence (27 November 2026)
 
 **Current main:** `e4f439e6aef4383795ccc7e3e29b1d242ed0f98c`. PR #274 merged after exact-head run `46037202834` passed 2,632 tests, 7 skipped and 45 subtests with baseline OK. The CI mind-map verifier reported 30 nodes, 0 unverified, 14 dark, 2 blocked and no stale-source warnings. Two missing doctrine references and the overdue P13 marker remain; see D-03/E-05 in the backlog. The P13 marker is not permission to rearm. The manual mirror was re-fetched and verified byte-identical to INDEX after merge. No runtime, host, database or feature-flag activity occurred.
+
+
+## Current-main system research continuation — 27 November 2026
+
+**Evidence snapshot:** `main` at `8d2121d121931d37afcb1c3d23d27e7ccc9145d1`. See `NEX_PHASE0_SYSTEM_RESEARCH_2026-11-27.md` and the updated verified defect backlog.
+
+- PR #275 merged as `49837fd`; exact-head run passed 2,632 tests, 7 skipped, 45 subtests.
+- PR #276 merged as `baac692`; exact-head and post-merge main CI passed 2,634 tests, 7 skipped, 45 subtests. RDO source searches now exclude generated `.cycles`.
+- PR #277 merged as `14873c1`; exact-head CI passed 2,636 tests, 7 skipped, 45 subtests. Keepalive checkout path is portable; `MOLTBOOK_DRY_RUN=1` remains unchanged.
+- Current mind-map check: 30 nodes, 0 unverified, 14 dark, 2 blocked; no stale-source warnings. Two doctrine references and the past-due P13 marker remain.
+- New open findings: G-80 reanimation handoff durability; G-81 divergent fire counters; G-83 groove-alert replay; G-84 shutdown quiescence; G-85 SignalToProblem one-pen/cross-database boundary; G-86 SignalReaper allowlist drift; G-87 Moltbook dry-run/external-consent semantics; G-90 contextual social-silence capability gap; G-91 SocialPresence boot/protocol mismatch. Scanner coverage remains under G-73.
+- The global one-pen audit remains open. SignalToProblem is a boot-registered direct-writer path and its cross-database recovery contract needs explicit design before migration.
+- The RDO remains external/advisory; raw objective seeding and v1.3/v1.4 precedence remain open architecture/governance questions.
+
+No live host, runtime, database, credential or external service was accessed. No cognitive policy, feature flag, MIND_MAP node, frozen S-01–S-25 register, Master Roadmap or Gate 0 decision changed. Gate 0 remains pending founder review; Phase 1 remains unauthorized.
+
+
+### Post-research-snapshot PR #279 update — 27 November 2026
+
+PR #279 merged as `8d2121d121931d37afcb1c3d23d27e7ccc9145d1`; exact-head CI run `46044361663` passed 2,638 tests, 7 skipped, 45 subtests, baseline OK. It moves the scheduled prose-statistics rebuild to the shared beliefs Writer/Reader path. This closes the auxiliary write bypass, not SignalToProblem's primary split-database transaction. G-85/G-61 remain open pending a defined idempotency/recovery contract. No post-merge main CI run was returned at this update.
