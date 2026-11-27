@@ -289,7 +289,7 @@ When in doubt: the current source and approved governing documents win—not thi
 
 ---
 
-*Last amended: 27 November 2026 — refreshed after #189, #191, #196, #199, #200 and #228; records the DAG CLI correction and the follow-up prerequisite-integrity validation in progress.*
+*Last amended: 27 November 2026 — records the merged #229/#232 DAG integrity fixes, #233 policy-scan coverage, and #223–#226 bounded one-pen migrations; #235 carries the additional DAG input-shape guard.*
 
 
 
