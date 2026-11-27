@@ -73,38 +73,71 @@ class Writer:
         self._started = threading.Event()
         self._open_error: Optional[BaseException] = None
         self._busy_timeout_ms = busy_timeout_ms
+        # Submission and shutdown share one lock so every accepted request is
+        # queued before the shutdown sentinel, and every later request fails
+        # synchronously instead of being stranded behind it.
+        self._lifecycle_lock = threading.Lock()
+        self._accepting = True
+        self._sentinel_enqueued = False
         self.start()
 
     # --- lifecycle --------------------------------------------------------
 
     def start(self) -> None:
-        if self._thread is not None and self._thread.is_alive():
-            return
-        self._started.clear()
-        self._thread = threading.Thread(
-            target=self._run,
-            name=f"Writer({self.name})",
-            daemon=True,
-        )
-        self._thread.start()
+        with self._lifecycle_lock:
+            if self._thread is not None and self._thread.is_alive():
+                return
+            self._started.clear()
+            self._open_error = None
+            self._accepting = True
+            self._sentinel_enqueued = False
+            thread = threading.Thread(
+                target=self._run,
+                name=f"Writer({self.name})",
+                daemon=True,
+            )
+            self._thread = thread
+            thread.start()
         self._started.wait()
         if self._open_error is not None:
             raise RuntimeError(
                 f"Writer failed to open {self.db_path}"
             ) from self._open_error
 
-    def close(self) -> None:
-        """Graceful shutdown — drain the queue, close the connection."""
-        if self._thread is None:
-            return
-        self._queue.put(_SENTINEL)
-        self._thread.join(timeout=10.0)
-        self._thread = None
+    def close(self, timeout: float = 10.0) -> None:
+        """Stop accepting work, drain accepted requests, then close the connection.
+
+        A timeout leaves the worker reference intact and raises TimeoutError;
+        callers must not assume the connection has closed. Repeated close calls
+        wait on the same shutdown sentinel. A later explicit start may reopen a
+        fully stopped Writer.
+        """
+        with self._lifecycle_lock:
+            thread = self._thread
+            if thread is None:
+                return
+            if self._accepting:
+                self._accepting = False
+            if not self._sentinel_enqueued:
+                self._queue.put(_SENTINEL)
+                self._sentinel_enqueued = True
+
+        thread.join(timeout=max(0.0, timeout))
+        if thread.is_alive():
+            raise TimeoutError(
+                f"Writer {self.name} did not stop within {timeout:.3f}s"
+            )
+        with self._lifecycle_lock:
+            if self._thread is thread:
+                self._thread = None
 
     # --- submission -------------------------------------------------------
 
     def submit(self, req: WriteRequest) -> Future:
-        self._queue.put(req)
+        with self._lifecycle_lock:
+            if not self._accepting or self._thread is None or not self._thread.is_alive():
+                raise RuntimeError(f"Writer {self.name} is closed or not running")
+            self._queue.put(req)
         return req.future
 
     def write(self, sql: str, params: Sequence[Any] = ()) -> Any:
