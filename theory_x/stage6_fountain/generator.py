@@ -2642,12 +2642,11 @@ class FountainGenerator:
         if os.environ.get("NEX5_HOT_OBSERVER") == "1":
             try:
                 from theory_x.stage_tom.hot_observer import observe as _hot_obs
-                try:
-                    from substrate.paths import db_paths as _dbp_hot
-                    _bdb_hot = str(_dbp_hot()["beliefs"])
-                except Exception:
-                    _bdb_hot = str(db_paths()["beliefs"])
-                _hot_obs(thought or "", _carry_branch or "", _bdb_hot)
+                _hot_obs(
+                    thought or "",
+                    _carry_branch or "",
+                    beliefs_writer=self._beliefs_writer,
+                )
             except Exception:
                 pass  # never stall a fire
         # Binding/Momentum: capture the carried thread for the next fire.
