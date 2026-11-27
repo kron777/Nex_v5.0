@@ -72,6 +72,7 @@ FORBIDDEN_AUTHORITY_KEYS = {
 }
 RUNTIME_ROOTS = (
     "run.py", "gui", "theory_x", "substrate", "speech", "voice", "admin",
+    "strikes", "influence_trace.py",
     "nex_config.py", "power_switch.py", "keystone.py", "alpha.py", "errors.py",
     "nex5_rate.py",
 )
