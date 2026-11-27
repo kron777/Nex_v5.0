@@ -61,6 +61,8 @@ _DDL = (
     " last_day INTEGER, updated_at REAL)",
     "CREATE TABLE IF NOT EXISTS warrant_record_cursor ("
     " name TEXT PRIMARY KEY, value REAL NOT NULL, tie_id INTEGER NOT NULL DEFAULT 0)",
+    "CREATE TABLE IF NOT EXISTS warrant_record_cursor_v2 ("
+    " name TEXT PRIMARY KEY, value TEXT NOT NULL)",
 )
 
 
@@ -146,6 +148,30 @@ class WarrantRecorder:
             ))
         write_batch(self._w, rows)
 
+    def _tuple_cursor(self, name: str, default: tuple) -> tuple:
+        import json
+        row = self._br.read_one(
+            "SELECT value FROM warrant_record_cursor_v2 WHERE name=?", (name,)
+        )
+        if not row:
+            return default
+        try:
+            value = tuple(json.loads(row["value"]))
+            return value if len(value) == len(default) else default
+        except Exception:
+            return default
+
+    def _set_tuple_cursors(self, values: dict) -> None:
+        import json
+        write_batch(self._w, [
+            (
+                "INSERT INTO warrant_record_cursor_v2 (name, value) VALUES (?, ?) "
+                "ON CONFLICT(name) DO UPDATE SET value=excluded.value",
+                (key, json.dumps(value)),
+            )
+            for key, value in values.items()
+        ])
+
     # ── 1. survival ─────────────────────────────────────────────────────────
     def survival_cycle(self, now: Optional[float] = None) -> int:
         self._ensure()
@@ -211,18 +237,35 @@ class WarrantRecorder:
             "SELECT id, belief_id_a, belief_id_b, ts FROM synergizer_log WHERE id > ? "
             "ORDER BY id LIMIT ?", (int(c), _USE_BATCH)),
             "id", ("belief_id_a", "belief_id_b"), "ts")
-        c, rowid = self._cursor_pair("use_lineage_ts")
-        take("use_lineage_ts", self._br.read(
-            "SELECT rowid, created_at, parent_id FROM belief_lineage "
-            "WHERE created_at > ? OR (created_at = ? AND rowid > ?) "
-            "ORDER BY created_at, rowid LIMIT ?", (c, c, rowid, _USE_BATCH)),
-            "rowid", ("parent_id",), "created_at", tie_key="rowid")
-        c, rowid = self._cursor_pair("use_arc_ts")
-        take("use_arc_ts", self._br.read(
-            "SELECT rowid, joined_at, belief_id FROM arc_members "
-            "WHERE joined_at > ? OR (joined_at = ? AND rowid > ?) "
-            "ORDER BY joined_at, rowid LIMIT ?", (c, c, rowid, _USE_BATCH)),
-            "rowid", ("belief_id",), "joined_at", tie_key="rowid")
+        # These tables have declared composite primary keys. Hidden rowids can
+        # change during VACUUM, so use the declared keys as durable cursors.
+        # New keys replay the historical rows once; belief_use_day is idempotent.
+        last = self._tuple_cursor("use_lineage_pk", (0, 0, ""))
+        rows = self._br.read(
+            "SELECT child_id, parent_id, relationship, created_at "
+            "FROM belief_lineage WHERE (child_id, parent_id, relationship) > (?, ?, ?) "
+            "ORDER BY child_id, parent_id, relationship LIMIT ?",
+            (*last, _USE_BATCH),
+        )
+        for row in rows:
+            pairs.add((int(row["parent_id"]), int(float(row["created_at"]) // _DAY)))
+        if rows:
+            row = rows[-1]
+            cur_new["use_lineage_pk"] = (
+                int(row["child_id"]), int(row["parent_id"]), str(row["relationship"])
+            )
+
+        last = self._tuple_cursor("use_arc_pk", (0, 0))
+        rows = self._br.read(
+            "SELECT arc_id, belief_id, joined_at FROM arc_members "
+            "WHERE (arc_id, belief_id) > (?, ?) ORDER BY arc_id, belief_id LIMIT ?",
+            (*last, _USE_BATCH),
+        )
+        for row in rows:
+            pairs.add((int(row["belief_id"]), int(float(row["joined_at"]) // _DAY)))
+        if rows:
+            row = rows[-1]
+            cur_new["use_arc_pk"] = (int(row["arc_id"]), int(row["belief_id"]))
 
         if pairs:
             write_batch(self._w, [(
@@ -239,7 +282,12 @@ class WarrantRecorder:
                     "ON CONFLICT(belief_id) DO UPDATE SET days=excluded.days, "
                     "first_day=excluded.first_day, last_day=excluded.last_day, "
                     "updated_at=excluded.updated_at", (now, *chunk))
-        self._set_cursors(cur_new)
+        scalar_cursors = {key: value for key, value in cur_new.items()
+                          if not isinstance(value, tuple)}
+        tuple_cursors = {key: value for key, value in cur_new.items()
+                         if isinstance(value, tuple)}
+        self._set_cursors(scalar_cursors)
+        self._set_tuple_cursors(tuple_cursors)
         self._stats["use_pairs"] += len(pairs)
         return len(pairs)
 
