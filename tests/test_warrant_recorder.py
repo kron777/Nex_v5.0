@@ -139,6 +139,16 @@ class TestRecorder(unittest.TestCase):
         )
         c.execute("DELETE FROM belief_lineage WHERE relationship='temporary'")
         c.execute("DELETE FROM arc_members WHERE role='temporary'")
+        # Assign deliberately sparse, large hidden rowids so VACUUM must
+        # compact them. These are not declared keys and must never be cursors.
+        c.execute(
+            "UPDATE belief_lineage SET rowid=1000000 + child_id "
+            "WHERE child_id BETWEEN 100 AND 104"
+        )
+        c.execute(
+            "UPDATE arc_members SET rowid=2000000 + belief_id "
+            "WHERE belief_id BETWEEN 102 AND 106"
+        )
         c.commit()
         c.close()
 
@@ -148,14 +158,22 @@ class TestRecorder(unittest.TestCase):
             rowid_before = db.execute(
                 "SELECT rowid FROM belief_lineage WHERE child_id=100"
             ).fetchone()[0]
-        # A VACUUM changes the hidden rowid of these composite-PK tables.
+            arc_rowid_before = db.execute(
+                "SELECT rowid FROM arc_members WHERE belief_id=102"
+            ).fetchone()[0]
+        # A VACUUM compacts the deliberately sparse hidden rowids in these
+        # composite-PK tables; declared primary keys remain unchanged.
         self.r._w.c.execute("VACUUM")
         self.r._w.c.commit()
         with sqlite3.connect(self.bdb) as db:
             rowid_after = db.execute(
                 "SELECT rowid FROM belief_lineage WHERE child_id=100"
             ).fetchone()[0]
+            arc_rowid_after = db.execute(
+                "SELECT rowid FROM arc_members WHERE belief_id=102"
+            ).fetchone()[0]
         self.assertNotEqual(rowid_before, rowid_after)
+        self.assertNotEqual(arc_rowid_before, arc_rowid_after)
 
         for offset in range(1, 5):
             self.r.use_cycle(now=same_ts + offset)
