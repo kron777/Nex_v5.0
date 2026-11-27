@@ -155,6 +155,12 @@ class PatternMemory:
 
     def add(self, pattern: Pattern) -> Pattern:
         """Add or corroborate one provenance event. Exact replay is idempotent."""
+        if not isinstance(pattern.exact_scope, bool):
+            raise ValueError("pattern exact_scope must be a boolean")
+        if pattern.exact_scope and (
+            not isinstance(pattern.applicability, str) or not pattern.applicability.strip()
+        ):
+            raise ValueError("exact-scope patterns require a non-blank applicability")
         incoming_confidence = _bounded_confidence(pattern.confidence)
         incoming_base = _bounded_confidence(pattern.base_confidence)
         incoming = [x.strip() for x in str(pattern.provenance).split(";") if x.strip()]
