@@ -1,8 +1,8 @@
 # NEX Phase 0 — Verified Defect and Evidence-Gap Backlog (Mainline)
 
-**Snapshot:** `main` at `edb869af154a33cd77df5ad9bdf010d3e6ab06a2`  
+**Snapshot index:** `main` at `9f5a9f0b476716b6a6fd0a39aa3cf3041a3a4465`  
 **Date:** 27 November 2026  
-**Purpose:** Separate confirmed documentation/source discrepancies from unknown host/runtime evidence and incomplete audits. This backlog is not approval to change cognition or policy.
+**Purpose:** Separate confirmed documentation/source discrepancies from unknown host/runtime evidence and incomplete audits. This backlog is not approval to change cognition or policy. The header SHA is the latest repository snapshot for navigation only; each finding retains its own source/test evidence date and must be revalidated before being called current.
 
 ## A. Confirmed documentation discrepancies
 
@@ -320,3 +320,13 @@ These findings were rechecked against current main after the bounded persistence
 ## Provenance erosion replay status correction — 27 November 2026
 
 PR #264's exact-head full-suite run `46023260805` completed successfully, but PR metadata/commit comparison established that its merge base was the pre-PR #263 commit `cc8ae43652bdba919198ee4bb90fabbd8f05632f`. The run therefore does not validate a current-main replay. PR #264 was closed as superseded. PR #266 carries the same bounded keyset-pagination implementation and regression tests on current main `edb869af154a33cd77df5ad9bdf010d3e6ab06a2`; it is draft and requires its own exact-head full-suite result. Behavioural impact and review boundary are documented in #266. Do not merge or deploy until that run is green and the changed belief-evolution consequences are reviewed.
+
+
+## Current-main PR status correction — 27 November 2026
+
+At main `9f5a9f0b476716b6a6fd0a39aa3cf3041a3a4465`:
+
+- PR #268 is the latest-main replay of provenance erosion keyset pagination. Base equals current main; head `8b8ffaff27e298ff96dd4a09452ac14067dc4916`; run `46024945847` was still executing the exact-head full baseline at last check. Do not claim validated/merged until it finishes and the behavioural impact is reviewed.
+- PR #266 is an older-base replay and is superseded by #268. PR #264 is also superseded; its green run is not evidence for the latest replay.
+- PR #259 remains an open but stale-base SurpriseLoop proposal. Its base is `e78773def4549f646257945e5886ec71a7837374`; head is `9686fa6da7e835a149f31b516a5ff7a731c3a8b0`; its branch diverges from current main. G-69 remains Gate 0 HOLD; do not merge/deploy or replay into current main without explicit founder approval of the behaviour impact.
+- The Repository Reality Report and Architecture Crosswalk are source snapshots at `ae406fa8fcb1abdf25cdf4ae1bd65333e1148ca8`, 44 commits behind current main. Their findings are historical until rechecked. The backlog header SHA does not automatically refresh the evidence for each finding.
