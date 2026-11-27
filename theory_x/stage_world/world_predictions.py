@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import json
 import os
-from substrate import connect, Row, Connection, Reader, Writer
+from substrate import Row, Reader, Writer
 import time
 import urllib.request
 import urllib.error
@@ -87,14 +87,6 @@ _IDX = (
     "CREATE INDEX IF NOT EXISTS idx_wp_resolve "
     "ON world_predictions(resolved_at, resolve_at)"
 )
-
-
-def _connect(db_path: str) -> Connection:
-    conn = connect(db_path, timeout=10.0, isolation_level=None)
-    conn.row_factory = Row
-    conn.execute("PRAGMA busy_timeout=10000")
-    return conn
-
 
 
 def _writer_transaction(writer: Writer | None, db_path: str, name: str, callback):
