@@ -131,3 +131,31 @@ def test_unknown_stability_can_preserve_partial_or_missing_verdict_evidence():
         relationships=["A->A"], stability_state=UNKNOWN, assessment_evidence=[],
         confidence=None, provenance=[])
     assert loop.assessment_status == "unknown"
+
+
+
+def test_cycle_detector_preserves_distinct_directed_cycles_with_same_members():
+    from rdo.model import Relationship
+    from rdo.tension import _find_cycles
+
+    edges = [
+        Relationship("A", "B", "influences"),
+        Relationship("B", "C", "influences"),
+        Relationship("C", "D", "influences"),
+        Relationship("D", "A", "influences"),
+        Relationship("A", "C", "influences"),
+        Relationship("C", "B", "influences"),
+        Relationship("B", "D", "influences"),
+    ]
+
+    cycles = _find_cycles(edges)
+    cycle_set = {tuple(cycle) for cycle in cycles}
+
+    assert ("A", "B", "C", "D", "A") in cycle_set
+    assert ("A", "C", "B", "D", "A") in cycle_set
+    # Rotations of the same directed loop are still deduplicated.
+    four_member_cycles = [
+        cycle for cycle in cycles
+        if len(cycle) == 5 and set(cycle[:-1]) == {"A", "B", "C", "D"}
+    ]
+    assert len(four_member_cycles) == 2
