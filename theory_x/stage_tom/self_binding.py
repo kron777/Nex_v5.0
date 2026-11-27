@@ -150,28 +150,37 @@ def _read_attention() -> dict:
     return out
 
 
-def _ensure_table(writer: Writer) -> None:
-    writer.write_many([
-        (
-            "CREATE TABLE IF NOT EXISTS self_state ("
-            "id INTEGER PRIMARY KEY CHECK (id=1), bound_at REAL, "
-            "emotion TEXT, raga TEXT, drive TEXT, drift TEXT, "
-            "readiness REAL, synthesis TEXT, components TEXT)",
-            (),
-        ),
-        (
-            "CREATE TABLE IF NOT EXISTS self_state_history ("
-            "id INTEGER PRIMARY KEY AUTOINCREMENT, bound_at REAL NOT NULL, "
-            "emotion TEXT, raga TEXT, drive TEXT, drift TEXT, "
-            "readiness REAL, synthesis TEXT, components TEXT)",
-            (),
-        ),
-        (
-            "CREATE INDEX IF NOT EXISTS idx_self_state_history_bound_at "
-            "ON self_state_history(bound_at DESC)",
-            (),
-        ),
-    ])
+def _ensure_table(writer: Writer | None = None) -> None:
+    # Standalone compatibility is used by migration/test helpers. The live
+    # Fountain path always supplies the AppState dynamic Writer.
+    owns_writer = writer is None
+    if writer is None:
+        writer = Writer(_db("dynamic"), name="self_binding_schema")
+    try:
+        writer.write_many([
+            (
+                "CREATE TABLE IF NOT EXISTS self_state ("
+                "id INTEGER PRIMARY KEY CHECK (id=1), bound_at REAL, "
+                "emotion TEXT, raga TEXT, drive TEXT, drift TEXT, "
+                "readiness REAL, synthesis TEXT, components TEXT)",
+                (),
+            ),
+            (
+                "CREATE TABLE IF NOT EXISTS self_state_history ("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, bound_at REAL NOT NULL, "
+                "emotion TEXT, raga TEXT, drive TEXT, drift TEXT, "
+                "readiness REAL, synthesis TEXT, components TEXT)",
+                (),
+            ),
+            (
+                "CREATE INDEX IF NOT EXISTS idx_self_state_history_bound_at "
+                "ON self_state_history(bound_at DESC)",
+                (),
+            ),
+        ])
+    finally:
+        if owns_writer:
+            writer.close()
 
 
 def _synthesize(emotion: str, raga: str, drive: str, att: dict, substrate: dict | None = None) -> str:
