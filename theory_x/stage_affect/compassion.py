@@ -253,8 +253,10 @@ def _advance_level(salience: float, conversations_writer: Writer | None = None) 
     risen = salience * (_GAIN + _ETHICAL_BIAS)
     level = max(0.0, min(1.0, max(decayed, risen)))
     owns_writer = conversations_writer is None
-    writer = conversations_writer or Writer(_db_path(), name="compassion")
+    writer = conversations_writer
     try:
+        if writer is None:
+            writer = Writer(_db_path(), name="compassion")
         _ensure_table(writer)
         writer.write(
             "INSERT OR REPLACE INTO compassion_state "
@@ -265,8 +267,11 @@ def _advance_level(salience: float, conversations_writer: Writer | None = None) 
     except Exception:
         pass   # persistence best-effort; still return the computed level
     finally:
-        if owns_writer:
-            writer.close()
+        if owns_writer and writer is not None:
+            try:
+                writer.close()
+            except Exception:
+                pass
     return level
 
 
