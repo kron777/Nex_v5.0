@@ -292,19 +292,26 @@ When in doubt: the current source and approved governing documents win—not thi
 *Last amended: 27 November 2026 — refreshed after #189, #191, #196, #199, #200 and #228; records the DAG CLI correction and the follow-up prerequisite-integrity validation in progress.*
 
 
+
 ---
 
 ## 14. DAG prerequisite-reference integrity (27 November 2026)
 
-A follow-up source audit of `nex_next_dev.py` found a latent graph-integrity defect: both `classify()` and `topo_sort()` silently ignored prerequisite IDs absent from the `nodes` mapping. In classification, a gap with an unknown prerequisite could therefore pass the `all()` check because the missing reference was filtered out, and be reported as buildable. In topological sorting, the unknown edge was omitted, producing an apparently valid order for an incomplete graph.
+A source audit found that `classify()` and `topo_sort()` silently ignored prerequisite IDs absent from the DAG's `nodes` mapping. In classification, filtering an unknown prerequisite could make `all([])` pass and incorrectly report a gap as buildable; topological sorting could produce an apparently valid order for an incomplete graph.
 
-The current `sentience_dag.json` snapshot was checked independently: **15 nodes, 15 prerequisite edges, 0 unresolved references**; statuses are 9 built, 2 terminal, 2 gap, 1 gorge and 1 live_unproven. This establishes that the current graph is clean, not that the validation defect is harmless: it could be triggered by a future misspelled or deleted node ID.
+The current `sentience_dag.json` snapshot contains 15 nodes and 15 prerequisite edges, with no unresolved references. The latent defect is nevertheless important because a future misspelled or deleted node ID could corrupt the tool's output.
 
-A bounded developer-tool fix is in progress on `fix/nex-next-dev-prerequisite-integrity`:
-- add deterministic validation of every prerequisite reference;
-- make both classification and topological sorting raise a clear `ValueError` listing unresolved edges;
-- add isolated regression tests for each path and a test asserting the current DAG has no unresolved references.
+**PR #229 is merged** to `main` as `9002291b1fd36624e895a8635a8b916888442548`. It adds deterministic prerequisite-reference validation to both classification and topological sorting, with regression coverage. Exact-head CI run `46002918341` passed. The change is confined to the DAG developer tool, tests and this manual; it does not change DAG content/status, runtime behaviour, cognitive settings, frozen specifications, roadmap or phase gates.
 
-The change does not edit `sentience_dag.json`, node statuses, runtime code, cognitive behaviour, flags, specifications, roadmap or phase gates. Exact-head CI is pending; do not call this change validated until CI is inspected. The intended rollback is a revert of the isolated developer-tool commit(s)/PR.
+## 15. DAG status and duplicate-edge integrity (27 November 2026)
 
-**PR #228 integration:** merged to `main` as `4a45c22930205afb7fba557576614821d2bd274c` after exact-head CI success (run `46000586294`). Its three changed files are `nex_next_dev.py`, `tests/test_nex_next_dev.py` and this INDEX.
+A second pass found two additional latent defects in the same developer-tool path:
+
+1. **Unknown or missing status values** could fall through every classifier branch and silently disappear from the report.
+2. **Duplicate prerequisite edges** could increment Kahn's indegree more than once while successor traversal decremented only once, creating a false cycle report.
+
+The current graph was checked independently: 15 nodes, 15 edges, no unresolved references, no duplicate edges, and all statuses belong to the five values declared in `sentience_dag.json`. These are latent tool defects, not current graph corruption.
+
+PR #230 contains duplicate-edge validation, validation for unknown/missing statuses, shared graph validation before classification and topological sorting, and four regression tests. Its original exact-head CI run `46003289108` passed. Because it was stacked on the now-squash-merged PR #229, its original branch cannot be cleanly retargeted to `main`; the changes are being replayed onto a fresh branch based on the merged mainline and will receive a new exact-head CI run.
+
+This work remains limited to `nex_next_dev.py`, its tests and this manual. It does not alter `sentience_dag.json`, runtime code, cognitive behaviour, flags, frozen specifications, roadmap or phase gates. Rollback is by reverting the isolated developer-tool change.

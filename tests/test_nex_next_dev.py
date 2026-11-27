@@ -121,3 +121,73 @@ def test_current_sentience_dag_has_no_unresolved_prerequisites():
     nodes = nex_next_dev.load()["nodes"]
 
     assert nex_next_dev.validate_prerequisites(nodes) is None
+
+
+
+def test_duplicate_prerequisite_is_rejected_by_topological_sort():
+    nodes = {
+        "foundation": {"status": "built", "prereqs": []},
+        "candidate": {
+            "status": "gap",
+            "prereqs": ["foundation", "foundation"],
+        },
+    }
+
+    import pytest
+
+    with pytest.raises(
+        ValueError,
+        match=r"duplicate DAG prerequisite reference\(s\): candidate -> foundation",
+    ):
+        nex_next_dev.topo_sort(nodes)
+
+
+def test_duplicate_prerequisite_is_rejected_by_classification():
+    nodes = {
+        "foundation": {"status": "built", "prereqs": []},
+        "candidate": {
+            "status": "gap",
+            "prereqs": ["foundation", "foundation"],
+        },
+    }
+
+    import pytest
+
+    with pytest.raises(
+        ValueError,
+        match=r"duplicate DAG prerequisite reference\(s\): candidate -> foundation",
+    ):
+        nex_next_dev.classify(nodes)
+
+
+def test_unknown_node_status_is_rejected_by_classification():
+    nodes = {
+        "candidate": {
+            "status": "future_status_typo",
+            "prereqs": [],
+        },
+    }
+
+    import pytest
+
+    with pytest.raises(
+        ValueError,
+        match=r"unknown DAG node status value\(s\): candidate \[future_status_typo\]",
+    ):
+        nex_next_dev.classify(nodes)
+
+
+def test_missing_node_status_is_rejected_by_classification():
+    nodes = {
+        "candidate": {
+            "prereqs": [],
+        },
+    }
+
+    import pytest
+
+    with pytest.raises(
+        ValueError,
+        match=r"unknown DAG node status value\(s\): candidate \[<missing>\]",
+    ):
+        nex_next_dev.classify(nodes)
