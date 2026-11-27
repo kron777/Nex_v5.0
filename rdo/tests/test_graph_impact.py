@@ -2,10 +2,12 @@
 from rdo.graph import compare_adjacent_relationship_impacts
 
 
-def _cycle(relationships, tension):
-    nodes = sorted({endpoint for item in relationships if isinstance(item, dict)
-                    for endpoint in (item.get("src"), item.get("dst"))
-                    if isinstance(endpoint, str) and endpoint.strip()})
+def _cycle(relationships, tension, obligations=None):
+    nodes = obligations
+    if nodes is None:
+        nodes = sorted({endpoint for item in relationships if isinstance(item, dict)
+                        for endpoint in (item.get("src"), item.get("dst"))
+                        if isinstance(endpoint, str) and endpoint.strip()})
     return {
         "obligations": [{"key": key} for key in nodes],
         "relationships": relationships,
@@ -122,9 +124,6 @@ def test_non_incident_relationships_are_excluded_and_missing_scope_stays_unknown
         obligations=["reader", "database", "store"],
     )
     after = before
-
-    before["obligations"].append({"key": "store"})
-    after["obligations"].append({"key": "store"})
     report = compare_adjacent_relationship_impacts(before, after, ["store"])
     assert report["status"] == "no_adjacent_relationships"
     assert report["affected_relationships"] == []
