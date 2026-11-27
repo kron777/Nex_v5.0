@@ -251,6 +251,28 @@ def test_submit_runs_existing_pipeline_and_persists_intake_provenance(tmp_path, 
     cycle = result["cycle"]
     assert cycle["objective"] == raw["original_text"]
     assert cycle["objective_input"]["objective_id"] == raw["objective_id"]
+    assert cycle["objective_context"] == {
+        "scope": raw["scope"],
+        "assumptions": raw["assumptions"],
+        "constraints": raw["constraints"],
+        "exclusions": raw["exclusions"],
+        "acceptance_criteria": raw["acceptance_criteria"],
+    }
+    assert cycle["assumptions"] == raw["assumptions"]
+    assert cycle["context_assessment"]["status"] == "unmapped"
+    assert cycle["context_assessment"]["review_required"] is True
+    assert all(item["status"] == "unmapped" and item["evidence"] == []
+               for item in cycle["context_assessment"]["items"])
+    assert cycle["work_packages"]
+    assert all(package["eligibility"] == "eligible"
+               for package in cycle["work_packages"])
+    assert cycle["context_assessment"]["execution_readiness"] == "blocked"
+    assert cycle["context_assessment"]["handoff_readiness"] == "reviewable"
+    assert all(
+        any("No autonomous execution" in item
+            for item in package["anti_requirements"])
+        for package in cycle["work_packages"]
+    )
     assert cycle["objective_input"]["revision"] == 1
     assert cycle["objective_input"]["sha256"] == result["input_sha256"]
     by_key = {item["key"]: item for item in cycle["obligations"]}
@@ -272,6 +294,8 @@ def test_submit_runs_existing_pipeline_and_persists_intake_provenance(tmp_path, 
     assert resumed["objective"]["original_text"] == raw["original_text"]
     assert len(resumed["cycles"]) == 1
     assert resumed["cycles"][0]["objective_input"]["sha256"] == result["input_sha256"]
+    assert resumed["cycles"][0]["objective_context"] == cycle["objective_context"]
+    assert resumed["cycles"][0]["context_assessment"] == cycle["context_assessment"]
 
 
 def test_intake_smoke_on_real_rdo_repository(tmp_path):
