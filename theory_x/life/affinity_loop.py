@@ -261,8 +261,7 @@ def _pick_candidates(reader: Reader, limit):
     """
     now = time.time()
     rescore_cutoff = now - RESCORE_AFTER_DAYS * 86400
-    rows = reader.read(
-        """
+    sql = """
         SELECT b.id, b.content, b.tier, b.source, b.source_kind,
                COALESCE(b.reinforce_count, 0) AS reinforce,
                COALESCE(b.use_count, 0) AS use_count,
@@ -273,8 +272,8 @@ def _pick_candidates(reader: Reader, limit):
           AND b.tier >= 4
           AND b.source NOT IN ('spectrum', 'demoted_confabulation')
           AND (
-                COALESCE(b.use_count, 0) >= ?          -- earned it through use
-                OR b.source IN (                        -- or it is hers by origin
+                COALESCE(b.use_count, 0) >= ?
+                OR b.source IN (
                     'fountain_insight','synergized','counterfactual_node',
                     'remember_loop','wonder_loop','hot_observer',
                     'witness_loop','pattern_loop','identity_loop','surprise'
@@ -285,11 +284,17 @@ def _pick_candidates(reader: Reader, limit):
               'fountain_insight','synergized','counterfactual_node',
               'remember_loop','wonder_loop','hot_observer',
               'witness_loop','pattern_loop','identity_loop','surprise'
-          ) THEN 0 ELSE 1 END,                          -- her own first
+          ) THEN 0 ELSE 1 END,
           COALESCE(b.use_count, 0) DESC
         LIMIT ?
-        """,
-        (rescore_cutoff, MIN_USAGE_FOR_LLM, limit)
+        """
+    params = (rescore_cutoff, MIN_USAGE_FOR_LLM, limit)
+    # Keep the helper's historical connection input usable by existing
+    # diagnostics/tests; production always supplies the read-only Reader.
+    rows = (
+        reader.read(sql, params)
+        if isinstance(reader, Reader)
+        else reader.execute(sql, params).fetchall()
     )
     out = []
     for r in rows:
