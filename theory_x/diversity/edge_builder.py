@@ -118,13 +118,13 @@ def edge_builder_tick(db_path: Path = BELIEFS_DB) -> dict:
             now = time.time()
             for target_id, sim in top:
                 try:
-                    cx.execute(
+                    cursor = cx.execute(
                         "INSERT OR IGNORE INTO belief_edges "
                         "(source_id, target_id, edge_type, weight, created_at) "
                         "VALUES (?, ?, 'cross_domain', ?, ?)",
                         (c["id"], target_id, float(sim), now)
                     )
-                    if cx.total_changes > 0:
+                    if cursor.rowcount > 0:
                         wrote += 1
                 except IntegrityError:
                     pass
