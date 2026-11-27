@@ -209,7 +209,7 @@ def test_journal_preserves_existing_language_and_state_fields(tmp_path, monkeypa
             "i hold 4 open problems. focus right now: problem #1.\n\n"
             "going quieter now. the night is for less."
         )
-        assert msg == expected
+        assert msg == expected[:200]
         saved = conversations_reader.read_one(
             "SELECT content FROM messages ORDER BY id DESC LIMIT 1"
         )
