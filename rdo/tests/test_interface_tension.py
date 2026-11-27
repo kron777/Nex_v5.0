@@ -155,3 +155,14 @@ def test_relationship_assessment_rejects_unbacked_persisted_envelope_verdict():
     assert result.dimensions["operating_envelope"]["status"] == "invalid_evidence"
     assert "assessment" in result.dimensions["operating_envelope"]["unknown_dimensions"]
     assert result.verdict == TENSION_UNKNOWN
+
+
+def test_relationship_assessment_fails_closed_on_non_string_envelope_state():
+    rel = Relationship("consumer", "provider", "depends_on", operating_envelope={
+        "declared_state": BUSY, "assessed_state": {"unexpected": "shape"},
+        "assessment_evidence": ["review:stress"],
+        "provenance": ["reviewer:1"], "confidence": "reviewed",
+    })
+    result = assess_relationship(rel, {})
+    assert result.dimensions["operating_envelope"]["status"] == "invalid_evidence"
+    assert result.verdict == TENSION_UNKNOWN
