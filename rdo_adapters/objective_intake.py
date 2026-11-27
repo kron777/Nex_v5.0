@@ -502,6 +502,7 @@ def submit_objective(payload: Any, repo_dir: str = ".", workdir: str = "rdo/.cyc
         initial_relationships=relationships, objective_input=metadata,
         objective_context={
             "scope": dict(record["scope"]),
+            "assumptions": list(record["assumptions"]),
             "constraints": list(record["constraints"]),
             "exclusions": list(record["exclusions"]),
             "acceptance_criteria": list(record["acceptance_criteria"]),
