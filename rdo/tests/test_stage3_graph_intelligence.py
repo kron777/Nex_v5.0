@@ -322,3 +322,10 @@ def test_failure_propagation_candidates_preserve_unknown_edge_and_obligation_sha
     assert result["invalid_obligations"] == 1
     assert result["unresolved_dependency_edges"] == 2
     assert result["affected"] == []
+
+
+def test_failure_propagation_candidates_distinguish_no_failure_input_from_no_dependents():
+    result = graph.failure_propagation_candidates(FIX_OBS, FIX_RELS, [])
+    assert result["status"] == "not_supplied"
+    assert result["roots"] == []
+    assert result["affected"] == []
