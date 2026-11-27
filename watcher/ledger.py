@@ -63,28 +63,40 @@ class ConnectionLedger:
 
     def __init__(self, path: str) -> None:
         self.path = path
-        self.entries: List[dict] = []
+        self._entries: List[dict] = []
         if os.path.exists(path):
             with open(path, "r", encoding="utf-8") as fh:
                 for line in fh:
                     line = line.strip()
                     if line:
-                        self.entries.append(json.loads(line))
+                        self._entries.append(json.loads(line))
+
+    @staticmethod
+    def _copy_entry(entry: dict) -> dict:
+        """Return a detached view so callers cannot mutate append-only history."""
+        copied = dict(entry)
+        copied["evidence_refs"] = list(entry.get("evidence_refs") or [])
+        return copied
+
+    @property
+    def entries(self) -> List[dict]:
+        return [self._copy_entry(entry) for entry in self._entries]
 
     # -- reads --
     def current_state(self, connection_id: str) -> Optional[str]:
         st = None
-        for e in self.entries:
+        for e in self._entries:
             if e["connection_id"] == connection_id:
                 st = e["to_state"]
         return st
 
     def history(self, connection_id: str) -> List[dict]:
-        return [e for e in self.entries if e["connection_id"] == connection_id]
+        return [self._copy_entry(e) for e in self._entries
+                if e["connection_id"] == connection_id]
 
     def current_states(self) -> Dict[str, str]:
         out: Dict[str, str] = {}
-        for e in self.entries:
+        for e in self._entries:
             out[e["connection_id"]] = e["to_state"]
         return out
 
@@ -115,11 +127,11 @@ class ConnectionLedger:
             "origin": origin, "evidence_refs": refs, "note": note,
             "at": utc_now(),
         }
-        self.entries.append(entry)
+        self._entries.append(entry)
         os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
         with open(self.path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(entry, default=str) + "\n")
-        return entry
+        return self._copy_entry(entry)
 
 
 def seed_from_graph(ledger: ConnectionLedger, graph) -> List[dict]:
