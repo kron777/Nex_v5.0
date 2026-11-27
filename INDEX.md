@@ -584,7 +584,7 @@ PR #258 now updates the first-read manual, verified defect backlog and Phase 0 h
 
 **PR #259 — SurpriseLoop loss-safe event delivery on post-#256 main: OPEN / exact-head CI pending / GATE 0 HOLD.** It replays the event-ID cursor and retry-safe checkpoint correction after #256 merged. The previous PR #257 exact-head suite passed (2,601 passed, 7 skipped, 45 subtests) on the pre-#256 base; #259 is the authoritative current-main replay. Do not merge or deploy it until founder approval because previously skipped events may enter the belief corpus. Its legacy migration does not recover rows strictly older than the old timestamp cutoff.
 
-The earlier manual PR #258 is superseded by this post-#256 documentation replay. PR #260 is intended to carry the full manual, backlog and handoff onto this mainline. PR #102/#145 remain older-base dormancy proposals and are still subject to the G-73 policy/revalidation boundary.
+The earlier manual PR #258 is superseded by this post-#256 documentation replay. PR #260 carries the full manual, backlog and handoff onto this mainline. PR #102/#145 remain older-base dormancy proposals and are still subject to the G-73 policy/revalidation boundary.
 
 
 ## 32. TimeFetch test inventory and VoiceEngine eligibility consumer (27 November 2026)
