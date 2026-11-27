@@ -226,6 +226,9 @@ class Relationship:
     reversible: Optional[bool] = None   # None = unknown
     note: str = ""
     interface_profile: Optional[InterfaceTensionProfile] = None
+    # Optional operating-envelope evidence for this relationship/interface.
+    # Kept trailing to preserve legacy positional Relationship construction.
+    operating_envelope: Optional[Any] = None
 
     def to_dict(self) -> dict:
         return dataclasses.asdict(self)
