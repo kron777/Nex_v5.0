@@ -132,3 +132,77 @@ def test_speech_consumer_records_failure_without_text_payload(tmp_path, monkeypa
     ]
     assert "content" not in by_event["synthesis_failed"]["metadata"]
     assert any("status='failed'" in sql for sql, _ in consumer.writer.writes)
+
+
+
+def test_speech_consumer_records_playback_failure(tmp_path, monkeypatch):
+    trace = _trace(tmp_path, monkeypatch)
+    parent = trace.record("speech_queue", "enqueue_intent")
+    influence_trace.register_speech_queue_trace(79, trace, parent)
+
+    class FakeWriter:
+        def __init__(self):
+            self.writes = []
+
+        def write(self, sql, params=()):
+            self.writes.append((sql, params))
+            return 1
+
+    class FakeBackend:
+        def synth(self, content, voice=None):
+            return object(), 24000
+
+    class FakePlayer:
+        def play(self, audio, sample_rate):
+            raise OSError("synthetic playback failure")
+
+    consumer = SpeechQueueConsumer.__new__(SpeechQueueConsumer)
+    consumer.writer = FakeWriter()
+    consumer._voice_state = None
+    consumer.config = SimpleNamespace(voice="test-voice")
+    consumer.backend = FakeBackend()
+    consumer.player = FakePlayer()
+    consumer._speak_one({
+        "id": 503, "belief_id": 79,
+        "content": "A complete and speakable sentence for trace testing.",
+        "voice": "test-voice",
+    })
+
+    by_event = {item["event"]: item for item in trace.events}
+    assert "playback_failed" in by_event
+    assert by_event["queue_status_failed"]["parent_ids"] == [
+        by_event["playback_failed"]["event_id"]
+    ]
+    assert any("status='failed'" in sql for sql, _ in consumer.writer.writes)
+
+
+def test_speech_consumer_records_suppression(tmp_path, monkeypatch):
+    trace = _trace(tmp_path, monkeypatch)
+    parent = trace.record("speech_queue", "enqueue_intent")
+    influence_trace.register_speech_queue_trace(80, trace, parent)
+
+    writes = []
+
+    class FakeWriter:
+        def write(self, sql, params=()):
+            writes.append((sql, params))
+            return 1
+
+    consumer = SpeechQueueConsumer.__new__(SpeechQueueConsumer)
+    consumer.writer = FakeWriter()
+    consumer._voice_state = None
+    consumer.config = SimpleNamespace(voice="test-voice")
+    consumer.backend = SimpleNamespace(synth=lambda *args, **kwargs: None)
+    consumer.player = SimpleNamespace(play=lambda *args: None)
+    consumer._speak_one({
+        "id": 504, "belief_id": 80,
+        "content": '{"machine":"payload"}',
+        "voice": "test-voice",
+    })
+
+    by_event = {item["event"]: item for item in trace.events}
+    assert "suppressed" in by_event
+    assert by_event["suppressed"]["parent_ids"] == [
+        by_event["dequeued"]["event_id"]
+    ]
+    assert any("status='suppressed'" in sql for sql, _ in writes)
