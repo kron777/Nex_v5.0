@@ -289,7 +289,7 @@ When in doubt: the current source and approved governing documents win—not thi
 
 ---
 
-*Last amended: 27 November 2026 — refreshed after #189, #191, #196, #199, #200 and #228; records the DAG CLI correction and sequential graph-integrity hardening in progress.*
+*Last amended: 27 November 2026 — refreshed after #189, #191, #196, #199, #200 and #228; records DAG graph-integrity hardening and mind-map policy-scan coverage work in progress.*
 
 
 ---
@@ -328,3 +328,22 @@ A follow-on change is being developed on `fix/nex-next-dev-status-and-edge-integ
 - four regression tests: duplicate edges in both paths, unknown status, and missing status.
 
 The change remains confined to `nex_next_dev.py`, its isolated regression tests and this manual. It does not alter `sentience_dag.json`, graph statuses, runtime code, cognitive behaviour, flags, frozen specifications, roadmap or phase gates. The stacked change has not yet been through CI; do not describe it as validated until the exact head completes the full baseline suite. Rollback is by reverting the isolated follow-on PR/commits.
+
+
+
+---
+
+## 16. Mind-map policy scan omitted boot-imported runtime paths (27 November 2026)
+
+A source-to-guard audit compared `mind_map/mind_map.py::RUNTIME_ROOTS` with the actual boot/import paths. Two runtime paths were missing from the descriptive-only policy scan:
+
+- `run.py` imports `strikes.catalogue` and `strikes.protocols` (current source lines 619–620), but the `strikes/` package was not in `RUNTIME_ROOTS`.
+- `gui/server.py` imports the top-level `influence_trace` module (current source line 1256), but `influence_trace.py` was not in `RUNTIME_ROOTS`.
+
+The guard checks the configured roots for imports of `mind_map` and direct `MIND_MAP.yaml` references. Omitting these paths meant a future policy violation in either runtime-imported path could escape this particular scan. This is a coverage gap in the guard, not evidence that either module currently imports or uses the mind map.
+
+A bounded fix is in progress on `fix/mind-map-runtime-scan-coverage`, stacked after PR #230:
+- add `strikes` and `influence_trace.py` to `RUNTIME_ROOTS`;
+- add a regression test placing forbidden imports in both paths and verifying that the scan reports them.
+
+The change is limited to the developer policy checker, its test and this manual. It does not alter runtime behavior, the mind map itself, NEX cognition, flags, specifications, roadmap or phase gates. Exact-head CI is pending; treat the coverage correction as unvalidated until the complete test and mind-map verification workflow passes. Rollback is by reverting the isolated follow-on PR/commits.
