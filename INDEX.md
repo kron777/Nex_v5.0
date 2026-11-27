@@ -549,3 +549,16 @@ After #253 merged, the remaining pending branches were replayed onto the latest 
 - **PR #257 — SurpriseLoop loss-safe event delivery: OPEN / exact-head CI pending / GATE 0 HOLD.** Event-ID cursor and retry integrity fix; not for merge or deployment until founder approval because newly delivered events can alter belief-corpus inputs.
 
 The older #254 and #255 branches are superseded by these post-#253 replays. The earlier PR #252 manual branch is likewise superseded by this current-main manual replay.
+
+
+## 29. Dormancy scanner proposal review and older-base work (27 November 2026)
+
+The current-main review confirms the dormancy issue recorded as **G-73** in the refreshed verified-defect backlog:
+
+- `DormancyScanner.scan_incremental()` currently selects the oldest 50 source-eligible beliefs by `created_at` with no cursor. An unchanged oldest cohort can therefore be rescanned repeatedly.
+- `DiversityLoop` owns one persistent scanner and invokes it on its loop cadence. `ClockRunner._run_fast()` constructs another scanner inside each fast tick, so that second path does not retain a cursor between ticks. Both paths address the same beliefs population/table; combined runtime work rate has not been measured.
+- **PR #102** proposes ID-keyset rotation, wraparound, persistent ClockRunner scanner ownership, and tier/paused/retired filters in scan, dormant selection and reanimation. **PR #145** adds tests for partial-tail wraparound and persistent-instance reuse. Both exact-head suites passed on their own older base, but neither branch has been revalidated on current main.
+- The proposal still leaves two independent scanner instances/cursors: DiversityLoop's scanner and ClockRunner's scanner. PR #145 tests persistence of the ClockRunner instance, not single-owner scheduling or combined cadence.
+- The proposed final Fountain reanimation fetch rechecks `tier <= 7` and `paused = 0` but does not recheck `erosion_stage != 'retired'`. Add a test for a belief retired between selection and final injection before considering that path fully guarded.
+
+This remains a scan-coverage/ownership and eligibility-contract question, not an observed live incident. Do not merge or replay the behaviour filters or alter maintenance cadence until the current-main rebase, exact-head tests, and Gate 0 policy review are complete. The older documentation branches #142/#144 are superseded by the current-main backlog/handoff update in PR #258; the separate PR #102/#145 code/test proposals remain open for review.
