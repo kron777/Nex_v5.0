@@ -69,9 +69,11 @@ class TestRecorder(unittest.TestCase):
         _beliefs(self.bdb); _dynamic(self.ddb)
         self.r = rec.WarrantRecorder(_W(self.bdb), Reader(self.bdb), Reader(self.ddb))
         self._per_band = rec._PER_BAND
+        self._use_batch = rec._USE_BATCH
 
     def tearDown(self):
         rec._PER_BAND = self._per_band
+        rec._USE_BATCH = self._use_batch
         self.tmp.cleanup()
 
     def _q(self, sql):
