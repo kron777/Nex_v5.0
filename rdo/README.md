@@ -215,11 +215,14 @@ deployed-host behaviour. Later CI runs are not substituted for this exact histor
 ## The RDO under its own OFT
 
 `rdo selfcheck` now distinguishes the core reasoning package from its external
-input boundary. The core contains **14 modules / 3,775 non-comment LOC**; the
-provider-neutral objective-intake and Stage-7 handoff adapters are separately
-reported at **2 modules / 1,098 non-comment LOC** under `rdo_adapters/`. They
-preserve input/revision and handoff/decision boundaries outside the deterministic
-reasoning engine without changing the 14-module core ceiling.
+input boundary. The last recorded self-assessment baseline contained **14 modules / 3,775
+non-comment LOC**; the provider-neutral objective-intake and Stage-7 handoff
+adapters were separately reported at **2 modules / 1,098 non-comment LOC** under
+`rdo_adapters/`. The typed objective-context and acceptance-verification increment
+adds code to existing core modules rather than creating another reasoning module.
+The self-assessment must be rerun against the current head before publishing a
+new LOC total; the baseline figures above are historical, not a claim about the
+current branch's exact footprint.
 
 The size result is intentionally not described as lean: the self-check's
 existing 1,800-LOC heuristic still returns **needs review** for the 3,775-LOC
