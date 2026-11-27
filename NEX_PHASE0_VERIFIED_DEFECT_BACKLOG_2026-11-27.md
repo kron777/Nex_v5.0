@@ -162,7 +162,7 @@ These are source-level conditions and test-coverage gaps recovered from older au
 - **Impact:** The documented 30-day/60-day stale close/cancel rules are callable methods, but automatic execution is not established in the reviewed normal process path.
 - **Disposition:** clarify whether stale cleanup is intended to be scheduled, manually invoked, or deliberately dormant. If scheduled, identify the authoritative lifecycle owner and add an integration test before implementation. No scheduler or retention behavior changed.
 
-### G-61 — One-pen Writer migration (partially resolved; further migrations in flight)
+### G-61 — One-pen Writer migration (partially resolved; full census remains open)
 
 - Specification: SPECIFICATION.md §8 states exactly one writer thread per database and that all writes submit through the single Writer queue; substrate/writer.py explicitly says direct writes elsewhere are a bug by definition.
 - Resolved on current main with isolated regression coverage:
