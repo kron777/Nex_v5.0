@@ -205,6 +205,13 @@ These are source-level conditions and test-coverage gaps recovered from older au
 - **Impact/qualification:** if these functions are invoked, they bypass the one-pen rule in `SPECIFICATION.md §8`. The belief update and conversations-ledger commits are separate database transactions, so their existing cross-database failure boundary must be preserved and explicitly tested; do not imply atomicity across the two files.
 - **Disposition:** retain as a dormant source-level persistence defect/evidence item. Any future bounded migration should inject the shared conversations and beliefs Writers, cover ingestion/reconciliation/learning/canary paths and failure ordering, and leave all reconciler/learning flags, adjudication thresholds, valence, and confidence policy unchanged. Do not activate the dormant reconciler as part of this work.
 
+### G-66 — Mind-map source-drift warnings are invalid under the shallow CI checkout
+
+- **Sources:** `mind_map/mind_map.py:last_commit_ts()` and `.github/workflows/tests.yml` at this report's `ae406fa8` snapshot.
+- **Verified mechanism:** `last_commit_ts()` asks `git log -1 --format=%ct -- <path>` for each source. The tests workflow uses `actions/checkout@v4` without `fetch-depth`, so the action's default one-commit shallow checkout is used. In a shallow checkout, path history is unavailable; the command returns the checkout commit for tracked paths, making unrelated files appear to have changed on the CI date.
+- **Observed evidence:** run `45951932639` reported dozens of source refs as changed on 2026-11-27, including `theory_x/stage_tom/global_workspace.py` and `gui/server.py`, whose relevant source blobs are unchanged between the `ae406fa8` snapshot and current main and whose path history predates that date. The reported 2026-11-27 dates therefore cannot establish which nodes are genuinely stale. Do not bulk-update `last_verified` from this output; the real per-path dates remain to be recomputed with complete history and then reviewed against source changes.
+- **Disposition:** PR #175 proposes `fetch-depth: 0`, a guard that explicitly skips date comparisons when history is shallow/unavailable, and regression tests for both shallow and complete history. Pending exact-head CI. Preserve the two known missing-doctrine warnings and the overdue `p13_finitude` marker; they are separate from this shallow-history defect.
+
 ## F. Gate boundary
 
 This backlog is evidence input for Gate 0. It is not permission to enable Phase 1 experiments, change prompts, change confidence/belief revision, modify Coherence Gate policy, alter dark flags, start/restart services or touch live databases.
