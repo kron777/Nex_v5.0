@@ -165,8 +165,11 @@ def verify(record: dict, repo_dir: str, ledger_path: str,
         else:
             test_status, test_ok = "not_requested", None
         if source_ok and test_ok is not None and ledger.current_state(cid) == "SOURCE_CONFIRMED":
-            ledger.record(cid, "TEST_WRITTEN")
-            ledger.record(cid, "TEST_PASSED" if test_ok else "TEST_FAILED")
+            test_ref = req["test_file"]
+            ledger.record(cid, "TEST_WRITTEN", evidence_refs=[test_ref],
+                          note="test file reference recorded by the RDO verifier")
+            ledger.record(cid, "TEST_PASSED" if test_ok else "TEST_FAILED",
+                          evidence_refs=[test_ref], note=f"RDO verifier result: {test_status}")
         # RUNTIME dimension (host-only) — kept separate and UNKNOWN
         runtime = host_placeholder(f"runtime:{ob}", "host: a live trace",
                                    "runtime observation is host-only (NEX in standby) — UNKNOWN")

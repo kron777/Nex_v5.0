@@ -47,6 +47,12 @@ _ALLOWED: Dict[str, set] = {
     "BLOCKED": set(STATES),  # once unblocked, may resume anywhere
 }
 
+# States that assert evidence exists must cite at least one nonblank reference.
+_TRACE_REQUIRED_STATES = frozenset({
+    "SOURCE_CONFIRMED", "TEST_WRITTEN", "TEST_PASSED",
+    "TEST_FAILED", "RUNTIME_OBSERVED", "REGRESSED",
+})
+
 
 class LedgerError(ValueError):
     pass
@@ -57,38 +63,66 @@ class ConnectionLedger:
 
     def __init__(self, path: str) -> None:
         self.path = path
-        self.entries: List[dict] = []
+        self._entries: List[dict] = []
         if os.path.exists(path):
             with open(path, "r", encoding="utf-8") as fh:
                 for line in fh:
                     line = line.strip()
                     if line:
-                        self.entries.append(json.loads(line))
+                        self._entries.append(json.loads(line))
+
+    @staticmethod
+    def _copy_entry(entry: dict) -> dict:
+        """Return a detached view so callers cannot mutate append-only history."""
+        copied = dict(entry)
+        refs = entry.get("evidence_refs") or []
+        if isinstance(refs, str):
+            refs = [refs] if refs else []
+        copied["evidence_refs"] = list(refs) if isinstance(refs, list) else []
+        return copied
+
+    @property
+    def entries(self) -> List[dict]:
+        return [self._copy_entry(entry) for entry in self._entries]
 
     # -- reads --
     def current_state(self, connection_id: str) -> Optional[str]:
         st = None
-        for e in self.entries:
+        for e in self._entries:
             if e["connection_id"] == connection_id:
                 st = e["to_state"]
         return st
 
     def history(self, connection_id: str) -> List[dict]:
-        return [e for e in self.entries if e["connection_id"] == connection_id]
+        return [self._copy_entry(e) for e in self._entries
+                if e["connection_id"] == connection_id]
 
     def current_states(self) -> Dict[str, str]:
         out: Dict[str, str] = {}
-        for e in self.entries:
+        for e in self._entries:
             out[e["connection_id"]] = e["to_state"]
         return out
 
     # -- write (append-only) --
     def record(self, connection_id: str, to_state: str, *, origin: str = "cloud",
                evidence_refs: Optional[List[str]] = None, note: str = "") -> dict:
+        """Append a transition; evidence-bearing states require refs, and runtime is host-only."""
         if to_state not in STATES:
             raise LedgerError(f"unknown state {to_state!r}; one of {STATES}")
         if origin not in ("cloud", "host"):
             raise LedgerError(f"origin must be cloud|host, got {origin!r}")
+        if evidence_refs is None:
+            refs = []
+        elif isinstance(evidence_refs, list):
+            refs = list(evidence_refs)
+        else:
+            raise LedgerError("evidence_refs must be a list of strings")
+        if to_state in _TRACE_REQUIRED_STATES:
+            if (not isinstance(refs, list) or not refs
+                    or any(not isinstance(ref, str) or not ref.strip() for ref in refs)):
+                raise LedgerError(f"{to_state} requires nonblank evidence_refs")
+        if to_state == "RUNTIME_OBSERVED" and origin != "host":
+            raise LedgerError("RUNTIME_OBSERVED requires host origin")
         frm = self.current_state(connection_id)
         if frm is None:
             if to_state not in ("DECLARED", "BLOCKED"):
@@ -98,14 +132,14 @@ class ConnectionLedger:
             raise LedgerError(f"illegal transition {frm} -> {to_state} for {connection_id!r}")
         entry = {
             "connection_id": connection_id, "from_state": frm, "to_state": to_state,
-            "origin": origin, "evidence_refs": evidence_refs or [], "note": note,
+            "origin": origin, "evidence_refs": refs, "note": note,
             "at": utc_now(),
         }
-        self.entries.append(entry)
+        self._entries.append(entry)
         os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
         with open(self.path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(entry, default=str) + "\n")
-        return entry
+        return self._copy_entry(entry)
 
 
 def seed_from_graph(ledger: ConnectionLedger, graph) -> List[dict]:
@@ -131,5 +165,6 @@ def seed_from_graph(ledger: ConnectionLedger, graph) -> List[dict]:
             out.append(ledger.record(cid, "TEST_PASSED", evidence_refs=test_refs,
                                      note="curated graph assertion; not an independently recorded test result"))
         if e.runtime_observed and ledger.current_state(cid) in ("TEST_PASSED", "SOURCE_CONFIRMED"):
-            out.append(ledger.record(cid, "RUNTIME_OBSERVED", origin="host"))
+            out.append(ledger.record(cid, "RUNTIME_OBSERVED", origin=e.runtime_origin,
+                                     evidence_refs=[e.runtime_ref]))
     return out

@@ -81,6 +81,8 @@ class Edge:
     scope: str = ""
     caveat: Optional[str] = None
     note: Optional[str] = None
+    runtime_ref: str = ""
+    runtime_origin: Optional[str] = None
 
     @property
     def level(self) -> str:
@@ -95,7 +97,8 @@ class Edge:
 
 class RuntimeGraph:
     """A separate static/design view of source-present relationships. Never writes
-    to the build DAG or mind map, and never implies live execution."""
+    to the build DAG or mind map. A runtime-observed edge is accepted only with
+    explicit host origin and a trace reference; a cloud graph cannot assert it."""
 
     def __init__(self) -> None:
         self.nodes: set[str] = set()
@@ -108,6 +111,13 @@ class RuntimeGraph:
             raise ValueError("test_verified edges must also be source_implemented")
         if edge.source_implemented and not edge.source_ref:
             raise ValueError("source_implemented edges require a source_ref")
+        if edge.runtime_observed:
+            if not edge.source_implemented:
+                raise ValueError("runtime_observed edges must be source_implemented")
+            if edge.runtime_origin != "host":
+                raise ValueError("runtime_observed edges require runtime_origin='host'")
+            if not isinstance(edge.runtime_ref, str) or not edge.runtime_ref.strip():
+                raise ValueError("runtime_observed edges require a nonblank runtime_ref")
         self.nodes.add(edge.src)
         self.nodes.add(edge.dst)
         self.edges.append(edge)

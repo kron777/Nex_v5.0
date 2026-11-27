@@ -42,7 +42,21 @@ Every runtime-graph `Edge` carries all three as explicit booleans; its `level` i
 the strongest it has, and a feedback cycle's status is its **weakest** edge. These
 flags are curated review assertions, not dynamically derived proofs. Ledger
 `TEST_WRITTEN`/`TEST_PASSED` entries cite `test_ref`, but mirror the curated
-`test_verified` flag; they do not represent a test run or captured CI result. This repository snapshot contains no current host collection; `runtime_observed` therefore remains unknown until a separately authorised host observation supplies evidence.
+`test_verified` flag; they do not represent a test run or captured CI result.
+
+A `runtime_observed` edge must also carry `runtime_origin="host"` and a nonblank
+`runtime_ref`, and it must be source-confirmed. The append-only ledger requires nonblank `evidence_refs` for
+`SOURCE_CONFIRMED`, `TEST_WRITTEN`, `TEST_PASSED`, `TEST_FAILED`,
+`RUNTIME_OBSERVED` and `REGRESSED` transitions. It additionally rejects
+`RUNTIME_OBSERVED` unless its origin is `host`. Graph seeding passes the edge's
+explicit runtime reference through; it never manufactures a host-origin observation.
+Evidence-reference lists are snapshotted on append, and `record()`,
+`history()` and `entries` return detached views so caller mutation cannot rewrite
+in-memory history. The ledger validates the presence of references, not that the
+referenced traces or source/test artifacts have been independently opened or
+authenticated. This repository snapshot contains no
+current host collection; `runtime_observed` therefore remains unknown until a
+separately authorised host observation supplies evidence.
 
 ## Founder constraints honored
 
