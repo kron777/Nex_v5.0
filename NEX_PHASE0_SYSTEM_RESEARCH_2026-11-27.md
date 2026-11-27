@@ -82,13 +82,13 @@ This is a source-level shutdown ordering risk. Producers can still be active whi
 
 **Sources:** `theory_x/stage2_dynamic/__init__.py`; `theory_x/signals/signal_to_problem.py`; `theory_x/signals/prose_stats.py`; `substrate/schema/beliefs.sql`.
 
-The Stage 2 dynamic factory registers `signal_to_problem_loop`. The loop receives a DynamicState containing shared Writers and Readers, but the current worker ignores them.
+The Stage 2 dynamic factory registers `signal_to_problem_loop`. The loop receives a DynamicState containing shared Writers and Readers. Since PR #279, it uses the shared beliefs Writer/Reader for the auxiliary prose-statistics rebuild; the primary `signal_to_problem_tick()` still ignores those handles and opens its own connections.
 
 `signal_to_problem_tick()` opens direct write-capable connections to both `beliefs.db` and `conversations.db`. It adds `signals.actioned_at` with runtime `ALTER TABLE` if absent; that column is not declared in the canonical `beliefs.sql` signals schema. It writes `actioned_at` and `open_problems`, then commits beliefs first and conversations second. A process loss or second-commit failure after the first commit can leave a signal marked actioned without its problem record.
 
-Every 30 ticks (roughly hourly at its 120-second cadence), the same loop calls `prose_stats.build_direct()`, which also opens a raw beliefs connection. A Writer/Reader-based `prose_stats.build()` already exists, but the scheduled loop does not use it. No dedicated `tests/test_signal_to_problem.py` or `tests/test_prose_stats.py` exists in the current test tree.
+Every 30 ticks (roughly hourly at its 120-second cadence), the loop now calls `prose_stats.build(state.writers["beliefs"], state.readers["beliefs"])`. PR #279 migrated this auxiliary rebuild to one shared-Writer transaction and added `tests/test_signal_to_problem.py` and `tests/test_prose_stats.py`. Those tests cover the auxiliary path; they do not exercise the primary tick's cross-database failure boundary.
 
-This is an omitted active path in the G-61 one-pen audit and corresponds to the earlier G-44 cross-database finding. Do not mechanically route writes through Writers and assume the recovery problem is solved. The founder/design decision must establish the intended cross-database contract: ordering, idempotent replay, outbox or reconciliation. The auxiliary prose-statistics writer can be migrated separately after its performance and equivalence are tested.
+This is an omitted active path in the G-61 one-pen audit and corresponds to the earlier G-44 cross-database finding. Do not mechanically route writes through Writers and assume the recovery problem is solved. PR #279 closes the auxiliary prose-statistics direct-write bypass. The founder/design decision must still establish the primary cross-database contract: ordering, idempotent replay, outbox or reconciliation.
 
 ### G-86 — SignalReaper's preservation allowlist has drifted from SignalToProblem
 
