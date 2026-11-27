@@ -507,3 +507,15 @@ After #248 merged, the pending #247 and #249 branches were replayed once more so
 - **PR #254 — RDO experiment-registry fail-closed tests, post-#248 replay: OPEN / exact-head CI pending.** It carries the corrected Stage 2 fixture and registry-boundary tests onto the same mainline.
 
 The older #247 and #249 branches are closed as superseded. Their CI outcomes remain historical only; #253 and #254 are now the authoritative branches for any merge decision. The manual is kept on the current-main base in PR #252.
+
+
+## 26. Warrant cursor query-plan and performance risk (27 November 2026)
+
+The event-time cursor is a correctness improvement, but its production cost is not yet measured. The current beliefs schema indexes `belief_lineage` by parent/child and `arc_members` by belief ID; it does not declare indexes matching the new ordered cursor tuples:
+
+- `belief_lineage(created_at, child_id, parent_id, relationship)`
+- `arc_members(joined_at, arc_id, belief_id)`
+
+Without matching indexes, SQLite may need to scan and sort these tables for each Warrant use cycle. The previous timestamp/rowid cursor also lacked an obvious matching composite index, so this is not yet established as a regression; it is an unmeasured cost of the current access path.
+
+No speculative index migration has been added. Before enabling `NEX5_WARRANT_RECORD` on a data-bearing host, measure table row counts, inspect `EXPLAIN QUERY PLAN` for both cursor queries, and time representative cycles against realistic data. Add the composite indexes only if those measurements justify their write/storage overhead. The feature gate remains OFF and no live database was inspected.
