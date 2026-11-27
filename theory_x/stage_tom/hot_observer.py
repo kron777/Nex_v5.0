@@ -1,7 +1,7 @@
 """Higher-Order Thought Observer — NEX's self-awareness loop."""
 from __future__ import annotations
 import re, time, logging
-from substrate import connect, Row
+from substrate import connect, Row, Writer
 from pathlib import Path
 
 log = logging.getLogger("theory_x.hot_observer")
@@ -62,7 +62,8 @@ def _compose_meta_belief(thought: str, hot_branch: str, is_tmpl: bool) -> str:
 
 
 def observe(thought: str, hot_branch: str = "",
-            beliefs_db: str | None = None) -> bool:
+            beliefs_db: str | None = None,
+            beliefs_writer: Writer | None = None) -> bool:
     """Classify one fire and write a HOT meta-belief. Fail-safe."""
     try:
         _state["counter"] += 1
@@ -72,19 +73,23 @@ def observe(thought: str, hot_branch: str = "",
             return False
         is_tmpl = _is_template(thought)
         meta    = _compose_meta_belief(thought, hot_branch, is_tmpl)
-        db_path = beliefs_db or str(_BELIEFS_DB)
-        con = connect(db_path, timeout=5)
-        con.execute(
-            "INSERT INTO beliefs "
-            "(content, tier, confidence, created_at, branch_id, source, "
-            " locked, corroboration_count, paused, reinforce_count, "
-            " use_count, erosion_stage, promotion_log) "
-            "VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 'external', '[]')",
-            (meta, _TIER, _CONFIDENCE, int(time.time()),
-             hot_branch or None, _SOURCE)
+        owns_writer = beliefs_writer is None
+        writer = beliefs_writer or Writer(
+            beliefs_db or str(_BELIEFS_DB), name="hot_observer"
         )
-        con.commit()
-        con.close()
+        try:
+            writer.write(
+                "INSERT INTO beliefs "
+                "(content, tier, confidence, created_at, branch_id, source, "
+                " locked, corroboration_count, paused, reinforce_count, "
+                " use_count, erosion_stage, promotion_log) "
+                "VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 'external', '[]')",
+                (meta, _TIER, _CONFIDENCE, int(time.time()),
+                 hot_branch or None, _SOURCE)
+            )
+        finally:
+            if owns_writer:
+                writer.close()
         log.info("hot_observer [%s] %s",
                  "TEMPLATE" if is_tmpl else "GROUNDED", thought[:60])
         return True
