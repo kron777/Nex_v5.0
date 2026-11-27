@@ -221,12 +221,49 @@ This backlog is evidence input for Gate 0. It is not permission to enable Phase 
 
 The defect/evidence findings above remain pinned to the stated `ae406fa8` source snapshot. The following later merge/CI facts do not retroactively change that snapshot:
 
-- PR #191 migrated Moltbook responder persistence; PR #196 migrated listener and poster persistence; PR #200 migrated boot-time ResumptionSeeder, IdentityLoop and Fountain momentum/recursion-attribution persistence. #200 exact-head CI run `45990854891` passed (2,539 passed, 7 skipped, 40 subtests). These close the listed bounded migration branches, not the repository-wide one-pen audit.
+- PR #191 migrated Moltbook responder persistence; PR #196 migrated listener and poster persistence; PR #200 migrated boot-time ResumptionSeeder, IdentityLoop and Fountain momentum/recursion-attribution persistence; PR #202 migrated HotObserver and grounded scorecard writes onto canonical AppState handles. PR #205 added the first-run SurpriseLoop ten-minute history-window test; PR #211 corrected VoiceEngine origin identity metadata. Current exact-head CI run `45995284146` passed (2,546 passed, 7 skipped, 45 subtests). These close identified bounded paths, not the repository-wide one-pen audit.
 - PR #185 mind-map source re-verification is merged. Current verifier result on #200: 30 nodes, 0 unverified, 14 dark, 2 blocked. Two missing doctrine references and the overdue `p13_finitude` marker remain warnings and remain unresolved.
-- Current main SHA: `5d7f4e28eb6760d206eed455429c90e967a5bf10`.
+- Current main SHA: `46c743f9c0009e485e307a574be9cb2c6c2a9b39`.
 - No current host/runtime collection or live database inspection was performed. Host process state, runtime flags, database integrity/hashes, model digest/performance and L4 trace remain UNKNOWN.
 
 This follow-up is evidence-status maintenance only. It does not authorise behavioural changes, dark-flag activation, live DB writes, experiment execution, Gate policy changes or Phase 1. Gate 0 remains pending founder review.
+
+### G-68 — decryption ProbeRunner live-mutation and cleanup risk
+
+- `decryption/probe_runner.py` is distinct from `theory_x.probes.probe_runner.ProbeRunner`, a separate normal-boot/API probe subsystem.
+- It defaults to `dry_run=False`. In that mode `_setup()` changes NEX mode through `/api/mode/set` and `_seed_prior_context()` writes synthetic `fountain_insight` beliefs using raw SQLite. `_teardown()` deletes injected IDs but does not restore the previous mode.
+- `_remove_injected_beliefs()` clears its in-memory ID list in `finally` even if DELETE fails, preventing retry with the same IDs. Process termination before `_teardown()` also bypasses cleanup. `dry_run=True` suppresses mode changes and synthetic writes/deletes but still performs read-only DB inspection for the maximum real belief ID.
+- It is not imported by the normal `run.py` boot path inspected. It was not invoked; no synthetic rows or mode changes were made. Do not run against live NEX without explicit experiment approval and a verified disposable database/runtime.
+- **Disposition:** OPEN — experimental safety/cleanup risk. No code or runtime change.
+
+### G-69 — SurpriseLoop timestamp cursor can skip tied rows and failed promotions
+
+- `theory_x/life/surprise_loop.py` selects up to 20 events ordered by `triggered_at`, then stores only the maximum timestamp as its cursor. More than 20 rows sharing the boundary timestamp can cause remaining tied rows to be skipped by the next strict-greater-than query.
+- The loop advances `max_ts` after the exception handler even when a non-integrity write/conversion failure occurs, so a failed event can be permanently skipped rather than retried. PR #205 tests only the first-run ten-minute window; it does not fix timestamp ties or failure retry semantics.
+- PR #104 contains a stable-ID cursor/retry proposal but is on the stale continuity branch. Because this changes which surprise events become beliefs, hold the correction for Gate 0 review and current-main carry-forward.
+- **Disposition:** OPEN — source-level data-loss risk; no cursor/retry policy changed.
+
+### G-70 — M0.5 trace currently stops at speech-queue enqueue
+
+- `theory_x/stage6_fountain/crystallizer.py` records speech-queue enqueue in the current `influence_trace.py` sidecar. `speech/queue_consumer.py` has no `influence_trace` hooks for consumption, synthesis/playback outcome or failure.
+- The current per-cycle `TraceContext` has no cross-thread queue-link registry. Old PR #55 uses the superseded `substrate.trace_overlay` API and is not a safe carry-forward.
+- This is an observability coverage gap. Do not add substrate DB columns or change speech behaviour by inference; if M0.5 acceptance requires playback lineage, design bounded in-memory/sidecar correlation and tests.
+- **Disposition:** OPEN — M0.5 coverage question; no live trace or speech change.
+
+### G-71 — WarrantRecorder rowid tie cursor is not stable across VACUUM
+
+- Current `theory_x/stage_warrant/recorder.py` uses `(timestamp, rowid)` cursors for `belief_lineage` and `arc_members`, fixing the tied-timestamp page-boundary defect in G-53/PR #184.
+- Both tables have declared composite primary keys, but rowid is not the declared key and may change during `VACUUM`. A persisted cursor may then skip or replay rows. PR #106 proposes a composite-key cursor but remains on a stale branch.
+- This affects use-day measurement and potentially Warrant sustain/retirement accounting. No live table population or VACUUM event was inspected. Keep distinct from #184, which fixed tied timestamps but not rowid stability.
+- **Disposition:** OPEN — cursor stability issue; no Warrant eligibility or lifecycle policy changed.
+
+### Current-main one-pen and stale-branch disposition
+
+- The six Stage-2 life loops (`pattern_loop`, `witness_loop`, `surprise_loop`, `remember_loop`, `wonder_loop`, `fetch_loop`) use shared Readers/Writers through `stage2_dynamic` wrappers. Identity (#200), affinity (#169), DailyLife (#168), scorecard/HotObserver (#202), Fountain momentum/recursion (#200), and all three Moltbook loops (#191/#196) use canonical handles. The earlier 25-Nov writer census is stale for these paths; the decryption ProbeRunner remains a separate experimental raw-write exception. This does not prove the global write-path census complete.
+- Open proposals #99–#122 are based on `claude/nex-continuity-wire`, approximately 690 commits behind current main. They cover eligibility/selection, dormancy, surprise retry/cursor, Warrant use-day cursor, Harmonizer coverage, Tier-6, RememberLoop, affinity, diversity and self-narrative. Do not merge wholesale; Gate 0 review and individual current-main carry-forward are required.
+- PR #142–#144 detailed audit documents remain on a stale branch. Their G-51–G-58 summaries are in this backlog, but the detailed documents are not current-main evidence. PR #146 was superseded; #205 carries only the first-run-window test.
+
+
 
 ### G-67 — Throw-Net trigger thresholds are not enforced by the pending-session consumer
 
