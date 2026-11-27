@@ -466,3 +466,19 @@ The earlier manual updates #244 and #246 were authored against main before #243 
 3. Keep #239 held for explicit founder Gate 0 review despite its earlier green CI.
 4. Continue the Phase 0 source-to-sink audit; preserve frozen specifications, roadmap, feature gates and cognitive behaviour.
 5. Treat host migration, service operation, feature enablement and behavioural benefit as unverified until separately observed and measured.
+
+
+## 23. Warrant cursor ordering: append-time semantics and older-parent additions (27 November 2026)
+
+A second-pass producer review found that a cursor ordered only by declared primary key is not sufficient for every append path. `theory_x/arcs/detector.py` can add a new `arc_members` row to an already-existing active arc when a later fire joins it. That row has a new `joined_at` but can have an `arc_id` lower than the last key-only cursor. Similarly, a new lineage relation can be recorded for an earlier child ID. A key-only cursor could therefore permanently skip valid new use evidence even though it is immune to hidden-rowid remapping.
+
+**PR #247 was strengthened before merge.** Its current design orders by event time first and uses declared primary-key columns only as deterministic tie-breakers:
+
+- lineage: `(created_at, child_id, parent_id, relationship)`
+- arc membership: `(joined_at, arc_id, belief_id)`
+
+This preserves tied-timestamp pagination without relying on hidden rowids and ensures later events for older arcs/children still sort after the saved cursor. The tuple-cursor reader also validates component types and falls back to a replayable default when stored JSON is malformed or type-incompatible.
+
+The expanded regression fixture now advances beyond arc ID 1 to arc ID 2 and child ID 104, then inserts a later event for arc ID 1 and child ID 2. It asserts both events are still consumed. It also forces rowid remapping between pages and exercises malformed cursor data. Current #247 head at this update: `3908a587373e958dbd3faf542d7c3a7d56d50677`; its exact-head CI is queued/running and must pass before merge.
+
+This is an important distinction for future cursor work: a stable identity key solves rowid instability, but does not by itself prove append-order monotonicity. Cursor ordering must be checked against the actual producer's insertion semantics, not inferred from the table's primary key alone.
