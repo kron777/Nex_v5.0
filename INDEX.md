@@ -198,6 +198,8 @@ The DAG uses `built`, `live_unproven`, `terminal`, `gap` and `gorge`. `nex_next_
 
 The DAG contains a status/documentation mismatch worth preserving for review: `L4_teeth` remains labelled `gap` although its note says the retrieval/phrasing frontier was closed on 2026-11-07 and no further work is queued. Verify the intended status with the owner before changing the graph. Do not edit generated mind-map outputs by hand; `MIND_MAP.yaml` is the source for its generated representations.
 
+**DAG consistency snapshot (27 November 2026):** a source-only check of `sentience_dag.json` found 15 nodes and 15 prerequisite edges; status counts were 9 `built`, 2 `terminal`, 2 `gap`, 1 `gorge` and 1 `live_unproven`. All prerequisite references resolved, with no duplicate prerequisite entries or unknown status values. Under the DAG's existing rule, both gap nodes (`L4_stakes` and `L4_teeth`) classify as buildable and both carry a terminal-null caveat through `L3_teeth_test`; no gap node is classified as blocked. The single `live_unproven` node is not a prerequisite of either gap. This is a consistency/inventory result for the descriptive development DAG only, not Master Roadmap progress, proof of implementation efficacy, or authority to change any node status.
+
 ---
 
 ## 10. Research and evidence practice
@@ -216,6 +218,8 @@ Use the source-to-sink method:
 Prefer controlled experiments and reversible changes. Do not add a new named faculty or duplicate a cognitive twin, genome or event ledger merely because a concept is interesting. First establish whether an existing mechanism already covers the function and where the actual gap lies.
 
 A successful unit test does not establish runtime liveness. A successful boot does not establish cognitive efficacy. A model's first-person self-report does not establish subjective experience.
+
+**Development-tool correction (27 November 2026; branch verification pending):** source review found that `nex_next_dev.py --buildable` unpacked each `classify()` result as two values although the classifier returns three (`node`, unproven prerequisites, terminal-null prerequisites). The command therefore raises a tuple-unpacking error when a buildable gap is present. The full report also described a `live_unproven` prerequisite as a hard gate, contradicting `sentience_dag.json`'s explicit rule that `built`, `live_unproven` and `terminal` are all dependency-satisfied statuses, with the latter two surfaced as caveats rather than blockers. The development-tool branch now prints both caveat types in `--buildable`, labels unproven statuses as non-blocking caveats in the full report, and exposes a testable `main(argv)` entry point. Three isolated regression tests cover the CLI output and preserve the existing DAG classification semantics. This is a developer-tool correction only: it does not change the DAG, runtime code, cognitive behaviour, flags, specifications or roadmap. Exact-head test/CI results are pending; do not call it validated until those results are inspected.
 
 ---
 

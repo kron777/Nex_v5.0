@@ -5,8 +5,8 @@ nex_next_dev.py — compute the next development from the sentience dependency D
 The mind-map's build order is the TOPOLOGICAL SORT of a dependency graph. This
 reads that graph (sentience_dag.json) and mechanically answers "what's next?":
 
-  BUILDABLE NOW  — every prereq is satisfied (built/live), node itself is a gap.
-  BLOCKED        — a prereq is still unproven; advancing past it needs proof.
+  BUILDABLE NOW  — every prereq is in the DAG's satisfied set; caveats are shown.
+  BLOCKED        — at least one prereq is outside that set; node itself is a gap.
   GAP            — a hole the graph predicts (incl. sibling-clusters).
   GORGE          — node with no satisfiable dependency path (the hard problem).
 
@@ -114,14 +114,14 @@ def report(dag: dict) -> None:
         print(f"  • {n}{flag}")
         print(f"      {note}")
 
-    print("\n>>> BLOCKED (waiting on an unbuilt/unproven prereq):")
+    print("\n>>> BLOCKED (at least one prerequisite is outside the DAG satisfied set):")
     if not c["blocked"]:
         print("    (none)")
     for n, missing in c["blocked"]:
         print(f"  • {n}  <- needs: {', '.join(missing)}")
         print(f"      {nodes[n].get('note','')[:70]}")
 
-    print("\n>>> LIVE BUT UNPROVEN (the gates — prove these to advance):")
+    print("\n>>> LIVE BUT UNPROVEN (dependency-satisfied caveats; not validated):")
     for n in c["live_unproven"]:
         print(f"  • {n} — {nodes[n].get('note','')[:70]}")
 
@@ -142,25 +142,38 @@ def report(dag: dict) -> None:
                   f"gap={info.get('members_gap')}")
 
     print("\n" + "-" * 66)
-    print("THE ONE GATE RIGHT NOW:")
-    # the binding constraint = the live_unproven node closest to the frontier
+    print("UNPROVEN DEPENDENCY CAVEATS (not hard blockers under the current DAG rule):")
     if c["live_unproven"]:
-        gate = c["live_unproven"][0]
-        print(f"  Prove '{gate}' (its teeth) before advancing the layer above it.")
-        print(f"  Until then, building higher layers rests on an unproven floor.")
+        for gate in c["live_unproven"]:
+            print(f"  • {gate} — {nodes[gate].get('note', '')[:70]}")
+        print("  These prerequisites remain eligible for dependency progression;")
+        print("  the caveat is surfaced, not treated as a blocking status.")
+    else:
+        print("  (none)")
     print("-" * 66)
 
 
-if __name__ == "__main__":
+def main(argv: list[str] | None = None) -> None:
+    """Run the CLI; argv is injectable so command modes can be regression-tested."""
+    args = sys.argv[1:] if argv is None else argv
     dag = load()
-    if "--order" in sys.argv:
+    if "--order" in args:
         print("Topological build order:")
         for i, n in enumerate(topo_sort(dag["nodes"]), 1):
             print(f"  {i:2d}. {n}  [{dag['nodes'][n]['status']}]")
-    elif "--buildable" in sys.argv:
+    elif "--buildable" in args:
         c = classify(dag["nodes"])
-        for n, unproven in c["buildable_now"]:
-            flag = f"  (leans on unproven: {','.join(unproven)})" if unproven else ""
+        for n, unproven, terminal_null in c["buildable_now"]:
+            flags = []
+            if unproven:
+                flags.append(f"leans on unproven: {', '.join(unproven)}")
+            if terminal_null:
+                flags.append(f"rests on terminal null: {', '.join(terminal_null)}")
+            flag = f"  [{'; '.join(flags)}]" if flags else ""
             print(f"{n}{flag}")
     else:
         report(dag)
+
+
+if __name__ == "__main__":
+    main()
