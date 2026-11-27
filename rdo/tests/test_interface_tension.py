@@ -278,8 +278,8 @@ def test_numeric_envelope_measurements_require_units_and_finite_values():
 
 
 @pytest.mark.parametrize("field", ["measured_load", "measured_capacity", "headroom"])
-@pytest.mark.parametrize("value", [True, False])
-def test_operating_envelope_numeric_measurements_reject_booleans(field, value):
+@pytest.mark.parametrize("value", [True, False, "70"])
+def test_operating_envelope_numeric_measurements_reject_non_numeric_values(field, value):
     measurement = InterfaceEvidence(
         status="measured",
         value=value,
