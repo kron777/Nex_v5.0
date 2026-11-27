@@ -135,5 +135,87 @@ class TestErosionTracking(unittest.TestCase):
         self.assertEqual(row["erosion_stage"], "nex_absorbed")
 
 
+
+    def test_erosion_pass_reaches_ready_rows_after_500_unadvanced_rows(self):
+        from theory_x.stage3_world_model.erosion import ProvenanceErosion, THRESHOLDS
+        w = self.writers["beliefs"]
+        r = self.readers["beliefs"]
+        erosion = ProvenanceErosion(w, r)
+
+        # Keep seed rows out of this controlled scan; the 500 low-reinforcement
+        # rows deliberately occupy the first page ahead of five ready rows.
+        w.write("UPDATE beliefs SET locked = 1")
+        first_id = None
+        low_ids = []
+        for index in range(500):
+            bid = _insert_belief(w, f"Low reinforcement row {index}")
+            first_id = bid if first_id is None else first_id
+            low_ids.append(bid)
+        ready_ids = [
+            _insert_belief(w, f"Ready row {index}") for index in range(5)
+        ]
+        w.write(
+            "UPDATE beliefs SET erosion_stage='nex_integrated', reinforce_count=0 "
+            "WHERE id >= ?",
+            (first_id,),
+        )
+        placeholders = ",".join("?" for _ in ready_ids)
+        w.write(
+            f"UPDATE beliefs SET reinforce_count=? WHERE id IN ({placeholders})",
+            (THRESHOLDS["nex_integrated"], *ready_ids),
+        )
+
+        advanced = erosion.erosion_pass()
+        self.assertEqual(advanced, 5)
+
+        low_rows = r.read(
+            f"SELECT id, erosion_stage FROM beliefs WHERE id IN "
+            f"({','.join('?' for _ in low_ids)})",
+            tuple(low_ids),
+        )
+        ready_rows = r.read(
+            f"SELECT id, erosion_stage FROM beliefs WHERE id IN ({placeholders})",
+            tuple(ready_ids),
+        )
+        self.assertTrue(all(row["erosion_stage"] == "nex_integrated" for row in low_rows))
+        self.assertTrue(all(row["erosion_stage"] == "nex_core" for row in ready_rows))
+
+    def test_erosion_pass_keyset_does_not_skip_rows_that_leave_eligible_set(self):
+        from theory_x.stage3_world_model.erosion import ProvenanceErosion, THRESHOLDS
+        w = self.writers["beliefs"]
+        r = self.readers["beliefs"]
+        erosion = ProvenanceErosion(w, r)
+
+        w.write("UPDATE beliefs SET locked = 1")
+        belief_ids = [
+            _insert_belief(w, f"Ready for keyset page {index}") for index in range(505)
+        ]
+        first_id = belief_ids[0]
+        placeholders = ",".join("?" for _ in belief_ids)
+        w.write(
+            "UPDATE beliefs SET erosion_stage='nex_integrated', reinforce_count=? "
+            "WHERE id >= ?",
+            (THRESHOLDS["nex_integrated"], first_id),
+        )
+
+        advanced = erosion.erosion_pass()
+        self.assertEqual(advanced, 505)
+
+        rows = r.read(
+            f"SELECT id, erosion_stage FROM beliefs WHERE id IN ({placeholders})",
+            tuple(belief_ids),
+        )
+        self.assertEqual(len(rows), 505)
+        self.assertTrue(all(row["erosion_stage"] == "nex_core" for row in rows))
+
+        undo_rows = r.read(
+            "SELECT belief_id FROM undo_events "
+            "WHERE kind='eroded' AND cause_ref='erosion_pass:nex_integrated->nex_core'"
+        )
+        self.assertEqual(
+            {row["belief_id"] for row in undo_rows}, set(belief_ids)
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
