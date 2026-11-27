@@ -1,6 +1,6 @@
 # NEX Phase 0 — Verified Defect and Evidence-Gap Backlog (Mainline)
 
-**Snapshot index:** `main` at `e4f439e6aef4383795ccc7e3e29b1d242ed0f98c`  
+**Snapshot index:** `main` at `14873c10673760b8adbbf6fb0076226d1c97ffa4`  
 **Date:** 27 November 2026  
 **Purpose:** Separate confirmed documentation/source discrepancies from unknown host/runtime evidence and incomplete audits. This backlog is not approval to change cognition or policy. The header SHA is the latest repository snapshot for navigation only; each finding retains its own source/test evidence date and must be revalidated before being called current.
 
@@ -172,14 +172,11 @@ These are source-level conditions and test-coverage gaps recovered from older au
   - Fetch and Wonder — PR #163.
   - Surprise — PR #165.
   - Pattern and Witness — PR #164.
-- Further bounded migrations remain open and unmerged:
-  - Fountain/momentum persistence — PR #162.
-  - Identity loop persistence — PR #166.
-  - DailyLife scheduled persistence — PR #168.
-  - Affinity loop persistence — PR #169.
-- Current evidence: these four PRs have exact-head CI runs in progress at this handoff. PRs #162 and #166 were opened against earlier mainline base SHAs; their integration against the latest mainline must be confirmed before merge. PRs #168 and #169 target current main ae406fa8.
-- Impact/qualification: the original three raw-connection paths are no longer present in current main. The one-pen rule is not yet declared globally complete: the full faculty producer/consumer and persistence audit remains open. No live lock contention or runtime failure is claimed.
-- Disposition: continue the four bounded migrations through tests and exact-head integration review. Preserve transaction semantics and multi-database ordering; do not mechanically replace calls without reviewing atomicity/side effects.
+- **Historical PR status rechecked 27 November:** PRs #162 and #166 are closed unmerged; their bounded work was superseded by later merged persistence integration, including PR #200. PRs #168 and #169 are merged. PRs #180/#183 and #191/#196/#200 also merged their respective one-pen migrations. The older “four migrations in flight” status is superseded.
+- **Additional current-main active path:** `signal_to_problem_loop` is registered in the Stage 2 dynamic factory. It opens raw write-capable connections to beliefs and conversations, adds `signals.actioned_at` at runtime, commits the two databases separately, and invokes `prose_stats.build_direct()` every 30 ticks. See G-85 and the 27 November system research report.
+- The Writer/Reader-based `prose_stats.build()` exists but is not used by the scheduled loop. No dedicated SignalToProblem or prose-stats integration test was found.
+- **Impact/qualification:** the global one-pen audit remains open. The cross-database ordering/recovery contract is unresolved; do not mechanically replace the two-DB transaction or imply atomicity. No live lock contention or runtime incident is claimed.
+- **Disposition:** continue the remaining census and define idempotent recovery before migrating SignalToProblem. A separate prose-statistics Writer migration may be evaluated after equivalence/performance tests.
 
 ### G-62 — Internally generated reflective beliefs bypass the declared Coherence Gate boundary
 
@@ -379,4 +376,53 @@ G-76 remains a founder decision. G-79 is closed by PR #272, merged as `90ffd57c7
 
 ## Post-PR #274 mind-map freshness recheck — 27 November 2026
 
-**Current main:** `e4f439e6aef4383795ccc7e3e29b1d242ed0f98c`. PR #274 merged as this commit after its exact-head run `46037202834` passed **2,632 tests, 7 skipped, 45 subtests; baseline OK**. Its CI mind-map check reported 30 nodes, 0 unverified, 14 dark and 2 blocked, with no stale-source warnings. The two missing doctrine references remain unresolved under D-03; the past-due P13 marker remains intentionally retained and is not permission to rearm. No MIND_MAP node or runtime state changed.
+**Current main:** `14873c10673760b8adbbf6fb0076226d1c97ffa4`. PR #274 merged as this commit after its exact-head run `46037202834` passed **2,632 tests, 7 skipped, 45 subtests; baseline OK**. Its CI mind-map check reported 30 nodes, 0 unverified, 14 dark and 2 blocked, with no stale-source warnings. The two missing doctrine references remain unresolved under D-03; the past-due P13 marker remains intentionally retained and is not permission to rearm. No MIND_MAP node or runtime state changed.
+
+
+## Current-main system research continuation — 27 November 2026
+
+**Evidence snapshot:** `main` at `14873c10673760b8adbbf6fb0076226d1c97ffa4`. Detailed source anchors and limits are in `NEX_PHASE0_SYSTEM_RESEARCH_2026-11-27.md`.
+
+### G-80 — Reanimation mark-before-delivery loss window (OPEN)
+
+`wake_one()` persists `reanimated_at` before placing the selected row in process-local `_pending_reanimation`; `pop_reanimated()` clears that global. There is no durable pending-delivery record or restart recovery for a row already marked reanimated. A process loss between marking and Fountain consumption can strand the handoff. No incident is established. Define at-most-once versus recoverable delivery and add crash/restart tests before choosing an outbox or retry design.
+
+### G-81 — Fountain and ClockRunner fire counters diverge (OPEN)
+
+Fountain increments `_total_fires` at four output paths, while `notify_fire()` appears only in the normal LLM path. ClockRunner thresholds and Fountain reanimation cadence therefore count different populations. Define the intended meaning of “fire”; do not change cadence until that contract is explicit.
+
+### G-82 — Folded into G-73: dormancy scan coverage and ownership
+
+The current scanner selects the first 50 beliefs by creation time without a cursor. ClockRunner constructs a new scanner in its fast path, while DiversityLoop has a separate scanner. G-82 is not a separate defect: it is additional current-main evidence for G-73's existing scan-coverage/ownership/eligibility question. PR #102/#145 remain old-branch drafts and do not resolve final retired-state revalidation.
+
+### G-83 — Metacognition re-emits unacknowledged groove alerts (OPEN)
+
+The Chat route calls `Metacognition.tick()`; its groove detector reads recent unacknowledged alerts and writes meta-cognition event rows without acknowledging the source alert. The stillness threshold counts event rows, so repeated Chat turns can count one alert multiple times. Define idempotency/acknowledgement and distinct-source evidence before changing reflective behaviour.
+
+### G-84 — Shutdown does not quiesce all producers before Writer close (OPEN; legacy G-34)
+
+`AppState.close()` calls scheduler shutdown and closes Writers but does not call `stop_dynamic()` or coordinate all other workers. Scheduler stop signals are not joined. Writer close enqueues a sentinel and joins; submit has no closed-state guard. The keepalive supervisor has a 15-second SIGKILL deadline. This is a conditional data-loss/hang risk, not an observed incident. A central lifecycle coordinator and global deadline are required.
+
+### G-85 — SignalToProblem direct Writer bypass and split commit (OPEN; legacy G-44, under G-61)
+
+The boot-registered SignalToProblem worker uses direct connections to beliefs and conversations, dynamically adds `actioned_at`, commits the beliefs database before the conversations database, and calls a direct-write prose-statistics rebuild hourly. This bypasses the one-pen contract and has a cross-database failure window. Define recovery/idempotency before migrating the transaction; do not claim cross-database atomicity.
+
+### G-86 — SignalReaper preservation allowlist drift (OPEN; legacy G-43)
+
+SignalReaper preserves obsolete signal types while omitting current `4_branch` and `advancements_drift` types from its allowlist. Because reaping only targets rows older than seven days and promotion looks back six hours, this does not establish loss of a currently eligible promotion. It does create a retention-contract mismatch and can retain obsolete unconsumed types indefinitely.
+
+### G-87 — Moltbook dry-run is not offline (OPEN; legacy G-35 updated)
+
+Current main sets `MOLTBOOK_DRY_RUN=1`, which suppresses non-GET requests only. GET ingestion remains live; local records can still be marked `posted`/`sent` after synthetic success, and eligible inbound DMs are processed with `needs_human=0`. Related-belief retrieval does not filter tier/paused/locked/retired state. No external calls or host credentials were inspected. Review external consent, human approval, belief eligibility and simulated-state labels before live mode.
+
+### G-88 — Keepalive checkout path portability (CLOSED by PR #277)
+
+PR #277 derives `SCRIPT_DIR` from the script location, updates Git/journal paths and adds a portability regression test. Exact-head run `46042032164`: 2,636 passed, 7 skipped, 45 subtests; baseline OK. The merged main tree matches the tested head. Current main's `MOLTBOOK_DRY_RUN=1` was preserved. Host systemd unit identity remains unknown.
+
+### G-89 — RDO generated-cycle source-evidence contamination (CLOSED by PR #276)
+
+PR #276 excludes ignored `rdo/.cycles` from both RDO source-search paths and adds regression tests. Exact-head run `46040900959`: 2,634 passed, 7 skipped, 45 subtests; baseline OK. Post-merge main run `46041833321` also passed 2,634. RDO-generated plans can no longer become their own source anchors through these grep paths.
+
+### RDO capability boundary (not a defect ID)
+
+Current objective intake requires externally supplied seed obligations and reconciliation signatures. The deterministic extrapolator expands a bounded rule catalogue (default depth 4); it does not independently compile arbitrary raw intent into those initial seeds. RDO remains an external advisory tool, not NEX runtime. The founder-supplied v1.4 text was provided in a prior conversation, but its raw bytes are not available in the current repository/Library for direct comparison; v1.3 §16 remains the verified staged sequence, while v1.4 precedence is unresolved. See the system research report.
