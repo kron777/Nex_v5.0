@@ -845,6 +845,7 @@ PR #275's mind-map freshness update, PR #276's RDO generated-cycle exclusion and
 - G-85: SignalToProblem is boot-registered but still writes directly to two databases, commits them separately and invokes a direct-write prose-statistics rebuild. This extends the open G-61 one-pen audit.
 - G-86: SignalReaper's preservation allowlist has drifted from SignalToProblem's current promotable types.
 - G-87: Moltbook dry-run suppresses non-GET requests but still reads remotely and can persist simulated sends as real `posted`/`sent` states.
+- G-90: social silence is not yet modeled as a contextual social act; response latency and internal stillness mechanisms are not substitutes.
 - G-88 is closed by PR #277 (keepalive path portability); host service identity remains unknown.
 - G-89 is closed by PR #276 (RDO generated `.cycles` records excluded from source-evidence searches).
 
