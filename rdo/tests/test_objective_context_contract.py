@@ -43,6 +43,8 @@ def test_objective_context_is_preserved_and_unmapped_items_block_readiness(tmp_p
     assessment = cycle.context_assessment
     assert assessment["status"] == "unmapped"
     assert assessment["review_required"] is True
+    assert assessment["execution_readiness"] == "blocked"
+    assert assessment["handoff_readiness"] == "reviewable"
     assert len(assessment["items"]) == 6
     assert {item["kind"] for item in assessment["items"]} == {
         "scope", "affected_path", "assumption", "constraint", "exclusion", "acceptance_criterion"
@@ -53,9 +55,11 @@ def test_objective_context_is_preserved_and_unmapped_items_block_readiness(tmp_p
     assert summary["objective_context"] == assessment
     assert cycle.work_packages
     for package in cycle.work_packages:
-        assert package["eligibility"] == "blocked"
-        assert any("objective context contains unmapped" in blocker
-                   for blocker in package["blockers"])
+        # Stage-1 eligibility governs whether a proposal can be prepared for
+        # bounded review; objective-context readiness separately blocks execution.
+        assert package["eligibility"] == "eligible"
+        assert not any("objective context contains unmapped" in blocker
+                       for blocker in package["blockers"])
         assert any("Do not activate feature flags" in item
                    for item in package["anti_requirements"])
 
@@ -66,6 +70,8 @@ def test_absent_objective_context_does_not_change_legacy_cycle_readiness(tmp_pat
     assert cycle.objective_context == {}
     assert cycle.context_assessment["status"] == "not_supplied"
     assert cycle.context_assessment["review_required"] is False
+    assert cycle.context_assessment["execution_readiness"] == "unknown"
+    assert cycle.context_assessment["handoff_readiness"] == "not_applicable"
     assert cycle.work_packages
     assert all(package["eligibility"] == "eligible"
                for package in cycle.work_packages)
