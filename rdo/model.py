@@ -136,6 +136,7 @@ class InterfaceTensionProfile:
     freshness: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
     influence_magnitude: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
     authority_boundary: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
+    coupling: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
     reversibility: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
     error_handling: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
     fallback: InterfaceEvidence = dataclasses.field(default_factory=InterfaceEvidence)
