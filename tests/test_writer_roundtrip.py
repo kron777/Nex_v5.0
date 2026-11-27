@@ -51,6 +51,20 @@ class TestWriterRoundtrip(unittest.TestCase):
         reader = Reader(self.db)
         self.assertEqual(reader.count("t"), 3)
 
+    def test_multi_statement_with_counts_reports_insert_and_ignore_per_statement(self):
+        self.writer.write(
+            "CREATE TABLE counted (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "content TEXT NOT NULL UNIQUE)", ()
+        )
+        results = self.writer.write_many_with_counts([
+            ("INSERT INTO counted (content) VALUES (?)", ("first",)),
+            ("INSERT OR IGNORE INTO counted (content) VALUES (?)", ("first",)),
+            ("INSERT INTO counted (content) VALUES (?)", ("second",)),
+        ])
+
+        self.assertEqual([rowcount for _rowid, rowcount in results], [1, 0, 1])
+        self.assertEqual(Reader(self.db).count("counted"), 2)
+
     def test_multi_statement_rollback_on_error(self):
         with self.assertRaises(Exception):
             self.writer.write_many([
