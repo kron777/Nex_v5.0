@@ -59,7 +59,7 @@ def test_measured_interface_value_without_threshold_does_not_claim_sufficiency()
 
     assert result.verdict == TENSION_UNKNOWN
     assert result.evidence == ["test:latency-p95"]
-    assert result.dimensions["dimensions"]["latency"]["value"] == 18.4
+    assert result.dimensions["dimensions"]["latency_utility"]["value"] == 18.4
     assert "thresholds, margins" in result.note
 
 
@@ -84,7 +84,7 @@ def test_relationship_profile_dict_from_persistence_is_supported():
     result = assess_relationship(rel, {})
 
     assert result.verdict == TENSION_UNKNOWN
-    assert result.dimensions["dimensions"]["latency"]["status"] == "measured"
+    assert result.dimensions["dimensions"]["latency_utility"]["status"] == "measured"
     assert "schema" in result.dimensions["unknown_dimensions"]
     assert "coupling" in result.dimensions["unknown_dimensions"]
 
@@ -194,7 +194,7 @@ def test_interface_dimension_with_blank_reference_or_confidence_remains_unknown(
     result = assess_relationship(Relationship("consumer", "provider", "depends_on",
         interface_profile=profile), {})
     dimensions = result.dimensions["dimensions"]
-    assert not dimensions["latency"]["evidence_complete"]
+    assert not dimensions["latency_utility"]["evidence_complete"]
     assert not dimensions["freshness"]["evidence_complete"]
     assert "latency" in result.dimensions["unknown_dimensions"]
     assert "freshness" in result.dimensions["unknown_dimensions"]
@@ -225,7 +225,7 @@ def test_relationship_profile_dict_and_unknown_values_remain_compatible():
                     "evidence": ["benchmark:1"], "confidence": "measured"},
     })
     result = assess_relationship(rel, {})
-    assert result.dimensions["dimensions"]["latency"]["evidence_complete"] is True
+    assert result.dimensions["dimensions"]["latency_utility"]["evidence_complete"] is True
     assert result.verdict == TENSION_UNKNOWN
 
 
@@ -239,7 +239,7 @@ def test_numeric_interface_evidence_requires_finite_value_and_unit():
     result = assess_relationship(Relationship("consumer", "provider", "depends_on",
         interface_profile=profile), {})
     dimensions = result.dimensions["dimensions"]
-    assert not dimensions["latency"]["evidence_complete"]
+    assert not dimensions["latency_utility"]["evidence_complete"]
     assert not dimensions["frequency"]["evidence_complete"]
 
 
@@ -322,7 +322,7 @@ def test_persisted_interface_dimension_with_unknown_status_fails_closed():
     })
 
     result = assess_relationship(rel, {})
-    latency = result.dimensions["dimensions"]["latency"]
+    latency = result.dimensions["dimensions"]["latency_utility"]
     assert latency["status"] == "invalid"
     assert latency["evidence_complete"] is False
     assert "latency" in result.dimensions["unknown_dimensions"]
@@ -370,26 +370,26 @@ def test_relationship_assessment_exposes_typed_performance_margin_evidence_witho
     from rdo.model import PerformanceMargin
 
     margin = PerformanceMargin(
-        metric="latency",
-        q=18,
-        tau=20,
-        unit="ms",
-        normalization="lower_is_better",
-        q_evidence=["benchmark:p95"],
-        tau_evidence=["contract:latency-limit"],
+        metric="latency_utility",
+        q=0.6,
+        tau=0.7,
+        unit="normalized_latency_utility",
+        normalization="higher_is_better_0_to_1",
+        q_evidence=["benchmark:latency-utility"],
+        tau_evidence=["contract:latency-utility-limit"],
         q_confidence="measured",
         tau_confidence="approved_requirement",
     )
     rel = Relationship("consumer", "provider", "depends_on",
-                      performance_margins={"latency": margin})
+                      performance_margins={"latency_utility": margin})
 
     result = assess_relationship(rel, {})
     summary = result.dimensions["performance_margins"]
     assert summary["status"] == "evidence_recorded"
-    assert summary["metrics"]["latency"]["margin"] == -2.0
-    assert summary["metrics"]["latency"]["margin_state"] == "below_requirement"
-    assert summary["metrics"]["latency"]["evidence_complete"] is True
-    assert result.evidence == ["benchmark:p95", "contract:latency-limit"]
+    assert summary["metrics"]["latency_utility"]["margin"] == pytest.approx(-0.1)
+    assert summary["metrics"]["latency_utility"]["margin_state"] == "below_requirement"
+    assert summary["metrics"]["latency_utility"]["evidence_complete"] is True
+    assert result.evidence == ["benchmark:latency-utility", "contract:latency-utility-limit"]
     # A metric margin is evidence; no calibrated aggregation into relationship tension exists.
     assert result.verdict == TENSION_UNKNOWN
 
@@ -397,13 +397,13 @@ def test_relationship_assessment_exposes_typed_performance_margin_evidence_witho
 def test_relationship_assessment_recomputes_persisted_margin_and_ignores_tampered_computed_fields():
     persisted = {
         "latency": {
-            "metric": "latency",
-            "q": 18,
-            "tau": 20,
-            "unit": "ms",
-            "normalization": "lower_is_better",
-            "q_evidence": ["benchmark:p95"],
-            "tau_evidence": ["contract:latency-limit"],
+            "metric": "latency_utility",
+            "q": 0.6,
+            "tau": 0.7,
+            "unit": "normalized_latency_utility",
+            "normalization": "higher_is_better_0_to_1",
+            "q_evidence": ["benchmark:latency-utility"],
+            "tau_evidence": ["contract:latency-utility-limit"],
             "q_confidence": "measured",
             "tau_confidence": "approved_requirement",
             "margin": 999,
@@ -413,7 +413,7 @@ def test_relationship_assessment_recomputes_persisted_margin_and_ignores_tampere
     }
     result = assess_relationship(Relationship("consumer", "provider", "depends_on",
         performance_margins=persisted), {})
-    metric = result.dimensions["performance_margins"]["metrics"]["latency"]
+    metric = result.dimensions["performance_margins"]["metrics"]["latency_utility"]
     assert metric["margin"] == -2.0
     assert metric["margin_state"] == "below_requirement"
     assert metric["evidence_complete"] is True
@@ -424,8 +424,9 @@ def test_incomplete_or_boundary_margin_evidence_is_preserved_without_claiming_su
     from rdo.model import PerformanceMargin
 
     incomplete = PerformanceMargin(
-        metric="latency", q=18, tau=20, unit="ms",
-        normalization="lower_is_better",
+        metric="latency_utility", q=0.6, tau=0.7,
+        unit="normalized_latency_utility",
+        normalization="higher_is_better_0_to_1",
     )
     boundary = PerformanceMargin(
         metric="quality", q=0.8, tau=0.8, unit="normalized",
@@ -436,12 +437,12 @@ def test_incomplete_or_boundary_margin_evidence_is_preserved_without_claiming_su
         tau_confidence="approved",
     )
     result = assess_relationship(Relationship("consumer", "provider", "depends_on",
-        performance_margins={"latency": incomplete, "quality": boundary}), {})
+        performance_margins={"latency_utility": incomplete, "quality": boundary}), {})
     summary = result.dimensions["performance_margins"]
     assert summary["status"] == "partial"
-    assert summary["unknown_metrics"] == ["latency"]
-    assert summary["metrics"]["latency"]["margin_state"] == "below_requirement"
-    assert summary["metrics"]["latency"]["evidence_complete"] is False
+    assert summary["unknown_metrics"] == ["latency_utility"]
+    assert summary["metrics"]["latency_utility"]["margin_state"] == "below_requirement"
+    assert summary["metrics"]["latency_utility"]["evidence_complete"] is False
     assert summary["metrics"]["quality"]["margin_state"] == "boundary"
     assert summary["metrics"]["quality"]["evidence_complete"] is True
     assert result.verdict == TENSION_UNKNOWN
