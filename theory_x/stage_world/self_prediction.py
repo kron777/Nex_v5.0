@@ -218,30 +218,31 @@ def _fired_between(t0: float, t1: float, dynamic_reader: Reader | None = None) -
         return None
 
 
-def resolve_due(db_path: Optional[str] = None, now: Optional[float] = None) -> int:
-    """Resolve each due prediction against the WINDOW IT NAMED.
-
-    For every prediction, ask the persistent fire log whether a thought was
-    produced between made_at and resolve_at. Each row gets its own window --
-    the old code read one global counter and applied it to all of them.
-    """
+def resolve_due(
+    db_path: Optional[str] = None,
+    now: Optional[float] = None,
+    *,
+    conversations_writer: Writer | None = None,
+    dynamic_reader: Reader | None = None,
+) -> int:
+    """Resolve due predictions against each row's original fire-log window."""
     db_path = db_path or _db_path()
-    ensure_schema(db_path)
+    ensure_schema(db_path, conversations_writer)
     now = now if now is not None else time.time()
 
-    conn = _connect(db_path)
-    resolved = 0
-    try:
+    def _resolve(conn):
+        conn.row_factory = Row
+        resolved = 0
         due = conn.execute(
             "SELECT id, predicted, made_at, resolve_at FROM self_predictions "
             "WHERE resolved_at IS NULL AND resolve_at <= ? "
-            "AND COALESCE(kind,'fire')='fire'",   # fire resolver: fire rows only
+            "AND COALESCE(kind,'fire')='fire'",
             (now,),
         ).fetchall()
         for row in due:
-            fired = _fired_between(row["made_at"], row["resolve_at"])
+            fired = _fired_between(row["made_at"], row["resolve_at"], dynamic_reader)
             if fired is None:
-                continue          # fire log unreadable -- leave pending, retry later
+                continue
             actual = "fire" if fired else "nofire"
             outcome = "correct" if actual == row["predicted"] else "wrong"
             conn.execute(
@@ -249,10 +250,9 @@ def resolve_due(db_path: Optional[str] = None, now: Optional[float] = None) -> i
                 (now, actual, outcome, row["id"]),
             )
             resolved += 1
-        conn.commit()
-    finally:
-        conn.close()
-    return resolved
+        return resolved
+
+    return _writer_transaction(conversations_writer, db_path, "self_prediction_resolve", _resolve)
 
 
 def scorecard(db_path: Optional[str] = None) -> dict:
@@ -298,17 +298,17 @@ def scorecard(db_path: Optional[str] = None) -> dict:
 # crosses the operating point. The predictor's own error now moves its own gate.
 # ─────────────────────────────────────────────────────────────────────────────
 
-def ensure_params_schema(db_path: str) -> None:
-    conn = _connect(db_path)
-    try:
+def ensure_params_schema(
+    db_path: str,
+    conversations_writer: Writer | None = None,
+) -> None:
+    def _ensure(conn):
         conn.execute(
             "CREATE TABLE IF NOT EXISTS self_pred_params ("
             "kind TEXT PRIMARY KEY, threshold REAL NOT NULL, "
             "updated_at REAL NOT NULL, n INTEGER, operating_p REAL)"
         )
-        conn.commit()
-    finally:
-        conn.close()
+    _writer_transaction(conversations_writer, db_path, "self_prediction_params_schema", _ensure)
 
 
 def _current_threshold(db_path: str, kind: str = "fire") -> float:
