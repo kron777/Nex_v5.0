@@ -121,7 +121,7 @@ def test_failed_event_is_retried_without_advancing_cursor(tmp_path, monkeypatch)
         with sqlite3.connect(dynamic_path) as db:
             cursor = dict(db.execute("SELECT key, value FROM daemon_kv"))
             assert cursor[loop.LAST_PROMOTED_TS_KEY] == "100.0"
-            assert loop.LAST_PROMOTED_ID_KEY not in cursor
+            assert cursor[loop.LAST_PROMOTED_ID_KEY] == "0"
 
         monkeypatch.setattr(loop, "_surprise_to_belief", original)
         assert _tick(loop, handles) == {"promoted": 2}
@@ -166,6 +166,7 @@ def test_legacy_timestamp_cursor_replays_same_timestamp_safely(tmp_path):
         tmp_path, initial_ts=200.0
     )
     try:
+        _insert_event(dynamic_path, 150.0, 0)  # historical row before legacy cutoff
         _insert_event(dynamic_path, 200.0, 1)
         _insert_event(dynamic_path, 200.0, 2)
         _insert_event(dynamic_path, 201.0, 3)
