@@ -42,8 +42,8 @@ def _dbs(tmp_path):
 
     cx = connect(beliefs_path)
     cx.execute(
-        "CREATE TABLE beliefs (id INTEGER PRIMARY KEY, content TEXT, tier INTEGER, "
-        "source TEXT, created_at REAL, affinity REAL)"
+        "CREATE TABLE beliefs (id INTEGER PRIMARY KEY, content TEXT, tier INTEGER, confidence REAL, "
+        "source TEXT, created_at REAL, affinity REAL, branch_id TEXT, tags TEXT)"
     )
     cx.execute(
         "INSERT INTO beliefs VALUES (1, 'A held belief', 6, 'precipitated_from_sense', ?, 0.9)",
