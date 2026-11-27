@@ -141,8 +141,12 @@ def _operating_envelope_evidence(value) -> dict:
             and isinstance(confidence, str) and bool(confidence.strip())
         )
     )
-    status = ("unknown" if assessed is None else
-              "evidence_recorded" if verdict_evidence_valid else "invalid_evidence")
+    if not declared_valid or not assessed_valid:
+        status = "invalid_evidence"
+    elif assessed is None:
+        status = "unknown"
+    else:
+        status = "evidence_recorded" if verdict_evidence_valid else "invalid_evidence"
     unknown = []
     for key in ("measured_load", "measured_capacity", "headroom"):
         item = value.get(key)
