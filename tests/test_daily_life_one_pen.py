@@ -110,7 +110,7 @@ def test_daily_tick_uses_shared_dynamic_and_conversation_writers(tmp_path, monke
             sense_reader=readers["sense"],
         )
         assert second["fired"] == []
-        assert readers["conversations"].count("messages") == 1
+        assert readers["conversations"].read_one("SELECT COUNT(*) FROM messages")[0] == 1
     finally:
         writers["dynamic"].close()
         writers["conversations"].close()
