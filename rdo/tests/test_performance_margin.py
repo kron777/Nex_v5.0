@@ -1,5 +1,7 @@
 """q/tau margin arithmetic remains UNKNOWN without normalized, compatible evidence."""
 
+import pytest
+
 from rdo.model import PerformanceMargin
 
 
@@ -22,7 +24,7 @@ def test_margin_computes_q_minus_tau_only_for_same_declared_normalization():
         q_confidence="measured",
         tau_confidence="approved_requirement",
     )
-    assert margin.margin == 0.07
+    assert margin.margin == pytest.approx(0.07)
     assert margin.margin_state == "above_requirement"
     assert margin.evidence_complete
 
@@ -32,7 +34,7 @@ def test_negative_margin_is_below_requirement():
         metric="normalized_quality", q=0.6, tau=0.7,
         unit="normalized_quality", normalization="higher_is_better_0_to_1",
     )
-    assert margin.margin == -0.1
+    assert margin.margin == pytest.approx(-0.1)
     assert margin.margin_state == "below_requirement"
 
 
