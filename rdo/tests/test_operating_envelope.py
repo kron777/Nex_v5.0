@@ -66,6 +66,8 @@ def test_assessed_state_can_be_recorded_without_claiming_recovery_or_headroom():
     assessment = OperatingEnvelopeAssessment(
         assessed_state=RECOVERY,
         assessment_evidence=["assessment:review-12"],
+        provenance=["reviewer:independent-assessment"],
+        confidence="reviewed",
     )
 
     assert assessment.assessed_state == RECOVERY
@@ -81,3 +83,23 @@ def test_invalid_states_and_blank_evidence_references_are_rejected():
         OperatingEnvelopeAssessment(assessed_state="overloaded", assessment_evidence=["review:1"])
     with pytest.raises(ValueError, match="non-blank"):
         OperatingEnvelopeAssessment(transition_evidence=[" "])
+
+
+def test_assessed_state_requires_nonblank_confidence_and_traceable_provenance():
+    base = dict(assessed_state=STRESS, assessment_evidence=["review:stress"])
+    with pytest.raises(ValueError, match="confidence label"):
+        OperatingEnvelopeAssessment(**base, provenance=["reviewer:1"])
+    with pytest.raises(ValueError, match="provenance"):
+        OperatingEnvelopeAssessment(**base, confidence="reviewed")
+    with pytest.raises(ValueError, match="confidence label"):
+        OperatingEnvelopeAssessment(**base, confidence=" ", provenance=["reviewer:1"])
+    with pytest.raises(ValueError, match="provenance"):
+        OperatingEnvelopeAssessment(**base, confidence="reviewed", provenance=[" "])
+
+
+def test_unknown_envelope_can_retain_partial_assessment_metadata():
+    assessment = OperatingEnvelopeAssessment(
+        declared_state=BUSY, assessment_evidence=[], provenance=[], confidence=None,
+    )
+    assert assessment.assessed_state is None
+    assert assessment.classification_status == "unknown"
