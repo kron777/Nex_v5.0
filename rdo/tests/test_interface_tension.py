@@ -484,4 +484,4 @@ def test_explicit_relationship_defect_retains_performance_margin_context():
     ), {})
     assert result.verdict == OVERDEVELOPED
     assert result.dimensions["performance_margins"]["status"] == "evidence_recorded"
-    assert result.dimensions["performance_margins"]["metrics"]["authority-impact"]["margin"] == 0.4
+    assert result.dimensions["performance_margins"]["metrics"]["authority-impact"]["margin"] == pytest.approx(0.4)
