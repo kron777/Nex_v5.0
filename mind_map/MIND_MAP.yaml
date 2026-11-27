@@ -1126,10 +1126,10 @@ nodes:
       kind: composite
       refs:
         - "theory_x/stage3_world_model/harmonizer.py:340-516"
-        - "substrate/schema/dynamic.sql:144-159"
+        - "substrate/schema/dynamic.sql:152-167"
         - "tests/test_held_tension.py:1-40"
         - "SENTIENCE_SYNTHESIS.md:247-274"
-    last_verified: 2026-11-15
+    last_verified: 2026-11-27
     notes: >
       LIVE BUG FOUND AND FIXED, 2026-11-15 (two passes, measured both times): kaukṛtya's dev round
       first flagged _find_synthesis_candidate's token-overlap test (>=2 shared tokens) as "likely"
@@ -1206,6 +1206,12 @@ nodes:
       deleted) -- but it has no refuse()-against-a-budget entry and no consolidate()/recall()
       interaction, so §9's specific three-signature falsifier cannot run against it as-is. That gap
       is real and still open; it is a ledger-primitives gap, not a Phase-D-doesn't-exist gap.
+
+      Source re-verification, 2026-11-27: dynamic.sql changed on current main only by adding
+      the shared daemon_kv table at the beginning of the file (eight lines); the held_tensions
+      table definition itself is unchanged and moved from lines 144-159 to 152-167. Rechecked
+      harmonizer.py's tension/synthesis path and the focused held-tension/retry tests. The
+      source anchor is updated for the line shift; no P9 behaviour or status changed.
 
   - id: hri_apatrapya
     label: "hṛī / apatrāpya — shame / dread of blame"
