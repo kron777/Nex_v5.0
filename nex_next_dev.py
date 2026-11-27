@@ -5,8 +5,8 @@ nex_next_dev.py — compute the next development from the sentience dependency D
 The mind-map's build order is the TOPOLOGICAL SORT of a dependency graph. This
 reads that graph (sentience_dag.json) and mechanically answers "what's next?":
 
-  BUILDABLE NOW  — every prereq is satisfied (built/live), node itself is a gap.
-  BLOCKED        — a prereq is still unproven; advancing past it needs proof.
+  BUILDABLE NOW  — every prereq is in the DAG's satisfied set; caveats are shown.
+  BLOCKED        — at least one prereq is outside that set; node itself is a gap.
   GAP            — a hole the graph predicts (incl. sibling-clusters).
   GORGE          — node with no satisfiable dependency path (the hard problem).
 
@@ -159,8 +159,13 @@ if __name__ == "__main__":
             print(f"  {i:2d}. {n}  [{dag['nodes'][n]['status']}]")
     elif "--buildable" in sys.argv:
         c = classify(dag["nodes"])
-        for n, unproven in c["buildable_now"]:
-            flag = f"  (leans on unproven: {','.join(unproven)})" if unproven else ""
+        for n, unproven, terminal_null in c["buildable_now"]:
+            flags = []
+            if unproven:
+                flags.append(f"leans on unproven: {', '.join(unproven)}")
+            if terminal_null:
+                flags.append(f"rests on terminal null: {', '.join(terminal_null)}")
+            flag = f"  [{'; '.join(flags)}]" if flags else ""
             print(f"{n}{flag}")
     else:
         report(dag)
