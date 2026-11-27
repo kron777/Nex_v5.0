@@ -312,7 +312,7 @@ A second pass found two additional latent defects in the same developer-tool pat
 
 The current graph was checked independently: 15 nodes, 15 edges, no unresolved references, no duplicate edges, and all statuses belong to the five values declared in `sentience_dag.json`. These are latent tool defects, not current graph corruption.
 
-PR #230 contains duplicate-edge validation, validation for unknown/missing statuses, shared graph validation before classification and topological sorting, and four regression tests. Its original exact-head CI run `46003289108` passed. Because it was stacked on the now-squash-merged PR #229, its original branch cannot be cleanly retargeted to `main`; the changes are being replayed onto a fresh branch based on the merged mainline and will receive a new exact-head CI run.
+PR #232 is the clean mainline replay of the PR #230 changes and is **merged** as `1d133035dd8337a76f65225e8255bd13b655cf17`. It adds duplicate-edge validation, rejects unknown/missing statuses, and applies shared graph validation before classification and topological sorting. The original PR #230 exact-head CI run `46003289108` passed; the clean mainline replay exact-head run `46004897984` also passed. Four regression tests cover duplicate edges in both paths and unknown/missing statuses.
 
 This work remains limited to `nex_next_dev.py`, its tests and this manual. It does not alter `sentience_dag.json`, runtime code, cognitive behaviour, flags, frozen specifications, roadmap or phase gates. Rollback is by reverting the isolated developer-tool change.
 
@@ -324,3 +324,25 @@ This work remains limited to `nex_next_dev.py`, its tests and this manual. It do
 A further developer-tool audit found that reference/status validation could still receive malformed node structures: non-object node definitions, non-list prerequisite containers, non-string prerequisite IDs, empty node IDs, and non-string statuses. These inputs could produce incidental Python exceptions rather than a deterministic graph-validation error.
 
 PR #235 adds fail-fast shape checks before prerequisite-reference, duplicate-edge and status validation, with six focused regression tests. It does not change the current DAG or the meaning of any status or dependency. The change is limited to `nex_next_dev.py`, its tests and this manual; runtime behaviour, cognitive settings, frozen specifications, roadmap and phase gates remain unchanged.
+
+
+---
+
+## 17. Mind-map policy scan boot-path coverage (27 November 2026)
+
+A source-to-guard audit found that the descriptive-only policy scanner did not cover two paths imported by the normal runtime boot graph: `run.py` imports `strikes.catalogue` and `strikes.protocols`, while `gui/server.py` imports top-level `influence_trace`. The scanner's `RUNTIME_ROOTS` omitted both `strikes/` and `influence_trace.py`.
+
+**PR #233 is merged** with both roots added and a regression test proving that prohibited `mind_map` imports in those paths are detected. Exact-head CI run `46005619584` passed. This was a scan-coverage gap, not evidence that either path had violated the descriptive-only constraint.
+
+No runtime imports, cognitive behaviour, policy semantics, flags, DAG content, frozen specifications, roadmap or phase gates were changed. The policy scanner remains descriptive-only enforcement.
+
+## 18. Additional bounded one-pen migrations (27 November 2026)
+
+Four previously open, independently tested persistence migrations are now merged:
+
+- **PR #223 — WorldBridge:** injects the shared sense Reader and beliefs Writer; Phase-A selection/log-only behaviour is preserved. Exact-head run `45997969694`: 2,550 passed, 7 skipped, 45 subtests.
+- **PR #224 — GUI, Compassion and AffectCarry:** routes the reviewed GUI mutations and affect persistence through shared Writers/Readers. Exact-head run `45998065075`: 2,557 passed, 7 skipped, 45 subtests.
+- **PR #225 — SelfBinding:** routes current self-state and append-only history persistence through the canonical dynamic Writer. Exact-head run `45998142261`: 2,551 passed, 7 skipped, 45 subtests.
+- **PR #226 — Decoder:** places dynamic reads, word-context inserts and cursor advancement inside the canonical dynamic Writer transaction, with sense timing read through the shared Reader. Exact-head run `45998199987`: 2,551 passed, 7 skipped, 45 subtests.
+
+These migrations preserve the existing feature gates and decision logic. They close the four bounded persistence branches only; they do not prove the repository-wide one-pen audit complete or establish host/runtime activation. Cross-database operations remain separate transactions unless explicitly documented otherwise.
