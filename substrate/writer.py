@@ -25,7 +25,7 @@ import threading
 from concurrent.futures import Future
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Optional, Sequence
+from typing import Any, Callable, Iterable, Optional, Sequence
 
 import errors as error_channel
 
@@ -48,6 +48,7 @@ class WriteRequest:
     statements: Optional[list[tuple[str, Sequence[Any]]]] = None
     include_rowcounts: bool = False
     continue_on_integrity_error: bool = False
+    transaction: Optional[Callable[[sqlite3.Connection], Any]] = None
     future: Future = field(default_factory=Future)
 
 
@@ -115,6 +116,22 @@ class Writer:
     def write_many(self, statements: Iterable[tuple[str, Sequence[Any]]]) -> list[Any]:
         """Atomic multi-statement synchronous write. Returns [lastrowid, ...]."""
         req = WriteRequest(statements=[(s, tuple(p)) for s, p in statements])
+        self.submit(req)
+        return req.future.result()
+
+    def transaction(self, callback: Callable[[sqlite3.Connection], Any]) -> Any:
+        """Run a read/write callback on this Writer's connection in one transaction.
+
+        The callback executes on the Writer worker thread after BEGIN IMMEDIATE.
+        It may read and write through the supplied connection, but must not call
+        this same Writer's synchronous methods (that would deadlock its worker).
+        Calls to other database Writers are allowed; their commits remain
+        separate transactions and are not made atomically with this one.
+        The connection/cursors must not escape the callback.
+        """
+        if not callable(callback):
+            raise TypeError("transaction callback must be callable")
+        req = WriteRequest(transaction=callback)
         self.submit(req)
         return req.future.result()
 
@@ -213,6 +230,20 @@ class Writer:
     def _execute(self, req: WriteRequest):
         assert self._conn is not None
         conn = self._conn
+        if req.transaction is not None:
+            if req.sql is not None or req.statements is not None:
+                raise ValueError("WriteRequest transaction cannot be combined with SQL statements")
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                result = req.transaction(conn)
+                conn.execute("COMMIT")
+                return result
+            except BaseException:
+                try:
+                    conn.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise
         if req.statements is not None:
             conn.execute("BEGIN IMMEDIATE")
             try:
