@@ -213,8 +213,12 @@ def persist(writer, results: dict, now: float = None) -> int:
 
 
 class WarrantPass:
-    """Background pass: recompute and persist every _INTERVAL_S. Constructed
-    and started only when NEX5_WARRANT=1 (run.py). Never on the fire path."""
+    """Optional background pass that recomputes and persists every _INTERVAL_S.
+
+    start_loop() returns unless NEX5_WARRANT=1. The audited normal run.py boot
+    path currently constructs WarrantRecorder, not WarrantPass; this class is
+    not constructed or started by that boot path. Never on the fire path.
+    """
 
     name = "warrant"
 
