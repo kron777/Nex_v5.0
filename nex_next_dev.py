@@ -151,13 +151,15 @@ def report(dag: dict) -> None:
     print("-" * 66)
 
 
-if __name__ == "__main__":
+def main(argv: list[str] | None = None) -> None:
+    """Run the CLI; argv is injectable so command modes can be regression-tested."""
+    args = sys.argv[1:] if argv is None else argv
     dag = load()
-    if "--order" in sys.argv:
+    if "--order" in args:
         print("Topological build order:")
         for i, n in enumerate(topo_sort(dag["nodes"]), 1):
             print(f"  {i:2d}. {n}  [{dag['nodes'][n]['status']}]")
-    elif "--buildable" in sys.argv:
+    elif "--buildable" in args:
         c = classify(dag["nodes"])
         for n, unproven, terminal_null in c["buildable_now"]:
             flags = []
@@ -169,3 +171,7 @@ if __name__ == "__main__":
             print(f"{n}{flag}")
     else:
         report(dag)
+
+
+if __name__ == "__main__":
+    main()
