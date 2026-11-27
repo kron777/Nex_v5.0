@@ -1200,8 +1200,10 @@ nodes:
         - "tests/test_episodic_falsifier.py:1-30"
         - "substrate/schema/dynamic.sql:172-193"
         - "nex_config.py:84"
+        - "gui/server.py:3440-3454"
+        - "nex_keepalive.sh:219-220"
         - "SENTIENCE_PROGRAM.md:148-157"
-    last_verified: 2026-11-15
+    last_verified: 2026-11-27
     notes: >
       Built, tested, dark, now measured. SENTIENCE_PROGRAM.md:35 called this not-built and cited
       only resumption.py + snapshot_writer.py; :148-157 specifies Phase E and ARCHITECTURE.md:106,581
@@ -1214,7 +1216,7 @@ nodes:
       file without touching this one. Drift check is file-granularity, not line-granularity, so this
       kind of false positive is expected and worth re-verifying rather than assuming -- re-pinned
       last_verified having actually checked, not just to silence the warning.
-      gui/server.py:3090 exposes a read-only HUD endpoint, so the module docstring's
+      gui/server.py:3440-3454 exposes a read-only HUD endpoint, so the module docstring's
       "not wired into gui/server.py" is itself half-stale: read-visible, write-dark.
 
       Falsifier run 2026-11-09, isolated test env (NEX5_DATA_DIR override, never the live DB/loop):
@@ -1229,6 +1231,15 @@ nodes:
       lines into dynamic.sql ahead of this table — content unchanged, but the old
       dynamic.sql:161-182 citation was shifted stale by the insertion itself; corrected to
       172-193 here, same pass that caused the shift.
+
+      2026-11-27 source re-verification: run.py contains no episodic/record_episodes/
+      query_episodes reference; episodic.py's record_episodes() returns [] unless
+      NEX5_EPISODIC=1 and remains uncalled by the live loop. gui/server.py:3440-3454 is a
+      read-only GET endpoint: it queries existing episodes and does not call record_episodes()
+      or write. The keepalive launch line omits NEX5_EPISODIC. The docstring's "not wired into
+      gui/server.py" is therefore stale only for read visibility; the writer remains dark.
+      The 2026-11-09 isolated falsifier tests and live_calls: 0 probe remain historical; current
+      process state was not checked in this source-only review.
 
 constraints:
   - { from: p13_finitude,     to: prices,  label: "caps the budget" }
