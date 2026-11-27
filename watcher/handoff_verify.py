@@ -379,6 +379,10 @@ def _read_event_chain(path: str, manifest: dict) -> List[dict]:
                     raise HandoffVerificationError(f"acceptance verification timestamp is invalid on line {number}") from exc
                 if parsed.tzinfo is None or parsed.utcoffset() is None:
                     raise HandoffVerificationError(f"acceptance verification timestamp lacks a timezone on line {number}")
+            if record.get("verifier") != event.get("reviewer"):
+                raise HandoffVerificationError(f"acceptance verification reviewer/verifier mismatch on line {number}")
+            if record.get("note", "") != event.get("note", ""):
+                raise HandoffVerificationError(f"acceptance verification note mismatch on line {number}")
             if record.get("review_required") is not (status == "pending"):
                 raise HandoffVerificationError(f"acceptance verification review_required flag is inconsistent on line {number}")
             if not isinstance(record.get("note", ""), str):
