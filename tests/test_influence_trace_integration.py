@@ -834,6 +834,7 @@ def _run_paired_fountain_once(
         readers = {name: Reader(path) for name, path in paths.items()}
         model_requests = []
         retrieval_manifests = []
+        gate_decisions = []
 
         def deterministic_model(url, payload):
             model_requests.append(copy.deepcopy(payload))
@@ -862,12 +863,24 @@ def _run_paired_fountain_once(
                     "consolidation_active": True,
                 }
 
+        from theory_x.stage_gate.coherence_gate import GateDecision, GateOutcome
+
+        class AcceptGate:
+            def check(self, packet):
+                decision = GateDecision(GateOutcome.ACCEPT, "fixture_accept")
+                gate_decisions.append((
+                    packet.source_node, packet.confidence, packet.branch_id,
+                    decision.outcome.value, decision.reason,
+                ))
+                return decision
+
         crystallizer = FountainCrystallizer(
             beliefs_writer=writers["beliefs"],
             beliefs_reader=readers["beliefs"],
             conversations_reader=readers.get("conversations"),
             dynamic_reader=readers["dynamic"],
             dynamic_writer=writers["dynamic"],
+            coherence_gate=AcceptGate(),
         )
         generator = FountainGenerator(
             sense_writer=writers["sense"],
@@ -935,6 +948,7 @@ def _run_paired_fountain_once(
                 "model_requests": model_requests,
                 "retrieval_manifests": retrieval_manifests,
                 "workspace_winners": workspace_winners,
+                "gate_decisions": list(gate_decisions),
                 "beliefs": beliefs,
                 "fires": fires,
                 "momentum_snapshot": momentum_snapshot,
@@ -978,6 +992,9 @@ def test_full_fountain_generator_trace_overlay_on_off_equivalence(tmp_path, monk
     assert on["fires"] == off["fires"]
     assert on["momentum_snapshot"] == off["momentum_snapshot"]
     assert on["table_counts"] == off["table_counts"]
+    assert on["gate_decisions"] == off["gate_decisions"] == [
+        ("fountain", 0.70, "phase0-test", "ACCEPT", "fixture_accept")
+    ]
 
     rows = on["trace_rows"]
     assert rows
@@ -995,6 +1012,11 @@ def test_full_fountain_generator_trace_overlay_on_off_equivalence(tmp_path, monk
         and row["metadata"].get("status") == "committed"
         for row in rows
     )
+    gate_events = [row for row in rows if row["stage"] == "gate"]
+    assert len(gate_events) == 1
+    assert gate_events[0]["metadata"]["decision"] == "ACCEPT"
+    assert gate_events[0]["metadata"]["reason_code"] == "fixture_accept"
+
     direct_commits = [
         row for row in rows
         if row["stage"] == "direct_sql_commit"
