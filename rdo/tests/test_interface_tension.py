@@ -260,6 +260,25 @@ def test_numeric_envelope_measurements_require_units_and_finite_values():
     assert "measured_capacity" in unknown
 
 
+@pytest.mark.parametrize("field", ["measured_load", "measured_capacity", "headroom"])
+@pytest.mark.parametrize("value", [True, False])
+def test_operating_envelope_numeric_measurements_reject_booleans(field, value):
+    measurement = InterfaceEvidence(
+        status="measured",
+        value=value,
+        unit="percent",
+        evidence=[f"trace:{field}"],
+        confidence="measured",
+    )
+    envelope = OperatingEnvelopeAssessment(**{field: measurement})
+
+    result = assess_relationship(
+        Relationship("consumer", "provider", "depends_on", operating_envelope=envelope), {}
+    )
+
+    assert field in result.dimensions["operating_envelope"]["unknown_dimensions"]
+
+
 def test_relationship_operating_envelope_round_trips_through_serialized_record():
     envelope = OperatingEnvelopeAssessment(
         declared_state=BUSY,
