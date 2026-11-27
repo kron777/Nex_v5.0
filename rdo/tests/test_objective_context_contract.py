@@ -31,6 +31,7 @@ def test_objective_context_is_preserved_and_unmapped_items_block_readiness(tmp_p
             "in_scope": ["RDO planning only"],
             "affected_paths": ["rdo/orchestrator.py"],
         },
+        "assumptions": ["Repository snapshot is the current HEAD"],
         "constraints": ["Do not change NEX runtime behaviour"],
         "exclusions": ["Do not activate feature flags"],
         "acceptance_criteria": ["Every declared context item is mapped to evidence"],
@@ -42,9 +43,9 @@ def test_objective_context_is_preserved_and_unmapped_items_block_readiness(tmp_p
     assessment = cycle.context_assessment
     assert assessment["status"] == "unmapped"
     assert assessment["review_required"] is True
-    assert len(assessment["items"]) == 5
+    assert len(assessment["items"]) == 6
     assert {item["kind"] for item in assessment["items"]} == {
-        "scope", "affected_path", "constraint", "exclusion", "acceptance_criterion"
+        "scope", "affected_path", "assumption", "constraint", "exclusion", "acceptance_criterion"
     }
     assert all(item["status"] == "unmapped" and item["evidence"] == []
                for item in assessment["items"])
