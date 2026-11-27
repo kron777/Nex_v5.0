@@ -63,7 +63,7 @@ The evidence snapshot and source-bounded report above remain pinned to their sta
 
 ## Next Phase 0 actions
 
-1. Current-main CI for `ae406fa8` is verified green (2,508 passed, 7 skipped, 40 subtests; baseline OK). The older run `45939220368` was on pre-merge parent `612022`, not on merge commit `66a9796`.
+1. Current-main CI for `5d7f4e28` is verified green (2,539 passed, 7 skipped, 40 subtests; baseline OK, run `45990854891`). The earlier `ae406fa8` result remains the historical evidence snapshot; do not conflate it with current main.
 2. Scheduler overview documentation is corrected and merged in PR #153; its exact-head full suite is green.
 3. Continue the forward/backward source audit across the remaining `theory_x/` faculties; distinguish wired loops from downstream consumers and measured effects.
 4. The mind-map count discrepancy is closed (30 nodes, 5 arms, 4 findings). The consolidated source re-verification PR #185 is merged; current verifier result is 30 nodes, 0 unverified, 14 dark, 2 blocked. The 18 path/date warnings were cleared by source-anchor corrections. Keep the two missing doctrine references and overdue `p13_finitude` marker explicit; do not fabricate documents or advance the marker without source review.
