@@ -104,7 +104,7 @@ def _is_same_thread(old_fragment: str, new_thought: str) -> bool:
 
 
 def capture_momentum(thought: str, branch: str,
-                     dynamic_db: str = _DYNAMIC_DB) -> bool:
+                     dynamic_db: str = _DYNAMIC_DB, trace=None) -> bool:
     """Write the carried thread at end of fire. Fail-safe."""
     try:
         if not thought or len(thought.split()) < 6:
@@ -159,12 +159,29 @@ def capture_momentum(thought: str, branch: str,
         )
         con.commit()
         con.close()
+        if trace is not None:
+            trace.record(
+                "direct_sql_commit", "momentum_upsert",
+                metadata={"database": "dynamic", "table": "momentum",
+                          "operation": "INSERT_OR_UPDATE", "row_id": 1,
+                          "status": "committed", "branch_id": branch,
+                          "carry_count": new_carry,
+                          "transaction_scope": "direct_connection_commit"},
+                parent_ids=[
+                    rid for rid in (
+                        trace.reference("fountain_output_candidate"),
+                        trace.reference("fountain_hot_branch_selection"),
+                    ) if rid
+                ],
+            )
         return True
     except Exception:
         return False
 
 
-def stamp_resolution(resolved: bool, dynamic_db: str = _DYNAMIC_DB) -> bool:
+def stamp_resolution(
+    resolved: bool, dynamic_db: str = _DYNAMIC_DB, trace=None
+) -> bool:
     """Stamp this cycle's outcome (resolved=crystallized vs stalled) onto the
     current momentum thread, for the NEX5_CARRYOVER episodic clause. Writes ONLY
     the 'resolved' column; touches nothing else. Clean no-op — never an error in
@@ -189,6 +206,22 @@ def stamp_resolution(resolved: bool, dynamic_db: str = _DYNAMIC_DB) -> bool:
         )
         con.commit()
         con.close()
+        if trace is not None:
+            trace.record(
+                "direct_sql_commit", "momentum_resolution_update",
+                metadata={"database": "dynamic", "table": "momentum",
+                          "operation": "UPDATE", "row_id": 1,
+                          "status": "committed", "resolved": bool(resolved),
+                          "transaction_scope": "direct_connection_commit"},
+                parent_ids=[
+                    rid for rid in (
+                        trace.reference("fountain_belief_write") if resolved
+                        else trace.reference("fountain_crystallizer_terminal"),
+                        trace.reference("fountain_crystallization_link") if resolved else None,
+                        trace.reference("fountain_quality_gate") if not resolved else None,
+                    ) if rid
+                ],
+            )
         return True
     except Exception:
         return False

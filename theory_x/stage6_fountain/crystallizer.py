@@ -296,6 +296,7 @@ class FountainCrystallizer:
         hot_branch: Optional[str] = None,
         focal_item: Optional[str] = None,
         retained_candidate_id: Optional[int] = None,
+        trace=None,
     ) -> Optional[int]:
         # Stillness guard — Row 9 extension. Metacognition writes a stillness_log
         # row when sustained groove exceeds threshold; we skip crystallization
@@ -308,6 +309,18 @@ class FountainCrystallizer:
                     (_now,),
                 )
                 if _still:
+                    if trace is not None:
+                        _stillness_gate_id = trace.gate(
+                            "HOLD", gate="stillness_precondition",
+                            reason_code="active_stillness_window",
+                            parent_ids=[
+                                rid for rid in (
+                                    trace.reference("fountain_output_candidate"),
+                                    trace.reference("fountain_event_delta"),
+                                ) if rid
+                            ],
+                        )
+                        trace.remember("fountain_crystallizer_terminal", _stillness_gate_id)
                     errors.record(
                         "Stillness active — skipping fountain crystallization",
                         source=_LOG_SOURCE,
@@ -320,6 +333,19 @@ class FountainCrystallizer:
         thought = _METADATA_PATTERN.sub('', thought).strip()
         ok, reason = self._quality_check(thought, droplet=droplet,
                                          focal_item=focal_item)
+        _quality_gate_id = None
+        if trace is not None:
+            _quality_gate_id = trace.record(
+                "quality_gate", "accepted" if ok else "rejected",
+                metadata={"reason_code": "quality_pass" if ok else reason},
+                parent_ids=[
+                    rid for rid in (
+                        trace.reference("fountain_output_candidate"),
+                        trace.reference("fountain_event_delta"),
+                    ) if rid
+                ],
+            )
+            trace.remember("fountain_quality_gate", _quality_gate_id)
 
         # Best-of-cluster upgrade (NEX5_BESTOFCLUSTER, default OFF). When a
         # thought is rejected as a semantic near-duplicate but scores higher on
@@ -344,15 +370,30 @@ class FountainCrystallizer:
             if _upgraded_id is not None:
                 if self._dynamic_writer is not None:
                     try:
-                        self._dynamic_writer.write(
+                        _reject_row_id = self._dynamic_writer.write(
                             "INSERT INTO crystallization_rejects "
                             "(ts, reason, thought_excerpt, matched_pattern) "
                             "VALUES (?, ?, ?, ?)",
                             (time.time(), "semantic_repeat_upgraded",
                              thought[:200], (_match.get("content") or "")[:200]),
                         )
+                        if trace is not None:
+                            trace.writer_delta(
+                                database="dynamic", table="crystallization_rejects",
+                                operation="INSERT", row_id=_reject_row_id,
+                                metadata={"reason_code": "semantic_repeat_upgraded"},
+                                parent_ids=[_quality_gate_id] if _quality_gate_id else [],
+                            )
                     except Exception:
                         pass
+                if trace is not None:
+                    _upgrade_delta_id = trace.writer_delta(
+                        database="beliefs", table="beliefs", operation="UPDATE",
+                        row_id=_upgraded_id, metadata={"reason_code": "bestofcluster_upgrade"},
+                        parent_ids=[_quality_gate_id] if _quality_gate_id else [],
+                    )
+                    trace.remember("fountain_belief_write", _upgrade_delta_id)
+                    trace.remember("fountain_crystallizer_terminal", _upgrade_delta_id)
                 self._last_reject_pattern = None
                 self._last_semantic_match = None
                 return _upgraded_id
@@ -367,12 +408,19 @@ class FountainCrystallizer:
             self._last_reject_pattern = None
             if self._dynamic_writer is not None:
                 try:
-                    self._dynamic_writer.write(
+                    _reject_row_id = self._dynamic_writer.write(
                         "INSERT INTO crystallization_rejects "
                         "(ts, reason, thought_excerpt, matched_pattern) "
                         "VALUES (?, ?, ?, ?)",
                         (time.time(), reason, thought[:200], matched),
                     )
+                    if trace is not None:
+                        trace.writer_delta(
+                            database="dynamic", table="crystallization_rejects",
+                            operation="INSERT", row_id=_reject_row_id,
+                            metadata={"reason_code": reason},
+                            parent_ids=[_quality_gate_id] if _quality_gate_id else [],
+                        )
                 except Exception as exc:
                     errors.record(
                         f"crystallization_reject write failed: {exc}",
@@ -389,7 +437,24 @@ class FountainCrystallizer:
                 confidence=0.70,
                 branch_id=hot_branch,
             )
-            decision = self._gate.check(packet)
+            if trace is None:
+                decision = self._gate.check(packet)
+            else:
+                decision = self._gate.check(packet, trace=trace)
+            if trace is not None:
+                _coherence_gate_id = trace.gate(
+                    decision.outcome.value, gate="coherence_gate",
+                    reason_code=getattr(decision, "reason", None),
+                    metadata={"source_node": "fountain"},
+                    parent_ids=[
+                        rid for rid in (_quality_gate_id,
+                                        trace.reference("coherence_gate_writer_delta"))
+                        if rid
+                    ],
+                )
+                trace.remember("fountain_coherence_gate", _coherence_gate_id)
+                if decision.outcome != GateOutcome.ACCEPT:
+                    trace.remember("fountain_crystallizer_terminal", _coherence_gate_id)
             if decision.outcome != GateOutcome.ACCEPT:
                 errors.record(
                     f"Fountain gate {decision.outcome.value} ({decision.reason}): {thought[:60]}",
@@ -397,6 +462,13 @@ class FountainCrystallizer:
                     level="INFO",
                 )
                 return None
+        elif trace is not None:
+            _coherence_gate_id = trace.gate(
+                "NOT_CONFIGURED", gate="coherence_gate",
+                reason_code="no_gate_instance",
+                parent_ids=[_quality_gate_id] if _quality_gate_id else [],
+            )
+            trace.remember("fountain_coherence_gate", _coherence_gate_id)
 
         mode = self._mode_state.current() if self._mode_state else None
         category = mode.crystallization_category if mode else "fountain_insight"
@@ -450,12 +522,39 @@ class FountainCrystallizer:
             "VALUES (?, 6, ?, ?, ?, ?, 0, ?)",
             (thought, _conf, ts, category, hot_branch, _attr_tags),
         )
+        if trace is not None:
+            _belief_delta_id = trace.writer_delta(
+                database="beliefs", table="beliefs", operation="INSERT",
+                row_id=belief_id,
+                metadata={"tier": 6, "confidence": _conf, "source": category},
+                parent_ids=[
+                    rid for rid in (
+                        trace.reference("fountain_quality_gate"),
+                        trace.reference("fountain_coherence_gate"),
+                    ) if rid
+                ],
+            )
+            trace.remember("fountain_belief_write", _belief_delta_id)
 
-        self._writer.write(
+        _crystallization_row_id = self._writer.write(
             "INSERT INTO fountain_crystallizations "
             "(fountain_event_id, belief_id, ts, content) VALUES (?, ?, ?, ?)",
             (fountain_event_id, belief_id, ts, thought),
         )
+        if trace is not None:
+            _crystallization_delta_id = trace.writer_delta(
+                database="beliefs", table="fountain_crystallizations",
+                operation="INSERT", row_id=_crystallization_row_id,
+                metadata={"fountain_event_id": fountain_event_id,
+                          "belief_id": belief_id},
+                parent_ids=[
+                    rid for rid in (
+                        trace.reference("fountain_belief_write"),
+                        trace.reference("fountain_event_delta"),
+                    ) if rid
+                ],
+            )
+            trace.remember("fountain_crystallization_link", _crystallization_delta_id)
 
         # Governor decides whether to speak this belief.
         # source='spectrum' beliefs are foundation variants — never enqueued for TTS.
@@ -479,17 +578,44 @@ class FountainCrystallizer:
                 )
                 logger.info(gov_msg)
                 errors.record(gov_msg, source=_LOG_SOURCE, level="INFO")
+                if trace is not None and not decision.speak:
+                    _speech_governor_id = trace.record(
+                        "speech_queue", "governor_hold",
+                        metadata={"belief_id": belief_id,
+                                  "reason_code": getattr(decision, "reason", None)},
+                        parent_ids=[trace.reference("fountain_belief_write")]
+                        if trace.reference("fountain_belief_write") else [],
+                    )
+                    trace.remember("fountain_speech_decision", _speech_governor_id)
                 if decision.speak:
                     existing = self._reader.read(
                         "SELECT id FROM speech_queue WHERE belief_id=? LIMIT 1",
                         (belief_id,),
                     )
                     if not existing:
-                        self._writer.write(
+                        _speech_queue_id = self._writer.write(
                             "INSERT INTO speech_queue "
                             "(belief_id, content, voice, queued_at) VALUES (?, ?, ?, ?)",
                             (belief_id, thought, cfg.voice, ts),
                         )
+                        if trace is not None:
+                            _speech_queue_delta_id = trace.writer_delta(
+                                database="beliefs", table="speech_queue",
+                                operation="INSERT", row_id=_speech_queue_id,
+                                metadata={"belief_id": belief_id, "status": "queued"},
+                                parent_ids=[
+                                    rid for rid in (
+                                        trace.reference("fountain_belief_write"),
+                                        trace.reference("fountain_crystallization_link"),
+                                    ) if rid
+                                ],
+                            )
+                            trace.remember("fountain_speech_decision", _speech_queue_delta_id)
+                    elif trace is not None:
+                        trace.record("speech_queue", "already_queued",
+                                     metadata={"belief_id": belief_id},
+                                     parent_ids=[trace.reference("fountain_belief_write")]
+                                     if trace.reference("fountain_belief_write") else [])
         except Exception as exc:
             errors.record(
                 f"speech enqueue failed: {exc}", source=_LOG_SOURCE, exc=exc

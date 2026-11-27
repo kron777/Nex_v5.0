@@ -214,7 +214,7 @@ class CoherenceGate:
 
     # ── Public API ────────────────────────────────────────────────────────────
 
-    def check(self, packet: ThoughtPacket) -> GateDecision:
+    def check(self, packet: ThoughtPacket, trace=None) -> GateDecision:
         """Evaluate an incoming thought against the current substrate.
 
         Returns a GateDecision with outcome and reason. Logs the decision
@@ -231,7 +231,10 @@ class CoherenceGate:
             decision = GateDecision(outcome=GateOutcome.ACCEPT, reason="gate_error_fallback")
 
         decision.latency_ms = (time.perf_counter() - t0) * 1000.0
-        self._log_decision(packet, decision)
+        if trace is None:
+            self._log_decision(packet, decision)
+        else:
+            self._log_decision(packet, decision, trace=trace)
         self._decision_count += 1
 
         # Phase 23 — Holding Zone: persist HOLD; check held zone on ACCEPT
@@ -461,9 +464,10 @@ class CoherenceGate:
 
     # ── Logging ───────────────────────────────────────────────────────────────
 
-    def _log_decision(self, packet: ThoughtPacket, decision: GateDecision) -> None:
+    def _log_decision(self, packet: ThoughtPacket, decision: GateDecision,
+                      trace=None) -> None:
         try:
-            self._beliefs_writer.write(
+            row_id = self._beliefs_writer.write(
                 "INSERT INTO gate_decisions "
                 "(ts, source_node, outcome, reason, latency_ms, "
                 "content_preview, branch_id, confidence) "
@@ -479,7 +483,31 @@ class CoherenceGate:
                     packet.confidence,
                 ),
             )
+            if trace is not None:
+                _trace_id = trace.writer_delta(
+                    database="beliefs", table="gate_decisions",
+                    operation="INSERT", row_id=row_id,
+                    metadata={"source_node": packet.source_node,
+                              "decision": decision.outcome.value,
+                              "latency_ms": round(decision.latency_ms, 3)},
+                    parent_ids=(
+                        [trace.reference("fountain_quality_gate")]
+                        if trace.reference("fountain_quality_gate") else []
+                    ),
+                )
+                trace.remember("coherence_gate_writer_delta", _trace_id)
         except Exception as exc:
+            if trace is not None:
+                trace.writer_delta(
+                    database="beliefs", table="gate_decisions",
+                    operation="INSERT", status="failed",
+                    metadata={"source_node": packet.source_node,
+                              "error_type": type(exc).__name__},
+                    parent_ids=(
+                        [trace.reference("fountain_quality_gate")]
+                        if trace.reference("fountain_quality_gate") else []
+                    ),
+                )
             errors.record(
                 f"gate_decisions log error: {exc}", source=_LOG_SOURCE, exc=exc
             )

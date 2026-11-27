@@ -44,12 +44,21 @@ class MembraneState:
     def classify_query(self, query: str) -> str:
         return self.classifier.classify_query(query).value
 
-    def route(self, query: str, belief_retriever, dynamic_state=None) -> dict:
+    def route(self, query: str, belief_retriever, dynamic_state=None,
+              trace=None) -> dict:
+        if trace is None:
+            return self.router.route(
+                query=query,
+                belief_retriever=belief_retriever,
+                self_model=self.self_model,
+                dynamic_state=dynamic_state,
+            )
         return self.router.route(
             query=query,
             belief_retriever=belief_retriever,
             self_model=self.self_model,
             dynamic_state=dynamic_state,
+            trace=trace,
         )
 
 

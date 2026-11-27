@@ -1,0 +1,863 @@
+{
+  "schema": "nex_causal_trace_sample/v1",
+  "evidence_note": "Synthetic fixture examples shaped to the implemented trace schema. These are not captures from the live NEX runtime. They establish L3 test-fixture structure only; L4 remains UNKNOWN until a separately authorised live capture. Parent IDs are explicit dependency claims supplied at producer seams; sequence and timestamp express capture order only and never imply causality.",
+  "traces": [
+    {
+      "trace_id": "fixture-fountain-cycle-001",
+      "producer": "fountain_cycle",
+      "capture_context": "fixture",
+      "evidence_level": "L3",
+      "evidence_class": "implemented",
+      "events": [
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-fountain-cycle-001",
+          "event_id": "f-001",
+          "parent_ids": [],
+          "sequence": 1,
+          "producer": "fountain_cycle",
+          "stage": "input_arrival",
+          "event": "fountain_tick",
+          "timestamp": 1795776000,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "prior_fire_count": 12,
+            "last_fire_timestamp": 1795775700
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-fountain-cycle-001",
+          "event_id": "f-002",
+          "parent_ids": [
+            "f-001"
+          ],
+          "sequence": 2,
+          "producer": "fountain_cycle",
+          "stage": "readiness",
+          "event": "threshold_evaluated",
+          "timestamp": 1795776000.01,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "score": 0.91,
+            "threshold": 0.7,
+            "eligible": true
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-fountain-cycle-001",
+          "event_id": "f-003",
+          "parent_ids": [
+            "f-002"
+          ],
+          "sequence": 3,
+          "producer": "fountain_cycle",
+          "stage": "candidate_generation",
+          "event": "candidates_selected",
+          "timestamp": 1795776000.02,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "source": "stage6_fountain._retrieve_context_beliefs",
+            "candidate_ids": [
+              201,
+              202
+            ],
+            "candidate_kinds": [
+              "fountain_insight",
+              "precipitated_from_sense"
+            ],
+            "candidate_count": 2,
+            "own_limit": 7,
+            "seed_limit": 3
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-fountain-cycle-001",
+          "event_id": "f-004",
+          "parent_ids": [
+            "f-003"
+          ],
+          "sequence": 4,
+          "producer": "fountain_cycle",
+          "stage": "sqlite_writer_delta",
+          "event": "write_result",
+          "timestamp": 1795776000.03,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "database": "beliefs",
+            "table": "belief_activation",
+            "operation": "UPSERT",
+            "row_id": 201,
+            "status": "committed",
+            "transaction_scope": "single_statement_single_database",
+            "purpose": "retrieval_activation"
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-fountain-cycle-001",
+          "event_id": "f-005",
+          "parent_ids": [
+            "f-001"
+          ],
+          "sequence": 5,
+          "producer": "fountain_cycle",
+          "stage": "salience_workspace",
+          "event": "global_workspace_arbitration",
+          "timestamp": 1795776000.04,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "candidate_kinds": [
+              "surprise",
+              "momentum",
+              "bonsai"
+            ],
+            "candidate_salience": [
+              0.6,
+              0.55,
+              0.4
+            ],
+            "winner_kind": "surprise",
+            "winner_present": true
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-fountain-cycle-001",
+          "event_id": "f-006",
+          "parent_ids": [
+            "f-003",
+            "f-005"
+          ],
+          "sequence": 6,
+          "producer": "fountain_cycle",
+          "stage": "prompt_context_selection",
+          "event": "belief_manifest_recorded",
+          "timestamp": 1795776000.05,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "source": "stage6_fountain._build_prompt",
+            "candidate_order": [
+              201,
+              202
+            ],
+            "selected_order": [
+              201,
+              202
+            ],
+            "strategy": "belief_prompt_manifest",
+            "retrieval_slots": [
+              "own",
+              "own_sense"
+            ],
+            "workspace_enabled": true,
+            "prompt_block_count": 8
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-fountain-cycle-001",
+          "event_id": "f-007",
+          "parent_ids": [
+            "f-006"
+          ],
+          "sequence": 7,
+          "producer": "fountain_cycle",
+          "stage": "prompt_assembly",
+          "event": "fountain_voice_prompt_ready",
+          "timestamp": 1795776000.06,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "prompt": {
+              "sha256": "sha256:c4e4fa7eac44a6544e0d35e12b44924348469ffbe21ee93a705dc5c969670b34",
+              "length": 23
+            },
+            "route": "normal"
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-fountain-cycle-001",
+          "event_id": "f-008",
+          "parent_ids": [
+            "f-007"
+          ],
+          "sequence": 8,
+          "producer": "fountain_cycle",
+          "stage": "candidate_generation",
+          "event": "voice_model_candidate",
+          "timestamp": 1795776000.07,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "thought": {
+              "sha256": "sha256:2a877d793b49c570186f212d056c795ed4e579e29d991cc92b21b3708624214c",
+              "length": 24
+            },
+            "route": "normal"
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-fountain-cycle-001",
+          "event_id": "f-009",
+          "parent_ids": [
+            "f-008",
+            "f-006"
+          ],
+          "sequence": 9,
+          "producer": "fountain_cycle",
+          "stage": "output_filter",
+          "event": "frame_gate_applied",
+          "timestamp": 1795776000.08,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "before": {
+              "sha256": "sha256:2a877d793b49c570186f212d056c795ed4e579e29d991cc92b21b3708624214c",
+              "length": 24
+            },
+            "after": {
+              "sha256": "sha256:2a877d793b49c570186f212d056c795ed4e579e29d991cc92b21b3708624214c",
+              "length": 24
+            },
+            "changed": false
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-fountain-cycle-001",
+          "event_id": "f-010",
+          "parent_ids": [
+            "f-009"
+          ],
+          "sequence": 10,
+          "producer": "fountain_cycle",
+          "stage": "sqlite_writer_delta",
+          "event": "write_result",
+          "timestamp": 1795776000.09,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "database": "sense",
+            "table": "sense_events",
+            "operation": "INSERT",
+            "row_id": 501,
+            "status": "committed",
+            "transaction_scope": "single_statement_single_database",
+            "stream": "internal.fountain"
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-fountain-cycle-001",
+          "event_id": "f-011",
+          "parent_ids": [
+            "f-009",
+            "f-010"
+          ],
+          "sequence": 11,
+          "producer": "fountain_cycle",
+          "stage": "sqlite_writer_delta",
+          "event": "write_result",
+          "timestamp": 1795776000.1,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "database": "dynamic",
+            "table": "fountain_events",
+            "operation": "INSERT",
+            "row_id": 801,
+            "status": "committed",
+            "transaction_scope": "single_statement_single_database"
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-fountain-cycle-001",
+          "event_id": "f-012",
+          "parent_ids": [
+            "f-006",
+            "f-011"
+          ],
+          "sequence": 12,
+          "producer": "fountain_cycle",
+          "stage": "sqlite_writer_delta",
+          "event": "write_result",
+          "timestamp": 1795776000.11,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "database": "dynamic",
+            "table": "fountain_retrieval_log",
+            "operation": "WRITE_MANY",
+            "row_id": [
+              810,
+              811
+            ],
+            "status": "committed",
+            "transaction_scope": "single_database_atomic_write_many",
+            "fire_id": 801,
+            "row_count": 2
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-fountain-cycle-001",
+          "event_id": "f-013",
+          "parent_ids": [
+            "f-007",
+            "f-011"
+          ],
+          "sequence": 13,
+          "producer": "fountain_cycle",
+          "stage": "sqlite_writer_delta",
+          "event": "write_result",
+          "timestamp": 1795776000.12,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "database": "dynamic",
+            "table": "fountain_prompt_blocks",
+            "operation": "WRITE_MANY",
+            "row_id": [
+              820,
+              821
+            ],
+            "status": "committed",
+            "transaction_scope": "single_database_atomic_write_many",
+            "fire_id": 801,
+            "row_count": 2
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-fountain-cycle-001",
+          "event_id": "f-014",
+          "parent_ids": [
+            "f-009",
+            "f-011"
+          ],
+          "sequence": 14,
+          "producer": "fountain_cycle",
+          "stage": "quality_gate",
+          "event": "accepted",
+          "timestamp": 1795776000.13,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "reason_code": "quality_pass"
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-fountain-cycle-001",
+          "event_id": "f-015",
+          "parent_ids": [
+            "f-014"
+          ],
+          "sequence": 15,
+          "producer": "fountain_cycle",
+          "stage": "gate",
+          "event": "decision",
+          "timestamp": 1795776000.14,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "gate": "coherence_gate",
+            "decision": "ACCEPT",
+            "reason_code": "fixture_accept",
+            "source_node": "fountain"
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-fountain-cycle-001",
+          "event_id": "f-016",
+          "parent_ids": [
+            "f-014",
+            "f-015"
+          ],
+          "sequence": 16,
+          "producer": "fountain_cycle",
+          "stage": "sqlite_writer_delta",
+          "event": "write_result",
+          "timestamp": 1795776000.15,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "database": "beliefs",
+            "table": "beliefs",
+            "operation": "INSERT",
+            "row_id": 1201,
+            "status": "committed",
+            "transaction_scope": "single_statement_single_database",
+            "tier": 6,
+            "confidence": 0.82,
+            "source": "fountain_insight"
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-fountain-cycle-001",
+          "event_id": "f-017",
+          "parent_ids": [
+            "f-011",
+            "f-016"
+          ],
+          "sequence": 17,
+          "producer": "fountain_cycle",
+          "stage": "sqlite_writer_delta",
+          "event": "write_result",
+          "timestamp": 1795776000.16,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "database": "beliefs",
+            "table": "fountain_crystallizations",
+            "operation": "INSERT",
+            "row_id": 1301,
+            "status": "committed",
+            "transaction_scope": "single_statement_single_database",
+            "fountain_event_id": 801,
+            "belief_id": 1201
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-fountain-cycle-001",
+          "event_id": "f-018",
+          "parent_ids": [
+            "f-009",
+            "f-011"
+          ],
+          "sequence": 18,
+          "producer": "fountain_cycle",
+          "stage": "output",
+          "event": "result",
+          "timestamp": 1795776000.17,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "sha256": "sha256:2a877d793b49c570186f212d056c795ed4e579e29d991cc92b21b3708624214c",
+            "length": 24,
+            "output_kind": "fountain_thought",
+            "status": "produced"
+          }
+        }
+      ]
+    },
+    {
+      "trace_id": "fixture-chat-turn-001",
+      "producer": "chat_turn",
+      "capture_context": "fixture",
+      "evidence_level": "L3",
+      "evidence_class": "implemented",
+      "events": [
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-chat-turn-001",
+          "event_id": "c-001",
+          "parent_ids": [],
+          "sequence": 1,
+          "producer": "chat_turn",
+          "stage": "input_arrival",
+          "event": "received",
+          "timestamp": 1795776100,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "source": "gui.server.api_chat",
+            "sha256": "sha256:153257fb7ed06c1e3a4fd9e5e14c82c78baaf9e054ecf5015e0644e61c993df7",
+            "length": 25
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-chat-turn-001",
+          "event_id": "c-002",
+          "parent_ids": [
+            "c-001"
+          ],
+          "sequence": 2,
+          "producer": "chat_turn",
+          "stage": "sqlite_writer_delta",
+          "event": "write_result",
+          "timestamp": 1795776100.01,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "database": "conversations",
+            "table": "sessions",
+            "operation": "INSERT",
+            "row_id": 201,
+            "status": "committed",
+            "transaction_scope": "single_statement_single_database",
+            "session_id_present": true
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-chat-turn-001",
+          "event_id": "c-003",
+          "parent_ids": [
+            "c-001",
+            "c-002"
+          ],
+          "sequence": 3,
+          "producer": "chat_turn",
+          "stage": "sqlite_writer_delta",
+          "event": "write_result",
+          "timestamp": 1795776100.02,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "database": "conversations",
+            "table": "messages",
+            "operation": "INSERT",
+            "row_id": 2201,
+            "status": "committed",
+            "transaction_scope": "single_statement_single_database",
+            "role": "user"
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-chat-turn-001",
+          "event_id": "c-004",
+          "parent_ids": [
+            "c-001"
+          ],
+          "sequence": 4,
+          "producer": "chat_turn",
+          "stage": "candidate_generation",
+          "event": "candidates_selected",
+          "timestamp": 1795776100.03,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "source": "membrane.outside_retriever",
+            "candidate_ids": [
+              701,
+              702,
+              703
+            ],
+            "candidate_kinds": [],
+            "candidate_count": 3,
+            "side": "OUTSIDE",
+            "limit": 8,
+            "branch_hints": [
+              "systems"
+            ]
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-chat-turn-001",
+          "event_id": "c-005",
+          "parent_ids": [
+            "c-004",
+            "c-001"
+          ],
+          "sequence": 5,
+          "producer": "chat_turn",
+          "stage": "membrane_routing",
+          "event": "query_classified",
+          "timestamp": 1795776100.04,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "side": "OUTSIDE",
+            "register_hint": null
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-chat-turn-001",
+          "event_id": "c-006",
+          "parent_ids": [
+            "c-001",
+            "c-005"
+          ],
+          "sequence": 6,
+          "producer": "chat_turn",
+          "stage": "register_arbitration",
+          "event": "register_finalised",
+          "timestamp": 1795776100.05,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "initial_register": "Philosophical",
+            "final_register": "Philosophical",
+            "membrane_overrode": false
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-chat-turn-001",
+          "event_id": "c-007",
+          "parent_ids": [
+            "c-001",
+            "c-004",
+            "c-006"
+          ],
+          "sequence": 7,
+          "producer": "chat_turn",
+          "stage": "candidate_generation",
+          "event": "candidates_selected",
+          "timestamp": 1795776100.06,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "source": "gui.server._assemble_chat_blocks",
+            "candidate_ids": [
+              "operator",
+              "compassion",
+              "compass",
+              "equanimity",
+              "convo",
+              "spectrum"
+            ],
+            "candidate_kinds": [
+              "operator",
+              "compassion",
+              "compass",
+              "equanimity",
+              "convo",
+              "spectrum"
+            ],
+            "candidate_count": 6,
+            "pre_ablation_order": [
+              "operator",
+              "compassion",
+              "compass",
+              "equanimity",
+              "convo",
+              "spectrum"
+            ],
+            "ablation_changed_pool": false
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-chat-turn-001",
+          "event_id": "c-008",
+          "parent_ids": [
+            "c-007"
+          ],
+          "sequence": 8,
+          "producer": "chat_turn",
+          "stage": "salience_workspace",
+          "event": "selection_recorded",
+          "timestamp": 1795776100.07,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "source": "gui.server._assemble_chat_blocks",
+            "candidate_order": [
+              "operator",
+              "compassion",
+              "compass",
+              "equanimity",
+              "convo",
+              "spectrum"
+            ],
+            "selected_order": [
+              "operator",
+              "compassion",
+              "compass",
+              "equanimity",
+              "convo",
+              "spectrum"
+            ],
+            "strategy": "ordered_concatenation",
+            "workspace_enabled": false,
+            "block_count": 6
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-chat-turn-001",
+          "event_id": "c-009",
+          "parent_ids": [
+            "c-001",
+            "c-004",
+            "c-006",
+            "c-008"
+          ],
+          "sequence": 9,
+          "producer": "chat_turn",
+          "stage": "prompt_assembly",
+          "event": "chat_prompt_ready",
+          "timestamp": 1795776100.08,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "prompt": {
+              "sha256": "sha256:c4e4fa7eac44a6544e0d35e12b44924348469ffbe21ee93a705dc5c969670b34",
+              "length": 23
+            },
+            "belief_block_chars": 122,
+            "faculty_block_chars": 410
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-chat-turn-001",
+          "event_id": "c-010",
+          "parent_ids": [
+            "c-009"
+          ],
+          "sequence": 10,
+          "producer": "chat_turn",
+          "stage": "candidate_generation",
+          "event": "voice_model_reply",
+          "timestamp": 1795776100.09,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "reply": {
+              "sha256": "sha256:376dae67a5b0a591c8a05cb46ab2c2dd99879785c20c6a3a07f2492f40a4a9b3",
+              "length": 29
+            },
+            "register": "Philosophical",
+            "voice_ok": true
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-chat-turn-001",
+          "event_id": "c-011",
+          "parent_ids": [
+            "c-010"
+          ],
+          "sequence": 11,
+          "producer": "chat_turn",
+          "stage": "output_filter",
+          "event": "chat_reply_sanitized",
+          "timestamp": 1795776100.1,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "reply": {
+              "sha256": "sha256:376dae67a5b0a591c8a05cb46ab2c2dd99879785c20c6a3a07f2492f40a4a9b3",
+              "length": 29
+            },
+            "length": 28
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-chat-turn-001",
+          "event_id": "c-012",
+          "parent_ids": [
+            "c-011"
+          ],
+          "sequence": 12,
+          "producer": "chat_turn",
+          "stage": "sqlite_writer_delta",
+          "event": "write_result",
+          "timestamp": 1795776100.11,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "database": "conversations",
+            "table": "messages",
+            "operation": "INSERT",
+            "row_id": 2202,
+            "status": "committed",
+            "transaction_scope": "single_statement_single_database",
+            "role": "nex"
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-chat-turn-001",
+          "event_id": "c-013",
+          "parent_ids": [
+            "c-011"
+          ],
+          "sequence": 13,
+          "producer": "chat_turn",
+          "stage": "gate",
+          "event": "decision",
+          "timestamp": 1795776100.12,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "gate": "chat_crystallization_gate",
+            "decision": "NOT_APPLICABLE",
+            "reason_code": "chat_reply_is_not_a_belief_write"
+          }
+        },
+        {
+          "schema": "nex_causal_trace/v1",
+          "trace_id": "fixture-chat-turn-001",
+          "event_id": "c-014",
+          "parent_ids": [
+            "c-011",
+            "c-012",
+            "c-013"
+          ],
+          "sequence": 14,
+          "producer": "chat_turn",
+          "stage": "output",
+          "event": "result",
+          "timestamp": 1795776100.13,
+          "evidence_level": "L3",
+          "evidence_class": "implemented",
+          "capture_context": "fixture",
+          "metadata": {
+            "sha256": "sha256:376dae67a5b0a591c8a05cb46ab2c2dd99879785c20c6a3a07f2492f40a4a9b3",
+            "length": 29,
+            "output_kind": "chat_reply",
+            "status": "produced",
+            "voice_ok": true,
+            "assistant_message_id": 2202,
+            "assistant_store_status": "committed"
+          }
+        }
+      ]
+    }
+  ]
+}

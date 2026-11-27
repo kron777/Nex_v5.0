@@ -1396,7 +1396,7 @@ class FountainGenerator:
     _SUBSTRATE_VOICE_COOLDOWN_FIRES = 5
 
     def _maybe_substrate_voice(
-        self, beliefs_reader, readiness: float,
+        self, beliefs_reader, readiness: float, trace=None,
     ) -> Optional[str]:
         """Substrate-as-voice path. Returns the emitted thought if we fired
         this way, or None to fall through to normal generation.
@@ -1463,6 +1463,24 @@ class FountainGenerator:
         if not anchor_content:
             return None
 
+        if trace is not None:
+            _anchor_candidates_id = trace.candidates(
+                [anchor_id],
+                source="stage6_fountain.substrate_voice_anchor",
+                candidate_kinds=["stored_tier_1_or_2_belief"],
+                metadata={"selection_rule": "least_recently_voiced"},
+                parent_ids=[trace.reference("fountain_readiness")],
+            )
+            trace.remember("substrate_voice_anchor_candidates", _anchor_candidates_id)
+            _anchor_selection_id = trace.selection(
+                source="stage6_fountain.substrate_voice_anchor",
+                candidate_order=[anchor_id],
+                selected_order=[anchor_id],
+                strategy="least_recently_voiced_anchor",
+                parent_ids=[_anchor_candidates_id] if _anchor_candidates_id else [],
+            )
+            trace.remember("substrate_voice_anchor_selection", _anchor_selection_id)
+
         ts_now = time.time()
 
         if self._beliefs_writer is not None:
@@ -1471,6 +1489,14 @@ class FountainGenerator:
                     "UPDATE beliefs SET last_voiced_at = ? WHERE id = ?",
                     (ts_now, anchor_id),
                 )
+                if trace is not None:
+                    _anchor_touch_id = trace.writer_delta(
+                        database="beliefs", table="beliefs", operation="UPDATE",
+                        row_id=anchor_id, metadata={"purpose": "substrate_voice_last_voiced_at"},
+                        parent_ids=[trace.reference("substrate_voice_anchor_selection")]
+                        if trace.reference("substrate_voice_anchor_selection") else [],
+                    )
+                    trace.remember("substrate_voice_anchor_touch", _anchor_touch_id)
             except Exception:
                 pass
 
@@ -1482,6 +1508,19 @@ class FountainGenerator:
                 (ts_now, anchor_content, readiness,
                  "substrate_voice", len(anchor_content.split()), anchor_id),
             )
+            if trace is not None:
+                _substrate_event_trace_id = trace.writer_delta(
+                    database="dynamic", table="fountain_events", operation="INSERT",
+                    row_id=_sv_fid,
+                    metadata={"path": "substrate_voice", "anchor_belief_id": anchor_id},
+                    parent_ids=[
+                        rid for rid in (
+                            trace.reference("substrate_voice_anchor_selection"),
+                            trace.reference("substrate_voice_anchor_touch"),
+                        ) if rid
+                    ],
+                )
+                trace.remember("substrate_voice_event", _substrate_event_trace_id)
             self._link_activation_to_event()
             # Snapshot the substrate_voice fire (Mode A walks). Fire-and-forget.
             try:
@@ -1568,7 +1607,7 @@ class FountainGenerator:
             except Exception:
                 pass
 
-    def _apply_frame_gate(self, thought: str, prompt: str) -> str:
+    def _apply_frame_gate(self, thought: str, prompt: str, trace=None) -> str:
         """NEX5_FRAME_GATE (default OFF): if a draft trips the register-template
         detector, regenerate ONCE with the B1 concreteness demand and use the clean
         retry; otherwise keep the original (never drop, never degrade). Returns
@@ -1578,26 +1617,105 @@ class FountainGenerator:
             return thought
         if not _register_template_trips(thought):
             return thought
+        _retry_prompt = prompt + _FRAME_GATE_RETRY_SUFFIX
+        if trace is not None:
+            trace.record(
+                "prompt_assembly", "frame_gate_retry_prompt",
+                metadata={"prompt": _retry_prompt, "reason_code": "register_template_trip"},
+            )
         try:
             _rg = self._voice.speak(
-                VoiceRequest(prompt=prompt + _FRAME_GATE_RETRY_SUFFIX,
+                VoiceRequest(prompt=_retry_prompt,
                              register=PHILOSOPHICAL, self_report_examples=False),
                 beliefs=None,
             )
             _rgt = (_rg.text or "").strip()
-        except Exception:
+        except Exception as exc:
             _rgt = ""
-        if _rgt and not _register_template_trips(_rgt):
+            if trace is not None:
+                trace.record(
+                    "candidate_generation", "frame_gate_retry_error",
+                    metadata={"error_type": type(exc).__name__},
+                )
+        _retry_accepted = bool(_rgt and not _register_template_trips(_rgt))
+        if trace is not None:
+            trace.record(
+                "candidate_generation", "frame_gate_retry_candidate",
+                metadata={"thought": _rgt, "selected_as_final": _retry_accepted},
+            )
+        if _retry_accepted:
             logger.info("frame_gate: regenerated concrete (original tripped register detector)")
             return _rgt
         logger.info("frame_gate: retry unclean/empty, kept original")
         return thought
 
     def generate(self, dynamic_state, beliefs_reader: Reader) -> Optional[str]:
+        trace = None
+        if os.environ.get("NEX5_TRACE_OVERLAY", "0").strip().lower() in {
+            "1", "true", "on", "yes", "y",
+        }:
+            try:
+                from influence_trace import new_trace
+                trace = new_trace("fountain_cycle")
+            except Exception:
+                trace = None
+        if trace is None:
+            # The default-OFF path keeps the original direct call and exception path.
+            return self._generate(dynamic_state, beliefs_reader)
+
+        _tick_record_id = trace.record(
+            "input_arrival", "fountain_tick",
+            metadata={"prior_fire_count": self._total_fires,
+                      "last_fire_timestamp": self._last_fire_ts},
+        )
+        trace.remember("fountain_tick", _tick_record_id)
+        try:
+            result = self._generate(dynamic_state, beliefs_reader, trace=trace)
+        except Exception as exc:
+            if trace is not None:
+                trace.record("output", "generation_error",
+                             metadata={"error_type": type(exc).__name__},
+                             parent_ids=[trace.reference("input_arrival")])
+            raise
+        if trace is not None:
+            trace.output(
+                result, output_kind="fountain_thought",
+                status="produced" if result is not None else "no_output",
+                metadata={"fire_count_after_call": self._total_fires},
+                parent_ids=list(dict.fromkeys(
+                    rid for rid in (
+                        trace.reference("fountain_output_candidate"),
+                        trace.reference("fountain_event_delta"),
+                        trace.reference("fountain_fallback_event_delta"),
+                        trace.reference("fountain_output_parent"),
+                        trace.reference("fountain_readiness"),
+                        trace.reference("input_arrival"),
+                    ) if rid
+                ))[:4],
+            )
+        return result
+
+    def _generate(self, dynamic_state, beliefs_reader: Reader, trace=None) -> Optional[str]:
         readiness = self._evaluator.score(
             dynamic_state, beliefs_reader, last_fire_ts=self._last_fire_ts
         )
-        if not self._evaluator.is_ready(readiness):
+        _ready = self._evaluator.is_ready(readiness)
+        if trace is not None:
+            _readiness_record_id = trace.record(
+                "readiness", "threshold_evaluated",
+                metadata={"score": readiness, "threshold": 0.7, "eligible": _ready},
+                parent_ids=[trace.reference("input_arrival")],
+            )
+            trace.remember("fountain_readiness", _readiness_record_id)
+        if not _ready:
+            if trace is not None:
+                _readiness_gate_id = trace.gate(
+                    "REJECT", gate="fountain_readiness",
+                    reason_code="below_threshold",
+                    metadata={"score": readiness},
+                    parent_ids=[trace.reference("fountain_readiness")],
+                )
+                trace.remember("fountain_output_parent", _readiness_gate_id)
             return None
         # Round 23 — per-fire mode/focal-item labels. Reset FIRST so a fire
         # that never reaches _build_prompt's wide-mode branch (substrate-voice)
@@ -1625,8 +1743,29 @@ class FountainGenerator:
             # _maybe_substrate_voice() already never runs live -- dropping
             # the SYNTH_EMIT half changes nothing observable either way.
             if os.environ.get("NEX5_RECONCILE") != "1":
-                _sv_thought = self._maybe_substrate_voice(beliefs_reader, readiness)
+                if trace is None:
+                    _sv_thought = self._maybe_substrate_voice(beliefs_reader, readiness)
+                else:
+                    _sv_thought = self._maybe_substrate_voice(
+                        beliefs_reader, readiness, trace=trace,
+                    )
                 if _sv_thought is not None:
+                    if trace is not None:
+                        _substrate_replay_id = trace.record(
+                            "candidate_generation", "substrate_voice_replay",
+                            metadata={"source": "stored_belief",
+                                      "fresh_generation": False,
+                                      "crystallizer_path": "bypassed"},
+                            parent_ids=(
+                                [trace.reference("substrate_voice_event")]
+                                if trace.reference("substrate_voice_event") else
+                                [trace.reference("substrate_voice_anchor_selection")]
+                                if trace.reference("substrate_voice_anchor_selection") else
+                                [trace.reference("fountain_readiness")]
+                            ),
+                        )
+                        trace.remember("fountain_output_candidate", _substrate_replay_id)
+                        trace.remember("fountain_output_parent", _substrate_replay_id)
                     return _sv_thought
         except Exception as _sv_err:
             error_channel.record(
@@ -1649,18 +1788,51 @@ class FountainGenerator:
                         row = rows[0]
                         payload = (row["payload"] or "")[:100].strip()
                         thought = f"[{row['stream']}] {payload}"
+                        if trace is not None:
+                            _quiescent_source_candidate_id = trace.record(
+                                "candidate_generation", "quiescent_sense_candidate",
+                                metadata={"source": "existing_sense_event",
+                                          "stream": row["stream"],
+                                          "timestamp": row["timestamp"],
+                                          "payload": payload},
+                                parent_ids=[trace.reference("fountain_readiness")],
+                            )
+                            trace.remember("fountain_quiescent_source", _quiescent_source_candidate_id)
             except Exception:
                 pass
 
             if not thought:
                 thought = f"[tick] {time.strftime('%H:%M:%S')}"
 
+            _quiescent_candidate_id = None
+            if trace is not None:
+                _quiescent_candidate_id = trace.record(
+                    "candidate_generation", "quiescent_candidate_ready",
+                    metadata={"source": "existing_sense_event"
+                              if trace.reference("fountain_quiescent_source")
+                              else "clock_tick"},
+                    parent_ids=(
+                        [trace.reference("fountain_quiescent_source")]
+                        if trace.reference("fountain_quiescent_source")
+                        else [trace.reference("fountain_readiness")]
+                    ),
+                )
+
             ts_now = time.time()
-            self._dynamic_writer.write(
+            _quiescent_event_id = self._dynamic_writer.write(
                 "INSERT INTO fountain_events (ts, thought, readiness, hot_branch, word_count) "
                 "VALUES (?, ?, ?, ?, ?)",
                 (ts_now, thought, readiness, "quiescent", len(thought.split())),
             )
+            if trace is not None:
+                _quiescent_event_trace_id = trace.writer_delta(
+                    database="dynamic", table="fountain_events", operation="INSERT",
+                    row_id=_quiescent_event_id, metadata={"path": "quiescent"},
+                    parent_ids=[_quiescent_candidate_id] if _quiescent_candidate_id else [],
+                )
+                trace.remember("fountain_output_candidate", _quiescent_candidate_id)
+                trace.remember("fountain_event_delta", _quiescent_event_trace_id)
+                trace.remember("fountain_output_parent", _quiescent_event_trace_id)
             self._link_activation_to_event()
             self._last_fountain_output = _strip_metadata(thought)
             self._last_fire_ts = ts_now
@@ -1702,8 +1874,15 @@ class FountainGenerator:
         if self._total_fires % 8 == 7 and readiness >= 0.8 and belief_count >= 20:
             koan = self._select_koan(beliefs_reader)
 
-        prompt, retrieval_manifest = self._build_prompt(status, belief_count, tier_dist,
-                                                         disturbance=disturbance, koan=koan)
+        if trace is None:
+            prompt, retrieval_manifest = self._build_prompt(
+                status, belief_count, tier_dist, disturbance=disturbance, koan=koan,
+            )
+        else:
+            prompt, retrieval_manifest = self._build_prompt(
+                status, belief_count, tier_dist, disturbance=disturbance, koan=koan,
+                trace=trace,
+            )
 
         try:
             with open('/tmp/nex5_last_prompt.log', 'w') as _f:
@@ -1736,7 +1915,7 @@ class FountainGenerator:
                         f"{self._consecutive_stillness} cycles.\n\n{prompt}"
                     )
                     try:
-                        self._dynamic_writer.write(
+                        _stillness_row_id = self._dynamic_writer.write(
                             "INSERT INTO stillness_log "
                             "(ts, reason, retrieval_signature, "
                             " consecutive_stillness_count, jaccard) "
@@ -1744,6 +1923,12 @@ class FountainGenerator:
                             (time.time(), "force_fire", _sig,
                              self._consecutive_stillness, _jaccard),
                         )
+                        if trace is not None:
+                            trace.writer_delta(
+                                database="dynamic", table="stillness_log",
+                                operation="INSERT", row_id=_stillness_row_id,
+                                metadata={"reason": "force_fire"},
+                            )
                     except Exception:
                         pass
                     self._consecutive_stillness = 0
@@ -1752,7 +1937,7 @@ class FountainGenerator:
                     self._consecutive_stillness += 1
                     _ts_still = time.time()
                     try:
-                        self._dynamic_writer.write(
+                        _still_event_id = self._dynamic_writer.write(
                             "INSERT INTO fountain_events "
                             "(ts, thought, readiness, hot_branch, "
                             " word_count, stillness_reason) "
@@ -1760,7 +1945,13 @@ class FountainGenerator:
                             (_ts_still, "", readiness, None, 0,
                              "duplicate_retrieval"),
                         )
-                        self._dynamic_writer.write(
+                        if trace is not None:
+                            trace.writer_delta(
+                                database="dynamic", table="fountain_events",
+                                operation="INSERT", row_id=_still_event_id,
+                                metadata={"path": "stillness", "reason": "duplicate_retrieval"},
+                            )
+                        _stillness_row_id = self._dynamic_writer.write(
                             "INSERT INTO stillness_log "
                             "(ts, reason, retrieval_signature, "
                             " consecutive_stillness_count, jaccard) "
@@ -1768,6 +1959,12 @@ class FountainGenerator:
                             (_ts_still, "duplicate_retrieval", _sig,
                              self._consecutive_stillness, _jaccard),
                         )
+                        if trace is not None:
+                            trace.writer_delta(
+                                database="dynamic", table="stillness_log",
+                                operation="INSERT", row_id=_stillness_row_id,
+                                metadata={"reason": "duplicate_retrieval"},
+                            )
                     except Exception as _se:
                         error_channel.record(
                             f"stillness write failed: {_se}",
@@ -1780,6 +1977,18 @@ class FountainGenerator:
                         source="stage6_fountain", level="INFO",
                     )
         if _went_still:
+            if trace is not None:
+                _stillness_gate_id = trace.gate(
+                    "HOLD", gate="fountain_stillness",
+                    reason_code="duplicate_retrieval",
+                    parent_ids=[
+                        rid for rid in (
+                            trace.reference("fountain_prompt_candidates"),
+                            trace.reference("fountain_event_delta"),
+                        ) if rid
+                    ],
+                )
+                trace.remember("fountain_output_parent", _stillness_gate_id)
             return None
         if self._consecutive_stillness > 0 and _fountain_stillness_reason is None:
             # Coming out of a stillness streak — prepend quiet notice.
@@ -1804,6 +2013,28 @@ class FountainGenerator:
             except Exception:
                 _hot = []
             if _hot:
+                if trace is not None:
+                    _hot_ids = [item.get("belief_id") for item in _hot]
+                    _hot_sources = [item.get("source") for item in _hot]
+                    _substrate_candidates_id = trace.candidates(
+                        _hot_ids,
+                        source="theory_x.substrate.activation.get_top_activated",
+                        candidate_kinds=_hot_sources,
+                        metadata={"limit": 4, "selection_rule": "effective_activation_desc"},
+                        parent_ids=[trace.reference("fountain_readiness")],
+                    )
+                    trace.remember("substrate_emit_candidates", _substrate_candidates_id)
+                    _substrate_selection_id = trace.selection(
+                        source="theory_x.substrate.activation.get_top_activated",
+                        candidate_order=_hot_ids,
+                        selected_order=_hot_ids,
+                        strategy="top_effective_activation",
+                        metadata={"effective_activation": [
+                            item.get("eff_activation") for item in _hot
+                        ]},
+                        parent_ids=[_substrate_candidates_id] if _substrate_candidates_id else [],
+                    )
+                    trace.remember("substrate_emit_selection", _substrate_selection_id)
                 _parts = ["[substrate emit]"]
                 for _h in _hot:
                     _c = (_h.get("content") or "").strip().replace("\n", " ")
@@ -1813,6 +2044,19 @@ class FountainGenerator:
                     _tier = _h.get("tier", "?")
                     _parts.append(f"  T{_tier} a={_act:.2f}: {_c}")
                 thought = "\n".join(_parts)
+                if trace is not None:
+                    _substrate_emit_candidate_id = trace.record(
+                        "candidate_generation", "substrate_emit_candidate",
+                        metadata={"thought": thought, "fresh_model_generation": False,
+                                  "belief_ids": [item.get("belief_id") for item in _hot]},
+                        parent_ids=(
+                            [trace.reference("substrate_emit_selection")]
+                            if trace.reference("substrate_emit_selection") else
+                            [trace.reference("fountain_readiness")]
+                        ),
+                    )
+                    trace.remember("fountain_output_candidate", _substrate_emit_candidate_id)
+                    trace.remember("fountain_output_parent", _substrate_emit_candidate_id)
                 _emitted = True
         # ── SYNTHESIS EMIT: removed 2026-07-25 (session 49) ────────────
         # NEX5_SYNTH_EMIT was never set in any launch path this deployment
@@ -1966,12 +2210,32 @@ class FountainGenerator:
                                 "Do not describe how you would do it. Do not propose to create anything. "
                                 "Just write the actual finished answer, in full."
                             )
+                    if trace is not None:
+                        _reconcile_prompt_id = trace.record(
+                            "prompt_assembly", "fountain_voice_prompt_ready",
+                            metadata={"prompt": _rcprompt, "route": "reconcile"},
+                            parent_ids=[
+                                rid for rid in (
+                                    trace.reference("fountain_prompt_context_selection"),
+                                    trace.reference("fountain_workspace_selection"),
+                                ) if rid
+                            ],
+                        )
+                        trace.remember("fountain_voice_prompt", _reconcile_prompt_id)
                     _rcresp = self._voice.speak(
                         VoiceRequest(prompt=_rcprompt, register=_rcreg,
                                      self_report_examples=False),
                         beliefs=None,
                     )
                     thought = (_rcresp.text or "").strip()
+                    if trace is not None:
+                        _reconcile_candidate_id = trace.record(
+                            "candidate_generation", "reconcile_voice_candidate",
+                            metadata={"thought": thought, "route": "reconcile"},
+                            parent_ids=[_reconcile_prompt_id] if _reconcile_prompt_id else [],
+                        )
+                        trace.remember("fountain_output_candidate", _reconcile_candidate_id)
+                        trace.remember("fountain_output_parent", _reconcile_candidate_id)
                     if thought:
                         _emitted = True
                         if os.environ.get("NEX5_RECONCILE_WB") == "1" and self._problem_memory is not None:
@@ -2053,12 +2317,31 @@ class FountainGenerator:
         # removed. Full code recoverable at commit 1c71238.
         if not _emitted:
           try:
+            if trace is not None:
+                _normal_prompt_id = trace.record(
+                    "prompt_assembly", "fountain_voice_prompt_ready",
+                    metadata={"prompt": prompt, "route": "normal"},
+                    parent_ids=[
+                        rid for rid in (
+                            trace.reference("fountain_prompt_context_selection"),
+                            trace.reference("fountain_workspace_selection"),
+                        ) if rid
+                    ],
+                )
+                trace.remember("fountain_voice_prompt", _normal_prompt_id)
             resp = self._voice.speak(
                 VoiceRequest(prompt=prompt, register=PHILOSOPHICAL,
                              self_report_examples=False),
                 beliefs=None,
             )
             thought = resp.text.strip()
+            if trace is not None:
+                _voice_candidate_id = trace.record(
+                    "candidate_generation", "voice_model_candidate",
+                    metadata={"thought": thought, "route": "normal"},
+                    parent_ids=[_normal_prompt_id] if _normal_prompt_id else [],
+                )
+                trace.remember("fountain_model_candidate", _voice_candidate_id)
             # Leak detector: strip "Real drift" prompt-structure prefix if LLM echoed it
             if thought.lower().startswith("real drift"):
                 # Drop first line; keep what came after
@@ -2079,13 +2362,24 @@ class FountainGenerator:
                     and _non_ascii_letter_share(thought) > _FIRE_LANG_MAX_NON_ASCII):
                 _first_share = _non_ascii_letter_share(thought)
                 try:
+                    _retry_prompt = prompt + _FIRE_LANG_RETRY_SUFFIX
+                    if trace is not None:
+                        trace.record(
+                            "prompt_assembly", "fountain_voice_prompt_retry",
+                            metadata={"prompt": _retry_prompt, "reason_code": "non_ascii_language_guard"},
+                        )
                     _retry = self._voice.speak(
-                        VoiceRequest(prompt=prompt + _FIRE_LANG_RETRY_SUFFIX,
+                        VoiceRequest(prompt=_retry_prompt,
                                      register=PHILOSOPHICAL,
                                      self_report_examples=False),
                         beliefs=None,
                     )
                     _rt = (_retry.text or "").strip()
+                    if trace is not None:
+                        trace.record(
+                            "candidate_generation", "voice_model_retry_candidate",
+                            metadata={"thought": _rt, "reason_code": "non_ascii_language_guard"},
+                        )
                 except Exception:
                     _rt = ""
                 if _rt and _non_ascii_letter_share(_rt) <= _FIRE_LANG_MAX_NON_ASCII:
@@ -2096,7 +2390,25 @@ class FountainGenerator:
                     logger.info("fire_lang_guard: dropped non-English fire (non-ascii %.2f)", _first_share)
             # NEX5_FRAME_GATE (default OFF): register-moha exit guard — detector-gated
             # single regeneration (the FIRE_LANG_GUARD analogue; see _apply_frame_gate).
-            thought = self._apply_frame_gate(thought, prompt)
+            _before_frame_gate = thought
+            if trace is None:
+                thought = self._apply_frame_gate(thought, prompt)
+            else:
+                thought = self._apply_frame_gate(thought, prompt, trace=trace)
+            if trace is not None:
+                _frame_gate_id = trace.record(
+                    "output_filter", "frame_gate_applied",
+                    metadata={"before": _before_frame_gate, "after": thought,
+                              "changed": _before_frame_gate != thought},
+                    parent_ids=[
+                        rid for rid in (
+                            trace.reference("fountain_model_candidate"),
+                            trace.reference("fountain_prompt_context_selection"),
+                        ) if rid
+                    ],
+                )
+                trace.remember("fountain_output_candidate", _frame_gate_id)
+                trace.remember("fountain_output_parent", _frame_gate_id)
           except Exception as e:
             voice_ok = False
             logger.warning("Fountain: voice unreachable, using sense fallback: %s", e)
@@ -2114,10 +2426,31 @@ class FountainGenerator:
                     if rows:
                         payload = (rows[0]["payload"] or "")[:80].strip()
                         thought = f"[{rows[0]['stream']}] {payload}"
+                        if trace is not None:
+                            _sense_fallback_candidate_id = trace.record(
+                                "candidate_generation", "sense_fallback_candidate",
+                                metadata={"stream": rows[0]["stream"],
+                                          "source": "existing_sense_event",
+                                          "fresh_model_generation": False},
+                                parent_ids=[
+                                    trace.reference("fountain_voice_prompt")
+                                ] if trace.reference("fountain_voice_prompt") else
+                                [trace.reference("fountain_readiness")],
+                            )
+                            trace.remember("fountain_output_candidate", _sense_fallback_candidate_id)
+                            trace.remember("fountain_output_parent", _sense_fallback_candidate_id)
                 except Exception:
                     pass
             if not thought:
                 thought = f"[tick] {time.strftime('%H:%M:%S')}"
+            if trace is not None and not trace.reference("fountain_output_candidate"):
+                _fallback_tick_candidate_id = trace.record(
+                    "candidate_generation", "voice_fallback_tick_candidate",
+                    metadata={"source": "clock_tick", "fresh_model_generation": False},
+                    parent_ids=[trace.reference("fountain_readiness")],
+                )
+                trace.remember("fountain_output_candidate", _fallback_tick_candidate_id)
+                trace.remember("fountain_output_parent", _fallback_tick_candidate_id)
 
         if not thought:
             return None
@@ -2125,11 +2458,22 @@ class FountainGenerator:
         # Voice was down — write a bare tick, skip condenser and crystallizer
         if not voice_ok:
             ts_now = time.time()
-            self._dynamic_writer.write(
+            _fallback_event_id = self._dynamic_writer.write(
                 "INSERT INTO fountain_events (ts, thought, readiness, hot_branch, word_count) "
                 "VALUES (?, ?, ?, ?, ?)",
                 (ts_now, thought, readiness, "voice_fallback", len(thought.split())),
             )
+            if trace is not None:
+                _fallback_event_trace_id = trace.writer_delta(
+                    database="dynamic", table="fountain_events", operation="INSERT",
+                    row_id=_fallback_event_id, metadata={"path": "voice_fallback"},
+                    parent_ids=(
+                        [trace.reference("fountain_output_candidate")]
+                        if trace.reference("fountain_output_candidate") else []
+                    ),
+                )
+                trace.remember("fountain_fallback_event_delta", _fallback_event_trace_id)
+                trace.remember("fountain_event_delta", _fallback_event_trace_id)
             self._link_activation_to_event()
             self._last_fountain_output = _strip_metadata(thought)
             self._last_fire_ts = ts_now
@@ -2168,6 +2512,7 @@ class FountainGenerator:
 
         hot_branch = None
         branches = status.get("branches", [])
+        sorted_b = []
         if branches:
             sorted_b = sorted(branches, key=lambda b: b.get("focus_num", 0), reverse=True)
             if sorted_b:
@@ -2176,6 +2521,25 @@ class FountainGenerator:
                 # default OFF -> exact top-pick) so a lifted cold branch can
                 # occasionally win the credit+carry loop. Fail-safe to top-pick.
                 hot_branch = _weighted_branch_pick(sorted_b, hot_branch)
+        if trace is not None:
+            _hot_branch_candidates_id = trace.candidates(
+                [item.get("branch_id") for item in sorted_b],
+                source="stage6_fountain.hot_branch_selection",
+                candidate_kinds=["dynamic_branch"] * len(sorted_b),
+                metadata={"focus_values": [item.get("focus_num", 0) for item in sorted_b],
+                          "selection_rule": "focus_num_weighted_pick"},
+                parent_ids=[trace.reference("fountain_readiness")]
+                if trace.reference("fountain_readiness") else [],
+            )
+            _hot_branch_selection_id = trace.selection(
+                source="stage6_fountain.hot_branch_selection",
+                candidate_order=[item.get("branch_id") for item in sorted_b],
+                selected_order=[hot_branch] if hot_branch is not None else [],
+                strategy="focus_num_weighted_pick",
+                metadata={"branch_temperature_flag": os.environ.get("NEX5_BRANCH_TEMP", "0")},
+                parent_ids=[_hot_branch_candidates_id] if _hot_branch_candidates_id else [],
+            )
+            trace.remember("fountain_hot_branch_selection", _hot_branch_selection_id)
 
         # teeth-test v2: ONE sample per REAL fire (fail-safe — never stalls a fire).
         # Compares this fire's branch to previous fire's branch for real movement signal.
@@ -2196,11 +2560,29 @@ class FountainGenerator:
             _branch_prev = _prev[0] if _prev else ""
             _moved = 1 if (hot_branch and _branch_prev and hot_branch != _branch_prev) else 0
             _nudge = 1 if getattr(self, "_pending_nudge_active", False) else 0
+            _recursion_ts = _tt2.time()
             _acon.execute(
                 "INSERT OR REPLACE INTO recursion_attrib VALUES (?,?,?,?,?)",
-                (_tt2.time(), _nudge, hot_branch or "", _branch_prev, _moved)
+                (_recursion_ts, _nudge, hot_branch or "", _branch_prev, _moved)
             )
             _acon.commit(); _acon.close()
+            if trace is not None:
+                _recursion_trace_id = trace.record(
+                    "direct_sql_commit", "recursion_attrib_insert_or_replace",
+                    metadata={"database": "dynamic", "table": "recursion_attrib",
+                              "operation": "INSERT_OR_REPLACE", "status": "committed",
+                              "timestamp": _recursion_ts, "branch_id": hot_branch,
+                              "previous_branch_id": _branch_prev, "moved": bool(_moved),
+                              "nudge_active": bool(_nudge),
+                              "transaction_scope": "direct_connection_commit"},
+                    parent_ids=[
+                        rid for rid in (
+                            trace.reference("fountain_hot_branch_selection"),
+                            trace.reference("fountain_readiness"),
+                        ) if rid
+                    ] or [trace.reference("input_arrival")],
+                )
+                trace.remember("fountain_recursion_attrib_delta", _recursion_trace_id)
         except Exception:
             pass  # never stall a fire
         # L4_stakes: check world-contact ratio every 5 fires (fail-safe).
@@ -2278,7 +2660,10 @@ class FountainGenerator:
         if os.environ.get("NEX5_MOMENTUM", "1") == "1":
             try:
                 from theory_x.stage_tom.momentum import capture_momentum
-                capture_momentum(thought or "", _carry_branch or "")
+                if trace is None:
+                    capture_momentum(thought or "", _carry_branch or "")
+                else:
+                    capture_momentum(thought or "", _carry_branch or "", trace=trace)
             except Exception:
                 pass  # never stall a fire
 
@@ -2286,11 +2671,22 @@ class FountainGenerator:
         payload = json.dumps(
             {"thought": thought, "readiness": readiness, "hot_branch": hot_branch}
         )
-        self._sense_writer.write(
+        _sense_event_id = self._sense_writer.write(
             "INSERT INTO sense_events (stream, payload, provenance, timestamp) "
             "VALUES (?, ?, ?, ?)",
             ("internal.fountain", payload, "fountain", int(ts_now)),
         )
+        _sense_event_trace_id = None
+        if trace is not None:
+            _sense_event_trace_id = trace.writer_delta(
+                database="sense", table="sense_events", operation="INSERT",
+                row_id=_sense_event_id, metadata={"stream": "internal.fountain"},
+                parent_ids=(
+                    [trace.reference("fountain_output_candidate")]
+                    if trace.reference("fountain_output_candidate") else []
+                ),
+            )
+            trace.remember("fountain_sense_event_delta", _sense_event_trace_id)
 
         droplet = None
         if self._condenser is not None:
@@ -2336,6 +2732,21 @@ class FountainGenerator:
             (ts_now, thought, droplet, readiness, hot_branch, word_count,
              _fountain_stillness_reason, _fire_mode, _fire_focal),
         )
+        _fountain_event_trace_id = None
+        if trace is not None:
+            _fountain_event_trace_id = trace.writer_delta(
+                database="dynamic", table="fountain_events", operation="INSERT",
+                row_id=fountain_event_id,
+                metadata={"mode": _fire_mode, "branch_id": hot_branch,
+                          "sense_event_id": _sense_event_id},
+                parent_ids=[
+                    rid for rid in (
+                        trace.reference("fountain_output_candidate"),
+                        _sense_event_trace_id,
+                    ) if rid
+                ],
+            )
+            trace.remember("fountain_event_delta", _fountain_event_trace_id)
         self._link_activation_to_event()
 
         if _er is not None:
@@ -2381,7 +2792,7 @@ class FountainGenerator:
         # Write retrieval manifest for this fire (never blocks cognition)
         try:
             if retrieval_manifest and fountain_event_id:
-                self._dynamic_writer.write_many(
+                _retrieval_row_ids = self._dynamic_writer.write_many(
                     [
                         (
                             "INSERT INTO fountain_retrieval_log "
@@ -2392,6 +2803,19 @@ class FountainGenerator:
                         for bel_id, slot, rank, boost in retrieval_manifest
                     ]
                 )
+                if trace is not None:
+                    trace.writer_delta(
+                        database="dynamic", table="fountain_retrieval_log",
+                        operation="WRITE_MANY", row_id=list(_retrieval_row_ids or []),
+                        metadata={"fire_id": fountain_event_id,
+                                  "row_count": len(_retrieval_row_ids or [])},
+                        parent_ids=[
+                            rid for rid in (
+                                trace.reference("fountain_prompt_context_selection"),
+                                _fountain_event_trace_id,
+                            ) if rid
+                        ],
+                    )
         except Exception as e:
             error_channel.record(
                 f"retrieval_log write failed: {e}",
@@ -2404,7 +2828,7 @@ class FountainGenerator:
         try:
             _blocks = getattr(self, "_last_prompt_blocks", None)
             if _blocks and fountain_event_id:
-                self._dynamic_writer.write_many(
+                _prompt_block_row_ids = self._dynamic_writer.write_many(
                     [
                         (
                             "INSERT INTO fountain_prompt_blocks "
@@ -2416,6 +2840,20 @@ class FountainGenerator:
                         for _ordinal, _name, _hash, _nchars, _prefix in _blocks
                     ]
                 )
+                if trace is not None:
+                    trace.writer_delta(
+                        database="dynamic", table="fountain_prompt_blocks",
+                        operation="WRITE_MANY",
+                        row_id=list(_prompt_block_row_ids or []),
+                        metadata={"fire_id": fountain_event_id,
+                                  "row_count": len(_prompt_block_row_ids or [])},
+                        parent_ids=[
+                            rid for rid in (
+                                trace.reference("fountain_voice_prompt"),
+                                _fountain_event_trace_id,
+                            ) if rid
+                        ],
+                    )
             self._last_prompt_blocks = []
         except Exception as e:
             error_channel.record(
@@ -2527,15 +2965,18 @@ class FountainGenerator:
             except Exception:
                 _retained_candidate_id = None
             try:
-                crystallized_id = self._crystallizer.crystallize(
-                    thought=thought,
-                    fountain_event_id=fountain_event_id,
-                    ts=ts_now,
-                    droplet=droplet,
-                    hot_branch=hot_branch,
-                    focal_item=_fire_focal,
-                    retained_candidate_id=_retained_candidate_id,
-                )
+                _crystallize_kwargs = {
+                    "thought": thought,
+                    "fountain_event_id": fountain_event_id,
+                    "ts": ts_now,
+                    "droplet": droplet,
+                    "hot_branch": hot_branch,
+                    "focal_item": _fire_focal,
+                    "retained_candidate_id": _retained_candidate_id,
+                }
+                if trace is not None:
+                    _crystallize_kwargs["trace"] = trace
+                crystallized_id = self._crystallizer.crystallize(**_crystallize_kwargs)
                 if crystallized_id:
                     error_channel.record(
                         f"Fountain insight crystallized as belief {crystallized_id}",
@@ -2556,7 +2997,10 @@ class FountainGenerator:
         if os.environ.get("NEX5_CARRYOVER") == "1":
             try:
                 from theory_x.stage_tom.momentum import stamp_resolution
-                stamp_resolution(bool(crystallized_id))
+                if trace is None:
+                    stamp_resolution(bool(crystallized_id))
+                else:
+                    stamp_resolution(bool(crystallized_id), trace=trace)
             except Exception:
                 pass
 
@@ -3328,7 +3772,7 @@ class FountainGenerator:
 
     def _build_prompt(self, dynamic_status: dict, belief_count: int, tier_dist: dict,
                       disturbance: Optional[dict] = None,
-                      koan: Optional[dict] = None):
+                      koan: Optional[dict] = None, trace=None):
         """Build the fountain prompt. Returns (prompt_str, retrieval_manifest).
 
         retrieval_manifest is a list of (belief_id, slot, rank, boost_value) tuples
@@ -3351,6 +3795,16 @@ class FountainGenerator:
         context_beliefs = self._retrieve_context_beliefs(
             own_n=mode.retrieval_own_n, seed_n=mode.retrieval_seed_n
         )
+        if trace is not None:
+            _fountain_prompt_candidates_id = trace.candidates(
+                [b["id"] for b in context_beliefs],
+                source="stage6_fountain._retrieve_context_beliefs",
+                candidate_kinds=[b["source"] for b in context_beliefs],
+                metadata={"own_limit": mode.retrieval_own_n,
+                          "seed_limit": mode.retrieval_seed_n},
+                parent_ids=[trace.reference("fountain_readiness")],
+            )
+            trace.remember("fountain_prompt_candidates", _fountain_prompt_candidates_id)
         own = [b for b in context_beliefs if b["source"] in _OWN_CONTENT_SOURCES]
         own_sense = [b for b in own if b["source"] == "precipitated_from_sense"]
         seeds = [b for b in context_beliefs if b["source"] in _SEED_SOURCES]
@@ -3363,6 +3817,16 @@ class FountainGenerator:
                     bid = belief["id"] if hasattr(belief, "__getitem__") else None
                     if bid:
                         bump_activation(self._beliefs_writer, bid)
+                        if trace is not None:
+                            trace.writer_delta(
+                                database="beliefs", table="belief_activation",
+                                operation="UPSERT", row_id=bid,
+                                metadata={"purpose": "retrieval_activation"},
+                                parent_ids=(
+                                    [trace.reference("fountain_prompt_candidates")]
+                                    if trace.reference("fountain_prompt_candidates") else []
+                                ),
+                            )
             except Exception as e:
                 logger.error("activation_bump_failed: %s", e)
 
@@ -3406,11 +3870,19 @@ class FountainGenerator:
                         _drive_hint = self._drive_emergence.format_for_prompt() or ""
                     except Exception:
                         _drive_hint = ""
-                _gw_line = _gw_arb(
-                    dynamic_status,
-                    stakes_active=getattr(self, "_stakes_active", False),
-                    drive_line=_drive_hint,
-                )
+                if trace is None:
+                    _gw_line = _gw_arb(
+                        dynamic_status,
+                        stakes_active=getattr(self, "_stakes_active", False),
+                        drive_line=_drive_hint,
+                    )
+                else:
+                    _gw_line = _gw_arb(
+                        dynamic_status,
+                        stakes_active=getattr(self, "_stakes_active", False),
+                        drive_line=_drive_hint,
+                        trace=trace,
+                    )
                 if _gw_line:
                     focus_block = f"\n{_gw_line}\n" + focus_block
                     # NOT carried into wide fires (repair queue item 2b): its
@@ -4178,6 +4650,27 @@ class FountainGenerator:
         # independently decides for the NEXT fire. Never alters this fire.
         # No-op when the (same) NEX5_TOPIC_GATE_SHADOW flag is off.
         self._record_rare_dwell_telemetry()
+
+        if trace is not None:
+            _manifest_selection_id = trace.record(
+                "prompt_context_selection", "belief_manifest_recorded",
+                metadata={
+                    "source": "stage6_fountain._build_prompt",
+                    "candidate_order": [b["id"] for b in context_beliefs],
+                    "selected_order": [entry[0] for entry in retrieval_manifest],
+                    "strategy": "belief_prompt_manifest",
+                    "retrieval_slots": [entry[1] for entry in retrieval_manifest],
+                    "workspace_enabled": os.environ.get("NEX5_GLOBAL_WORKSPACE", "1") == "1",
+                    "prompt_block_count": len(getattr(self, "_last_prompt_blocks", []) or []),
+                },
+                parent_ids=[
+                    rid for rid in (
+                        trace.reference("fountain_prompt_candidates"),
+                        trace.reference("fountain_workspace_selection"),
+                    ) if rid
+                ],
+            )
+            trace.remember("fountain_prompt_context_selection", _manifest_selection_id)
 
         # L4 phrasing rotation (NEX5_PHRASING_ROTATE, default OFF): swap the item-referent
         # per fire so the opener frame can't lock in. OFF => _prompt_text byte-identical.
