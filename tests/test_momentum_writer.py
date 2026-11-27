@@ -65,7 +65,6 @@ def test_capture_and_resolution_use_injected_reader_writer(tmp_path, monkeypatch
         assert "settled into a belief" in rendered
     finally:
         writer.close()
-        reader.close()
 
 
 def test_read_momentum_does_not_create_missing_table(tmp_path):
@@ -78,4 +77,4 @@ def test_read_momentum_does_not_create_missing_table(tmp_path):
         )
         assert tables == []
     finally:
-        reader.close()
+        pass
