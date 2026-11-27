@@ -118,56 +118,75 @@ class BeliefPromoter:
     def corroborate(self, belief_id: int) -> bool:
         """Increment corroboration_count; promote if threshold reached.
 
+        corroborate() is reached from more than one thread on the normal boot
+        path (dynamic-formation PipelineHooks and the World Model's
+        world_consolidation loop). The read, the threshold decision and the
+        write therefore run as one transaction on the canonical beliefs Writer:
+        a concurrent call cannot read the same stale count, so no increment is
+        lost and a threshold crossing promotes exactly once. Thresholds and the
+        promotion rule are unchanged.
+
+        The corroboration edge and the provenance-erosion reinforcement issue
+        their own Writer requests, so they run after the transaction commits
+        (calling the Writer from inside its own transaction would deadlock).
+
         Returns True if a promotion occurred.
         """
-        try:
-            row = self._reader.read_one(
-                "SELECT id, content, tier, corroboration_count, locked FROM beliefs WHERE id = ?",
-                (belief_id,),
-            )
-        except Exception as exc:
-            errors.record(f"corroborate read error: {exc}", source=_LOG_SOURCE, exc=exc)
-            return False
-
-        if row is None:
-            return False
-        if row["locked"] and row["tier"] <= 1:
-            return False  # Tier 1 locked — untouchable
-
-        new_count = row["corroboration_count"] + 1
         now = int(time.time())
-        threshold = _CORROBORATION_THRESHOLDS.get(row["tier"])
 
-        if threshold is not None and new_count >= threshold and row["tier"] > 2:
-            new_tier = row["tier"] - 1
-            self._writer.write(
-                "UPDATE beliefs SET tier = ?, corroboration_count = 0, "
-                "last_promoted_at = ?, last_referenced_at = ?, "
-                "promotion_log = json_insert(promotion_log, '$[#]', ?) "
-                "WHERE id = ?",
-                (new_tier, now, now,
-                 json.dumps({"event": "corroboration", "from": row["tier"], "to": new_tier, "ts": now}),
-                 belief_id),
-            )
-            # Find recent high-magnitude corroborating belief and write edge
-            self._write_corroboration_edge(belief_id, row["content"] or "")
-            # Record reinforcement for provenance erosion
-            if self._erosion is not None:
-                try:
-                    self._erosion.record_reinforce(belief_id)
-                except Exception:
-                    pass
-            errors.record(
-                f"belief {belief_id} promoted Tier {row['tier']} → {new_tier} via corroboration",
-                source=_LOG_SOURCE, level="INFO",
-            )
-            return True
-        else:
-            self._writer.write(
+        def _apply(conn):
+            row = conn.execute(
+                "SELECT content, tier, corroboration_count, locked FROM beliefs WHERE id = ?",
+                (belief_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            content, tier, count, locked = row
+            if locked and tier <= 1:
+                return None  # Tier 1 locked — untouchable
+
+            new_count = (count or 0) + 1
+            threshold = _CORROBORATION_THRESHOLDS.get(tier)
+            if threshold is not None and new_count >= threshold and tier > 2:
+                new_tier = tier - 1
+                conn.execute(
+                    "UPDATE beliefs SET tier = ?, corroboration_count = 0, "
+                    "last_promoted_at = ?, last_referenced_at = ?, "
+                    "promotion_log = json_insert(promotion_log, '$[#]', ?) "
+                    "WHERE id = ?",
+                    (new_tier, now, now,
+                     json.dumps({"event": "corroboration", "from": tier, "to": new_tier, "ts": now}),
+                     belief_id),
+                )
+                return (tier, new_tier, content)
+            conn.execute(
                 "UPDATE beliefs SET corroboration_count = ?, last_referenced_at = ? WHERE id = ?",
                 (new_count, now, belief_id),
             )
+            return None
+
+        try:
+            promotion = self._writer.transaction(_apply)
+        except Exception as exc:
+            errors.record(f"corroborate error: {exc}", source=_LOG_SOURCE, exc=exc)
+            raise
+
+        if promotion is None:
             return False
+        old_tier, new_tier, content = promotion
+        # Find recent high-magnitude corroborating belief and write edge
+        self._write_corroboration_edge(belief_id, content or "")
+        # Record reinforcement for provenance erosion
+        if self._erosion is not None:
+            try:
+                self._erosion.record_reinforce(belief_id)
+            except Exception:
+                pass
+        errors.record(
+            f"belief {belief_id} promoted Tier {old_tier} → {new_tier} via corroboration",
+            source=_LOG_SOURCE, level="INFO",
+        )
+        return True
 
     def survive_challenge(self, belief_id: int) -> bool:
         """Promote belief by 1 tier immediately (survived direct contradiction).
