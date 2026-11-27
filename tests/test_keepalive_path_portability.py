@@ -15,7 +15,7 @@ def test_keepalive_resolves_checkout_from_its_own_location(tmp_path):
     probe_dir.mkdir(parents=True)
     probe = probe_dir / "nex_keepalive.sh"
     probe.write_text(
-        preamble + '\nprintf "resolved=%s\\n" "$SCRIPT_DIR"\\n',
+        preamble + '\nprintf "resolved=%s\\n" "$SCRIPT_DIR"\n',
         encoding="utf-8",
     )
 
