@@ -163,9 +163,14 @@ class SpeechQueueConsumer(threading.Thread):
                      qid, len(content))
             return
 
-        self.writer.write(
-            "UPDATE speech_queue SET status='speaking' WHERE id=?", (qid,)
-        )
+        try:
+            self.writer.write(
+                "UPDATE speech_queue SET status='speaking' WHERE id=?", (qid,)
+            )
+        except Exception as e:
+            trace_event("queue_status_speaking_write_failed", parent=dequeue_event,
+                        metadata={"error_type": type(e).__name__})
+            raise
         synthesis_started = trace_event("synthesis_started", parent=dequeue_event)
         failure_parent = trace_parent
         try:
@@ -202,12 +207,19 @@ class SpeechQueueConsumer(threading.Thread):
                         parent=playback_completed or playback_started)
             log.info("spoke belief_id=%s (%d chars)", row["belief_id"], len(content))
         except Exception as e:
+            log.error("synth/play failed on id=%s: %s", qid, e)
+            try:
+                self.writer.write(
+                    "UPDATE speech_queue SET status='failed', error=? WHERE id=?",
+                    (str(e), qid),
+                )
+            except Exception as write_error:
+                trace_event(
+                    "queue_status_failed_write_failed", parent=failure_parent,
+                    metadata={"error_type": type(write_error).__name__},
+                )
+                raise
             trace_event(
                 "queue_status_failed", parent=failure_parent,
                 metadata={"error_type": type(e).__name__},
-            )
-            log.error("synth/play failed on id=%s: %s", qid, e)
-            self.writer.write(
-                "UPDATE speech_queue SET status='failed', error=? WHERE id=?",
-                (str(e), qid),
             )
