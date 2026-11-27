@@ -656,14 +656,14 @@ nodes:
     falsifier_status: unrun
     source: { kind: composite, refs: ["theory_x/stage_tom/global_workspace.py:245-310", "theory_x/stage6_fountain/generator.py:3864-3890", "gui/server.py:202-280", "nex_keepalive.sh:219-220"] }
     last_verified: 2026-11-27
-    notes: "Correction, 2026-11-09: mechanism is located and is the live r77 chat arbiter --
-      global_workspace.arbitrate/select_within_budget (fire path, generator.py:3037) and the
-      13-kind _CHAT_BLOCK_SALIENCE budget assembly in gui/server.py (chat path, NEX5_CHAT_WORKSPACE,
-      armed live 2026-11-07, ledger 5775e31). SENTIENCE_PROGRAM.md:33 already names this; the
-      'mechanism not yet located' claim here was simply stale.
+    notes: >
+      Correction, 2026-11-09: mechanism is located. Fountain's global_workspace.arbitrate
+      is the single-winner framing path; the separate 13-kind _CHAT_BLOCK_SALIENCE budget
+      assembly in gui/server.py is a distinct chat path. SENTIENCE_PROGRAM.md:33 already
+      names the workspace mechanism; the earlier 'mechanism not yet located' claim was stale.
 
       2026-11-27 source re-verification: distinguish the two workspace paths. Fountain's
-      generator invokes global_workspace.arbitrate behind NEX5_GLOBAL_WORKSPACE (default "1"),
+      generator invokes global_workspace.arbitrate behind NEX5_GLOBAL_WORKSPACE (default 1),
       and nex_keepalive.sh still sets NEX5_GLOBAL_WORKSPACE=1. This is the source-wired path for
       the single-winner framing line. Separately, gui.server._assemble_chat_blocks calls
       select_within_budget only when NEX5_CHAT_WORKSPACE=1; commit 2803f38 removed that flag from
@@ -671,8 +671,7 @@ nodes:
       arms NEX5_GLOBAL_WORKSPACE, but the current runtime process state is UNKNOWN. Do not
       describe the chat-budget selector as still armed or conflate it with Fountain arbitration.
       The p13_finitude node tracks the separate shadow-budget/spend mechanism.
-      Read-only citation -- no source behavior is changed by this map entry."
-
+      Read-only citation -- no source behavior is changed by this map entry.
   - id: vitarka
     label: "vitarka — applied thought"
     layer: arm
