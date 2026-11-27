@@ -215,6 +215,8 @@ Prefer controlled experiments and reversible changes. Do not add a new named fac
 
 A successful unit test does not establish runtime liveness. A successful boot does not establish cognitive efficacy. A model's first-person self-report does not establish subjective experience.
 
+**Development-tool correction (27 November 2026; branch verification pending):** source review found that `nex_next_dev.py --buildable` unpacked each `classify()` result as two values although the classifier returns three (`node`, unproven prerequisites, terminal-null prerequisites). The command therefore raises a tuple-unpacking error when a buildable gap is present. The full report also described a `live_unproven` prerequisite as a hard gate, contradicting `sentience_dag.json`'s explicit rule that `built`, `live_unproven` and `terminal` are all dependency-satisfied statuses, with the latter two surfaced as caveats rather than blockers. The development-tool branch now prints both caveat types in `--buildable`, labels unproven statuses as non-blocking caveats in the full report, and exposes a testable `main(argv)` entry point. Three isolated regression tests cover the CLI output and preserve the existing DAG classification semantics. This is a developer-tool correction only: it does not change the DAG, runtime code, cognitive behaviour, flags, specifications or roadmap. Exact-head test/CI results are pending; do not call it validated until those results are inspected.
+
 ---
 
 ## 11. Current mainline snapshot and open work (27 November 2026)
