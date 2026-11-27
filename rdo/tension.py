@@ -130,9 +130,11 @@ def _operating_envelope_evidence(value) -> dict:
     provenance = value.get("provenance", [])
     confidence = value.get("confidence")
     valid_states = {"normal", "busy", "degraded", "stress", "recovery"}
+    declared_valid = (declared == "unknown" or
+                      (isinstance(declared, str) and declared in valid_states))
     assessed_valid = (assessed is None or
                       (isinstance(assessed, str) and assessed in valid_states))
-    verdict_evidence_valid = (
+    verdict_evidence_valid = declared_valid and (
         assessed is None or (
             assessed_valid and _has_traceable_evidence(evidence)
             and _has_traceable_evidence(provenance)
@@ -166,8 +168,12 @@ def _operating_envelope_evidence(value) -> dict:
 
 def assess_relationship(rel: Relationship, obligations: Dict[str, Obligation]) -> TensionAssessment:
     subj = f"{rel.src} -{rel.kind}-> {rel.dst}"
+    profile = _interface_profile_evidence(rel)
+    envelope = _operating_envelope_evidence(rel.operating_envelope)
+    assessment_dimensions = {**profile, "operating_envelope": envelope}
     if rel.kind == "influences" and rel.authority != "bounded":
         return TensionAssessment("relationship", subj, OVERDEVELOPED, inference=True,
+                                 dimensions=assessment_dimensions,
                                  note="influence without a bounded-authority declaration "
                                       "(capability != authority)")
     if rel.kind == "depends_on":
@@ -176,15 +182,15 @@ def assess_relationship(rel: Relationship, obligations: Dict[str, Obligation]) -
             if tgt.recon_status in (MISSING, PARTIAL):
                 return TensionAssessment("relationship", subj, UNDERDEVELOPED, inference=True,
                                          evidence=[f"target {tgt.recon_status}"],
+                                         dimensions=assessment_dimensions,
                                          note="blocking dependency on an unresolved necessary mechanism")
             if tgt.recon_status in (RECON_UNKNOWN, SIGNATURE_MATCHED) or (
                     tgt.recon_status == REUSE_EXISTING and not has_valid_reuse_review(tgt)):
                 return TensionAssessment("relationship", subj, TENSION_UNKNOWN, inference=True,
                                          evidence=[f"target {tgt.recon_status}"],
+                                         dimensions=assessment_dimensions,
                                          note="dependency target has not been semantically established")
 
-    profile = _interface_profile_evidence(rel)
-    envelope = _operating_envelope_evidence(rel.operating_envelope)
     evidence = [
         ref
         for dimension in profile["dimensions"].values()
@@ -194,7 +200,7 @@ def assess_relationship(rel: Relationship, obligations: Dict[str, Obligation]) -
     return TensionAssessment(
         "relationship", subj, TENSION_UNKNOWN, inference=True,
         evidence=evidence,
-        dimensions={**profile, "operating_envelope": envelope},
+        dimensions=assessment_dimensions,
         note=(
             "interface profile is absent; relationship sufficiency cannot be established"
             if profile["profile_status"] == "not_supplied" else
