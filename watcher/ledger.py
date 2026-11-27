@@ -47,6 +47,12 @@ _ALLOWED: Dict[str, set] = {
     "BLOCKED": set(STATES),  # once unblocked, may resume anywhere
 }
 
+# States that assert evidence exists must cite at least one nonblank reference.
+_TRACE_REQUIRED_STATES = frozenset({
+    "SOURCE_CONFIRMED", "TEST_WRITTEN", "TEST_PASSED",
+    "TEST_FAILED", "RUNTIME_OBSERVED", "REGRESSED",
+})
+
 
 class LedgerError(ValueError):
     pass
@@ -91,12 +97,12 @@ class ConnectionLedger:
         if origin not in ("cloud", "host"):
             raise LedgerError(f"origin must be cloud|host, got {origin!r}")
         refs = list(evidence_refs) if isinstance(evidence_refs, list) else (evidence_refs or [])
-        if to_state == "RUNTIME_OBSERVED":
-            if origin != "host":
-                raise LedgerError("RUNTIME_OBSERVED requires host origin")
+        if to_state in _TRACE_REQUIRED_STATES:
             if (not isinstance(refs, list) or not refs
                     or any(not isinstance(ref, str) or not ref.strip() for ref in refs)):
-                raise LedgerError("RUNTIME_OBSERVED requires nonblank evidence_refs")
+                raise LedgerError(f"{to_state} requires nonblank evidence_refs")
+        if to_state == "RUNTIME_OBSERVED" and origin != "host":
+            raise LedgerError("RUNTIME_OBSERVED requires host origin")
         frm = self.current_state(connection_id)
         if frm is None:
             if to_state not in ("DECLARED", "BLOCKED"):
