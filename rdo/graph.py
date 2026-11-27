@@ -18,6 +18,7 @@ identity throughout; provenance and parent_key are preserved on every candidate.
 """
 from __future__ import annotations
 
+import json
 from typing import Dict, List, Optional, Set, Tuple
 
 # edge kinds that express a build/runtime dependency direction (src depends on / is influenced by dst)
@@ -451,6 +452,263 @@ def implementation_sequence(obligations: List[dict], rels: List[dict]) -> dict:
         "cyclic_components": [build_sccs[i] for i in sorted(cyclic)],
         "unsequenced": unsequenced,
         "note": "order is from depends_on prerequisites only; it is NOT a priority ranking",
+    }
+
+
+def compare_adjacent_relationship_impacts(
+    before_cycle: dict,
+    after_cycle: dict,
+    changed_capabilities: List[str],
+) -> dict:
+    """Compare relationship and tension snapshots around explicitly changed nodes.
+
+    This is a differential evidence report, not causal attribution. The caller
+    supplies the capability keys being changed; this function identifies incident
+    relationships and compares their stored records and relationship assessments
+    before/after. It does not calculate benefit, harm, risk or sufficiency.
+    """
+    if (not isinstance(before_cycle, dict) or not isinstance(after_cycle, dict)
+            or not isinstance(changed_capabilities, list)):
+        return {
+            "status": "invalid_input",
+            "changed_capabilities": [],
+            "invalid_capabilities": [],
+            "affected_relationships": [],
+            "invalid_relationship_records": 0,
+            "unresolved_relationship_references": 0,
+            "invalid_assessment_records": 0,
+            "invalid_obligation_records": 0,
+            "unknown_capabilities": [],
+        }
+
+    changed = sorted({key for key in changed_capabilities
+                      if isinstance(key, str) and key.strip() and key == key.strip()})
+    invalid_capabilities = [str(key) for key in changed_capabilities
+                            if not isinstance(key, str) or not key.strip() or key != key.strip()]
+    if not changed:
+        return {
+            "status": "partial" if invalid_capabilities else "not_supplied",
+            "changed_capabilities": [],
+            "invalid_capabilities": invalid_capabilities,
+            "affected_relationships": [],
+            "invalid_relationship_records": 0,
+            "unresolved_relationship_references": 0,
+            "invalid_assessment_records": 0,
+            "invalid_obligation_records": 0,
+            "unknown_capabilities": [],
+        }
+    changed_set = set(changed)
+
+    def _obligation_keys(cycle):
+        keys = set()
+        invalid = 0
+        records = cycle.get("obligations")
+        if not isinstance(records, list):
+            return keys, 1
+        for record in records:
+            if (not isinstance(record, dict)
+                    or not isinstance(record.get("key"), str)
+                    or not record["key"].strip()
+                    or record["key"] != record["key"].strip()):
+                invalid += 1
+                continue
+            key = record["key"]
+            if key in keys:
+                invalid += 1
+                continue
+            keys.add(key)
+        return keys, invalid
+
+    def _relationship_groups(cycle):
+        groups = {}
+        invalid = 0
+        records = cycle.get("relationships")
+        if not isinstance(records, list):
+            return groups, 1
+        for record in records:
+            if not isinstance(record, dict):
+                invalid += 1
+                continue
+            src, dst, kind = record.get("src"), record.get("dst"), record.get("kind")
+            if not all(isinstance(item, str) and item.strip() and item == item.strip()
+                       for item in (src, dst, kind)):
+                invalid += 1
+                continue
+            identity = (src, kind, dst)
+            try:
+                encoded = json.dumps(record, sort_keys=True, separators=(",", ":"))
+            except (TypeError, ValueError):
+                invalid += 1
+                continue
+            groups.setdefault(identity, []).append((encoded, json.loads(encoded)))
+        return {
+            key: [record for _, record in sorted(items, key=lambda pair: pair[0])]
+            for key, items in groups.items()
+        }, invalid
+
+    def _assessment_groups(cycle):
+        groups = {}
+        invalid = 0
+        records = cycle.get("tension")
+        if not isinstance(records, list):
+            return groups, 1
+        for record in records:
+            if not isinstance(record, dict):
+                invalid += 1
+                continue
+            if record.get("level") != "relationship":
+                continue
+            subject = record.get("subject")
+            if not isinstance(subject, str) or not subject.strip() or subject != subject.strip():
+                invalid += 1
+                continue
+            try:
+                encoded = json.dumps(record, sort_keys=True, separators=(",", ":"))
+            except (TypeError, ValueError):
+                invalid += 1
+                continue
+            groups.setdefault(subject, []).append((encoded, json.loads(encoded)))
+        return {
+            key: [record for _, record in sorted(items, key=lambda pair: pair[0])]
+            for key, items in groups.items()
+        }, invalid
+
+    before_nodes, invalid_before_obligations = _obligation_keys(before_cycle)
+    after_nodes, invalid_after_obligations = _obligation_keys(after_cycle)
+    before_relationships, invalid_before_relationships = _relationship_groups(before_cycle)
+    after_relationships, invalid_after_relationships = _relationship_groups(after_cycle)
+    before_assessments, invalid_before_assessments = _assessment_groups(before_cycle)
+    after_assessments, invalid_after_assessments = _assessment_groups(after_cycle)
+    invalid_assessments = invalid_before_assessments + invalid_after_assessments
+    known_capabilities = before_nodes | after_nodes
+    unknown_capabilities = sorted(
+        key for key in changed if key not in known_capabilities
+    )
+    invalid_obligations = invalid_before_obligations + invalid_after_obligations
+    invalid_relationship_references = sum(
+        1
+        for groups, nodes in (
+            (before_relationships, before_nodes),
+            (after_relationships, after_nodes),
+        )
+        for src, _kind, dst in groups
+        if src not in nodes or dst not in nodes
+    )
+    invalid_relationships = invalid_before_relationships + invalid_after_relationships
+
+    identities = sorted(
+        identity for identity in set(before_relationships) | set(after_relationships)
+        if identity[0] in changed_set or identity[2] in changed_set
+    )
+    affected = []
+    partial = bool(invalid_capabilities or invalid_relationships or invalid_assessments
+                   or invalid_obligations or invalid_relationship_references
+                   or unknown_capabilities)
+
+    for src, kind, dst in identities:
+        identity = f"{src} -{kind}-> {dst}"
+        before_records = before_relationships.get((src, kind, dst), [])
+        after_records = after_relationships.get((src, kind, dst), [])
+        if not before_records:
+            relationship_status = "added"
+        elif not after_records:
+            relationship_status = "removed"
+        elif before_records == after_records:
+            relationship_status = "unchanged"
+        else:
+            relationship_status = "changed"
+
+        before_matches = before_assessments.get(identity, [])
+        after_matches = after_assessments.get(identity, [])
+        assessment_status = "compared"
+        before_assessment = before_matches[0] if len(before_matches) == 1 else None
+        after_assessment = after_matches[0] if len(after_matches) == 1 else None
+        changed_dimensions = []
+        changed_assessment_fields = []
+        assessment_changed = None
+        verdict_changed = None
+
+        if len(before_matches) > 1 or len(after_matches) > 1:
+            assessment_status = "ambiguous"
+            partial = True
+        elif before_assessment is None and after_assessment is None:
+            assessment_status = "not_recorded"
+            partial = True
+        elif before_assessment is None:
+            assessment_status = (
+                "newly_assessed" if relationship_status == "added" else
+                "orphaned_after" if relationship_status == "removed" else
+                "missing_before"
+            )
+            if relationship_status != "added":
+                partial = True
+        elif after_assessment is None:
+            assessment_status = (
+                "assessment_removed" if relationship_status == "removed" else
+                "orphaned_before" if relationship_status == "added" else
+                "missing_after"
+            )
+            if relationship_status != "removed":
+                partial = True
+        else:
+            before_dimensions = before_assessment.get("dimensions", {})
+            after_dimensions = after_assessment.get("dimensions", {})
+            if isinstance(before_dimensions, dict) and isinstance(after_dimensions, dict):
+                dimension_keys = set(before_dimensions) | set(after_dimensions)
+                changed_dimensions = sorted(
+                    key for key in dimension_keys
+                    if ((key in before_dimensions) != (key in after_dimensions)
+                        or before_dimensions.get(key) != after_dimensions.get(key))
+                )
+            else:
+                changed_dimensions = ["<dimensions>"]
+                partial = True
+            changed_assessment_fields = sorted(
+                field for field in ("verdict", "inference", "evidence", "note")
+                if ((field in before_assessment) != (field in after_assessment)
+                    or before_assessment.get(field) != after_assessment.get(field))
+            )
+            assessment_changed = bool(changed_dimensions or changed_assessment_fields)
+            verdict_changed = before_assessment.get("verdict") != after_assessment.get("verdict")
+
+        affected.append({
+            "identity": identity,
+            "src": src,
+            "kind": kind,
+            "dst": dst,
+            "neighbours": sorted({endpoint for endpoint in (src, dst)
+                                  if endpoint not in changed_set}),
+            "relationship_status": relationship_status,
+            "before_relationships": before_records,
+            "after_relationships": after_records,
+            "assessment_status": assessment_status,
+            "before_assessment": before_assessment,
+            "after_assessment": after_assessment,
+            "assessment_changed": assessment_changed,
+            "verdict_changed": verdict_changed,
+            "changed_dimensions": changed_dimensions,
+            "changed_assessment_fields": changed_assessment_fields,
+        })
+
+    status = (
+        "partial" if partial else
+        "no_adjacent_relationships" if not affected else
+        "compared"
+    )
+    return {
+        "status": status,
+        "changed_capabilities": changed,
+        "invalid_capabilities": invalid_capabilities,
+        "unknown_capabilities": unknown_capabilities,
+        "invalid_obligation_records": invalid_obligations,
+        "affected_relationships": affected,
+        "invalid_relationship_records": invalid_relationships,
+        "unresolved_relationship_references": invalid_relationship_references,
+        "invalid_assessment_records": invalid_assessments,
+        "note": (
+            "Before/after differences for relationships incident to explicitly changed capabilities. "
+            "These are correlated structural and assessment changes, not proof of causality, harm or benefit."
+        ),
     }
 
 
