@@ -109,14 +109,18 @@ def _interface_profile_evidence(rel: Relationship) -> dict:
         # in older/partial persisted dictionaries remain explicitly UNKNOWN.
         refs = item.get("evidence")
         confidence = item.get("confidence")
+        reported_status = item.get("status", "unknown")
+        status_valid = reported_status in INTERFACE_EVIDENCE_STATUSES
+        evidence_status = reported_status if status_valid else "invalid"
         evidence_complete = (
-            item.get("status") != "unknown"
+            reported_status == "measured"
+            and status_valid
             and _evidence_value_valid(item.get("value"), item.get("unit"))
             and _has_traceable_evidence(refs)
             and isinstance(confidence, str) and bool(confidence.strip())
         )
         dimensions[name] = {
-            "status": item.get("status", "unknown"),
+            "status": evidence_status,
             "value": item.get("value"),
             "unit": item.get("unit"),
             "evidence": list(refs) if isinstance(refs, list) else [],
@@ -187,6 +191,7 @@ def _operating_envelope_evidence(value) -> dict:
             item = dataclasses.asdict(item)
         complete = (
             isinstance(item, dict)
+            and item.get("status") == "measured"
             and _evidence_value_valid(item.get("value"), item.get("unit"))
             and _has_traceable_evidence(item.get("evidence"))
             and isinstance(item.get("confidence"), str)
