@@ -405,7 +405,7 @@ The Chat route calls `Metacognition.tick()`; its groove detector reads recent un
 
 ### G-85 — SignalToProblem direct Writer bypass and split commit (OPEN; legacy G-44, under G-61)
 
-The boot-registered SignalToProblem worker uses direct connections to beliefs and conversations, dynamically adds `actioned_at`, commits the beliefs database before the conversations database, and calls a direct-write prose-statistics rebuild hourly. This bypasses the one-pen contract and has a cross-database failure window. Define recovery/idempotency before migrating the transaction; do not claim cross-database atomicity.
+The boot-registered SignalToProblem worker's primary `signal_to_problem_tick()` still uses direct connections to beliefs and conversations, dynamically adds `actioned_at`, and commits the beliefs database before the conversations database. This bypasses the one-pen contract and has a cross-database failure window. The separate hourly prose-statistics rebuild was migrated to the shared beliefs Writer/Reader by PR #279; that does not alter the primary tick. Define recovery/idempotency before migrating the primary transaction; do not claim cross-database atomicity.
 
 ### G-86 — SignalReaper preservation allowlist drift (OPEN; legacy G-43)
 
