@@ -10,7 +10,7 @@ from __future__ import annotations
 import dataclasses
 from typing import List, Optional
 
-from .model import InterfaceEvidence
+from .model import InterfaceEvidence, _has_traceable_evidence
 
 STABILITY_STATES = ("stable", "unstable", "conditionally_stable")
 UNKNOWN = "unknown"
@@ -64,8 +64,19 @@ class FeedbackLoopAssessment:
             raise ValueError("feedback loop relationships must be unique")
         if self.stability_state not in (*STABILITY_STATES, UNKNOWN):
             raise ValueError(f"invalid feedback stability state: {self.stability_state!r}")
-        if self.stability_state != UNKNOWN and not self.assessment_evidence:
-            raise ValueError("a non-UNKNOWN stability state requires assessment evidence")
+        if self.stability_state != UNKNOWN:
+            if not _has_traceable_evidence(self.assessment_evidence):
+                raise ValueError(
+                    "a non-UNKNOWN stability state requires traceable assessment evidence"
+                )
+            if not isinstance(self.confidence, str) or not self.confidence.strip():
+                raise ValueError(
+                    "a non-UNKNOWN stability state requires a non-blank confidence label"
+                )
+            if not _has_traceable_evidence(self.provenance):
+                raise ValueError(
+                    "a non-UNKNOWN stability state requires traceable provenance"
+                )
         if self.operating_envelope not in (
             "normal", "busy", "degraded", "stress", "recovery", UNKNOWN
         ):
