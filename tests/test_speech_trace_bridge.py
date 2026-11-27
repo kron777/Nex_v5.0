@@ -77,10 +77,7 @@ def test_speech_consumer_records_parent_linked_outcomes(tmp_path, monkeypatch):
 
     events = list(trace.events)
     stages = [item["event"] for item in events]
-    assert stages[-5:] == [
-        "dequeued", "synthesis_started", "synthesis_completed",
-        "playback_started", "playback_completed",
-    ] or stages[-6:] == [
+    assert stages[-6:] == [
         "dequeued", "synthesis_started", "synthesis_completed",
         "playback_started", "playback_completed", "queue_status_spoken",
     ]
@@ -241,7 +238,54 @@ def test_speech_consumer_preserves_playback_parent_when_spoken_status_write_fail
     })
 
     by_event = {item["event"]: item for item in trace.events}
-    assert by_event["queue_status_failed"]["parent_ids"] == [
+    assert by_event["queue_status_spoken_write_failed"]["parent_ids"] == [
         by_event["playback_completed"]["event_id"]
     ]
+    assert by_event["queue_status_failed"]["parent_ids"] == [
+        by_event["queue_status_spoken_write_failed"]["event_id"]
+    ]
     assert any("status='failed'" in sql for sql, _ in consumer.writer.writes)
+
+
+
+def test_speech_trace_registry_discard_removes_uncommitted_enqueue(tmp_path, monkeypatch):
+    trace = _trace(tmp_path, monkeypatch)
+    parent = trace.record("speech_queue", "enqueue_intent")
+    influence_trace.register_speech_queue_trace(82, trace, parent)
+    influence_trace.discard_speech_queue_trace(82)
+    assert influence_trace.take_speech_queue_trace(82) is None
+
+
+def test_speech_consumer_records_suppressed_status_write_failure(
+    tmp_path, monkeypatch
+):
+    trace = _trace(tmp_path, monkeypatch)
+    parent = trace.record("speech_queue", "enqueue_intent")
+    influence_trace.register_speech_queue_trace(83, trace, parent)
+
+    class FakeWriter:
+        def write(self, sql, params=()):
+            if "status='suppressed'" in sql:
+                raise OSError("synthetic suppression status failure")
+            return 1
+
+    consumer = SpeechQueueConsumer.__new__(SpeechQueueConsumer)
+    consumer.writer = FakeWriter()
+    consumer._voice_state = None
+    consumer.config = SimpleNamespace(voice="test-voice")
+    consumer.backend = SimpleNamespace(synth=lambda *args, **kwargs: None)
+    consumer.player = SimpleNamespace(play=lambda *args: None)
+
+    import pytest
+    with pytest.raises(OSError):
+        consumer._speak_one({
+            "id": 506, "belief_id": 83,
+            "content": '{"machine":"payload"}',
+            "voice": "test-voice",
+        })
+
+    by_event = {item["event"]: item for item in trace.events}
+    assert "queue_status_suppressed_write_failed" in by_event
+    assert by_event["queue_status_suppressed_write_failed"]["parent_ids"] == [
+        by_event["dequeued"]["event_id"]
+    ]
