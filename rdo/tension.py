@@ -15,7 +15,7 @@ from .model import (ANTI_REQUIREMENT, CONDITIONAL, FUTURE, MISSING, NECESSARY,
                     OPTIONAL, OVERDEVELOPED, PARTIAL, RECON_UNKNOWN, REUSE_EXISTING, SIGNATURE_MATCHED,
                     SUFFICIENT, TENSION_UNKNOWN, UNDERDEVELOPED, Obligation,
                     InterfaceTensionProfile, Relationship, TensionAssessment,
-                    has_valid_reuse_review)
+                    has_valid_reuse_review, _has_traceable_evidence)
 from .feedback_loop import FeedbackLoopAssessment
 
 
@@ -93,15 +93,23 @@ def _interface_profile_evidence(rel: Relationship) -> dict:
         # fields visible, but require the later margin/threshold assessor before
         # any affirmative sufficiency verdict can be made. Omitted dimensions
         # in older/partial persisted dictionaries remain explicitly UNKNOWN.
-        refs = item.get("evidence") or []
+        refs = item.get("evidence")
+        confidence = item.get("confidence")
+        evidence_complete = (
+            item.get("status") != "unknown"
+            and item.get("value") is not None
+            and _has_traceable_evidence(refs)
+            and isinstance(confidence, str) and bool(confidence.strip())
+        )
         dimensions[name] = {
             "status": item.get("status", "unknown"),
             "value": item.get("value"),
             "unit": item.get("unit"),
             "evidence": list(refs) if isinstance(refs, list) else [],
-            "confidence": item.get("confidence"),
+            "confidence": confidence,
+            "evidence_complete": evidence_complete,
         }
-        if item.get("status") == "unknown" or not dimensions[name]["evidence"]:
+        if not evidence_complete:
             unknown.append(name)
     return {
         "profile_status": "supplied",
@@ -110,10 +118,83 @@ def _interface_profile_evidence(rel: Relationship) -> dict:
     }
 
 
+
+
+def _operating_envelope_evidence(value) -> dict:
+    """Summarise declared/assessed envelope evidence without inferring a class."""
+    if value is None:
+        return {"status": "not_supplied", "declared_state": "unknown",
+                "assessed_state": None, "unknown_dimensions": [
+                    "measured_load", "measured_capacity", "headroom",
+                    "transition_evidence", "recovery_evidence", "assessment"],
+                "evidence": []}
+    if hasattr(value, "to_dict"):
+        value = value.to_dict()
+    if not isinstance(value, dict):
+        return {"status": "invalid_shape", "declared_state": "unknown",
+                "assessed_state": None, "unknown_dimensions": ["operating_envelope"],
+                "evidence": []}
+
+    declared = value.get("declared_state", "unknown")
+    assessed = value.get("assessed_state")
+    evidence = value.get("assessment_evidence", [])
+    provenance = value.get("provenance", [])
+    confidence = value.get("confidence")
+    valid_states = {"normal", "busy", "degraded", "stress", "recovery"}
+    declared_valid = (declared == "unknown" or
+                      (isinstance(declared, str) and declared in valid_states))
+    assessed_valid = (assessed is None or
+                      (isinstance(assessed, str) and assessed in valid_states))
+    verdict_evidence_valid = declared_valid and (
+        assessed is None or (
+            assessed_valid and _has_traceable_evidence(evidence)
+            and _has_traceable_evidence(provenance)
+            and isinstance(confidence, str) and bool(confidence.strip())
+        )
+    )
+    if not declared_valid or not assessed_valid:
+        status = "invalid_evidence"
+    elif assessed is None:
+        status = "unknown"
+    else:
+        status = "evidence_recorded" if verdict_evidence_valid else "invalid_evidence"
+    unknown = []
+    for key in ("measured_load", "measured_capacity", "headroom"):
+        item = value.get(key)
+        if dataclasses.is_dataclass(item):
+            item = dataclasses.asdict(item)
+        complete = (
+            isinstance(item, dict) and item.get("value") is not None
+            and _has_traceable_evidence(item.get("evidence"))
+            and isinstance(item.get("confidence"), str)
+            and bool(item.get("confidence").strip())
+        )
+        if not complete:
+            unknown.append(key)
+    for key in ("transition_evidence", "recovery_evidence"):
+        if not _has_traceable_evidence(value.get(key)):
+            unknown.append(key)
+    if status != "evidence_recorded":
+        unknown.append("assessment")
+    return {
+        "status": status,
+        "declared_state": declared,
+        "assessed_state": assessed,
+        "unknown_dimensions": sorted(unknown),
+        "assessment_evidence": list(evidence) if isinstance(evidence, list) else [],
+        "provenance": list(provenance) if isinstance(provenance, list) else [],
+        "confidence": confidence,
+    }
+
+
 def assess_relationship(rel: Relationship, obligations: Dict[str, Obligation]) -> TensionAssessment:
     subj = f"{rel.src} -{rel.kind}-> {rel.dst}"
+    profile = _interface_profile_evidence(rel)
+    envelope = _operating_envelope_evidence(rel.operating_envelope)
+    assessment_dimensions = {**profile, "operating_envelope": envelope}
     if rel.kind == "influences" and rel.authority != "bounded":
         return TensionAssessment("relationship", subj, OVERDEVELOPED, inference=True,
+                                 dimensions=assessment_dimensions,
                                  note="influence without a bounded-authority declaration "
                                       "(capability != authority)")
     if rel.kind == "depends_on":
@@ -122,14 +203,15 @@ def assess_relationship(rel: Relationship, obligations: Dict[str, Obligation]) -
             if tgt.recon_status in (MISSING, PARTIAL):
                 return TensionAssessment("relationship", subj, UNDERDEVELOPED, inference=True,
                                          evidence=[f"target {tgt.recon_status}"],
+                                         dimensions=assessment_dimensions,
                                          note="blocking dependency on an unresolved necessary mechanism")
             if tgt.recon_status in (RECON_UNKNOWN, SIGNATURE_MATCHED) or (
                     tgt.recon_status == REUSE_EXISTING and not has_valid_reuse_review(tgt)):
                 return TensionAssessment("relationship", subj, TENSION_UNKNOWN, inference=True,
                                          evidence=[f"target {tgt.recon_status}"],
+                                         dimensions=assessment_dimensions,
                                          note="dependency target has not been semantically established")
 
-    profile = _interface_profile_evidence(rel)
     evidence = [
         ref
         for dimension in profile["dimensions"].values()
@@ -139,7 +221,7 @@ def assess_relationship(rel: Relationship, obligations: Dict[str, Obligation]) -
     return TensionAssessment(
         "relationship", subj, TENSION_UNKNOWN, inference=True,
         evidence=evidence,
-        dimensions=profile,
+        dimensions=assessment_dimensions,
         note=(
             "interface profile is absent; relationship sufficiency cannot be established"
             if profile["profile_status"] == "not_supplied" else
