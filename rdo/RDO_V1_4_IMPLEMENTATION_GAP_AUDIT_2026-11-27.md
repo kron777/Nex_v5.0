@@ -4,7 +4,7 @@
 **Working specification:** RDO v1.4 — Optimal Functional Tension  
 **Specification provenance:** Founder-supplied 20 November 2026 text; 47,172 bytes; SHA-256 recorded in the 24 November conversation as `382d634d03bc15701d9de4dcbc2629b966ffd8370c370f0307a57a853f4db926`.  
 **Working-status note:** On 24 November the founder indicated they believed v1.4 had been approved. Treat v1.4 as the current working specification. Preserve v1.3 as historical implementation lineage; do not claim the consolidated NEX S-register contains a formal frozen supersession record.  
-**Repository evidence snapshot:** `main` at `efe6fb4d05c191d9d27c9f5983631915d1c1bcdf` (after PRs #292, #294, #296, #298, #293, #303, #304, #305, #306 and #310).
+**Repository evidence snapshot:** `main` at `eabeeec51845fd36102d3e5b4fa7ab0420a92852` (after merged PRs #310, #313, #316 and #314).
 
 This is an implementation audit against the recovered v1.4 requirements, not a replacement specification. The raw v1.4 attachment is not mounted in the current repository/Library workspace, so exact clause wording and un-recovered thresholds remain UNKNOWN. The recovered requirements below are sufficient to identify implementation gaps without pretending to reproduce every source clause.
 
@@ -17,11 +17,11 @@ The RDO is not a blank design. It already contains a working deterministic recur
 The Stage-2 belief-decay example is a genuine end-to-end vertical slice from **structured seed obligations** through expansion, reconciliation, graph/tension analysis, prioritisation, work packages, persistence and fresh-process resume. It is not yet a complete v1.4 vertical slice because:
 - the input requires externally supplied seed obligations and reconciliation signatures; raw natural-language intent is not compiled into the initial obligation network by the RDO itself;
 - accepted context such as scope, constraints, exclusions and acceptance criteria is preserved in the intake ledger but not enforced by the planner;
-- the relationship model now has a typed UNKNOWN-first Interface Tension Profile, but its dimensions are not yet assessed against calibrated requirements;
-- q/tau performance-margin arithmetic is represented, but capacity/headroom assessment, operating-envelope classification, feedback-loop stability, multi-objective trade-offs and marginal-value/hysteresis machinery remain incomplete;
+- the relationship model now carries a typed UNKNOWN-first Interface Tension Profile and operating-envelope evidence into relationship assessment, but calibrated requirements and thresholds remain absent;
+- q/tau performance-margin arithmetic and relationship-level operating-envelope evidence integration are present, but capacity/headroom calculation, operating-envelope classification, measured feedback-loop stability, multi-objective trade-offs and marginal-value/hysteresis machinery remain incomplete;
 - the twelve adversarial cases are only partly represented in tests.
 
-**The next vertical-slice increment is measured feedback-loop stability and calibrated relationship/interface assessment.** The interface profile and q/tau margin records now exist as structural evidence models; the next work must connect observations to calibrated assessment without inventing thresholds or verdicts. Extend the existing model, not replace the orchestrator or create a parallel RDO.
+**The next vertical-slice increment is closing evidence-to-assessment gaps in feedback stability, failure propagation and neighbouring-capability impact.** Interface profiles, q/tau margin records and relationship-level envelope evidence integration now exist; connect observations to calibrated assessment without inventing thresholds or verdicts. Extend the existing model, not replace the orchestrator or create a parallel RDO.
 
 ## 2. Current implementation inventory
 
@@ -47,18 +47,26 @@ The Stage-2 belief-decay example is a genuine end-to-end vertical slice from **s
 
 | Test file | Test functions |
 |---|---:|
-| `rdo/tests/test_stage2_extrapolator_mvp.py` | 24 |
+| `rdo/tests/test_experiment_registry_entry_points.py` | 1 |
+| `rdo/tests/test_experiment_registry_fail_closed.py` | 7 |
+| `rdo/tests/test_feedback_loop.py` | 9 |
+| `rdo/tests/test_handoff.py` | 19 |
+| `rdo/tests/test_intake.py` | 14 |
+| `rdo/tests/test_interface_profile.py` | 5 |
+| `rdo/tests/test_interface_tension.py` | 22 |
+| `rdo/tests/test_objective_context_contract.py` | 2 |
+| `rdo/tests/test_operating_envelope.py` | 9 |
+| `rdo/tests/test_performance_margin.py` | 8 |
 | `rdo/tests/test_rdo.py` | 62 |
+| `rdo/tests/test_reconcile_path_boundary.py` | 2 |
+| `rdo/tests/test_stage2_extrapolator_mvp.py` | 24 |
 | `rdo/tests/test_stage3_graph_intelligence.py` | 14 |
 | `rdo/tests/test_stage4_belief_audit.py` | 11 |
 | `rdo/tests/test_stage5_pathway.py` | 6 |
-| `rdo/tests/test_stage6_learning_loop.py` | 11 |
+| `rdo/tests/test_stage6_learning_loop.py` | 18 |
 | `rdo/tests/test_stage7_execution_watcher.py` | 12 |
-| `rdo/tests/test_intake.py` | 14 |
-| `rdo/tests/test_handoff.py` | 19 |
-| `rdo/tests/test_performance_margin.py` | 8 |
-| `rdo/tests/test_operating_envelope.py` | 9 |
-| `rdo/tests/test_feedback_loop.py` | 9 |
+
+**Total:** 18 test modules; 245 test functions at this repository snapshot.
 
 These are function counts, not parametrised case counts or a claim that every v1.4 acceptance criterion is covered. The Stage-2 report's older count of 20 Stage-2 tests / 56 RDO tests is stale relative to the current source tree.
 
@@ -83,7 +91,7 @@ Current source comparison:
 | Node-level tension | `assess_node` primarily interprets classification and repository reconciliation state | Partial |
 | Relationship-level tension | Explicit unbounded-influence and unresolved-dependency findings remain; otherwise absent or uncalibrated interface evidence now yields UNKNOWN rather than inferred SUFFICIENT | Partial; fail-closed assessment improved |
 | System-level tension | `assess_system` detects cycles, in-degree concentration (threshold 3), and necessary-obligation readiness | Partial |
-| Interface Tension Profile | Typed UNKNOWN-first profile is now attached optionally to `Relationship`; it is structural only | Foundation implemented; assessment incomplete |
+| Interface Tension Profile | Typed UNKNOWN-first profile is attached optionally to `Relationship`; relationship assessment exposes dimension evidence and keeps absent/un-calibrated evidence UNKNOWN | Evidence capture and summary implemented; calibrated assessment incomplete |
 | Provider/consumer, purpose/direction, contract/schema | Typed profile fields exist and default to UNKNOWN | Foundation implemented |
 | Provenance/quality, timing/latency/frequency/freshness | Evidence containers exist for provenance, data quality, timing, latency, frequency and freshness | Foundation implemented; no source measurements |
 | Influence magnitude/boundaries, authority and coupling | Magnitude, authority-boundary and coupling evidence dimensions are represented | Foundation implemented; no calibrated bounds |
@@ -113,7 +121,7 @@ The case labels below are concise summaries recovered from the v1.4 review conte
 | G | Speculative obligation | Hypothesis classification and `test_genius_feedback_is_hypothesis` | **Partial** — demonstrated for one domain hypothesis, not a general adversarial obligation-quality test |
 | H | Protected experiment | Watcher registry and fail-closed eligibility; active/unknown registry tests | **Covered** |
 | I | Local improvement causes global regression | No multi-objective local/global net-value comparison | **Missing** |
-| J | Neighbouring capability changes | No typed interface profile or adjacent-capability impact re-assessment | **Missing** |
+| J | Neighbouring capability changes | Typed interface profiles and relationship-level envelope evidence now exist, but adjacent-capability impact re-assessment remains absent | **Missing** |
 | K | Excessive recursion | max-depth, terminal kinds and frontier reasons; `test_max_depth_bounds_expansion` | **Covered** |
 | L | Negative development outcome | Predicted/actual comparison, disconfirmation and confidence reduction; PR #312 is open and ports an objective-scoped regression-risk candidate to current main | **Partial** — a scoped candidate can be surfaced, but it does not yet mechanically reverse or restrict a recommendation |
 
@@ -129,23 +137,27 @@ PR #287 merged objective-context propagation into `run_cycle()`, cycle persisten
 
 
 
-**Evidence-integrity update (27 November 2026):** PR #298 makes malformed persisted interface-profile shapes explicitly diagnosable. PRs #304–#306 strengthen evidence completeness for feedback verdicts, performance margins and assessed operating envelopes. These changes enforce traceability and UNKNOWN handling; they do not supply missing v1.4 thresholds or implement stability/headroom calculations. PR #310 merged the relationship-level operating-envelope evidence connection. PR #312 is the current mainline-based proposal for scoped regression learning, pending exact-head CI at this audit snapshot.
+**Evidence-integrity update (27 November 2026):** PR #298 makes malformed persisted interface-profile shapes explicitly diagnosable. PRs #304–#306 strengthen evidence completeness for feedback verdicts, performance margins and assessed operating envelopes. These changes enforce traceability and UNKNOWN handling; they do not supply missing v1.4 thresholds or implement stability/headroom calculations. PR #310 merged relationship-level operating-envelope evidence. PR #316 makes malformed interface-profile serializers fail closed. PR #314 adds exact-objective negative-outcome candidate learning; a reported regression remains advisory evidence rather than an independently verified or mechanically enforced veto. PR #321 proposes to validate interface evidence status values after a malformed non-UNKNOWN label was found able to appear complete; exact-head CI is pending at this snapshot.
 
 ## 6. Next implementation slice
 
-**Target:** Measured feedback-loop stability, calibrated relationship/interface assessment and remaining system-level OFT gaps.
+**Target:** Close remaining evidence-to-assessment gaps around feedback stability, failure propagation, adjacent-capability impact and system-level trade-offs without inventing calibration.
 
 Completed foundation:
 1. Added a typed, serialisable UNKNOWN-first interface profile to `Relationship`, preserving legacy positional construction.
 2. Represented provider/consumer, purpose/direction, contract/schema, provenance/quality, timing/latency/frequency/freshness, influence magnitude/authority/coupling, reversibility, error handling, fallback/recovery, observability, capacity/headroom, feedback sufficiency/stability, duplication and failure propagation.
 3. Relationship-level assessment now refuses to infer SUFFICIENT when the profile is absent or when evidence exists without calibrated thresholds/margins. Existing explicit findings for unbounded influence and unresolved necessary dependencies retain precedence.
+4. Merged PR #310 attaches operating-envelope evidence to relationships and carries validated declared/assessed state and measurement summaries into relationship assessment; it does not calculate headroom or classify the envelope.
+5. Merged PR #316 makes malformed custom interface-profile serializers fail closed as invalid shape rather than letting assessment crash or imply recorded evidence.
 
 Next bounded sequence:
-1. Continue adversarial verification of the merged PR #310 integration, especially explicit-defect paths, persisted dictionaries, malformed values and legacy positional construction; preserve UNKNOWN when the envelope lacks evidence.
-2. Extend the merged feedback-loop record with measured stability assessment only when calibrated criteria and observation windows are grounded. Do not equate graph topology with instability or remove cycles automatically.
-3. Extend relationship-level OFT to evaluate interface dimensions and blockers without collapsing them into an uncalibrated “magic score”.
-4. Add adversarial tests for insufficient headroom, unstable feedback, failure propagation, local improvement/global regression and neighbouring-capability changes.
-5. Run the existing Stage-2 belief-development slice and persist/resume it to prove backward compatibility.
+1. Complete measured feedback-loop stability only when calibrated criteria, observation windows and evidence are grounded; preserve loop members and relationships, and never equate graph topology with instability or remove cycles automatically.
+2. Add evidence-backed failure-propagation assessment and adjacent-capability impact re-assessment using typed interface relationships; keep UNKNOWN where propagation evidence or calibrated bounds are absent.
+3. Add adversarial insufficient-headroom and unstable-feedback cases with evidence validation and UNKNOWN-first assertions.
+4. Add the neighbouring-capability-change adversarial case, proving that changes to one capability trigger review of affected relationships without automatically mutating unrelated components.
+5. Address local-improvement/global-regression only after inspecting the actual objective and evidence model; do not invent net-value weights, Pareto dominance rules or trade-off thresholds.
+6. Run the existing Stage-2 belief-development slice and persist/resume it against current main to prove backward compatibility.
+7. Only then consider system-level Pareto/net-value evaluation and marginal-value stopping, with grounded calibration and explicit separation from relationship evidence work.
 6. Then add system-level Pareto/net-value evaluation and marginal-value stopping; do not mix those into the interface evidence foundation.
 
 This increment remains external/advisory RDO code. It does not change NEX runtime, the frozen S-register, Master Roadmap, feature flags, live beliefs or protected experiments. It does not authorise the final v1.4 expansion stage to bypass existing safety and approval gates.
