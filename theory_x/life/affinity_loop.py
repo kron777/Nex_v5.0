@@ -74,7 +74,7 @@ This builds preference: she now has favourites among her own beliefs.
 from __future__ import annotations
 import logging
 import math
-from substrate import connect
+from substrate import Reader, Writer
 import threading
 import time
 from pathlib import Path
@@ -241,7 +241,7 @@ def _usage_score(use, edges, hours_since_ref):
     return min(1.0, max(0.0, score))
 
 
-def _pick_candidates(cx, limit):
+def _pick_candidates(reader: Reader, limit):
     """Top usage-score beliefs that need affinity rating.
 
     2026-07-26: 'demoted_confabulation' excluded from eligibility entirely.
@@ -261,7 +261,7 @@ def _pick_candidates(cx, limit):
     """
     now = time.time()
     rescore_cutoff = now - RESCORE_AFTER_DAYS * 86400
-    rows = cx.execute(
+    rows = reader.read(
         """
         SELECT b.id, b.content, b.tier, b.source, b.source_kind,
                COALESCE(b.reinforce_count, 0) AS reinforce,
@@ -290,7 +290,7 @@ def _pick_candidates(cx, limit):
         LIMIT ?
         """,
         (rescore_cutoff, MIN_USAGE_FOR_LLM, limit)
-    ).fetchall()
+    )
     out = []
     for r in rows:
         last_ref = r[7]
@@ -344,17 +344,24 @@ def _affinity_mode():
     return mode if mode in ("off", "shadow", "on") else "off"
 
 
-def affinity_tick(voice):
-    cx = connect(BELIEFS_DB, timeout=30)
+def affinity_tick(
+    voice,
+    *,
+    beliefs_reader: Reader | None = None,
+    beliefs_writer: Writer | None = None,
+):
+    reader = beliefs_reader or Reader(BELIEFS_DB)
+    own_writer = beliefs_writer is None
+    writer = beliefs_writer or Writer(BELIEFS_DB, name="affinity_loop")
     mode = _affinity_mode()
     by_kind = _source_kind_on()
     try:
-        candidates = _pick_candidates(cx, BATCH_LLM_CALLS)
+        candidates = _pick_candidates(reader, BATCH_LLM_CALLS)
         if not candidates:
             return {"scored": 0, "candidates": 0}
-        scored = 0
         skipped = 0
         shadow_deltas = []
+        updates = []
         for c in candidates:
             if mode == "on":
                 # Provenance drives the write; no LLM call. beliefs.source
@@ -368,45 +375,27 @@ def affinity_tick(voice):
                     # No rating means she did not judge it. Silence is not a
                     # preference. Leave affinity NULL so this belief is picked
                     # again next tick, rather than assigning a score she never
-                    # gave. (Previously: fell back to usage-only, which handed a
-                    # familiarity number to a belief on a scale that is supposed
-                    # to mean draw.)
+                    # gave.
                     skipped += 1
                     continue
 
                 # DRAW LEADS, FAMILIARITY AMPLIFIES.
-                #
-                # Was: 0.5 * usage + 0.5 * llm_rating -- which let familiarity
-                # carry a belief she was indifferent to. The clearest evidence:
-                # 'demoted_confabulation' beliefs (things she has already judged
-                # to be her own fabrications) had the HIGHEST theoretical ceiling
-                # in the store, 0.936, because they are heavily used, richly
-                # edged, and recently touched.
-                #
-                # Now: her rating sets the level; usage can lift it, never
-                # manufacture it. A thought she calls deeply hers scores >= 0.75
-                # even if never used once. A thought she is lukewarm about stays
-                # low however familiar. Under this formula that same
-                # confabulation, rated 0.2, scores 0.194 rather than 0.535.
                 final = llm_rating * (0.75 + 0.25 * c["usage_score"])
                 final = min(1.0, max(0.0, final))
                 if mode == "shadow":
-                    # Old score still written; record how far provenance would
-                    # move it, to be reviewed before trusting (prov - llm).
                     shadow_deltas.append(
                         _provenance_affinity(
                             c["source"], c["usage_score"],
                             c["source_kind"] if by_kind else None) - final
                     )
-            try:
-                cx.execute(
-                    "UPDATE beliefs SET affinity=?, affinity_updated_at=? WHERE id=?",
-                    (final, time.time(), c["id"])
-                )
-                scored += 1
-            except Exception as e:
-                log.warning("affinity write failed for #%s: %s", c["id"], e)
-        cx.commit()  # one commit for the whole batch (was one fsync per row)
+            updates.append((
+                "UPDATE beliefs SET affinity=?, affinity_updated_at=? WHERE id=?",
+                (final, time.time(), c["id"]),
+            ))
+        if updates:
+            # Preserve the original single-transaction batch commit.
+            writer.write_many(updates)
+        scored = len(updates)
         if mode == "shadow":
             _log_shadow_delta(shadow_deltas)
         log.info("affinity_loop: scored %d, unrated %d, of %d candidates (mode=%s)",
@@ -414,7 +403,8 @@ def affinity_tick(voice):
         return {"scored": scored, "unrated": skipped,
                 "candidates": len(candidates), "mode": mode}
     finally:
-        cx.close()
+        if own_writer:
+            writer.close()
 
 
 def affinity_loop(state, stop):
@@ -426,7 +416,11 @@ def affinity_loop(state, stop):
             if voice is None:
                 from voice.llm import VoiceClient, voice_model
                 voice = VoiceClient(model=voice_model())
-            stats = affinity_tick(voice)
+            stats = affinity_tick(
+                voice,
+                beliefs_reader=state.readers["beliefs"],
+                beliefs_writer=state.writers["beliefs"],
+            )
             if stats.get("scored"):
                 log.info("affinity_loop: %s", stats)
         except Exception as e:
