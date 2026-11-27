@@ -315,3 +315,12 @@ The current graph was checked independently: 15 nodes, 15 edges, no unresolved r
 PR #230 contains duplicate-edge validation, validation for unknown/missing statuses, shared graph validation before classification and topological sorting, and four regression tests. Its original exact-head CI run `46003289108` passed. Because it was stacked on the now-squash-merged PR #229, its original branch cannot be cleanly retargeted to `main`; the changes are being replayed onto a fresh branch based on the merged mainline and will receive a new exact-head CI run.
 
 This work remains limited to `nex_next_dev.py`, its tests and this manual. It does not alter `sentience_dag.json`, runtime code, cognitive behaviour, flags, frozen specifications, roadmap or phase gates. Rollback is by reverting the isolated developer-tool change.
+
+
+---
+
+## 16. DAG input-shape validation (27 November 2026)
+
+A further developer-tool audit found that reference/status validation could still receive malformed node structures: non-object node definitions, non-list prerequisite containers, non-string prerequisite IDs, empty node IDs, and non-string statuses. These inputs could produce incidental Python exceptions rather than a deterministic graph-validation error.
+
+PR #235 adds fail-fast shape checks before prerequisite-reference, duplicate-edge and status validation, with six focused regression tests. It does not change the current DAG or the meaning of any status or dependency. The change is limited to `nex_next_dev.py`, its tests and this manual; runtime behaviour, cognitive settings, frozen specifications, roadmap and phase gates remain unchanged.
