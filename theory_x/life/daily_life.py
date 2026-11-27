@@ -163,14 +163,14 @@ def _activity_morning(date_local: str, *, readers: dict, writers: dict) -> str:
     now = _now_local()
     state = _state_snapshot(readers)
     msg = (
-        f"good morning. it is {now.strftime('%A %d %B %Y, %H:%M')}.\\n\\n"
+        f"good morning. it is {now.strftime('%A %d %B %Y, %H:%M')}.\n\n"
         f"yesterday: {state.get('new_beliefs_24h', '?')} new beliefs, "
         f"{state.get('fountain_fires_24h', '?')} fountain fires, "
-        f"{state.get('moltbook_posts_24h', '?')} posts to moltbook.\\n"
+        f"{state.get('moltbook_posts_24h', '?')} posts to moltbook.\n"
         f"{state.get('open_problems', '?')} open problems still in front of me. "
     )
     if state.get("latest_problem"):
-        msg += f"latest: \\"{state['latest_problem']}\\""
+        msg += f'latest: "{state["latest_problem"]}"'
     _write_chat(msg, "Morning", writers["conversations"])
     return msg[:200]
 
@@ -195,8 +195,8 @@ def _activity_reading(slot: str, date_local: str, *, readers: dict, writers: dic
     stream, payload = row[0], row[1]
     snippet = (payload or "")[:200]
     msg = (
-        f"reading session {slot}. picking this from {stream}:\\n\\n"
-        f"  {snippet}\\n\\n"
+        f"reading session {slot}. picking this from {stream}:\n\n"
+        f"  {snippet}\n\n"
         f"sitting with it. what does it actually say? what is it close to that i already hold?"
     )
     _write_chat(msg, "Reading", writers["conversations"])
@@ -242,17 +242,18 @@ def _activity_journal(date_local: str, *, readers: dict, writers: dict) -> str:
     now = _now_local()
     state = _state_snapshot(readers)
     msg = (
-        f"journal — {now.strftime('%A %d %B, %H:%M')}.\\n\\n"
+        f"journal — {now.strftime('%A %d %B, %H:%M')}.\n\n"
         f"today i made {state.get('new_beliefs_24h', '?')} new beliefs, "
         f"fired {state.get('fountain_fires_24h', '?')} thoughts, "
-        f"posted to moltbook {state.get('moltbook_posts_24h', '?')} times.\\n"
+        f"posted to moltbook {state.get('moltbook_posts_24h', '?')} times.\n"
         f"i hold {state.get('open_problems', '?')} open problems. "
     )
     if state.get("focus_problem_id"):
-        msg += f"focus right now: problem #{state['focus_problem_id']}.\\n\\n"
+        msg += f"focus right now: problem #{state['focus_problem_id']}.\n\n"
     msg += "going quieter now. the night is for less."
     _write_chat(msg, "Journal", writers["conversations"])
     return msg[:200]
+
 
 def _activity_source_audit(date_local: str, *, readers: dict, writers: dict) -> str:
     from theory_x.stage_tom.source_kind_audit import run_and_record
