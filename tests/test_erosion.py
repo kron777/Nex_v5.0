@@ -208,6 +208,14 @@ class TestErosionTracking(unittest.TestCase):
         self.assertEqual(len(rows), 505)
         self.assertTrue(all(row["erosion_stage"] == "nex_core" for row in rows))
 
+        undo_rows = r.read(
+            "SELECT belief_id FROM undo_events "
+            "WHERE kind='eroded' AND cause_ref='erosion_pass:nex_integrated->nex_core'"
+        )
+        self.assertEqual(
+            {row["belief_id"] for row in undo_rows}, set(belief_ids)
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
