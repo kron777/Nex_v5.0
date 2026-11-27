@@ -252,6 +252,9 @@ def test_submit_runs_existing_pipeline_and_persists_intake_provenance(tmp_path, 
     assert cycle["objective"] == raw["original_text"]
     assert cycle["objective_input"]["objective_id"] == raw["objective_id"]
     assert cycle["objective_context"] == {
+        "intent": raw["intent"],
+        "owner": raw["owner"],
+        "source": raw["source"],
         "scope": raw["scope"],
         "assumptions": raw["assumptions"],
         "constraints": raw["constraints"],
