@@ -2,7 +2,7 @@
 
 **Date:** 27 November 2026  
 **Repository:** https://github.com/kron777/Nex_v5.0  
-**Evidence snapshot:** `main` at `9f5a9f0b476716b6a6fd0a39aa3cf3041a3a4465`  
+**Evidence snapshot:** `main` at `90ffd57c75b33eff161ea33e29388e0732f0290e`  
 **Gate 0:** **PENDING — founder review required**
 
 ## Read these together
@@ -219,3 +219,21 @@ This block supersedes older "latest/current" labels elsewhere in this handoff. R
 - Reality Report and Architecture Crosswalk are historical at `ae406fa8fcb1abdf25cdf4ae1bd65333e1148ca8`, 44 commits behind current main. Use as orientation only and revalidate claims against source.
 
 Claude must independently query the repository and CI before acting. Do not treat this handoff as proof that another model has read it or that the founder has approved any action.
+
+
+---
+
+## 27 November 2026 — G-65 and G-76–G-79 current-main update
+
+**Current main:** `90ffd57c75b33eff161ea33e29388e0732f0290e`.
+
+- PR #270 merged (`d2a5c107019d79276879f3ade6ebefd348686e36`); exact validation run `46032636987`: 2,624 passed, 7 skipped, 45 subtests.
+- PR #271 merged (`77d4cd89015ebf605c9e5ec6af994a28126f6ed5`); exact-head run `46032708456`: 2,629 passed, 7 skipped, 45 subtests.
+- PR #269 documentation reconciliation merged as `3e7f0f35ccc58519f57ae4fd2e13b1f688f688a3`; exact-head run `46034624423`: 2,629 passed, 7 skipped, 45 subtests.
+- PR #272 merged as `90ffd57c75b33eff161ea33e29388e0732f0290e`; exact head `67fcf46a84bcfae5b5a309502680fffe8bb347b8`, run `46035516300`: 2,632 passed, 7 skipped and 45 subtests.
+- G-65's former “no boot invocation” statement is superseded: the tracked launcher sets `NEX5_SELF_PRED=1`, `NEX5_RECONCILER=1`, and `NEX5_EXPECT_LEARN=1`; SelfPredictionLoop calls Expectations reconciliation behind the corresponding gate. Host-effective activation remains UNKNOWN.
+- G-76 remains open for founder clarification: ordinary use increments `use_count`, while erosion stage checks use `reinforce_count`; the reviewed runtime reinforcement caller is the corroboration-promotion path.
+- G-77 is closed by #270; G-78 is closed by #271. G-79's compare-and-set fix is merged by #272 and closed on current main.
+- PR #259 remains open and Gate 0 HOLD. Gate 0 is pending founder review; Phase 1 remains unauthorized. The frozen S-01–S-25 register and Master Roadmap are unchanged.
+
+The canonical manual is `INDEX.md`; its plain-text mirror is `NEX_5.0_DEVELOPMENT_MANUAL_CLAUDE_HANDOFF_2026-11-27.txt`. Keep both byte-for-byte synchronized after the four-file content update. No host collection, runtime activation, flag change or live database access was performed.
