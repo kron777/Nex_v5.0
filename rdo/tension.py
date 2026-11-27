@@ -265,7 +265,10 @@ def _performance_margin_evidence(value) -> dict:
             continue
         try:
             if isinstance(item, PerformanceMargin):
-                margin = item
+                # Dataclasses remain mutable after construction; reconstruct to
+                # revalidate identity and envelope context at the assessment boundary.
+                kwargs = {name: getattr(item, name) for name in field_names}
+                margin = PerformanceMargin(**kwargs)
             elif isinstance(item, dict):
                 if set(item) - field_names - computed_fields:
                     raise ValueError("unexpected persisted performance-margin fields")
