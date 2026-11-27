@@ -242,3 +242,51 @@ def test_first_run_cutoff_is_persisted_when_no_rows_are_yet_eligible(tmp_path, m
             assert db.execute("SELECT COUNT(*) FROM beliefs").fetchone()[0] == 1
     finally:
         _close(handles)
+
+
+def test_duplicate_content_integrity_error_is_safe_to_checkpoint(tmp_path):
+    loop, dynamic_path, beliefs_path, handles = _prepare_databases(tmp_path)
+    try:
+        _insert_event(dynamic_path, 200.0, 1)
+        _insert_event(dynamic_path, 201.0, 2)
+        with sqlite3.connect(dynamic_path) as db:
+            db.execute(
+                "UPDATE surprise_events SET predicted_content='same prediction', "
+                "actual_content='same outcome' WHERE id IN (1, 2)"
+            )
+        assert _tick(loop, handles) == {"promoted": 1}
+        with sqlite3.connect(dynamic_path) as db:
+            cursor = dict(db.execute("SELECT key, value FROM daemon_kv"))
+        assert cursor[loop.LAST_PROMOTED_ID_KEY] == "2"
+        with sqlite3.connect(beliefs_path) as db:
+            assert db.execute("SELECT COUNT(*) FROM beliefs").fetchone()[0] == 1
+    finally:
+        _close(handles)
+
+
+def test_non_duplicate_integrity_error_is_not_checkpointed(tmp_path, monkeypatch):
+    loop, dynamic_path, beliefs_path, handles = _prepare_databases(tmp_path)
+    try:
+        _insert_event(dynamic_path, 200.0, 1)
+        writer = handles["beliefs_writer"]
+        original_write = writer.write
+        failed = {"once": False}
+
+        def fail_once(sql, params=()):
+            if sql.startswith("INSERT INTO beliefs") and not failed["once"]:
+                failed["once"] = True
+                raise sqlite3.IntegrityError("NOT NULL constraint failed: beliefs.content")
+            return original_write(sql, params)
+
+        monkeypatch.setattr(writer, "write", fail_once)
+        assert _tick(loop, handles) == {"promoted": 0}
+        with sqlite3.connect(dynamic_path) as db:
+            cursor = dict(db.execute("SELECT key, value FROM daemon_kv"))
+        assert cursor[loop.LAST_PROMOTED_ID_KEY] == "0"
+
+        monkeypatch.setattr(writer, "write", original_write)
+        assert _tick(loop, handles) == {"promoted": 1}
+        with sqlite3.connect(beliefs_path) as db:
+            assert db.execute("SELECT COUNT(*) FROM beliefs").fetchone()[0] == 1
+    finally:
+        _close(handles)
