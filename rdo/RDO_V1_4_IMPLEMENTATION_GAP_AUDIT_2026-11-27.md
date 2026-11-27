@@ -21,7 +21,7 @@ The Stage-2 belief-decay example is a genuine end-to-end vertical slice from **s
 - q/tau performance-margin arithmetic and relationship-level operating-envelope evidence integration are present, but capacity/headroom calculations, operating-envelope classification, measured feedback-loop stability, multi-objective trade-offs and marginal-value/hysteresis machinery remain incomplete;
 - the twelve adversarial cases are only partly represented in tests.
 
-**The next vertical-slice increment is evidence-backed operating-envelope and feedback-loop assessment.** The interface profile and q/tau margin records now exist as structural evidence models; the next work must connect observations to calibrated assessment without inventing thresholds or verdicts. Extend the existing model, not replace the orchestrator or create a parallel RDO.
+**The next vertical-slice increment is closing the remaining evidence-to-assessment gaps around feedback stability, failure propagation and neighbouring-capability impact.** The interface profile, q/tau margin records and relationship-level operating-envelope evidence integration now exist; the next work must connect observations to calibrated assessment without inventing thresholds or verdicts. Extend the existing model, not replace the orchestrator or create a parallel RDO.
 
 ## 2. Current implementation inventory
 
