@@ -4,7 +4,7 @@
 **Working specification:** RDO v1.4 — Optimal Functional Tension  
 **Specification provenance:** Founder-supplied 20 November 2026 text; 47,172 bytes; SHA-256 recorded in the 24 November conversation as `382d634d03bc15701d9de4dcbc2629b966ffd8370c370f0307a57a853f4db926`.  
 **Working-status note:** On 24 November the founder indicated they believed v1.4 had been approved. Treat v1.4 as the current working specification. Preserve v1.3 as historical implementation lineage; do not claim the consolidated NEX S-register contains a formal frozen supersession record.  
-**Repository evidence snapshot:** `main` at `f03a3d2e7b9c71801e44be73cf728c01cb791c9d`.
+**Repository evidence snapshot:** `main` at `efb09eed1d9f408c4a6402be7f63f6354d3d3553`.
 
 This is an implementation audit against the recovered v1.4 requirements, not a replacement specification. The raw v1.4 attachment is not mounted in the current repository/Library workspace, so exact clause wording and un-recovered thresholds remain UNKNOWN. The recovered requirements below are sufficient to identify implementation gaps without pretending to reproduce every source clause.
 
@@ -17,11 +17,11 @@ The RDO is not a blank design. It already contains a working deterministic recur
 The Stage-2 belief-decay example is a genuine end-to-end vertical slice from **structured seed obligations** through expansion, reconciliation, graph/tension analysis, prioritisation, work packages, persistence and fresh-process resume. It is not yet a complete v1.4 vertical slice because:
 - the input requires externally supplied seed obligations and reconciliation signatures; raw natural-language intent is not compiled into the initial obligation network by the RDO itself;
 - accepted context such as scope, constraints, exclusions and acceptance criteria is preserved in the intake ledger but not enforced by the planner;
-- the current relationship model is much thinner than the v1.4 Interface Tension Profile;
-- OFT currently has three-level structure but not the full performance-margin, capacity/headroom, operating-envelope, multi-objective, feedback-stability/hysteresis and marginal-value machinery;
+- the relationship model now has a typed UNKNOWN-first Interface Tension Profile, but its dimensions are not yet assessed against calibrated requirements;
+- q/tau performance-margin arithmetic is represented, but capacity/headroom assessment, operating-envelope classification, feedback-loop stability, multi-objective trade-offs and marginal-value/hysteresis machinery remain incomplete;
 - the twelve adversarial cases are only partly represented in tests.
 
-**The next vertical-slice increment is the typed Interface Tension Profile and evidence-backed performance margins.** It should extend the existing model, not replace the orchestrator or create a parallel RDO.
+**The next vertical-slice increment is evidence-backed operating-envelope and feedback-loop assessment.** The interface profile and q/tau margin records now exist as structural evidence models; the next work must connect observations to calibrated assessment without inventing thresholds or verdicts. Extend the existing model, not replace the orchestrator or create a parallel RDO.
 
 ## 2. Current implementation inventory
 
@@ -56,6 +56,7 @@ The Stage-2 belief-decay example is a genuine end-to-end vertical slice from **s
 | `rdo/tests/test_stage7_execution_watcher.py` | 12 |
 | `rdo/tests/test_intake.py` | 14 |
 | `rdo/tests/test_handoff.py` | 18 |
+| `rdo/tests/test_performance_margin.py` | 6 |
 
 These are function counts, not parametrised case counts or a claim that every v1.4 acceptance criterion is covered. The Stage-2 report's older count of 20 Stage-2 tests / 56 RDO tests is stale relative to the current source tree.
 
@@ -85,11 +86,11 @@ Current source comparison:
 | Provenance/quality, timing/latency/frequency/freshness | Evidence containers exist for provenance, data quality, timing, latency, frequency and freshness | Foundation implemented; no source measurements |
 | Influence magnitude/boundaries, authority and coupling | Magnitude, authority-boundary and coupling evidence dimensions are represented | Foundation implemented; no calibrated bounds |
 | Failure semantics/observability | Error handling, fallback, recovery and observability dimensions are represented | Foundation implemented; no failure-envelope assessment |
-| Capacity/headroom and operating envelopes | Capacity/headroom fields exist; NORMAL/BUSY/DEGRADED/STRESS/RECOVERY envelopes are not modelled | Partial |
-| Feedback sufficiency/stability | Feedback sufficiency/stability fields exist; gain, stability and hysteresis are not measured | Partial |
+| Capacity/headroom and operating envelopes | Capacity/headroom evidence fields exist; an evidence-first record for NORMAL/BUSY/DEGRADED/STRESS/RECOVERY is proposed in PR #290 but is not yet merged; no classification or headroom calculation | Partial |
+| Feedback sufficiency/stability | Feedback sufficiency/stability fields exist; gain, delay, damping, oscillation, overshoot, recovery and observation-window evidence are not yet integrated into the merged assessor; an evidence record is proposed in PR #291 but is not yet merged | Partial |
 | Duplication | Semantic duplicate candidates are surfaced by graph analysis; profile now carries a duplication evidence dimension | Partial-to-good; no measured duplication cost |
 | Failure propagation | A failure-propagation evidence dimension is represented; propagation analysis is not implemented | Partial |
-| Performance margins q/tau/m | No explicit metric/threshold/margin model | Missing |
+| Performance margins q/tau/m | `PerformanceMargin` represents q, tau, unit, normalization, evidence and confidence; computes exact m=q-tau only for finite comparable values; exact zero remains a boundary, not a pass | Evidence model implemented; calibrated threshold selection and sufficiency verdicts missing |
 | NetValue and Pareto trade-off | Prioritisation uses separate dimensions plus an explicitly uncalibrated weighted sort score; no feasible Pareto comparison or net-value calculation | Missing |
 | Marginal-value stopping | Depth/terminal/reuse stopping exists; no marginal-value threshold or hysteresis | Partial |
 
@@ -103,8 +104,8 @@ The case labels below are concise summaries recovered from the v1.4 review conte
 |---|---|---|---|
 | A | Underdeveloped node | `test_under_expansion_builds_children_when_missing` | **Covered** |
 | B | Overdeveloped node | `test_over_expansion_stopped_by_reuse`; `recognize_sufficiency` | **Partial** — sufficiency/reuse restraint exists; no full complexity-vs-value assessment |
-| C | Unstable feedback | `test_cycle_detection_and_classification`; feedback loops remain UNKNOWN and are not removed | **Partial** — topology classification only; no gain/stability/hysteresis measurement |
-| D | Insufficient headroom | No capacity/headroom profile or operating-envelope model | **Missing** |
+| C | Unstable feedback | `test_cycle_detection_and_classification`; feedback loops remain UNKNOWN and are not removed | **Partial** — topology classification only; no measured gain/stability/hysteresis assessment yet |
+| D | Insufficient headroom | Capacity/headroom evidence dimensions and q/tau margin inputs exist; no calibrated operating-envelope/headroom assessment | **Partial** — evidence representation only, no sufficiency verdict |
 | E | Excessive authority | `Relationship.authority`, `assess_signal_authority`, real-repository demo assertions | **Partial** — capability/authority distinction exists; no complete interface profile or dedicated adversarial threshold test |
 | F | Duplicate discovery | Safe canonical convergence; `graph.dedup_candidates`; `test_safe_convergence_merge` | **Covered** |
 | G | Speculative obligation | Hypothesis classification and `test_genius_feedback_is_hypothesis` | **Partial** — demonstrated for one domain hypothesis, not a general adversarial obligation-quality test |
@@ -124,7 +125,7 @@ This is an advisory capability gap, not an execution incident. The full input is
 
 ## 6. Next implementation slice
 
-**Target:** Evidence-backed interface margins, operating envelopes and relationship-level OFT.
+**Target:** Evidence-backed operating-envelope/headroom assessment, feedback-loop stability and relationship-level OFT.
 
 Completed foundation:
 1. Added a typed, serialisable UNKNOWN-first interface profile to `Relationship`, preserving legacy positional construction.
@@ -132,12 +133,12 @@ Completed foundation:
 3. Relationship-level assessment now refuses to infer SUFFICIENT when the profile is absent or when evidence exists without calibrated thresholds/margins. Existing explicit findings for unbounded influence and unresolved necessary dependencies retain precedence.
 
 Next bounded sequence:
-1. Add explicit `q`, `tau`, and `m=q-tau` margin records with units, evidence references and confidence. Do not invent thresholds; a missing threshold produces UNKNOWN.
-2. Define evidence-backed normal/busy/degraded/stress/recovery operating envelopes, preserving UNKNOWN where measurement is absent.
+1. Add a typed operating-envelope evidence record, keeping declared labels separate from assessed states and keeping measured load, capacity, headroom, transition and recovery evidence independent. Do not infer classifications or thresholds from labels.
+2. Add a first-class feedback-loop evidence record preserving loop members and relationship identities, with gain, delay, damping, oscillation, overshoot, recovery and observation-window dimensions. Do not equate graph topology with instability or remove cycles automatically.
 3. Extend relationship-level OFT to evaluate interface dimensions and blockers without collapsing them into an uncalibrated “magic score”.
-4. Add focused adversarial tests for below-threshold headroom, unbounded influence, unstable feedback, failure propagation, local improvement/global regression and neighbouring-capability changes.
+4. Add adversarial tests for insufficient headroom, unstable feedback, failure propagation, local improvement/global regression and neighbouring-capability changes.
 5. Run the existing Stage-2 belief-development slice and persist/resume it to prove backward compatibility.
-6. Then add system-level Pareto/net-value evaluation and marginal-value stopping; do not mix those into the interface foundation.
+6. Then add system-level Pareto/net-value evaluation and marginal-value stopping; do not mix those into the interface evidence foundation.
 
 This increment remains external/advisory RDO code. It does not change NEX runtime, the frozen S-register, Master Roadmap, feature flags, live beliefs or protected experiments. It does not authorise the final v1.4 expansion stage to bypass existing safety and approval gates.
 
