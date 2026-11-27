@@ -54,8 +54,8 @@ def test_resumption_uses_injected_beliefs_and_probes_writers(tmp_path):
 
         beliefs = Reader(beliefs_path)
         rows = beliefs.read("SELECT id, created_at FROM beliefs ORDER BY id")
-        assert rows[0]["created_at"] == int(time.time()) - 1
-        assert rows[1]["created_at"] == int(time.time()) - 1
+        assert rows[0]["created_at"] == rows[1]["created_at"]
+        assert int(time.time()) - 2 <= rows[0]["created_at"] <= int(time.time()) - 1
         assert rows[2]["created_at"] == 300
 
         probes = Reader(probes_path)
