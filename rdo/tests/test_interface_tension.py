@@ -61,7 +61,7 @@ def test_measured_interface_value_without_threshold_does_not_claim_sufficiency()
 
     assert result.verdict == TENSION_UNKNOWN
     assert result.evidence == ["test:latency-p95"]
-    assert result.dimensions["dimensions"]["latency_utility"]["value"] == 18.4
+    assert result.dimensions["dimensions"]["latency"]["value"] == 18.4
     assert "thresholds, margins" in result.note
 
 
@@ -86,7 +86,7 @@ def test_relationship_profile_dict_from_persistence_is_supported():
     result = assess_relationship(rel, {})
 
     assert result.verdict == TENSION_UNKNOWN
-    assert result.dimensions["dimensions"]["latency_utility"]["status"] == "measured"
+    assert result.dimensions["dimensions"]["latency"]["status"] == "measured"
     assert "schema" in result.dimensions["unknown_dimensions"]
     assert "coupling" in result.dimensions["unknown_dimensions"]
 
@@ -196,7 +196,7 @@ def test_interface_dimension_with_blank_reference_or_confidence_remains_unknown(
     result = assess_relationship(Relationship("consumer", "provider", "depends_on",
         interface_profile=profile), {})
     dimensions = result.dimensions["dimensions"]
-    assert not dimensions["latency_utility"]["evidence_complete"]
+    assert not dimensions["latency"]["evidence_complete"]
     assert not dimensions["freshness"]["evidence_complete"]
     assert "latency" in result.dimensions["unknown_dimensions"]
     assert "freshness" in result.dimensions["unknown_dimensions"]
@@ -227,7 +227,7 @@ def test_relationship_profile_dict_and_unknown_values_remain_compatible():
                     "evidence": ["benchmark:1"], "confidence": "measured"},
     })
     result = assess_relationship(rel, {})
-    assert result.dimensions["dimensions"]["latency_utility"]["evidence_complete"] is True
+    assert result.dimensions["dimensions"]["latency"]["evidence_complete"] is True
     assert result.verdict == TENSION_UNKNOWN
 
 
@@ -241,7 +241,7 @@ def test_numeric_interface_evidence_requires_finite_value_and_unit():
     result = assess_relationship(Relationship("consumer", "provider", "depends_on",
         interface_profile=profile), {})
     dimensions = result.dimensions["dimensions"]
-    assert not dimensions["latency_utility"]["evidence_complete"]
+    assert not dimensions["latency"]["evidence_complete"]
     assert not dimensions["frequency"]["evidence_complete"]
 
 
@@ -324,7 +324,7 @@ def test_persisted_interface_dimension_with_unknown_status_fails_closed():
     })
 
     result = assess_relationship(rel, {})
-    latency = result.dimensions["dimensions"]["latency_utility"]
+    latency = result.dimensions["dimensions"]["latency"]
     assert latency["status"] == "invalid"
     assert latency["evidence_complete"] is False
     assert "latency" in result.dimensions["unknown_dimensions"]
