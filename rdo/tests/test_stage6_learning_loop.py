@@ -253,3 +253,10 @@ def test_pattern_exact_scope_requires_boolean_value():
     from rdo.model import Pattern
     with pytest.raises(ValueError, match="exact_scope must be a boolean"):
         Pattern(key="bad", statement="bad", provenance="cycle:1", exact_scope="true")
+
+
+def test_exact_scope_pattern_requires_nonblank_applicability():
+    import pytest
+    from rdo.model import Pattern
+    with pytest.raises(ValueError, match="non-blank applicability"):
+        Pattern(key="unscoped", statement="bad", provenance="cycle:1", exact_scope=True)
