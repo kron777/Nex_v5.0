@@ -258,6 +258,7 @@ def test_submit_runs_existing_pipeline_and_persists_intake_provenance(tmp_path, 
         "exclusions": raw["exclusions"],
         "acceptance_criteria": raw["acceptance_criteria"],
     }
+    assert cycle["assumptions"] == raw["assumptions"]
     assert cycle["context_assessment"]["status"] == "unmapped"
     assert cycle["context_assessment"]["review_required"] is True
     assert all(item["status"] == "unmapped" and item["evidence"] == []
