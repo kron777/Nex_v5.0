@@ -212,3 +212,39 @@ def test_cycle_detector_output_is_stable_when_relationship_order_changes():
     ]
 
     assert _find_cycles(edges) == _find_cycles(list(reversed(edges)))
+
+
+def test_cycle_detector_skips_exponential_acyclic_path_space():
+    from rdo.model import Relationship
+    from rdo.tension import _find_cycles
+
+    # A layered DAG has exponentially many simple paths but no cycles.
+    layers = [[f"L{level}-{index}" for index in range(2)] for level in range(19)]
+    edges = [
+        Relationship(src, dst, "depends_on")
+        for previous, current in zip(layers, layers[1:])
+        for src in previous
+        for dst in current
+    ]
+
+    assert _find_cycles(edges) == []
+
+
+def test_cycle_detector_handles_deep_cycle_without_recursion():
+    from rdo.model import Relationship
+    from rdo.tension import _find_cycles
+
+    count = 1050
+    nodes = [f"node-{index:04d}" for index in range(count)]
+    edges = [
+        Relationship(nodes[index], nodes[index + 1], "influences")
+        for index in range(count - 1)
+    ]
+    edges.append(Relationship(nodes[-1], nodes[0], "influences"))
+
+    cycles = _find_cycles(edges)
+
+    assert len(cycles) == 1
+    assert len(cycles[0]) == count + 1
+    assert cycles[0][0] == cycles[0][-1]
+    assert set(cycles[0][:-1]) == set(nodes)
