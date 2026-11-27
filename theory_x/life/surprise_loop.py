@@ -120,7 +120,8 @@ def surprise_tick(
     try:
         _ensure_kv_table(d_writer)
         since, last_id = _last_promoted_cursor(d_reader)
-        if since == 0:
+        first_run = since == 0
+        if first_run:
             # First run — start from 10 min ago, don't import full history.
             since = time.time() - 600
             last_id = 0
@@ -134,6 +135,11 @@ def surprise_tick(
             (since, since, last_id),
         )
         if not rows:
+            # Persist the initial history boundary even when no eligible rows
+            # exist yet; otherwise the rolling cutoff can skip late-populated
+            # events that were created inside the original ten-minute window.
+            if first_run:
+                _set_last_promoted_cursor(d_writer, since, 0)
             return {"promoted": 0}
 
         promoted = 0
