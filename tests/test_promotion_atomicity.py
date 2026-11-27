@@ -163,6 +163,127 @@ class TestCorroborateAtomicity(unittest.TestCase):
         self.assertEqual((row["tier"], row["corroboration_count"]), (6, 0))
         self.assertEqual(erosion.calls, [bid])
 
+    # ------------------------------------------------------------------
+    # Demotion paths must not overwrite a transition that committed after
+    # their decision point (decay_pass batch snapshot; contradiction read).
+    # A hook fires exactly at that point: after the Reader read for a
+    # read-then-write implementation, or just before the Writer transaction
+    # for a transactional one.
+    # ------------------------------------------------------------------
+
+    def _hooked(self, hook):
+        test = self
+
+        class _Reader:
+            def __init__(self, inner):
+                self._inner, self.fired = inner, False
+
+            def _fire(self):
+                if not self.fired:
+                    self.fired = True
+                    hook()
+
+            def read(self, sql, params=()):
+                rows = self._inner.read(sql, params)
+                self._fire()
+                return rows
+
+            def read_one(self, sql, params=()):
+                row = self._inner.read_one(sql, params)
+                self._fire()
+                return row
+
+        class _Writer:
+            def __init__(self, inner, reader):
+                self._inner, self._reader = inner, reader
+
+            def transaction(self, cb):
+                self._reader._fire()
+                return self._inner.transaction(cb)
+
+            def __getattr__(self, name):
+                return getattr(self._inner, name)
+
+        reader = _Reader(test.r)
+        return _Writer(test.w, reader), reader
+
+    def _idle(self, tier):
+        old = int(time.time()) - 10 * 24 * 3600
+        bid = self._belief(tier=tier)
+        self.w.write(
+            "UPDATE beliefs SET created_at = ?, last_referenced_at = ? WHERE id = ?",
+            (old, old, bid),
+        )
+        return bid
+
+    def _demoted_undo(self, bid):
+        rows = self.r.read(
+            "SELECT cause_ref FROM undo_events WHERE kind = 'demoted' AND belief_id = ?",
+            (bid,),
+        )
+        return [row["cause_ref"] for row in rows]
+
+    def test_decay_pass_does_not_clobber_a_promotion_after_its_snapshot(self):
+        """An idle T6 belief promoted to T5 (and re-referenced) after decay's
+        batch read must stay at T5, not be written to stale T6+1 = T7."""
+        from theory_x.stage3_world_model.promotion import BeliefPromoter
+        bid = self._idle(tier=6)
+
+        def promote():
+            self.w.write(
+                "UPDATE beliefs SET tier = 5, corroboration_count = 0, "
+                "last_promoted_at = ?, last_referenced_at = ? WHERE id = ?",
+                (int(time.time()), int(time.time()), bid),
+            )
+
+        writer, reader = self._hooked(promote)
+        demoted = BeliefPromoter(writer, reader).decay_pass()
+        self.assertTrue(reader.fired)
+        self.assertEqual(self._row(bid)["tier"], 5)
+        self.assertEqual(demoted, 0)
+        self.assertEqual(self._demoted_undo(bid), [])
+
+    def test_decay_pass_skips_a_belief_referenced_after_its_snapshot(self):
+        """Same tier, but referenced after the snapshot: no longer idle, so it
+        must not be demoted from the stale eligibility decision."""
+        from theory_x.stage3_world_model.promotion import BeliefPromoter
+        bid = self._idle(tier=5)
+
+        def reference():
+            self.w.write("UPDATE beliefs SET last_referenced_at = ? WHERE id = ?",
+                         (int(time.time()), bid))
+
+        writer, reader = self._hooked(reference)
+        self.assertEqual(BeliefPromoter(writer, reader).decay_pass(), 0)
+        self.assertEqual(self._row(bid)["tier"], 5)
+        self.assertEqual(self._demoted_undo(bid), [])
+
+    def test_decay_pass_still_demotes_genuinely_idle_beliefs(self):
+        from theory_x.stage3_world_model.promotion import BeliefPromoter
+        self.w.write("UPDATE beliefs SET locked = 1")  # isolate from seed rows
+        t5, t6, t7 = self._idle(5), self._idle(6), self._idle(7)
+        self.assertEqual(BeliefPromoter(self.w, self.r).decay_pass(), 2)
+        self.assertEqual((self._row(t5)["tier"], self._row(t6)["tier"],
+                          self._row(t7)["tier"]), (6, 7, 7))
+        self.assertEqual(self._demoted_undo(t5), ["decay_pass:5->6"])
+        self.assertEqual(self._demoted_undo(t6), ["decay_pass:6->7"])
+        self.assertEqual(self._demoted_undo(t7), [])
+
+    def test_decisive_contradiction_applies_to_the_current_tier(self):
+        """A promotion T4->T3 committing at the contradiction's decision point
+        must not be overwritten: demote from T3 (-> T5), not stale T4 (-> T6)."""
+        from theory_x.stage3_world_model.promotion import BeliefPromoter
+        bid = self._belief(tier=4)
+
+        def promote():
+            self.w.write("UPDATE beliefs SET tier = 3 WHERE id = ?", (bid,))
+
+        writer, reader = self._hooked(promote)
+        self.assertTrue(BeliefPromoter(writer, reader).decisive_contradiction(bid))
+        self.assertTrue(reader.fired)
+        self.assertEqual(self._row(bid)["tier"], 5)
+        self.assertEqual(self._demoted_undo(bid), ["decisive_contradiction:3->5"])
+
     def test_missing_and_locked_tier1_are_noops(self):
         from theory_x.stage3_world_model.promotion import BeliefPromoter
         p = BeliefPromoter(self.w, self.r)
