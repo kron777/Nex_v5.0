@@ -150,6 +150,16 @@ Its current objective intake requires 1–200 `seed_obligations` and a `reconcil
 
 Therefore the current RDO is a structured, deterministic expansion/reconciliation/work-package engine after an external human or model supplies the initial obligation/signature interpretation. It is not yet a fully autonomous raw-idea-to-complete-build compiler. That is a capability gap relative to the desired Recursive Extrapolator, not a reason to remove its current boundedness.
 
+### G-92 — RDO objective context is preserved but not enforced in planning (OPEN capability gap)
+
+**Sources:** `rdo_adapters/objective_intake.py:validate_objective()`; `rdo_adapters/objective_intake.py:submit_objective()`; `rdo/OBJECTIVE_INTAKE.md`.
+
+The intake validates and stores `intent`, `owner`, `scope`, `constraints`, `exclusions` and `acceptance_criteria`. However, `submit_objective()` passes the original text, assumptions, supplied seed obligations, relationships, reconciliation signatures and max depth into `run_cycle()`; it does not pass those structured context fields as planning or verification inputs. They remain preserved context, not enforced work-package constraints, anti-requirements or acceptance criteria.
+
+The caller must also supply 1–200 seed obligations and repository-search signatures. The intake adapter does not derive those initial obligations from raw intent. Consequently, the RDO is not yet a complete raw-objective-to-build compiler: a plan can fail to reflect preserved scope/constraints/exclusions, and acceptance criteria are not yet an explicit verification contract.
+
+**Next increment:** translate scope, constraints and exclusions into typed obligations/anti-requirements; carry acceptance criteria into explicit verification records; trace every field to affected work packages; and add adversarial tests proving contradictory or excluded work is blocked. Preserve human/LLM seed provenance. This is a capability gap, not permission to execute or relax the RDO's bounded authority.
+
 The RDO README describes 14 core modules / 3,775 non-comment LOC and a self-check result of “needs review” against its 1,800-LOC heuristic. The README also cautions that its Pareto/priority weights are scaffolding and uncalibrated. Treat work-package rankings as provisional. Its grep-based evidence helpers can also return matches from tests and documentation within their search scope; reconciliation labels these as `signature_matched` and resets `recon_semantic_verified=False`. A signature match is a research lead, not proof that a capability is implemented or safe to reuse.
 
 OFT is implemented in `rdo/tension.py` as a structured node/relationship/system assessment, with verdicts and evidence separated from inference. The v1.4 reconciliation note records that the founder supplied the original v1.4 text in a prior conversation, but the raw 47,172-byte source is not available in the current repository/Library for fresh comparison. The RDO stage documents use v1.3 §16; some pre-existing source docstrings cite v1.4. The v1.4 reconstruction is explicitly non-normative and incomplete. Version precedence remains unresolved; do not silently remap references, claim formal supersession or ask the founder to re-supply the text by default.
