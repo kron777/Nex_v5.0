@@ -84,6 +84,8 @@ def test_relationship_profile_dict_from_persistence_is_supported():
 
     assert result.verdict == TENSION_UNKNOWN
     assert result.dimensions["dimensions"]["latency"]["status"] == "measured"
+    assert "schema" in result.dimensions["unknown_dimensions"]
+    assert "coupling" in result.dimensions["unknown_dimensions"]
 
 
 def test_specific_dependency_defect_precedes_generic_profile_unknown():
