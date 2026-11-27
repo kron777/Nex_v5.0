@@ -62,3 +62,27 @@ def test_no_unit_or_normalization_means_no_comparable_margin():
                    {"unit": "ms", "normalization": None}):
         margin = PerformanceMargin(metric="latency", q=0.8, tau=0.7, **kwargs)
         assert margin.margin is None
+
+
+def test_evidence_is_not_complete_without_comparable_margin_values():
+    margin = PerformanceMargin(
+        metric="quality", q_evidence=["measurement:q-1"],
+        tau_evidence=["requirement:t-1"], q_confidence="measured",
+        tau_confidence="approved", unit="quality", normalization="higher_is_better",
+    )
+    assert margin.margin is None
+    assert not margin.evidence_complete
+
+
+def test_blank_confidence_and_normalization_do_not_complete_margin():
+    margin = PerformanceMargin(
+        metric="quality", q=0.8, tau=0.7, unit="quality", normalization=" ",
+        q_evidence=["measurement:q-1"], tau_evidence=["requirement:t-1"],
+        q_confidence="measured", tau_confidence="approved",
+    )
+    assert margin.margin is None
+    assert not margin.evidence_complete
+    margin.normalization = "higher_is_better"
+    margin.tau_confidence = " "
+    assert margin.margin == pytest.approx(0.1)
+    assert not margin.evidence_complete
