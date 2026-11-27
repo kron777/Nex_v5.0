@@ -497,3 +497,13 @@ The manual update is being replayed on this new mainline as **PR #251** so its v
 - **PR #247** — Warrant event-time plus stable-key cursors: expanded late-addition/rowid-remap regression suite; exact-head CI still pending.
 - **PR #249** — RDO fail-closed registry regression tests: Stage 2 fixture now includes the complete `CycleRecord` field contract; exact-head CI still pending.
 - **PR #239** remains held for explicit founder Gate 0 review, regardless of its earlier green CI.
+
+
+## 25. Post-integration revalidation of Warrant and RDO test branches (27 November 2026)
+
+After #248 merged, the pending #247 and #249 branches were replayed once more so their full-suite results are tested against the actual current mainline, not the pre-#248 base:
+
+- **PR #253 — Warrant event-time plus stable-key cursor, post-#248 replay: OPEN / exact-head CI pending.** It carries the late-addition fix and its rowid/tie/malformed-cursor regression tests onto main `a49e0d0e6e048eeed7d5676611b53cf3ce4d286e`.
+- **PR #254 — RDO experiment-registry fail-closed tests, post-#248 replay: OPEN / exact-head CI pending.** It carries the corrected Stage 2 fixture and registry-boundary tests onto the same mainline.
+
+The older #247 and #249 branches are closed as superseded. Their CI outcomes remain historical only; #253 and #254 are now the authoritative branches for any merge decision. The manual is kept on the current-main base in PR #252.
