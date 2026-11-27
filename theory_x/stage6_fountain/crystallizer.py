@@ -593,11 +593,32 @@ class FountainCrystallizer:
                         (belief_id,),
                     )
                     if not existing:
-                        _speech_queue_id = self._writer.write(
-                            "INSERT INTO speech_queue "
-                            "(belief_id, content, voice, queued_at) VALUES (?, ?, ?, ?)",
-                            (belief_id, thought, cfg.voice, ts),
-                        )
+                        _speech_enqueue_intent_id = None
+                        if trace is not None:
+                            _speech_enqueue_intent_id = trace.record(
+                                "speech_queue", "enqueue_intent",
+                                metadata={"belief_id": belief_id},
+                                parent_ids=[
+                                    trace.reference("fountain_belief_write")
+                                ] if trace.reference("fountain_belief_write") else [],
+                            )
+                            # Register before the INSERT commits: the consumer
+                            # may poll immediately after the row becomes visible.
+                            from influence_trace import register_speech_queue_trace
+                            register_speech_queue_trace(
+                                belief_id, trace, _speech_enqueue_intent_id
+                            )
+                        try:
+                            _speech_queue_id = self._writer.write(
+                                "INSERT INTO speech_queue "
+                                "(belief_id, content, voice, queued_at) VALUES (?, ?, ?, ?)",
+                                (belief_id, thought, cfg.voice, ts),
+                            )
+                        except Exception:
+                            if trace is not None:
+                                from influence_trace import discard_speech_queue_trace
+                                discard_speech_queue_trace(belief_id)
+                            raise
                         if trace is not None:
                             _speech_queue_delta_id = trace.writer_delta(
                                 database="beliefs", table="speech_queue",
@@ -605,6 +626,7 @@ class FountainCrystallizer:
                                 metadata={"belief_id": belief_id, "status": "queued"},
                                 parent_ids=[
                                     rid for rid in (
+                                        _speech_enqueue_intent_id,
                                         trace.reference("fountain_belief_write"),
                                         trace.reference("fountain_crystallization_link"),
                                     ) if rid
