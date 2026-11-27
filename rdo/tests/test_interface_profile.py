@@ -1,5 +1,7 @@
 """Backward-compatible, UNKNOWN-first interface-profile model tests."""
 
+import pytest
+
 from rdo.model import (
     InterfaceEvidence,
     InterfaceTensionProfile,
