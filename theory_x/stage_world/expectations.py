@@ -99,6 +99,7 @@ CONFIRM_POSITIVE = 0.05           # a confirm at band >= 1: small, never paid fo
 LEARN_VIOLATE = 0.03              # R7 s, distributed over the basis rows
 LEARN_CONFIRM = 0.015
 CONF_FLOOR, CONF_CEIL = 0.05, 0.99
+_LEARN_CAS_ATTEMPTS = 3            # compare-and-set tries per learning step
 MOOD_GAIN = 0.1                   # event_valence -> affect valence
 MOOD_CAP = 0.05                   # |nudge| per affect tick, hard cap
 
@@ -598,21 +599,10 @@ def _learn(
     if state == "confirmed" and not e["cost_band"]:
         return 0
 
-    bx = _ro("beliefs")
-    try:
-        rows = []
-        for item in basis:
-            if item.get("source_kind") == "seeded":
-                continue
-            live = bx.execute(
-                "SELECT confidence, locked, source_kind FROM beliefs WHERE id=?",
-                (item["belief_id"],),
-            ).fetchone()
-            if live is None or live[1]:
-                continue
-            rows.append((item["belief_id"], live[0], live[2]))
-    finally:
-        bx.close()
+    ids = [item["belief_id"] for item in basis if item.get("source_kind") != "seeded"]
+    live = _live_basis(ids)
+    rows = [(bid, live[bid][0], live[bid][2]) for bid in ids
+            if bid in live and not live[bid][1]]
     if not rows:
         return 0
 
@@ -620,38 +610,101 @@ def _learn(
     factor = (1.0 - LEARN_VIOLATE * sal / n) if state == "violated" \
         else (1.0 + LEARN_CONFIRM / n)
     from theory_x.stage_world import learning_guards as _lg
-    updates = []
+
+    # One entry per basis row, in basis order: [bid, "skip", before, skind]
+    # for a cap skip, [bid, "apply", before, skind, after] for an update. cap_blocks
+    # writes its hit on cx (the serialized conversations Writer connection),
+    # keeping cap hits and learning-log rows in the adjudication transaction.
+    plan = []
     for bid, before, skind in rows:
         after = max(CONF_FLOOR, min(CONF_CEIL, before * factor))
-        # cap_blocks writes its hit on cx, which is the serialized conversation
-        # Writer connection; keeping it here preserves the cap-hit/learning-log
-        # transaction with the expectation's adjudication.
         if _lg.cap_blocks(cx, e, bid, skind, after - before, now):
+            plan.append([bid, "skip", before, skind])
+        else:
+            plan.append([bid, "apply", before, skind, after])
+
+    # Belief rows are read on a separate read-only connection, so a confidence
+    # change can commit between that read and this write (a learning-guard
+    # subtraction or its revert, an erosion bump). Each update applies only if
+    # the row still holds the value the step was computed from; a row that
+    # moved is re-read and re-decided (same factor, clamps and cap rule) a
+    # bounded number of times, and one that keeps moving is left as it is.
+    # Only transitions that actually applied are logged as applied.
+    pending = [p for p in plan if p[1] == "apply"]
+    if pending:
+        writer, owned = _acquire_writer("beliefs", beliefs_writer)
+        try:
+            for attempt in range(_LEARN_CAS_ATTEMPTS):
+                outcomes = writer.write_many_with_counts([
+                    ("UPDATE beliefs SET confidence=? WHERE id=? AND confidence=? "
+                     "AND COALESCE(locked, 0)=0", (p[4], p[0], p[2]))
+                    for p in pending
+                ])
+                moved = [p for p, (_, count) in zip(pending, outcomes) if count != 1]
+                if not moved:
+                    break
+                fresh = _live_basis([p[0] for p in moved])
+                pending = []
+                for p in moved:
+                    cur = fresh.get(p[0])
+                    if cur is None or cur[1]:
+                        p[1] = "gone"            # deleted or locked meanwhile
+                        continue
+                    p[2], p[3] = cur[0], cur[2]
+                    if attempt + 1 == _LEARN_CAS_ATTEMPTS:
+                        p[1] = "contended"
+                        continue
+                    after = max(CONF_FLOOR, min(CONF_CEIL, p[2] * factor))
+                    if _lg.cap_blocks(cx, e, p[0], p[3], after - p[2], now):
+                        p[1] = "skip"
+                    else:
+                        p[4] = after
+                        pending.append(p)
+                if not pending:
+                    break
+        finally:
+            if owned:
+                writer.close()
+
+    for p in plan:
+        bid, kind, before, skind = p[0], p[1], p[2], p[3]
+        if kind == "skip":
             cx.execute(
                 "INSERT INTO expectation_learning_log (expectation_id, belief_id, ts, "
                 "before, after, basis_kind, source_kind, factor, skipped) "
                 "VALUES (?,?,?,?,?,?,?,NULL,1)",
                 (e["id"], bid, now, before, before, e["basis_kind"], skind),
             )
-            continue
-        updates.append((
-            "UPDATE beliefs SET confidence=? WHERE id=?",
-            (after, bid),
-        ))
-        cx.execute(
-            "INSERT INTO expectation_learning_log (expectation_id, belief_id, ts, "
-            "before, after, basis_kind, source_kind, factor) VALUES (?,?,?,?,?,?,?,?)",
-            (e["id"], bid, now, before, after, e["basis_kind"], skind, factor),
-        )
-
-    if updates:
-        writer, owned = _acquire_writer("beliefs", beliefs_writer)
-        try:
-            writer.write_many(updates)
-        finally:
-            if owned:
-                writer.close()
+        elif kind == "apply":
+            cx.execute(
+                "INSERT INTO expectation_learning_log (expectation_id, belief_id, ts, "
+                "before, after, basis_kind, source_kind, factor) VALUES (?,?,?,?,?,?,?,?)",
+                (e["id"], bid, now, before, p[4], e["basis_kind"], skind, factor),
+            )
+        elif kind == "contended":
+            log.warning("learning step for belief %s not applied: confidence kept "
+                        "changing under it (expectation %s)", bid, e["id"])
     return n
+
+
+
+def _live_basis(ids) -> dict:
+    """belief_id -> (confidence, locked, source_kind) for the rows that exist."""
+    if not ids:
+        return {}
+    bx = _ro("beliefs")
+    try:
+        out = {}
+        for bid in ids:
+            live = bx.execute(
+                "SELECT confidence, locked, source_kind FROM beliefs WHERE id=?",
+                (bid,),
+            ).fetchone()
+            if live is not None:
+                out[bid] = (live[0], live[1], live[2])
+        return out
+    finally:
+        bx.close()
 
 
 def replay(belief_id: int, current: float, exclude, add_back_subtractions: bool,
