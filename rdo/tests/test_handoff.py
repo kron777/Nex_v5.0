@@ -627,3 +627,40 @@ def test_acceptance_verification_rejects_scalar_reference_containers(tmp_path, m
             verification_method="manual review", evidence_references=["review:1"],
             confidence="reviewed", verified_at="2026-11-28T12:00:00Z",
         )
+
+
+def test_rdo_context_review_events_pass_independent_watcher_verification(tmp_path, monkeypatch):
+    repo = _clean_repo(tmp_path / "repo")
+    (repo / ".gitignore").write_text("rdo/.cycles/\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", ".gitignore"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "ignore RDO cycle store"], check=True)
+    workdir = str(repo / "rdo" / ".cycles")
+
+    import rdo.orchestrator as orchestrator
+    monkeypatch.setattr(orchestrator, "_active_experiments", lambda _repo: [])
+    result = submit_objective(_objective(), repo_dir=str(repo), workdir=workdir)
+    package = result["cycle"]["work_packages"][0]
+    manifest = create_handoff(
+        workdir, str(repo), "handoff_fixture", 1, result["cycle"]["id"], package["key"]
+    )
+    record_scope_review(
+        workdir, manifest["handoff_id"], "approved", "reviewer",
+        "review:scope", ["prepare_scoped_patch", "edit_documentation_within_scope"],
+    )
+    criterion = manifest["objective_context_assessment"]["acceptance_verification"][0]
+    record_context_mapping(
+        workdir, manifest["handoff_id"], criterion["criterion_id"],
+        [package["key"]], ["review:criterion-map"], "reviewer", "review:context-map",
+    )
+    record_acceptance_verification(
+        workdir, manifest["handoff_id"], criterion["criterion_id"], "pending",
+        "reviewer", "review:criterion-verification",
+        mapped_obligation_keys=[package["key"]],
+        verification_method="inspect the proposed patch against the criterion",
+    )
+
+    report = verify_with_watcher(workdir, str(repo), manifest["handoff_id"])
+    assert report["exit_status"] == "scope_compliant"
+    assert report["evidence_dimensions"]["test_verified"] == "not_authorized"
+    assert report["evidence_dimensions"]["runtime_observed"] == "unknown_host_only"
+    assert report["human_acceptance"]["status"] == "not_recorded"
