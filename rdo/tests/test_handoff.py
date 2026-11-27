@@ -535,7 +535,7 @@ def test_acceptance_criterion_verification_uses_typed_unknown_first_record(tmp_p
 
     pending = record_acceptance_verification(
         workdir, manifest["handoff_id"], criterion["criterion_id"], "pending",
-        "reviewer", mapped_obligation_keys=["doc_change"],
+        "reviewer", "source:criterion-review", mapped_obligation_keys=["doc_change"],
         verification_method="inspect proposed diff against criterion",
     )
     assert pending["verification_record"]["status"] == "pending"
@@ -543,7 +543,7 @@ def test_acceptance_criterion_verification_uses_typed_unknown_first_record(tmp_p
 
     passed = record_acceptance_verification(
         workdir, manifest["handoff_id"], criterion["criterion_id"], "passed",
-        "reviewer", mapped_obligation_keys=["doc_change"],
+        "reviewer", "source:criterion-review", mapped_obligation_keys=["doc_change"],
         verification_method="inspect proposed diff and compare against criterion",
         evidence_references=["review:acceptance-001"],
         confidence="reviewed", verified_at="2026-11-28T12:00:00Z",
@@ -570,14 +570,14 @@ def test_acceptance_criterion_verification_rejects_missing_evidence_and_bad_time
     with pytest.raises(HandoffError, match="traceable evidence"):
         record_acceptance_verification(
             workdir, manifest["handoff_id"], criterion["criterion_id"], "passed",
-            "reviewer", mapped_obligation_keys=["doc_change"],
+            "reviewer", "source:criterion-review", mapped_obligation_keys=["doc_change"],
             verification_method="manual review", confidence="reviewed",
             verified_at="2026-11-28T12:00:00Z",
         )
     with pytest.raises(HandoffError, match="timezone"):
         record_acceptance_verification(
             workdir, manifest["handoff_id"], criterion["criterion_id"], "passed",
-            "reviewer", mapped_obligation_keys=["doc_change"],
+            "reviewer", "source:criterion-review", mapped_obligation_keys=["doc_change"],
             verification_method="manual review", evidence_references=["review:1"],
             confidence="reviewed", verified_at="2026-11-28T12:00:00",
         )
@@ -595,7 +595,7 @@ def test_acceptance_verification_requires_prior_reviewed_context_mapping(tmp_pat
     with pytest.raises(HandoffError, match="reviewed context mapping"):
         record_acceptance_verification(
             workdir, manifest["handoff_id"], criterion["criterion_id"], "pending",
-            "reviewer", mapped_obligation_keys=["doc_change"],
+            "reviewer", "source:criterion-review", mapped_obligation_keys=["doc_change"],
             verification_method="manual review",
         )
 
@@ -616,14 +616,14 @@ def test_acceptance_verification_rejects_scalar_reference_containers(tmp_path, m
     with pytest.raises(HandoffError, match="evidence_references must be a list"):
         record_acceptance_verification(
             workdir, manifest["handoff_id"], criterion["criterion_id"], "passed",
-            "reviewer", mapped_obligation_keys=["doc_change"],
+            "reviewer", "source:criterion-review", mapped_obligation_keys=["doc_change"],
             verification_method="manual review", evidence_references="not-a-list",
             confidence="reviewed", verified_at="2026-11-28T12:00:00Z",
         )
     with pytest.raises(HandoffError, match="mapped_obligation_keys must be a list"):
         record_acceptance_verification(
             workdir, manifest["handoff_id"], criterion["criterion_id"], "passed",
-            "reviewer", mapped_obligation_keys="doc_change",
+            "reviewer", "source:criterion-review", mapped_obligation_keys="doc_change",
             verification_method="manual review", evidence_references=["review:1"],
             confidence="reviewed", verified_at="2026-11-28T12:00:00Z",
         )
