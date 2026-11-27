@@ -240,7 +240,7 @@ class PatternMemory:
         return list(self._current.values())
 
     def applicable(self, context: str) -> List[Pattern]:
-        ctx = context.lower()
+        ctx = context.strip().lower()
         for pattern in self._current.values():
             if not isinstance(pattern.exact_scope, bool):
                 raise ValueError("pattern exact_scope must be a boolean")
@@ -250,7 +250,7 @@ class PatternMemory:
                 raise ValueError("exact-scope patterns require a non-blank applicability")
         return [p for p in self._current.values()
                 if self._reliable(p)
-                and (ctx == p.applicability.lower() if p.exact_scope is True else
+                and (ctx == p.applicability.strip().lower() if p.exact_scope is True else
                      (not p.applicability
                       or any(w in ctx for w in p.applicability.lower().split())))]
 
