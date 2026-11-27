@@ -360,9 +360,9 @@ def compare_adjacent_relationship_impacts(
         }
 
     changed = sorted({key for key in changed_capabilities
-                      if isinstance(key, str) and key.strip()})
+                      if isinstance(key, str) and key.strip() and key == key.strip()})
     invalid_capabilities = [str(key) for key in changed_capabilities
-                            if not isinstance(key, str) or not key.strip()]
+                            if not isinstance(key, str) or not key.strip() or key != key.strip()]
     if not changed:
         return {
             "status": "partial" if invalid_capabilities else "not_supplied",
@@ -385,7 +385,7 @@ def compare_adjacent_relationship_impacts(
                 invalid += 1
                 continue
             src, dst, kind = record.get("src"), record.get("dst"), record.get("kind")
-            if not all(isinstance(item, str) and item.strip()
+            if not all(isinstance(item, str) and item.strip() and item == item.strip()
                        for item in (src, dst, kind)):
                 invalid += 1
                 continue
@@ -414,7 +414,7 @@ def compare_adjacent_relationship_impacts(
             if record.get("level") != "relationship":
                 continue
             subject = record.get("subject")
-            if not isinstance(subject, str) or not subject.strip():
+            if not isinstance(subject, str) or not subject.strip() or subject != subject.strip():
                 invalid += 1
                 continue
             groups.setdefault(subject, []).append(record)
@@ -464,11 +464,19 @@ def compare_adjacent_relationship_impacts(
             assessment_status = "not_recorded"
             partial = True
         elif before_assessment is None:
-            assessment_status = "newly_assessed" if relationship_status == "added" else "missing_before"
+            assessment_status = (
+                "newly_assessed" if relationship_status == "added" else
+                "orphaned_after" if relationship_status == "removed" else
+                "missing_before"
+            )
             if relationship_status != "added":
                 partial = True
         elif after_assessment is None:
-            assessment_status = "assessment_removed" if relationship_status == "removed" else "missing_after"
+            assessment_status = (
+                "assessment_removed" if relationship_status == "removed" else
+                "orphaned_before" if relationship_status == "added" else
+                "missing_after"
+            )
             if relationship_status != "removed":
                 partial = True
         else:
@@ -478,14 +486,16 @@ def compare_adjacent_relationship_impacts(
                 dimension_keys = set(before_dimensions) | set(after_dimensions)
                 changed_dimensions = sorted(
                     key for key in dimension_keys
-                    if before_dimensions.get(key) != after_dimensions.get(key)
+                    if ((key in before_dimensions) != (key in after_dimensions)
+                        or before_dimensions.get(key) != after_dimensions.get(key))
                 )
             else:
                 changed_dimensions = ["<dimensions>"]
                 partial = True
             changed_assessment_fields = sorted(
                 field for field in ("verdict", "inference", "evidence", "note")
-                if before_assessment.get(field) != after_assessment.get(field)
+                if ((field in before_assessment) != (field in after_assessment)
+                    or before_assessment.get(field) != after_assessment.get(field))
             )
             assessment_changed = bool(changed_dimensions or changed_assessment_fields)
             verdict_changed = before_assessment.get("verdict") != after_assessment.get("verdict")
