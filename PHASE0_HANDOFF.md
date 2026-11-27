@@ -2,7 +2,7 @@
 
 **Date:** 27 November 2026  
 **Repository:** https://github.com/kron777/Nex_v5.0  
-**Evidence snapshot:** `main` at `ae406fa8fcb1abdf25cdf4ae1bd65333e1148ca8`  
+**Evidence snapshot:** `main` at `cc8ae43652bdba919198ee4bb90fabbd8f05632f`  
 **Gate 0:** **PENDING — founder review required**
 
 ## Read these together
@@ -12,6 +12,31 @@
 - `NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-27.md` — verified discrepancies and unresolved evidence gaps.
 - `ADR-001.md` — M0.5 trace mechanism and rollback.
 
+
+## Latest current-main continuation — 27 November 2026
+
+**Evidence snapshot:** `main` at `c80d9dbb878ac15a39d6707a9c89ab2a51f8518c`. The exact-head full baseline passed: **2,590 passed, 7 skipped, 45 subtests** (run `46014884835`).
+
+### Integrated persistence and cursor corrections
+
+- **PR #243 — shared `daemon_kv` schema/migration:** merged. Fresh databases receive the canonical `key/value/updated_at` table; legacy databases gain `updated_at` additively without losing existing checkpoint rows.
+- **PR #248 — WorldPredictionLoop AppState handles:** merged. The gated loop now uses AppState-owned conversations Writer/Reader and beliefs Reader through prediction, calibration, persistence, resolution and scorecard paths. `NEX5_WORLD_PRED` remains OFF; no loop was started.
+- **PR #253 — Warrant use-day cursors:** merged. Lineage and arc membership now page by event time plus declared composite-key tie-breakers, avoiding hidden-rowid remapping and late additions to older arc/child keys. The Warrant gate remains OFF. Query-plan/performance on live table sizes is not yet measured.
+
+### Current open work
+
+- **PR #256 — RDO experiment-registry fail-closed tests:** tests-only current-main replay; exact-head full-suite CI pending. No production eligibility or experiment state changes.
+- **PR #257 — SurpriseLoop loss-safe event delivery:** current-main replay; exact-head CI pending and **Gate 0 HOLD**. The event-ID cursor/retry correction can allow previously skipped events into the belief corpus. The legacy migration replays rows at/after the cutoff but does not recover rows strictly older than the old timestamp cursor. Founder approval is required before merge/deployment.
+- **PR #258 — living manual/backlog/handoff reconciliation:** documentation-only current-main update; exact-head CI pending.
+
+### Defect/evidence status updates
+
+- G-53 (timestamp-only Warrant cursor ties) and G-71 (hidden-rowid cursor stability) are **closed by PR #253**; this does not close Warrant eligibility or use-source questions.
+- G-69 (SurpriseLoop event loss) remains **Gate 0 held** pending explicit founder approval.
+- G-70 speech trace: PR #261 proposes a bounded process-local correlation bridge and parent-linked consumer events; exact-head full-suite run `46018844996` is in progress after the disposable image build. It is draft/unmerged and does not establish acoustic confirmation or live L4 capture.
+- G-73 dormancy coverage/ownership is recorded in the current defect backlog. PR #102/#145 remain older-base work: scanner rotation, eligibility filters, ClockRunner persistence and the duplicate DiversityLoop/ClockRunner ownership question require current-main revalidation and policy review. The PR #102 final Fountain injection query also needs a retired-marker recheck.
+
+The consolidated S-01–S-25 register, roadmap, phase gates and cognitive policy remain untouched. Gate 0 remains pending; Phase 1 is not authorised. No live host activation, database contents, service state, acoustic output or behavioural benefit is claimed.
 
 ## Post-snapshot current-main follow-up (27 November 2026)
 
@@ -57,11 +82,11 @@ The following are source-level findings checked against current main `74cff710`;
 
 - **G-68 — decryption ProbeRunner safety (OPEN):** `decryption/probe_runner.py` defaults to `dry_run=False`, can change NEX mode and insert synthetic beliefs, does not restore the previous mode, and clears its injected-ID cleanup list even if deletion fails. It is not imported by the normal `run.py` boot path inspected and was not invoked. No experiment was run.
 - **G-69 — SurpriseLoop event loss (OPEN / Gate 0 review required):** timestamp-only paging can skip timestamp ties and the old loop can checkpoint beyond failed writes. PR #239 prepares a monotonic event-ID cursor, legacy timestamp migration, retry-safe checkpointing, duplicate-content handling and a canonical `daemon_kv` schema/migration. Exact-head CI is pending. Because this can change which events reach the belief corpus, do not merge or deploy before founder Gate 0 approval.
-- **G-70 — speech trace stops at enqueue (OPEN):** the crystallizer records queue insertion, but the consumer has no dequeue/playback outcome trace hooks or cross-thread queue-link registry. No speech behaviour or trace schema was changed.
-- **G-71 — Warrant hidden-rowid cursor stability (OPEN):** source tables use composite primary keys, while the merged G-53 cursor uses hidden rowids that may change during `VACUUM`. PR #240 prepares stable declared-key cursors and a forced-rowid-renumbering regression test; exact-head CI is pending. No Warrant eligibility or lifecycle policy changes.
+- **G-70 — speech trace continuity (source/test gap CLOSED by PR #261):** merged commit `cc8ae43652bdba919198ee4bb90fabbd8f05632f` adds bounded in-memory correlation and parent-linked consumer events. Exact-head run `46020502376` passed **2,611 passed, 7 skipped, 45 subtests**. No live acoustic/L4 evidence is claimed; complete M0.5 acceptance remains open.
+- **G-71 — Warrant hidden-rowid cursor stability (CLOSED by PR #253):** the versioned cursor uses event time and declared composite primary-key tie-breakers; exact-head run `46014884835` passed (2,590 passed, 7 skipped, 45 subtests). Warrant eligibility and policy remain separate open questions G-74/G-75. No Warrant eligibility or lifecycle policy changes.
 - **G-72 — gated SelfPredictionLoop handle injection (CLOSED):** PR #236 routes commitments writes through canonical handles; PR #238 injects AppState Readers/Writers through self-prediction, owned-belief, commitments and Expectations paths. Exact-head runs #236 `46006462779` and #238 `46008022480` passed (2,573/2,584 passed respectively, 7 skipped and 45 subtests each). The `NEX5_SELF_PRED=1` start gate remains unchanged; no loop was started.
 
-The consolidated S-01–S-25 register, roadmap, phase gates and cognitive policy remain untouched. G-69 remains explicitly held for Gate 0 review; G-68 and G-70 remain design/safety questions; G-71 is a pagination-only proposal awaiting verification.
+The consolidated S-01–S-25 register, roadmap, phase gates and cognitive policy remain untouched. G-69 remains explicitly held for Gate 0 review; G-68 remains an experimental safety question; G-70 source/test continuity is implemented, but M0.5 acceptance remains open for live/paired evidence; G-71 cursor stability is closed by #253, with Warrant eligibility/lifecycle still open as G-74/G-75.
 
 ## Current status
 
@@ -69,7 +94,7 @@ The consolidated S-01–S-25 register, roadmap, phase gates and cognitive policy
 |---|---|
 | M0.1 — repository identity | Remote main SHA recorded; current host checkout identity/cleanliness not collected |
 | M0.1 — host/runtime/database/model measurements | **PARTIAL / UNKNOWN**; no current host collection or live DB hash inventory |
-| M0.2 — test baseline | Current main `74cff710`: 2,584 passed, 7 skipped, 45 subtests, baseline OK (exact-head run `46009001664`) |
+| M0.2 — test baseline | Current main `e78773de`: 2,599 passed, 7 skipped, 45 subtests, baseline OK (exact-head run `46015838864`) |
 | M0.3/M0.4 — crosswalk and spec reconciliation | **PARTIAL**; source boot and Chat/Fountain paths are mapped, not every faculty's complete producer/consumer DAG |
 | Roadmap v3.0 M0.5 — causal trace | **IMPLEMENTED / MERGED**, default OFF, L3 fixture evidence |
 | M0.5 live L4 capture | **UNKNOWN**; no live runtime context enabled |
@@ -99,3 +124,48 @@ The consolidated S-01–S-25 register, roadmap, phase gates and cognitive policy
 ## Do not cross this boundary
 
 This handoff does not authorise enabling dark flags, running ablations, changing prompts/confidence/belief revision, changing Gate policy, starting/restarting services, writing to live substrate DBs, or claiming L4. Preserve the frozen S-01–S-25 specification/register. The separate V2.1 development proposal is not replaced or rewritten by these Phase 0 documents.
+
+
+## Additional current-main Warrant lifecycle questions — 27 November 2026
+
+The refreshed backlog adds two source-level Warrant questions:
+
+- **G-74 — retired-marker eligibility:** WarrantPass's scoring query and WarrantRecorder's survival query do not filter the independent `erosion_stage='retired'` marker. Normal Harmonizer retirement writes Tier 8, and no normal writer for a lower-tier retired marker or live such row was established. Confirm whether the marker must override tier for these Warrant operations before adding filters.
+- **G-75 — recorder versus scorer boot:** normal `run.py` starts WarrantRecorder only behind `NEX5_WARRANT_RECORD=1`. No normal WarrantPass loop construction/start was found in `run.py` or `gui/server.py`; `tools/warrant_validate.py` runs one-shot read-only `compute_all()`. The tracked keepalive sets the recorder flag but not `NEX5_WARRANT`; host-effective state remains UNKNOWN due the known launcher path blocker and uninspected user systemd unit. Record-only operation may be intentional while evidence accrues.
+
+PR #262 merged as `c9e25d7cf85659e80053f5fe75928ee71486a141` and corrects the WarrantPass class docstring's false attribution to `run.py`; it does not construct or start the pass. Neither question authorises changing Warrant scoring, eligibility, flags, or lifecycle. The Warrant cursor fix in PR #253 is pagination-only; the Warrant gate remains OFF.
+
+
+## Post-#256 mainline update — 27 November 2026
+
+**Evidence snapshot:** `main` at `e78773def4549f646257945e5886ec71a7837374`. PR #256 merged the RDO registry regression tests; exact-head full suite passed **2,599 passed, 7 skipped, 45 subtests** (run `46015838864`).
+
+- PR #259 is the current-main SurpriseLoop event-ID/retry correction. Its exact-head full suite run `46017043819` passed **2,610 passed, 7 skipped, 45 subtests**. **Gate 0 hold remains** because event delivery changes which records can enter the belief corpus. The migration does not recover events strictly older than the legacy timestamp cutoff.
+- PR #260 is the current-main manual/backlog/handoff replay on this post-#256 mainline.
+- G-53/G-71 Warrant cursor defects remain closed by PR #253. G-69 remains Gate 0 held. G-73 dormancy ownership/eligibility remains open; PR #102/#145 are older-base proposals and not approved for merge.
+- G-74/G-75 remain Warrant eligibility and boot-lifecycle questions; no Warrant score loop or flag was enabled.
+
+The frozen S-01–S-25 register, roadmap, phase gates and cognitive policy remain untouched. No host activation, live database state, acoustic output or behavioural benefit is claimed.
+
+
+## TimeFetch/VoiceEngine eligibility crosscheck — 27 November 2026
+
+The current G-52 backlog entry now records that `tests/test_throw_net_time_fetch.py` exists and what it covers. The remaining gap extends beyond TimeFetch: `VoiceEngine._retrieve_candidates()` enriches belief candidates with tier/reinforce_count but does not recheck paused, locked or retired state, and `_score_candidate()` applies a tier penalty rather than a hard exclusion. Its minimum score can still be cleared by a strong candidate. `tests/test_voice_engine.py` compares T4 and T8 scores but does not assert exclusion. Treat this as an eligibility-contract question; do not change retrieval/scoring until the governing policy is confirmed.
+
+
+## G-70 implementation continuation — 27 November 2026
+
+PR #261 proposes bounded, default-OFF speech trace continuity across Fountain enqueue and the asynchronous consumer. It registers the correlation before the queue row becomes visible, expires links after one hour, bounds the registry to 512 entries, and emits parent-linked dequeue, synthesis, playback, suppression and failure/status events. Tests cover registry lifecycle and principal success/failure branches. The process-local bridge does not recover across restart; `spoken` is not acoustic confirmation. Previous PR #261 head `15a1f7589bec0a308ddae2eb6a662513bb6b1207` passed exact-head run `46018844996`: **2,606 passed, 7 skipped, 45 subtests**, baseline OK. Latest head `bed052c9d63422f52a9514325f74f113959db2a3` adds concurrent one-shot claims, trace-free speech fallback, speaking/suppressed status-write coverage and stronger terminal assertions; exact-head run `46020502376` is pending. The prior pass is not being represented as verification of the latest changes. The mind-map check on the previous head reported 30 nodes, 0 unverified, 14 dark and 2 blocked, retaining the two missing doctrine references and overdue P13 warning. It exposed a P9 schema line-reference shift caused solely by the eight-line `daemon_kv` insertion; P9's unchanged `held_tensions` definition and relevant source/tests were rechecked and its source anchor updated in this documentation branch. The documentation branch's own exact-head verifier remains pending. PR #261 remains draft/unmerged; no runtime or feature flag was changed.
+
+
+
+## Post-#262 mainline update — 27 November 2026
+
+**Evidence snapshot:** `main` at `c9e25d7cf85659e80053f5fe75928ee71486a141`. PR #262 corrected the WarrantPass class docstring's false attribution to `run.py`; normal boot still wires WarrantRecorder only behind `NEX5_WARRANT_RECORD=1`, and WarrantPass remains unconstructed by the reviewed boot path. Exact-head full-suite run `46020220371` passed **2,599 passed, 7 skipped, 45 subtests**. G-75 remains an intent/lifecycle question; no Warrant flag or scorer was activated.
+
+
+
+## Post-#261 mainline update — 27 November 2026
+
+**Evidence snapshot:** `main` at `cc8ae43652bdba919198ee4bb90fabbd8f05632f`. PR #261 merged the G-70 cross-thread speech trace bridge. Exact-head full-suite run `46020502376` passed **2,611 passed, 7 skipped, 45 subtests**. G-70's source/test gap is closed; M0.5 remains open because no authorised live L4 trace or complete paired semantic-equivalence evidence was produced. Trace overlay remains default OFF; no runtime or speech device was touched.
+
