@@ -67,11 +67,6 @@ The Stage-2 belief-decay example is a genuine end-to-end vertical slice from **s
 | `rdo/tests/test_stage7_execution_watcher.py` | 12 |
 
 **Total:** 18 test modules; 251 test functions at this repository snapshot.
-| `rdo/tests/test_intake.py` | 14 |
-| `rdo/tests/test_handoff.py` | 19 |
-| `rdo/tests/test_performance_margin.py` | 12 |
-| `rdo/tests/test_operating_envelope.py` | 9 |
-| `rdo/tests/test_feedback_loop.py` | 9 |
 
 These are function counts, not parametrised case counts or a claim that every v1.4 acceptance criterion is covered. The Stage-2 report's older count of 20 Stage-2 tests / 56 RDO tests is stale relative to the current source tree.
 
@@ -126,7 +121,7 @@ The case labels below are concise summaries recovered from the v1.4 review conte
 | G | Speculative obligation | Hypothesis classification and `test_genius_feedback_is_hypothesis` | **Partial** — demonstrated for one domain hypothesis, not a general adversarial obligation-quality test |
 | H | Protected experiment | Watcher registry and fail-closed eligibility; active/unknown registry tests | **Covered** |
 | I | Local improvement causes global regression | No multi-objective local/global net-value comparison | **Missing** |
-| J | Neighbouring capability changes | Typed interface profiles and relationship-level envelope evidence exist; adjacent-capability impact re-assessment remains absent | **Missing** |
+| J | Neighbouring capability changes | `run_cycle()` recomputes every node, relationship and system tension assessment on each cycle (`rdo/orchestrator.py`); typed interface profiles and relationship-level envelope evidence are available | **Partial** — no differential before/after impact analysis identifies which neighbouring relationships changed because a capability changed, or explains the resulting system consequences |
 | K | Excessive recursion | max-depth, terminal kinds and frontier reasons; `test_max_depth_bounds_expansion` | **Covered** |
 | L | Negative development outcome | Predicted/actual comparison, disconfirmation and confidence reduction; PR #314 merged an objective-scoped regression-risk candidate into current main | **Partial** — a scoped candidate can be surfaced, but it does not yet mechanically reverse or restrict a recommendation |
 
