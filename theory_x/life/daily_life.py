@@ -103,8 +103,14 @@ def _write_chat(content: str, register: str = "Daily", writer: Writer | None = N
             cv_writer.close()
 
 
-def _state_snapshot(readers: dict) -> dict:
+def _state_snapshot(readers: dict | None = None) -> dict:
     """Read-only snapshot of how she is right now."""
+    readers = readers or {
+        "dynamic": Reader(DYNAMIC_DB),
+        "beliefs": Reader(BELIEFS_DB),
+        "conversations": Reader(CONVERSATIONS_DB),
+        "sense": Reader(SENSE_DB),
+    }
     out = {}
     try:
         row = readers["beliefs"].read_one(
@@ -159,7 +165,9 @@ def _state_snapshot(readers: dict) -> dict:
     return out
 
 
-def _activity_morning(date_local: str, *, readers: dict, writers: dict) -> str:
+def _activity_morning(
+    date_local: str, *, readers: dict | None = None, writers: dict | None = None
+) -> str:
     now = _now_local()
     state = _state_snapshot(readers)
     msg = (
@@ -170,15 +178,18 @@ def _activity_morning(date_local: str, *, readers: dict, writers: dict) -> str:
         f"{state.get('open_problems', '?')} open problems still in front of me. "
     )
     if state.get("latest_problem"):
-        msg += f'latest: "{state["latest_problem"]}"'
-    _write_chat(msg, "Morning", writers["conversations"])
+        msg += f"latest: \"{state['latest_problem']}\""
+    _write_chat(msg, "Morning", writers["conversations"] if writers else None)
     return msg[:200]
 
 
-def _activity_reading(slot: str, date_local: str, *, readers: dict, writers: dict) -> str:
+def _activity_reading(
+    slot: str, date_local: str, *, readers: dict | None = None, writers: dict | None = None
+) -> str:
     """Pick one recent feed item. Surface it for engagement."""
+    sense_reader = readers["sense"] if readers else Reader(SENSE_DB)
     try:
-        row = readers["sense"].read_one(
+        row = sense_reader.read_one(
             "SELECT stream, payload FROM sense_events "
             "WHERE stream NOT LIKE 'internal.%' "
             "  AND timestamp > ? "
@@ -190,55 +201,60 @@ def _activity_reading(slot: str, date_local: str, *, readers: dict, writers: dic
         row = None
     if not row:
         msg = f"reading session {slot}: nothing fresh in the feeds. resting instead."
-        _write_chat(msg, "Reading", writers["conversations"])
+        _write_chat(msg, "Reading", writers["conversations"] if writers else None)
         return msg
-    stream, payload = row[0], row[1]
+    stream, payload = row
     snippet = (payload or "")[:200]
     msg = (
         f"reading session {slot}. picking this from {stream}:\n\n"
         f"  {snippet}\n\n"
         f"sitting with it. what does it actually say? what is it close to that i already hold?"
     )
-    _write_chat(msg, "Reading", writers["conversations"])
+    _write_chat(msg, "Reading", writers["conversations"] if writers else None)
     return f"read from {stream}"
 
 
-def _activity_outreach(slot: str, date_local: str, *, readers: dict, writers: dict) -> str:
-    """Pick one approved moltbook conversation; record intent without sending."""
+def _activity_outreach(
+    slot: str, date_local: str, *, readers: dict | None = None, writers: dict | None = None
+) -> str:
+    """Pick one approved moltbook conv with no messages from her, send opener."""
     try:
         from theory_x.stage7_moltbook.client import MoltbookClient
         client = MoltbookClient()
     except Exception as e:
         msg = f"outreach {slot}: moltbook unreachable ({type(e).__name__}). skipping."
-        _write_chat(msg, "Outreach", writers["conversations"])
+        _write_chat(msg, "Outreach", writers["conversations"] if writers else None)
         return msg
+    dynamic_reader = readers["dynamic"] if readers else Reader(DYNAMIC_DB)
     try:
-        has_table = readers["dynamic"].read_one(
+        has_table = dynamic_reader.read_one(
             "SELECT 1 FROM sqlite_master WHERE type='table' AND name='moltbook_dms'"
         )
-        rows = readers["dynamic"].read(
+        rows = dynamic_reader.read(
             "SELECT conversation_id, with_agent FROM moltbook_dms "
             "WHERE approved=1 LIMIT 8"
         ) if has_table else []
     except Exception as e:
         msg = f"outreach {slot}: db error ({e})"
-        _write_chat(msg, "Outreach", writers["conversations"])
+        _write_chat(msg, "Outreach", writers["conversations"] if writers else None)
         return msg
     if not rows:
         msg = f"outreach {slot}: no approved convs."
-        _write_chat(msg, "Outreach", writers["conversations"])
+        _write_chat(msg, "Outreach", writers["conversations"] if writers else None)
         return msg
-    # Surface the intent — actual send is wired separately; for now we record it.
-    cid, name = rows[0][0], rows[0][1]
+    # surface the intent — actual send wired separately, for now we record it
+    cid, name = rows[0]
     msg = (
         f"outreach {slot}. would reach out to {name} (conv {cid[:8]}) — "
         f"but holding off until i have something real to say."
     )
-    _write_chat(msg, "Outreach", writers["conversations"])
+    _write_chat(msg, "Outreach", writers["conversations"] if writers else None)
     return msg[:200]
 
 
-def _activity_journal(date_local: str, *, readers: dict, writers: dict) -> str:
+def _activity_journal(
+    date_local: str, *, readers: dict | None = None, writers: dict | None = None
+) -> str:
     now = _now_local()
     state = _state_snapshot(readers)
     msg = (
@@ -251,31 +267,35 @@ def _activity_journal(date_local: str, *, readers: dict, writers: dict) -> str:
     if state.get("focus_problem_id"):
         msg += f"focus right now: problem #{state['focus_problem_id']}.\n\n"
     msg += "going quieter now. the night is for less."
-    _write_chat(msg, "Journal", writers["conversations"])
+    _write_chat(msg, "Journal", writers["conversations"] if writers else None)
     return msg[:200]
 
 
-def _activity_source_audit(date_local: str, *, readers: dict, writers: dict) -> str:
+def _activity_source_audit(
+    date_local: str, *, readers: dict | None = None, writers: dict | None = None
+) -> str:
     from theory_x.stage_tom.source_kind_audit import run_and_record
-    return run_and_record(dynamic_writer=writers["dynamic"])
+    return run_and_record(dynamic_writer=writers["dynamic"] if writers else None)
 
 
-def _activity_expectation_canaries(date_local: str, *, readers: dict, writers: dict) -> str:
+def _activity_expectation_canaries(
+    date_local: str, *, readers: dict | None = None, writers: dict | None = None
+) -> str:
     from theory_x.stage_world.expectations import record_canaries
     from theory_x.stage_world import learning_guards
     learning_guards.run()          # G2 action tier + attribution rule (each flag-gated)
-    return record_canaries(conversations_writer=writers["conversations"])
+    return record_canaries(conversations_writer=writers["conversations"] if writers else None)
 
 
 _ACTIVITY_FUNCS = {
-    "morning": lambda day, readers, writers: _activity_morning(day, readers=readers, writers=writers),
-    "reading_1": lambda day, readers, writers: _activity_reading("1", day, readers=readers, writers=writers),
-    "reading_2": lambda day, readers, writers: _activity_reading("2", day, readers=readers, writers=writers),
-    "outreach_1": lambda day, readers, writers: _activity_outreach("1", day, readers=readers, writers=writers),
-    "outreach_2": lambda day, readers, writers: _activity_outreach("2", day, readers=readers, writers=writers),
-    "journal": lambda day, readers, writers: _activity_journal(day, readers=readers, writers=writers),
-    "source_audit": lambda day, readers, writers: _activity_source_audit(day, readers=readers, writers=writers),
-    "expectation_canaries": lambda day, readers, writers: _activity_expectation_canaries(day, readers=readers, writers=writers),
+    "morning": lambda day, readers=None, writers=None: _activity_morning(day, readers=readers, writers=writers),
+    "reading_1": lambda day, readers=None, writers=None: _activity_reading("1", day, readers=readers, writers=writers),
+    "reading_2": lambda day, readers=None, writers=None: _activity_reading("2", day, readers=readers, writers=writers),
+    "outreach_1": lambda day, readers=None, writers=None: _activity_outreach("1", day, readers=readers, writers=writers),
+    "outreach_2": lambda day, readers=None, writers=None: _activity_outreach("2", day, readers=readers, writers=writers),
+    "journal": lambda day, readers=None, writers=None: _activity_journal(day, readers=readers, writers=writers),
+    "source_audit": lambda day, readers=None, writers=None: _activity_source_audit(day, readers=readers, writers=writers),
+    "expectation_canaries": lambda day, readers=None, writers=None: _activity_expectation_canaries(day, readers=readers, writers=writers),
 }
 
 
@@ -311,7 +331,16 @@ def daily_tick(
             if _already_fired(readers["dynamic"], activity, date_local):
                 continue
             try:
-                details = _ACTIVITY_FUNCS[activity](date_local, readers, writers)
+                activity_fn = _ACTIVITY_FUNCS[activity]
+                try:
+                    import inspect
+                    params = inspect.signature(activity_fn).parameters
+                except (TypeError, ValueError):
+                    params = {}
+                if "readers" in params:
+                    details = activity_fn(date_local, readers=readers, writers=writers)
+                else:
+                    details = activity_fn(date_local)
                 _record_fired(d_writer, activity, date_local, details)
                 fired.append(activity)
                 log.info("daily_life: fired %s — %s", activity, details[:80])
