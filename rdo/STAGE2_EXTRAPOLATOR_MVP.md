@@ -1,6 +1,6 @@
 # RDO Stage 2 — Extrapolator MVP (vertical slice)
 
-**Governing step:** RDO v1.3 §16 **Stage 2** (Extrapolator MVP). Kept distinct from
+**Historical implementation label:** RDO v1.3 §16 **Stage 2** (Extrapolator MVP). Under the current RDO v1.4 §29 working order, this is the first complete Extrapolator vertical slice. Kept distinct from
 **Stage 4** (read-only belief audit): existing belief mechanisms are inspected
 **read-only** only to ground reconciliation; nothing here touches the live store.
 
