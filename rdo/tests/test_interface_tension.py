@@ -1,0 +1,105 @@
+"""Relationship-level OFT must not infer sufficiency from absent interface evidence."""
+
+from rdo.model import (
+    InterfaceEvidence,
+    InterfaceTensionProfile,
+    MISSING,
+    NECESSARY,
+    Obligation,
+    Relationship,
+    TENSION_UNKNOWN,
+    UNDERDEVELOPED,
+    OVERDEVELOPED,
+)
+from rdo.tension import assess_relationship
+
+
+def test_relationship_without_interface_profile_is_unknown():
+    rel = Relationship("consumer", "provider", "depends_on")
+
+    result = assess_relationship(rel, {})
+
+    assert result.verdict == TENSION_UNKNOWN
+    assert result.inference is True
+    assert result.dimensions["profile_status"] == "not_supplied"
+    assert result.dimensions["unknown_dimensions"] == ["interface_profile"]
+    assert result.evidence == []
+
+
+def test_unknown_profile_dimensions_remain_unknown():
+    rel = Relationship(
+        "consumer",
+        "provider",
+        "depends_on",
+        interface_profile=InterfaceTensionProfile(),
+    )
+
+    result = assess_relationship(rel, {})
+
+    assert result.verdict == TENSION_UNKNOWN
+    assert result.dimensions["profile_status"] == "supplied"
+    assert "contract" in result.dimensions["unknown_dimensions"]
+    assert "coupling" in result.dimensions["unknown_dimensions"]
+
+
+def test_measured_interface_value_without_threshold_does_not_claim_sufficiency():
+    profile = InterfaceTensionProfile(
+        latency=InterfaceEvidence(
+            status="measured",
+            value=18.4,
+            unit="ms",
+            evidence=["test:latency-p95"],
+            confidence="measured",
+        )
+    )
+    rel = Relationship("consumer", "provider", "depends_on", interface_profile=profile)
+
+    result = assess_relationship(rel, {})
+
+    assert result.verdict == TENSION_UNKNOWN
+    assert result.evidence == ["test:latency-p95"]
+    assert result.dimensions["dimensions"]["latency"]["value"] == 18.4
+    assert "thresholds, margins" in result.note
+
+
+def test_relationship_profile_dict_from_persistence_is_supported():
+    rel = Relationship(
+        "consumer",
+        "provider",
+        "depends_on",
+        interface_profile={
+            "provider": "store",
+            "consumer": "reader",
+            "latency": {
+                "status": "measured",
+                "value": 10,
+                "unit": "ms",
+                "evidence": ["benchmark:1"],
+                "confidence": "measured",
+            },
+        },
+    )
+
+    result = assess_relationship(rel, {})
+
+    assert result.verdict == TENSION_UNKNOWN
+    assert result.dimensions["dimensions"]["latency"]["status"] == "measured"
+
+
+def test_specific_dependency_defect_precedes_generic_profile_unknown():
+    target = Obligation("db", "database", "persistence", classification=NECESSARY,
+                        recon_status=MISSING)
+    rel = Relationship("consumer", "db", "depends_on",
+                       interface_profile=InterfaceTensionProfile())
+
+    result = assess_relationship(rel, {"db": target})
+
+    assert result.verdict == UNDERDEVELOPED
+
+
+def test_unbounded_influence_remains_an_explicit_overdevelopment_finding():
+    rel = Relationship("signal", "consumer", "influences", authority="strong")
+
+    result = assess_relationship(rel, {})
+
+    assert result.verdict == OVERDEVELOPED
