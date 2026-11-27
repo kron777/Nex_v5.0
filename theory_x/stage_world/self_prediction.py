@@ -42,7 +42,7 @@ import os
 import sys
 import time
 import random
-from substrate import connect, Row
+from substrate import connect, Row, Reader, Writer
 import argparse
 import logging
 import urllib.request
@@ -97,38 +97,39 @@ def _connect(db_path: str):
     return conn
 
 
-def ensure_schema(db_path: str) -> None:
-    conn = _connect(db_path)
+
+def _writer_transaction(writer: Writer | None, db_path: str, name: str, callback):
+    """Run work on the canonical Writer, owning a fallback only for standalone callers."""
+    owns_writer = writer is None
+    active_writer = writer or Writer(db_path, name=name)
     try:
+        return active_writer.transaction(callback)
+    finally:
+        if owns_writer:
+            active_writer.close()
+
+
+def ensure_schema(db_path: str, conversations_writer: Writer | None = None) -> None:
+    def _ensure(conn):
+        conn.row_factory = Row
         conn.execute(
             "CREATE TABLE IF NOT EXISTS self_predictions ("
             "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-            "made_at REAL NOT NULL, "
-            "source TEXT NOT NULL, "            # 'self' or 'random'
-            "predicted TEXT NOT NULL, "         # 'fire' or 'nofire'
-            "readiness REAL, "                  # NEX's self-read at predict time
-            "baseline_fires INTEGER NOT NULL, " # total_fires when predicted
-            "resolve_at REAL NOT NULL, "
-            "resolved_at REAL, "
-            "actual TEXT, "                     # 'fire' or 'nofire'
-            "outcome TEXT, "                    # 'correct' or 'wrong'
-            # build B phase 0, frozen at made_at (= frozen_at_made.FROZEN_COLUMNS)
+            "made_at REAL NOT NULL, source TEXT NOT NULL, predicted TEXT NOT NULL, "
+            "readiness REAL, baseline_fires INTEGER NOT NULL, resolve_at REAL NOT NULL, "
+            "resolved_at REAL, actual TEXT, outcome TEXT, "
             "confidence REAL, confidence_basis TEXT, tolerance REAL, tolerance_basis TEXT, "
             "stakes_at_made REAL, stakes_active_at_made INTEGER, groove_cost_at_made REAL, "
-            "basis_snapshot TEXT, cost_band INTEGER, salience_k REAL, "
-            "frozen TEXT)"
+            "basis_snapshot TEXT, cost_band INTEGER, salience_k REAL, frozen TEXT)"
         )
-        # 3(b): generalise to multiple prediction KINDS. Default 'fire' for the
-        # existing rows so the original scorecard is unchanged.
         cols = [r[1] for r in conn.execute("PRAGMA table_info(self_predictions)")]
         if "kind" not in cols:
             conn.execute(
                 "ALTER TABLE self_predictions ADD COLUMN kind TEXT NOT NULL DEFAULT 'fire'"
             )
         ensure_frozen_columns(conn, "self_predictions")
-        conn.commit()
-    finally:
-        conn.close()
+
+    _writer_transaction(conversations_writer, db_path, "self_prediction_schema", _ensure)
 
 
 def _read_status() -> Optional[dict]:
@@ -142,11 +143,16 @@ def _read_status() -> Optional[dict]:
         return None
 
 
-def make_self_prediction(db_path: Optional[str] = None, horizon: int = HORIZON) -> dict:
+def make_self_prediction(
+    db_path: Optional[str] = None,
+    horizon: int = HORIZON,
+    *,
+    conversations_writer: Writer | None = None,
+) -> dict:
     """NEX predicts whether it will fire in the next `horizon` seconds, from its
     own readiness. A coin flip predicts the same. Both recorded."""
     db_path = db_path or _db_path()
-    ensure_schema(db_path)
+    ensure_schema(db_path, conversations_writer)
 
     status = _read_status()
     if status is None:
@@ -175,14 +181,13 @@ def make_self_prediction(db_path: Optional[str] = None, horizon: int = HORIZON) 
     now = time.time()
     resolve_at = now + horizon
     stakes = snapshot_stakes()
-    conn = _connect(db_path)
-    try:
+    def _insert(conn):
         for src, pred in (("self", self_pred), ("random", coin_pred)):
-            # readiness is a self-read against a threshold, not a probability:
-            # the fire arm states no confidence, so none is recorded.
-            frozen = (frozen_values(None, "none_stated", 0.0, "exact_label", stakes, cost_band=_COST_BAND)
-                      if src == "self"
-                      else frozen_values(COIN, "coin", 0.0, "exact_label", stakes, cost_band=_COST_BAND))
+            frozen = (
+                frozen_values(None, "none_stated", 0.0, "exact_label", stakes, cost_band=_COST_BAND)
+                if src == "self"
+                else frozen_values(COIN, "coin", 0.0, "exact_label", stakes, cost_band=_COST_BAND)
+            )
             conn.execute(
                 "INSERT INTO self_predictions "
                 "(made_at, source, kind, predicted, readiness, baseline_fires, resolve_at, "
@@ -190,9 +195,8 @@ def make_self_prediction(db_path: Optional[str] = None, horizon: int = HORIZON) 
                 "VALUES (?, ?, 'fire', ?, ?, ?, ?, " + FROZEN_PLACEHOLDERS + ")",
                 (now, src, pred, readiness, baseline_fires, resolve_at, *frozen),
             )
-        conn.commit()
-    finally:
-        conn.close()
+    _writer_transaction(conversations_writer, db_path, "self_prediction_make", _insert)
+
 
     return {
         "self_pred": self_pred,
@@ -202,59 +206,46 @@ def make_self_prediction(db_path: Optional[str] = None, horizon: int = HORIZON) 
     }
 
 
-def _fired_between(t0: float, t1: float) -> bool:
-    """Did NEX actually produce a thought in (t0, t1]?
-
-    Reads the persistent fountain_events log. A real fire has a non-empty
-    thought; rows with stillness_reason='duplicate_retrieval' have empty
-    thoughts (4,965 of 26,299 cycles) and are NOT speech.
-
-    Restart-proof, unlike the in-memory total_fires counter.
-    """
+def _fired_between(t0: float, t1: float, dynamic_reader: Reader | None = None) -> bool:
+    """Did NEX actually produce a thought in (t0, t1]?"""
     try:
-        conn = connect(f"file:{DYNAMIC_DB}?mode=ro", uri=True, timeout=5.0)
-    except Exception as e:
-        logger.warning("self_pred: fire-log open failed (%s)", e)
-        return None
-    try:
-        row = conn.execute(
+        reader = dynamic_reader or Reader(DYNAMIC_DB)
+        row = reader.read_one(
             "SELECT COUNT(*) FROM fountain_events "
             "WHERE ts > ? AND ts <= ? AND thought IS NOT NULL AND thought != ''",
             (t0, t1),
-        ).fetchone()
+        )
         return (row[0] or 0) > 0
     except Exception as e:
         logger.warning("self_pred: fire-log query failed (%s)", e)
         return None
-    finally:
-        try: conn.close()
-        except Exception: pass
 
 
-def resolve_due(db_path: Optional[str] = None, now: Optional[float] = None) -> int:
-    """Resolve each due prediction against the WINDOW IT NAMED.
-
-    For every prediction, ask the persistent fire log whether a thought was
-    produced between made_at and resolve_at. Each row gets its own window --
-    the old code read one global counter and applied it to all of them.
-    """
+def resolve_due(
+    db_path: Optional[str] = None,
+    now: Optional[float] = None,
+    *,
+    conversations_writer: Writer | None = None,
+    dynamic_reader: Reader | None = None,
+) -> int:
+    """Resolve due predictions against each row's original fire-log window."""
     db_path = db_path or _db_path()
-    ensure_schema(db_path)
+    ensure_schema(db_path, conversations_writer)
     now = now if now is not None else time.time()
 
-    conn = _connect(db_path)
-    resolved = 0
-    try:
+    def _resolve(conn):
+        conn.row_factory = Row
+        resolved = 0
         due = conn.execute(
             "SELECT id, predicted, made_at, resolve_at FROM self_predictions "
             "WHERE resolved_at IS NULL AND resolve_at <= ? "
-            "AND COALESCE(kind,'fire')='fire'",   # fire resolver: fire rows only
+            "AND COALESCE(kind,'fire')='fire'",
             (now,),
         ).fetchall()
         for row in due:
-            fired = _fired_between(row["made_at"], row["resolve_at"])
+            fired = _fired_between(row["made_at"], row["resolve_at"], dynamic_reader)
             if fired is None:
-                continue          # fire log unreadable -- leave pending, retry later
+                continue
             actual = "fire" if fired else "nofire"
             outcome = "correct" if actual == row["predicted"] else "wrong"
             conn.execute(
@@ -262,10 +253,9 @@ def resolve_due(db_path: Optional[str] = None, now: Optional[float] = None) -> i
                 (now, actual, outcome, row["id"]),
             )
             resolved += 1
-        conn.commit()
-    finally:
-        conn.close()
-    return resolved
+        return resolved
+
+    return _writer_transaction(conversations_writer, db_path, "self_prediction_resolve", _resolve)
 
 
 def scorecard(db_path: Optional[str] = None) -> dict:
@@ -311,51 +301,43 @@ def scorecard(db_path: Optional[str] = None) -> dict:
 # crosses the operating point. The predictor's own error now moves its own gate.
 # ─────────────────────────────────────────────────────────────────────────────
 
-def ensure_params_schema(db_path: str) -> None:
-    conn = _connect(db_path)
-    try:
+def ensure_params_schema(
+    db_path: str,
+    conversations_writer: Writer | None = None,
+) -> None:
+    def _ensure(conn):
         conn.execute(
             "CREATE TABLE IF NOT EXISTS self_pred_params ("
             "kind TEXT PRIMARY KEY, threshold REAL NOT NULL, "
             "updated_at REAL NOT NULL, n INTEGER, operating_p REAL)"
         )
-        conn.commit()
-    finally:
-        conn.close()
+    _writer_transaction(conversations_writer, db_path, "self_prediction_params_schema", _ensure)
 
 
-def _current_threshold(db_path: str, kind: str = "fire") -> float:
+def _current_threshold(db_path: str, kind: str = "fire", *, conversations_writer: Writer | None = None, conversations_reader: Reader | None = None) -> float:
     """The learned gate for `kind`, or the static constant until one is calibrated."""
     try:
-        ensure_params_schema(db_path)
-        conn = _connect(db_path)
-        try:
-            r = conn.execute(
-                "SELECT threshold FROM self_pred_params WHERE kind=?", (kind,)
-            ).fetchone()
-            return float(r["threshold"]) if r else FIRE_THRESHOLD
-        finally:
-            conn.close()
+        ensure_params_schema(db_path, conversations_writer)
+        reader = conversations_reader or Reader(db_path)
+        r = reader.read_one("SELECT threshold FROM self_pred_params WHERE kind=?", (kind,))
+        return float(r["threshold"]) if r else FIRE_THRESHOLD
     except Exception:
         return FIRE_THRESHOLD
 
 
 def calibration_curve(db_path: Optional[str] = None, n: int = 500,
-                      bins: int = 10) -> list:
+                      bins: int = 10, *, conversations_reader: Reader | None = None) -> list:
     """Empirical P(fire) by readiness bin over the last n resolved self rows.
     This IS the calibration curve, from data already recorded."""
     db_path = db_path or _db_path()
-    conn = _connect(db_path)
-    try:
-        rows = conn.execute(
-            "SELECT readiness, actual FROM self_predictions "
-            "WHERE source='self' AND COALESCE(kind,'fire')='fire' "
-            "AND readiness IS NOT NULL AND actual IS NOT NULL "
-            "ORDER BY resolved_at DESC LIMIT ?",
-            (n,),
-        ).fetchall()
-    finally:
-        conn.close()
+    reader = conversations_reader or Reader(db_path)
+    rows = reader.read(
+        "SELECT readiness, actual FROM self_predictions "
+        "WHERE source='self' AND COALESCE(kind,'fire')='fire' "
+        "AND readiness IS NOT NULL AND actual IS NOT NULL "
+        "ORDER BY resolved_at DESC LIMIT ?",
+        (n,),
+    )
     buckets: dict[int, list] = {}
     for r in rows:
         k = min(int(float(r["readiness"]) * bins), bins - 1)
@@ -368,7 +350,9 @@ def calibration_curve(db_path: Optional[str] = None, n: int = 500,
 
 
 def adapt_threshold(db_path: Optional[str] = None, kind: str = "fire",
-                    n: int = 500, operating_p: float = 0.5, bins: int = 10) -> Optional[dict]:
+                    n: int = 500, operating_p: float = 0.5, bins: int = 10, *,
+                    conversations_writer: Writer | None = None,
+                    conversations_reader: Reader | None = None) -> Optional[dict]:
     """MONITOR ONLY (Q3). Computes the would-be gate from recent outcomes -- the
     lowest readiness bin whose empirical P(fire) >= operating_p -- and persists it for
     inspection. It does NOT feed make_self_prediction: at P(fire)=0.992 the learned
@@ -377,14 +361,13 @@ def adapt_threshold(db_path: Optional[str] = None, kind: str = "fire",
     predict->observe->error->UPDATE loop is on selfdesc_novel. Kept to log the
     threshold the fire target WOULD learn, and to show it standing still."""
     db_path = db_path or _db_path()
-    curve = calibration_curve(db_path, n=n, bins=bins)
+    curve = calibration_curve(db_path, n=n, bins=bins, conversations_reader=conversations_reader)
     if not curve:
         return None
     thr = next((b["readiness_lo"] for b in curve if b["p_fire"] >= operating_p), 1.0)
     try:
-        ensure_params_schema(db_path)
-        conn = _connect(db_path)
-        try:
+        ensure_params_schema(db_path, conversations_writer)
+        def _persist(conn):
             conn.execute(
                 "INSERT INTO self_pred_params (kind, threshold, updated_at, n, operating_p) "
                 "VALUES (?,?,?,?,?) ON CONFLICT(kind) DO UPDATE SET "
@@ -392,9 +375,7 @@ def adapt_threshold(db_path: Optional[str] = None, kind: str = "fire",
                 "n=excluded.n, operating_p=excluded.operating_p",
                 (kind, thr, time.time(), sum(b["n"] for b in curve), operating_p),
             )
-            conn.commit()
-        finally:
-            conn.close()
+        _writer_transaction(conversations_writer, db_path, "self_prediction_adapt", _persist)
     except Exception as e:
         logger.warning("self_pred adapt_threshold persist failed: %s", e)
     return {"threshold": thr, "operating_p": operating_p,
@@ -599,13 +580,15 @@ def _distinctive_tokens(s: str) -> set:
     return set(re.findall(r"[a-z]{5,}", (s or "").lower()))
 
 
-def _insert_pred(db_path, kind, rows, resolve_at, signal=None, confidence=None):
-    """rows: list of (source, predicted). signal stored in the readiness column.
-    confidence: the 'self' row's stated P(predicted), or None if it states none."""
+def _insert_pred(
+    db_path, kind, rows, resolve_at, signal=None, confidence=None,
+    *, conversations_writer: Writer | None = None,
+):
+    """Insert a prediction batch atomically through the canonical Writer."""
     stakes = snapshot_stakes()
-    conn = _connect(db_path)
     now = time.time()
-    try:
+
+    def _insert(conn):
         for src, pred in rows:
             if src == "random":
                 frozen = frozen_values(COIN, "coin", 0.0, "exact_label", stakes, cost_band=_COST_BAND)
@@ -620,98 +603,100 @@ def _insert_pred(db_path, kind, rows, resolve_at, signal=None, confidence=None):
                 "VALUES (?,?,?,?,?,?,?, " + FROZEN_PLACEHOLDERS + ")",
                 (now, src, kind, pred, signal, 0, resolve_at, *frozen),
             )
-        conn.commit()
-    finally:
-        conn.close()
+
+    _writer_transaction(conversations_writer, db_path, "self_prediction_insert", _insert)
 
 
-def _authored_count(beliefs_db, t0, t1) -> Optional[int]:
+def _authored_count(beliefs_db, t0, t1, *, beliefs_reader: Reader | None = None) -> Optional[int]:
     try:
-        conn = connect(f"file:{beliefs_db}?mode=ro", uri=True, timeout=5.0)
-    except Exception:
-        return None
-    try:
+        reader = beliefs_reader or Reader(beliefs_db)
         ph = ",".join("?" * len(AUTHORED_SOURCES))
-        row = conn.execute(
+        row = reader.read_one(
             f"SELECT COUNT(*) FROM beliefs WHERE created_at > ? AND created_at <= ? "
             f"AND source IN ({ph})",
             (t0, t1, *AUTHORED_SOURCES),
-        ).fetchone()
+        )
         return row[0] or 0
     except Exception:
         return None
-    finally:
-        try: conn.close()
-        except Exception: pass
 
 
 def make_authored_prediction(db_path: Optional[str] = None,
                              beliefs_db: Optional[str] = None,
-                             horizon: int = _AUTHORED_HORIZON) -> dict:
+                             horizon: int = _AUTHORED_HORIZON, *,
+                             conversations_writer: Writer | None = None,
+                             beliefs_reader: Reader | None = None) -> dict:
     """Predict >=1 authored belief in the next `horizon`s from the PRIOR window
     (persistence); coin control."""
-    db_path = db_path or _db_path(); ensure_schema(db_path)
+    db_path = db_path or _db_path(); ensure_schema(db_path, conversations_writer)
     beliefs_db = beliefs_db or _beliefs_db()
     now = time.time()
-    prior = _authored_count(beliefs_db, now - horizon, now)
+    prior = _authored_count(beliefs_db, now - horizon, now, beliefs_reader=beliefs_reader)
     if prior is None:
         return {"error": "beliefs_unreadable"}
     self_pred = "yes" if prior >= 1 else "no"
     coin = random.choice(["yes", "no"])
     _insert_pred(db_path, "authored_30m",
-                 [("self", self_pred), ("random", coin)], now + horizon, signal=prior)
+                 [("self", self_pred), ("random", coin)], now + horizon, signal=prior,
+                 conversations_writer=conversations_writer)
     return {"kind": "authored_30m", "self": self_pred, "coin": coin, "prior_count": prior}
 
 
-def resolve_authored(db_path: Optional[str] = None,
-                     beliefs_db: Optional[str] = None,
-                     now: Optional[float] = None) -> int:
-    db_path = db_path or _db_path(); ensure_schema(db_path)
+def resolve_authored(
+    db_path: Optional[str] = None,
+    beliefs_db: Optional[str] = None,
+    now: Optional[float] = None,
+    *,
+    conversations_writer: Writer | None = None,
+    beliefs_reader: Reader | None = None,
+) -> int:
+    db_path = db_path or _db_path()
+    ensure_schema(db_path, conversations_writer)
     beliefs_db = beliefs_db or _beliefs_db()
     now = now if now is not None else time.time()
-    conn = _connect(db_path); resolved = 0
-    try:
+
+    def _resolve(conn):
+        conn.row_factory = Row
+        resolved = 0
         due = conn.execute(
             "SELECT id, predicted, made_at, resolve_at FROM self_predictions "
             "WHERE kind='authored_30m' AND resolved_at IS NULL AND resolve_at <= ?",
             (now,),
         ).fetchall()
-        for r in due:
-            c = _authored_count(beliefs_db, r["made_at"], r["resolve_at"])
-            if c is None:
+        for row in due:
+            count = _authored_count(
+                beliefs_db, row["made_at"], row["resolve_at"], beliefs_reader=beliefs_reader
+            )
+            if count is None:
                 continue
-            actual = "yes" if c >= 1 else "no"
+            actual = "yes" if count >= 1 else "no"
             conn.execute(
                 "UPDATE self_predictions SET resolved_at=?, actual=?, outcome=? WHERE id=?",
-                (now, actual, "correct" if actual == r["predicted"] else "wrong", r["id"]),
+                (now, actual, "correct" if actual == row["predicted"] else "wrong", row["id"]),
             )
             resolved += 1
-        conn.commit()
-    finally:
-        conn.close()
-    return resolved
+        return resolved
+
+    return _writer_transaction(
+        conversations_writer, db_path, "self_prediction_authored_resolve", _resolve
+    )
 
 
-def _identity_statements(dynamic_db):
-    conn = connect(f"file:{dynamic_db}?mode=ro", uri=True, timeout=5.0)
-    conn.row_factory = Row
-    try:
-        return conn.execute(
-            "SELECT statement, composed_at FROM identity_log ORDER BY composed_at ASC"
-        ).fetchall()
-    finally:
-        try: conn.close()
-        except Exception: pass
+def _identity_statements(dynamic_db, *, dynamic_reader: Reader | None = None):
+    reader = dynamic_reader or Reader(dynamic_db)
+    return reader.read("SELECT statement, composed_at FROM identity_log ORDER BY composed_at ASC")
 
 
 def make_selfdesc_prediction(db_path: Optional[str] = None,
-                             dynamic_db: Optional[str] = None) -> dict:
+                             dynamic_db: Optional[str] = None, *,
+                             conversations_writer: Writer | None = None,
+                             dynamic_reader: Reader | None = None) -> dict:
     """Predict whether the NEXT self-description introduces a new distinctive token,
     from whether the LAST transition did (persistence); coin control."""
-    db_path = db_path or _db_path(); ensure_schema(db_path)
+    db_path = db_path or _db_path(); ensure_schema(db_path, conversations_writer)
     dynamic_db = dynamic_db or DYNAMIC_DB
     try:
-        st = _identity_statements(dynamic_db)
+        st = _identity_statements(dynamic_db, dynamic_reader=dynamic_reader)
     except Exception:
         return {"error": "identity_log_unreadable"}
     if len(st) < 2:
@@ -725,7 +710,7 @@ def make_selfdesc_prediction(db_path: Optional[str] = None,
     # the LABEL by luck but differ on the PROBABILITY, which Brier consumes). Fall back
     # to the pooled marginal when a state's effective N < 30 (two posteriors split one
     # sample). Reduces to symmetric as the rates converge, so strictly more general.
-    cond = selfdesc_conditional(dynamic_db)
+    cond = selfdesc_conditional(dynamic_db, dynamic_reader=dynamic_reader)
     eff = cond["eff_n_differ"] if last_label == "differ" else cond["eff_n_same"]
     p_cond = (cond["p_differ_given_differ"] if last_label == "differ"
               else cond["p_differ_given_same"])
@@ -742,7 +727,7 @@ def make_selfdesc_prediction(db_path: Optional[str] = None,
     self_pred = "differ" if p_differ >= 0.5 else "same"   # argmax
     p = p_differ                                 # emitted probability (for Brier)
     coin = random.choice(["differ", "same"])
-    stat = selfdesc_stationarity(dynamic_db)     # diagnostic only, never branched on
+    stat = selfdesc_stationarity(dynamic_db, dynamic_reader=dynamic_reader)     # diagnostic only, never branched on
     logger.info("self_pred selfdesc branch=%s eff_n=%.1f stationarity=%s",
                 branch, eff, stat)
     # Q8 point 6: if we fell back AND this arm is unreachable AT THE CURRENT SPLIT (its
@@ -761,34 +746,34 @@ def make_selfdesc_prediction(db_path: Optional[str] = None,
                     "achievable_cap=%.1f < min_eff_n=%s (structural pooled fallback, "
                     "recovers if the split rebalances) -- logged once per fact",
                     last_label, _arm.get("achievable_cap", 0.0), _SELFDESC_MIN_EFF_N)
-    # persist the learned parameter for inspection (monitor)
+    # Persist the learned parameter for inspection (monitor), through the shared Writer.
     try:
-        ensure_params_schema(db_path)
-        _c = _connect(db_path)
-        try:
-            _c.execute(
+        ensure_params_schema(db_path, conversations_writer)
+        def _persist_param(conn):
+            conn.execute(
                 "INSERT INTO self_pred_params (kind, threshold, updated_at, n, operating_p) "
                 "VALUES ('selfdesc_novel', ?, ?, ?, 0.5) ON CONFLICT(kind) DO UPDATE SET "
                 "threshold=excluded.threshold, updated_at=excluded.updated_at, n=excluded.n",
                 (p, time.time(), cond.get("n", 0)),
             )
-            _c.commit()
-        finally:
-            _c.close()
+        _writer_transaction(
+            conversations_writer, db_path, "self_prediction_selfdesc_param", _persist_param
+        )
     except Exception:
         pass
     # resolves when the next statement appears; horizon is advisory only.
     _insert_pred(db_path, "selfdesc_novel",
                  [("self", self_pred), ("random", coin)],
                  time.time() + 86400, signal=float(len(cur)),
-                 confidence=p if self_pred == "differ" else 1.0 - p)
+                 confidence=p if self_pred == "differ" else 1.0 - p,
+                 conversations_writer=conversations_writer)
     return {"kind": "selfdesc_novel", "self": self_pred, "coin": coin,
             "last_was_novel": last_was_novel, "p_differ": round(p, 4),
             "branch": branch, "eff_n": round(eff, 1),
             "min_eff_n": _SELFDESC_MIN_EFF_N}
 
 
-def selfdesc_stationarity(dynamic_db: Optional[str] = None) -> dict:
+def selfdesc_stationarity(dynamic_db: Optional[str] = None, *, dynamic_reader: Reader | None = None) -> dict:
     """DIAGNOSTIC ONLY -- never a branch condition (Q8 final). Split the RAW (unweighted)
     transition history in half and compare each conditional rate across halves with its
     per-cell n and a two-proportion z-test. Reported and logged so drift can be WATCHED
@@ -801,7 +786,7 @@ def selfdesc_stationarity(dynamic_db: Optional[str] = None) -> dict:
     import math
     dynamic_db = dynamic_db or DYNAMIC_DB
     try:
-        st = _identity_statements(dynamic_db)
+        st = _identity_statements(dynamic_db, dynamic_reader=dynamic_reader)
     except Exception:
         return {"reason": "unreadable", "raw_unweighted": True}
     toks = [_distinctive_tokens(s["statement"]) for s in st]
@@ -859,14 +844,14 @@ def selfdesc_stationarity(dynamic_db: Optional[str] = None) -> dict:
     }
 
 
-def selfdesc_conditional(dynamic_db: Optional[str] = None, decay: float = _SELFDESC_DECAY) -> dict:
+def selfdesc_conditional(dynamic_db: Optional[str] = None, decay: float = _SELFDESC_DECAY, *, dynamic_reader: Reader | None = None) -> dict:
     """Recency-decayed P(next differ | prev transition label), estimated separately for
     prev=differ and prev=same, plus the pooled marginal P(next differ). This is the
     conditional model rule C' validated (Q6); the pooled marginal is the fallback when
     a state's effective N is too small to trust its own rate."""
     dynamic_db = dynamic_db or DYNAMIC_DB
     try:
-        st = _identity_statements(dynamic_db)
+        st = _identity_statements(dynamic_db, dynamic_reader=dynamic_reader)
     except Exception:
         st = []
     toks = [_distinctive_tokens(s["statement"]) for s in st]
@@ -915,41 +900,49 @@ def selfdesc_persistence(dynamic_db: Optional[str] = None, decay: float = _SELFD
     return {"persistence": a / (a + b), "alpha": a, "beta": b, "n": len(persist_obs)}
 
 
-def resolve_selfdesc(db_path: Optional[str] = None,
-                     dynamic_db: Optional[str] = None) -> int:
-    """Resolve once a self-description appears AFTER made_at: 'differ' if it carries a
-    distinctive token the one current at made_at lacked. Not gated on resolve_at."""
-    db_path = db_path or _db_path(); ensure_schema(db_path)
+def resolve_selfdesc(
+    db_path: Optional[str] = None,
+    dynamic_db: Optional[str] = None,
+    *,
+    conversations_writer: Writer | None = None,
+    dynamic_reader: Reader | None = None,
+) -> int:
+    """Resolve once a self-description appears after made_at, through shared handles."""
+    db_path = db_path or _db_path()
+    ensure_schema(db_path, conversations_writer)
     dynamic_db = dynamic_db or DYNAMIC_DB
     try:
-        st = _identity_statements(dynamic_db)
+        statements = _identity_statements(dynamic_db, dynamic_reader=dynamic_reader)
     except Exception:
         return 0
-    conn = _connect(db_path); resolved = 0
-    try:
+
+    def _resolve(conn):
+        conn.row_factory = Row
+        resolved = 0
         due = conn.execute(
             "SELECT id, predicted, made_at FROM self_predictions "
             "WHERE kind='selfdesc_novel' AND resolved_at IS NULL"
         ).fetchall()
         now = time.time()
-        for r in due:
-            made = r["made_at"]
-            current = [s for s in st if s["composed_at"] <= made]
-            nxt = [s for s in st if s["composed_at"] > made]
+        for row in due:
+            made = row["made_at"]
+            current = [item for item in statements if item["composed_at"] <= made]
+            nxt = [item for item in statements if item["composed_at"] > made]
             if not current or not nxt:
-                continue  # can't resolve yet
+                continue
             cur_tok = _distinctive_tokens(current[-1]["statement"])
             nxt_tok = _distinctive_tokens(nxt[0]["statement"])
             actual = "differ" if (nxt_tok - cur_tok) else "same"
             conn.execute(
                 "UPDATE self_predictions SET resolved_at=?, actual=?, outcome=? WHERE id=?",
-                (now, actual, "correct" if actual == r["predicted"] else "wrong", r["id"]),
+                (now, actual, "correct" if actual == row["predicted"] else "wrong", row["id"]),
             )
             resolved += 1
-        conn.commit()
-    finally:
-        conn.close()
-    return resolved
+        return resolved
+
+    return _writer_transaction(
+        conversations_writer, db_path, "self_prediction_selfdesc_resolve", _resolve
+    )
 
 
 def _wilson(k: int, n: int, z: float = 1.96):
@@ -1045,18 +1038,36 @@ def scorecard_by_kind(db_path: Optional[str] = None) -> dict:
 
 # Optional: standalone daemon loop, mirrors WorldPredictionLoop idiom.
 class SelfPredictionLoop:
-    def __init__(self, interval: int = 900, horizon: int = HORIZON,
-                 operating_p: float = 0.5):
+    def __init__(
+        self,
+        interval: int = 900,
+        horizon: int = HORIZON,
+        operating_p: float = 0.5,
+        *,
+        conversations_writer: Writer | None = None,
+        beliefs_writer: Writer | None = None,
+        conversations_reader: Reader | None = None,
+        dynamic_reader: Reader | None = None,
+        beliefs_reader: Reader | None = None,
+    ):
         self.interval = interval
         self.horizon = horizon
         # operating point for the learned gate (3c). 0.5 = balanced; lower favours
         # recall on the rare 'nofire', higher favours precision.
         self.operating_p = float(os.environ.get("NEX5_SELFPRED_OPERATING_P", operating_p))
         self._alive = False
+        self._conversations_writer = conversations_writer
+        self._beliefs_writer = beliefs_writer
+        self._conversations_reader = conversations_reader
+        self._dynamic_reader = dynamic_reader
+        self._beliefs_reader = beliefs_reader
 
     def tick(self):
         try:
-            r = resolve_due()
+            r = resolve_due(
+                conversations_writer=self._conversations_writer,
+                dynamic_reader=self._dynamic_reader,
+            )
             if r:
                 logger.info("self_pred resolved=%d", r)
         except Exception as e:
@@ -1064,14 +1075,21 @@ class SelfPredictionLoop:
         # fire gate MONITOR (Q3): log the threshold the fire target would learn, to
         # show it standing still at P(fire)=0.992. Does NOT set the live gate.
         try:
-            upd = adapt_threshold(operating_p=self.operating_p)
+            upd = adapt_threshold(
+                operating_p=self.operating_p,
+                conversations_writer=self._conversations_writer,
+                conversations_reader=self._conversations_reader,
+            )
             if upd:
                 logger.info("self_pred fire-gate MONITOR -> %.2f (op=%.2f, n=%d; not wired)",
                             upd["threshold"], upd["operating_p"], upd["n"])
         except Exception as e:
             logger.warning("self_pred monitor error: %s", e)
         try:
-            out = make_self_prediction(horizon=self.horizon)
+            out = make_self_prediction(
+                horizon=self.horizon,
+                conversations_writer=self._conversations_writer,
+            )
             if "error" not in out:
                 logger.info(
                     "self_pred self=%s random=%s readiness=%.2f",
@@ -1080,21 +1098,41 @@ class SelfPredictionLoop:
         except Exception as e:
             logger.warning("self_pred make error: %s", e)
         # 3(b): the two variance-bearing targets (resolve due, then make fresh).
-        for _resolve, _make, _name in (
-            (resolve_authored, make_authored_prediction, "authored_30m"),
-            (resolve_selfdesc, make_selfdesc_prediction, "selfdesc_novel"),
-        ):
-            try:
-                _resolve()
-                _make()
-            except Exception as e:
-                logger.warning("self_pred %s error: %s", _name, e)
+        try:
+            resolve_authored(
+                conversations_writer=self._conversations_writer,
+                beliefs_reader=self._beliefs_reader,
+            )
+            make_authored_prediction(
+                conversations_writer=self._conversations_writer,
+                beliefs_reader=self._beliefs_reader,
+            )
+        except Exception as e:
+            logger.warning("self_pred authored_30m error: %s", e)
+        try:
+            resolve_selfdesc(
+                conversations_writer=self._conversations_writer,
+                dynamic_reader=self._dynamic_reader,
+            )
+            make_selfdesc_prediction(
+                conversations_writer=self._conversations_writer,
+                dynamic_reader=self._dynamic_reader,
+            )
+        except Exception as e:
+            logger.warning("self_pred selfdesc_novel error: %s", e)
         # Build B: owned-belief expectations (dark; NEX5_OWNED_BELIEF=1), at most
         # one per NEX5_OWNED_BELIEF_EVERY_S. Writes only its own table.
         try:
             from theory_x.stage_world import owned_belief as _ob
-            if _ob.enabled() and _ob.due():
-                _ob.make_owned_belief_expectation()
+            if _ob.enabled() and _ob.due(
+                conversations_writer=self._conversations_writer,
+                conversations_reader=self._conversations_reader,
+            ):
+                _ob.make_owned_belief_expectation(
+                    conversations_writer=self._conversations_writer,
+                    conversations_reader=self._conversations_reader,
+                    beliefs_reader=self._beliefs_reader,
+                )
         except Exception as e:
             logger.warning("self_pred owned_belief error: %s", e)
         # Commitments (dark; NEX5_COMMITMENTS): read her new utterances for stated
@@ -1102,7 +1140,10 @@ class SelfPredictionLoop:
         try:
             from theory_x.stage_world import commitments as _cm
             if _cm.enabled():
-                _cm.scan()
+                _cm.scan(
+                    conversations_writer=self._conversations_writer,
+                    dynamic_reader=self._dynamic_reader,
+                )
         except Exception as e:
             logger.warning("self_pred commitments error: %s", e)
         # Build B: the single reconciler (NEX5_RECONCILER). Writes only the
@@ -1110,7 +1151,10 @@ class SelfPredictionLoop:
         try:
             from theory_x.stage_world import expectations as _ex
             if _ex.reconciler_on():
-                _ex.reconcile()
+                _ex.reconcile(
+                    conversations_writer=self._conversations_writer,
+                    beliefs_writer=self._beliefs_writer,
+                )
         except Exception as e:
             logger.warning("self_pred reconciler error: %s", e)
 
