@@ -849,3 +849,8 @@ The RDO capability boundary and version-precedence questions are recorded in the
 ### Validation and limits
 
 The latest mind-map CI check reports 30 nodes, 0 unverified, 14 dark, 2 blocked, no stale-source warnings, two missing doctrine references and the overdue P13 marker. PR #279 closes only the auxiliary prose-statistics direct-write path; SignalToProblem's primary cross-database signal/problem transaction remains open under G-85/G-61. No runtime, host service, live database or external API was inspected. No cognitive policy, feature flag, MIND_MAP node, frozen S-01–S-25 register, Master Roadmap or Gate 0 decision changed. Gate 0 remains pending; Phase 1 remains unauthorized.
+
+
+### G-91 — RDO objective context is stored but not yet enforced
+
+The intake preserves intent, scope, constraints, exclusions and acceptance criteria, but the current cycle runner receives only the original text, assumptions, caller-supplied seed obligations/relationships/signatures and expansion depth. Those other fields are not translated into plan obligations or checked against proposed work packages. RDO remains advisory; this is a capability gap, not an execution incident. See the Phase 0 research report and verified backlog.
