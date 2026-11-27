@@ -381,9 +381,9 @@ def reconcile(
         "conversations", conversations_writer
     )
     own_beliefs = False
-    if beliefs_writer is None and learning_on():
-        beliefs_writer, own_beliefs = _acquire_writer("beliefs", None)
     try:
+        if beliefs_writer is None and learning_on():
+            beliefs_writer, own_beliefs = _acquire_writer("beliefs", None)
         ingested = ingest(now, conversations_writer=conversation_writer)
 
         def _reconcile_transaction(cx):
