@@ -115,6 +115,15 @@ class PatternMemory:
                 p.confirmations = self._clean_events(p.confirmations, "confirmation")
                 p.disconfirmations = self._clean_events(p.disconfirmations, "disconfirmation")
                 self._recompute(p)
+                previous = self._current.get(p.key)
+                if previous is not None:
+                    if previous.exact_scope != p.exact_scope:
+                        raise ValueError("persisted pattern key collision has conflicting scope modes")
+                    if p.exact_scope:
+                        old_scope = " ".join(previous.applicability.split()).lower()
+                        new_scope = " ".join(p.applicability.split()).lower()
+                        if old_scope != new_scope:
+                            raise ValueError("persisted pattern key collision has conflicting exact scopes")
                 self._current[p.key] = p
 
     @staticmethod
