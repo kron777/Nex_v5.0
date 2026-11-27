@@ -50,9 +50,11 @@ A `runtime_observed` edge must also carry `runtime_origin="host"` and a nonblank
 `RUNTIME_OBSERVED` and `REGRESSED` transitions. It additionally rejects
 `RUNTIME_OBSERVED` unless its origin is `host`. Graph seeding passes the edge's
 explicit runtime reference through; it never manufactures a host-origin observation.
-Evidence-reference lists are snapshotted on append. The ledger validates the presence
-of references, not that the referenced traces or source/test artifacts have been
-independently opened or authenticated. This repository snapshot contains no
+Evidence-reference lists are snapshotted on append, and `record()`,
+`history()` and `entries` return detached views so caller mutation cannot rewrite
+in-memory history. The ledger validates the presence of references, not that the
+referenced traces or source/test artifacts have been independently opened or
+authenticated. This repository snapshot contains no
 current host collection; `runtime_observed` therefore remains unknown until a
 separately authorised host observation supplies evidence.
 
