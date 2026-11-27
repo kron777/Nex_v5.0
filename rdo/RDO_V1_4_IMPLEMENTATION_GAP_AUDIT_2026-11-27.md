@@ -4,7 +4,7 @@
 **Working specification:** RDO v1.4 — Optimal Functional Tension  
 **Specification provenance:** Founder-supplied 20 November 2026 text; 47,172 bytes; SHA-256 recorded in the 24 November conversation as `382d634d03bc15701d9de4dcbc2629b966ffd8370c370f0307a57a853f4db926`.  
 **Working-status note:** On 24 November the founder indicated they believed v1.4 had been approved. Treat v1.4 as the current working specification. Preserve v1.3 as historical implementation lineage; do not claim the consolidated NEX S-register contains a formal frozen supersession record.  
-**Repository evidence snapshot:** `main` at `9a6be2625720fe090d7cfc51713d14d563d2b69f` (including PRs #310, #314, #316, #321 and #323).
+**Repository evidence snapshot:** `main` at `09d98c554678b4675de7d1183c39d1213ccfd9ec` (including PRs #310, #314, #316, #321, #323, #324 and #328).
 
 This is an implementation audit against the recovered v1.4 requirements, not a replacement specification. The raw v1.4 attachment is not mounted in the current repository/Library workspace, so exact clause wording and un-recovered thresholds remain UNKNOWN. The recovered requirements below are sufficient to identify implementation gaps without pretending to reproduce every source clause.
 
@@ -60,13 +60,13 @@ The Stage-2 belief-decay example is a genuine end-to-end vertical slice from **s
 | `rdo/tests/test_reconcile_path_boundary.py` | 2 |
 | `rdo/tests/test_stage2_extrapolator_mvp.py` | 24 |
 | `rdo/tests/test_rdo.py` | 62 |
-| `rdo/tests/test_stage3_graph_intelligence.py` | 14 |
+| `rdo/tests/test_stage3_graph_intelligence.py` | 21 |
 | `rdo/tests/test_stage4_belief_audit.py` | 11 |
 | `rdo/tests/test_stage5_pathway.py` | 6 |
-| `rdo/tests/test_stage6_learning_loop.py` | 18 |
+| `rdo/tests/test_stage6_learning_loop.py` | 23 |
 | `rdo/tests/test_stage7_execution_watcher.py` | 12 |
 
-**Total:** 18 test modules; 251 test functions at this repository snapshot.
+**Total:** 18 test modules; 263 test functions at this repository snapshot.
 
 These are function counts, not parametrised case counts or a claim that every v1.4 acceptance criterion is covered. The Stage-2 report's older count of 20 Stage-2 tests / 56 RDO tests is stale relative to the current source tree.
 
@@ -91,7 +91,7 @@ Current source comparison:
 | Node-level tension | `assess_node` primarily interprets classification and repository reconciliation state | Partial |
 | Relationship-level tension | Explicit unbounded-influence and unresolved-dependency findings remain; otherwise absent or uncalibrated interface evidence now yields UNKNOWN rather than inferred SUFFICIENT | Partial; fail-closed assessment improved |
 | System-level tension | `assess_system` detects cycles, in-degree concentration (threshold 3), and necessary-obligation readiness | Partial |
-| Interface Tension Profile | Typed UNKNOWN-first profile is attached optionally to `Relationship`; relationship assessment exposes dimension evidence and keeps absent/uncalibrated evidence UNKNOWN | Evidence capture and summary implemented; calibrated assessment incomplete |
+| Interface Tension Profile | Typed UNKNOWN-first profile is attached optionally to `Relationship`; relationship assessment exposes validated dimension evidence and keeps absent/uncalibrated evidence UNKNOWN. PR #316 makes malformed serializers fail closed; PR #321 validates evidence status values | Evidence capture and summary implemented; calibrated assessment incomplete |
 | Provider/consumer, purpose/direction, contract/schema | Typed profile fields exist and default to UNKNOWN | Foundation implemented |
 | Provenance/quality, timing/latency/frequency/freshness | Evidence containers exist for provenance, data quality, timing, latency, frequency and freshness | Foundation implemented; no source measurements |
 | Influence magnitude/boundaries, authority and coupling | Magnitude, authority-boundary and coupling evidence dimensions are represented | Foundation implemented; no calibrated bounds |
@@ -99,8 +99,8 @@ Current source comparison:
 | Capacity/headroom and operating envelopes | Capacity/headroom evidence fields exist; `OperatingEnvelopeAssessment` represents NORMAL/BUSY/DEGRADED/STRESS/RECOVERY with separate declared/assessed states, load/capacity/headroom, transition/recovery evidence. PR #306 requires traceable assessment evidence, confidence and provenance for an assessed state. PR #310 is merged: relationship-level assessment exposes operating-envelope evidence, including explicit-defect paths; no classification or headroom calculation | Partial |
 | Feedback sufficiency/stability | `FeedbackLoopAssessment` is merged with gain, delay, damping, oscillation, overshoot, recovery and observation-window evidence. PR #303 also merged UNKNOWN-first feedback records into `assess_system` cycle detection; PR #304 requires traceable assessment evidence, confidence and provenance for non-UNKNOWN verdicts. No stability calculation or hysteresis assessment | Partial |
 | Duplication | Semantic duplicate candidates are surfaced by graph analysis; profile now carries a duplication evidence dimension | Partial-to-good; no measured duplication cost |
-| Failure propagation | A failure-propagation evidence dimension is represented; propagation analysis is not implemented | Partial |
-| Performance margins q/tau/m | `PerformanceMargin` represents q, tau, unit, normalization, evidence and confidence; computes exact m=q-tau only for finite comparable values; exact zero remains a boundary, not a pass. PR #305 requires valid margin arithmetic, traceable q/tau evidence and nonblank confidence before `evidence_complete` is true; PR #323 additionally validates margin identity and comparable envelope constraints, and rejects numeric overflow | Evidence model implemented; calibrated threshold selection and sufficiency verdicts missing |
+| Failure propagation | Merged PR #328 adds `failure_propagation_candidates()` over explicit `depends_on` paths, deterministic shortest paths, cycle detection, relationship provenance and UNKNOWN/partial input handling | **Partial** — structural candidates only; no runtime propagation, probability, severity, fallback/recovery assessment or causal claim |
+| Performance margins q/tau/m | `PerformanceMargin` represents q, tau, unit, normalization, evidence and confidence; computes exact m=q-tau only for finite comparable values; exact zero remains a boundary, not a pass. PR #305 validates arithmetic/evidence and PR #323 validates identity, envelope comparability and overflow. PR #325 adds per-relationship margin evidence and only promotes complete q/tau reference pairs (pending exact-head CI) | **Partial** — evidence is attached to relationships; no calibrated threshold selection, margin aggregation or sufficiency verdict |
 | NetValue and Pareto trade-off | Prioritisation uses separate dimensions plus an explicitly uncalibrated weighted sort score; no feasible Pareto comparison or net-value calculation | Missing |
 | Marginal-value stopping | Depth/terminal/reuse stopping exists; no marginal-value threshold or hysteresis | Partial |
 
@@ -121,7 +121,7 @@ The case labels below are concise summaries recovered from the v1.4 review conte
 | G | Speculative obligation | Hypothesis classification and `test_genius_feedback_is_hypothesis` | **Partial** — demonstrated for one domain hypothesis, not a general adversarial obligation-quality test |
 | H | Protected experiment | Watcher registry and fail-closed eligibility; active/unknown registry tests | **Covered** |
 | I | Local improvement causes global regression | No multi-objective local/global net-value comparison | **Missing** |
-| J | Neighbouring capability changes | `run_cycle()` recomputes every node, relationship and system tension assessment on each cycle (`rdo/orchestrator.py`); typed interface profiles and relationship-level envelope evidence are available | **Partial** — no differential before/after impact analysis identifies which neighbouring relationships changed because a capability changed, or explains the resulting system consequences |
+| J | Neighbouring capability changes | `run_cycle()` recomputes node, relationship and system tension; PR #329 adds a persisted-cycle before/after comparison for incident relationships, assessment dimensions/verdicts, missing/ambiguous evidence and endpoint integrity (pending exact-head CI) | **Partial** — differential structural/evidence changes can be surfaced; no causal attribution, net-value/harm calculation or automatic mutation |
 | K | Excessive recursion | max-depth, terminal kinds and frontier reasons; `test_max_depth_bounds_expansion` | **Covered** |
 | L | Negative development outcome | Predicted/actual comparison, disconfirmation and confidence reduction; PR #314 merged an objective-scoped regression-risk candidate into current main | **Partial** — a scoped candidate can be surfaced, but it does not yet mechanically reverse or restrict a recommendation |
 
@@ -137,11 +137,11 @@ PR #287 merged objective-context propagation into `run_cycle()`, cycle persisten
 
 
 
-**Evidence-integrity update (27 November 2026):** PR #298 makes malformed persisted interface-profile shapes explicitly diagnosable. PRs #304–#306 strengthen evidence completeness for feedback verdicts, performance margins and assessed operating envelopes. These changes enforce traceability and UNKNOWN handling; they do not supply missing v1.4 thresholds or implement stability/headroom calculations. PR #310 merged the relationship-level operating-envelope evidence connection. PR #314 merged objective-scoped regression-risk learning: traceable regression evidence produces a low-confidence, exact-objective candidate that is surfaced in later matching cycles. It does not automatically reverse or restrict recommendations. PR #316 made malformed interface-profile serializers fail closed. Merged PR #321 validates interface evidence status values. Merged PR #323 strengthens performance-margin identity, envelope and overflow validation. PR #324 is a pending hardening proposal for exact-scope pattern collision and mutation integrity.
+**Evidence-integrity update (27 November 2026):** PR #298 makes malformed persisted interface-profile shapes explicitly diagnosable. PRs #304–#306 strengthen evidence completeness for feedback verdicts, performance margins and assessed operating envelopes. These changes enforce traceability and UNKNOWN handling; they do not supply missing v1.4 thresholds or implement stability/headroom calculations. PR #310 merged the relationship-level operating-envelope evidence connection. PR #314 merged objective-scoped regression-risk learning: traceable regression evidence produces a low-confidence, exact-objective candidate that is surfaced in later matching cycles. It does not automatically reverse or restrict recommendations. PR #316 made malformed interface-profile serializers fail closed. Merged PR #321 validates interface evidence status values. Merged PR #323 strengthens performance-margin identity, envelope and overflow validation. Merged PR #324 hardens exact-scope pattern collision, persistence and mutation integrity. PR #328 adds structural failure-propagation candidates. PR #329 adds differential neighbouring-impact analysis and is pending exact-head CI.
 
 ## 6. Next implementation slice
 
-**Target:** Evidence-backed feedback-loop stability, failure propagation, adjacent-capability impact and remaining system-level OFT gaps.
+**Target:** Evidence-backed feedback-loop stability and calibrated system-level OFT assessment, building on merged structural failure candidates and pending relationship-level margin/differential-impact integration.
 
 Completed foundation:
 1. Added a typed, serialisable UNKNOWN-first interface profile to `Relationship`, preserving legacy positional construction.
@@ -152,12 +152,13 @@ Completed foundation:
 
 Next bounded sequence:
 1. Complete measured feedback-loop stability only when calibrated criteria, observation windows and evidence are grounded; preserve loop members and relationships, and never equate graph topology with instability or remove cycles automatically.
-2. Add evidence-backed failure-propagation assessment and differential adjacent-capability impact analysis: compare the existing full-cycle relationship reassessments, identify affected neighbours after a capability change, and explain before/after differences. Keep UNKNOWN where propagation evidence or calibrated bounds are absent.
-3. Add the insufficient-headroom and unstable-feedback adversarial cases with explicit evidence validation and UNKNOWN-first assertions.
-4. Add the neighbouring-capability-change adversarial case, proving that a changed capability produces a traceable before/after impact report for affected relationships without automatically mutating unrelated components.
-5. Investigate local-improvement/global-regression with actual objective/evidence data before proposing any net-value weights or Pareto rules.
-6. Run the Stage-2 belief-development slice and fresh-process persistence/resume against current main.
-7. Consider Pareto/net-value and marginal-value stopping only after grounded calibration and explicit separation from relationship evidence.
+2. Merged PR #328 supplies structural failure-propagation candidates; next add evidence-backed runtime failure semantics only when failure mode, propagation, fallback, recovery and observation evidence are available. Do not infer runtime propagation from graph structure.
+3. Complete and merge PR #325 relationship-level q/tau evidence integration after exact-head CI, preserving UNKNOWN for incomplete pairs and avoiding aggregation or verdicts.
+4. Complete and merge PR #329 persisted-cycle differential neighbour analysis after exact-head CI; retain partial status for missing/ambiguous snapshots and do not infer causality.
+5. Add insufficient-headroom and unstable-feedback adversarial cases with explicit evidence validation and UNKNOWN-first assertions.
+6. Investigate local-improvement/global-regression with actual objective/evidence data before proposing net-value weights or Pareto rules.
+7. Run the Stage-2 belief-development slice and fresh-process persistence/resume against current main.
+8. Consider Pareto/net-value and marginal-value stopping only after grounded calibration and explicit separation from relationship evidence.
 
 This increment remains external/advisory RDO code. It does not change NEX runtime, the frozen S-register, Master Roadmap, feature flags, live beliefs or protected experiments. It does not authorise the final v1.4 expansion stage to bypass existing safety and approval gates.
 
