@@ -342,3 +342,32 @@ demonstrated. Issue #87 tracks the remaining work.
 
 See [Stage-7 handoff boundaries](STAGE7_HANDOFF.md).
 
+
+
+## Read-only persisted-cycle graph analysis
+
+Two commands expose the Stage-3 structural analyses over saved CycleRecord files.
+They load cycle JSON and do not mutate the records or NEX runtime state.
+
+```bash
+python -m rdo failure-propagation --cycle-id <cycle-id> --failed-key <obligation-key>
+
+python -m rdo failure-propagation --cycle-id <cycle-id> \
+  --failed-key storage.schema --failed-key storage.write_path
+
+python -m rdo impact --before-cycle-id <before-id> --after-cycle-id <after-id> \
+  --changed-capability storage --dir rdo/.cycles
+```
+
+failure-propagation follows depends_on edges only and reports structural candidates.
+It does not claim that a runtime failure propagated, or estimate severity, probability or
+causality. Unknown roots, malformed graph records and unresolved dependency edges keep the
+result partial.
+
+impact compares incident relationship records and their before/after tension assessments.
+It distinguishes relationship changes from assessment-only changes and reports missing or
+ambiguous evidence as partial. A difference is correlation between two persisted snapshots,
+not proof that the named capability caused the change, nor a benefit/harm/sufficiency verdict.
+
+Both commands are read-only. Exit status is 0 for a complete analysis, 1 for a partial or
+invalid analysis, and 2 when a requested cycle cannot be loaded or the input is invalid.
