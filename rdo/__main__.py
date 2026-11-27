@@ -231,7 +231,8 @@ def _handoff_acceptance_verify(args) -> int:
     try:
         event = record_acceptance_verification(
             args.out, args.handoff_id, args.criterion_id, args.status,
-            args.verifier, mapped_obligation_keys=args.mapped_obligation,
+            args.verifier, args.source_reference,
+            mapped_obligation_keys=args.mapped_obligation,
             verification_method=args.verification_method,
             evidence_references=args.evidence_reference,
             confidence=args.confidence, verified_at=args.verified_at,
@@ -406,6 +407,7 @@ def main(argv=None) -> int:
     hvf.add_argument("--verification-method")
     hvf.add_argument("--evidence-reference", action="append", default=[])
     hvf.add_argument("--verifier", required=True)
+    hvf.add_argument("--source-reference", required=True)
     hvf.add_argument("--confidence")
     hvf.add_argument("--verified-at")
     hvf.add_argument("--note", default="")
