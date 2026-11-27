@@ -266,3 +266,67 @@ def test_exact_scope_pattern_requires_nonblank_applicability():
     from rdo.model import Pattern
     with pytest.raises(ValueError, match="non-blank applicability"):
         Pattern(key="unscoped", statement="bad", provenance="cycle:1", exact_scope=True)
+
+
+def test_exact_scope_pattern_key_collision_fails_closed(tmp_path):
+    import pytest
+    from rdo.memory import PatternMemory
+    from rdo.model import Pattern
+    memory = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    memory.add(Pattern(key="regression_risk:shared", statement="first",
+        provenance="cycle:1", applicability="belief decay", exact_scope=True))
+    with pytest.raises(ValueError, match="conflicting exact scopes"):
+        memory.add(Pattern(key="regression_risk:shared", statement="other",
+            provenance="cycle:2", applicability="belief retrieval", exact_scope=True))
+    assert [p.key for p in memory.applicable("belief decay")] == ["regression_risk:shared"]
+    assert memory.applicable("belief retrieval") == []
+
+
+def test_exact_scope_pattern_cannot_collide_with_legacy_fuzzy_pattern(tmp_path):
+    import pytest
+    from rdo.memory import PatternMemory
+    from rdo.model import Pattern
+    memory = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    memory.add(Pattern(key="regression_risk:shared", statement="legacy",
+        provenance="cycle:1", applicability="belief", exact_scope=False))
+    with pytest.raises(ValueError, match="conflicting scope modes"):
+        memory.add(Pattern(key="regression_risk:shared", statement="exact",
+            provenance="cycle:2", applicability="belief decay", exact_scope=True))
+
+
+def test_persisted_exact_scope_key_collision_fails_closed(tmp_path):
+    import json
+    import pytest
+    from rdo.memory import PatternMemory
+    from rdo.model import Pattern
+    path = tmp_path / "patterns.jsonl"
+    first = Pattern(key="same", statement="first", provenance="cycle:1",
+        applicability="belief decay", exact_scope=True)
+    second = Pattern(key="same", statement="second", provenance="cycle:2",
+        applicability="belief retrieval", exact_scope=True)
+    path.write_text(json.dumps(first.to_dict()) + "\n" + json.dumps(second.to_dict()) + "\n")
+    with pytest.raises(ValueError, match="persisted pattern key collision"):
+        PatternMemory(str(path))
+
+
+def test_pattern_memory_add_revalidates_mutated_exact_scope_metadata(tmp_path):
+    import pytest
+    from rdo.memory import PatternMemory
+    from rdo.model import Pattern
+    memory = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    pattern = Pattern(key="mutated", statement="scoped", provenance="cycle:1",
+        applicability="belief decay", exact_scope=True)
+    pattern.applicability = " "
+    with pytest.raises(ValueError, match="non-blank applicability"):
+        memory.add(pattern)
+
+
+def test_exact_scope_collision_normalization_uses_unicode_casefold(tmp_path):
+    from rdo.memory import PatternMemory
+    from rdo.model import Pattern
+    memory = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    memory.add(Pattern(key="unicode", statement="same objective", provenance="cycle:1",
+        applicability="Straße", exact_scope=True))
+    memory.add(Pattern(key="unicode", statement="same objective", provenance="cycle:2",
+        applicability="STRASSE", exact_scope=True))
+    assert [p.key for p in memory.applicable("strasse")] == ["unicode"]
