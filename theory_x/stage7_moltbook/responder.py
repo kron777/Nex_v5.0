@@ -14,7 +14,7 @@ from __future__ import annotations
 from substrate.paths import db_paths
 import logging
 import re
-from substrate import connect, Row
+from substrate import Reader, Writer, Row
 import threading
 import time
 from pathlib import Path
@@ -99,6 +99,9 @@ class DMResponder:
         self.dynamic_db = Path(dynamic_db)
         self.beliefs_db = Path(beliefs_db)
         self.llama_url = llama_url
+        self._dynamic_reader = dynamic_reader or Reader(self.dynamic_db)
+        self._dynamic_writer = dynamic_writer
+        self._beliefs_reader = beliefs_reader or Reader(self.beliefs_db)
         self._stop = threading.Event()
 
     def run(self):
@@ -117,18 +120,13 @@ class DMResponder:
     # -- main --
 
     def tick(self):
-        cx = connect(self.dynamic_db, timeout=15)
-        cx.row_factory = Row
-        try:
-            pending = cx.execute(
-                "SELECT id, conversation_id, message_id, content, from_agent, needs_human "
-                "FROM moltbook_pending_replies "
-                "WHERE status='new' "
-                "ORDER BY created_at ASC LIMIT ?",
-                (BATCH_PER_TICK,)
-            ).fetchall()
-        finally:
-            cx.close()
+        pending = self._dynamic_reader.read(
+            "SELECT id, conversation_id, message_id, content, from_agent, needs_human "
+            "FROM moltbook_pending_replies "
+            "WHERE status='new' "
+            "ORDER BY created_at ASC LIMIT ?",
+            (BATCH_PER_TICK,),
+        )
         if not pending:
             return
         log.info("responder: %d pending", len(pending))
@@ -194,15 +192,16 @@ class DMResponder:
     # -- helpers --
 
     def _mark(self, rid: int, status: str, err: str | None = None):
-        cx = connect(self.dynamic_db, timeout=15)
+        own_writer = self._dynamic_writer is None
+        writer = self._dynamic_writer or Writer(self.dynamic_db, name="moltbook_responder")
         try:
-            cx.execute(
+            writer.write(
                 "UPDATE moltbook_pending_replies SET status=? WHERE id=?",
-                (status, rid)
+                (status, rid),
             )
-            cx.commit()
         finally:
-            cx.close()
+            if own_writer:
+                writer.close()
 
     def _thread_tail(self, conv_id: str, n: int = 5) -> list[dict]:
         try:
@@ -231,16 +230,12 @@ class DMResponder:
         toks = set(re.findall(r"[a-z][a-z\-]+", (text or "").lower()))
         if not toks:
             return []
-        cx = connect(self.beliefs_db, timeout=15)
-        try:
-            # Sample from spectrum (her voice) + recent sense (her substrate)
-            rows = cx.execute(
-                "SELECT content FROM beliefs "
-                "WHERE source IN ('spectrum','precipitated_from_sense','fountain_insight') "
-                "ORDER BY created_at DESC LIMIT 400"
-            ).fetchall()
-        finally:
-            cx.close()
+        # Sample from spectrum (her voice) + recent sense (her substrate)
+        rows = self._beliefs_reader.read(
+            "SELECT content FROM beliefs "
+            "WHERE source IN ('spectrum','precipitated_from_sense','fountain_insight') "
+            "ORDER BY created_at DESC LIMIT 400"
+        )
         scored = []
         for (content,) in rows:
             if not content:
