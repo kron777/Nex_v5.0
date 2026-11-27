@@ -38,7 +38,8 @@ from rdo_adapters.objective_intake import (ObjectiveInputError, load_objective_f
                                            objective_history, resume_objective,
                                            submit_objective)
 from rdo_adapters.handoff import (HandoffError, create_handoff, handoff_history,
-                                  record_human_acceptance, record_scope_review,\n                                  record_context_mapping, record_acceptance_verification,
+                                  record_human_acceptance, record_scope_review,
+                                  record_context_mapping, record_acceptance_verification,
                                   verify_with_watcher)
 from .report import (demo_genius_tagger, run_catalogue, run_stage2_belief_decay,
                      run_stage3_graph_intelligence, run_stage4_belief_audit,
