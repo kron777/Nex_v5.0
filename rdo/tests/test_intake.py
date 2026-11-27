@@ -264,8 +264,10 @@ def test_submit_runs_existing_pipeline_and_persists_intake_provenance(tmp_path, 
     assert all(item["status"] == "unmapped" and item["evidence"] == []
                for item in cycle["context_assessment"]["items"])
     assert cycle["work_packages"]
-    assert all(package["eligibility"] == "blocked"
+    assert all(package["eligibility"] == "eligible"
                for package in cycle["work_packages"])
+    assert cycle["context_assessment"]["execution_readiness"] == "blocked"
+    assert cycle["context_assessment"]["handoff_readiness"] == "reviewable"
     assert all(
         any("No autonomous execution" in item
             for item in package["anti_requirements"])
