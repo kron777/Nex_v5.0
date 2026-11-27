@@ -2,7 +2,7 @@
 
 **Date:** 27 November 2026  
 **Repository:** https://github.com/kron777/Nex_v5.0  
-**Evidence snapshot:** `main` at `ae406fa8fcb1abdf25cdf4ae1bd65333e1148ca8`  
+**Evidence snapshot:** `main` at `c80d9dbb878ac15a39d6707a9c89ab2a51f8518c`  
 **Gate 0:** **PENDING — founder review required**
 
 ## Read these together
@@ -12,6 +12,31 @@
 - `NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-27.md` — verified discrepancies and unresolved evidence gaps.
 - `ADR-001.md` — M0.5 trace mechanism and rollback.
 
+
+## Latest current-main continuation — 27 November 2026
+
+**Evidence snapshot:** `main` at `c80d9dbb878ac15a39d6707a9c89ab2a51f8518c`. The exact-head full baseline passed: **2,590 passed, 7 skipped, 45 subtests** (run `46014884835`).
+
+### Integrated persistence and cursor corrections
+
+- **PR #243 — shared `daemon_kv` schema/migration:** merged. Fresh databases receive the canonical `key/value/updated_at` table; legacy databases gain `updated_at` additively without losing existing checkpoint rows.
+- **PR #248 — WorldPredictionLoop AppState handles:** merged. The gated loop now uses AppState-owned conversations Writer/Reader and beliefs Reader through prediction, calibration, persistence, resolution and scorecard paths. `NEX5_WORLD_PRED` remains OFF; no loop was started.
+- **PR #253 — Warrant use-day cursors:** merged. Lineage and arc membership now page by event time plus declared composite-key tie-breakers, avoiding hidden-rowid remapping and late additions to older arc/child keys. The Warrant gate remains OFF. Query-plan/performance on live table sizes is not yet measured.
+
+### Current open work
+
+- **PR #256 — RDO experiment-registry fail-closed tests:** tests-only current-main replay; exact-head full-suite CI pending. No production eligibility or experiment state changes.
+- **PR #257 — SurpriseLoop loss-safe event delivery:** current-main replay; exact-head CI pending and **Gate 0 HOLD**. The event-ID cursor/retry correction can allow previously skipped events into the belief corpus. The legacy migration replays rows at/after the cutoff but does not recover rows strictly older than the old timestamp cursor. Founder approval is required before merge/deployment.
+- **PR #258 — living manual/backlog/handoff reconciliation:** documentation-only current-main update; exact-head CI pending.
+
+### Defect/evidence status updates
+
+- G-53 (timestamp-only Warrant cursor ties) and G-71 (hidden-rowid cursor stability) are **closed by PR #253**; this does not close Warrant eligibility or use-source questions.
+- G-69 (SurpriseLoop event loss) remains **Gate 0 held** pending explicit founder approval.
+- G-70 speech trace: queue state records `speaking/spoken/failed/suppressed`, but this is not a cross-thread causal trace continuation or independent acoustic confirmation.
+- G-73 dormancy coverage/ownership is recorded in the current defect backlog. PR #102/#145 remain older-base work: scanner rotation, eligibility filters, ClockRunner persistence and the duplicate DiversityLoop/ClockRunner ownership question require current-main revalidation and policy review. The PR #102 final Fountain injection query also needs a retired-marker recheck.
+
+The consolidated S-01–S-25 register, roadmap, phase gates and cognitive policy remain untouched. Gate 0 remains pending; Phase 1 is not authorised. No live host activation, database contents, service state, acoustic output or behavioural benefit is claimed.
 
 ## Post-snapshot current-main follow-up (27 November 2026)
 
@@ -69,7 +94,7 @@ The consolidated S-01–S-25 register, roadmap, phase gates and cognitive policy
 |---|---|
 | M0.1 — repository identity | Remote main SHA recorded; current host checkout identity/cleanliness not collected |
 | M0.1 — host/runtime/database/model measurements | **PARTIAL / UNKNOWN**; no current host collection or live DB hash inventory |
-| M0.2 — test baseline | Current main `74cff710`: 2,584 passed, 7 skipped, 45 subtests, baseline OK (exact-head run `46009001664`) |
+| M0.2 — test baseline | Current main `c80d9dbb`: 2,590 passed, 7 skipped, 45 subtests, baseline OK (exact-head run `46014884835`) |
 | M0.3/M0.4 — crosswalk and spec reconciliation | **PARTIAL**; source boot and Chat/Fountain paths are mapped, not every faculty's complete producer/consumer DAG |
 | Roadmap v3.0 M0.5 — causal trace | **IMPLEMENTED / MERGED**, default OFF, L3 fixture evidence |
 | M0.5 live L4 capture | **UNKNOWN**; no live runtime context enabled |
