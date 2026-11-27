@@ -363,6 +363,9 @@ class CycleRecord:
     objective_context: Dict[str, Any] = dataclasses.field(default_factory=dict)
     # Explicit UNKNOWN-first mapping assessment; never infer satisfaction from planning.
     context_assessment: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    # Differential relationship impact against the previous comparable cycle snapshot.
+    # Empty for legacy cycles or records created outside the generic cycle driver.
+    relationship_impact: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.kind not in CYCLE_KINDS:
