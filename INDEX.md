@@ -585,3 +585,14 @@ PR #258 now updates the first-read manual, verified defect backlog and Phase 0 h
 **PR #259 — SurpriseLoop loss-safe event delivery on post-#256 main: OPEN / exact-head CI pending / GATE 0 HOLD.** It replays the event-ID cursor and retry-safe checkpoint correction after #256 merged. The previous PR #257 exact-head suite passed (2,601 passed, 7 skipped, 45 subtests) on the pre-#256 base; #259 is the authoritative current-main replay. Do not merge or deploy it until founder approval because previously skipped events may enter the belief corpus. Its legacy migration does not recover rows strictly older than the old timestamp cutoff.
 
 The earlier manual PR #258 is superseded by this post-#256 documentation replay. PR #260 is intended to carry the full manual, backlog and handoff onto this mainline. PR #102/#145 remain older-base dormancy proposals and are still subject to the G-73 policy/revalidation boundary.
+
+
+## 32. TimeFetch test inventory and VoiceEngine eligibility consumer (27 November 2026)
+
+A current-source recheck incorporated the useful correction from older PR #143 and extended it through the consumer:
+
+- `tests/test_throw_net_time_fetch.py` does exist. It covers confidence/content-length filters, novel-association matching and similarity ordering, arc type/quality filters, ProblemMemory routing, deduplication/capping and provenance.
+- It does not assert exclusion of Tier-8, paused, locked or lower-tier retired belief endpoints, nor current-state eligibility of novel-association endpoints or arc provenance.
+- `VoiceEngine._retrieve_candidates()` consumes `TimeFetch.run()` results and enriches belief candidates with tier/reinforce_count but does not recheck paused/locked/retired state. `_score_candidate()` applies a 0.5 tier score to non-T3–T6 candidates rather than excluding them; a sufficiently strong candidate can still clear the 0.6 minimum. `tests/test_voice_engine.py` compares T4 and T8 scores but does not assert hard exclusion.
+
+This remains a policy/coverage gap, not an instruction to change retrieval. Confirm the canonical inactive-belief eligibility contract, then add end-to-end TimeFetch-to-VoiceEngine tests. The stale documentation branch #143 is superseded by the corrected current-main backlog entry G-52 in PR #260; its trace document was not merged wholesale.
