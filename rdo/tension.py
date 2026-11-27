@@ -15,7 +15,7 @@ from typing import Dict, List
 from .model import (ANTI_REQUIREMENT, CONDITIONAL, FUTURE, MISSING, NECESSARY,
                     OPTIONAL, OVERDEVELOPED, PARTIAL, RECON_UNKNOWN, REUSE_EXISTING, SIGNATURE_MATCHED,
                     SUFFICIENT, TENSION_UNKNOWN, UNDERDEVELOPED, Obligation,
-                    InterfaceTensionProfile, Relationship, TensionAssessment,
+                    InterfaceTensionProfile, PerformanceMargin, Relationship, TensionAssessment,
                     has_valid_reuse_review, _has_traceable_evidence,
                     INTERFACE_EVIDENCE_STATUSES)
 from .feedback_loop import FeedbackLoopAssessment
@@ -232,11 +232,84 @@ def _operating_envelope_evidence(value) -> dict:
     }
 
 
+def _performance_margin_evidence(value) -> dict:
+    """Summarise per-relationship q/tau margins without deriving a verdict.
+
+    Typed PerformanceMargin records and their persisted dictionaries are accepted.
+    Computed fields in persisted dictionaries are ignored and recomputed from the
+    source inputs. Invalid entries fail closed and remain visible by metric key.
+    """
+    if value is None:
+        return {
+            "status": "not_supplied",
+            "metrics": {},
+            "unknown_metrics": [],
+            "invalid_metrics": [],
+        }
+    if not isinstance(value, dict):
+        return {
+            "status": "invalid_shape",
+            "metrics": {},
+            "unknown_metrics": [],
+            "invalid_metrics": ["<container>"],
+        }
+
+    field_names = {field.name for field in dataclasses.fields(PerformanceMargin)}
+    computed_fields = {"margin", "margin_state", "evidence_complete"}
+    metrics = {}
+    unknown = []
+    invalid = []
+    for key, item in value.items():
+        if not isinstance(key, str) or not key.strip():
+            invalid.append(str(key))
+            continue
+        try:
+            if isinstance(item, PerformanceMargin):
+                # Dataclasses remain mutable after construction; reconstruct to
+                # revalidate identity and envelope context at the assessment boundary.
+                kwargs = {name: getattr(item, name) for name in field_names}
+                margin = PerformanceMargin(**kwargs)
+            elif isinstance(item, dict):
+                if set(item) - field_names - computed_fields:
+                    raise ValueError("unexpected persisted performance-margin fields")
+                kwargs = {name: item[name] for name in field_names if name in item}
+                margin = PerformanceMargin(**kwargs)
+            else:
+                raise ValueError("performance margin must be typed or a persisted dictionary")
+            if key != margin.metric:
+                raise ValueError("performance-margin key does not match its metric identity")
+            summary = margin.to_dict()
+            metrics[key] = summary
+            if not margin.evidence_complete:
+                unknown.append(key)
+        except Exception:
+            invalid.append(key)
+
+    status = (
+        "invalid_evidence" if invalid else
+        "not_supplied" if not value else
+        "evidence_recorded" if metrics and not unknown else
+        "partial" if metrics else
+        "invalid_evidence"
+    )
+    return {
+        "status": status,
+        "metrics": metrics,
+        "unknown_metrics": sorted(unknown),
+        "invalid_metrics": sorted(invalid),
+    }
+
+
 def assess_relationship(rel: Relationship, obligations: Dict[str, Obligation]) -> TensionAssessment:
     subj = f"{rel.src} -{rel.kind}-> {rel.dst}"
     profile = _interface_profile_evidence(rel)
     envelope = _operating_envelope_evidence(rel.operating_envelope)
-    assessment_dimensions = {**profile, "operating_envelope": envelope}
+    margins = _performance_margin_evidence(rel.performance_margins)
+    assessment_dimensions = {
+        **profile,
+        "operating_envelope": envelope,
+        "performance_margins": margins,
+    }
     if rel.kind == "influences" and rel.authority != "bounded":
         return TensionAssessment("relationship", subj, OVERDEVELOPED, inference=True,
                                  dimensions=assessment_dimensions,
@@ -263,6 +336,15 @@ def assess_relationship(rel: Relationship, obligations: Dict[str, Obligation]) -
         for ref in dimension["evidence"]
         if isinstance(ref, str) and ref.strip()
     ]
+    for summary in margins["metrics"].values():
+        # A margin is one comparison: do not promote either side's references as
+        # relationship-level evidence unless both q and tau form a complete pair.
+        if summary.get("evidence_complete") is not True:
+            continue
+        for field in ("q_evidence", "tau_evidence"):
+            refs = summary.get(field)
+            if _has_traceable_evidence(refs):
+                evidence.extend(refs)
     return TensionAssessment(
         "relationship", subj, TENSION_UNKNOWN, inference=True,
         evidence=evidence,
@@ -272,8 +354,8 @@ def assess_relationship(rel: Relationship, obligations: Dict[str, Obligation]) -
             if profile["profile_status"] == "not_supplied" else
             "interface profile has an invalid shape; expected a typed profile or persisted dictionary"
             if profile["profile_status"] == "invalid_shape" else
-            "interface evidence is recorded, but calibrated thresholds, margins and "
-            "operating-envelope assessment are not yet implemented; retain UNKNOWN"
+            "interface and margin evidence are recorded, but calibrated thresholds, margin aggregation and "
+            "operating-envelope assessment are not implemented; retain UNKNOWN"
         ),
     )
 

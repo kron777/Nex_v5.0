@@ -1,5 +1,7 @@
 """Relationship-level OFT must not infer sufficiency from absent interface evidence."""
 
+import pytest
+
 from rdo.operating_envelope import BUSY, STRESS, OperatingEnvelopeAssessment
 from rdo.model import (
     InterfaceEvidence,
@@ -60,7 +62,8 @@ def test_measured_interface_value_without_threshold_does_not_claim_sufficiency()
     assert result.verdict == TENSION_UNKNOWN
     assert result.evidence == ["test:latency-p95"]
     assert result.dimensions["dimensions"]["latency"]["value"] == 18.4
-    assert "thresholds, margins" in result.note
+    assert "calibrated thresholds" in result.note
+    assert "margin aggregation" in result.note
 
 
 def test_relationship_profile_dict_from_persistence_is_supported():
@@ -363,4 +366,157 @@ def test_implemented_interface_evidence_is_preserved_without_promoting_relations
     assert contract["status"] == "implemented"
     assert contract["evidence_complete"] is True
     assert "contract" not in result.dimensions["unknown_dimensions"]
+    assert result.verdict == TENSION_UNKNOWN
+
+
+def test_relationship_assessment_exposes_typed_performance_margin_evidence_without_verdict():
+    from rdo.model import PerformanceMargin
+
+    margin = PerformanceMargin(
+        metric="latency_utility",
+        q=0.6,
+        tau=0.7,
+        unit="normalized_latency_utility",
+        normalization="higher_is_better_0_to_1",
+        q_evidence=["benchmark:latency-utility"],
+        tau_evidence=["contract:latency-utility-limit"],
+        q_confidence="measured",
+        tau_confidence="approved_requirement",
+    )
+    rel = Relationship("consumer", "provider", "depends_on",
+                      performance_margins={"latency_utility": margin})
+
+    result = assess_relationship(rel, {})
+    summary = result.dimensions["performance_margins"]
+    assert summary["status"] == "evidence_recorded"
+    assert summary["metrics"]["latency_utility"]["margin"] == pytest.approx(-0.1)
+    assert summary["metrics"]["latency_utility"]["margin_state"] == "below_requirement"
+    assert summary["metrics"]["latency_utility"]["evidence_complete"] is True
+    assert result.evidence == ["benchmark:latency-utility", "contract:latency-utility-limit"]
+    # A metric margin is evidence; no calibrated aggregation into relationship tension exists.
+    assert result.verdict == TENSION_UNKNOWN
+
+
+def test_relationship_assessment_recomputes_persisted_margin_and_ignores_tampered_computed_fields():
+    persisted = {
+        "latency_utility": {
+            "metric": "latency_utility",
+            "q": 0.6,
+            "tau": 0.7,
+            "unit": "normalized_latency_utility",
+            "normalization": "higher_is_better_0_to_1",
+            "q_evidence": ["benchmark:latency-utility"],
+            "tau_evidence": ["contract:latency-utility-limit"],
+            "q_confidence": "measured",
+            "tau_confidence": "approved_requirement",
+            "margin": 999,
+            "margin_state": "above_requirement",
+            "evidence_complete": True,
+        },
+    }
+    result = assess_relationship(Relationship("consumer", "provider", "depends_on",
+        performance_margins=persisted), {})
+    metric = result.dimensions["performance_margins"]["metrics"]["latency_utility"]
+    assert metric["margin"] == pytest.approx(-0.1)
+    assert metric["margin_state"] == "below_requirement"
+    assert metric["evidence_complete"] is True
+    assert result.verdict == TENSION_UNKNOWN
+
+
+def test_incomplete_or_boundary_margin_evidence_is_preserved_without_claiming_sufficiency():
+    from rdo.model import PerformanceMargin
+
+    incomplete = PerformanceMargin(
+        metric="latency_utility", q=0.6, tau=0.7,
+        unit="normalized_latency_utility",
+        normalization="higher_is_better_0_to_1",
+    )
+    boundary = PerformanceMargin(
+        metric="quality", q=0.8, tau=0.8, unit="normalized",
+        normalization="higher_is_better",
+        q_evidence=["measurement:quality"],
+        tau_evidence=["requirement:quality"],
+        q_confidence="measured",
+        tau_confidence="approved",
+    )
+    result = assess_relationship(Relationship("consumer", "provider", "depends_on",
+        performance_margins={"latency_utility": incomplete, "quality": boundary}), {})
+    summary = result.dimensions["performance_margins"]
+    assert summary["status"] == "partial"
+    assert summary["unknown_metrics"] == ["latency_utility"]
+    assert summary["metrics"]["latency_utility"]["margin_state"] == "below_requirement"
+    assert summary["metrics"]["latency_utility"]["evidence_complete"] is False
+    assert summary["metrics"]["quality"]["margin_state"] == "boundary"
+    assert summary["metrics"]["quality"]["evidence_complete"] is True
+    assert result.verdict == TENSION_UNKNOWN
+
+
+def test_malformed_persisted_performance_margin_fails_closed():
+    result = assess_relationship(Relationship("consumer", "provider", "depends_on",
+        performance_margins={
+            "latency": {"metric": "other", "q": 12, "tau": 15},
+            "capacity": ["not", "a", "margin"],
+            "": {"metric": "blank-key"},
+        }), {})
+    summary = result.dimensions["performance_margins"]
+    assert summary["status"] == "invalid_evidence"
+    assert summary["metrics"] == {}
+    assert summary["invalid_metrics"] == ["", "capacity", "latency"]
+    assert result.verdict == TENSION_UNKNOWN
+
+
+def test_explicit_relationship_defect_retains_performance_margin_context():
+    from rdo.model import PerformanceMargin
+
+    margin = PerformanceMargin(
+        metric="authority-impact",
+        q=0.9,
+        tau=0.5,
+        unit="normalized",
+        normalization="higher_is_better",
+        q_evidence=["measurement:authority"],
+        tau_evidence=["policy:authority-bound"],
+        q_confidence="measured",
+        tau_confidence="approved",
+    )
+    result = assess_relationship(Relationship(
+        "signal", "consumer", "influences", authority="strong",
+        performance_margins={"authority-impact": margin},
+    ), {})
+    assert result.verdict == OVERDEVELOPED
+    assert result.dimensions["performance_margins"]["status"] == "evidence_recorded"
+    assert result.dimensions["performance_margins"]["metrics"]["authority-impact"]["margin"] == pytest.approx(0.4)
+
+
+def test_mutated_typed_performance_margin_fails_closed_on_reassessment():
+    from rdo.model import PerformanceMargin
+
+    margin = PerformanceMargin(metric="latency", q=0.8, tau=0.7,
+        unit="normalized", normalization="higher_is_better")
+    margin.operating_envelope = "overloaded"
+
+    result = assess_relationship(Relationship("consumer", "provider", "depends_on",
+        performance_margins={"latency": margin}), {})
+    summary = result.dimensions["performance_margins"]
+    assert summary["status"] == "invalid_evidence"
+    assert summary["metrics"] == {}
+    assert summary["invalid_metrics"] == ["latency"]
+    assert result.verdict == TENSION_UNKNOWN
+
+
+def test_malformed_mutable_margin_evidence_refs_are_not_promoted_to_sources():
+    from rdo.model import PerformanceMargin
+
+    margin = PerformanceMargin(metric="latency", q=0.8, tau=0.7,
+        unit="normalized", normalization="higher_is_better",
+        q_evidence=["benchmark:latency"], tau_evidence=["limit:latency"])
+    margin.q_evidence = "not-a-reference-list"
+
+    result = assess_relationship(Relationship("consumer", "provider", "depends_on",
+        performance_margins={"latency": margin}), {})
+    summary = result.dimensions["performance_margins"]
+    assert summary["metrics"]["latency"]["evidence_complete"] is False
+    assert summary["unknown_metrics"] == ["latency"]
+    # q/tau are one comparison; neither side is promoted when the pair is incomplete.
+    assert result.evidence == []
     assert result.verdict == TENSION_UNKNOWN
