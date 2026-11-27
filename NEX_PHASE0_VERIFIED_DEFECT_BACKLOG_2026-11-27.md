@@ -20,8 +20,8 @@
 
 ### D-03 — MIND_MAP doctrine references absent
 
-- **Evidence:** CI verifier warns that `VIRTUE_SLATE.md` and `mental_factors_inventory_alobha_spec.txt` are missing.
-- **Disposition:** identify the authoritative source copies and restore/repoint references through a traceable documentation change; do not fabricate substitutes.
+- **Evidence:** Current-main CI warns that `VIRTUE_SLATE.md` and `mental_factors_inventory_alobha_spec.txt` are missing. Both paths are absent from the current Git tree; path-specific commit-history searches returned no source-file history. Library searches found references to the filenames in an audit/carry-over text, but did not surface either authoritative source document.
+- **Disposition:** unresolved source-authority gap. Do not fabricate substitutes or silently remove the metadata references. Restore/repoint only when the founder supplies or identifies the authoritative source copies and approves a traceable documentation change.
 
 ## B. Verified policy / documentation boundary
 
