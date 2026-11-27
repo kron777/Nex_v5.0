@@ -11,11 +11,13 @@ it never changes NEX.
 """
 from __future__ import annotations
 
+import json
 import os
 from typing import Dict, List, Optional, Tuple
 
 from . import prioritise, reconcile as recon_mod, tension
 from .extrapolator import expand, frontier_breakdown
+from .graph import compare_adjacent_relationship_impacts
 from .memory import PatternMemory, compare, derive_lessons, record_actual
 from .model import (ANTI_REQUIREMENT, EXECUTED_VERIFIED, MISSING, PARTIAL, RECON_UNKNOWN,
                     REUSE_EXISTING, SIGNATURE_MATCHED, CycleRecord, Obligation, Relationship)
@@ -225,12 +227,175 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
     return cycle, summary
 
 
+def _snapshot_record_groups(records, identity_fields):
+    """Group JSON-compatible cycle records by identity with deterministic fingerprints."""
+    groups = {}
+    invalid = 0
+    if not isinstance(records, list):
+        return groups, 1
+    for record in records:
+        if not isinstance(record, dict):
+            invalid += 1
+            continue
+        identity = tuple(record.get(field) for field in identity_fields)
+        if not all(isinstance(value, str) and value.strip() for value in identity):
+            invalid += 1
+            continue
+        try:
+            fingerprint = json.dumps(
+                record, sort_keys=True, separators=(",", ":"), default=str
+            )
+        except (TypeError, ValueError):
+            invalid += 1
+            continue
+        groups.setdefault(identity, []).append(fingerprint)
+    return {key: sorted(values) for key, values in groups.items()}, invalid
+
+
+def _changed_capability_keys(before_cycle: CycleRecord, after_cycle: CycleRecord) -> List[str]:
+    """Find capabilities whose obligation, incident edge, or relationship assessment changed."""
+    before = before_cycle.to_dict()
+    after = after_cycle.to_dict()
+    changed = set()
+
+    before_obligations, _ = _snapshot_record_groups(before.get("obligations"), ("key",))
+    after_obligations, _ = _snapshot_record_groups(after.get("obligations"), ("key",))
+    for key in set(before_obligations) | set(after_obligations):
+        if before_obligations.get(key) != after_obligations.get(key):
+            changed.add(key[0])
+
+    before_relationships, _ = _snapshot_record_groups(
+        before.get("relationships"), ("src", "kind", "dst")
+    )
+    after_relationships, _ = _snapshot_record_groups(
+        after.get("relationships"), ("src", "kind", "dst")
+    )
+    relationship_identities = set(before_relationships) | set(after_relationships)
+    for identity in relationship_identities:
+        if before_relationships.get(identity) != after_relationships.get(identity):
+            changed.update((identity[0], identity[2]))
+
+    # An assessment can change without the persisted relationship record changing
+    # (for example, assessor logic/evidence interpretation changes between revisions).
+    # Match by the exact assessor subject generated from the relationship identity.
+    subject_to_identity = {
+        f"{src} -{kind}-> {dst}": identity
+        for identity in relationship_identities
+        for src, kind, dst in [identity]
+    }
+    before_assessments, _ = _snapshot_record_groups(
+        [item for item in before.get("tension", [])
+         if isinstance(item, dict) and item.get("level") == "relationship"],
+        ("subject",)
+    )
+    after_assessments, _ = _snapshot_record_groups(
+        [item for item in after.get("tension", [])
+         if isinstance(item, dict) and item.get("level") == "relationship"],
+        ("subject",)
+    )
+    for subject in set(before_assessments) | set(after_assessments):
+        if before_assessments.get(subject) != after_assessments.get(subject):
+            identity = subject_to_identity.get(subject[0])
+            if identity is not None:
+                changed.update((identity[0], identity[2]))
+    return sorted(changed)
+
+
+def _relationship_impact_for_cycle(previous: Optional[CycleRecord],
+                                   current: CycleRecord,
+                                   previous_invalid: bool = False) -> dict:
+    """Build a persisted before/after relationship impact record.
+
+    It compares only cycles sharing the same objective identity. Missing, corrupt or
+    mismatched history is surfaced explicitly and never silently treated as a clean
+    baseline. Impact differences are structural evidence, not causal conclusions.
+    """
+    base = {
+        "cycle_id": current.id,
+        "after_created_at": current.created_at,
+        "objective_context_changed": False,
+        "comparison": None,
+    }
+    if previous_invalid:
+        return {
+            **base,
+            "status": "previous_snapshot_invalid",
+            "before_cycle_id": current.id,
+            "before_created_at": None,
+            "changed_capabilities": [],
+            "affected_relationships": [],
+            "note": "A prior cycle record existed but could not be loaded; no comparison was attempted.",
+        }
+    if previous is None:
+        return {
+            **base,
+            "status": "baseline",
+            "before_cycle_id": None,
+            "before_created_at": None,
+            "changed_capabilities": [],
+            "affected_relationships": [],
+            "note": "No prior cycle with this identity was available for comparison.",
+        }
+    base.update({
+        "before_cycle_id": previous.id,
+        "before_created_at": previous.created_at,
+        "objective_context_changed": previous.objective_context != current.objective_context,
+    })
+    if previous.objective != current.objective:
+        return {
+            **base,
+            "status": "objective_mismatch",
+            "changed_capabilities": [],
+            "affected_relationships": [],
+            "previous_objective": previous.objective,
+            "current_objective": current.objective,
+            "note": "The cycle ID was reused for a different objective; snapshots were not compared.",
+        }
+
+    changed = _changed_capability_keys(previous, current)
+    if not changed:
+        return {
+            **base,
+            "status": "unchanged",
+            "changed_capabilities": [],
+            "affected_relationships": [],
+            "note": (
+                "No obligation, relationship, or relationship-assessment changes were found. "
+                "Objective-context changes are reported separately."
+            ),
+        }
+    comparison = compare_adjacent_relationship_impacts(
+        previous.to_dict(), current.to_dict(), changed
+    )
+    return {
+        **base,
+        "status": comparison.get("status", "unknown"),
+        "changed_capabilities": changed,
+        "affected_relationships": comparison.get("affected_relationships", []),
+        "comparison": comparison,
+        "note": comparison.get("note", ""),
+    }
+
+
 def _run_one(cycle_id, idea, repo_dir, memory, store, active):
-    """Run one cycle through the pipeline and persist it. Generic helper."""
+    """Run, compare against the previous same-objective snapshot, and persist the cycle."""
     objective, assumptions, seeds, signatures = idea
+    previous = None
+    previous_invalid = False
+    try:
+        previous = store.load(cycle_id)
+    except FileNotFoundError:
+        pass
+    except (ValueError, TypeError, KeyError, json.JSONDecodeError):
+        previous_invalid = True
+
     cycle, summary = run_cycle(cycle_id, objective, assumptions, seeds, signatures,
                                repo_dir=repo_dir, active_experiments=active,
                                authorised_gates=set(), memory=memory)
+    cycle.relationship_impact = _relationship_impact_for_cycle(
+        previous, cycle, previous_invalid=previous_invalid
+    )
+    summary["relationship_impact"] = cycle.relationship_impact
     store.save(cycle)
     return cycle, summary
 
