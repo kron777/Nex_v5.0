@@ -26,7 +26,7 @@ The latest mind-map verifier reports **30 nodes, 0 unverified, 14 dark and 2 blo
 
 ## 3. Boot and lifecycle architecture
 
-The tracked boot graph is not a single request loop. `run.py` builds the dynamic layer, world-model layer, membrane and GUI/AppState. The Stage 2 dynamic factory registers multiple loop callables, including `signal_to_problem_loop`. Separate scheduler, diversity, edge-generation, signal and other worker paths add further concurrency.
+The tracked boot graph is not a single request loop. `run.py` builds the dynamic layer, world-model layer, membrane and GUI/AppState. The Stage 2 dynamic factory registers multiple loop callables, including `signal_to_problem_loop`. The tracked launcher also sets `NEX5_PROBLEM_SELF_GATE=1` and `NEX5_SIG_QUALITY=1`; this is tracked configuration, not proof of host-effective state. Separate scheduler, diversity, edge-generation, signal and other worker paths add further concurrency.
 
 The important consequence is that lifecycle ownership must be explicit. The presence of a `stop()` or stop-event helper in a worker does not prove the application invokes it, joins the thread, or waits for its in-flight writes before closing shared Writers.
 
@@ -86,7 +86,7 @@ The Stage 2 dynamic factory registers `signal_to_problem_loop`. The loop receive
 
 `signal_to_problem_tick()` opens direct write-capable connections to both `beliefs.db` and `conversations.db`. It adds `signals.actioned_at` with runtime `ALTER TABLE` if absent; that column is not declared in the canonical `beliefs.sql` signals schema. It writes `actioned_at` and `open_problems`, then commits beliefs first and conversations second. A process loss or second-commit failure after the first commit can leave a signal marked actioned without its problem record.
 
-Every 30 ticks, the same loop calls `prose_stats.build_direct()`, which also opens a raw beliefs connection. A Writer/Reader-based `prose_stats.build()` already exists, but the scheduled loop does not use it. No dedicated `tests/test_signal_to_problem.py` or `tests/test_prose_stats.py` exists in the current test tree.
+Every 30 ticks (roughly hourly at its 120-second cadence), the same loop calls `prose_stats.build_direct()`, which also opens a raw beliefs connection. A Writer/Reader-based `prose_stats.build()` already exists, but the scheduled loop does not use it. No dedicated `tests/test_signal_to_problem.py` or `tests/test_prose_stats.py` exists in the current test tree.
 
 This is an omitted active path in the G-61 one-pen audit and corresponds to the earlier G-44 cross-database finding. Do not mechanically route writes through Writers and assume the recovery problem is solved. The founder/design decision must establish the intended cross-database contract: ordering, idempotent replay, outbox or reconciliation. The auxiliary prose-statistics writer can be migrated separately after its performance and equivalence are tested.
 
@@ -104,7 +104,7 @@ The reaper only considers rows older than seven days; SignalToProblem's promotio
 
 Current main sets `MOLTBOOK_DRY_RUN=1`. The client suppresses non-GET requests in dry-run, but GET requests still reach the remote service. The listener can still read inbound conversations, filter agents, approve eligible DM requests and write local records. Incoming pending replies are stored with `needs_human=0`.
 
-The poster and responder treat the client's synthetic dry-run response as success and persist local `posted`/`sent` status. The responder's related-belief retrieval samples recent `spectrum`, `precipitated_from_sense` and `fountain_insight` beliefs without tier, paused, locked or retired-state filtering.
+The poster and responder treat the client's synthetic dry-run response as success and persist local `posted`/`sent` status. Both the poster's candidate query and the responder's related-belief retrieval select recent `fountain_insight` (and, for the responder, `spectrum` and `precipitated_from_sense`) beliefs without tier, paused, locked or retired-state filtering.
 
 Thus dry-run suppresses outbound writes but is neither offline nor a no-ingestion mode, and its local status can overstate what happened externally. If dry-run is disabled, the eligible DM path can send without a human approval step after the agent filter. No external calls were made during this audit; host credentials and effective service configuration remain unknown. This needs a founder decision on external consent, human approval, belief eligibility and simulated-state labels.
 
