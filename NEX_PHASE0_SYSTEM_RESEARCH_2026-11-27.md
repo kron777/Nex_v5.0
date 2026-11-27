@@ -192,3 +192,12 @@ This is a capability/contract gap, not an execution defect: RDO remains advisory
 **Evidence:** `rdo_adapters/objective_intake.py::validate_objective()` validates these fields; `submit_objective()` (around lines 447–504) passes only the fields listed above to `run_cycle()`. `rdo/orchestrator.py::run_cycle()` has no scope/constraint/exclusion/acceptance-criteria inputs. Existing intake tests cover validation, revision integrity, replay and pipeline execution, but do not assert that those contextual fields constrain the generated plan.
 
 **Next step:** define a typed, traceable translation from context to obligations/anti-requirements and a separate acceptance-verification record. Keep free-text constraints visible as unresolved review obligations rather than claiming they are enforced. Do not silently change objective schema v1 or claim v1.4 precedence until the source-authority question is resolved.
+
+
+## 10. Post-snapshot implementation update — PR #280
+
+PR #280 merged as `f03a3d2e7b9c71801e44be73cf728c01cb791c9d`. It serializes Writer submission admission with shutdown, places one sentinel after all accepted requests, rejects late submissions synchronously, retains the worker reference after a join timeout, and preserves explicit restart after a clean close.
+
+Exact-head CI run `46045754339` passed **2,640 tests, 7 skipped, 45 subtests; baseline OK**. Regression tests exercise accepted-request draining, late-submit rejection, timeout behavior, prevention of a second worker while the first remains alive, and explicit restart. Post-merge main CI is in progress.
+
+This closes the Writer-level late-submission/forgotten-worker subproblem within G-84. It does not stop or join all NEX producers: `AppState.close()` still ignores several started loops, the EdgeGeneratorLoop is not retained in AppState, and scheduler adapter threads are not joined. The application-level global shutdown coordinator remains open. No live process or database was touched.
