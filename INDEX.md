@@ -217,18 +217,19 @@ A successful unit test does not establish runtime liveness. A successful boot do
 
 ## 11. Current mainline snapshot and open work (27 November 2026)
 
-Mainline inspected: `c6bc4e411141497f9e25540178e771a08cbab79d` (27 November 2026, after the manual and mind-map source-verification merges). The earlier `99ae476e` mainline GitHub Actions pytest check completed successfully at 09:40:22 UTC; PR #185 subsequently passed the exact-head full baseline and verifier. These are repository CI/source-verification results only; they do not establish host/runtime state.
+Mainline inspected: `ddb9f15fc723f91d3609df35686ded19b6befdb7` (27 November 2026, after the manual, mind-map source-verification and Phase 0 evidence-pack merges). The earlier `99ae476e` mainline GitHub Actions pytest check completed successfully at 09:40:22 UTC; PR #185 subsequently passed the exact-head full baseline and verifier. These are repository CI/source-verification results only; they do not establish host/runtime state.
 
-Post-snapshot reconciliation recorded in the Phase 0 handoff branch identifies the following merged changes already present in that mainline SHA: #168 (DailyLife/canary Writer routing), #169 (affinity Writer routing), #174 (P13 finitude re-verification), #175 (full-history mind-map verifier guard), #180 (learning-guard Writer routing), #183 (Expectations transaction/Writers), and #184 (Warrant composite pagination cursors). The source reality report and crosswalk in PR #186 are pinned to `ae406fa8`, not `99ae476`; use the handoff's post-snapshot follow-up for the intervening changes and do not present the older crosswalk as a fully refreshed `99ae476` audit.
+Post-snapshot reconciliation recorded in the Phase 0 handoff branch identifies the following merged changes already present in that mainline SHA: #168 (DailyLife/canary Writer routing), #169 (affinity Writer routing), #174 (P13 finitude re-verification), #175 (full-history mind-map verifier guard), #180 (learning-guard Writer routing), #183 (Expectations transaction/Writers), and #184 (Warrant composite pagination cursors). The source reality report and crosswalk carried by PR #188 remain pinned to `ae406fa8`; its handoff reconciles changes through `99ae476`. The later mind-map source-verifier outcome from PR #185 is recorded separately above. Treat each evidence artefact as snapshot-bounded, not as a single fully refreshed audit of `ddb9f15`.
 
 Relevant open pull requests at the inspection point:
 
 - **#187** — the INDEX/manual stocktake update; merged as `f6e51f8ff6eb191438372a0ae1e6fff52b7b33a3` after exact-head CI passed.
 - **#185** — consolidated mind-map source re-verification after G64/G65 and valence review; merged as `c6bc4e411141497f9e25540178e771a08cbab79d` after exact-head CI passed (2,527 passed, 7 skipped, 40 subtests; verifier: 30 nodes, 0 unverified, 14 dark, 2 blocked). The two missing doctrine references and overdue P13 marker remain.
-- **#188** — Phase 0 evidence-pack carry-forward onto current main, with five documentation artefacts. Its report/crosswalk remain pinned to `ae406fa8`; the handoff reconciles through `99ae476`. Exact-head CI is still running at this manual revision; it does not approve Gate 0.
-- **#186** — older Phase 0 evidence-pack PR, superseded for current-main integration by #188; do not merge the stale branch.
+- **#188** — Phase 0 evidence-pack carry-forward, merged as `ddb9f15fc723f91d3609df35686ded19b6befdb7` after exact-head CI passed. Five documentation artefacts are now in main; their source snapshots remain explicitly pinned as described above. This does not approve Gate 0.
+- **#189** — this manual reconciliation update; exact-head CI is pending. It records the final #185 verifier state and the #188 merge.
+- **#186** — older Phase 0 evidence-pack PR, superseded by merged #188; do not merge the stale branch.
 - **#178** — episodic read/write boundary audit; retained as a narrower backup pending #185.
-- **#171** — responder one-pen migration; corrected constructor injection and its exact-head full CI passed, but the branch is still based on `ae406fa8` and diverges from current main. Reconcile/rebase and re-test before merge.
+- **#190** — responder one-pen migration carried directly onto current main; exact-head CI is running. The earlier #171 branch is superseded and must not be merged.
 - **#162, #166, #170, #172, #173** — remaining one-pen migrations for Fountain, identity, resumption and Moltbook listener/poster; earlier CI passes are on old heads and do not establish current-main compatibility.
 
 PRs based on other branches (including the earlier continuity branch) are not automatically part of `main`. Check the base branch and merge commit before describing their changes as current NEX behaviour.
