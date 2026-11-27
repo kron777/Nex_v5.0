@@ -6,6 +6,7 @@ resume after interruption. Nothing here reasons; the engine modules do.
 from __future__ import annotations
 
 import dataclasses
+import math
 from typing import Any, Dict, List, Optional
 
 from watcher.evidence import utc_now  # reuse Watcher infra (RDO obeys OFT: don't rebuild)
@@ -101,6 +102,166 @@ class Obligation:
 
 
 @dataclasses.dataclass
+class PerformanceMargin:
+    """Evidence-backed v1.4 performance margin: m = q - tau.
+
+    q is the observed/declared performance measure and tau its required
+    threshold. A numeric margin without measured provenance is still UNKNOWN.
+    No threshold is inferred by the model.
+    """
+    metric: str
+    q: Optional[float] = None
+    tau: Optional[float] = None
+    unit: str = ""
+    confidence: str = "unknown"  # measured | stated | inferred | unknown
+    evidence: List[str] = dataclasses.field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.metric, str) or not self.metric.strip():
+            raise ValueError("performance margin requires a metric name")
+        if self.confidence not in ("measured", "stated", "inferred", "unknown"):
+            raise ValueError(f"bad performance-margin confidence {self.confidence!r}")
+        for name, value in (("q", self.q), ("tau", self.tau)):
+            if value is not None and (
+                isinstance(value, bool) or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+            ):
+                raise ValueError(f"performance margin {name} must be a finite number or None")
+        if not isinstance(self.evidence, list) or any(
+            not isinstance(item, str) or not item.strip() for item in self.evidence
+        ):
+            raise ValueError("performance-margin evidence must be nonblank text references")
+
+    @property
+    def margin(self) -> Optional[float]:
+        if self.q is None or self.tau is None:
+            return None
+        return float(self.q) - float(self.tau)
+
+    @property
+    def status(self) -> str:
+        margin = self.margin
+        if margin is None or self.confidence != "measured" or not self.evidence:
+            return TENSION_UNKNOWN
+        return "below_threshold" if margin < 0 else "met"
+
+    def to_dict(self) -> dict:
+        d = dataclasses.asdict(self)
+        d["margin"] = self.margin
+        d["status"] = self.status
+        return d
+
+
+@dataclasses.dataclass
+class InterfaceTensionProfile:
+    """Recovered v1.4 interface dimensions, with unknowns explicit by default.
+
+    This is an additive profile attached to a Relationship. Existing persisted
+    relationships without a profile remain readable but cannot be called
+    sufficient merely because no defect was detected.
+    """
+    provider: str = ""
+    consumer: str = ""
+    purpose: str = ""
+    direction: str = "unknown"
+    contract_schema: str = ""
+    provenance_quality: str = "unknown"  # measured | stated | inferred | unknown
+    timing: str = "unknown"  # synchronous | asynchronous | event_driven | periodic | unknown
+    latency_ms: Optional[float] = None
+    frequency_hz: Optional[float] = None
+    influence_magnitude: str = "unknown"  # none | low | moderate | high | unknown
+    failure_semantics: str = "unknown"  # defined | partial | unknown | not_applicable
+    observability: str = "unknown"  # observed | partial | unknown | not_applicable
+    capacity: Optional[float] = None
+    headroom: Optional[float] = None
+    feedback_sufficiency: str = "unknown"  # sufficient | insufficient | unknown | not_applicable
+    feedback_stability: str = "unknown"  # stable | unstable | unknown | not_applicable
+    duplication: str = "unknown"  # none | shared | duplicate | unknown | not_applicable
+    failure_propagation: str = "unknown"  # contained | bounded | unbounded | unknown | not_applicable
+    operating_envelope: str = "unknown"  # normal | busy | degraded | stress | recovery | unknown
+    margins: List[PerformanceMargin] = dataclasses.field(default_factory=list)
+    evidence: List[str] = dataclasses.field(default_factory=list)
+    not_applicable: List[str] = dataclasses.field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        choices = {
+            "direction": {"provider_to_consumer", "consumer_to_provider", "bidirectional", "unknown"},
+            "provenance_quality": {"measured", "stated", "inferred", "unknown"},
+            "timing": {"synchronous", "asynchronous", "event_driven", "periodic", "unknown"},
+            "influence_magnitude": {"none", "low", "moderate", "high", "unknown"},
+            "failure_semantics": {"defined", "partial", "unknown", "not_applicable"},
+            "observability": {"observed", "partial", "unknown", "not_applicable"},
+            "feedback_sufficiency": {"sufficient", "insufficient", "unknown", "not_applicable"},
+            "feedback_stability": {"stable", "unstable", "unknown", "not_applicable"},
+            "duplication": {"none", "shared", "duplicate", "unknown", "not_applicable"},
+            "failure_propagation": {"contained", "bounded", "unbounded", "unknown", "not_applicable"},
+            "operating_envelope": {"normal", "busy", "degraded", "stress", "recovery", "unknown"},
+        }
+        for field_name, allowed in choices.items():
+            if getattr(self, field_name) not in allowed:
+                raise ValueError(f"bad interface-profile {field_name} {getattr(self, field_name)!r}")
+        for name, value in (
+            ("latency_ms", self.latency_ms), ("frequency_hz", self.frequency_hz),
+            ("capacity", self.capacity), ("headroom", self.headroom),
+        ):
+            if value is not None and (
+                isinstance(value, bool) or not isinstance(value, (int, float))
+                or not math.isfinite(value) or value < 0
+            ):
+                raise ValueError(f"interface-profile {name} must be a finite non-negative number or None")
+        if not isinstance(self.margins, list) or any(
+            not isinstance(item, PerformanceMargin) for item in self.margins
+        ):
+            raise ValueError("interface-profile margins must be PerformanceMargin records")
+        if not isinstance(self.evidence, list) or any(
+            not isinstance(item, str) or not item.strip() for item in self.evidence
+        ):
+            raise ValueError("interface-profile evidence must be nonblank text references")
+        if not isinstance(self.not_applicable, list) or any(
+            not isinstance(item, str) or not item.strip() for item in self.not_applicable
+        ):
+            raise ValueError("interface-profile not_applicable must be nonblank field names")
+
+    def missing_dimensions(self, *, authority: str = "none",
+                           reversible: Optional[bool] = None) -> List[str]:
+        """Return every dimension still UNKNOWN; N/A must be declared explicitly."""
+        missing: List[str] = []
+        required_text = (
+            "provider", "consumer", "purpose", "contract_schema",
+        )
+        for name in required_text:
+            if not getattr(self, name).strip():
+                missing.append(name)
+        for name in (
+            "direction", "provenance_quality", "timing", "influence_magnitude",
+            "failure_semantics", "observability", "feedback_sufficiency",
+            "feedback_stability", "duplication", "failure_propagation",
+            "operating_envelope",
+        ):
+            if getattr(self, name) == "unknown":
+                missing.append(name)
+        for name in ("latency_ms", "frequency_hz", "capacity", "headroom"):
+            if getattr(self, name) is None and name not in self.not_applicable:
+                missing.append(name)
+        if reversible is None and "reversible" not in self.not_applicable:
+            missing.append("reversible")
+        if self.influence_magnitude not in ("none", "unknown") and authority != "bounded":
+            missing.append("bounded_authority")
+        if not self.margins and "margins" not in self.not_applicable:
+            missing.append("performance_margins")
+        if not self.evidence:
+            missing.append("profile_evidence")
+        if any(m.status == TENSION_UNKNOWN for m in self.margins):
+            missing.append("measured_margin_evidence")
+        return sorted(set(missing))
+
+    def to_dict(self) -> dict:
+        d = dataclasses.asdict(self)
+        d["margins"] = [margin.to_dict() for margin in self.margins]
+        return d
+
+
+@dataclasses.dataclass
 class Relationship:
     src: str
     dst: str
@@ -108,9 +269,13 @@ class Relationship:
     authority: str = "none"         # none | bounded | strong  (capability != authority, §6)
     reversible: Optional[bool] = None   # None = unknown
     note: str = ""
+    interface_profile: Optional[InterfaceTensionProfile] = None
 
     def to_dict(self) -> dict:
-        return dataclasses.asdict(self)
+        d = dataclasses.asdict(self)
+        if self.interface_profile is not None:
+            d["interface_profile"] = self.interface_profile.to_dict()
+        return d
 
 
 @dataclasses.dataclass
