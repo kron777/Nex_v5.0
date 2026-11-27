@@ -9,7 +9,13 @@
 #     SIGTERM first, so a deliberate stop/restart is recorded as clean
 #     downtime rather than reading as a crash -- see theory_x/memory/downtime.py).
 set -u
-cd /home/rr/Desktop/Desktop/nex5 || { echo "FATAL: cannot cd to nex5 dir"; exit 1; }
+# Resolve the checkout from this script's location. Do not bind the launcher
+# to one host-specific home/Desktop path; systemd supplies the script path.
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" || {
+  echo "FATAL: cannot resolve nex5 script directory"
+  exit 1
+}
+cd -- "${SCRIPT_DIR}" || { echo "FATAL: cannot cd to nex5 dir"; exit 1; }
 
 # --- single-instance lock: only ONE keepalive may run ---
 LOCKFILE=/tmp/nex5_keepalive.lock
@@ -254,9 +260,9 @@ else
   {
     printf '%s\t%s\t%s\t%s\t%s\n' \
       "$(date -u '+%Y-%m-%dT%H:%M:%S%z')" "keepalive_start" \
-      "$(git -C /home/rr/Desktop/Desktop/nex5 rev-parse --short HEAD 2>/dev/null || echo '')" \
+      "$(git -C "${SCRIPT_DIR}" rev-parse --short HEAD 2>/dev/null || echo '')" \
       "${NEX_PID}" "auto" \
-      >> /home/rr/Desktop/Desktop/nex5/journal/keepalive_runtime.tsv
+      >> "${SCRIPT_DIR}/journal/keepalive_runtime.tsv"
   } 2>/dev/null || true
 
   sleep 45
