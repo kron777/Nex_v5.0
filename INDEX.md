@@ -1,6 +1,6 @@
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `8d2121d121931d37afcb1c3d23d27e7ccc9145d1`  
+**Last verified against:** `main` at `f03a3d2e7b9c71801e44be73cf728c01cb791c9d`  
 **Evidence date:** 27 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -826,9 +826,9 @@ PR #274 changed documentation/evidence only. No MIND_MAP nodes, doctrine files, 
 
 ## 42. Phase 0 system research continuation (27 November 2026)
 
-**Research evidence snapshot:** `14873c10673760b8adbbf6fb0076226d1c97ffa4` (before PR #279). Current main additionally includes PR #279 at `8d2121d121931d37afcb1c3d23d27e7ccc9145d1`. The selected-path research report is `NEX_PHASE0_SYSTEM_RESEARCH_2026-11-27.md`.
+**Research evidence snapshot:** `14873c10673760b8adbbf6fb0076226d1c97ffa4` (before PR #279). Current main additionally includes PR #279 at `8d2121d121931d37afcb1c3d23d27e7ccc9145d1` and PR #280 at `f03a3d2e7b9c71801e44be73cf728c01cb791c9d`. The selected-path research report is `NEX_PHASE0_SYSTEM_RESEARCH_2026-11-27.md`.
 
-PR #275's mind-map freshness update, PR #276's RDO generated-cycle exclusion and PR #277's keepalive path portability fix are merged. Their exact-head full baselines passed respectively at 2,632, 2,634 and 2,636 passed tests (7 skipped, 45 subtests; baseline OK). PR #276 also has a passing post-merge main run. PR #277 preserves current main's `MOLTBOOK_DRY_RUN=1`. PR #279 then moves the scheduled prose-statistics rebuild onto the shared beliefs Writer/Reader path; its exact-head run `46044361663` passed 2,638 tests, 7 skipped, 45 subtests, baseline OK. The merge is `8d2121d121931d37afcb1c3d23d27e7ccc9145d1`; post-merge main run `46045384807` passed 2,638 tests, 7 skipped, 45 subtests, baseline OK.
+PR #275's mind-map freshness update, PR #276's RDO generated-cycle exclusion and PR #277's keepalive path portability fix are merged. Their exact-head full baselines passed respectively at 2,632, 2,634 and 2,636 passed tests (7 skipped, 45 subtests; baseline OK). PR #276 also has a passing post-merge main run. PR #277 preserves current main's `MOLTBOOK_DRY_RUN=1`. PR #279 moves the scheduled prose-statistics rebuild onto the shared beliefs Writer/Reader path; exact-head run `46044361663` passed 2,638 tests, 7 skipped, 45 subtests, baseline OK. Post-merge main run `46045384807` also passed 2,638. PR #280 hardens Writer shutdown/submission ordering; exact-head run `46045754339` passed 2,640 tests, 7 skipped, 45 subtests, baseline OK. It is merged as `f03a3d2e7b9c71801e44be73cf728c01cb791c9d`; post-merge main CI is in progress.
 
 ### Current source research
 
