@@ -47,6 +47,7 @@ class WriteRequest:
     params: Sequence[Any] = ()
     statements: Optional[list[tuple[str, Sequence[Any]]]] = None
     include_rowcounts: bool = False
+    continue_on_integrity_error: bool = False
     future: Future = field(default_factory=Future)
 
 
@@ -118,17 +119,25 @@ class Writer:
         return req.future.result()
 
     def write_many_with_counts(
-        self, statements: Iterable[tuple[str, Sequence[Any]]]
+        self,
+        statements: Iterable[tuple[str, Sequence[Any]]],
+        *,
+        continue_on_integrity_error: bool = False,
     ) -> list[tuple[Any, int]]:
         """Atomically execute statements and return (lastrowid, rowcount) per statement.
 
         Rowcounts are captured from each cursor before the next statement runs.
         This is useful for INSERT OR IGNORE batches where connection.total_changes
         is cumulative and cannot identify which individual statement inserted a row.
+
+        When continue_on_integrity_error is true, an IntegrityError on one statement
+        records (None, 0) for that statement and the transaction continues. Other
+        error types still roll back the complete batch.
         """
         req = WriteRequest(
             statements=[(s, tuple(p)) for s, p in statements],
             include_rowcounts=True,
+            continue_on_integrity_error=continue_on_integrity_error,
         )
         self.submit(req)
         return req.future.result()
@@ -209,7 +218,13 @@ class Writer:
             try:
                 results = []
                 for statement, params in req.statements:
-                    cursor = conn.execute(statement, params)
+                    try:
+                        cursor = conn.execute(statement, params)
+                    except sqlite3.IntegrityError:
+                        if not req.continue_on_integrity_error:
+                            raise
+                        results.append((None, 0))
+                        continue
                     if req.include_rowcounts:
                         results.append((cursor.lastrowid, cursor.rowcount))
                     else:
