@@ -246,3 +246,10 @@ def test_exact_scope_patterns_do_not_use_legacy_token_overlap():
     assert [p.key for p in memory.applicable("belief decay")] == ["exact"]
     assert memory.applicable("belief retrieval") == []
     assert memory.applicable("other belief decay") == []
+
+
+def test_pattern_exact_scope_requires_boolean_value():
+    import pytest
+    from rdo.model import Pattern
+    with pytest.raises(ValueError, match="exact_scope must be a boolean"):
+        Pattern(key="bad", statement="bad", provenance="cycle:1", exact_scope="true")
