@@ -1,0 +1,76 @@
+# NEX v5.0 — Architecture Crosswalk v2 (Mainline Evidence Snapshot)
+
+**Snapshot:** `main` at `612022e81f749a99de665372704d7acc0645de67`  
+**Evidence date:** 27 November 2026  
+**Boundary:** source-level map and controlled tests; not a live runtime audit.
+
+## 1. Inventory and authority boundary
+
+- `mind_map/MIND_MAP.yaml` is a descriptive index, not a runtime authority.
+- Current YAML inventory: 39 `nodes:` entries and 5 `arms:` entries. The bootstrap comment and older roadmap references still say 30 nodes. Preserve the discrepancy for owner reconciliation; do not remove/merge entries to force the old count.
+- `sentience_dag.json` and `nex_next_dev.py` are a separate development/buildability graph. The executable satisfaction set is `built`, `live_unproven`, and `terminal`. The latter two are surfaced as caveats, not proof of operation.
+- `mind_map/mind_map.py` performs schema/source/freshness checks and a static AST guard. The guard enforces the descriptive-only constraint, rejects specified action-authority fields, and scans configured runtime source roots for direct imports/references to `MIND_MAP.yaml`. It does not constitute a proof against all dynamic/indirect/external authority paths.
+
+## 2. Static boot and substrate path
+
+The current `run.py` boot sequence initializes the six substrate databases via `substrate.init_db.init_all()`, constructs Readers/Writers, builds mode/voice state, then builds the sense scheduler, dynamic layer, world model, membrane and Fountain before wiring the GUI/AppState. Speech is conditionally started according to its speech configuration.
+
+The six database identities come from `substrate.paths.db_paths()`: beliefs, sense, dynamic, intel, conversations and probes. Each database has its own Reader/Writer path. A Writer's `write()` commits one statement in one database; `write_many()` is atomic inside one database only. There is no cross-database transaction across sense/dynamic/beliefs/conversations.
+
+### Sense
+
+`theory_x/stage1_sense/__init__.py:build_scheduler()` wires 28 adapters: 4 internal sensors and 24 external feeds. `SenseScheduler.__init__()` calls `start_all()`; external feeds therefore auto-start during normal construction/boot. The internal sensors are not controlled by the external-feed global run-event. Adapter wiring is static source evidence; it does not prove that every external feed successfully polls or produces events.
+
+### Dynamic and world-model layers
+
+`theory_x/stage2_dynamic/__init__.py` constructs dynamic state and registers its core worker loops. Additional loops are guarded by optional imports/configuration. Successfully registered loops are started as daemon threads by the builder. This is static boot wiring, not proof that each thread is alive or has downstream effect on the host.
+
+`theory_x/stage3_world_model` provides belief retrieval and associated world-model services consumed by Chat and Fountain. Static construction does not establish retrieval quality or live model performance.
+
+### Membrane, Coherence Gate and consumers
+
+`theory_x/stage4_membrane` classifies queries as INSIDE/OUTSIDE and routes to the corresponding retrieval surface. It may also start a behavioural self-model loop when the conversations reader is present.
+
+`theory_x/stage_gate/coherence_gate.py` evaluates ThoughtPackets into ACCEPT/REJECT/HOLD/RESHAPE, persists decisions in `beliefs.db:gate_decisions`, and has optional downstream handling for REJECT/HOLD/RESHAPE/ACCEPT. Its current evaluation exception policy is fail-open: an evaluation exception is recorded and returned as ACCEPT with reason `gate_error_fallback`. This report documents the code; it does not endorse or change that policy.
+
+## 3. Backward/forward path crosswalk
+
+| Path | Producer → selection/gate → persistence → consumer | Evidence |
+|---|---|---|
+| Sense | 28 wired adapters → `sense_events` → Stage 2 dynamic consumers | Static source; host polling not observed |
+| Fountain | readiness → retrieval manifest → prompt/workspace → voice/reconcile candidates and filters → `sense_events` + `dynamic.fountain_events` → quality gate → Coherence Gate → `beliefs.beliefs` and `fountain_crystallizations` → optional speech queue | Static source plus L3 paired fixture tests |
+| Chat | `/api/chat` input/session/message → membrane/fallback retrieval → 13 faculty blocks/workspace → voice/tool path → sanitization → conversation message and response | Static source plus L3 paired fixture tests |
+| Speech | selected speakable crystallized beliefs → governor → `beliefs.speech_queue` → asynchronous consumer/TTS backend | Static source; host enabled state unknown |
+| DAG tooling | `sentience_dag.json` prerequisites → `nex_next_dev.py` satisfaction rule | Static source |
+
+This is not yet a complete producer/consumer DAG for every faculty under `theory_x/`. Faculties without a traced downstream consumer, or whose live effect is not measured, remain open work rather than being marked complete.
+
+## 4. M0.5 causal trace
+
+Roadmap v3.0 Phase 0 M0.5 is implemented in `influence_trace.py` and integrated into Fountain and Chat. The switch is `NEX5_TRACE_OVERLAY`; unset/zero is OFF. When enabled, the overlay appends parent-linked JSONL events to a sidecar (default `logs/nex_causal_trace.jsonl`), never to a substrate database. It hashes text-bearing data and stores UTF-8 byte lengths rather than raw prompts, beliefs or outputs.
+
+The trace includes explicit `trace_id`, `event_id` and `parent_ids`. An event only has causal parents supplied by the producer; mere chronological proximity does not infer a parent edge. The collector does not read substrate databases or participate in decisions. The Gate decision's persisted `gate_decisions` row is recorded as a Writer delta and linked to the upstream quality-gate event.
+
+### Fountain
+
+Observed stages include readiness, retrieved candidate identifiers/source kinds, workspace selection, prompt context/assembly, output filters and retries, quality/Gate outcomes, `sense_events`, `fountain_events`, belief insert, crystallization link and speech-queue outcome. Substrate-voice, quiescent, voice-fallback and stillness paths are distinguished because they bypass different portions of the normal generation/crystallization path.
+
+### Chat
+
+Observed stages include input arrival, session/user-message writes, membrane classification and retrieval candidate identifiers (or fallback retrieval), faculty-block workspace selection, final prompt assembly, tool/voice path, assistant-message write and final reply. The Chat crystallization Gate is explicitly `NOT_APPLICABLE`: a Chat reply is a conversation output, not a belief-write request.
+
+### Evidence and limits
+
+`NEX_CAUSAL_TRACE_SAMPLE.json` contains one synthetic Fountain cycle and one synthetic Chat turn. Both are fixture captures, labelled L3. The complete paired tests prove semantic equivalence for the tested outputs, prompts/model requests, retrieved/selected candidates, confidence/belief state, Gate decisions and relevant database state with tracing off versus on. They do not prove identical timing; synchronous file I/O can add latency when explicitly enabled.
+
+No live NEX process or runtime context was enabled. L4/runtime evidence remains UNKNOWN. The sample trace is not a live capture.
+
+## 5. Discrepancies and next audit obligations
+
+1. Host/runtime identity, process state, service health, live database hashes, model digest and local performance metrics have not been collected in this mainline pass.
+2. The mind-map node-count convention (39 YAML nodes vs older “30” references; plus 5 arms) remains unresolved.
+3. Two doctrine files referenced by map metadata are missing in the CI snapshot; node source-verification dates are stale, and `p13_finitude` carries a past-due unblock marker.
+4. The full theory_x faculty-by-faculty forward and backward audit remains incomplete.
+5. Coherence Gate fail-open behaviour is documented but not altered; any policy change is outside this observational increment.
+
+No Phase 1 behavioural work or Gate 0 approval is implied by this crosswalk.
