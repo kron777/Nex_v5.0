@@ -619,3 +619,9 @@ The source-level G-70 gap is now addressed by a bounded development proposal, **
 
 The PR #261 exact-head mind-map check reported P9 as stale because `substrate/schema/dynamic.sql` changed on current main. A comparison of the prior and current schema blobs showed the entire change was an eight-line `daemon_kv` table insertion at the beginning of the file. The `held_tensions` definition itself was byte-for-byte unchanged and moved from lines 144–159 to 152–167. The P9 Harmonizer path and focused held-tension/retry tests were re-read. The source anchor and `last_verified` date were updated in the current documentation branch only; no P9 status or runtime behaviour changed. The next documentation-branch CI must confirm the mind-map verifier is clean apart from the known missing-doctrine/P13 warnings.
 
+
+
+## 35. WarrantPass boot-path documentation correction (27 November 2026)
+
+The G-75 source review found a false statement in `WarrantPass`'s class docstring: it said the pass was constructed and started by `run.py`. The audited `run.py` source constructs and starts `WarrantRecorder` behind `NEX5_WARRANT_RECORD=1`, but contains no WarrantPass construction/start. `WarrantPass.start_loop()` separately checks `NEX5_WARRANT=1`. Draft PR #262 corrects the docstring only; it does not wire the pass or alter either flag. G-75 remains open because the intended record-only versus scoring lifecycle still requires owner clarification.
+
