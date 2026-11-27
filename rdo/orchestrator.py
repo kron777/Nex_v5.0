@@ -60,18 +60,31 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
     # obligations and evidence, retain it as UNKNOWN and block execution readiness.
     objective_context = dict(objective_context or {})
     context_items = []
+
+    def _context_values(value):
+        # Scalar contract fields (notably intent) are one item, never an iterable
+        # of characters. Lists remain lists; malformed shapes stay unexpanded.
+        if isinstance(value, str):
+            return [value]
+        if isinstance(value, list):
+            return value
+        return []
+
+    for value in _context_values(objective_context.get("intent")):
+        if isinstance(value, str) and value.strip():
+            context_items.append({"kind": "intent", "text": value, "status": "unmapped", "evidence": []})
     context_scope = objective_context.get("scope", {})
     if isinstance(context_scope, dict):
-        for value in context_scope.get("in_scope", []) or []:
+        for value in _context_values(context_scope.get("in_scope")):
             if isinstance(value, str) and value.strip():
                 context_items.append({"kind": "scope", "text": value, "status": "unmapped", "evidence": []})
-        for value in context_scope.get("affected_paths", []) or []:
+        for value in _context_values(context_scope.get("affected_paths")):
             if isinstance(value, str) and value.strip():
                 context_items.append({"kind": "affected_path", "text": value, "status": "unmapped", "evidence": []})
-    for field, kind in (("intent", "intent"), ("assumptions", "assumption"), ("constraints", "constraint"),
+    for field, kind in (("assumptions", "assumption"), ("constraints", "constraint"),
                         ("exclusions", "exclusion"),
                         ("acceptance_criteria", "acceptance_criterion")):
-        for value in objective_context.get(field, []) or []:
+        for value in _context_values(objective_context.get(field)):
             if isinstance(value, str) and value.strip():
                 context_items.append({"kind": kind, "text": value, "status": "unmapped", "evidence": []})
     context_assessment = {
