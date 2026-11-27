@@ -1068,6 +1068,20 @@ def test_active_experiment_registry_rejects_malformed_payload(tmp_path, monkeypa
         )
         assert _active_experiments(str(tmp_path)) is None
 
+def test_reconciliation_ignores_its_own_cycle_artifacts(tmp_path):
+    import rdo.reconcile as recon
+
+    cycle_dir = tmp_path / "rdo" / ".cycles"
+    cycle_dir.mkdir(parents=True)
+    (cycle_dir / "prior-cycle.json").write_text(
+        '{"source_signature": "def required_mechanism"}', encoding="utf-8"
+    )
+
+    # RDO cycle JSON is generated evidence, not source implementation. It must
+    # never satisfy an unscoped source signature on a later planning cycle.
+    assert recon._grep(r"def required_mechanism", str(tmp_path), None) == []
+
+
 def test_grep_handles_non_utf8_text_without_crashing(tmp_path):
     import rdo.reconcile as recon
 
