@@ -54,20 +54,21 @@ class TestCommitmentsOnePen(unittest.TestCase):
 
         # Build a known-valid future-deadline commitment for the release guard.
         now = time.time()
-        release_id = self.writers["conversations"].transaction(
-            lambda cx: C._record(
-                cx, "chat", 9001, 0, now,
-                {
-                    "kind": "commitment",
-                    "obligation": "think about the test",
-                    "discharge": {"kind": "think", "topic": "test"},
-                    "deadline": now + 3600,
-                    "deadline_text": "in one hour",
-                    "counterparty": None,
-                    "statement": "I will think about the test in one hour",
-                },
+        with patch.object(C, "snapshot_stakes", return_value=(0.0, 0, 0.2)):
+            release_id = self.writers["conversations"].transaction(
+                lambda cx: C._record(
+                    cx, "chat", 9001, 0, now,
+                    {
+                        "kind": "commitment",
+                        "obligation": "think about the test",
+                        "discharge": {"kind": "think", "topic": "test"},
+                        "deadline": now + 3600,
+                        "deadline_text": "in one hour",
+                        "counterparty": None,
+                        "statement": "I will think about the test in one hour",
+                    },
+                )
             )
-        )
         self.assertIsNotNone(release_id)
         with patch.object(
             C, "Writer",
