@@ -261,4 +261,4 @@ No live host, runtime, database, credential or external service was accessed. No
 
 ### Post-research-snapshot PR #279 update — 27 November 2026
 
-PR #279 merged as `8d2121d121931d37afcb1c3d23d27e7ccc9145d1`; exact-head CI run `46044361663` passed 2,638 tests, 7 skipped, 45 subtests, baseline OK. It moves the scheduled prose-statistics rebuild to the shared beliefs Writer/Reader path. This closes the auxiliary write bypass, not SignalToProblem's primary split-database transaction. G-85/G-61 remain open pending a defined idempotency/recovery contract. No post-merge main CI run was returned at this update.
+PR #279 merged as `8d2121d121931d37afcb1c3d23d27e7ccc9145d1`; exact-head CI run `46044361663` passed 2,638 tests, 7 skipped, 45 subtests, baseline OK. It moves the scheduled prose-statistics rebuild to the shared beliefs Writer/Reader path. This closes the auxiliary write bypass, not SignalToProblem's primary split-database transaction. G-85/G-61 remain open pending a defined idempotency/recovery contract. Post-merge main run `46045384807` also passed 2,638 tests, 7 skipped, 45 subtests, baseline OK.
