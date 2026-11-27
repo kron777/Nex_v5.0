@@ -304,7 +304,7 @@ def test_persisted_exact_scope_key_collision_fails_closed(tmp_path):
         applicability="belief decay", exact_scope=True)
     second = Pattern(key="same", statement="second", provenance="cycle:2",
         applicability="belief retrieval", exact_scope=True)
-    path.write_text(json.dumps(first.to_dict()) + "\\n" + json.dumps(second.to_dict()) + "\\n")
+    path.write_text(json.dumps(first.to_dict()) + "\n" + json.dumps(second.to_dict()) + "\n")
     with pytest.raises(ValueError, match="persisted pattern key collision"):
         PatternMemory(str(path))
 
