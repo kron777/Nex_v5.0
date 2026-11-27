@@ -311,38 +311,30 @@ def ensure_params_schema(
     _writer_transaction(conversations_writer, db_path, "self_prediction_params_schema", _ensure)
 
 
-def _current_threshold(db_path: str, kind: str = "fire") -> float:
+def _current_threshold(db_path: str, kind: str = "fire", *, conversations_writer: Writer | None = None, conversations_reader: Reader | None = None) -> float:
     """The learned gate for `kind`, or the static constant until one is calibrated."""
     try:
-        ensure_params_schema(db_path)
-        conn = _connect(db_path)
-        try:
-            r = conn.execute(
-                "SELECT threshold FROM self_pred_params WHERE kind=?", (kind,)
-            ).fetchone()
-            return float(r["threshold"]) if r else FIRE_THRESHOLD
-        finally:
-            conn.close()
+        ensure_params_schema(db_path, conversations_writer)
+        reader = conversations_reader or Reader(db_path)
+        r = reader.read_one("SELECT threshold FROM self_pred_params WHERE kind=?", (kind,))
+        return float(r["threshold"]) if r else FIRE_THRESHOLD
     except Exception:
         return FIRE_THRESHOLD
 
 
 def calibration_curve(db_path: Optional[str] = None, n: int = 500,
-                      bins: int = 10) -> list:
+                      bins: int = 10, *, conversations_reader: Reader | None = None) -> list:
     """Empirical P(fire) by readiness bin over the last n resolved self rows.
     This IS the calibration curve, from data already recorded."""
     db_path = db_path or _db_path()
-    conn = _connect(db_path)
-    try:
-        rows = conn.execute(
-            "SELECT readiness, actual FROM self_predictions "
-            "WHERE source='self' AND COALESCE(kind,'fire')='fire' "
-            "AND readiness IS NOT NULL AND actual IS NOT NULL "
-            "ORDER BY resolved_at DESC LIMIT ?",
-            (n,),
-        ).fetchall()
-    finally:
-        conn.close()
+    reader = conversations_reader or Reader(db_path)
+    rows = reader.read(
+        "SELECT readiness, actual FROM self_predictions "
+        "WHERE source='self' AND COALESCE(kind,'fire')='fire' "
+        "AND readiness IS NOT NULL AND actual IS NOT NULL "
+        "ORDER BY resolved_at DESC LIMIT ?",
+        (n,),
+    )
     buckets: dict[int, list] = {}
     for r in rows:
         k = min(int(float(r["readiness"]) * bins), bins - 1)
@@ -355,7 +347,9 @@ def calibration_curve(db_path: Optional[str] = None, n: int = 500,
 
 
 def adapt_threshold(db_path: Optional[str] = None, kind: str = "fire",
-                    n: int = 500, operating_p: float = 0.5, bins: int = 10) -> Optional[dict]:
+                    n: int = 500, operating_p: float = 0.5, bins: int = 10, *,
+                    conversations_writer: Writer | None = None,
+                    conversations_reader: Reader | None = None) -> Optional[dict]:
     """MONITOR ONLY (Q3). Computes the would-be gate from recent outcomes -- the
     lowest readiness bin whose empirical P(fire) >= operating_p -- and persists it for
     inspection. It does NOT feed make_self_prediction: at P(fire)=0.992 the learned
@@ -364,14 +358,13 @@ def adapt_threshold(db_path: Optional[str] = None, kind: str = "fire",
     predict->observe->error->UPDATE loop is on selfdesc_novel. Kept to log the
     threshold the fire target WOULD learn, and to show it standing still."""
     db_path = db_path or _db_path()
-    curve = calibration_curve(db_path, n=n, bins=bins)
+    curve = calibration_curve(db_path, n=n, bins=bins, conversations_reader=conversations_reader)
     if not curve:
         return None
     thr = next((b["readiness_lo"] for b in curve if b["p_fire"] >= operating_p), 1.0)
     try:
-        ensure_params_schema(db_path)
-        conn = _connect(db_path)
-        try:
+        ensure_params_schema(db_path, conversations_writer)
+        def _persist(conn):
             conn.execute(
                 "INSERT INTO self_pred_params (kind, threshold, updated_at, n, operating_p) "
                 "VALUES (?,?,?,?,?) ON CONFLICT(kind) DO UPDATE SET "
@@ -379,9 +372,7 @@ def adapt_threshold(db_path: Optional[str] = None, kind: str = "fire",
                 "n=excluded.n, operating_p=excluded.operating_p",
                 (kind, thr, time.time(), sum(b["n"] for b in curve), operating_p),
             )
-            conn.commit()
-        finally:
-            conn.close()
+        _writer_transaction(conversations_writer, db_path, "self_prediction_adapt", _persist)
     except Exception as e:
         logger.warning("self_pred adapt_threshold persist failed: %s", e)
     return {"threshold": thr, "operating_p": operating_p,
