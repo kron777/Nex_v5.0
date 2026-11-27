@@ -47,7 +47,7 @@ def test_ledger_lifecycle_and_illegal_transition(tmp_path):
     led.record("x->y", "TEST_PASSED", evidence_refs=["tests/test_x.py"])
     assert led.current_state("x->y") == "TEST_PASSED"
     # Even with host provenance and a trace, runtime cannot be the first lifecycle state.
-    with pytest.raises(LedgerError, match="first entry must be DECLARED"):
+    with pytest.raises(LedgerError, match="must be DECLARED/BLOCKED"):
         led.record("fresh->z", "RUNTIME_OBSERVED", origin="host",
                    evidence_refs=["trace:host-runtime-fresh"])
     # persistence: a new ledger over the same file sees history
