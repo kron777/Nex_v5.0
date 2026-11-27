@@ -35,7 +35,7 @@ from __future__ import annotations
 import logging
 import os
 import re
-from substrate import Reader, Writer, OperationalError
+from substrate import Reader, Writer
 import time
 from typing import Optional
 
