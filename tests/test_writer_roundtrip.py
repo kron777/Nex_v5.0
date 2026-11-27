@@ -65,6 +65,28 @@ class TestWriterRoundtrip(unittest.TestCase):
         self.assertEqual([rowcount for _rowid, rowcount in results], [1, 0, 1])
         self.assertEqual(Reader(self.db).count("counted"), 2)
 
+    def test_counted_batch_can_skip_integrity_error_and_continue(self):
+        self.writer.write("CREATE TABLE parent (id INTEGER PRIMARY KEY)", ())
+        self.writer.write(
+            "CREATE TABLE child ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "parent_id INTEGER NOT NULL REFERENCES parent(id))",
+            (),
+        )
+        self.writer.write("INSERT INTO parent (id) VALUES (1)", ())
+
+        results = self.writer.write_many_with_counts(
+            [
+                ("INSERT INTO child (parent_id) VALUES (?)", (1,)),
+                ("INSERT INTO child (parent_id) VALUES (?)", (99,)),
+                ("INSERT INTO child (parent_id) VALUES (?)", (1,)),
+            ],
+            continue_on_integrity_error=True,
+        )
+
+        self.assertEqual([rowcount for _rowid, rowcount in results], [1, 0, 1])
+        self.assertEqual(Reader(self.db).count("child"), 2)
+
     def test_multi_statement_rollback_on_error(self):
         with self.assertRaises(Exception):
             self.writer.write_many([
