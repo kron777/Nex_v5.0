@@ -249,6 +249,7 @@ def test_exact_scope_patterns_do_not_use_legacy_token_overlap(tmp_path):
         applicability="belief decay", exact_scope=True))
     assert [p.key for p in memory.applicable("belief decay")] == ["exact"]
     assert [p.key for p in memory.applicable("  belief decay  ")] == ["exact"]
+    assert [p.key for p in memory.applicable("  BELIEF   DECAY  ")] == ["exact"]
     assert memory.applicable("belief retrieval") == []
     assert memory.applicable("other belief decay") == []
 
