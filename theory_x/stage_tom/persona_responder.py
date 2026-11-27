@@ -48,7 +48,7 @@ import re
 import sys
 import json
 import time
-from substrate import connect, Row
+from substrate import connect, Row, Reader, Writer
 import argparse
 import logging
 import urllib.request
@@ -288,43 +288,54 @@ def _check_reply(reply: str, thoughts: list[str]) -> tuple[bool, str, str, float
     return False, "ok", "", max_j
 
 
-def _write_persona_reject(reason: str, reply: str, matched_pattern: str, jaccard: float) -> None:
-    """Durable record of a discarded reply — session 33's
-    crystallization_rejects pattern, not repeated blind this time.
-    Telemetry; must never break the loop."""
+def _write_persona_reject(
+    reason: str, reply: str, matched_pattern: str, jaccard: float,
+    dynamic_writer: Writer | None = None,
+) -> None:
+    """Durable record of a discarded reply. Telemetry; must never break the loop."""
+    owns_writer = dynamic_writer is None
+    writer = dynamic_writer
     try:
-        conn = connect(_db("dynamic"), timeout=10)
-        try:
-            conn.execute(
-                "INSERT INTO persona_rejects "
-                "(ts, reason, reply_excerpt, matched_pattern, jaccard) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (time.time(), reason, reply[:200], matched_pattern or None, jaccard),
-            )
-            conn.commit()
-        finally:
-            conn.close()
+        if writer is None:
+            writer = Writer(_db("dynamic"), name="persona_responder_dynamic")
+        writer.write(
+            "INSERT INTO persona_rejects "
+            "(ts, reason, reply_excerpt, matched_pattern, jaccard) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (time.time(), reason, reply[:200], matched_pattern or None, jaccard),
+        )
     except Exception as e:
         logger.warning("persona_reject write failed: %s", e)
+    finally:
+        if owns_writer and writer is not None:
+            try:
+                writer.close()
+            except Exception:
+                pass
 
 
-def _write_other_mind(text: str) -> bool:
-    """Write the persona's reply to sense_events as external.other_mind —
-    exactly the row shape NEX's Layer 4 reads."""
-    conn = connect(_db("sense"), timeout=10)
+def _write_other_mind(text: str, sense_writer: Writer | None = None) -> bool:
+    """Write the persona reply to sense_events as external.other_mind."""
+    owns_writer = sense_writer is None
+    writer = sense_writer
     try:
-        conn.execute(
+        if writer is None:
+            writer = Writer(_db("sense"), name="persona_responder_sense")
+        writer.write(
             "INSERT INTO sense_events (stream, payload, provenance, timestamp) "
             "VALUES (?, ?, ?, ?)",
             ("external.other_mind", text, "othermind://qwen-persona", int(time.time())),
         )
-        conn.commit()
         return True
     except Exception as e:
         logger.warning("other_mind write failed: %s", e)
         return False
     finally:
-        conn.close()
+        if owns_writer and writer is not None:
+            try:
+                writer.close()
+            except Exception:
+                pass
 
 
 # ---------------------------------------------------------------------------
@@ -338,40 +349,51 @@ def _write_other_mind(text: str) -> bool:
 # Single-row table interlocutor_state.id=1 in conversations.db. Default OFF.
 # ---------------------------------------------------------------------------
 
-def _ensure_interlocutor_table(conn) -> None:
-    conn.execute(
+def _ensure_interlocutor_table(writer: Writer) -> None:
+    writer.write(
         "CREATE TABLE IF NOT EXISTS interlocutor_state ("
         "id INTEGER PRIMARY KEY, focus TEXT, mood REAL, "
         "turn_count INTEGER, updated_at REAL, focus_streak INTEGER DEFAULT 0)"
     )
-    # Back-compat for a row-store created before NEX5_PERSONA_FOCUS_ROTATE: add
-    # the column if it is missing. SQLite has no ADD COLUMN IF NOT EXISTS, so the
-    # duplicate-column error on an already-migrated table is the no-op signal.
+    # Back-compat for a row-store created before NEX5_PERSONA_FOCUS_ROTATE.
+    # SQLite has no ADD COLUMN IF NOT EXISTS; duplicate-column is the no-op.
     try:
-        conn.execute(
+        writer.write(
             "ALTER TABLE interlocutor_state ADD COLUMN focus_streak INTEGER DEFAULT 0"
         )
     except Exception:
         pass
 
 
-def _load_interlocutor_state() -> dict:
+def _load_interlocutor_state(
+    conversations_writer: Writer | None = None,
+    conversations_reader: Reader | None = None,
+) -> dict:
     """Current model of the other, or a neutral init. Fail-safe -> neutral."""
+    owns_writer = conversations_writer is None
+    writer = conversations_writer
     try:
-        conn = connect(_db("conversations"), timeout=10)
-        try:
-            _ensure_interlocutor_table(conn)
-            row = conn.execute(
-                "SELECT focus, mood, turn_count FROM interlocutor_state WHERE id=1"
-            ).fetchone()
-        finally:
-            conn.close()
+        if writer is None:
+            writer = Writer(_db("conversations"), name="persona_responder_conversations")
+        reader = conversations_reader or Reader(_db("conversations"))
+        _ensure_interlocutor_table(writer)
+        row = reader.read_one(
+            "SELECT focus, mood, turn_count FROM interlocutor_state WHERE id=1"
+        )
         if not row:
             return {"focus": "", "mood": 0.0, "turn_count": 0}
-        return {"focus": row[0] or "", "mood": float(row[1] or 0.0),
-                "turn_count": int(row[2] or 0)}
+        return {"focus": row["focus"] or "", "mood": float(row["mood"] or 0.0),
+                "turn_count": int(row["turn_count"] or 0)}
     except Exception:
         return {"focus": "", "mood": 0.0, "turn_count": 0}
+    finally:
+        if owns_writer and writer is not None:
+            try:
+                writer.close()
+            except Exception:
+                pass
+
+
 
 
 # discourse fillers that survive the stopword+length filter but are not a topic
@@ -454,50 +476,44 @@ def _mood_word(mood: float) -> str:
     return "even"
 
 
-def _evolve_interlocutor_state(prev: dict, reply: str) -> dict:
-    """Advance the model one turn from the other's own reply. focus drifts/
-    carries; mood does a bounded, mean-reverting walk (a curious question lifts
-    it slightly, otherwise it decays toward even) so it develops without
-    runaway. Under NEX5_PERSONA_FOCUS_ROTATE, a staleness bound forces the focus
-    off a thread it has carried too long so the persona stops locking onto one
-    topic. Persists to interlocutor_state. Fail-safe: returns prev on error."""
+def _evolve_interlocutor_state(
+    prev: dict,
+    reply: str,
+    conversations_writer: Writer | None = None,
+    conversations_reader: Reader | None = None,
+) -> dict:
+    """Advance and persist the interlocutor model. Fail-safe: returns prev on error."""
+    owns_writer = conversations_writer is None
+    writer = conversations_writer
     try:
+        if writer is None:
+            writer = Writer(_db("conversations"), name="persona_responder_conversations")
+        reader = conversations_reader or Reader(_db("conversations"))
+        _ensure_interlocutor_table(writer)
         prev_focus = prev.get("focus", "") or ""
         focus = _focus_from_reply(reply, prev_focus)
         is_carry = bool(prev_focus) and focus == prev_focus
         nudge = 0.1 if "?" in (reply or "") else -0.02
         mood = max(-1.0, min(1.0, 0.85 * float(prev.get("mood", 0.0)) + nudge))
         turn = int(prev.get("turn_count", 0)) + 1
-        conn = connect(_db("conversations"), timeout=10)
-        try:
-            _ensure_interlocutor_table(conn)
-            # Streak is read from the persisted row (not `prev`), so it survives
-            # across the single load/evolve per persona tick regardless of the
-            # shape of the dict passed in.
-            _row = conn.execute(
-                "SELECT focus_streak FROM interlocutor_state WHERE id=1"
-            ).fetchone()
-            prev_streak = int(_row[0]) if _row and _row[0] is not None else 0
-            rotated = False
-            # NEX5_PERSONA_FOCUS_ROTATE: once the SAME focus has been carried
-            # _PERSONA_FOCUS_STALE_TURNS turns, force the next would-be carry off
-            # it, so the persona reverts to its outward-looking default instead of
-            # locking every fire onto one topic (research log topic_rut_2026-10-07).
-            if (_focus_rotate_on() and is_carry
-                    and prev_streak >= _PERSONA_FOCUS_STALE_TURNS):
-                focus = _drift_focus(reply, prev_focus)   # "" if nothing else
-                is_carry = False
-                rotated = True
-            streak = (prev_streak + 1) if is_carry else (1 if focus else 0)
-            conn.execute(
-                "INSERT OR REPLACE INTO interlocutor_state "
-                "(id, focus, mood, turn_count, updated_at, focus_streak) "
-                "VALUES (1, ?, ?, ?, ?, ?)",
-                (focus, mood, turn, time.time(), streak),
-            )
-            conn.commit()
-        finally:
-            conn.close()
+        # Read the persisted streak so it survives the load/evolve cycle.
+        row = reader.read_one(
+            "SELECT focus_streak FROM interlocutor_state WHERE id=1"
+        )
+        prev_streak = int(row["focus_streak"]) if row and row["focus_streak"] is not None else 0
+        rotated = False
+        if (_focus_rotate_on() and is_carry
+                and prev_streak >= _PERSONA_FOCUS_STALE_TURNS):
+            focus = _drift_focus(reply, prev_focus)
+            is_carry = False
+            rotated = True
+        streak = (prev_streak + 1) if is_carry else (1 if focus else 0)
+        writer.write(
+            "INSERT OR REPLACE INTO interlocutor_state "
+            "(id, focus, mood, turn_count, updated_at, focus_streak) "
+            "VALUES (1, ?, ?, ?, ?, ?)",
+            (focus, mood, turn, time.time(), streak),
+        )
         if rotated:
             logger.info(
                 "persona focus ROTATED off stale '%s' -> '%s' (carried %d >= %d)",
@@ -509,20 +525,29 @@ def _evolve_interlocutor_state(prev: dict, reply: str) -> dict:
     except Exception as e:
         logger.warning("interlocutor_state evolve failed: %s", e)
         return prev
+    finally:
+        if owns_writer and writer is not None:
+            try:
+                writer.close()
+            except Exception:
+                pass
 
 
-def one_exchange() -> dict:
-    """One turn of the OTHER's side: read NEX's recent thoughts, respond,
-    check for an echo, write (or discard). No retry on discard — a
-    rejected reply just waits for the next tick; regeneration loops are
-    their own tar pit.
+def one_exchange(
+    dynamic_writer: Writer | None = None,
+    sense_writer: Writer | None = None,
+    conversations_writer: Writer | None = None,
+    conversations_reader: Reader | None = None,
+) -> dict:
+    """One turn of the OTHER's side: read NEX's recent thoughts, respond, check, write.
 
-    NEX5_SOCIAL_DEPTH: the persona carries a persisted model of itself across
-    turns (focus + mood), so it is a consistent evolving other rather than
-    stateless small-talk. Fail-safe: any error -> the stateless path.
+    NEX5_SOCIAL_DEPTH carries a persisted model of the interlocutor across turns.
     """
     _depth = os.environ.get("NEX5_SOCIAL_DEPTH") == "1"
-    _state = _load_interlocutor_state() if _depth else None
+    _state = (
+        _load_interlocutor_state(conversations_writer, conversations_reader)
+        if _depth else None
+    )
     thoughts = _recent_thoughts()
     if not thoughts:
         return {"error": "no_recent_thoughts"}
@@ -537,29 +562,48 @@ def one_exchange() -> dict:
         discard, reason, matched, max_j = False, "ok", "", 0.0
 
     if discard:
-        _write_persona_reject(reason, reply, matched, max_j)
+        _write_persona_reject(
+            reason, reply, matched, max_j, dynamic_writer=dynamic_writer
+        )
         return {
             "responded_to": thoughts[0][:60], "persona_said": reply,
             "written": False, "discarded": reason, "matched": matched,
         }
 
-    ok = _write_other_mind(reply)
-    # NEX5_SOCIAL_DEPTH: advance the interlocutor model from its own reply, so
-    # next turn continues a consistent, evolving thread. Only on a real (non-
-    # discarded) reply; fail-safe (never blocks the loop).
+    ok = _write_other_mind(reply, sense_writer=sense_writer)
     if ok and _depth and _state is not None:
-        _evolve_interlocutor_state(_state, reply)
+        _evolve_interlocutor_state(
+            _state, reply,
+            conversations_writer=conversations_writer,
+            conversations_reader=conversations_reader,
+        )
     return {"responded_to": thoughts[0][:60], "persona_said": reply, "written": ok}
 
 
 class PersonaResponderLoop:
-    def __init__(self, interval: int = 600):
+    def __init__(
+        self,
+        interval: int = 600,
+        dynamic_writer: Writer | None = None,
+        sense_writer: Writer | None = None,
+        conversations_writer: Writer | None = None,
+        conversations_reader: Reader | None = None,
+    ):
         self.interval = interval
+        self._dynamic_writer = dynamic_writer
+        self._sense_writer = sense_writer
+        self._conversations_writer = conversations_writer
+        self._conversations_reader = conversations_reader
         self._alive = False
 
     def tick(self):
         try:
-            r = one_exchange()
+            r = one_exchange(
+                dynamic_writer=self._dynamic_writer,
+                sense_writer=self._sense_writer,
+                conversations_writer=self._conversations_writer,
+                conversations_reader=self._conversations_reader,
+            )
             if "error" in r:
                 pass
             elif r.get("discarded"):
