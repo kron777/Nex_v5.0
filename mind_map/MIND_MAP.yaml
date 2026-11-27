@@ -215,7 +215,7 @@ nodes:
     probe: { valence_delta_samples: 35, distinct_values: 12, min: 0.0219, max: 0.2237, source: "/tmp/nex5_affect_state.log" }
     falsifier: "A price that is constant is not a price. Valence should vary with content."
     falsifier_status: pass
-    source: { kind: composite, refs: ["theory_x/stage_affect/affect_state.py:331-370", "theory_x/stage6_fountain/generator.py:611-652", "theory_x/stage6_fountain/generator.py:857-863", "nex_keepalive.sh:219-220"] }
+    source: { kind: composite, refs: ["theory_x/stage_affect/affect_state.py:331-405", "theory_x/stage6_fountain/generator.py:611-652", "theory_x/stage6_fountain/generator.py:857-863", "nex_keepalive.sh:219-220"] }
     last_verified: 2026-11-27
     notes: >
       Correction, 2026-11-09: 'no location yet pinned' was wrong -- the check regex just
@@ -265,7 +265,7 @@ nodes:
     blocked: false
     falsifier: "Reads every turn. A faculty that fires unconditionally carries no information."
     falsifier_status: na
-    source: { kind: composite, refs: ["theory_x/stage_tom/mana_detector.py:40-75", "theory_x/stage_tom/self_binding.py:298-330", "theory_x/stage6_fountain/generator.py:3990-4001", "nex_keepalive.sh:219-220"] }
+    source: { kind: composite, refs: ["theory_x/stage_tom/mana_detector.py:40-75", "theory_x/stage_tom/self_binding.py:298-345", "theory_x/stage6_fountain/generator.py:3990-4001", "nex_keepalive.sh:219-220"] }
     last_verified: 2026-11-27
     notes: >
       CORRECTION, 2026-11-15 (falsifier-sweep round): "always-on read-only sidecar" was wrong.
