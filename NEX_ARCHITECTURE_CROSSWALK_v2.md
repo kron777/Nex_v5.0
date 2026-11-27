@@ -1,6 +1,6 @@
 # NEX v5.0 — Architecture Crosswalk v2 (Mainline Evidence Snapshot)
 
-**Snapshot:** `main` at `66a97964f0531c16d60637dc8291b42e0b73f00b`  
+**Snapshot:** `main` at `ae406fa8fcb1abdf25cdf4ae1bd65333e1148ca8`  
 **Evidence date:** 27 November 2026  
 **Boundary:** source-level map and controlled tests; not a live runtime audit.
 
@@ -74,11 +74,15 @@ declaration through emission to a verified consumer.
 ### Writer and Coherence Gate scope boundaries
 
 The repository's own `SPECIFICATION.md §8` and `substrate/writer.py` define
-one Writer queue/thread per database as a non-negotiable one-pen rule. The
-current RememberLoop, Diversity EdgeBuilder and Sustained FocusLoop instead
-open raw SQLite connections and commit writes directly (G-61). These paths
-need an intentional migration and concurrency tests; they have not been
-changed in this Phase 0 audit.
+one Writer queue/thread per database as a non-negotiable one-pen rule.
+Mainline one-pen migrations now route RememberLoop (#160), Diversity
+EdgeBuilder (#158), Sustained FocusLoop (#159), Fetch/Wonder (#163), Surprise
+(#165), and Pattern/Witness (#164) through injected shared Reader/Writer
+handles with regression tests. Four additional migrations remain open and
+unmerged: Fountain/momentum (#162), identity (#166), DailyLife (#168), and
+affinity (#169); their exact-head CI runs were still in progress at this
+update. This is not a repository-wide completion claim: the full faculty
+audit remains open.
 
 The Coherence Gate source declares universal coverage for thoughts generated
 by faculty nodes. The current RememberLoop temporal-link belief and Fountain
@@ -90,13 +94,12 @@ scope/specification reconciliation item, not permission to change policy.
 
 ### FocusLoop duplicate-observation guard
 
-The ProblemMemory.observe() docstring still carries a historical Session 39
-claim that FocusLoop lacked duplicate suppression and could hit an
-`ocount >= 10` close gate. Current `focus_loop._append_observation()` already
-has a same-text guard (marked fixed 2026-07-24); no such close gate was found
-in the inspected current modules. There is no dedicated FocusLoop test in the
-current test tree, so the behavior is source-verified but not directly
-regression-tested (G-63).
+The historical ProblemMemory.observe() duplicate-suppression rationale was
+corrected, and PR #159 added `tests/test_focus_loop.py` with isolated
+regression coverage for the existing same-text guard. No `ocount >= 10`
+close gate was found in the inspected current modules. G-63 is closed as a
+documentation/test-coverage defect; the FocusLoop behavior itself was not
+changed.
 
 ### Problem/Goal lifecycle scheduler boundary
 
@@ -167,16 +170,8 @@ coverage gaps, not verified live incidents:
   path, gated by `NEX5_RECONCILE != '1'`; the tracked keepalive recipe sets
   `NEX5_RECONCILE=1` alongside `NEX5_WARRANT_RECORD=1`. These are source
   conditions only; effective host flags remain unknown.
-- **RememberLoop lineage:** `theory_x/life/remember_loop.py` inserts a Tier-6
-  temporal-link belief and returns the old/recent source IDs, but the inspected
-  insert does not persist those parent IDs in `belief_lineage`. No direct
-  `run.py` start call was found, and the associative-recall tests exercise a
-  different Fountain method; live activation is not established.
-- **EdgeBuilder metric:** `theory_x/diversity/edge_builder.py` tests
-  connection-cumulative `cx.total_changes > 0` after `INSERT OR IGNORE`.
-  Once a statement changes the connection, later ignored duplicates may still
-  inflate the reported `wrote` count. This is a logging metric issue, not a
-  persisted-edge mutation.
+- **RememberLoop lineage:** `theory_x/life/remember_loop.py` now uses injected shared Reader/Writer handles (PR #160), with dedicated `tests/test_remember_loop.py` coverage for persistence, daily cap and duplicate handling. It still returns the old/recent source IDs without persisting those parent IDs in `belief_lineage`. No direct `run.py` start call was found; live activation is not established.
+- **EdgeBuilder metric:** the cumulative `cx.total_changes` defect was corrected in PR #158. EdgeBuilder now uses per-statement rowcounts through `Writer.write_many_with_counts()`, with `tests/test_edge_builder.py` covering ignored duplicates after successful inserts. G-56 is closed as a telemetry defect; the separate generic-edge admission question remains open.
 - **Graph admission:** Stage-2 Diversity EdgeBuilder writes generic
   `cross_domain` edges. Stage-3 EdgeGenerator only queues recent
   `fountain_insight`/`synergized` beliefs with no edge in either direction,
