@@ -310,7 +310,7 @@ def _evidence_world(cx, row_id):
 
 
 def _evidence_surprise(row_id):
-    dx = connect(_db("dynamic"), timeout=30)
+    dx = _ro("dynamic")
     dx.row_factory = Row
     try:
         p = dx.execute("SELECT verified_at, surprise_score FROM predictions WHERE id=?",
@@ -806,7 +806,7 @@ def canaries(now: Optional[float] = None, window_s: float = 86400) -> list:
                           "AND locked=0").fetchone()[0]
     finally:
         bx.close()
-    cx = connect(_db("conversations"), timeout=10)
+    cx = _ro("conversations")
     try:
         prev = [r[0] for r in cx.execute(
             "SELECT value FROM expectation_canary_log WHERE name='confidence_drift' "
