@@ -75,7 +75,7 @@ import os
 import time
 from typing import Optional
 
-from substrate import connect, Row, Writer
+from substrate import connect, Row, Writer, Writer
 from substrate.paths import DbPath
 
 log = logging.getLogger("theory_x.stage_world.expectations")
@@ -135,6 +135,16 @@ def commitment_valence_on() -> bool:
 def _db(name):
     return str({"conversations": CONVERSATIONS_DB, "dynamic": DYNAMIC_DB,
                 "beliefs": BELIEFS_DB}[name])
+
+
+def _ro(name: str):
+    return connect(f"file:{_db(name)}?mode=ro", uri=True, timeout=30)
+
+
+def _acquire_writer(name: str, supplied):
+    if supplied is not None:
+        return supplied, False
+    return Writer(_db(name), name=f"expectations_{name}"), True
 
 
 # ---------------------------------------------------------------- pure math --
@@ -218,46 +228,58 @@ def _horizon(table, r) -> float:
     return float(r["target_window_end"] if table == "predictions" else r["resolve_at"])
 
 
-def ingest(now: Optional[float] = None) -> int:
-    """Header every frozen producer row not yet in the ledger, state 'open'."""
-    cx = connect(_db("conversations"), timeout=30)
-    cx.row_factory = Row
-    n = 0
+def ingest(
+    now: Optional[float] = None, *, conversations_writer: Writer | None = None,
+) -> int:
+    """Header every frozen producer row not yet in the ledger, state 'open'.
+    All conversation-ledger reads/writes share one serialized Writer transaction;
+    producer databases other than conversations are opened read-only."""
+    writer, owned = _acquire_writer("conversations", conversations_writer)
     try:
-        for table, (dbname, subject, hkind) in PRODUCERS.items():
-            if subject in DEFERRED_SUBJECTS:   # declared, never produced (yet)
-                continue
-            last = cx.execute("SELECT COALESCE(MAX(producer_row_id), 0) FROM expectations "
-                              "WHERE producer = ?", (table,)).fetchone()[0]
-            src = cx if dbname == "conversations" else connect(_db(dbname), timeout=30)
-            src.row_factory = Row
-            try:
-                if not _has_table(src, table):
+        def _insert_headers(cx):
+            cx.row_factory = Row
+            n = 0
+            for table, (dbname, subject, hkind) in PRODUCERS.items():
+                if subject in DEFERRED_SUBJECTS:   # declared, never produced (yet)
                     continue
-                rows = src.execute(f"SELECT * FROM {table} WHERE id > ? AND frozen = 'at_made'"
-                                   + PRODUCER_FILTER.get(table, "") + " ORDER BY id",
-                                   (last,)).fetchall()
-            finally:
-                if src is not cx:
-                    src.close()
-            for r in rows:
-                basis = json.loads(r["basis_snapshot"]) if r["basis_snapshot"] else []
-                cx.execute(
-                    "INSERT INTO expectations (subject, producer, producer_row_id, made_at, "
-                    "claimed_state, confidence, confidence_basis, tolerance, tolerance_basis, "
-                    "salience_k, cost_band, basis_snapshot, ownership, basis_kind, "
-                    "producer_stream, horizon_at, horizon_kind) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    (subject, table, r["id"], r["made_at"], json.dumps(_claimed(table, r)),
-                     r["confidence"], r["confidence_basis"], r["tolerance"],
-                     r["tolerance_basis"], r["salience_k"], r["cost_band"],
-                     json.dumps(basis), ownership(basis), basis_kind(basis),
-                     _stream(table, r), _horizon(table, r), hkind))
-                n += 1
-        cx.commit()
+                last = cx.execute(
+                    "SELECT COALESCE(MAX(producer_row_id), 0) FROM expectations WHERE producer = ?",
+                    (table,),
+                ).fetchone()[0]
+                src = cx if dbname == "conversations" else _ro(dbname)
+                try:
+                    if not _has_table(src, table):
+                        continue
+                    rows = src.execute(
+                        f"SELECT * FROM {table} WHERE id > ? AND frozen = 'at_made'"
+                        + PRODUCER_FILTER.get(table, "") + " ORDER BY id",
+                        (last,),
+                    ).fetchall()
+                finally:
+                    if src is not cx:
+                        src.close()
+                for row in rows:
+                    basis = json.loads(row["basis_snapshot"]) if row["basis_snapshot"] else []
+                    cx.execute(
+                        "INSERT INTO expectations (subject, producer, producer_row_id, made_at, "
+                        "claimed_state, confidence, confidence_basis, tolerance, tolerance_basis, "
+                        "salience_k, cost_band, basis_snapshot, ownership, basis_kind, "
+                        "producer_stream, horizon_at, horizon_kind) "
+                        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (subject, table, row["id"], row["made_at"],
+                         json.dumps(_claimed(table, row)), row["confidence"],
+                         row["confidence_basis"], row["tolerance"], row["tolerance_basis"],
+                         row["salience_k"], row["cost_band"], json.dumps(basis),
+                         ownership(basis), basis_kind(basis), _stream(table, row),
+                         _horizon(table, row), hkind),
+                    )
+                    n += 1
+            return n
+
+        return writer.transaction(_insert_headers)
     finally:
-        cx.close()
-    return n
+        if owned:
+            writer.close()
 
 
 def _has_table(cx, name) -> bool:
@@ -288,7 +310,7 @@ def _evidence_world(cx, row_id):
 
 
 def _evidence_surprise(row_id):
-    dx = connect(_db("dynamic"), timeout=30)
+    dx = _ro("dynamic")
     dx.row_factory = Row
     try:
         p = dx.execute("SELECT verified_at, surprise_score FROM predictions WHERE id=?",
@@ -342,103 +364,139 @@ def _evidence_owned(cx, row_id):
 
 # ---------------------------------------------------------------- reconcile --
 
-def reconcile(now: Optional[float] = None) -> dict:
-    """The single writer of every resolution."""
+def reconcile(
+    now: Optional[float] = None, *,
+    conversations_writer: Writer | None = None,
+    beliefs_writer: Writer | None = None,
+) -> dict:
+    """The single writer of every resolution.
+
+    The full expectation/valence/cap-hit/learning-log transaction runs on the
+    conversations Writer connection. Belief confidence updates use the separate
+    beliefs Writer and commit before the conversations transaction, preserving
+    the existing two-file order without claiming cross-database atomicity.
+    """
     now = time.time() if now is None else now
-    ingested = ingest(now)
-    cx = connect(_db("conversations"), timeout=30)
-    cx.row_factory = Row
-    stats = {"ingested": ingested, "confirmed": 0, "violated": 0, "unresolved": 0,
-             "valence_nonzero": 0, "learned": 0}
+    conversation_writer, own_conversations = _acquire_writer(
+        "conversations", conversations_writer
+    )
+    own_beliefs = False
+    if beliefs_writer is None and learning_on():
+        beliefs_writer, own_beliefs = _acquire_writer("beliefs", None)
     try:
-        _stamp_coverage(cx)
-        due = cx.execute("SELECT * FROM expectations WHERE state = 'open' AND horizon_at <= ? "
-                         "ORDER BY id", (now,)).fetchall()
-        for e in due:
-            table, rid = e["producer"], e["producer_row_id"]
-            if table == "self_predictions":
-                d, ev = _evidence_self(cx, rid)
-            elif table == "world_predictions":
-                d, ev = _evidence_world(cx, rid)
-            elif table == "predictions":
-                d, ev = _evidence_surprise(rid)
-            elif table == "commitments":
-                from theory_x.stage_world import commitments as _cm
-                d, ev = _cm.evidence(cx, rid)
-                if d == "released":
-                    _resolve(cx, e, "released", now, None, None, None, ev)
-                    stats["released"] = stats.get("released", 0) + 1
-                    cx.execute("INSERT INTO event_valence (expectation_id, ts, valence, "
-                               "admitted, reason, state, salience, cost_band, ownership) "
-                               "VALUES (?,?,0.0,0,'released','released',NULL,?,?)",
-                               (e["id"], now, e["cost_band"], e["ownership"]))
+        ingested = ingest(now, conversations_writer=conversation_writer)
+
+        def _reconcile_transaction(cx):
+            cx.row_factory = Row
+            stats = {
+                "ingested": ingested, "confirmed": 0, "violated": 0,
+                "unresolved": 0, "valence_nonzero": 0, "learned": 0,
+            }
+            _stamp_coverage(cx)
+            due = cx.execute(
+                "SELECT * FROM expectations WHERE state = 'open' AND horizon_at <= ? ORDER BY id",
+                (now,),
+            ).fetchall()
+            for e in due:
+                table, rid = e["producer"], e["producer_row_id"]
+                if table == "self_predictions":
+                    d, ev = _evidence_self(cx, rid)
+                elif table == "world_predictions":
+                    d, ev = _evidence_world(cx, rid)
+                elif table == "predictions":
+                    d, ev = _evidence_surprise(rid)
+                elif table == "commitments":
+                    from theory_x.stage_world import commitments as _cm
+                    d, ev = _cm.evidence(cx, rid)
+                    if d == "released":
+                        _resolve(cx, e, "released", now, None, None, None, ev)
+                        stats["released"] = stats.get("released", 0) + 1
+                        cx.execute(
+                            "INSERT INTO event_valence (expectation_id, ts, valence, "
+                            "admitted, reason, state, salience, cost_band, ownership) "
+                            "VALUES (?,?,0.0,0,'released','released',NULL,?,?)",
+                            (e["id"], now, e["cost_band"], e["ownership"]),
+                        )
+                        continue
+                    if d is None:
+                        ev["sentinel"] = True
+                else:
+                    d, ev = _evidence_owned(cx, rid)
+                    if d == "voided":
+                        _resolve(cx, e, "voided", now, None, None, None, ev)
+                        stats["voided"] = stats.get("voided", 0) + 1
+                        cx.execute(
+                            "INSERT INTO event_valence (expectation_id, ts, valence, "
+                            "admitted, reason, state, salience, cost_band, ownership) "
+                            "VALUES (?,?,0.0,0,'voided','voided',NULL,?,?)",
+                            (e["id"], now, e["cost_band"], e["ownership"]),
+                        )
+                        continue
+                if d is None:
+                    if ev.get("sentinel") or now >= e["horizon_at"] + EVIDENCE_GRACE_S:
+                        _resolve(cx, e, "unresolved", now, None, None, None, ev)
+                        stats["unresolved"] += 1
                     continue
-                if d is None:      # the deadline's window is complete: no more evidence
-                    ev["sentinel"] = True
-            else:
-                d, ev = _evidence_owned(cx, rid)
-                if d == "voided":
-                    _resolve(cx, e, "voided", now, None, None, None, ev)
-                    stats["voided"] = stats.get("voided", 0) + 1
-                    cx.execute("INSERT INTO event_valence (expectation_id, ts, valence, "
-                               "admitted, reason, state, salience, cost_band, ownership) "
-                               "VALUES (?,?,0.0,0,'voided','voided',NULL,?,?)",
-                               (e["id"], now, e["cost_band"], e["ownership"]))
+                state, ratio, sal = adjudicate(
+                    e["tolerance_basis"], e["tolerance"], e["salience_k"], d
+                )
+                if table == "commitments" and state == "violated":
+                    state = "breached"
+                if table == "owned_belief_expectations" and e["coverage"] == "partial":
+                    verdict = state
+                    undo = _undo_events(e, verdict, now)
+                    state = "undone" if (undo["log_rows"] or verdict == "violated") \
+                        else "indeterminate"
+                    _resolve(cx, e, state, now, d, ratio, sal, ev, verdict=verdict)
+                    stats[state] = stats.get(state, 0) + 1
+                    cx.execute(
+                        "INSERT INTO event_valence (expectation_id, ts, valence, admitted, "
+                        "reason, state, salience, cost_band, ownership) "
+                        "VALUES (?,?,0.0,0,'partial_coverage',?,?,?,?)",
+                        (e["id"], now, state, sal, e["cost_band"], e["ownership"]),
+                    )
                     continue
-            if d is None:
-                if ev.get("sentinel") or now >= e["horizon_at"] + EVIDENCE_GRACE_S:
-                    _resolve(cx, e, "unresolved", now, None, None, None, ev)
-                    stats["unresolved"] += 1
-                continue
-            state, ratio, sal = adjudicate(e["tolerance_basis"], e["tolerance"],
-                                           e["salience_k"], d)
-            if table == "commitments" and state == "violated":
-                state = "breached"          # its own terminal: positive evidence, unmet
-            if table == "owned_belief_expectations" and e["coverage"] == "partial":
-                # LEFT-CENSORED: an undo seen in the covered span counts; no undo
-                # seen is indeterminate, never confirmed (the uncovered span may
-                # hold one). No valence, no learning, out of falsifiability's rate.
-                verdict = state
-                undo = _undo_events(e, verdict, now)
-                state = "undone" if (undo["log_rows"] or verdict == "violated") \
-                    else "indeterminate"
-                _resolve(cx, e, state, now, d, ratio, sal, ev, verdict=verdict)
+                _resolve(cx, e, state, now, d, ratio, sal, ev)
                 stats[state] = stats.get(state, 0) + 1
-                cx.execute("INSERT INTO event_valence (expectation_id, ts, valence, admitted, "
-                           "reason, state, salience, cost_band, ownership) "
-                           "VALUES (?,?,0.0,0,'partial_coverage',?,?,?,?)",
-                           (e["id"], now, state, sal, e["cost_band"], e["ownership"]))
-                continue
-            _resolve(cx, e, state, now, d, ratio, sal, ev)
-            stats[state] = stats.get(state, 0) + 1
-            v, admitted, reason = valence(state, sal, e["cost_band"], e["ownership"],
-                                          e["confidence_basis"], e["confidence"])
-            if table == "commitments" and admitted and not commitment_valence_on():
-                v, admitted, reason = 0.0, 0, "commitment_valence_off"
-            cx.execute("INSERT INTO event_valence (expectation_id, ts, valence, admitted, "
-                       "reason, state, salience, cost_band, ownership) "
-                       "VALUES (?,?,?,?,?,?,?,?,?)",
-                       (e["id"], now, v, admitted, reason, state, sal, e["cost_band"],
-                        e["ownership"]))
-            if v != 0.0:
-                stats["valence_nonzero"] += 1
-                # The mood channel's only input. Written always; READ only when
-                # NEX5_EXPECT_MOOD is on (affect_state).
-                cx.execute("INSERT INTO affect_nudges (expectation_id, ts, valence) "
-                           "VALUES (?,?,?)", (e["id"], now, v))
-            if learning_on():
-                stats["learned"] += _learn(cx, e, state, sal, now)
-        cx.commit()
+                v, admitted, reason = valence(
+                    state, sal, e["cost_band"], e["ownership"],
+                    e["confidence_basis"], e["confidence"],
+                )
+                if table == "commitments" and admitted and not commitment_valence_on():
+                    v, admitted, reason = 0.0, 0, "commitment_valence_off"
+                cx.execute(
+                    "INSERT INTO event_valence (expectation_id, ts, valence, admitted, "
+                    "reason, state, salience, cost_band, ownership) "
+                    "VALUES (?,?,?,?,?,?,?,?,?)",
+                    (e["id"], now, v, admitted, reason, state, sal, e["cost_band"],
+                     e["ownership"]),
+                )
+                if v != 0.0:
+                    stats["valence_nonzero"] += 1
+                    cx.execute(
+                        "INSERT INTO affect_nudges (expectation_id, ts, valence) VALUES (?,?,?)",
+                        (e["id"], now, v),
+                    )
+                if learning_on():
+                    stats["learned"] += _learn(
+                        cx, e, state, sal, now, beliefs_writer=beliefs_writer
+                    )
+            return stats
+
+        stats = conversation_writer.transaction(_reconcile_transaction)
+        try:
+            from theory_x.stage_world import learning_guards as _lg
+            _lg.record_tick(now, conversations_writer=conversation_writer)
+        except Exception as exc:
+            log.warning("learning guard tick failed: %s", exc)
+        if any(stats[k] for k in ("confirmed", "violated", "unresolved")):
+            log.info("reconciler: %s", stats)
+        return stats
     finally:
-        cx.close()
-    try:                     # G2/G4 evaluation tick: read-only metrics, own table
-        from theory_x.stage_world import learning_guards as _lg
-        _lg.record_tick(now)
-    except Exception as exc:
-        log.warning("learning guard tick failed: %s", exc)
-    if any(stats[k] for k in ("confirmed", "violated", "unresolved")):
-        log.info("reconciler: %s", stats)
-    return stats
+        if own_beliefs:
+            beliefs_writer.close()
+        if own_conversations:
+            conversation_writer.close()
 
 
 # Kinds that undo (or attempt to undo) a belief. 'eroded' is logged but is NOT one:
@@ -517,16 +575,17 @@ def _resolve(cx, e, state, now, d, ratio, sal, evidence, verdict=None):
                    (state, now, RECONCILER, json.dumps(evidence), e["producer_row_id"]))
 
 
-def _learn(cx, e, state, sal, now) -> int:
-    """R7: distribute a fixed step across the basis rows (resolved against the
-    FROZEN snapshot). Runs on any basis -- learning is not valence. Seeded and
-    locked rows are never touched. Confirms consolidate only at band >= 1.
+def _learn(
+    cx, e, state, sal, now, *, beliefs_writer: Writer | None = None,
+) -> int:
+    """R7: distribute a fixed step across the frozen basis.
 
-    Ownership deliberately does NOT scale the step here: it would zero learning
-    on an external basis, which R7 and the three-cell test require to move."""
-    # HARD NEVER: a commitment writes nothing to the belief graph -- a breach is
-    # adjudicated against its own discharge condition, not turned into a
-    # contradiction so a metric has inputs.
+    The expectation/learning-log/cap-hit statements execute on the caller's
+    conversations Writer transaction. Belief rows are read-only here and their
+    updates are committed by the separate beliefs Writer before the enclosing
+    conversations transaction commits, preserving the existing cross-file
+    ordering and its non-atomic failure boundary.
+    """
     if e["producer"] == "commitments":
         return 0
     basis = json.loads(e["basis_snapshot"] or "[]")
@@ -534,45 +593,61 @@ def _learn(cx, e, state, sal, now) -> int:
         return 0
     if state == "confirmed" and not e["cost_band"]:
         return 0
-    bx = connect(_db("beliefs"), timeout=30)
+
+    bx = _ro("beliefs")
     try:
         rows = []
-        for b in basis:
-            if b.get("source_kind") == "seeded":
+        for item in basis:
+            if item.get("source_kind") == "seeded":
                 continue
-            live = bx.execute("SELECT confidence, locked, source_kind FROM beliefs WHERE id=?",
-                              (b["belief_id"],)).fetchone()
+            live = bx.execute(
+                "SELECT confidence, locked, source_kind FROM beliefs WHERE id=?",
+                (item["belief_id"],),
+            ).fetchone()
             if live is None or live[1]:
                 continue
-            rows.append((b["belief_id"], live[0], live[2]))
-        if not rows:
-            return 0
-        n = len(rows)
-        factor = (1.0 - LEARN_VIOLATE * sal / n) if state == "violated" \
-            else (1.0 + LEARN_CONFIRM / n)
-        from theory_x.stage_world import learning_guards as _lg
-        for bid, before, skind in rows:
-            after = max(CONF_FLOOR, min(CONF_CEIL, before * factor))
-            # G1 (NEX5_LEARN_CAP): a magnitude STOP before the standard step --
-            # skipped whole, never clipped; logged as a skipped no-op row.
-            if _lg.cap_blocks(cx, e, bid, skind, after - before, now):
-                cx.execute("INSERT INTO expectation_learning_log (expectation_id, belief_id, ts, "
-                           "before, after, basis_kind, source_kind, factor, skipped) "
-                           "VALUES (?,?,?,?,?,?,?,NULL,1)",
-                           (e["id"], bid, now, before, before, e["basis_kind"], skind))
-                continue
-            bx.execute("UPDATE beliefs SET confidence=? WHERE id=?", (after, bid))
-            # Self-describing: the FROZEN basis kind of the expectation, the
-            # belief's own kind now, and the factor (after/before is lossy at
-            # the clamps) -- what reconstruct_without_external() replays.
-            cx.execute("INSERT INTO expectation_learning_log (expectation_id, belief_id, ts, "
-                       "before, after, basis_kind, source_kind, factor) "
-                       "VALUES (?,?,?,?,?,?,?,?)",
-                       (e["id"], bid, now, before, after, e["basis_kind"], skind, factor))
-        bx.commit()
-        return n
+            rows.append((item["belief_id"], live[0], live[2]))
     finally:
         bx.close()
+    if not rows:
+        return 0
+
+    n = len(rows)
+    factor = (1.0 - LEARN_VIOLATE * sal / n) if state == "violated" \
+        else (1.0 + LEARN_CONFIRM / n)
+    from theory_x.stage_world import learning_guards as _lg
+    updates = []
+    for bid, before, skind in rows:
+        after = max(CONF_FLOOR, min(CONF_CEIL, before * factor))
+        # cap_blocks writes its hit on cx, which is the serialized conversation
+        # Writer connection; keeping it here preserves the cap-hit/learning-log
+        # transaction with the expectation's adjudication.
+        if _lg.cap_blocks(cx, e, bid, skind, after - before, now):
+            cx.execute(
+                "INSERT INTO expectation_learning_log (expectation_id, belief_id, ts, "
+                "before, after, basis_kind, source_kind, factor, skipped) "
+                "VALUES (?,?,?,?,?,?,?,NULL,1)",
+                (e["id"], bid, now, before, before, e["basis_kind"], skind),
+            )
+            continue
+        updates.append((
+            "UPDATE beliefs SET confidence=? WHERE id=?",
+            (after, bid),
+        ))
+        cx.execute(
+            "INSERT INTO expectation_learning_log (expectation_id, belief_id, ts, "
+            "before, after, basis_kind, source_kind, factor) VALUES (?,?,?,?,?,?,?,?)",
+            (e["id"], bid, now, before, after, e["basis_kind"], skind, factor),
+        )
+
+    if updates:
+        writer, owned = _acquire_writer("beliefs", beliefs_writer)
+        try:
+            writer.write_many(updates)
+        finally:
+            if owned:
+                writer.close()
+    return n
 
 
 def replay(belief_id: int, current: float, exclude, add_back_subtractions: bool,
@@ -731,7 +806,7 @@ def canaries(now: Optional[float] = None, window_s: float = 86400) -> list:
                           "AND locked=0").fetchone()[0]
     finally:
         bx.close()
-    cx = connect(_db("conversations"), timeout=10)
+    cx = _ro("conversations")
     try:
         prev = [r[0] for r in cx.execute(
             "SELECT value FROM expectation_canary_log WHERE name='confidence_drift' "
