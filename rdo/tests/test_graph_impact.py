@@ -131,3 +131,55 @@ def test_invalid_cycle_snapshots_fail_closed():
     )
     assert report["status"] == "partial"
     assert report["invalid_relationship_records"] == 1
+
+
+def test_missing_and_null_assessment_dimensions_are_distinguished():
+    subject = "reader -depends_on-> store"
+    edge = [{"src": "reader", "dst": "store", "kind": "depends_on"}]
+    before = _cycle(edge, [_assessment(subject, dimensions={"latency": None})])
+    after = _cycle(edge, [_assessment(subject, dimensions={})])
+    report = compare_adjacent_relationship_impacts(before, after, ["store"])
+    item = report["affected_relationships"][0]
+    assert item["changed_dimensions"] == ["latency"]
+    assert item["assessment_changed"] is True
+
+
+def test_padded_changed_capability_key_is_not_silently_normalized():
+    edge = [{"src": "reader", "dst": "store", "kind": "depends_on"}]
+    cycle = _cycle(edge, [_assessment("reader -depends_on-> store")])
+    report = compare_adjacent_relationship_impacts(cycle, cycle, [" store "])
+    assert report["status"] == "partial"
+    assert report["changed_capabilities"] == []
+    assert report["invalid_capabilities"] == [" store "]
+
+
+def test_removed_relationship_with_only_after_assessment_is_partial_orphan():
+    before = _cycle(
+        [{"src": "reader", "dst": "store", "kind": "depends_on"}],
+        [],
+    )
+    after = _cycle(
+        [],
+        [_assessment("reader -depends_on-> store")],
+    )
+    report = compare_adjacent_relationship_impacts(before, after, ["store"])
+    item = report["affected_relationships"][0]
+    assert item["relationship_status"] == "removed"
+    assert item["assessment_status"] == "orphaned_after"
+    assert report["status"] == "partial"
+
+
+def test_added_relationship_with_only_before_assessment_is_partial_orphan():
+    before = _cycle(
+        [],
+        [_assessment("reader -depends_on-> store")],
+    )
+    after = _cycle(
+        [{"src": "reader", "dst": "store", "kind": "depends_on"}],
+        [],
+    )
+    report = compare_adjacent_relationship_impacts(before, after, ["store"])
+    item = report["affected_relationships"][0]
+    assert item["relationship_status"] == "added"
+    assert item["assessment_status"] == "orphaned_before"
+    assert report["status"] == "partial"
