@@ -140,8 +140,18 @@ def _operating_envelope_evidence(value) -> dict:
                     "measured_load", "measured_capacity", "headroom",
                     "transition_evidence", "recovery_evidence", "assessment"],
                 "evidence": []}
-    if hasattr(value, "to_dict"):
-        value = value.to_dict()
+    to_dict = getattr(value, "to_dict", None)
+    if to_dict is not None:
+        if not callable(to_dict):
+            return {"status": "invalid_shape", "declared_state": "unknown",
+                    "assessed_state": None, "unknown_dimensions": ["operating_envelope"],
+                    "evidence": []}
+        try:
+            value = to_dict()
+        except Exception:
+            return {"status": "invalid_shape", "declared_state": "unknown",
+                    "assessed_state": None, "unknown_dimensions": ["operating_envelope"],
+                    "evidence": []}
     if not isinstance(value, dict):
         return {"status": "invalid_shape", "declared_state": "unknown",
                 "assessed_state": None, "unknown_dimensions": ["operating_envelope"],
