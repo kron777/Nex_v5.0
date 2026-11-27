@@ -378,8 +378,12 @@ def relationship_impact_delta(before_relationships: List[dict],
             raise ValueError(f"{label} assessments must be a list")
         indexed = {}
         for item in items:
-            if not isinstance(item, dict) or not isinstance(item.get("subject"), str):
+            if not isinstance(item, dict) or not isinstance(item.get("subject"), str) or not item["subject"].strip():
+                raise ValueError(f"{label} assessment entries require a non-blank subject")
+            if item.get("level") not in (None, "relationship"):
                 continue
+            if item["subject"] in indexed:
+                raise ValueError(f"{label} assessments contain duplicate subject: {item['subject']!r}")
             indexed[item["subject"]] = dict(item)
         return indexed
 
@@ -397,7 +401,8 @@ def relationship_impact_delta(before_relationships: List[dict],
             change, fields = "removed", sorted(k for k in old if k not in ("src", "dst", "kind"))
         else:
             fields = sorted(k for k in set(old) | set(new)
-                            if k not in ("src", "dst", "kind") and old.get(k) != new.get(k))
+                            if k not in ("src", "dst", "kind")
+                            and ((k in old) != (k in new) or old.get(k) != new.get(k)))
             change = "modified" if fields else "unchanged"
         structural_changes[key] = (change, fields)
 
@@ -412,7 +417,7 @@ def relationship_impact_delta(before_relationships: List[dict],
         new_assessment = after_t.get(subject)
         assessment_changed = (
             old_assessment != new_assessment
-            if old_assessment is not None and new_assessment is not None else None
+            if old_assessment is not None or new_assessment is not None else None
         )
         entry = {
             "identity": [src, dst, kind],
