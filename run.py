@@ -459,7 +459,13 @@ def main() -> None:
         try:
             from theory_x.stage_tom.persona_responder import PersonaResponderLoop as _PRL
             _persona_interval = int(os.environ.get("NEX5_PERSONA_INTERVAL", "600"))
-            _persona_responder = _PRL(interval=_persona_interval)
+            _persona_responder = _PRL(
+                interval=_persona_interval,
+                dynamic_writer=writers["dynamic"],
+                sense_writer=writers["sense"],
+                conversations_writer=writers["conversations"],
+                conversations_reader=readers["conversations"],
+            )
             _persona_responder.start_loop()
             log.info("PersonaResponder ready — separate mind answering NEX every %ds",
                       _persona_interval)
