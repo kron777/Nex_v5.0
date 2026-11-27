@@ -261,13 +261,15 @@ These findings were rechecked against current main after the bounded persistence
 - **Verification:** predecessor PR #257 passed its exact-head suite on the pre-#256 base (2,601 passed, 7 skipped, 45 subtests). PR #259 is the authoritative post-#256 current-main replay; exact-head full suite run `46017043819` passed (2,610 passed, 7 skipped, 45 subtests).
 - **Governance:** **GATE 0 HOLD — NOT FOR MERGE OR DEPLOYMENT.** Previously skipped events may now reach the belief corpus and change downstream retrieval inputs. Founder review and explicit approval are required. No prediction scoring, surprise thresholds, event generation, cadence or feature gates are changed.
 
-### G-70 — M0.5 trace continuity across the speech queue (OPEN)
+### G-70 — M0.5 trace continuity across the speech queue (OPEN / implementation proposed)
 
 - **Sources:** `theory_x/stage6_fountain/crystallizer.py`, `influence_trace.py`, `speech/queue_consumer.py`, and `speech/player.py`.
-- **Verified:** the crystallizer records speech-queue enqueue in the trace sidecar. The consumer separately updates the queue row through `speaking` then `spoken`, or `failed` on synthesis/playback exceptions; non-speakable content is marked `suppressed`. The player calls `sounddevice.play(..., blocking=True)` and `sd.wait()`.
-- **Important distinction:** persisted `spoken` means the playback call returned without raising; it is not independent acoustic confirmation that sound reached a listener. Queue-row status is operational outcome state, not a parent-linked continuation of the original trace.
-- **Remaining gap:** there is no cross-thread causal trace continuity linking the enqueue Writer delta/row ID to consumer dequeue, synthesis, playback start/completion or failure events.
-- **Disposition:** **OPEN — M0.5 observability coverage question.** Do not add substrate DB columns or change speech behaviour by inference. If playback lineage is required for M0.5 acceptance, design bounded in-memory/sidecar correlation and tests first.
+- **Verified baseline:** the crystallizer records speech-queue enqueue in the trace sidecar. The consumer separately updates queue status through `speaking`, `spoken`, `failed` or `suppressed`; the player calls `sounddevice.play(..., blocking=True)` and `sd.wait()`. Persisted `spoken` means the blocking playback call returned without raising, not independent acoustic confirmation that sound reached a listener.
+- **Proposed correction:** PR #261, `codex/g70-speech-trace-bridge`, adds a process-local correlation registry keyed by belief ID (512-entry bound, one-hour TTL, one-shot consumption), registers before the queue insert becomes visible, and continues the originating TraceContext through parent-linked dequeue, synthesis, playback, suppression and terminal status/failure events. Enqueue failure discards the correlation and records a categorical failure event.
+- **Regression coverage:** tests cover registry capacity/expiry/one-shot semantics, successful playback, synthesis failure, playback failure, suppression, and failure to persist the post-playback `spoken` status. Trace metadata excludes speech text/audio and records categorical exception types.
+- **Limitations:** correlation is process-local and is not reconstructed after restart. `spoken` remains an operational return status, not proof of acoustic delivery. No schema, speech selection, queue ordering, cadence, synthesis/playback behaviour, feature flags or cognitive decisions are intentionally changed. The trace overlay remains default OFF.
+- **Exact-head evidence:** PR #261 head `15a1f7589bec0a308ddae2eb6a662513bb6b1207`; full-suite run `46018844996` is **IN PROGRESS** (disposable test image built; full baseline suite running). No pass is claimed.
+- **Disposition:** **OPEN — bounded implementation proposed, pending exact-head CI and review.** PR #261 is draft/unmerged. No live runtime, speech device, database or feature flag was touched.
 
 ### G-71 — WarrantRecorder hidden-rowid cursor stability across VACUUM (RESOLVED)
 
