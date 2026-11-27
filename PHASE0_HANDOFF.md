@@ -25,9 +25,9 @@ The source report above remains pinned to `ae406fa8`. Main has since advanced to
 
 These are post-snapshot observations, not retroactive changes to the `ae406fa8` report or the frozen specifications.
 
-## Post-snapshot current-main follow-up (27 November 2026, after #200)
+## Post-snapshot current-main follow-up (27 November 2026, after #218)
 
-The evidence snapshot and source-bounded report above remain pinned to their stated commits. Current remote main is now `5d7f4e28eb6760d206eed455429c90e967a5bf10`.
+The evidence snapshot and source-bounded report above remain pinned to their stated commits. Current remote main is now `278022513f82067cd63dec7688b49895247ad18d`.
 
 - #189 manual reconciliation, #191 Moltbook responder persistence, #196 listener/poster persistence, #199 INDEX/handoff reconciliation, and #200 the resumption/identity/Fountain momentum/recursion-attribution migrations are merged.
 - #200 exact-head CI run `45990854891` passed: **2,539 passed, 7 skipped, 40 subtests**, baseline OK. Mind-map verification: **30 nodes, 0 unverified, 14 dark, 2 blocked**.
@@ -43,11 +43,48 @@ The evidence snapshot and source-bounded report above remain pinned to their sta
 - Existing isolated tests verify the detector's return thresholds, pending-row selection, and engine processing separately; they do not test threshold enforcement end-to-end. `RefinementEngine._r2()` also explicitly defaults to pass on a beliefs-read error (covered by `test_r2_default_pass_on_db_error`); this is documented behavior, not changed here.
 - No runtime/DB inspection or activation was performed. Because fixing this would change autonomous behaviour, it remains a Gate 0 defect finding; no code/flag/threshold change is made.
 
+### Further source audit findings (current main `46c743f9`)
+
+#### G-68 — decryption ProbeRunner live-mutation and cleanup risk
+- `decryption/probe_runner.py` is distinct from `theory_x.probes.probe_runner.ProbeRunner`, the separate normal-boot/API probe subsystem.
+- The decryption runner defaults to `dry_run=False`. In that mode `_setup()` changes NEX mode through `/api/mode/set` and `_seed_prior_context()` writes synthetic `fountain_insight` beliefs through raw SQLite. `_teardown()` deletes injected IDs but does not restore the previous mode.
+- `_remove_injected_beliefs()` clears its in-memory ID list in `finally` even if DELETE fails; a retry then loses the IDs. Process termination before `_teardown()` also bypasses cleanup. `dry_run=True` suppresses mode changes and synthetic writes/deletes but still performs read-only DB inspection for the maximum real belief ID.
+- This utility is not imported by the normal `run.py` boot path inspected. It was not invoked; no synthetic rows or mode changes were made. Do not run against live NEX without explicit experiment approval and a verified disposable database/runtime.
+
+#### G-69 — SurpriseLoop timestamp cursor can skip tied rows and failed promotions
+- `theory_x/life/surprise_loop.py` selects up to 20 events ordered by `triggered_at`, then stores only the maximum timestamp as its cursor. More than 20 rows sharing the boundary timestamp can cause remaining tied rows to be skipped by the next strict-greater-than query.
+- The loop advances `max_ts` after the exception handler even when a non-integrity write/conversion failure occurs, so the failed event can be permanently skipped rather than retried. PR #205 now tests only the first-run ten-minute window; it does not fix timestamp ties or failure retry semantics.
+- PR #104 contains a stable-ID cursor/retry proposal but is on the stale `claude/nex-continuity-wire` branch. Because this changes which surprise events become beliefs, hold the correction for Gate 0 review and current-main carry-forward.
+
+#### G-70 — M0.5 trace currently stops at speech-queue enqueue
+- `theory_x/stage6_fountain/crystallizer.py` records the speech-queue enqueue decision in the current `influence_trace.py` sidecar. `speech/queue_consumer.py` records queue lifecycle state changes but has no `influence_trace` hooks for consumption, synthesis/playback outcome or failure.
+- The current per-cycle `TraceContext` has no cross-thread queue-link registry, so the enqueue trace does not follow the item into the worker thread. Old PR #55 uses the superseded `substrate.trace_overlay` API and is not a safe carry-forward.
+- This is an observability coverage gap, not a speech behaviour defect. Do not add substrate DB columns or alter speech behaviour by inference. If M0.5 acceptance requires playback lineage, design an in-memory/sidecar-only correlation mechanism with bounded retention and tests.
+
+#### G-71 — WarrantRecorder rowid tie cursor is not stable across VACUUM
+- Current `theory_x/stage_warrant/recorder.py` uses `(timestamp, rowid)` cursors for `belief_lineage` and `arc_members`, fixing the tied-timestamp page-boundary defect in G-53/PR #184.
+- Both source tables have declared composite primary keys, but the current cursor tie-breaker is SQLite `rowid`, not the declared key; rowid may change during `VACUUM`. A persisted cursor can then skip or replay rows. PR #106 proposes a composite-key cursor but is based on the stale continuity branch and is not merged.
+- This affects use-day measurement and potentially Warrant sustain/retirement accounting. No live table population or VACUUM event was inspected. Keep separate from #184, which fixed tie pagination but not rowid stability.
+
+### Current-main one-pen and PR triage
+- The six Stage-2 life loops (`pattern_loop`, `witness_loop`, `surprise_loop`, `remember_loop`, `wonder_loop`, `fetch_loop`) use shared Readers/Writers through `stage2_dynamic` wrappers. Identity (#200), affinity (#169), DailyLife (#168), scorecard and HotObserver (#202), Fountain momentum/recursion (#200), and all three Moltbook loops (#191/#196) are source-wired to canonical handles. The prior 25-Nov writer census is stale for these loop paths; the explicit decryption ProbeRunner remains a separate experimental raw-write exception. This is not a claim that the repository-wide write-path census is complete.
+- Open proposals #99–#122 are based on `claude/nex-continuity-wire`, approximately 690 commits behind current main. They include belief eligibility/selection, dormancy, surprise retry/cursor, Warrant use-day cursor, Harmonizer coverage, Tier-6, RememberLoop, affinity, diversity and self-narrative changes. Do not merge the stale branches wholesale; Gate 0 review is required before behavioural/policy changes, followed by individual current-main carry-forward and exact-head tests.
+- PR #142–#144 detailed audit documents remain on a stale branch; their G-51–G-58 summaries are already in the main backlog, but the detailed documents are not current-main evidence. PR #146 was superseded by current deterministic empty-window tests; #205 carries only the independent first-run-window test.
+
+
+
 - No live host collection, runtime trace, database hash inventory, model digest or performance measurement was performed in this remote-source session. These remain **UNKNOWN**.
 - RDO Stage 2–7 modules, documents and tests are present in current main. The historical Claude Stage 2–7 branches are divergent and approximately 475 commits behind; they are not merge candidates. RDO Stage 7's own handoff/status documentation still requires a real objective-to-delivery demonstration, a verified disposable test-execution boundary, host-only runtime observation and separate human acceptance. The independent Watcher handoff verifier is source/path-only; it does not run tests or establish runtime state.
 - RDO v1.3/v1.4 precedence remains unresolved. The recovered v1.4 source metadata and founder recollection do not by themselves establish formal supersession; do not rewrite RDO specifications or stage documents on inference.
 
 
+
+
+#### G-72 — gated SelfPredictionLoop does not inject canonical database handles
+- `run.py` starts `SelfPredictionLoop` only when `NEX5_SELF_PRED=1`. Inside its tick, it runs self-prediction persistence and conditionally calls owned-belief, commitments, and Expectations reconciliation under their own gates.
+- The loop is constructed with only its interval. It does not pass the existing AppState conversations/beliefs Writers or dynamic/beliefs Readers to these nested routines. The current self-prediction and owned-belief paths use direct conversations-database writes; commitments does likewise; Expectations has Writer parameters but the loop does not pass them.
+- `NEX5_RECONCILER=1` and `NEX5_EXPECT_LEARN=1` do not start the loop by themselves. Host environment/process state was not collected; no activation or flag change was performed.
+- **Disposition:** OPEN — gated persistence-ownership integration gap. Preserve loop cadence, decisions, and flags while wiring shared handles.
 
 ## Current status
 
@@ -55,7 +92,7 @@ The evidence snapshot and source-bounded report above remain pinned to their sta
 |---|---|
 | M0.1 — repository identity | Remote main SHA recorded; current host checkout identity/cleanliness not collected |
 | M0.1 — host/runtime/database/model measurements | **PARTIAL / UNKNOWN**; no current host collection or live DB hash inventory |
-| M0.2 — test baseline | Current main `5d7f4e28`: 2,539 passed, 7 skipped, 40 subtests, baseline OK (exact-head run `45990854891`) |
+| M0.2 — test baseline | PR #218 exact-head full baseline CI passed; the merged-main push check for `278022513` was still running at this handoff update |
 | M0.3/M0.4 — crosswalk and spec reconciliation | **PARTIAL**; source boot and Chat/Fountain paths are mapped, not every faculty's complete producer/consumer DAG |
 | Roadmap v3.0 M0.5 — causal trace | **IMPLEMENTED / MERGED**, default OFF, L3 fixture evidence |
 | M0.5 live L4 capture | **UNKNOWN**; no live runtime context enabled |
@@ -73,12 +110,12 @@ The evidence snapshot and source-bounded report above remain pinned to their sta
 
 ## Next Phase 0 actions
 
-1. Current-main CI for `5d7f4e28` is verified green (2,539 passed, 7 skipped, 40 subtests; baseline OK, run `45990854891`). The earlier `ae406fa8` result remains the historical evidence snapshot; do not conflate it with current main.
+1. Current-main CI for `46c743f9` is verified green (2,546 passed, 7 skipped, 45 subtests; baseline OK, run `45995284146`). The earlier `ae406fa8` result remains the historical evidence snapshot; do not conflate it with current main.
 2. Scheduler overview documentation is corrected and merged in PR #153; its exact-head full suite is green.
 3. Continue the forward/backward source audit across the remaining `theory_x/` faculties; distinguish wired loops from downstream consumers and measured effects.
 4. The mind-map count discrepancy is closed (30 nodes, 5 arms, 4 findings). The consolidated source re-verification PR #185 is merged; current verifier result is 30 nodes, 0 unverified, 14 dark, 2 blocked. The 18 path/date warnings were cleared by source-anchor corrections. Keep the two missing doctrine references and overdue `p13_finitude` marker explicit; do not fabricate documents or advance the marker without source review.
 5. Preserve the unresolved doctrine-reference and P13 evidence gaps as explicit founder-review items; do not silently remove them.
-6. Review the G-53 PR #184 merged cursor migration against any future Warrant source-coverage changes; do not broaden the use-day eligibility set without a specification decision.
+6. Review the G-53 tied-timestamp cursor fix (#184) and G-71 rowid/VACUUM stability gap separately. Do not broaden Warrant source eligibility or lifecycle policy without a specification decision.
 7. Obtain a fresh, authorised host-only collection for active checkout identity, service/process state, versions/model digest, performance and DB hashes. Do not copy private runtime data into Git.
 8. Present the Reality Report, Crosswalk and verified defect backlog for Gate 0 founder review before any Phase 1 behavioural work.
 
