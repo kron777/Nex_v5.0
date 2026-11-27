@@ -134,8 +134,8 @@ class TestRecorder(unittest.TestCase):
         )
         c.executemany(
             "INSERT INTO arc_members (arc_id, belief_id, position, role, joined_at) "
-            "VALUES (1, ?, ?, 'test', ?)",
-            [(102 + i, i, same_ts) for i in range(5)],
+            "VALUES (?, ?, ?, 'test', ?)",
+            [(1 if i < 2 else 2, 102 + i, i, same_ts) for i in range(5)],
         )
         c.execute("DELETE FROM belief_lineage WHERE relationship='temporary'")
         c.execute("DELETE FROM arc_members WHERE role='temporary'")
@@ -206,11 +206,12 @@ class TestRecorder(unittest.TestCase):
         self.assertEqual(self.r._tuple_cursor("use_lineage_event", (0.0, 0, 0, "")),
                          (same_ts, 104, 101, "test"))
         self.assertEqual(self.r._tuple_cursor("use_arc_event", (0.0, 0, 0)),
-                         (same_ts, 1, 106))
+                         (same_ts, 2, 106))
 
         # Active arcs can receive members later, after newer arc IDs have
         # already advanced the scan. Event-time-first ordering must still see
-        # a new row belonging to an older arc (and an older lineage child).
+        # a new row belonging to arc 1 even though the cursor ended at arc 2;
+        # likewise, a late lineage row for child 2 follows the cursor at 104.
         late_ts = same_ts + _DAY
         with sqlite3.connect(self.bdb) as db:
             db.execute(
