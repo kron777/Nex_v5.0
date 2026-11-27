@@ -1,7 +1,7 @@
-# RDO specification-version reconciliation
+# RDO specification-version reconciliation and working status
 
 **Date:** 26 November 2026  
-**Status:** Original v1.4 text recovered from the founder's prior conversation attachment; version precedence remains **UNRESOLVED**.  
+**Status:** Founder-supplied v1.4 is the current working specification; v1.3 remains historical. Formal freeze/supersession is not recorded in the consolidated NEX register.  
 **Authority:** This is a non-normative audit note. It does not amend, replace or interpret either specification.
 
 ## Question
@@ -110,25 +110,21 @@ The 22 November carry-over handoff correctly instructed the next assistant not t
 - That all pre-existing v1.4 code citations accurately implement the corresponding v1.4 clauses.
 - That the v1.3 Stage 0–7 sequence should be replaced, renumbered or retroactively reinterpreted under v1.4.
 
-**Interim handling (not a version-precedence decision):**
+**Current working handling:**
 
-- Use v1.3 §16 when describing the sequence actually implemented and merged through PR #124.
-- Treat founder-supplied v1.4 as the intended current working specification for comparison, but do not claim formal supersession until the founder confirms the precedence decision.
-- Preserve v1.4 citations in code as unresolved provenance; do not silently remap them to v1.3.
-- Do not rewrite the existing stage documents, code docstrings or implementation requirements until the exact v1.4 source is available for direct comparison and the founder confirms which version governs.
+- Use v1.4 as the current working specification for future RDO development; the founder indicated on 24 November that they believed it had been approved.
+- Preserve v1.3 §16 as historical evidence for the sequence actually implemented and merged through PR #124; do not retroactively rewrite that history.
+- Preserve v1.4 citations in code and map them against the current working requirements; do not silently remap them to v1.3.
+- Formal frozen supersession is not recorded in the consolidated NEX register, so distinguish current working direction from a formally versioned/frozen replacement. This does not block using v1.4 as the working basis.
 
-## 5. Required founder resolution
+## 5. Current working status and archival limitation
 
 The original v1.4 text has already been supplied by the founder; asking the founder to re-supply it should not be the default. To complete the direct section-by-section comparison, the original 47,172-byte attachment must be available again in the active working context, or an equivalent exact source copy must be made accessible.
 
-The remaining founder decision is narrow:
-
-**Does RDO v1.4 — Optimal Functional Tension formally supersede v1.3 as the governing RDO specification for future work, or should v1.3 §16 remain the controlling roadmap while v1.4 is treated as a proposed/current-working refinement pending explicit sign-off?**
-
-Until that precedence decision is explicit, version precedence remains **UNKNOWN**. This note records evidence; it does not make that decision.
+The working direction is no longer an open question: v1.4 is the intended current working specification, based on the founder's 24 November confirmation. The remaining limitation is archival: the original 47,172-byte text is not mounted in the current repository/Library workspace for a fresh byte-level comparison. The recorded SHA-256 is preserved in the prior conversation. This document does not claim that the v1.4 cover status (“Proposed implementation specification”) was replaced by a formal frozen-spec record in the NEX register.
 
 ## Scope and integrity
 
-This audit changed no specification PDF, NEX cognitive/runtime source, live database, feature flag, experiment, baseline, tripwire or deployment setting. It does not modify the frozen consolidated NEX S-register. It does not invent an RDO Stage 8 or extend the v1.3 roadmap.
+This audit changed no specification PDF, NEX cognitive/runtime source, live database, feature flag, experiment, baseline, tripwire or deployment setting. It does not modify the frozen consolidated NEX S-register. The v1.4 §29 order includes a final expansion step; this note records that working order without retroactively changing v1.3's historical stage labels.
 
 **Repository baseline for this note:** PR #124 merge commit `70db12169a8d38f2e93e6cdf536a1c71a3e66ee2`.
