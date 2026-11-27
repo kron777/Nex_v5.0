@@ -1,5 +1,6 @@
 """Relationship-level OFT must not infer sufficiency from absent interface evidence."""
 
+from rdo.operating_envelope import BUSY, STRESS, OperatingEnvelopeAssessment
 from rdo.model import (
     InterfaceEvidence,
     InterfaceTensionProfile,
@@ -117,3 +118,130 @@ def test_invalid_interface_profile_shape_is_reported_explicitly():
     assert result.dimensions["unknown_dimensions"] == ["interface_profile"]
     assert "invalid shape" in result.note
     assert "evidence is recorded" not in result.note
+
+
+def test_relationship_assessment_preserves_declared_operating_envelope_as_unknown():
+    rel = Relationship("consumer", "provider", "depends_on",
+        operating_envelope=OperatingEnvelopeAssessment(declared_state=BUSY))
+    result = assess_relationship(rel, {})
+    envelope = result.dimensions["operating_envelope"]
+    assert envelope["status"] == "unknown"
+    assert envelope["declared_state"] == BUSY
+    assert envelope["assessed_state"] is None
+    assert "headroom" in envelope["unknown_dimensions"]
+    assert result.verdict == TENSION_UNKNOWN
+
+
+def test_relationship_assessment_records_but_does_not_promote_envelope_evidence():
+    envelope = OperatingEnvelopeAssessment(assessed_state=STRESS,
+        assessment_evidence=["review:stress-1"],
+        provenance=["reviewer:independent-1"], confidence="reviewed")
+    rel = Relationship("consumer", "provider", "depends_on", operating_envelope=envelope)
+    result = assess_relationship(rel, {})
+    summary = result.dimensions["operating_envelope"]
+    assert summary["status"] == "evidence_recorded"
+    assert summary["assessed_state"] == STRESS
+    assert "headroom" in summary["unknown_dimensions"]
+    assert result.verdict == TENSION_UNKNOWN
+
+
+def test_relationship_assessment_rejects_unbacked_persisted_envelope_verdict():
+    rel = Relationship("consumer", "provider", "depends_on", operating_envelope={
+        "declared_state": BUSY, "assessed_state": STRESS,
+        "assessment_evidence": ["review:stress"], "provenance": [], "confidence": None,
+    })
+    result = assess_relationship(rel, {})
+    assert result.dimensions["operating_envelope"]["status"] == "invalid_evidence"
+    assert "assessment" in result.dimensions["operating_envelope"]["unknown_dimensions"]
+    assert result.verdict == TENSION_UNKNOWN
+
+
+def test_relationship_assessment_fails_closed_on_non_string_envelope_state():
+    rel = Relationship("consumer", "provider", "depends_on", operating_envelope={
+        "declared_state": BUSY, "assessed_state": {"unexpected": "shape"},
+        "assessment_evidence": ["review:stress"], "provenance": ["reviewer:1"],
+        "confidence": "reviewed",
+    })
+    result = assess_relationship(rel, {})
+    assert result.dimensions["operating_envelope"]["status"] == "invalid_evidence"
+    assert result.verdict == TENSION_UNKNOWN
+
+
+def test_explicit_relationship_defect_retains_operating_envelope_context():
+    rel = Relationship("signal", "consumer", "influences", authority="strong",
+        operating_envelope=OperatingEnvelopeAssessment(declared_state=BUSY))
+    result = assess_relationship(rel, {})
+    assert result.verdict == OVERDEVELOPED
+    assert result.dimensions["operating_envelope"]["declared_state"] == BUSY
+    assert result.dimensions["operating_envelope"]["status"] == "unknown"
+
+
+def test_invalid_declared_envelope_state_is_not_treated_as_valid_context():
+    rel = Relationship("consumer", "provider", "depends_on", operating_envelope={
+        "declared_state": {"not": "a state"}, "assessed_state": None,
+    })
+    result = assess_relationship(rel, {})
+    assert result.dimensions["operating_envelope"]["status"] == "invalid_evidence"
+
+
+def test_interface_dimension_with_blank_reference_or_confidence_remains_unknown():
+    profile = InterfaceTensionProfile(
+        latency=InterfaceEvidence(status="measured", value=12, unit="ms",
+            evidence=[" "], confidence="measured"),
+        freshness=InterfaceEvidence(status="measured", value=1, unit="seconds",
+            evidence=["trace:freshness"], confidence=" "),
+    )
+    result = assess_relationship(Relationship("consumer", "provider", "depends_on",
+        interface_profile=profile), {})
+    dimensions = result.dimensions["dimensions"]
+    assert not dimensions["latency"]["evidence_complete"]
+    assert not dimensions["freshness"]["evidence_complete"]
+    assert "latency" in result.dimensions["unknown_dimensions"]
+    assert "freshness" in result.dimensions["unknown_dimensions"]
+    assert result.verdict == TENSION_UNKNOWN
+
+
+def test_envelope_measurement_value_without_traceable_evidence_stays_unknown():
+    envelope = OperatingEnvelopeAssessment(
+        measured_load=InterfaceEvidence(status="measured", value=70, unit="percent"),
+    )
+    result = assess_relationship(Relationship("consumer", "provider", "depends_on",
+        operating_envelope=envelope), {})
+    assert "measured_load" in result.dimensions["operating_envelope"]["unknown_dimensions"]
+    assert result.verdict == TENSION_UNKNOWN
+
+
+def test_malformed_envelope_measurement_object_does_not_crash_assessment():
+    envelope = {"declared_state": BUSY, "assessed_state": None,
+                "measured_load": object()}
+    result = assess_relationship(Relationship("consumer", "provider", "depends_on",
+        operating_envelope=envelope), {})
+    assert "measured_load" in result.dimensions["operating_envelope"]["unknown_dimensions"]
+    assert result.verdict == TENSION_UNKNOWN
+
+
+def test_invalid_declared_envelope_state_is_not_treated_as_valid_context():
+    rel = Relationship("consumer", "provider", "depends_on", operating_envelope={
+        "declared_state": {"not": "a state"}, "assessed_state": None,
+    })
+    result = assess_relationship(rel, {})
+    assert result.dimensions["operating_envelope"]["status"] == "invalid_evidence"
+
+
+def test_envelope_measurement_without_evidence_does_not_count_as_known():
+    envelope = OperatingEnvelopeAssessment(
+        measured_load=InterfaceEvidence(status="measured", value=70, unit="percent"),
+    )
+    result = assess_relationship(Relationship("consumer", "provider", "depends_on",
+        operating_envelope=envelope), {})
+    assert "measured_load" in result.dimensions["operating_envelope"]["unknown_dimensions"]
+
+
+def test_relationship_profile_dict_and_unknown_values_remain_compatible():
+    rel = Relationship("consumer", "provider", "depends_on", interface_profile={
+        "latency": {"status": "measured", "value": 10, "unit": "ms",
+                    "evidence": ["benchmark:1"], "confidence": "measured"},
+    })
+    result = assess_relationship(rel, {})
+    assert result.dimensions["dimensions"]["latency"]["evidence_complete"] is True
+    assert result.verdict == TENSION_UNKNOWN
