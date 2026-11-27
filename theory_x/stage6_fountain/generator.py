@@ -2542,39 +2542,33 @@ class FountainGenerator:
             trace.remember("fountain_hot_branch_selection", _hot_branch_selection_id)
 
         # teeth-test v2: ONE sample per REAL fire (fail-safe — never stalls a fire).
-        # Compares this fire's branch to previous fire's branch for real movement signal.
+        # All dynamic.db writes use the shared one-pen Writer; the Reader supplies
+        # the previous branch without opening a second write-capable connection.
         try:
             import time as _tt2
-            try:
-                from substrate.paths import db_paths as _dbp2
-                _adb2 = str(_dbp2()["dynamic"])
-            except Exception:
-                _adb2 = str(db_paths()["dynamic"])
-            _acon = connect(_adb2, timeout=3)
-            _acon.execute("""CREATE TABLE IF NOT EXISTS recursion_attrib
+            self._dynamic_writer.write("""CREATE TABLE IF NOT EXISTS recursion_attrib
                 (ts REAL PRIMARY KEY, nudge_active INTEGER,
                  branch TEXT, branch_prev TEXT, moved INTEGER)""")
-            _prev = _acon.execute(
+            _prev = self._dynamic_reader.read_one(
                 "SELECT branch FROM recursion_attrib ORDER BY ts DESC LIMIT 1"
-            ).fetchone()
-            _branch_prev = _prev[0] if _prev else ""
+            )
+            _branch_prev = _prev["branch"] if _prev else ""
             _moved = 1 if (hot_branch and _branch_prev and hot_branch != _branch_prev) else 0
             _nudge = 1 if getattr(self, "_pending_nudge_active", False) else 0
             _recursion_ts = _tt2.time()
-            _acon.execute(
+            _recursion_row_id = self._dynamic_writer.write(
                 "INSERT OR REPLACE INTO recursion_attrib VALUES (?,?,?,?,?)",
-                (_recursion_ts, _nudge, hot_branch or "", _branch_prev, _moved)
+                (_recursion_ts, _nudge, hot_branch or "", _branch_prev, _moved),
             )
-            _acon.commit(); _acon.close()
             if trace is not None:
-                _recursion_trace_id = trace.record(
-                    "direct_sql_commit", "recursion_attrib_insert_or_replace",
-                    metadata={"database": "dynamic", "table": "recursion_attrib",
-                              "operation": "INSERT_OR_REPLACE", "status": "committed",
-                              "timestamp": _recursion_ts, "branch_id": hot_branch,
+                _recursion_trace_id = trace.writer_delta(
+                    database="dynamic",
+                    table="recursion_attrib",
+                    operation="INSERT_OR_REPLACE",
+                    row_id=_recursion_row_id,
+                    metadata={"timestamp": _recursion_ts, "branch_id": hot_branch,
                               "previous_branch_id": _branch_prev, "moved": bool(_moved),
-                              "nudge_active": bool(_nudge),
-                              "transaction_scope": "direct_connection_commit"},
+                              "nudge_active": bool(_nudge)},
                     parent_ids=[
                         rid for rid in (
                             trace.reference("fountain_hot_branch_selection"),
@@ -2660,10 +2654,13 @@ class FountainGenerator:
         if os.environ.get("NEX5_MOMENTUM", "1") == "1":
             try:
                 from theory_x.stage_tom.momentum import capture_momentum
-                if trace is None:
-                    capture_momentum(thought or "", _carry_branch or "")
-                else:
-                    capture_momentum(thought or "", _carry_branch or "", trace=trace)
+                capture_momentum(
+                    thought or "",
+                    _carry_branch or "",
+                    dynamic_reader=self._dynamic_reader,
+                    dynamic_writer=self._dynamic_writer,
+                    trace=trace,
+                )
             except Exception:
                 pass  # never stall a fire
 
@@ -2997,10 +2994,12 @@ class FountainGenerator:
         if os.environ.get("NEX5_CARRYOVER") == "1":
             try:
                 from theory_x.stage_tom.momentum import stamp_resolution
-                if trace is None:
-                    stamp_resolution(bool(crystallized_id))
-                else:
-                    stamp_resolution(bool(crystallized_id), trace=trace)
+                stamp_resolution(
+                    bool(crystallized_id),
+                    dynamic_reader=self._dynamic_reader,
+                    dynamic_writer=self._dynamic_writer,
+                    trace=trace,
+                )
             except Exception:
                 pass
 
