@@ -277,3 +277,13 @@ def test_relationship_operating_envelope_round_trips_through_serialized_record()
     assert summary["status"] == "unknown"
     assert "measured_load" not in summary["unknown_dimensions"]
     assert result.verdict == TENSION_UNKNOWN
+
+
+def test_malformed_envelope_serializer_fails_closed():
+    class BrokenEnvelope:
+        to_dict = "not-callable"
+    result = assess_relationship(Relationship("consumer", "provider", "depends_on",
+        operating_envelope=BrokenEnvelope()), {})
+    summary = result.dimensions["operating_envelope"]
+    assert summary["status"] == "invalid_shape"
+    assert result.verdict == TENSION_UNKNOWN
