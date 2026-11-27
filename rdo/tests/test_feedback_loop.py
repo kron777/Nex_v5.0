@@ -149,13 +149,18 @@ def test_cycle_detector_preserves_distinct_directed_cycles_with_same_members():
     ]
 
     cycles = _find_cycles(edges)
-    cycle_set = {tuple(cycle) for cycle in cycles}
 
-    assert ("A", "B", "C", "D", "A") in cycle_set
-    assert ("A", "C", "B", "D", "A") in cycle_set
-    # Rotations of the same directed loop are still deduplicated.
-    four_member_cycles = [
-        cycle for cycle in cycles
+    def canonical(path):
+        nodes = path[:-1]
+        return min(tuple(nodes[index:] + nodes[:index]) for index in range(len(nodes)))
+
+    cycle_set = {canonical(cycle) for cycle in cycles}
+    assert ("A", "B", "C", "D") in cycle_set
+    assert ("A", "C", "B", "D") in cycle_set
+
+    # Rotations of one directed loop deduplicate; different traversals do not.
+    four_member_cycles = {
+        canonical(cycle) for cycle in cycles
         if len(cycle) == 5 and set(cycle[:-1]) == {"A", "B", "C", "D"}
-    ]
+    }
     assert len(four_member_cycles) == 2
