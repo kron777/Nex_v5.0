@@ -52,17 +52,34 @@ class TestCommitmentsOnePen(unittest.TestCase):
         self.assertIsNotNone(row)
         self.assertIsNone(row["released_by"])
 
+        # Build a known-valid future-deadline commitment for the release guard.
+        now = time.time()
+        release_id = self.writers["conversations"].transaction(
+            lambda cx: C._record(
+                cx, "chat", 9001, 0, now,
+                {
+                    "kind": "commitment",
+                    "obligation": "think about the test",
+                    "discharge": {"kind": "think", "topic": "test"},
+                    "deadline": now + 3600,
+                    "deadline_text": "in one hour",
+                    "counterparty": None,
+                    "statement": "I will think about the test in one hour",
+                },
+            )
+        )
+        self.assertIsNotNone(release_id)
         with patch.object(
             C, "Writer",
             side_effect=AssertionError("commitment release opened a second Writer"),
         ):
             C.record_release(
-                row["id"], "self", time.time(), "test:release",
+                release_id, "self", now + 1, "test:release",
                 conversations_writer=self.writers["conversations"],
             )
         released = self.readers["conversations"].read_one(
             "SELECT released_by, release_ref FROM commitments WHERE id=?",
-            (row["id"],),
+            (release_id,),
         )
         self.assertEqual(released["released_by"], "self")
         self.assertEqual(released["release_ref"], "test:release")
