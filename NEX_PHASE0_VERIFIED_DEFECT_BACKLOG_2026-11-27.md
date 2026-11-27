@@ -102,7 +102,7 @@ These are source-level conditions and test-coverage gaps recovered from older au
 - **Verified:** `belief_lineage` and `arc_members` use strict-greater-than timestamp cursors (`created_at > ?`, `joined_at > ?`) ordered only by those timestamps. The last timestamp in each batch becomes the next cursor.
 - **Conditional risk:** if equal-timestamp rows straddle a 20,000-row page boundary, the next query's strict `>` cursor skips remaining rows with that same timestamp. `record_synergy()` and arc-member writes can share a timestamp across related rows. The source establishes the keyset weakness; no live table population or actual skipped row was observed.
 - **Test gap:** `tests/test_warrant_recorder.py` covers basic use-day counting, idempotence and ordinary cursor movement; it does not exercise a tied-timestamp group crossing the batch boundary.
-- **Disposition:** candidate for a deterministic fixture with composite (timestamp, stable row ID) cursor semantics. No cursor/schema edit made.
+- **Disposition / post-snapshot status:** PR #184 implements the composite `(timestamp, rowid)` cursor for both sources, adds an idempotent `tie_id` column migration that preserves existing timestamp progress, and adds tied-page-boundary plus legacy-schema tests. Exact-head CI is pending; do not call the defect closed until the full suite passes and the PR merges. The change affects pagination only, not the use-day eligibility set or Warrant policy.
 
 ### G-54 — Warrant scorer and recorder consume different anchor sources
 
