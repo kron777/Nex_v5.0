@@ -124,3 +124,13 @@ The consolidated S-01–S-25 register, roadmap, phase gates and cognitive policy
 ## Do not cross this boundary
 
 This handoff does not authorise enabling dark flags, running ablations, changing prompts/confidence/belief revision, changing Gate policy, starting/restarting services, writing to live substrate DBs, or claiming L4. Preserve the frozen S-01–S-25 specification/register. The separate V2.1 development proposal is not replaced or rewritten by these Phase 0 documents.
+
+
+## Additional current-main Warrant lifecycle questions — 27 November 2026
+
+The refreshed backlog adds two source-level Warrant questions:
+
+- **G-74 — retired-marker eligibility:** WarrantPass's scoring query and WarrantRecorder's survival query do not filter the independent `erosion_stage='retired'` marker. Normal Harmonizer retirement writes Tier 8, and no normal writer for a lower-tier retired marker or live such row was established. Confirm whether the marker must override tier for these Warrant operations before adding filters.
+- **G-75 — recorder versus scorer boot:** normal `run.py` starts WarrantRecorder only behind `NEX5_WARRANT_RECORD=1`. No normal WarrantPass loop construction/start was found in `run.py` or `gui/server.py`; `tools/warrant_validate.py` runs one-shot read-only `compute_all()`. The tracked keepalive sets the recorder flag but not `NEX5_WARRANT`; host-effective state remains UNKNOWN due the known launcher path blocker and uninspected user systemd unit. Record-only operation may be intentional while evidence accrues.
+
+Neither question authorises changing Warrant scoring, eligibility, flags, or lifecycle. The Warrant cursor fix in PR #253 is pagination-only; the Warrant gate remains OFF.
