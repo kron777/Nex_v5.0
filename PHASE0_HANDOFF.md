@@ -2,7 +2,7 @@
 
 **Date:** 27 November 2026  
 **Repository:** https://github.com/kron777/Nex_v5.0  
-**Evidence snapshot:** `main` at `14873c10673760b8adbbf6fb0076226d1c97ffa4`  
+**Evidence snapshot:** `main` at `8d2121d121931d37afcb1c3d23d27e7ccc9145d1`  
 **Gate 0:** **PENDING — founder review required**
 
 ## Read these together
@@ -257,3 +257,8 @@ The canonical manual is `INDEX.md`; its plain-text mirror is `NEX_5.0_DEVELOPMEN
 - The RDO remains external/advisory; raw objective seeding and v1.3/v1.4 precedence remain open architecture/governance questions.
 
 No live host, runtime, database, credential or external service was accessed. No cognitive policy, feature flag, MIND_MAP node, frozen S-01–S-25 register, Master Roadmap or Gate 0 decision changed. Gate 0 remains pending founder review; Phase 1 remains unauthorized.
+
+
+### Post-research-snapshot PR #279 update — 27 November 2026
+
+PR #279 merged as `8d2121d121931d37afcb1c3d23d27e7ccc9145d1`; exact-head CI run `46044361663` passed 2,638 tests, 7 skipped, 45 subtests, baseline OK. It moves the scheduled prose-statistics rebuild to the shared beliefs Writer/Reader path. This closes the auxiliary write bypass, not SignalToProblem's primary split-database transaction. G-85/G-61 remain open pending a defined idempotency/recovery contract. No post-merge main CI run was returned at this update.
