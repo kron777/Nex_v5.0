@@ -48,8 +48,8 @@ class WriteRequest:
     statements: Optional[list[tuple[str, Sequence[Any]]]] = None
     include_rowcounts: bool = False
     continue_on_integrity_error: bool = False
-    transaction: Optional[Callable[[sqlite3.Connection], Any]] = None
     future: Future = field(default_factory=Future)
+    transaction: Optional[Callable[[sqlite3.Connection], Any]] = None
 
 
 _SENTINEL = object()
