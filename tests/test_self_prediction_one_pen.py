@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import sqlite3
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -19,17 +20,17 @@ class TestSelfPredictionOnePen(unittest.TestCase):
         self.conv = os.path.join(self.tmp.name, "conversations.db")
         self.beliefs = os.path.join(self.tmp.name, "beliefs.db")
         self.dynamic = os.path.join(self.tmp.name, "dynamic.db")
-        self.conv_writer = Writer(self.conv, name="test_conversations")
-        self.beliefs_writer = Writer(self.beliefs, name="test_beliefs")
-        self.conv_reader = Reader(self.conv)
-        self.beliefs_reader = Reader(self.beliefs)
-        self.dynamic_reader = Reader(self.dynamic)
         cx = sqlite3.connect(self.beliefs)
         cx.execute(
             "CREATE TABLE beliefs (id INTEGER PRIMARY KEY, created_at INTEGER, source TEXT)"
         )
         cx.commit()
         cx.close()
+        self.conv_writer = Writer(self.conv, name="test_conversations")
+        self.beliefs_writer = Writer(self.beliefs, name="test_beliefs")
+        self.conv_reader = Reader(self.conv)
+        self.beliefs_reader = Reader(self.beliefs)
+        self.dynamic_reader = Reader(self.dynamic)
 
     def tearDown(self):
         self.conv_writer.close()
@@ -57,7 +58,7 @@ class TestSelfPredictionOnePen(unittest.TestCase):
         cx = sqlite3.connect(self.beliefs)
         cx.execute(
             "INSERT INTO beliefs (created_at, source) VALUES (?, ?)",
-            (int(__import__("time").time() - 60), "fountain_insight"),
+            (int(time.time() - 60), "fountain_insight"),
         )
         cx.commit()
         cx.close()
