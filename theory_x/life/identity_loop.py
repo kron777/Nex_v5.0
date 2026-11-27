@@ -16,7 +16,7 @@ Most recent identity statement gets injected into fountain prompt
 from __future__ import annotations
 import json
 import logging
-from substrate import connect, IntegrityError, table_exists
+from substrate import Reader, Writer, IntegrityError
 import threading
 import time
 from datetime import datetime
@@ -38,151 +38,155 @@ SOURCE = "identity_loop"
 COMPOSE_HOURS = {0, 6, 12, 18}
 
 
-def _ensure_identity_log():
-    cx = connect(DYNAMIC_DB, timeout=15)
+def _ensure_identity_log(
+    dynamic_reader: Reader | None = None,
+    dynamic_writer: Writer | None = None,
+):
+    reader = dynamic_reader or Reader(DYNAMIC_DB)
+    own_writer = dynamic_writer is None
+    writer = dynamic_writer or Writer(DYNAMIC_DB, name="identity_loop_schema")
     try:
-        cx.execute("""
-            CREATE TABLE IF NOT EXISTS identity_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                composed_at REAL NOT NULL,
-                date_local TEXT NOT NULL,
-                hour_local INTEGER NOT NULL,
-                statement TEXT NOT NULL,
-                metrics_json TEXT NOT NULL,
-                UNIQUE(date_local, hour_local)
-            )
-        """)
-        cx.execute(
-            "CREATE INDEX IF NOT EXISTS idx_identity_composed ON identity_log(composed_at DESC)"
-        )
-        # self-as-cause experiment (step 1): the arm ACTIVE when this self-description
-        # was generated, stamped on the OUTCOME row by the generating path -- the
-        # schedule file is intent, the row is fact. Without it a failed/flipped/restarted
-        # tick mislabels the analysis invisibly. Additive, nullable.
-        _cols = {r[1] for r in cx.execute("PRAGMA table_info(identity_log)")}
-        for _c in ("ablation_arm", "ablation_arm_prev", "ablation_flips"):
-            if _c not in _cols:
-                cx.execute(f"ALTER TABLE identity_log ADD COLUMN {_c} "
-                           f"{'INTEGER' if _c == 'ablation_flips' else 'TEXT'}")
-        cx.commit()
+        writer.write_many([
+            ("""
+                CREATE TABLE IF NOT EXISTS identity_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    composed_at REAL NOT NULL,
+                    date_local TEXT NOT NULL,
+                    hour_local INTEGER NOT NULL,
+                    statement TEXT NOT NULL,
+                    metrics_json TEXT NOT NULL,
+                    UNIQUE(date_local, hour_local)
+                )
+            """, ()),
+            (
+                "CREATE INDEX IF NOT EXISTS idx_identity_composed "
+                "ON identity_log(composed_at DESC)",
+                (),
+            ),
+        ])
+        cols = {row["name"] for row in reader.read("PRAGMA table_info(identity_log)")}
+        migrations = []
+        for column in ("ablation_arm", "ablation_arm_prev", "ablation_flips"):
+            if column not in cols:
+                kind = "INTEGER" if column == "ablation_flips" else "TEXT"
+                migrations.append((
+                    f"ALTER TABLE identity_log ADD COLUMN {column} {kind}",
+                    (),
+                ))
+        if migrations:
+            writer.write_many(migrations)
     finally:
-        cx.close()
+        if own_writer:
+            writer.close()
 
 
-def _gather_metrics(now):
-    """Read substrate state. No LLM."""
+def _gather_metrics(
+    now,
+    *,
+    beliefs_reader: Reader | None = None,
+    dynamic_reader: Reader | None = None,
+    conversations_reader: Reader | None = None,
+):
+    """Read substrate state through read-only handles.
+
+    The normal loop injects its shared Readers. Keep the standalone helper
+    callable for diagnostics and existing callers by creating read-only
+    handles when one is not supplied.
+    """
+    beliefs_reader = beliefs_reader or Reader(BELIEFS_DB)
+    dynamic_reader = dynamic_reader or Reader(DYNAMIC_DB)
+    conversations_reader = conversations_reader or Reader(CONVERSATIONS_DB)
     six_hours_ago = now - 6 * 3600
-    m = {}
+    metrics = {}
 
-    # New beliefs in last 6h
     try:
-        b = connect(BELIEFS_DB, timeout=10)
-        row = b.execute(
+        row = beliefs_reader.read_one(
             "SELECT COUNT(*) FROM beliefs WHERE created_at > ?",
-            (six_hours_ago,)
-        ).fetchone()
-        m["new_beliefs_6h"] = row[0] if row else 0
-
-        # Highest-affinity belief
-        row = b.execute(
+            (six_hours_ago,),
+        )
+        metrics["new_beliefs_6h"] = row[0] if row else 0
+        row = beliefs_reader.read_one(
             "SELECT content FROM beliefs WHERE affinity IS NOT NULL "
             "ORDER BY affinity DESC LIMIT 1"
-        ).fetchone()
-        m["top_affinity"] = row[0][:140] if row else None
-
-        # Tier-7 reads (sense-precipitations) in last 6h
-        row = b.execute(
+        )
+        metrics["top_affinity"] = row[0][:140] if row else None
+        row = beliefs_reader.read_one(
             "SELECT COUNT(*) FROM beliefs WHERE created_at > ? "
             "AND source='precipitated_from_sense'",
-            (six_hours_ago,)
-        ).fetchone()
-        m["reads_6h"] = row[0] if row else 0
-
-        b.close()
+            (six_hours_ago,),
+        )
+        metrics["reads_6h"] = row[0] if row else 0
     except Exception:
         pass
 
-    # Current focus
     try:
-        d = connect(DYNAMIC_DB, timeout=10)
-        row = d.execute(
+        row = dynamic_reader.read_one(
             "SELECT problem_id FROM current_focus WHERE id=1"
-        ).fetchone()
+        )
         focus_pid = row[0] if row else None
-        d.close()
         if focus_pid:
-            c = connect(CONVERSATIONS_DB, timeout=10)
-            row = c.execute(
-                "SELECT title FROM open_problems WHERE id=?", (focus_pid,)
-            ).fetchone()
-            m["focus_title"] = row[0][:80] if row else None
-            c.close()
+            row = conversations_reader.read_one(
+                "SELECT title FROM open_problems WHERE id=?",
+                (focus_pid,),
+            )
+            metrics["focus_title"] = row[0][:80] if row else None
     except Exception:
         pass
 
-    # Last big surprise
     try:
-        d = connect(DYNAMIC_DB, timeout=10)
-        row = d.execute(
+        row = dynamic_reader.read_one(
             "SELECT actual_content, surprise_score FROM surprise_events "
             "WHERE big_surprise=1 AND actual_content IS NOT NULL AND actual_content != '' "
-            "AND triggered_at > ? "
-            "ORDER BY triggered_at DESC LIMIT 1",
-            (six_hours_ago,)
-        ).fetchone()
+            "AND triggered_at > ? ORDER BY triggered_at DESC LIMIT 1",
+            (six_hours_ago,),
+        )
         if row:
-            m["last_surprise"] = row[0][:80]
-        d.close()
+            metrics["last_surprise"] = row[0][:80]
     except Exception:
         pass
 
-    # Fountain fires in last 6h
     try:
-        d = connect(DYNAMIC_DB, timeout=10)
-        row = d.execute(
+        row = dynamic_reader.read_one(
             "SELECT COUNT(*) FROM fountain_events "
             "WHERE thought != '' AND ts > ?",
-            (six_hours_ago,)
-        ).fetchone()
-        m["fountain_fires_6h"] = row[0] if row else 0
-
-        # Moltbook posts in last 6h
-        row = d.execute(
-            "SELECT COUNT(*) FROM moltbook_posts "
-            "WHERE status='posted' AND ts > ?",
-            (six_hours_ago,)
-        ).fetchone() if table_exists(d, "moltbook_posts") else (0,)  # optional
-        m["moltbook_6h"] = row[0] if row else 0
-        d.close()
+            (six_hours_ago,),
+        )
+        metrics["fountain_fires_6h"] = row[0] if row else 0
+        has_moltbook = dynamic_reader.read_one(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='moltbook_posts'"
+        )
+        if has_moltbook:
+            row = dynamic_reader.read_one(
+                "SELECT COUNT(*) FROM moltbook_posts "
+                "WHERE status='posted' AND ts > ?",
+                (six_hours_ago,),
+            )
+        else:
+            row = (0,)
+        metrics["moltbook_6h"] = row[0] if row else 0
     except Exception:
         pass
 
-    # 5d.1 (2026-05-17): tag metrics. Gated by NEX_TAG_FEEDBACK_ON.
-    # When enabled, includes counts of coin/maybe/non on her recent
-    # fountain outputs. When disabled, no metric is added (substrate purity).
     try:
         import os
         if os.environ.get("NEX_TAG_FEEDBACK_ON") == "1":
-            d = connect(DYNAMIC_DB, timeout=10)
-            row = d.execute(
+            rows = dynamic_reader.read(
                 "SELECT tag, COUNT(*) FROM fountain_events "
-                "WHERE tag IS NOT NULL AND ts > ? "
-                "GROUP BY tag",
-                (six_hours_ago,)
-            ).fetchall()
-            d.close()
-            if row:
-                tag_counts = {r[0]: r[1] for r in row}
+                "WHERE tag IS NOT NULL AND ts > ? GROUP BY tag",
+                (six_hours_ago,),
+            )
+            if rows:
+                tag_counts = {row[0]: row[1] for row in rows}
                 if tag_counts.get("coin"):
-                    m["tags_coin_6h"] = tag_counts["coin"]
+                    metrics["tags_coin_6h"] = tag_counts["coin"]
                 if tag_counts.get("maybe"):
-                    m["tags_maybe_6h"] = tag_counts["maybe"]
+                    metrics["tags_maybe_6h"] = tag_counts["maybe"]
                 if tag_counts.get("non"):
-                    m["tags_non_6h"] = tag_counts["non"]
+                    metrics["tags_non_6h"] = tag_counts["non"]
     except Exception:
         pass
 
-    return m
+    return metrics
 
 
 def _compose_statement(metrics, previous_statement):
@@ -230,65 +234,72 @@ def _compose_statement(metrics, previous_statement):
     return statement
 
 
-def _previous_statement(d_cx):
-    row = d_cx.execute(
+def _previous_statement(reader: Reader):
+    row = reader.read_one(
         "SELECT statement FROM identity_log "
         "ORDER BY composed_at DESC LIMIT 1"
-    ).fetchone()
+    )
     return row[0] if row else None
 
 
-def identity_tick():
+def identity_tick(
+    *,
+    dynamic_reader: Reader | None = None,
+    dynamic_writer: Writer | None = None,
+    beliefs_reader: Reader | None = None,
+    beliefs_writer: Writer | None = None,
+    conversations_reader: Reader | None = None,
+):
     now = time.time()
     local = datetime.fromtimestamp(now, local_tz())
     hour = local.hour
     date_local = local.strftime("%Y-%m-%d")
-
     if hour not in COMPOSE_HOURS:
         return {"skipped": "not_compose_hour", "hour": hour}
 
-    d_cx = connect(DYNAMIC_DB, timeout=15)
+    d_reader = dynamic_reader or Reader(DYNAMIC_DB)
+    b_reader = beliefs_reader or Reader(BELIEFS_DB)
+    c_reader = conversations_reader or Reader(CONVERSATIONS_DB)
+    own_dynamic_writer = dynamic_writer is None
+    d_writer = dynamic_writer or Writer(DYNAMIC_DB, name="identity_loop")
+    own_beliefs_writer = beliefs_writer is None
+    b_writer = beliefs_writer or Writer(BELIEFS_DB, name="identity_loop")
     try:
-        # Already composed for this date+hour?
-        row = d_cx.execute(
+        row = d_reader.read_one(
             "SELECT id FROM identity_log WHERE date_local=? AND hour_local=?",
-            (date_local, hour)
-        ).fetchone()
+            (date_local, hour),
+        )
         if row:
             return {"skipped": "already_composed", "hour": hour}
 
-        previous = _previous_statement(d_cx)
-        metrics = _gather_metrics(now)
+        previous = _previous_statement(d_reader)
+        metrics = _gather_metrics(
+            now,
+            beliefs_reader=b_reader,
+            dynamic_reader=d_reader,
+            conversations_reader=c_reader,
+        )
         statement = _compose_statement(metrics, previous)
-
-        # Write to identity_log, stamping the three-field ablation arm onto the outcome
-        # row (Q11): arm now, arm at the previous tick, and flips observed in between --
-        # so the primary analysis can filter rows whose arm flipped mid-interval.
         try:
             from theory_x.stage_tom.identity_ablation import stamp_fields as _iab_stamp
-            _s = _iab_stamp()
-            _arm, _arm_prev, _flips = _s["arm"], _s["arm_prev"], _s["flips"]
+            stamp = _iab_stamp()
+            arm, arm_prev, flips = stamp["arm"], stamp["arm_prev"], stamp["flips"]
         except Exception:
-            _arm, _arm_prev, _flips = "normal", "normal", 0
-        d_cx.execute(
+            arm, arm_prev, flips = "normal", "normal", 0
+
+        d_writer.write(
             "INSERT INTO identity_log (composed_at, date_local, hour_local, statement, "
             "metrics_json, ablation_arm, ablation_arm_prev, ablation_flips) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (now, date_local, hour, statement, json.dumps(metrics), _arm, _arm_prev, _flips)
+            (now, date_local, hour, statement, json.dumps(metrics), arm, arm_prev, flips),
         )
-        d_cx.commit()
-        
-        # Write as Tier-6 belief
         try:
-            b_cx = connect(BELIEFS_DB, timeout=10)
-            b_cx.execute(
+            b_writer.write(
                 "INSERT INTO beliefs "
                 "(content, tier, confidence, created_at, source, branch_id, tags) "
                 "VALUES (?, 6, 0.90, ?, ?, ?, ?)",
-                (statement, int(now), SOURCE, "cognition", '["identity"]')
+                (statement, int(now), SOURCE, "cognition", '["identity"]'),
             )
-            b_cx.commit()
-            b_cx.close()
         except IntegrityError:
             pass
         except Exception as e:
@@ -297,17 +308,26 @@ def identity_tick():
         log.info("identity_loop: composed at %sh — %s", hour, statement[:120])
         return {"composed": True, "hour": hour, "statement": statement[:140]}
     finally:
-        d_cx.close()
+        if own_dynamic_writer:
+            d_writer.close()
+        if own_beliefs_writer:
+            b_writer.close()
 
 
 def identity_loop(state, stop):
     log.info("identity_loop started (compose_hours=%s, tick=%ds)",
              sorted(COMPOSE_HOURS), TICK_SECONDS)
-    _ensure_identity_log()
+    _ensure_identity_log(state.readers["dynamic"], state.writers["dynamic"])
     # Boot composition: if we missed a compose hour earlier today, fire it
     while not stop.is_set():
         try:
-            stats = identity_tick()
+            stats = identity_tick(
+                dynamic_reader=state.readers["dynamic"],
+                dynamic_writer=state.writers["dynamic"],
+                beliefs_reader=state.readers["beliefs"],
+                beliefs_writer=state.writers["beliefs"],
+                conversations_reader=state.readers["conversations"],
+            )
             if stats.get("composed"):
                 log.info("identity_loop: %s", stats.get("statement", "")[:160])
         except Exception as e:
