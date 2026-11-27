@@ -370,10 +370,19 @@ def _find_cycles(edges: List[Relationship]) -> List[List[str]]:
     cycles: List[List[str]] = []
     seen = set()
 
+    def _cycle_identity(path):
+        # A directed cycle is identical under rotation, but not under reversal.
+        # Using a frozenset collapses distinct loops that share the same members
+        # (for example A->B->C->D->A and A->C->B->D->A).
+        return min(
+            tuple(path[index:] + path[:index])
+            for index in range(len(path))
+        )
+
     def dfs(start, node, path, onstack):
         for nxt in adj.get(node, []):
             if nxt == start and path:
-                key = frozenset(path)
+                key = _cycle_identity(path)
                 if key not in seen:
                     seen.add(key)
                     cycles.append(path + [start])
