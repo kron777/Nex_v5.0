@@ -120,6 +120,7 @@ def test_legacy_v1_handoff_without_context_assessment_remains_readable(tmp_path,
     )
     legacy = dict(manifest)
     legacy.pop("objective_context_assessment")
+    legacy.pop("manifest_sha256")
     legacy["manifest_sha256"] = _digest(legacy)
 
     assert _validate_manifest(legacy) == legacy
