@@ -726,6 +726,24 @@ class TestTaggingBeliefWriter(unittest.TestCase):
         # Original params are preserved (content at index 0)
         self.assertEqual(call_params[0], content)
 
+    def test_C4_counted_batch_delegates_to_inner_writer(self):
+        wrapper, inner = self._make_wrapper()
+        expected = [(None, 1), (None, 0)]
+        inner.write_many_with_counts.return_value = expected
+        statements = [
+            ("INSERT INTO belief_edges (source_id) VALUES (?)", (1,)),
+            ("INSERT OR IGNORE INTO belief_edges (source_id) VALUES (?)", (1,)),
+        ]
+
+        result = wrapper.write_many_with_counts(
+            statements, continue_on_integrity_error=True
+        )
+
+        self.assertEqual(result, expected)
+        inner.write_many_with_counts.assert_called_once_with(
+            statements, continue_on_integrity_error=True
+        )
+
     def test_C3_passthrough_when_tags_already_present(self):
         wrapper, inner = self._make_wrapper()
         sql = (
