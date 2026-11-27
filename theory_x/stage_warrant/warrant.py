@@ -74,15 +74,40 @@ def _days(ts_iter) -> set:
     return {int(t // _DAY) for t in ts_iter if t}
 
 
+def _promotion_events(plog) -> list:
+    """Decode beliefs.promotion_log into event dicts sorted by ts.
+
+    BeliefPromoter appends each event with
+    ``json_insert(promotion_log, '$[#]', json.dumps(event))``; SQLite stores the
+    bound TEXT as a JSON *string*, so stored elements are JSON-encoded strings,
+    not objects. Accept both forms; skip a malformed element rather than
+    discarding the whole history.
+    """
+    try:
+        raw = json.loads(plog or "[]")
+    except Exception:
+        return []
+    if not isinstance(raw, list):
+        return []
+    events = []
+    for e in raw:
+        if isinstance(e, str):
+            try:
+                e = json.loads(e)
+            except Exception:
+                continue
+        if isinstance(e, dict):
+            events.append(e)
+    events.sort(key=lambda e: e.get("ts") or 0)
+    return events
+
+
 def _survival(tier, locked, created_at, plog, marked, now):
     if locked and tier <= 2:
         return 1.0
     if marked:
         return 0.0
-    try:
-        events = sorted(json.loads(plog or "[]"), key=lambda e: e.get("ts") or 0)
-    except Exception:
-        events = []
+    events = _promotion_events(plog)
     cur = events[0].get("from", tier) if events else tier
     t = float(created_at or now)
     survived = 0.0
