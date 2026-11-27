@@ -32,7 +32,7 @@ import random
 import time
 from typing import Optional
 
-from substrate import connect, Row
+from substrate import connect, Row, Reader, Writer
 from substrate.paths import DbPath
 from theory_x.stage_world.frozen_at_made import (
     FROZEN_INSERT_COLS, FROZEN_PLACEHOLDERS, SELF_CONSTITUTIVE, basis_entry,
@@ -72,57 +72,65 @@ def enabled() -> bool:
     return os.environ.get("NEX5_OWNED_BELIEF") == "1"
 
 
-def ensure_schema(db_path=None) -> None:
-    cx = connect(str(db_path or CONVERSATIONS_DB), timeout=10)
+def ensure_schema(db_path=None, *, conversations_writer: Writer | None = None) -> None:
+    db_path = str(db_path or CONVERSATIONS_DB)
+    owns_writer = conversations_writer is None
+    writer = conversations_writer or Writer(db_path, name="owned_belief_schema")
     try:
-        cx.execute(_SCHEMA)
-        cx.execute(_IDX)
-        ensure_frozen_columns(cx, "owned_belief_expectations")
-        cx.commit()
+        def _ensure(cx):
+            cx.execute(_SCHEMA)
+            cx.execute(_IDX)
+            ensure_frozen_columns(cx, "owned_belief_expectations")
+        writer.transaction(_ensure)
     finally:
-        cx.close()
+        if owns_writer:
+            writer.close()
 
 
-def eligible_ids(beliefs_db=None, exclude=()) -> list:
-    cx = connect(f"file:{beliefs_db or BELIEFS_DB}?mode=ro", uri=True, timeout=10)
-    try:
-        ids = [r[0] for r in cx.execute(
-            "SELECT id FROM beliefs WHERE source_kind = 'authored' AND locked = 0 "
-            "AND paused = 0 AND use_count >= ?", (MIN_OBSERVATIONS,))]
-    finally:
-        cx.close()
+def eligible_ids(beliefs_db=None, exclude=(), *, beliefs_reader: Reader | None = None) -> list:
+    reader = beliefs_reader or Reader(str(beliefs_db or BELIEFS_DB))
+    ids = [r[0] for r in reader.read(
+        "SELECT id FROM beliefs WHERE source_kind = 'authored' AND locked = 0 "
+        "AND paused = 0 AND use_count >= ?", (MIN_OBSERVATIONS,)
+    )]
     excluded = set(exclude)
     return [i for i in ids if i not in excluded]
 
 
-def _open_belief_ids(cx) -> set:
-    return {r[0] for r in cx.execute(
-        "SELECT belief_id FROM owned_belief_expectations WHERE state = 'open'")}
+def _open_belief_ids(conversations_reader: Reader) -> set:
+    return {r[0] for r in conversations_reader.read(
+        "SELECT belief_id FROM owned_belief_expectations WHERE state = 'open'"
+    )}
 
 
-def make_owned_belief_expectation(db_path=None, beliefs_db=None,
-                                  rng: Optional[random.Random] = None,
-                                  now: Optional[float] = None) -> dict:
+def make_owned_belief_expectation(
+    db_path=None,
+    beliefs_db=None,
+    rng: Optional[random.Random] = None,
+    now: Optional[float] = None,
+    *,
+    conversations_writer: Writer | None = None,
+    conversations_reader: Reader | None = None,
+    beliefs_reader: Reader | None = None,
+) -> dict:
     """Pre-register one expectation over a uniformly drawn eligible belief."""
     db_path = str(db_path or CONVERSATIONS_DB)
-    ensure_schema(db_path)
+    conv_reader = conversations_reader or Reader(db_path)
+    belief_reader = beliefs_reader or Reader(str(beliefs_db or BELIEFS_DB))
+    ensure_schema(db_path, conversations_writer=conversations_writer)
     now = time.time() if now is None else now
-    cx = connect(db_path, timeout=10)
-    try:
-        candidates = eligible_ids(beliefs_db, exclude=_open_belief_ids(cx))
-    finally:
-        cx.close()
+    candidates = eligible_ids(
+        beliefs_db, exclude=_open_belief_ids(conv_reader), beliefs_reader=belief_reader
+    )
     if not candidates:
         return {"skipped": "no_eligible_belief"}
     bid = (rng or random).choice(candidates)
 
-    bx = connect(f"file:{beliefs_db or BELIEFS_DB}?mode=ro", uri=True, timeout=10)
-    bx.row_factory = Row
-    try:
-        b = bx.execute("SELECT id, tier, paused, erosion_stage, confidence, source_kind "
-                       "FROM beliefs WHERE id = ?", (bid,)).fetchone()
-    finally:
-        bx.close()
+    b = belief_reader.read_one(
+        "SELECT id, tier, paused, erosion_stage, confidence, source_kind "
+        "FROM beliefs WHERE id = ?",
+        (bid,),
+    )
     if b is None:
         return {"skipped": "belief_vanished"}
     claimed = {"belief_id": b["id"], "holds": True, "tier": b["tier"],
@@ -130,34 +138,44 @@ def make_owned_belief_expectation(db_path=None, beliefs_db=None,
     frozen = frozen_values(
         b["confidence"], "stated_p", 0.0, "exact_label",
         basis=[basis_entry(b["id"], b["source_kind"], b["confidence"])],
-        cost_band=SELF_CONSTITUTIVE)
-    cx = connect(db_path, timeout=10)
+        cost_band=SELF_CONSTITUTIVE,
+    )
+
+    owns_writer = conversations_writer is None
+    writer = conversations_writer or Writer(db_path, name="owned_belief")
     try:
-        cur = cx.execute(
-            "INSERT INTO owned_belief_expectations "
-            "(made_at, belief_id, claimed_state, resolve_at, state, "
-            + FROZEN_INSERT_COLS + ") VALUES (?, ?, ?, ?, 'open', "
-            + FROZEN_PLACEHOLDERS + ")",
-            (now, b["id"], json.dumps(claimed), now + HORIZON_S, *frozen))
-        cx.commit()
-        eid = cur.lastrowid
+        def _insert(cx):
+            cur = cx.execute(
+                "INSERT INTO owned_belief_expectations "
+                "(made_at, belief_id, claimed_state, resolve_at, state, "
+                + FROZEN_INSERT_COLS + ") VALUES (?, ?, ?, ?, 'open', "
+                + FROZEN_PLACEHOLDERS + ")",
+                (now, b["id"], json.dumps(claimed), now + HORIZON_S, *frozen),
+            )
+            return cur.lastrowid
+        eid = writer.transaction(_insert)
     finally:
-        cx.close()
+        if owns_writer:
+            writer.close()
     log.info("owned_belief: pre-registered #%s belief=%s conf=%.2f of %d eligible",
              eid, b["id"], b["confidence"], len(candidates))
     return {"id": eid, "belief_id": b["id"], "eligible": len(candidates)}
 
 
-def due(db_path=None, now: Optional[float] = None) -> bool:
+def due(
+    db_path=None,
+    now: Optional[float] = None,
+    *,
+    conversations_writer: Writer | None = None,
+    conversations_reader: Reader | None = None,
+) -> bool:
     """At most one new expectation per EVERY_S."""
     db_path = str(db_path or CONVERSATIONS_DB)
     now = time.time() if now is None else now
-    ensure_schema(db_path)
-    cx = connect(db_path, timeout=10)
-    try:
-        last = cx.execute("SELECT MAX(made_at) FROM owned_belief_expectations").fetchone()[0]
-    finally:
-        cx.close()
+    ensure_schema(db_path, conversations_writer=conversations_writer)
+    reader = conversations_reader or Reader(db_path)
+    row = reader.read_one("SELECT MAX(made_at) FROM owned_belief_expectations")
+    last = row[0] if row else None
     return last is None or now - last >= EVERY_S
 
 
