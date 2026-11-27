@@ -242,53 +242,58 @@ justified by responsibility, coupling, tests and functional tension.
 - Runtime observation is **host-only**. Cloud-side cycles never claim a runtime
   behaviour was observed; they recommend verification and leave it blocked.
 
-## RDO staged capabilities (v1.3 §16)
+## RDO development order (v1.4 §29 — current working basis)
 
-The staged development path is now represented in the repository as separate,
-testable capabilities:
+The working development order is the sequence recorded in founder-supplied
+RDO v1.4 §29. The founder indicated on 24 November that they believed v1.4 had
+been approved; it is therefore the current working specification. RDO v1.3 is
+preserved as historical source and as the lineage for earlier stage labels and
+implementation reports. This README does not retroactively rewrite that history.
 
-- **Stage 2 — Recursive expansion:** bounded recursive obligation discovery,
-  reconciliation, safe convergence, frontier accounting and resumable cycles.
-- **Stage 3 — Graph intelligence:** typed relationships, strongly connected
-  components, completeness and sequencing analysis. Similarity is surfaced as a
-  candidate; obligations are not silently merged.
-- **Stage 4 — Belief lifecycle audit:** source-grounded, read-only mapping of
-  belief mechanisms and lifecycle gaps. It does not query or modify the live DB.
-- **Stage 5 — Belief-to-retrieval pathway:** an isolated, gated pathway analysis;
-  no live confidence or retrieval write is performed.
-- **Stage 6 — Learning loop:** prediction/outcome comparison, explicit
-  provenance, reopening on contradictory evidence, and confidence that can be
-  reduced by disconfirmation. A planning review is not an execution outcome.
-- **Stage 7 — Execution handoff and verification:** an immutable real-objective
-  handoff, human scope-review/acceptance records, and an independent Watcher
-  subprocess for source/path evidence are now implemented. The legacy execution
-  verifier remains a separate in-process path; the new subprocess does not run
-  tests. Runtime observation remains host-only and UNKNOWN in cloud execution.
-  The full objective-to-verified-delivery exit criterion remains open; see
-  `STAGE7_HANDOFF.md` and `STAGE7_EXECUTION_WATCHER.md`.
+The v1.4 order is:
 
-Run a stage against the repository without touching live NEX state:
+1. Repository reconciliation.
+2. Watcher.
+3. Extrapolator MVP — the first complete idea-to-work-package vertical slice.
+4. Graph intelligence.
+5. Tension assessment / Optimal Functional Tension (OFT).
+6. Belief audit.
+7. Bounded belief-development pathway.
+8. Learning loop.
+9. Expansion.
 
-```bash
-python -m rdo stage2
-python -m rdo stage3
-python -m rdo stage4
-python -m rdo stage5
-python -m rdo stage6
-python -m rdo stage7
-```
+Current code mapping (capability status is not the same as stage completion):
 
-These commands produce RDO work artifacts under `rdo/.cycles`; they do not
-activate NEX, modify the live belief store, change feature flags, start or stop
-services, execute arbitrary tests, deploy code, or claim runtime verification.
-Stage 7's fixture authorizes only its own exact repository-relative test path.
+- **Extrapolator MVP:** bounded recursive obligation discovery, repository
+  reconciliation, safe convergence, anti-requirements, frontier accounting,
+  work-package generation and resumable cycles. Its current seed input is
+  structured; it does not yet compile raw natural-language intent itself.
+- **Graph intelligence:** typed relationships, SCCs, semantic-duplicate
+  candidates, completeness and dependency sequencing are implemented in
+  `rdo/graph.py`.
+- **OFT:** a partial three-level assessor exists in `rdo/tension.py`, but the
+  full v1.4 interface profile, operating envelopes, capacity/headroom,
+  multi-objective margins, stability/hysteresis and marginal-value stopping
+  are not yet implemented. See the v1.4 implementation gap audit.
+- **Belief audit:** source-grounded and read-only; it does not query or modify
+  the live DB.
+- **Bounded pathway:** isolated, gated pathway analysis; no live confidence or
+  retrieval write is performed.
+- **Learning:** prediction/outcome comparison, provenance, disconfirmation and
+  confidence reduction are implemented; the complete adversarial negative-
+  outcome acceptance case still needs an explicit regression test.
+- **Expansion:** remains a later v1.4 development step, not a licence to bypass
+  safety gates or the frozen NEX roadmap.
 
-**Specification note:** the staged documents identify RDO v1.3 §16 as their
-sequence while some pre-existing docstrings cite v1.4. Version precedence has
-not been inferred. The discrepancy remains explicit pending review of the
-original governing specifications. See the
-[RDO specification-version reconciliation](RDO_SPECIFICATION_VERSION_RECONCILIATION_2026-11-26.md)
-for the source comparison and the unresolved founder decision.
+Historical stage commands remain available and produce artifacts under
+`rdo/.cycles`; they do not activate NEX, modify the live belief store, change
+feature flags, start or stop services, deploy code, or claim runtime
+verification. Stage 7's fixture authorizes only its own exact
+repository-relative test path.
+
+See [the v1.4 implementation gap audit](RDO_V1_4_IMPLEMENTATION_GAP_AUDIT_2026-11-27.md)
+and [the specification-version reconciliation](RDO_SPECIFICATION_VERSION_RECONCILIATION_2026-11-26.md)
+for the current working basis, historical crosswalk and remaining fidelity gaps.
 
 
 
