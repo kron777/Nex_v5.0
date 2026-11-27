@@ -97,8 +97,8 @@ def _validate_manifest(manifest: Any) -> dict:
         "schema_version", "handoff_id", "created_at", "objective", "cycle",
         "work_package", "scope", "obligations", "relationships", "dependencies",
         "deliverables", "acceptance_criteria", "constraints", "exclusions",
-        "assumptions", "anti_requirements", "blockers", "objective_context_assessment",
-        "evidence_requirements", "evidence_dimensions", "agent_handoff", "authority",
+        "assumptions", "anti_requirements", "blockers", "evidence_requirements",
+        "evidence_dimensions", "agent_handoff", "authority",
         "manifest_sha256",
     }
     missing = required - set(manifest)
