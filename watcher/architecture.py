@@ -131,20 +131,34 @@ class RuntimeGraph:
         adj: Dict[str, List[Edge]] = {}
         for e in self.edges:
             adj.setdefault(e.src, []).append(e)
+        # Traversal and output must not depend on insertion order.
+        edge_order = lambda edge: (
+            edge.dst, edge.label, edge.source_ref, edge.test_ref,
+            edge.claim, edge.scope, edge.caveat or "", edge.note or "",
+            edge.runtime_origin or "", edge.runtime_ref,
+        )
+        adj = {source: sorted(edges, key=edge_order) for source, edges in adj.items()}
         out: List[dict] = []
         seen: set = set()
+
+        def cycle_identity(nodes):
+            # A directed cycle is identical under rotation, never under reversal.
+            # An unordered node set collapses distinct traversals of the same members.
+            return min(
+                tuple(nodes[index:] + nodes[:index])
+                for index in range(len(nodes))
+            )
 
         def dfs(start, node, path_nodes, path_edges, onstack):
             for e in adj.get(node, []):
                 if e.dst == start and path_edges:
-                    cyc = path_nodes + [start]
-                    key = frozenset(cyc)
+                    key = cycle_identity(path_nodes)
                     if key not in seen:
                         seen.add(key)
                         edges = path_edges + [e]
                         weakest = min((x.level for x in edges), key=self._level_index)
                         out.append({
-                            "cycle": cyc,
+                            "cycle": list(key) + [key[0]],
                             "status": weakest,
                             "source_implemented": all(x.source_implemented for x in edges),
                             "test_verified": all(x.test_verified for x in edges),
@@ -153,9 +167,13 @@ class RuntimeGraph:
                 elif e.dst not in onstack:
                     dfs(start, e.dst, path_nodes + [e.dst], path_edges + [e], onstack | {e.dst})
 
-        for n in list(self.nodes):
+        for n in sorted(self.nodes):
             dfs(n, n, [n], [], {n})
-        return out
+        return sorted(out, key=lambda cycle: (
+            tuple(cycle["cycle"]), cycle["status"],
+            cycle["source_implemented"], cycle["test_verified"],
+            cycle["runtime_observed"],
+        ))
 
     def to_dict(self) -> dict:
         return {"nodes": sorted(self.nodes),

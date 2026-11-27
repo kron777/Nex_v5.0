@@ -225,3 +225,58 @@ def test_runtime_graph_edges_have_scoped_source_and_test_evidence():
     assert affect_prompt.source_ref == "gui/server.py:1510-1520"
     assert "not that the model uses it" in affect_prompt.caveat
     assert affect_prompt.claim and affect_prompt.scope
+
+
+def test_runtime_graph_preserves_distinct_directed_cycles_with_same_members():
+    from watcher.architecture import Edge, RuntimeGraph
+
+    records = [
+        ("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"),
+        ("A", "C"), ("C", "B"), ("B", "D"),
+    ]
+    graph = RuntimeGraph()
+    for src, dst in records:
+        graph.add(Edge(
+            src, dst, f"{src}->{dst}",
+            source_implemented=True, test_verified=False,
+            runtime_observed=False, source_ref=f"source:{src}->{dst}",
+        ))
+
+    cycles = graph.find_cycles()
+
+    def canonical(cycle):
+        nodes = cycle[:-1]
+        return min(tuple(nodes[index:] + nodes[:index])
+                   for index in range(len(nodes)))
+
+    four_member = {
+        canonical(item["cycle"]) for item in cycles
+        if len(item["cycle"]) == 5
+        and set(item["cycle"][:-1]) == {"A", "B", "C", "D"}
+    }
+    assert four_member == {
+        ("A", "B", "C", "D"),
+        ("A", "C", "B", "D"),
+    }
+    assert len(four_member) == 2
+
+
+def test_runtime_graph_cycle_output_is_stable_when_edge_order_changes():
+    from watcher.architecture import Edge, RuntimeGraph
+
+    records = [
+        ("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"),
+        ("A", "C"), ("C", "B"), ("B", "D"),
+    ]
+
+    def build(edges):
+        graph = RuntimeGraph()
+        for src, dst in edges:
+            graph.add(Edge(
+                src, dst, f"{src}->{dst}",
+                source_implemented=True, test_verified=False,
+                runtime_observed=False, source_ref=f"source:{src}->{dst}",
+            ))
+        return graph.find_cycles()
+
+    assert build(records) == build(list(reversed(records)))
