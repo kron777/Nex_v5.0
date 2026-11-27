@@ -437,13 +437,13 @@ def relationship_impact_delta(before_relationships: List[dict],
     changed_reviewed = [item for item in reviewed
                         if item["change"] != "unchanged" or item["assessment_changed"] is True]
     return {
-        "status": "reviewed",
+        "status": "compared",
         "declared_changed_nodes": sorted(changed),
-        "reviewed_adjacent_relationships": reviewed,
+        "compared_adjacent_relationships": reviewed,
         "changed_adjacent_relationships": changed_reviewed,
         "unrelated_changes": unrelated_changes,
         "summary": {
-            "adjacent_relationships_reviewed": len(reviewed),
+            "adjacent_relationships_compared": len(reviewed),
             "adjacent_relationships_changed": len(changed_reviewed),
             "unrelated_changes": len(unrelated_changes),
         },
