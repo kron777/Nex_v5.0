@@ -103,7 +103,53 @@ Observed stages include input arrival, session/user-message writes, membrane cla
 
 No live NEX process or runtime context was enabled. L4/runtime evidence remains UNKNOWN. The sample trace is not a live capture.
 
-## 6. Discrepancies and next audit obligations
+## 6. Additional bounded lifecycle and graph findings
+
+The following source-level observations were rechecked against this mainline
+snapshot after recovery from older audit drafts. They describe conditions and
+coverage gaps, not verified live incidents:
+
+- **Counterfactual progress:** `CounterfactualNode` selects the oldest open
+  problem by `last_touched_at ASC`, but its own path does not call
+  `ProblemMemory.touch()` after an empty retrieval, unbuildable set or Gate
+  attempt. Current tests exercise one open problem, not multi-problem rotation.
+  Whether persistent focus or LRU rotation is intended remains unresolved.
+- **TimeFetch eligibility:** basic belief search filters confidence and content
+  length but not tier/paused/locked/erosion status; novel-association and arc
+  endpoints are not checked against those lifecycle states. Tests cover the
+  documented basic filters, not those status exclusions. This is an eligibility
+  policy question, not an automatic defect.
+- **Warrant pagination:** lineage/arc use-day cursors use strict timestamp-only
+  keysets with 20,000-row batches. Equal timestamps crossing a batch boundary
+  could be skipped; no live population or skipped row was observed. Current
+  tests do not include a tied-timestamp boundary fixture.
+- **Warrant source coverage:** the scorer reads
+  `dynamic.substrate_snapshots.walk_anchor_id`; the recorder's use-day scan
+  does not. The only Fountain snapshot call found is in the substrate-voice
+  path, gated by `NEX5_RECONCILE != '1'`; the tracked keepalive recipe sets
+  `NEX5_RECONCILE=1` alongside `NEX5_WARRANT_RECORD=1`. These are source
+  conditions only; effective host flags remain unknown.
+- **RememberLoop lineage:** `theory_x/life/remember_loop.py` inserts a Tier-6
+  temporal-link belief and returns the old/recent source IDs, but the inspected
+  insert does not persist those parent IDs in `belief_lineage`. No direct
+  `run.py` start call was found, and the associative-recall tests exercise a
+  different Fountain method; live activation is not established.
+- **EdgeBuilder metric:** `theory_x/diversity/edge_builder.py` tests
+  connection-cumulative `cx.total_changes > 0` after `INSERT OR IGNORE`.
+  Once a statement changes the connection, later ignored duplicates may still
+  inflate the reported `wrote` count. This is a logging metric issue, not a
+  persisted-edge mutation.
+- **Graph admission:** Stage-2 Diversity EdgeBuilder writes generic
+  `cross_domain` edges. Stage-3 EdgeGenerator only queues recent
+  `fountain_insight`/`synergized` beliefs with no edge in either direction,
+  so a generic edge can pre-empt later typed relation classification. Whether
+  this is intended early saturation is unresolved; no live graph loss was
+  measured.
+
+For precise source references, conditions, test coverage and dispositions, see
+Section F of `NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-27.md`.
+
+## 7. Discrepancies and next audit obligations
 
 1. Host/runtime identity, process state, service health, live database hashes, model digest and local performance metrics have not been collected in this mainline pass.
 2. The mind-map node-count convention (39 YAML nodes vs older “30” references; plus 5 arms) remains unresolved.
