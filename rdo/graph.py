@@ -134,6 +134,31 @@ def failure_propagation_candidates(
                 ],
             })
 
+        # The BFS tree only detects back-edges to the current path. A directed
+        # cycle can also connect nodes discovered through different branches.
+        # Kahn's algorithm over the reachable subgraph detects those cross-branch
+        # cycles without confusing convergent acyclic paths with cycles.
+        reachable_indegree = {key: 0 for key in distance}
+        for source in distance:
+            for consumer in dependents.get(source, set()):
+                if consumer in reachable_indegree:
+                    reachable_indegree[consumer] += 1
+        ready = sorted(key for key, degree in reachable_indegree.items() if degree == 0)
+        ready_index = 0
+        processed = 0
+        while ready_index < len(ready):
+            current = ready[ready_index]
+            ready_index += 1
+            processed += 1
+            for consumer in sorted(dependents.get(current, set())):
+                if consumer not in reachable_indegree:
+                    continue
+                reachable_indegree[consumer] -= 1
+                if reachable_indegree[consumer] == 0:
+                    ready.append(consumer)
+        if processed != len(reachable_indegree):
+            cycle_encountered = True
+
     status = (
         "partial" if unknown_roots or invalid_roots or invalid_obligations or unresolved_edges else
         "not_supplied" if not roots else
