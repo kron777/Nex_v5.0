@@ -17,7 +17,7 @@ from __future__ import annotations
 from substrate.paths import db_paths
 import logging
 import re
-from substrate import connect, Row, Connection, OperationalError
+from substrate import Reader, Writer, Row, Connection, OperationalError
 import threading
 import time
 from datetime import datetime
@@ -136,14 +136,14 @@ def _read_state_counts(cx: Connection, fire_ts: float) -> dict:
     return out
 
 
-def _read_seconds_since_feed(sense_cx: Connection, fire_ts: float) -> float | None:
+def _read_seconds_since_feed(sense_reader: Reader, fire_ts: float) -> float | None:
     """Time since the most recent EXTERNAL (non-internal) sense event."""
     try:
-        row = sense_cx.execute(
+        row = sense_reader.read_one(
             "SELECT MAX(timestamp) FROM sense_events "
             "WHERE timestamp <= ? AND stream NOT LIKE 'internal.%'",
             (int(fire_ts),),
-        ).fetchone()
+        )
         if row and row[0] is not None:
             return max(0.0, fire_ts - float(row[0]))
     except Exception:
@@ -171,51 +171,73 @@ def _set_last_fid(cx: Connection, fid: int) -> None:
     )
 
 
-def decoder_tick() -> dict:
-    cx = connect(DYN_DB, timeout=10)
-    cx.row_factory = Row
-    sense_cx = connect(SENSE_DB, timeout=10)
+def decoder_tick(
+    dynamic_writer: Writer | None = None,
+    sense_reader: Reader | None = None,
+) -> dict:
+    """Process pending fires inside the canonical dynamic Writer transaction.
+
+    Dynamic reads, word-context inserts, and the progress cursor share one
+    transaction. Sense-feed timing is read-only through the shared Reader.
+    Standalone callers may omit handles and receive an owned Writer fallback.
+    """
+    owns_writer = dynamic_writer is None
+    writer = dynamic_writer
     try:
-        last_fid = _get_last_fid(cx)
-        rows = cx.execute(
-            "SELECT id, ts, thought, hot_branch, tag FROM fountain_events "
-            "WHERE id > ? AND thought != '' AND thought NOT LIKE '[%' "
-            "ORDER BY id ASC LIMIT 200",
-            (last_fid,),
-        ).fetchall()
-        if not rows:
-            return {"processed": 0, "words": 0}
-        total_words = 0
-        for r in rows:
-            words = _tokenize(r["thought"])
-            if not words:
+        if writer is None:
+            writer = Writer(DYN_DB, name="coincidence_decoder")
+        reader = sense_reader or Reader(SENSE_DB)
+
+        def _process(cx):
+            cx.row_factory = Row
+            # The daemon cursor is a small dynamic-DB key/value table. Ensure
+            # it exists inside the same canonical Writer transaction before
+            # reading or advancing the cursor.
+            cx.execute(
+                "CREATE TABLE IF NOT EXISTS daemon_kv ("
+                "key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+            )
+            last_fid = _get_last_fid(cx)
+            rows = cx.execute(
+                "SELECT id, ts, thought, hot_branch, tag FROM fountain_events "
+                "WHERE id > ? AND thought != '' AND thought NOT LIKE '[%' "
+                "ORDER BY id ASC LIMIT 200",
+                (last_fid,),
+            ).fetchall()
+            if not rows:
+                return {"processed": 0, "words": 0}
+            total_words = 0
+            for r in rows:
+                words = _tokenize(r["thought"])
+                if not words:
+                    _set_last_fid(cx, r["id"])
+                    continue
+                aperture, active_count = _read_tree_snapshot(cx, r["ts"])
+                counts = _read_state_counts(cx, r["ts"])
+                secs_feed = _read_seconds_since_feed(reader, r["ts"])
+                hour, dow = _local_hour_dow(r["ts"])
+                for w in words:
+                    cx.execute(
+                        "INSERT INTO word_contexts "
+                        "(word, fountain_event_id, ts, aperture, hot_branch, "
+                        " surprises_30min, daemons_5min, belief_delta_1h, fountain_tag, "
+                        " hour_of_day, day_of_week, seconds_since_feed, "
+                        " seconds_since_daemon, active_branch_count, groove_active) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)",
+                        (w, r["id"], r["ts"], aperture, r["hot_branch"],
+                         counts["surprises_30min"], counts["daemons_5min"],
+                         counts["belief_delta_1h"], r["tag"],
+                         hour, dow, secs_feed,
+                         counts["seconds_since_daemon"], active_count),
+                    )
+                    total_words += 1
                 _set_last_fid(cx, r["id"])
-                continue
-            aperture, active_count = _read_tree_snapshot(cx, r["ts"])
-            counts = _read_state_counts(cx, r["ts"])
-            secs_feed = _read_seconds_since_feed(sense_cx, r["ts"])
-            hour, dow = _local_hour_dow(r["ts"])
-            for w in words:
-                cx.execute(
-                    "INSERT INTO word_contexts "
-                    "(word, fountain_event_id, ts, aperture, hot_branch, "
-                    " surprises_30min, daemons_5min, belief_delta_1h, fountain_tag, "
-                    " hour_of_day, day_of_week, seconds_since_feed, "
-                    " seconds_since_daemon, active_branch_count, groove_active) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)",
-                    (w, r["id"], r["ts"], aperture, r["hot_branch"],
-                     counts["surprises_30min"], counts["daemons_5min"],
-                     counts["belief_delta_1h"], r["tag"],
-                     hour, dow, secs_feed,
-                     counts["seconds_since_daemon"], active_count),
-                )
-                total_words += 1
-            _set_last_fid(cx, r["id"])
-        cx.commit()
-        return {"processed": len(rows), "words": total_words}
+            return {"processed": len(rows), "words": total_words}
+
+        return writer.transaction(_process)
     finally:
-        cx.close()
-        sense_cx.close()
+        if owns_writer and writer is not None:
+            writer.close()
 
 
 def decoder_loop(state, stop: threading.Event) -> None:
@@ -224,7 +246,10 @@ def decoder_loop(state, stop: threading.Event) -> None:
         return
     while not stop.is_set():
         try:
-            result = decoder_tick()
+            result = decoder_tick(
+                dynamic_writer=state.writers["dynamic"],
+                sense_reader=state.readers["sense"],
+            )
             if result["processed"]:
                 log.info("decoder: %s fires, %s words logged",
                          result["processed"], result["words"])
