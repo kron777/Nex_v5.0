@@ -231,7 +231,10 @@ class CoherenceGate:
             decision = GateDecision(outcome=GateOutcome.ACCEPT, reason="gate_error_fallback")
 
         decision.latency_ms = (time.perf_counter() - t0) * 1000.0
-        self._log_decision(packet, decision, trace=trace)
+        if trace is None:
+            self._log_decision(packet, decision)
+        else:
+            self._log_decision(packet, decision, trace=trace)
         self._decision_count += 1
 
         # Phase 23 — Holding Zone: persist HOLD; check held zone on ACCEPT
