@@ -528,6 +528,10 @@ def test_acceptance_criterion_verification_uses_typed_unknown_first_record(tmp_p
         workdir, str(repo), "handoff_fixture", 1, result["cycle"]["id"], package["key"]
     )
     criterion = manifest["objective_context_assessment"]["acceptance_verification"][0]
+    record_context_mapping(
+        workdir, manifest["handoff_id"], criterion["criterion_id"],
+        ["doc_change"], ["review:criterion-mapping"], "reviewer", "source:criterion-map",
+    )
 
     pending = record_acceptance_verification(
         workdir, manifest["handoff_id"], criterion["criterion_id"], "pending",
@@ -558,6 +562,10 @@ def test_acceptance_criterion_verification_rejects_missing_evidence_and_bad_time
         workdir, str(repo), "handoff_fixture", 1, result["cycle"]["id"], package["key"]
     )
     criterion = manifest["objective_context_assessment"]["acceptance_verification"][0]
+    record_context_mapping(
+        workdir, manifest["handoff_id"], criterion["criterion_id"],
+        ["doc_change"], ["review:criterion-mapping"], "reviewer", "source:criterion-map",
+    )
 
     with pytest.raises(HandoffError, match="traceable evidence"):
         record_acceptance_verification(
@@ -572,4 +580,21 @@ def test_acceptance_criterion_verification_rejects_missing_evidence_and_bad_time
             "reviewer", mapped_obligation_keys=["doc_change"],
             verification_method="manual review", evidence_references=["review:1"],
             confidence="reviewed", verified_at="2026-11-28T12:00:00",
+        )
+
+
+def test_acceptance_verification_requires_prior_reviewed_context_mapping(tmp_path, monkeypatch):
+    from rdo_adapters.handoff import record_acceptance_verification
+
+    repo, workdir, result, package = _create_cycle(tmp_path, monkeypatch)
+    manifest = create_handoff(
+        workdir, str(repo), "handoff_fixture", 1, result["cycle"]["id"], package["key"]
+    )
+    criterion = manifest["objective_context_assessment"]["acceptance_verification"][0]
+
+    with pytest.raises(HandoffError, match="reviewed context mapping"):
+        record_acceptance_verification(
+            workdir, manifest["handoff_id"], criterion["criterion_id"], "pending",
+            "reviewer", mapped_obligation_keys=["doc_change"],
+            verification_method="manual review",
         )
