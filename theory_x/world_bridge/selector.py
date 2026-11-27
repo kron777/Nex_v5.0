@@ -24,7 +24,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from substrate import connect, Row
+from substrate import Reader, Writer
 import time
 from collections import defaultdict, deque
 from typing import Any, Dict, List, Optional
@@ -85,9 +85,13 @@ class WorldBridgeSelector:
         self,
         sense_db_path: str,
         beliefs_db_path: str,
+        sense_reader: Reader | None = None,
+        beliefs_writer: Writer | None = None,
     ) -> None:
         self._sense_db = sense_db_path
         self._beliefs_db = beliefs_db_path
+        self._sense_reader = sense_reader or Reader(sense_db_path)
+        self._beliefs_writer = beliefs_writer
         self._recent_fingerprints: deque = deque(maxlen=DEDUP_HISTORY_SIZE)
 
     def select_and_log(
@@ -147,17 +151,15 @@ class WorldBridgeSelector:
         cadences = self._compute_stream_cadences(now)
 
         try:
-            with connect(self._sense_db, timeout=5) as conn:
-                conn.row_factory = Row
-                rows = conn.execute(
-                    """
-                    SELECT stream, MAX(timestamp) AS last_ts
-                    FROM sense_events
-                    WHERE timestamp > ?
-                    GROUP BY stream
-                    """,
-                    (now - CADENCE_LOOKBACK_SECONDS,),
-                ).fetchall()
+            rows = self._sense_reader.read(
+                """
+                SELECT stream, MAX(timestamp) AS last_ts
+                FROM sense_events
+                WHERE timestamp > ?
+                GROUP BY stream
+                """,
+                (now - CADENCE_LOOKBACK_SECONDS,),
+            )
         except Exception as e:
             logger.debug("WorldBridge: stream identification failed: %s", e)
             return []
@@ -193,16 +195,15 @@ class WorldBridgeSelector:
         Returns mean inter-event gap per stream over last hour.
         """
         try:
-            with connect(self._sense_db, timeout=5) as conn:
-                rows = conn.execute(
-                    """
-                    SELECT stream, timestamp
-                    FROM sense_events
-                    WHERE timestamp > ?
-                    ORDER BY stream, timestamp ASC
-                    """,
-                    (now - CADENCE_LOOKBACK_SECONDS,),
-                ).fetchall()
+            rows = self._sense_reader.read(
+                """
+                SELECT stream, timestamp
+                FROM sense_events
+                WHERE timestamp > ?
+                ORDER BY stream, timestamp ASC
+                """,
+                (now - CADENCE_LOOKBACK_SECONDS,),
+            )
         except Exception as e:
             logger.debug("WorldBridge: cadence calc failed: %s", e)
             return {}
@@ -249,21 +250,19 @@ class WorldBridgeSelector:
 
         events: List[Dict[str, Any]] = []
         try:
-            with connect(self._sense_db, timeout=5) as conn:
-                conn.row_factory = Row
-                for s in selected:
-                    row = conn.execute(
-                        """
-                        SELECT id, stream, timestamp, payload
-                        FROM sense_events
-                        WHERE stream = ?
-                        ORDER BY timestamp DESC
-                        LIMIT 1
-                        """,
-                        (s["stream"],),
-                    ).fetchone()
-                    if row:
-                        events.append(dict(row))
+            for s in selected:
+                row = self._sense_reader.read_one(
+                    """
+                    SELECT id, stream, timestamp, payload
+                    FROM sense_events
+                    WHERE stream = ?
+                    ORDER BY timestamp DESC
+                    LIMIT 1
+                    """,
+                    (s["stream"],),
+                )
+                if row:
+                    events.append(dict(row))
         except Exception as e:
             logger.debug("WorldBridge: event fetch failed: %s", e)
 
@@ -453,24 +452,33 @@ class WorldBridgeSelector:
         injected: bool,
         notes: str,
     ) -> None:
+        owns_writer = self._beliefs_writer is None
+        writer = self._beliefs_writer
         try:
-            with connect(self._beliefs_db, timeout=5) as conn:
-                conn.execute(
-                    """
-                    INSERT INTO world_bridge_log
-                      (ts, fountain_event_id, selected_events_json,
-                       selection_count, streams_seen, injected, notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        time.time(),
-                        fountain_event_id,
-                        json.dumps(selections, default=str),
-                        len(selections),
-                        ",".join(streams_seen),
-                        int(injected),
-                        notes,
-                    ),
-                )
+            if writer is None:
+                writer = Writer(self._beliefs_db, name="world_bridge")
+            writer.write(
+                """
+                INSERT INTO world_bridge_log
+                  (ts, fountain_event_id, selected_events_json,
+                   selection_count, streams_seen, injected, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    time.time(),
+                    fountain_event_id,
+                    json.dumps(selections, default=str),
+                    len(selections),
+                    ",".join(streams_seen),
+                    int(injected),
+                    notes,
+                ),
+            )
         except Exception as e:
             logger.warning("WorldBridge log write failed: %s", e)
+        finally:
+            if owns_writer and writer is not None:
+                try:
+                    writer.close()
+                except Exception:
+                    pass
