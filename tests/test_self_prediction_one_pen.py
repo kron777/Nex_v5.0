@@ -57,7 +57,7 @@ class TestSelfPredictionOnePen(unittest.TestCase):
         cx = sqlite3.connect(self.beliefs)
         cx.execute(
             "INSERT INTO beliefs (created_at, source) VALUES (?, ?)",
-            (1_900_000_000, "fountain_insight"),
+            (int(__import__("time").time() - 60), "fountain_insight"),
         )
         cx.commit()
         cx.close()
