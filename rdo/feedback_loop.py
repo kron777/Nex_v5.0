@@ -54,6 +54,14 @@ class FeedbackLoopAssessment:
                 not isinstance(value, str) or not value.strip() for value in values
             ):
                 raise ValueError(f"{field_name} must contain non-blank references")
+        if not self.members:
+            raise ValueError("a feedback loop requires at least one member")
+        if not self.relationships:
+            raise ValueError("a feedback loop requires at least one relationship")
+        if len(set(self.members)) != len(self.members):
+            raise ValueError("feedback loop members must be unique")
+        if len(set(self.relationships)) != len(self.relationships):
+            raise ValueError("feedback loop relationships must be unique")
         if self.stability_state not in (*STABILITY_STATES, UNKNOWN):
             raise ValueError(f"invalid feedback stability state: {self.stability_state!r}")
         if self.stability_state != UNKNOWN and not self.assessment_evidence:
