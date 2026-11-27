@@ -183,7 +183,8 @@ class PerformanceMargin:
     def margin(self) -> Optional[float]:
         if (not self._finite_number(self.q) or not self._finite_number(self.tau)
                 or not isinstance(self.unit, str) or not self.unit.strip()
-                or not self.normalization):
+                or not isinstance(self.normalization, str)
+                or not self.normalization.strip()):
             return None
         return float(self.q) - float(self.tau)
 
@@ -200,10 +201,13 @@ class PerformanceMargin:
 
     @property
     def evidence_complete(self) -> bool:
-        return (_has_traceable_evidence(self.q_evidence)
+        # Evidence references and confidence labels alone do not complete a
+        # margin if the arithmetic inputs are absent or incomparable.
+        return (self.margin is not None
+                and _has_traceable_evidence(self.q_evidence)
                 and _has_traceable_evidence(self.tau_evidence)
-                and self.q_confidence is not None
-                and self.tau_confidence is not None)
+                and isinstance(self.q_confidence, str) and bool(self.q_confidence.strip())
+                and isinstance(self.tau_confidence, str) and bool(self.tau_confidence.strip()))
 
     def to_dict(self) -> dict:
         data = dataclasses.asdict(self)
