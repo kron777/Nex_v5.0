@@ -208,3 +208,5 @@ def test_seed_from_graph_records_only_explicit_host_runtime_evidence(tmp_path):
     assert len(runtime_entries) == 1
     assert runtime_entries[0]["origin"] == "host"
     assert runtime_entries[0]["evidence_refs"] == ["trace:host-runtime-2"]
+    reloaded = ConnectionLedger(str(tmp_path / "runtime-seed.jsonl"))
+    assert reloaded.history("a->b")[-1]["evidence_refs"] == ["trace:host-runtime-2"]
