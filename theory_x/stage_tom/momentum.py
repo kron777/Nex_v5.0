@@ -35,7 +35,7 @@ from __future__ import annotations
 import logging
 import os
 import re
-from substrate import connect, Connection, OperationalError
+from substrate import Reader, Writer, OperationalError
 import time
 from typing import Optional
 
@@ -62,8 +62,8 @@ _STOPWORDS = {
 }
 
 
-def _ensure_table(con: Connection) -> None:
-    con.execute(
+def _ensure_table(writer: Writer) -> None:
+    writer.write(
         "CREATE TABLE IF NOT EXISTS momentum ("
         " id INTEGER PRIMARY KEY CHECK (id = 1),"
         " updated_at REAL NOT NULL,"
@@ -75,16 +75,13 @@ def _ensure_table(con: Connection) -> None:
         " resolved INTEGER"
         ")"
     )
-    # Migration for tables created before carry_count existed.
+    # Additive migrations remain idempotent and run through the same Writer.
     try:
-        con.execute("ALTER TABLE momentum ADD COLUMN carry_count INTEGER DEFAULT 1")
+        writer.write("ALTER TABLE momentum ADD COLUMN carry_count INTEGER DEFAULT 1")
     except OperationalError:
         pass  # column already exists — fine
-    # Migration: episodic resolution outcome (NEX5_CARRYOVER). Nullable, no
-    # default -> NULL for existing rows, so momentum-only mode reads fine with
-    # it absent. Additive + idempotent.
     try:
-        con.execute("ALTER TABLE momentum ADD COLUMN resolved INTEGER")
+        writer.write("ALTER TABLE momentum ADD COLUMN resolved INTEGER")
     except OperationalError:
         pass  # column already exists — fine
 
@@ -103,50 +100,60 @@ def _is_same_thread(old_fragment: str, new_thought: str) -> bool:
     return len(shared) >= _SIMILARITY_MIN_SHARED
 
 
-def capture_momentum(thought: str, branch: str,
-                     dynamic_db: str = _DYNAMIC_DB, trace=None) -> bool:
-    """Write the carried thread at end of fire. Fail-safe."""
+def capture_momentum(
+    thought: str,
+    branch: str,
+    dynamic_db: str = _DYNAMIC_DB,
+    trace=None,
+    *,
+    dynamic_reader: Optional[Reader] = None,
+    dynamic_writer: Optional[Writer] = None,
+) -> bool:
+    """Write the carried thread through the shared dynamic.db Writer. Fail-safe."""
+    own_reader = dynamic_reader is None
+    own_writer = dynamic_writer is None
+    reader = dynamic_reader or Reader(dynamic_db)
+    writer = dynamic_writer or Writer(dynamic_db, name="momentum")
     try:
         if not thought or len(thought.split()) < 6:
             return False
-        con = connect(dynamic_db, timeout=3)
-        _ensure_table(con)
+        _ensure_table(writer)
 
         # Read the PRIOR thread before overwriting, to judge continuity.
         prior_fragment = ""
         prior_carry = 0
         try:
-            prow = con.execute(
+            prow = reader.read_one(
                 "SELECT thought_fragment, carry_count FROM momentum WHERE id=1"
-            ).fetchone()
+            )
             if prow:
-                prior_fragment = prow[0] or ""
-                prior_carry = prow[1] or 0
+                prior_fragment = prow["thought_fragment"] or ""
+                prior_carry = prow["carry_count"] or 0
         except Exception:
             pass
 
         if prior_fragment and _is_same_thread(prior_fragment, thought):
-            new_carry = prior_carry + 1   # still the same thread — count it
+            new_carry = prior_carry + 1
         else:
-            new_carry = 1                # genuinely new thread — fresh start
+            new_carry = 1
 
         surprise_score = 0.0
         surprise_note = ""
         try:
-            row = con.execute(
+            row = reader.read_one(
                 "SELECT surprise_score, actual_content FROM surprise_events "
                 "WHERE triggered_at > ? AND surprise_score > 0.3 "
                 "ORDER BY triggered_at DESC LIMIT 1",
-                (time.time() - 60,)
-            ).fetchone()
+                (time.time() - 60,),
+            )
             if row:
-                surprise_score = float(row[0])
-                surprise_note = (row[1] or "")[:80]
+                surprise_score = float(row["surprise_score"])
+                surprise_note = (row["actual_content"] or "")[:80]
         except Exception:
             pass
 
         fragment = thought[:120].rstrip(".,;: ")
-        con.execute(
+        writer.write(
             "INSERT INTO momentum (id, updated_at, branch, thought_fragment, "
             " surprise_score, surprise_note, carry_count) VALUES (1, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(id) DO UPDATE SET "
@@ -155,18 +162,15 @@ def capture_momentum(thought: str, branch: str,
             " surprise_score=excluded.surprise_score, "
             " surprise_note=excluded.surprise_note, "
             " carry_count=excluded.carry_count",
-            (time.time(), branch or "", fragment, surprise_score, surprise_note, new_carry)
+            (time.time(), branch or "", fragment, surprise_score, surprise_note, new_carry),
         )
-        con.commit()
-        con.close()
         if trace is not None:
-            trace.record(
-                "direct_sql_commit", "momentum_upsert",
-                metadata={"database": "dynamic", "table": "momentum",
-                          "operation": "INSERT_OR_UPDATE", "row_id": 1,
-                          "status": "committed", "branch_id": branch,
-                          "carry_count": new_carry,
-                          "transaction_scope": "direct_connection_commit"},
+            trace.writer_delta(
+                database="dynamic",
+                table="momentum",
+                operation="INSERT_OR_UPDATE",
+                row_id=1,
+                metadata={"branch_id": branch, "carry_count": new_carry},
                 parent_ids=[
                     rid for rid in (
                         trace.reference("fountain_output_candidate"),
@@ -177,42 +181,49 @@ def capture_momentum(thought: str, branch: str,
         return True
     except Exception:
         return False
+    finally:
+        if own_writer:
+            writer.close()
+        if own_reader:
+            try:
+                reader.close()
+            except Exception:
+                pass
 
 
 def stamp_resolution(
-    resolved: bool, dynamic_db: str = _DYNAMIC_DB, trace=None
+    resolved: bool,
+    dynamic_db: str = _DYNAMIC_DB,
+    trace=None,
+    *,
+    dynamic_reader: Optional[Reader] = None,
+    dynamic_writer: Optional[Writer] = None,
 ) -> bool:
-    """Stamp this cycle's outcome (resolved=crystallized vs stalled) onto the
-    current momentum thread, for the NEX5_CARRYOVER episodic clause. Writes ONLY
-    the 'resolved' column; touches nothing else. Clean no-op — never an error in
-    the fire loop — if the row is missing or exhausted (carry_count > _MAX_CARRY,
-    i.e. already silenced). Caller gates on NEX5_CARRYOVER, so with the flag off
-    this is never called and momentum's writes are byte-identical to before."""
+    """Stamp the current thread's outcome through the shared dynamic Writer."""
+    own_reader = dynamic_reader is None
+    own_writer = dynamic_writer is None
+    reader = dynamic_reader or Reader(dynamic_db)
+    writer = dynamic_writer or Writer(dynamic_db, name="momentum")
     try:
-        con = connect(dynamic_db, timeout=3)
-        _ensure_table(con)
-        row = con.execute(
+        _ensure_table(writer)
+        row = reader.read_one(
             "SELECT carry_count FROM momentum WHERE id = 1"
-        ).fetchone()
-        if not row:
-            con.close()
-            return False  # no thread to stamp — no-op
-        if (row[0] or 0) > _MAX_CARRY:
-            con.close()
-            return False  # exhausted/silenced thread — leave it alone
-        con.execute(
-            "UPDATE momentum SET resolved = ? WHERE id = 1",
-            (1 if resolved else 0,)
         )
-        con.commit()
-        con.close()
+        if not row:
+            return False
+        if (row["carry_count"] or 0) > _MAX_CARRY:
+            return False
+        writer.write(
+            "UPDATE momentum SET resolved = ? WHERE id = 1",
+            (1 if resolved else 0,),
+        )
         if trace is not None:
-            trace.record(
-                "direct_sql_commit", "momentum_resolution_update",
-                metadata={"database": "dynamic", "table": "momentum",
-                          "operation": "UPDATE", "row_id": 1,
-                          "status": "committed", "resolved": bool(resolved),
-                          "transaction_scope": "direct_connection_commit"},
+            trace.writer_delta(
+                database="dynamic",
+                table="momentum",
+                operation="UPDATE",
+                row_id=1,
+                metadata={"resolved": bool(resolved)},
                 parent_ids=[
                     rid for rid in (
                         trace.reference("fountain_belief_write") if resolved
@@ -225,50 +236,54 @@ def stamp_resolution(
         return True
     except Exception:
         return False
+    finally:
+        if own_writer:
+            writer.close()
+        if own_reader:
+            try:
+                reader.close()
+            except Exception:
+                pass
 
 
-def read_momentum(dynamic_db: str = _DYNAMIC_DB) -> Optional[str]:
-    """Return the carried-thread line, or None if cold/absent/EXHAUSTED."""
+def read_momentum(
+    dynamic_db: str = _DYNAMIC_DB,
+    *,
+    dynamic_reader: Optional[Reader] = None,
+) -> Optional[str]:
+    """Read the carried thread without creating or mutating its table."""
+    own_reader = dynamic_reader is None
+    reader = dynamic_reader or Reader(dynamic_db)
     try:
-        con = connect(dynamic_db, timeout=3)
-        _ensure_table(con)
-        row = con.execute(
+        row = reader.read_one(
             "SELECT updated_at, branch, thought_fragment, surprise_score, "
             " surprise_note, carry_count, resolved FROM momentum WHERE id = 1"
-        ).fetchone()
-        con.close()
+        )
         if not row:
             return None
-        updated_at, branch, fragment, surprise_score, surprise_note, carry_count, resolved = row
-        carry_count = carry_count or 1
+        updated_at = row["updated_at"]
+        branch = row["branch"]
+        fragment = row["thought_fragment"]
+        surprise_score = row["surprise_score"]
+        surprise_note = row["surprise_note"]
+        carry_count = row["carry_count"] or 1
+        resolved = row["resolved"]
 
         if time.time() - (updated_at or 0) > _STALE_SECS:
             return None
-        if not fragment:
-            return None
-        # EXHAUSTED: carried the same thread too many times without it
-        # resolving. Go silent rather than telling her to keep circling.
-        if carry_count > _MAX_CARRY:
+        if not fragment or carry_count > _MAX_CARRY:
             return None
 
-        line = f"Carried forward from my last thought"
+        line = "Carried forward from my last thought"
         if branch:
             line += f" (I was on {branch})"
         line += f": '{fragment}...' — this thread isn't finished."
         if surprise_score and surprise_score > 0.3 and surprise_note:
             line += (f" What surprised me: '{surprise_note}...' "
                      f"still sits unresolved.")
-        # NEX5_CARRYOVER (default OFF): append last cycle's episodic outcome.
-        # With the flag off this clause is skipped, so the rendered line is
-        # byte-identical to momentum-only behavior. Silent when outcome unknown
-        # (resolved IS NULL — e.g. first fire, or a pre-carryover history row).
         if os.environ.get("NEX5_CARRYOVER") == "1" and resolved is not None:
             line += (" — and last cycle it settled into a belief." if resolved
                      else " — and last cycle it stalled; nothing settled.")
-            # Purely observational: emit a live signal that the clause was
-            # appended, so carry-over behaviour is visible in the soak log
-            # without DB spelunking. Wrapped so logging can never break a fire;
-            # does NOT change `line`.
             try:
                 log.info("carryover: rendered %s clause, branch=%s",
                          "settled" if resolved else "stalled", branch or "?")
@@ -277,6 +292,12 @@ def read_momentum(dynamic_db: str = _DYNAMIC_DB) -> Optional[str]:
         return line
     except Exception:
         return None
+    finally:
+        if own_reader:
+            try:
+                reader.close()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":
