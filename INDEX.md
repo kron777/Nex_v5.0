@@ -289,7 +289,7 @@ When in doubt: the current source and approved governing documents win—not thi
 
 ---
 
-*Last amended: 27 November 2026 — records merged DAG integrity and policy-scan fixes, #223–#226 bounded one-pen migrations, and the #236/#238 SelfPredictionLoop handle integration; G-69/G-71 proposals remain under verification and Gate 0 boundaries.*
+*Last amended: 27 November 2026 — records merged DAG integrity and policy-scan fixes, #223–#226 bounded one-pen migrations, #236/#238 SelfPredictionLoop handle integration, #253 Warrant cursor closure, and current G-69/G-70/G-73–G-75 status; Gate 0 boundaries remain.*
 
 
 
@@ -352,7 +352,7 @@ These migrations preserve the existing feature gates and decision logic. They cl
 
 ## 19. Phase 0 follow-up audit and gated SelfPredictionLoop integration (27 November 2026)
 
-The current-main follow-up audit has rechecked G-68 to G-72. G-68 (experimental ProbeRunner safety), G-70 (speech playback trace coverage), and G-69/G-71 (surprise-event and Warrant cursor integrity) remain separately tracked in the verified defect backlog; their proposed corrections are not treated as merged or activated.
+The current-main follow-up audit has rechecked G-68 to G-72. G-68 (experimental ProbeRunner safety), G-69 (SurpriseLoop delivery, Gate 0 held), and G-70 (speech playback trace continuity, proposed in PR #261 with exact-head CI pending) remain separately tracked. G-71's hidden-rowid cursor defect is closed by PR #253; Warrant eligibility questions remain separately tracked as G-74. No proposal is treated as activated.
 
 G-72 is closed by **PR #236** (commitments canonical Writer/Reader path) and **PR #238** (AppState handle injection through the gated SelfPredictionLoop, self-prediction, owned-belief, commitments and Expectations paths). Exact-head full-suite runs passed: #236 `46006462779` (2,573 passed, 7 skipped, 45 subtests) and #238 `46008022480` (2,584 passed, 7 skipped, 45 subtests).
 
@@ -596,3 +596,20 @@ A current-source recheck incorporated the useful correction from older PR #143 a
 - `VoiceEngine._retrieve_candidates()` consumes `TimeFetch.run()` results and enriches belief candidates with tier/reinforce_count but does not recheck paused/locked/retired state. `_score_candidate()` applies a 0.5 tier score to non-T3–T6 candidates rather than excluding them; a sufficiently strong candidate can still clear the 0.6 minimum. `tests/test_voice_engine.py` compares T4 and T8 scores but does not assert hard exclusion.
 
 This remains a policy/coverage gap, not an instruction to change retrieval. Confirm the canonical inactive-belief eligibility contract, then add end-to-end TimeFetch-to-VoiceEngine tests. The stale documentation branch #143 is superseded by the corrected current-main backlog entry G-52 in PR #260; its trace document was not merged wholesale.
+
+
+---
+
+## 33. G-70 speech trace implementation proposal and exact-head verification (27 November 2026)
+
+The source-level G-70 gap is now addressed by a bounded development proposal, **PR #261 — [causal provenance through speech playback](https://github.com/kron777/Nex_v5.0/pull/261)**. This is a branch-level implementation, not a merged or accepted mainline capability.
+
+- **Head:** `15a1f7589bec0a308ddae2eb6a662513bb6b1207`; base `e78773def4549f646257945e5886ec71a7837374`.
+- **Scope:** `influence_trace.py`, `theory_x/stage6_fountain/crystallizer.py`, `speech/queue_consumer.py`, and `tests/test_speech_trace_bridge.py`.
+- **Mechanism:** a process-local correlation registry, keyed by belief ID, registered before queue insertion becomes visible; max 512 entries, one-hour TTL, one-shot consumption, and cleanup when insertion fails. The consumer adds parent-linked dequeue, synthesis, playback, suppression and terminal status/failure events to the originating TraceContext.
+- **Safety boundary:** no speech text/audio is added to trace metadata; no schema, speech selection, queue ordering, cadence, synthesis/playback behaviour, flags or cognitive decisions are intentionally changed. The trace overlay remains default OFF. The registry is process-local and does not reconstruct lineage after restart.
+- **Evidence limitation:** `spoken` remains an operational status meaning the blocking playback call returned without raising; it is not acoustic confirmation that a listener heard sound. This PR does not establish live L4 capture or complete M0.5 acceptance.
+- **Tests:** dedicated regression coverage includes registry bound/expiry/one-shot behaviour, successful playback lineage, synthesis/playback failures, suppression and queue-status write failure.
+- **CI:** exact-head full-suite run `46018844996` is still **IN PROGRESS** at the time of this update; the disposable test image built successfully and the baseline suite step is running. No passing result is claimed yet.
+- **Disposition:** G-70 remains **OPEN / implementation proposed pending exact-head verification and review**. PR #261 is draft and unmerged. No live runtime, speech device, database or feature flag was touched.
+
