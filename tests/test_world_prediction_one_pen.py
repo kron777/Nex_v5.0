@@ -44,6 +44,10 @@ class TestWorldPredictionOnePen(unittest.TestCase):
 
     def test_prediction_insert_resolution_and_scorecard_use_shared_handles(self):
         with mock.patch.object(wp, "fetch_price", return_value=100.0), \
+             mock.patch.object(wp, "frozen_values", return_value=(
+                 None, "none_stated", 0.0, "strict_direction",
+                 0.0, 0, 0.0, "[]", 1, 1.0, "at_made",
+             )), \
              mock.patch.object(wp, "Writer", side_effect=AssertionError(
                  "world_predictions opened a second conversations Writer"
              )):
