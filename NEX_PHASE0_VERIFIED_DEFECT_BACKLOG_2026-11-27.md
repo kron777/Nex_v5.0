@@ -1,6 +1,6 @@
 # NEX Phase 0 — Verified Defect and Evidence-Gap Backlog (Mainline)
 
-**Snapshot:** `main` at `66a97964f0531c16d60637dc8291b42e0b73f00b`  
+**Snapshot:** `main` at `ae406fa8fcb1abdf25cdf4ae1bd65333e1148ca8`  
 **Date:** 27 November 2026  
 **Purpose:** Separate confirmed documentation/source discrepancies from unknown host/runtime evidence and incomplete audits. This backlog is not approval to change cognition or policy.
 
@@ -60,7 +60,7 @@ The boot graph and key Chat/Fountain paths have been mapped from source. A compl
 
 ### E-05 — MIND_MAP freshness warnings
 
-CI emitted stale-source verification warnings for numerous nodes, plus the past-due `p13_finitude` unblock marker. These need source review and evidence refresh, not timestamp-only edits.
+Current-main CI emitted 58 stale-source warnings, 2 missing doctrine-reference warnings and 1 past-due `p13_finitude` unblock warning. These need source review and evidence refresh, not timestamp-only edits.
 
 ### E-06 — L4/runtime causal trace not captured
 
@@ -110,20 +110,18 @@ These are source-level conditions and test-coverage gaps recovered from older au
 - **Conditional source interaction:** the only `_capture_fire_snapshot()` call found in Fountain is in the substrate-voice path, which is gated by `NEX5_RECONCILE != '1'`. The tracked `nex_keepalive.sh` recipe sets both `NEX5_RECONCILE=1` and `NEX5_WARRANT_RECORD=1`. This describes that launch script only; the effective live host environment remains UNKNOWN.
 - **Disposition:** establish intended use-signal coverage and test it with isolated fixtures before changing the source set. No claim about actual host use-day undercount is made.
 
-### G-55 — RememberLoop writes a temporal link without durable parent lineage
+### G-55 — RememberLoop temporal-link lineage is not durable
 
-- **Source:** `theory_x/life/remember_loop.py`.
-- **Verified:** `remember_tick()` selects an old and recent belief, composes a linking sentence, and inserts a Tier-6 `remember_loop` belief. It returns the two source IDs to its caller/log, but does not write them to `belief_lineage` or another durable parent table in the inspected implementation. The insert also uses a raw `substrate.connect()` connection and `commit()`, bypassing the one-pen Writer contract (G-61).
-- **Boot/test boundary:** `run.py` has no direct `remember_loop` import/start call; the repository has `tests/test_associative_recall.py`, which tests Fountain's different `_associative_recall` method, not this Life module. No claim is made that RememberLoop is currently running.
-- **Disposition:** lineage provenance gap if/when this producer is authorised and active; define the intended relationship type and parent contract before adding writes.
+- Source: theory_x/life/remember_loop.py.
+- Verified on current main: remember_tick() selects an old and recent belief, composes a linking sentence and inserts a Tier-6 remember_loop belief through the injected shared beliefs Writer (PR #160). The dedicated tests/test_remember_loop.py covers persistence, daily cap and duplicate handling.
+- Remaining gap: the function returns the two source IDs to its caller/log, but does not persist them to belief_lineage or another durable parent table. No direct run.py start call was found; live activation is not established.
+- Disposition: lineage provenance gap if/when this producer is authorised and active; define the intended relationship type and parent contract before adding writes. The former raw-connection one-pen bypass is resolved by PR #160.
 
-### G-56 — Diversity EdgeBuilder's write counter is cumulative, not per statement
+### G-56 — Diversity EdgeBuilder's cumulative write counter (resolved)
 
-- **Source:** `theory_x/diversity/edge_builder.py:edge_builder_tick()`.
-- **Verified:** after each `INSERT OR IGNORE`, the code increments `wrote` when `cx.total_changes > 0`. SQLite `total_changes` is cumulative for the connection; after the first successful change, later ignored duplicates can still satisfy that condition.
-- **Impact:** the returned/logged `wrote` statistic can overstate successful inserts. This is a metric defect; the insert/ignore result and persisted graph are not thereby changed.
-- **Test gap:** the inspected `tests/test_diversity.py` covers the DiversityLoop clocks and other diversity components but does not contain an EdgeBuilder duplicate-write/counter fixture.
-- **Disposition:** bounded metric-only correction candidate (cursor `rowcount` or per-statement change count) with a duplicate fixture; no runtime code altered here.
+- Source: theory_x/diversity/edge_builder.py.
+- Verified: the former connection-cumulative cx.total_changes check was replaced in PR #158 by per-statement rowcounts through Writer.write_many_with_counts(). tests/test_edge_builder.py covers ignored duplicates after successful inserts.
+- Disposition: CLOSED as a telemetry defect. This did not change graph admission or edge classification; G-57 remains a separate unresolved design question.
 
 ### G-57 — Generic Stage-2 edges can make beliefs ineligible for Stage-3 typed classification
 
@@ -158,16 +156,24 @@ These are source-level conditions and test-coverage gaps recovered from older au
 - **Impact:** The documented 30-day/60-day stale close/cancel rules are callable methods, but automatic execution is not established in the reviewed normal process path.
 - **Disposition:** clarify whether stale cleanup is intended to be scheduled, manually invoked, or deliberately dormant. If scheduled, identify the authoritative lifecycle owner and add an integration test before implementation. No scheduler or retention behavior changed.
 
-### G-61 — Three lifecycle/graph producers bypass the specified one-pen Writer
+### G-61 — One-pen Writer migration (partially resolved; further migrations in flight)
 
-- **Specification:** `SPECIFICATION.md §8` states exactly one writer thread per database and that all writes submit through the single Writer queue; `substrate/writer.py` explicitly says direct writes elsewhere are a bug by definition.
-- **Verified direct-write paths:**
-  - `theory_x/life/remember_loop.py:remember_tick()` opens the beliefs DB with `substrate.connect()`, inserts a Tier-6 belief using raw `cx.execute()`, and commits directly.
-  - `theory_x/diversity/edge_builder.py:edge_builder_tick()` opens beliefs DB with `connect()`, inserts `belief_edges` directly, then commits.
-  - `theory_x/sustained/focus_loop.py:focus_tick()` opens separate raw connections to beliefs, conversations and dynamic DBs; it directly inserts/updates current focus, conversations/messages, problem observations/state, and commits.
-- **Impact:** these paths bypass the canonical per-database Writer queue and can create concurrent write connections outside the one-pen serialization path. No lock contention or live failure was measured in this audit.
-- **Test gap:** no dedicated tests were found for RememberLoop, FocusLoop or the Diversity EdgeBuilder direct-write path; existing `tests/test_diversity.py` covers other diversity components. `tests/test_writer_roundtrip.py` tests the Writer itself, not these bypasses.
-- **Disposition:** plan a bounded migration to injected Writer/Reader dependencies and isolated concurrency/regression tests. Preserve each operation's existing transaction semantics and multi-database ordering; do not mechanically replace calls without reviewing atomicity/side-effects.
+- Specification: SPECIFICATION.md §8 states exactly one writer thread per database and that all writes submit through the single Writer queue; substrate/writer.py explicitly says direct writes elsewhere are a bug by definition.
+- Resolved on current main with isolated regression coverage:
+  - RememberLoop — PR #160.
+  - Diversity EdgeBuilder — PR #158 (including per-statement rowcount handling).
+  - Sustained FocusLoop — PR #159.
+  - Fetch and Wonder — PR #163.
+  - Surprise — PR #165.
+  - Pattern and Witness — PR #164.
+- Further bounded migrations remain open and unmerged:
+  - Fountain/momentum persistence — PR #162.
+  - Identity loop persistence — PR #166.
+  - DailyLife scheduled persistence — PR #168.
+  - Affinity loop persistence — PR #169.
+- Current evidence: these four PRs have exact-head CI runs in progress at this handoff. PRs #162 and #166 were opened against earlier mainline base SHAs; their integration against the latest mainline must be confirmed before merge. PRs #168 and #169 target current main ae406fa8.
+- Impact/qualification: the original three raw-connection paths are no longer present in current main. The one-pen rule is not yet declared globally complete: the full faculty producer/consumer and persistence audit remains open. No live lock contention or runtime failure is claimed.
+- Disposition: continue the four bounded migrations through tests and exact-head integration review. Preserve transaction semantics and multi-database ordering; do not mechanically replace calls without reviewing atomicity/side effects.
 
 ### G-62 — Internally generated reflective beliefs bypass the declared Coherence Gate boundary
 
@@ -176,12 +182,11 @@ These are source-level conditions and test-coverage gaps recovered from older au
 - **Declared exception:** Stage-2 `_write_sense_belief()` also writes Tier-7 `precipitated_from_sense` content without the Gate, but its own loop explicitly classifies this as raw external perception rather than a generated thought. Keep this source-perception exception distinct from the two reflective producers above.
 - **Disposition:** reconcile the universal wording with explicit non-thought/system-observation exceptions, or decide whether RememberLoop/self-rut observations should be passed through the Gate. No gate calls or persistence behavior changed.
 
-### G-63 — ProblemMemory's duplicate-observation rationale is stale
+### G-63 — ProblemMemory duplicate-observation rationale (resolved)
 
-- **Source:** `theory_x/stage7_sustained/problem_memory.py:ProblemMemory.observe()` docstring; current implementation in `theory_x/sustained/focus_loop.py:_append_observation()`.
-- **Verified:** the ProblemMemory docstring says FocusLoop lacks the same-text duplicate guard and re-appends stale text every 60 seconds, leading to an `ocount >= 10` close gate. The current FocusLoop implementation has its own identical-last-entry check and returns without appending when the last observation matches (comment says this was fixed 2026-07-24). No `ocount >= 10` close gate was found in the inspected current FocusLoop or ProblemMemory code.
-- **Test gap:** `tests/test_problem_memory.py` tests ProblemMemory.observe(); no dedicated `tests/test_focus_loop.py` exists in the current test tree. The FocusLoop duplicate guard has no direct regression coverage.
-- **Disposition:** update the stale ProblemMemory docstring and add an isolated FocusLoop duplicate-observation test. This is documentation/test work; the current guard remains unchanged.
+- Source: theory_x/stage7_sustained/problem_memory.py and theory_x/sustained/focus_loop.py:_append_observation().
+- Verified: the stale ProblemMemory.observe() rationale was corrected in PR #159. _append_observation() retains its same-text early return, and the new tests/test_focus_loop.py provides isolated regression coverage. No ocount >= 10 close gate was found in the inspected current modules.
+- Disposition: CLOSED as a documentation/test-coverage defect. The FocusLoop behavior itself was not changed.
 
 ## F. Gate boundary
 
