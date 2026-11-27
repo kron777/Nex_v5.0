@@ -349,6 +349,8 @@ class ContextRequirement:
                 not isinstance(value, str) or not value.strip() for value in values
             ):
                 raise ValueError(f"context requirement {name} must contain non-blank references")
+            if len(values) != len(set(values)):
+                raise ValueError(f"context requirement {name} references must be unique")
         if self.status == "unmapped":
             if self.mapped_obligation_keys or self.evidence or not self.review_required:
                 raise ValueError("unmapped context requirements must remain unresolved and review-required")
@@ -396,6 +398,8 @@ class AcceptanceVerificationRecord:
                 not isinstance(value, str) or not value.strip() for value in values
             ):
                 raise ValueError(f"acceptance verification {name} must contain non-blank references")
+            if len(values) != len(set(values)):
+                raise ValueError(f"acceptance verification {name} references must be unique")
         if self.status in ("pending", "passed", "failed"):
             if not _has_traceable_evidence(self.mapped_obligation_keys):
                 raise ValueError(f"{self.status} acceptance verification needs mapped obligation keys")
