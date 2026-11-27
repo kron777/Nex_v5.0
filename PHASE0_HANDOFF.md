@@ -146,3 +146,8 @@ Neither question authorises changing Warrant scoring, eligibility, flags, or lif
 - G-74/G-75 remain Warrant eligibility and boot-lifecycle questions; no Warrant score loop or flag was enabled.
 
 The frozen S-01–S-25 register, roadmap, phase gates and cognitive policy remain untouched. No host activation, live database state, acoustic output or behavioural benefit is claimed.
+
+
+## TimeFetch/VoiceEngine eligibility crosscheck — 27 November 2026
+
+The current G-52 backlog entry now records that `tests/test_throw_net_time_fetch.py` exists and what it covers. The remaining gap extends beyond TimeFetch: `VoiceEngine._retrieve_candidates()` enriches belief candidates with tier/reinforce_count but does not recheck paused, locked or retired state, and `_score_candidate()` applies a tier penalty rather than a hard exclusion. Its minimum score can still be cleared by a strong candidate. `tests/test_voice_engine.py` compares T4 and T8 scores but does not assert exclusion. Treat this as an eligibility-contract question; do not change retrieval/scoring until the governing policy is confirmed.
