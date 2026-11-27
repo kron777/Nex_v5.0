@@ -258,16 +258,12 @@ class TestConfirmationRateCanary(_Store):
         self.assertIn("falsifiability=n/a", msg)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestOwnedBeliefOnePen(_Store):
     def test_due_and_producer_use_injected_conversations_writer_and_readers(self):
         from substrate import Reader, Writer
         from theory_x.stage_world import owned_belief as ob
 
-        self._belief("A belief that remains useful", "authored")
+        self._belief("A belief that remains useful", "wonder_loop")
         writer = Writer(self.conv, name="owned_belief_test")
         conversations_reader = Reader(self.conv)
         beliefs_reader = Reader(self.bel)
@@ -299,3 +295,7 @@ class TestOwnedBeliefOnePen(_Store):
             self.assertEqual(row["belief_id"], result["belief_id"])
         finally:
             writer.close()
+
+
+if __name__ == "__main__":
+    unittest.main()
