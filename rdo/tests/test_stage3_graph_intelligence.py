@@ -250,3 +250,66 @@ def test_stage3_end_to_end_and_resume(tmp_path):
     out = json.loads(r.stdout)
     assert out["dups"] == res["duplicate_candidates"]
     assert out["te"]["produces_for"] == 4
+
+
+# --------------------------- before/after neighbour impact review -------------------
+
+def test_neighbour_impact_delta_reviews_adjacent_edges_without_claiming_causality():
+    before = [
+        {"src": "capability-A", "dst": "service-B", "kind": "influences",
+         "authority": "bounded", "note": "old"},
+        {"src": "service-C", "dst": "capability-A", "kind": "depends_on"},
+        {"src": "unrelated-X", "dst": "unrelated-Y", "kind": "depends_on",
+         "note": "before"},
+    ]
+    after = [
+        {"src": "capability-A", "dst": "service-B", "kind": "influences",
+         "authority": "strong", "note": "old"},
+        {"src": "service-C", "dst": "capability-A", "kind": "depends_on"},
+        {"src": "capability-A", "dst": "service-D", "kind": "produces_for"},
+        {"src": "unrelated-X", "dst": "unrelated-Y", "kind": "depends_on",
+         "note": "after"},
+    ]
+    result = graph.relationship_impact_delta(before, after, ["capability-A"])
+    assert result["status"] == "reviewed"
+    assert result["summary"] == {
+        "adjacent_relationships_reviewed": 3,
+        "adjacent_relationships_changed": 2,
+        "unrelated_changes": 1,
+    }
+    assert {tuple(item["identity"]) for item in result["changed_adjacent_relationships"]} == {
+        ("capability-A", "service-B", "influences"),
+        ("capability-A", "service-D", "produces_for"),
+    }
+    assert "not_established" in result["causal_attribution"]
+
+
+def test_neighbour_impact_delta_includes_assessment_changes_on_unchanged_edges():
+    edge = {"src": "changed", "dst": "neighbour", "kind": "influences",
+            "authority": "bounded"}
+    subject = "changed -influences-> neighbour"
+    before = [{"level": "relationship", "subject": subject, "verdict": "unknown"}]
+    after = [{"level": "relationship", "subject": subject, "verdict": "overdeveloped"}]
+    result = graph.relationship_impact_delta(
+        [edge], [dict(edge)], ["changed"], before_assessments=before,
+        after_assessments=after,
+    )
+    item = result["reviewed_adjacent_relationships"][0]
+    assert item["change"] == "unchanged"
+    assert item["assessment_changed"] is True
+    assert item["assessment_before"]["verdict"] == "unknown"
+    assert item["assessment_after"]["verdict"] == "overdeveloped"
+
+
+def test_neighbour_impact_delta_fails_closed_on_duplicate_relationship_identity():
+    edges = [
+        {"src": "A", "dst": "B", "kind": "depends_on"},
+        {"src": "A", "dst": "B", "kind": "depends_on", "note": "duplicate"},
+    ]
+    with pytest.raises(ValueError, match="duplicate identity"):
+        graph.relationship_impact_delta(edges, [], ["A"])
+
+
+def test_neighbour_impact_delta_requires_explicit_changed_node_keys():
+    with pytest.raises(ValueError, match="changed_nodes"):
+        graph.relationship_impact_delta([], [], "capability-A")
