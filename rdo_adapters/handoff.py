@@ -635,6 +635,10 @@ def record_acceptance_verification(workdir: str, handoff_id: str, criterion_id: 
     reviewer = _text(reviewer, "reviewer", 256)
     source_reference = _text(source_reference, "source_reference", 1000)
     criterion_id = _text(criterion_id, "criterion_id", 256)
+    if status not in ("pending", "passed", "failed", "not_applicable"):
+        raise HandoffError("criterion review events must use pending, passed, failed or not_applicable")
+    if status == "pending" and (confidence is not None or verified_at is not None):
+        raise HandoffError("pending criterion verification cannot carry completion confidence or timestamp")
     if not isinstance(note, str) or len(note) > 2000:
         raise HandoffError("note must be text of at most 2000 characters")
     if mapped_obligation_keys is not None and not isinstance(mapped_obligation_keys, list):
