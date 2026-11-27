@@ -15,7 +15,7 @@ Level 1's next composition.
 from __future__ import annotations
 from substrate.paths import db_paths
 import logging
-from substrate import connect, IntegrityError
+from substrate import Reader, Writer, IntegrityError
 import threading
 import time
 from datetime import datetime
@@ -31,18 +31,18 @@ SOURCE = "pattern_loop"
 COMPOSE_HOURS = {3, 15}  # twice a day, off-cycle from identity_loop
 
 
-def _previous_statements(d_cx, n=4):
-    rows = d_cx.execute(
+def _previous_statements(reader: Reader, n=4):
+    rows = reader.read(
         "SELECT statement, composed_at FROM identity_log "
         "ORDER BY composed_at DESC LIMIT ?",
-        (n,)
-    ).fetchall()
-    return [(r[0], r[1]) for r in rows]
+        (n,),
+    )
+    return [(r["statement"], r["composed_at"]) for r in rows]
 
 
-def _already_composed_today(d_cx, date_local, hour):
-    """Use the daily_activities table as our marker, since we don't have a pattern_log."""
-    row = d_cx.execute(
+def _already_composed_today(reader: Reader, writer: Writer, date_local, hour):
+    """Ensure the pattern marker exists through the dynamic Writer, then read it."""
+    writer.write(
         "CREATE TABLE IF NOT EXISTS pattern_log ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, "
         "composed_at REAL NOT NULL, "
@@ -51,11 +51,10 @@ def _already_composed_today(d_cx, date_local, hour):
         "statement TEXT NOT NULL, "
         "UNIQUE(date_local, hour_local))"
     )
-    d_cx.commit()
-    row = d_cx.execute(
+    row = reader.read_one(
         "SELECT id FROM pattern_log WHERE date_local=? AND hour_local=?",
-        (date_local, hour)
-    ).fetchone()
+        (date_local, hour),
+    )
     return row is not None
 
 
@@ -82,45 +81,55 @@ def _compose_pattern(voice, statements):
     return None
 
 
-def pattern_tick(voice, force=False):
+def pattern_tick(
+    voice,
+    force=False,
+    *,
+    dynamic_reader: Reader | None = None,
+    dynamic_writer: Writer | None = None,
+    beliefs_writer: Writer | None = None,
+):
     now = time.time()
     local = datetime.fromtimestamp(now, local_tz())
     hour = local.hour
     date_local = local.strftime("%Y-%m-%d")
     if not force and hour not in COMPOSE_HOURS:
         return {"skipped": "not_compose_hour", "hour": hour}
-    d_cx = connect(DYNAMIC_DB, timeout=15)
+    reader = dynamic_reader or Reader(DYNAMIC_DB)
+    own_dynamic_writer = dynamic_writer is None
+    d_writer = dynamic_writer or Writer(DYNAMIC_DB, name="pattern_loop")
+    own_beliefs_writer = beliefs_writer is None
+    b_writer = beliefs_writer or Writer(BELIEFS_DB, name="pattern_loop")
     try:
-        if not force and _already_composed_today(d_cx, date_local, hour):
+        if not force and _already_composed_today(reader, d_writer, date_local, hour):
             return {"skipped": "already_composed"}
-        statements = _previous_statements(d_cx, 4)
+        statements = _previous_statements(reader, 4)
         if len(statements) < 2:
             return {"skipped": "not_enough_history", "have": len(statements)}
         pattern_text = _compose_pattern(voice, statements)
         if not pattern_text:
             return {"skipped": "voice_failed"}
-        d_cx.execute(
+        d_writer.write(
             "INSERT OR REPLACE INTO pattern_log "
             "(composed_at, date_local, hour_local, statement) VALUES (?, ?, ?, ?)",
-            (now, date_local, hour, pattern_text)
+            (now, date_local, hour, pattern_text),
         )
-        d_cx.commit()
         try:
-            b_cx = connect(BELIEFS_DB, timeout=10)
-            b_cx.execute(
+            b_writer.write(
                 "INSERT INTO beliefs "
                 "(content, tier, confidence, created_at, source, branch_id, tags) "
                 "VALUES (?, 6, 0.85, ?, ?, ?, ?)",
-                (pattern_text, int(now), SOURCE, "cognition", '["self_pattern"]')
+                (pattern_text, int(now), SOURCE, "cognition", '["self_pattern"]'),
             )
-            b_cx.commit()
-            b_cx.close()
         except IntegrityError:
             pass
         log.info("pattern_loop: composed pattern observation: %s", pattern_text[:120])
         return {"composed": True, "text": pattern_text[:160]}
     finally:
-        d_cx.close()
+        if own_dynamic_writer:
+            d_writer.close()
+        if own_beliefs_writer:
+            b_writer.close()
 
 
 def pattern_loop(state, stop):
@@ -131,7 +140,12 @@ def pattern_loop(state, stop):
             if voice is None:
                 from voice.llm import VoiceClient, voice_model
                 voice = VoiceClient(model=voice_model())
-            stats = pattern_tick(voice)
+            stats = pattern_tick(
+                voice,
+                dynamic_reader=state.readers["dynamic"],
+                dynamic_writer=state.writers["dynamic"],
+                beliefs_writer=state.writers["beliefs"],
+            )
             if stats.get("composed"):
                 log.info("pattern_loop: %s", stats.get("text", ""))
         except Exception as e:
