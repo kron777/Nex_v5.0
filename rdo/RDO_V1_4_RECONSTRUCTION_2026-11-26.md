@@ -1,7 +1,7 @@
 # NEX Recursive Development Orchestrator v1.4
 ## Reconstructed evidence edition — 26 November 2026
 
-> **DOCUMENT STATUS: NON-NORMATIVE RECONSTRUCTION. NOT THE ORIGINAL v1.4. NOT APPROVED. INCOMPLETE.**
+> **DOCUMENT STATUS: NON-NORMATIVE EVIDENCE RECONSTRUCTION. NOT THE ORIGINAL v1.4. INCOMPLETE. The founder indicated on 24 November that v1.4 was the intended current working specification; formal freeze/supersession is not recorded in the consolidated NEX register.**
 >
 > This file reconstructs only those portions of the RDO document labelled “v1.4” that can be traced to surviving contemporaneous review notes, implementation references, repository history, and predecessor specifications. It does not reproduce lost text, establish authorship, establish founder approval, or supersede any governing specification. Descriptive section labels in this file are working labels, not recovered original headings. Any unlocated wording remains **UNKNOWN**.
 
@@ -19,7 +19,7 @@ There is substantial evidence that a document or working draft called **RDO v1.4
 
 However, no original v1.4 PDF, DOCX, Markdown source, complete transcript, or approval/revision record was found in the available Library, conversation attachments, two archived development packages, current repository tree, or inspected RDO-related branch snapshots. The contemporaneous review is a secondary interpretation, not the specification itself.
 
-**Result:** the use of a v1.4-labelled source is well supported; the precise full text and formal status of that source are not. This reconstruction recovers a bounded subset of its apparent requirements. It does **not** establish that v1.4 was final, founder-approved, or formally superseded v1.3.
+**Result:** the use of a v1.4-labelled source is well supported; the precise full text and formal status of that source are not. This reconstruction recovers a bounded subset of its apparent requirements. The founder indicated on 24 November that v1.4 was the intended current working specification. This reconstruction does not claim a formal frozen-spec record or retroactively replace v1.3 history.
 
 ## 2. Evidence classes and source hierarchy
 
@@ -173,4 +173,4 @@ For each requirement, record: exact source clause; whether it changed from v1.3;
 - `carry_over.txt`, Library file ID `file_000000003440820eb523e0d07a06bc3d`.
 - `NEX_dev_carry_over.txt`, Library/Conversation file ID `file_0000000098ac820e91d8e1869dcbdfb3`.
 
-**Final status:** Partial evidence reconstruction completed. Original v1.4 and its approval remain unavailable in the searched source set. v1.3 remains the only recovered primary RDO specification whose staged execution order and interim governing status are explicitly documented.
+**Final status:** Partial evidence reconstruction completed. Founder-supplied v1.4 is the current working RDO specification; v1.3 remains historical. Formal freeze/supersession is not recorded in the consolidated NEX register. The raw v1.4 bytes are not mounted in the current workspace for fresh byte-level comparison.
