@@ -346,3 +346,21 @@ def test_operating_envelope_measurement_with_unrecognized_status_stays_unknown()
     envelope = result.dimensions["operating_envelope"]
     assert "measured_load" in envelope["unknown_dimensions"]
     assert result.verdict == TENSION_UNKNOWN
+
+
+def test_implemented_interface_evidence_is_preserved_without_promoting_relationship():
+    rel = Relationship("consumer", "provider", "depends_on", interface_profile={
+        "contract": {
+            "status": "implemented",
+            "value": "versioned-json-contract",
+            "evidence": ["source:contract-definition"],
+            "confidence": "reviewed",
+        },
+    })
+
+    result = assess_relationship(rel, {})
+    contract = result.dimensions["dimensions"]["contract"]
+    assert contract["status"] == "implemented"
+    assert contract["evidence_complete"] is True
+    assert "contract" not in result.dimensions["unknown_dimensions"]
+    assert result.verdict == TENSION_UNKNOWN
