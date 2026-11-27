@@ -88,6 +88,16 @@ producer as external perception rather than thought (G-62). This is a Gate
 scope/specification reconciliation item, not permission to change policy.
 
 
+### FocusLoop duplicate-observation guard
+
+The ProblemMemory.observe() docstring still carries a historical Session 39
+claim that FocusLoop lacked duplicate suppression and could hit an
+`ocount >= 10` close gate. Current `focus_loop._append_observation()` already
+has a same-text guard (marked fixed 2026-07-24); no such close gate was found
+in the inspected current modules. There is no dedicated FocusLoop test in the
+current test tree, so the behavior is source-verified but not directly
+regression-tested (G-63).
+
 ### Problem/Goal lifecycle scheduler boundary
 
 `ProblemMemory.decay()` (30-day stale close) and `GoalManager.decay()`
