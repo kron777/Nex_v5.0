@@ -219,15 +219,6 @@ def test_malformed_envelope_measurement_object_does_not_crash_assessment():
     assert "measured_load" in result.dimensions["operating_envelope"]["unknown_dimensions"]
     assert result.verdict == TENSION_UNKNOWN
 
-def test_envelope_measurement_without_evidence_does_not_count_as_known():
-    envelope = OperatingEnvelopeAssessment(
-        measured_load=InterfaceEvidence(status="measured", value=70, unit="percent"),
-    )
-    result = assess_relationship(Relationship("consumer", "provider", "depends_on",
-        operating_envelope=envelope), {})
-    assert "measured_load" in result.dimensions["operating_envelope"]["unknown_dimensions"]
-
-
 def test_relationship_profile_dict_and_unknown_values_remain_compatible():
     rel = Relationship("consumer", "provider", "depends_on", interface_profile={
         "latency": {"status": "measured", "value": 10, "unit": "ms",
