@@ -517,7 +517,6 @@ def test_malformed_mutable_margin_evidence_refs_are_not_promoted_to_sources():
     summary = result.dimensions["performance_margins"]
     assert summary["metrics"]["latency"]["evidence_complete"] is False
     assert summary["unknown_metrics"] == ["latency"]
-    # The valid tau reference remains usable; only the malformed q reference is excluded.
-    assert result.evidence == ["limit:latency"]
-    assert "benchmark:latency" not in result.evidence
+    # q/tau are one comparison; neither side is promoted when the pair is incomplete.
+    assert result.evidence == []
     assert result.verdict == TENSION_UNKNOWN
