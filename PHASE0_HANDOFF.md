@@ -2,7 +2,7 @@
 
 **Date:** 27 November 2026  
 **Repository:** https://github.com/kron777/Nex_v5.0  
-**Evidence snapshot:** `main` at `cc8ae43652bdba919198ee4bb90fabbd8f05632f`  
+**Evidence snapshot:** `main` at `80c30b6cc649bb9ce46fd6fdc06bf4afbc9f57c5`  
 **Gate 0:** **PENDING — founder review required**
 
 ## Read these together
@@ -169,3 +169,30 @@ PR #261 proposes bounded, default-OFF speech trace continuity across Fountain en
 
 **Evidence snapshot:** `main` at `cc8ae43652bdba919198ee4bb90fabbd8f05632f`. PR #261 merged the G-70 cross-thread speech trace bridge. Exact-head full-suite run `46020502376` passed **2,611 passed, 7 skipped, 45 subtests**. G-70's source/test gap is closed; M0.5 remains open because no authorised live L4 trace or complete paired semantic-equivalence evidence was produced. Trace overlay remains default OFF; no runtime or speech device was touched.
 
+
+
+## Post-PR #263 manual reconciliation and Claude handoff — 27 November 2026
+
+**Current evidence snapshot:** `main` at `80c30b6cc649bb9ce46fd6fdc06bf4afbc9f57c5`. PR #263 merged the synchronized manual, backlog, handoff, ADR-001 and mind-map documentation after PR #261. This is a documentation-only integration. Gate 0 remains pending founder review; Phase 1 remains unauthorized.
+
+### First-read order for Claude
+
+1. `INDEX.md` — first-read architecture and development manual; read §37 for authority boundaries and the unresolved G-58 issue.
+2. This file — Phase 0 handoff and evidence snapshot.
+3. `NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-27.md` — current verified discrepancies, policy questions and evidence gaps.
+4. `NEX_REPOSITORY_REALITY_REPORT.md` and `NEX_ARCHITECTURE_CROSSWALK_v2.md` — source/boot and producer/consumer evidence.
+5. `ADR-001.md`, the frozen S-01–S-25 register and the authoritative roadmap.
+
+### Explicit unresolved authority: Development Proposal V2.1 / G-58
+
+The separate user-authored NEX v5.0 Development Proposal V2.1 and its approval record have not been located in the current-main repository tree or established by the Library retrieval performed so far. Do not recreate or infer their contents. Claude should independently search its available project context for the exact original and approval evidence, quote the relevant goal-lifecycle clauses precisely, and identify whether they are approved and controlling.
+
+G-58 is a real implementation mismatch: GoalManager creates/selects `open` goals while CoherenceGate reads `active` goals; existing Gate fixtures seed `active` directly and miss the normal creation path. The intended lifecycle rule is not yet established. No writer/query change, automatic transition, row migration, or semantic reinterpretation is authorized until the original governing clause and approval are verified. If Claude cannot recover them, report the retrieval gap and leave G-58 open.
+
+### Current-main open work
+
+- PR #264 is a draft current-main pagination correction for provenance erosion. Exact-head full-suite run `46023260805` was still in progress at the latest status check; do not call the change validated or merged. Review its behaviour-impact note before any merge.
+- G-69 remains Gate 0 held. G-73/G-74/G-75 remain open. The two missing doctrine references and overdue P13 unblock remain explicit warnings.
+- The frozen S-01–S-25 register, roadmap, Gate 0 and Phase 1 boundaries remain unchanged.
+
+Claude's review should follow the same research → bounded implementation → rescan → consequence/evidence → manual-update loop. Separate facts, hypotheses, policy decisions and approvals. Do not treat a green CI run as host activation or behavioural validation.
