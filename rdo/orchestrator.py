@@ -11,14 +11,18 @@ it never changes NEX.
 """
 from __future__ import annotations
 
+import hashlib
 import os
 from typing import Dict, List, Optional, Tuple
 
 from . import prioritise, reconcile as recon_mod, tension
 from .extrapolator import expand, frontier_breakdown
 from .memory import PatternMemory, compare, derive_lessons, record_actual
-from .model import (ANTI_REQUIREMENT, EXECUTED_VERIFIED, MISSING, PARTIAL, RECON_UNKNOWN,
-                    REUSE_EXISTING, SIGNATURE_MATCHED, CycleRecord, Obligation, Relationship)
+from .model import (ACCEPTANCE_VERIFICATION_STATES, ANTI_REQUIREMENT,
+                    CONTEXT_REQUIREMENT_CLASSIFICATIONS, EXECUTED_VERIFIED, MISSING,
+                    PARTIAL, RECON_UNKNOWN, REUSE_EXISTING, SIGNATURE_MATCHED,
+                    AcceptanceVerificationRecord, ContextRequirement, CycleRecord,
+                    Obligation, Relationship)
 from .reconcile import Signature
 
 
@@ -54,12 +58,18 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
     packages = prioritise.build_work_packages(obligations, relationships,
                                               active_experiments, authorised_gates)
 
-    # Objective context is a separate contract from the seed graph. Do not infer
-    # that free-text scope/constraints/exclusions/acceptance criteria were obeyed
-    # merely because seed obligations were expanded. Until each item is mapped to
-    # obligations and evidence, retain it as UNKNOWN and block execution readiness.
+    # Objective context is a separate review contract from the seed graph.
+    # Preserve every item with a stable source reference and candidate classification;
+    # mapping remains UNKNOWN until a reviewer links it to graph obligations + evidence.
     objective_context = dict(objective_context or {})
+    input_digest = (objective_input or {}).get("sha256")
+    source_prefix = (
+        f"objective_input:{input_digest}"
+        if isinstance(input_digest, str) and input_digest.strip()
+        else "objective_context"
+    )
     context_items = []
+    acceptance_verification = []
 
     def _context_values(value):
         # Scalar contract fields (notably intent) are one item, never an iterable
@@ -70,38 +80,71 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
             return value
         return []
 
-    for value in _context_values(objective_context.get("intent")):
-        if isinstance(value, str) and value.strip():
-            context_items.append({"kind": "intent", "text": value, "status": "unmapped", "evidence": []})
+    def _append_context(kind: str, source_field: str, source_index: int, value) -> None:
+        if not isinstance(value, str) or not value.strip():
+            return
+        source_ref = f"{source_prefix}:{source_field}[{source_index}]"
+        item_id = "ctx:" + hashlib.sha256(
+            (source_ref + "\\0" + value).encode("utf-8")
+        ).hexdigest()[:20]
+        classification = CONTEXT_REQUIREMENT_CLASSIFICATIONS[kind]
+        requirement = ContextRequirement(
+            item_id=item_id,
+            kind=kind,
+            text=value,
+            source_field=source_field,
+            source_index=source_index,
+            source_ref=source_ref,
+            classification=classification,
+        ).to_dict()
+        if kind == "acceptance_criterion":
+            # Keep the previous item-level keys for readers of existing cycle JSON;
+            # the separate record below is now the authoritative verification contract.
+            requirement.update({
+                "verification_status": "unknown",
+                "mapped_obligations": [],
+                "verification_evidence": [],
+            })
+            acceptance_verification.append(
+                AcceptanceVerificationRecord(
+                    criterion_id=item_id,
+                    source_ref=source_ref,
+                    criterion=value,
+                ).to_dict()
+            )
+        context_items.append(requirement)
+
+    for index, value in enumerate(_context_values(objective_context.get("intent"))):
+        _append_context("intent", "intent", index, value)
+
     context_scope = objective_context.get("scope", {})
     if isinstance(context_scope, dict):
-        for value in _context_values(context_scope.get("in_scope")):
-            if isinstance(value, str) and value.strip():
-                context_items.append({"kind": "scope", "text": value, "status": "unmapped", "evidence": []})
-        for value in _context_values(context_scope.get("affected_paths")):
-            if isinstance(value, str) and value.strip():
-                context_items.append({"kind": "affected_path", "text": value, "status": "unmapped", "evidence": []})
-    for field, kind in (("assumptions", "assumption"), ("constraints", "constraint"),
-                        ("exclusions", "exclusion"),
-                        ("acceptance_criteria", "acceptance_criterion")):
-        for value in _context_values(objective_context.get(field)):
-            if isinstance(value, str) and value.strip():
-                item = {"kind": kind, "text": value, "status": "unmapped", "evidence": []}
-                if kind == "acceptance_criterion":
-                    # Preserve an explicit verification contract. Planning or
-                    # proposal generation is not proof that a criterion passed.
-                    item.update({
-                        "verification_status": "unknown",
-                        "mapped_obligations": [],
-                        "verification_evidence": [],
-                    })
-                context_items.append(item)
+        for index, value in enumerate(_context_values(context_scope.get("in_scope"))):
+            _append_context("scope", "scope.in_scope", index, value)
+        for index, value in enumerate(_context_values(context_scope.get("affected_paths"))):
+            _append_context("affected_path", "scope.affected_paths", index, value)
+
+    for field, kind in (
+        ("assumptions", "assumption"),
+        ("constraints", "constraint"),
+        ("exclusions", "exclusion"),
+        ("acceptance_criteria", "acceptance_criterion"),
+    ):
+        for index, value in enumerate(_context_values(objective_context.get(field))):
+            _append_context(kind, field, index, value)
+
     context_assessment = {
         "status": "unmapped" if context_items else "not_supplied",
         "review_required": bool(context_items),
         "items": context_items,
-        "note": ("Objective context has not yet been mapped to obligations and independent evidence."
-                 if context_items else "No structured objective context was supplied."),
+        "acceptance_verification": acceptance_verification,
+        "unmapped_count": len(context_items),
+        "acceptance_criteria_count": len(acceptance_verification),
+        "note": (
+            "Objective context is preserved as typed review obligations; each item "
+            "remains unmapped until linked to graph obligations and independent evidence."
+            if context_items else "No structured objective context was supplied."
+        ),
     }
     context_assessment["execution_readiness"] = (
         "blocked" if context_items else "unknown"
@@ -114,8 +157,9 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
         # A reviewable proposal may proceed to bounded human scope review, but
         # unmapped context must never be interpreted as permission to execute.
         context_exclusions = [
-            f"objective exclusion (mapping still unverified): {item['text']}"
-            for item in context_items if item["kind"] == "exclusion"
+            f"objective exclusion [{item['source_ref']}; {item['item_id']}; "
+            f"mapping still unverified]: {item['text']}"
+            for item in context_items if item["classification"] == ANTI_REQUIREMENT
         ]
         for package in packages:
             package.anti_requirements = list(dict.fromkeys(
