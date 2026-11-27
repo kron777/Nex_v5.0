@@ -35,6 +35,33 @@ def load() -> dict:
         return json.load(f)
 
 
+def validate_node_shapes(nodes: dict) -> None:
+    """Reject malformed node maps and prerequisite containers before graph logic."""
+    if not isinstance(nodes, dict):
+        raise ValueError("DAG nodes must be an object mapping node IDs to node objects")
+
+    errors = []
+    for node, data in nodes.items():
+        if not isinstance(node, str) or not node.strip():
+            errors.append(f"node ID must be a non-empty string: {node!r}")
+            continue
+        if not isinstance(data, dict):
+            errors.append(f"{node}: node definition must be an object")
+            continue
+        prereqs = data.get("prereqs", [])
+        if not isinstance(prereqs, list):
+            errors.append(f"{node}: prereqs must be a list")
+            continue
+        for index, prereq in enumerate(prereqs):
+            if not isinstance(prereq, str) or not prereq.strip():
+                errors.append(
+                    f"{node}: prerequisite at index {index} must be a non-empty string"
+                )
+
+    if errors:
+        raise ValueError("malformed DAG node definition(s): " + "; ".join(sorted(errors)))
+
+
 def validate_prerequisites(nodes: dict) -> None:
     """Reject prerequisite references that do not resolve to a DAG node.
 
@@ -83,7 +110,8 @@ def validate_statuses(nodes: dict) -> None:
 
 
 def validate_graph(nodes: dict) -> None:
-    """Validate graph references, edge uniqueness and classifier status values."""
+    """Validate node shape, references, edge uniqueness and status values."""
+    validate_node_shapes(nodes)
     validate_prerequisites(nodes)
     validate_unique_prerequisites(nodes)
     validate_statuses(nodes)
