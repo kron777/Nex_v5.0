@@ -269,7 +269,7 @@ def test_submit_runs_existing_pipeline_and_persists_intake_provenance(tmp_path, 
     assert all(item["status"] == "unmapped" and item["evidence"] == []
                and item["mapped_obligation_keys"] == [] and item["review_required"] is True
                for item in context_items)
-    assert len(context_items) == 10
+    assert len(context_items) == 11
     assert all(item["item_id"].startswith("ctx:") for item in context_items)
     assert all(item["source_ref"].startswith(
         f"objective_input:{result['input_sha256']}:"
