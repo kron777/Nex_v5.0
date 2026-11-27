@@ -566,6 +566,8 @@ def main() -> None:
             beliefs_writer=writers["beliefs"],
             data_dir=str(paths["beliefs"].parent),
             snapshot_path=str(paths["beliefs"].parent / "state_snapshot.json"),
+            beliefs_writer=writers["beliefs"],
+            probes_writer=writers["probes"],
         )
         log.info("Downtime: %s", _dt_res)
     except Exception as e:
