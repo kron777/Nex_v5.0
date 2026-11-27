@@ -1,6 +1,7 @@
 """Regression tests for Diversity EdgeBuilder write accounting."""
 
 from substrate import Reader, Writer, connect
+from theory_x.tag_protocol.writer_wrapper import TaggingBeliefWriter
 from theory_x.diversity import edge_builder
 
 
@@ -92,7 +93,8 @@ def test_edge_builder_uses_injected_substrate_handles(tmp_path, monkeypatch):
     monkeypatch.setattr(edge_builder, "cosine", lambda left, right: 0.9)
 
     reader = Reader(db_path)
-    writer = Writer(db_path, name="edge-builder-injected-test")
+    inner_writer = Writer(db_path, name="edge-builder-injected-test")
+    writer = TaggingBeliefWriter(inner_writer)
     try:
         stats = edge_builder.edge_builder_tick(
             beliefs_reader=reader,
@@ -109,4 +111,4 @@ def test_edge_builder_uses_injected_substrate_handles(tmp_path, monkeypatch):
         ) > 0
         assert reader.count("belief_edges") == 3
     finally:
-        writer.close()
+        inner_writer.close()
