@@ -86,7 +86,7 @@ audit remains open.
 
 The Coherence Gate source declares universal coverage for thoughts generated
 by faculty nodes. The current RememberLoop temporal-link belief and Fountain
-`self_rut_notice` reflective belief are inserted directly without Gate checks;
+`self_rut_notice` reflective belief are written without invoking `CoherenceGate.check()`;
 Stage-2 `precipitated_from_sense` writes are explicitly classified by their
 producer as external perception rather than thought (G-62). This is a Gate
 scope/specification reconciliation item, not permission to change policy.
