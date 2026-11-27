@@ -97,3 +97,17 @@ def test_legacy_positional_relationship_constructor_keeps_interface_profile_slot
                                 "none", True, "legacy note", profile)
     assert relationship.interface_profile is profile
     assert relationship.operating_envelope is None
+
+
+def test_interface_evidence_rejects_unsupported_status_values():
+    import pytest
+
+    for status in ("observed", "measurd", "", None, 1):
+        with pytest.raises(ValueError, match="invalid interface evidence status"):
+            InterfaceEvidence(status=status)
+
+
+def test_interface_evidence_accepts_documented_nonmeasurement_states():
+    for status in ("measured", "implemented", "static", "inferred", "unknown"):
+        evidence = InterfaceEvidence(status=status)
+        assert evidence.status == status
