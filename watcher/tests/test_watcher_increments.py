@@ -170,6 +170,13 @@ def test_evidence_bearing_ledger_states_reject_missing_references(tmp_path, stat
         led.record("x->y", state, origin=origin)
 
 
+def test_ledger_rejects_non_list_evidence_references(tmp_path):
+    led = ConnectionLedger(str(tmp_path / "bad-refs.jsonl"))
+
+    with pytest.raises(LedgerError, match="evidence_refs must be a list"):
+        led.record("x->y", "DECLARED", evidence_refs="trace:1")
+
+
 def test_runtime_observation_ledger_requires_host_origin_and_evidence_refs(tmp_path):
     led = ConnectionLedger(str(tmp_path / "runtime-ledger.jsonl"))
     led.record("x->y", "DECLARED")
