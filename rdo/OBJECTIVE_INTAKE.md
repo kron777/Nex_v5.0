@@ -108,6 +108,14 @@ a recorded rationale/evidence and verifier attribution. These records are
 caller/reviewer supplied; the current cycle does not execute tests or authenticate
 the verifier.
 
+**Persistence boundary:** this increment generates and persists the initial
+UNKNOWN/unmapped records in the planning cycle and validates the structure of
+reviewed/mapped or verified records. It does not yet provide a command or
+append-only event API to revise those records inside an existing cycle. The
+separate Stage-7 handoff scope-review and human-acceptance ledger remains the
+current human decision mechanism; those events do not silently rewrite the
+objective-context or acceptance-verification records.
+
 Consequently, the RDO can now preserve and expose the context needed for review,
 but **it cannot yet claim that all context has been semantically mapped or that
 acceptance criteria have been verified**. Execution readiness remains blocked
