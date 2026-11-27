@@ -90,6 +90,10 @@ class TestWorldPredictionOnePen(unittest.TestCase):
     def test_calibration_consult_uses_shared_beliefs_reader_and_conversations_handles(self):
         with mock.patch.object(wp, "Writer", side_effect=AssertionError(
             "calibration scorecard opened a second conversations Writer"
+        )), mock.patch("substrate.writer.Writer", side_effect=AssertionError(
+            "calibration consult opened a second conversations Writer"
+        )), mock.patch("substrate.reader.Reader", side_effect=AssertionError(
+            "calibration consult opened a second beliefs Reader"
         )):
             verdict = calibration_consult.consult_self_trust(
                 conversations_writer=self.writer,
