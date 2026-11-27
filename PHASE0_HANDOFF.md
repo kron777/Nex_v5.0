@@ -2,7 +2,7 @@
 
 **Date:** 27 November 2026  
 **Repository:** https://github.com/kron777/Nex_v5.0  
-**Evidence snapshot:** `main` at `612022e81f749a99de665372704d7acc0645de67`  
+**Evidence snapshot:** `main` at `66a97964f0531c16d60637dc8291b42e0b73f00b`  
 **Gate 0:** **PENDING — founder review required**
 
 ## Read these together
@@ -18,11 +18,12 @@
 |---|---|
 | M0.1 — repository identity | Remote main SHA recorded; current host checkout identity/cleanliness not collected |
 | M0.1 — host/runtime/database/model measurements | **PARTIAL / UNKNOWN**; no current host collection or live DB hash inventory |
-| M0.2 — test baseline | Exact M0.5 PR head full suite passed: 2,491 passed, 7 skipped, 40 subtests, baseline OK; post-merge push run was in progress at this snapshot |
+| M0.2 — test baseline | Exact M0.5 PR head and post-merge `main` push both passed: 2,491 passed, 7 skipped, 40 subtests, baseline OK |
 | M0.3/M0.4 — crosswalk and spec reconciliation | **PARTIAL**; source boot and Chat/Fountain paths are mapped, not every faculty's complete producer/consumer DAG |
 | Roadmap v3.0 M0.5 — causal trace | **IMPLEMENTED / MERGED**, default OFF, L3 fixture evidence |
 | M0.5 live L4 capture | **UNKNOWN**; no live runtime context enabled |
 | V2.1 M0.5 six doctrine questions | Not claimed complete; separate deliverable from roadmap v3.0 M0.5 |
+| Scheduler docs | **CORRECTED / MERGED** in PR #153; exact-head full suite passed |
 | Gate 0 | **PENDING founder review** |
 
 ## Important distinctions
@@ -35,9 +36,9 @@
 
 ## Next Phase 0 actions
 
-1. Finish the post-merge `main` CI run for commit `612022e` and append its result.
-2. Merge the small documentation correction for the remaining `run.py` / GUI scheduler overview drift after exact-head CI passes.
-3. Complete the forward/backward source audit across the remaining `theory_x/` faculties; distinguish wired loops from downstream consumers and measured effects.
+1. Post-merge `main` CI for `66a9796` is verified green (2,491 passed, 7 skipped, 40 subtests; baseline OK).
+2. Scheduler overview documentation is corrected and merged in PR #153; its exact-head full suite is green.
+3. Continue the forward/backward source audit across the remaining `theory_x/` faculties; distinguish wired loops from downstream consumers and measured effects.
 4. Reconcile the map's 39 YAML node entries vs older “30” references, missing doctrine references, stale verification dates and overdue `p13_finitude` unblock marker without deleting entries or inventing evidence.
 5. Obtain a fresh, authorised host-only collection for active checkout identity, service/process state, versions/model digest, performance and DB hashes. Do not copy private runtime data into Git.
 6. Present the Reality Report, Crosswalk and verified defect backlog for Gate 0 founder review before any Phase 1 behavioural work.
