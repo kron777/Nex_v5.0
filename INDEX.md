@@ -656,7 +656,7 @@ This is a verified producer/consumer mismatch, but **the intended lifecycle sema
 
 ### Claude first-read protocol
 
-For a fresh independent review, read in this order: this `INDEX.md`; `PHASE0_HANDOFF.md`; `NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-27.md`; `NEX_REPOSITORY_REALITY_REPORT.md`; `NEX_ARCHITECTURE_CROSSWALK_v2.md`; `ADR-001.md); then the exact frozen specification/register and roadmap from their authoritative locations.
+For a fresh independent review, read in this order: this `INDEX.md`; `PHASE0_HANDOFF.md`; `NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-27.md`; `NEX_REPOSITORY_REALITY_REPORT.md`; `NEX_ARCHITECTURE_CROSSWALK_v2.md`; `ADR-001.md`; then the exact frozen specification/register and roadmap from their authoritative locations.
 
 Ask Claude to independently locate the original V2.1 proposal and approval record, identify the exact goal-lifecycle clauses, and return verbatim clause references plus the evidence establishing approval. If it cannot locate them, it must say so rather than infer the rule. Claude should then independently verify G-58 against current source and tests, distinguish confirmed implementation from intended semantics, and propose the smallest test-first reconciliation. No state semantics, policy, schema, live database or runtime change is authorized by this handoff.
 
