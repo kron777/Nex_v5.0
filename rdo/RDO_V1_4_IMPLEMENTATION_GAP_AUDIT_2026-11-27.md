@@ -152,7 +152,7 @@ Completed foundation:
 
 Next bounded sequence:
 1. Keep measured feedback-loop stability blocked until the exact v1.4 criteria, observation windows and supporting measurements are recoverable. Preserve loop members and relationships; never equate graph topology with instability or remove cycles automatically.
-2. Complete the persisted-cycle CLI exposure for structural failure candidates and before/after neighbour comparisons (draft PR #331); verify both commands against actual saved cycle records and preserve UNKNOWN/PARTIAL results.
+2. Complete the persisted-cycle CLI exposure for structural failure candidates and before/after neighbour comparisons (draft PR #331); verify both commands against fixture-backed persisted CycleRecord JSON and preserve UNKNOWN/PARTIAL results. Actual host-saved cycle stores remain unverified from the cloud workspace.
 3. Add an evidence-linking failure-propagation assessment only after defining how observed failure events, relationship identity, observation window, operating envelope and provenance are represented. Do not infer observed propagation from `depends_on` topology alone.
 4. Extend adversarial coverage for insufficient headroom, unstable feedback and neighbouring-capability changes. Assert evidence completeness and UNKNOWN-first behaviour where thresholds or measurements are absent.
 5. Investigate local-improvement/global-regression with actual objective/evidence data before proposing net-value weights or Pareto rules.
