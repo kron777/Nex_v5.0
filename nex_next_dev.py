@@ -114,14 +114,14 @@ def report(dag: dict) -> None:
         print(f"  • {n}{flag}")
         print(f"      {note}")
 
-    print("\n>>> BLOCKED (waiting on an unbuilt/unproven prereq):")
+    print("\n>>> BLOCKED (at least one prerequisite is outside the DAG satisfied set):")
     if not c["blocked"]:
         print("    (none)")
     for n, missing in c["blocked"]:
         print(f"  • {n}  <- needs: {', '.join(missing)}")
         print(f"      {nodes[n].get('note','')[:70]}")
 
-    print("\n>>> LIVE BUT UNPROVEN (the gates — prove these to advance):")
+    print("\n>>> LIVE BUT UNPROVEN (dependency-satisfied caveats; not validated):")
     for n in c["live_unproven"]:
         print(f"  • {n} — {nodes[n].get('note','')[:70]}")
 
