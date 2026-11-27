@@ -355,7 +355,8 @@ def derive_lessons(cycle: CycleRecord, disc: Dict) -> List[Pattern]:
                       "satisfy the obligation; make the signature stricter.",
             applicability=cycle.objective, confidence=0.3,
             exceptions=["partial matches should stay 'partial', not 'reuse'"]))
-    if _has_traceable_evidence(disc.get("regressions")):
+    if (_has_traceable_evidence(disc.get("regressions"))
+            and isinstance(cycle.objective, str) and cycle.objective.strip()):
         out.append(Pattern(
             key="regression_risk:" + "_".join(str(cycle.objective).lower().split()),
             provenance=f"cycle:{cid}",
