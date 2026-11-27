@@ -71,7 +71,7 @@ The evidence snapshot and source-bounded report above remain pinned to their sta
 
 - No live host collection, runtime trace, database hash inventory, model digest or performance measurement was performed in this remote-source session. These remain **UNKNOWN**.
 - RDO Stage 2–7 modules, documents and tests are present in current main. The historical Claude Stage 2–7 branches are divergent and approximately 475 commits behind; they are not merge candidates. RDO Stage 7's own handoff/status documentation still requires a real objective-to-delivery demonstration, a verified disposable test-execution boundary, host-only runtime observation and separate human acceptance. The independent Watcher handoff verifier is source/path-only; it does not run tests or establish runtime state.
-- RDO v1.3/v1.4 precedence remains unresolved. The recovered v1.4 source metadata and founder recollection do not by themselves establish formal supersession; do not rewrite RDO specifications or stage documents on inference.
+- RDO v1.4 is the current working specification (founder indicated on 24 Nov that they believed it had been approved); v1.3 remains historical implementation lineage. Formal frozen supersession is not recorded in the consolidated NEX register; preserve history rather than retroactively rewriting it.
 
 
 
@@ -254,7 +254,7 @@ The canonical manual is `INDEX.md`; its plain-text mirror is `NEX_5.0_DEVELOPMEN
 - Current mind-map check: 30 nodes, 0 unverified, 14 dark, 2 blocked; no stale-source warnings. Two doctrine references and the past-due P13 marker remain.
 - New open findings: G-80 reanimation handoff durability; G-81 divergent fire counters; G-83 groove-alert replay; G-84 shutdown quiescence; G-85 SignalToProblem primary one-pen/cross-database boundary (the auxiliary prose-stats bypass is closed by #279); G-86 SignalReaper allowlist drift; G-87 Moltbook dry-run/external-consent semantics; G-90 contextual social-silence capability gap; G-91 RDO objective context is stored but not enforced. Scanner coverage remains under G-73.
 - The global one-pen audit remains open. SignalToProblem is a boot-registered direct-writer path and its cross-database recovery contract needs explicit design before migration.
-- The RDO remains external/advisory; raw objective seeding, contextual-constraint enforcement and v1.3/v1.4 precedence remain open architecture/governance questions.
+- The RDO remains external/advisory; raw objective seeding, contextual-constraint enforcement and the v1.4 OFT/interface-profile gaps remain open implementation work. v1.4 is the current working basis; v1.3 remains historical.
 
 No live host, runtime, database, credential or external service was accessed. No cognitive policy, feature flag, MIND_MAP node, frozen S-01–S-25 register, Master Roadmap or Gate 0 decision changed. Gate 0 remains pending founder review; Phase 1 remains unauthorized.
 
@@ -267,3 +267,8 @@ PR #279 merged as `8d2121d121931d37afcb1c3d23d27e7ccc9145d1`; exact-head CI run 
 ### Post-snapshot PR #280 update — 27 November 2026
 
 PR #280 merged as `f03a3d2e7b9c71801e44be73cf728c01cb791c9d`; exact-head CI run `46045754339` passed 2,640 tests, 7 skipped, 45 subtests, baseline OK. It fixes Writer-level shutdown/submission races by serializing admission, draining accepted work before one sentinel, rejecting late writes, and retaining a timed-out worker reference. This closes only the Writer subproblem in G-84. The application still lacks a global producer stop/join coordinator and G-84 remains open. Post-merge main CI is in progress.
+
+
+### RDO v1.4 implementation gap audit
+
+See `rdo/RDO_V1_4_IMPLEMENTATION_GAP_AUDIT_2026-11-27.md` for the current source-to-requirement matrix and next vertical-slice increment.
