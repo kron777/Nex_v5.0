@@ -190,6 +190,7 @@ def test_regression_outcome_becomes_scoped_candidate_for_later_cycles(tmp_path):
     memory = PatternMemory(str(tmp_path / "patterns.jsonl"))
     memory.add(regression)
     assert [item.key for item in memory.applicable("regression")] == ["regression_risk:regression"]
+    assert memory.applicable("another regression objective") == []
 
     next_cycle, _ = run_cycle(
         "next-regression-review", "regression", [],
@@ -234,3 +235,14 @@ def test_regression_without_objective_scope_does_not_create_global_pattern():
     cycle.objective = " "
     assert all(not item.key.startswith("regression_risk:")
                for item in derive_lessons(cycle, compare(cycle)))
+
+
+def test_exact_scope_patterns_do_not_use_legacy_token_overlap():
+    from rdo.memory import PatternMemory
+    from rdo.model import Pattern
+    memory = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    memory.add(Pattern(key="exact", statement="scoped", provenance="cycle:1",
+        applicability="belief decay", exact_scope=True))
+    assert [p.key for p in memory.applicable("belief decay")] == ["exact"]
+    assert memory.applicable("belief retrieval") == []
+    assert memory.applicable("other belief decay") == []
