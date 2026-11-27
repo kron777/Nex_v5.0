@@ -2,7 +2,7 @@
 
 **Date:** 27 November 2026  
 **Repository:** https://github.com/kron777/Nex_v5.0  
-**Evidence snapshot:** `main` at `e78773def4549f646257945e5886ec71a7837374`  
+**Evidence snapshot:** `main` at `c9e25d7cf85659e80053f5fe75928ee71486a141`  
 **Gate 0:** **PENDING — founder review required**
 
 ## Read these together
@@ -133,7 +133,7 @@ The refreshed backlog adds two source-level Warrant questions:
 - **G-74 — retired-marker eligibility:** WarrantPass's scoring query and WarrantRecorder's survival query do not filter the independent `erosion_stage='retired'` marker. Normal Harmonizer retirement writes Tier 8, and no normal writer for a lower-tier retired marker or live such row was established. Confirm whether the marker must override tier for these Warrant operations before adding filters.
 - **G-75 — recorder versus scorer boot:** normal `run.py` starts WarrantRecorder only behind `NEX5_WARRANT_RECORD=1`. No normal WarrantPass loop construction/start was found in `run.py` or `gui/server.py`; `tools/warrant_validate.py` runs one-shot read-only `compute_all()`. The tracked keepalive sets the recorder flag but not `NEX5_WARRANT`; host-effective state remains UNKNOWN due the known launcher path blocker and uninspected user systemd unit. Record-only operation may be intentional while evidence accrues.
 
-PR #262 corrects the WarrantPass class docstring's false attribution to `run.py`; it does not construct or start the pass. Neither question authorises changing Warrant scoring, eligibility, flags, or lifecycle. The Warrant cursor fix in PR #253 is pagination-only; the Warrant gate remains OFF.
+PR #262 merged as `c9e25d7cf85659e80053f5fe75928ee71486a141` and corrects the WarrantPass class docstring's false attribution to `run.py`; it does not construct or start the pass. Neither question authorises changing Warrant scoring, eligibility, flags, or lifecycle. The Warrant cursor fix in PR #253 is pagination-only; the Warrant gate remains OFF.
 
 
 ## Post-#256 mainline update — 27 November 2026
@@ -156,4 +156,10 @@ The current G-52 backlog entry now records that `tests/test_throw_net_time_fetch
 ## G-70 implementation continuation — 27 November 2026
 
 PR #261 proposes bounded, default-OFF speech trace continuity across Fountain enqueue and the asynchronous consumer. It registers the correlation before the queue row becomes visible, expires links after one hour, bounds the registry to 512 entries, and emits parent-linked dequeue, synthesis, playback, suppression and failure/status events. Tests cover registry lifecycle and principal success/failure branches. The process-local bridge does not recover across restart; `spoken` is not acoustic confirmation. Previous PR #261 head `15a1f7589bec0a308ddae2eb6a662513bb6b1207` passed exact-head run `46018844996`: **2,606 passed, 7 skipped, 45 subtests**, baseline OK. Latest head `bed052c9d63422f52a9514325f74f113959db2a3` adds concurrent one-shot claims, trace-free speech fallback, speaking/suppressed status-write coverage and stronger terminal assertions; exact-head run `46020502376` is pending. The prior pass is not being represented as verification of the latest changes. The mind-map check on the previous head reported 30 nodes, 0 unverified, 14 dark and 2 blocked, retaining the two missing doctrine references and overdue P13 warning. It exposed a P9 schema line-reference shift caused solely by the eight-line `daemon_kv` insertion; P9's unchanged `held_tensions` definition and relevant source/tests were rechecked and its source anchor updated in this documentation branch. The documentation branch's own exact-head verifier remains pending. PR #261 remains draft/unmerged; no runtime or feature flag was changed.
+
+
+
+## Post-#262 mainline update — 27 November 2026
+
+**Evidence snapshot:** `main` at `c9e25d7cf85659e80053f5fe75928ee71486a141`. PR #262 corrected the WarrantPass class docstring's false attribution to `run.py`; normal boot still wires WarrantRecorder only behind `NEX5_WARRANT_RECORD=1`, and WarrantPass remains unconstructed by the reviewed boot path. Exact-head full-suite run `46020220371` passed **2,599 passed, 7 skipped, 45 subtests**. G-75 remains an intent/lifecycle question; no Warrant flag or scorer was activated.
 
