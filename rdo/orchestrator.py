@@ -68,7 +68,7 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
         for value in context_scope.get("affected_paths", []) or []:
             if isinstance(value, str) and value.strip():
                 context_items.append({"kind": "affected_path", "text": value, "status": "unmapped", "evidence": []})
-    for field, kind in (("assumptions", "assumption"), ("constraints", "constraint"),
+    for field, kind in (("intent", "intent"), ("assumptions", "assumption"), ("constraints", "constraint"),
                         ("exclusions", "exclusion"),
                         ("acceptance_criteria", "acceptance_criterion")):
         for value in objective_context.get(field, []) or []:
