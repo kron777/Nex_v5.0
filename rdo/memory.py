@@ -120,8 +120,8 @@ class PatternMemory:
                     if previous.exact_scope != p.exact_scope:
                         raise ValueError("persisted pattern key collision has conflicting scope modes")
                     if p.exact_scope:
-                        old_scope = " ".join(previous.applicability.split()).lower()
-                        new_scope = " ".join(p.applicability.split()).lower()
+                        old_scope = " ".join(previous.applicability.split()).casefold()
+                        new_scope = " ".join(p.applicability.split()).casefold()
                         if old_scope != new_scope:
                             raise ValueError("persisted pattern key collision has conflicting exact scopes")
                 self._current[p.key] = p
@@ -176,8 +176,8 @@ class PatternMemory:
                 if (not isinstance(existing.applicability, str)
                         or not existing.applicability.strip()):
                     raise ValueError("existing exact-scope pattern requires non-blank applicability")
-                old_scope = " ".join(existing.applicability.split()).lower()
-                new_scope = " ".join(pattern.applicability.split()).lower()
+                old_scope = " ".join(existing.applicability.split()).casefold()
+                new_scope = " ".join(pattern.applicability.split()).casefold()
                 if old_scope != new_scope:
                     raise ValueError("pattern key collision has conflicting exact scopes")
         if existing is None:
