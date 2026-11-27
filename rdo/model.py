@@ -275,6 +275,10 @@ class Pattern:
     # When true, applicability is an exact objective match, not token overlap.
     exact_scope: bool = False
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.exact_scope, bool):
+            raise ValueError("pattern exact_scope must be a boolean")
+
     def to_dict(self) -> dict:
         d = dataclasses.asdict(self)
         d["reliable"] = self.confidence > 0.0 and self.observed_count > self.disconfirmed_count
