@@ -143,11 +143,16 @@ def _read_status() -> Optional[dict]:
         return None
 
 
-def make_self_prediction(db_path: Optional[str] = None, horizon: int = HORIZON) -> dict:
+def make_self_prediction(
+    db_path: Optional[str] = None,
+    horizon: int = HORIZON,
+    *,
+    conversations_writer: Writer | None = None,
+) -> dict:
     """NEX predicts whether it will fire in the next `horizon` seconds, from its
     own readiness. A coin flip predicts the same. Both recorded."""
     db_path = db_path or _db_path()
-    ensure_schema(db_path)
+    ensure_schema(db_path, conversations_writer)
 
     status = _read_status()
     if status is None:
@@ -176,14 +181,13 @@ def make_self_prediction(db_path: Optional[str] = None, horizon: int = HORIZON) 
     now = time.time()
     resolve_at = now + horizon
     stakes = snapshot_stakes()
-    conn = _connect(db_path)
-    try:
+    def _insert(conn):
         for src, pred in (("self", self_pred), ("random", coin_pred)):
-            # readiness is a self-read against a threshold, not a probability:
-            # the fire arm states no confidence, so none is recorded.
-            frozen = (frozen_values(None, "none_stated", 0.0, "exact_label", stakes, cost_band=_COST_BAND)
-                      if src == "self"
-                      else frozen_values(COIN, "coin", 0.0, "exact_label", stakes, cost_band=_COST_BAND))
+            frozen = (
+                frozen_values(None, "none_stated", 0.0, "exact_label", stakes, cost_band=_COST_BAND)
+                if src == "self"
+                else frozen_values(COIN, "coin", 0.0, "exact_label", stakes, cost_band=_COST_BAND)
+            )
             conn.execute(
                 "INSERT INTO self_predictions "
                 "(made_at, source, kind, predicted, readiness, baseline_fires, resolve_at, "
@@ -191,9 +195,8 @@ def make_self_prediction(db_path: Optional[str] = None, horizon: int = HORIZON) 
                 "VALUES (?, ?, 'fire', ?, ?, ?, ?, " + FROZEN_PLACEHOLDERS + ")",
                 (now, src, pred, readiness, baseline_fires, resolve_at, *frozen),
             )
-        conn.commit()
-    finally:
-        conn.close()
+    _writer_transaction(conversations_writer, db_path, "self_prediction_make", _insert)
+
 
     return {
         "self_pred": self_pred,
