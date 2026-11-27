@@ -142,10 +142,12 @@ These are source-level conditions and test-coverage gaps recovered from older au
 ### G-59 — FocusLoop's stuck state is excluded by open-only consumers
 
 - **Sources:** `theory_x/sustained/focus_loop.py`; `theory_x/stage7_sustained/problem_memory.py`; `theory_x/stage_counterfactual/counterfactual_node.py`; `theory_x/stage_gate/coherence_gate.py`.
-- **Verified:** FocusLoop marks a problem `stuck` when it surfaces a chat ping (and can also mark it stuck while a global ping cooldown suppresses the message). ProblemMemory.list_open(), CounterfactualNode._process_one(), CoherenceGate context and TimeFetch's ProblemMemory-backed problem retrieval consume `state='open'`.
-- **Impact:** A stuck problem is no longer part of those normal open-problem candidate/context paths. This may be the intended human-escalation/hold behavior, but the transition and re-entry contract is not evident in the inspected ProblemMemory or GUI open/list routes.
-- **Test gap:** `tests/test_problem_memory.py` covers open/close/decay and matching but not stuck-state re-entry; `tests/test_counterfactual_node.py` does not cover stuck-problem routing.
-- **Disposition:** define whether stuck is a human handoff, terminal hold or resumable workflow state, and add tests for its intended re-entry path. Do not broaden queries to include stuck without policy review.
+- **Verified:** FocusLoop marks a problem `stuck` when it surfaces a chat ping (and can also mark it stuck while a global ping cooldown suppresses the message). ProblemMemory.list_open(), its find_matching(), CounterfactualNode._process_one(), CoherenceGate context and TimeFetch's ProblemMemory-backed problem retrieval consume `state='open'` and therefore skip stuck rows.
+- **Important alternate path:** ProblemMemory.select_for_injection() explicitly considers candidates in any state, including stuck and closed, subject to its lookback, anchor and cooldown filters and a minimum surviving pool. This can re-surface a stuck item into a Fountain prompt without changing its state.
+- **GUI lifecycle:** resume() returns the stored row without changing its state; GET can inspect it, and observe()/update_plan() can append data without reopening it. The reviewed GUI API has no explicit `stuck -> open` transition.
+- **Impact:** stuck items are excluded from normal open-problem paths, but are not universally unreachable. Whether this represents human escalation, a terminal hold or a resumable workflow state remains unresolved.
+- **Test gap:** `tests/test_problem_memory.py` covers open/close/decay and matching but not stuck-state behavior/re-entry; `tests/test_counterfactual_node.py` does not cover stuck-problem routing or the Fountain any-state injection path.
+- **Disposition:** define the stuck-state contract and test both its normal-path exclusion and intended any-state injection/re-entry. Do not broaden open-state queries or transition states without policy review.
 
 
 ### G-60 — Problem/Goal stale-decay methods are not orchestrated in reviewed normal boot/chat paths
