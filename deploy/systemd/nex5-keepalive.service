@@ -1,0 +1,23 @@
+[Unit]
+Description=NEX5 keepalive supervisor (wraps nex_keepalive.sh)
+# STANDBY/power-switch logic stays in the script.
+After=network.target nex5-power-switch.service
+Wants=nex5-power-switch.service
+StartLimitIntervalSec=1h
+StartLimitBurst=3
+
+[Service]
+Type=simple
+WorkingDirectory=/mnt/games/storage/Desktop/Desktop/nex5
+ExecStart=/mnt/games/storage/Desktop/Desktop/nex5/nex_keepalive.sh
+# Keep systemd's default KillMode=control-group: run.py must receive SIGTERM
+# so it can flush databases and stamp the clean_standby marker.
+Restart=on-failure
+RestartSec=2
+RestartPreventExitStatus=3
+StandardOutput=append:%h/.nex/nex5_supervisor.log
+StandardError=append:%h/.nex/nex5_supervisor.log
+MemoryAccounting=yes
+
+[Install]
+WantedBy=default.target

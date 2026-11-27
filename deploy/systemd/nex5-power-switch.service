@@ -1,0 +1,17 @@
+[Unit]
+Description=NEX5 power switch sidecar (:8766) — standalone, never shares a cgroup with the keepalive supervisor
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/mnt/games/storage/Desktop/Desktop/nex5
+ExecStart=/mnt/games/storage/Desktop/Desktop/nex5/.venv/bin/python3 /mnt/games/storage/Desktop/Desktop/nex5/power_switch.py
+
+Restart=always
+RestartSec=2
+
+StandardOutput=append:%h/.nex/nex5_power.log
+StandardError=append:%h/.nex/nex5_power.log
+
+[Install]
+WantedBy=default.target

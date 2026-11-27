@@ -15,6 +15,35 @@ systemctl --user list-timers 'nex5-db-reaper*'
   30-day prune; no VACUUM). See `../../DB_AUDIT.md`.
 - `nex5-db-reaper.timer` — nightly ~04:00, Persistent (catches up if the box was off).
 
+## Host checkout path and user services
+
+The reference units below are pinned to the verified checkout on the current
+host: `/mnt/games/storage/Desktop/Desktop/nex5`. If the checkout moves, update every unit path before
+installing. The active units live in `~/.config/systemd/user/`.
+
+The four long-running/maintenance units are:
+- `nex-vitals.service` — oneshot vitals snapshot.
+- `nex5-db-reaper.service` — oneshot retention reaper.
+- `nex5-keepalive.service` — supervisor; retain default
+  `KillMode=control-group` for graceful shutdown.
+- `nex5-power-switch.service` — standalone sidecar; do not combine its cgroup
+  with the keepalive supervisor.
+
+Install the four reference files only after reviewing the paths and preserving
+any host-specific local changes:
+
+```bash
+install -m 0644 deploy/systemd/nex-vitals.service ~/.config/systemd/user/
+install -m 0644 deploy/systemd/nex5-db-reaper.service ~/.config/systemd/user/
+install -m 0644 deploy/systemd/nex5-keepalive.service ~/.config/systemd/user/
+install -m 0644 deploy/systemd/nex5-power-switch.service ~/.config/systemd/user/
+systemd-analyze --user verify ~/.config/systemd/user/nex-vitals.service ~/.config/systemd/user/nex5-db-reaper.service ~/.config/systemd/user/nex5-keepalive.service ~/.config/systemd/user/nex5-power-switch.service
+systemctl --user daemon-reload
+```
+
+This installation does not start or restart any service. Enablement and service
+activation are separate operator decisions.
+
 ## Disk-space alarm (read-only; alerts, never deletes)
 
 ```bash
