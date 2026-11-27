@@ -12,6 +12,7 @@ import sqlite3
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 
 from tests._bootstrap import *  # noqa: F401, F403
 
@@ -23,8 +24,11 @@ class TestSelfStateHistory(unittest.TestCase):
         os.environ["NEX5_DATA_DIR"] = self.tmp
         from substrate.init_db import init_all
         init_all()
+        from substrate import Writer, db_paths
+        self.dynamic_writer = Writer(db_paths()["dynamic"], name="dynamic")
 
     def tearDown(self):
+        self.dynamic_writer.close()
         os.environ.pop("NEX5_DATA_DIR", None)
         shutil.rmtree(self.tmp, ignore_errors=True)
 
@@ -61,6 +65,43 @@ class TestSelfStateHistory(unittest.TestCase):
         finally:
             c.close()
 
+    def test_bind_uses_injected_dynamic_writer_without_opening_another(self):
+        from theory_x.stage_tom import self_binding
+        with patch.object(
+            self_binding,
+            "Writer",
+            side_effect=AssertionError("self_binding opened a second dynamic Writer"),
+        ):
+            result = self_binding.bind(dynamic_writer=self.dynamic_writer)
+        self.assertIn("synthesis", result)
+        # The injected Writer remains owned by the caller and usable afterwards.
+        self.dynamic_writer.write(
+            "UPDATE self_state SET bound_at = bound_at WHERE id = 1"
+        )
+
+    def test_recursive_self_passes_the_injected_writer(self):
+        from theory_x.stage_tom import recursive_self, self_binding
+        with patch.object(
+            self_binding,
+            "bind",
+            return_value={"components": {"raga": "free"}},
+        ) as bind:
+            result = recursive_self._bound_state(dynamic_writer=self.dynamic_writer)
+        self.assertEqual(result, {"raga": "free"})
+        bind.assert_called_once_with(dynamic_writer=self.dynamic_writer)
+
+    def test_history_survives_many_binds(self):
+        from theory_x.stage_tom import self_binding
+        for _ in range(5):
+            self_binding.bind()
+        c = self._dynamic_conn()
+        try:
+            n = c.execute("SELECT COUNT(*) FROM self_state_history").fetchone()[0]
+            self.assertEqual(n, 5)
+            self.assertEqual(
+                c.execute("SELECT COUNT(*) FROM self_state").fetchone()[0], 1)
+        finally:
+            c.close()
     def test_history_survives_many_binds(self):
         from theory_x.stage_tom import self_binding
         for _ in range(5):
