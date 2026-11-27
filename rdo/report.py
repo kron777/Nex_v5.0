@@ -206,6 +206,7 @@ def _six_outputs(cycle, summary, memory, learning) -> dict:
             "system": summary["system_tension"],
             "sufficiency_no_further_dev": summary["sufficiency"]},
         "false_dependencies_pruned": summary["false_dependencies_pruned"],
+        "relationship_impact": cycle.relationship_impact,
     }
 
 
