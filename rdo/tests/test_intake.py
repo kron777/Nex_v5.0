@@ -251,6 +251,24 @@ def test_submit_runs_existing_pipeline_and_persists_intake_provenance(tmp_path, 
     cycle = result["cycle"]
     assert cycle["objective"] == raw["original_text"]
     assert cycle["objective_input"]["objective_id"] == raw["objective_id"]
+    assert cycle["objective_context"] == {
+        "scope": raw["scope"],
+        "constraints": raw["constraints"],
+        "exclusions": raw["exclusions"],
+        "acceptance_criteria": raw["acceptance_criteria"],
+    }
+    assert cycle["context_assessment"]["status"] == "unmapped"
+    assert cycle["context_assessment"]["review_required"] is True
+    assert all(item["status"] == "unmapped" and item["evidence"] == []
+               for item in cycle["context_assessment"]["items"])
+    assert cycle["work_packages"]
+    assert all(package["eligibility"] == "blocked"
+               for package in cycle["work_packages"])
+    assert all(
+        any("No autonomous execution" in item
+            for item in package["anti_requirements"])
+        for package in cycle["work_packages"]
+    )
     assert cycle["objective_input"]["revision"] == 1
     assert cycle["objective_input"]["sha256"] == result["input_sha256"]
     by_key = {item["key"]: item for item in cycle["obligations"]}
