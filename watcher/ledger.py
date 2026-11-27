@@ -90,7 +90,7 @@ class ConnectionLedger:
             raise LedgerError(f"unknown state {to_state!r}; one of {STATES}")
         if origin not in ("cloud", "host"):
             raise LedgerError(f"origin must be cloud|host, got {origin!r}")
-        refs = evidence_refs if evidence_refs is not None else []
+        refs = list(evidence_refs) if isinstance(evidence_refs, list) else (evidence_refs or [])
         if to_state == "RUNTIME_OBSERVED":
             if origin != "host":
                 raise LedgerError("RUNTIME_OBSERVED requires host origin")
