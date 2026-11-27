@@ -1,6 +1,6 @@
 # NEX Phase 0 — Verified Defect and Evidence-Gap Backlog (Mainline)
 
-**Snapshot:** `main` at `80c30b6cc649bb9ce46fd6fdc06bf4afbc9f57c5`  
+**Snapshot:** `main` at `edb869af154a33cd77df5ad9bdf010d3e6ab06a2`  
 **Date:** 27 November 2026  
 **Purpose:** Separate confirmed documentation/source discrepancies from unknown host/runtime evidence and incomplete audits. This backlog is not approval to change cognition or policy.
 
@@ -315,3 +315,8 @@ These findings were rechecked against current main after the bounded persistence
 - **Configuration qualification:** the tracked keepalive declares `NEX5_WARRANT_RECORD=1` but not `NEX5_WARRANT`. The known launcher path blocker and uninspected user systemd unit mean host-effective activation remains UNKNOWN.
 - **Documentation correction:** PR #262 merged as `c9e25d7cf85659e80053f5fe75928ee71486a141` and corrects the WarrantPass class docstring, which incorrectly attributed its construction/start to `run.py`. The normal boot source actually starts WarrantRecorder behind `NEX5_WARRANT_RECORD` and does not construct WarrantPass. The merge is documentation-only; it does not add a caller or change flags.
 - **Disposition:** record-only operation may be intentional while Warrant evidence accrues after its failed validation gate. Clarify the intended lifecycle; do not wire WarrantPass, alter flags or change its gate without founder approval. No live process or `belief_warrant` state was inspected.
+
+
+## Provenance erosion replay status correction — 27 November 2026
+
+PR #264's exact-head full-suite run `46023260805` completed successfully, but PR metadata/commit comparison established that its merge base was the pre-PR #263 commit `cc8ae43652bdba919198ee4bb90fabbd8f05632f`. The run therefore does not validate a current-main replay. PR #264 was closed as superseded. PR #266 carries the same bounded keyset-pagination implementation and regression tests on current main `edb869af154a33cd77df5ad9bdf010d3e6ab06a2`; it is draft and requires its own exact-head full-suite result. Behavioural impact and review boundary are documented in #266. Do not merge or deploy until that run is green and the changed belief-evolution consequences are reviewed.

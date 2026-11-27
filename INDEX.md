@@ -1,6 +1,6 @@
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `80c30b6cc649bb9ce46fd6fdc06bf4afbc9f57c5`  
+**Last verified against:** `main` at `edb869af154a33cd77df5ad9bdf010d3e6ab06a2`  
 **Evidence date:** 27 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -650,7 +650,7 @@ This is a verified producer/consumer mismatch, but **the intended lifecycle sema
 
 ### Current engineering boundary
 
-- **PR #264** is a separate draft current-main replay for the World Model provenance-erosion 500-row pagination defect. Its head is `8d2e6049621301e9f117b33ed5ec4ae496d3bd53`, based on this mainline. Exact-head full-suite run `46023260805` was still in progress at the latest check. It is not merged or validated; its behavioural impact is described in the PR. Do not report it as complete.
+- **PR #264** was superseded and closed because its base was pre-PR #263 main (`cc8ae43652bdba919198ee4bb90fabbd8f05632f`). Its exact-head full-suite run `46023260805` eventually passed, but that result did not cover the post-#263 base. **PR #266** replays the same two-file provenance-erosion keyset pagination fix and regression tests on current main `edb869af154a33cd77df5ad9bdf010d3e6ab06a2`; it is draft and awaits its own exact-head full-suite result. The behavioural impact remains material: previously starved beliefs may advance on a future six-hour cycle. Do not report #266 as validated or merged.
 - G-69 remains held for Gate 0 review. G-73/G-74/G-75 remain open lifecycle/eligibility questions. The two missing doctrine references and overdue P13 unblock remain visible mind-map warnings.
 - PR #263's merge is a documentation integration, not a Gate 0 approval. Gate 0 remains pending founder review; Phase 1 remains unauthorized.
 
@@ -661,3 +661,12 @@ For a fresh independent review, read in this order: this `INDEX.md`; `PHASE0_HAN
 Ask Claude to independently locate the original V2.1 proposal and approval record, identify the exact goal-lifecycle clauses, and return verbatim clause references plus the evidence establishing approval. If it cannot locate them, it must say so rather than infer the rule. Claude should then independently verify G-58 against current source and tests, distinguish confirmed implementation from intended semantics, and propose the smallest test-first reconciliation. No state semantics, policy, schema, live database or runtime change is authorized by this handoff.
 
 The continuing work method is research → bounded implementation where authority permits → rescan changed code and surrounding dependencies → record evidence, consequences and newly exposed gaps → update this manual and backlog. Keep provisional hypotheses separate from verified facts and actively test disconfirming explanations.
+
+
+## 38. Provenance erosion pagination replay corrected to the post-manual mainline (27 November 2026)
+
+The prior §37 snapshot recorded PR #264 as based on the current post-#263 mainline. A later PR metadata and commit-graph recheck disproved that: #264's merge base was `cc8ae43652bdba919198ee4bb90fabbd8f05632f`, before the PR #263 documentation reconciliation. Its exact-head full-suite run `46023260805` subsequently completed successfully, but it is evidence for that older head/base only.
+
+PR #264 was closed as superseded. **PR #266** replays the same source and regression-test changes on current main `edb869af154a33cd77df5ad9bdf010d3e6ab06a2`. It is draft, with exact-head CI pending. The source change remains bounded keyset pagination; the behavioural consequence remains that beliefs previously starved beyond the first 500 may now advance at the next scheduled erosion pass. The undo log is audit metadata, not automatic rollback. Keep #266 separate for exact-head verification and review; no live state was accessed or changed.
+
+This correction illustrates the manual's evidence rule: a passing workflow on a PR head does not establish that the PR is based on the latest mainline. Verify both the exact tested SHA and its merge base before calling a replay current-main validated.

@@ -2,7 +2,7 @@
 
 **Date:** 27 November 2026  
 **Repository:** https://github.com/kron777/Nex_v5.0  
-**Evidence snapshot:** `main` at `80c30b6cc649bb9ce46fd6fdc06bf4afbc9f57c5`  
+**Evidence snapshot:** `main` at `edb869af154a33cd77df5ad9bdf010d3e6ab06a2`  
 **Gate 0:** **PENDING — founder review required**
 
 ## Read these together
@@ -196,3 +196,8 @@ G-58 is a real implementation mismatch: GoalManager creates/selects `open` goals
 - The frozen S-01–S-25 register, roadmap, Gate 0 and Phase 1 boundaries remain unchanged.
 
 Claude's review should follow the same research → bounded implementation → rescan → consequence/evidence → manual-update loop. Separate facts, hypotheses, policy decisions and approvals. Do not treat a green CI run as host activation or behavioural validation.
+
+
+## Post-PR #265 current-main correction — 27 November 2026
+
+The first manual update described PR #264 as based on the post-#263 mainline. A later commit-graph check found its merge base was still `cc8ae43652bdba919198ee4bb90fabbd8f05632f`. Its exact-head suite run `46023260805` passed, but that run did not validate the later mainline. PR #264 is closed as superseded. **PR #266** replays the same change on current main `edb869af154a33cd77df5ad9bdf010d3e6ab06a2`; it is draft and awaits its own exact-head CI. Do not treat the old pass as current-main validation. The change may advance previously starved beliefs at a future scheduled erosion pass and remains subject to review.
