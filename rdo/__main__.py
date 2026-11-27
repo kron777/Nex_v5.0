@@ -99,6 +99,8 @@ def _selfcheck(args) -> int:
 def _failure_propagation(args) -> int:
     """Read one persisted cycle and report structural dependent candidates."""
     try:
+        if not os.path.isdir(args.dir):
+            raise FileNotFoundError(f"cycle store directory does not exist: {args.dir}")
         cycle = CycleStore(args.dir).load(args.cycle_id)
         result = failure_propagation_candidates(
             cycle.obligations, cycle.relationships, args.failed_key
@@ -113,6 +115,8 @@ def _failure_propagation(args) -> int:
 def _impact(args) -> int:
     """Compare persisted before/after cycle snapshots around changed capabilities."""
     try:
+        if not os.path.isdir(args.dir):
+            raise FileNotFoundError(f"cycle store directory does not exist: {args.dir}")
         store = CycleStore(args.dir)
         before = store.load(args.before_cycle_id)
         after = store.load(args.after_cycle_id)
