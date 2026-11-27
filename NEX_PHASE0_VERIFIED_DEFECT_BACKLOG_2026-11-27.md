@@ -176,6 +176,13 @@ These are source-level conditions and test-coverage gaps recovered from older au
 - **Declared exception:** Stage-2 `_write_sense_belief()` also writes Tier-7 `precipitated_from_sense` content without the Gate, but its own loop explicitly classifies this as raw external perception rather than a generated thought. Keep this source-perception exception distinct from the two reflective producers above.
 - **Disposition:** reconcile the universal wording with explicit non-thought/system-observation exceptions, or decide whether RememberLoop/self-rut observations should be passed through the Gate. No gate calls or persistence behavior changed.
 
+### G-63 — ProblemMemory's duplicate-observation rationale is stale
+
+- **Source:** `theory_x/stage7_sustained/problem_memory.py:ProblemMemory.observe()` docstring; current implementation in `theory_x/sustained/focus_loop.py:_append_observation()`.
+- **Verified:** the ProblemMemory docstring says FocusLoop lacks the same-text duplicate guard and re-appends stale text every 60 seconds, leading to an `ocount >= 10` close gate. The current FocusLoop implementation has its own identical-last-entry check and returns without appending when the last observation matches (comment says this was fixed 2026-07-24). No `ocount >= 10` close gate was found in the inspected current FocusLoop or ProblemMemory code.
+- **Test gap:** `tests/test_problem_memory.py` tests ProblemMemory.observe(); no dedicated `tests/test_focus_loop.py` exists in the current test tree. The FocusLoop duplicate guard has no direct regression coverage.
+- **Disposition:** update the stale ProblemMemory docstring and add an isolated FocusLoop duplicate-observation test. This is documentation/test work; the current guard remains unchanged.
+
 ## F. Gate boundary
 
 This backlog is evidence input for Gate 0. It is not permission to enable Phase 1 experiments, change prompts, change confidence/belief revision, modify Coherence Gate policy, alter dark flags, start/restart services or touch live databases.
