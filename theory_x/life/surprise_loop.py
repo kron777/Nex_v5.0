@@ -95,6 +95,11 @@ def _surprise_tags(big_surprise: bool) -> list[str]:
     return ["surprise", "big_surprise"] if big_surprise else ["surprise"]
 
 
+def _is_duplicate_belief_content_error(exc: Exception) -> bool:
+    """Only a content uniqueness collision is safe to checkpoint as handled."""
+    return "unique constraint failed: beliefs.content" in str(exc).lower()
+
+
 def _surprise_to_belief(surprise_row):
     """Render a surprise_events row as a first-person belief sentence."""
     ptype = surprise_row["prediction_type"]
@@ -166,9 +171,16 @@ def surprise_tick(
                     ),
                 )
                 promoted += 1
-            except IntegrityError:
-                # Duplicate content is already represented; it is safe to pass.
-                pass
+            except IntegrityError as e:
+                if _is_duplicate_belief_content_error(e):
+                    # Duplicate content is already represented; it is safe to pass.
+                    pass
+                else:
+                    log.warning(
+                        "surprise belief integrity failure for event %s: %s",
+                        row["id"], e,
+                    )
+                    break
             except Exception as e:
                 # Do not checkpoint this event or anything after it. The next
                 # tick retries from the last fully handled event.
