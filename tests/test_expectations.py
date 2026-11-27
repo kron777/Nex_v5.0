@@ -20,7 +20,7 @@ from unittest import mock
 
 from tests import _bootstrap  # noqa: F401
 
-from substrate import connect, Row
+from substrate import connect, Row, Writer
 from theory_x.stage_world import expectations as X
 
 _STAKES = (0.0, 0, 0.2)
@@ -624,3 +624,46 @@ def test_valence_ownership_threshold_isolated():
     assert below == (0.0, 0, "external_basis")
     assert at[1:] == (1, "violated") and at[0] < 0
     assert above[1:] == (1, "violated") and above[0] < 0
+
+
+class TestWriterBackedReconciler(_Store):
+    def test_reconcile_uses_shared_writers_for_both_database_files(self):
+        os.environ["NEX5_EXPECT_LEARN"] = "1"
+        bid = self._belief("writer-backed expectation", "authored", conf=0.7)
+        self._expect([bid], band=1)
+        self._break(bid)
+        conversations_writer = Writer(self.conv, name="expectations-conversations-test")
+        beliefs_writer = Writer(self.bel, name="expectations-beliefs-test")
+        original_connect = X.connect
+
+        def read_only_only(path, *args, **kwargs):
+            if "mode=ro" not in str(path):
+                raise AssertionError(f"write-capable direct connection bypassed Writer: {path}")
+            return original_connect(path, *args, **kwargs)
+
+        try:
+            with mock.patch.object(X, "connect", side_effect=read_only_only):
+                stats = X.reconcile(
+                    now=T0 + DAY + 1,
+                    conversations_writer=conversations_writer,
+                    beliefs_writer=beliefs_writer,
+                )
+        finally:
+            conversations_writer.close()
+            beliefs_writer.close()
+
+        self.assertEqual(stats["ingested"], 1)
+        self.assertEqual(stats["violated"], 1)
+        self.assertEqual(stats["learned"], 1)
+        self.assertLess(self._conf(bid), 0.7)
+
+        cx = connect(self.conv)
+        try:
+            self.assertEqual(cx.execute(
+                "SELECT COUNT(*) FROM expectation_learning_log"
+            ).fetchone()[0], 1)
+            self.assertEqual(cx.execute(
+                "SELECT COUNT(*) FROM learning_guard_ticks"
+            ).fetchone()[0], 1)
+        finally:
+            cx.close()
