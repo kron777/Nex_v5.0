@@ -198,6 +198,8 @@ nodes:
       verified-correct-mechanism level; would need re-confirming against live selection data if the
       flag is ever armed.
 
+
+      2026-11-27 source re-verification: _alobha_context() and _alobha_penalty() remain in generator.py:727-785; the generator applies the penalty only behind NEX5_ALOBHA=1 at 867-883. The current keepalive launch line omits NEX5_ALOBHA. The 2026-11-15 /proc probe is historical; current process environment was not checked.
   - id: vedana
     label: "vedanā — feeling-tone"
     layer: arm
@@ -287,6 +289,8 @@ nodes:
       exists in nex_config.py; the hypothesis that it ran as an always-on sidecar regardless is the
       claim the 2026-11-15 round above tested directly and found false.)
 
+
+      2026-11-27 source re-verification: detect() remains in mana_detector.py:40-75; _cluster_reads() and afflictions_for_prompt() gate it in self_binding.py:298-345; generator.py:3990-4001 adds the outer NEX5_AFFLICTIONS gate. The current keepalive launch line omits NEX5_AFFLICTIONS. The 2026-11-15 /proc probe is historical; current process state was not checked.
   - id: vicikitsa
     label: "vicikitsā — doubt"
     layer: arm
@@ -459,6 +463,8 @@ nodes:
       generate()/crystallize() path directly -- flagged to Jon as a different risk class before
       starting; proceeded on his explicit go-ahead.
 
+
+      2026-11-27 source re-verification: generate() captures retrieval_manifest at generator.py:1878-1903 and passes the retained own_sense candidate through the current crystallize call at generator.py:2960-2975. crystallize() accepts the optional parameter at crystallizer.py:290-298 and records it at 629-637; focused regression tests are at tests/test_smrti_retained_candidate.py:87-121. The 15-Nov line numbers in the historical narrative above are not current anchors; use these source refs.
   - id: virya
     label: "vīrya — joyous effort"
     layer: arm
@@ -640,6 +646,8 @@ nodes:
       explicit decision, not a side effect of this round.
 
   # ──────────────────────────── CONSUMERS ───────────────────────────
+
+      2026-11-27 source re-verification: the new-evidence repricing path remains in harmonizer.py:610-720, with template stripping at 173-187 and the regression suite at tests/test_reprice_tensions_on_new_evidence.py:131-251. The 15-Nov production-corpus measurements remain historical evidence; no new live corpus probe or runtime change was made.
   - id: p6_unified_present
     label: "6 · A unified present (manaskāra)"
     layer: arm
