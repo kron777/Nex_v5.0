@@ -1038,18 +1038,36 @@ def scorecard_by_kind(db_path: Optional[str] = None) -> dict:
 
 # Optional: standalone daemon loop, mirrors WorldPredictionLoop idiom.
 class SelfPredictionLoop:
-    def __init__(self, interval: int = 900, horizon: int = HORIZON,
-                 operating_p: float = 0.5):
+    def __init__(
+        self,
+        interval: int = 900,
+        horizon: int = HORIZON,
+        operating_p: float = 0.5,
+        *,
+        conversations_writer: Writer | None = None,
+        beliefs_writer: Writer | None = None,
+        conversations_reader: Reader | None = None,
+        dynamic_reader: Reader | None = None,
+        beliefs_reader: Reader | None = None,
+    ):
         self.interval = interval
         self.horizon = horizon
         # operating point for the learned gate (3c). 0.5 = balanced; lower favours
         # recall on the rare 'nofire', higher favours precision.
         self.operating_p = float(os.environ.get("NEX5_SELFPRED_OPERATING_P", operating_p))
         self._alive = False
+        self._conversations_writer = conversations_writer
+        self._beliefs_writer = beliefs_writer
+        self._conversations_reader = conversations_reader
+        self._dynamic_reader = dynamic_reader
+        self._beliefs_reader = beliefs_reader
 
     def tick(self):
         try:
-            r = resolve_due()
+            r = resolve_due(
+                conversations_writer=self._conversations_writer,
+                dynamic_reader=self._dynamic_reader,
+            )
             if r:
                 logger.info("self_pred resolved=%d", r)
         except Exception as e:
@@ -1057,14 +1075,21 @@ class SelfPredictionLoop:
         # fire gate MONITOR (Q3): log the threshold the fire target would learn, to
         # show it standing still at P(fire)=0.992. Does NOT set the live gate.
         try:
-            upd = adapt_threshold(operating_p=self.operating_p)
+            upd = adapt_threshold(
+                operating_p=self.operating_p,
+                conversations_writer=self._conversations_writer,
+                conversations_reader=self._conversations_reader,
+            )
             if upd:
                 logger.info("self_pred fire-gate MONITOR -> %.2f (op=%.2f, n=%d; not wired)",
                             upd["threshold"], upd["operating_p"], upd["n"])
         except Exception as e:
             logger.warning("self_pred monitor error: %s", e)
         try:
-            out = make_self_prediction(horizon=self.horizon)
+            out = make_self_prediction(
+                horizon=self.horizon,
+                conversations_writer=self._conversations_writer,
+            )
             if "error" not in out:
                 logger.info(
                     "self_pred self=%s random=%s readiness=%.2f",
@@ -1073,21 +1098,41 @@ class SelfPredictionLoop:
         except Exception as e:
             logger.warning("self_pred make error: %s", e)
         # 3(b): the two variance-bearing targets (resolve due, then make fresh).
-        for _resolve, _make, _name in (
-            (resolve_authored, make_authored_prediction, "authored_30m"),
-            (resolve_selfdesc, make_selfdesc_prediction, "selfdesc_novel"),
-        ):
-            try:
-                _resolve()
-                _make()
-            except Exception as e:
-                logger.warning("self_pred %s error: %s", _name, e)
+        try:
+            resolve_authored(
+                conversations_writer=self._conversations_writer,
+                beliefs_reader=self._beliefs_reader,
+            )
+            make_authored_prediction(
+                conversations_writer=self._conversations_writer,
+                beliefs_reader=self._beliefs_reader,
+            )
+        except Exception as e:
+            logger.warning("self_pred authored_30m error: %s", e)
+        try:
+            resolve_selfdesc(
+                conversations_writer=self._conversations_writer,
+                dynamic_reader=self._dynamic_reader,
+            )
+            make_selfdesc_prediction(
+                conversations_writer=self._conversations_writer,
+                dynamic_reader=self._dynamic_reader,
+            )
+        except Exception as e:
+            logger.warning("self_pred selfdesc_novel error: %s", e)
         # Build B: owned-belief expectations (dark; NEX5_OWNED_BELIEF=1), at most
         # one per NEX5_OWNED_BELIEF_EVERY_S. Writes only its own table.
         try:
             from theory_x.stage_world import owned_belief as _ob
-            if _ob.enabled() and _ob.due():
-                _ob.make_owned_belief_expectation()
+            if _ob.enabled() and _ob.due(
+                conversations_writer=self._conversations_writer,
+                conversations_reader=self._conversations_reader,
+            ):
+                _ob.make_owned_belief_expectation(
+                    conversations_writer=self._conversations_writer,
+                    conversations_reader=self._conversations_reader,
+                    beliefs_reader=self._beliefs_reader,
+                )
         except Exception as e:
             logger.warning("self_pred owned_belief error: %s", e)
         # Commitments (dark; NEX5_COMMITMENTS): read her new utterances for stated
@@ -1095,7 +1140,10 @@ class SelfPredictionLoop:
         try:
             from theory_x.stage_world import commitments as _cm
             if _cm.enabled():
-                _cm.scan()
+                _cm.scan(
+                    conversations_writer=self._conversations_writer,
+                    dynamic_reader=self._dynamic_reader,
+                )
         except Exception as e:
             logger.warning("self_pred commitments error: %s", e)
         # Build B: the single reconciler (NEX5_RECONCILER). Writes only the
@@ -1103,7 +1151,10 @@ class SelfPredictionLoop:
         try:
             from theory_x.stage_world import expectations as _ex
             if _ex.reconciler_on():
-                _ex.reconcile()
+                _ex.reconcile(
+                    conversations_writer=self._conversations_writer,
+                    beliefs_writer=self._beliefs_writer,
+                )
         except Exception as e:
             logger.warning("self_pred reconciler error: %s", e)
 
