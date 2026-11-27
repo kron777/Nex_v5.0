@@ -181,3 +181,14 @@ After the research snapshot above, PR #279 merged as `8d2121d121931d37afcb1c3d23
 Exact-head CI run `46044361663` passed **2,638 tests, 7 skipped, 45 subtests; baseline OK**. New tests compare Writer/Reader output with the direct builder and assert the scheduled loop calls the shared path. No post-merge main CI run was returned at this update.
 
 This closes the auxiliary prose-statistics direct-write bypass only. The primary `signal_to_problem_tick()` path still opens direct write-capable connections to `beliefs.db` and `conversations.db`, dynamically adds `signals.actioned_at`, and commits the two stores separately. G-85/G-61 therefore remain open; the cross-database idempotency/recovery contract is still needed before migrating the primary writes. No cognition policy or runtime state changed.
+
+
+### RDO objective-context gap — candidate G-91
+
+The intake validator requires and preserves `intent`, `owner`, `scope`, `constraints`, `exclusions`, and `acceptance_criteria`, but `submit_objective()` does not pass those fields into the planning pipeline. It constructs the cycle from `original_text`, top-level `assumptions`, caller-supplied `seed_obligations`, `relationships`, `reconciliation_signatures`, and `max_depth`; `objective_input` on the cycle contains only identity, revision, input digest and repository revision. The full input remains in the append-only revision ledger, but the other context fields are not translated into obligations or checked against proposed work packages.
+
+This is a capability/contract gap, not an execution defect: RDO remains advisory and does not apply the proposed work. However, a caller can supply a constraint or exclusion that is preserved for audit while the resulting work-package graph is not checked against it. The acceptance criteria likewise are not currently used as a completion-verification contract. The current deterministic engine also requires externally supplied seed obligations and reconciliation signatures; it does not compile raw natural-language intent into that initial network by itself.
+
+**Evidence:** `rdo_adapters/objective_intake.py::validate_objective()` validates these fields; `submit_objective()` (around lines 447–504) passes only the fields listed above to `run_cycle()`. `rdo/orchestrator.py::run_cycle()` has no scope/constraint/exclusion/acceptance-criteria inputs. Existing intake tests cover validation, revision integrity, replay and pipeline execution, but do not assert that those contextual fields constrain the generated plan.
+
+**Next step:** define a typed, traceable translation from context to obligations/anti-requirements and a separate acceptance-verification record. Keep free-text constraints visible as unresolved review obligations rather than claiming they are enforced. Do not silently change objective schema v1 or claim v1.4 precedence until the source-authority question is resolved.
