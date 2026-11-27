@@ -160,18 +160,19 @@ def _state_snapshot(readers: dict) -> dict:
 
 
 def _activity_morning(date_local: str, *, readers: dict, writers: dict) -> str:
+    now = _now_local()
     state = _state_snapshot(readers)
     msg = (
-        f"Good morning. It's {date_local}. "
-        f"I have {state.get('new_beliefs_24h', '?')} new beliefs, "
-        f"{state.get('open_problems', '?')} open problems, "
-        f"{state.get('moltbook_posts_24h', '?')} posts, "
-        f"and {state.get('fountain_fires_24h', '?')} fires behind me. "
-        f"My current focus is {state.get('focus_problem_id') or 'not set'}. "
-        f"What deserves attention today?"
+        f"good morning. it is {now.strftime('%A %d %B %Y, %H:%M')}.\\n\\n"
+        f"yesterday: {state.get('new_beliefs_24h', '?')} new beliefs, "
+        f"{state.get('fountain_fires_24h', '?')} fountain fires, "
+        f"{state.get('moltbook_posts_24h', '?')} posts to moltbook.\\n"
+        f"{state.get('open_problems', '?')} open problems still in front of me. "
     )
+    if state.get("latest_problem"):
+        msg += f"latest: \\"{state['latest_problem']}\\""
     _write_chat(msg, "Morning", writers["conversations"])
-    return msg
+    return msg[:200]
 
 
 def _activity_reading(slot: str, date_local: str, *, readers: dict, writers: dict) -> str:
@@ -179,32 +180,38 @@ def _activity_reading(slot: str, date_local: str, *, readers: dict, writers: dic
     try:
         row = readers["sense"].read_one(
             "SELECT stream, payload FROM sense_events "
-            "WHERE stream NOT LIKE 'internal.%' AND timestamp > ? "
+            "WHERE stream NOT LIKE 'internal.%' "
+            "  AND timestamp > ? "
             "ORDER BY RANDOM() LIMIT 1",
             (time.time() - 7200,),
         )
-        if not row:
-            return ""
-        stream, payload = row[0], row[1]
-        try:
-            dct = json.loads(payload) if payload else {}
-            title = dct.get("title") or dct.get("text") or payload[:200]
-            url = dct.get("url") or dct.get("link") or ""
-        except Exception:
-            title, url = (payload or "")[:200], ""
-        msg = f"I've been reading {stream}: {title[:180]}"
-        if url:
-            msg += f" ({url[:160]})"
-        msg += ". I want to understand what matters here."
+    except Exception as e:
+        log.warning("reading session: sense read failed: %s", e)
+        row = None
+    if not row:
+        msg = f"reading session {slot}: nothing fresh in the feeds. resting instead."
         _write_chat(msg, "Reading", writers["conversations"])
         return msg
-    except Exception as e:
-        log.debug("daily_life reading: %s", e)
-        return ""
+    stream, payload = row[0], row[1]
+    snippet = (payload or "")[:200]
+    msg = (
+        f"reading session {slot}. picking this from {stream}:\\n\\n"
+        f"  {snippet}\\n\\n"
+        f"sitting with it. what does it actually say? what is it close to that i already hold?"
+    )
+    _write_chat(msg, "Reading", writers["conversations"])
+    return f"read from {stream}"
 
 
 def _activity_outreach(slot: str, date_local: str, *, readers: dict, writers: dict) -> str:
-    """One approved outbound DM; never invent recipients or send."""
+    """Pick one approved moltbook conversation; record intent without sending."""
+    try:
+        from theory_x.stage7_moltbook.client import MoltbookClient
+        client = MoltbookClient()
+    except Exception as e:
+        msg = f"outreach {slot}: moltbook unreachable ({type(e).__name__}). skipping."
+        _write_chat(msg, "Outreach", writers["conversations"])
+        return msg
     try:
         has_table = readers["dynamic"].read_one(
             "SELECT 1 FROM sqlite_master WHERE type='table' AND name='moltbook_dms'"
@@ -214,32 +221,38 @@ def _activity_outreach(slot: str, date_local: str, *, readers: dict, writers: di
             "WHERE approved=1 LIMIT 8"
         ) if has_table else []
     except Exception as e:
-        log.debug("daily_life outreach: %s", e)
-        rows = []
-    if not rows:
-        msg = "I considered reaching out, but there are no approved conversations to continue."
+        msg = f"outreach {slot}: db error ({e})"
         _write_chat(msg, "Outreach", writers["conversations"])
         return msg
-    row = rows[0]
+    if not rows:
+        msg = f"outreach {slot}: no approved convs."
+        _write_chat(msg, "Outreach", writers["conversations"])
+        return msg
+    # Surface the intent — actual send is wired separately; for now we record it.
+    cid, name = rows[0][0], rows[0][1]
     msg = (
-        f"I noticed an approved conversation with {row['with_agent'] or 'a contact'}. "
-        "I will prepare a thoughtful continuation for review rather than send anything automatically."
+        f"outreach {slot}. would reach out to {name} (conv {cid[:8]}) — "
+        f"but holding off until i have something real to say."
     )
     _write_chat(msg, "Outreach", writers["conversations"])
-    return msg
+    return msg[:200]
 
 
 def _activity_journal(date_local: str, *, readers: dict, writers: dict) -> str:
+    now = _now_local()
     state = _state_snapshot(readers)
     msg = (
-        f"At the end of {date_local}, I notice {state.get('new_beliefs_24h', '?')} "
-        f"new beliefs and {state.get('open_problems', '?')} open problems. "
-        f"My latest open question is {state.get('latest_problem') or 'still forming'}. "
-        "What did I learn, what remains uncertain, and what should I revisit tomorrow?"
+        f"journal — {now.strftime('%A %d %B, %H:%M')}.\\n\\n"
+        f"today i made {state.get('new_beliefs_24h', '?')} new beliefs, "
+        f"fired {state.get('fountain_fires_24h', '?')} thoughts, "
+        f"posted to moltbook {state.get('moltbook_posts_24h', '?')} times.\\n"
+        f"i hold {state.get('open_problems', '?')} open problems. "
     )
+    if state.get("focus_problem_id"):
+        msg += f"focus right now: problem #{state['focus_problem_id']}.\\n\\n"
+    msg += "going quieter now. the night is for less."
     _write_chat(msg, "Journal", writers["conversations"])
-    return msg
-
+    return msg[:200]
 
 def _activity_source_audit(date_local: str, *, readers: dict, writers: dict) -> str:
     from theory_x.stage_tom.source_kind_audit import run_and_record
