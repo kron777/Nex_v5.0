@@ -36,16 +36,18 @@ def _beliefs(path):
         " locked INTEGER DEFAULT 0, paused INTEGER DEFAULT 0);"
         "CREATE TABLE synergizer_log (id INTEGER PRIMARY KEY, ts REAL, belief_id_a INTEGER, "
         " belief_id_b INTEGER);"
-        "CREATE TABLE belief_lineage (child_id INTEGER, parent_id INTEGER, created_at REAL);"
-        "CREATE TABLE arc_members (belief_id INTEGER, joined_at REAL);")
+        "CREATE TABLE belief_lineage (child_id INTEGER, parent_id INTEGER, relationship TEXT, created_at REAL, "
+        " PRIMARY KEY (child_id, parent_id, relationship));"
+        "CREATE TABLE arc_members (arc_id INTEGER, belief_id INTEGER, position INTEGER, role TEXT, "
+        " joined_at REAL, PRIMARY KEY (arc_id, belief_id));")
     rows = [(i, f"plain belief number {i} about ordinary things", t, 0, 0)
             for i, t in [(1, 3), (2, 3), (3, 3), (4, 6), (5, 6), (6, 7), (7, 7), (8, 7)]]
     rows += [(9, "a locked keystone", 1, 1, 0), (10, "paused one", 7, 0, 1)]
     c.executemany("INSERT INTO beliefs VALUES (?,?,?,?,?)", rows)
     c.executemany("INSERT INTO synergizer_log VALUES (?,?,?,?)",
                   [(1, _T0, 4, 6), (2, _T0 + 3600, 4, 7)])          # 4 used twice same day
-    c.execute("INSERT INTO belief_lineage VALUES (50, 4, ?)", (_T0 + 2 * _DAY,))
-    c.execute("INSERT INTO arc_members VALUES (6, ?)", (_T0 + 5 * _DAY,))
+    c.execute("INSERT INTO belief_lineage VALUES (50, 4, 'test', ?)", (_T0 + 2 * _DAY,))
+    c.execute("INSERT INTO arc_members VALUES (1, 6, 0, 'test', ?)", (_T0 + 5 * _DAY,))
     c.commit(); c.close()
 
 
@@ -111,34 +113,48 @@ class TestRecorder(unittest.TestCase):
         self.assertEqual(self.r.use_cycle(now=_T0 + 12 * _DAY), 0)    # cursors hold
         self.assertEqual(dict(self._q("SELECT belief_id, days FROM belief_use_days")), got)
 
-    def test_lineage_and_arc_cursors_do_not_skip_tied_timestamp_pages(self):
+    def test_lineage_and_arc_cursors_use_stable_composite_primary_keys(self):
         rec._USE_BATCH = 2
-        lineage_ts = _T0 + 3 * _DAY
-        arc_ts = _T0 + 6 * _DAY
+        same_ts = _T0 + 30 * _DAY
         c = sqlite3.connect(self.bdb)
         c.executemany(
-            "INSERT INTO belief_lineage (child_id, parent_id, created_at) VALUES (?,?,?)",
-            [(100 + i, i, lineage_ts) for i in range(1, 6)],
+            "INSERT INTO belief_lineage (child_id, parent_id, relationship, created_at) "
+            "VALUES (?, ?, 'test', ?)",
+            [(100 + i, 101, same_ts) for i in range(5)],
         )
         c.executemany(
-            "INSERT INTO arc_members (belief_id, joined_at) VALUES (?,?)",
-            [(i, arc_ts) for i in range(1, 6)],
+            "INSERT INTO arc_members (arc_id, belief_id, position, role, joined_at) "
+            "VALUES (1, ?, ?, 'test', ?)",
+            [(102 + i, i, same_ts) for i in range(5)],
         )
         c.commit()
         c.close()
 
-        # The first page contains an earlier timestamp plus only the first tied
-        # row. Subsequent pages must continue by (timestamp, rowid), not skip
-        # the remaining rows whose timestamp equals the previous page's cursor.
-        for tick in range(4):
-            self.r.use_cycle(now=_T0 + 7 * _DAY + tick)
+        # The fixture rows are consumed first; then each same-timestamp group
+        # spans multiple batches. Cursor progress must use declared PKs, not rowid.
+        for offset in range(5):
+            self.r.use_cycle(now=same_ts + offset)
 
-        lineage_day = int(lineage_ts // _DAY)
-        arc_day = int(arc_ts // _DAY)
-        rows = set(self._q("SELECT belief_id, day FROM belief_use_day"))
-        self.assertTrue({(i, lineage_day) for i in range(1, 6)} <= rows)
-        self.assertTrue({(i, arc_day) for i in range(1, 6)} <= rows)
-
+        lineage_day = int(same_ts // _DAY)
+        arc_day = int(same_ts // _DAY)
+        lineage = self._q(
+            "SELECT days FROM belief_use_days WHERE belief_id=101"
+        )
+        self.assertEqual(lineage[0][0], 1)
+        self.assertEqual(
+            self._q("SELECT COUNT(*) FROM belief_use_day WHERE belief_id=101")[0][0],
+            1,
+        )
+        self.assertEqual(
+            {row[0] for row in self._q(
+                "SELECT belief_id FROM belief_use_day WHERE belief_id BETWEEN 102 AND 106"
+            )},
+            {102, 103, 104, 105, 106},
+        )
+        self.assertEqual(self.r._tuple_cursor("use_lineage_pk", (0, 0, "")),
+                         (104, 101, "test"))
+        self.assertEqual(self.r._tuple_cursor("use_arc_pk", (0, 0)),
+                         (1, 106))
     def test_legacy_timestamp_cursor_schema_migrates_without_reset(self):
         old_value = _T0 + 2 * _DAY
         self.r._w.write(
