@@ -630,7 +630,7 @@ class TestWriterBackedReconciler(_Store):
     def test_reconcile_uses_shared_writers_for_both_database_files(self):
         os.environ["NEX5_EXPECT_LEARN"] = "1"
         bid = self._belief("writer-backed expectation", "authored", conf=0.7)
-        self._expect([bid], band=4)
+        self._expect([bid], band=1)
         self._break(bid)
         conversations_writer = Writer(self.conv, name="expectations-conversations-test")
         beliefs_writer = Writer(self.bel, name="expectations-beliefs-test")
