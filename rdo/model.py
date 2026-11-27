@@ -272,6 +272,8 @@ class Pattern:
     disconfirmed_count: int = 0
     confirmations: List[str] = dataclasses.field(default_factory=list)
     disconfirmations: List[str] = dataclasses.field(default_factory=list)
+    # When true, applicability is an exact objective match, not token overlap.
+    exact_scope: bool = False
 
     def to_dict(self) -> dict:
         d = dataclasses.asdict(self)
