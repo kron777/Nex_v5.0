@@ -29,7 +29,7 @@ from watcher.evidence import utc_now
 from .model import (CycleRecord, EXECUTED_VERIFIED, IMPORTED_RETROSPECTIVE,
                     NATIVE_PLANNING, RECON_UNKNOWN, REUSE_EXISTING,
                     SIGNATURE_MATCHED, PARTIAL, MISSING, Pattern,
-                    has_valid_reuse_review)
+                    has_valid_reuse_review, _has_traceable_evidence)
 
 MIN_CYCLES_FOR_TREND = 3
 CONFIDENCE_CAP = 0.9
@@ -240,11 +240,19 @@ class PatternMemory:
         return list(self._current.values())
 
     def applicable(self, context: str) -> List[Pattern]:
-        ctx = context.lower()
+        ctx = " ".join(context.split()).casefold()
+        for pattern in self._current.values():
+            if not isinstance(pattern.exact_scope, bool):
+                raise ValueError("pattern exact_scope must be a boolean")
+            if pattern.exact_scope and (
+                not isinstance(pattern.applicability, str) or not pattern.applicability.strip()
+            ):
+                raise ValueError("exact-scope patterns require a non-blank applicability")
         return [p for p in self._current.values()
                 if self._reliable(p)
-                and (not p.applicability
-                     or any(w in ctx for w in p.applicability.lower().split()))]
+                and (ctx == " ".join(p.applicability.split()).casefold() if p.exact_scope is True else
+                     (not p.applicability
+                      or any(w in ctx for w in p.applicability.lower().split())))]
 
 
 class CycleStore:
@@ -355,6 +363,16 @@ def derive_lessons(cycle: CycleRecord, disc: Dict) -> List[Pattern]:
                       "satisfy the obligation; make the signature stricter.",
             applicability=cycle.objective, confidence=0.3,
             exceptions=["partial matches should stay 'partial', not 'reuse'"]))
+    if (_has_traceable_evidence(disc.get("regressions"))
+            and isinstance(cycle.objective, str) and cycle.objective.strip()):
+        out.append(Pattern(
+            key="regression_risk:" + "_".join(str(cycle.objective).lower().split()),
+            provenance=f"cycle:{cid}",
+            statement="A development outcome recorded a regression in this objective; require "
+                      "explicit regression analysis and evidence before treating a similar "
+                      "change as safe.",
+            applicability=cycle.objective, confidence=0.3, exact_scope=True,
+            exceptions=["one regression is scoped evidence, not a universal prohibition"]))
     ee = disc.get("effort_error")
     if ee is not None and abs(ee) >= 1:
         out.append(Pattern(

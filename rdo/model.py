@@ -279,6 +279,16 @@ class Pattern:
     disconfirmed_count: int = 0
     confirmations: List[str] = dataclasses.field(default_factory=list)
     disconfirmations: List[str] = dataclasses.field(default_factory=list)
+    # When true, applicability is an exact objective match, not token overlap.
+    exact_scope: bool = False
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.exact_scope, bool):
+            raise ValueError("pattern exact_scope must be a boolean")
+        if self.exact_scope and (
+            not isinstance(self.applicability, str) or not self.applicability.strip()
+        ):
+            raise ValueError("exact-scope patterns require a non-blank applicability")
 
     def to_dict(self) -> dict:
         d = dataclasses.asdict(self)
