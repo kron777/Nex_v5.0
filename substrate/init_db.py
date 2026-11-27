@@ -386,6 +386,9 @@ _MIGRATIONS: dict[str, list[str]] = {
         "ON belief_edges(review_status)",
     ],
     "dynamic": [
+        "CREATE TABLE IF NOT EXISTS daemon_kv ("
+        "key TEXT PRIMARY KEY, value TEXT, updated_at REAL)",
+        "ALTER TABLE daemon_kv ADD COLUMN updated_at REAL",
         "CREATE TABLE IF NOT EXISTS harmonizer_events ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL NOT NULL, "
         "belief_id_a INTEGER, belief_id_b INTEGER, resolution TEXT, "
