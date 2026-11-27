@@ -355,6 +355,14 @@ def derive_lessons(cycle: CycleRecord, disc: Dict) -> List[Pattern]:
                       "satisfy the obligation; make the signature stricter.",
             applicability=cycle.objective, confidence=0.3,
             exceptions=["partial matches should stay 'partial', not 'reuse'"]))
+    if _has_traceable_evidence(disc.get("regressions")):
+        out.append(Pattern(
+            key="regression_risk", provenance=f"cycle:{cid}",
+            statement="A development outcome recorded a regression in this objective; require "
+                      "explicit regression analysis and evidence before treating a similar "
+                      "change as safe.",
+            applicability=cycle.objective, confidence=0.3,
+            exceptions=["one regression is scoped evidence, not a universal prohibition"]))
     ee = disc.get("effort_error")
     if ee is not None and abs(ee) >= 1:
         out.append(Pattern(
