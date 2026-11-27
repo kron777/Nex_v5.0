@@ -173,6 +173,13 @@ class PerformanceMargin:
     normalization: Optional[str] = None
     operating_envelope: str = "unknown"
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.metric, str) or not self.metric.strip():
+            raise ValueError("performance margin metric must be non-blank")
+        valid_envelopes = ("normal", "busy", "degraded", "stress", "recovery", "unknown")
+        if self.operating_envelope not in valid_envelopes:
+            raise ValueError(f"invalid performance margin operating envelope: {self.operating_envelope!r}")
+
     @staticmethod
     def _finite_number(value) -> bool:
         import math
