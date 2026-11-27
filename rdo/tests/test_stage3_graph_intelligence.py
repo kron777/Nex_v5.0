@@ -352,3 +352,53 @@ def test_failure_propagation_detects_cycles_across_bfs_branches():
     assert result["status"] == "candidate_only"
     assert {item["key"] for item in result["affected"]} == {"b", "c", "d"}
     assert result["cycle_encountered"] is True
+
+
+def test_scc_ignores_self_loops_outside_selected_relationship_kinds():
+    obs = [_ob("A")]
+    rels = [{"src": "A", "dst": "A", "kind": "produces_for"}]
+
+    result = graph.scc_decomposition(obs, rels)
+
+    assert result["nontrivial_components"] == []
+    assert result["has_cyclic_components"] is False
+
+
+def test_scc_decomposition_computes_cycle_inventory_once(monkeypatch):
+    from rdo import tension
+
+    original = tension._find_cycles
+    calls = []
+
+    def counted(edges, kinds=("depends_on", "influences")):
+        calls.append(1)
+        return original(edges, kinds)
+
+    monkeypatch.setattr(tension, "_find_cycles", counted)
+    obs = [_ob(key) for key in ("A", "B", "C", "D")]
+    rels = [
+        {"src": "A", "dst": "B", "kind": "depends_on"},
+        {"src": "B", "dst": "A", "kind": "depends_on"},
+        {"src": "C", "dst": "D", "kind": "depends_on"},
+        {"src": "D", "dst": "C", "kind": "depends_on"},
+    ]
+
+    result = graph.scc_decomposition(obs, rels)
+
+    assert len(result["nontrivial_components"]) == 2
+    assert len(calls) == 1
+
+
+def test_scc_decomposition_enumerates_cycles_for_selected_custom_kinds():
+    obs = [_ob("A"), _ob("B")]
+    rels = [
+        {"src": "A", "dst": "B", "kind": "produces_for"},
+        {"src": "B", "dst": "A", "kind": "produces_for"},
+    ]
+
+    result = graph.scc_decomposition(obs, rels, kinds=("produces_for",))
+
+    assert len(result["nontrivial_components"]) == 1
+    component = result["nontrivial_components"][0]
+    assert component["internal_cycles"] == ["A -> B -> A"]
+    assert component["classification"] == "unknown"

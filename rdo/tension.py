@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import dataclasses
 import math
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from .model import (ANTI_REQUIREMENT, CONDITIONAL, FUTURE, MISSING, NECESSARY,
                     OPTIONAL, OVERDEVELOPED, PARTIAL, RECON_UNKNOWN, REUSE_EXISTING, SIGNATURE_MATCHED,
@@ -19,6 +19,9 @@ from .model import (ANTI_REQUIREMENT, CONDITIONAL, FUTURE, MISSING, NECESSARY,
                     has_valid_reuse_review, _has_traceable_evidence,
                     INTERFACE_EVIDENCE_STATUSES)
 from .feedback_loop import FeedbackLoopAssessment
+
+
+CYCLE_KINDS = ("depends_on", "influences")
 
 
 # ---- node-level ----
@@ -362,37 +365,64 @@ def assess_relationship(rel: Relationship, obligations: Dict[str, Obligation]) -
 
 # ---- system-level ----
 
-def _find_cycles(edges: List[Relationship]) -> List[List[str]]:
-    adj: Dict[str, List[str]] = {}
-    for e in edges:
-        if e.kind in ("depends_on", "influences"):
-            adj.setdefault(e.src, []).append(e.dst)
-    # Stable traversal and output independent of relationship insertion order.
-    adj = {source: sorted(set(targets)) for source, targets in adj.items()}
+def _find_cycles(edges: List[Relationship],
+                 kinds: Tuple[str, ...] = CYCLE_KINDS) -> List[List[str]]:
+    """Enumerate distinct directed simple cycles deterministically.
+
+    First restrict enumeration to non-trivial strongly connected components.
+    This avoids exploring the exponentially many simple paths that can exist
+    in an acyclic graph. Within each cyclic component, each cycle is emitted
+    once from its lexicographically smallest member; rotations are therefore
+    deduplicated without collapsing different directed traversals.
+
+    Both SCC discovery and cycle traversal are iterative, so a deep graph does
+    not depend on Python's recursion limit. Runtime is still necessarily
+    proportional to the number and total size of cycles emitted.
+    """
+    from .graph import tarjan_sccs
+
+    adjacency: Dict[str, set] = {}
+    for edge in edges:
+        if edge.kind in kinds:
+            adjacency.setdefault(edge.src, set()).add(edge.dst)
+            adjacency.setdefault(edge.dst, set())
+    adj = {node: sorted(targets) for node, targets in adjacency.items()}
+    components = tarjan_sccs(sorted(adj), adj)
+
     cycles: List[List[str]] = []
-    seen = set()
+    for component in components:
+        members = set(component)
+        if len(component) == 1 and component[0] not in adj.get(component[0], []):
+            continue
 
-    def _cycle_identity(path):
-        # A directed cycle is identical under rotation, but not under reversal.
-        # Using a frozenset collapses distinct loops that share the same members
-        # (for example A->B->C->D->A and A->C->B->D->A).
-        return min(
-            tuple(path[index:] + path[:index])
-            for index in range(len(path))
-        )
+        # Every simple directed cycle has one unique smallest member. Starting
+        # only at that member prevents duplicate rotations while preserving
+        # reverse/differently ordered cycles over the same node set.
+        for start in sorted(component):
+            path = [start]
+            on_path = {start}
+            stack = [(start, 0)]
+            while stack:
+                node, next_index = stack[-1]
+                neighbours = adj.get(node, [])
+                if next_index >= len(neighbours):
+                    stack.pop()
+                    if node != start:
+                        on_path.remove(node)
+                        path.pop()
+                    continue
 
-    def dfs(start, node, path, onstack):
-        for nxt in adj.get(node, []):
-            if nxt == start and path:
-                key = _cycle_identity(path)
-                if key not in seen:
-                    seen.add(key)
-                    cycles.append(list(key) + [key[0]])
-            elif nxt not in onstack:
-                dfs(start, nxt, path + [nxt], onstack | {nxt})
+                nxt = neighbours[next_index]
+                stack[-1] = (node, next_index + 1)
+                if nxt not in members or nxt < start:
+                    continue
+                if nxt == start:
+                    cycles.append(path + [start])
+                elif nxt not in on_path:
+                    on_path.add(nxt)
+                    path.append(nxt)
+                    stack.append((nxt, 0))
 
-    for n in sorted(adj):
-        dfs(n, n, [n], {n})
     return sorted(cycles, key=lambda cycle: tuple(cycle))
 
 

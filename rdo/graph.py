@@ -264,17 +264,27 @@ def scc_decomposition(obligations: List[dict], rels: List[dict],
     sccs = tarjan_sccs(keys, adj)
 
     rel_objs = [Relationship(r["src"], r["dst"], r["kind"]) for r in rels if r.get("kind") in kinds]
+    self_loop_nodes = {
+        r["src"] for r in rels
+        if r.get("kind") in kinds and r["src"] == r["dst"]
+    }
+    cyclic_components = [
+        comp for comp in sccs
+        if len(comp) > 1 or any(node in self_loop_nodes for node in comp)
+    ]
+    # Cycle enumeration is graph-wide; compute it once, not once per SCC.
+    # A self-loop of an excluded relationship kind is not a cycle in this view.
+    all_cycles = _find_cycles(rel_objs, kinds) if cyclic_components else []
     components: List[dict] = []
     for comp in sccs:
         members = set(comp)
-        self_loop = any(r["src"] in members and r["dst"] in members and r["src"] == r["dst"]
-                        for r in rels)
+        self_loop = any(node in self_loop_nodes for node in members)
         if len(comp) == 1 and not self_loop:
             continue                               # trivial SCC — not a component
         internal = [r for r in rels if r["src"] in members and r["dst"] in members
                     and r.get("kind") in kinds]
-        member_cycles = [" -> ".join(c) for c in _find_cycles(rel_objs)
-                         if set(c) <= members]
+        member_cycles = [" -> ".join(c) for c in all_cycles
+                         if set(c[:-1]) <= members]
         # src depends_on dst => dst is a PREREQUISITE of src. External prerequisites are the
         # outside nodes the component depends on; downstream dependents are outside nodes that
         # depend on the component.
