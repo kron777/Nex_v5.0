@@ -562,3 +562,17 @@ The current-main review confirms the dormancy issue recorded as **G-73** in the 
 - The proposed final Fountain reanimation fetch rechecks `tier <= 7` and `paused = 0` but does not recheck `erosion_stage != 'retired'`. Add a test for a belief retired between selection and final injection before considering that path fully guarded.
 
 This remains a scan-coverage/ownership and eligibility-contract question, not an observed live incident. Do not merge or replay the behaviour filters or alter maintenance cadence until the current-main rebase, exact-head tests, and Gate 0 policy review are complete. The older documentation branches #142/#144 are superseded by the current-main backlog/handoff update in PR #258; the separate PR #102/#145 code/test proposals remain open for review.
+
+
+## 30. Warrant lifecycle questions and stale audit-branch reconciliation (27 November 2026)
+
+The refreshed Phase 0 backlog and handoff now also carry two Warrant lifecycle questions verified against current main:
+
+- **G-74 — retired-marker eligibility:** WarrantPass's scoring query and WarrantRecorder's survival query do not filter the independent `erosion_stage='retired'` marker. Normal Harmonizer retirement writes Tier 8; no normal lower-tier retired-marker writer or live such row was established. Confirm whether this marker overrides tier for Warrant scoring/survival before adding filters.
+- **G-75 — Recorder versus WarrantPass boot:** normal `run.py` starts WarrantRecorder only behind `NEX5_WARRANT_RECORD=1`. No normal WarrantPass loop construction/start was found in `run.py` or `gui/server.py`; `tools/warrant_validate.py` performs one-shot read-only validation. The tracked keepalive sets the Recorder flag but not `NEX5_WARRANT`; host-effective state remains UNKNOWN because the launcher path blocker and active user systemd unit are unresolved. Record-only operation may be intentional while evidence accrues.
+
+The older documentation branches **#142/#144** were based on a divergent continuity branch and are superseded by the current-main verified backlog/handoff updates in #258. Their useful findings were rechecked against current source and reconciled into the current backlog with corrected dispositions: G-53/G-71 Warrant cursor defects are closed by #253; G-56 EdgeBuilder telemetry was already closed by #157; G-53's former walk-anchor concern is narrowed in current G-54; the other current questions are G-51, G-54, G-55, G-57, G-73, G-74 and G-75. The stale producer-trace document was not merged wholesale because it predates substantial mainline changes.
+
+PR #102 and test-only follow-on #145 remain older-base proposals. Their exact-head CI passed on that older base, but they are not current-main validated. PR #102 changes dormancy scan coverage, retired/paused eligibility and the fast-clock scanner lifecycle; PR #145 tests partial wraparound and ClockRunner scanner reuse. The two independent scanner owners remain, and the final Fountain reanimation query in #102 does not recheck the retired marker. Do not merge these proposals until the current-main replay, end-to-end eligibility tests and Gate 0 policy review are complete.
+
+PR #258 now updates the first-read manual, verified defect backlog and Phase 0 handoff together. It does not alter the frozen specification/register, roadmap, runtime, flags or cognitive behaviour.
