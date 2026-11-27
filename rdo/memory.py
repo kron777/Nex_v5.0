@@ -152,6 +152,20 @@ class PatternMemory:
         if not incoming:
             raise ValueError("pattern provenance must contain a non-empty source")
         existing = self._current.get(pattern.key)
+        if existing is not None:
+            # A key collision must never widen or silently change an exact-scope lesson.
+            if not isinstance(existing.exact_scope, bool):
+                raise ValueError("existing pattern exact_scope must be a boolean")
+            if existing.exact_scope != pattern.exact_scope:
+                raise ValueError("pattern key collision has conflicting scope modes")
+            if existing.exact_scope:
+                if (not isinstance(existing.applicability, str)
+                        or not existing.applicability.strip()):
+                    raise ValueError("existing exact-scope pattern requires non-blank applicability")
+                old_scope = " ".join(existing.applicability.split()).lower()
+                new_scope = " ".join(pattern.applicability.split()).lower()
+                if old_scope != new_scope:
+                    raise ValueError("pattern key collision has conflicting exact scopes")
         if existing is None:
             if incoming_base == 0.3 and incoming_confidence != 0.3:
                 incoming_base = incoming_confidence
@@ -240,7 +254,7 @@ class PatternMemory:
         return list(self._current.values())
 
     def applicable(self, context: str) -> List[Pattern]:
-        ctx = context.strip().lower()
+        ctx = " ".join(context.split()).lower()
         for pattern in self._current.values():
             if not isinstance(pattern.exact_scope, bool):
                 raise ValueError("pattern exact_scope must be a boolean")
@@ -250,7 +264,7 @@ class PatternMemory:
                 raise ValueError("exact-scope patterns require a non-blank applicability")
         return [p for p in self._current.values()
                 if self._reliable(p)
-                and (ctx == p.applicability.strip().lower() if p.exact_scope is True else
+                and (ctx == " ".join(p.applicability.split()).lower() if p.exact_scope is True else
                      (not p.applicability
                       or any(w in ctx for w in p.applicability.lower().split())))]
 
