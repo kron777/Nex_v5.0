@@ -125,6 +125,7 @@ The Throw-Net trigger path is source-wired but its autonomous monitor is separat
 The Gate's documented design intent is universal coverage for generated thoughts, but source review has identified specific producer paths that write beliefs without calling it. These are policy/scope reconciliation findings, not permission to change the Gate or silently classify those paths differently. Read the current source, tests and approved policy before changing coverage.
 
 ### Fountain and Chat are different pathways
+The current M0.5 sidecar (`influence_trace.py`) records the Fountain speech-queue enqueue decision, but `speech/queue_consumer.py` has no trace hooks for consumption, synthesis/playback outcome or failure. The per-cycle `TraceContext` has no cross-thread queue-link registry, so the trace currently stops at enqueue. This is an observability coverage gap; do not add substrate DB columns or change speech behaviour without an approved design. Old PR #55 uses the superseded `substrate.trace_overlay` API and is not a safe carry-forward.
 
 Fountain is an internally initiated thought/generation path. Chat is an input-driven conversational path through the GUI, membrane/routing, faculty context, voice/tool handling and message persistence. They do not necessarily share the same workspace, retrieval, gates or feature flags.
 
@@ -219,7 +220,7 @@ A successful unit test does not establish runtime liveness. A successful boot do
 
 ## 11. Current mainline snapshot and open work (27 November 2026)
 
-Mainline inspected: `5d7f4e28eb6760d206eed455429c90e967a5bf10` (27 November 2026, after #189 manual reconciliation, #191 responder, #196 listener/poster, #199 manual refresh and #200 remaining one-pen migrations). Exact-head full baseline CI for #200 passed: 2,539 passed, 7 skipped, 40 subtests; mind-map verifier: 30 nodes, 0 unverified, 14 dark, 2 blocked. These are repository CI/source-verification results only; they do not establish host/runtime state.
+Mainline inspected: `46c743f9c0009e485e307a574be9cb2c6c2a9b39` (27 November 2026, after #189, #191, #196, #199, #200, #201, #202, #205 and #211). Exact-head full baseline CI for #211 passed: 2,546 passed, 7 skipped, 45 subtests; mind-map verifier: 30 nodes, 0 unverified, 14 dark, 2 blocked. These are repository CI/source-verification results only; they do not establish host/runtime state.
 
 Post-snapshot reconciliation recorded in the Phase 0 handoff branch identifies the following merged changes already present in that mainline SHA: #168 (DailyLife/canary Writer routing), #169 (affinity Writer routing), #174 (P13 finitude re-verification), #175 (full-history mind-map verifier guard), #180 (learning-guard Writer routing), #183 (Expectations transaction/Writers), and #184 (Warrant composite pagination cursors). The source reality report and crosswalk carried by PR #188 remain pinned to `ae406fa8`; its handoff reconciles changes through `99ae476`. The later mind-map source-verifier outcome from PR #185 is recorded separately above. Treat each evidence artefact as snapshot-bounded, not as a single fully refreshed audit of `ddb9f15`.
 
