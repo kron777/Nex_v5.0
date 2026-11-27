@@ -2131,7 +2131,10 @@ def create_app(state: AppState) -> Flask:
             try:
                 if os.environ.get("NEX5_COMPASSION") == "1" and bool(session.get("admin")):
                     from theory_x.stage_affect.compassion import stance_for
-                    _compassion_block = stance_for(prompt)
+                    _compassion_block = stance_for(
+                        prompt,
+                        conversations_writer=state.writers["conversations"],
+                    )
             except Exception as _comp_exc:
                 error_channel.record(
                     f"compassion skipped: {_comp_exc}", source="gui.server", exc=_comp_exc,
