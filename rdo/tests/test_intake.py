@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from rdo.model import AcceptanceVerificationRecord, ContextRequirement, NECESSARY, ANTI_REQUIREMENT, CONDITIONAL
 from rdo_adapters.objective_intake import (
     ObjectiveInputError,
     ObjectiveInputStore,
@@ -264,8 +265,31 @@ def test_submit_runs_existing_pipeline_and_persists_intake_provenance(tmp_path, 
     assert cycle["assumptions"] == raw["assumptions"]
     assert cycle["context_assessment"]["status"] == "unmapped"
     assert cycle["context_assessment"]["review_required"] is True
+    context_items = cycle["context_assessment"]["items"]
     assert all(item["status"] == "unmapped" and item["evidence"] == []
-               for item in cycle["context_assessment"]["items"])
+               and item["mapped_obligation_keys"] == [] and item["review_required"] is True
+               for item in context_items)
+    assert len(context_items) == 11
+    assert all(item["item_id"].startswith("ctx:") for item in context_items)
+    assert all(item["source_ref"].startswith(
+        f"objective_input:{result['input_sha256']}:"
+    ) for item in context_items)
+    classifications = {item["kind"]: item["classification"] for item in context_items}
+    assert classifications["intent"] == NECESSARY
+    assert classifications["scope"] == NECESSARY
+    assert classifications["affected_path"] == NECESSARY
+    assert classifications["assumption"] == CONDITIONAL
+    assert classifications["constraint"] == NECESSARY
+    assert classifications["exclusion"] == ANTI_REQUIREMENT
+    assert classifications["acceptance_criterion"] == NECESSARY
+    acceptance_records = cycle["context_assessment"]["acceptance_verification"]
+    assert len(acceptance_records) == len(raw["acceptance_criteria"])
+    assert [item["criterion"] for item in acceptance_records] == raw["acceptance_criteria"]
+    assert all(item["status"] == "unknown" and item["review_required"] is True
+               and item["mapped_obligation_keys"] == [] and item["evidence_refs"] == []
+               for item in acceptance_records)
+    assert cycle["context_assessment"]["unmapped_count"] == len(context_items)
+    assert cycle["context_assessment"]["acceptance_criteria_count"] == len(acceptance_records)
     assert cycle["work_packages"]
     # Context uncertainty blocks execution readiness but must not be
     # misrepresented as a Stage-1 package blocker or erase genuine blockers.
@@ -304,6 +328,149 @@ def test_submit_runs_existing_pipeline_and_persists_intake_provenance(tmp_path, 
     assert resumed["cycles"][0]["objective_input"]["sha256"] == result["input_sha256"]
     assert resumed["cycles"][0]["objective_context"] == cycle["objective_context"]
     assert resumed["cycles"][0]["context_assessment"] == cycle["context_assessment"]
+
+
+def test_context_requirement_requires_evidence_before_mapping():
+    base = dict(
+        item_id="ctx:constraint:0",
+        kind="constraint",
+        text="Do not alter live databases",
+        source_field="constraints",
+        source_index=0,
+        source_ref="objective_input:sha:constraints[0]",
+        classification=NECESSARY,
+    )
+    with pytest.raises(ValueError, match="mapped context requirements need mapped obligation keys"):
+        ContextRequirement(
+            **base, status="mapped", evidence=["review:constraint-1"],
+            review_required=False,
+        )
+    mapped = ContextRequirement(
+        **base, status="mapped", mapped_obligation_keys=["db.read_only"],
+        evidence=["review:constraint-1"], review_required=False,
+    )
+    assert mapped.status == "mapped"
+    assert mapped.mapped_obligation_keys == ["db.read_only"]
+
+
+def test_context_requirement_classification_is_typed():
+    with pytest.raises(ValueError, match="must use classification"):
+        ContextRequirement(
+            item_id="ctx:exclusion:0",
+            kind="exclusion",
+            text="No deployment",
+            source_field="exclusions",
+            source_index=0,
+            source_ref="objective_input:sha:exclusions[0]",
+            classification=NECESSARY,
+        )
+
+
+def test_acceptance_verification_cannot_claim_pass_without_evidence():
+    base = dict(
+        criterion_id="ctx:acceptance:0",
+        source_ref="objective_input:sha:acceptance_criteria[0]",
+        criterion="The report is reproducible",
+        status="passed",
+        mapped_obligation_keys=["report.reproducibility"],
+        verification_method="pytest -q tests/test_report.py",
+        verifier="CI",
+        confidence="measured",
+        verified_at="2026-11-28T10:00:00Z",
+    )
+    with pytest.raises(ValueError, match="needs traceable evidence"):
+        AcceptanceVerificationRecord(**base)
+    with pytest.raises(ValueError, match="timezone offset"):
+        AcceptanceVerificationRecord(
+            **{**base, "evidence_refs": ["ci:run-1"], "verified_at": "2026-11-28T10:00:00"}
+        )
+    verified = AcceptanceVerificationRecord(
+        **{**base, "evidence_refs": ["ci:run-1"]}
+    )
+    assert verified.status == "passed"
+    assert verified.review_required is False
+
+
+def test_unknown_acceptance_verification_cannot_carry_completion_claim():
+    with pytest.raises(ValueError, match="cannot carry a completion claim"):
+        AcceptanceVerificationRecord(
+            criterion_id="ctx:acceptance:0",
+            source_ref="objective_input:sha:acceptance_criteria[0]",
+            criterion="The report is reproducible",
+            evidence_refs=["ci:run-1"],
+        )
+
+
+def test_acceptance_verification_pending_and_failed_states_have_distinct_proof_requirements():
+    common = dict(
+        criterion_id="ctx:acceptance:pending",
+        source_ref="objective_input:sha:acceptance_criteria[0]",
+        criterion="The capability behaves as specified",
+        mapped_obligation_keys=["capability.behaviour"],
+        verification_method="pytest -q tests/test_capability.py",
+    )
+    pending = AcceptanceVerificationRecord(**common, status="pending")
+    assert pending.review_required is True
+    with pytest.raises(ValueError, match="needs traceable evidence"):
+        AcceptanceVerificationRecord(
+            **common, status="failed", verifier="CI",
+            confidence="measured", verified_at="2026-11-28T10:00:00Z",
+        )
+    failed = AcceptanceVerificationRecord(
+        **common, status="failed", evidence_refs=["ci:run-42"],
+        verifier="CI", confidence="measured",
+        verified_at="2026-11-28T10:00:00Z",
+    )
+    assert failed.status == "failed"
+    assert failed.review_required is False
+
+
+def test_context_requirement_rejects_invalid_source_index_and_status():
+    base = dict(
+        item_id="ctx:constraint:0",
+        kind="constraint",
+        text="Do not modify live data",
+        source_field="constraints",
+        source_index=0,
+        source_ref="objective_input:sha:constraints[0]",
+        classification=NECESSARY,
+    )
+    with pytest.raises(ValueError, match="source_index"):
+        ContextRequirement(**{**base, "source_index": -1})
+    with pytest.raises(ValueError, match="status"):
+        ContextRequirement(**{**base, "status": "verified"})
+
+
+def test_context_requirement_source_reference_must_match_field_and_index():
+    with pytest.raises(ValueError, match="source_ref must identify"):
+        ContextRequirement(
+            item_id="ctx:constraint:0",
+            kind="constraint",
+            text="Do not modify live data",
+            source_field="constraints",
+            source_index=1,
+            source_ref="objective_input:sha:constraints[0]",
+            classification=NECESSARY,
+        )
+
+
+def test_context_requirement_rejects_duplicate_mapping_references():
+    base = dict(
+        item_id="ctx:constraint:0",
+        kind="constraint",
+        text="Do not modify live data",
+        source_field="constraints",
+        source_index=0,
+        source_ref="objective_input:sha:constraints[0]",
+        classification=NECESSARY,
+        status="mapped",
+        mapped_obligation_keys=["db.read_only", "db.read_only"],
+        evidence=["review:constraint-1"],
+        review_required=False,
+    )
+    # Repeated references add no traceability and can hide duplicate mapping work.
+    with pytest.raises(ValueError, match="unique"):
+        ContextRequirement(**base)
 
 
 def test_intake_smoke_on_real_rdo_repository(tmp_path):
