@@ -287,3 +287,24 @@ def test_malformed_envelope_serializer_fails_closed():
     summary = result.dimensions["operating_envelope"]
     assert summary["status"] == "invalid_shape"
     assert result.verdict == TENSION_UNKNOWN
+
+
+def test_malformed_interface_profile_serializer_fails_closed():
+    class NonCallableProfile:
+        to_dict = "not-callable"
+
+    class RaisingProfile:
+        def to_dict(self):
+            raise RuntimeError("profile serialization failed")
+
+    for profile in (NonCallableProfile(), RaisingProfile()):
+        result = assess_relationship(
+            Relationship("consumer", "provider", "depends_on",
+                         interface_profile=profile),
+            {},
+        )
+        assert result.verdict == TENSION_UNKNOWN
+        assert result.dimensions["profile_status"] == "invalid_shape"
+        assert result.dimensions["unknown_dimensions"] == ["interface_profile"]
+        assert "invalid shape" in result.note
+        assert "evidence is recorded" not in result.note
