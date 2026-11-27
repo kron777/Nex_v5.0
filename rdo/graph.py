@@ -59,10 +59,17 @@ def failure_propagation_candidates(
             "cycle_encountered": False,
         }
 
-    known = {
-        item.get("key") for item in obligations
-        if isinstance(item, dict) and isinstance(item.get("key"), str) and item["key"].strip()
-    }
+    known = set()
+    invalid_obligations = 0
+    for item in obligations:
+        if not isinstance(item, dict) or not isinstance(item.get("key"), str) or not item["key"].strip():
+            invalid_obligations += 1
+            continue
+        key = item["key"]
+        if key in known:
+            invalid_obligations += 1
+            continue
+        known.add(key)
     roots = sorted({key for key in failed_keys if isinstance(key, str) and key.strip()})
     invalid_roots = [str(key) for key in failed_keys
                      if not isinstance(key, str) or not key.strip()]
@@ -75,7 +82,10 @@ def failure_propagation_candidates(
             unresolved_edges += 1
             continue
         src, dst, kind = edge.get("src"), edge.get("dst"), edge.get("kind")
+        if kind in ("produces_for", "reuses", "duplicates", "influences"):
+            continue
         if kind != "depends_on":
+            unresolved_edges += 1
             continue
         if (not isinstance(src, str) or not src.strip()
                 or not isinstance(dst, str) or not dst.strip()
@@ -121,7 +131,7 @@ def failure_propagation_candidates(
             })
 
     status = (
-        "partial" if unknown_roots or invalid_roots or unresolved_edges else
+        "partial" if unknown_roots or invalid_roots or invalid_obligations or unresolved_edges else
         "candidate_only" if affected else
         "no_known_dependents"
     )
@@ -130,6 +140,7 @@ def failure_propagation_candidates(
         "roots": roots,
         "unknown_roots": unknown_roots,
         "invalid_roots": invalid_roots,
+        "invalid_obligations": invalid_obligations,
         "affected": affected,
         "unresolved_dependency_edges": unresolved_edges,
         "cycle_encountered": cycle_encountered,
