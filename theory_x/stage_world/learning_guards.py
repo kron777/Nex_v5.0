@@ -286,9 +286,14 @@ def subtract(
         return 0
 
     belief_writer, own_beliefs = _acquire_writer("beliefs", beliefs_writer)
-    conversation_writer, own_conversations = _acquire_writer(
-        "conversations", conversations_writer
-    )
+    try:
+        conversation_writer, own_conversations = _acquire_writer(
+            "conversations", conversations_writer
+        )
+    except BaseException:
+        if own_beliefs:
+            belief_writer.close()
+        raise
     try:
         # Compare the observed confidence as a guard against a concurrent update
         # between the read-only reconstruction and this queued write.
@@ -353,9 +358,14 @@ def revert_subtraction(
         return
 
     belief_writer, own_beliefs = _acquire_writer("beliefs", beliefs_writer)
-    conversation_writer, own_conversations = _acquire_writer(
-        "conversations", conversations_writer
-    )
+    try:
+        conversation_writer, own_conversations = _acquire_writer(
+            "conversations", conversations_writer
+        )
+    except BaseException:
+        if own_beliefs:
+            belief_writer.close()
+        raise
     try:
         belief_writer.write(
             "UPDATE beliefs SET confidence = confidence + ? WHERE id = ?",
