@@ -26,7 +26,7 @@ The latest mind-map verifier reports **30 nodes, 0 unverified, 14 dark and 2 blo
 
 ## 3. Boot and lifecycle architecture
 
-The tracked boot graph is not a single request loop. `run.py` builds the dynamic layer, world-model layer, membrane and GUI/AppState. The Stage 2 dynamic factory registers 26 loop callables, including `signal_to_problem_loop`. Separate scheduler, diversity, edge-generation, signal and other worker paths add further concurrency.
+The tracked boot graph is not a single request loop. `run.py` builds the dynamic layer, world-model layer, membrane and GUI/AppState. The Stage 2 dynamic factory registers multiple loop callables, including `signal_to_problem_loop`. Separate scheduler, diversity, edge-generation, signal and other worker paths add further concurrency.
 
 The important consequence is that lifecycle ownership must be explicit. The presence of a `stop()` or stop-event helper in a worker does not prove the application invokes it, joins the thread, or waits for its in-flight writes before closing shared Writers.
 
