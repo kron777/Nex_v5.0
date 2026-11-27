@@ -2,7 +2,7 @@
 
 **Date:** 27 November 2026  
 **Repository:** https://github.com/kron777/Nex_v5.0  
-**Evidence snapshot:** `main` at `66a97964f0531c16d60637dc8291b42e0b73f00b`  
+**Evidence snapshot:** `main` at `ae406fa8fcb1abdf25cdf4ae1bd65333e1148ca8`  
 **Gate 0:** **PENDING — founder review required**
 
 ## Read these together
