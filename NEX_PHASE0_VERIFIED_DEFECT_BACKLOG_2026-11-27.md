@@ -1,6 +1,6 @@
 # NEX Phase 0 — Verified Defect and Evidence-Gap Backlog (Mainline)
 
-**Snapshot:** `main` at `cc8ae43652bdba919198ee4bb90fabbd8f05632f`  
+**Snapshot:** `main` at `80c30b6cc649bb9ce46fd6fdc06bf4afbc9f57c5`  
 **Date:** 27 November 2026  
 **Purpose:** Separate confirmed documentation/source discrepancies from unknown host/runtime evidence and incomplete audits. This backlog is not approval to change cognition or policy.
 
@@ -137,6 +137,9 @@ These are source-level conditions and test-coverage gaps recovered from older au
 - **Verified:** GoalManager.open() inserts `state='open'`; `list_open()` and `get_active()` select `state='open'`. The GUI goal API creates/lists goals through this manager. CoherenceGate._load_context() queries `goals WHERE state='active'`. Its test helper `_seed_goal()` defaults to `active`, so its fixture does not exercise goals created by GoalManager.
 - **Impact:** Goals created through the normal GoalManager path are not returned by the Gate's active-goal context query unless another writer changes their state to `active`. No such state transition was established in this focused source review.
 - **Disposition:** reconcile the state contract and add an integration test using GoalManager.open() plus CoherenceGate context assembly. Do not change `open`/ `active` semantics without the governing lifecycle spec.
+
+- **Authority check (27 November 2026):** a recursive path inventory of current `main` found no tracked file identifying the separate user-authored Development Proposal V2.1; earlier Library retrieval did not establish its authoritative original or approval record. This is a retrieval gap, not proof that the document does not exist. The consolidated S-01–S-25 register remains frozen and must not be reconstructed from secondary descriptions.
+- **Disposition refinement:** G-58 remains OPEN. The source/test mismatch is verified, but intended `open` versus `active` semantics are not. Do not change GoalManager writes, CoherenceGate queries, add state transitions, migrate rows or alter lifecycle policy until the exact governing clause and approval are recovered. Next step: map the approved clause to the producer/consumer state machine and add a GoalManager.open() → CoherenceGate integration test. If authority cannot be recovered, retain the mismatch as an explicit unresolved blocker rather than guess.
 
 ### G-59 — FocusLoop's stuck state is excluded by open-only consumers
 
