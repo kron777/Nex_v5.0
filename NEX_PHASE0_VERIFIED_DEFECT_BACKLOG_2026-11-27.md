@@ -89,13 +89,13 @@ These are source-level conditions and test-coverage gaps recovered from older au
 - **Risk/qualification:** if no other producer touches the selected row, subsequent ticks can select it again and delay newer problems. No live problem rows or tick history were inspected. Whether persistent focus is intended is unresolved.
 - **Disposition:** design/evidence question; do not wire `touch()` or change selection until policy is established.
 
-### G-52 — TimeFetch candidate eligibility is broader than its basic test inventory
+### G-52 — TimeFetch and VoiceEngine candidate eligibility are broader than their test inventory
 
-- **Source:** `theory_x/stage_throw_net/time_fetch.py`.
-- **Verified:** `fetch_from_beliefs()` filters confidence and minimum content length but does not constrain `tier`, `paused`, `locked` or `erosion_stage`. Novel-association retrieval joins the paired belief rows without those current-state filters; arc retrieval filters arc type/quality/summary but does not prove current-state eligibility of beliefs represented by an arc.
-- **Tests:** `tests/test_throw_net_time_fetch.py` covers confidence/length, similarity and quality ordering, return-transformation exclusion, ProblemMemory routing, deduplication, cap and provenance. It does not test the above belief-status exclusions or post-creation eligibility of novel-association/arc endpoints.
-- **Disposition:** policy/coverage gap only. Whether Tier 8, paused, locked or otherwise retired content should be excluded is a governing eligibility decision, not inferred here.
-
+- **Sources:** `theory_x/stage_throw_net/time_fetch.py`, `theory_x/stage_throw_net/voice_engine.py`, `tests/test_throw_net_time_fetch.py`, and `tests/test_voice_engine.py`.
+- **Verified:** `TimeFetch.fetch_from_beliefs()` filters confidence and minimum content length but does not constrain `tier`, `paused`, `locked` or `erosion_stage`. Novel-association retrieval joins the paired belief rows without current-state eligibility filters; arc retrieval filters arc type/quality/summary but does not prove current-state eligibility of the beliefs represented by an arc.
+- **Consumer path:** `VoiceEngine._retrieve_candidates()` consumes `TimeFetch.run()` results and enriches belief candidates with `tier` and `reinforce_count`; it does not recheck paused/locked/retired state. `_score_candidate()` gives non-T3–T6 tiers a score penalty (0.5), not a hard exclusion. The configured minimum score is 0.6, so a strong semantic/confidence/recency/drive/genius candidate can still clear it. The tier penalty alone does not establish retired-content exclusion.
+- **Test inventory (corrected):** `tests/test_throw_net_time_fetch.py` exists and covers confidence/content-length filters, novel-association matching/similarity ordering, arc type/quality filtering, problem routing, deduplication/capping and provenance. It does not test the above belief-status exclusions or current-state eligibility of association/arc endpoints. `tests/test_voice_engine.py` compares T4 and T8 scores but does not assert that T8/paused/locked/retired content is excluded. The prior statement that no TimeFetch test file was found was an incomplete search result.
+- **Disposition:** policy/coverage gap only. Whether Tier 8, paused, locked or otherwise retired content should be excluded is a governing eligibility decision, not inferred here. Add path-level tests after the canonical eligibility contract is confirmed; do not change retrieval candidates or scoring without specification/approval.
 ### G-53 — Warrant use-day timestamp cursors can skip tied rows at a page boundary (RESOLVED)
 
 - **Source:** `theory_x/stage_warrant/recorder.py`; lineage and arc-membership use-day cursors.
