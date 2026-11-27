@@ -1,6 +1,6 @@
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `e4f439e6aef4383795ccc7e3e29b1d242ed0f98c`  
+**Last verified against:** `main` at `14873c10673760b8adbbf6fb0076226d1c97ffa4`  
 **Evidence date:** 27 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -822,3 +822,29 @@ This resolves the stale-source component of backlog E-05. The residual missing-s
 ### Boundary
 
 PR #274 changed documentation/evidence only. No MIND_MAP nodes, doctrine files, runtime flags, live databases, frozen S-01–S-25 specification, Master Roadmap, Gate 0 decision or Phase 1 authorization changed. Gate 0 remains pending founder review; G-69 / PR #259 remains HOLD.
+
+
+## 42. Phase 0 system research continuation (27 November 2026)
+
+**Current main:** `14873c10673760b8adbbf6fb0076226d1c97ffa4`. The selected-path research report is `NEX_PHASE0_SYSTEM_RESEARCH_2026-11-27.md`.
+
+PR #275's mind-map freshness update, PR #276's RDO generated-cycle exclusion and PR #277's keepalive path portability fix are merged. Their exact-head full baselines passed respectively at 2,632, 2,634 and 2,636 passed tests (7 skipped, 45 subtests; baseline OK). PR #276 also has a passing post-merge main run. PR #277 preserves current main's `MOLTBOOK_DRY_RUN=1`.
+
+### Current source research
+
+- G-80: reanimation is marked in SQLite before the pending handoff is durably delivered; a process loss can strand a reanimated row.
+- G-81: Fountain's total-fire counter and ClockRunner's notified-fire counter count different event populations.
+- G-82 is folded into G-73: dormancy scanning still has a first-50 coverage limit and two scanner owners; old PR #102/#145 proposals are not current-main fixes.
+- G-83: Metacognition can re-emit the same unacknowledged groove alert on successive Chat turns, while stillness counts event rows.
+- G-84: shutdown does not quiesce all producers before closing Writers; late submissions can be lost or wait indefinitely.
+- G-85: SignalToProblem is boot-registered but still writes directly to two databases, commits them separately and invokes a direct-write prose-statistics rebuild. This extends the open G-61 one-pen audit.
+- G-86: SignalReaper's preservation allowlist has drifted from SignalToProblem's current promotable types.
+- G-87: Moltbook dry-run suppresses non-GET requests but still reads remotely and can persist simulated sends as real `posted`/`sent` states.
+- G-88 is closed by PR #277 (keepalive path portability); host service identity remains unknown.
+- G-89 is closed by PR #276 (RDO generated `.cycles` records excluded from source-evidence searches).
+
+The RDO capability boundary and version-precedence questions are recorded in the research report. It remains an external advisory tool, not part of NEX runtime; its current objective intake requires externally supplied seed obligations and reconciliation signatures.
+
+### Validation and limits
+
+The latest mind-map CI check reports 30 nodes, 0 unverified, 14 dark, 2 blocked, no stale-source warnings, two missing doctrine references and the overdue P13 marker. No runtime, host service, live database or external API was inspected. No cognitive policy, feature flag, MIND_MAP node, frozen S-01–S-25 register, Master Roadmap or Gate 0 decision changed. Gate 0 remains pending; Phase 1 remains unauthorized.
