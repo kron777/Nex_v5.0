@@ -168,8 +168,9 @@ def test_runtime_observation_ledger_requires_host_origin_and_evidence_refs(tmp_p
     with pytest.raises(LedgerError, match="evidence_refs"):
         led.record("x->y", "RUNTIME_OBSERVED", origin="host")
 
-    entry = led.record("x->y", "RUNTIME_OBSERVED", origin="host",
-                       evidence_refs=["trace:host-runtime-1"])
+    refs = ["trace:host-runtime-1"]
+    entry = led.record("x->y", "RUNTIME_OBSERVED", origin="host", evidence_refs=refs)
+    refs.append("mutated-after-append")
     assert entry["origin"] == "host"
     assert entry["evidence_refs"] == ["trace:host-runtime-1"]
 
