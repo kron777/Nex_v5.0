@@ -598,3 +598,32 @@ def test_acceptance_verification_requires_prior_reviewed_context_mapping(tmp_pat
             "reviewer", mapped_obligation_keys=["doc_change"],
             verification_method="manual review",
         )
+
+
+def test_acceptance_verification_rejects_scalar_reference_containers(tmp_path, monkeypatch):
+    from rdo_adapters.handoff import record_acceptance_verification
+
+    repo, workdir, result, package = _create_cycle(tmp_path, monkeypatch)
+    manifest = create_handoff(
+        workdir, str(repo), "handoff_fixture", 1, result["cycle"]["id"], package["key"]
+    )
+    criterion = manifest["objective_context_assessment"]["acceptance_verification"][0]
+    record_context_mapping(
+        workdir, manifest["handoff_id"], criterion["criterion_id"],
+        ["doc_change"], ["review:criterion-mapping"], "reviewer", "source:criterion-map",
+    )
+
+    with pytest.raises(HandoffError, match="evidence_references must be a list"):
+        record_acceptance_verification(
+            workdir, manifest["handoff_id"], criterion["criterion_id"], "passed",
+            "reviewer", mapped_obligation_keys=["doc_change"],
+            verification_method="manual review", evidence_references="not-a-list",
+            confidence="reviewed", verified_at="2026-11-28T12:00:00Z",
+        )
+    with pytest.raises(HandoffError, match="mapped_obligation_keys must be a list"):
+        record_acceptance_verification(
+            workdir, manifest["handoff_id"], criterion["criterion_id"], "passed",
+            "reviewer", mapped_obligation_keys="doc_change",
+            verification_method="manual review", evidence_references=["review:1"],
+            confidence="reviewed", verified_at="2026-11-28T12:00:00Z",
+        )
