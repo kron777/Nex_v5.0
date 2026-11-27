@@ -108,15 +108,6 @@ The poster and responder treat the client's synthetic dry-run response as succes
 
 Thus dry-run suppresses outbound writes but is neither offline nor a no-ingestion mode, and its local status can overstate what happened externally. If dry-run is disabled, the eligible DM path can send without a human approval step after the agent filter. No external calls were made during this audit; host credentials and effective service configuration remain unknown. This needs a founder decision on external consent, human approval, belief eligibility and simulated-state labels.
 
-### G-90 — Social silence is not yet represented as a contextual social act (capability gap)
-
-**Sources:** `theory_x/SOCIAL_PRESENCE_PROTOCOL.md`; `theory_x/stage_social/social_presence.py`; `theory_x/conversation_memory.py`; `theory_x/stage9_metacognition/metacognition.py`; `theory_x/stage6_fountain/generator.py`.
-
-The Social Presence Protocol measures response count and average response latency. ConversationMemory retains a bounded turn history. The two implemented “stillness” mechanisms are different: Fountain detects repeated retrieval overlap and eventually force-fires after a stillness streak; Metacognition writes a short stillness suppression after a groove-event threshold. Fountain also contains natural-language self-reflection about silence, but the reviewed paths do not turn that into a structured social-silence state or classifier.
-
-No reviewed current-main path distinguishes deliberate social silence from technical failure, or interprets silence in relation to duration, relationship, conversational dynamics, emotional circumstances and likely human interpretation. The system has adjacent context signals, but response latency alone is not an interpretation of silence.
-
-This is a capability gap against the founder's stated social-silence design principle, not a claim that a frozen S-01–S-25 requirement is violated. Do not equate retrieval stillness or groove suppression with social silence. A future design should distinguish listening, companionship, respect, familiarity, reflection, restraint, rejection, avoidance and abandonment, while also detecting technical failure and expected-response context.
 
 ### G-88 — Keepalive checkout path hardcoding (CLOSED by PR #277)
 
@@ -129,6 +120,16 @@ The source portability defect is closed. The active host systemd unit and whethe
 The RDO stores generated cycle records under ignored `rdo/.cycles/`. Both `rdo/reconcile.py::_grep` and `rdo/belief_audit.py::_grep` previously searched that directory, allowing a prior generated plan to appear as a source-signature match on a later cycle. PR #276 excludes `.cycles` in both paths and adds regression tests. The fix is merged and the post-merge main baseline passed 2,634 tests.
 
 This was an evidence-contamination risk, not automatic semantic acceptance: semantic reuse still had a separate review gate.
+
+### G-90 — Social silence is not yet represented as a contextual social act (capability gap)
+
+**Sources:** `theory_x/SOCIAL_PRESENCE_PROTOCOL.md`; `theory_x/stage_social/social_presence.py`; `theory_x/conversation_memory.py`; `theory_x/stage9_metacognition/metacognition.py`; `theory_x/stage6_fountain/generator.py`.
+
+The Social Presence Protocol measures response count and average response latency. ConversationMemory retains a bounded turn history. The two implemented “stillness” mechanisms are different: Fountain detects repeated retrieval overlap and eventually force-fires after a stillness streak; Metacognition writes a short stillness suppression after a groove-event threshold. Fountain also contains natural-language self-reflection about silence, but the reviewed paths do not turn that into a structured social-silence state or classifier.
+
+No reviewed current-main path distinguishes deliberate social silence from technical failure, or interprets silence in relation to duration, relationship, conversational dynamics, emotional circumstances and likely human interpretation. The system has adjacent context signals, but response latency alone is not an interpretation of silence.
+
+This is a capability gap against the founder's stated social-silence design principle, not a claim that a frozen S-01–S-25 requirement is violated. Do not equate retrieval stillness or groove suppression with social silence. A future design should distinguish listening, companionship, respect, familiarity, reflection, restraint, rejection, avoidance and abandonment, while also detecting technical failure and expected-response context.
 
 ## 5. RDO capability and authority boundary
 
