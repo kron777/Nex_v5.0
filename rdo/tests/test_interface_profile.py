@@ -130,10 +130,10 @@ def test_relationship_serializes_typed_performance_margins_with_computed_evidenc
         metric="latency_utility",
         q=0.6,
         tau=0.7,
-        unit="normalized_quality",
-        normalization="higher_is_better",
-        q_evidence=["benchmark:p95"],
-        tau_evidence=["contract:latency-limit"],
+        unit="normalized_latency_utility",
+        normalization="higher_is_better_0_to_1",
+        q_evidence=["benchmark:latency-utility"],
+        tau_evidence=["contract:latency-utility-limit"],
         q_confidence="measured",
         tau_confidence="approved_requirement",
     )
@@ -142,7 +142,7 @@ def test_relationship_serializes_typed_performance_margins_with_computed_evidenc
         performance_margins={"latency_utility": margin},
     )
 
-    persisted = relationship.to_dict()["performance_margins"]["latency"]
+    persisted = relationship.to_dict()["performance_margins"]["latency_utility"]
     assert persisted["margin"] == pytest.approx(-0.1)
     assert persisted["margin_state"] == "below_requirement"
     assert persisted["evidence_complete"] is True
