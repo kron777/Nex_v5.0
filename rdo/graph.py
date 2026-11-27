@@ -446,49 +446,23 @@ def compare_adjacent_relationship_impacts(
 
     before_nodes, invalid_before_obligations = _obligation_keys(before_cycle)
     after_nodes, invalid_after_obligations = _obligation_keys(after_cycle)
-    known_capabilities = before_nodes | after_nodes
-    unknown_capabilities = [key for key in changed if key not in known_capabilities]
-    invalid_obligations = invalid_before_obligations + invalid_after_obligations
     before_relationships, invalid_before_relationships = _relationship_groups(before_cycle)
     after_relationships, invalid_after_relationships = _relationship_groups(after_cycle)
     before_assessments, invalid_before_assessments = _assessment_groups(before_cycle)
     after_assessments, invalid_after_assessments = _assessment_groups(after_cycle)
     invalid_relationships = invalid_before_relationships + invalid_after_relationships
     invalid_assessments = invalid_before_assessments + invalid_after_assessments
-
-    def _capability_keys(cycle, relationship_groups):
-        keys = {
-            endpoint
-            for src, _kind, dst in relationship_groups
-            for endpoint in (src, dst)
-        }
-        invalid = 0
-        obligations = cycle.get("obligations")
-        if isinstance(obligations, list):
-            for obligation in obligations:
-                if (not isinstance(obligation, dict)
-                        or not isinstance(obligation.get("key"), str)
-                        or not obligation["key"].strip()
-                        or obligation["key"] != obligation["key"].strip()):
-                    invalid += 1
-                    continue
-                keys.add(obligation["key"])
-        # Relationship endpoints can still establish that a capability is present
-        # when an older snapshot lacks an explicit obligation list. An isolated node
-        # can only be established from the obligation inventory.
-        return keys, invalid
-
-    before_capabilities, invalid_before_capabilities = _capability_keys(
-        before_cycle, before_relationships
-    )
-    after_capabilities, invalid_after_capabilities = _capability_keys(
-        after_cycle, after_relationships
-    )
+    relationship_nodes = {
+        endpoint
+        for groups in (before_relationships, after_relationships)
+        for src, _kind, dst in groups
+        for endpoint in (src, dst)
+    }
+    known_capabilities = before_nodes | after_nodes | relationship_nodes
     unknown_capabilities = sorted(
-        key for key in changed
-        if key not in before_capabilities and key not in after_capabilities
+        key for key in changed if key not in known_capabilities
     )
-    invalid_obligations = invalid_before_capabilities + invalid_after_capabilities
+    invalid_obligations = invalid_before_obligations + invalid_after_obligations
 
     identities = sorted(
         identity for identity in set(before_relationships) | set(after_relationships)
@@ -597,8 +571,6 @@ def compare_adjacent_relationship_impacts(
         "affected_relationships": affected,
         "invalid_relationship_records": invalid_relationships,
         "invalid_assessment_records": invalid_assessments,
-        "invalid_obligation_records": invalid_obligations,
-        "unknown_capabilities": unknown_capabilities,
         "note": (
             "Before/after differences for relationships incident to explicitly changed capabilities. "
             "These are correlated structural and assessment changes, not proof of causality, harm or benefit."
