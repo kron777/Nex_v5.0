@@ -287,3 +287,41 @@ def test_malformed_envelope_serializer_fails_closed():
     summary = result.dimensions["operating_envelope"]
     assert summary["status"] == "invalid_shape"
     assert result.verdict == TENSION_UNKNOWN
+
+
+def test_persisted_interface_dimension_with_unknown_status_fails_closed():
+    rel = Relationship("consumer", "provider", "depends_on", interface_profile={
+        "latency": {
+            "status": "measurd",
+            "value": 12,
+            "unit": "ms",
+            "evidence": ["trace:latency"],
+            "confidence": "measured",
+        },
+    })
+
+    result = assess_relationship(rel, {})
+    latency = result.dimensions["dimensions"]["latency"]
+    assert latency["status"] == "invalid"
+    assert latency["evidence_complete"] is False
+    assert "latency" in result.dimensions["unknown_dimensions"]
+    assert result.verdict == TENSION_UNKNOWN
+
+
+def test_operating_envelope_measurement_with_unrecognized_status_stays_unknown():
+    rel = Relationship("consumer", "provider", "depends_on", operating_envelope={
+        "declared_state": BUSY,
+        "assessed_state": None,
+        "measured_load": {
+            "status": "observed",
+            "value": 70,
+            "unit": "percent",
+            "evidence": ["telemetry:load-1"],
+            "confidence": "measured",
+        },
+    })
+
+    result = assess_relationship(rel, {})
+    envelope = result.dimensions["operating_envelope"]
+    assert "measured_load" in envelope["unknown_dimensions"]
+    assert result.verdict == TENSION_UNKNOWN
