@@ -1,7 +1,13 @@
 """Regression tests for FocusLoop's one-pen database mutations."""
 
+import json
+
 from substrate import Reader, Writer, connect
-from theory_x.sustained.focus_loop import _append_observation, _surface_to_chat, _update_current_focus
+from theory_x.sustained.focus_loop import (
+    _append_observation,
+    _surface_to_chat,
+    _update_current_focus,
+)
 
 
 def _open_problem_db(path):
@@ -39,7 +45,7 @@ def test_focus_loop_does_not_repeat_identical_last_observation(tmp_path):
         row = reader.read_one(
             "SELECT observations FROM open_problems WHERE id=1"
         )
-        observations = __import__("json").loads(row["observations"])
+        observations = json.loads(row["observations"])
 
         assert first_count == 1
         assert repeated_count == 1
