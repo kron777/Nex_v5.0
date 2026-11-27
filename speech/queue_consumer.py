@@ -199,6 +199,10 @@ class SpeechQueueConsumer(threading.Thread):
                     metadata={"error_type": type(e).__name__},
                 ) or playback_started or synthesis_completed or trace_parent
                 raise
+            failure_parent = (
+                playback_completed or playback_started
+                or synthesis_completed or trace_parent
+            )
             self.writer.write(
                 "UPDATE speech_queue SET status='spoken', spoken_at=? WHERE id=?",
                 (time.time(), qid),
