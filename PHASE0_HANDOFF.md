@@ -2,7 +2,7 @@
 
 **Date:** 27 November 2026  
 **Repository:** https://github.com/kron777/Nex_v5.0  
-**Evidence snapshot:** `main` at `8d2121d121931d37afcb1c3d23d27e7ccc9145d1`  
+**Evidence snapshot:** `main` at `f03a3d2e7b9c71801e44be73cf728c01cb791c9d`  
 **Gate 0:** **PENDING — founder review required**
 
 ## Read these together
@@ -262,3 +262,8 @@ No live host, runtime, database, credential or external service was accessed. No
 ### Post-research-snapshot PR #279 update — 27 November 2026
 
 PR #279 merged as `8d2121d121931d37afcb1c3d23d27e7ccc9145d1`; exact-head CI run `46044361663` passed 2,638 tests, 7 skipped, 45 subtests, baseline OK. It moves the scheduled prose-statistics rebuild to the shared beliefs Writer/Reader path. This closes the auxiliary write bypass, not SignalToProblem's primary split-database transaction. G-85/G-61 remain open pending a defined idempotency/recovery contract. Post-merge main run `46045384807` also passed 2,638 tests, 7 skipped, 45 subtests, baseline OK.
+
+
+### Post-snapshot PR #280 update — 27 November 2026
+
+PR #280 merged as `f03a3d2e7b9c71801e44be73cf728c01cb791c9d`; exact-head CI run `46045754339` passed 2,640 tests, 7 skipped, 45 subtests, baseline OK. It fixes Writer-level shutdown/submission races by serializing admission, draining accepted work before one sentinel, rejecting late writes, and retaining a timed-out worker reference. This closes only the Writer subproblem in G-84. The application still lacks a global producer stop/join coordinator and G-84 remains open. Post-merge main CI is in progress.
