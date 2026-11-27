@@ -171,7 +171,7 @@ def _find_referencing_rows(reader, belief_id: int) -> dict[str, list[int]]:
     return found
 
 
-def _write_self_belief(sentence: str) -> None:
+def _write_self_belief(sentence: str, beliefs_writer=None, beliefs_reader=None) -> None:
     """Refresh the single self-belief row IN PLACE (UPDATE by id).
 
     Used to be delete-then-insert. That broke: the very first successful
@@ -211,16 +211,16 @@ def _write_self_belief(sentence: str) -> None:
         deleting belief content or guessing which row is "right".
     """
     now = int(time.time())
-    reader = _get_reader()
-    rows = reader.read(
-        "SELECT id FROM beliefs WHERE source = ? AND tier = ? AND locked = ? "
-        "ORDER BY id ASC",
-        (SELF_BELIEF_SOURCE, KEYSTONE_TIER, LOCKED),
-    )
-    ids = [r["id"] for r in rows]
-
-    writer = _get_writer()
+    reader = beliefs_reader or _get_reader()
+    writer_is_owned = beliefs_writer is None
+    writer = beliefs_writer or _get_writer()
     try:
+        rows = reader.read(
+            "SELECT id FROM beliefs WHERE source = ? AND tier = ? AND locked = ? "
+            "ORDER BY id ASC",
+            (SELF_BELIEF_SOURCE, KEYSTONE_TIER, LOCKED),
+        )
+        ids = [r["id"] for r in rows]
         if not ids:
             logger.warning(
                 "ground_self_belief: no existing row for source=%r -- "
@@ -254,10 +254,11 @@ def _write_self_belief(sentence: str) -> None:
             (sentence, 0.99, now, target_id),
         )
     finally:
-        writer.close()
+        if writer_is_owned:
+            writer.close()
 
 
-def refresh_self_belief() -> dict:
+def refresh_self_belief(beliefs_writer=None, beliefs_reader=None) -> dict:
     """Load the live scorecard, compose the sentence, write it.
 
     Single entry point for non-CLI callers (e.g. the scheduled loop) so the
@@ -266,7 +267,9 @@ def refresh_self_belief() -> dict:
     """
     voice, random = _load_scorecard()
     sentence = _compose_sentence(voice, random)
-    _write_self_belief(sentence)
+    _write_self_belief(
+        sentence, beliefs_writer=beliefs_writer, beliefs_reader=beliefs_reader
+    )
     return {"sentence": sentence, "voice": voice, "random": random}
 
 
