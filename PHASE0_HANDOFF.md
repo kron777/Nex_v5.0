@@ -36,7 +36,7 @@
 
 ## Next Phase 0 actions
 
-1. Post-merge `main` CI for `66a9796` is verified green (2,491 passed, 7 skipped, 40 subtests; baseline OK).
+1. Current-main CI for `ae406fa8` is verified green (2,508 passed, 7 skipped, 40 subtests; baseline OK). The older run `45939220368` was on pre-merge parent `612022`, not on merge commit `66a9796`.
 2. Scheduler overview documentation is corrected and merged in PR #153; its exact-head full suite is green.
 3. Continue the forward/backward source audit across the remaining `theory_x/` faculties; distinguish wired loops from downstream consumers and measured effects.
 4. Close the mind-map count discrepancy (30 nodes, 5 arms, 4 findings; the earlier 39 count aggregated sections), then continue the missing-doctrine-reference review, stale verification-date review and overdue `p13_finitude` unblock-marker review without deleting entries or inventing evidence.
