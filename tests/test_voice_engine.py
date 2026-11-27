@@ -137,6 +137,46 @@ class TestQueryReplyBasic(unittest.TestCase):
         self.assertIn("source", result)
 
 
+class TestOriginIdentity(unittest.TestCase):
+    """Keep source IDs in their own namespace at the VoiceEngine boundary."""
+
+    def setUp(self):
+        self.writers, self.readers, self.tmp = _make_env()
+        self.engine = _make_engine(self.writers, self.readers, min_score=0.0)
+
+    def tearDown(self):
+        _cleanup(self.writers, self.tmp)
+
+    def test_origin_ids_are_not_mislabelled_as_belief_ids(self):
+        cases = (
+            ("belief", 41, 41),
+            ("novel_association", 52, None),
+            ("arc", 63, None),
+            ("gap", 74, None),
+        )
+        for source, origin_id, expected_belief_id in cases:
+            with self.subTest(source=source):
+                candidate = {
+                    "content": f"Candidate content from {source}.",
+                    "source": source,
+                    "origin_id": origin_id,
+                }
+                with patch.object(self.engine, "_retrieve_candidates",
+                                  return_value=[candidate]), \
+                     patch.object(self.engine, "_embed", return_value=_zero_emb()), \
+                     patch.object(self.engine, "_score_candidate", return_value=0.9), \
+                     patch.object(self.engine, "_record_query_trigger"):
+                    result = self.engine.query_reply(
+                        "test query", session_id="origin-test", turn_n=1
+                    )
+
+                self.assertIsNotNone(result)
+                self.assertEqual(result["source"], source)
+                self.assertEqual(result["origin_type"], source)
+                self.assertEqual(result["origin_id"], origin_id)
+                self.assertEqual(result["belief_id"], expected_belief_id)
+
+
 class TestScoringAxes(unittest.TestCase):
 
     def setUp(self):
