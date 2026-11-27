@@ -656,7 +656,8 @@ nodes:
     falsifier_status: unrun
     source: { kind: composite, refs: ["theory_x/stage_tom/global_workspace.py:245-310", "theory_x/stage6_fountain/generator.py:3864-3890", "gui/server.py:202-280", "nex_keepalive.sh:219-220"] }
     last_verified: 2026-11-27
-    notes: "Correction, 2026-11-09: mechanism is located and is the live r77 chat arbiter --
+    notes: >
+      Correction, 2026-11-09: mechanism is located and is the live r77 chat arbiter --
       global_workspace.arbitrate/select_within_budget (fire path, generator.py:3037) and the
       13-kind _CHAT_BLOCK_SALIENCE budget assembly in gui/server.py (chat path, NEX5_CHAT_WORKSPACE,
       armed live 2026-11-07, ledger 5775e31). SENTIENCE_PROGRAM.md:33 already names this; the
@@ -671,8 +672,7 @@ nodes:
       arms NEX5_GLOBAL_WORKSPACE, but the current runtime process state is UNKNOWN. Do not
       describe the chat-budget selector as still armed or conflate it with Fountain arbitration.
       The p13_finitude node tracks the separate shadow-budget/spend mechanism.
-      Read-only citation -- no source behavior is changed by this map entry."
-
+      Read-only citation -- no source behavior is changed by this map entry.
   - id: vitarka
     label: "vitarka — applied thought"
     layer: arm
