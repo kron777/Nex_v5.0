@@ -667,3 +667,31 @@ def test_rdo_context_review_events_pass_independent_watcher_verification(tmp_pat
     assert report["evidence_dimensions"]["test_verified"] == "not_authorized"
     assert report["evidence_dimensions"]["runtime_observed"] == "unknown_host_only"
     assert report["human_acceptance"]["status"] == "not_recorded"
+
+
+def test_acceptance_verification_rejects_unknown_event_and_pending_completion_metadata(tmp_path, monkeypatch):
+    from rdo_adapters.handoff import record_acceptance_verification
+
+    repo, workdir, result, package = _create_cycle(tmp_path, monkeypatch)
+    manifest = create_handoff(
+        workdir, str(repo), "handoff_fixture", 1, result["cycle"]["id"], package["key"]
+    )
+    criterion = manifest["objective_context_assessment"]["acceptance_verification"][0]
+    record_context_mapping(
+        workdir, manifest["handoff_id"], criterion["criterion_id"],
+        ["doc_change"], ["review:criterion-mapping"], "reviewer", "source:criterion-map",
+    )
+
+    with pytest.raises(HandoffError, match="must use pending"):
+        record_acceptance_verification(
+            workdir, manifest["handoff_id"], criterion["criterion_id"], "unknown",
+            "reviewer", "source:criterion-review",
+        )
+    with pytest.raises(HandoffError, match="cannot carry completion"):
+        record_acceptance_verification(
+            workdir, manifest["handoff_id"], criterion["criterion_id"], "pending",
+            "reviewer", "source:criterion-review",
+            mapped_obligation_keys=["doc_change"],
+            verification_method="manual review",
+            confidence="reviewed",
+        )
