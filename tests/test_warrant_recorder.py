@@ -1,6 +1,7 @@
-"""Tests for the warrant recorder (NEX5_WARRANT_RECORD) — append-only logging of
-survival checks and per-belief use days, plus the retrieval-log keep-on-restart
-gate in the fountain generator."""
+"""Warrant use-day pagination must follow declared source keys, not hidden rowids.
+
+The composite-key regression forces a rowid remap after VACUUM between pages.
+"""
 from __future__ import annotations
 
 import os
