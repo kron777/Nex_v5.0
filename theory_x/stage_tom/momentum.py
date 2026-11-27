@@ -279,7 +279,6 @@ def read_momentum(
         return line
     except Exception:
         return None
-    finally:
 
 
 if __name__ == "__main__":
