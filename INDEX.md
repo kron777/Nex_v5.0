@@ -617,7 +617,7 @@ The source-level G-70 gap is now addressed by a bounded development proposal, **
 
 ## 34. P9 source-anchor re-verification after daemon_kv schema insertion (27 November 2026)
 
-The PR #261 exact-head mind-map check reported P9 as stale because `substrate/schema/dynamic.sql` changed on current main. A comparison of the prior and current schema blobs showed the entire change was an eight-line `daemon_kv` table insertion at the beginning of the file. The `held_tensions` definition itself was byte-for-byte unchanged and moved from lines 144–159 to 152–167. The P9 Harmonizer path and focused held-tension/retry tests were re-read. The source anchor and `last_verified` date were updated in the current documentation branch only; no P9 status or runtime behaviour changed. The next documentation-branch CI must confirm the mind-map verifier is clean apart from the known missing-doctrine/P13 warnings.
+The PR #261 exact-head mind-map check reported P9 as stale because `substrate/schema/dynamic.sql` changed on current main. A comparison of the prior and current schema blobs showed the entire change was an eight-line `daemon_kv` table insertion at the beginning of the file. The `held_tensions` definition itself was byte-for-byte unchanged and moved from lines 144–159 to 152–167. The P9 Harmonizer path and focused held-tension/retry tests were re-read. The source anchor and `last_verified` date were updated in the current documentation branch only; no P9 status or runtime behaviour changed. Documentation-branch CI run `46020611137` confirmed the corrected anchor: P9 no longer reports stale. The two missing-doctrine references and overdue P13 warning remain the only mind-map warnings.
 
 
 
