@@ -33,7 +33,45 @@ The six database identities come from `substrate.paths.db_paths()`: beliefs, sen
 
 `theory_x/stage_gate/coherence_gate.py` evaluates ThoughtPackets into ACCEPT/REJECT/HOLD/RESHAPE, persists decisions in `beliefs.db:gate_decisions`, and has optional downstream handling for REJECT/HOLD/RESHAPE/ACCEPT. Its current evaluation exception policy is fail-open: an evaluation exception is recorded and returned as ACCEPT with reason `gate_error_fallback`. This report documents the code; it does not endorse or change that policy.
 
-## 3. Backward/forward path crosswalk
+## 3. Theory-X source-package inventory and boot distinction
+
+The Git tree at the audited snapshot contains 43 immediate subdirectories under
+`theory_x/`, including 27 directories whose names begin `stage`. This is a
+filesystem inventory only. It does not mean that 43 faculties are declared,
+that 27 stages are instantiated, or that any worker is alive.
+
+| Inventory class | Packages present at this snapshot |
+|---|---|
+| Stage-named packages (27) | `stage1_sense`, `stage2_dynamic`, `stage3_world_model`, `stage4_membrane`, `stage5_self_location`, `stage6_fountain`, `stage7_moltbook`, `stage7_sustained`, `stage8_goal_manager`, `stage9_metacognition`, `stage10_imagination`, `stage_affect`, `stage_capability`, `stage_counterfactual`, `stage_drives`, `stage_emphasis`, `stage_finitude`, `stage_gate`, `stage_prediction`, `stage_provenance`, `stage_self_maintain`, `stage_self_narrative`, `stage_social`, `stage_throw_net`, `stage_tom`, `stage_warrant`, `stage_world` |
+| Ancillary packages (16) | `arcs`, `auto_probe`, `coincidence`, `diversity`, `genius`, `harmonic`, `life`, `memory`, `modes`, `probes`, `signals`, `snapshots`, `substrate`, `sustained`, `tag_protocol`, `world_bridge` |
+| Top-level Python modules | `__init__.py`, `conversation_memory.py`, `executive_control.py`, `focal_set.py`, `working_memory.py` |
+
+### Directly visible boot wiring
+
+`run.py` explicitly imports/builds the core staged sequence: Sense
+(`build_scheduler`), Dynamic (`build_dynamic`), World Model
+(`build_world_model`), Membrane (`build_membrane`), Self-Location
+(`SelfLocationCommitment`) and Fountain (`build_fountain`). It also
+constructs/wires supporting capabilities including Coherence Gate, Holding
+Zone/Resolver, ProblemMemory, GoalManager, Metacognition, NovelAssociation,
+Throw-Net components, Drive Emergence, Warrant, AffectState, Predictive
+Substrate, PersonaResponder/SelfMindView, World/Self Prediction loops,
+Self-Maintain shadow and ToolRegistry/ToolCaller. Several constructions are
+inside guarded `try` blocks or depend on flags, readers, optional modules or
+external configuration; presence of an import line is not proof of successful
+construction.
+
+Separate workers started elsewhere include speech, signals, diversity,
+edge-generation and decoder paths. Stage 2 and Stage 3 factories also register
+and start loops internally. Exact per-loop liveness, poll success, event
+production and downstream consumption remain UNKNOWN without host/runtime
+evidence.
+
+The complete forward/backward audit remains open: this inventory is a search
+map to the code, not a declaration that every package has been traced from
+declaration through emission to a verified consumer.
+
+## 4. Backward/forward path crosswalk
 
 | Path | Producer → selection/gate → persistence → consumer | Evidence |
 |---|---|---|
@@ -45,7 +83,7 @@ The six database identities come from `substrate.paths.db_paths()`: beliefs, sen
 
 This is not yet a complete producer/consumer DAG for every faculty under `theory_x/`. Faculties without a traced downstream consumer, or whose live effect is not measured, remain open work rather than being marked complete.
 
-## 4. M0.5 causal trace
+## 5. M0.5 causal trace
 
 Roadmap v3.0 Phase 0 M0.5 is implemented in `influence_trace.py` and integrated into Fountain and Chat. The switch is `NEX5_TRACE_OVERLAY`; unset/zero is OFF. When enabled, the overlay appends parent-linked JSONL events to a sidecar (default `logs/nex_causal_trace.jsonl`), never to a substrate database. It hashes text-bearing data and stores UTF-8 byte lengths rather than raw prompts, beliefs or outputs.
 
@@ -65,7 +103,7 @@ Observed stages include input arrival, session/user-message writes, membrane cla
 
 No live NEX process or runtime context was enabled. L4/runtime evidence remains UNKNOWN. The sample trace is not a live capture.
 
-## 5. Discrepancies and next audit obligations
+## 6. Discrepancies and next audit obligations
 
 1. Host/runtime identity, process state, service health, live database hashes, model digest and local performance metrics have not been collected in this mainline pass.
 2. The mind-map node-count convention (39 YAML nodes vs older “30” references; plus 5 arms) remains unresolved.
