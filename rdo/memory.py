@@ -243,8 +243,9 @@ class PatternMemory:
         ctx = context.lower()
         return [p for p in self._current.values()
                 if self._reliable(p)
-                and (not p.applicability
-                     or any(w in ctx for w in p.applicability.lower().split()))]
+                and (ctx == p.applicability.lower() if p.exact_scope else
+                     (not p.applicability
+                      or any(w in ctx for w in p.applicability.lower().split())))]
 
 
 class CycleStore:
@@ -363,7 +364,7 @@ def derive_lessons(cycle: CycleRecord, disc: Dict) -> List[Pattern]:
             statement="A development outcome recorded a regression in this objective; require "
                       "explicit regression analysis and evidence before treating a similar "
                       "change as safe.",
-            applicability=cycle.objective, confidence=0.3,
+            applicability=cycle.objective, confidence=0.3, exact_scope=True,
             exceptions=["one regression is scoped evidence, not a universal prohibition"]))
     ee = disc.get("effort_error")
     if ee is not None and abs(ee) >= 1:
