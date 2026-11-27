@@ -100,6 +100,9 @@ class Obligation:
         return d
 
 
+INTERFACE_EVIDENCE_STATUSES = ("unknown", "measured")
+
+
 @dataclasses.dataclass
 class InterfaceEvidence:
     """One interface dimension with explicit UNKNOWN-by-default evidence state.
@@ -113,6 +116,10 @@ class InterfaceEvidence:
     unit: Optional[str] = None
     evidence: List[str] = dataclasses.field(default_factory=list)
     confidence: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        if self.status not in INTERFACE_EVIDENCE_STATUSES:
+            raise ValueError(f"invalid interface evidence status: {self.status!r}")
 
 
 @dataclasses.dataclass
