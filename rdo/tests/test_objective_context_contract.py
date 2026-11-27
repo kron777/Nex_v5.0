@@ -27,6 +27,9 @@ def _run(tmp_path, objective_context=None):
 
 def test_objective_context_is_preserved_and_unmapped_items_block_readiness(tmp_path):
     context = {
+        "intent": "Prepare an auditable RDO plan",
+        "owner": "founder",
+        "source": {"kind": "human", "reference": "test-fixture"},
         "scope": {
             "in_scope": ["RDO planning only"],
             "affected_paths": ["rdo/orchestrator.py"],
@@ -45,9 +48,10 @@ def test_objective_context_is_preserved_and_unmapped_items_block_readiness(tmp_p
     assert assessment["review_required"] is True
     assert assessment["execution_readiness"] == "blocked"
     assert assessment["handoff_readiness"] == "reviewable"
-    assert len(assessment["items"]) == 6
+    assert len(assessment["items"]) == 7
     assert {item["kind"] for item in assessment["items"]} == {
-        "scope", "affected_path", "assumption", "constraint", "exclusion", "acceptance_criterion"
+        "intent", "scope", "affected_path", "assumption", "constraint",
+        "exclusion", "acceptance_criterion"
     }
     assert all(item["status"] == "unmapped" and item["evidence"] == []
                for item in assessment["items"])
