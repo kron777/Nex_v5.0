@@ -48,7 +48,7 @@ The CI invocation `python mind_map/mind_map.py --check --verify` completed with 
 
 These warnings are not test failures, and must not be hidden by deleting map entries, advancing dates without review, or weakening the verifier. They are current Phase 0 evidence gaps.
 
-The current `mind_map/MIND_MAP.yaml` contains 39 entries under `nodes:` and 5 entries under `arms:`. The bootstrap comment and older planning references still say “30 nodes”. The 39/30 counting convention is unresolved; preserve all entries until the map owner reconciles substantive nodes, structural entries and placeholders.
+The current `mind_map/MIND_MAP.yaml` contains exactly 30 entries under `nodes:` (18 arm, 9 ring, 2 boundary and 1 straddle), 5 entries under `arms:`, and 4 under `findings:`. The earlier “39 nodes” count incorrectly aggregated those three separate sections (30 + 5 + 4). The 30-node convention is correct; no map entries were changed.
 
 The CI mind-map check includes a static AST guard. It enforces the descriptive-only metadata and rejects declared forbidden authority fields; it also scans configured runtime roots for direct imports of `mind_map` or direct `MIND_MAP.yaml` references. This is stronger than checking metadata alone, but it is still a static source guard over selected roots—not a proof against every dynamic, indirect or external authority path.
 
