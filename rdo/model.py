@@ -6,6 +6,7 @@ resume after interruption. Nothing here reasons; the engine modules do.
 from __future__ import annotations
 
 import dataclasses
+import datetime
 from typing import Any, Dict, List, Optional
 
 from watcher.evidence import utc_now  # reuse Watcher infra (RDO obeys OFT: don't rebuild)
@@ -290,6 +291,146 @@ class WorkPackage:
 
     def to_dict(self) -> dict:
         return dataclasses.asdict(self)
+
+
+CONTEXT_REQUIREMENT_CLASSIFICATIONS = {
+    "intent": NECESSARY,
+    "scope": NECESSARY,
+    "affected_path": NECESSARY,
+    "assumption": CONDITIONAL,
+    "constraint": NECESSARY,
+    "exclusion": ANTI_REQUIREMENT,
+    "acceptance_criterion": NECESSARY,
+}
+
+
+@dataclasses.dataclass(frozen=True)
+class ContextRequirement:
+    """Typed review obligation derived from one immutable objective-context field.
+
+    This is deliberately separate from the executable work-package graph. It
+    preserves the source item and its candidate classification until a reviewer
+    maps it to one or more canonical graph obligations with evidence.
+    """
+
+    item_id: str
+    kind: str
+    text: str
+    source_field: str
+    source_index: int
+    source_ref: str
+    classification: str
+    status: str = "unmapped"
+    mapped_obligation_keys: List[str] = dataclasses.field(default_factory=list)
+    evidence: List[str] = dataclasses.field(default_factory=list)
+    review_required: bool = True
+
+    def __post_init__(self) -> None:
+        for name in ("item_id", "kind", "text", "source_field", "source_ref"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"context requirement {name} must be non-blank")
+        if self.kind not in CONTEXT_REQUIREMENT_CLASSIFICATIONS:
+            raise ValueError(f"invalid context requirement kind: {self.kind!r}")
+        expected = CONTEXT_REQUIREMENT_CLASSIFICATIONS[self.kind]
+        if self.classification != expected:
+            raise ValueError(
+                f"context requirement {self.kind!r} must use classification {expected!r}"
+            )
+        if isinstance(self.source_index, bool) or not isinstance(self.source_index, int) or self.source_index < 0:
+            raise ValueError("context requirement source_index must be a non-negative integer")
+        if self.status not in ("unmapped", "mapped"):
+            raise ValueError("context requirement status must be unmapped|mapped")
+        if not isinstance(self.review_required, bool):
+            raise ValueError("context requirement review_required must be a boolean")
+        for name in ("mapped_obligation_keys", "evidence"):
+            values = getattr(self, name)
+            if not isinstance(values, list) or any(
+                not isinstance(value, str) or not value.strip() for value in values
+            ):
+                raise ValueError(f"context requirement {name} must contain non-blank references")
+        if self.status == "unmapped":
+            if self.mapped_obligation_keys or self.evidence or not self.review_required:
+                raise ValueError("unmapped context requirements must remain unresolved and review-required")
+        else:
+            if not _has_traceable_evidence(self.mapped_obligation_keys):
+                raise ValueError("mapped context requirements need mapped obligation keys")
+            if not _has_traceable_evidence(self.evidence):
+                raise ValueError("mapped context requirements need traceable mapping evidence")
+            if self.review_required:
+                raise ValueError("mapped context requirements cannot remain review-required")
+
+    def to_dict(self) -> dict:
+        return dataclasses.asdict(self)
+
+
+ACCEPTANCE_VERIFICATION_STATES = ("unknown", "pending", "passed", "failed", "not_applicable")
+
+
+@dataclasses.dataclass(frozen=True)
+class AcceptanceVerificationRecord:
+    """Separate UNKNOWN-first verification contract for one acceptance criterion."""
+
+    criterion_id: str
+    source_ref: str
+    criterion: str
+    status: str = "unknown"
+    mapped_obligation_keys: List[str] = dataclasses.field(default_factory=list)
+    verification_method: Optional[str] = None
+    evidence_refs: List[str] = dataclasses.field(default_factory=list)
+    verified_at: Optional[str] = None
+    verifier: Optional[str] = None
+    confidence: Optional[str] = None
+    note: str = ""
+
+    def __post_init__(self) -> None:
+        for name in ("criterion_id", "source_ref", "criterion"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"acceptance verification {name} must be non-blank")
+        if self.status not in ACCEPTANCE_VERIFICATION_STATES:
+            raise ValueError(f"invalid acceptance verification status: {self.status!r}")
+        for name in ("mapped_obligation_keys", "evidence_refs"):
+            values = getattr(self, name)
+            if not isinstance(values, list) or any(
+                not isinstance(value, str) or not value.strip() for value in values
+            ):
+                raise ValueError(f"acceptance verification {name} must contain non-blank references")
+        if self.status in ("pending", "passed", "failed"):
+            if not _has_traceable_evidence(self.mapped_obligation_keys):
+                raise ValueError(f"{self.status} acceptance verification needs mapped obligation keys")
+            if not isinstance(self.verification_method, str) or not self.verification_method.strip():
+                raise ValueError(f"{self.status} acceptance verification needs a verification method")
+        if self.status in ("passed", "failed", "not_applicable"):
+            if not _has_traceable_evidence(self.evidence_refs):
+                raise ValueError(f"{self.status} acceptance verification needs traceable evidence")
+            if not isinstance(self.verifier, str) or not self.verifier.strip():
+                raise ValueError(f"{self.status} acceptance verification needs a verifier")
+            if not isinstance(self.confidence, str) or not self.confidence.strip():
+                raise ValueError(f"{self.status} acceptance verification needs a confidence label")
+            if not isinstance(self.verified_at, str) or not self.verified_at.strip():
+                raise ValueError(f"{self.status} acceptance verification needs verified_at")
+            try:
+                parsed = datetime.datetime.fromisoformat(self.verified_at.replace("Z", "+00:00"))
+            except ValueError as exc:
+                raise ValueError("acceptance verification verified_at must be ISO-8601") from exc
+            if parsed.tzinfo is None or parsed.utcoffset() is None:
+                raise ValueError("acceptance verification verified_at must include a timezone offset")
+        if self.status == "unknown" and (
+            self.evidence_refs or self.verified_at is not None or self.verifier is not None
+        ):
+            raise ValueError("unknown acceptance verification cannot carry a completion claim")
+        if not isinstance(self.note, str):
+            raise ValueError("acceptance verification note must be text")
+
+    @property
+    def review_required(self) -> bool:
+        return self.status in ("unknown", "pending")
+
+    def to_dict(self) -> dict:
+        data = dataclasses.asdict(self)
+        data["review_required"] = self.review_required
+        return data
 
 
 @dataclasses.dataclass
