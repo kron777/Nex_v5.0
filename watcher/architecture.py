@@ -97,7 +97,8 @@ class Edge:
 
 class RuntimeGraph:
     """A separate static/design view of source-present relationships. Never writes
-    to the build DAG or mind map, and never implies live execution."""
+    to the build DAG or mind map. A runtime-observed edge is accepted only with
+    explicit host origin and a trace reference; a cloud graph cannot assert it."""
 
     def __init__(self) -> None:
         self.nodes: set[str] = set()
