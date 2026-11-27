@@ -401,6 +401,65 @@ def test_unknown_acceptance_verification_cannot_carry_completion_claim():
         )
 
 
+def test_acceptance_verification_pending_and_failed_states_have_distinct_proof_requirements():
+    common = dict(
+        criterion_id="ctx:acceptance:pending",
+        source_ref="objective_input:sha:acceptance_criteria[0]",
+        criterion="The capability behaves as specified",
+        mapped_obligation_keys=["capability.behaviour"],
+        verification_method="pytest -q tests/test_capability.py",
+    )
+    pending = AcceptanceVerificationRecord(**common, status="pending")
+    assert pending.review_required is True
+    with pytest.raises(ValueError, match="needs traceable evidence"):
+        AcceptanceVerificationRecord(
+            **common, status="failed", verifier="CI",
+            confidence="measured", verified_at="2026-11-28T10:00:00Z",
+        )
+    failed = AcceptanceVerificationRecord(
+        **common, status="failed", evidence_refs=["ci:run-42"],
+        verifier="CI", confidence="measured",
+        verified_at="2026-11-28T10:00:00Z",
+    )
+    assert failed.status == "failed"
+    assert failed.review_required is False
+
+
+def test_context_requirement_rejects_invalid_source_index_and_status():
+    base = dict(
+        item_id="ctx:constraint:0",
+        kind="constraint",
+        text="Do not modify live data",
+        source_field="constraints",
+        source_index=0,
+        source_ref="objective_input:sha:constraints[0]",
+        classification=NECESSARY,
+    )
+    with pytest.raises(ValueError, match="source_index"):
+        ContextRequirement(**{**base, "source_index": -1})
+    with pytest.raises(ValueError, match="status"):
+        ContextRequirement(**{**base, "status": "verified"})
+
+
+def test_context_requirement_rejects_duplicate_mapping_references():
+    base = dict(
+        item_id="ctx:constraint:0",
+        kind="constraint",
+        text="Do not modify live data",
+        source_field="constraints",
+        source_index=0,
+        source_ref="objective_input:sha:constraints[0]",
+        classification=NECESSARY,
+        status="mapped",
+        mapped_obligation_keys=["db.read_only", "db.read_only"],
+        evidence=["review:constraint-1"],
+        review_required=False,
+    )
+    # Repeated references add no traceability and can hide duplicate mapping work.
+    with pytest.raises(ValueError, match="unique"):
+        ContextRequirement(**base)
+
+
 def test_intake_smoke_on_real_rdo_repository(tmp_path):
     """A real, read-only RDO documentation/tooling objective against this checkout."""
     repo = Path(__file__).resolve().parents[2]
