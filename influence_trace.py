@@ -21,6 +21,7 @@ import os
 import threading
 import time
 import uuid
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Optional
 
@@ -28,6 +29,69 @@ SCHEMA = "nex_causal_trace/v1"
 _REPO_ROOT = Path(__file__).resolve().parent
 _FILE_LOCK = threading.Lock()
 _TRUTHY = frozenset({"1", "true", "on", "yes", "y"})
+
+# Process-local bridge from a Fountain enqueue to the speech consumer thread.
+# It is deliberately bounded, expiring, and observational: no queue state is
+# persisted here, and a missing/expired link never affects speech delivery.
+_TRACE_LINK_LOCK = threading.Lock()
+_TRACE_LINKS: OrderedDict[int, tuple[float, "TraceContext", str]] = OrderedDict()
+_TRACE_LINK_MAX = 512
+_TRACE_LINK_TTL_SECONDS = 3600.0
+
+
+def register_speech_queue_trace(belief_id: int, trace: "TraceContext",
+                                parent_event_id: Optional[str]) -> None:
+    """Register a trace parent before a queue row becomes visible to the consumer."""
+    if trace is None or not parent_event_id:
+        return
+    try:
+        key = int(belief_id)
+        if key <= 0:
+            return
+        now = time.monotonic()
+        with _TRACE_LINK_LOCK:
+            expired = [
+                item_key for item_key, (created, _, _) in _TRACE_LINKS.items()
+                if now - created > _TRACE_LINK_TTL_SECONDS
+            ]
+            for item_key in expired:
+                _TRACE_LINKS.pop(item_key, None)
+            _TRACE_LINKS.pop(key, None)
+            _TRACE_LINKS[key] = (now, trace, str(parent_event_id))
+            while len(_TRACE_LINKS) > _TRACE_LINK_MAX:
+                _TRACE_LINKS.popitem(last=False)
+    except Exception:
+        return
+
+
+def take_speech_queue_trace(belief_id: int):
+    """Consume a registered parent exactly once; return None when absent/expired."""
+    try:
+        key = int(belief_id)
+        now = time.monotonic()
+        with _TRACE_LINK_LOCK:
+            expired = [
+                item_key for item_key, (created, _, _) in _TRACE_LINKS.items()
+                if now - created > _TRACE_LINK_TTL_SECONDS
+            ]
+            for item_key in expired:
+                _TRACE_LINKS.pop(item_key, None)
+            item = _TRACE_LINKS.pop(key, None)
+        if item is None:
+            return None
+        _, trace, parent_event_id = item
+        return trace, parent_event_id
+    except Exception:
+        return None
+
+
+def discard_speech_queue_trace(belief_id: int) -> None:
+    """Discard an enqueue link when insertion fails before a queue row exists."""
+    try:
+        with _TRACE_LINK_LOCK:
+            _TRACE_LINKS.pop(int(belief_id), None)
+    except Exception:
+        return
 
 # Generic event metadata is deliberately defensive. These keys are always
 # replaced with digest/length pairs when a caller accidentally passes text.
