@@ -127,5 +127,8 @@ def test_speech_consumer_records_failure_without_text_payload(tmp_path, monkeypa
     assert "synthesis_failed" in by_event
     assert "queue_status_failed" in by_event
     assert by_event["synthesis_failed"]["metadata"]["error_type"] == "RuntimeError"
+    assert by_event["queue_status_failed"]["parent_ids"] == [
+        by_event["synthesis_failed"]["event_id"]
+    ]
     assert "content" not in by_event["synthesis_failed"]["metadata"]
     assert any("status='failed'" in sql for sql, _ in consumer.writer.writes)
