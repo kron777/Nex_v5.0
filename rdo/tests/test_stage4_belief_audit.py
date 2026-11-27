@@ -115,3 +115,16 @@ def test_stage4_end_to_end_and_resume(tmp_path):
     assert r.returncode == 0, r.stderr
     out = json.loads(r.stdout)
     assert out["open"] == res["open_gaps"] and out["phases"] >= 6
+
+
+
+def test_belief_audit_grep_ignores_rdo_cycle_artifacts(tmp_path):
+    cycle_dir = tmp_path / "rdo" / ".cycles"
+    cycle_dir.mkdir(parents=True)
+    (cycle_dir / "prior-cycle.json").write_text(
+        '{"source_signature": "CREATE TABLE beliefs"}', encoding="utf-8"
+    )
+
+    # Stage 4 must not mistake the RDO's own generated cycle records for
+    # source/schema evidence when an unscoped audit signature is used.
+    assert ba._grep(r"CREATE TABLE beliefs", str(tmp_path), None) == []
