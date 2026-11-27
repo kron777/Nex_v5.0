@@ -140,7 +140,7 @@ Neither question authorises changing Warrant scoring, eligibility, flags, or lif
 
 **Evidence snapshot:** `main` at `e78773def4549f646257945e5886ec71a7837374`. PR #256 merged the RDO registry regression tests; exact-head full suite passed **2,599 passed, 7 skipped, 45 subtests** (run `46015838864`).
 
-- PR #259 is the current-main SurpriseLoop event-ID/retry correction. Its predecessor #257 passed 2,601 tests on the pre-#256 base; #259's exact-head full suite is pending. **Gate 0 hold remains** because event delivery changes which records can enter the belief corpus. The migration does not recover events strictly older than the legacy timestamp cutoff.
+- PR #259 is the current-main SurpriseLoop event-ID/retry correction. Its exact-head full suite run `46017043819` passed **2,610 passed, 7 skipped, 45 subtests**. **Gate 0 hold remains** because event delivery changes which records can enter the belief corpus. The migration does not recover events strictly older than the legacy timestamp cutoff.
 - PR #260 is the current-main manual/backlog/handoff replay on this post-#256 mainline.
 - G-53/G-71 Warrant cursor defects remain closed by PR #253. G-69 remains Gate 0 held. G-73 dormancy ownership/eligibility remains open; PR #102/#145 are older-base proposals and not approved for merge.
 - G-74/G-75 remain Warrant eligibility and boot-lifecycle questions; no Warrant score loop or flag was enabled.
