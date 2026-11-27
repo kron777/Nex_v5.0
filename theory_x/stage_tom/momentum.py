@@ -110,7 +110,6 @@ def capture_momentum(
     dynamic_writer: Optional[Writer] = None,
 ) -> bool:
     """Write the carried thread through the shared dynamic.db Writer. Fail-safe."""
-    own_reader = dynamic_reader is None
     own_writer = dynamic_writer is None
     reader = dynamic_reader or Reader(dynamic_db)
     writer = dynamic_writer or Writer(dynamic_db, name="momentum")
@@ -195,7 +194,6 @@ def stamp_resolution(
     dynamic_writer: Optional[Writer] = None,
 ) -> bool:
     """Stamp the current thread's outcome through the shared dynamic Writer."""
-    own_reader = dynamic_reader is None
     own_writer = dynamic_writer is None
     reader = dynamic_reader or Reader(dynamic_db)
     writer = dynamic_writer or Writer(dynamic_db, name="momentum")
@@ -242,7 +240,6 @@ def read_momentum(
     dynamic_reader: Optional[Reader] = None,
 ) -> Optional[str]:
     """Read the carried thread without creating or mutating its table."""
-    own_reader = dynamic_reader is None
     reader = dynamic_reader or Reader(dynamic_db)
     try:
         row = reader.read_one(
