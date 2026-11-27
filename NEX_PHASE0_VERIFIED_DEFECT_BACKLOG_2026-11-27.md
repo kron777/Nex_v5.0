@@ -401,7 +401,7 @@ The Chat route calls `Metacognition.tick()`; its groove detector reads recent un
 
 ### G-84 — Shutdown does not quiesce all producers before Writer close (OPEN; legacy G-34)
 
-`AppState.close()` calls scheduler shutdown and closes Writers but does not call `stop_dynamic()` or coordinate all other workers. Scheduler stop signals are not joined. Writer close enqueues a sentinel and joins; submit has no closed-state guard. The keepalive supervisor has a 15-second SIGKILL deadline. This is a conditional data-loss/hang risk, not an observed incident. A central lifecycle coordinator and global deadline are required.
+`AppState.close()` calls scheduler shutdown and closes Writers but does not call `stop_dynamic()` or coordinate all other workers. `run.py` starts SpeechQueueConsumer, SignalLoop, DiversityLoop and EdgeGeneratorLoop; AppState ignores the first three during close and does not retain the EdgeGeneratorLoop. The decoder is signaled but not joined. Scheduler stop signals are not joined because adapter thread handles are not retained. Writer close enqueues a sentinel and joins; submit has no closed-state guard on the pre-PR-280 snapshot. The keepalive supervisor has a 15-second SIGKILL deadline. This is a conditional data-loss/hang risk, not an observed incident. A central lifecycle coordinator and global deadline are required.
 
 ### G-85 — SignalToProblem direct Writer bypass and split commit (OPEN; legacy G-44, under G-61)
 
