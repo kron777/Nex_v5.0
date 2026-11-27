@@ -78,17 +78,17 @@ Current source comparison:
 | v1.4 concern | Current source behaviour | Status |
 |---|---|---|
 | Node-level tension | `assess_node` primarily interprets classification and repository reconciliation state | Partial |
-| Relationship-level tension | `assess_relationship` checks unbounded influence and unresolved necessary dependencies | Partial |
+| Relationship-level tension | Explicit unbounded-influence and unresolved-dependency findings remain; otherwise absent or uncalibrated interface evidence now yields UNKNOWN rather than inferred SUFFICIENT | Partial; fail-closed assessment improved |
 | System-level tension | `assess_system` detects cycles, in-degree concentration (threshold 3), and necessary-obligation readiness | Partial |
-| Interface Tension Profile | `Relationship` has only src, dst, kind, authority, reversible and note | Missing |
-| Provider/consumer, purpose/direction, contract/schema | No typed profile fields | Missing |
-| Provenance/quality, timing/latency/frequency | No typed profile fields or measured interface evidence | Missing |
-| Influence magnitude/boundaries and authority | Basic authority field and separate source audit; magnitude/boundary profile incomplete | Partial |
-| Failure semantics/observability | Not represented as interface dimensions | Missing |
-| Capacity/headroom and operating envelopes | No capacity/headroom model or normal/busy/degraded/stress/recovery envelope | Missing |
-| Feedback sufficiency/stability | Cycles are detected and classified; gain/stability/hysteresis are not measured | Partial |
-| Duplication | Semantic duplicate candidates are surfaced by graph analysis | Partial-to-good; no interface-level duplication cost |
-| Failure propagation | Not represented as a typed interface dimension | Missing |
+| Interface Tension Profile | Typed UNKNOWN-first profile is now attached optionally to `Relationship`; it is structural only | Foundation implemented; assessment incomplete |
+| Provider/consumer, purpose/direction, contract/schema | Typed profile fields exist and default to UNKNOWN | Foundation implemented |
+| Provenance/quality, timing/latency/frequency/freshness | Evidence containers exist for provenance, data quality, timing, latency, frequency and freshness | Foundation implemented; no source measurements |
+| Influence magnitude/boundaries, authority and coupling | Magnitude, authority-boundary and coupling evidence dimensions are represented | Foundation implemented; no calibrated bounds |
+| Failure semantics/observability | Error handling, fallback, recovery and observability dimensions are represented | Foundation implemented; no failure-envelope assessment |
+| Capacity/headroom and operating envelopes | Capacity/headroom fields exist; NORMAL/BUSY/DEGRADED/STRESS/RECOVERY envelopes are not modelled | Partial |
+| Feedback sufficiency/stability | Feedback sufficiency/stability fields exist; gain, stability and hysteresis are not measured | Partial |
+| Duplication | Semantic duplicate candidates are surfaced by graph analysis; profile now carries a duplication evidence dimension | Partial-to-good; no measured duplication cost |
+| Failure propagation | A failure-propagation evidence dimension is represented; propagation analysis is not implemented | Partial |
 | Performance margins q/tau/m | No explicit metric/threshold/margin model | Missing |
 | NetValue and Pareto trade-off | Prioritisation uses separate dimensions plus an explicitly uncalibrated weighted sort score; no feasible Pareto comparison or net-value calculation | Missing |
 | Marginal-value stopping | Depth/terminal/reuse stopping exists; no marginal-value threshold or hysteresis | Partial |
@@ -124,16 +124,20 @@ This is an advisory capability gap, not an execution incident. The full input is
 
 ## 6. Next implementation slice
 
-**Target:** Interface Tension Profile + evidence-backed performance margins.
+**Target:** Evidence-backed interface margins, operating envelopes and relationship-level OFT.
 
-Bounded sequence:
-1. Add a typed, serialisable interface profile to the existing relationship model, preserving backward compatibility for existing relationships.
-2. Represent provider/consumer, purpose/direction, contract/schema, provenance/quality, timing/latency/frequency, influence magnitude/authority, reversibility, failure semantics, observability, capacity/headroom, feedback sufficiency/stability, duplication and failure propagation. Fields without evidence default to UNKNOWN.
-3. Add explicit `q`, `tau`, and `m=q-tau` margin records with units, evidence references and confidence. Do not invent thresholds; a missing threshold produces UNKNOWN.
-4. Extend relationship-level OFT to report dimensions and blockers without collapsing them into an uncalibrated “magic score”.
-5. Add focused tests for missing profile, unknown evidence, below-threshold headroom, unbounded influence, unstable feedback and failure propagation.
-6. Run the existing Stage-2 belief-development slice and persist/resume it to prove backward compatibility.
-7. Then add system-level operating envelopes and Pareto/net-value evaluation; do not mix those into the first profile commit.
+Completed foundation:
+1. Added a typed, serialisable UNKNOWN-first interface profile to `Relationship`, preserving legacy positional construction.
+2. Represented provider/consumer, purpose/direction, contract/schema, provenance/quality, timing/latency/frequency/freshness, influence magnitude/authority/coupling, reversibility, error handling, fallback/recovery, observability, capacity/headroom, feedback sufficiency/stability, duplication and failure propagation.
+3. Relationship-level assessment now refuses to infer SUFFICIENT when the profile is absent or when evidence exists without calibrated thresholds/margins. Existing explicit findings for unbounded influence and unresolved necessary dependencies retain precedence.
+
+Next bounded sequence:
+1. Add explicit `q`, `tau`, and `m=q-tau` margin records with units, evidence references and confidence. Do not invent thresholds; a missing threshold produces UNKNOWN.
+2. Define evidence-backed normal/busy/degraded/stress/recovery operating envelopes, preserving UNKNOWN where measurement is absent.
+3. Extend relationship-level OFT to evaluate interface dimensions and blockers without collapsing them into an uncalibrated “magic score”.
+4. Add focused adversarial tests for below-threshold headroom, unbounded influence, unstable feedback, failure propagation, local improvement/global regression and neighbouring-capability changes.
+5. Run the existing Stage-2 belief-development slice and persist/resume it to prove backward compatibility.
+6. Then add system-level Pareto/net-value evaluation and marginal-value stopping; do not mix those into the interface foundation.
 
 This increment remains external/advisory RDO code. It does not change NEX runtime, the frozen S-register, Master Roadmap, feature flags, live beliefs or protected experiments. It does not authorise the final v1.4 expansion stage to bypass existing safety and approval gates.
 
