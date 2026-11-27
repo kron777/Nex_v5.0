@@ -16,6 +16,7 @@ from .model import (ANTI_REQUIREMENT, CONDITIONAL, FUTURE, MISSING, NECESSARY,
                     SUFFICIENT, TENSION_UNKNOWN, UNDERDEVELOPED, Obligation,
                     InterfaceTensionProfile, Relationship, TensionAssessment,
                     has_valid_reuse_review)
+from .feedback_loop import FeedbackLoopAssessment
 
 
 # ---- node-level ----
@@ -213,12 +214,29 @@ def assess_system(obligations: Dict[str, Obligation],
                       for path in cycles]
         labels = {item["classification"] for item in classified}
         verdict = UNDERDEVELOPED if "prerequisite_cycle" in labels else TENSION_UNKNOWN
+        feedback_records = []
+        for path, item in zip(cycles, classified):
+            if item["classification"] != "feedback_loop":
+                continue
+            members = list(dict.fromkeys(path[:-1]))
+            relationship_refs = []
+            for src, dst in zip(path, path[1:]):
+                for rel in relationships:
+                    if rel.src == src and rel.dst == dst and rel.kind in ("depends_on", "influences"):
+                        relationship_refs.append(f"{rel.src}:{rel.kind}:{rel.dst}")
+            feedback_records.append(FeedbackLoopAssessment(
+                loop_id="feedback-loop:" + item["cycle"],
+                members=members,
+                relationships=list(dict.fromkeys(relationship_refs)),
+            ).to_dict())
         out.append(TensionAssessment(
             "system", "feedback_cycles", verdict, inference=True,
             evidence=[" -> ".join(path) for path in cycles],
-            dimensions={"classified_cycles": classified},
+            dimensions={"classified_cycles": classified,
+                       "feedback_loop_assessments": feedback_records},
             note="cycle(s) detected and classified: prerequisite cycles must be broken; "
-                 "feedback loops require stability review; unknown cycles remain unknown"))
+                 "feedback loops are represented with UNKNOWN stability evidence for review; "
+                 "unknown cycles remain unknown"))
 
     # Resource concentration: high in-degree obligations (potential bottleneck).
     indeg: Dict[str, int] = {}
