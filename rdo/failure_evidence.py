@@ -167,16 +167,6 @@ def record_failure_observation(
         raise TypeError("observation must be a FailurePropagationObservation")
     if not isinstance(cycle.relationships, list):
         raise ValueError("cycle relationships must be a list")
-    if not isinstance(cycle.obligations, list):
-        raise ValueError("cycle obligations must be a list")
-    obligation_keys = {
-        item.get("key") for item in cycle.obligations
-        if isinstance(item, dict) and isinstance(item.get("key"), str)
-    }
-    if (observation.relationship_src not in obligation_keys
-            or observation.relationship_dst not in obligation_keys):
-        raise ValueError("observation relationship endpoints must exist in cycle obligations")
-
     matching_edge = any(
         isinstance(edge, dict)
         and edge.get("src") == observation.relationship_src
@@ -187,13 +177,23 @@ def record_failure_observation(
     if not matching_edge:
         raise ValueError("observation relationship does not exist in this cycle")
 
+    if not isinstance(cycle.obligations, list):
+        raise ValueError("cycle obligations must be a list")
+    obligation_keys = {
+        item.get("key") for item in cycle.obligations
+        if isinstance(item, dict) and isinstance(item.get("key"), str)
+    }
+    if (observation.relationship_src not in obligation_keys
+            or observation.relationship_dst not in obligation_keys):
+        raise ValueError("observation relationship endpoints must exist in cycle obligations")
+
     records = cycle.observed_failure_evidence
     if not isinstance(records, list):
         raise ValueError("cycle observed_failure_evidence must be a list")
     # Match CycleStore's JSON normalization so replay remains idempotent after reload.
     payload = json.loads(json.dumps(observation.to_dict(), default=str))
     seen_ids = set()
-    identical_replay = False
+    matching_existing = None
     for existing in records:
         if not isinstance(existing, dict):
             raise ValueError("existing observed_failure_evidence entries must be dictionaries")
@@ -204,9 +204,10 @@ def record_failure_observation(
             raise ValueError("cycle contains duplicate observed-failure observation IDs")
         seen_ids.add(existing_id)
         if existing_id == observation.observation_id:
-            if existing != payload:
-                raise ValueError("observation_id already exists with different evidence")
-            identical_replay = True
-    if not identical_replay:
+            matching_existing = existing
+    if matching_existing is not None:
+        if matching_existing != payload:
+            raise ValueError("observation_id already exists with different evidence")
+    else:
         records.append(payload)
     return cycle
