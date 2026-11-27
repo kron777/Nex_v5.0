@@ -20,11 +20,12 @@ from typing import Any, Dict, List, Optional
 from watcher.evidence import utc_now
 
 from rdo.memory import CycleStore
-from rdo.model import NATIVE_PLANNING
+from rdo.model import NATIVE_PLANNING, ContextRequirement, AcceptanceVerificationRecord
 from .objective_intake import ObjectiveInputStore, _repository_revision
 
 HANDOFF_SCHEMA = "rdo.handoff.v1"
 EVENT_SCHEMA = "rdo.handoff_event.v1"
+_EVENT_KINDS = {"scope_review", "human_acceptance", "context_mapping", "acceptance_verification"}
 _HANDOFF_ID = re.compile(r"handoff_[0-9a-f]{24}\Z")
 _TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 _WORK_PACKAGE_KEY = re.compile(r"wp:[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
@@ -402,6 +403,8 @@ def _read_events_unlocked(workdir: str, handoff_id: str, manifest_sha256: str) -
                 raise HandoffError(f"decision-ledger line {number} must be an object")
             if event.get("schema_version") != EVENT_SCHEMA:
                 raise HandoffError(f"unsupported decision event on line {number}")
+            if event.get("event_kind") not in _EVENT_KINDS:
+                raise HandoffError(f"unsupported decision event kind on line {number}")
             if event.get("handoff_id") != handoff_id or event.get("manifest_sha256") != manifest_sha256:
                 raise HandoffError(f"decision event on line {number} is bound to another manifest")
             if event.get("sequence") != number or event.get("previous_event_sha256") != previous:
@@ -431,11 +434,20 @@ def handoff_history(workdir: str, handoff_id: str) -> dict:
                 fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
     last_scope = next((e for e in reversed(events) if e["event_kind"] == "scope_review"), None)
     last_acceptance = next((e for e in reversed(events) if e["event_kind"] == "human_acceptance"), None)
+    latest_context_mappings = {}
+    latest_acceptance_verifications = {}
+    for event in events:
+        if event["event_kind"] == "context_mapping":
+            latest_context_mappings[event["context_item_id"]] = event
+        elif event["event_kind"] == "acceptance_verification":
+            latest_acceptance_verifications[event["criterion_id"]] = event
     return {
         "manifest": manifest,
         "events": events,
         "latest_scope_review": last_scope,
         "latest_human_acceptance": last_acceptance,
+        "latest_context_mappings": latest_context_mappings,
+        "latest_acceptance_verifications": latest_acceptance_verifications,
     }
 
 
@@ -518,6 +530,130 @@ def record_scope_review(workdir: str, handoff_id: str, decision: str, reviewer: 
         "permitted_actions": sorted(actions),
         "note": note if isinstance(note, str) else "",
         "execution_authorized": False,
+    })
+
+
+def _context_assessment(manifest: dict) -> dict:
+    assessment = manifest.get("objective_context_assessment")
+    if not isinstance(assessment, dict):
+        raise HandoffError("handoff has no typed objective-context assessment")
+    return assessment
+
+
+def _manifest_obligation_keys(manifest: dict, values: List[str], name: str,
+                              *, required: bool = True) -> List[str]:
+    if (not isinstance(values, list) or len(values) > 200
+            or (required and not values)
+            or any(not isinstance(value, str) or not value.strip() for value in values)):
+        raise HandoffError(f"{name} must be a bounded list of nonblank obligation keys")
+    if len(values) != len(set(values)):
+        raise HandoffError(f"{name} contains duplicate obligation keys")
+    known = {
+        item.get("key") for item in manifest.get("obligations", [])
+        if isinstance(item, dict) and isinstance(item.get("key"), str)
+    }
+    unknown = sorted(set(values) - known)
+    if unknown:
+        raise HandoffError(f"{name} references obligations outside this handoff: {unknown}")
+    return list(values)
+
+
+def record_context_mapping(workdir: str, handoff_id: str, item_id: str,
+                           mapped_obligation_keys: List[str], evidence_references: List[str],
+                           reviewer: str, source_reference: str, note: str = "") -> dict:
+    """Append a human-attributed mapping of one objective-context item to graph obligations.
+
+    The immutable cycle and handoff manifest are not rewritten. The event is bound
+    to the manifest digest and becomes the latest reviewed mapping for this item.
+    """
+    manifest = load_handoff(workdir, handoff_id)
+    reviewer = _text(reviewer, "reviewer", 256)
+    source_reference = _text(source_reference, "source_reference", 1000)
+    item_id = _text(item_id, "item_id", 256)
+    if not isinstance(note, str) or len(note) > 2000:
+        raise HandoffError("note must be text of at most 2000 characters")
+    items = _context_assessment(manifest).get("items", [])
+    matches = [item for item in items if isinstance(item, dict) and item.get("item_id") == item_id]
+    if len(matches) != 1:
+        raise HandoffError("context item_id must identify exactly one item in this handoff")
+    item = matches[0]
+    keys = _manifest_obligation_keys(manifest, mapped_obligation_keys, "mapped_obligation_keys")
+    if (not isinstance(evidence_references, list) or not evidence_references
+            or len(evidence_references) > 200
+            or any(not isinstance(ref, str) or not ref.strip() or len(ref) > 1000
+                   for ref in evidence_references)):
+        raise HandoffError("evidence_references must be a bounded list of nonblank references")
+    if len(evidence_references) != len(set(evidence_references)):
+        raise HandoffError("evidence_references contains duplicates")
+    try:
+        record = ContextRequirement(
+            item_id=item["item_id"], kind=item["kind"], text=item["text"],
+            source_field=item["source_field"], source_index=item["source_index"],
+            source_ref=item["source_ref"], classification=item["classification"],
+            status="mapped", mapped_obligation_keys=keys,
+            evidence=list(evidence_references), review_required=False,
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HandoffError(f"context mapping does not satisfy the typed record: {exc}") from exc
+    return _append_event(workdir, manifest, {
+        "event_kind": "context_mapping",
+        "context_item_id": item_id,
+        "decision": "mapped",
+        "mapping_record": record.to_dict(),
+        "mapped_obligation_keys": keys,
+        "evidence_references": list(evidence_references),
+        "reviewer": reviewer,
+        "source_reference": source_reference,
+        "note": note,
+    })
+
+
+def record_acceptance_verification(workdir: str, handoff_id: str, criterion_id: str,
+                                   status: str, reviewer: str,
+                                   mapped_obligation_keys: Optional[List[str]] = None,
+                                   verification_method: Optional[str] = None,
+                                   evidence_references: Optional[List[str]] = None,
+                                   confidence: Optional[str] = None,
+                                   verified_at: Optional[str] = None,
+                                   note: str = "") -> dict:
+    """Append one typed, UNKNOWN-first acceptance-criterion verification event."""
+    manifest = load_handoff(workdir, handoff_id)
+    reviewer = _text(reviewer, "reviewer", 256)
+    criterion_id = _text(criterion_id, "criterion_id", 256)
+    if not isinstance(note, str) or len(note) > 2000:
+        raise HandoffError("note must be text of at most 2000 characters")
+    criteria = _context_assessment(manifest).get("acceptance_verification", [])
+    matches = [item for item in criteria
+               if isinstance(item, dict) and item.get("criterion_id") == criterion_id]
+    if len(matches) != 1:
+        raise HandoffError("criterion_id must identify exactly one acceptance criterion in this handoff")
+    item = matches[0]
+    keys = _manifest_obligation_keys(
+        manifest, list(mapped_obligation_keys or []), "mapped_obligation_keys",
+        required=status in ("pending", "passed", "failed"),
+    )
+    try:
+        record = AcceptanceVerificationRecord(
+            criterion_id=item["criterion_id"],
+            source_ref=item["source_ref"],
+            criterion=item["criterion"],
+            status=status,
+            mapped_obligation_keys=keys,
+            verification_method=verification_method,
+            evidence_refs=list(evidence_references or []),
+            verified_at=verified_at,
+            verifier=reviewer,
+            confidence=confidence,
+            note=note,
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HandoffError(f"acceptance verification does not satisfy the typed record: {exc}") from exc
+    return _append_event(workdir, manifest, {
+        "event_kind": "acceptance_verification",
+        "criterion_id": criterion_id,
+        "verification_record": record.to_dict(),
+        "reviewer": reviewer,
+        "note": note,
     })
 
 
