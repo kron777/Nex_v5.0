@@ -39,7 +39,7 @@ def test_interface_profile_dimensions_default_to_unknown_without_values_or_evide
     dimensions = [
         "contract", "schema", "provenance", "data_quality", "timing",
         "latency", "frequency", "freshness", "influence_magnitude",
-        "authority_boundary", "reversibility", "error_handling", "fallback",
+        "authority_boundary", "coupling", "reversibility", "error_handling", "fallback",
         "recovery", "observability", "capacity", "headroom",
         "feedback_sufficiency", "feedback_stability", "duplication",
         "failure_propagation",
