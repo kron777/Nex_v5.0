@@ -370,9 +370,9 @@ def test_scc_decomposition_computes_cycle_inventory_once(monkeypatch):
     original = tension._find_cycles
     calls = []
 
-    def counted(edges):
+    def counted(edges, kinds=("depends_on", "influences")):
         calls.append(1)
-        return original(edges)
+        return original(edges, kinds)
 
     monkeypatch.setattr(tension, "_find_cycles", counted)
     obs = [_ob(key) for key in ("A", "B", "C", "D")]
@@ -387,3 +387,18 @@ def test_scc_decomposition_computes_cycle_inventory_once(monkeypatch):
 
     assert len(result["nontrivial_components"]) == 2
     assert len(calls) == 1
+
+
+def test_scc_decomposition_enumerates_cycles_for_selected_custom_kinds():
+    obs = [_ob("A"), _ob("B")]
+    rels = [
+        {"src": "A", "dst": "B", "kind": "produces_for"},
+        {"src": "B", "dst": "A", "kind": "produces_for"},
+    ]
+
+    result = graph.scc_decomposition(obs, rels, kinds=("produces_for",))
+
+    assert len(result["nontrivial_components"]) == 1
+    component = result["nontrivial_components"][0]
+    assert component["internal_cycles"] == ["A -> B -> A"]
+    assert component["classification"] == "unknown"
