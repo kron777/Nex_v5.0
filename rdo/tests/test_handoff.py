@@ -93,6 +93,11 @@ def test_real_intake_cycle_creates_immutable_handoff_manifest(tmp_path, monkeypa
     assert manifest["authority"]["handoff_status"] == "pending_human_review"
     assert manifest["authority"]["execution_authority"] == "none"
     assert manifest["authority"]["tests_execution_authorized"] is False
+    assert manifest["work_package"]["eligibility"] == "eligible"
+    assert manifest["work_package"]["execution_readiness"] == "blocked"
+    assert manifest["objective_context_assessment"]["status"] == "unmapped"
+    assert manifest["objective_context_assessment"]["execution_readiness"] == "blocked"
+    assert manifest["objective_context_assessment"]["handoff_readiness"] == "reviewable"
     assert manifest["scope"]["allowed_paths"] == ["docs/REQUIREMENTS.md"]
     assert manifest["scope"]["resolved_paths"] == {"docs/REQUIREMENTS.md": "docs/REQUIREMENTS.md"}
     assert manifest["objective"]["original_text"] == _objective()["original_text"]
