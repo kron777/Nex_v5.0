@@ -4,7 +4,7 @@
 **Working specification:** RDO v1.4 — Optimal Functional Tension  
 **Specification provenance:** Founder-supplied 20 November 2026 text; 47,172 bytes; SHA-256 recorded in the 24 November conversation as `382d634d03bc15701d9de4dcbc2629b966ffd8370c370f0307a57a853f4db926`.  
 **Working-status note:** On 24 November the founder indicated they believed v1.4 had been approved. Treat v1.4 as the current working specification. Preserve v1.3 as historical implementation lineage; do not claim the consolidated NEX S-register contains a formal frozen supersession record.  
-**Repository evidence snapshot:** `main` at `efb09eed1d9f408c4a6402be7f63f6354d3d3553`.
+**Repository evidence snapshot:** `main` at `8ff988aec918893a4e3dc2121500e5281d861312`.
 
 This is an implementation audit against the recovered v1.4 requirements, not a replacement specification. The raw v1.4 attachment is not mounted in the current repository/Library workspace, so exact clause wording and un-recovered thresholds remain UNKNOWN. The recovered requirements below are sufficient to identify implementation gaps without pretending to reproduce every source clause.
 
@@ -86,8 +86,8 @@ Current source comparison:
 | Provenance/quality, timing/latency/frequency/freshness | Evidence containers exist for provenance, data quality, timing, latency, frequency and freshness | Foundation implemented; no source measurements |
 | Influence magnitude/boundaries, authority and coupling | Magnitude, authority-boundary and coupling evidence dimensions are represented | Foundation implemented; no calibrated bounds |
 | Failure semantics/observability | Error handling, fallback, recovery and observability dimensions are represented | Foundation implemented; no failure-envelope assessment |
-| Capacity/headroom and operating envelopes | Capacity/headroom evidence fields exist; an evidence-first record for NORMAL/BUSY/DEGRADED/STRESS/RECOVERY is proposed in PR #290 but is not yet merged; no classification or headroom calculation | Partial |
-| Feedback sufficiency/stability | Feedback sufficiency/stability fields exist; gain, delay, damping, oscillation, overshoot, recovery and observation-window evidence are not yet integrated into the merged assessor; an evidence record is proposed in PR #291 but is not yet merged | Partial |
+| Capacity/headroom and operating envelopes | Capacity/headroom evidence fields exist; `OperatingEnvelopeAssessment` is merged and represents NORMAL/BUSY/DEGRADED/STRESS/RECOVERY with separate declared/assessed states, load/capacity/headroom, transition/recovery evidence. No classification or headroom calculation | Partial |
+| Feedback sufficiency/stability | Feedback sufficiency/stability fields exist; gain, delay, damping, oscillation, overshoot, recovery and observation-window evidence are not yet integrated into the merged assessor. PR #293 proposes a first-class feedback-loop evidence record and is unmerged | Partial |
 | Duplication | Semantic duplicate candidates are surfaced by graph analysis; profile now carries a duplication evidence dimension | Partial-to-good; no measured duplication cost |
 | Failure propagation | A failure-propagation evidence dimension is represented; propagation analysis is not implemented | Partial |
 | Performance margins q/tau/m | `PerformanceMargin` represents q, tau, unit, normalization, evidence and confidence; computes exact m=q-tau only for finite comparable values; exact zero remains a boundary, not a pass | Evidence model implemented; calibrated threshold selection and sufficiency verdicts missing |
@@ -117,11 +117,13 @@ The case labels below are concise summaries recovered from the v1.4 review conte
 
 A test with a similar name is not counted as full coverage unless it exercises the specified adversarial condition and asserts the required outcome.
 
-## 5. Objective-context gap (G-91)
+## 5. Objective-context gap (G-91) — narrowed by merged implementation
 
-The objective intake validates and preserves `intent`, `owner`, `scope`, `constraints`, `exclusions` and `acceptance_criteria`. However, `submit_objective()` passes only original text, top-level assumptions, supplied seed obligations, relationships, reconciliation signatures and expansion depth into `run_cycle()`. The contextual fields remain in the append-only ledger but are not translated into obligations/anti-requirements or checked against proposed work packages; acceptance criteria are not used as a completion-verification contract.
+PR #287 merged objective-context propagation into `run_cycle()`, cycle persistence, summary and handoff. The system now preserves intent, owner/source, scope, affected paths, assumptions, constraints, exclusions and acceptance criteria as context. It creates explicit UNKNOWN/unmapped context items, marks execution readiness BLOCKED while items remain unmapped, keeps bounded human handoff reviewable, and propagates exclusions into package anti-requirements. Legacy no-context cycles retain their prior readiness behaviour; legacy handoff manifests remain readable.
 
-This is an advisory capability gap, not an execution incident. The full input is auditable, but a plan can fail to reflect all preserved context. A future increment should translate context into typed obligations/anti-requirements and an explicit acceptance-verification record.
+**Implemented and test-verified:** context is preserved; scalar intent is handled as a single item; unknown context remains unmapped; execution readiness is blocked; exclusions are propagated; cycle resume retains context; and handoff carries the assessment.
+
+**Remaining gap:** context items are not yet mapped automatically or through a structured evidence-resolution workflow into obligations and independent evidence. Acceptance criteria are preserved and surfaced, but are not yet a formal completion-verification contract. Owner/source are provenance fields, not enforced authority. This remains a planning/review capability gap, not evidence of an execution incident.
 
 ## 6. Next implementation slice
 
@@ -133,8 +135,8 @@ Completed foundation:
 3. Relationship-level assessment now refuses to infer SUFFICIENT when the profile is absent or when evidence exists without calibrated thresholds/margins. Existing explicit findings for unbounded influence and unresolved necessary dependencies retain precedence.
 
 Next bounded sequence:
-1. Add a typed operating-envelope evidence record, keeping declared labels separate from assessed states and keeping measured load, capacity, headroom, transition and recovery evidence independent. Do not infer classifications or thresholds from labels.
-2. Add a first-class feedback-loop evidence record preserving loop members and relationship identities, with gain, delay, damping, oscillation, overshoot, recovery and observation-window dimensions. Do not equate graph topology with instability or remove cycles automatically.
+1. Integrate the merged operating-envelope evidence model into assessment interfaces, keeping declared labels separate from assessed states and measured load/capacity/headroom/transition/recovery evidence independent. Do not infer classifications or thresholds from labels.
+2. Review and test PR #293's first-class feedback-loop evidence record; if merged, integrate it into assessment interfaces while preserving loop members/relationships and gain, delay, damping, oscillation, overshoot, recovery and observation-window dimensions. Do not equate graph topology with instability or remove cycles automatically.
 3. Extend relationship-level OFT to evaluate interface dimensions and blockers without collapsing them into an uncalibrated “magic score”.
 4. Add adversarial tests for insufficient headroom, unstable feedback, failure propagation, local improvement/global regression and neighbouring-capability changes.
 5. Run the existing Stage-2 belief-development slice and persist/resume it to prove backward compatibility.
