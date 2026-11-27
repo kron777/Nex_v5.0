@@ -62,7 +62,8 @@ def test_measured_interface_value_without_threshold_does_not_claim_sufficiency()
     assert result.verdict == TENSION_UNKNOWN
     assert result.evidence == ["test:latency-p95"]
     assert result.dimensions["dimensions"]["latency"]["value"] == 18.4
-    assert "thresholds, margins" in result.note
+    assert "calibrated thresholds" in result.note
+    assert "margin aggregation" in result.note
 
 
 def test_relationship_profile_dict_from_persistence_is_supported():
