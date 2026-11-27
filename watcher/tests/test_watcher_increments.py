@@ -43,8 +43,8 @@ def test_ledger_lifecycle_and_illegal_transition(tmp_path):
     led = ConnectionLedger(str(tmp_path / "ledger.jsonl"))
     led.record("x->y", "DECLARED")
     led.record("x->y", "SOURCE_CONFIRMED", evidence_refs=["src.py"])
-    led.record("x->y", "TEST_WRITTEN")
-    led.record("x->y", "TEST_PASSED")
+    led.record("x->y", "TEST_WRITTEN", evidence_refs=["tests/test_x.py"])
+    led.record("x->y", "TEST_PASSED", evidence_refs=["tests/test_x.py"])
     assert led.current_state("x->y") == "TEST_PASSED"
     # cannot invent a runtime observation out of DECLARED on a fresh connection
     with pytest.raises(LedgerError):
