@@ -166,3 +166,20 @@ def test_relationship_assessment_fails_closed_on_non_string_envelope_state():
     result = assess_relationship(rel, {})
     assert result.dimensions["operating_envelope"]["status"] == "invalid_evidence"
     assert result.verdict == TENSION_UNKNOWN
+
+
+def test_explicit_relationship_defect_retains_operating_envelope_context():
+    rel = Relationship("signal", "consumer", "influences", authority="strong",
+        operating_envelope=OperatingEnvelopeAssessment(declared_state=BUSY))
+    result = assess_relationship(rel, {})
+    assert result.verdict == OVERDEVELOPED
+    assert result.dimensions["operating_envelope"]["declared_state"] == BUSY
+    assert result.dimensions["operating_envelope"]["status"] == "unknown"
+
+
+def test_invalid_declared_envelope_state_is_not_treated_as_valid_context():
+    rel = Relationship("consumer", "provider", "depends_on", operating_envelope={
+        "declared_state": {"not": "a state"}, "assessed_state": None,
+    })
+    result = assess_relationship(rel, {})
+    assert result.dimensions["operating_envelope"]["status"] == "invalid_evidence"
