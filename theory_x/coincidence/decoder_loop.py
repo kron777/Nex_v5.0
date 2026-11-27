@@ -190,6 +190,13 @@ def decoder_tick(
 
         def _process(cx):
             cx.row_factory = Row
+            # The daemon cursor is a small dynamic-DB key/value table. Ensure
+            # it exists inside the same canonical Writer transaction before
+            # reading or advancing the cursor.
+            cx.execute(
+                "CREATE TABLE IF NOT EXISTS daemon_kv ("
+                "key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+            )
             last_fid = _get_last_fid(cx)
             rows = cx.execute(
                 "SELECT id, ts, thought, hot_branch, tag FROM fountain_events "
