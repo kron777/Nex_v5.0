@@ -2,7 +2,7 @@
 
 **Date:** 27 November 2026  
 **Repository:** https://github.com/kron777/Nex_v5.0  
-**Evidence snapshot:** `main` at `edb869af154a33cd77df5ad9bdf010d3e6ab06a2`  
+**Evidence snapshot:** `main` at `9f5a9f0b476716b6a6fd0a39aa3cf3041a3a4465`  
 **Gate 0:** **PENDING — founder review required**
 
 ## Read these together
@@ -13,7 +13,7 @@
 - `ADR-001.md` — M0.5 trace mechanism and rollback.
 
 
-## Latest current-main continuation — 27 November 2026
+## Historical continuation record — snapshot c80d9dbb878ac15a39d6707a9c89ab2a51f8518c (27 November 2026)
 
 **Evidence snapshot:** `main` at `c80d9dbb878ac15a39d6707a9c89ab2a51f8518c`. The exact-head full baseline passed: **2,590 passed, 7 skipped, 45 subtests** (run `46014884835`).
 
@@ -198,6 +198,24 @@ G-58 is a real implementation mismatch: GoalManager creates/selects `open` goals
 Claude's review should follow the same research → bounded implementation → rescan → consequence/evidence → manual-update loop. Separate facts, hypotheses, policy decisions and approvals. Do not treat a green CI run as host activation or behavioural validation.
 
 
-## Post-PR #265 current-main correction — 27 November 2026
+## Historical PR #265 correction record — superseded by the current status block below (27 November 2026)
 
-The first manual update described PR #264 as based on the post-#263 mainline. A later commit-graph check found its merge base was still `cc8ae43652bdba919198ee4bb90fabbd8f05632f`. Its exact-head suite run `46023260805` passed, but that run did not validate the later mainline. PR #264 is closed as superseded. **PR #266** replays the same change on current main `edb869af154a33cd77df5ad9bdf010d3e6ab06a2`; it is draft and awaits its own exact-head CI. Do not treat the old pass as current-main validation. The change may advance previously starved beliefs at a future scheduled erosion pass and remains subject to review.
+The first manual update described PR #264 as based on the post-#263 mainline. A later commit-graph check found its merge base was still `cc8ae43652bdba919198ee4bb90fabbd8f05632f`. Its exact-head suite run `46023260805` passed, but that run did not validate the later mainline. PR #264 is closed as superseded. **PR #266** replayed the same change on `edb869af154a33cd77df5ad9bdf010d3e6ab2`; it was itself superseded after main advanced. **PR #268** is the latest-main replay; see the current status block. Do not treat the old pass as current-main validation. The change may advance previously starved beliefs at a future scheduled erosion pass and remains subject to review.
+
+
+## Current Claude handoff status — verified at main 9f5a9f0b476716b6a6fd0a39aa3cf3041a3a4465 (27 November 2026)
+
+This block supersedes older "latest/current" labels elsewhere in this handoff. Read it before acting.
+
+- Current main: `9f5a9f0b476716b6a6fd0a39aa3cf3041a3a4465`.
+- PR #268: current-main provenance-erosion replay; draft; base exactly current main; head `8b8ffaff27e298ff96dd4a09452ac14067dc4916`; exact-head CI run `46024945847` had built its disposable image and was still executing the full baseline at last check. Do not claim pass/fail until queried again. Behaviour may advance previously starved beliefs; undo log is audit metadata, not rollback.
+- PR #266: older-base replay, superseded by #268; do not cite its CI as proof for #268.
+- PR #259: SurpriseLoop loss-safe proposal remains Gate 0 HOLD and is not a current-main replay. GitHub metadata says base `e78773def4549f646257945e5886ec71a7837374`, head `9686fa6da7e835a149f31b516a5ff7a731c3a8b0`; its branch diverges from current main. It must not be merged/deployed; founder approval is required for the behaviour impact.
+- PR #255: closed unmerged older attempt.
+- G-58 unresolved; exact V2.1 and approval evidence not located. Do not change goal-state semantics.
+- G-70 source/test gap closed by merged PR #261; M0.5 acceptance remains open.
+- G-73/G-74/G-75 remain open; verify each against the backlog before changing anything.
+- Gate 0 pending founder review; Phase 1 unauthorized.
+- Reality Report and Architecture Crosswalk are historical at `ae406fa8fcb1abdf25cdf4ae1bd65333e1148ca8`, 44 commits behind current main. Use as orientation only and revalidate claims against source.
+
+Claude must independently query the repository and CI before acting. Do not treat this handoff as proof that another model has read it or that the founder has approved any action.
