@@ -309,3 +309,16 @@ def test_failure_propagation_candidates_reject_malformed_inputs_without_throwing
     result = graph.failure_propagation_candidates(None, [], ["root"])
     assert result["status"] == "invalid_input"
     assert result["affected"] == []
+
+
+def test_failure_propagation_candidates_preserve_unknown_edge_and_obligation_shapes():
+    obligations = [_ob("known"), {"title": "missing canonical key"}]
+    rels = [
+        {"src": "known", "dst": "known", "kind": "unrecognised_edge"},
+        {"src": "known", "dst": "known"},
+    ]
+    result = graph.failure_propagation_candidates(obligations, rels, ["known"])
+    assert result["status"] == "partial"
+    assert result["invalid_obligations"] == 1
+    assert result["unresolved_dependency_edges"] == 2
+    assert result["affected"] == []
