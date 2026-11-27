@@ -191,3 +191,59 @@ def test_missing_node_status_is_rejected_by_classification():
         match=r"unknown DAG node status value\(s\): candidate \[<missing>\]",
     ):
         nex_next_dev.classify(nodes)
+
+
+def test_non_object_node_definition_is_rejected():
+    import pytest
+
+    with pytest.raises(
+        ValueError,
+        match=r"malformed DAG node definition\(s\): candidate: node definition must be an object",
+    ):
+        nex_next_dev.classify({"candidate": None})
+
+
+def test_non_list_prerequisites_are_rejected():
+    import pytest
+
+    with pytest.raises(
+        ValueError,
+        match=r"malformed DAG node definition\(s\): candidate: prereqs must be a list",
+    ):
+        nex_next_dev.classify({
+            "candidate": {"status": "gap", "prereqs": "foundation"}
+        })
+
+
+def test_non_string_prerequisite_is_rejected_before_reference_validation():
+    import pytest
+
+    with pytest.raises(
+        ValueError,
+        match=r"prerequisite at index 0 must be a non-empty string",
+    ):
+        nex_next_dev.classify({
+            "candidate": {"status": "gap", "prereqs": [None]}
+        })
+
+
+def test_empty_node_id_is_rejected():
+    import pytest
+
+    with pytest.raises(
+        ValueError,
+        match=r"node ID must be a non-empty string",
+    ):
+        nex_next_dev.classify({
+            "": {"status": "gap", "prereqs": []}
+        })
+
+
+def test_non_object_nodes_container_is_rejected():
+    import pytest
+
+    with pytest.raises(
+        ValueError,
+        match=r"DAG nodes must be an object mapping node IDs to node objects",
+    ):
+        nex_next_dev.classify([])
