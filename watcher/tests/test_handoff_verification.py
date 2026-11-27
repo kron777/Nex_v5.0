@@ -550,7 +550,7 @@ def test_watcher_rejects_acceptance_verification_without_prior_context_mapping(t
         "verification_method": "inspect the scoped proposal",
         "evidence_refs": [],
         "verified_at": None,
-        "verifier": "fixture-reviewer",
+        "verifier": None,
         "confidence": None,
         "note": "",
         "review_required": True,
