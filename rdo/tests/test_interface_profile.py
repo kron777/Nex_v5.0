@@ -19,6 +19,7 @@ def test_legacy_relationship_shape_remains_valid_and_serialisable():
         "reversible": None,
         "note": "",
         "interface_profile": None,
+        "operating_envelope": None,
     }
 
 
@@ -88,3 +89,11 @@ def test_interface_profiles_do_not_share_mutable_default_evidence():
 
     first.latency.evidence.append("fixture")
     assert second.latency.evidence == []
+
+
+def test_legacy_positional_relationship_constructor_keeps_interface_profile_slot():
+    profile = InterfaceTensionProfile()
+    relationship = Relationship("consumer", "provider", "depends_on",
+                                "none", True, "legacy note", profile)
+    assert relationship.interface_profile is profile
+    assert relationship.operating_envelope is None
