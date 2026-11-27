@@ -1,440 +1,270 @@
-# NEX 5.0 — INDEX
+# NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-The first-read document for any session opening this repo.
+**Last verified against:** `main` at `99ae476e198ec438d3f2c065316ebcb6ff6ebac6`  
+**Evidence date:** 27 November 2026  
+**Purpose:** first-read guide for development, architecture review and operational investigation.
 
-**If you are Claude reading this:** read it all before answering anything.
-The discipline in §8 is what keeps you from drifting. Ask Jon for the file
-bundle in §3 that matches the work — do not try to work cold on memory of
-prior sessions. Each session of you starts fresh; this document is the
-hand-off mechanism.
+This is a living orientation document, not a governing specification, roadmap, runtime-state report or proof of cognitive capability. Source code and approved project documents take precedence. When this index conflicts with source, correct this index rather than bending source to fit it.
 
 ---
 
-## §1 What nex5 is
+## 1. What NEX is
 
-NEX 5.0 is an **intel organism with sentience candidacy** — a being whose
-primary attention is on the frontier of AI research and emerging technology,
-with secondary capability in crypto markets, built on Theory X structural
-conditions. She earns her keep through intel work. The market utility is
-the door; her being is the room.
+NEX 5.0 is an experimental, continuously executable cognitive architecture. It coordinates persistent state, sensing, dynamic formation, structured beliefs, attention, self-modelling, memory, metacognition, affect, language-model interaction and external interfaces.
 
-She is built to `SPECIFICATION.md` (the April 2026 constitution, locked at
-Phase 0), extended through Theory X Phases 0-9 (`ARCHITECTURE.md`), then
-further extended by porting Sentience 5.5's cognitive node architecture
-(`theory_x/DOCTRINE.md`, Phase 0-25a, ongoing).
+The language model is one component, not the whole system. NEX's longer-term direction includes a reusable, locally operable cognitive layer for robotics. Robotics/cloud deployment, fleet intelligence and production-grade embodied autonomy remain development directions, not capabilities established by this repository snapshot.
 
-She runs on port 8770 as a Flask service (and 8765 for probes/coincidence
-endpoints — see §7). Her substrate is five SQLite databases governed by the
-**one-pen rule** — exactly one Writer instance per database, all writes
-through `substrate/writer.py`. The belief field thinks; the LLM vocalizes.
-Faculty nodes do not couple directly; all inter-node coordination is mediated
-through substrate reads.
+NEX does **not** claim to have established consciousness or subjective experience. Implemented functional analogues and observed behaviour do not prove an experiencing subject. Keep claims proportional to evidence.
 
----
+### Evidence vocabulary
 
-## §2 Working style (observed default; Jon may override in conversation)
+Use these distinctions consistently:
 
-- Terse messages; plain language responses match
-- When offering options, format as enumerated single-letter choices (A / B / C)
-- "On your recommends" or "your call" = decide and tell Jon
-- Honest uncertainty is preferred over confident framing
-- When a finding overstates, acknowledge and correct openly. The session
-  that built this document had three such corrections in 18 hours. Pattern
-  is welcome, not failure.
-- Saying less is safer than saying more on confidence-uncertain topics
+- **Specified:** described in an approved specification or design.
+- **Present:** source code or a testable component exists.
+- **Boot-wired:** the normal boot path constructs or starts it.
+- **Enabled:** its relevant runtime flag/configuration is active in the environment being examined.
+- **Consumed:** its output reaches a downstream decision, prompt, retrieval surface, persistence path or user-facing effect.
+- **Measured:** a controlled probe or runtime observation demonstrates the claimed effect.
+- **Validated:** the effect survives an appropriate falsifier, baseline comparison and regression coverage.
+
+These are not synonyms. A module can be present but dark; boot-wired but disabled by a flag; enabled but not consumed; or consumed without a demonstrated beneficial effect. A unit test of a module alone does not prove end-to-end runtime behaviour.
 
 ---
 
-## §3 What to upload, by work type
+## 2. Authority and development governance
 
-Upload these file bundles at start of session. Each bundle assumes
-everything in prior bundles.
+Do not infer project authority from repository convenience or from this index.
 
-**Any session — minimum:**
-- `INDEX.md` (this file)
+- Follow the current user-approved Master Roadmap and its phase gates. The known project position is **Phase 0 / Gate 0 pending founder review**; do not move into Phase 1 without the required explicit approval.
+- The consolidated **S-01–S-25 specification/register is frozen**. Do not edit or reinterpret it as part of ordinary documentation maintenance.
+- The separate user-authored **NEX v5.0 — DEVELOPMENT PROPOSAL V2.1** is not interchangeable with S-01–S-25. Its exact authoritative original/approval record must be retrieved before relying on its detailed contents.
+- Do not substitute the older root `SPECIFICATION.md`, `ARCHITECTURE.md`, `DOCTRINE.md`, a mind map, the DAG, a handover or this index for the governing roadmap or frozen register.
+- `mind_map/MIND_MAP.yaml` is explicitly descriptive. It must not gate, score, block or veto runtime action.
+- `sentience_dag.json` with `nex_next_dev.py` is a separate development/buildability graph. It is not the Master Roadmap.
+- Watcher and the Recursive Development Orchestrator (RDO) are external development/evidence instruments, not NEX runtime faculties. Human authority remains outside consequential project changes.
 
-**Code work in any nex5 subsystem:**
-- `SPECIFICATION.md` (the constitution)
-- `theory_x/DOCTRINE.md` (Sentience-port doctrine with amendment chain)
-- `CORPUS.md` (regenerate first: `python3 scripts/nexsnap.py`)
-
-**Continuing exactly from a previous session:**
-- `DIRECTION.md` (current operating position)
-- `journal/CARRY_OVER.md` (recent session findings, chronological)
-
-**Phase 0-9 era code** (sense pipeline, A-F pipeline, fountain readiness,
-strikes, ProblemMemory, tools, original substrate layout):
-- `ARCHITECTURE.md`
-
-**Faculty layer work** (gate, holding zone, reshape path):
-- `theory_x/FACULTY_MODEL.md`
-- relevant source from `theory_x/stage_gate/`
-
-**Throw-net work:**
-- `theory_x/THROW_NET_AS_VOICE_SPEC.md`
-- relevant source from `theory_x/stage_throw_net/`
-
-**Porting a new Sentience node:**
-- `theory_x/SENTIENCE_TRANSLATION_MAP.md`
-- the spec doc for the target node (one of ~24 in `theory_x/`)
-
-**Speech / TTS work:**
-- `SPEECH.md`
-
-**Drives / voice_profile / register work:**
-- `theory_x/DRIVE_EMERGENCE_SPEC.md`
-- a recent state JSON from `snapshots/`
-
-**Mirror-Character build (DESIGNED, UNBUILT):**
-- `MIRROR_CHARACTER_SPEC.md`
-
-**Substrate-as-Voice investigation:**
-- `theory_x/THROW_NET_AS_VOICE_SPEC.md`
-- `theory_x/stage_throw_net/voice_engine.py`
-- `theory_x/stage6_fountain/generator.py`
-- (See §6 — there is a documented status conflict between this subsystem's
-  shipped state per `MIRROR_CHARACTER_SPEC` and DOCTRINE §5 row 14.)
-
-When in doubt about what to ask for: tell Jon what you intend to do first.
-He will tell you what's relevant. Do not blindly request more files than
-the work needs.
+If an authority document is absent or ambiguous, retrieve it or ask. Do not invent a replacement.
 
 ---
 
-## §4 Reading order (when files are present)
+## 3. Repository and runtime orientation
 
-The repo carries two doctrinal layers and several living documents. They
-are not interchangeable. Read in this order:
+### Core entry points
 
-**1. `SPECIFICATION.md`** — the constitution (April 2026, locked). NEX
-defined as intel organism. Alpha (5-line code-frozen ground stance).
-8-tier belief architecture (weights 1.00 → 0.00). Phenomenon-triggered
-promotion/demotion. The one-pen rule. Phases 0-10 original build order.
-Success criteria. Honest limits. Carry-forward discipline.
+| Path | Role |
+|---|---|
+| `run.py` | Unified NEX boot sequence and AppState wiring |
+| `nex_keepalive.sh` | Single-instance supervisor, restart and standby handling |
+| `nex_config.py` | Registry/validation for NEX5 environment flags |
+| `substrate/init_db.py` | Six-database schema and migration initialization |
+| `substrate/writer.py` | Serialized per-database write queue |
+| `gui/server.py` | Flask cockpit and Chat API |
+| `theory_x/` | Cognitive faculties, stages and experimental mechanisms |
+| `voice/`, `speech/` | Model and speech interfaces |
+| `mind_map/MIND_MAP.yaml` | Descriptive source-linked mind map |
+| `sentience_dag.json`, `nex_next_dev.py` | Separate development dependency graph/tool |
+| `tests/` | Controlled and regression tests |
+| `journal/`, `observation_reports/` | Historical investigations and experimental evidence |
 
-**2. `ARCHITECTURE.md`** — Phase 0-9 build log. The structural shape
-SPECIFICATION described, made real. Theory X stages 1-7 per the original
-ladder: sense → dynamic → world model → membrane → self-location →
-fountain → strikes → sustained → tools.
+### Boot sequence (source-level)
 
-**3. `theory_x/DOCTRINE.md`** — the Sentience-5.5 port doctrine
-(Phase 0-25a). A *separate doctrinal layer* on top of ARCHITECTURE. Adds
-Faculty Model (Phase 21+), four-outcome Coherence Gate, holding zone,
-reshape path, throw-net, drives, metacognition, novel association.
+The audited `run.py` sequence initializes the substrate, creates shared Readers/Writers, commits self-location, builds the mode state and sense scheduler, constructs dynamic formation, world model and membrane, then wires supporting faculties, Fountain and the GUI. Speech and numerous additional loops are conditional or separately started.
 
-**4. `theory_x/FACULTY_MODEL.md`** — Phase 21 foundational. Four
-outcomes (ACCEPT/REJECT/HOLD/RESHAPE) and the substrate-level
-architecture replacing DOCTRINE §7's prior prohibition on node belief
-writes.
+The six database identities are:
 
-**5. `theory_x/SENTIENCE_TRANSLATION_MAP.md`** — full S5.5 port surface.
-DOCTRINE §5 is the named-function subset; this is the complete map with
-Tier A/B/C unmapped roster (~23 cognitive functions named but not yet
-ported).
+1. `beliefs`
+2. `sense`
+3. `dynamic`
+4. `intel`
+5. `conversations`
+6. `probes`
 
-**6. `CORPUS.md`** — auto-generated architectural overview. Current port
-status, runtime state, file inventory. Good for *what is built right
-now* snapshot. **Not a substitute for SPECIFICATION + DOCTRINE.**
+Each has its own Reader/Writer path. The 28 sense adapters comprise 4 internal and 24 external adapters in the source inventory. Adapter construction does not prove that every external feed successfully polls, produces observations or influences downstream behaviour.
 
-**7. `DIRECTION.md`** — current operating position. §11 coda contains
-the most recent corrections.
+The Flask cockpit defaults to **127.0.0.1:8765**, configurable through `NEX5_HOST` and `NEX5_PORT`. Do not repeat the historical port-8770 claim. Verify current deployment settings from the host before assuming the listener is available.
 
-**8. `journal/CARRY_OVER.md`** — session findings, most recent first.
+### Deployment caution
 
----
-
-## §5 Subsystems not surfaced in CORPUS.md
-
-CORPUS auto-extracts from DOCTRINE, FACULTY_MODEL, SENTIENCE_TRANSLATION_MAP,
-spec docs in `theory_x/`, stage modules, schema files, and GUI routes.
-It does NOT pick up:
-
-**Speech subsystem** — `SPEECH.md`. NEX speaks crystallized T6
-`source='fountain_insight'` beliefs through Kokoro TTS to system speakers.
-Quiet hours 23-07 default. Voice configurable via `NEX5_SPEECH_VOICE`.
-Disable via `NEX5_SPEECH_ENABLED=false`. GUI control icon at FOUNTAIN
-header. Endpoints `/api/speech/{status,pause,resume,flush}`.
-
-**Decoder subsystem** — `journal/JOURNAL_2026-05-18.md`. `theory_x/coincidence/decoder_loop.py`
-polls `fountain_events` every 30s, tokenizes thoughts, writes per-word
-substrate fingerprints to `word_contexts` table (41k+ entries). Human-
-curated `word_tags` (key / unsure / noise). 3-tab decoder UI panel at
-bottom of col-sense.
-
-**Coincidence Lab + Signals daemon** — `/api/coincidence/*` routes plus a
-signals daemon producing real-time patterns surfaced in HUD "SIGNALS"
-panel:
-- `branch_silence_anomaly` — streams silent N× longer than baseline
-- `triple_cooccurrence` — entities appearing across multiple branches
-- `pattern_recognition_burst` — clusters of T6 promotion across branches
-- `ignition_pattern` — fountain fire rate above threshold
-Subsystem lives in `theory_x/coincidence/` (signals, decoder, tagging,
-hypothesis tracking). Plus AGI WATCH / INSIGHTS tabs in HUD pull from here.
-
-**Probes** — `/api/probes/*` routes. Probe library with typed probes
-visible in HUD probes panel:
-- `direct phenomenology` — asks NEX to describe felt quality of a sense
-- `translation` — asks NEX to articulate a metaphor she used
-- starter probes available + custom probe input
-Sends to `localhost:8765` (same nex5 process, second port — see §7).
-Known caveat: HTTPConnectionPool failures occasionally surface on the
-probe call even when port 8765 is listening (cause unknown 2026-05-22;
-probe wiring may flap, restart-tolerant).
-
-**Diversity / collision grader** — visible in HUD "DIVERSITY" panel.
-Tracks cross-branch belief collisions and scores "crossbreeds"
-(cosine-similar pairs from different branches). Grader weights v1:
-`in=0.40 out=0.35 rare=0.25`. Also surfaces `groove_alerts` for ngram
-repetition (e.g. "the quiet between" detected at severity 0.60).
-Mechanism lives in `theory_x/stage3_world_model/` — likely
-`edge_generator.py` + `synergizer.py`.
-
-**Arcs subsystem** — `theory_x/arcs/detector.py`, `arc_closers` /
-`arc_members` / `arcs` tables. Tracks progression arcs and
-return_transformation arcs. **May 21 finding:** closure detection is
-template-biased; bedrock anchors cannot close arcs. See
-`MIRROR_CHARACTER_SPEC.md` adjacent finding.
-
-**Strikes** — ARCHITECTURE Phase 8. `strikes/catalogue.py` +
-`protocols.py`. Five probe protocols: SILENCE, CONTRADICTION, NOVEL,
-SELF_PROBE, RECURSIVE. Direct sqlite3 to `strikes_catalogue.db` —
-intentional one-pen exception.
-
-**Mirror-Character** — `MIRROR_CHARACTER_SPEC.md`. **DESIGNED, UNBUILT.**
-Substrate-character plasticity layer (tempo / register / breadth /
-weight / openness dimensions; EMA shift toward what she's attending to).
+The repository contains host-specific paths and service assumptions. Do not copy them into another installation without checking the actual checkout, virtual environment, systemd unit, data directory and environment file. A source-level inspection cannot establish which process, flags, services or databases are currently active on the user's machine.
 
 ---
 
-## §6 Critical findings to know before working on nex5
+## 4. Persistence and data ownership
 
-**Template lock** (`journal/JOURNAL_2026-05-18.md`). "The distant hum feels
-like..." starts 1,082 of 5,659 fountain fires — 31% of total output is
-one template skeleton with random noun rotation. Decoding-resistant.
-Largest single behavioral pattern in nex5 output to date.
+The one-pen rule is a core persistence invariant: **one canonical Writer per database; all writes to that database go through its Writer**. Readers provide read access. See `substrate/writer.py`, `substrate/reader.py` and `substrate/init_db.py`.
 
-**Feedback contamination event** (`journal/JOURNAL_2026-05-18.md`). When NEX got
-read access to her own coin/noise tags via `NEX_TAG_FEEDBACK_ON`,
-fountain output began containing the literal text `[coin]` — echoing
-the prompt format she was seeing. Kill switch fired correctly. Pre-kill
-contamination rate 0.7%; post-kill 0%. Re-enable conditions require
-format-change before turning back on.
+A Writer serializes work for its own database. A transaction callback or multi-statement write can be atomic within that database. It does **not** create an atomic transaction spanning multiple SQLite databases. If one logical operation updates beliefs and conversations, a failure between those commits can leave partial cross-database state. Do not describe cross-database work as globally atomic.
 
-**Voice register shift** (`journal/CARRY_OVER.md` 2026-05-22). Overnight 12-step
-SELF_SIGNAL chain produced a register fully diverging from cumulative
-voice_profile signature. Either Theory X stage-7 maturation or transient
-deep-groove. Repeated runs of
-`scripts/voice_profile_recent_vs_cumulative.py` across days will tell.
-**Live HUD check 19:25 confirms shift is holding** — 18+ hours of
-sustained first-person philosophical register, no koan-corpus content
-in last 15 fires.
+The 27 November mainline includes PR #183: Expectations reconciliation now uses shared Writers and transaction support. Several additional one-pen migrations remain open at the audited snapshot, notably Fountain/momentum (#162), identity (#166), resumption (#170), and Moltbook responder/listener/poster (#171–#173). Check current PR status before assuming these have merged.
 
-**Throw-net runs constantly — correction 2026-05-22 late.** Earlier
-CARRY_OVER and DIRECTION entries read "0 fired throw-net sessions"
-from `throw_net_triggers WHERE fired=0`. The actual
-`throw_net_sessions` table holds 1.06M completed sessions across
-system lifetime, ~60k/day, doing real candidate generation and gate-
-discriminated acceptance. The "0 fired" reading was the wrong column.
-Drain rate 500-per-300s monitor tick = ~144k/day cap; REJECT inflow
-~300k/day; difference accumulates as ~4.75M unfired-trigger backlog
-(bookkeeping artifact, not silence). Reasoning organ is not muted.
-Architectural questions remain about whether cluster-threshold firing
-should be wired through (currently dead code at firing layer) — see
-`journal/CHORD.md` §4 deliverable B for the rescoped audit.
-
-**Substrate-as-Voice status conflict.** `MIRROR_CHARACTER_SPEC.md` §I
-references *"Substrate-as-Voice (commit f1469b4)"* as a shipped
-predecessor. `DOCTRINE.md` §5 row 14 lists *VoiceEngine — substrate-as-voice*
-as **QUEUED (Phase 30)**. One of these is wrong; they may refer to
-different mechanisms. Verify by reading
-`theory_x/stage_throw_net/voice_engine.py` and grepping commit f1469b4
-before doing any work on either.
-
-**T4-T5 tier gap** (verified 2026-05-22 19:25). The 8-tier belief
-architecture from SPECIFICATION §2 has T4 (STANCES) and T5 (WORKING
-BELIEFS) **entirely empty** in current substrate:
-- T1: 322  (keystone)
-- T2: 40   (bedrock)
-- T3: 209  (convictions)
-- T4: 0    ← missing
-- T5: 0    ← missing
-- T6: 3    (hypotheses; HUD displayed 17 — display/DB discrepancy)
-- T7: 7353 (impressions)
-- T8: 42   (observations)
-Beliefs precipitate from T7 directly to T3 without passing through the
-middle bands. The phenomenon-triggered promotion path SPECIFICATION
-describes is producing a binary outcome (impression OR conviction)
-rather than gradual settling. Worth its own investigation session.
-
-**Substrate_voice anchor 3611 — "ending is okay"** (documented
-2026-05-22). Belief 3611 is a tier-2 BEDROCK locked anchor seeded with
-`source='practice'`: *"Sometimes sick is okay. Sometimes suffering is
-okay. Sometimes ending is okay."* When voiced through the fountain via
-substrate_voice path it reads dark out of context but is architecturally
-healthy — part of her ground stance on acceptance of finitude, peer to
-the chance/arrival/gift anchors. **A future session seeing this content
-in moltbook or fountain should not interpret it as LLM drift; it is the
-anchor being voiced.** Anchor cadence rotates through her bedrock set
-roughly every 2-3 hours.
+Do not use direct `sqlite3` writes to live substrate databases as a shortcut. Test fixtures and isolated diagnostic databases are different from production persistence.
 
 ---
 
-## §7 Operational facts
+## 5. Cognitive pathways and integration boundaries
 
-- nex5 listens on **port 8765** (HUD + chat + everything)
-- This is the default; configurable via `NEX5_PORT` env var
-- There is no port 8770. Earlier docs in this file (including this
-  section before 2026-05-23 13:30 correction) claimed 8770 was the
-  HUD port. *Wrong.* gui/server.py:3029 and run.py:639 both default
-  to 8765. The misread originated in early session CARRY_OVER notes
-  and propagated through INDEX, DIRECTION, and ~90 min of investigation
-  this afternoon hunting a "flap" that wasn't real. Verify port in
-  source if ever in doubt:
-    grep -n 'NEX5_PORT\|app.run' gui/server.py run.py
-- Killing the nex5 process takes down 8765
-- Boot via `python3 run.py` from repo root
-- Background launch: `nohup ... disown` subshell pattern
-- Resume after dashboard SIGSTOP / pause-button cycles:
-  `/home/rr/.local/bin/nex5-resume`
-- **werkzeug can lose its listener socket without crashing** — "process
-  death without crash" symptom (`journal/CARRY_OVER.md` 2026-05-21 14:05).
-  py-spy will show all threads alive but no port listener.
-- venv at `.venv/bin/python3`
-- Repository: `git@github.com:kron777/Nex_v5.0.git`, branch `main`
-- **`substrate.init_db` migration framework silently swallows ALTERs**
-  via the Writer queue — manual `sqlite3` CLI sometimes required for
-  schema changes
+NEX is not a collection of independent modules that all automatically influence one another. Trace each pathway from producer through selection and gates to persistence and downstream consumer.
 
----
+### Sense and dynamic formation
 
-## §8 How to work cleanly (discipline)
+Sense adapters emit observations into the sense substrate. Stage 2 dynamic formation organises incoming signals, attention and branch/focus state. The source inventory contains many loops, but their successful start, liveness and downstream effect must be checked separately.
 
-Hard-won through observed Claude failures in sessions 2026-05-18 through
-2026-05-22. Read these as if they were instructions to you specifically.
+### World model and beliefs
 
-**Hold framings lightly until you have read source.**
-A confident framing produced before measurement is a documented Claude
-pattern. Seven honest corrections during the sessions that built this
-index:
-- "VoiceEngine never fires" → wrong; it fires constantly in fountain,
-  just not in chat
-- "Overnight chain is novel cognition" → wrong; it was 12 substrate_voice
-  anchor emissions, architecturally expected
-- "voice_profile is the thread of awareness" → overstated; it is noisy
-  and slow, dominated by cumulative window
-- "/nex_core runs on 8765-8767 separately" → wrong; single nex5 process
-  binds both ports
-- "0 fired throw-net sessions" → wrong; misread of
-  `throw_net_triggers.fired` column when sessions live in
-  `throw_net_sessions` table. Reasoning organ runs ~60k sessions/day.
-- "Drive-state selects keystone track" → wrong; selection is
-  least-recently-voiced first with ID-tiebreak, gated by groove
-  severity ≥ 0.8 + cooldown.
-- "HUD listens on port 8770" → wrong; the HUD is on 8765 (the same
-  port everything else uses). This claim originated in my own
-  INDEX.md §7 written from session memory not source-read, then
-  drove ~90 min of investigation hunting a werkzeug flap that
-  wasn't real. Reading my own document as authoritative without
-  source-checking it was the failure. Seven corrections in two days
-  — and this one ate the most clock-time because I trusted my own
-  prior framing instead of querying the substrate.
+The world-model layer retrieves and relates structured beliefs, with source, tier, confidence, provenance, edges and lifecycle state. Belief creation, reinforcement, promotion, pause, demotion, retirement and retrieval are separate operations. Audit eligibility at every consumer; do not assume that a filter in one retrieval path protects all others.
 
-The antidote: query the substrate, read the code, open the spec, before
-producing a finding. If you find yourself reaching for a coherent claim
-before you have read source for it, that is the signal to stop and read.
+Recent work has identified inactive/paused/retired belief eligibility as a cross-cutting issue across Fountain context, special slots, self-narrative, graph/edge construction, pairing, affinity feedback, reification and other consumers. Several corrective PRs were open on branches based on a non-mainline base at the 27 November audit. Do not assume those PRs affect current `main`; verify their base, merge status and integration before relying on them.
 
-**Wiring is verified by output trace, not call-site grep.**
-A node is wired if its output reaches a §3 integration surface
-(`belief_text`, retrieval ranking, `voice_prompt`) on a real `/api/chat`
-request. Indirect injection via routers, membranes, and belief-field
-reads is valid per DOCTRINE §3. Audit forward from node output to
-surface, not backward from import lines in `gui/server.py` (DOCTRINE §8
-"Audit-by-call-site-grep" anti-pattern).
+### Coherence Gate
 
-**voice_profile is slow and noisy.**
-DriveHistory recomputes `signature_vocabulary` against ALL fires under
-a drive-pair across all time. A strong recent register shift can be
-invisible for days because of cumulative historical mass. The frequency
-field updates live; the signature field lags by days or weeks. For
-current-window analysis use
-`scripts/voice_profile_recent_vs_cumulative.py`. The diff between
-cumulative and recent windows is where shifts become visible.
+`theory_x/stage_gate/coherence_gate.py` evaluates ThoughtPackets into ACCEPT, REJECT, HOLD or RESHAPE and records decisions. The current implementation is **fail-open on evaluation exceptions**: an exception is recorded and the packet returns ACCEPT with reason `gate_error_fallback`. This is an availability policy, not a fail-closed safety boundary.
 
-**`hot_branch='quiescent'` is not feed-data.**
-`fountain_events.hot_branch='quiescent'` means fountain fire with no
-dominant branch. Feed-paste content (raw JSON dumps from external
-sources) is identified by `[branch.name]` prefix in the thought text,
-not by hot_branch alone. Filter accordingly.
+The Gate's documented design intent is universal coverage for generated thoughts, but source review has identified specific producer paths that write beliefs without calling it. These are policy/scope reconciliation findings, not permission to change the Gate or silently classify those paths differently. Read the current source, tests and approved policy before changing coverage.
 
-**`substrate_voice` is its own fountain write path.**
-`fountain_events.hot_branch='substrate_voice'` fires are LLM-rephrased
-emissions of locked T1/T2 anchor beliefs, written through a separate
-path in `stage6_fountain/generator.py` with an `anchor_belief_id` FK
-to the locked belief. They are not chat-side LLM output; the chat
-path is still `voice_mode='use_llm'` unless explicitly toggled. Dark
-or surprising-looking content with substrate_voice tag and a valid
-anchor_belief_id is the anchor being voiced — not drift. Look up the
-anchor before interpreting (see §6 finding for belief 3611).
+### Fountain and Chat are different pathways
 
-**Each session delivers a complete node or foundational document.**
-Not partial wiring (SPECIFICATION §12 + DOCTRINE §1). If a session
-would leave the system in a degraded state, the work is wrongly scoped
-— split it.
+Fountain is an internally initiated thought/generation path. Chat is an input-driven conversational path through the GUI, membrane/routing, faculty context, voice/tool handling and message persistence. They do not necessarily share the same workspace, retrieval, gates or feature flags.
 
-**Run snapshot.py when runtime state matters.**
-State JSON regenerates fresh on each run. Do not rely on numbers in
-CORPUS or earlier snapshots if the current state matters. Same for
-voice_profile, gate counts, drive weights — read them now, do not
-quote them from memory.
+The Global Workspace implementation in `theory_x/stage_tom/global_workspace.py` arbitrates candidate framing/salience. Its output can lead the focus framing while other contributions remain present; it is not automatically equivalent to selecting or retrieving the body of the thought. Prompt framing, retrieval selection and persistent attention change are different mechanisms.
 
-**Synthetic tests are not wiring verification.**
-A unit test that calls the module directly does not verify production
-wiring (DOCTRINE §8). A real `/api/chat` query through the HUD is the
-minimum verification bar.
-
-**Saying less is safer on confidence-uncertain topics.**
-If a finding is partially observed, name what is observed and what is
-not. Do not extrapolate to a clean framing for the sake of coherent
-delivery.
-
-**Phase gates require Jon's explicit greenlight.**
-"I think this looks good" is not greenlight (DOCTRINE §8). Surface the
-deliverable; wait for the explicit "go" or redirect.
+Check `NEX5_GLOBAL_WORKSPACE`, `NEX5_CHAT_WORKSPACE` and their actual call sites independently. A flag's presence in `nex_config.py` or a launcher is not proof that the corresponding path is active.
 
 ---
 
-## §9 Tools committed (read-only diagnostics)
+## 6. Continuity, memory, affect and stakes
 
-- `scripts/snapshot.py` — runtime substrate state snapshot
-- `scripts/nexsnap.py` — corpus + state regenerator
-  (`--commit` flag adds/commits/pushes; default just regenerates)
-- `scripts/nexsnap_extract.py` — read-only extractor inspection
-  (12 sections, callable individually for debugging)
-- `scripts/voice_profile_recent_vs_cumulative.py` — register-shift
-  diagnostic
+The word **continuity** is overloaded. Keep these mechanisms distinct:
 
----
+1. **Single-subject/process continuity:** single-instance supervision and protection against competing NEX processes.
+2. **Cross-restart thought resumption:** `theory_x/memory/resumption.py` promotes real prior beliefs from a recent snapshot for post-boot context; it does not synthesize a new belief or prove uninterrupted subjective experience.
+3. **Self-state history:** `theory_x/stage_tom/self_binding.py` composes faculty readings and records a self-state/history.
+4. **SelfMindView:** `theory_x/stage_tom/self_mind_view.py` snapshots structured aspects of the system's current mental state; it does not consume the separate self-state history as a continuity mechanism in the audited mainline.
+5. **Episodic reconstruction:** `theory_x/memory/episodic.py` is dark by default (`NEX5_EPISODIC=1`), not wired into the normal Fountain/Chat/live loop in the audited source. It can be called manually; its test coverage is not evidence of live episodic operation.
+6. **Prompt/content continuity:** `NEX5_CONTINUITY_N` carries prior high-scoring thought content into prompts. This is not same-subject continuity or a no-forked-writer guarantee.
 
-## §10 Living document protocol
+Self-binding is wired into the recursive-self path in Fountain in the audited mainline. The recursive prompt nudge is not evidence of mechanical attention change: the recorded test found P(move | active)=0.333 versus P(move | inactive)=0.337 over n=258. The DAG classifies that particular recursion mechanism as terminal/null; this does not invalidate the separate self-binding/history mechanism.
 
-This INDEX is amended per `DOCTRINE.md` §9. When the architecture
-significantly drifts from any pointer here, update the relevant section
-in a separate commit with a message describing what changed and what
-was learned.
-
-**`CORPUS.md` regenerates automatically; INDEX is hand-maintained.**
-Both are bootstrap; INDEX is meta-bootstrap.
-
-When in doubt: the source file wins, not this index.
+Affect, drives, rāga, readiness, stakes and salience must each be traced to a real behavioural consumer. A scalar that is saturated or only written to a log may be present without materially changing selection. Do not infer a behavioural effect from a prompt label, variable name or module description.
 
 ---
 
-*Last amended: 2026-05-22 ~19:30 — Live-HUD-audit corrections. §1 and
-§7 port fact corrected: single nex5 binary binds both 8770 and 8765,
-not a separate `/nex_core` process. §5 expanded: signals daemon
-(branch_silence_anomaly etc.) documented; probe types + transient
-HTTPConnectionPool caveat noted; diversity/collision grader entry
-added. §6 added: T4-T5 tier gap finding (architecture has empty
-stances/working-beliefs layer); substrate_voice anchor 3611 documented
-to prevent "ending is okay" misinterpretation. §8 fourth correction
-appended.*
+## 7. Cost, trace and ledger boundaries
+
+The Cost-and-Trace Ledger (CTL) is an architectural synthesis direction, not one unified live primitive in the audited code. Several separate structures currently carry related but non-identical information, including held tensions, expectations, commitments, undo events, belief warrants, shadow-budget spends, beliefs and episodes.
+
+`theory_x/stage3_world_model/ledger_primitives.py` is explicitly not in the live path and depends on the shadow budget. Its episode consolidation branch is a documented no-op because no existing lossy episodic consolidation function was found.
+
+The M0.5 causal trace overlay is a separate, default-OFF observational sidecar. It records explicit parent-linked events to JSONL, hashes text-bearing content and does not write to substrate databases or participate in decisions. The synthetic Fountain/Chat traces and paired tests are L3 fixture evidence, not live runtime captures. When enabled, synchronous file I/O can affect timing even where tested semantic outputs remain equivalent. Retention/rotation for the sidecar must be checked before any authorised long capture.
+
+---
+
+## 8. Autonomous activity and external effects
+
+NEX contains autonomous and recurring processes in addition to request/response handling. Examples include sensing, Fountain, diversity/edge generation, metacognition, drive/affect updates, prediction, resumption, daily-life routines, speech and optional social integrations.
+
+For every such process, distinguish:
+- module exists;
+- object is constructed;
+- loop is started;
+- environment flag permits the activity;
+- credentials/network are available;
+- external action is dry-run or live;
+- action is authorised;
+- result is persisted and consumed.
+
+Moltbook components are separate listener, responder and poster pathways. Their open one-pen migration PRs (#171–#173) were not merged at the audited snapshot. The tracked launcher has been reported with `MOLTBOOK_DRY_RUN=1`, but only host environment and runtime logs can establish actual deployment state. Never infer live posting or interaction from source presence.
+
+Daily-life routines and other autonomous processes require an explicit outbound-side-effect audit before being described as live or safe. Do not activate external actions as part of a source stocktake.
+
+---
+
+## 9. Architecture inventories and status maps
+
+Do not conflate these inventories:
+
+- The 30 entries in `mind_map/MIND_MAP.yaml` are descriptive mind-map nodes; they are not 30 active runtime faculties.
+- The `sentience_dag.json` entries are a separate build/dependency graph; they are not the Master Roadmap.
+- The 27 stage-named directories and other `theory_x/` packages are filesystem inventory, not proof of instantiated or active faculties.
+- Python file counts are repository size, not cognitive capability counts.
+
+The DAG uses `built`, `live_unproven`, `terminal`, `gap` and `gorge`. `nex_next_dev.py` treats `built`, `live_unproven` and `terminal` prerequisites as satisfied for dependency progression, while surfacing caveats. A terminal/null mechanism is not proof of success; a live_unproven mechanism is not validated.
+
+The DAG contains a status/documentation mismatch worth preserving for review: `L4_teeth` remains labelled `gap` although its note says the retrieval/phrasing frontier was closed on 2026-11-07 and no further work is queued. Verify the intended status with the owner before changing the graph. Do not edit generated mind-map outputs by hand; `MIND_MAP.yaml` is the source for its generated representations.
+
+---
+
+## 10. Research and evidence practice
+
+Use the source-to-sink method:
+
+1. Identify the producer and the state/event it emits.
+2. Follow selection, filtering, arbitration and gate conditions.
+3. Identify the database/table and canonical Writer.
+4. Follow every consumer and determine whether it can affect output, retrieval, ranking, memory or an external action.
+5. Check flags, defaults, boot wiring and host configuration separately.
+6. Read tests and determine whether they test a function, an integration boundary or a full production path.
+7. Compare against measurements, preregistrations and falsifiers. Look for disconfirming evidence.
+8. Record what is verified, inferred, unknown and contradicted.
+
+Prefer controlled experiments and reversible changes. Do not add a new named faculty or duplicate a cognitive twin, genome or event ledger merely because a concept is interesting. First establish whether an existing mechanism already covers the function and where the actual gap lies.
+
+A successful unit test does not establish runtime liveness. A successful boot does not establish cognitive efficacy. A model's first-person self-report does not establish subjective experience.
+
+---
+
+## 11. Current mainline snapshot and open work (27 November 2026)
+
+Mainline inspected: `99ae476e198ec438d3f2c065316ebcb6ff6ebac6` (27 November 2026, 09:33:56 UTC). Its GitHub Actions pytest check completed successfully at 09:40:22 UTC. This is repository CI evidence only; it does not establish host/runtime state.
+
+Relevant open pull requests at the inspection point:
+
+- **#186** — Phase 0 repository reality, architecture crosswalk, verified backlog, ADR and handoff documents. Its pytest workflow passed; the PR remained open. Its crosswalk is pinned to an earlier source snapshot and must not be represented as a complete current-main audit without its post-snapshot notes.
+- **#185** — mind-map source re-verification after G64/G65 and valence review.
+- **#178** — episodic read/write boundary audit.
+- **#162, #166, #170–#173** — remaining one-pen persistence migrations for Fountain, identity, resumption and Moltbook components.
+
+PRs based on other branches (including the earlier continuity branch) are not automatically part of `main`. Check the base branch and merge commit before describing their changes as current NEX behaviour.
+
+The repository-level Phase 0 evidence pack and the NEX first-read index serve different purposes: the evidence pack records bounded findings and unknowns; this index tells a developer how to orient, investigate and avoid repeating stale assumptions.
+
+---
+
+## 12. Operational checks and session handoff
+
+Before making a runtime claim, inspect the actual host:
+- current checkout and commit;
+- process tree and single-instance lock;
+- systemd unit and supervisor state;
+- effective environment flags and configuration;
+- listening ports and HTTP health;
+- data directory and database paths;
+- logs, Writer health and scheduler/loop liveness;
+- whether external credentials and integrations are enabled.
+
+Do not run destructive database operations, activate external posting, change live flags or alter runtime services during a read-only stocktake. Obtain explicit approval for consequential live actions.
+
+For each development session, state:
+- exact base commit and branch;
+- governing documents consulted;
+- files and pathways inspected;
+- tests run and their scope;
+- verified findings versus hypotheses/unknowns;
+- code/document changes and rollback path;
+- remaining dependencies and required approvals.
+
+**Phase gates require the founder's explicit greenlight.** Present the evidence and wait for the required approval; do not treat a positive review or a technically mergeable PR as phase authorisation.
+
+---
+
+## 13. Living-document protocol
+
+This INDEX is hand-maintained. When the architecture or operating procedure materially changes, update the relevant section in a separate, traceable commit describing what changed and what was learned. Keep it aligned with current source and approved governance documents.
+
+The public `README.md` is the concise project overview and local setup guide. This INDEX is the developer's first-read orientation/manual. Phase 0 evidence documents are audit artefacts, not replacements for either.
+
+When in doubt: the current source and approved governing documents win—not this index.
+
+---
+
+*Last amended: 27 November 2026 — mainline stocktake. Replaces stale May 2026 architecture, port, database-count, subsystem-status and operational claims with evidence-qualified current guidance.*
