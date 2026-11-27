@@ -404,3 +404,31 @@ The shared Writer/Reader one-pen rule remains in force. The six SQLite databases
 3. Keep #239 held for explicit Gate 0 founder review despite its green CI.
 4. Continue the source-to-sink Phase 0 audit and update this manual in the same development cycle as findings and integrations accumulate.
 5. Keep unresolved defects, unknown host/runtime facts and approval gates explicit. Do not promote a Phase 0 stocktake into Phase 1 authorization.
+
+
+## 21. RDO experiment-registry fail-closed boundary and shared-handle review (27 November 2026)
+
+### RDO protected-experiment registry
+
+A new test-only continuation, **PR #245 — RDO fail-closed experiment registry boundary: OPEN / exact-head CI RUNNING**, adds regression coverage for a safety boundary already present on main. Head: `2fe8c360c75fafd956a4c690203c653eafdf4ea0`; exact-head run: `46013089837`.
+
+Source review on main confirms the distinction:
+
+- `watcher.registry.ingest_registry()` returns evidence class `unknown` when the observation-report directory is missing; a successfully read registry is `measured` and contains an `active_or_pending` list.
+- `rdo.orchestrator._active_experiments()` returns `None` for unknown/unmeasured evidence, malformed registry data, or read errors. It returns a list (including an empty list) only when the registry is measured and structurally valid.
+- `rdo.prioritise.eligibility()` blocks when the registry is `None`; a verified empty list does not create a registry blocker; a matching active experiment blocks the affected obligation.
+- Stage 2 and Stage 3 both pass the registry result into the shared `_run_one()` path. PR #245 adds tests that protect this propagation as well as the eligibility distinctions.
+
+The PR is tests-only and uses synthetic evidence. It does not change eligibility logic, experiment state, execution, runtime flags, roadmap or cognitive behaviour. Do not call it validated until its exact-head full-suite result is green. This is a repository-level regression check, not an inspection of live experiment state.
+
+### Shared AppState Reader/Writer concurrency contract — source recheck
+
+The #242 handle-injection review was extended to the underlying substrate primitives. `substrate.reader.Reader` stores a database path and opens/closes a fresh read-only connection for each `read()` / `read_one()` call; it does not share one SQLite connection across daemon threads. `substrate.writer.Writer` serializes submitted requests through a thread-safe queue on its dedicated worker thread; synchronous callers wait on each request's Future. These implementations support sharing the AppState Reader/Writer objects across the WorldPredictionLoop thread without creating a second Writer or a cross-thread SQLite connection. This source review supports the ownership design, but does not prove the host actually starts the gated loop or that its external price/voice services are available. The `NEX5_WORLD_PRED` gate remains OFF by default and unchanged.
+
+### Updated continuation order
+
+1. Finish exact-head CI for #243, #244 and #245; merge only after green results and final diff review.
+2. After #243 lands, rebase/revalidate #242 and #240 against current main; preserve their narrow scopes.
+3. Keep #239 held for explicit Gate 0 founder review.
+4. Continue the Phase 0 source-to-sink audit and keep this manual synchronized with each meaningful code or evidence change.
+
