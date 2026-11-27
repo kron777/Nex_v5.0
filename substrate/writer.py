@@ -46,6 +46,7 @@ class WriteRequest:
     sql: Optional[str] = None
     params: Sequence[Any] = ()
     statements: Optional[list[tuple[str, Sequence[Any]]]] = None
+    include_rowcounts: bool = False
     future: Future = field(default_factory=Future)
 
 
@@ -113,6 +114,22 @@ class Writer:
     def write_many(self, statements: Iterable[tuple[str, Sequence[Any]]]) -> list[Any]:
         """Atomic multi-statement synchronous write. Returns [lastrowid, ...]."""
         req = WriteRequest(statements=[(s, tuple(p)) for s, p in statements])
+        self.submit(req)
+        return req.future.result()
+
+    def write_many_with_counts(
+        self, statements: Iterable[tuple[str, Sequence[Any]]]
+    ) -> list[tuple[Any, int]]:
+        """Atomically execute statements and return (lastrowid, rowcount) per statement.
+
+        Rowcounts are captured from each cursor before the next statement runs.
+        This is useful for INSERT OR IGNORE batches where connection.total_changes
+        is cumulative and cannot identify which individual statement inserted a row.
+        """
+        req = WriteRequest(
+            statements=[(s, tuple(p)) for s, p in statements],
+            include_rowcounts=True,
+        )
         self.submit(req)
         return req.future.result()
 
@@ -190,7 +207,13 @@ class Writer:
         if req.statements is not None:
             conn.execute("BEGIN IMMEDIATE")
             try:
-                results = [conn.execute(s, p).lastrowid for s, p in req.statements]
+                results = []
+                for statement, params in req.statements:
+                    cursor = conn.execute(statement, params)
+                    if req.include_rowcounts:
+                        results.append((cursor.lastrowid, cursor.rowcount))
+                    else:
+                        results.append(cursor.lastrowid)
                 conn.execute("COMMIT")
                 return results
             except BaseException:
