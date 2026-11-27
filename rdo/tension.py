@@ -130,7 +130,7 @@ def _interface_profile_evidence(rel: Relationship) -> dict:
         status_valid = reported_status in INTERFACE_EVIDENCE_STATUSES
         evidence_status = reported_status if status_valid else "invalid"
         evidence_complete = (
-            reported_status == "measured"
+            reported_status != "unknown"
             and status_valid
             and _evidence_value_valid(item.get("value"), item.get("unit"))
             and _has_traceable_evidence(refs)
