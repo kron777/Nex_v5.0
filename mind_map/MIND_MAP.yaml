@@ -645,9 +645,11 @@ nodes:
       here, since it's pre-existing, already falsifier-passed code and changing it needs its own
       explicit decision, not a side effect of this round.
 
+      2026-11-27 source re-verification: the new-evidence repricing path remains in harmonizer.py:610-720, with template stripping at 173-187 and the regression suite at tests/test_reprice_tensions_on_new_evidence.py:131-251. The 15-Nov production-corpus measurements remain historical evidence; no new live corpus probe or runtime change was made.
+
   # ──────────────────────────── CONSUMERS ───────────────────────────
 
-      2026-11-27 source re-verification: the new-evidence repricing path remains in harmonizer.py:610-720, with template stripping at 173-187 and the regression suite at tests/test_reprice_tensions_on_new_evidence.py:131-251. The 15-Nov production-corpus measurements remain historical evidence; no new live corpus probe or runtime change was made.
+
   - id: p6_unified_present
     label: "6 · A unified present (manaskāra)"
     layer: arm
