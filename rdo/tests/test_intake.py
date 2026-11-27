@@ -441,6 +441,19 @@ def test_context_requirement_rejects_invalid_source_index_and_status():
         ContextRequirement(**{**base, "status": "verified"})
 
 
+def test_context_requirement_source_reference_must_match_field_and_index():
+    with pytest.raises(ValueError, match="source_ref must identify"):
+        ContextRequirement(
+            item_id="ctx:constraint:0",
+            kind="constraint",
+            text="Do not modify live data",
+            source_field="constraints",
+            source_index=1,
+            source_ref="objective_input:sha:constraints[0]",
+            classification=NECESSARY,
+        )
+
+
 def test_context_requirement_rejects_duplicate_mapping_references():
     base = dict(
         item_id="ctx:constraint:0",
