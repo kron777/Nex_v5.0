@@ -1,6 +1,7 @@
 """Regression coverage for the bounded Fountain-to-speech trace bridge."""
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 
 import influence_trace
@@ -289,3 +290,83 @@ def test_speech_consumer_records_suppressed_status_write_failure(
     assert by_event["queue_status_suppressed_write_failed"]["parent_ids"] == [
         by_event["dequeued"]["event_id"]
     ]
+
+
+
+def test_speech_trace_registry_concurrent_take_is_one_shot(tmp_path, monkeypatch):
+    trace = _trace(tmp_path, monkeypatch)
+    parent = trace.record("speech_queue", "enqueue_intent")
+    influence_trace.register_speech_queue_trace(84, trace, parent)
+
+    with ThreadPoolExecutor(max_workers=12) as pool:
+        results = list(pool.map(
+            lambda _: influence_trace.take_speech_queue_trace(84), range(24)
+        ))
+
+    claimed = [item for item in results if item is not None]
+    assert claimed == [(trace, parent)]
+
+
+def test_speech_consumer_records_speaking_status_write_failure(
+    tmp_path, monkeypatch
+):
+    trace = _trace(tmp_path, monkeypatch)
+    parent = trace.record("speech_queue", "enqueue_intent")
+    influence_trace.register_speech_queue_trace(85, trace, parent)
+    synth_called = []
+
+    class FakeWriter:
+        def write(self, sql, params=()):
+            if "status='speaking'" in sql:
+                raise OSError("synthetic speaking status failure")
+            return 1
+
+    consumer = SpeechQueueConsumer.__new__(SpeechQueueConsumer)
+    consumer.writer = FakeWriter()
+    consumer._voice_state = None
+    consumer.config = SimpleNamespace(voice="test-voice")
+    consumer.backend = SimpleNamespace(
+        synth=lambda *args, **kwargs: synth_called.append(True)
+    )
+    consumer.player = SimpleNamespace(play=lambda *args: None)
+
+    import pytest
+    with pytest.raises(OSError):
+        consumer._speak_one({
+            "id": 507, "belief_id": 85,
+            "content": "A complete and speakable sentence for trace testing.",
+            "voice": "test-voice",
+        })
+
+    by_event = {item["event"]: item for item in trace.events}
+    assert by_event["queue_status_speaking_write_failed"]["parent_ids"] == [
+        by_event["dequeued"]["event_id"]
+    ]
+    assert synth_called == []
+
+
+def test_speech_consumer_without_trace_link_still_speaks(tmp_path, monkeypatch):
+    _trace(tmp_path, monkeypatch)
+
+    writes = []
+
+    class FakeWriter:
+        def write(self, sql, params=()):
+            writes.append((sql, params))
+            return 1
+
+    consumer = SpeechQueueConsumer.__new__(SpeechQueueConsumer)
+    consumer.writer = FakeWriter()
+    consumer._voice_state = None
+    consumer.config = SimpleNamespace(voice="test-voice")
+    consumer.backend = SimpleNamespace(
+        synth=lambda content, voice=None: (object(), 24000)
+    )
+    consumer.player = SimpleNamespace(play=lambda *args: None)
+    consumer._speak_one({
+        "id": 508, "belief_id": 86,
+        "content": "A complete and speakable sentence for trace testing.",
+        "voice": "test-voice",
+    })
+
+    assert any("status='spoken'" in sql for sql, _ in writes)
