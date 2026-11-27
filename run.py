@@ -494,7 +494,11 @@ def main() -> None:
     if os.environ.get("NEX5_WORLD_PRED") == "1":
         try:
             from theory_x.stage_world.world_loop import WorldPredictionLoop as _WPL
-            _world_pred_loop = _WPL()
+            _world_pred_loop = _WPL(
+                conversations_writer=writers["conversations"],
+                conversations_reader=readers["conversations"],
+                beliefs_reader=readers["beliefs"],
+            )
             _world_pred_loop.start_loop()
             log.info(
                 "WorldPredictionLoop ready — voice+random calls, interval=%ss horizon=%ss",
