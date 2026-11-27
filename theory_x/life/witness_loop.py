@@ -19,7 +19,7 @@ Hofstadter: strange loops fold back. Higher level modifies lower.
 from __future__ import annotations
 from substrate.paths import db_paths
 import logging
-from substrate import connect, IntegrityError, OperationalError
+from substrate import Reader, Writer, IntegrityError, OperationalError
 import threading
 import time
 from datetime import datetime
@@ -35,8 +35,8 @@ SOURCE = "witness_loop"
 COMPOSE_HOUR = 4  # once a day, deep night, off-cycle from pattern (3,15) and identity (0,6,12,18)
 
 
-def _ensure_witness_log(d_cx):
-    d_cx.execute(
+def _ensure_witness_log(writer: Writer):
+    writer.write(
         "CREATE TABLE IF NOT EXISTS witness_log ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, "
         "composed_at REAL NOT NULL, "
@@ -44,20 +44,18 @@ def _ensure_witness_log(d_cx):
         "statement TEXT NOT NULL, "
         "UNIQUE(date_local))"
     )
-    d_cx.commit()
 
 
-def _previous_patterns(d_cx, n=2):
+def _previous_patterns(reader: Reader, n=2):
     """Read last N pattern statements from pattern_log."""
     try:
-        rows = d_cx.execute(
+        rows = reader.read(
             "SELECT statement, composed_at FROM pattern_log "
             "ORDER BY composed_at DESC LIMIT ?",
-            (n,)
-        ).fetchall()
-        return [(r[0], r[1]) for r in rows]
+            (n,),
+        )
+        return [(r["statement"], r["composed_at"]) for r in rows]
     except OperationalError:
-        # pattern_log doesn't exist yet
         return []
 
 
@@ -85,50 +83,61 @@ def _compose_witness(voice, patterns):
     return None
 
 
-def witness_tick(voice, force=False):
+def witness_tick(
+    voice,
+    force=False,
+    *,
+    dynamic_reader: Reader | None = None,
+    dynamic_writer: Writer | None = None,
+    beliefs_writer: Writer | None = None,
+):
     now = time.time()
     local = datetime.fromtimestamp(now, local_tz())
     hour = local.hour
     date_local = local.strftime("%Y-%m-%d")
     if not force and hour != COMPOSE_HOUR:
         return {"skipped": "not_compose_hour", "hour": hour}
-    d_cx = connect(DYNAMIC_DB, timeout=15)
+    reader = dynamic_reader or Reader(DYNAMIC_DB)
+    own_dynamic_writer = dynamic_writer is None
+    d_writer = dynamic_writer or Writer(DYNAMIC_DB, name="witness_loop")
+    own_beliefs_writer = beliefs_writer is None
+    b_writer = beliefs_writer or Writer(BELIEFS_DB, name="witness_loop")
     try:
-        _ensure_witness_log(d_cx)
+        _ensure_witness_log(d_writer)
         if not force:
-            row = d_cx.execute(
-                "SELECT id FROM witness_log WHERE date_local=?", (date_local,)
-            ).fetchone()
+            row = reader.read_one(
+                "SELECT id FROM witness_log WHERE date_local=?",
+                (date_local,),
+            )
             if row:
                 return {"skipped": "already_composed"}
-        patterns = _previous_patterns(d_cx, 2)
+        patterns = _previous_patterns(reader, 2)
         if len(patterns) < 1:
             return {"skipped": "no_patterns_yet"}
         witness_text = _compose_witness(voice, patterns)
         if not witness_text:
             return {"skipped": "voice_failed"}
-        d_cx.execute(
+        d_writer.write(
             "INSERT OR REPLACE INTO witness_log (composed_at, date_local, statement) "
             "VALUES (?, ?, ?)",
-            (now, date_local, witness_text)
+            (now, date_local, witness_text),
         )
-        d_cx.commit()
         try:
-            b_cx = connect(BELIEFS_DB, timeout=10)
-            b_cx.execute(
+            b_writer.write(
                 "INSERT INTO beliefs "
                 "(content, tier, confidence, created_at, source, branch_id, tags) "
                 "VALUES (?, 6, 0.85, ?, ?, ?, ?)",
-                (witness_text, int(now), SOURCE, "cognition", '["blind_spot"]')
+                (witness_text, int(now), SOURCE, "cognition", '["blind_spot"]'),
             )
-            b_cx.commit()
-            b_cx.close()
         except IntegrityError:
             pass
         log.info("witness_loop: composed blind-spot observation: %s", witness_text[:120])
         return {"composed": True, "text": witness_text[:160]}
     finally:
-        d_cx.close()
+        if own_dynamic_writer:
+            d_writer.close()
+        if own_beliefs_writer:
+            b_writer.close()
 
 
 def witness_loop(state, stop):
@@ -139,7 +148,12 @@ def witness_loop(state, stop):
             if voice is None:
                 from voice.llm import VoiceClient, voice_model
                 voice = VoiceClient(model=voice_model())
-            stats = witness_tick(voice)
+            stats = witness_tick(
+                voice,
+                dynamic_reader=state.readers["dynamic"],
+                dynamic_writer=state.writers["dynamic"],
+                beliefs_writer=state.writers["beliefs"],
+            )
             if stats.get("composed"):
                 log.info("witness_loop: %s", stats.get("text", ""))
         except Exception as e:
