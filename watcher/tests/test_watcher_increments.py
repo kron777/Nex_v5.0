@@ -158,6 +158,18 @@ def test_collect_combined_preserves_origins():
     assert any(r.evidence_class == "unknown" and r.modifier == "unverified"
                for r in host_recs)
 
+@pytest.mark.parametrize("state", [
+    "SOURCE_CONFIRMED", "TEST_WRITTEN", "TEST_PASSED",
+    "TEST_FAILED", "RUNTIME_OBSERVED", "REGRESSED",
+])
+def test_evidence_bearing_ledger_states_reject_missing_references(tmp_path, state):
+    led = ConnectionLedger(str(tmp_path / f"{state.lower()}.jsonl"))
+    origin = "host" if state == "RUNTIME_OBSERVED" else "cloud"
+
+    with pytest.raises(LedgerError, match="requires nonblank evidence_refs"):
+        led.record("x->y", state, origin=origin)
+
+
 def test_runtime_observation_ledger_requires_host_origin_and_evidence_refs(tmp_path):
     led = ConnectionLedger(str(tmp_path / "runtime-ledger.jsonl"))
     led.record("x->y", "DECLARED")
