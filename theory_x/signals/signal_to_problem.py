@@ -516,7 +516,7 @@ def signal_to_problem_loop(state, stop: threading.Event) -> None:
             if _ticks % _REBUILD_EVERY == 0:
                 try:
                     from theory_x.signals import prose_stats
-                    n = prose_stats.build_direct(BELIEFS_DB)
+                    n = prose_stats.build(state.writers["beliefs"], state.readers["beliefs"])
                     log.info("prose_stats: %d tokens", n)
                 except Exception as e:
                     log.warning("prose_stats rebuild failed: %s", e)
