@@ -155,3 +155,18 @@ def test_graph_analysis_cli_reports_missing_cycle_without_writing(tmp_path, caps
     error = capsys.readouterr().err
     assert status == 2
     assert "No such file" in error or "not found" in error.lower()
+
+
+
+def test_graph_analysis_cli_does_not_create_a_missing_cycle_directory(tmp_path, capsys):
+    missing_dir = tmp_path / "not-created"
+    status = main([
+        "failure-propagation",
+        "--cycle-id", "missing",
+        "--failed-key", "store",
+        "--dir", str(missing_dir),
+    ])
+
+    assert status == 2
+    assert not missing_dir.exists()
+    assert "cycle store directory does not exist" in capsys.readouterr().err
