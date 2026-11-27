@@ -283,7 +283,10 @@ def _activity_expectation_canaries(
 ) -> str:
     from theory_x.stage_world.expectations import record_canaries
     from theory_x.stage_world import learning_guards
-    learning_guards.run()          # G2 action tier + attribution rule (each flag-gated)
+    learning_guards.run(
+        conversations_writer=writers["conversations"] if writers else None,
+        beliefs_writer=writers["beliefs"] if writers else None,
+    )                              # G2 action tier + attribution rule (each flag-gated)
     return record_canaries(conversations_writer=writers["conversations"] if writers else None)
 
 
@@ -306,6 +309,7 @@ def daily_tick(
     beliefs_reader: Reader | None = None,
     conversations_reader: Reader | None = None,
     conversations_writer: Writer | None = None,
+    beliefs_writer: Writer | None = None,
     sense_reader: Reader | None = None,
 ) -> dict:
     now = _now_local()
@@ -322,7 +326,9 @@ def daily_tick(
     d_writer = dynamic_writer or Writer(DYNAMIC_DB, name="daily_life")
     own_conversations_writer = conversations_writer is None
     c_writer = conversations_writer or Writer(CONVERSATIONS_DB, name="daily_life")
-    writers = {"dynamic": d_writer, "conversations": c_writer}
+    own_beliefs_writer = beliefs_writer is None
+    b_writer = beliefs_writer or Writer(BELIEFS_DB, name="daily_life")
+    writers = {"dynamic": d_writer, "conversations": c_writer, "beliefs": b_writer}
     try:
         fired = []
         for sched_hour, activity in SCHEDULE.items():
@@ -352,6 +358,8 @@ def daily_tick(
             d_writer.close()
         if own_conversations_writer:
             c_writer.close()
+        if own_beliefs_writer:
+            b_writer.close()
 
 
 def daily_loop(state, stop: threading.Event) -> None:
@@ -365,6 +373,7 @@ def daily_loop(state, stop: threading.Event) -> None:
                 beliefs_reader=state.readers["beliefs"],
                 conversations_reader=state.readers["conversations"],
                 conversations_writer=state.writers["conversations"],
+                beliefs_writer=state.writers["beliefs"],
                 sense_reader=state.readers["sense"],
             )
             if stats["fired"]:

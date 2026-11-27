@@ -7,7 +7,7 @@ from nex_config import local_tz
 from substrate import Reader, Writer, connect
 from theory_x.life import daily_life
 from theory_x.stage_tom import source_kind_audit
-from theory_x.stage_world import expectations
+from theory_x.stage_world import expectations, learning_guards
 
 
 def _daily_dbs(tmp_path):
@@ -75,6 +75,7 @@ def test_daily_tick_uses_shared_dynamic_and_conversation_writers(tmp_path, monke
     writers = {
         "dynamic": Writer(dynamic_path, name="daily-life-dynamic-test"),
         "conversations": Writer(conversations_path, name="daily-life-conversations-test"),
+        "beliefs": Writer(beliefs_path, name="daily-life-beliefs-test"),
     }
     fixed_now = datetime(2026, 11, 27, 6, 0, tzinfo=local_tz())
     monkeypatch.setattr(daily_life, "_now_local", lambda: fixed_now)
@@ -86,6 +87,7 @@ def test_daily_tick_uses_shared_dynamic_and_conversation_writers(tmp_path, monke
             beliefs_reader=readers["beliefs"],
             conversations_reader=readers["conversations"],
             conversations_writer=writers["conversations"],
+            beliefs_writer=writers["beliefs"],
             sense_reader=readers["sense"],
         )
         assert result["fired"] == ["morning"]
@@ -107,6 +109,7 @@ def test_daily_tick_uses_shared_dynamic_and_conversation_writers(tmp_path, monke
             beliefs_reader=readers["beliefs"],
             conversations_reader=readers["conversations"],
             conversations_writer=writers["conversations"],
+            beliefs_writer=writers["beliefs"],
             sense_reader=readers["sense"],
         )
         assert second["fired"] == []
@@ -114,6 +117,7 @@ def test_daily_tick_uses_shared_dynamic_and_conversation_writers(tmp_path, monke
     finally:
         writers["dynamic"].close()
         writers["conversations"].close()
+        writers["beliefs"].close()
 
 
 def test_source_kind_audit_uses_injected_dynamic_writer(tmp_path, monkeypatch):
@@ -216,3 +220,32 @@ def test_journal_preserves_existing_language_and_state_fields(tmp_path, monkeypa
         assert saved["content"] == expected
     finally:
         conversations_writer.close()
+
+
+def test_expectation_canary_activity_passes_shared_learning_guard_writers(monkeypatch):
+    conversations_writer = object()
+    beliefs_writer = object()
+    captured = {}
+
+    def fake_run(**kwargs):
+        captured.update(kwargs)
+        return {"subtracted": 0}
+
+    monkeypatch.setattr(learning_guards, "run", fake_run)
+    monkeypatch.setattr(
+        expectations, "record_canaries",
+        lambda conversations_writer=None: "canaries recorded",
+    )
+    result = daily_life._activity_expectation_canaries(
+        "2026-11-27",
+        readers={},
+        writers={
+            "conversations": conversations_writer,
+            "beliefs": beliefs_writer,
+        },
+    )
+    assert result == "canaries recorded"
+    assert captured == {
+        "conversations_writer": conversations_writer,
+        "beliefs_writer": beliefs_writer,
+    }

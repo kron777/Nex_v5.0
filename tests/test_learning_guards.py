@@ -13,7 +13,7 @@ from unittest import mock
 
 from tests import _bootstrap  # noqa: F401
 
-from substrate import connect, Row
+from substrate import connect, Row, Writer
 from theory_x.stage_world import expectations as X
 from theory_x.stage_world import learning_guards as G
 
@@ -422,3 +422,69 @@ class TestPinnedStructure(_Store):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestWriterBoundary(_Store):
+    def _ro_only_connect(self, original):
+        def guarded(path, *args, **kwargs):
+            value = str(path)
+            if "mode=ro" not in value:
+                raise AssertionError(f"write-capable direct connection bypassed Writer: {value}")
+            return original(path, *args, **kwargs)
+        return guarded
+
+    def test_record_tick_writes_only_through_supplied_conversations_writer(self):
+        writer = Writer(self.conv, name="learning-guards-tick-test")
+        original = G.connect
+        try:
+            with mock.patch.object(G, "connect", side_effect=self._ro_only_connect(original)):
+                with mock.patch.object(G, "_pool_share", return_value=0.25):
+                    result = G.record_tick(T0, conversations_writer=writer)
+            self.assertEqual(result["pool_external_share"], 0.25)
+        finally:
+            writer.close()
+        cx = connect(self.conv)
+        try:
+            row = cx.execute(
+                "SELECT external, owned, pool_external_share FROM learning_guard_ticks"
+            ).fetchone()
+            self.assertIsNotNone(row)
+            self.assertEqual(row[2], 0.25)
+        finally:
+            cx.close()
+
+    def test_subtract_and_revert_use_only_supplied_writers(self):
+        bid = self._belief("writer-boundary subtraction")
+        before = self._conf(bid)
+        self._learn([bid], "external", at=T0 + 10)
+        changed = self._conf(bid)
+        self.assertNotEqual(changed, before)
+        conversations_writer = Writer(self.conv, name="learning-guards-conversations-test")
+        beliefs_writer = Writer(self.bel, name="learning-guards-beliefs-test")
+        original = G.connect
+        try:
+            with mock.patch.object(G, "connect", side_effect=self._ro_only_connect(original)):
+                n = G.subtract(
+                    [bid], T0, T0 + 20, "test", "writer-window", now=T0 + 30,
+                    conversations_writer=conversations_writer,
+                    beliefs_writer=beliefs_writer,
+                )
+            self.assertEqual(n, 1)
+            self.assertAlmostEqual(self._conf(bid), before, places=12)
+            cx = connect(self.conv)
+            try:
+                sid = cx.execute(
+                    "SELECT id FROM learning_subtractions WHERE window_id='writer-window'"
+                ).fetchone()[0]
+            finally:
+                cx.close()
+            with mock.patch.object(G, "connect", side_effect=self._ro_only_connect(original)):
+                G.revert_subtraction(
+                    sid, T0 + 40,
+                    conversations_writer=conversations_writer,
+                    beliefs_writer=beliefs_writer,
+                )
+            self.assertAlmostEqual(self._conf(bid), changed, places=12)
+        finally:
+            conversations_writer.close()
+            beliefs_writer.close()

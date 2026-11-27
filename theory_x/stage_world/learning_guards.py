@@ -47,7 +47,7 @@ import os
 import time
 from typing import Optional
 
-from substrate import connect
+from substrate import connect, Writer
 
 log = logging.getLogger("theory_x.stage_world.learning_guards")
 
@@ -86,6 +86,13 @@ def _db(name):
 
 def _ro(name):
     return connect(f"file:{_db(name)}?mode=ro", uri=True, timeout=10)
+
+
+def _acquire_writer(name: str, supplied):
+    """Use the process-shared Writer when supplied; otherwise own a short-lived one."""
+    if supplied is not None:
+        return supplied, False
+    return Writer(_db(name), name=f"learning_guards_{name}"), True
 
 
 # ---------------------------------------------------------------------- G1 --
@@ -156,19 +163,25 @@ def _pool_share() -> Optional[float]:
     return sum(k not in OWNED_KINDS for k in kinds) / len(kinds) if kinds else None
 
 
-def record_tick(now: Optional[float] = None) -> dict:
-    """One evaluation tick (each reconciler pass): the trailing-24h external and
-    owned drift on owned-kind beliefs, and the sampling pool's external share."""
+def record_tick(now: Optional[float] = None, *, conversations_writer=None) -> dict:
+    """One evaluation tick. Metrics are read through read-only connections and
+    the single row is committed by the shared conversations Writer."""
     now = time.time() if now is None else now
-    cx = connect(_db("conversations"), timeout=10)
+    cx = _ro("conversations")
     try:
         ext, own = _window_sums(cx, now - WINDOW_S, now)
-        share = _pool_share()
-        cx.execute("INSERT INTO learning_guard_ticks (ts, external, owned, pool_external_share) "
-                   "VALUES (?, ?, ?, ?)", (now, ext, own, share))
-        cx.commit()
     finally:
         cx.close()
+    share = _pool_share()
+    writer, owned = _acquire_writer("conversations", conversations_writer)
+    try:
+        writer.write(
+            "INSERT INTO learning_guard_ticks (ts, external, owned, pool_external_share) "
+            "VALUES (?, ?, ?, ?)", (now, ext, own, share),
+        )
+    finally:
+        if owned:
+            writer.close()
     return {"external": ext, "owned": own, "pool_external_share": share}
 
 
@@ -213,82 +226,168 @@ def attribution_failures(now: Optional[float] = None) -> dict:
     return {"eps": eps, "beliefs": len(rows), "failed": failed}
 
 
-def subtract(belief_ids, lo, hi, trigger, window_id, now: Optional[float] = None) -> int:
+def subtract(
+    belief_ids, lo, hi, trigger, window_id, now: Optional[float] = None, *,
+    conversations_writer=None, beliefs_writer=None,
+) -> int:
     """Remove EXACTLY the not-yet-subtracted external-basis deltas in (lo, hi]
-    from each belief: confidence becomes the replay with those deltas excluded and
-    everything else (earlier subtractions included) carried through. Idempotent
-    per (window_id, belief). Writes no undo event, no valence, no resolution."""
+    from each belief. Reads are read-only; belief updates are committed first by
+    the beliefs Writer, then their ledger rows by the conversations Writer.
+
+    The two SQLite files are separate transactions: if the second Writer fails
+    after the first commits, the confidence update can exist without its ledger
+    row, exactly the pre-existing cross-database failure boundary. This function
+    does not claim or simulate a distributed atomic transaction.
+    """
     now = time.time() if now is None else now
     X = _x()
-    cx = connect(_db("conversations"), timeout=30)
-    n = 0
+    cx = _ro("conversations")
+    bx = _ro("beliefs")
+    prepared = []
+    seen = set()
     try:
         done = set()
-        for (ids,) in cx.execute("SELECT delta_ids FROM learning_subtractions "
-                                 "WHERE reverted_at IS NULL"):
+        for (ids,) in cx.execute(
+            "SELECT delta_ids FROM learning_subtractions WHERE reverted_at IS NULL"
+        ):
             done.update(json.loads(ids))
-        bx = connect(_db("beliefs"), timeout=30)
-        try:
-            for bid in belief_ids:
-                if cx.execute("SELECT 1 FROM learning_subtractions WHERE window_id = ? AND "
-                              "belief_id = ?", (window_id, bid)).fetchone():
-                    continue
-                ids = {r[0] for r in cx.execute(
-                    "SELECT id FROM expectation_learning_log WHERE belief_id = ? AND "
-                    "basis_kind != 'owned' AND ts > ? AND ts <= ? AND COALESCE(skipped, 0) = 0",
-                    (bid, lo, hi))} - done
-                cur = bx.execute("SELECT confidence FROM beliefs WHERE id = ?", (bid,)).fetchone()
-                if not ids or cur is None:
-                    continue
-                r = X.replay(bid, cur[0], lambda row, ids=ids: row["id"] in ids, False)
-                if not r["reconstructable"]:
-                    continue
-                bx.execute("UPDATE beliefs SET confidence = ? WHERE id = ?", (r["confidence"], bid))
-                cx.execute("INSERT INTO learning_subtractions (ts, belief_id, window_start, "
-                           "window_end, window_id, trigger, before, after, delta_ids, "
-                           "review_required) VALUES (?,?,?,?,?,?,?,?,?,1)",
-                           (now, bid, lo, hi, window_id, trigger, cur[0], r["confidence"],
-                            json.dumps(sorted(ids))))
-                n += 1
-            bx.commit()
-        finally:
-            bx.close()
-        cx.commit()
+        for bid in belief_ids:
+            if bid in seen:
+                continue
+            seen.add(bid)
+            if cx.execute(
+                "SELECT 1 FROM learning_subtractions WHERE window_id = ? AND belief_id = ?",
+                (window_id, bid),
+            ).fetchone():
+                continue
+            ids = {r[0] for r in cx.execute(
+                "SELECT id FROM expectation_learning_log WHERE belief_id = ? AND "
+                "basis_kind != 'owned' AND ts > ? AND ts <= ? AND COALESCE(skipped, 0) = 0",
+                (bid, lo, hi),
+            )} - done
+            cur = bx.execute(
+                "SELECT confidence FROM beliefs WHERE id = ?", (bid,)
+            ).fetchone()
+            if not ids or cur is None:
+                continue
+            result = X.replay(
+                bid, cur[0], lambda row, ids=ids: row["id"] in ids, False
+            )
+            if not result["reconstructable"]:
+                continue
+            prepared.append((
+                bid, float(cur[0]), float(result["confidence"]), sorted(ids),
+            ))
     finally:
         cx.close()
+        bx.close()
+
+    if not prepared:
+        return 0
+
+    belief_writer, own_beliefs = _acquire_writer("beliefs", beliefs_writer)
+    try:
+        conversation_writer, own_conversations = _acquire_writer(
+            "conversations", conversations_writer
+        )
+    except BaseException:
+        if own_beliefs:
+            belief_writer.close()
+        raise
+    try:
+        # Compare the observed confidence as a guard against a concurrent update
+        # between the read-only reconstruction and this queued write.
+        updates = [
+            (
+                "UPDATE beliefs SET confidence = ? WHERE id = ? AND confidence = ?",
+                (after, bid, before),
+            )
+            for bid, before, after, _ids in prepared
+        ]
+        outcomes = belief_writer.write_many_with_counts(updates)
+        successful = [
+            item for item, outcome in zip(prepared, outcomes) if outcome[1] == 1
+        ]
+        # Preserve the original commit order: beliefs first, conversations ledger second.
+        if successful:
+            ledger = [
+                (
+                    "INSERT INTO learning_subtractions (ts, belief_id, window_start, "
+                    "window_end, window_id, trigger, before, after, delta_ids, "
+                    "review_required) VALUES (?,?,?,?,?,?,?,?,?,1)",
+                    (now, bid, lo, hi, window_id, trigger, before, after,
+                     json.dumps(ids)),
+                )
+                for bid, before, after, ids in successful
+            ]
+            conversation_writer.write_many(ledger)
+        n = len(successful)
+    finally:
+        if own_beliefs:
+            belief_writer.close()
+        if own_conversations:
+            conversation_writer.close()
+
     if n:
-        log.warning("learning guard: %s subtracted external contribution from %d beliefs "
-                    "(window %s) -- REVIEW REQUIRED", trigger, n, window_id)
+        log.warning(
+            "learning guard: %s subtracted external contribution from %d beliefs "
+            "(window %s) -- REVIEW REQUIRED", trigger, n, window_id,
+        )
     return n
 
 
-def revert_subtraction(subtraction_id: int, now: Optional[float] = None) -> None:
-    """Undo a subtraction additively (later learning stays as it happened)."""
+def revert_subtraction(
+    subtraction_id: int, now: Optional[float] = None, *,
+    conversations_writer=None, beliefs_writer=None,
+) -> None:
+    """Undo a subtraction additively (later learning stays as it happened).
+    Restore the belief through its Writer, then mark the ledger row reverted
+    through the conversations Writer, preserving the existing cross-file order.
+    """
     now = time.time() if now is None else now
-    cx = connect(_db("conversations"), timeout=30)
+    cx = _ro("conversations")
     try:
-        bid, before, after, reverted = cx.execute(
+        row = cx.execute(
             "SELECT belief_id, before, after, reverted_at FROM learning_subtractions WHERE id=?",
-            (subtraction_id,)).fetchone()
-        if reverted is not None:
-            return
-        bx = connect(_db("beliefs"), timeout=30)
-        try:
-            bx.execute("UPDATE beliefs SET confidence = confidence + ? WHERE id = ?",
-                       (before - after, bid))
-            bx.commit()
-        finally:
-            bx.close()
-        cx.execute("UPDATE learning_subtractions SET reverted_at = ? WHERE id = ?",
-                   (now, subtraction_id))
-        cx.commit()
+            (subtraction_id,),
+        ).fetchone()
     finally:
         cx.close()
+    bid, before, after, reverted = row
+    if reverted is not None:
+        return
+
+    belief_writer, own_beliefs = _acquire_writer("beliefs", beliefs_writer)
+    try:
+        conversation_writer, own_conversations = _acquire_writer(
+            "conversations", conversations_writer
+        )
+    except BaseException:
+        if own_beliefs:
+            belief_writer.close()
+        raise
+    try:
+        belief_writer.write(
+            "UPDATE beliefs SET confidence = confidence + ? WHERE id = ?",
+            (before - after, bid),
+        )
+        conversation_writer.write(
+            "UPDATE learning_subtractions SET reverted_at = ? WHERE id = ?",
+            (now, subtraction_id),
+        )
+    finally:
+        if own_beliefs:
+            belief_writer.close()
+        if own_conversations:
+            conversation_writer.close()
 
 
-def run(now: Optional[float] = None) -> dict:
-    """The nightly pass: G2 action tier and the attribution rule, each only
-    when its own flag is on."""
+def run(
+    now: Optional[float] = None, *, conversations_writer=None, beliefs_writer=None,
+) -> dict:
+    """The nightly pass: G2 action tier and attribution rule, each only when
+    its own flag is on. Supplied Writers are shared with the caller; standalone
+    use creates short-lived Writers only if a subtraction is actually required."""
     now = time.time() if now is None else now
     day = time.strftime("%Y-%m-%d", time.gmtime(now))
     out = {"ratio": ratio_status(now), "attribution": attribution_failures(now),
@@ -301,10 +400,16 @@ def run(now: Optional[float] = None) -> dict:
                 "'owned' AND source_kind IN ('authored', 'self') AND ts > ?", (now - WINDOW_S,))]
         finally:
             cx.close()
-        out["subtracted"] += subtract(ids, now - WINDOW_S, now, "ratio_2x_24h", f"ratio:{day}", now)
+        out["subtracted"] += subtract(
+            ids, now - WINDOW_S, now, "ratio_2x_24h", f"ratio:{day}", now,
+            conversations_writer=conversations_writer, beliefs_writer=beliefs_writer,
+        )
     if out["attribution"]["failed"] and attribution_subtract_on():
-        out["subtracted"] += subtract(out["attribution"]["failed"], now - WINDOW_S, now,
-                                      "attribution_failure", f"attribution:{day}", now)
+        out["subtracted"] += subtract(
+            out["attribution"]["failed"], now - WINDOW_S, now,
+            "attribution_failure", f"attribution:{day}", now,
+            conversations_writer=conversations_writer, beliefs_writer=beliefs_writer,
+        )
     return out
 
 
