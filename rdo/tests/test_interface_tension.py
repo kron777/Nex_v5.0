@@ -501,3 +501,20 @@ def test_mutated_typed_performance_margin_fails_closed_on_reassessment():
     assert summary["metrics"] == {}
     assert summary["invalid_metrics"] == ["latency"]
     assert result.verdict == TENSION_UNKNOWN
+
+
+def test_malformed_mutable_margin_evidence_refs_are_not_promoted_to_sources():
+    from rdo.model import PerformanceMargin
+
+    margin = PerformanceMargin(metric="latency", q=0.8, tau=0.7,
+        unit="normalized", normalization="higher_is_better",
+        q_evidence=["benchmark:latency"], tau_evidence=["limit:latency"])
+    margin.q_evidence = "not-a-reference-list"
+
+    result = assess_relationship(Relationship("consumer", "provider", "depends_on",
+        performance_margins={"latency": margin}), {})
+    summary = result.dimensions["performance_margins"]
+    assert summary["metrics"]["latency"]["evidence_complete"] is False
+    assert summary["unknown_metrics"] == ["latency"]
+    assert result.evidence == []
+    assert result.verdict == TENSION_UNKNOWN
