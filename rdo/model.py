@@ -100,7 +100,7 @@ class Obligation:
         return d
 
 
-INTERFACE_EVIDENCE_STATUSES = ("unknown", "measured")
+INTERFACE_EVIDENCE_STATUSES = ("measured", "implemented", "static", "inferred", "unknown")
 
 
 @dataclasses.dataclass
