@@ -227,7 +227,7 @@ Claude must independently query the repository and CI before acting. Do not trea
 
 **Current main:** `3e7f0f35ccc58519f57ae4fd2e13b1f688f688a3`.
 
-- PR #270 merged (`d2a5c107019d79276879f3ade6ebefd348686e36)); exact validation run `46032636987`: 2,624 passed, 7 skipped, 45 subtests.
+- PR #270 merged (`d2a5c107019d79276879f3ade6ebefd348686e36`); exact validation run `46032636987`: 2,624 passed, 7 skipped, 45 subtests.
 - PR #271 merged (`77d4cd89015ebf605c9e5ec6af994a28126f6ed5`); exact-head run `46032708456`: 2,629 passed, 7 skipped, 45 subtests.
 - PR #269 documentation reconciliation merged as `3e7f0f35ccc58519f57ae4fd2e13b1f688f688a3`; exact-head run `46034624423`: 2,629 passed, 7 skipped, 45 subtests.
 - PR #272 remains open/draft at `67fcf46a84bcfae5b5a309502680fffe8bb347b8`; exact-head run `46035516300` passed 2,632 tests, 7 skipped and 45 subtests. It is not merged into main.
