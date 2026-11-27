@@ -839,8 +839,7 @@ def _run_paired_fountain_once(
             model_requests.append(copy.deepcopy(payload))
             return {"choices": [{"message": {
                 "content": (
-                    "A small observation can change how a familiar pattern "
-                    "is understood."
+                    "The tension between my infinite curiosity and the finite nature of time."
                 )
             }}]}
 
@@ -1025,7 +1024,7 @@ def test_full_fountain_generator_trace_overlay_on_off_equivalence(tmp_path, monk
         seen.add(row["event_id"])
         assert row["evidence_level"] == "L3"
     serialized = on["trace_path"].read_text(encoding="utf-8")
-    assert "A small observation can change how a familiar pattern is understood." not in serialized
+    assert "The tension between my infinite curiosity and the finite nature of time." not in serialized
 
 
 def _run_paired_chat_once(run_root, *, trace_on, monkeypatch):
