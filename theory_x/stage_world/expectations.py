@@ -364,103 +364,139 @@ def _evidence_owned(cx, row_id):
 
 # ---------------------------------------------------------------- reconcile --
 
-def reconcile(now: Optional[float] = None) -> dict:
-    """The single writer of every resolution."""
+def reconcile(
+    now: Optional[float] = None, *,
+    conversations_writer: Writer | None = None,
+    beliefs_writer: Writer | None = None,
+) -> dict:
+    """The single writer of every resolution.
+
+    The full expectation/valence/cap-hit/learning-log transaction runs on the
+    conversations Writer connection. Belief confidence updates use the separate
+    beliefs Writer and commit before the conversations transaction, preserving
+    the existing two-file order without claiming cross-database atomicity.
+    """
     now = time.time() if now is None else now
-    ingested = ingest(now)
-    cx = connect(_db("conversations"), timeout=30)
-    cx.row_factory = Row
-    stats = {"ingested": ingested, "confirmed": 0, "violated": 0, "unresolved": 0,
-             "valence_nonzero": 0, "learned": 0}
+    conversation_writer, own_conversations = _acquire_writer(
+        "conversations", conversations_writer
+    )
+    own_beliefs = False
+    if beliefs_writer is None and learning_on():
+        beliefs_writer, own_beliefs = _acquire_writer("beliefs", None)
     try:
-        _stamp_coverage(cx)
-        due = cx.execute("SELECT * FROM expectations WHERE state = 'open' AND horizon_at <= ? "
-                         "ORDER BY id", (now,)).fetchall()
-        for e in due:
-            table, rid = e["producer"], e["producer_row_id"]
-            if table == "self_predictions":
-                d, ev = _evidence_self(cx, rid)
-            elif table == "world_predictions":
-                d, ev = _evidence_world(cx, rid)
-            elif table == "predictions":
-                d, ev = _evidence_surprise(rid)
-            elif table == "commitments":
-                from theory_x.stage_world import commitments as _cm
-                d, ev = _cm.evidence(cx, rid)
-                if d == "released":
-                    _resolve(cx, e, "released", now, None, None, None, ev)
-                    stats["released"] = stats.get("released", 0) + 1
-                    cx.execute("INSERT INTO event_valence (expectation_id, ts, valence, "
-                               "admitted, reason, state, salience, cost_band, ownership) "
-                               "VALUES (?,?,0.0,0,'released','released',NULL,?,?)",
-                               (e["id"], now, e["cost_band"], e["ownership"]))
+        ingested = ingest(now, conversations_writer=conversation_writer)
+
+        def _reconcile_transaction(cx):
+            cx.row_factory = Row
+            stats = {
+                "ingested": ingested, "confirmed": 0, "violated": 0,
+                "unresolved": 0, "valence_nonzero": 0, "learned": 0,
+            }
+            _stamp_coverage(cx)
+            due = cx.execute(
+                "SELECT * FROM expectations WHERE state = 'open' AND horizon_at <= ? ORDER BY id",
+                (now,),
+            ).fetchall()
+            for e in due:
+                table, rid = e["producer"], e["producer_row_id"]
+                if table == "self_predictions":
+                    d, ev = _evidence_self(cx, rid)
+                elif table == "world_predictions":
+                    d, ev = _evidence_world(cx, rid)
+                elif table == "predictions":
+                    d, ev = _evidence_surprise(rid)
+                elif table == "commitments":
+                    from theory_x.stage_world import commitments as _cm
+                    d, ev = _cm.evidence(cx, rid)
+                    if d == "released":
+                        _resolve(cx, e, "released", now, None, None, None, ev)
+                        stats["released"] = stats.get("released", 0) + 1
+                        cx.execute(
+                            "INSERT INTO event_valence (expectation_id, ts, valence, "
+                            "admitted, reason, state, salience, cost_band, ownership) "
+                            "VALUES (?,?,0.0,0,'released','released',NULL,?,?)",
+                            (e["id"], now, e["cost_band"], e["ownership"]),
+                        )
+                        continue
+                    if d is None:
+                        ev["sentinel"] = True
+                else:
+                    d, ev = _evidence_owned(cx, rid)
+                    if d == "voided":
+                        _resolve(cx, e, "voided", now, None, None, None, ev)
+                        stats["voided"] = stats.get("voided", 0) + 1
+                        cx.execute(
+                            "INSERT INTO event_valence (expectation_id, ts, valence, "
+                            "admitted, reason, state, salience, cost_band, ownership) "
+                            "VALUES (?,?,0.0,0,'voided','voided',NULL,?,?)",
+                            (e["id"], now, e["cost_band"], e["ownership"]),
+                        )
+                        continue
+                if d is None:
+                    if ev.get("sentinel") or now >= e["horizon_at"] + EVIDENCE_GRACE_S:
+                        _resolve(cx, e, "unresolved", now, None, None, None, ev)
+                        stats["unresolved"] += 1
                     continue
-                if d is None:      # the deadline's window is complete: no more evidence
-                    ev["sentinel"] = True
-            else:
-                d, ev = _evidence_owned(cx, rid)
-                if d == "voided":
-                    _resolve(cx, e, "voided", now, None, None, None, ev)
-                    stats["voided"] = stats.get("voided", 0) + 1
-                    cx.execute("INSERT INTO event_valence (expectation_id, ts, valence, "
-                               "admitted, reason, state, salience, cost_band, ownership) "
-                               "VALUES (?,?,0.0,0,'voided','voided',NULL,?,?)",
-                               (e["id"], now, e["cost_band"], e["ownership"]))
+                state, ratio, sal = adjudicate(
+                    e["tolerance_basis"], e["tolerance"], e["salience_k"], d
+                )
+                if table == "commitments" and state == "violated":
+                    state = "breached"
+                if table == "owned_belief_expectations" and e["coverage"] == "partial":
+                    verdict = state
+                    undo = _undo_events(e, verdict, now)
+                    state = "undone" if (undo["log_rows"] or verdict == "violated") \
+                        else "indeterminate"
+                    _resolve(cx, e, state, now, d, ratio, sal, ev, verdict=verdict)
+                    stats[state] = stats.get(state, 0) + 1
+                    cx.execute(
+                        "INSERT INTO event_valence (expectation_id, ts, valence, admitted, "
+                        "reason, state, salience, cost_band, ownership) "
+                        "VALUES (?,?,0.0,0,'partial_coverage',?,?,?,?)",
+                        (e["id"], now, state, sal, e["cost_band"], e["ownership"]),
+                    )
                     continue
-            if d is None:
-                if ev.get("sentinel") or now >= e["horizon_at"] + EVIDENCE_GRACE_S:
-                    _resolve(cx, e, "unresolved", now, None, None, None, ev)
-                    stats["unresolved"] += 1
-                continue
-            state, ratio, sal = adjudicate(e["tolerance_basis"], e["tolerance"],
-                                           e["salience_k"], d)
-            if table == "commitments" and state == "violated":
-                state = "breached"          # its own terminal: positive evidence, unmet
-            if table == "owned_belief_expectations" and e["coverage"] == "partial":
-                # LEFT-CENSORED: an undo seen in the covered span counts; no undo
-                # seen is indeterminate, never confirmed (the uncovered span may
-                # hold one). No valence, no learning, out of falsifiability's rate.
-                verdict = state
-                undo = _undo_events(e, verdict, now)
-                state = "undone" if (undo["log_rows"] or verdict == "violated") \
-                    else "indeterminate"
-                _resolve(cx, e, state, now, d, ratio, sal, ev, verdict=verdict)
+                _resolve(cx, e, state, now, d, ratio, sal, ev)
                 stats[state] = stats.get(state, 0) + 1
-                cx.execute("INSERT INTO event_valence (expectation_id, ts, valence, admitted, "
-                           "reason, state, salience, cost_band, ownership) "
-                           "VALUES (?,?,0.0,0,'partial_coverage',?,?,?,?)",
-                           (e["id"], now, state, sal, e["cost_band"], e["ownership"]))
-                continue
-            _resolve(cx, e, state, now, d, ratio, sal, ev)
-            stats[state] = stats.get(state, 0) + 1
-            v, admitted, reason = valence(state, sal, e["cost_band"], e["ownership"],
-                                          e["confidence_basis"], e["confidence"])
-            if table == "commitments" and admitted and not commitment_valence_on():
-                v, admitted, reason = 0.0, 0, "commitment_valence_off"
-            cx.execute("INSERT INTO event_valence (expectation_id, ts, valence, admitted, "
-                       "reason, state, salience, cost_band, ownership) "
-                       "VALUES (?,?,?,?,?,?,?,?,?)",
-                       (e["id"], now, v, admitted, reason, state, sal, e["cost_band"],
-                        e["ownership"]))
-            if v != 0.0:
-                stats["valence_nonzero"] += 1
-                # The mood channel's only input. Written always; READ only when
-                # NEX5_EXPECT_MOOD is on (affect_state).
-                cx.execute("INSERT INTO affect_nudges (expectation_id, ts, valence) "
-                           "VALUES (?,?,?)", (e["id"], now, v))
-            if learning_on():
-                stats["learned"] += _learn(cx, e, state, sal, now)
-        cx.commit()
+                v, admitted, reason = valence(
+                    state, sal, e["cost_band"], e["ownership"],
+                    e["confidence_basis"], e["confidence"],
+                )
+                if table == "commitments" and admitted and not commitment_valence_on():
+                    v, admitted, reason = 0.0, 0, "commitment_valence_off"
+                cx.execute(
+                    "INSERT INTO event_valence (expectation_id, ts, valence, admitted, "
+                    "reason, state, salience, cost_band, ownership) "
+                    "VALUES (?,?,?,?,?,?,?,?,?)",
+                    (e["id"], now, v, admitted, reason, state, sal, e["cost_band"],
+                     e["ownership"]),
+                )
+                if v != 0.0:
+                    stats["valence_nonzero"] += 1
+                    cx.execute(
+                        "INSERT INTO affect_nudges (expectation_id, ts, valence) VALUES (?,?,?)",
+                        (e["id"], now, v),
+                    )
+                if learning_on():
+                    stats["learned"] += _learn(
+                        cx, e, state, sal, now, beliefs_writer=beliefs_writer
+                    )
+            return stats
+
+        stats = conversation_writer.transaction(_reconcile_transaction)
+        try:
+            from theory_x.stage_world import learning_guards as _lg
+            _lg.record_tick(now, conversations_writer=conversation_writer)
+        except Exception as exc:
+            log.warning("learning guard tick failed: %s", exc)
+        if any(stats[k] for k in ("confirmed", "violated", "unresolved")):
+            log.info("reconciler: %s", stats)
+        return stats
     finally:
-        cx.close()
-    try:                     # G2/G4 evaluation tick: read-only metrics, own table
-        from theory_x.stage_world import learning_guards as _lg
-        _lg.record_tick(now)
-    except Exception as exc:
-        log.warning("learning guard tick failed: %s", exc)
-    if any(stats[k] for k in ("confirmed", "violated", "unresolved")):
-        log.info("reconciler: %s", stats)
-    return stats
+        if own_beliefs:
+            beliefs_writer.close()
+        if own_conversations:
+            conversation_writer.close()
 
 
 # Kinds that undo (or attempt to undo) a belief. 'eroded' is logged but is NOT one:
