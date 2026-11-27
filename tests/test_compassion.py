@@ -175,9 +175,6 @@ class TestCompassionInjection(unittest.TestCase):
     def test_no_stance_when_flag_off(self):
         blob = self._run(admin=True, flag=False, prompt=_DISTRESS)
         self.assertNotIn("Compassion is up in you", blob)
-    def test_no_stance_when_flag_off(self):
-        blob = self._run(admin=True, flag=False, prompt=_DISTRESS)
-        self.assertNotIn("Compassion is up in you", blob)
 
     def test_no_stance_non_admin(self):
         blob = self._run(admin=False, flag=True, prompt=_DISTRESS)
