@@ -565,3 +565,51 @@ def test_watcher_rejects_acceptance_verification_without_prior_context_mapping(t
     request_path.write_text(_canonical(_request(repo, manifest_path, events_path)), encoding="utf-8")
     with pytest.raises(HandoffVerificationError, match="prior context mapping"):
         verify_handoff_request_for_test_direct(request_path)
+
+
+def test_watcher_accepts_completed_criterion_verification_with_evidence_and_timezone(tmp_path):
+    repo, base = _repo(tmp_path)
+    manifest, manifest_path, events_path, item = _context_review_manifest(repo, base)
+    keys = ["doc_change"]
+    references = ["review:mapping"]
+    mapping_record = {
+        **item,
+        "status": "mapped",
+        "mapped_obligation_keys": keys,
+        "evidence": references,
+        "review_required": False,
+    }
+    _append_review_event(events_path, manifest, {
+        "event_kind": "context_mapping",
+        "context_item_id": item["item_id"],
+        "decision": "mapped",
+        "mapping_record": mapping_record,
+        "mapped_obligation_keys": keys,
+        "evidence_references": references,
+    })
+    verification_record = {
+        "criterion_id": item["item_id"],
+        "source_ref": item["source_ref"],
+        "criterion": item["text"],
+        "status": "passed",
+        "mapped_obligation_keys": keys,
+        "verification_method": "compare the scoped proposal with the criterion",
+        "evidence_refs": ["review:acceptance"],
+        "verified_at": "2026-11-28T12:00:00Z",
+        "verifier": "fixture-reviewer",
+        "confidence": "reviewed",
+        "note": "",
+        "review_required": False,
+    }
+    _append_review_event(events_path, manifest, {
+        "event_kind": "acceptance_verification",
+        "criterion_id": item["item_id"],
+        "verification_record": verification_record,
+    })
+
+    request_path = tmp_path / "request.json"
+    request_path.write_text(_canonical(_request(repo, manifest_path, events_path)), encoding="utf-8")
+    report = verify_handoff_request_for_test_direct(request_path)
+    assert report["exit_status"] == "scope_compliant"
+    assert report["human_acceptance"]["status"] == "not_recorded"
+    assert report["evidence_dimensions"]["test_verified"] == "not_authorized"
