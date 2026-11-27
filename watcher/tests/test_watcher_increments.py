@@ -238,3 +238,35 @@ def test_seed_from_graph_records_only_explicit_host_runtime_evidence(tmp_path):
     assert runtime_entries[0]["evidence_refs"] == ["trace:host-runtime-2"]
     reloaded = ConnectionLedger(str(tmp_path / "runtime-seed.jsonl"))
     assert reloaded.history("a->b")[-1]["evidence_refs"] == ["trace:host-runtime-2"]
+
+
+@pytest.mark.parametrize("refs", [[None], [1], [""], ["   "], ["ok", None]])
+def test_ledger_rejects_malformed_reference_items_even_for_non_evidence_states(tmp_path, refs):
+    led = ConnectionLedger(str(tmp_path / "malformed-items.jsonl"))
+
+    with pytest.raises(LedgerError, match="nonblank strings"):
+        led.record("x->y", "DECLARED", evidence_refs=refs)
+
+
+def test_failed_ledger_append_does_not_advance_in_memory_state(tmp_path, monkeypatch):
+    import builtins
+    from watcher import ledger as ledger_module
+
+    path = tmp_path / "ledger.jsonl"
+    led = ConnectionLedger(str(path))
+    led.record("x->y", "DECLARED")
+    original_open = builtins.open
+
+    def fail_append(target, mode="r", *args, **kwargs):
+        if str(target) == str(path) and "a" in mode:
+            raise OSError("simulated append failure")
+        return original_open(target, mode, *args, **kwargs)
+
+    monkeypatch.setattr(ledger_module, "open", fail_append, raising=False)
+
+    with pytest.raises(OSError, match="simulated append failure"):
+        led.record("x->y", "SOURCE_CONFIRMED", evidence_refs=["src.py"])
+
+    assert led.current_state("x->y") == "DECLARED"
+    assert [entry["to_state"] for entry in led.history("x->y")] == ["DECLARED"]
+    assert ConnectionLedger(str(path)).current_state("x->y") == "DECLARED"

@@ -114,6 +114,8 @@ class ConnectionLedger:
         if evidence_refs is None:
             refs = []
         elif isinstance(evidence_refs, list):
+            if any(not isinstance(ref, str) or not ref.strip() for ref in evidence_refs):
+                raise LedgerError("evidence_refs must contain only nonblank strings")
             refs = list(evidence_refs)
         else:
             raise LedgerError("evidence_refs must be a list of strings")
@@ -135,10 +137,13 @@ class ConnectionLedger:
             "origin": origin, "evidence_refs": refs, "note": note,
             "at": utc_now(),
         }
-        self._entries.append(entry)
+        # Persist first. A failed append must not advance this process's in-memory
+        # lifecycle state beyond the durable ledger.
         os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
+        serialized = json.dumps(entry, default=str) + "\n"
         with open(self.path, "a", encoding="utf-8") as fh:
-            fh.write(json.dumps(entry, default=str) + "\n")
+            fh.write(serialized)
+        self._entries.append(entry)
         return self._copy_entry(entry)
 
 
