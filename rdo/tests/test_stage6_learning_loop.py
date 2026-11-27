@@ -301,3 +301,18 @@ def test_exact_scope_pattern_cannot_collide_with_legacy_fuzzy_pattern(tmp_path):
     with pytest.raises(ValueError, match="conflicting scope modes"):
         memory.add(Pattern(key="regression_risk:shared", statement="exact",
             provenance="cycle:2", applicability="belief decay", exact_scope=True))
+
+
+def test_persisted_exact_scope_key_collision_fails_closed(tmp_path):
+    import json
+    import pytest
+    from rdo.memory import PatternMemory
+    from rdo.model import Pattern
+    path = tmp_path / "patterns.jsonl"
+    first = Pattern(key="same", statement="first", provenance="cycle:1",
+        applicability="belief decay", exact_scope=True)
+    second = Pattern(key="same", statement="second", provenance="cycle:2",
+        applicability="belief retrieval", exact_scope=True)
+    path.write_text(json.dumps(first.to_dict()) + "\\n" + json.dumps(second.to_dict()) + "\\n")
+    with pytest.raises(ValueError, match="persisted pattern key collision"):
+        PatternMemory(str(path))
