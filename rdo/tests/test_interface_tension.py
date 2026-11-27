@@ -211,3 +211,12 @@ def test_envelope_measurement_value_without_traceable_evidence_stays_unknown():
     summary = result.dimensions["operating_envelope"]
     assert "measured_load" in summary["unknown_dimensions"]
     assert result.verdict == TENSION_UNKNOWN
+
+
+def test_malformed_envelope_measurement_object_does_not_crash_assessment():
+    envelope = {"declared_state": BUSY, "assessed_state": None,
+                "measured_load": object()}
+    result = assess_relationship(Relationship("consumer", "provider", "depends_on",
+        operating_envelope=envelope), {})
+    assert "measured_load" in result.dimensions["operating_envelope"]["unknown_dimensions"]
+    assert result.verdict == TENSION_UNKNOWN
