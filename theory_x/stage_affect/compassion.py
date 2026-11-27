@@ -22,7 +22,7 @@ FAIL-SAFE: any error (embeddings down, DB busy) -> distress 0 / no stance;
 never stalls the chat path.
 """
 from __future__ import annotations
-from substrate import connect
+from substrate import connect, Writer
 
 from substrate.paths import db_paths
 
@@ -222,8 +222,8 @@ def _db_path() -> str:
         return str(db_paths()["conversations"])
 
 
-def _ensure_table(conn) -> None:
-    conn.execute(
+def _ensure_table(writer: Writer) -> None:
+    writer.write(
         "CREATE TABLE IF NOT EXISTS compassion_state ("
         "id INTEGER PRIMARY KEY, compassion_level REAL, ethical_bias REAL, "
         "updated_at REAL)"
@@ -244,7 +244,7 @@ def _load_level() -> float:
         return _BASELINE
 
 
-def _advance_level(salience: float) -> float:
+def _advance_level(salience: float, conversations_writer: Writer | None = None) -> float:
     """Decay the stored level toward baseline, then rise with this turn's
     salience; persist and return. The level math — unchanged by the graded
     stance."""
@@ -252,42 +252,42 @@ def _advance_level(salience: float) -> float:
     decayed = _BASELINE + (prev - _BASELINE) * _DECAY_KEEP
     risen = salience * (_GAIN + _ETHICAL_BIAS)
     level = max(0.0, min(1.0, max(decayed, risen)))
+    owns_writer = conversations_writer is None
+    writer = conversations_writer or Writer(_db_path(), name="compassion")
     try:
-        conn = connect(_db_path(), timeout=5)
-        try:
-            _ensure_table(conn)
-            conn.execute(
-                "INSERT OR REPLACE INTO compassion_state "
-                "(id, compassion_level, ethical_bias, updated_at) "
-                "VALUES (1, ?, ?, ?)",
-                (level, _ETHICAL_BIAS, time.time()),
-            )
-            conn.commit()
-        finally:
-            conn.close()
+        _ensure_table(writer)
+        writer.write(
+            "INSERT OR REPLACE INTO compassion_state "
+            "(id, compassion_level, ethical_bias, updated_at) "
+            "VALUES (1, ?, ?, ?)",
+            (level, _ETHICAL_BIAS, time.time()),
+        )
     except Exception:
         pass   # persistence best-effort; still return the computed level
+    finally:
+        if owns_writer:
+            writer.close()
     return level
 
 
-def update_and_level(message: str) -> float:
+def update_and_level(message: str, conversations_writer: Writer | None = None) -> float:
     """Advance compassion one turn from the person's message: decay toward
     baseline, then rise with their distress salience. Persist and return the new
     level. Fail-safe: returns _BASELINE (no modulation) on any error."""
     try:
-        return _advance_level(distress_salience(message))
+        return _advance_level(distress_salience(message), conversations_writer=conversations_writer)
     except Exception:
         return _BASELINE
 
 
-def stance_for(message: str) -> str:
+def stance_for(message: str, conversations_writer: Writer | None = None) -> str:
     """Compose-path entry: advance the level from the person's words and return
     the TIERED stance ('' if compassion is not up). One embedding pass — reads
     salience and register together, so intensity and tier stay consistent.
     Fail-safe: '' (no modulation)."""
     try:
         salience, register = _distress_read(message)
-        return format_stance(_advance_level(salience), register)
+        return format_stance(_advance_level(salience, conversations_writer=conversations_writer), register)
     except Exception:
         return ""
 
