@@ -15,13 +15,13 @@
 
 ## Post-snapshot current-main follow-up (27 November 2026)
 
-The source report above remains pinned to `ae406fa8`. Main has since advanced to `cc28351` through merged PRs #168, #174, #175 and #180. A focused current-main read found:
+The source report above remains pinned to `ae406fa8`. Main has since advanced to `847cf4f` through merged PRs #168, #174, #175, #180 and #184. A focused current-main read found:
 
 - PR #168 migrated `expectations.record_canaries()` to the shared conversations Writer; `daily_life.py` passes that Writer.
 - `daily_life.py` calls `learning_guards.run()`; the launcher does not set `NEX5_LEARN_RATIO_SUBTRACT` or `NEX5_LEARN_ATTRIBUTION_SUBTRACT`, so the subtraction action is not armed by this launcher. PR #180 is merged and passes exact-head run #1493 (2,522 passed, 7 skipped, 40 subtests): it routes `record_tick()`, `subtract()` and `revert_subtraction()` through Writers and passes the shared beliefs/conversations Writers from DailyLife.
 - `learning_guards.cap_blocks()` and Expectations `ingest()`/`reconcile()`/`_learn()` are covered by the pending G-65 migration PR #183, which adds a serialized conversation-Writer transaction and routes belief updates through the beliefs Writer while preserving cap-hit/learning-log transaction coupling.
 - The current launcher sets `NEX5_RECONCILER=1` and `NEX5_EXPECT_LEARN=1`, but the audited `run.py` contains no Expectations/reconcile call; `daily_life.py` imports only `record_canaries` from that module. The flags are present in launch configuration, but no boot invocation was found in the audited entry path. This is not proof about any external scheduler or an already-running process.
-- G-64's scheduled tick/subtraction/revert migration is merged; G-65 remains a pre-activation source-level persistence blocker pending PR #183 CI. Do not enable or wire the reconciler as part of Phase 0. Preserve the existing cross-database failure boundary.
+- G-64's scheduled tick/subtraction/revert migration is merged. G-65 remains a pre-activation source-level persistence blocker pending PR #183 CI. G-53's tied-timestamp pagination fix is merged in PR #184 (2,524 passed, 7 skipped, 40 subtests); the use-day eligibility set and Warrant policy were not changed. Do not enable or wire the reconciler as part of Phase 0. Preserve the existing cross-database failure boundary.
 
 These are post-snapshot observations, not retroactive changes to the `ae406fa8` report or the frozen specifications.
 
@@ -54,8 +54,9 @@ These are post-snapshot observations, not retroactive changes to the `ae406fa8` 
 3. Continue the forward/backward source audit across the remaining `theory_x/` faculties; distinguish wired loops from downstream consumers and measured effects.
 4. The mind-map count discrepancy is closed (30 nodes, 5 arms, 4 findings). Both `meta.doctrine` references are confirmed absent from repository history; retain the warnings rather than deleting or inventing replacement documents. `p13_finitude` was source-reverified and merged in PR #174; preserve `dark: true` and the past-due `UNBLOCK 2026-11-21` marker. G-66 established that the 58 STALE dates in run `45951932639` were unreliable because the CI checkout was shallow. PR #175 merged the full-history checkout and guard; exact-head run #1476 (`45968094769`) passed with 2,514 passed, 7 skipped and 40 subtests, but still printed 18 path/date warnings plus the two missing-doctrine warnings and overdue p13 marker. PR #179 consolidates source re-verification for P1/P6/dṛṣṭi, alobha, karuṇā, upekṣā, apramāda, mana, smṛti, vitarka/vicāra, P2/P3/P8, p13, kaukrtya and hṛī/apatrāpya plus the remaining reviewed nodes; its exact-head full suite is pending. Because PR #183 changes `substrate/writer.py` and `theory_x/stage_world/expectations.py`, revalidate the P1/Drsti source line anchors if #183 merges before #179. PR #181 isolates the remaining vedana valence/steering boundary (CI pending). PR #178 is a passing p8-only backup now covered by #179 and will be closed after #179 passes. PRs #176 and #177 were closed as superseded. Review #179's verifier output before claiming the remaining warnings cleared.
 5. Verify PR #183's exact-head CI and transaction/failure-order tests; keep G-65 dormant and do not wire the reconciler.
-6. Obtain a fresh, authorised host-only collection for active checkout identity, service/process state, versions/model digest, performance and DB hashes. Do not copy private runtime data into Git.
-7. Present the Reality Report, Crosswalk and verified defect backlog for Gate 0 founder review before any Phase 1 behavioural work.
+6. Review the G-53 PR #184 merged cursor migration against any future Warrant source-coverage changes; do not broaden the use-day eligibility set without a specification decision.
+7. Obtain a fresh, authorised host-only collection for active checkout identity, service/process state, versions/model digest, performance and DB hashes. Do not copy private runtime data into Git.
+8. Present the Reality Report, Crosswalk and verified defect backlog for Gate 0 founder review before any Phase 1 behavioural work.
 
 ## Do not cross this boundary
 
