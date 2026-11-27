@@ -184,11 +184,6 @@ def capture_momentum(
     finally:
         if own_writer:
             writer.close()
-        if own_reader:
-            try:
-                reader.close()
-            except Exception:
-                pass
 
 
 def stamp_resolution(
@@ -239,11 +234,6 @@ def stamp_resolution(
     finally:
         if own_writer:
             writer.close()
-        if own_reader:
-            try:
-                reader.close()
-            except Exception:
-                pass
 
 
 def read_momentum(
@@ -293,11 +283,6 @@ def read_momentum(
     except Exception:
         return None
     finally:
-        if own_reader:
-            try:
-                reader.close()
-            except Exception:
-                pass
 
 
 if __name__ == "__main__":
