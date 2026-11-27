@@ -460,7 +460,7 @@ This resolves only the auxiliary prose-statistics direct-write path. The primary
 
 The v1 intake validates and stores `intent`, `owner`, `scope`, `constraints`, `exclusions`, and `acceptance_criteria` in its append-only revision ledger. However, `submit_objective()` passes only `original_text`, top-level `assumptions`, supplied seed obligations, relationships, reconciliation signatures and max depth into `run_cycle()`. The cycle's `objective_input` metadata contains identity/revision/digest/repository SHA, not the contextual fields. The planner does not translate constraints/exclusions into obligations or check proposed work packages against them; acceptance criteria are not used as a completion-verification contract. Existing tests validate input/revision integrity but do not prove contextual constraint enforcement.
 
-This is an advisory capability/contract gap, not an execution incident: RDO does not apply work. The full input remains auditable, but the plan may not be constrained by all fields the caller supplied. Next design a typed translation into traceable obligations/anti-requirements and a separate acceptance-verification record. Until then, describe these fields as preserved context, not enforced constraints. Do not silently change schema v1 or assume v1.4 precedence.
+This is an advisory capability/contract gap, not an execution incident: RDO does not apply work. The full input remains auditable, but the plan may not be constrained by all fields the caller supplied. Next design a typed translation into traceable obligations/anti-requirements and a separate acceptance-verification record. Until then, describe these fields as preserved context, not enforced constraints. Use v1.4 as the current working specification and preserve v1.3 as historical; change schema v1 only through a specific, traceable design increment.
 
 
 ### G-84 post-snapshot partial resolution — PR #280 (27 November 2026)
@@ -468,3 +468,8 @@ This is an advisory capability/contract gap, not an execution incident: RDO does
 PR #280 merged as `f03a3d2e7b9c71801e44be73cf728c01cb791c9d`; exact-head run `46045754339` passed 2,640 tests, 7 skipped, 45 subtests, baseline OK. Writer now serializes submit/start/close admission, queues one shutdown sentinel after accepted requests, rejects late submissions synchronously, retains the worker reference and raises on timeout, and permits explicit restart after clean shutdown.
 
 This closes the Writer-level late-submit/forgotten-worker race. G-84 remains OPEN for the application-level shutdown sequence: AppState still does not stop/join all producer loops, the EdgeGeneratorLoop is not retained in AppState, scheduler adapter threads are not joined, and the global shutdown deadline is not coordinated with the supervisor's 15-second SIGKILL window. Post-merge main CI is in progress.
+
+
+### RDO v1.4 implementation audit reference
+
+The current OFT module is partial. The Interface Tension Profile, explicit q/tau performance margins, headroom/operating envelopes, Pareto/net-value assessment, hysteresis/marginal-value stopping and several v1.4 adversarial cases remain open. See `rdo/RDO_V1_4_IMPLEMENTATION_GAP_AUDIT_2026-11-27.md`.
