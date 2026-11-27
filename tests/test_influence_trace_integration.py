@@ -188,6 +188,60 @@ def _make_trace_test_substrate(tmp_path, monkeypatch):
     return writers, readers
 
 
+def test_coherence_gate_trace_records_its_persisted_decision(tmp_path, monkeypatch):
+    from theory_x.stage_gate.coherence_gate import CoherenceGate, ThoughtPacket
+    from theory_x.stage6_fountain.crystallizer import FountainCrystallizer
+
+    writers, readers = _make_trace_test_substrate(tmp_path, monkeypatch)
+    try:
+        gate = CoherenceGate(
+            beliefs_reader=readers["beliefs"],
+            beliefs_writer=writers["beliefs"],
+            conversations_reader=readers.get("conversations"),
+        )
+        tracer = TraceContext(
+            "fountain_cycle", sink_path=tmp_path / "coherence-gate.jsonl"
+        )
+        quality_event = tracer.record(
+            "quality_gate", "accepted", metadata={"reason_code": "fixture_quality_pass"}
+        )
+        tracer.remember("fountain_quality_gate", quality_event)
+
+        packet = ThoughtPacket(
+            content="An unusual relationship between planetary rings and resonance appears here.",
+            source_node="fountain",
+            confidence=0.70,
+            branch_id="systems",
+        )
+        decision = gate.check(packet, trace=tracer)
+        assert decision.outcome.value in {"ACCEPT", "REJECT", "HOLD", "RESHAPE"}
+
+        stored = readers["beliefs"].read_one(
+            "SELECT id, outcome FROM gate_decisions "
+            "WHERE source_node='fountain' ORDER BY id DESC LIMIT 1"
+        )
+        assert stored is not None
+        assert stored["outcome"] == decision.outcome.value
+
+        deltas = [
+            event for event in tracer.events
+            if event["stage"] == "sqlite_writer_delta"
+            and event["metadata"].get("table") == "gate_decisions"
+        ]
+        assert len(deltas) == 1
+        assert deltas[0]["metadata"]["row_id"] == stored["id"]
+        assert deltas[0]["metadata"]["decision"] == decision.outcome.value
+        assert quality_event in deltas[0]["parent_ids"]
+    finally:
+        for reader in readers.values():
+            try:
+                reader.close()
+            except Exception:
+                pass
+        for writer in writers.values():
+            writer.close()
+
+
 def test_crystallizer_trace_records_quality_gate_and_committed_belief(tmp_path, monkeypatch):
     from theory_x.stage6_fountain.crystallizer import FountainCrystallizer
 
@@ -866,7 +920,7 @@ def _run_paired_fountain_once(
         from theory_x.stage_gate.coherence_gate import GateDecision, GateOutcome
 
         class AcceptGate:
-            def check(self, packet):
+            def check(self, packet, trace=None):
                 decision = GateDecision(GateOutcome.ACCEPT, "fixture_accept")
                 gate_decisions.append((
                     packet.source_node, packet.confidence, packet.branch_id,
