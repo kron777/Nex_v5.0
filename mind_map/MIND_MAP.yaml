@@ -1053,7 +1053,8 @@ nodes:
       refs:
         - "theory_x/stage_finitude/budget_shadow.py:1-134"
         - "theory_x/stage_tom/global_workspace.py:144-166"
-        - "gui/server.py:202-280", "gui/server.py:243"
+        - "gui/server.py:202-280"
+        - "gui/server.py:243"
         - "nex_keepalive.sh:191-220"
     last_verified: 2026-11-27
     notes: >
