@@ -17,6 +17,7 @@ from substrate import Writer, Reader
 THEORY_X_STAGE = 3
 
 _LOG_SOURCE = "erosion"
+_PAGE_SIZE = 500
 
 EROSION_STAGES = ["external", "nex_absorbed", "nex_integrated", "nex_core"]
 
@@ -108,39 +109,62 @@ class ProvenanceErosion:
                 errors.record(f"erosion_check write error: {exc}", source=_LOG_SOURCE, exc=exc)
 
     def erosion_pass(self) -> int:
-        """Run a full pass checking all eligible beliefs. Returns count advanced."""
-        try:
-            rows = self._reader.read(
-                "SELECT id, source, erosion_stage, reinforce_count, locked FROM beliefs "
-                "WHERE locked = 0 AND erosion_stage != 'nex_core' LIMIT 500"
-            )
-        except Exception as exc:
-            errors.record(f"erosion_pass read error: {exc}", source=_LOG_SOURCE, exc=exc)
-            return 0
+        """Check every eligible belief in stable ID order using bounded keyset pages.
 
+        Advancing a belief to nex_core removes it from the eligible result set.
+        A keyset cursor, rather than OFFSET, ensures that this removal cannot
+        cause later rows to be skipped while keeping each read bounded.
+        """
         advanced = 0
-        for row in rows:
-            if row["source"] in PROTECTED_SOURCES:
-                continue
-            stage = row["erosion_stage"] or "external"
-            threshold = THRESHOLDS.get(stage)
-            if threshold is None:
-                continue
-            if row["reinforce_count"] >= threshold:
-                current_idx = EROSION_STAGES.index(stage) if stage in EROSION_STAGES else 0
-                next_idx = min(current_idx + 1, len(EROSION_STAGES) - 1)
-                new_stage = EROSION_STAGES[next_idx]
-                try:
-                    self._writer.write(
-                        "UPDATE beliefs SET erosion_stage = ?, reinforce_count = 0, "
-                        "confidence = MIN(1.0, confidence + 0.02) WHERE id = ?",
-                        (new_stage, row["id"]),
-                    )
-                    advanced += 1
-                    log_undo(self._writer, "eroded", (row["id"],),
-                             cause_ref=f"erosion_pass:{stage}->{new_stage}")
-                except Exception:
-                    pass
+        last_id = 0
+
+        while True:
+            try:
+                rows = self._reader.read(
+                    "SELECT id, source, erosion_stage, reinforce_count, locked FROM beliefs "
+                    "WHERE locked = 0 AND erosion_stage != 'nex_core' AND id > ? "
+                    "ORDER BY id ASC LIMIT ?",
+                    (last_id, _PAGE_SIZE),
+                )
+            except Exception as exc:
+                errors.record(f"erosion_pass read error: {exc}", source=_LOG_SOURCE, exc=exc)
+                return advanced
+
+            if not rows:
+                break
+
+            # Advance over every returned row, including protected and
+            # below-threshold beliefs, so no page can trap the cursor.
+            last_id = rows[-1]["id"]
+
+            for row in rows:
+                if row["source"] in PROTECTED_SOURCES:
+                    continue
+                stage = row["erosion_stage"] or "external"
+                threshold = THRESHOLDS.get(stage)
+                if threshold is None:
+                    continue
+                if row["reinforce_count"] >= threshold:
+                    current_idx = EROSION_STAGES.index(stage) if stage in EROSION_STAGES else 0
+                    next_idx = min(current_idx + 1, len(EROSION_STAGES) - 1)
+                    new_stage = EROSION_STAGES[next_idx]
+                    try:
+                        self._writer.write(
+                            "UPDATE beliefs SET erosion_stage = ?, reinforce_count = 0, "
+                            "confidence = MIN(1.0, confidence + 0.02) WHERE id = ?",
+                            (new_stage, row["id"]),
+                        )
+                        advanced += 1
+                        log_undo(self._writer, "eroded", (row["id"],),
+                                 cause_ref=f"erosion_pass:{stage}->{new_stage}")
+                    except Exception as exc:
+                        errors.record(
+                            f"erosion_pass write error for belief {row['id']}: {exc}",
+                            source=_LOG_SOURCE, exc=exc,
+                        )
+
+            if len(rows) < _PAGE_SIZE:
+                break
 
         if advanced:
             errors.record(
