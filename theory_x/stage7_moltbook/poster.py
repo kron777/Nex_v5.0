@@ -9,7 +9,7 @@ Both safe to call repeatedly. Idempotent on thought_id.
 from __future__ import annotations
 import logging
 import re
-from substrate import connect, Row, IntegrityError
+from substrate import Reader, Writer, Row, IntegrityError
 import threading
 import time
 from pathlib import Path
@@ -116,9 +116,16 @@ class PostLoop:
         self,
         client: MoltbookClient,
         db_path: Path | str = DYNAMIC_DB,
+        *,
+        dynamic_reader: Reader | None = None,
+        dynamic_writer: Writer | None = None,
+        beliefs_reader: Reader | None = None,
     ):
         self.client = client
         self.db_path = Path(db_path)
+        self._dynamic_reader = dynamic_reader or Reader(self.db_path)
+        self._dynamic_writer = dynamic_writer
+        self._beliefs_reader = beliefs_reader or Reader(BELIEFS_DB)
         self._stop = threading.Event()
         self._available_submolts: set[str] = set()
         self._submolts_loaded_at: float = 0.0
@@ -145,182 +152,172 @@ class PostLoop:
 
     # -- enqueue --
 
-    def enqueue_tick(self):
-        """Queue ONLY her quality thoughts: crystallized fountain_insight beliefs
-        that pass _is_quality (no price/JSON, no "(per a feed item)", no feed
-        openers, no long feed-entity summaries), deduped by theme against recent
-        queue/post history. Tracks a belief-id high-water mark in daemon_kv so
-        nothing re-queues; never backfills beliefs older than the lookback."""
-        cx = connect(self.db_path, timeout=15)   # dynamic.db (queue + kv)
-        cx.row_factory = Row
+    def _write_dynamic_batch(self, statements):
+        if not statements:
+            return
+        own_writer = self._dynamic_writer is None
+        writer = self._dynamic_writer or Writer(self.db_path, name="moltbook_poster")
         try:
-            # high-water mark: init to current-max on first run (post going
-            # forward, not replay history), then advance monotonically.
-            hw_row = cx.execute(
-                "SELECT value FROM daemon_kv WHERE key=?", (_HWM_KEY,)
-            ).fetchone()
-            bx = connect(f"file:{BELIEFS_DB}?mode=ro", uri=True, timeout=15)
-            bx.row_factory = Row
-            try:
-                if hw_row is None:
-                    cur_max = bx.execute(
-                        "SELECT COALESCE(MAX(id),0) FROM beliefs "
-                        "WHERE source='fountain_insight'"
-                    ).fetchone()[0]
-                    hw = int(cur_max)
-                    cx.execute(
-                        "INSERT OR REPLACE INTO daemon_kv (key,value,updated_at) "
-                        "VALUES (?,?,?)", (_HWM_KEY, str(hw), time.time()))
-                    cx.commit()
-                    log.info("enqueue_tick: initialised belief high-water=%d "
-                             "(posts new thoughts from here on)", hw)
-                    return   # nothing to backfill on first run
-                hw = int(hw_row["value"])
-                cutoff = time.time() - ENQUEUE_LOOKBACK_SECONDS
-                cands = bx.execute(
-                    "SELECT id, content, created_at FROM beliefs "
-                    "WHERE source='fountain_insight' AND id > ? AND created_at > ? "
-                    "ORDER BY id ASC",
-                    (hw, cutoff)
-                ).fetchall()
-            finally:
-                bx.close()
-            if not cands:
-                return
-            # recent theme fingerprints for dedup (queued or posted lately)
-            recent = cx.execute(
-                "SELECT content FROM moltbook_post_queue "
-                "WHERE status IN ('pending','posted') "
-                "ORDER BY queued_at DESC LIMIT ?", (DEDUP_RECENT_N,)
-            ).fetchall()
-            recent_sets = [_content_tokens(r["content"]) for r in recent]
-
-            inserted = 0
-            max_id = hw
-            for r in cands:
-                max_id = max(max_id, int(r["id"]))
-                content = r["content"]
-                if not _is_quality(content):
-                    continue
-                toks = _content_tokens(content)
-                if _too_similar(toks, recent_sets):
-                    log.debug("skip near-duplicate belief=%s", r["id"])
-                    continue
-                wc = len(content.split())
-                try:
-                    cx.execute(
-                        "INSERT OR IGNORE INTO moltbook_post_queue "
-                        "(thought_id, content, queued_at, status, word_count, droplet) "
-                        "VALUES (?, ?, ?, 'pending', ?, NULL)",
-                        (int(r["id"]), content, time.time(), wc)
-                    )
-                    inserted += 1
-                    recent_sets.append(toks)   # dedup within this batch too
-                except IntegrityError:
-                    pass
-            # advance the high-water mark past everything we examined
-            cx.execute(
-                "INSERT OR REPLACE INTO daemon_kv (key,value,updated_at) VALUES (?,?,?)",
-                (_HWM_KEY, str(max_id), time.time()))
-            cx.commit()
-            if inserted:
-                log.info("enqueue_tick: queued %d quality thoughts (hw->%d)",
-                         inserted, max_id)
+            writer.write_many(statements)
         finally:
-            cx.close()
+            if own_writer:
+                writer.close()
 
-    # -- post --
+    def enqueue_tick(self):
+        """Queue ONLY her quality thoughts, preserving the belief-id high-water mark."""
+        # high-water mark: init to current-max on first run (post going
+        # forward, not replay history), then advance monotonically.
+        hw_row = self._dynamic_reader.read_one(
+            "SELECT value FROM daemon_kv WHERE key=?", (_HWM_KEY,)
+        )
+        if hw_row is None:
+            max_row = self._beliefs_reader.read_one(
+                "SELECT COALESCE(MAX(id),0) FROM beliefs WHERE source='fountain_insight'"
+            )
+            hw = int(max_row[0]) if max_row else 0
+            self._write_dynamic_batch([(
+                "INSERT OR REPLACE INTO daemon_kv (key,value,updated_at) VALUES (?,?,?)",
+                (_HWM_KEY, str(hw), time.time()),
+            )])
+            log.info("enqueue_tick: initialised belief high-water=%d "
+                     "(posts new thoughts from here on)", hw)
+            return   # nothing to backfill on first run
+
+        hw = int(hw_row["value"])
+        cutoff = time.time() - ENQUEUE_LOOKBACK_SECONDS
+        cands = self._beliefs_reader.read(
+            "SELECT id, content, created_at FROM beliefs "
+            "WHERE source='fountain_insight' AND id > ? AND created_at > ? "
+            "ORDER BY id ASC",
+            (hw, cutoff),
+        )
+        if not cands:
+            return
+        # recent theme fingerprints for dedup (queued or posted lately)
+        recent = self._dynamic_reader.read(
+            "SELECT content FROM moltbook_post_queue "
+            "WHERE status IN ('pending','posted') "
+            "ORDER BY queued_at DESC LIMIT ?", (DEDUP_RECENT_N,)
+        )
+        recent_sets = [_content_tokens(r["content"]) for r in recent]
+
+        inserted = 0
+        max_id = hw
+        statements = []
+        for row in cands:
+            max_id = max(max_id, int(row["id"]))
+            content = row["content"]
+            if not _is_quality(content):
+                continue
+            toks = _content_tokens(content)
+            if _too_similar(toks, recent_sets):
+                log.debug("skip near-duplicate belief=%s", row["id"])
+                continue
+            wc = len(content.split())
+            statements.append((
+                "INSERT OR IGNORE INTO moltbook_post_queue "
+                "(thought_id, content, queued_at, status, word_count, droplet) "
+                "VALUES (?, ?, ?, 'pending', ?, NULL)",
+                (int(row["id"]), content, time.time(), wc),
+            ))
+            inserted += 1
+            recent_sets.append(toks)   # dedup within this batch too
+        # advance the high-water mark past everything we examined
+        statements.append((
+            "INSERT OR REPLACE INTO daemon_kv (key,value,updated_at) VALUES (?,?,?)",
+            (_HWM_KEY, str(max_id), time.time()),
+        ))
+        self._write_dynamic_batch(statements)
+        if inserted:
+            log.info("enqueue_tick: queued %d quality thoughts (hw->%d)",
+                     inserted, max_id)
 
     def post_tick(self):
         """If 30 min since last successful post, pick best & post."""
-        cx = connect(self.db_path, timeout=15)
-        cx.row_factory = Row
+        row = self._dynamic_reader.read_one(
+            "SELECT COALESCE(MAX(ts), 0) FROM moltbook_posts WHERE status='posted'"
+        )
+        last_post_ts = (row[0] if row else 0.0) or 0.0
+        now = time.time()
+        since = now - last_post_ts
+        if since < POST_INTERVAL_SECONDS:
+            log.debug("post_tick: %.0fs since last post, waiting %ds",
+                      since, POST_INTERVAL_SECONDS - since)
+            return
+
+        window_start = now - QUEUE_WINDOW_SECONDS
+        candidates = self._dynamic_reader.read(
+            "SELECT id, thought_id, content, queued_at, word_count, droplet "
+            "FROM moltbook_post_queue "
+            "WHERE status='pending' AND queued_at >= ? "
+            "ORDER BY queued_at DESC",
+            (window_start,),
+        )
+        if not candidates:
+            # Expire any old pending rows outside window
+            self._write_dynamic_batch([(
+                "UPDATE moltbook_post_queue SET status='expired' "
+                "WHERE status='pending' AND queued_at < ?",
+                (window_start,),
+            )])
+            log.debug("post_tick: nothing in window")
+            return
+
+        best = self._pick_best(candidates)
+        self._refresh_submolts(force=False)
+        submolt = pick_submolt(best["content"], self._available_submolts) or FALLBACK
+
+        title = _derive_title(best["content"])
+        content = best["content"][:CONTENT_MAX_CHARS]
+
+        log.info("posting fid=%s submolt=%s title=%r",
+                 best["thought_id"], submolt, title[:60])
         try:
-            last_post_ts = cx.execute(
-                "SELECT COALESCE(MAX(ts), 0) FROM moltbook_posts WHERE status='posted'"
-            ).fetchone()[0] or 0.0
-            now = time.time()
-            since = now - last_post_ts
-            if since < POST_INTERVAL_SECONDS:
-                log.debug("post_tick: %.0fs since last post, waiting %ds",
-                          since, POST_INTERVAL_SECONDS - since)
-                return
-
-            window_start = now - QUEUE_WINDOW_SECONDS
-            candidates = cx.execute(
-                "SELECT id, thought_id, content, queued_at, word_count, droplet "
-                "FROM moltbook_post_queue "
-                "WHERE status='pending' AND queued_at >= ? "
-                "ORDER BY queued_at DESC",
-                (window_start,)
-            ).fetchall()
-            if not candidates:
-                # Expire any old pending rows outside window
-                cx.execute(
-                    "UPDATE moltbook_post_queue SET status='expired' "
-                    "WHERE status='pending' AND queued_at < ?",
-                    (window_start,)
-                )
-                cx.commit()
-                log.debug("post_tick: nothing in window")
-                return
-
-            best = self._pick_best(candidates)
-            self._refresh_submolts(force=False)
-            submolt = pick_submolt(best["content"], self._available_submolts) or FALLBACK
-
-            title = _derive_title(best["content"])
-            content = best["content"][:CONTENT_MAX_CHARS]
-
-            log.info("posting fid=%s submolt=%s title=%r",
-                     best["thought_id"], submolt, title[:60])
-            try:
-                result = self.client.create_post(submolt, title, content)
-                post_id = (
-                    (result or {}).get("post", {}).get("id")
-                    or (result or {}).get("id")
-                    or ""
-                )
-                cx.execute(
+            result = self.client.create_post(submolt, title, content)
+            post_id = (
+                (result or {}).get("post", {}).get("id")
+                or (result or {}).get("id")
+                or ""
+            )
+            self._write_dynamic_batch([
+                (
                     "INSERT INTO moltbook_posts "
                     "(post_id, thought_id, ts, submolt, status, error) "
                     "VALUES (?, ?, ?, ?, ?, ?)",
-                    (str(post_id), best["thought_id"], now, submolt, "posted", None)
-                )
-                cx.execute(
+                    (str(post_id), best["thought_id"], now, submolt, "posted", None),
+                ),
+                (
                     "UPDATE moltbook_post_queue SET status='posted' WHERE id=?",
-                    (best["id"],)
-                )
-                # Skip the other candidates in this window (they had their chance)
-                cx.execute(
+                    (best["id"],),
+                ),
+                (
                     "UPDATE moltbook_post_queue SET status='skipped' "
                     "WHERE status='pending' AND queued_at >= ? AND id != ?",
-                    (window_start, best["id"])
-                )
-                cx.commit()
-                log.info("posted ok: post_id=%s submolt=%s", post_id, submolt)
-            except RateLimited as e:
-                log.warning("rate limited, will retry: retry_after=%s", e.retry_after)
-                # leave candidate as pending; will try again next tick
-            except ApiError as e:
-                cx.execute(
+                    (window_start, best["id"]),
+                ),
+            ])
+            log.info("posted ok: post_id=%s submolt=%s", post_id, submolt)
+        except RateLimited as e:
+            log.warning("rate limited, will retry: retry_after=%s", e.retry_after)
+            # leave candidate as pending; will try again next tick
+        except ApiError as e:
+            self._write_dynamic_batch([
+                (
                     "INSERT INTO moltbook_posts "
                     "(post_id, thought_id, ts, submolt, status, error) "
                     "VALUES (?, ?, ?, ?, ?, ?)",
                     (None, best["thought_id"], now, submolt, "failed",
-                     f"http {e.status}: {e.body[:300]}")
-                )
-                cx.execute(
+                     f"http {e.status}: {e.body[:300]}"),
+                ),
+                (
                     "UPDATE moltbook_post_queue SET status='failed' WHERE id=?",
-                    (best["id"],)
-                )
-                cx.commit()
-                log.error("post failed: http %d body=%r", e.status, e.body[:200])
-            except MoltbookError as e:
-                log.error("post network/client error: %s", e)
-                # leave pending — try next tick
-        finally:
-            cx.close()
+                    (best["id"],),
+                ),
+            ])
+            log.error("post failed: http %d body=%r", e.status, e.body[:200])
+        except MoltbookError as e:
+            log.error("post network/client error: %s", e)
+            # leave pending — try next tick
 
     # -- helpers --
 
