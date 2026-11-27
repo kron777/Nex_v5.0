@@ -278,6 +278,10 @@ class Pattern:
     def __post_init__(self) -> None:
         if not isinstance(self.exact_scope, bool):
             raise ValueError("pattern exact_scope must be a boolean")
+        if self.exact_scope and (
+            not isinstance(self.applicability, str) or not self.applicability.strip()
+        ):
+            raise ValueError("exact-scope patterns require a non-blank applicability")
 
     def to_dict(self) -> dict:
         d = dataclasses.asdict(self)
