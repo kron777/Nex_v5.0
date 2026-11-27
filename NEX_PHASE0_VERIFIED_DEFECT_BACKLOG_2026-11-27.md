@@ -453,7 +453,7 @@ Current objective intake requires externally supplied seed obligations and recon
 
 PR #279 merged as `8d2121d121931d37afcb1c3d23d27e7ccc9145d1` after exact-head CI run `46044361663` passed 2,638 tests, 7 skipped, 45 subtests, baseline OK. The scheduled SignalToProblem loop now invokes `prose_stats.build()` with the shared beliefs Writer/Reader; the builder performs its upserts in one Writer transaction. The new tests compare its output with the direct builder and verify that the scheduled loop does not call `build_direct()`.
 
-This resolves only the auxiliary prose-statistics direct-write path. The primary `signal_to_problem_tick()` direct writes to beliefs and conversations, runtime `actioned_at` schema alteration, and split commit boundary remain open under G-85/G-61. No cross-database atomicity is claimed. No post-merge main CI run was returned at this update.
+This resolves only the auxiliary prose-statistics direct-write path. The primary `signal_to_problem_tick()` direct writes to beliefs and conversations, runtime `actioned_at` schema alteration, and split commit boundary remain open under G-85/G-61. No cross-database atomicity is claimed. Post-merge main run `46045384807` also passed 2,638 tests, 7 skipped, 45 subtests, baseline OK. The mind-map check reported 30 nodes, 0 unverified, 14 dark, 2 blocked, two missing doctrine references and the overdue P13 marker.
 
 
 ### G-91 — Objective intake context is preserved but not enforced by planning (OPEN / RDO capability gap)
