@@ -521,7 +521,7 @@ def test_context_mapping_rejects_unknown_items_obligations_and_missing_evidence(
 
 
 def test_acceptance_criterion_verification_uses_typed_unknown_first_record(tmp_path, monkeypatch):
-    from rdo_adapters.handoff import record_acceptance_verification
+    from rdo_adapters.handoff import record_context_mapping, record_acceptance_verification
 
     repo, workdir, result, package = _create_cycle(tmp_path, monkeypatch)
     manifest = create_handoff(
@@ -555,7 +555,7 @@ def test_acceptance_criterion_verification_uses_typed_unknown_first_record(tmp_p
 
 
 def test_acceptance_criterion_verification_rejects_missing_evidence_and_bad_time(tmp_path, monkeypatch):
-    from rdo_adapters.handoff import record_acceptance_verification
+    from rdo_adapters.handoff import record_context_mapping, record_acceptance_verification
 
     repo, workdir, result, package = _create_cycle(tmp_path, monkeypatch)
     manifest = create_handoff(
@@ -601,7 +601,7 @@ def test_acceptance_verification_requires_prior_reviewed_context_mapping(tmp_pat
 
 
 def test_acceptance_verification_rejects_scalar_reference_containers(tmp_path, monkeypatch):
-    from rdo_adapters.handoff import record_acceptance_verification
+    from rdo_adapters.handoff import record_context_mapping, record_acceptance_verification
 
     repo, workdir, result, package = _create_cycle(tmp_path, monkeypatch)
     manifest = create_handoff(
