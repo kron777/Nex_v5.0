@@ -113,9 +113,10 @@ def build(beliefs_writer, beliefs_reader, source: str = "precipitated_from_sense
     ]
     if payload:
         try:
-            beliefs_writer.transaction(
-                lambda cx: cx.executemany(_UPSERT_SQL, payload)
-            )
+            def _upsert(cx):
+                cx.executemany(_UPSERT_SQL, payload)
+
+            beliefs_writer.transaction(_upsert)
         except Exception as exc:
             logger.warning("prose_stats write error: %s", exc)
             return 0
