@@ -38,8 +38,14 @@ SOURCE = "identity_loop"
 COMPOSE_HOURS = {0, 6, 12, 18}
 
 
-def _ensure_identity_log(dynamic_reader: Reader, dynamic_writer: Writer):
-    dynamic_writer.write_many([
+def _ensure_identity_log(
+    dynamic_reader: Reader | None = None,
+    dynamic_writer: Writer | None = None,
+):
+    reader = dynamic_reader or Reader(DYNAMIC_DB)
+    own_writer = dynamic_writer is None
+    writer = dynamic_writer or Writer(DYNAMIC_DB, name="identity_loop_schema")
+    writer.write_many([
         ("""
             CREATE TABLE IF NOT EXISTS identity_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -57,7 +63,7 @@ def _ensure_identity_log(dynamic_reader: Reader, dynamic_writer: Writer):
             (),
         ),
     ])
-    cols = {row["name"] for row in dynamic_reader.read("PRAGMA table_info(identity_log)")}
+    cols = {row["name"] for row in reader.read("PRAGMA table_info(identity_log)")}
     migrations = []
     for column in ("ablation_arm", "ablation_arm_prev", "ablation_flips"):
         if column not in cols:
@@ -67,7 +73,9 @@ def _ensure_identity_log(dynamic_reader: Reader, dynamic_writer: Writer):
                 (),
             ))
     if migrations:
-        dynamic_writer.write_many(migrations)
+        writer.write_many(migrations)
+    if own_writer:
+        writer.close()
 
 
 def _gather_metrics(
