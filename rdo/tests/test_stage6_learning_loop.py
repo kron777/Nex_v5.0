@@ -319,3 +319,14 @@ def test_pattern_memory_add_revalidates_mutated_exact_scope_metadata(tmp_path):
     pattern.applicability = " "
     with pytest.raises(ValueError, match="non-blank applicability"):
         memory.add(pattern)
+
+
+def test_exact_scope_collision_normalization_uses_unicode_casefold(tmp_path):
+    from rdo.memory import PatternMemory
+    from rdo.model import Pattern
+    memory = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    memory.add(Pattern(key="unicode", statement="same objective", provenance="cycle:1",
+        applicability="Straße", exact_scope=True))
+    memory.add(Pattern(key="unicode", statement="same objective", provenance="cycle:2",
+        applicability="STRASSE", exact_scope=True))
+    assert [p.key for p in memory.applicable("strasse")] == ["unicode"]
