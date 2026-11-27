@@ -1,6 +1,6 @@
 # NEX Phase 0 — Verified Defect and Evidence-Gap Backlog (Mainline)
 
-**Snapshot index:** `main` at `9f5a9f0b476716b6a6fd0a39aa3cf3041a3a4465`  
+**Snapshot index:** `main` at `90ffd57c75b33eff161ea33e29388e0732f0290e`  
 **Date:** 27 November 2026  
 **Purpose:** Separate confirmed documentation/source discrepancies from unknown host/runtime evidence and incomplete audits. This backlog is not approval to change cognition or policy. The header SHA is the latest repository snapshot for navigation only; each finding retains its own source/test evidence date and must be revalidated before being called current.
 
@@ -206,7 +206,7 @@ These are source-level conditions and test-coverage gaps recovered from older au
 - **Verified at this report's `ae406fa8` snapshot:** `ingest()` opens `conversations.db` with write-capable `connect()`, inserts expectation-ledger rows, and commits directly. `reconcile()` opens another write-capable conversations connection and directly writes resolution state, `event_valence`, and `affect_nudges`. When `NEX5_EXPECT_LEARN=1`, `_learn()` opens `beliefs.db` with write-capable `connect()`, updates `beliefs.confidence`, and commits separately while the associated learning ledger rows are written through the conversations connection. `record_canaries()` also writes its log directly; PR #168 proposes migrating that one canary-log write to the shared conversations Writer, but does not migrate the ingest/reconcile/learning paths.
 - **Activation boundary:** `reconciler_on()` is controlled by `NEX5_RECONCILER`; the audited `run.py` snapshot contains no reference to this module or its reconciler. Treat the reconciler as a dormant source path, not a live worker. `NEX5_EXPECT_LEARN` is a separate OFF-by-default gate for belief-confidence updates. No runtime activation, live database contents, or incident is established.
 - **Impact/qualification:** if these functions are invoked, they bypass the one-pen rule in `SPECIFICATION.md §8`. The belief update and conversations-ledger commits are separate database transactions, so their existing cross-database failure boundary must be preserved and explicitly tested; do not imply atomicity across the two files.
-- **Disposition / post-snapshot status:** source-level persistence defect addressed by merged PR #183 (exact-head run #1519: 2,525 passed, 7 skipped, 40 subtests). `Writer.transaction(callback)` serializes `ingest()` and `reconcile()` on the conversations Writer; `_learn()` reads beliefs read-only and routes confidence updates through the beliefs Writer; cap-hit and learning-log inserts remain in the same conversations transaction. PR #168's canary Writer migration and PR #180's Learning Guards Writer migration are also merged. **Current-main activation boundary (main `99ae476`):** `nex_keepalive.sh` sets `NEX5_RECONCILER=1` and `NEX5_EXPECT_LEARN=1`, but `run.py` contains no Expectations/reconcile call, and `daily_life.py` imports only `record_canaries` from Expectations. Flags are present in launch configuration but no boot invocation was found in the audited entry path; do not equate flag presence with execution. The two databases remain separate transactions: belief updates commit before the enclosing conversations transaction, so a later conversation commit failure can leave a belief update without its ledger row. PR #183 changes persistence routing only; it does not change flags, thresholds, adjudication, valence or confidence policy and does not activate or wire the reconciler. `reconcile()` itself does not enforce `reconciler_on()`; any future scheduler/boot caller must check that gate before invoking it.
+- **Disposition / post-snapshot status:** source-level persistence defect addressed by merged PR #183 (exact-head run #1519: 2,525 passed, 7 skipped, 40 subtests). `Writer.transaction(callback)` serializes `ingest()` and `reconcile()` on the conversations Writer; `_learn()` reads beliefs read-only and routes confidence updates through the beliefs Writer; cap-hit and learning-log inserts remain in the same conversations transaction. PR #168's canary Writer migration and PR #180's Learning Guards Writer migration are also merged. **Historical activation boundary (main `99ae476`; superseded by the 27 November current-main re-audit below):** at that earlier snapshot, the audited entry path did not show an Expectations/reconcile invocation. That “no boot invocation” conclusion is no longer current. The later SelfPredictionLoop integration provides a boot-reachable caller under the tracked launcher. The two databases remain separate transactions: belief updates commit before the enclosing conversations transaction, so a later conversation commit failure can leave a belief update without its ledger row. PR #183 changed persistence routing only; it did not change flags, thresholds, adjudication, valence or confidence policy.
 
 ### G-66 — Mind-map source-drift warnings are invalid under the shallow CI checkout
 
@@ -330,3 +330,46 @@ At main `9f5a9f0b476716b6a6fd0a39aa3cf3041a3a4465`:
 - PR #266 is an older-base replay and is superseded by #268. PR #264 is also superseded; its green run is not evidence for the latest replay.
 - PR #259 remains an open but stale-base SurpriseLoop proposal. Its base is `e78773def4549f646257945e5886ec71a7837374`; head is `9686fa6da7e835a149f31b516a5ff7a731c3a8b0`; its branch diverges from current main. G-69 remains Gate 0 HOLD; do not merge/deploy or replay into current main without explicit founder approval of the behaviour impact.
 - The Repository Reality Report and Architecture Crosswalk are source snapshots at `ae406fa8fcb1abdf25cdf4ae1bd65333e1148ca8`, 44 commits behind current main. Their findings are historical until rechecked. The backlog header SHA does not automatically refresh the evidence for each finding.
+
+
+---
+
+## Current-main source revalidation — G-65 and G-76 to G-79 (27 November 2026)
+
+**Snapshot:** `main` at `3e7f0f35ccc58519f57ae4fd2e13b1f688f688a3`. This follow-up supersedes the earlier G-65 activation statement and records the new G-76–G-79 evidence. Host-effective state remains UNKNOWN unless explicitly stated otherwise.
+
+### G-65 — Expectations reconcile/learning path is launcher-armed and boot-reachable
+
+The former “no boot invocation” conclusion from main `99ae476` is superseded. Current source shows `run.py:511–514` starts `SelfPredictionLoop` behind `NEX5_SELF_PRED=1`; `theory_x/stage_world/self_prediction.py:1149–1154` calls `expectations.reconcile()` when `reconciler_on()` holds; and `reconcile()` reaches `_learn()` when `learning_on()` holds. The tracked `nex_keepalive.sh:218–219` sets `NEX5_SELF_PRED=1`, `NEX5_RECONCILER=1` and `NEX5_EXPECT_LEARN=1`. The path is therefore launcher-armed, but actual host launcher use, process state and effective environment remain UNKNOWN. This does not establish that a live host currently runs the loop.
+
+### G-76 — Provenance erosion's use/reinforcement description does not match its counter (OPEN)
+
+- **Sources:** `theory_x/stage3_world_model/erosion.py` and `theory_x/stage3_world_model/promotion.py:118–182`.
+- `record_use()` increments `use_count`; `_erosion_check()` reads `reinforce_count`. `record_reinforce()` increments `reinforce_count` and invokes the check. The reviewed caller inventory found the runtime call in `BeliefPromoter.corroborate()` after a corroboration promotion (`promotion.py:182`). Thus ordinary use does not itself advance erosion; progression is currently reinforcement-count driven.
+- Thresholds are 10 (`external`), 30 (`nex_absorbed`) and 80 (`nex_integrated`); `nex_core` has no next threshold. The module docstring's “through use and reinforcement” wording is inaccurate for the current mechanism.
+- **Disposition:** OPEN for founder clarification of intended erosion semantics. No counter, threshold, stage transition or confidence bump changed. No live population/max figure is asserted.
+
+### G-77 — BeliefPromoter stale-transition race (CLOSED by PR #270)
+
+- **Sources:** `theory_x/stage3_world_model/promotion.py`; `tests/test_promotion_atomicity.py`.
+- Corroboration's read/decision/write is serialized in the canonical beliefs Writer transaction. Decay writes are conditional on the snapshot tier, unlocked state and unchanged idle cutoff; decisive contradiction performs its read/decision/write transactionally.
+- PR #270 merged as `d2a5c107019d79276879f3ade6ebefd348686e36`; run `46032636987` passed 2,624 tests, 7 skipped and 45 subtests with baseline OK. Thresholds and promotion/demotion policy are unchanged.
+
+### G-78 — Warrant survival parser did not decode stored promotion-log strings (CLOSED by PR #271)
+
+- **Sources:** `theory_x/stage_warrant/warrant.py::_promotion_events()`, `_survival()`; `tests/test_warrant_promotion_log_format.py`.
+- The producer stores each JSON event as a JSON-encoded string element. The consumer now decodes both string and object forms and skips malformed elements without losing valid history; tests include a row written by the real BeliefPromoter.
+- PR #271 merged as `77d4cd89015ebf605c9e5ec6af994a28126f6ed5`; exact-head run `46032708456` passed 2,629 tests, 7 skipped and 45 subtests with baseline OK.
+
+### G-79 — Expectations _learn compare-and-set (CLOSED by PR #272)
+
+- **Source:** `theory_x/stage_world/expectations.py::_learn()`; tests: `tests/test_expectations.py::TestLearningDoesNotOverwriteConcurrentChanges`.
+- On current main, the read-then-unconditional absolute confidence write could overwrite an intervening confidence change, modify a belief locked after the read, and record a stale before-value.
+- PR #272 implemented compare-and-set on ID + previously read confidence + unlocked state, with at most three read/re-decide retries. Only applied transitions are logged; unchanged factor/clamps/cap policy and beliefs-before-conversations ordering are preserved. No cross-database atomicity is claimed.
+- The three race tests fail on unmodified main and pass with the fix; mutation checks detect removal of the confidence guard, lock guard and retry. Focused local suites: 154 passed after the fix; original implementation left the three new tests failing.
+- Exact head `67fcf46a84bcfae5b5a309502680fffe8bb347b8`, run `46035516300`: 2,632 passed, 7 skipped, 45 subtests; baseline OK. PR #272 was squash-merged to main as `90ffd57c75b33eff161ea33e29388e0732f0290e`.
+- The path is boot-reachable under the tracked launcher (G-65). The competing learning-guard subtraction flags are not set in that launcher, `revert_subtraction()` has no runtime caller, and erosion's confidence bump only occurs on stage advance. This is preventive integrity hardening, not evidence of an observed live race. Host-effective state remains UNKNOWN.
+
+### Governance boundary
+
+G-76 remains a founder decision. G-79 is closed by PR #272, merged as `90ffd57c75b33eff161ea33e29388e0732f0290e`. Gate 0 remains pending founder review; Phase 1 is unauthorized; G-69 / PR #259 remains Gate 0 HOLD. No runtime flags, live database state, frozen specification, roadmap or cognitive policy were changed by this evidence update.
