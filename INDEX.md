@@ -188,7 +188,7 @@ Do not conflate these inventories:
 - The 27 stage-named directories and other `theory_x/` packages are filesystem inventory, not proof of instantiated or active faculties.
 - Python file counts are repository size, not cognitive capability counts.
 
-The 27 November Phase 0 verifier reconciliation records 18 remaining source/path-date warnings, two absent doctrine references (`VIRTUE_SLATE.md` and `mental_factors_inventory_alobha_spec.txt`), and the overdue `p13_finitude` unblock marker after the full-history verifier correction. PR #185 is the consolidated source re-verification; do not claim those warnings cleared until its exact-head CI/verifier output is reviewed. Missing doctrine files and overdue markers must remain explicit rather than being hidden by deleting references or advancing dates without source review.
+The 27 November exact-head verification in PR #185 completed the full baseline (2,527 passed, 7 skipped, 40 subtests) and mind-map verifier: **30 nodes, 0 unverified, 14 dark, 2 blocked**. The earlier 18 source/path-date warnings were cleared by source-anchor corrections. The verifier still reports two absent doctrine references (`VIRTUE_SLATE.md` and `mental_factors_inventory_alobha_spec.txt`) and the overdue `p13_finitude` unblock marker (dated 2026-11-21); these remain explicit and unresolved. The two absent files are not recreated from inference, and the overdue marker is not advanced without source review.
 
 The DAG uses `built`, `live_unproven`, `terminal`, `gap` and `gorge`. `nex_next_dev.py` treats `built`, `live_unproven` and `terminal` prerequisites as satisfied for dependency progression, while surfacing caveats. A terminal/null mechanism is not proof of success; a live_unproven mechanism is not validated.
 
@@ -217,17 +217,19 @@ A successful unit test does not establish runtime liveness. A successful boot do
 
 ## 11. Current mainline snapshot and open work (27 November 2026)
 
-Mainline inspected: `99ae476e198ec438d3f2c065316ebcb6ff6ebac6` (27 November 2026, 09:33:56 UTC). Its GitHub Actions pytest check completed successfully at 09:40:22 UTC. This is repository CI evidence only; it does not establish host/runtime state.
+Mainline inspected: `c6bc4e411141497f9e25540178e771a08cbab79d` (27 November 2026, after the manual and mind-map source-verification merges). The earlier `99ae476e` mainline GitHub Actions pytest check completed successfully at 09:40:22 UTC; PR #185 subsequently passed the exact-head full baseline and verifier. These are repository CI/source-verification results only; they do not establish host/runtime state.
 
 Post-snapshot reconciliation recorded in the Phase 0 handoff branch identifies the following merged changes already present in that mainline SHA: #168 (DailyLife/canary Writer routing), #169 (affinity Writer routing), #174 (P13 finitude re-verification), #175 (full-history mind-map verifier guard), #180 (learning-guard Writer routing), #183 (Expectations transaction/Writers), and #184 (Warrant composite pagination cursors). The source reality report and crosswalk in PR #186 are pinned to `ae406fa8`, not `99ae476`; use the handoff's post-snapshot follow-up for the intervening changes and do not present the older crosswalk as a fully refreshed `99ae476` audit.
 
 Relevant open pull requests at the inspection point:
 
-- **#187** — this manual update. Its exact-head CI was still running when rechecked; no review threads or submitted reviews were present. Do not call it merged or green until the exact head check completes.
-- **#186** — Phase 0 repository reality, architecture crosswalk, verified backlog, ADR and handoff documents. The PR remained open. Its core report/crosswalk are pinned to `ae406fa8`; its handoff adds post-snapshot reconciliation through `99ae476`.
-- **#185** — consolidated mind-map source re-verification after G64/G65 and valence review. Its exact-head full suite/verifier outcome must be checked before saying warnings cleared.
+- **#187** — the INDEX/manual stocktake update; merged as `f6e51f8ff6eb191438372a0ae1e6fff52b7b33a3` after exact-head CI passed.
+- **#185** — consolidated mind-map source re-verification after G64/G65 and valence review; merged as `c6bc4e411141497f9e25540178e771a08cbab79d` after exact-head CI passed (2,527 passed, 7 skipped, 40 subtests; verifier: 30 nodes, 0 unverified, 14 dark, 2 blocked). The two missing doctrine references and overdue P13 marker remain.
+- **#188** — Phase 0 evidence-pack carry-forward onto current main, with five documentation artefacts. Its report/crosswalk remain pinned to `ae406fa8`; the handoff reconciles through `99ae476`. Exact-head CI is still running at this manual revision; it does not approve Gate 0.
+- **#186** — older Phase 0 evidence-pack PR, superseded for current-main integration by #188; do not merge the stale branch.
 - **#178** — episodic read/write boundary audit; retained as a narrower backup pending #185.
-- **#162, #166, #170–#173** — remaining one-pen migrations for Fountain, identity, resumption and Moltbook components.
+- **#171** — responder one-pen migration; corrected constructor injection and its exact-head full CI passed, but the branch is still based on `ae406fa8` and diverges from current main. Reconcile/rebase and re-test before merge.
+- **#162, #166, #170, #172, #173** — remaining one-pen migrations for Fountain, identity, resumption and Moltbook listener/poster; earlier CI passes are on old heads and do not establish current-main compatibility.
 
 PRs based on other branches (including the earlier continuity branch) are not automatically part of `main`. Check the base branch and merge commit before describing their changes as current NEX behaviour.
 
@@ -272,4 +274,4 @@ When in doubt: the current source and approved governing documents win—not thi
 
 ---
 
-*Last amended: 27 November 2026 — mainline stocktake. Replaces stale May 2026 architecture, port, database-count, subsystem-status and operational claims with evidence-qualified current guidance.*
+*Last amended: 27 November 2026 — mainline stocktake and exact-head mind-map verifier reconciliation. Replaces stale May 2026 architecture, port, database-count, subsystem-status and operational claims with evidence-qualified current guidance.*
