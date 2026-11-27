@@ -415,6 +415,16 @@ SignalReaper preserves obsolete signal types while omitting current `4_branch` a
 
 Current main sets `MOLTBOOK_DRY_RUN=1`, which suppresses non-GET requests only. GET ingestion remains live; local records can still be marked `posted`/`sent` after synthetic success, and eligible inbound DMs are processed with `needs_human=0`. Related-belief retrieval does not filter tier/paused/locked/retired state. No external calls or host credentials were inspected. Review external consent, human approval, belief eligibility and simulated-state labels before live mode.
 
+### G-90 — Social silence is not yet represented as a contextual social act (capability gap)
+
+**Sources:** `theory_x/SOCIAL_PRESENCE_PROTOCOL.md`; `theory_x/stage_social/social_presence.py`; `theory_x/conversation_memory.py`; `theory_x/stage9_metacognition/metacognition.py`; `theory_x/stage6_fountain/generator.py`.
+
+The Social Presence Protocol measures response count and average response latency. ConversationMemory retains a bounded turn history. The two implemented “stillness” mechanisms are different: Fountain detects repeated retrieval overlap and eventually force-fires after a stillness streak; Metacognition writes a short stillness suppression after a groove-event threshold. Fountain also contains natural-language self-reflection about silence, but the reviewed paths do not turn that into a structured social-silence state or classifier.
+
+No reviewed current-main path distinguishes deliberate social silence from technical failure, or interprets silence in relation to duration, relationship, conversational dynamics, emotional circumstances and likely human interpretation. The system has adjacent context signals, but response latency alone is not an interpretation of silence.
+
+This is a capability gap against the founder's stated social-silence design principle, not a claim that a frozen S-01–S-25 requirement is violated. Do not equate retrieval stillness or groove suppression with social silence. A future design should distinguish listening, companionship, respect, familiarity, reflection, restraint, rejection, avoidance and abandonment, while also detecting technical failure and expected-response context.
+
 ### G-88 — Keepalive checkout path portability (CLOSED by PR #277)
 
 PR #277 derives `SCRIPT_DIR` from the script location, updates Git/journal paths and adds a portability regression test. Exact-head run `46042032164`: 2,636 passed, 7 skipped, 45 subtests; baseline OK. The merged main tree matches the tested head. Current main's `MOLTBOOK_DRY_RUN=1` was preserved. Host systemd unit identity remains unknown.
