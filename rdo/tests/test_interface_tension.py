@@ -200,3 +200,14 @@ def test_interface_dimension_with_blank_reference_or_confidence_remains_unknown(
     assert "latency" in result.dimensions["unknown_dimensions"]
     assert "freshness" in result.dimensions["unknown_dimensions"]
     assert result.verdict == TENSION_UNKNOWN
+
+
+def test_envelope_measurement_value_without_traceable_evidence_stays_unknown():
+    envelope = OperatingEnvelopeAssessment(
+        measured_load=InterfaceEvidence(status="measured", value=70, unit="percent"),
+    )
+    result = assess_relationship(Relationship("consumer", "provider", "depends_on",
+        operating_envelope=envelope), {})
+    summary = result.dimensions["operating_envelope"]
+    assert "measured_load" in summary["unknown_dimensions"]
+    assert result.verdict == TENSION_UNKNOWN
