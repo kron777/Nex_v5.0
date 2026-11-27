@@ -109,6 +109,7 @@ def test_daily_tick_uses_shared_dynamic_and_conversation_writers(tmp_path, monke
             beliefs_reader=readers["beliefs"],
             conversations_reader=readers["conversations"],
             conversations_writer=writers["conversations"],
+            beliefs_writer=writers["beliefs"],
             sense_reader=readers["sense"],
         )
         assert second["fired"] == []
