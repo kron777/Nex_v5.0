@@ -2,9 +2,9 @@
 """NEX 5.0 — unified boot.
 
 Starts the full stack in order:
-  1. init_db (all 5 DBs, WAL mode, schema, keystone seeds, migrations)
+  1. init_db (all 6 DBs, WAL mode, schema, keystone seeds, migrations)
   2. self-location commitment (Tier 1 locked belief)
-  3. sense scheduler (external feeds PAUSED — flip GUI switch to start)
+  3. sense scheduler (28 adapters; external feeds auto-start during construction)
   4. dynamic formation (A-F pipeline, bonsai, crystallization)
   5. world model (belief retrieval, promotion, harmonizer)
   6. membrane (inside/outside classifier, self-model, router)
