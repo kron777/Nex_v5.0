@@ -1015,7 +1015,7 @@ nodes:
     falsifier: "Should produce a self-report that lowers its own standing at least once."
     falsifier_status: unrun
     source: { kind: inferred, from: hri_apatrapya }
-    last_verified: 2026-11-20
+    last_verified: 2026-11-27
     notes: "blocked, not unbuilt -- same underlying fact as hri_apatrapya (see that node: built,
       tested, dark -- real but never runs live -- blocked on the T6 ledger-pricing conflict and
       zero real rating data yet). Corrected 2026-11-20: this node's own absence-check (`grep
@@ -1191,8 +1191,8 @@ nodes:
     probe: { tests: "tests/test_apatrapya_channel.py", corpus: "29 fixture-based tests in an isolated temp env (independence/ablation, concordance/divergence, a deliberately-broken degenerate control, append-only retention, grep-based structural guards)", binding_fraction: null }
     falsifier: "Vetoed as gates. Would they work as reads — a report on one's own trace — instead of as output gates? ANSWERED, 2026-11-10: yes, as reads. See commit 7ad9942."
     falsifier_status: unrun
-    source: { kind: composite, claim: "a real, tested, flag-gated (NEX5_APATRAPYA_CHANNEL, default OFF) prototype now exists -- commit 7ad9942", refs: ["theory_x/stage_tom/apatrapya_channel.py:135", "theory_x/stage_tom/hri_apatrapya_prototype.py:90-176"] }
-    last_verified: 2026-11-10
+    source: { kind: composite, claim: "a real, tested, flag-gated (NEX5_APATRAPYA_CHANNEL, default OFF) prototype now exists -- commit 7ad9942", refs: ["theory_x/stage_tom/apatrapya_channel.py:135-204", "theory_x/stage_tom/hri_apatrapya_prototype.py:90-190", "tests/test_apatrapya_channel.py:326-350"] }
+    last_verified: 2026-11-27
     notes: "vetoed as gates, correctly. The open question is whether the veto was aimed at the gate
       or the factor. Correction, 2026-11-09: VIRTUE_SLATE.md (the draft's cited source) does not
       exist anywhere in this repo's git history, and no hri/apatrapya module exists either -- the
@@ -1219,7 +1219,14 @@ nodes:
       (2) zero real Jon ratings exist yet (MILESTONES in apatrapya_channel.py starts at '0'); the
       actual empirical question this prototype exists to answer -- GENUINE_PAIR vs NO_PAIR vs
       DEGENERATE -- cannot be answered until that changes. UNBLOCK: no fixed date set; gated on data,
-      not a deadline, per Jon/Beam's explicit 'don't move the milestones' instruction."
+      not a deadline, per Jon/Beam's explicit 'don't move the milestones' instruction.
+      2026-11-27 source re-verification: record_rating() remains the only rating-row writer;
+      hri_verdict(), apatrapya_verdict() and detect_tension() remain shadow reads, and
+      commit_tension() still raises NotImplementedError. The fixture suite explicitly labels
+      itself prototype-only and states that real-data T3/T9 cannot run at zero real ratings.
+      The test's rolled-back insert confirms the schema's NOT NULL belief_id_a/b constraint
+      blocks a non-belief pole; this is not permission to bypass the constraint. No live DB or
+      rating rows were inspected in this source-only pass."
 
   # ─────────────────────────── STRADDLE ─────────────────────────────
   - id: p8_episodic
