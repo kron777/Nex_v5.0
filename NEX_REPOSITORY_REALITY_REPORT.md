@@ -36,7 +36,9 @@ The exact M0.5 PR head `6d371fe385fc02a2c238247b39aff82681888745` passed GitHub 
 - **0 intentional tests deselected**
 - `scripts/check_test_baseline.py`: **OK**, no failures outside the known-intentional set.
 
-The sandbox image build and sandbox probe passed. The exact PR-head run #1392 (`45938552986`) and post-merge push run #1393 (`45939220368`) both passed: 2,491 passed, 7 skipped, 40 subtests, zero intentional tests deselected, baseline OK. These are historical results for the M0.5 merge.\n\nThe latest current-main run at `ae406fa8fcb1abdf25cdf4ae1bd65333e1148ca8` (GitHub Actions run `45951932639`) completed successfully: **2,508 passed, 7 skipped, 40 subtests passed**, baseline OK, in 182.51 seconds. The current mind-map verifier completed without hard errors and emitted 61 verifier warnings (see §4).
+The sandbox image build and sandbox probe passed. The exact PR-head run #1392 (`45938552986`) and post-merge push run #1393 (`45939220368`) both passed: 2,491 passed, 7 skipped, 40 subtests, zero intentional tests deselected, baseline OK. These are historical results for the M0.5 merge.
+
+The latest current-main run at `ae406fa8fcb1abdf25cdf4ae1bd65333e1148ca8` (GitHub Actions run `45951932639`) completed successfully: **2,508 passed, 7 skipped, 40 subtests passed**, baseline OK, in 182.51 seconds. The current mind-map verifier completed without hard errors and emitted 61 verifier warnings (see §4).
 
 ## 4. Mind-map verification warnings
 
