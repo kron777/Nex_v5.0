@@ -316,3 +316,15 @@ def test_persisted_exact_scope_key_collision_fails_closed(tmp_path):
     path.write_text(json.dumps(first.to_dict()) + "\n" + json.dumps(second.to_dict()) + "\n")
     with pytest.raises(ValueError, match="persisted pattern key collision"):
         PatternMemory(str(path))
+
+
+def test_pattern_memory_add_revalidates_mutated_exact_scope_metadata(tmp_path):
+    import pytest
+    from rdo.memory import PatternMemory
+    from rdo.model import Pattern
+    memory = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    pattern = Pattern(key="mutated", statement="scoped", provenance="cycle:1",
+        applicability="belief decay", exact_scope=True)
+    pattern.applicability = " "
+    with pytest.raises(ValueError, match="non-blank applicability"):
+        memory.add(pattern)
