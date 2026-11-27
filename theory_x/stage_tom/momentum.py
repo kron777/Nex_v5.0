@@ -209,7 +209,7 @@ def stamp_resolution(
     reader = dynamic_reader or Reader(dynamic_db)
     writer = dynamic_writer or Writer(dynamic_db, name="momentum")
     try:
-        _ensure_table(writer)
+        _ensure_table(reader, writer)
         row = reader.read_one(
             "SELECT carry_count FROM momentum WHERE id = 1"
         )
