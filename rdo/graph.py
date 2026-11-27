@@ -335,6 +335,117 @@ def implementation_sequence(obligations: List[dict], rels: List[dict]) -> dict:
     }
 
 
+# -------------------------------------- before/after neighbour impact review ----
+
+def relationship_impact_delta(before_relationships: List[dict],
+                              after_relationships: List[dict],
+                              changed_nodes: List[str],
+                              before_assessments: Optional[List[dict]] = None,
+                              after_assessments: Optional[List[dict]] = None) -> dict:
+    """Compare relationship evidence around explicitly declared changed capabilities.
+
+    This is a structural before/after review aid, not causal attribution or a verdict.
+    It reports every incident relationship (including unchanged ones), structural
+    additions/removals/field changes, and any supplied relationship-assessment change.
+    It never mutates either snapshot or infers that a coincident change was caused by
+    the declared capability change.
+    """
+    if not isinstance(changed_nodes, (list, tuple, set)):
+        raise ValueError("changed_nodes must be a list, tuple or set of non-blank keys")
+    if any(not isinstance(node, str) or not node.strip() for node in changed_nodes):
+        raise ValueError("changed_nodes must contain non-blank string keys")
+    changed = set(changed_nodes)
+
+    def index_relationships(items, label):
+        if not isinstance(items, list):
+            raise ValueError(f"{label} relationships must be a list")
+        indexed = {}
+        for item in items:
+            if not isinstance(item, dict):
+                raise ValueError(f"{label} relationship entries must be dictionaries")
+            identity = tuple(item.get(field) for field in ("src", "dst", "kind"))
+            if any(not isinstance(value, str) or not value.strip() for value in identity):
+                raise ValueError(f"{label} relationship identity must contain non-blank src, dst and kind")
+            if identity in indexed:
+                raise ValueError(f"{label} relationships contain duplicate identity: {identity!r}")
+            indexed[identity] = dict(item)
+        return indexed
+
+    def index_assessments(items, label):
+        if items is None:
+            return {}
+        if not isinstance(items, list):
+            raise ValueError(f"{label} assessments must be a list")
+        indexed = {}
+        for item in items:
+            if not isinstance(item, dict) or not isinstance(item.get("subject"), str):
+                continue
+            indexed[item["subject"]] = dict(item)
+        return indexed
+
+    before = index_relationships(before_relationships, "before")
+    after = index_relationships(after_relationships, "after")
+    before_t = index_assessments(before_assessments, "before")
+    after_t = index_assessments(after_assessments, "after")
+    all_keys = sorted(set(before) | set(after))
+    structural_changes = {}
+    for key in all_keys:
+        old, new = before.get(key), after.get(key)
+        if old is None:
+            change, fields = "added", sorted(k for k in new if k not in ("src", "dst", "kind"))
+        elif new is None:
+            change, fields = "removed", sorted(k for k in old if k not in ("src", "dst", "kind"))
+        else:
+            fields = sorted(k for k in set(old) | set(new)
+                            if k not in ("src", "dst", "kind") and old.get(k) != new.get(k))
+            change = "modified" if fields else "unchanged"
+        structural_changes[key] = (change, fields)
+
+    reviewed = []
+    unrelated_changes = []
+    for key in all_keys:
+        src, dst, kind = key
+        old, new = before.get(key), after.get(key)
+        change, fields = structural_changes[key]
+        subject = f"{src} -{kind}-> {dst}"
+        old_assessment = before_t.get(subject)
+        new_assessment = after_t.get(subject)
+        assessment_changed = (
+            old_assessment != new_assessment
+            if old_assessment is not None and new_assessment is not None else None
+        )
+        entry = {
+            "identity": [src, dst, kind],
+            "change": change,
+            "changed_fields": fields,
+            "before": old,
+            "after": new,
+            "assessment_before": old_assessment,
+            "assessment_after": new_assessment,
+            "assessment_changed": assessment_changed,
+        }
+        if src in changed or dst in changed:
+            reviewed.append(entry)
+        elif change != "unchanged" or assessment_changed is True:
+            unrelated_changes.append(entry)
+
+    changed_reviewed = [item for item in reviewed
+                        if item["change"] != "unchanged" or item["assessment_changed"] is True]
+    return {
+        "status": "reviewed",
+        "declared_changed_nodes": sorted(changed),
+        "reviewed_adjacent_relationships": reviewed,
+        "changed_adjacent_relationships": changed_reviewed,
+        "unrelated_changes": unrelated_changes,
+        "summary": {
+            "adjacent_relationships_reviewed": len(reviewed),
+            "adjacent_relationships_changed": len(changed_reviewed),
+            "unrelated_changes": len(unrelated_changes),
+        },
+        "causal_attribution": "not_established; this is a structural before/after comparison",
+    }
+
+
 # --------------------------------------------------------------- top-level ----
 
 def analyse(obligations: List[dict], relationships: List[dict], frontier: List[dict]) -> dict:
