@@ -283,7 +283,12 @@ def _read_event_chain(path: str, manifest: dict) -> List[dict]:
         elif kind == "context_mapping":
             item_id = event.get("context_item_id")
             assessment = manifest.get("objective_context_assessment")
-            items = assessment.get("items", []) if isinstance(assessment, dict) else []
+            items = assessment.get("items") if isinstance(assessment, dict) else None
+            if not isinstance(items, list):
+                raise HandoffVerificationError(f"objective-context items are invalid on line {number}")
+            obligations = manifest.get("obligations")
+            if not isinstance(obligations, list):
+                raise HandoffVerificationError(f"handoff obligations are invalid on line {number}")
             matches = [item for item in items
                        if isinstance(item, dict) and item.get("item_id") == item_id]
             if not isinstance(item_id, str) or not item_id.strip() or len(matches) != 1:
@@ -294,7 +299,7 @@ def _read_event_chain(path: str, manifest: dict) -> List[dict]:
             keys = event.get("mapped_obligation_keys")
             references = event.get("evidence_references")
             known_keys = {
-                item.get("key") for item in manifest.get("obligations", [])
+                item.get("key") for item in obligations
                 if isinstance(item, dict) and isinstance(item.get("key"), str)
             }
             if (not isinstance(keys, list) or not keys or len(keys) > 200
@@ -323,7 +328,12 @@ def _read_event_chain(path: str, manifest: dict) -> List[dict]:
         elif kind == "acceptance_verification":
             criterion_id = event.get("criterion_id")
             assessment = manifest.get("objective_context_assessment")
-            criteria = assessment.get("acceptance_verification", []) if isinstance(assessment, dict) else []
+            criteria = assessment.get("acceptance_verification") if isinstance(assessment, dict) else None
+            if not isinstance(criteria, list):
+                raise HandoffVerificationError(f"acceptance-verification criteria are invalid on line {number}")
+            obligations = manifest.get("obligations")
+            if not isinstance(obligations, list):
+                raise HandoffVerificationError(f"handoff obligations are invalid on line {number}")
             matches = [item for item in criteria
                        if isinstance(item, dict) and item.get("criterion_id") == criterion_id]
             record = event.get("verification_record")
@@ -341,7 +351,7 @@ def _read_event_chain(path: str, manifest: dict) -> List[dict]:
             keys = record.get("mapped_obligation_keys")
             references = record.get("evidence_refs")
             known_keys = {
-                item.get("key") for item in manifest.get("obligations", [])
+                item.get("key") for item in obligations
                 if isinstance(item, dict) and isinstance(item.get("key"), str)
             }
             if (not isinstance(keys, list) or len(keys) > 200
