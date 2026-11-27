@@ -11,7 +11,7 @@ rather than failing the whole capture.
 from __future__ import annotations
 from substrate.paths import db_paths
 import json
-from substrate import connect, Connection, OperationalError
+from substrate import connect, Connection, OperationalError, Writer
 import time
 import urllib.request
 from pathlib import Path
@@ -225,20 +225,23 @@ def capture(fountain_event_id: int, tag: str) -> dict[str, Any]:
     return snapshot
 
 
-def persist(snapshot: dict[str, Any]) -> bool:
-    """Upsert the snapshot into coincidence_context."""
-    cx = connect(DYN_DB, timeout=5)
+def persist(
+    snapshot: dict[str, Any],
+    dynamic_writer: Writer | None = None,
+) -> bool:
+    """Upsert the snapshot through the canonical dynamic Writer."""
+    owns_writer = dynamic_writer is None
+    writer = dynamic_writer
     try:
-        cx.execute(
+        if writer is None:
+            writer = Writer(DYN_DB, name="coincidence_context")
+        writer.write(
             "INSERT INTO coincidence_context "
             "(fountain_event_id, tagged_at, tag, aperture, hot_branch, "
             " branch_activations, recent_fountain, recent_surprises, "
             " recent_daemons, belief_delta_1h, groove_alerts, "
             " last_identity, last_pattern, last_witness, full_snapshot) "
-            "VALUES (:fountain_event_id, :tagged_at, :tag, :aperture, :hot_branch, "
-            " :branch_activations, :recent_fountain, :recent_surprises, "
-            " :recent_daemons, :belief_delta_1h, :groove_alerts, "
-            " :last_identity, :last_pattern, :last_witness, :full_snapshot) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(fountain_event_id) DO UPDATE SET "
             " tagged_at=excluded.tagged_at, tag=excluded.tag, "
             " aperture=excluded.aperture, hot_branch=excluded.hot_branch, "
@@ -252,16 +255,28 @@ def persist(snapshot: dict[str, Any]) -> bool:
             " last_pattern=excluded.last_pattern, "
             " last_witness=excluded.last_witness, "
             " full_snapshot=excluded.full_snapshot",
-            snapshot,
+            (
+                snapshot["fountain_event_id"], snapshot["tagged_at"],
+                snapshot["tag"], snapshot["aperture"], snapshot["hot_branch"],
+                snapshot["branch_activations"], snapshot["recent_fountain"],
+                snapshot["recent_surprises"], snapshot["recent_daemons"],
+                snapshot["belief_delta_1h"], snapshot["groove_alerts"],
+                snapshot["last_identity"], snapshot["last_pattern"],
+                snapshot["last_witness"], snapshot["full_snapshot"],
+            ),
         )
-        cx.commit()
         return True
     finally:
-        cx.close()
+        if owns_writer and writer is not None:
+            writer.close()
 
 
-def capture_and_persist(fountain_event_id: int, tag: str) -> dict[str, Any]:
-    """Convenience: do both. Used by the server endpoint."""
+def capture_and_persist(
+    fountain_event_id: int,
+    tag: str,
+    dynamic_writer: Writer | None = None,
+) -> dict[str, Any]:
+    """Convenience: capture read-only state and persist via the dynamic Writer."""
     snapshot = capture(fountain_event_id, tag)
-    persist(snapshot)
+    persist(snapshot, dynamic_writer=dynamic_writer)
     return snapshot
