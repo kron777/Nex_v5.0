@@ -2,7 +2,7 @@
 
 **Date:** 27 November 2026  
 **Repository:** https://github.com/kron777/Nex_v5.0  
-**Evidence snapshot:** `main` at `90ffd57c75b33eff161ea33e29388e0732f0290e`  
+**Evidence snapshot:** `main` at `e4f439e6aef4383795ccc7e3e29b1d242ed0f98c`  
 **Gate 0:** **PENDING — founder review required**
 
 ## Read these together
@@ -237,3 +237,8 @@ Claude must independently query the repository and CI before acting. Do not trea
 - PR #259 remains open and Gate 0 HOLD. Gate 0 is pending founder review; Phase 1 remains unauthorized. The frozen S-01–S-25 register and Master Roadmap are unchanged.
 
 The canonical manual is `INDEX.md`; its plain-text mirror is `NEX_5.0_DEVELOPMENT_MANUAL_CLAUDE_HANDOFF_2026-11-27.txt`. Keep both byte-for-byte synchronized after the four-file content update. No host collection, runtime activation, flag change or live database access was performed.
+
+
+## Post-PR #274 merge — mind-map freshness evidence (27 November 2026)
+
+**Current main:** `e4f439e6aef4383795ccc7e3e29b1d242ed0f98c`. PR #274 merged after exact-head run `46037202834` passed 2,632 tests, 7 skipped and 45 subtests with baseline OK. The CI mind-map verifier reported 30 nodes, 0 unverified, 14 dark, 2 blocked and no stale-source warnings. Two missing doctrine references and the overdue P13 marker remain; see D-03/E-05 in the backlog. The P13 marker is not permission to rearm. The manual mirror was re-fetched and verified byte-identical to INDEX after merge. No runtime, host, database or feature-flag activity occurred.
