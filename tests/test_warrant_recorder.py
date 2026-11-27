@@ -36,16 +36,18 @@ def _beliefs(path):
         " locked INTEGER DEFAULT 0, paused INTEGER DEFAULT 0);"
         "CREATE TABLE synergizer_log (id INTEGER PRIMARY KEY, ts REAL, belief_id_a INTEGER, "
         " belief_id_b INTEGER);"
-        "CREATE TABLE belief_lineage (child_id INTEGER, parent_id INTEGER, created_at REAL);"
-        "CREATE TABLE arc_members (belief_id INTEGER, joined_at REAL);")
+        "CREATE TABLE belief_lineage (child_id INTEGER, parent_id INTEGER, relationship TEXT, created_at REAL, "
+        " PRIMARY KEY (child_id, parent_id, relationship));"
+        "CREATE TABLE arc_members (arc_id INTEGER, belief_id INTEGER, position INTEGER, role TEXT, "
+        " joined_at REAL, PRIMARY KEY (arc_id, belief_id));")
     rows = [(i, f"plain belief number {i} about ordinary things", t, 0, 0)
             for i, t in [(1, 3), (2, 3), (3, 3), (4, 6), (5, 6), (6, 7), (7, 7), (8, 7)]]
     rows += [(9, "a locked keystone", 1, 1, 0), (10, "paused one", 7, 0, 1)]
     c.executemany("INSERT INTO beliefs VALUES (?,?,?,?,?)", rows)
     c.executemany("INSERT INTO synergizer_log VALUES (?,?,?,?)",
                   [(1, _T0, 4, 6), (2, _T0 + 3600, 4, 7)])          # 4 used twice same day
-    c.execute("INSERT INTO belief_lineage VALUES (50, 4, ?)", (_T0 + 2 * _DAY,))
-    c.execute("INSERT INTO arc_members VALUES (6, ?)", (_T0 + 5 * _DAY,))
+    c.execute("INSERT INTO belief_lineage VALUES (50, 4, 'test', ?)", (_T0 + 2 * _DAY,))
+    c.execute("INSERT INTO arc_members VALUES (1, 6, 0, 'test', ?)", (_T0 + 5 * _DAY,))
     c.commit(); c.close()
 
 
@@ -111,34 +113,135 @@ class TestRecorder(unittest.TestCase):
         self.assertEqual(self.r.use_cycle(now=_T0 + 12 * _DAY), 0)    # cursors hold
         self.assertEqual(dict(self._q("SELECT belief_id, days FROM belief_use_days")), got)
 
-    def test_lineage_and_arc_cursors_do_not_skip_tied_timestamp_pages(self):
+    def test_lineage_and_arc_cursors_use_stable_composite_primary_keys(self):
         rec._USE_BATCH = 2
-        lineage_ts = _T0 + 3 * _DAY
-        arc_ts = _T0 + 6 * _DAY
+        same_ts = _T0 + 30 * _DAY
         c = sqlite3.connect(self.bdb)
-        c.executemany(
-            "INSERT INTO belief_lineage (child_id, parent_id, created_at) VALUES (?,?,?)",
-            [(100 + i, i, lineage_ts) for i in range(1, 6)],
+        # Leave a rowid gap before the tied rows. VACUUM will renumber their
+        # hidden rowids, but must not disturb the declared composite-key cursor.
+        c.execute(
+            "INSERT INTO belief_lineage (child_id, parent_id, relationship, created_at) "
+            "VALUES (99, 99, 'temporary', ?)", (same_ts,)
+        )
+        c.execute(
+            "INSERT INTO arc_members (arc_id, belief_id, position, role, joined_at) "
+            "VALUES (1, 101, 99, 'temporary', ?)", (same_ts,)
         )
         c.executemany(
-            "INSERT INTO arc_members (belief_id, joined_at) VALUES (?,?)",
-            [(i, arc_ts) for i in range(1, 6)],
+            "INSERT INTO belief_lineage (child_id, parent_id, relationship, created_at) "
+            "VALUES (?, ?, 'test', ?)",
+            [(100 + i, 101, same_ts) for i in range(5)],
+        )
+        c.executemany(
+            "INSERT INTO arc_members (arc_id, belief_id, position, role, joined_at) "
+            "VALUES (?, ?, ?, 'test', ?)",
+            [(1 if i < 2 else 2, 102 + i, i, same_ts) for i in range(5)],
+        )
+        c.execute("DELETE FROM belief_lineage WHERE relationship='temporary'")
+        c.execute("DELETE FROM arc_members WHERE role='temporary'")
+        # Assign deliberately sparse, large hidden rowids so VACUUM must
+        # compact them. These are not declared keys and must never be cursors.
+        c.execute(
+            "UPDATE belief_lineage SET rowid=1000000 + child_id "
+            "WHERE child_id BETWEEN 100 AND 104"
+        )
+        c.execute(
+            "UPDATE arc_members SET rowid=2000000 + belief_id "
+            "WHERE belief_id BETWEEN 102 AND 106"
         )
         c.commit()
         c.close()
 
-        # The first page contains an earlier timestamp plus only the first tied
-        # row. Subsequent pages must continue by (timestamp, rowid), not skip
-        # the remaining rows whose timestamp equals the previous page's cursor.
-        for tick in range(4):
-            self.r.use_cycle(now=_T0 + 7 * _DAY + tick)
+        # First page consumes the original fixture row and the first tied row.
+        self.r.use_cycle(now=same_ts)
+        with sqlite3.connect(self.bdb) as db:
+            rowid_before = db.execute(
+                "SELECT rowid FROM belief_lineage WHERE child_id=100"
+            ).fetchone()[0]
+            arc_rowid_before = db.execute(
+                "SELECT rowid FROM arc_members WHERE belief_id=102"
+            ).fetchone()[0]
+        # VACUUM is permitted, but not required, to renumber hidden rowids.
+        # Run it between pages, then force a remap to exercise the exact
+        # instability the cursor must not depend on.
+        self.r._w.c.execute("VACUUM")
+        self.r._w.c.execute(
+            "UPDATE belief_lineage SET rowid=200 + child_id "
+            "WHERE child_id BETWEEN 100 AND 104"
+        )
+        self.r._w.c.execute(
+            "UPDATE arc_members SET rowid=300 + belief_id "
+            "WHERE belief_id BETWEEN 102 AND 106"
+        )
+        self.r._w.c.commit()
+        with sqlite3.connect(self.bdb) as db:
+            rowid_after = db.execute(
+                "SELECT rowid FROM belief_lineage WHERE child_id=100"
+            ).fetchone()[0]
+            arc_rowid_after = db.execute(
+                "SELECT rowid FROM arc_members WHERE belief_id=102"
+            ).fetchone()[0]
+        self.assertNotEqual(rowid_before, rowid_after)
+        self.assertNotEqual(arc_rowid_before, arc_rowid_after)
 
-        lineage_day = int(lineage_ts // _DAY)
-        arc_day = int(arc_ts // _DAY)
-        rows = set(self._q("SELECT belief_id, day FROM belief_use_day"))
-        self.assertTrue({(i, lineage_day) for i in range(1, 6)} <= rows)
-        self.assertTrue({(i, arc_day) for i in range(1, 6)} <= rows)
+        for offset in range(1, 5):
+            self.r.use_cycle(now=same_ts + offset)
 
+        lineage_day = int(same_ts // _DAY)
+        arc_day = int(same_ts // _DAY)
+        lineage = self._q(
+            "SELECT days FROM belief_use_days WHERE belief_id=101"
+        )
+        self.assertEqual(lineage[0][0], 1)
+        self.assertEqual(
+            self._q("SELECT COUNT(*) FROM belief_use_day WHERE belief_id=101")[0][0],
+            1,
+        )
+        self.assertEqual(
+            {row[0] for row in self._q(
+                "SELECT belief_id FROM belief_use_day WHERE belief_id BETWEEN 102 AND 106"
+            )},
+            {102, 103, 104, 105, 106},
+        )
+        self.assertEqual(self.r._tuple_cursor("use_lineage_event", (0.0, 0, 0, "")),
+                         (same_ts, 104, 101, "test"))
+        self.assertEqual(self.r._tuple_cursor("use_arc_event", (0.0, 0, 0)),
+                         (same_ts, 2, 106))
+
+        # Active arcs can receive members later, after newer arc IDs have
+        # already advanced the scan. Event-time-first ordering must still see
+        # a new row belonging to arc 1 even though the cursor ended at arc 2;
+        # likewise, a late lineage row for child 2 follows the cursor at 104.
+        late_ts = same_ts + _DAY
+        with sqlite3.connect(self.bdb) as db:
+            db.execute(
+                "INSERT INTO belief_lineage "
+                "(child_id, parent_id, relationship, created_at) VALUES (2, 101, 'late', ?)",
+                (late_ts,),
+            )
+            db.execute(
+                "INSERT INTO arc_members (arc_id, belief_id, position, role, joined_at) "
+                "VALUES (1, 107, 0, 'return', ?)",
+                (late_ts,),
+            )
+        self.r.use_cycle(now=late_ts + 1)
+        late_day = int(late_ts // _DAY)
+        self.assertIn((101, late_day), set(self._q(
+            "SELECT belief_id, day FROM belief_use_day WHERE belief_id=101"
+        )))
+        self.assertIn((107, late_day), set(self._q(
+            "SELECT belief_id, day FROM belief_use_day WHERE belief_id=107"
+        )))
+
+        # A malformed typed cursor must fail closed to a replayable default,
+        # not silently strand the scan beyond all numeric keys.
+        self.r._w.write(
+            "INSERT INTO warrant_record_cursor_v2 (name, value) VALUES (?, ?) "
+            "ON CONFLICT(name) DO UPDATE SET value=excluded.value",
+            ("use_arc_event", '["not-a-time", 1, 107]'),
+        )
+        self.assertEqual(self.r._tuple_cursor("use_arc_event", (0.0, 0, 0)),
+                         (0.0, 0, 0))
     def test_legacy_timestamp_cursor_schema_migrates_without_reset(self):
         old_value = _T0 + 2 * _DAY
         self.r._w.write(
