@@ -129,7 +129,7 @@ PR #287 merged objective-context propagation into `run_cycle()`, cycle persisten
 
 
 
-**Evidence-integrity update (27 November 2026):** PR #298 makes malformed persisted interface-profile shapes explicitly diagnosable. PRs #304–#306 strengthen evidence completeness for feedback verdicts, performance margins and assessed operating envelopes. These changes enforce traceability and UNKNOWN handling; they do not supply missing v1.4 thresholds or implement stability/headroom calculations. PR #310 merged the relationship-level operating-envelope evidence connection. PR #314 is the current proposal for scoped regression learning; its exact-head CI is pending at this audit snapshot.
+**Evidence-integrity update (27 November 2026):** PR #298 makes malformed persisted interface-profile shapes explicitly diagnosable. PRs #304–#306 strengthen evidence completeness for feedback verdicts, performance margins and assessed operating envelopes. These changes enforce traceability and UNKNOWN handling; they do not supply missing v1.4 thresholds or implement stability/headroom calculations. PR #318 separately proposes validation of the interface-evidence status vocabulary after inspection found that arbitrary non-UNKNOWN labels could be counted as complete observations; its exact-head CI is pending. PR #310 merged the relationship-level operating-envelope evidence connection. PR #314 is the current proposal for scoped regression learning; its exact-head CI is pending at this audit snapshot.
 
 ## 6. Next implementation slice
 
