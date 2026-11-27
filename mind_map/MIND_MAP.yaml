@@ -182,8 +182,8 @@ nodes:
     blocked: false
     falsifier: "Should reduce repeat-selection of the same object across consecutive moments."
     falsifier_status: pass
-    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:697-738", "tests/test_alobha.py:52-58"] }
-    last_verified: 2026-11-15
+    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:727-785", "theory_x/stage6_fountain/generator.py:867-883", "tests/test_alobha.py:52-58", "nex_keepalive.sh:219-220"] }
+    last_verified: 2026-11-27
     notes: >
       Correction, 2026-11-09: this was filed as 'spec exists, unbuilt-open' -- it isn't. Both
       mental_factors_inventory_alobha_spec.txt (the cited spec doc) and VIRTUE_SLATE.md are absent
@@ -198,6 +198,8 @@ nodes:
       verified-correct-mechanism level; would need re-confirming against live selection data if the
       flag is ever armed.
 
+
+      2026-11-27 source re-verification: _alobha_context() reads recent focal items and raga repetition; _alobha_penalty() computes overlap against the focal-token union; the curiosity picker subtracts that penalty only when NEX5_ALOBHA=1. The current keepalive launch line omits NEX5_ALOBHA, but the live process environment was not rechecked today. The 2026-11-15 /proc probe remains historical; no new runtime claim is made.
   - id: vedana
     label: "vedanā — feeling-tone"
     layer: arm
@@ -213,8 +215,8 @@ nodes:
     probe: { valence_delta_samples: 35, distinct_values: 12, min: 0.0219, max: 0.2237, source: "/tmp/nex5_affect_state.log" }
     falsifier: "A price that is constant is not a price. Valence should vary with content."
     falsifier_status: pass
-    source: { kind: composite, refs: ["theory_x/stage_affect/affect_state.py:331-360", "theory_x/stage6_fountain/generator.py:617-652"] }
-    last_verified: 2026-11-15
+    source: { kind: composite, refs: ["theory_x/stage_affect/affect_state.py:331-370", "theory_x/stage6_fountain/generator.py:611-652", "theory_x/stage6_fountain/generator.py:857-863", "nex_keepalive.sh:219-220"] }
+    last_verified: 2026-11-27
     notes: >
       Correction, 2026-11-09: 'no location yet pinned' was wrong -- the check regex just
       missed .venv-excluded hits. Real location: AffectState._compute_valence_delta() (confidence-
@@ -248,6 +250,8 @@ nodes:
       0.73/variance~0 claim is now definitively retracted by real data, not just unsupported by a
       missing citation.
 
+
+      2026-11-27 source re-verification: AffectState._compute_valence_delta() computes confidence-weighted polarity over high-tier belief content and blends the self-evaluation nudge; _valence_reach() reads affect_state and returns a bounded novelty multiplier. Keep the two layers distinct: valence computation is not the same as valence steering. The generator uses the multiplier only when NEX5_VALENCE_DRIVE=1; the keepalive line sets NEX5_MOOD=1 but omits NEX5_VALENCE_DRIVE. The 35 raw log samples and live observation remain historical 2026-11-15 evidence; current process state was not checked.
   - id: mana
     label: "māna — self-conceit"
     layer: arm
@@ -261,8 +265,8 @@ nodes:
     blocked: false
     falsifier: "Reads every turn. A faculty that fires unconditionally carries no information."
     falsifier_status: na
-    source: { kind: composite, refs: ["theory_x/stage_tom/mana_detector.py:1-25", "theory_x/stage_tom/self_binding.py:311-325", "theory_x/stage6_fountain/generator.py:3496-3509"] }
-    last_verified: 2026-11-15
+    source: { kind: composite, refs: ["theory_x/stage_tom/mana_detector.py:40-75", "theory_x/stage_tom/self_binding.py:298-330", "theory_x/stage6_fountain/generator.py:3990-4001", "nex_keepalive.sh:219-220"] }
+    last_verified: 2026-11-27
     notes: >
       CORRECTION, 2026-11-15 (falsifier-sweep round): "always-on read-only sidecar" was wrong.
       mana_detector.detect() has exactly one caller in the live path -- self_binding.py's
@@ -287,6 +291,8 @@ nodes:
       exists in nex_config.py; the hypothesis that it ran as an always-on sidecar regardless is the
       claim the 2026-11-15 round above tested directly and found false.)
 
+
+      2026-11-27 source re-verification: mana_detector.detect() is reached through self_binding._cluster_reads(), which is called by afflictions_for_prompt(); both that function and the generator caller are gated by NEX5_AFFLICTIONS=1. The current keepalive launch line omits NEX5_AFFLICTIONS. This confirms the source-level dark gate, not the current process environment; the 2026-11-15 /proc check remains historical.
   - id: vicikitsa
     label: "vicikitsā — doubt"
     layer: arm
@@ -388,8 +394,8 @@ nodes:
     falsifier: "Should carry an object forward without the object being re-presented."
     falsifier_status: pass
     probe: { tests: "tests/test_smrti_retained_candidate.py", new_tests: 4, regression_suite: "64 pre-existing crystallizer-touching tests, unchanged" }
-    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:2512-2534", "theory_x/stage6_fountain/crystallizer.py:290-298", "theory_x/stage6_fountain/crystallizer.py:495-510", "tests/test_smrti_retained_candidate.py:1-30"] }
-    last_verified: 2026-11-15
+    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:1878-1903", "theory_x/stage6_fountain/generator.py:2952-2978", "theory_x/stage6_fountain/crystallizer.py:290-298", "theory_x/stage6_fountain/crystallizer.py:629-637", "tests/test_smrti_retained_candidate.py:87-121"] }
+    last_verified: 2026-11-27
     notes: >
       The factor that gives Property 8 a home; the store itself is substrate — see p8_episodic.
       Check tightened 2026-11-09 to exclude .venv (the un-excluded grep was matching third-party
@@ -450,6 +456,8 @@ nodes:
       generate()/crystallize() path directly -- flagged to Jon as a different risk class before
       starting; proceeded on his explicit go-ahead.
 
+
+      2026-11-27 source re-verification: generate() receives retrieval_manifest from _build_prompt(), extracts the highest-ranked own_sense entry and passes its ID as retained_candidate_id; crystallize() logs the candidate only when a belief is actually written. The four focused tests cover omitted/None compatibility, successful linkage, and rejection without a retention log. This remains observational and does not change selection or crystallization behavior.
   - id: virya
     label: "vīrya — joyous effort"
     layer: arm
@@ -670,8 +678,8 @@ nodes:
     falsifier: "An object entering wide-mode focus should be explicitly recorded as taken hold of, distinguishable from objects that merely passed through retrieval unselected."
     falsifier_status: pass
     probe: { wide_mode_fires_logged: 2821, source: "nex5_soak.log [WIDE MODE] markers" }
-    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:3568-3580", "theory_x/stage6_fountain/generator.py:893-990"] }
-    last_verified: 2026-11-15
+    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:893-990", "theory_x/stage6_fountain/generator.py:4044-4072", "theory_x/stage6_fountain/generator.py:2719-2735", "nex_keepalive.sh:219-220"] }
+    last_verified: 2026-11-27
     notes: >
       Dev round, 2026-11-15: found via vicāra's paired search (see that node) -- the SET side of
       the same mechanism vicāra reads. generator.py:3579 (self._last_focal_item = _kw.get("item"))
@@ -688,6 +696,8 @@ nodes:
       Marked pass against the falsifier as reformulated (a real, distinguishable recording event
       exists) rather than the original vague "unbuilt-open," which undersold what's actually there.
 
+
+      2026-11-27 source re-verification: _select_wide_mode() selects a real feed item; the wide-mode call stores its item in _last_focal_item, and the fountain_events insert persists mode and focal_item. The keepalive launch line sets NEX5_WIDE_MODES=1. The 2,821 [WIDE MODE] log hits remain historical 2026-11-15 evidence; the live process was not rechecked.
   - id: vicara
     label: "vicāra — sustained thought"
     layer: arm
@@ -704,8 +714,8 @@ nodes:
     falsifier: "An object recorded as this fire's focal item should still be readable and used as the thread in a subsequent fire, not reset to empty."
     falsifier_status: pass
     probe: { gate: "NEX5_ASSOC_RECALL=1, confirmed armed live", caller_condition: "own_n > 1" }
-    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:2896-2930", "theory_x/stage6_fountain/generator.py:3000-3014", "theory_x/stage6_fountain/generator.py:3579"] }
-    last_verified: 2026-11-15
+    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:3356-3445", "theory_x/stage6_fountain/generator.py:3460-3475", "theory_x/stage6_fountain/generator.py:4060-4072", "nex_keepalive.sh:219-220"] }
+    last_verified: 2026-11-27
     notes: >
       Dev round, 2026-11-15: THIS is the real home of self._last_focal_item -- the exact mechanism
       ruled OUT for smṛti's within-moment directive is the right fit here, read the other way
@@ -730,6 +740,8 @@ nodes:
   # Intentionally empty. See meta.findings — this is a result, not a TODO.
 
   # ──────────────────────────── SUBSTRATE ───────────────────────────
+
+      2026-11-27 source re-verification: _associative_recall() reads the prior fire's _last_focal_item and uses token overlap to retrieve relevant own-content beliefs; the caller requires NEX5_ASSOC_RECALL=1 and own_n>1. The preceding wide-mode path sets _last_focal_item, and the keepalive launch line sets NEX5_ASSOC_RECALL=1. The 2026-11-15 live probe remains historical; current process state was not checked.
   - id: p1_continuity
     label: "1 · Continuity of self"
     layer: ring
