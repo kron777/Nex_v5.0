@@ -170,6 +170,19 @@ class TaggingBeliefWriter:
     def write_many(self, statements) -> list[Any]:
         return self._inner.write_many(statements)
 
+    def write_many_with_counts(
+        self, statements, *, continue_on_integrity_error: bool = False
+    ) -> list[tuple[Any, int]]:
+        """Delegate counted batches to the canonical Writer.
+
+        These batches are used for non-belief tables in beliefs.db (for example
+        belief_edges); preserve the Writer's atomicity and per-statement counts.
+        """
+        return self._inner.write_many_with_counts(
+            statements,
+            continue_on_integrity_error=continue_on_integrity_error,
+        )
+
     def queue_depth(self) -> int:
         return self._inner.queue_depth()
 
