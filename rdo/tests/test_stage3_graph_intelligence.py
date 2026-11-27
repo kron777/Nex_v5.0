@@ -250,3 +250,87 @@ def test_stage3_end_to_end_and_resume(tmp_path):
     out = json.loads(r.stdout)
     assert out["dups"] == res["duplicate_candidates"]
     assert out["te"]["produces_for"] == 4
+
+
+def test_failure_propagation_candidates_trace_direct_and_transitive_dependents():
+    affected = graph.failure_propagation_candidates(
+        FIX_OBS, FIX_RELS, ["ext"],
+    )
+    assert affected["status"] == "candidate_only"
+    assert affected["unknown_roots"] == []
+    by_key = {item["key"]: item for item in affected["affected"]}
+    assert by_key["A"]["direct"] is True
+    assert by_key["A"]["path"] == ["ext", "A"]
+    assert by_key["A"]["relationships"] == ["A:depends_on:ext"]
+    assert by_key["C"]["path"] == ["ext", "A", "C"]
+    assert by_key["B"]["path"] == ["ext", "A", "C", "B"]
+    assert by_key["down"]["path"] == ["ext", "A", "C", "B", "down"]
+    assert by_key["down"]["distance"] == 4
+    assert by_key["down"]["relationships"] == [
+        "A:depends_on:ext", "C:depends_on:A",
+        "B:depends_on:C", "down:depends_on:B",
+    ]
+    assert affected["cycle_encountered"] is True
+    assert "runtime" in affected["note"]
+
+
+def test_failure_propagation_candidates_exclude_influence_feedback_edges():
+    obligations = [_ob("source"), _ob("consumer")]
+    rels = [{"src": "consumer", "dst": "source", "kind": "influences"}]
+    result = graph.failure_propagation_candidates(obligations, rels, ["source"])
+    assert result["status"] == "no_known_dependents"
+    assert result["affected"] == []
+    assert result["cycle_encountered"] is False
+
+
+def test_failure_propagation_candidates_mark_unknown_roots_and_unresolved_edges():
+    obligations = [_ob("known")]
+    rels = [{"src": "missing_consumer", "dst": "known", "kind": "depends_on"}]
+    result = graph.failure_propagation_candidates(
+        obligations, rels, ["unknown_root", "known"],
+    )
+    assert result["status"] == "partial"
+    assert result["unknown_roots"] == ["unknown_root"]
+    assert result["unresolved_dependency_edges"] == 1
+    assert result["affected"] == []
+
+
+def test_failure_propagation_candidates_use_deterministic_shortest_paths():
+    obligations = [_ob(key) for key in ("root", "a", "b", "join")]
+    rels = [
+        {"src": "a", "dst": "root", "kind": "depends_on"},
+        {"src": "b", "dst": "root", "kind": "depends_on"},
+        {"src": "join", "dst": "a", "kind": "depends_on"},
+        {"src": "join", "dst": "b", "kind": "depends_on"},
+    ]
+    result = graph.failure_propagation_candidates(obligations, rels, ["root"])
+    join = next(item for item in result["affected"] if item["key"] == "join")
+    assert join["distance"] == 2
+    assert join["path"] == ["root", "a", "join"]
+    assert result["cycle_encountered"] is False
+
+
+def test_failure_propagation_candidates_reject_malformed_inputs_without_throwing():
+    result = graph.failure_propagation_candidates(None, [], ["root"])
+    assert result["status"] == "invalid_input"
+    assert result["affected"] == []
+
+
+def test_failure_propagation_candidates_preserve_unknown_edge_and_obligation_shapes():
+    obligations = [_ob("known"), {"title": "missing canonical key"}]
+    rels = [
+        {"src": "known", "dst": "known", "kind": "unrecognised_edge"},
+        {"src": "known", "dst": "known"},
+    ]
+    result = graph.failure_propagation_candidates(obligations, rels, ["known"])
+    assert result["status"] == "partial"
+    assert result["invalid_obligations"] == 1
+    assert result["unresolved_dependency_edges"] == 2
+    assert result["affected"] == []
+
+
+def test_failure_propagation_candidates_distinguish_no_failure_input_from_no_dependents():
+    result = graph.failure_propagation_candidates(FIX_OBS, FIX_RELS, [])
+    assert result["status"] == "not_supplied"
+    assert result["roots"] == []
+    assert result["affected"] == []

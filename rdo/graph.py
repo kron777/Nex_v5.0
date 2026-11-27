@@ -36,6 +36,125 @@ def _adjacency(rels: List[dict], kinds: Tuple[str, ...]) -> Dict[str, List[str]]
     return adj
 
 
+def failure_propagation_candidates(
+    obligations: List[dict],
+    rels: List[dict],
+    failed_keys: List[str],
+) -> dict:
+    """Trace potential downstream dependents of explicitly supplied failures.
+
+    A depends_on edge is oriented consumer -> prerequisite, so a failure of the
+    prerequisite may affect the consumer. This is structural dependency analysis
+    only: it does not claim runtime propagation, severity, probability or causality.
+    Influence/feedback edges are deliberately excluded.
+    """
+    if not isinstance(obligations, list) or not isinstance(rels, list) or not isinstance(failed_keys, list):
+        return {
+            "status": "invalid_input",
+            "roots": [],
+            "unknown_roots": [],
+            "invalid_roots": [],
+            "invalid_obligations": 0,
+            "affected": [],
+            "unresolved_dependency_edges": 0,
+            "cycle_encountered": False,
+        }
+
+    known = set()
+    invalid_obligations = 0
+    for item in obligations:
+        if not isinstance(item, dict) or not isinstance(item.get("key"), str) or not item["key"].strip():
+            invalid_obligations += 1
+            continue
+        key = item["key"]
+        if key in known:
+            invalid_obligations += 1
+            continue
+        known.add(key)
+    roots = sorted({key for key in failed_keys if isinstance(key, str) and key.strip()})
+    invalid_roots = [str(key) for key in failed_keys
+                     if not isinstance(key, str) or not key.strip()]
+    unknown_roots = [key for key in roots if key not in known]
+
+    dependents: Dict[str, Set[str]] = {}
+    unresolved_edges = 0
+    for edge in rels:
+        if not isinstance(edge, dict):
+            unresolved_edges += 1
+            continue
+        src, dst, kind = edge.get("src"), edge.get("dst"), edge.get("kind")
+        if kind in ("produces_for", "reuses", "duplicates", "influences"):
+            continue
+        if kind != "depends_on":
+            unresolved_edges += 1
+            continue
+        if (not isinstance(src, str) or not src.strip()
+                or not isinstance(dst, str) or not dst.strip()
+                or src not in known or dst not in known):
+            unresolved_edges += 1
+            continue
+        dependents.setdefault(dst, set()).add(src)
+
+    affected = []
+    cycle_encountered = False
+    for root in roots:
+        if root not in known:
+            continue
+        queue = [root]
+        distance = {root: 0}
+        paths = {root: [root]}
+        index = 0
+        while index < len(queue):
+            current = queue[index]
+            index += 1
+            for consumer in sorted(dependents.get(current, set())):
+                if consumer in paths[current]:
+                    cycle_encountered = True
+                    continue
+                # Breadth-first traversal preserves one deterministic shortest path
+                # per dependent. An alternate convergent path is not a graph cycle.
+                if consumer in distance:
+                    continue
+                distance[consumer] = distance[current] + 1
+                paths[consumer] = paths[current] + [consumer]
+                queue.append(consumer)
+
+        for key in sorted((item for item in distance if item != root),
+                          key=lambda item: (distance[item], item)):
+            affected.append({
+                "root": root,
+                "key": key,
+                "distance": distance[key],
+                "direct": distance[key] == 1,
+                "path": paths[key],
+                "relationships": [
+                    f"{paths[key][index + 1]}:depends_on:{paths[key][index]}"
+                    for index in range(len(paths[key]) - 1)
+                ],
+            })
+
+    status = (
+        "partial" if unknown_roots or invalid_roots or invalid_obligations or unresolved_edges else
+        "not_supplied" if not roots else
+        "candidate_only" if affected else
+        "no_known_dependents"
+    )
+    return {
+        "status": status,
+        "roots": roots,
+        "unknown_roots": unknown_roots,
+        "invalid_roots": invalid_roots,
+        "invalid_obligations": invalid_obligations,
+        "affected": affected,
+        "unresolved_dependency_edges": unresolved_edges,
+        "cycle_encountered": cycle_encountered,
+        "note": (
+            "Potential structural dependents via depends_on edges only; no runtime "
+            "failure propagation, severity, probability or causal effect is inferred."
+        ),
+    }
+
+
 # ------------------------------------------------------------ SCC decomposition ----
 
 def tarjan_sccs(nodes: List[str], adj: Dict[str, List[str]]) -> List[List[str]]:
