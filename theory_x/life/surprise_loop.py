@@ -37,12 +37,12 @@ def _ensure_kv_table(writer: Writer):
     )
 
 
-def _last_promoted_cursor(reader: Reader) -> tuple[float, int]:
-    """Read the lexicographic (triggered_at, id) checkpoint.
+def _last_promoted_cursor(reader: Reader, writer: Writer) -> tuple[float, int]:
+    """Load the durable event-ID cursor, migrating from the legacy timestamp.
 
-    A missing ID is the legacy timestamp-only format. Returning id=0
-    deliberately replays rows at that timestamp; duplicate belief writes
-    are idempotently treated as already handled.
+    The event table's INTEGER PRIMARY KEY is monotonic and stable across VACUUM.
+    On migration, rows strictly older than the old timestamp are treated as
+    historical; rows exactly at that timestamp are replayed safely.
     """
     rows = reader.read(
         "SELECT key, value FROM daemon_kv WHERE key IN (?, ?)",
@@ -50,18 +50,32 @@ def _last_promoted_cursor(reader: Reader) -> tuple[float, int]:
     )
     values = {row["key"]: row["value"] for row in rows}
     try:
-        ts = float(values.get(LAST_PROMOTED_TS_KEY) or 0.0)
+        since = float(values.get(LAST_PROMOTED_TS_KEY) or 0.0)
     except (TypeError, ValueError):
-        ts = 0.0
-    try:
-        event_id = int(values.get(LAST_PROMOTED_ID_KEY) or 0)
-    except (TypeError, ValueError):
-        event_id = 0
-    return ts, event_id
+        since = 0.0
+    if since == 0:
+        since = time.time() - 600
+
+    raw_id = values.get(LAST_PROMOTED_ID_KEY)
+    if raw_id is not None:
+        try:
+            return since, int(raw_id)
+        except (TypeError, ValueError):
+            pass
+
+    row = reader.read_one(
+        "SELECT COALESCE(MAX(id), 0) FROM surprise_events WHERE triggered_at < ?",
+        (since,),
+    )
+    last_id = int(row[0] or 0) if row else 0
+    # Persist migration before processing. This freezes the initial/legacy
+    # boundary even when there are no eligible rows or the first write fails.
+    _set_last_promoted_cursor(writer, since, last_id)
+    return since, last_id
 
 
 def _set_last_promoted_cursor(writer: Writer, ts: float, event_id: int) -> None:
-    """Persist both cursor dimensions atomically."""
+    """Persist the compatibility timestamp and authoritative event ID atomically."""
     now = time.time()
     writer.write_many([
         (
@@ -119,32 +133,23 @@ def surprise_tick(
     b_writer = beliefs_writer or Writer(BELIEFS_DB, name="surprise_loop")
     try:
         _ensure_kv_table(d_writer)
-        since, last_id = _last_promoted_cursor(d_reader)
-        first_run = since == 0
-        if first_run:
-            # First run — start from 10 min ago, don't import full history.
-            since = time.time() - 600
-            last_id = 0
+        since, last_id = _last_promoted_cursor(d_reader, d_writer)
         rows = d_reader.read(
             "SELECT * FROM surprise_events "
-            "WHERE (triggered_at > ? OR (triggered_at = ? AND id > ?)) "
+            "WHERE id > ? "
             "  AND surprise_flag = 1 "
             "  AND actual_content IS NOT NULL AND actual_content != '' "
             "  AND predicted_content IS NOT NULL AND predicted_content != '' "
-            "ORDER BY triggered_at ASC, id ASC LIMIT 20",
-            (since, since, last_id),
+            "ORDER BY id ASC LIMIT 20",
+            (last_id,),
         )
         if not rows:
-            # Persist the initial history boundary even when no eligible rows
-            # exist yet; otherwise the rolling cutoff can skip late-populated
-            # events that were created inside the original ten-minute window.
-            if first_run:
-                _set_last_promoted_cursor(d_writer, since, 0)
             return {"promoted": 0}
 
         promoted = 0
         processed = 0
-        cursor_ts, cursor_id = since, last_id
+        cursor_id = last_id
+        cursor_ts = since
         for row in rows:
             try:
                 content = _surprise_to_belief(row)
@@ -170,8 +175,8 @@ def surprise_tick(
                 log.warning("surprise belief write failed for event %s: %s", row["id"], e)
                 break
 
-            cursor_ts = float(row["triggered_at"])
             cursor_id = int(row["id"])
+            cursor_ts = max(cursor_ts, float(row["triggered_at"]))
             processed += 1
 
         if processed:
