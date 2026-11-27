@@ -1,6 +1,6 @@
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `99ae476e198ec438d3f2c065316ebcb6ff6ebac6`  
+**Last verified against:** `main` at `5d7f4e28eb6760d206eed455429c90e967a5bf10`  
 **Evidence date:** 27 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -96,7 +96,7 @@ The one-pen rule is a core persistence invariant: **one canonical Writer per dat
 
 A Writer serializes work for its own database. A transaction callback or multi-statement write can be atomic within that database. It does **not** create an atomic transaction spanning multiple SQLite databases. If one logical operation updates beliefs and conversations, a failure between those commits can leave partial cross-database state. Do not describe cross-database work as globally atomic.
 
-The 27 November mainline includes the merged one-pen migrations for daily-life scheduled activity and canary persistence (#168), affinity (#169), learning-guard subtraction (#180), and Expectations persistence/reconciliation transaction support (#183). Important distinction: the shared-Writer migration does **not** establish that the Expectations reconciler is activated. The tracked launcher sets `NEX5_RECONCILER=1` and `NEX5_EXPECT_LEARN=1`, but the audited `run.py` has no Expectations/reconcile invocation, and `daily_life.py` imports only `record_canaries`; do not infer a live reconciliation loop from those flags. No activation is authorised by this documentation. PR #184 also fixes tied-timestamp pagination for Warrant lineage/arc reads; it does not broaden use-day eligibility or change Warrant policy. The one-pen migration programme has advanced on current main: responder (#191) and listener/poster (#196) are merged. The remaining resumption, identity and Fountain momentum/recursion-attribution migrations are consolidated in #198 and must not be treated as current-main behaviour until that refreshed PR passes exact-head CI and merges.
+The 27 November mainline includes the merged one-pen migrations for daily-life scheduled activity and canary persistence (#168), affinity (#169), learning-guard subtraction (#180), and Expectations persistence/reconciliation transaction support (#183). Important distinction: the shared-Writer migration does **not** establish that the Expectations reconciler is activated. The tracked launcher sets `NEX5_RECONCILER=1` and `NEX5_EXPECT_LEARN=1`, but the audited `run.py` has no Expectations/reconcile invocation, and `daily_life.py` imports only `record_canaries`; do not infer a live reconciliation loop from those flags. No activation is authorised by this documentation. PR #184 also fixes tied-timestamp pagination for Warrant lineage/arc reads; it does not broaden use-day eligibility or change Warrant policy. The current mainline includes the remaining bounded one-pen migrations: responder (#191), listener/poster (#196), and resumption, identity, Fountain momentum and recursion attribution (#200). #200 passed exact-head full baseline CI (2,539 passed, 7 skipped, 40 subtests) before merge. This closes those identified migration branches, not the repository-wide one-pen audit; every remaining writer path still requires source-to-sink verification.
 
 Do not use direct `sqlite3` writes to live substrate databases as a shortcut. Test fixtures and isolated diagnostic databases are different from production persistence.
 
@@ -117,6 +117,8 @@ The world-model layer retrieves and relates structured beliefs, with source, tie
 Recent work has identified inactive/paused/retired belief eligibility as a cross-cutting issue across Fountain context, special slots, self-narrative, graph/edge construction, pairing, affinity feedback, reification and other consumers. The G-53 Warrant cursor correction (#184) is merged, but it does not settle eligibility policy. Other corrective PRs must be checked individually for base, merge status and exact-head tests; do not assume branch-only changes affect current `main`.
 
 ### Coherence Gate
+
+The Throw-Net trigger path is source-wired but its autonomous monitor is separately gated. `run.py` constructs a shared-Writer `TriggerDetector` and injects it into the Gate; non-Throw-Net REJECTs and Chat gap deflections write trigger rows. The documented 4-REJECT/3-gap thresholds are not enforced by the current consumer: callers ignore the detector's boolean return, `pending_triggers()` selects every unfired row, and `ThrowNetEngine.run_pending()` runs a session for each one. If `NEX5_THROWNET=1` is supplied, even a sub-threshold trigger can therefore launch a session. The monitor is not started unless that flag equals `1`; the tracked keepalive command does not set it, but any parent/systemd environment is unknown. This is a source-level defect and an inactive-by-default path, not evidence of live execution. Do not enable or change its thresholds without the relevant approval.
 
 `theory_x/stage_gate/coherence_gate.py` evaluates ThoughtPackets into ACCEPT, REJECT, HOLD or RESHAPE and records decisions. The current implementation is **fail-open on evaluation exceptions**: an exception is recorded and the packet returns ACCEPT with reason `gate_error_fallback`. This is an availability policy, not a fail-closed safety boundary.
 
@@ -217,7 +219,7 @@ A successful unit test does not establish runtime liveness. A successful boot do
 
 ## 11. Current mainline snapshot and open work (27 November 2026)
 
-Mainline inspected: `9235b25f085ab6950d8376df5706eaaaac431eca` (27 November 2026, after #189 manual reconciliation, #191 responder migration and #196 listener/poster migration). Exact-head full baseline CI passed for #191, #196 and the current-main carry-forward branch before #198 was opened. These are repository CI/source-verification results only; they do not establish host/runtime state.
+Mainline inspected: `5d7f4e28eb6760d206eed455429c90e967a5bf10` (27 November 2026, after #189 manual reconciliation, #191 responder, #196 listener/poster, #199 manual refresh and #200 remaining one-pen migrations). Exact-head full baseline CI for #200 passed: 2,539 passed, 7 skipped, 40 subtests; mind-map verifier: 30 nodes, 0 unverified, 14 dark, 2 blocked. These are repository CI/source-verification results only; they do not establish host/runtime state.
 
 Post-snapshot reconciliation recorded in the Phase 0 handoff branch identifies the following merged changes already present in that mainline SHA: #168 (DailyLife/canary Writer routing), #169 (affinity Writer routing), #174 (P13 finitude re-verification), #175 (full-history mind-map verifier guard), #180 (learning-guard Writer routing), #183 (Expectations transaction/Writers), and #184 (Warrant composite pagination cursors). The source reality report and crosswalk carried by PR #188 remain pinned to `ae406fa8`; its handoff reconciles changes through `99ae476`. The later mind-map source-verifier outcome from PR #185 is recorded separately above. Treat each evidence artefact as snapshot-bounded, not as a single fully refreshed audit of `ddb9f15`.
 
@@ -229,11 +231,14 @@ Relevant pull requests and integration state at this update:
 - **#189** — manual reconciliation after #185/#188; merged.
 - **#191** — responder one-pen migration; merged after exact-head full baseline CI.
 - **#196** — listener/poster one-pen migration; merged after exact-head full baseline CI. Together, #191 and #196 migrate all three Moltbook loop persistence paths without activating external posting.
-- **#198** — refreshed current-main carry-forward for ResumptionSeeder, IdentityLoop, Fountain momentum and recursion attribution. The earlier #197 was closed after #196 advanced main; #198 starts from the new main head. Its exact-head full baseline workflow is the current validation gate; do not merge before it succeeds and the diff is reviewed.
-- **#197** — superseded by #198 after #196 merged; do not merge the stale branch.
-- **#192–#195** — superseded current-main carry-forward PRs; closed after consolidation into #197/#198 and #196.
+- **#200** — ResumptionSeeder, IdentityLoop, Fountain momentum and recursion-attribution one-pen migrations; merged after exact-head CI (2,539 passed, 7 skipped, 40 subtests). This closes the previously outstanding bounded migration PRs #162/#166/#170 and does not prove the global writer audit complete.
+- **#198** — superseded by #200 after #199 advanced main; closed without merge.
+- **#197** — superseded by #198/#200 after main advanced; closed without merge.
+- **#192–#199** — intermediate or documentation carry-forward PRs; #199 is merged, the others are closed/superseded by #200 or the final merged changes.
 - **#162, #166, #170, #171–#173** — original stale-base migration branches; closed/superseded. Their old-head CI results are not current-main evidence.
 - **#178** — episodic read/write boundary audit; closed after review found its `p8_episodic` mind-map node unchanged from current main. This does not validate episodic runtime activation; it remains dark by default and unwired in the audited live loop.
+
+**External RDO/Watcher status (not NEX roadmap progress):** current `main` contains the RDO Stage 2–7 modules, stage documents and tests. The historical `claude/rdo-stage2…stage7` branches are divergent and roughly 475 commits behind current main; do not merge them or rely on their old test claims. The Stage-7 handoff manifest and independent Watcher source/path verifier are present, but Stage 7's own document says its full objective-to-verified-delivery exit criterion remains incomplete: real objective demonstration, safe test-execution boundary, host-only runtime observation and separate human acceptance remain. Watcher source/path verification does not run tests or establish runtime behaviour. RDO v1.3/v1.4 precedence remains unresolved; no version decision is inferred here.
 
 PRs based on other branches (including the earlier continuity branch) are not automatically part of `main`. Check the base branch and merge commit before describing their changes as current NEX behaviour.
 
@@ -278,4 +283,4 @@ When in doubt: the current source and approved governing documents win—not thi
 
 ---
 
-*Last amended: 27 November 2026 — refreshed after #189, #191 and #196; #198 remains under exact-head validation. Replaces stale one-pen migration and PR-status claims with current-main evidence.*
+*Last amended: 27 November 2026 — refreshed after #189, #191, #196, #199 and #200. Records the remaining one-pen migrations as merged while preserving the distinction between bounded PR completion and a repository-wide writer audit.*

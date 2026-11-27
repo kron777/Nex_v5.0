@@ -215,3 +215,25 @@ These are source-level conditions and test-coverage gaps recovered from older au
 ## F. Gate boundary
 
 This backlog is evidence input for Gate 0. It is not permission to enable Phase 1 experiments, change prompts, change confidence/belief revision, modify Coherence Gate policy, alter dark flags, start/restart services or touch live databases.
+
+
+## G. Post-snapshot current-main follow-up (27 November 2026)
+
+The defect/evidence findings above remain pinned to the stated `ae406fa8` source snapshot. The following later merge/CI facts do not retroactively change that snapshot:
+
+- PR #191 migrated Moltbook responder persistence; PR #196 migrated listener and poster persistence; PR #200 migrated boot-time ResumptionSeeder, IdentityLoop and Fountain momentum/recursion-attribution persistence. #200 exact-head CI run `45990854891` passed (2,539 passed, 7 skipped, 40 subtests). These close the listed bounded migration branches, not the repository-wide one-pen audit.
+- PR #185 mind-map source re-verification is merged. Current verifier result on #200: 30 nodes, 0 unverified, 14 dark, 2 blocked. Two missing doctrine references and the overdue `p13_finitude` marker remain warnings and remain unresolved.
+- Current main SHA: `5d7f4e28eb6760d206eed455429c90e967a5bf10`.
+- No current host/runtime collection or live database inspection was performed. Host process state, runtime flags, database integrity/hashes, model digest/performance and L4 trace remain UNKNOWN.
+
+This follow-up is evidence-status maintenance only. It does not authorise behavioural changes, dark-flag activation, live DB writes, experiment execution, Gate policy changes or Phase 1. Gate 0 remains pending founder review.
+
+### G-67 — Throw-Net trigger thresholds are not enforced by the pending-session consumer
+
+- **Sources:** `theory_x/stage_throw_net/trigger_detector.py` (`record_gate_reject()`, `record_gap_deflection()`, `pending_triggers()`); `theory_x/stage_gate/coherence_gate.py:check()`; `gui/server.py` Chat gap-refusal path; `theory_x/stage_throw_net/throw_net_engine.py:run_pending()`; `run.py` Throw-Net wiring.
+- **Verified on current main `5d7f4e28` (post-snapshot source audit):** the detector documents thresholds of 4 same-topic REJECTs in 15 minutes and 3 same-topic gap deflections in 30 minutes. Each `record_*()` returns a boolean indicating threshold crossing, but both call sites discard the return. `pending_triggers()` selects all rows with `fired=0` without testing the stored `threshold_state`; `ThrowNetEngine.run_pending()` processes every returned row as a session. Thus, if the monitor runs, one sub-threshold event can launch a Throw-Net session on the next tick. The detector's boolean threshold is not the session gate.
+- **Activation boundary:** `run.py` and the GUI construct the monitor but start its loop only when `NEX5_THROWNET=1`. The flag is registered in `nex_config.py` but is not explicitly set in the tracked `nex_keepalive.sh` command. An inherited systemd/parent environment and current host flag state were not inspected; do not claim the loop is definitely off on the host.
+- **Test coverage:** isolated tests cover threshold-return counts, pending-row selection and engine processing independently (`tests/test_throw_net_trigger.py`, `test_throw_net_engine.py`, `test_throw_net_monitor.py`). They do not assert end-to-end threshold gating. The full repository suite passed on exact head #200, but that does not prove the missing integration condition.
+- **Related qualification:** `TimeFetch.fetch_from_beliefs()` filters by confidence and content length but not tier/paused/locked/erosion state; this is a separate eligibility-policy question already identified in the crosswalk. `RefinementEngine._r2()` returns true on DB read error, explicitly tested; do not alter either policy by inference.
+- **Impact:** if the monitor is enabled, sub-threshold trigger rows can cause candidate retrieval, scoring and Gate resubmission, potentially reintroducing the high-volume churn that motivated the monitor's historical retirement comment. No live session or current runtime impact is established.
+- **Disposition:** **OPEN — source-level consumer/threshold defect.** No code, flag, threshold, Gate or live state changed. Corrective design and validation require Gate 0 review because they alter autonomous behaviour.
