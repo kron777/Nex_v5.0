@@ -1,6 +1,6 @@
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `5d7f4e28eb6760d206eed455429c90e967a5bf10`  
+**Last verified against:** `main` at `5b95c6caaf6f99a61140ec261412421c08fb01cb`  
 **Evidence date:** 27 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -357,3 +357,112 @@ The current-main follow-up audit has rechecked G-68 to G-72. G-68 (experimental 
 G-72 is closed by **PR #236** (commitments canonical Writer/Reader path) and **PR #238** (AppState handle injection through the gated SelfPredictionLoop, self-prediction, owned-belief, commitments and Expectations paths). Exact-head full-suite runs passed: #236 `46006462779` (2,573 passed, 7 skipped, 45 subtests) and #238 `46008022480` (2,584 passed, 7 skipped, 45 subtests).
 
 The `NEX5_SELF_PRED=1` gate and all other feature gates remain unchanged. No loop was started and no cognitive decision logic, cadence, thresholds, frozen specifications, roadmap or phase-gate state was changed. This closes the persistence-ownership integration finding only; it does not certify host activation or a complete repository-wide one-pen census.
+
+
+---
+
+## 20. Phase 0 continuation: G-68 to G-72 and shared daemon checkpoint schema (27 November 2026)
+
+This section records follow-up work after the previous manual update. It is a remote-repository/source-and-CI stocktake, not a live-host inspection. The current mainline at the time of this update is `36624b7106ebaec801f6d744e87cd37b73279021`.
+
+### Verified integration
+
+- **PR #241 — G-68 to G-72 evidence reconciliation: merged** to main as `36624b7106ebaec801f6d744e87cd37b73279021`. The exact-head PR test run passed before merge. The change updates the Phase 0 follow-up record and handoff; it does not itself close the underlying open findings or authorize behaviour changes.
+- The consolidated S-01–S-25 register, roadmap, phase gates and cognitive policy remain unchanged. Gate 0 remains pending founder review; Phase 1 is not authorized.
+
+### Shared dynamic daemon checkpoint schema
+
+A fresh-schema static-SQL compilation failure exposed a missing shared schema declaration for `dynamic.db:daemon_kv.updated_at`. The table is referenced by SurpriseLoop and the Moltbook poster. This is a persistence/schema completeness defect, distinct from the semantics of either worker.
+
+- **PR #243 — shared `daemon_kv` schema and migration: OPEN / CI RUNNING at this update.** Its current head is `b55fe9b731d7353b0b8bb58fac1840bb34536ad1`. It adds the canonical table declaration to `substrate/schema/dynamic.sql`, an additive migration in `substrate/init_db.py`, and fresh-database plus legacy-table preservation regression tests in `tests/test_daemon_kv_migration.py`.
+- The migration is additive: the intended legacy behaviour is to add `updated_at` without deleting or rewriting existing key/value checkpoints. The focused tests assert both the fresh schema and preservation of a pre-existing row.
+- Do not describe this change as merged, validated or deployed until the exact-head CI result is green and the PR is integrated.
+
+### Dependent PRs and test evidence
+
+- **PR #242 — gated WorldPredictionLoop persistence ownership: OPEN; exact-head CI failed** on the same fresh-schema compilation error: `daemon_kv.updated_at` is absent from its base snapshot. The run reported 2,587 passed, 7 skipped, 45 subtests, and one failure in `tests/test_schema_indexes.py::TestEveryStaticStatementCompilesOnFreshInit`. This is a shared schema prerequisite failure; it does not establish that the AppState handle-injection change itself is defective. Revalidate on current main after #243 is merged. The existing `NEX5_WORLD_PRED` gate and prediction behaviour must remain unchanged.
+- **PR #240 — Warrant declared composite-key cursor: OPEN; exact-head CI failed** on the same missing `daemon_kv.updated_at` fresh-schema error (2,583 passed, 7 skipped, 45 subtests, one failure). Its base is stale relative to current main. After #243 is integrated, rebase/replay the cursor-only change on current main and rerun the full suite. Do not broaden Warrant use-day eligibility or alter Warrant policy.
+- **PR #239 — SurpriseLoop monotonic event cursor: OPEN; exact-head CI passed.** It proposes tie-safe event paging, retry-safe checkpoint handling and related duplicate-content treatment. Despite green tests, it remains **held for founder Gate 0 review** because it changes which events may enter the belief corpus. Do not merge, deploy or activate it before that approval.
+- **PR #243 CI** is still running at the time of writing; the result must be checked before any merge decision. A green result on another PR or on a prior base does not substitute for #243's exact-head result.
+
+### G-70 refinement — speech outcome state versus causal trace
+
+A targeted source recheck refines the wording of G-70. The speech path is not wholly unobservable after enqueue: `speech/queue_consumer.py` updates each queue row through `speaking` and then `spoken`, or `failed` on synthesis/playback exceptions; non-speakable content is marked `suppressed`. `speech/player.py` calls `sounddevice.play(..., blocking=True)` and `sd.wait()`. Therefore a persisted `spoken` status means the playback call returned without raising; it is not independent acoustic confirmation that sound reached a listener.
+
+The remaining G-70 gap is specifically **cross-thread causal trace continuity**: the Fountain trace records the `speech_queue` enqueue Writer delta and queue-row ID, but the consumer does not continue that trace with parent-linked dequeue, synthesis, playback-start/completion or failure events. The queue status columns are operational outcome state, not a substitute for a parent-linked trace. This refinement does not change the finding's OPEN status and does not authorize speech-path changes.
+
+### Development and evidence interpretation
+
+The current work continues the research → bounded implementation → rescan → consequence analysis → documentation cycle. Persistence ownership fixes and schema completeness are kept separate from cognitive-policy changes. A green unit or full-suite result demonstrates only the tested repository state and paths; it does not prove that a feature flag is enabled, a worker is running, a host database has migrated, or a behavioural effect is beneficial.
+
+The shared Writer/Reader one-pen rule remains in force. The six SQLite databases remain separate transaction domains; no cross-database atomicity is implied. No live substrate database, host process, service, credential, external integration or feature flag was inspected or changed during this remote repository work.
+
+### Next bounded actions
+
+1. Complete exact-head CI review for #243; correct any migration/test defects before merging.
+2. Once #243 is merged, rebase/revalidate #242 and #240 against current main; preserve their narrow persistence/cursor scopes.
+3. Keep #239 held for explicit Gate 0 founder review despite its green CI.
+4. Continue the source-to-sink Phase 0 audit and update this manual in the same development cycle as findings and integrations accumulate.
+5. Keep unresolved defects, unknown host/runtime facts and approval gates explicit. Do not promote a Phase 0 stocktake into Phase 1 authorization.
+
+
+## 21. RDO experiment-registry fail-closed boundary and shared-handle review (27 November 2026)
+
+### RDO protected-experiment registry
+
+A new test-only continuation, **PR #245 — RDO fail-closed experiment registry boundary: OPEN / exact-head CI RUNNING**, adds regression coverage for a safety boundary already present on main. Head: `2fe8c360c75fafd956a4c690203c653eafdf4ea0`; exact-head run: `46013089837`.
+
+Source review on main confirms the distinction:
+
+- `watcher.registry.ingest_registry()` returns evidence class `unknown` when the observation-report directory is missing; a successfully read registry is `measured` and contains an `active_or_pending` list.
+- `rdo.orchestrator._active_experiments()` returns `None` for unknown/unmeasured evidence, malformed registry data, or read errors. It returns a list (including an empty list) only when the registry is measured and structurally valid.
+- `rdo.prioritise.eligibility()` blocks when the registry is `None`; a verified empty list does not create a registry blocker; a matching active experiment blocks the affected obligation.
+- Stage 2 and Stage 3 both pass the registry result into the shared `_run_one()` path. PR #245 adds tests that protect this propagation as well as the eligibility distinctions.
+
+The PR is tests-only and uses synthetic evidence. It does not change eligibility logic, experiment state, execution, runtime flags, roadmap or cognitive behaviour. Do not call it validated until its exact-head full-suite result is green. This is a repository-level regression check, not an inspection of live experiment state.
+
+### Shared AppState Reader/Writer concurrency contract — source recheck
+
+The #242 handle-injection review was extended to the underlying substrate primitives. `substrate.reader.Reader` stores a database path and opens/closes a fresh read-only connection for each `read()` / `read_one()` call; it does not share one SQLite connection across daemon threads. `substrate.writer.Writer` serializes submitted requests through a thread-safe queue on its dedicated worker thread; synchronous callers wait on each request's Future. These implementations support sharing the AppState Reader/Writer objects across the WorldPredictionLoop thread without creating a second Writer or a cross-thread SQLite connection. This source review supports the ownership design, but does not prove the host actually starts the gated loop or that its external price/voice services are available. The `NEX5_WORLD_PRED` gate remains OFF by default and unchanged.
+
+### Updated continuation order
+
+1. Finish exact-head CI for #243, #244 and #245; merge only after green results and final diff review.
+2. After #243 lands, rebase/revalidate #242 and #240 against current main; preserve their narrow scopes.
+3. Keep #239 held for explicit Gate 0 founder review.
+4. Continue the Phase 0 source-to-sink audit and keep this manual synchronized with each meaningful code or evidence change.
+
+
+
+## 22. Current-main replay and exact-head test reconciliation (27 November 2026)
+
+### Shared schema prerequisite integrated
+
+**PR #243 is merged** to main as `5b95c6caaf6f99a61140ec261412421c08fb01cb`. Its exact-head full-suite CI passed. The canonical `dynamic.db:daemon_kv(key, value, updated_at)` declaration and additive legacy migration are now part of main. Existing checkpoint rows are preserved. This integration does not activate any daemon or alter event-selection policy.
+
+### Dependent work replayed on the corrected base
+
+The original branches #240 and #242 were based before the shared schema prerequisite and their exact-head runs failed on that missing-schema defect. Rather than treating those runs as evidence against the isolated changes, the narrow patches have been replayed on current main:
+
+- **PR #247 — Warrant composite-key cursor current-main replay: OPEN / exact-head full-suite CI RUNNING.** It uses the declared primary keys of `belief_lineage` and `arc_members`, not hidden SQLite rowids that may be remapped by VACUUM. Existing scalar cursors and Warrant policy are preserved.
+- **PR #248 — gated WorldPredictionLoop AppState handle current-main replay: OPEN / exact-head full-suite CI RUNNING.** It passes the existing AppState conversations Writer/Reader and beliefs Reader through prediction, calibration, persistence and resolution. The `NEX5_WORLD_PRED` gate remains unchanged and OFF by default; no loop was started.
+
+The original #240 and #242 PRs are superseded by these current-main replays. Their prior CI failures remain historical evidence about the missing schema on their old base, not validation of the replayed heads.
+
+### RDO registry regression: fixture correction
+
+The original **PR #245** exact-head full-suite run failed with **1 failed, 2,592 passed, 7 skipped and 45 subtests passed**. The failing test's synthetic Stage 2 cycle fixture omitted `signature_matches`, a field consumed by the real Stage 2 report after the mocked runner returned. Source review confirmed the production registry boundary itself was not the failure.
+
+**PR #249 — current-main replay and corrected fixture: OPEN / CI status to be checked.** It carries the tests onto the post-#243 mainline and adds the missing `signature_matches=[]` fixture field. The production RDO code is unchanged. The tests continue to distinguish an unavailable/unverified registry (`None`, blocked) from a successfully measured empty registry (`[]`, no registry blocker), and cover active matches plus Stage 2/Stage 3 propagation. No live experiment state is read or modified.
+
+### Manual branch reconciliation
+
+The earlier manual updates #244 and #246 were authored against main before #243 merged. **PR #250** carries their full `INDEX.md` content onto the post-#243 mainline and adds this reconciliation section, so the maintained first-read manual does not omit the now-integrated schema prerequisite or the replayed dependent work.
+
+### Current evidence and next sequence
+
+1. Require exact-head full-suite success and diff review for #247, #248 and #249 before merging.
+2. Complete the current-main manual integration in #250; keep its status distinct from runtime activation.
+3. Keep #239 held for explicit founder Gate 0 review despite its earlier green CI.
+4. Continue the Phase 0 source-to-sink audit; preserve frozen specifications, roadmap, feature gates and cognitive behaviour.
+5. Treat host migration, service operation, feature enablement and behavioural benefit as unverified until separately observed and measured.
