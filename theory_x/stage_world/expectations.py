@@ -75,7 +75,7 @@ import os
 import time
 from typing import Optional
 
-from substrate import connect, Row, Writer, Writer
+from substrate import connect, Row, Writer
 from substrate.paths import DbPath
 
 log = logging.getLogger("theory_x.stage_world.expectations")
@@ -138,7 +138,9 @@ def _db(name):
 
 
 def _ro(name: str):
-    return connect(f"file:{_db(name)}?mode=ro", uri=True, timeout=30)
+    cx = connect(f"file:{_db(name)}?mode=ro", uri=True, timeout=30)
+    cx.row_factory = Row
+    return cx
 
 
 def _acquire_writer(name: str, supplied):
