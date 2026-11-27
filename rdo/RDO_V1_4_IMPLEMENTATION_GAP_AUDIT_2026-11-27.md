@@ -43,7 +43,7 @@ The Stage-2 belief-decay example is a genuine end-to-end vertical slice from **s
 | Handoff | Immutable handoff, scope review/acceptance records, independent Watcher source/path subprocess | Stage-7 modules; no arbitrary test execution |
 | Runtime evidence | Host-only; cloud RDO cannot assert NEX runtime behaviour | Existing eligibility and handoff boundaries |
 
-### Test inventory at this snapshot
+### Test inventory at the pre-graph-merge audit snapshot
 
 | Test file | Test functions |
 |---|---:|
@@ -67,6 +67,8 @@ The Stage-2 belief-decay example is a genuine end-to-end vertical slice from **s
 | `rdo/tests/test_stage7_execution_watcher.py` | 12 |
 
 **Total:** 18 test modules; 251 test functions at this repository snapshot.
+
+**Post-merge update (28 November 2026):** PR #331 added `rdo/tests/test_graph_analysis_cli.py` (6 test functions); PR #333 brings `rdo/tests/test_feedback_loop.py` to 12; PR #334 brings `rdo/tests/test_stage3_graph_intelligence.py` to 22. The 251-function total above is a historical baseline, not a current-main total; a full recount of all test modules has not been performed in this refresh.
 
 These are function counts, not parametrised case counts or a claim that every v1.4 acceptance criterion is covered. The Stage-2 report's older count of 20 Stage-2 tests / 56 RDO tests is stale relative to the current source tree.
 
