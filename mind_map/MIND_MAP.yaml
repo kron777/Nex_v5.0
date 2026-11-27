@@ -672,8 +672,8 @@ nodes:
     falsifier: "An object entering wide-mode focus should be explicitly recorded as taken hold of, distinguishable from objects that merely passed through retrieval unselected."
     falsifier_status: pass
     probe: { wide_mode_fires_logged: 2821, source: "nex5_soak.log [WIDE MODE] markers" }
-    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:893-990", "theory_x/stage6_fountain/generator.py:4044-4072", "theory_x/stage6_fountain/generator.py:2719-2735", "nex_keepalive.sh:219-220"] }
-    last_verified: 2026-11-27
+    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:3568-3580", "theory_x/stage6_fountain/generator.py:893-990"] }
+    last_verified: 2026-11-15
     notes: >
       Dev round, 2026-11-15: found via vicāra's paired search (see that node) -- the SET side of
       the same mechanism vicāra reads. generator.py:3579 (self._last_focal_item = _kw.get("item"))
@@ -690,8 +690,6 @@ nodes:
       Marked pass against the falsifier as reformulated (a real, distinguishable recording event
       exists) rather than the original vague "unbuilt-open," which undersold what's actually there.
 
-
-      2026-11-27 source re-verification: _select_wide_mode() selects a real feed item; the wide-mode call stores its item in _last_focal_item, and the fountain_events insert persists mode and focal_item. The keepalive launch line sets NEX5_WIDE_MODES=1. The 2,821 [WIDE MODE] log hits remain historical 2026-11-15 evidence; the live process was not rechecked.
   - id: vicara
     label: "vicāra — sustained thought"
     layer: arm
@@ -708,8 +706,8 @@ nodes:
     falsifier: "An object recorded as this fire's focal item should still be readable and used as the thread in a subsequent fire, not reset to empty."
     falsifier_status: pass
     probe: { gate: "NEX5_ASSOC_RECALL=1, confirmed armed live", caller_condition: "own_n > 1" }
-    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:3356-3445", "theory_x/stage6_fountain/generator.py:3460-3475", "theory_x/stage6_fountain/generator.py:4060-4072", "nex_keepalive.sh:219-220"] }
-    last_verified: 2026-11-27
+    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:2896-2930", "theory_x/stage6_fountain/generator.py:3000-3014", "theory_x/stage6_fountain/generator.py:3579"] }
+    last_verified: 2026-11-15
     notes: >
       Dev round, 2026-11-15: THIS is the real home of self._last_focal_item -- the exact mechanism
       ruled OUT for smṛti's within-moment directive is the right fit here, read the other way
@@ -730,8 +728,6 @@ nodes:
       there stands -- this mechanism was never a candidate for within-moment retention. It is,
       however, now confirmed as the correct answer for THIS node, which the smṛti round didn't ask.
 
-
-      2026-11-27 source re-verification: _associative_recall() reads the prior fire's _last_focal_item and uses token overlap to retrieve relevant own-content beliefs; the caller requires NEX5_ASSOC_RECALL=1 and own_n>1. The preceding wide-mode path sets _last_focal_item, and the keepalive launch line sets NEX5_ASSOC_RECALL=1. The 2026-11-15 live probe remains historical; current process state was not checked.
   # ────────────────────────────── SCOPE ─────────────────────────────
   # Intentionally empty. See meta.findings — this is a result, not a TODO.
 
