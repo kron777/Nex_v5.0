@@ -117,11 +117,13 @@ The case labels below are concise summaries recovered from the v1.4 review conte
 
 A test with a similar name is not counted as full coverage unless it exercises the specified adversarial condition and asserts the required outcome.
 
-## 5. Objective-context gap (G-91)
+## 5. Objective-context gap (G-91) — narrowed by merged implementation
 
-The objective intake validates and preserves `intent`, `owner`, `scope`, `constraints`, `exclusions` and `acceptance_criteria`. However, `submit_objective()` passes only original text, top-level assumptions, supplied seed obligations, relationships, reconciliation signatures and expansion depth into `run_cycle()`. The contextual fields remain in the append-only ledger but are not translated into obligations/anti-requirements or checked against proposed work packages; acceptance criteria are not used as a completion-verification contract.
+PR #287 merged objective-context propagation into `run_cycle()`, cycle persistence, summary and handoff. The system now preserves intent, owner/source, scope, affected paths, assumptions, constraints, exclusions and acceptance criteria as context. It creates explicit UNKNOWN/unmapped context items, marks execution readiness BLOCKED while items remain unmapped, keeps bounded human handoff reviewable, and propagates exclusions into package anti-requirements. Legacy no-context cycles retain their prior readiness behaviour; legacy handoff manifests remain readable.
 
-This is an advisory capability gap, not an execution incident. The full input is auditable, but a plan can fail to reflect all preserved context. A future increment should translate context into typed obligations/anti-requirements and an explicit acceptance-verification record.
+**Implemented and test-verified:** context is preserved; scalar intent is handled as a single item; unknown context remains unmapped; execution readiness is blocked; exclusions are propagated; cycle resume retains context; and handoff carries the assessment.
+
+**Remaining gap:** context items are not yet mapped automatically or through a structured evidence-resolution workflow into obligations and independent evidence. Acceptance criteria are preserved and surfaced, but are not yet a formal completion-verification contract. Owner/source are provenance fields, not enforced authority. This remains a planning/review capability gap, not evidence of an execution incident.
 
 ## 6. Next implementation slice
 
