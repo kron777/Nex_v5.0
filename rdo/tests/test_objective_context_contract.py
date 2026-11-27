@@ -55,6 +55,11 @@ def test_objective_context_is_preserved_and_unmapped_items_block_readiness(tmp_p
     }
     assert all(item["status"] == "unmapped" and item["evidence"] == []
                for item in assessment["items"])
+    criterion = next(item for item in assessment["items"]
+                     if item["kind"] == "acceptance_criterion")
+    assert criterion["verification_status"] == "unknown"
+    assert criterion["mapped_obligations"] == []
+    assert criterion["verification_evidence"] == []
 
     assert summary["objective_context"] == assessment
     assert cycle.work_packages
