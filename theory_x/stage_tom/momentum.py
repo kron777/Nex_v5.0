@@ -62,28 +62,39 @@ _STOPWORDS = {
 }
 
 
-def _ensure_table(writer: Writer) -> None:
-    writer.write(
-        "CREATE TABLE IF NOT EXISTS momentum ("
-        " id INTEGER PRIMARY KEY CHECK (id = 1),"
-        " updated_at REAL NOT NULL,"
-        " branch TEXT,"
-        " thought_fragment TEXT,"
-        " surprise_score REAL DEFAULT 0.0,"
-        " surprise_note TEXT,"
-        " carry_count INTEGER DEFAULT 1,"
-        " resolved INTEGER"
-        ")"
+def _ensure_table(reader: Reader, writer: Writer) -> None:
+    """Create the table or apply only the additive columns that are missing.
+
+    Avoid probing migrations by issuing duplicate ALTER TABLE statements:
+    Writer correctly reports SQL errors to the central error channel, even
+    when a caller catches them. Schema inspection keeps normal repeated fires
+    quiet while all DDL remains serialized through the shared Writer.
+    """
+    tables = reader.read(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='momentum'"
     )
-    # Additive migrations remain idempotent and run through the same Writer.
-    try:
-        writer.write("ALTER TABLE momentum ADD COLUMN carry_count INTEGER DEFAULT 1")
-    except OperationalError:
-        pass  # column already exists — fine
-    try:
+    if not tables:
+        writer.write(
+            "CREATE TABLE IF NOT EXISTS momentum ("
+            " id INTEGER PRIMARY KEY CHECK (id = 1),"
+            " updated_at REAL NOT NULL,"
+            " branch TEXT,"
+            " thought_fragment TEXT,"
+            " surprise_score REAL DEFAULT 0.0,"
+            " surprise_note TEXT,"
+            " carry_count INTEGER DEFAULT 1,"
+            " resolved INTEGER"
+            ")"
+        )
+        return
+
+    columns = {row["name"] for row in reader.read("PRAGMA table_info(momentum)")}
+    if "carry_count" not in columns:
+        writer.write(
+            "ALTER TABLE momentum ADD COLUMN carry_count INTEGER DEFAULT 1"
+        )
+    if "resolved" not in columns:
         writer.write("ALTER TABLE momentum ADD COLUMN resolved INTEGER")
-    except OperationalError:
-        pass  # column already exists — fine
 
 
 def _distinctive_words(text: str) -> set[str]:
@@ -116,7 +127,7 @@ def capture_momentum(
     try:
         if not thought or len(thought.split()) < 6:
             return False
-        _ensure_table(writer)
+        _ensure_table(reader, writer)
 
         # Read the PRIOR thread before overwriting, to judge continuity.
         prior_fragment = ""
