@@ -2,7 +2,7 @@
 
 **Evidence date:** 27 November 2026  
 **Repository:** https://github.com/kron777/Nex_v5.0  
-**Source snapshot:** `main` at `612022e81f749a99de665372704d7acc0645de67`  
+**Source snapshot:** `main` at `66a97964f0531c16d60637dc8291b42e0b73f00b`  
 **Scope:** remote source and CI evidence only; this is not a host/runtime certification.
 
 ## 1. Repository identity and snapshot boundary
@@ -36,7 +36,7 @@ The exact M0.5 PR head `6d371fe385fc02a2c238247b39aff82681888745` passed GitHub 
 - **0 intentional tests deselected**
 - `scripts/check_test_baseline.py`: **OK**, no failures outside the known-intentional set.
 
-The sandbox image build and sandbox probe passed. The mind-map verifier also completed without hard errors, but emitted 62 warnings (see §4). The push-triggered run on the resulting merge commit `612022e81f749a99de665372704d7acc0645de67` was still in progress when this report was drafted; its final conclusion must be appended after verification. Do not call the PR-head test result the final post-merge push result.
+The sandbox image build and sandbox probe passed. The exact PR-head run #1392 (`45938552986`) and post-merge push run #1393 (`45939220368`) both passed: 2,491 passed, 7 skipped, 40 subtests, zero intentional tests deselected, baseline OK. The mind-map verifier completed without hard errors but emitted 62 warnings (see §4).
 
 ## 4. Mind-map verification warnings
 
@@ -58,12 +58,16 @@ The CI mind-map check includes a static AST guard. It enforces the descriptive-o
 |---|---|
 | M0.1 repository identity | Remote repository and exact source SHA recorded; host checkout identity/cleanliness unknown |
 | M0.1 host/runtime inventory | Partial/unknown; no current host collection or database hashes |
-| M0.2 test baseline | PR-head full sandbox suite passed as stated above; post-merge push run pending at report cut |
+| M0.2 test baseline | PR-head and post-merge main push suites passed: 2,491 passed, 7 skipped, 40 subtests; baseline OK |
 | M0.3–M0.4 architecture crosswalk | Partial; documented static boot and key producer/consumer paths, not a complete faculty-by-faculty DAG |
 | Roadmap v3.0 M0.5 causal trace | Implemented and merged; L3 fixture evidence; no live L4 capture |
 | Gate 0 | **PENDING founder review** of the Reality Report, Crosswalk and verified defect/evidence-gap backlog |
 
-## 6. Safety and activation boundary
+## 6. Source documentation reconciliation
+
+The remaining boot/API overview discrepancies were corrected in PR #153 and merged as `66a97964f0531c16d60637dc8291b42e0b73f00b`: `run.py` now describes six DBs and the 28-adapter auto-start sequence; the GUI sense-status overview now reports 28 adapters (4 internal, 24 external).
+
+## 7. Safety and activation boundary
 
 The M0.5 overlay is default-OFF. `NEX5_TRACE_OVERLAY` unset or `0` means no trace is created. The CI and fixture runs do not enable it in a live process. No dark flags, behavioural experiments, prompt policies, confidence rules, Gate policy, substrate schema or deployment services were activated or changed as part of this report.
 
