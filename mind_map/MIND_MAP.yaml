@@ -215,7 +215,7 @@ nodes:
     probe: { valence_delta_samples: 35, distinct_values: 12, min: 0.0219, max: 0.2237, source: "/tmp/nex5_affect_state.log" }
     falsifier: "A price that is constant is not a price. Valence should vary with content."
     falsifier_status: pass
-    source: { kind: composite, refs: ["theory_x/stage_affect/affect_state.py:331-360", "theory_x/stage6_fountain/generator.py:617-652"] }
+    source: { kind: composite, refs: ["theory_x/stage_affect/affect_state.py:331-405", "theory_x/stage6_fountain/generator.py:611-652", "theory_x/stage6_fountain/generator.py:857-863", "nex_keepalive.sh:219-220"] }
     last_verified: 2026-11-27
     notes: >
       Correction, 2026-11-09: 'no location yet pinned' was wrong -- the check regex just
@@ -250,6 +250,8 @@ nodes:
       0.73/variance~0 claim is now definitively retracted by real data, not just unsupported by a
       missing citation.
 
+
+      2026-11-27 source re-verification: AffectState._compute_valence_delta() computes confidence-weighted polarity over high-tier belief content and blends the self-evaluation nudge; _valence_reach() reads affect_state and returns a bounded novelty multiplier. Keep the two layers distinct: valence computation is not the same as valence steering. The generator uses the multiplier only when NEX5_VALENCE_DRIVE=1; the keepalive line sets NEX5_MOOD=1 but omits NEX5_VALENCE_DRIVE. The 35 raw log samples and live observation remain historical 2026-11-15 evidence; current process state was not checked.
   - id: mana
     label: "māna — self-conceit"
     layer: arm
@@ -941,7 +943,7 @@ nodes:
     falsifier: "A constant +0.73 is the signature of no aboutness at all."
     falsifier_status: pass
     source: { kind: inferred, from: vedana }
-    last_verified: 2026-11-15
+    last_verified: 2026-11-27
     notes: >
       Original verdict (fail) rested entirely on the now-retracted +0.73-constant claim.
       vedanā's own dev round, 2026-11-15, found 12 distinct real valence_delta values (0.0219 to
@@ -950,6 +952,10 @@ nodes:
       when that set moves. That is aboutness: the tone is about particular belief content, not a
       free-floating number. Flips to pass on the same evidence, inferred the same way the original
       fail was inferred from the opposite (fabricated) claim.
+
+      2026-11-27 source re-verification: this inferred property remains dependent on the
+      verified valence-content relationship, not on whether optional selection steering is armed.
+      The separate NEX5_VALENCE_DRIVE gate is not evidence against the aboutness claim.
 
   - id: p10_thickness
     label: "10 · Temporal thickness"
