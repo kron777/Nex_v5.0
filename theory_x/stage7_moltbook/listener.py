@@ -11,7 +11,7 @@ from __future__ import annotations
 from substrate.paths import db_paths
 import json
 import logging
-from substrate import connect, Connection
+from substrate import Reader, Writer
 import threading
 import time
 from pathlib import Path
@@ -76,10 +76,17 @@ class DMListenLoop:
         client: MoltbookClient,
         dynamic_db: Path | str = DYNAMIC_DB,
         sense_db: Path | str = SENSE_DB,
+        *,
+        dynamic_reader: Reader | None = None,
+        dynamic_writer: Writer | None = None,
+        sense_writer: Writer | None = None,
     ):
         self.client = client
         self.dynamic_db = Path(dynamic_db)
         self.sense_db = Path(sense_db)
+        self._dynamic_reader = dynamic_reader or Reader(self.dynamic_db)
+        self._dynamic_writer = dynamic_writer
+        self._sense_writer = sense_writer
         self._stop = threading.Event()
         self._self_agent_id: str | None = None
         self._self_agent_name: str | None = None
@@ -138,6 +145,28 @@ class DMListenLoop:
         except Exception as e:
             log.warning("could not learn self identity: %s", e)
 
+    def _write_dynamic_batch(self, statements):
+        if not statements:
+            return
+        own_writer = self._dynamic_writer is None
+        writer = self._dynamic_writer or Writer(self.dynamic_db, name="moltbook_listener")
+        try:
+            writer.write_many(statements)
+        finally:
+            if own_writer:
+                writer.close()
+
+    def _write_sense_batch(self, statements):
+        if not statements:
+            return
+        own_writer = self._sense_writer is None
+        writer = self._sense_writer or Writer(self.sense_db, name="moltbook_listener_sense")
+        try:
+            writer.write_many(statements)
+        finally:
+            if own_writer:
+                writer.close()
+
     def _approve_pending_requests(self):
         # Use dm_check directly — it has the full request list inline
         try:
@@ -152,39 +181,35 @@ class DMListenLoop:
             reqs = reqs_block.get("items") or []
         if not reqs:
             return
-        cx = connect(self.dynamic_db, timeout=15)
-        try:
-            for req in reqs:
-                if not isinstance(req, dict):
-                    continue
-                conv_id = req.get("conversation_id") or req.get("id")
-                from_agent = (
-                    (req.get("from") or {}).get("name")
-                    if isinstance(req.get("from"), dict)
-                    else req.get("from_agent") or req.get("from")
-                )
-                if not conv_id:
-                    continue
-                from_obj = req.get("from") if isinstance(req.get("from"), dict) else {}
-                ok, reason = _passes_filter(from_obj)
-                if not ok:
-                    log.info("skip DM request from %s: %s", from_agent, reason)
-                    continue
-                try:
-                    self.client.dm_approve(conv_id)
-                    log.info("approved DM request from %s (conv=%s)",
-                             from_agent, conv_id)
-                    cx.execute(
-                        "INSERT OR REPLACE INTO moltbook_dms "
-                        "(conversation_id, with_agent, last_msg_id, last_seen_ts, approved) "
-                        "VALUES (?, ?, NULL, 0, 1)",
-                        (conv_id, str(from_agent or "unknown"))
-                    )
-                except MoltbookError as e:
-                    log.warning("approve failed conv=%s: %s", conv_id, e)
-            cx.commit()
-        finally:
-            cx.close()
+        statements = []
+        for req in reqs:
+            if not isinstance(req, dict):
+                continue
+            conv_id = req.get("conversation_id") or req.get("id")
+            from_agent = (
+                (req.get("from") or {}).get("name")
+                if isinstance(req.get("from"), dict)
+                else req.get("from_agent") or req.get("from")
+            )
+            if not conv_id:
+                continue
+            from_obj = req.get("from") if isinstance(req.get("from"), dict) else {}
+            ok, reason = _passes_filter(from_obj)
+            if not ok:
+                log.info("skip DM request from %s: %s", from_agent, reason)
+                continue
+            try:
+                self.client.dm_approve(conv_id)
+                log.info("approved DM request from %s (conv=%s)", from_agent, conv_id)
+                statements.append((
+                    "INSERT OR REPLACE INTO moltbook_dms "
+                    "(conversation_id, with_agent, last_msg_id, last_seen_ts, approved) "
+                    "VALUES (?, ?, NULL, 0, 1)",
+                    (conv_id, str(from_agent or "unknown")),
+                ))
+            except MoltbookError as e:
+                log.warning("approve failed conv=%s: %s", conv_id, e)
+        self._write_dynamic_batch(statements)
 
     def _read_unread(self):
         """Walk every conversation. Filter by agent profile. Dedupe by last_msg_id."""
@@ -193,40 +218,46 @@ class DMListenLoop:
         except MoltbookError as e:
             log.warning("dm_list_conversations failed: %s", e)
             return
-        cx_dyn = connect(self.dynamic_db, timeout=15)
-        cx_sense = connect(self.sense_db, timeout=15)
-        try:
-            for conv in convs:
-                if not isinstance(conv, dict):
-                    continue
-                conv_id = conv.get("conversation_id") or conv.get("id")
-                if not conv_id:
-                    continue
-                # Filter by other party
-                other = conv.get("with_agent") if isinstance(conv.get("with_agent"), dict) else {}
-                ok, reason = _passes_filter(other)
-                if not ok:
-                    log.debug("skip conv %s with=%s: %s",
-                              conv_id[:8], (other or {}).get("name"), reason)
-                    continue
-                # Upsert dms row so we have an approved record
-                cx_dyn.execute(
-                    "INSERT INTO moltbook_dms "
-                    "(conversation_id, with_agent, last_msg_id, last_seen_ts, approved) "
-                    "VALUES (?, ?, NULL, 0, 1) "
-                    "ON CONFLICT(conversation_id) DO NOTHING",
-                    (conv_id, (other or {}).get("name") or "unknown")
-                )
-                self._read_conversation(conv_id, cx_dyn, cx_sense)
-            cx_dyn.commit()
-            cx_sense.commit()
-        finally:
-            cx_dyn.close()
-            cx_sense.close()
+        dynamic_statements = []
+        sense_statements = []
+        for conv in convs:
+            if not isinstance(conv, dict):
+                continue
+            conv_id = conv.get("conversation_id") or conv.get("id")
+            if not conv_id:
+                continue
+            # Filter by other party
+            other = conv.get("with_agent") if isinstance(conv.get("with_agent"), dict) else {}
+            ok, reason = _passes_filter(other)
+            if not ok:
+                log.debug("skip conv %s with=%s: %s",
+                          conv_id[:8], (other or {}).get("name"), reason)
+                continue
+            # Preserve the old in-transaction upsert/read behaviour by passing
+            # the just-observed name as a fallback to _read_conversation.
+            dynamic_statements.append((
+                "INSERT INTO moltbook_dms "
+                "(conversation_id, with_agent, last_msg_id, last_seen_ts, approved) "
+                "VALUES (?, ?, NULL, 0, 1) "
+                "ON CONFLICT(conversation_id) DO NOTHING",
+                (conv_id, (other or {}).get("name") or "unknown"),
+            ))
+            self._read_conversation(
+                conv_id, dynamic_statements, sense_statements,
+                with_agent_hint=(other or {}).get("name") or "unknown",
+            )
+        # The original code committed the dynamic DB before the sense DB.
+        self._write_dynamic_batch(dynamic_statements)
+        self._write_sense_batch(sense_statements)
 
-    def _read_conversation(self, conv_id: str,
-                           cx_dyn: Connection,
-                           cx_sense: Connection):
+    def _read_conversation(
+        self,
+        conv_id: str,
+        dynamic_statements: list,
+        sense_statements: list,
+        *,
+        with_agent_hint: str | None = None,
+    ):
         try:
             full = self.client.dm_read(conv_id)
         except MoltbookError as e:
@@ -237,13 +268,14 @@ class DMListenLoop:
         if not msgs:
             return
 
-        # Find last_seen we have stored
-        row = cx_dyn.execute(
+        # Find last_seen from the committed state; the current tick's upsert
+        # is still queued, so with_agent_hint supplies its initial name.
+        row = self._dynamic_reader.read_one(
             "SELECT last_msg_id, with_agent FROM moltbook_dms WHERE conversation_id=?",
-            (conv_id,)
-        ).fetchone()
+            (conv_id,),
+        )
         last_seen_id = row[0] if row else None
-        with_agent_stored = row[1] if row else None
+        with_agent_stored = row[1] if row else with_agent_hint
 
         new_msgs = []
         for m in msgs:
@@ -294,31 +326,27 @@ class DMListenLoop:
                 "message_id": mid,
             })
 
-            # Write to sense_events for Phase 45 distillation
-            cx_sense.execute(
+            sense_statements.append((
                 "INSERT INTO sense_events (stream, payload, provenance, timestamp) "
                 "VALUES (?, ?, ?, ?)",
-                ("moltbook_dm", payload,
-                 f"moltbook:conv:{conv_id}", int(ts))
-            )
+                ("moltbook_dm", payload, f"moltbook:conv:{conv_id}", int(ts)),
+            ))
 
-            # Write to pending replies queue for the responder
-            cx_dyn.execute(
+            dynamic_statements.append((
                 "INSERT INTO moltbook_pending_replies "
                 "(conversation_id, message_id, content, from_agent, "
                 " needs_human, status, created_at) "
                 "VALUES (?, ?, ?, ?, ?, 'new', ?)",
                 (conv_id, mid, text,
                  sender_name or with_agent_stored or "unknown",
-                 0, time.time())
-            )
+                 0, time.time()),
+            ))
 
-            log.info("DM in conv=%s from=%s: %r",
-                     conv_id, sender_name, text[:80])
+            log.info("DM in conv=%s from=%s: %r", conv_id, sender_name, text[:80])
             last_mid = mid
 
         # Update bookkeeping
-        cx_dyn.execute(
+        dynamic_statements.append((
             "INSERT INTO moltbook_dms "
             "(conversation_id, with_agent, last_msg_id, last_seen_ts, approved) "
             "VALUES (?, ?, ?, ?, 1) "
@@ -328,5 +356,5 @@ class DMListenLoop:
             "  with_agent=COALESCE(excluded.with_agent, with_agent)",
             (conv_id,
              with_agent_stored or (new_msgs[-1][1] if new_msgs else None),
-             last_mid, time.time())
-        )
+             last_mid, time.time()),
+        ))
