@@ -33,7 +33,7 @@ import logging
 import re
 import time
 
-from substrate import connect, table_exists
+from substrate import connect, table_exists, Writer
 from substrate.paths import DbPath
 from substrate.source_kind import kind_for
 from theory_x.life.affinity_loop import KIND_BASE, provenance_base
@@ -158,8 +158,8 @@ def audit(beliefs_db=None, dynamic_db=None) -> dict:
                    and g["not_scored"] and g["retrievable"])}
 
 
-def run_and_record() -> str:
-    """The nightly entry point: audit, log, append one row to the audit log."""
+def run_and_record(dynamic_writer: Writer | None = None) -> str:
+    """The nightly entry point: audit, log, append one row through the shared Writer."""
     r = audit()
     t, f, g = r["tier"], r["identity_floor"], r["seeded"]
     summary = (f"rows={t['rows']} stream={t['with_stream']} mismatch={t['mismatches']} "
@@ -168,9 +168,10 @@ def run_and_record() -> str:
                f"floor_retrievable={g['retrievable']}")
     (log.info if r["ok"] else log.warning)("source_kind audit %s: %s",
                                            "PASS" if r["ok"] else "FAIL", summary)
-    cx = connect(str(DYNAMIC_DB), timeout=30)
+    own_writer = dynamic_writer is None
+    writer = dynamic_writer or Writer(DYNAMIC_DB, name="source_kind_audit")
     try:
-        cx.execute(
+        writer.write(
             "INSERT INTO source_kind_audit_log (ts, rows, with_stream, mismatches, "
             "unstamped, identity_claim_fires, identity_support, identity_violations, "
             "ok, detail) VALUES (?,?,?,?,?,?,?,?,?,?)",
@@ -178,10 +179,11 @@ def run_and_record() -> str:
              f["claim_fires"], f["claim_support"], f["violations"], int(r["ok"]),
              json.dumps({"mismatch_ids": t["mismatch_ids"],
                          "unstamped_ids": t["unstamped_ids"],
-                         "violation_ids": f["violation_ids"], "seeded": g})))
-        cx.commit()
+                         "violation_ids": f["violation_ids"], "seeded": g})),
+        )
     finally:
-        cx.close()
+        if own_writer:
+            writer.close()
     return ("PASS " if r["ok"] else "FAIL ") + summary
 
 
