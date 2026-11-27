@@ -289,7 +289,7 @@ When in doubt: the current source and approved governing documents win—not thi
 
 ---
 
-*Last amended: 27 November 2026 — refreshed after #189, #191, #196, #199, #200 and #228; records the DAG CLI correction and the follow-up prerequisite-integrity validation in progress.*
+*Last amended: 27 November 2026 — refreshed after #189, #191, #196, #199, #200 and #228; records the DAG CLI correction and sequential graph-integrity hardening in progress.*
 
 
 ---
@@ -300,11 +300,31 @@ A follow-up source audit of `nex_next_dev.py` found a latent graph-integrity def
 
 The current `sentience_dag.json` snapshot was checked independently: **15 nodes, 15 prerequisite edges, 0 unresolved references**; statuses are 9 built, 2 terminal, 2 gap, 1 gorge and 1 live_unproven. This establishes that the current graph is clean, not that the validation defect is harmless: it could be triggered by a future misspelled or deleted node ID.
 
-A bounded developer-tool fix is in progress on `fix/nex-next-dev-prerequisite-integrity`:
+A bounded developer-tool fix is proposed in [PR #229](https://github.com/kron777/Nex_v5.0/pull/229), branch `fix/nex-next-dev-prerequisite-integrity`:
 - add deterministic validation of every prerequisite reference;
 - make both classification and topological sorting raise a clear `ValueError` listing unresolved edges;
 - add isolated regression tests for each path and a test asserting the current DAG has no unresolved references.
 
-The change does not edit `sentience_dag.json`, node statuses, runtime code, cognitive behaviour, flags, specifications, roadmap or phase gates. Exact-head CI is pending; do not call this change validated until CI is inspected. The intended rollback is a revert of the isolated developer-tool commit(s)/PR.
+The change does not edit `sentience_dag.json`, node statuses, runtime code, cognitive behaviour, flags, specifications, roadmap or phase gates. Exact-head CI run `46002918341` is still in progress at the disposable test-image build step; the baseline test step has not started. Do not call this change validated until CI is inspected. The intended rollback is a revert of the isolated developer-tool commit(s)/PR.
 
 **PR #228 integration:** merged to `main` as `4a45c22930205afb7fba557576614821d2bd274c` after exact-head CI success (run `46000586294`). Its three changed files are `nex_next_dev.py`, `tests/test_nex_next_dev.py` and this INDEX.
+
+
+---
+
+## 15. DAG status and duplicate-edge integrity (27 November 2026)
+
+A second pass over the same developer-tool path found two additional latent integrity defects:
+
+1. **Unknown or missing status values:** `classify()` only has explicit output buckets for `built`, `live_unproven`, `terminal`, `gorge` and `gap`. A misspelled or absent status fell through every branch and silently disappeared from the report. The current DAG declares these five values in `_status_values`, and all 15 nodes use one of them.
+2. **Duplicate prerequisite edges:** Kahn's topological sorter increments a node's indegree once for every prerequisite list entry, but its successor traversal decrements once when a predecessor is processed. A duplicate edge can therefore leave indegree nonzero and falsely produce a cycle error.
+
+The current DAG was checked independently: 15 nodes, 15 edges, no unresolved references, no duplicate edges, and no statuses outside the declared five-value set. These are latent defects in the developer tool, not current graph corruption.
+
+A follow-on change is being developed on `fix/nex-next-dev-status-and-edge-integrity`, stacked on PR #229 so the two integrity layers can be reviewed and tested together without cancelling PR #229's CI run. It adds:
+- duplicate-edge validation with a deterministic error listing;
+- validation that every node has a recognised status;
+- shared graph validation before classification and topological sorting;
+- four regression tests: duplicate edges in both paths, unknown status, and missing status.
+
+The change remains confined to `nex_next_dev.py`, its isolated regression tests and this manual. It does not alter `sentience_dag.json`, graph statuses, runtime code, cognitive behaviour, flags, frozen specifications, roadmap or phase gates. The stacked change has not yet been through CI; do not describe it as validated until the exact head completes the full baseline suite. Rollback is by reverting the isolated follow-on PR/commits.
