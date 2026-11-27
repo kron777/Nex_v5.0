@@ -290,6 +290,8 @@ def test_submit_runs_existing_pipeline_and_persists_intake_provenance(tmp_path, 
     assert resumed["objective"]["original_text"] == raw["original_text"]
     assert len(resumed["cycles"]) == 1
     assert resumed["cycles"][0]["objective_input"]["sha256"] == result["input_sha256"]
+    assert resumed["cycles"][0]["objective_context"] == cycle["objective_context"]
+    assert resumed["cycles"][0]["context_assessment"] == cycle["context_assessment"]
 
 
 def test_intake_smoke_on_real_rdo_repository(tmp_path):
