@@ -14,7 +14,7 @@ import json
 import logging
 import random
 import re
-from substrate import connect, IntegrityError
+from substrate import Reader, Writer, IntegrityError
 import threading
 import time
 from pathlib import Path
@@ -54,20 +54,17 @@ def _extract_entities(text):
     return out
 
 
-def _pick_entity():
-    s_cx = connect(SENSE_DB, timeout=10)
-    try:
-        rows = s_cx.execute(
-            "SELECT payload FROM sense_events "
-            "WHERE stream NOT LIKE 'internal.%' "
-            "  AND timestamp > ? "
-            "ORDER BY timestamp DESC LIMIT 100",
-            (time.time() - RECENT_WINDOW_SECONDS,)
-        ).fetchall()
-    finally:
-        s_cx.close()
+def _pick_entity(sense_reader: Reader):
+    rows = sense_reader.read(
+        "SELECT payload FROM sense_events "
+        "WHERE stream NOT LIKE 'internal.%' "
+        "  AND timestamp > ? "
+        "ORDER BY timestamp DESC LIMIT 100",
+        (time.time() - RECENT_WINDOW_SECONDS,),
+    )
     pool = []
-    for (payload,) in rows:
+    for row in rows:
+        payload = row["payload"]
         try:
             d = json.loads(payload) if payload else {}
             text = d.get("title") or d.get("link") or ""
@@ -76,16 +73,15 @@ def _pick_entity():
         pool.extend(_extract_entities(text))
     if not pool:
         return None
-    # Frequency-weighted pick: more-mentioned entities more interesting
     return random.choice(pool)
 
 
-def _daily_count(cx):
+def _daily_count(reader: Reader):
     cutoff = time.time() - 86400
-    row = cx.execute(
+    row = reader.read_one(
         "SELECT COUNT(*) FROM beliefs WHERE source=? AND created_at > ?",
-        (SOURCE, cutoff)
-    ).fetchone()
+        (SOURCE, cutoff),
+    )
     return row[0] if row else 0
 
 
@@ -108,60 +104,65 @@ def _compose_question(voice, entity, context_snippet):
     return None
 
 
-def _context_for(entity):
+def _context_for(entity, sense_reader: Reader):
     """Pull one recent sense snippet containing the entity."""
-    s_cx = connect(SENSE_DB, timeout=10)
-    try:
-        rows = s_cx.execute(
-            "SELECT payload FROM sense_events "
-            "WHERE payload LIKE ? AND timestamp > ? "
-            "ORDER BY timestamp DESC LIMIT 5",
-            ("%" + entity + "%", time.time() - RECENT_WINDOW_SECONDS)
-        ).fetchall()
-    finally:
-        s_cx.close()
-    for (payload,) in rows:
+    rows = sense_reader.read(
+        "SELECT payload FROM sense_events "
+        "WHERE payload LIKE ? AND timestamp > ? "
+        "ORDER BY timestamp DESC LIMIT 5",
+        ("%" + entity + "%", time.time() - RECENT_WINDOW_SECONDS),
+    )
+    for row in rows:
+        payload = row["payload"]
         try:
             d = json.loads(payload) if payload else {}
-            t = d.get("title") or d.get("link") or payload or ""
-            if entity in t:
-                return t[:200]
+            text = d.get("title") or d.get("link") or payload or ""
+            if entity in text:
+                return text[:200]
         except Exception:
             if entity in (payload or ""):
                 return payload[:200]
     return entity
 
 
-def wonder_tick(voice):
-    cx = connect(BELIEFS_DB, timeout=15)
+def wonder_tick(
+    voice,
+    *,
+    beliefs_reader: Reader | None = None,
+    beliefs_writer: Writer | None = None,
+    sense_reader: Reader | None = None,
+):
+    reader = beliefs_reader or Reader(BELIEFS_DB)
+    s_reader = sense_reader or Reader(SENSE_DB)
+    own_writer = beliefs_writer is None
+    writer = beliefs_writer or Writer(BELIEFS_DB, name="wonder_loop")
     try:
-        if _daily_count(cx) >= DAILY_CAP:
+        if _daily_count(reader) >= DAILY_CAP:
             return {"skipped": "daily_cap"}
-        entity = _pick_entity()
+        entity = _pick_entity(s_reader)
         if not entity:
             return {"skipped": "no_entity"}
-        context = _context_for(entity)
+        context = _context_for(entity, s_reader)
         question = _compose_question(voice, entity, context)
         if not question:
             return {"skipped": "voice_failed"}
-        # Must end with '?' to qualify as a question
         if "?" not in question:
             return {"skipped": "not_a_question"}
         now = int(time.time())
         try:
-            cx.execute(
+            writer.write(
                 "INSERT INTO beliefs "
                 "(content, tier, confidence, created_at, source, branch_id, tags) "
                 "VALUES (?, 6, 0.60, ?, ?, ?, '[]')",
-                (question, now, SOURCE, "cognition")
+                (question, now, SOURCE, "cognition"),
             )
-            cx.commit()
             log.info("wonder_loop: %s -> %s", entity, question[:80])
             return {"wondered": True, "entity": entity, "text": question[:140]}
         except IntegrityError:
             return {"skipped": "duplicate"}
     finally:
-        cx.close()
+        if own_writer:
+            writer.close()
 
 
 def wonder_loop(state, stop):
@@ -173,7 +174,12 @@ def wonder_loop(state, stop):
             if voice is None:
                 from voice.llm import VoiceClient, voice_model
                 voice = VoiceClient(model=voice_model())
-            stats = wonder_tick(voice)
+            stats = wonder_tick(
+                voice,
+                beliefs_reader=state.readers["beliefs"],
+                beliefs_writer=state.writers["beliefs"],
+                sense_reader=state.readers["sense"],
+            )
             if stats.get("wondered"):
                 log.info("wonder_loop: %s", stats.get("text", "")[:100])
         except Exception as e:
