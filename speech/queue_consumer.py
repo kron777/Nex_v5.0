@@ -155,9 +155,16 @@ class SpeechQueueConsumer(threading.Thread):
         if not voice:
             voice = row.get("voice") or self.config.voice
         if not _is_speakable(content):
-            self.writer.write(
-                "UPDATE speech_queue SET status='suppressed' WHERE id=?", (qid,)
-            )
+            try:
+                self.writer.write(
+                    "UPDATE speech_queue SET status='suppressed' WHERE id=?", (qid,)
+                )
+            except Exception as e:
+                trace_event(
+                    "queue_status_suppressed_write_failed", parent=dequeue_event,
+                    metadata={"error_type": type(e).__name__},
+                )
+                raise
             trace_event("suppressed", parent=dequeue_event)
             log.info("speech suppressed (non-speakable content) id=%s chars=%d",
                      qid, len(content))
@@ -203,10 +210,17 @@ class SpeechQueueConsumer(threading.Thread):
                 playback_completed or playback_started
                 or synthesis_completed or trace_parent
             )
-            self.writer.write(
-                "UPDATE speech_queue SET status='spoken', spoken_at=? WHERE id=?",
-                (time.time(), qid),
-            )
+            try:
+                self.writer.write(
+                    "UPDATE speech_queue SET status='spoken', spoken_at=? WHERE id=?",
+                    (time.time(), qid),
+                )
+            except Exception as e:
+                failure_parent = trace_event(
+                    "queue_status_spoken_write_failed", parent=playback_completed,
+                    metadata={"error_type": type(e).__name__},
+                ) or playback_completed or playback_started or trace_parent
+                raise
             trace_event("queue_status_spoken",
                         parent=playback_completed or playback_started)
             log.info("spoke belief_id=%s (%d chars)", row["belief_id"], len(content))
