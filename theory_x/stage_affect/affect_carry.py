@@ -56,26 +56,38 @@ def _ensure_table(w) -> None:
         "session_id TEXT PRIMARY KEY, weight REAL NOT NULL, updated_at REAL NOT NULL)")
 
 
-def _load(session_id: str) -> float:
+def _load(session_id: str, conversations_reader=None) -> float:
     try:
-        row = _cr().read_one(
+        reader = conversations_reader or _cr()
+        row = reader.read_one(
             "SELECT weight FROM affect_carry WHERE session_id=?", (session_id,))
         return float(row["weight"]) if row and row["weight"] is not None else _BASELINE
     except Exception:
         return _BASELINE
 
 
-def _save(session_id: str, weight: float) -> None:
+def _save(
+    session_id: str, weight: float, conversations_writer=None,
+) -> None:
+    owns_writer = conversations_writer is None
+    writer = conversations_writer
     try:
-        w = _cw()
-        _ensure_table(w)
-        w.write(
+        if writer is None:
+            writer = _cw()
+        _ensure_table(writer)
+        writer.write(
             "INSERT INTO affect_carry (session_id, weight, updated_at) VALUES (?,?,?) "
             "ON CONFLICT(session_id) DO UPDATE SET weight=excluded.weight, "
             "updated_at=excluded.updated_at",
             (session_id, weight, time.time()))
     except Exception:
         pass   # persistence best-effort
+    finally:
+        if owns_writer and writer is not None:
+            try:
+                writer.close()
+            except Exception:
+                pass
 
 
 # Explicit distress cues. Measured gap: compassion.distress_salience (contrastive
@@ -116,14 +128,18 @@ def _this_turn_weight(message: str) -> float:
     return max(0.0, min(1.0, max(sal, _cue_weight(message))))
 
 
-def update_and_carry(session_id: str, message: str) -> float:
-    """Decay the stored weight, integrate this turn's reading (max), persist,
-    return the carried weight. Public for tests."""
-    prev = _load(session_id)
+def update_and_carry(
+    session_id: str,
+    message: str,
+    conversations_writer=None,
+    conversations_reader=None,
+) -> float:
+    """Decay, integrate this turn's reading, persist, and return carried weight."""
+    prev = _load(session_id, conversations_reader=conversations_reader)
     decayed = _BASELINE + (prev - _BASELINE) * _DECAY_KEEP
     now = _this_turn_weight(message)
     carried = max(0.0, min(1.0, max(decayed, now)))
-    _save(session_id, carried)
+    _save(session_id, carried, conversations_writer=conversations_writer)
     return carried
 
 
@@ -138,10 +154,11 @@ def _openbeat_ensure_table(w) -> None:
         "updated_at REAL NOT NULL)")
 
 
-def _openbeat_load_flag(session_id: str) -> bool:
+def _openbeat_load_flag(session_id: str, conversations_reader=None) -> bool:
     """Was the turn immediately before this one the turn that raised the mood?"""
     try:
-        row = _cr().read_one(
+        reader = conversations_reader or _cr()
+        row = reader.read_one(
             "SELECT last_turn_was_spike FROM affect_carry_openbeat "
             "WHERE session_id=?", (session_id,))
         return bool(row["last_turn_was_spike"]) if row else False
@@ -149,11 +166,16 @@ def _openbeat_load_flag(session_id: str) -> bool:
         return False
 
 
-def _openbeat_save_flag(session_id: str, is_spike: bool) -> None:
+def _openbeat_save_flag(
+    session_id: str, is_spike: bool, conversations_writer=None,
+) -> None:
+    owns_writer = conversations_writer is None
+    writer = conversations_writer
     try:
-        w = _cw()
-        _openbeat_ensure_table(w)
-        w.write(
+        if writer is None:
+            writer = _cw()
+        _openbeat_ensure_table(writer)
+        writer.write(
             "INSERT INTO affect_carry_openbeat "
             "(session_id, last_turn_was_spike, updated_at) VALUES (?,?,?) "
             "ON CONFLICT(session_id) DO UPDATE SET "
@@ -162,15 +184,22 @@ def _openbeat_save_flag(session_id: str, is_spike: bool) -> None:
             (session_id, int(is_spike), time.time()))
     except Exception:
         pass   # persistence best-effort, same discipline as _save
+    finally:
+        if owns_writer and writer is not None:
+            try:
+                writer.close()
+            except Exception:
+                pass
 
 
-def _openbeat_prev_message(session_id: str) -> str:
+def _openbeat_prev_message(session_id: str, conversations_reader=None) -> str:
     """The person's own previous turn, verbatim. Relies on the (frozen) caller
     having already inserted THIS turn's user message before calling stance_for
     (gui/server.py does, same `prompt` value both times) so the newest 'user'
     row is this turn's own and the second-newest is the real previous one."""
     try:
-        rows = _cr().read(
+        reader = conversations_reader or _cr()
+        rows = reader.read(
             "SELECT content FROM messages WHERE session_id=? AND role='user' "
             "ORDER BY id DESC LIMIT 2", (session_id,))
         if not rows or len(rows) < 2:
@@ -195,7 +224,12 @@ def _openbeat_reference(prev_message: str, limit: int = 180) -> str:
     return cut.rstrip(" ,;:") + "..."
 
 
-def stance_for(session_id: str, message: str = "") -> str:
+def stance_for(
+    session_id: str,
+    message: str = "",
+    conversations_writer=None,
+    conversations_reader=None,
+) -> str:
     """Compose-path entry: update the carry and, when it is non-trivial, return a
     tone-colour line. '' when carry is low, flag off, or on any error."""
     try:
@@ -205,18 +239,27 @@ def stance_for(session_id: str, message: str = "") -> str:
         _was_spike_last_turn = False
         if _openbeat:
             try:
-                _prev_w = _load(session_id)
+                _prev_w = _load(session_id, conversations_reader=conversations_reader)
                 _decayed_w = _BASELINE + (_prev_w - _BASELINE) * _DECAY_KEEP
                 _now_w = _this_turn_weight(message)
-                _was_spike_last_turn = _openbeat_load_flag(session_id)
-                _openbeat_save_flag(session_id, _now_w > _decayed_w)
+                _was_spike_last_turn = _openbeat_load_flag(
+                    session_id, conversations_reader=conversations_reader
+                )
+                _openbeat_save_flag(
+                    session_id, _now_w > _decayed_w,
+                    conversations_writer=conversations_writer,
+                )
             except Exception as exc:
                 error_channel.record(
                     f"affect_carry openbeat tracking failed (non-fatal): {exc}",
                     source=_LOG_SOURCE, exc=exc,
                 )
                 _was_spike_last_turn = False
-        carried = update_and_carry(session_id, message)
+        carried = update_and_carry(
+            session_id, message,
+            conversations_writer=conversations_writer,
+            conversations_reader=conversations_reader,
+        )
         if carried < _LIGHT_MIN:
             return ""
         # Tone-colour ONLY — the explicit no-announce clause blocks the 3B's
@@ -234,7 +277,11 @@ def stance_for(session_id: str, message: str = "") -> str:
             try:
                 if not _was_spike_last_turn:
                     return ""
-                reference = _openbeat_reference(_openbeat_prev_message(session_id))
+                reference = _openbeat_reference(
+                    _openbeat_prev_message(
+                        session_id, conversations_reader=conversations_reader
+                    )
+                )
                 if not reference:
                     return ""
                 return (
