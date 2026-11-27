@@ -166,7 +166,27 @@ def _paths_of(src: dict) -> list[str]:
     return []
 
 
+def git_history_complete() -> bool:
+    """Whether source-drift checks can trust per-path git log results.
+
+    actions/checkout defaults to fetch-depth=1. In a shallow clone,
+    `git log -1 -- <path>` reports the checkout commit for every tracked
+    path, manufacturing false STALE warnings. CI requests full history;
+    local shallow/archive checkouts get one explicit warning and skip only
+    the date comparison rather than asserting a false change date.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--is-shallow-repository"],
+            cwd=ROOT, capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        return out == "false"
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
+
+
 def last_commit_ts(rel: str) -> float | None:
+    """Latest path commit timestamp; call only with complete git history."""
     try:
         out = subprocess.run(
             ["git", "log", "-1", "--format=%ct", "--", rel],
@@ -181,6 +201,12 @@ def last_commit_ts(rel: str) -> float | None:
 def check(doc: dict, verify_absent: bool = False) -> tuple[list, list]:
     errs: list[str] = check_descriptive_only(doc, ROOT)
     warns: list[str] = []
+    history_complete = git_history_complete()
+    if not history_complete:
+        warns.append(
+            "source drift: Git history is shallow or unavailable; "
+            "last_verified date checks skipped"
+        )
     arm_ids = {a["id"] for a in doc.get("arms", [])}
     seen: set[str] = set()
     node_ids_all = {n["id"] for n in doc.get("nodes", []) if "id" in n}
@@ -286,7 +312,7 @@ def check(doc: dict, verify_absent: bool = False) -> tuple[list, list]:
                     errs.append(f"{nid}: absence claim falsified — `{src['check']}` returned output")
 
         # drift: has the source changed since last_verified?
-        if lv != "unverified" and kind in ("file", "composite"):
+        if history_complete and lv != "unverified" and kind in ("file", "composite"):
             cutoff = datetime.combine(date.fromisoformat(str(lv)), time(23, 59, 59)).timestamp()
             for rel in _paths_of(src):
                 ts = last_commit_ts(rel)
