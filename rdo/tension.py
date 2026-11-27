@@ -65,7 +65,9 @@ def _evidence_value_valid(value, unit=None) -> bool:
     """Reject absent, non-finite or unitless numeric observations."""
     if isinstance(value, bool):
         return True
-    if isinstance(value, (int, float)):
+    if isinstance(value, int):
+        return isinstance(unit, str) and bool(unit.strip())
+    if isinstance(value, float):
         return math.isfinite(value) and isinstance(unit, str) and bool(unit.strip())
     if isinstance(value, str):
         return bool(value.strip())
