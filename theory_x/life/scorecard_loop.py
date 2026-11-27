@@ -17,13 +17,16 @@ log = logging.getLogger("theory_x.life.scorecard_loop")
 TICK_SECONDS = 3600
 
 
-def _tick() -> None:
+def _tick(state) -> None:
     """One refresh attempt. Never raises -- logs and returns on failure."""
     try:
         import sys
         sys.path.insert(0, ".")
         import ground_self_belief as gsb
-        result = gsb.refresh_self_belief()
+        result = gsb.refresh_self_belief(
+            beliefs_writer=state.writers["beliefs"],
+            beliefs_reader=state.readers["beliefs"],
+        )
         v, r = result["voice"], result["random"]
         log.info(
             "scorecard_loop: refreshed (voice=%s/%s random=%s/%s)",
@@ -36,10 +39,10 @@ def _tick() -> None:
 
 def scorecard_loop(state, stop: threading.Event) -> None:
     log.info("scorecard_loop started (tick=%ds)", TICK_SECONDS)
-    _tick()  # run once immediately -- belief is fresh without waiting an hour
+    _tick(state)  # run once immediately -- belief is fresh without waiting an hour
     while not stop.is_set():
         stop.wait(TICK_SECONDS)
         if stop.is_set():
             break
-        _tick()
+        _tick(state)
     log.info("scorecard_loop stopped")
