@@ -237,3 +237,45 @@ This follow-up is evidence-status maintenance only. It does not authorise behavi
 - **Related qualification:** `TimeFetch.fetch_from_beliefs()` filters by confidence and content length but not tier/paused/locked/erosion state; this is a separate eligibility-policy question already identified in the crosswalk. `RefinementEngine._r2()` returns true on DB read error, explicitly tested; do not alter either policy by inference.
 - **Impact:** if the monitor is enabled, sub-threshold trigger rows can cause candidate retrieval, scoring and Gate resubmission, potentially reintroducing the high-volume churn that motivated the monitor's historical retirement comment. No live session or current runtime impact is established.
 - **Disposition:** **OPEN — source-level consumer/threshold defect.** No code, flag, threshold, Gate or live state changed. Corrective design and validation require Gate 0 review because they alter autonomous behaviour.
+
+
+---
+
+## Follow-up source audit — G-68 to G-72 (27 November 2026)
+
+These findings were rechecked against current main after the bounded persistence integrations. They are source-level findings, not claims about current host activation or live data.
+
+### G-68 — decryption ProbeRunner live-mutation and cleanup risk
+
+- **Source:** `decryption/probe_runner.py`, distinct from `theory_x.probes.probe_runner.ProbeRunner`.
+- **Verified:** `dry_run` defaults to `False`. Live setup calls `/api/mode/set` and inserts synthetic `fountain_insight` beliefs using a raw SQLite connection. Teardown deletes the recorded IDs but does not restore the previous NEX mode. The ID list is cleared in `finally` even if deletion fails, removing the in-memory retry list. Process termination before teardown bypasses cleanup. Dry-run suppresses mode changes and synthetic writes/deletes but still performs read-only DB inspection.
+- **Activation boundary:** not imported by the normal `run.py` boot path inspected. It was not invoked; no synthetic rows or mode changes were made.
+- **Disposition:** **OPEN — experimental safety/cleanup risk.** Do not run against live NEX without explicit experiment approval and a verified disposable database/runtime. No code or runtime change.
+
+### G-69 — SurpriseLoop timestamp cursor and failed-promotion loss
+
+- **Source:** `theory_x/life/surprise_loop.py`.
+- **Verified on current main before the proposed correction:** timestamp-only pagination with `triggered_at > since` and `LIMIT 20` can skip remaining rows tied at a page boundary. The old loop also advanced its checkpoint past non-integrity write/conversion failures. Ordinary surprises also received a duplicate `surprise` tag.
+- **Prepared correction:** PR #239 adds a lexicographic `(triggered_at, id)` cursor, atomic cursor persistence, retry from the last fully handled event, duplicate-content idempotency, distinct tags, and a persisted first-run ten-minute boundary. Regression coverage includes tied batches, first-run cutoff, delayed eligibility, and first/mid-batch conversion and Writer failures.
+- **Governance:** this correction can allow previously skipped events to enter the belief corpus and thereby change downstream retrieval inputs. The backlog disposition remains **Gate 0 review required**. PR #239 is preparatory and must not be merged/deployed until the founder approves that behaviour-impact decision. Exact-head CI is pending; no runtime change has landed.
+
+### G-70 — M0.5 trace currently stops at speech-queue enqueue
+
+- **Sources:** `theory_x/stage6_fountain/crystallizer.py`, `influence_trace.py`, and `speech/queue_consumer.py`.
+- **Verified:** the crystallizer records speech-queue enqueue in the trace sidecar. The consumer has no trace hooks for dequeue, synthesis/playback outcome or failure. `TraceContext` retains event references within one context instance; there is no cross-thread queue-link registry connecting enqueue to the consumer's later playback.
+- **Disposition:** **OPEN — M0.5 observability coverage question.** Do not add substrate DB columns or change speech behaviour by inference. If playback lineage is required for M0.5 acceptance, design bounded in-memory/sidecar correlation and tests first. No speech or trace behaviour changed.
+
+### G-71 — WarrantRecorder rowid cursor stability across VACUUM
+
+- **Sources:** `theory_x/stage_warrant/recorder.py` and the authoritative source schemas in `substrate/schema/beliefs.sql`.
+- **Verified:** the merged G-53 fix (#184) uses `(timestamp, rowid)` pagination. The source tables instead declare composite primary keys: `belief_lineage(child_id, parent_id, relationship)` and `arc_members(arc_id, belief_id)`. Hidden rowids are not those declared keys and may change during `VACUUM`.
+- **Prepared correction:** PR #240 adds versioned JSON tuple cursors using those composite keys, leaves existing scalar cursor migration intact, and replays history once under the idempotent `belief_use_day(belief_id, day)` key. Its regression test forces a rowid gap, performs `VACUUM` between pages, and checks that every tied row is still counted. Exact-head CI is pending.
+- **Disposition:** **OPEN — use-day cursor stability.** No Warrant eligibility, survival scoring, sustain/retirement policy or feature gate is changed by the proposed correction.
+
+### G-72 — gated SelfPredictionLoop canonical database-handle injection
+
+- **Source:** `run.py`, `theory_x/stage_world/self_prediction.py`, `theory_x/stage_world/owned_belief.py`, `theory_x/stage_world/commitments.py`, and `theory_x/stage_world/expectations.py`.
+- **Resolved:** PR #236 routes commitments schema, scans, cursors and standalone releases through the canonical conversations Writer and dynamic Reader. PR #238 injects AppState conversations/beliefs Writers and conversations/dynamic/beliefs Readers into the gated `SelfPredictionLoop`, self-prediction functions, owned-belief producer, commitments scan and Expectations reconciler. It adds actual Writer-injection and nested handle-propagation tests.
+- **Verification:** PR #236 exact-head run `46006462779` passed (2,573 passed, 7 skipped, 45 subtests). PR #238 exact-head run `46008022480` passed (2,584 passed, 7 skipped, 45 subtests). PR #238 merged as `74cff71045d1f6006b3873138ec658a66acf34a8`.
+- **Activation boundary:** `NEX5_SELF_PRED=1` remains the loop start gate. No loop was started, no feature flag was changed, and no host environment/process state was collected. This closes the source-level handle-injection defect only; it is not evidence of runtime activation or completion of the global write-path census.
+- **Disposition:** **CLOSED — persistence ownership/integration fix merged.** Cadence, prediction rules, selection, thresholds and feature gates were preserved.
