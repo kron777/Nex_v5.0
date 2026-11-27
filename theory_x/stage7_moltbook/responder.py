@@ -94,6 +94,9 @@ class DMResponder:
         dynamic_db: Path | str = DYNAMIC_DB,
         beliefs_db: Path | str = BELIEFS_DB,
         llama_url: str = LLAMA_URL,
+        dynamic_reader: Reader | None = None,
+        dynamic_writer: Writer | None = None,
+        beliefs_reader: Reader | None = None,
     ):
         self.client = client
         self.dynamic_db = Path(dynamic_db)
