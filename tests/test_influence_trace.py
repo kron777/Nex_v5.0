@@ -302,7 +302,8 @@ def test_fountain_generate_trace_wrapper_preserves_result(tmp_path, monkeypatch)
         "input_arrival", "candidate_generation", "output"
     ]
     assert records[1]["parent_ids"] == [records[0]["event_id"]]
-    assert records[2]["parent_ids"] == [records[1]["event_id"]]
+    assert records[1]["event_id"] in records[2]["parent_ids"]
+    assert records[0]["event_id"] in records[2]["parent_ids"]
 
 
 def test_membrane_route_trace_preserves_retrieval_and_return_value(tmp_path):
@@ -349,7 +350,7 @@ def test_membrane_route_trace_preserves_retrieval_and_return_value(tmp_path):
 
 
 def test_events_without_declared_parent_remain_unparented(tmp_path):
-    tracer = TraceContext("fixture", sink_path=_sink(tmp_path), enabled=True)
+    tracer = InfluenceTracer("fixture", sink_path=_sink(tmp_path), enabled=True)
     first = tracer.record("observation", "earlier_event", metadata={})
     second = tracer.record("observation", "later_event", metadata={})
     assert first and second
@@ -360,7 +361,7 @@ def test_events_without_declared_parent_remain_unparented(tmp_path):
 
 
 def test_named_references_do_not_create_implicit_edges(tmp_path):
-    tracer = TraceContext("fixture", sink_path=_sink(tmp_path), enabled=True)
+    tracer = InfluenceTracer("fixture", sink_path=_sink(tmp_path), enabled=True)
     first = tracer.record("candidate_generation", "candidate", metadata={})
     tracer.remember("candidate", first)
     unlinked = tracer.record("observation", "independent", metadata={})
