@@ -189,6 +189,14 @@ These are source-level conditions and test-coverage gaps recovered from older au
 - Verified: the stale ProblemMemory.observe() rationale was corrected in PR #159. _append_observation() retains its same-text early return, and the new tests/test_focus_loop.py provides isolated regression coverage. No ocount >= 10 close gate was found in the inspected current modules.
 - Disposition: CLOSED as a documentation/test-coverage defect. The FocusLoop behavior itself was not changed.
 
+### G-64 — Learning Guards retain direct write paths outside the one-pen Writer
+
+- **Sources:** `theory_x/stage_world/learning_guards.py` (`record_tick()`, `cap_blocks()`, `subtract()`, `revert_subtraction()`, `run()`); `theory_x/life/daily_life.py:_activity_expectation_canaries()`.
+- **Verified at this report's `ae406fa8` snapshot:** `record_tick()` opens `conversations.db` with write-capable `connect()`, inserts `learning_guard_ticks`, and commits directly. `cap_blocks()` inserts `learning_cap_hits` through its supplied connection. `subtract()` opens write-capable connections to both `conversations.db` and `beliefs.db`, updates `beliefs.confidence`, inserts the corresponding `learning_subtractions` ledger row, and commits the two databases separately. `revert_subtraction()` similarly updates belief confidence and the ledger through direct connections. These paths bypass the per-database Writer contract in `SPECIFICATION.md §8`.
+- **Scheduled path:** `_activity_expectation_canaries()` calls `learning_guards.run()`. That function can invoke `subtract()` when the corresponding ratio/attribution condition is met and `NEX5_LEARN_RATIO_SUBTRACT=1` and/or `NEX5_LEARN_ATTRIBUTION_SUBTRACT=1`. The flags are OFF unless explicitly set; this is a conditional source-level bypass, not evidence that either flag is enabled or that a live subtraction occurred.
+- **Impact/qualification:** the one-pen persistence audit is not complete while these paths remain. The cross-database update/ledger sequence is not atomic today; a Writer migration must preserve and explicitly test the existing ordering/failure semantics rather than imply a cross-database transaction. No live DB or runtime state was inspected.
+- **Disposition:** track as a separate bounded persistence migration with injected Writers for both databases and regression coverage for normal, flag-enabled, skipped, and revert paths. Do not change thresholds, flags, subtraction eligibility, confidence policy, or live state as part of that migration.
+
 ## F. Gate boundary
 
 This backlog is evidence input for Gate 0. It is not permission to enable Phase 1 experiments, change prompts, change confidence/belief revision, modify Coherence Gate policy, alter dark flags, start/restart services or touch live databases.
