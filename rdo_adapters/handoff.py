@@ -452,7 +452,8 @@ def handoff_history(workdir: str, handoff_id: str) -> dict:
 
 
 def _append_event(workdir: str, manifest: dict, event_fields: dict,
-                  require_approved_scope: bool = False) -> dict:
+                  require_approved_scope: bool = False,
+                  require_context_mapping: Optional[dict] = None) -> dict:
     handoff_id = manifest["handoff_id"]
     path = _event_path(workdir, handoff_id)
     with open(path, "a+", encoding="utf-8") as fh:
@@ -469,6 +470,19 @@ def _append_event(workdir: str, manifest: dict, event_fields: dict,
                     raise HandoffError(
                         "human acceptance requires a currently approved scope review"
                     )
+            if require_context_mapping is not None:
+                context_item_id = require_context_mapping.get("context_item_id")
+                expected_keys = require_context_mapping.get("mapped_obligation_keys")
+                latest_mapping = next(
+                    (e for e in reversed(events)
+                     if e.get("event_kind") == "context_mapping"
+                     and e.get("context_item_id") == context_item_id),
+                    None,
+                )
+                if latest_mapping is None:
+                    raise HandoffError("acceptance criterion must have a reviewed context mapping before verification")
+                if latest_mapping.get("mapped_obligation_keys") != expected_keys:
+                    raise HandoffError("acceptance verification mapping changed while the event was being recorded; retry with the latest mapping")
             previous = events[-1]["event_sha256"] if events else None
             event = {
                 "schema_version": EVENT_SCHEMA,
@@ -666,7 +680,10 @@ def record_acceptance_verification(workdir: str, handoff_id: str, criterion_id: 
         "verification_record": record.to_dict(),
         "reviewer": reviewer,
         "note": note,
-    })
+    }, require_context_mapping=(
+        {"context_item_id": criterion_id, "mapped_obligation_keys": keys}
+        if status in ("pending", "passed", "failed") else None
+    ))
 
 
 def record_human_acceptance(workdir: str, handoff_id: str, decision: str, reviewer: str,
