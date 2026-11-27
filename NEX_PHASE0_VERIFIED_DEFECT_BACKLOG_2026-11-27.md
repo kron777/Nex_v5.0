@@ -223,7 +223,7 @@ The defect/evidence findings above remain pinned to the stated `ae406fa8` source
 
 - PR #191 migrated Moltbook responder persistence; PR #196 migrated listener and poster persistence; PR #200 migrated boot-time ResumptionSeeder, IdentityLoop and Fountain momentum/recursion-attribution persistence; PR #202 migrated HotObserver and grounded scorecard writes onto canonical AppState handles. PR #205 added the first-run SurpriseLoop ten-minute history-window test; PR #211 corrected VoiceEngine origin identity metadata. Current exact-head CI run `45995284146` passed (2,546 passed, 7 skipped, 45 subtests). These close identified bounded paths, not the repository-wide one-pen audit.
 - PR #185 mind-map source re-verification is merged. Current verifier result on #200: 30 nodes, 0 unverified, 14 dark, 2 blocked. Two missing doctrine references and the overdue `p13_finitude` marker remain warnings and remain unresolved.
-- Current main SHA: `278022513f82067cd63dec7688b49895247ad18d`.
+- Current main SHA: `278022513f82067cd63dec7688b49895247ad18d`. Full baseline: 2,549 passed, 7 skipped, 45 subtests; run `45997394667` (27 Nov 2026). Mind-map verifier: 30 nodes, 0 unverified, 14 dark, 2 blocked.
 - No current host/runtime collection or live database inspection was performed. Host process state, runtime flags, database integrity/hashes, model digest/performance and L4 trace remain UNKNOWN.
 
 This follow-up is evidence-status maintenance only. It does not authorise behavioural changes, dark-flag activation, live DB writes, experiment execution, Gate policy changes or Phase 1. Gate 0 remains pending founder review.
