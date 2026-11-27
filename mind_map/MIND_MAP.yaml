@@ -118,7 +118,7 @@ nodes:
     blocked: false
     falsifier: "Calibrated response should show uptake in unprompted turns. Never probed."
     falsifier_status: unrun
-    source: { kind: composite, refs: ["theory_x/stage_affect/compassion.py:225-326", "tests/test_compassion.py:52-57"] }
+    source: { kind: composite, refs: ["theory_x/stage_affect/compassion.py:225-325", "tests/test_compassion.py:52-57"] }
     last_verified: 2026-11-27
     notes: >
       Calibrated, uptake unprobed. Same family as amoha. VIRTUE_SLATE.md re-pinned to the real
@@ -146,7 +146,7 @@ nodes:
     blocked: false
     falsifier: "Should flatten price variance under provocation while leaving it intact elsewhere."
     falsifier_status: pass
-    source: { kind: file, ref: "theory_x/stage_affect/upekkha.py:35-122" }
+    source: { kind: file, ref: "theory_x/stage_affect/upekkha.py:35-121" }
     last_verified: 2026-11-27
     notes: "Pali spelling in this repo is upekkhā (upekkha.py), not Sanskrit upekṣā -- same factor.
       VIRTUE_SLATE.md re-pinned to the real module (NEX5_EQUANIMITY, default OFF)."
@@ -164,7 +164,7 @@ nodes:
     blocked: false
     falsifier: "Should preserve deferred cost under immediate pressure."
     falsifier_status: pass
-    source: { kind: file, ref: "theory_x/stage_affect/apramada.py:55-132" }
+    source: { kind: file, ref: "theory_x/stage_affect/apramada.py:55-131" }
     last_verified: 2026-11-27
     notes: "VIRTUE_SLATE.md re-pinned to the real module (default OFF)."
 
@@ -263,7 +263,7 @@ nodes:
     blocked: false
     falsifier: "Reads every turn. A faculty that fires unconditionally carries no information."
     falsifier_status: na
-    source: { kind: composite, refs: ["theory_x/stage_tom/mana_detector.py:40-75", "theory_x/stage_tom/self_binding.py:298-345", "theory_x/stage6_fountain/generator.py:3990-4001", "nex_keepalive.sh:219-220"] }
+    source: { kind: composite, refs: ["theory_x/stage_tom/mana_detector.py:40-75", "theory_x/stage_tom/self_binding.py:298-344", "theory_x/stage6_fountain/generator.py:3990-4001", "nex_keepalive.sh:219-220"] }
     last_verified: 2026-11-27
     notes: >
       CORRECTION, 2026-11-15 (falsifier-sweep round): "always-on read-only sidecar" was wrong.
@@ -290,7 +290,7 @@ nodes:
       claim the 2026-11-15 round above tested directly and found false.)
 
 
-      2026-11-27 source re-verification: detect() remains in mana_detector.py:40-75; _cluster_reads() and afflictions_for_prompt() gate it in self_binding.py:298-345; generator.py:3990-4001 adds the outer NEX5_AFFLICTIONS gate. The current keepalive launch line omits NEX5_AFFLICTIONS. The 2026-11-15 /proc probe is historical; current process state was not checked.
+      2026-11-27 source re-verification: detect() remains in mana_detector.py:40-75; _cluster_reads() and afflictions_for_prompt() gate it in self_binding.py:298-344; generator.py:3990-4001 adds the outer NEX5_AFFLICTIONS gate. The current keepalive launch line omits NEX5_AFFLICTIONS. The 2026-11-15 /proc probe is historical; current process state was not checked.
   - id: vicikitsa
     label: "vicikitsā — doubt"
     layer: arm
@@ -575,7 +575,7 @@ nodes:
     falsifier: "Should re-open a past entry rather than leave it settled."
     falsifier_status: pass
     probe: { tests: "tests/test_reprice_tensions_on_new_evidence.py", new_tests: 6, corpus_exposure_check: "random-pair false-positive measured at 8.0% on 200 real live beliefs, production code path", regression_suite: "43 pre-existing held_tensions/harmonizer/semantic-conflict tests, unchanged" }
-    source: { kind: composite, refs: ["theory_x/stage3_world_model/harmonizer.py:173-187", "theory_x/stage3_world_model/harmonizer.py:610-720", "tests/test_reprice_tensions_on_new_evidence.py:131-251", "substrate/schema/dynamic.sql:151-159"] }
+    source: { kind: composite, refs: ["theory_x/stage3_world_model/harmonizer.py:173-187", "theory_x/stage3_world_model/harmonizer.py:610-720", "tests/test_reprice_tensions_on_new_evidence.py:131-250", "substrate/schema/dynamic.sql:151-159"] }
     last_verified: 2026-11-27
     notes: >
       Dev round, 2026-11-15: read harmonizer.py's actual resolution paths over held_tensions to
@@ -645,7 +645,7 @@ nodes:
       here, since it's pre-existing, already falsifier-passed code and changing it needs its own
       explicit decision, not a side effect of this round.
 
-      2026-11-27 source re-verification: the new-evidence repricing path remains in harmonizer.py:610-720, with template stripping at 173-187 and the regression suite at tests/test_reprice_tensions_on_new_evidence.py:131-251. The 15-Nov production-corpus measurements remain historical evidence; no new live corpus probe or runtime change was made.
+      2026-11-27 source re-verification: the new-evidence repricing path remains in harmonizer.py:610-720, with template stripping at 173-187 and the regression suite at tests/test_reprice_tensions_on_new_evidence.py:131-250. The 15-Nov production-corpus measurements remain historical evidence; no new live corpus probe or runtime change was made.
 
   # ──────────────────────────── CONSUMERS ───────────────────────────
 
@@ -782,7 +782,7 @@ nodes:
     blocked: false
     falsifier: "Should fail loudly if two writers claim the same subject."
     falsifier_status: fail
-    source: { kind: composite, refs: ["nex_keepalive.sh:14-39", "substrate/writer.py:1-16", "substrate/writer.py:57-155", "substrate/writer.py:170-230", "substrate/db.py:135-197"] }
+    source: { kind: composite, refs: ["nex_keepalive.sh:14-39", "substrate/writer.py:1-16", "substrate/writer.py:57-155", "substrate/writer.py:170-230", "substrate/db.py:135-196"] }
     last_verified: 2026-11-27
     notes: >
       Correction, 2026-11-09: 'anchor not pinned' was wrong -- NEX5_CONTINUITY_N is a real,
@@ -834,7 +834,7 @@ nodes:
     falsifier: "Should resume a sequence after restart without re-deriving it."
     falsifier_status: pass
     probe: { boots_checked: 5, dates: "2026-11-13 to 2026-11-15", beliefs_promoted_per_boot: 5 }
-    source: { kind: file, ref: "theory_x/memory/resumption.py:1-21, 57-187" }
+    source: { kind: composite, refs: ["theory_x/memory/resumption.py:1-21", "theory_x/memory/resumption.py:57-187"] }
     last_verified: 2026-11-27
     notes: >
       Correction, 2026-11-09: anchor is pinned -- Memory Layer B, resumption.py, promotes real
@@ -862,7 +862,7 @@ nodes:
     blocked: false
     falsifier: "Should be visible as a budget that can actually be spent."
     falsifier_status: unrun
-    source: { kind: composite, refs: ["theory_x/stage_tom/stakes_appraisal.py:50-149", "theory_x/stage6_fountain/readiness.py:104-140", "theory_x/stage_world/frozen_at_made.py:100-107", "theory_x/stage_world/self_prediction.py:177-193, 234-313"] }
+    source: { kind: composite, refs: ["theory_x/stage_tom/stakes_appraisal.py:50-149", "theory_x/stage6_fountain/readiness.py:104-140", "theory_x/stage_world/frozen_at_made.py:100-107", "theory_x/stage_world/self_prediction.py:177-193", "theory_x/stage_world/self_prediction.py:234-313"] }
     last_verified: 2026-11-27
     notes: >
       Correction, 2026-11-09: this is a real, named function (L4_stakes self-referent
@@ -1210,7 +1210,7 @@ nodes:
     probe: { tests: "tests/test_apatrapya_channel.py", corpus: "29 fixture-based tests in an isolated temp env (independence/ablation, concordance/divergence, a deliberately-broken degenerate control, append-only retention, grep-based structural guards)", binding_fraction: null }
     falsifier: "Vetoed as gates. Would they work as reads — a report on one's own trace — instead of as output gates? ANSWERED, 2026-11-10: yes, as reads. See commit 7ad9942."
     falsifier_status: unrun
-    source: { kind: composite, claim: "a real, tested, flag-gated (NEX5_APATRAPYA_CHANNEL, default OFF) prototype now exists -- commit 7ad9942", refs: ["theory_x/stage_tom/apatrapya_channel.py:135-204", "theory_x/stage_tom/hri_apatrapya_prototype.py:90-190", "tests/test_apatrapya_channel.py:326-350"] }
+    source: { kind: composite, claim: "a real, tested, flag-gated (NEX5_APATRAPYA_CHANNEL, default OFF) prototype now exists -- commit 7ad9942", refs: ["theory_x/stage_tom/apatrapya_channel.py:135-203", "theory_x/stage_tom/hri_apatrapya_prototype.py:90-190", "tests/test_apatrapya_channel.py:326-350"] }
     last_verified: 2026-11-27
     notes: "vetoed as gates, correctly. The open question is whether the veto was aimed at the gate
       or the factor. Correction, 2026-11-09: VIRTUE_SLATE.md (the draft's cited source) does not
@@ -1267,7 +1267,7 @@ nodes:
       refs:
         - "theory_x/memory/episodic.py:1-36"
         - "theory_x/memory/episodic.py:168-248"
-        - "tests/test_episodic.py:118-278"
+        - "tests/test_episodic.py:118-277"
         - "tests/test_episodic_falsifier.py:42-54"
         - "substrate/schema/dynamic.sql:172-193"
         - "nex_config.py:84"
