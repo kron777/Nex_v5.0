@@ -92,15 +92,23 @@ def _interface_profile_evidence(rel: Relationship) -> dict:
         # fields visible, but require the later margin/threshold assessor before
         # any affirmative sufficiency verdict can be made. Omitted dimensions
         # in older/partial persisted dictionaries remain explicitly UNKNOWN.
-        refs = item.get("evidence") or []
+        refs = item.get("evidence")
+        confidence = item.get("confidence")
+        evidence_complete = (
+            item.get("status") != "unknown"
+            and item.get("value") is not None
+            and _has_traceable_evidence(refs)
+            and isinstance(confidence, str) and bool(confidence.strip())
+        )
         dimensions[name] = {
             "status": item.get("status", "unknown"),
             "value": item.get("value"),
             "unit": item.get("unit"),
             "evidence": list(refs) if isinstance(refs, list) else [],
-            "confidence": item.get("confidence"),
+            "confidence": confidence,
+            "evidence_complete": evidence_complete,
         }
-        if item.get("status") == "unknown" or not dimensions[name]["evidence"]:
+        if not evidence_complete:
             unknown.append(name)
     return {
         "profile_status": "supplied",
