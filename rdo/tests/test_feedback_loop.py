@@ -10,7 +10,11 @@ from rdo.model import InterfaceEvidence
 
 
 def test_feedback_loop_defaults_to_unknown_without_invented_stability():
-    loop = FeedbackLoopAssessment(loop_id="loop-1", members=["A", "B"])
+    loop = FeedbackLoopAssessment(
+        loop_id="loop-1",
+        members=["A", "B"],
+        relationships=["A-influences-B", "B-influences-A"],
+    )
 
     assert loop.stability_state == UNKNOWN
     assert loop.assessment_status == "unknown"
@@ -50,6 +54,8 @@ def test_feedback_stability_states_are_explicit_but_not_automatically_inferred()
     assert STABILITY_STATES == ("stable", "unstable", "conditionally_stable")
     loop = FeedbackLoopAssessment(
         loop_id="loop-2",
+        members=["A"],
+        relationships=["A-influences-A"],
         stability_state="conditionally_stable",
         assessment_evidence=["review:stability-2"],
     )
@@ -60,21 +66,44 @@ def test_feedback_stability_states_are_explicit_but_not_automatically_inferred()
 
 def test_stability_verdict_requires_assessment_evidence():
     with pytest.raises(ValueError, match="requires assessment evidence"):
-        FeedbackLoopAssessment(loop_id="loop-3", stability_state="stable")
+        FeedbackLoopAssessment(
+            loop_id="loop-3",
+            members=["A"],
+            relationships=["A-influences-A"],
+            stability_state="stable",
+        )
 
 
 def test_feedback_loop_rejects_invalid_state_and_blank_identity():
     with pytest.raises(ValueError, match="invalid feedback stability"):
-        FeedbackLoopAssessment(loop_id="loop-4", stability_state="safe")
+        FeedbackLoopAssessment(
+            loop_id="loop-4", members=["A"], relationships=["A-influences-A"],
+            stability_state="safe",
+        )
     with pytest.raises(ValueError, match="loop_id"):
         FeedbackLoopAssessment(loop_id=" ")
     with pytest.raises(ValueError, match="non-blank"):
-        FeedbackLoopAssessment(loop_id="loop-5", relationships=[" "])
+        FeedbackLoopAssessment(
+            loop_id="loop-5", members=["A"], relationships=[" "]
+        )
+
+
+def test_feedback_loop_requires_topology_and_unique_members():
+    with pytest.raises(ValueError, match="at least one member"):
+        FeedbackLoopAssessment(loop_id="loop-6", relationships=["A->B"])
+    with pytest.raises(ValueError, match="at least one relationship"):
+        FeedbackLoopAssessment(loop_id="loop-7", members=["A"])
+    with pytest.raises(ValueError, match="members must be unique"):
+        FeedbackLoopAssessment(
+            loop_id="loop-8", members=["A", "A"], relationships=["A->A"]
+        )
 
 
 def test_operating_envelope_is_context_not_a_stability_verdict():
     loop = FeedbackLoopAssessment(
-        loop_id="loop-6",
+        loop_id="loop-9",
+        members=["A"],
+        relationships=["A-influences-A"],
         operating_envelope="stress",
     )
 
