@@ -339,6 +339,9 @@ class ContextRequirement:
             )
         if isinstance(self.source_index, bool) or not isinstance(self.source_index, int) or self.source_index < 0:
             raise ValueError("context requirement source_index must be a non-negative integer")
+        expected_source_suffix = f":{self.source_field}[{self.source_index}]"
+        if not self.source_ref.endswith(expected_source_suffix):
+            raise ValueError("context requirement source_ref must identify its source_field and source_index")
         if self.status not in ("unmapped", "mapped"):
             raise ValueError("context requirement status must be unmapped|mapped")
         if not isinstance(self.review_required, bool):
