@@ -50,6 +50,9 @@ class TestWorldPredictionOnePen(unittest.TestCase):
              )), \
              mock.patch.object(wp, "Writer", side_effect=AssertionError(
                  "world_predictions opened a second conversations Writer"
+             )), \
+             mock.patch.object(wp, "Reader", side_effect=AssertionError(
+                 "world_predictions opened a second conversations Reader"
              )):
             prediction_id = wp.make_prediction(
                 asset="bitcoin",
@@ -63,6 +66,9 @@ class TestWorldPredictionOnePen(unittest.TestCase):
         with mock.patch.object(wp, "fetch_price", return_value=110.0), \
              mock.patch.object(wp, "Writer", side_effect=AssertionError(
                  "world_predictions opened a second conversations Writer"
+             )), \
+             mock.patch.object(wp, "Reader", side_effect=AssertionError(
+                 "world_predictions opened a second conversations Reader"
              )):
             result = wp.resolve_due(
                 now=time.time() + 11,
@@ -90,6 +96,8 @@ class TestWorldPredictionOnePen(unittest.TestCase):
     def test_calibration_consult_uses_shared_beliefs_reader_and_conversations_handles(self):
         with mock.patch.object(wp, "Writer", side_effect=AssertionError(
             "calibration scorecard opened a second conversations Writer"
+        )), mock.patch.object(wp, "Reader", side_effect=AssertionError(
+            "calibration scorecard opened a second conversations Reader"
         )), mock.patch("substrate.writer.Writer", side_effect=AssertionError(
             "calibration consult opened a second conversations Writer"
         )), mock.patch("substrate.reader.Reader", side_effect=AssertionError(
