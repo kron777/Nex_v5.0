@@ -52,11 +52,11 @@ The Stage-2 belief-decay example is a genuine end-to-end vertical slice from **s
 | `rdo/tests/test_stage3_graph_intelligence.py` | 14 |
 | `rdo/tests/test_stage4_belief_audit.py` | 11 |
 | `rdo/tests/test_stage5_pathway.py` | 6 |
-| `rdo/tests/test_stage6_learning_loop.py` | 11 |
+| `rdo/tests/test_stage6_learning_loop.py` | 18 |
 | `rdo/tests/test_stage7_execution_watcher.py` | 12 |
 | `rdo/tests/test_intake.py` | 14 |
 | `rdo/tests/test_handoff.py` | 19 |
-| `rdo/tests/test_performance_margin.py` | 10 |
+| `rdo/tests/test_performance_margin.py` | 12 |
 | `rdo/tests/test_operating_envelope.py` | 9 |
 | `rdo/tests/test_feedback_loop.py` | 9 |
 
