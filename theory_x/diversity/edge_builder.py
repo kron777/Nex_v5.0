@@ -57,7 +57,6 @@ def edge_builder_tick(
     All candidate reads use Reader, and all edge inserts are committed atomically
     through the single beliefs Writer.
     """
-    own_reader = beliefs_reader is None
     own_writer = beliefs_writer is None
     reader = beliefs_reader or Reader(db_path)
     writer = beliefs_writer or Writer(db_path, name="diversity.edge_builder")
@@ -140,7 +139,11 @@ def edge_builder_tick(
 
         # One BEGIN IMMEDIATE / COMMIT through the canonical per-DB Writer.
         # rowcount is captured per statement so ignored duplicates remain zero.
-        results = writer.write_many_with_counts(statements) if statements else []
+        results = (
+            writer.write_many_with_counts(
+                statements, continue_on_integrity_error=True
+            ) if statements else []
+        )
         wrote = sum(1 for _row_id, rowcount in results if rowcount > 0)
         return {"considered": len(candidates), "wrote": wrote, "skipped": skipped}
     finally:
