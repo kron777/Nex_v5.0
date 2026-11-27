@@ -86,7 +86,16 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
                         ("acceptance_criteria", "acceptance_criterion")):
         for value in _context_values(objective_context.get(field)):
             if isinstance(value, str) and value.strip():
-                context_items.append({"kind": kind, "text": value, "status": "unmapped", "evidence": []})
+                item = {"kind": kind, "text": value, "status": "unmapped", "evidence": []}
+                if kind == "acceptance_criterion":
+                    # Preserve an explicit verification contract. Planning or
+                    # proposal generation is not proof that a criterion passed.
+                    item.update({
+                        "verification_status": "unknown",
+                        "mapped_obligations": [],
+                        "verification_evidence": [],
+                    })
+                context_items.append(item)
     context_assessment = {
         "status": "unmapped" if context_items else "not_supplied",
         "review_required": bool(context_items),
