@@ -54,3 +54,27 @@ def test_buildable_rule_still_treats_unproven_and_terminal_as_satisfied():
         ("candidate", ["unproven_floor"], ["terminal_floor"])
     ]
     assert classified["blocked"] == []
+
+
+def test_full_report_describes_unproven_status_as_caveat_not_hard_gate(capsys):
+    dag = {
+        "nodes": {
+            "unproven_floor": {
+                "status": "live_unproven",
+                "prereqs": [],
+                "note": "Still needs evidence.",
+            },
+            "candidate": {
+                "status": "gap",
+                "prereqs": ["unproven_floor"],
+                "note": "Candidate development node.",
+            },
+        }
+    }
+
+    nex_next_dev.report(dag)
+
+    output = capsys.readouterr().out
+    assert "not hard blockers under the current DAG rule" in output
+    assert "unproven_floor" in output
+    assert "THE ONE GATE RIGHT NOW" not in output
