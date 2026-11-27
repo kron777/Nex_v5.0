@@ -11,6 +11,12 @@ temporary fixture; `handoff-verify` is source/path-only and never runs tests.
   python -m rdo influence [--repo .] [--signal genius] [--subtree theory_x]
         audit how many subsystems consume a signal (capability != authority).
 
+  python -m rdo failure-propagation --cycle-id <id> --failed-key <key> [--dir rdo/.cycles]
+        trace potential dependents via depends_on edges; no runtime propagation is inferred.
+
+  python -m rdo impact --before-cycle-id <id> --after-cycle-id <id> --changed-capability <key> [--dir rdo/.cycles]
+        compare adjacent relationship and tension snapshots; differences are not causal attribution.
+
   python -m rdo patterns [--dir rdo/.cycles]
         print the accumulated Development Pattern Memory.
 
@@ -26,7 +32,8 @@ import sys
 
 from . import __version__
 from .knowledge import genius_authority_audit
-from .memory import PatternMemory
+from .memory import CycleStore, PatternMemory
+from .graph import compare_adjacent_relationship_impacts, failure_propagation_candidates
 from rdo_adapters.objective_intake import (ObjectiveInputError, load_objective_file,
                                            objective_history, resume_objective,
                                            submit_objective)
@@ -87,6 +94,36 @@ def _stage7(args) -> int:
 def _selfcheck(args) -> int:
     print(json.dumps(self_assess(), indent=2, default=str))
     return 0
+
+
+def _failure_propagation(args) -> int:
+    """Read one persisted cycle and report structural dependent candidates."""
+    try:
+        cycle = CycleStore(args.dir).load(args.cycle_id)
+        result = failure_propagation_candidates(
+            cycle.obligations, cycle.relationships, args.failed_key
+        )
+    except (OSError, ValueError, TypeError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, default=str))
+    return 1 if result.get("status") in ("partial", "invalid_input") else 0
+
+
+def _impact(args) -> int:
+    """Compare persisted before/after cycle snapshots around changed capabilities."""
+    try:
+        store = CycleStore(args.dir)
+        before = store.load(args.before_cycle_id)
+        after = store.load(args.after_cycle_id)
+        result = compare_adjacent_relationship_impacts(
+            before.to_dict(), after.to_dict(), args.changed_capability
+        )
+    except (OSError, ValueError, TypeError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, default=str))
+    return 1 if result.get("status") in ("partial", "invalid_input") else 0
 
 
 def _patterns(args) -> int:
@@ -240,6 +277,27 @@ def main(argv=None) -> int:
 
     sub.add_parser("selfcheck",
                    help="assess the RDO against its own Optimal Functional Tension").set_defaults(fn=_selfcheck)
+
+    fp = sub.add_parser(
+        "failure-propagation",
+        help="trace structural dependents of explicitly supplied failed obligations",
+    )
+    fp.add_argument("--cycle-id", required=True)
+    fp.add_argument("--failed-key", action="append", required=True,
+                    help="failed obligation key; repeat for multiple roots")
+    fp.add_argument("--dir", default="rdo/.cycles")
+    fp.set_defaults(fn=_failure_propagation)
+
+    impact = sub.add_parser(
+        "impact",
+        help="compare before/after relationship assessments around changed capabilities",
+    )
+    impact.add_argument("--before-cycle-id", required=True)
+    impact.add_argument("--after-cycle-id", required=True)
+    impact.add_argument("--changed-capability", action="append", required=True,
+                        help="changed obligation key; repeat for multiple capabilities")
+    impact.add_argument("--dir", default="rdo/.cycles")
+    impact.set_defaults(fn=_impact)
 
     pt = sub.add_parser("patterns", help="print accumulated development patterns")
     pt.add_argument("--dir", default="rdo/.cycles")
