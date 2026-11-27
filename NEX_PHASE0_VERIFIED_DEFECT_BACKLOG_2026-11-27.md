@@ -1,6 +1,6 @@
 # NEX Phase 0 — Verified Defect and Evidence-Gap Backlog (Mainline)
 
-**Snapshot:** `main` at `ae406fa8fcb1abdf25cdf4ae1bd65333e1148ca8`  
+**Snapshot:** `main` at `cc8ae43652bdba919198ee4bb90fabbd8f05632f`  
 **Date:** 27 November 2026  
 **Purpose:** Separate confirmed documentation/source discrepancies from unknown host/runtime evidence and incomplete audits. This backlog is not approval to change cognition or policy.
 
@@ -89,20 +89,20 @@ These are source-level conditions and test-coverage gaps recovered from older au
 - **Risk/qualification:** if no other producer touches the selected row, subsequent ticks can select it again and delay newer problems. No live problem rows or tick history were inspected. Whether persistent focus is intended is unresolved.
 - **Disposition:** design/evidence question; do not wire `touch()` or change selection until policy is established.
 
-### G-52 — TimeFetch candidate eligibility is broader than its basic test inventory
+### G-52 — TimeFetch and VoiceEngine candidate eligibility are broader than their test inventory
 
-- **Source:** `theory_x/stage_throw_net/time_fetch.py`.
-- **Verified:** `fetch_from_beliefs()` filters confidence and minimum content length but does not constrain `tier`, `paused`, `locked` or `erosion_stage`. Novel-association retrieval joins the paired belief rows without those current-state filters; arc retrieval filters arc type/quality/summary but does not prove current-state eligibility of beliefs represented by an arc.
-- **Tests:** `tests/test_throw_net_time_fetch.py` covers confidence/length, similarity and quality ordering, return-transformation exclusion, ProblemMemory routing, deduplication, cap and provenance. It does not test the above belief-status exclusions or post-creation eligibility of novel-association/arc endpoints.
-- **Disposition:** policy/coverage gap only. Whether Tier 8, paused, locked or otherwise retired content should be excluded is a governing eligibility decision, not inferred here.
+- **Sources:** `theory_x/stage_throw_net/time_fetch.py`, `theory_x/stage_throw_net/voice_engine.py`, `tests/test_throw_net_time_fetch.py`, and `tests/test_voice_engine.py`.
+- **Verified:** `TimeFetch.fetch_from_beliefs()` filters confidence and minimum content length but does not constrain `tier`, `paused`, `locked` or `erosion_stage`. Novel-association retrieval joins the paired belief rows without current-state eligibility filters; arc retrieval filters arc type/quality/summary but does not prove current-state eligibility of the beliefs represented by an arc.
+- **Consumer path:** `VoiceEngine._retrieve_candidates()` consumes `TimeFetch.run()` results and enriches belief candidates with `tier` and `reinforce_count`; it does not recheck paused/locked/retired state. `_score_candidate()` gives non-T3–T6 tiers a score penalty (0.5), not a hard exclusion. The configured minimum score is 0.6, so a strong semantic/confidence/recency/drive/genius candidate can still clear it. The tier penalty alone does not establish retired-content exclusion.
+- **Test inventory (corrected):** `tests/test_throw_net_time_fetch.py` exists and covers confidence/content-length filters, novel-association matching/similarity ordering, arc type/quality filtering, problem routing, deduplication/capping and provenance. It does not test the above belief-status exclusions or current-state eligibility of association/arc endpoints. `tests/test_voice_engine.py` compares T4 and T8 scores but does not assert that T8/paused/locked/retired content is excluded. The prior statement that no TimeFetch test file was found was an incomplete search result.
+- **Disposition:** policy/coverage gap only. Whether Tier 8, paused, locked or otherwise retired content should be excluded is a governing eligibility decision, not inferred here. Add path-level tests after the canonical eligibility contract is confirmed; do not change retrieval candidates or scoring without specification/approval.
+### G-53 — Warrant use-day timestamp cursors can skip tied rows at a page boundary (RESOLVED)
 
-### G-53 — Warrant use-day timestamp cursors can skip tied rows at a page boundary
-
-- **Source:** `theory_x/stage_warrant/recorder.py`; `_USE_BATCH = 20000`.
-- **Verified:** `belief_lineage` and `arc_members` use strict-greater-than timestamp cursors (`created_at > ?`, `joined_at > ?`) ordered only by those timestamps. The last timestamp in each batch becomes the next cursor.
-- **Conditional risk:** if equal-timestamp rows straddle a 20,000-row page boundary, the next query's strict `>` cursor skips remaining rows with that same timestamp. `record_synergy()` and arc-member writes can share a timestamp across related rows. The source establishes the keyset weakness; no live table population or actual skipped row was observed.
-- **Test gap:** `tests/test_warrant_recorder.py` covers basic use-day counting, idempotence and ordinary cursor movement; it does not exercise a tied-timestamp group crossing the batch boundary.
-- **Disposition / post-snapshot status:** PR #184 is merged. Exact-head full suite run #1514 passed (2,524 passed, 7 skipped, 40 subtests). It implements the composite `(timestamp, rowid)` cursor for both sources, adds an idempotent `tie_id` column migration that preserves existing timestamp progress, and tests tied-page-boundary plus legacy-schema behavior. The change affects pagination only, not the use-day eligibility set or Warrant policy.
+- **Source:** `theory_x/stage_warrant/recorder.py`; lineage and arc-membership use-day cursors.
+- **Original finding:** the strict-greater-than timestamp-only cursors could skip equal-timestamp rows that straddled a 20,000-row page boundary.
+- **Resolved by:** PR #253, merged as `c80d9dbb878ac15a39d6707a9c89ab2a51f8518c`. The recorder now orders lineage by `(created_at, child_id, parent_id, relationship)` and arc membership by `(joined_at, arc_id, belief_id)`. Event time is primary; declared composite-key fields break ties. This avoids hidden-rowid dependence and also sees later events attached to older child/arc IDs.
+- **Verification:** exact-head full suite run `46014884835` passed (2,590 passed, 7 skipped, 45 subtests). Regression coverage includes tied timestamp pages, rowid remapping, late additions to older arc/child keys, malformed typed cursor fallback and idempotent use-day replay.
+- **Disposition:** **CLOSED — cursor pagination correctness only.** Warrant eligibility, use-day source population, survival scoring, sustain policy and feature gates were not changed. Query-plan/performance measurement remains outstanding before enabling the Warrant recorder on a data-bearing host.
 
 ### G-54 — Warrant scorer and recorder consume different anchor sources
 
@@ -252,25 +252,32 @@ These findings were rechecked against current main after the bounded persistence
 - **Activation boundary:** not imported by the normal `run.py` boot path inspected. It was not invoked; no synthetic rows or mode changes were made.
 - **Disposition:** **OPEN — experimental safety/cleanup risk.** Do not run against live NEX without explicit experiment approval and a verified disposable database/runtime. No code or runtime change.
 
-### G-69 — SurpriseLoop timestamp cursor and failed-promotion loss
+### G-69 — SurpriseLoop timestamp cursor and failed-promotion loss (OPEN / Gate 0 review required)
 
-- **Source:** `theory_x/life/surprise_loop.py`.
-- **Verified on current main before the proposed correction:** timestamp-only pagination with `triggered_at > since` and `LIMIT 20` can skip remaining rows tied at a page boundary. The old loop also advanced its checkpoint past non-integrity write/conversion failures. Ordinary surprises also received a duplicate `surprise` tag.
-- **Prepared correction:** PR #239 replaces the timestamp-only cursor with the monotonic `surprise_events.id` (`INTEGER PRIMARY KEY AUTOINCREMENT`) cursor, atomically persists it alongside the legacy timestamp, migrates by skipping only IDs whose timestamps are strictly older than the legacy cutoff, retries from the last fully handled event, and preserves the first-run ten-minute boundary even when no eligible rows exist. Only a duplicate-content UNIQUE collision is treated as already represented; other integrity failures are retried. It also fixes duplicate tags. Regression coverage includes tied batches, legacy migration, delayed first-run eligibility, and first/mid-batch conversion, Writer and integrity failures.
-- **Governance:** this correction can allow previously skipped events to enter the belief corpus and thereby change downstream retrieval inputs. The backlog disposition remains **Gate 0 review required**. PR #239 is preparatory and must not be merged/deployed until the founder approves that behaviour-impact decision. Exact-head CI is pending; no runtime change has landed.
+- **Source:** `theory_x/life/surprise_loop.py`; producer `theory_x/stage_prediction/predictive_substrate.py::_verify()`.
+- **Original finding:** timestamp-only pagination with `triggered_at > since` and `LIMIT 20` can skip tied rows at a page boundary; the old loop also advanced its checkpoint past non-integrity conversion/write failures. Ordinary surprises could receive a duplicate `surprise` tag.
+- **Current-main proposal:** PR #259 replays the event-ID cursor correction on the post-#256 mainline. It uses monotonic `surprise_events.id`, persists timestamp and ID together, migrates by replaying rows exactly at the legacy cutoff, stops at the first non-duplicate failure so the failed and later events retry, and treats only duplicate belief-content collisions as already represented. It also fixes duplicate tags. Source review confirms the producer writes `actual_content`, `surprise_flag` and `big_surprise` at event insertion.
+- **Migration limitation:** events strictly older than the legacy timestamp cutoff are treated as historical and are not replayed. Recovering that history requires a separate, explicit corpus-backfill decision.
+- **Verification:** predecessor PR #257 passed its exact-head suite on the pre-#256 base (2,601 passed, 7 skipped, 45 subtests). PR #259 is the authoritative post-#256 current-main replay; exact-head full suite run `46017043819` passed (2,610 passed, 7 skipped, 45 subtests).
+- **Governance:** **GATE 0 HOLD — NOT FOR MERGE OR DEPLOYMENT.** Previously skipped events may now reach the belief corpus and change downstream retrieval inputs. Founder review and explicit approval are required. No prediction scoring, surprise thresholds, event generation, cadence or feature gates are changed.
 
-### G-70 — M0.5 trace currently stops at speech-queue enqueue
+### G-70 — M0.5 trace continuity across the speech queue (IMPLEMENTED / source-test gap CLOSED; M0.5 acceptance OPEN)
 
-- **Sources:** `theory_x/stage6_fountain/crystallizer.py`, `influence_trace.py`, and `speech/queue_consumer.py`.
-- **Verified:** the crystallizer records speech-queue enqueue in the trace sidecar. The consumer has no trace hooks for dequeue, synthesis/playback outcome or failure. `TraceContext` retains event references within one context instance; there is no cross-thread queue-link registry connecting enqueue to the consumer's later playback.
-- **Disposition:** **OPEN — M0.5 observability coverage question.** Do not add substrate DB columns or change speech behaviour by inference. If playback lineage is required for M0.5 acceptance, design bounded in-memory/sidecar correlation and tests first. No speech or trace behaviour changed.
+- **Sources:** `theory_x/stage6_fountain/crystallizer.py`, `influence_trace.py`, `speech/queue_consumer.py`, and `speech/player.py`.
+- **Verified baseline:** the crystallizer records speech-queue enqueue in the trace sidecar. Persisted `spoken` means the blocking playback call returned without raising, not independent acoustic confirmation that sound reached a listener.
+- **Merged correction:** PR #261 merged as `cc8ae43652bdba919198ee4bb90fabbd8f05632f`. A process-local correlation registry keyed by belief ID (512-entry bound, one-hour TTL, one-shot consumption) is registered before queue insertion becomes visible. The originating TraceContext continues through parent-linked dequeue, synthesis, playback, suppression and terminal status/failure events. Failed insertion discards the correlation and records a categorical failure event.
+- **Regression coverage:** registry capacity/expiry/one-shot/discard semantics, concurrent one-shot claims, successful playback, synthesis/playback failures, suppression, speaking/spoken/suppressed status-write failures, and speech without a trace link. Trace metadata excludes speech text/audio and records categorical exception types.
+- **Limitations:** correlation is process-local and is not reconstructed after restart. `spoken` remains an operational return status, not proof of acoustic delivery. No schema, speech selection, queue ordering, cadence, synthesis/playback behaviour, feature flags or cognitive decisions were changed. The trace overlay remains default OFF.
+- **Exact-head evidence:** PR #261 head `bed052c9d63422f52a9514325f74f113959db2a3`; run `46020502376` **PASSED** (**2,611 passed, 7 skipped, 45 subtests; baseline OK**). The code-only branch mind-map check still reported P9 stale; its corrected source anchor was reverified in documentation run `46020611137` (**2,599 passed, 7 skipped, 45 subtests**, no P9 stale warning).
+- **Disposition:** **G-70 source/test gap CLOSED. M0.5 acceptance remains OPEN** pending complete roadmap evidence, including authorised live L4 capture and paired semantic-equivalence evidence. No live runtime, speech device, database or feature flag was touched.
 
-### G-71 — WarrantRecorder rowid cursor stability across VACUUM
+### G-71 — WarrantRecorder hidden-rowid cursor stability across VACUUM (RESOLVED)
 
-- **Sources:** `theory_x/stage_warrant/recorder.py` and the authoritative source schemas in `substrate/schema/beliefs.sql`.
-- **Verified:** the merged G-53 fix (#184) uses `(timestamp, rowid)` pagination. The source tables instead declare composite primary keys: `belief_lineage(child_id, parent_id, relationship)` and `arc_members(arc_id, belief_id)`. Hidden rowids are not those declared keys and may change during `VACUUM`.
-- **Prepared correction:** PR #240 adds versioned JSON tuple cursors using those composite keys, leaves existing scalar cursor migration intact, and replays history once under the idempotent `belief_use_day(belief_id, day)` key. Its regression test forces a rowid gap, performs `VACUUM` between pages, and checks that every tied row is still counted. Exact-head CI is pending.
-- **Disposition:** **OPEN — use-day cursor stability.** No Warrant eligibility, survival scoring, sustain/retirement policy or feature gate is changed by the proposed correction.
+- **Sources:** `theory_x/stage_warrant/recorder.py` and `substrate/schema/beliefs.sql`.
+- **Original finding:** PR #184's timestamp-plus-hidden-rowid cursor could be invalidated when SQLite VACUUM remapped rowids; the tables instead declare composite primary keys `belief_lineage(child_id, parent_id, relationship)` and `arc_members(arc_id, belief_id)`.
+- **Resolved by:** PR #253, merged as `c80d9dbb878ac15a39d6707a9c89ab2a51f8518c`. The versioned JSON cursor uses event time plus the declared primary-key columns as tie-breakers; hidden rowids are not used.
+- **Verification:** exact-head full suite run `46014884835` passed (2,590 passed, 7 skipped, 45 subtests). Tests force rowid remapping and exercise later additions to older arc/child keys.
+- **Disposition:** **CLOSED — cursor identity and ordering.** The feature gate and Warrant eligibility/policy are unchanged. The timestamp/key access path has not yet been benchmarked on live row counts; see the current INDEX manual's Warrant query-plan note.
 
 ### G-72 — gated SelfPredictionLoop canonical database-handle injection
 
@@ -279,3 +286,29 @@ These findings were rechecked against current main after the bounded persistence
 - **Verification:** PR #236 exact-head run `46006462779` passed (2,573 passed, 7 skipped, 45 subtests). PR #238 exact-head run `46008022480` passed (2,584 passed, 7 skipped, 45 subtests). PR #238 merged as `74cff71045d1f6006b3873138ec658a66acf34a8`.
 - **Activation boundary:** `NEX5_SELF_PRED=1` remains the loop start gate. No loop was started, no feature flag was changed, and no host environment/process state was collected. This closes the source-level handle-injection defect only; it is not evidence of runtime activation or completion of the global write-path census.
 - **Disposition:** **CLOSED — persistence ownership/integration fix merged.** Cadence, prediction rules, selection, thresholds and feature gates were preserved.
+
+
+### G-73 — Dormancy scan coverage, duplicate ownership and eligibility boundary (OPEN / policy review)
+
+- **Sources:** `theory_x/diversity/dormancy.py`, `theory_x/diversity/loop.py`, `theory_x/diversity/consolidation.py`, `theory_x/diversity/reanimate.py`, and `theory_x/stage6_fountain/generator.py`.
+- **Verified on current main:** `DormancyScanner.scan_incremental()` selects the oldest 50 eligible-source rows by `created_at ASC` without a cursor, so an unchanged oldest cohort can be rescanned repeatedly. `DiversityLoop` owns one scanner and calls it on its loop cadence. `ClockRunner._run_fast()` constructs a second scanner on each fast tick (20-fire boundary), so that path does not preserve scanner cursor state. The two paths target the same beliefs population/table but are separate owners; actual combined work rate was not measured.
+- **Pending proposal:** PR #102 adds an in-memory ID-keyset cursor with wraparound, makes ClockRunner's scanner persistent, and adds tier/paused/retired filters to scan, dormant selection and reanimation. PR #145 adds tests for partial-tail wraparound and persistent-instance reuse. Both exact-head runs passed on their own older base, but neither branch has been revalidated on current main. The proposal still leaves DiversityLoop and ClockRunner with separate scanner instances/cursors.
+- **Defence-in-depth gap in the proposal:** its final Fountain reanimation fetch rechecks `tier <= 7` and `paused = 0` but does not recheck `erosion_stage != 'retired'`, unlike the preceding dormant/reanimation queries. Add a regression for a belief retired between selection and final injection before treating the path as fully guarded.
+- **Disposition:** **OPEN — scan coverage/ownership and eligibility contract.** Confirm whether two scan cadences are intentional and whether the retired marker must be enforced at every injection boundary. Do not merge/replay the behavioural filters or alter maintenance cadence before the governing policy/Gate 0 review. No live dormancy rows or runtime scan frequency were inspected.
+
+
+### G-74 — Warrant scoring and survival scans do not filter the retired-stage marker (OPEN / eligibility contract)
+
+- **Sources:** `theory_x/stage_warrant/warrant.py::compute_all()`; `theory_x/stage_warrant/recorder.py::survival_cycle()`.
+- **Verified on current main:** WarrantPass selects unpaused beliefs with `tier <= max_tier` (default 7) but does not read/filter `erosion_stage`. WarrantRecorder survival selects unlocked, unpaused Tier 3 / 5–6 / 7 rows and likewise does not filter `erosion_stage`.
+- **Qualification:** `erosion_stage='retired'` is an independent marker in the broader eligibility system. Harmonizer's normal retirement path writes Tier 8; no normal runtime writer for a lower-tier retired marker was established, and no live rows were inspected.
+- **Conditional impact:** if a lower-tier, unpaused row carries the retired marker, WarrantPass may include it in scoring and WarrantRecorder may include it in shadow survival checks.
+- **Disposition:** confirm whether the retired marker overrides tier for Warrant scoring and survival. If yes, add isolated lower-tier-retired fixtures and filters to both paths. No scoring, recorder, schema or runtime behavior changed.
+
+### G-75 — WarrantRecorder and WarrantPass have distinct normal-boot boundaries (OPEN / lifecycle question)
+
+- **Sources:** `run.py`, `theory_x/stage_warrant/recorder.py`, `theory_x/stage_warrant/warrant.py`, `gui/server.py`, `tools/warrant_validate.py`, and tracked `nex_keepalive.sh`.
+- **Verified on current main:** `run.py` constructs and starts WarrantRecorder only behind `NEX5_WARRANT_RECORD == '1'`. No normal construction/start of the periodic WarrantPass loop was found in the inspected `run.py` or `gui/server.py` paths, although WarrantPass has its own `NEX5_WARRANT` start guard and its module docstring describes background operation. `tools/warrant_validate.py` calls `compute_all()` once for read-only validation; it does not start the periodic loop.
+- **Configuration qualification:** the tracked keepalive declares `NEX5_WARRANT_RECORD=1` but not `NEX5_WARRANT`. The known launcher path blocker and uninspected user systemd unit mean host-effective activation remains UNKNOWN.
+- **Documentation correction:** PR #262 merged as `c9e25d7cf85659e80053f5fe75928ee71486a141` and corrects the WarrantPass class docstring, which incorrectly attributed its construction/start to `run.py`. The normal boot source actually starts WarrantRecorder behind `NEX5_WARRANT_RECORD` and does not construct WarrantPass. The merge is documentation-only; it does not add a caller or change flags.
+- **Disposition:** record-only operation may be intentional while Warrant evidence accrues after its failed validation gate. Clarify the intended lifecycle; do not wire WarrantPass, alter flags or change its gate without founder approval. No live process or `belief_warrant` state was inspected.
