@@ -630,6 +630,8 @@ def test_acceptance_verification_rejects_scalar_reference_containers(tmp_path, m
 
 
 def test_rdo_context_review_events_pass_independent_watcher_verification(tmp_path, monkeypatch):
+    from rdo_adapters.handoff import record_context_mapping, record_acceptance_verification
+
     repo = _clean_repo(tmp_path / "repo")
     (repo / ".gitignore").write_text("rdo/.cycles/\n", encoding="utf-8")
     subprocess.run(["git", "-C", str(repo), "add", ".gitignore"], check=True)
