@@ -837,7 +837,7 @@ PR #275's mind-map freshness update, PR #276's RDO generated-cycle exclusion and
 - G-82 is folded into G-73: the same oldest 50 dormancy rows are reselected on each scan, starving later rows; ClockRunner and DiversityLoop own separate scanners. `wake_one()` also lacks final eligibility filters. Old PR #102/#145 proposals are not current-main fixes.
 - G-83: Metacognition can re-emit the same unacknowledged groove alert on successive Chat turns, while stillness counts event rows.
 - G-84: shutdown does not quiesce all producers before closing Writers; late submissions can be lost or wait indefinitely.
-- G-85: SignalToProblem is boot-registered but still writes directly to two databases, commits them separately and invokes a direct-write prose-statistics rebuild. This extends the open G-61 one-pen audit.
+- G-85: SignalToProblem's primary signal-to-problem tick remains a direct-write, split-commit path across two databases. PR #279 migrated the separate hourly prose-statistics rebuild to the shared Writer/Reader; the primary G-61 persistence gap remains open.
 - G-86: SignalReaper's preservation allowlist has drifted from SignalToProblem's current promotable types.
 - G-87: Moltbook dry-run suppresses non-GET requests but still reads remotely and can persist simulated sends as real `posted`/`sent` states.
 - G-88 is closed by PR #277 (keepalive path portability); host service identity remains unknown.
