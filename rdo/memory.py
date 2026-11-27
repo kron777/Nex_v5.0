@@ -29,7 +29,7 @@ from watcher.evidence import utc_now
 from .model import (CycleRecord, EXECUTED_VERIFIED, IMPORTED_RETROSPECTIVE,
                     NATIVE_PLANNING, RECON_UNKNOWN, REUSE_EXISTING,
                     SIGNATURE_MATCHED, PARTIAL, MISSING, Pattern,
-                    has_valid_reuse_review)
+                    has_valid_reuse_review, _has_traceable_evidence)
 
 MIN_CYCLES_FOR_TREND = 3
 CONFIDENCE_CAP = 0.9
@@ -115,6 +115,15 @@ class PatternMemory:
                 p.confirmations = self._clean_events(p.confirmations, "confirmation")
                 p.disconfirmations = self._clean_events(p.disconfirmations, "disconfirmation")
                 self._recompute(p)
+                previous = self._current.get(p.key)
+                if previous is not None:
+                    if previous.exact_scope != p.exact_scope:
+                        raise ValueError("persisted pattern key collision has conflicting scope modes")
+                    if p.exact_scope:
+                        old_scope = " ".join(previous.applicability.split()).lower()
+                        new_scope = " ".join(p.applicability.split()).lower()
+                        if old_scope != new_scope:
+                            raise ValueError("persisted pattern key collision has conflicting exact scopes")
                 self._current[p.key] = p
 
     @staticmethod
@@ -146,12 +155,32 @@ class PatternMemory:
 
     def add(self, pattern: Pattern) -> Pattern:
         """Add or corroborate one provenance event. Exact replay is idempotent."""
+        if not isinstance(pattern.exact_scope, bool):
+            raise ValueError("pattern exact_scope must be a boolean")
+        if pattern.exact_scope and (
+            not isinstance(pattern.applicability, str) or not pattern.applicability.strip()
+        ):
+            raise ValueError("exact-scope patterns require a non-blank applicability")
         incoming_confidence = _bounded_confidence(pattern.confidence)
         incoming_base = _bounded_confidence(pattern.base_confidence)
         incoming = [x.strip() for x in str(pattern.provenance).split(";") if x.strip()]
         if not incoming:
             raise ValueError("pattern provenance must contain a non-empty source")
         existing = self._current.get(pattern.key)
+        if existing is not None:
+            # A key collision must never widen or silently change an exact-scope lesson.
+            if not isinstance(existing.exact_scope, bool):
+                raise ValueError("existing pattern exact_scope must be a boolean")
+            if existing.exact_scope != pattern.exact_scope:
+                raise ValueError("pattern key collision has conflicting scope modes")
+            if existing.exact_scope:
+                if (not isinstance(existing.applicability, str)
+                        or not existing.applicability.strip()):
+                    raise ValueError("existing exact-scope pattern requires non-blank applicability")
+                old_scope = " ".join(existing.applicability.split()).lower()
+                new_scope = " ".join(pattern.applicability.split()).lower()
+                if old_scope != new_scope:
+                    raise ValueError("pattern key collision has conflicting exact scopes")
         if existing is None:
             if incoming_base == 0.3 and incoming_confidence != 0.3:
                 incoming_base = incoming_confidence
@@ -240,11 +269,19 @@ class PatternMemory:
         return list(self._current.values())
 
     def applicable(self, context: str) -> List[Pattern]:
-        ctx = context.lower()
+        ctx = " ".join(context.split()).lower()
+        for pattern in self._current.values():
+            if not isinstance(pattern.exact_scope, bool):
+                raise ValueError("pattern exact_scope must be a boolean")
+            if pattern.exact_scope and (
+                not isinstance(pattern.applicability, str) or not pattern.applicability.strip()
+            ):
+                raise ValueError("exact-scope patterns require a non-blank applicability")
         return [p for p in self._current.values()
                 if self._reliable(p)
-                and (not p.applicability
-                     or any(w in ctx for w in p.applicability.lower().split()))]
+                and (ctx == " ".join(p.applicability.split()).lower() if p.exact_scope is True else
+                     (not p.applicability
+                      or any(w in ctx for w in p.applicability.lower().split())))]
 
 
 class CycleStore:
@@ -355,6 +392,16 @@ def derive_lessons(cycle: CycleRecord, disc: Dict) -> List[Pattern]:
                       "satisfy the obligation; make the signature stricter.",
             applicability=cycle.objective, confidence=0.3,
             exceptions=["partial matches should stay 'partial', not 'reuse'"]))
+    if (_has_traceable_evidence(disc.get("regressions"))
+            and isinstance(cycle.objective, str) and cycle.objective.strip()):
+        out.append(Pattern(
+            key="regression_risk:" + "_".join(str(cycle.objective).lower().split()),
+            provenance=f"cycle:{cid}",
+            statement="A development outcome recorded a regression in this objective; require "
+                      "explicit regression analysis and evidence before treating a similar "
+                      "change as safe.",
+            applicability=cycle.objective, confidence=0.3, exact_scope=True,
+            exceptions=["one regression is scoped evidence, not a universal prohibition"]))
     ee = disc.get("effort_error")
     if ee is not None and abs(ee) >= 1:
         out.append(Pattern(
