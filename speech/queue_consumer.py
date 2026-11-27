@@ -120,6 +120,31 @@ class SpeechQueueConsumer(threading.Thread):
     def _speak_one(self, row) -> None:
         qid = row["id"]
         content = row["content"]
+        trace = None
+        trace_parent = None
+        try:
+            from influence_trace import take_speech_queue_trace
+            linked = take_speech_queue_trace(row.get("belief_id"))
+            if linked:
+                trace, trace_parent = linked
+        except Exception:
+            trace = None
+            trace_parent = None
+
+        def trace_event(event: str, *, parent: Optional[str] = None,
+                        metadata: Optional[dict] = None) -> Optional[str]:
+            if trace is None:
+                return None
+            try:
+                parents = [parent or trace_parent] if (parent or trace_parent) else []
+                details = {"queue_id": qid, "belief_id": row.get("belief_id")}
+                details.update(metadata or {})
+                return trace.record("speech_queue", event, metadata=details,
+                                    parent_ids=parents)
+            except Exception:
+                return None
+
+        dequeue_event = trace_event("dequeued")
         # Use voice from VoiceState if available, else fall back to row voice or config
         voice = None
         if self._voice_state is not None:
@@ -133,6 +158,7 @@ class SpeechQueueConsumer(threading.Thread):
             self.writer.write(
                 "UPDATE speech_queue SET status='suppressed' WHERE id=?", (qid,)
             )
+            trace_event("suppressed", parent=dequeue_event)
             log.info("speech suppressed (non-speakable content) id=%s chars=%d",
                      qid, len(content))
             return
@@ -140,15 +166,41 @@ class SpeechQueueConsumer(threading.Thread):
         self.writer.write(
             "UPDATE speech_queue SET status='speaking' WHERE id=?", (qid,)
         )
+        synthesis_started = trace_event("synthesis_started", parent=dequeue_event)
         try:
-            audio, sr = self.backend.synth(content, voice=voice)
-            self.player.play(audio, sr)
+            try:
+                audio, sr = self.backend.synth(content, voice=voice)
+                synthesis_completed = trace_event(
+                    "synthesis_completed", parent=synthesis_started
+                )
+            except Exception as e:
+                trace_event("synthesis_failed", parent=synthesis_started,
+                            metadata={"error_type": type(e).__name__})
+                raise
+            playback_started = trace_event(
+                "playback_started", parent=synthesis_completed or synthesis_started
+            )
+            try:
+                self.player.play(audio, sr)
+                playback_completed = trace_event(
+                    "playback_completed", parent=playback_started or synthesis_completed
+                )
+            except Exception as e:
+                trace_event("playback_failed", parent=playback_started or synthesis_completed,
+                            metadata={"error_type": type(e).__name__})
+                raise
             self.writer.write(
                 "UPDATE speech_queue SET status='spoken', spoken_at=? WHERE id=?",
                 (time.time(), qid),
             )
+            trace_event("queue_status_spoken",
+                        parent=playback_completed or playback_started)
             log.info("spoke belief_id=%s (%d chars)", row["belief_id"], len(content))
         except Exception as e:
+            failure_event = trace_event(
+                "queue_status_failed", parent=trace_parent,
+                metadata={"error_type": type(e).__name__},
+            )
             log.error("synth/play failed on id=%s: %s", qid, e)
             self.writer.write(
                 "UPDATE speech_queue SET status='failed', error=? WHERE id=?",
