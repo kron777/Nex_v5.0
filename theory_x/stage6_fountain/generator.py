@@ -3998,7 +3998,9 @@ class FountainGenerator:
         # Captured here where perturbation() is freshest; consumed at fire-completion.
         try:
             from theory_x.stage_tom.recursive_self import perturbation as _perturb_fn
-            self._pending_nudge_active = bool(_perturb_fn().get("perturb", False))
+            self._pending_nudge_active = bool(
+                _perturb_fn(dynamic_writer=self._dynamic_writer).get("perturb", False)
+            )
         except Exception:
             self._pending_nudge_active = False
         # L4_stakes: when world-contact is low, override focus_block to force
