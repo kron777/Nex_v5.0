@@ -69,6 +69,8 @@ def test_capture_and_resolution_use_injected_reader_writer(tmp_path, monkeypatch
 
 def test_read_momentum_does_not_create_missing_table(tmp_path):
     db_path = tmp_path / "empty-dynamic.db"
+    cx = connect(db_path)
+    cx.close()
     reader = Reader(db_path)
     assert read_momentum(dynamic_reader=reader) is None
     tables = reader.read(
