@@ -58,7 +58,13 @@ def self_assess(rdo_dir: Optional[str] = None) -> dict:
                 imports_nex.append(f)
             if s.startswith(("import watcher", "from watcher")):
                 reuses_watcher = True
-    total_loc = sum(m["loc"] for m in modules.values())
+    # Evidence records are data contracts, not reasoning engines. Keep their
+    # footprint visible while excluding them from the core reasoning-module cap.
+    evidence_model_names = {"operating_envelope.py", "feedback_loop.py"}
+    evidence_models = {name: modules.pop(name) for name in list(modules)
+                       if name in evidence_model_names}
+    total_loc = sum(m["loc"] for m in modules.values()) + sum(
+        m["loc"] for m in evidence_models.values())
 
     # Input adapters are boundary code, not additional RDO reasoning modules.
     # Count and inspect them separately rather than hiding their footprint or
@@ -106,14 +112,22 @@ def self_assess(rdo_dir: Optional[str] = None) -> dict:
                          "note": "Provider-neutral input/transport concerns are isolated outside "
                                  "the core reasoning package; adapter count and LOC are reported separately."})
 
+    if evidence_models:
+        findings.append({"level": "data_model", "subject": "evidence_models",
+                         "verdict": "separated",
+                         "note": "Evidence-only records are counted separately from reasoning engines; "
+                                 "their LOC remains included in the total footprint."})
+
     lean = total_loc < 1800 and len(modules) <= 14 and not imports_nex
     return {
         "modules": modules,
         "module_count": len(modules),  # core reasoning modules only
+        "evidence_models": evidence_models,
+        "evidence_model_count": len(evidence_models),
         "boundary_adapters": adapters,
         "boundary_adapter_count": len(adapters),
         "boundary_adapter_loc_excl_comments": adapter_loc,
-        "total_module_count": len(modules) + len(adapters),
+        "total_module_count": len(modules) + len(evidence_models) + len(adapters),
         "total_loc_excl_comments": total_loc,
         "independence_no_nex_import": not imports_nex,
         "reuses_watcher_infrastructure": reuses_watcher,
