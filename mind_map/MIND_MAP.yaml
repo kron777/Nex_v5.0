@@ -998,7 +998,7 @@ nodes:
     property: "13"
     role_note: "Caps the budget so the price cannot be widened away."
     build_difficulty: shipped
-    sketch: "Built, real ceiling enforced live (budget_shadow.py wired to the real select_within_budget). Scheduled UNBLOCK 2026-11-21, post r77-freeze."
+    sketch: "Shadow budget built and tested; live chat selector remains flag-gated. NEX5_CHAT_WORKSPACE was removed from the keepalive launch line on 2026-11-20 after the r77 Branch C tripwire. Scheduled UNBLOCK 2026-11-21 remains past due; live process state is unverified."
     evidence: implemented
     dark: true
     blocked: false
@@ -1011,7 +1011,8 @@ nodes:
         - "theory_x/stage_finitude/budget_shadow.py:1-134"
         - "theory_x/stage_tom/global_workspace.py:144-166"
         - "gui/server.py:243"
-    last_verified: 2026-11-10
+        - "nex_keepalive.sh:191-220"
+    last_verified: 2026-11-27
     notes: >
       UNBLOCK 2026-11-21 -- r77 freeze close. Real ceiling found and already
       enforced+priced live: NEX5_CHAT_WORKSPACE_BUDGET (gui/server.py:243, default 1400 chars),
@@ -1027,6 +1028,15 @@ nodes:
       open until the post-freeze swap. Drop `dark` in the SAME commit that wires it.
       Fourth member of the dark family alongside p8_episodic, amoha, karuṇā: real, tested,
       nothing in the live loop calls it.
+      2026-11-27 source re-verification: budget_shadow.py remains a shadow; gui/server.py
+      neither imports nor constructs Budget and does not call Budget.spend(). Its call to
+      select_within_budget remains behind NEX5_CHAT_WORKSPACE=1 and supplies the fixed
+      NEX5_CHAT_WORKSPACE_BUDGET (default 1400), not Budget.remaining. Commit 2803f38
+      removed NEX5_CHAT_WORKSPACE=1 from nex_keepalive.sh after the r77 Branch C tripwire;
+      that commit explicitly says no restart was performed. The repository launch line
+      therefore no longer arms the workspace, but the live process state remains UNKNOWN.
+      The UNBLOCK 2026-11-21 marker is past due and is not authorization to rearm. Keep
+      dark=true and preserve the marker pending founder review.
       2026-11-10: this node now has a dependent -- refuse() (theory_x/stage3_world_model/
       ledger_primitives.py) checks capacity against this same shadow Budget before committing
       a tension_held row, so the shadow's `dark` status is no longer inert bookkeeping: a real
