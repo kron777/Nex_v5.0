@@ -73,7 +73,7 @@ This requires an explicit event/acknowledgement contract and a distinct-source r
 
 **Sources:** `gui/server.py:AppState.close()`; `theory_x/stage1_sense/scheduler.py`; `theory_x/stage2_dynamic/__init__.py:stop_dynamic()`; `substrate/writer.py`; `nex_keepalive.sh`.
 
-Current `AppState.close()` calls `scheduler.shutdown()` and then closes Writers. It does not call the available `stop_dynamic()` helper or coordinate the other worker families. Scheduler shutdown signals adapter stop events but does not join their threads. The dynamic layer has a stop-and-join helper with a 30-second default, but it is not invoked by AppState.close.
+Current `AppState.close()` calls `scheduler.shutdown()` and then closes Writers. It does not call the available `stop_dynamic()` helper or coordinate the other worker families; several started loops are therefore ignored by AppState.close. Scheduler shutdown signals adapter stop events but does not join their threads. The dynamic layer has a stop-and-join helper with a 30-second default, but it is not invoked by AppState.close.
 
 Writer.close enqueues a sentinel, joins for up to 10 seconds, then clears its thread reference even if the join timed out. A later start could therefore create a second worker while the original is still alive. Writer.submit has no closed-state guard: a late submission can be queued after the sentinel with no worker left to resolve its Future. The keepalive supervisor's graceful-stop path waits 15 seconds before SIGKILL.
 
