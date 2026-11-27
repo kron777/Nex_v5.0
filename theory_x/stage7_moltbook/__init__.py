@@ -80,7 +80,12 @@ def _moltbook_poster_loop(state, stop: threading.Event) -> None:
                 continue
             from theory_x.stage7_moltbook.poster import PostLoop
             if _poster is None:
-                _poster = PostLoop(c)
+                _poster = PostLoop(
+                    c,
+                    dynamic_reader=state.readers["dynamic"],
+                    dynamic_writer=state.writers["dynamic"],
+                    beliefs_reader=state.readers["beliefs"],
+                )
                 try:
                     _poster._refresh_submolts(force=True)
                 except Exception as e:
@@ -114,7 +119,12 @@ def _moltbook_listener_loop(state, stop: threading.Event) -> None:
                 continue
             from theory_x.stage7_moltbook.listener import DMListenLoop
             if _listener is None:
-                _listener = DMListenLoop(c)
+                _listener = DMListenLoop(
+                    c,
+                    dynamic_reader=state.readers["dynamic"],
+                    dynamic_writer=state.writers["dynamic"],
+                    sense_writer=state.writers["sense"],
+                )
                 try:
                     _listener._learn_self()
                 except Exception as e:
