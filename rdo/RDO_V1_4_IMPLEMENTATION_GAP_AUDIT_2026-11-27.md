@@ -16,7 +16,7 @@ The RDO is not a blank design. It already contains a working deterministic recur
 
 The Stage-2 belief-decay example is a genuine end-to-end vertical slice from **structured seed obligations** through expansion, reconciliation, graph/tension analysis, prioritisation, work packages, persistence and fresh-process resume. It is not yet a complete v1.4 vertical slice because:
 - the input requires externally supplied seed obligations and reconciliation signatures; raw natural-language intent is not compiled into the initial obligation network by the RDO itself;
-- accepted context such as scope, constraints, exclusions and acceptance criteria is preserved in the intake ledger but not enforced by the planner;
+- accepted context such as scope, constraints, exclusions and acceptance criteria is preserved; unmapped context blocks readiness and exclusions propagate to anti-requirements, but context is not yet comprehensively mapped into obligations or checked against a complete obligation/evidence network;
 - the relationship model now carries a typed UNKNOWN-first Interface Tension Profile and operating-envelope evidence into relationship assessment, but calibrated requirements and thresholds remain absent;
 - q/tau performance-margin arithmetic and relationship-level operating-envelope evidence integration are present, but capacity/headroom calculation, operating-envelope classification, measured feedback-loop stability, multi-objective trade-offs and marginal-value/hysteresis machinery remain incomplete;
 - the twelve adversarial cases are only partly represented in tests.
@@ -116,7 +116,7 @@ The case labels below are concise summaries recovered from the v1.4 review conte
 | B | Overdeveloped node | `test_over_expansion_stopped_by_reuse`; `recognize_sufficiency` | **Partial** — sufficiency/reuse restraint exists; no full complexity-vs-value assessment |
 | C | Unstable feedback | Graph-cycle classification plus merged `FeedbackLoopAssessment`; PR #303 emits UNKNOWN-first evidence records for detected feedback cycles; PR #304 validates any assessor-supplied non-UNKNOWN verdict | **Partial** — topology and evidence capture are integrated; no measured gain/stability/hysteresis calculation or calibrated stability thresholds |
 | D | Insufficient headroom | Capacity/headroom evidence dimensions and q/tau margin inputs exist; relationship-level envelope evidence is integrated by PR #310 | **Partial** — evidence representation and relationship integration are present; no headroom calculation or sufficiency verdict |
-| E | Excessive authority | `Relationship.authority`, `assess_signal_authority`, real-repository demo assertions | **Partial** — capability/authority distinction exists; no complete interface profile or dedicated adversarial threshold test |
+| E | Excessive authority | `Relationship.authority`, `assess_signal_authority`, real-repository demo assertions and typed interface-profile authority-boundary evidence | **Partial** — capability/authority distinction exists; no calibrated authority-boundary assessment or dedicated adversarial threshold test |
 | F | Duplicate discovery | Safe canonical convergence; `graph.dedup_candidates`; `test_safe_convergence_merge` | **Covered** |
 | G | Speculative obligation | Hypothesis classification and `test_genius_feedback_is_hypothesis` | **Partial** — demonstrated for one domain hypothesis, not a general adversarial obligation-quality test |
 | H | Protected experiment | Watcher registry and fail-closed eligibility; active/unknown registry tests | **Covered** |
