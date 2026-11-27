@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import json
 import os
-from substrate import connect, Row, Connection
+from substrate import connect, Row, Connection, Reader, Writer
 import time
 import urllib.request
 import urllib.error
@@ -96,15 +96,32 @@ def _connect(db_path: str) -> Connection:
     return conn
 
 
-def ensure_schema(db_path: Optional[str] = None) -> None:
-    db_path = db_path or _default_db_path()
-    conn = _connect(db_path)
+
+def _writer_transaction(writer: Writer | None, db_path: str, name: str, callback):
+    """Use the AppState Writer when supplied; own a fallback only for standalone calls."""
+    owns_writer = writer is None
+    active_writer = writer or Writer(db_path, name=name)
     try:
+        return active_writer.transaction(callback)
+    finally:
+        if owns_writer:
+            active_writer.close()
+
+
+def ensure_schema(
+    db_path: Optional[str] = None,
+    *,
+    conversations_writer: Writer | None = None,
+) -> None:
+    db_path = db_path or _default_db_path()
+
+    def _ensure(conn):
+        conn.row_factory = Row
         conn.execute(_SCHEMA)
         conn.execute(_IDX)
         ensure_frozen_columns(conn, "world_predictions")
-    finally:
-        conn.close()
+
+    _writer_transaction(conversations_writer, db_path, "world_predictions_schema", _ensure)
 
 
 # --- the load-bearing piece: independently fetch reality ----------------------
@@ -138,6 +155,8 @@ def make_prediction(
     db_path: Optional[str] = None,
     source: str = "manual",
     confidence: Optional[float] = None,
+    *,
+    conversations_writer: Writer | None = None,
 ) -> Optional[int]:
     """Record a claim: `asset` will be `direction` (up/down) vs now, in
     `horizon_seconds`. Captures the real baseline price now. Returns row id,
@@ -146,7 +165,7 @@ def make_prediction(
     if direction not in ("up", "down"):
         raise ValueError("direction must be 'up' or 'down'")
     db_path = db_path or _default_db_path()
-    ensure_schema(db_path)
+    ensure_schema(db_path, conversations_writer=conversations_writer)
     baseline = fetch_price(asset)
     if baseline is None:
         return None  # cannot make a falsifiable claim without a real baseline
@@ -157,8 +176,7 @@ def make_prediction(
     else:   # the voice answers one word, UP or DOWN: no probability is stated
         frozen = frozen_values(None, "none_stated", 0.0, "strict_direction", cost_band=_COST_BAND)
     now = time.time()
-    conn = _connect(db_path)
-    try:
+    def _insert(conn):
         cur = conn.execute(
             "INSERT INTO world_predictions "
             "(made_at, asset, baseline_price, direction, horizon_seconds, "
@@ -168,8 +186,10 @@ def make_prediction(
              now + horizon_seconds, source, *frozen),
         )
         return int(cur.lastrowid)
-    finally:
-        conn.close()
+
+    return _writer_transaction(
+        conversations_writer, db_path, "world_prediction_insert", _insert
+    )
 
 
 def stamp_trust(
@@ -178,6 +198,8 @@ def stamp_trust(
     trust_gap: Optional[float],
     trust_n: Optional[int],
     db_path: Optional[str] = None,
+    *,
+    conversations_writer: Writer | None = None,
 ) -> None:
     """Stamp what NEX knew about her own reliability onto one prediction row.
 
@@ -187,79 +209,86 @@ def stamp_trust(
     a missing measurement is not a measurement of zero.
     """
     db_path = db_path or _default_db_path()
-    conn = _connect(db_path)
-    try:
+    def _stamp(conn):
         conn.execute(
             "UPDATE world_predictions SET trust_level=?, trust_gap=?, trust_n=? "
             "WHERE id=?",
             (trust_level, trust_gap, trust_n, prediction_id),
         )
-    finally:
-        conn.close()
+
+    _writer_transaction(conversations_writer, db_path, "world_prediction_trust_stamp", _stamp)
+
 
 
 # --- the resolver: a verdict NEX does not author -----------------------------
-def resolve_due(now: Optional[float] = None, db_path: Optional[str] = None) -> dict:
-    """Find claims past their resolve time that are still unresolved, fetch the
-    real current price for each, and stamp correct/wrong. Returns a small summary.
-
-    'correct' = price moved in the claimed direction (strictly). A flat price
-    counts as 'wrong' — the claim said it would move, and it didn't.
-    """
+def resolve_due(
+    now: Optional[float] = None,
+    db_path: Optional[str] = None,
+    *,
+    conversations_writer: Writer | None = None,
+    conversations_reader: Reader | None = None,
+) -> dict:
+    """Resolve due claims using independently fetched prices, with short write transactions."""
     now = now if now is not None else time.time()
     db_path = db_path or _default_db_path()
-    ensure_schema(db_path)
-    conn = _connect(db_path)
-    resolved, correct = 0, 0
-    try:
-        due = conn.execute(
-            "SELECT id, asset, baseline_price, direction FROM world_predictions "
-            "WHERE resolved_at IS NULL AND resolve_at <= ?",
-            (now,),
-        ).fetchall()
-        # fetch each asset's price once
-        price_cache: dict[str, Optional[float]] = {}
-        for row in due:
-            asset = row["asset"]
-            if asset not in price_cache:
-                price_cache[asset] = fetch_price(asset)
-            price_now = price_cache[asset]
-            if price_now is None:
-                # leave unresolved; try again next pass (mark nothing)
-                continue
-            base = float(row["baseline_price"])
-            if row["direction"] == "up":
-                outcome = "correct" if price_now > base else "wrong"
-            else:
-                outcome = "correct" if price_now < base else "wrong"
-            conn.execute(
+    ensure_schema(db_path, conversations_writer=conversations_writer)
+    reader = conversations_reader or Reader(db_path)
+    due = reader.read(
+        "SELECT id, asset, baseline_price, direction FROM world_predictions "
+        "WHERE resolved_at IS NULL AND resolve_at <= ?",
+        (now,),
+    )
+
+    price_cache: dict[str, Optional[float]] = {}
+    updates = []
+    correct = 0
+    for row in due:
+        asset = row["asset"]
+        if asset not in price_cache:
+            price_cache[asset] = fetch_price(asset)
+        price_now = price_cache[asset]
+        if price_now is None:
+            # Leave unresolved; try again next pass (mark nothing).
+            continue
+        base = float(row["baseline_price"])
+        if row["direction"] == "up":
+            outcome = "correct" if price_now > base else "wrong"
+        else:
+            outcome = "correct" if price_now < base else "wrong"
+        updates.append((now, price_now, outcome, row["id"]))
+        if outcome == "correct":
+            correct += 1
+
+    if updates:
+        def _update(conn):
+            conn.executemany(
                 "UPDATE world_predictions SET resolved_at=?, price_at_resolve=?, "
                 "outcome=? WHERE id=?",
-                (now, price_now, outcome, row["id"]),
+                updates,
             )
-            resolved += 1
-            if outcome == "correct":
-                correct += 1
-    finally:
-        conn.close()
-    return {"resolved": resolved, "correct": correct}
+        _writer_transaction(
+            conversations_writer, db_path, "world_prediction_resolve", _update
+        )
+    return {"resolved": len(updates), "correct": correct}
 
 
 # --- the earned number: a scorecard the voice cannot touch -------------------
-def scorecard(db_path: Optional[str] = None) -> dict:
+def scorecard(
+    db_path: Optional[str] = None,
+    *,
+    conversations_writer: Writer | None = None,
+    conversations_reader: Reader | None = None,
+) -> dict:
     db_path = db_path or _default_db_path()
-    ensure_schema(db_path)
-    conn = _connect(db_path)
-    try:
-        row = conn.execute(
-            "SELECT "
-            "COUNT(*) FILTER (WHERE outcome IS NOT NULL) AS resolved, "
-            "COUNT(*) FILTER (WHERE outcome='correct') AS correct, "
-            "COUNT(*) FILTER (WHERE outcome IS NULL) AS pending "
-            "FROM world_predictions"
-        ).fetchone()
-    finally:
-        conn.close()
+    ensure_schema(db_path, conversations_writer=conversations_writer)
+    reader = conversations_reader or Reader(db_path)
+    row = reader.read_one(
+        "SELECT "
+        "COUNT(*) FILTER (WHERE outcome IS NOT NULL) AS resolved, "
+        "COUNT(*) FILTER (WHERE outcome='correct') AS correct, "
+        "COUNT(*) FILTER (WHERE outcome IS NULL) AS pending "
+        "FROM world_predictions"
+    )
     resolved = row["resolved"] or 0
     correct = row["correct"] or 0
     pending = row["pending"] or 0
