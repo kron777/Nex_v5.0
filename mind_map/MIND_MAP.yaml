@@ -182,7 +182,7 @@ nodes:
     blocked: false
     falsifier: "Should reduce repeat-selection of the same object across consecutive moments."
     falsifier_status: pass
-    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:727-767", "theory_x/stage6_fountain/generator.py:867-883", "tests/test_alobha.py:52-58"] }
+    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:727-785", "theory_x/stage6_fountain/generator.py:867-883", "tests/test_alobha.py:52-58"] }
     last_verified: 2026-11-27
     notes: >
       Correction, 2026-11-09: this was filed as 'spec exists, unbuilt-open' -- it isn't. Both
@@ -261,7 +261,7 @@ nodes:
     blocked: false
     falsifier: "Reads every turn. A faculty that fires unconditionally carries no information."
     falsifier_status: na
-    source: { kind: composite, refs: ["theory_x/stage_tom/mana_detector.py:127-159", "theory_x/stage_tom/self_binding.py:278-325", "theory_x/stage6_fountain/generator.py:3986-3995"] }
+    source: { kind: composite, refs: ["theory_x/stage_tom/mana_detector.py:40-75", "theory_x/stage_tom/self_binding.py:298-345", "theory_x/stage6_fountain/generator.py:3990-4001", "nex_keepalive.sh:219-220"] }
     last_verified: 2026-11-27
     notes: >
       CORRECTION, 2026-11-15 (falsifier-sweep round): "always-on read-only sidecar" was wrong.
@@ -397,7 +397,7 @@ nodes:
     falsifier: "Should carry an object forward without the object being re-presented."
     falsifier_status: pass
     probe: { tests: "tests/test_smrti_retained_candidate.py", new_tests: 4, regression_suite: "64 pre-existing crystallizer-touching tests, unchanged" }
-    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:2960-2975", "theory_x/stage6_fountain/crystallizer.py:290-298", "theory_x/stage6_fountain/crystallizer.py:629-637", "tests/test_smrti_retained_candidate.py:1-30"] }
+    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:1878-1903", "theory_x/stage6_fountain/generator.py:2960-2975", "theory_x/stage6_fountain/crystallizer.py:290-298", "theory_x/stage6_fountain/crystallizer.py:629-637", "tests/test_smrti_retained_candidate.py:87-121"] }
     last_verified: 2026-11-27
     notes: >
       The factor that gives Property 8 a home; the store itself is substrate — see p8_episodic.
@@ -569,7 +569,7 @@ nodes:
     falsifier: "Should re-open a past entry rather than leave it settled."
     falsifier_status: pass
     probe: { tests: "tests/test_reprice_tensions_on_new_evidence.py", new_tests: 6, corpus_exposure_check: "random-pair false-positive measured at 8.0% on 200 real live beliefs, production code path", regression_suite: "43 pre-existing held_tensions/harmonizer/semantic-conflict tests, unchanged" }
-    source: { kind: composite, refs: ["theory_x/stage3_world_model/harmonizer.py:173-187", "theory_x/stage3_world_model/harmonizer.py:610-720", "tests/test_reprice_tensions_on_new_evidence.py:1-30", "substrate/schema/dynamic.sql:151-159"] }
+    source: { kind: composite, refs: ["theory_x/stage3_world_model/harmonizer.py:173-187", "theory_x/stage3_world_model/harmonizer.py:610-720", "tests/test_reprice_tensions_on_new_evidence.py:131-251", "substrate/schema/dynamic.sql:151-159"] }
     last_verified: 2026-11-27
     notes: >
       Dev round, 2026-11-15: read harmonizer.py's actual resolution paths over held_tensions to
@@ -688,7 +688,7 @@ nodes:
     falsifier: "An object entering wide-mode focus should be explicitly recorded as taken hold of, distinguishable from objects that merely passed through retrieval unselected."
     falsifier_status: pass
     probe: { wide_mode_fires_logged: 2821, source: "nex5_soak.log [WIDE MODE] markers" }
-    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:893-990", "theory_x/stage6_fountain/generator.py:4044-4068"] }
+    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:893-990", "theory_x/stage6_fountain/generator.py:4044-4068", "theory_x/stage6_fountain/generator.py:2719-2735"] }
     last_verified: 2026-11-27
     notes: >
       Dev round, 2026-11-15: found via vicāra's paired search (see that node) -- the SET side of
@@ -726,7 +726,7 @@ nodes:
     falsifier: "An object recorded as this fire's focal item should still be readable and used as the thread in a subsequent fire, not reset to empty."
     falsifier_status: pass
     probe: { gate: "NEX5_ASSOC_RECALL=1, confirmed armed live", caller_condition: "own_n > 1" }
-    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:3356-3415", "theory_x/stage6_fountain/generator.py:3462-3475", "theory_x/stage6_fountain/generator.py:4068"] }
+    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:3356-3445", "theory_x/stage6_fountain/generator.py:3460-3475", "theory_x/stage6_fountain/generator.py:4060-4072", "nex_keepalive.sh:219-220"] }
     last_verified: 2026-11-27
     notes: >
       Dev round, 2026-11-15: THIS is the real home of self._last_focal_item -- the exact mechanism
@@ -1053,7 +1053,7 @@ nodes:
       refs:
         - "theory_x/stage_finitude/budget_shadow.py:1-134"
         - "theory_x/stage_tom/global_workspace.py:144-166"
-        - "gui/server.py:243"
+        - "gui/server.py:202-280", "gui/server.py:243"
         - "nex_keepalive.sh:191-220"
     last_verified: 2026-11-27
     notes: >
@@ -1256,11 +1256,11 @@ nodes:
       refs:
         - "theory_x/memory/episodic.py:1-36"
         - "theory_x/memory/episodic.py:168-248"
-        - "tests/test_episodic.py:1-18"
-        - "tests/test_episodic_falsifier.py:1-30"
+        - "tests/test_episodic.py:118-278"
+        - "tests/test_episodic_falsifier.py:42-54"
         - "substrate/schema/dynamic.sql:172-193"
         - "nex_config.py:84"
-        - "gui/server.py:3440-3455"
+        - "gui/server.py:3440-3455", "nex_keepalive.sh:219-220"
         - "SENTIENCE_PROGRAM.md:148-157"
     last_verified: 2026-11-27
     notes: >
