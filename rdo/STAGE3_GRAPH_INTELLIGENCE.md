@@ -76,6 +76,4 @@ Tests: `rdo/tests/test_stage3_graph_intelligence.py` (14 tests); full RDO suite 
 
 ## Specification basis and remaining OFT boundary
 
-The implementation cites **RDO v1.4** in docstrings; the governing sequence here is **v1.4 §29**.
-The v1.2 / v1.3 / v1.4 texts, the Watcher v3.0 spec and the Master Roadmap v3.0 are not in the
-workspace. No version reconciliation is assumed; the precedence remains for founder resolution.
+RDO v1.4 §29 is the current working development order; the founder indicated on 24 November that they believed v1.4 had been approved. The v1.3 Stage 3 label is retained as historical implementation lineage. This graph module does not complete the separate v1.4 OFT profile/assessment step; see the v1.4 implementation gap audit. The exact raw v1.4 bytes are not mounted in this workspace for a fresh byte-level comparison.
