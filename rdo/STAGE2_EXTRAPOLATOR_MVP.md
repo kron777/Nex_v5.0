@@ -75,7 +75,7 @@ evidence" rule on the slice itself.
   touched. The decay mechanism itself is **not implemented** — the MVP *plans* it; building
   it is downstream work, gated and out of scope here.
 
-## Stage 3 readiness (RDO v1.3 §16)
+## Next in the v1.4 §29 order — graph intelligence
 
 The MVP provides the obligation graph (`parent_key` tree + `depends_on` edges) Stage 3
 builds on. Basic **cycle detection already exists** (`tension._find_cycles`, wired via
@@ -83,18 +83,20 @@ builds on. Basic **cycle detection already exists** (`tension._find_cycles`, wir
 (currently exact-key only), typed edges beyond `depends_on`, **SCC** decomposition, and
 completeness/sequence analysis.
 
-## Specification-discrepancy note (unresolved — awaiting governing PDFs)
+## Specification basis and historical stage labels
 
-The implementation's docstrings cite **RDO spec v1.4** (`§3.4, §4, §5, §6, §13, §14, §20,
-§23, §24, §26, §28, §30`). The governing sequence here is **v1.3 §16**. The v1.2 / v1.3 /
-v1.4 texts, the Watcher v3.0 spec, and the Master Roadmap v3.0 (with its authority
-hierarchy) are **not** in the workspace. No version reconciliation is asserted and no
-implementation was altered to match an assumed version; this is recorded for founder
-resolution when the originals are provided.
+RDO v1.4 — Optimal Functional Tension is the current working specification; the founder
+indicated on 24 November that they believed it had been approved. The earlier v1.3 §16
+sequence remains historical evidence for the stage labels used by this report and earlier
+implementation work. Do not treat those historical labels as a replacement for the v1.4 §29
+development order. The exact 47,172-byte v1.4 source was supplied in a prior conversation
+(SHA-256 recorded there) but its raw bytes are not mounted in this repository workspace, so
+this report does not claim a fresh byte-level clause crosswalk. The current implementation
+gap audit records the requirements recovered from that source and the source-level evidence.
 
 ---
 
-## §15 acceptance completion (the six audited gaps closed)
+## Stage 2 acceptance audit (six repository-level gaps closed)
 
 All changes are bounded to Stage 2, reuse existing mechanisms, keep canonical IDs and
 persistence backward-compatible, and preserve unresolved/deferred information. No Stage 3
@@ -109,7 +111,7 @@ graph-intelligence (SCC/typed-edges/completeness) was started.
 | 5 | Meaningful work-package ordering + unresolved visible | `prioritise.build_work_packages` sorts packages eligible-first, then priority desc, then key (deterministic); `net_new` includes `RECON_UNKNOWN`; anti-requirements excluded | `test_work_packages_priority_ordered_not_alphabetical` | **VERIFIED** |
 | 6 | Cycle detection **and** classification | `tension._classify_cycle` (prerequisite_cycle / feedback_loop / unknown) feeds `assess_system`: prerequisite cycle → `underdeveloped`, feedback/unknown → `unknown` (not forced) | `test_cycle_detection_and_classification` | **VERIFIED** |
 
-End-to-end: `test_stage2_end_to_end`. Suite: **20** Stage-2 tests, **56** RDO tests, all passing.
+End-to-end: `test_stage2_end_to_end`. Suite at the current source snapshot: **24** Stage-2 test functions; see the current RDO test files for broader suite counts.
 Persisted artefact `cycle_belief_decay_mvp.json` (~65 KB) carries `counts`, `frontier`, the
 reviewed `actual` (`native_planning`) and the full graph; it resumes in a fresh process.
 
@@ -126,11 +128,12 @@ Stage 3 graph intelligence: SCC decomposition, typed edges beyond `depends_on`/`
 dedup beyond exact-key, completeness/sequence analysis. Implementation-outcome calibration
 (execution, not planning review) is the **Stage 6** learning loop.
 
-### Still requiring the original governing PDF
-These closures satisfy the §15 requirements **as supplied in the development context**. Exact
-thresholds, any additional §15 criteria, and the **v1.3 ↔ v1.4 precedence** remain to be
-confirmed against the original document; the code cites v1.4 and no version reconciliation is
-assumed.
+### Remaining v1.4 fidelity gaps
+These six closures are a local Stage 2 acceptance audit, not proof that all v1.4 MVP criteria
+or all twelve adversarial cases are satisfied. v1.4 is the current working basis; v1.3 remains
+historical. The recovered source summary does not supply every exact OFT threshold or complete
+Interface Tension Profile field definition, so those remain explicit UNKNOWNs pending direct
+source reinspection. See RDO_V1_4_IMPLEMENTATION_GAP_AUDIT_2026-11-27.md.
 
 ---
 
