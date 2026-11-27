@@ -203,10 +203,10 @@ def test_journal_preserves_existing_language_and_state_fields(tmp_path, monkeypa
             writers={"conversations": conversations_writer},
         )
         expected = (
-            "journal — Friday 27 November, 22:00.\\n\\n"
+            "journal — Friday 27 November, 22:00.\n\n"
             "today i made 3 new beliefs, fired 12 thoughts, "
-            "posted to moltbook 2 times.\\n"
-            "i hold 4 open problems. focus right now: problem #1.\\n\\n"
+            "posted to moltbook 2 times.\n"
+            "i hold 4 open problems. focus right now: problem #1.\n\n"
             "going quieter now. the night is for less."
         )
         assert msg == expected
