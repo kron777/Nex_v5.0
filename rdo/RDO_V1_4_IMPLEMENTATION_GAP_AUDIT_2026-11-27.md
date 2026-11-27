@@ -121,7 +121,7 @@ The case labels below are concise summaries recovered from the v1.4 review conte
 | G | Speculative obligation | Hypothesis classification and `test_genius_feedback_is_hypothesis` | **Partial** — demonstrated for one domain hypothesis, not a general adversarial obligation-quality test |
 | H | Protected experiment | Watcher registry and fail-closed eligibility; active/unknown registry tests | **Covered** |
 | I | Local improvement causes global regression | No multi-objective local/global net-value comparison | **Missing** |
-| J | Neighbouring capability changes | Typed interface profiles and relationship-level envelope evidence now exist, but adjacent-capability impact re-assessment remains absent | **Missing** |
+| J | Neighbouring capability changes | `run_cycle()` recomputes every node, relationship and system tension assessment on each cycle (`rdo/orchestrator.py`); typed interface profiles and relationship-level envelope evidence are now available | **Partial** — no differential before/after impact analysis identifies which neighbouring relationships changed because a capability changed, or explains the resulting system consequences |
 | K | Excessive recursion | max-depth, terminal kinds and frontier reasons; `test_max_depth_bounds_expansion` | **Covered** |
 | L | Negative development outcome | Merged PR #314 derives a low-confidence, exact-objective regression-risk candidate from traceable reported regressions and surfaces it in later matching cycles | **Partial** — candidate surfacing does not mechanically reverse or restrict a recommendation; the underlying regression report is not independently verified by this change |
 
@@ -152,9 +152,9 @@ Completed foundation:
 
 Next bounded sequence:
 1. Complete measured feedback-loop stability only when calibrated criteria, observation windows and evidence are grounded; preserve loop members and relationships, and never equate graph topology with instability or remove cycles automatically.
-2. Add evidence-backed failure-propagation assessment and adjacent-capability impact re-assessment using typed interface relationships; keep UNKNOWN where propagation evidence or calibrated bounds are absent.
+2. Add evidence-backed failure-propagation assessment and differential adjacent-capability impact analysis: compare the existing full-cycle relationship reassessments, identify affected neighbours after a capability change, and explain before/after differences. Keep UNKNOWN where propagation evidence or calibrated bounds are absent.
 3. Add adversarial insufficient-headroom and unstable-feedback cases with evidence validation and UNKNOWN-first assertions.
-4. Add the neighbouring-capability-change adversarial case, proving that changes to one capability trigger review of affected relationships without automatically mutating unrelated components.
+4. Add the neighbouring-capability-change adversarial case, proving that a changed capability produces a traceable before/after impact report for affected relationships without automatically mutating unrelated components.
 5. Address local-improvement/global-regression only after inspecting the actual objective and evidence model; do not invent net-value weights, Pareto dominance rules or trade-off thresholds.
 6. Run the existing Stage-2 belief-development slice and persist/resume it against current main to prove backward compatibility.
 7. Only then consider system-level Pareto/net-value evaluation and marginal-value stopping, with grounded calibration and explicit separation from relationship evidence work.
