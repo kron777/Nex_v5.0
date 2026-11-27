@@ -45,37 +45,39 @@ def _ensure_identity_log(
     reader = dynamic_reader or Reader(DYNAMIC_DB)
     own_writer = dynamic_writer is None
     writer = dynamic_writer or Writer(DYNAMIC_DB, name="identity_loop_schema")
-    writer.write_many([
-        ("""
-            CREATE TABLE IF NOT EXISTS identity_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                composed_at REAL NOT NULL,
-                date_local TEXT NOT NULL,
-                hour_local INTEGER NOT NULL,
-                statement TEXT NOT NULL,
-                metrics_json TEXT NOT NULL,
-                UNIQUE(date_local, hour_local)
-            )
-        """, ()),
-        (
-            "CREATE INDEX IF NOT EXISTS idx_identity_composed "
-            "ON identity_log(composed_at DESC)",
-            (),
-        ),
-    ])
-    cols = {row["name"] for row in reader.read("PRAGMA table_info(identity_log)")}
-    migrations = []
-    for column in ("ablation_arm", "ablation_arm_prev", "ablation_flips"):
-        if column not in cols:
-            kind = "INTEGER" if column == "ablation_flips" else "TEXT"
-            migrations.append((
-                f"ALTER TABLE identity_log ADD COLUMN {column} {kind}",
+    try:
+        writer.write_many([
+            ("""
+                CREATE TABLE IF NOT EXISTS identity_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    composed_at REAL NOT NULL,
+                    date_local TEXT NOT NULL,
+                    hour_local INTEGER NOT NULL,
+                    statement TEXT NOT NULL,
+                    metrics_json TEXT NOT NULL,
+                    UNIQUE(date_local, hour_local)
+                )
+            """, ()),
+            (
+                "CREATE INDEX IF NOT EXISTS idx_identity_composed "
+                "ON identity_log(composed_at DESC)",
                 (),
-            ))
-    if migrations:
-        writer.write_many(migrations)
-    if own_writer:
-        writer.close()
+            ),
+        ])
+        cols = {row["name"] for row in reader.read("PRAGMA table_info(identity_log)")}
+        migrations = []
+        for column in ("ablation_arm", "ablation_arm_prev", "ablation_flips"):
+            if column not in cols:
+                kind = "INTEGER" if column == "ablation_flips" else "TEXT"
+                migrations.append((
+                    f"ALTER TABLE identity_log ADD COLUMN {column} {kind}",
+                    (),
+                ))
+        if migrations:
+            writer.write_many(migrations)
+    finally:
+        if own_writer:
+            writer.close()
 
 
 def _gather_metrics(
