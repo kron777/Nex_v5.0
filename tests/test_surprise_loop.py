@@ -1,4 +1,7 @@
-"""Regression tests for stable SurpriseLoop pagination and retry-safe checkpoints."""
+"""Regression coverage for the SurpriseLoop event-ID cursor and retry boundary.
+
+The shared dynamic daemon_kv checkpoint schema is now owned by substrate/schema/dynamic.sql.
+"""
 import sqlite3
 import time
 
