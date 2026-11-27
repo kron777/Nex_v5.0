@@ -362,7 +362,8 @@ def assess_relationship(rel: Relationship, obligations: Dict[str, Obligation]) -
 
 # ---- system-level ----
 
-def _find_cycles(edges: List[Relationship]) -> List[List[str]]:
+def _find_cycles(edges: List[Relationship],
+                 kinds: Tuple[str, ...] = DEP_KINDS) -> List[List[str]]:
     """Enumerate distinct directed simple cycles deterministically.
 
     First restrict enumeration to non-trivial strongly connected components.
@@ -379,7 +380,7 @@ def _find_cycles(edges: List[Relationship]) -> List[List[str]]:
 
     adjacency: Dict[str, set] = {}
     for edge in edges:
-        if edge.kind in ("depends_on", "influences"):
+        if edge.kind in kinds:
             adjacency.setdefault(edge.src, set()).add(edge.dst)
             adjacency.setdefault(edge.dst, set())
     adj = {node: sorted(targets) for node, targets in adjacency.items()}
