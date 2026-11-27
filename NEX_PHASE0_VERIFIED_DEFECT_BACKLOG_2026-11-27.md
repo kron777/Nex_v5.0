@@ -1,16 +1,16 @@
 # NEX Phase 0 — Verified Defect and Evidence-Gap Backlog (Mainline)
 
-**Snapshot:** `main` at `612022e81f749a99de665372704d7acc0645de67`  
+**Snapshot:** `main` at `66a97964f0531c16d60637dc8291b42e0b73f00b`  
 **Date:** 27 November 2026  
 **Purpose:** Separate confirmed documentation/source discrepancies from unknown host/runtime evidence and incomplete audits. This backlog is not approval to change cognition or policy.
 
 ## A. Confirmed documentation discrepancies
 
-### D-01 — Sense adapter count / startup overview (partially corrected)
+### D-01 — Sense adapter count / startup overview (corrected)
 
 - **Evidence:** The factory wires 28 adapters (4 internal, 24 external); the scheduler constructor calls `start_all()`. The scheduler overview and `ARCHITECTURE.md` were corrected in PR #148.
-- **Remaining at this snapshot:** `run.py`'s module overview still says five DBs and paused external feeds; `gui/server.py`'s module overview still says 23 adapters.
-- **Disposition:** correction submitted in PR #153 (documentation-only; CI pending at report cut).
+- **Additional drift found:** the `run.py` module overview still said five DBs and paused external feeds; `gui/server.py` still said 23 adapters.
+- **Disposition:** all known scheduler overview discrepancies are corrected in PR #148 and PR #153. PR #153 merged as `66a97964f0531c16d60637dc8291b42e0b73f00b`; its exact-head full suite passed.
 
 ### D-02 — MIND_MAP node-count convention unresolved
 
@@ -74,7 +74,7 @@ Roadmap v3.0 M0.5 (technical causal trace) is distinct from V2.1 M0.5 (six doctr
 
 - Exact M0.5 PR head `6d371fe385fc02a2c238247b39aff82681888745`: 2,491 passed, 7 skipped, 40 subtests, baseline OK, CI run #1392.
 - Mind-map verification: completed with warnings only; no hard errors. Warnings include 2 missing doctrine references, stale verification dates and one past-due unblock marker.
-- The post-merge push run `45939220368` on `612022e81f749a99de665372704d7acc0645de67` was still pending/in progress at the time this backlog was drafted. Append its final result after completion.
+- The post-merge push run `45939220368` on `66a97964f0531c16d60637dc8291b42e0b73f00b` was still pending/in progress at the time this backlog was drafted. Append its final result after completion.
 
 ## E. Additional bounded producer/consumer findings verified on current main
 
