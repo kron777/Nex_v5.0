@@ -81,18 +81,21 @@ def run_cycle(cycle_id: str, objective: str, assumptions: List[str],
         "note": ("Objective context has not yet been mapped to obligations and independent evidence."
                  if context_items else "No structured objective context was supplied."),
     }
+    context_assessment["execution_readiness"] = (
+        "blocked" if context_items else "unknown"
+    )
+    context_assessment["handoff_readiness"] = (
+        "reviewable" if context_items else "not_applicable"
+    )
     if context_items:
-        context_blocker = (
-            "objective context contains unmapped scope/assumption/constraint/exclusion/acceptance items; "
-            "map and verify them before treating this package as execution-ready"
-        )
+        # Keep Stage-1 work-package eligibility distinct from execution readiness.
+        # A reviewable proposal may proceed to bounded human scope review, but
+        # unmapped context must never be interpreted as permission to execute.
         context_exclusions = [
             f"objective exclusion (mapping still unverified): {item['text']}"
             for item in context_items if item["kind"] == "exclusion"
         ]
         for package in packages:
-            package.eligibility = "blocked"
-            package.blockers = sorted(set(package.blockers + [context_blocker]))
             package.anti_requirements = list(dict.fromkeys(
                 package.anti_requirements + context_exclusions
             ))
