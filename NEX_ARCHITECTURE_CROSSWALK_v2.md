@@ -199,7 +199,7 @@ Section F of `NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-27.md`.
 ## 7. Discrepancies and next audit obligations
 
 1. Host/runtime identity, process state, service health, live database hashes, model digest and local performance metrics have not been collected in this mainline pass.
-2. The mind-map node-count convention (39 YAML nodes vs older “30” references; plus 5 arms) remains unresolved.
+2. Mind-map count discrepancy corrected: 30 `nodes:`, 5 `arms:`, 4 `findings:`; the previous 39-node claim counted entries across separate sections.
 3. Two doctrine files referenced by map metadata are missing in the CI snapshot; node source-verification dates are stale, and `p13_finitude` carries a past-due unblock marker.
 4. The full theory_x faculty-by-faculty forward and backward audit remains incomplete.
 5. Coherence Gate fail-open behaviour is documented but not altered; any policy change is outside this observational increment.
