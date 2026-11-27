@@ -27,6 +27,7 @@ import os
 DAG_PATH = os.path.join(os.path.dirname(__file__), "sentience_dag.json")
 
 _SATISFIED = ("built", "live_unproven", "terminal")
+_KNOWN_STATUSES = ("built", "live_unproven", "terminal", "gap", "gorge")
 
 
 def load() -> dict:
@@ -52,10 +53,45 @@ def validate_prerequisites(nodes: dict) -> None:
         raise ValueError(f"unknown DAG prerequisite reference(s): {details}")
 
 
-def topo_sort(nodes: dict) -> list[str]:
-    """Kahn's algorithm — the build order. Raises if a cycle exists (shouldn't:
-    it's a DAG by construction)."""
+def validate_unique_prerequisites(nodes: dict) -> None:
+    """Reject duplicate edges, which otherwise corrupt Kahn's indegree counts."""
+    duplicates = []
+    for node, data in nodes.items():
+        prereqs = data.get("prereqs", [])
+        seen = set()
+        for prereq in prereqs:
+            if prereq in seen and (node, prereq) not in duplicates:
+                duplicates.append((node, prereq))
+            seen.add(prereq)
+    if duplicates:
+        details = ", ".join(
+            f"{node} -> {prereq}" for node, prereq in sorted(duplicates)
+        )
+        raise ValueError(f"duplicate DAG prerequisite reference(s): {details}")
+
+
+def validate_statuses(nodes: dict) -> None:
+    """Reject node statuses the classifier cannot represent."""
+    unknown = sorted(
+        (node, data.get("status", "<missing>"))
+        for node, data in nodes.items()
+        if data.get("status") not in _KNOWN_STATUSES
+    )
+    if unknown:
+        details = ", ".join(f"{node} [{status}]" for node, status in unknown)
+        raise ValueError(f"unknown DAG node status value(s): {details}")
+
+
+def validate_graph(nodes: dict) -> None:
+    """Validate graph references, edge uniqueness and classifier status values."""
     validate_prerequisites(nodes)
+    validate_unique_prerequisites(nodes)
+    validate_statuses(nodes)
+
+
+def topo_sort(nodes: dict) -> list[str]:
+    """Kahn's algorithm — the build order. Raises if the graph is malformed or cyclic."""
+    validate_graph(nodes)
     indeg = {n: 0 for n in nodes}
     for n, d in nodes.items():
         for p in d.get("prereqs", []):
@@ -78,8 +114,8 @@ def topo_sort(nodes: dict) -> list[str]:
 
 
 def classify(nodes: dict) -> dict:
-    """Apply the buildable-now rule after validating every prerequisite edge."""
-    validate_prerequisites(nodes)
+    """Apply the buildable-now rule after validating graph structure and statuses."""
+    validate_graph(nodes)
     out = {"buildable_now": [], "blocked": [], "built": [],
            "live_unproven": [], "terminal": [], "gorge": []}
     for n, d in nodes.items():
