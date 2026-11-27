@@ -105,3 +105,15 @@ def test_unbounded_influence_remains_an_explicit_overdevelopment_finding():
     result = assess_relationship(rel, {})
 
     assert result.verdict == OVERDEVELOPED
+
+
+def test_invalid_interface_profile_shape_is_reported_explicitly():
+    rel = Relationship("consumer", "provider", "depends_on", interface_profile="not-a-profile")
+
+    result = assess_relationship(rel, {})
+
+    assert result.verdict == TENSION_UNKNOWN
+    assert result.dimensions["profile_status"] == "invalid_shape"
+    assert result.dimensions["unknown_dimensions"] == ["interface_profile"]
+    assert "invalid shape" in result.note
+    assert "evidence is recorded" not in result.note
