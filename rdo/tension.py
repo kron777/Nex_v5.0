@@ -337,6 +337,10 @@ def assess_relationship(rel: Relationship, obligations: Dict[str, Obligation]) -
         if isinstance(ref, str) and ref.strip()
     ]
     for summary in margins["metrics"].values():
+        # A margin is one comparison: do not promote either side's references as
+        # relationship-level evidence unless both q and tau form a complete pair.
+        if summary.get("evidence_complete") is not True:
+            continue
         for field in ("q_evidence", "tau_evidence"):
             refs = summary.get(field)
             if _has_traceable_evidence(refs):
