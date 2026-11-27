@@ -1,6 +1,6 @@
 # NEX Phase 0 — Verified Defect and Evidence-Gap Backlog (Mainline)
 
-**Snapshot:** `main` at `e78773def4549f646257945e5886ec71a7837374`  
+**Snapshot:** `main` at `c9e25d7cf85659e80053f5fe75928ee71486a141`  
 **Date:** 27 November 2026  
 **Purpose:** Separate confirmed documentation/source discrepancies from unknown host/runtime evidence and incomplete audits. This backlog is not approval to change cognition or policy.
 
@@ -310,5 +310,5 @@ These findings were rechecked against current main after the bounded persistence
 - **Sources:** `run.py`, `theory_x/stage_warrant/recorder.py`, `theory_x/stage_warrant/warrant.py`, `gui/server.py`, `tools/warrant_validate.py`, and tracked `nex_keepalive.sh`.
 - **Verified on current main:** `run.py` constructs and starts WarrantRecorder only behind `NEX5_WARRANT_RECORD == '1'`. No normal construction/start of the periodic WarrantPass loop was found in the inspected `run.py` or `gui/server.py` paths, although WarrantPass has its own `NEX5_WARRANT` start guard and its module docstring describes background operation. `tools/warrant_validate.py` calls `compute_all()` once for read-only validation; it does not start the periodic loop.
 - **Configuration qualification:** the tracked keepalive declares `NEX5_WARRANT_RECORD=1` but not `NEX5_WARRANT`. The known launcher path blocker and uninspected user systemd unit mean host-effective activation remains UNKNOWN.
-- **Documentation correction:** PR #262 corrects the WarrantPass class docstring, which incorrectly attributed its construction/start to `run.py`. The normal boot source actually starts WarrantRecorder behind `NEX5_WARRANT_RECORD` and does not construct WarrantPass. PR #262 is documentation-only and draft; it does not add a caller or change flags.
+- **Documentation correction:** PR #262 merged as `c9e25d7cf85659e80053f5fe75928ee71486a141` and corrects the WarrantPass class docstring, which incorrectly attributed its construction/start to `run.py`. The normal boot source actually starts WarrantRecorder behind `NEX5_WARRANT_RECORD` and does not construct WarrantPass. The merge is documentation-only; it does not add a caller or change flags.
 - **Disposition:** record-only operation may be intentional while Warrant evidence accrues after its failed validation gate. Clarify the intended lifecycle; do not wire WarrantPass, alter flags or change its gate without founder approval. No live process or `belief_warrant` state was inspected.
