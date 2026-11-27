@@ -96,7 +96,7 @@ The one-pen rule is a core persistence invariant: **one canonical Writer per dat
 
 A Writer serializes work for its own database. A transaction callback or multi-statement write can be atomic within that database. It does **not** create an atomic transaction spanning multiple SQLite databases. If one logical operation updates beliefs and conversations, a failure between those commits can leave partial cross-database state. Do not describe cross-database work as globally atomic.
 
-The 27 November mainline includes PR #183: Expectations reconciliation now uses shared Writers and transaction support. Several additional one-pen migrations remain open at the audited snapshot, notably Fountain/momentum (#162), identity (#166), resumption (#170), and Moltbook responder/listener/poster (#171–#173). Check current PR status before assuming these have merged.
+The 27 November mainline includes the merged one-pen migrations for daily-life scheduled activity and canary persistence (#168), affinity (#169), learning-guard subtraction (#180), and Expectations reconciliation/transaction support (#183). PR #184 also fixes tied-timestamp pagination for Warrant lineage/arc reads; it does not broaden use-day eligibility or change Warrant policy. Several one-pen migrations remain open at this update: Fountain/momentum (#162), identity (#166), resumption (#170), and Moltbook responder/listener/poster (#171–#173). Check exact PR state and head CI before relying on further changes.
 
 Do not use direct `sqlite3` writes to live substrate databases as a shortcut. Test fixtures and isolated diagnostic databases are different from production persistence.
 
@@ -114,7 +114,7 @@ Sense adapters emit observations into the sense substrate. Stage 2 dynamic forma
 
 The world-model layer retrieves and relates structured beliefs, with source, tier, confidence, provenance, edges and lifecycle state. Belief creation, reinforcement, promotion, pause, demotion, retirement and retrieval are separate operations. Audit eligibility at every consumer; do not assume that a filter in one retrieval path protects all others.
 
-Recent work has identified inactive/paused/retired belief eligibility as a cross-cutting issue across Fountain context, special slots, self-narrative, graph/edge construction, pairing, affinity feedback, reification and other consumers. Several corrective PRs were open on branches based on a non-mainline base at the 27 November audit. Do not assume those PRs affect current `main`; verify their base, merge status and integration before relying on them.
+Recent work has identified inactive/paused/retired belief eligibility as a cross-cutting issue across Fountain context, special slots, self-narrative, graph/edge construction, pairing, affinity feedback, reification and other consumers. The G-53 Warrant cursor correction (#184) is merged, but it does not settle eligibility policy. Other corrective PRs must be checked individually for base, merge status and exact-head tests; do not assume branch-only changes affect current `main`.
 
 ### Coherence Gate
 
@@ -173,7 +173,7 @@ For every such process, distinguish:
 - action is authorised;
 - result is persisted and consumed.
 
-Moltbook components are separate listener, responder and poster pathways. Their open one-pen migration PRs (#171–#173) were not merged at the audited snapshot. The tracked launcher has been reported with `MOLTBOOK_DRY_RUN=1`, but only host environment and runtime logs can establish actual deployment state. Never infer live posting or interaction from source presence.
+Moltbook components are separate listener, responder and poster pathways. Their one-pen migration PRs (#171–#173) remain open at this update. The tracked launcher has been reported with `MOLTBOOK_DRY_RUN=1`, but only host environment and runtime logs can establish actual deployment state. Never infer live posting or interaction from source presence.
 
 Daily-life routines and other autonomous processes require an explicit outbound-side-effect audit before being described as live or safe. Do not activate external actions as part of a source stocktake.
 
@@ -217,12 +217,15 @@ A successful unit test does not establish runtime liveness. A successful boot do
 
 Mainline inspected: `99ae476e198ec438d3f2c065316ebcb6ff6ebac6` (27 November 2026, 09:33:56 UTC). Its GitHub Actions pytest check completed successfully at 09:40:22 UTC. This is repository CI evidence only; it does not establish host/runtime state.
 
+Post-snapshot reconciliation recorded in the Phase 0 handoff branch identifies the following merged changes already present in that mainline SHA: #168 (DailyLife/canary Writer routing), #169 (affinity Writer routing), #174 (P13 finitude re-verification), #175 (full-history mind-map verifier guard), #180 (learning-guard Writer routing), #183 (Expectations transaction/Writers), and #184 (Warrant composite pagination cursors). The source reality report and crosswalk in PR #186 are pinned to `ae406fa8`, not `99ae476`; use the handoff's post-snapshot follow-up for the intervening changes and do not present the older crosswalk as a fully refreshed `99ae476` audit.
+
 Relevant open pull requests at the inspection point:
 
-- **#186** — Phase 0 repository reality, architecture crosswalk, verified backlog, ADR and handoff documents. Its pytest workflow passed; the PR remained open. Its crosswalk is pinned to an earlier source snapshot and must not be represented as a complete current-main audit without its post-snapshot notes.
-- **#185** — mind-map source re-verification after G64/G65 and valence review.
-- **#178** — episodic read/write boundary audit.
-- **#162, #166, #170–#173** — remaining one-pen persistence migrations for Fountain, identity, resumption and Moltbook components.
+- **#187** — this manual update. Its exact-head CI was still running when rechecked; no review threads or submitted reviews were present. Do not call it merged or green until the exact head check completes.
+- **#186** — Phase 0 repository reality, architecture crosswalk, verified backlog, ADR and handoff documents. The PR remained open. Its core report/crosswalk are pinned to `ae406fa8`; its handoff adds post-snapshot reconciliation through `99ae476`.
+- **#185** — consolidated mind-map source re-verification after G64/G65 and valence review. Its exact-head full suite/verifier outcome must be checked before saying warnings cleared.
+- **#178** — episodic read/write boundary audit; retained as a narrower backup pending #185.
+- **#162, #166, #170–#173** — remaining one-pen migrations for Fountain, identity, resumption and Moltbook components.
 
 PRs based on other branches (including the earlier continuity branch) are not automatically part of `main`. Check the base branch and merge commit before describing their changes as current NEX behaviour.
 
