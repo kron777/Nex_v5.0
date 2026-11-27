@@ -70,6 +70,15 @@ class TestCommitmentsOnePen(unittest.TestCase):
                 )
             )
         self.assertIsNotNone(release_id)
+        pre_release = self.readers["conversations"].read_one(
+            "SELECT kind, resolve_at, counterparty, released_by "
+            "FROM commitments WHERE id=?",
+            (release_id,),
+        )
+        self.assertEqual(pre_release["kind"], "commitment")
+        self.assertIsNone(pre_release["counterparty"])
+        self.assertIsNone(pre_release["released_by"])
+        self.assertGreater(pre_release["resolve_at"], now + 1)
         with patch.object(
             C, "Writer",
             side_effect=AssertionError("commitment release opened a second Writer"),
