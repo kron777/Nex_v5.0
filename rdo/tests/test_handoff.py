@@ -16,6 +16,8 @@ from rdo_adapters.handoff import (
     record_human_acceptance,
     record_scope_review,
     verify_with_watcher,
+    _digest,
+    _validate_manifest,
 )
 from rdo_adapters.objective_intake import submit_objective
 from rdo.memory import CycleStore
@@ -109,6 +111,18 @@ def test_real_intake_cycle_creates_immutable_handoff_manifest(tmp_path, monkeypa
         "runtime_observed": "unknown_host_only",
         "human_acceptance": "not_recorded",
     }
+
+
+def test_legacy_v1_handoff_without_context_assessment_remains_readable(tmp_path, monkeypatch):
+    repo, workdir, result, package = _create_cycle(tmp_path, monkeypatch)
+    manifest = create_handoff(
+        workdir, str(repo), "handoff_fixture", 1, result["cycle"]["id"], package["key"]
+    )
+    legacy = dict(manifest)
+    legacy.pop("objective_context_assessment")
+    legacy["manifest_sha256"] = _digest(legacy)
+
+    assert _validate_manifest(legacy) == legacy
 
 
 def test_handoff_create_is_idempotent_and_detects_tampering(tmp_path, monkeypatch):
