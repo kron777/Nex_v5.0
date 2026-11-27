@@ -519,7 +519,7 @@ def test_watcher_accepts_digest_bound_context_mapping_and_criterion_verification
         "verification_method": "inspect the scoped proposal",
         "evidence_refs": [],
         "verified_at": None,
-        "verifier": "fixture-reviewer",
+        "verifier": None,
         "confidence": None,
         "note": "",
         "review_required": True,
