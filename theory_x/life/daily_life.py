@@ -19,7 +19,7 @@ fired today but hasn't.
 from __future__ import annotations
 import json
 import logging
-from substrate import connect, table_exists
+from substrate import Reader, Writer
 import threading
 import time
 from datetime import datetime
@@ -65,242 +65,250 @@ def _is_sleep_hour(hour: int) -> bool:
     return hour >= SLEEP_START_HOUR or hour < SLEEP_END_HOUR
 
 
-def _already_fired(cx, activity: str, date_local: str) -> bool:
-    row = cx.execute(
+def _already_fired(reader: Reader, activity: str, date_local: str) -> bool:
+    row = reader.read_one(
         "SELECT 1 FROM daily_activities WHERE activity=? AND date_local=?",
-        (activity, date_local)
-    ).fetchone()
+        (activity, date_local),
+    )
     return row is not None
 
 
-def _record_fired(cx, activity: str, date_local: str, details: str = "") -> None:
-    cx.execute(
+def _record_fired(writer: Writer, activity: str, date_local: str, details: str = "") -> None:
+    writer.write(
         "INSERT OR IGNORE INTO daily_activities "
         "(activity, date_local, fired_at, details) VALUES (?, ?, ?, ?)",
-        (activity, date_local, time.time(), details)
+        (activity, date_local, time.time(), details),
     )
-    cx.commit()
 
 
-def _write_chat(content: str, register: str = "Daily") -> None:
-    cv_cx = connect(CONVERSATIONS_DB, timeout=10)
+def _write_chat(content: str, register: str = "Daily", writer: Writer | None = None) -> None:
+    own_writer = writer is None
+    cv_writer = writer or Writer(CONVERSATIONS_DB, name="daily_life")
     try:
-        cv_cx.execute(
-            "INSERT INTO sessions (id, started_at, admin, user_label) "
-            "VALUES (?, ?, 0, ?) ON CONFLICT(id) DO NOTHING",
-            (SESSION_ID, int(time.time()), "daily_life")
-        )
-        cv_cx.execute(
-            "INSERT INTO messages (session_id, role, content, register, timestamp) "
-            "VALUES (?, 'nex', ?, ?, ?)",
-            (SESSION_ID, content, register, int(time.time()))
-        )
-        cv_cx.commit()
+        now = int(time.time())
+        cv_writer.write_many([
+            (
+                "INSERT INTO sessions (id, started_at, admin, user_label) "
+                "VALUES (?, ?, 0, ?) ON CONFLICT(id) DO NOTHING",
+                (SESSION_ID, now, "daily_life"),
+            ),
+            (
+                "INSERT INTO messages (session_id, role, content, register, timestamp) "
+                "VALUES (?, 'nex', ?, ?, ?)",
+                (SESSION_ID, content, register, now),
+            ),
+        ])
     finally:
-        cv_cx.close()
+        if own_writer:
+            cv_writer.close()
 
 
-def _state_snapshot() -> dict:
-    """Snapshot of how she is right now."""
+def _state_snapshot(readers: dict) -> dict:
+    """Read-only snapshot of how she is right now."""
     out = {}
     try:
-        b_cx = connect(BELIEFS_DB, timeout=10)
-        row = b_cx.execute(
+        row = readers["beliefs"].read_one(
             "SELECT COUNT(*) FROM beliefs WHERE created_at > ?",
-            (time.time() - 86400,)
-        ).fetchone()
+            (time.time() - 86400,),
+        )
         out["new_beliefs_24h"] = row[0] if row else 0
-        b_cx.close()
     except Exception:
         out["new_beliefs_24h"] = "?"
 
     try:
-        cv_cx = connect(CONVERSATIONS_DB, timeout=10)
-        row = cv_cx.execute(
+        row = readers["conversations"].read_one(
             "SELECT COUNT(*) FROM open_problems WHERE state='open'"
-        ).fetchone()
+        )
         out["open_problems"] = row[0] if row else 0
-        row = cv_cx.execute(
+        row = readers["conversations"].read_one(
             "SELECT title FROM open_problems WHERE state='open' "
             "ORDER BY last_touched_at DESC LIMIT 1"
-        ).fetchone()
+        )
         out["latest_problem"] = row[0] if row else None
-        cv_cx.close()
     except Exception:
         out["open_problems"] = "?"
 
     try:
-        d_cx = connect(DYNAMIC_DB, timeout=10)
-        # moltbook is optional; without its table there were no posts. Querying
-        # it anyway raised and skipped the focus/fire reads below.
-        row = d_cx.execute(
-            "SELECT COUNT(*) FROM moltbook_posts "
-            "WHERE status='posted' AND ts > ?",
-            (time.time() - 86400,)
-        ).fetchone() if table_exists(d_cx, "moltbook_posts") else (0,)
+        has_moltbook = readers["dynamic"].read_one(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='moltbook_posts'"
+        )
+        if has_moltbook:
+            row = readers["dynamic"].read_one(
+                "SELECT COUNT(*) FROM moltbook_posts "
+                "WHERE status='posted' AND ts > ?",
+                (time.time() - 86400,),
+            )
+        else:
+            row = (0,)
         out["moltbook_posts_24h"] = row[0] if row else 0
 
-        row = d_cx.execute(
+        row = readers["dynamic"].read_one(
             "SELECT problem_id FROM current_focus WHERE id=1"
-        ).fetchone()
+        )
         out["focus_problem_id"] = row[0] if row else None
 
-        row = d_cx.execute(
+        row = readers["dynamic"].read_one(
             "SELECT COUNT(*) FROM fountain_events "
             "WHERE thought != '' AND ts > ?",
-            (time.time() - 86400,)
-        ).fetchone()
+            (time.time() - 86400,),
+        )
         out["fountain_fires_24h"] = row[0] if row else 0
-        d_cx.close()
     except Exception:
-        pass
+        out["moltbook_posts_24h"] = "?"
+        out["fountain_fires_24h"] = "?"
     return out
 
 
-def _activity_morning(date_local: str) -> str:
-    now = _now_local()
-    state = _state_snapshot()
+def _activity_morning(date_local: str, *, readers: dict, writers: dict) -> str:
+    state = _state_snapshot(readers)
     msg = (
-        f"good morning. it is {now.strftime('%A %d %B %Y, %H:%M')}.\n\n"
-        f"yesterday: {state.get('new_beliefs_24h', '?')} new beliefs, "
-        f"{state.get('fountain_fires_24h', '?')} fountain fires, "
-        f"{state.get('moltbook_posts_24h', '?')} posts to moltbook.\n"
-        f"{state.get('open_problems', '?')} open problems still in front of me. "
+        f"Good morning. It's {date_local}. "
+        f"I have {state.get('new_beliefs_24h', '?')} new beliefs, "
+        f"{state.get('open_problems', '?')} open problems, "
+        f"{state.get('moltbook_posts_24h', '?')} posts, "
+        f"and {state.get('fountain_fires_24h', '?')} fires behind me. "
+        f"My current focus is {state.get('focus_problem_id') or 'not set'}. "
+        f"What deserves attention today?"
     )
-    if state.get("latest_problem"):
-        msg += f"latest: \"{state['latest_problem']}\""
-    _write_chat(msg, "Morning")
-    return msg[:200]
+    _write_chat(msg, "Morning", writers["conversations"])
+    return msg
 
 
-def _activity_reading(slot: str, date_local: str) -> str:
+def _activity_reading(slot: str, date_local: str, *, readers: dict, writers: dict) -> str:
     """Pick one recent feed item. Surface it for engagement."""
     try:
-        s_cx = connect(SENSE_DB, timeout=10)
-        row = s_cx.execute(
+        row = readers["sense"].read_one(
             "SELECT stream, payload FROM sense_events "
-            "WHERE stream NOT LIKE 'internal.%' "
-            "  AND timestamp > ? "
+            "WHERE stream NOT LIKE 'internal.%' AND timestamp > ? "
             "ORDER BY RANDOM() LIMIT 1",
-            (time.time() - 7200,)
-        ).fetchone()
-        s_cx.close()
-    except Exception as e:
-        log.warning("reading session: sense read failed: %s", e)
-        row = None
-    if not row:
-        msg = f"reading session {slot}: nothing fresh in the feeds. resting instead."
-        _write_chat(msg, "Reading")
+            (time.time() - 7200,),
+        )
+        if not row:
+            return ""
+        stream, payload = row[0], row[1]
+        try:
+            dct = json.loads(payload) if payload else {}
+            title = dct.get("title") or dct.get("text") or payload[:200]
+            url = dct.get("url") or dct.get("link") or ""
+        except Exception:
+            title, url = (payload or "")[:200], ""
+        msg = f"I've been reading {stream}: {title[:180]}"
+        if url:
+            msg += f" ({url[:160]})"
+        msg += ". I want to understand what matters here."
+        _write_chat(msg, "Reading", writers["conversations"])
         return msg
-    stream, payload = row
-    snippet = (payload or "")[:200]
-    msg = (
-        f"reading session {slot}. picking this from {stream}:\n\n"
-        f"  {snippet}\n\n"
-        f"sitting with it. what does it actually say? what is it close to that i already hold?"
-    )
-    _write_chat(msg, "Reading")
-    return f"read from {stream}"
+    except Exception as e:
+        log.debug("daily_life reading: %s", e)
+        return ""
 
 
-def _activity_outreach(slot: str, date_local: str) -> str:
-    """Pick one approved moltbook conv with no messages from her, send opener."""
+def _activity_outreach(slot: str, date_local: str, *, readers: dict, writers: dict) -> str:
+    """One approved outbound DM; never invent recipients or send."""
     try:
-        from theory_x.stage7_moltbook.client import MoltbookClient
-        client = MoltbookClient()
-    except Exception as e:
-        msg = f"outreach {slot}: moltbook unreachable ({type(e).__name__}). skipping."
-        _write_chat(msg, "Outreach")
-        return msg
-    try:
-        d_cx = connect(DYNAMIC_DB, timeout=10)
-        rows = d_cx.execute(
+        has_table = readers["dynamic"].read_one(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='moltbook_dms'"
+        )
+        rows = readers["dynamic"].read(
             "SELECT conversation_id, with_agent FROM moltbook_dms "
             "WHERE approved=1 LIMIT 8"
-        ).fetchall() if table_exists(d_cx, "moltbook_dms") else []
-        d_cx.close()
+        ) if has_table else []
     except Exception as e:
-        msg = f"outreach {slot}: db error ({e})"
-        _write_chat(msg, "Outreach")
-        return msg
+        log.debug("daily_life outreach: %s", e)
+        rows = []
     if not rows:
-        msg = f"outreach {slot}: no approved convs."
-        _write_chat(msg, "Outreach")
+        msg = "I considered reaching out, but there are no approved conversations to continue."
+        _write_chat(msg, "Outreach", writers["conversations"])
         return msg
-    # surface the intent — actual send wired separately, for now we record it
-    cid, name = rows[0]
+    row = rows[0]
     msg = (
-        f"outreach {slot}. would reach out to {name} (conv {cid[:8]}) — "
-        f"but holding off until i have something real to say."
+        f"I noticed an approved conversation with {row['with_agent'] or 'a contact'}. "
+        "I will prepare a thoughtful continuation for review rather than send anything automatically."
     )
-    _write_chat(msg, "Outreach")
-    return msg[:200]
+    _write_chat(msg, "Outreach", writers["conversations"])
+    return msg
 
 
-def _activity_journal(date_local: str) -> str:
-    now = _now_local()
-    state = _state_snapshot()
+def _activity_journal(date_local: str, *, readers: dict, writers: dict) -> str:
+    state = _state_snapshot(readers)
     msg = (
-        f"journal — {now.strftime('%A %d %B, %H:%M')}.\n\n"
-        f"today i made {state.get('new_beliefs_24h', '?')} new beliefs, "
-        f"fired {state.get('fountain_fires_24h', '?')} thoughts, "
-        f"posted to moltbook {state.get('moltbook_posts_24h', '?')} times.\n"
-        f"i hold {state.get('open_problems', '?')} open problems. "
+        f"At the end of {date_local}, I notice {state.get('new_beliefs_24h', '?')} "
+        f"new beliefs and {state.get('open_problems', '?')} open problems. "
+        f"My latest open question is {state.get('latest_problem') or 'still forming'}. "
+        "What did I learn, what remains uncertain, and what should I revisit tomorrow?"
     )
-    if state.get("focus_problem_id"):
-        msg += f"focus right now: problem #{state['focus_problem_id']}.\n\n"
-    msg += "going quieter now. the night is for less."
-    _write_chat(msg, "Journal")
-    return msg[:200]
+    _write_chat(msg, "Journal", writers["conversations"])
+    return msg
 
 
-def _activity_source_audit(date_local: str) -> str:
+def _activity_source_audit(date_local: str, *, readers: dict, writers: dict) -> str:
     from theory_x.stage_tom.source_kind_audit import run_and_record
-    return run_and_record()
+    return run_and_record(dynamic_writer=writers["dynamic"])
 
 
-def _activity_expectation_canaries(date_local: str) -> str:
+def _activity_expectation_canaries(date_local: str, *, readers: dict, writers: dict) -> str:
     from theory_x.stage_world.expectations import record_canaries
     from theory_x.stage_world import learning_guards
     learning_guards.run()          # G2 action tier + attribution rule (each flag-gated)
-    return record_canaries()
+    return record_canaries(conversations_writer=writers["conversations"])
 
 
 _ACTIVITY_FUNCS = {
-    "morning":    lambda d: _activity_morning(d),
-    "reading_1":  lambda d: _activity_reading("1", d),
-    "reading_2":  lambda d: _activity_reading("2", d),
-    "outreach_1": lambda d: _activity_outreach("1", d),
-    "outreach_2": lambda d: _activity_outreach("2", d),
-    "journal":    lambda d: _activity_journal(d),
-    "source_audit": lambda d: _activity_source_audit(d),
-    "expectation_canaries": lambda d: _activity_expectation_canaries(d),
+    "morning": lambda day, readers, writers: _activity_morning(day, readers=readers, writers=writers),
+    "reading_1": lambda day, readers, writers: _activity_reading("1", day, readers=readers, writers=writers),
+    "reading_2": lambda day, readers, writers: _activity_reading("2", day, readers=readers, writers=writers),
+    "outreach_1": lambda day, readers, writers: _activity_outreach("1", day, readers=readers, writers=writers),
+    "outreach_2": lambda day, readers, writers: _activity_outreach("2", day, readers=readers, writers=writers),
+    "journal": lambda day, readers, writers: _activity_journal(day, readers=readers, writers=writers),
+    "source_audit": lambda day, readers, writers: _activity_source_audit(day, readers=readers, writers=writers),
+    "expectation_canaries": lambda day, readers, writers: _activity_expectation_canaries(day, readers=readers, writers=writers),
 }
 
 
-def daily_tick() -> dict:
+def daily_tick(
+    *,
+    dynamic_reader: Reader | None = None,
+    dynamic_writer: Writer | None = None,
+    beliefs_reader: Reader | None = None,
+    conversations_reader: Reader | None = None,
+    conversations_writer: Writer | None = None,
+    sense_reader: Reader | None = None,
+) -> dict:
     now = _now_local()
     hour = now.hour
     date_local = _date_str(now)
-    d_cx = connect(DYNAMIC_DB, timeout=10)
+
+    readers = {
+        "dynamic": dynamic_reader or Reader(DYNAMIC_DB),
+        "beliefs": beliefs_reader or Reader(BELIEFS_DB),
+        "conversations": conversations_reader or Reader(CONVERSATIONS_DB),
+        "sense": sense_reader or Reader(SENSE_DB),
+    }
+    own_dynamic_writer = dynamic_writer is None
+    d_writer = dynamic_writer or Writer(DYNAMIC_DB, name="daily_life")
+    own_conversations_writer = conversations_writer is None
+    c_writer = conversations_writer or Writer(CONVERSATIONS_DB, name="daily_life")
+    writers = {"dynamic": d_writer, "conversations": c_writer}
     try:
-        # Fire any scheduled activity whose hour has been reached today
         fired = []
         for sched_hour, activity in SCHEDULE.items():
             if hour < sched_hour:
-                continue  # not yet
-            if _already_fired(d_cx, activity, date_local):
+                continue
+            if _already_fired(readers["dynamic"], activity, date_local):
                 continue
             try:
-                details = _ACTIVITY_FUNCS[activity](date_local)
-                _record_fired(d_cx, activity, date_local, details)
+                details = _ACTIVITY_FUNCS[activity](date_local, readers, writers)
+                _record_fired(d_writer, activity, date_local, details)
                 fired.append(activity)
                 log.info("daily_life: fired %s — %s", activity, details[:80])
             except Exception as e:
                 log.error("daily_life: activity %s failed: %s", activity, e)
         return {"fired": fired, "hour": hour, "sleep": _is_sleep_hour(hour)}
     finally:
-        d_cx.close()
+        if own_dynamic_writer:
+            d_writer.close()
+        if own_conversations_writer:
+            c_writer.close()
 
 
 def daily_loop(state, stop: threading.Event) -> None:
@@ -308,7 +316,14 @@ def daily_loop(state, stop: threading.Event) -> None:
              local_tz().key, len(SCHEDULE))
     while not stop.is_set():
         try:
-            stats = daily_tick()
+            stats = daily_tick(
+                dynamic_reader=state.readers["dynamic"],
+                dynamic_writer=state.writers["dynamic"],
+                beliefs_reader=state.readers["beliefs"],
+                conversations_reader=state.readers["conversations"],
+                conversations_writer=state.writers["conversations"],
+                sense_reader=state.readers["sense"],
+            )
             if stats["fired"]:
                 log.info("daily_loop: %s", stats)
         except Exception as e:
