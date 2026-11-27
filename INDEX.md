@@ -1,6 +1,6 @@
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `e78773def4549f646257945e5886ec71a7837374`  
+**Last verified against:** `main` at `c9e25d7cf85659e80053f5fe75928ee71486a141`  
 **Evidence date:** 27 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -623,5 +623,11 @@ The PR #261 exact-head mind-map check reported P9 as stale because `substrate/sc
 
 ## 35. WarrantPass boot-path documentation correction (27 November 2026)
 
-The G-75 source review found a false statement in `WarrantPass`'s class docstring: it said the pass was constructed and started by `run.py`. The audited `run.py` source constructs and starts `WarrantRecorder` behind `NEX5_WARRANT_RECORD=1`, but contains no WarrantPass construction/start. `WarrantPass.start_loop()` separately checks `NEX5_WARRANT=1`. Draft PR #262 corrects the docstring only; it does not wire the pass or alter either flag. G-75 remains open because the intended record-only versus scoring lifecycle still requires owner clarification.
+The G-75 source review found a false statement in `WarrantPass`'s class docstring: it said the pass was constructed and started by `run.py`. The audited `run.py` source constructs and starts `WarrantRecorder` behind `NEX5_WARRANT_RECORD=1`, but contains no WarrantPass construction/start. `WarrantPass.start_loop()` separately checks `NEX5_WARRANT=1`. PR #262 merged as `c9e25d7cf85659e80053f5fe75928ee71486a141`; it corrects the docstring only and does not wire the pass or alter either flag. G-75 remains open because the intended record-only versus scoring lifecycle still requires owner clarification.
+
+
+
+## 36. Current-main update after Warrant documentation correction (27 November 2026)
+
+PR #262 is merged to main as `c9e25d7cf85659e80053f5fe75928ee71486a141`. It changes only the WarrantPass class docstring to describe the actual boot boundary. The exact-head full suite passed **2,599 passed, 7 skipped, 45 subtests** (run `46020220371`). The G-75 lifecycle question remains open; this merge does not activate WarrantPass or alter either Warrant flag. The current manual snapshot is now pinned to this main commit. PR #260's own exact-head CI is run `46020611137` and passed **2,599 passed, 7 skipped, 45 subtests**; the P9 stale-source warning is cleared after the schema line-anchor correction. The two missing doctrine files and overdue P13 unblock remain visible warnings, not silently repaired.
 
