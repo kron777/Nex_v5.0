@@ -492,6 +492,7 @@ def compare_adjacent_relationship_impacts(
             "invalid_capabilities": invalid_capabilities,
             "affected_relationships": [],
             "invalid_relationship_records": 0,
+            "unresolved_relationship_references": 0,
             "invalid_assessment_records": 0,
             "invalid_obligation_records": 0,
             "unknown_capabilities": [],
