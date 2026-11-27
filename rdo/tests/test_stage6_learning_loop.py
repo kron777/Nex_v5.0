@@ -206,7 +206,7 @@ def test_malformed_regression_outcome_does_not_create_learning_pattern():
     cycle = _cycle("malformed-regression", 1, actual={
         "missed": [], "unnecessary": [], "reuse_wrong": [], "regressions": [" "],
     })
-    assert all(item.key != "regression_risk"
+    assert all(not item.key.startswith("regression_risk:")
                for item in derive_lessons(cycle, compare(cycle)))
 
 
@@ -237,7 +237,7 @@ def test_regression_without_objective_scope_does_not_create_global_pattern():
                for item in derive_lessons(cycle, compare(cycle)))
 
 
-def test_exact_scope_patterns_do_not_use_legacy_token_overlap():
+def test_exact_scope_patterns_do_not_use_legacy_token_overlap(tmp_path):
     from rdo.memory import PatternMemory
     from rdo.model import Pattern
     memory = PatternMemory(str(tmp_path / "patterns.jsonl"))
