@@ -96,7 +96,7 @@ The one-pen rule is a core persistence invariant: **one canonical Writer per dat
 
 A Writer serializes work for its own database. A transaction callback or multi-statement write can be atomic within that database. It does **not** create an atomic transaction spanning multiple SQLite databases. If one logical operation updates beliefs and conversations, a failure between those commits can leave partial cross-database state. Do not describe cross-database work as globally atomic.
 
-The 27 November mainline includes the merged one-pen migrations for daily-life scheduled activity and canary persistence (#168), affinity (#169), learning-guard subtraction (#180), and Expectations persistence/reconciliation transaction support (#183). Important distinction: the shared-Writer migration does **not** establish that the Expectations reconciler is activated. The tracked launcher sets `NEX5_RECONCILER=1` and `NEX5_EXPECT_LEARN=1`, but the audited `run.py` has no Expectations/reconcile invocation, and `daily_life.py` imports only `record_canaries`; do not infer a live reconciliation loop from those flags. No activation is authorised by this documentation. PR #184 also fixes tied-timestamp pagination for Warrant lineage/arc reads; it does not broaden use-day eligibility or change Warrant policy. Several one-pen migrations remain open at this update: Fountain/momentum (#162), identity (#166), resumption (#170), and Moltbook responder/listener/poster (#171–#173). Check exact PR state and head CI before relying on further changes.
+The 27 November mainline includes the merged one-pen migrations for daily-life scheduled activity and canary persistence (#168), affinity (#169), learning-guard subtraction (#180), and Expectations persistence/reconciliation transaction support (#183). Important distinction: the shared-Writer migration does **not** establish that the Expectations reconciler is activated. The tracked launcher sets `NEX5_RECONCILER=1` and `NEX5_EXPECT_LEARN=1`, but the audited `run.py` has no Expectations/reconcile invocation, and `daily_life.py` imports only `record_canaries`; do not infer a live reconciliation loop from those flags. No activation is authorised by this documentation. PR #184 also fixes tied-timestamp pagination for Warrant lineage/arc reads; it does not broaden use-day eligibility or change Warrant policy. The one-pen migration programme has advanced on current main: responder (#191) and listener/poster (#196) are merged. The remaining resumption, identity and Fountain momentum/recursion-attribution migrations are consolidated in #198 and must not be treated as current-main behaviour until that refreshed PR passes exact-head CI and merges.
 
 Do not use direct `sqlite3` writes to live substrate databases as a shortcut. Test fixtures and isolated diagnostic databases are different from production persistence.
 
@@ -173,7 +173,7 @@ For every such process, distinguish:
 - action is authorised;
 - result is persisted and consumed.
 
-Moltbook components are separate listener, responder and poster pathways. Their one-pen migration PRs (#171–#173) remain open at this update. The tracked launcher has been reported with `MOLTBOOK_DRY_RUN=1`, but only host environment and runtime logs can establish actual deployment state. Never infer live posting or interaction from source presence.
+Moltbook components are separate listener, responder and poster pathways. Their persistence migrations have been merged in two steps: responder (#191), then listener/poster (#196). This is a persistence-ownership change, not proof that any Moltbook loop is running or authorised to act. The tracked launcher has been reported with `MOLTBOOK_DRY_RUN=1`, but only host environment and runtime logs can establish actual deployment state. Never infer live posting or interaction from source presence.
 
 Daily-life routines and other autonomous processes require an explicit outbound-side-effect audit before being described as live or safe. Do not activate external actions as part of a source stocktake.
 
@@ -217,20 +217,23 @@ A successful unit test does not establish runtime liveness. A successful boot do
 
 ## 11. Current mainline snapshot and open work (27 November 2026)
 
-Mainline inspected: `ddb9f15fc723f91d3609df35686ded19b6befdb7` (27 November 2026, after the manual, mind-map source-verification and Phase 0 evidence-pack merges). The earlier `99ae476e` mainline GitHub Actions pytest check completed successfully at 09:40:22 UTC; PR #185 subsequently passed the exact-head full baseline and verifier. These are repository CI/source-verification results only; they do not establish host/runtime state.
+Mainline inspected: `9235b25f085ab6950d8376df5706eaaaac431eca` (27 November 2026, after #189 manual reconciliation, #191 responder migration and #196 listener/poster migration). Exact-head full baseline CI passed for #191, #196 and the current-main carry-forward branch before #198 was opened. These are repository CI/source-verification results only; they do not establish host/runtime state.
 
 Post-snapshot reconciliation recorded in the Phase 0 handoff branch identifies the following merged changes already present in that mainline SHA: #168 (DailyLife/canary Writer routing), #169 (affinity Writer routing), #174 (P13 finitude re-verification), #175 (full-history mind-map verifier guard), #180 (learning-guard Writer routing), #183 (Expectations transaction/Writers), and #184 (Warrant composite pagination cursors). The source reality report and crosswalk carried by PR #188 remain pinned to `ae406fa8`; its handoff reconciles changes through `99ae476`. The later mind-map source-verifier outcome from PR #185 is recorded separately above. Treat each evidence artefact as snapshot-bounded, not as a single fully refreshed audit of `ddb9f15`.
 
-Relevant open pull requests at the inspection point:
+Relevant pull requests and integration state at this update:
 
-- **#187** — the INDEX/manual stocktake update; merged as `f6e51f8ff6eb191438372a0ae1e6fff52b7b33a3` after exact-head CI passed.
-- **#185** — consolidated mind-map source re-verification after G64/G65 and valence review; merged as `c6bc4e411141497f9e25540178e771a08cbab79d` after exact-head CI passed (2,527 passed, 7 skipped, 40 subtests; verifier: 30 nodes, 0 unverified, 14 dark, 2 blocked). The two missing doctrine references and overdue P13 marker remain.
-- **#188** — Phase 0 evidence-pack carry-forward, merged as `ddb9f15fc723f91d3609df35686ded19b6befdb7` after exact-head CI passed. Five documentation artefacts are now in main; their source snapshots remain explicitly pinned as described above. This does not approve Gate 0.
-- **#189** — this manual reconciliation update; exact-head CI is pending. It records the final #185 verifier state and the #188 merge.
-- **#186** — older Phase 0 evidence-pack PR, superseded by merged #188; do not merge the stale branch.
-- **#178** — episodic read/write boundary audit; retained as a narrower backup pending #185.
-- **#190** — responder one-pen migration carried directly onto current main; exact-head CI is running. The earlier #171 branch is superseded and must not be merged.
-- **#162, #166, #170, #172, #173** — remaining one-pen migrations for Fountain, identity, resumption and Moltbook listener/poster; earlier CI passes are on old heads and do not establish current-main compatibility.
+- **#187** — INDEX/manual stocktake update; merged after exact-head CI.
+- **#185** — consolidated mind-map source re-verification; merged after exact-head full baseline and verifier (2,527 passed, 7 skipped, 40 subtests; 30 nodes, 0 unverified, 14 dark, 2 blocked). Two missing doctrine references and the overdue P13 marker remain unresolved.
+- **#188** — Phase 0 evidence-pack carry-forward; merged after exact-head CI. Its report/crosswalk snapshots remain pinned to `ae406fa8`, while the handoff reconciles through `99ae476`. Do not treat these artefacts as a fully refreshed audit of current main.
+- **#189** — manual reconciliation after #185/#188; merged.
+- **#191** — responder one-pen migration; merged after exact-head full baseline CI.
+- **#196** — listener/poster one-pen migration; merged after exact-head full baseline CI. Together, #191 and #196 migrate all three Moltbook loop persistence paths without activating external posting.
+- **#198** — refreshed current-main carry-forward for ResumptionSeeder, IdentityLoop, Fountain momentum and recursion attribution. The earlier #197 was closed after #196 advanced main; #198 starts from the new main head. Its exact-head full baseline workflow is the current validation gate; do not merge before it succeeds and the diff is reviewed.
+- **#197** — superseded by #198 after #196 merged; do not merge the stale branch.
+- **#192–#195** — superseded current-main carry-forward PRs; closed after consolidation into #197/#198 and #196.
+- **#162, #166, #170, #171–#173** — original stale-base migration branches; closed/superseded. Their old-head CI results are not current-main evidence.
+- **#178** — episodic read/write boundary audit; closed after review found its `p8_episodic` mind-map node unchanged from current main. This does not validate episodic runtime activation; it remains dark by default and unwired in the audited live loop.
 
 PRs based on other branches (including the earlier continuity branch) are not automatically part of `main`. Check the base branch and merge commit before describing their changes as current NEX behaviour.
 
@@ -275,4 +278,4 @@ When in doubt: the current source and approved governing documents win—not thi
 
 ---
 
-*Last amended: 27 November 2026 — mainline stocktake and exact-head mind-map verifier reconciliation. Replaces stale May 2026 architecture, port, database-count, subsystem-status and operational claims with evidence-qualified current guidance.*
+*Last amended: 27 November 2026 — refreshed after #189, #191 and #196; #198 remains under exact-head validation. Replaces stale one-pen migration and PR-status claims with current-main evidence.*
