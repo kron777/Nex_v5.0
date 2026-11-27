@@ -131,8 +131,6 @@ PR #287 merged objective-context propagation into `run_cycle()`, cycle persisten
 
 **Evidence-integrity update (27 November 2026):** PR #298 makes malformed persisted interface-profile shapes explicitly diagnosable. PRs #304–#306 strengthen evidence completeness for feedback verdicts, performance margins and assessed operating envelopes. These changes enforce traceability and UNKNOWN handling; they do not supply missing v1.4 thresholds or implement stability/headroom calculations. PR #310 (open at this snapshot) proposes connecting operating-envelope evidence to relationship-level assessment.
 
-**Additional evidence-integrity note (27 November 2026):** PR #298 makes malformed persisted interface-profile shapes explicitly diagnosable as `invalid_shape`. PRs #304–#306 strengthen feedback-verdict, performance-margin and operating-envelope evidence requirements. These are evidence-integrity improvements, not substitutes for calibrated thresholds. PR #310 (open at this snapshot) proposes relationship-level operating-envelope evidence integration.
-
 ## 6. Next implementation slice
 
 **Target:** Evidence-backed operating-envelope/headroom assessment, feedback-loop stability and relationship-level OFT.
