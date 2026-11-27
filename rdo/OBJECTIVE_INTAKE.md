@@ -83,6 +83,34 @@ This is an external RDO intake increment. It creates files only in the RDO objec
 
 ## Current planning boundary — important
 
-The full objective record is validated and preserved in the append-only revision ledger, but not every field currently participates in planning. `submit_objective()` passes the original request text, top-level assumptions, supplied seed obligations, relationships, reconciliation signatures and expansion depth into the deterministic cycle. The top-level interpreted `intent`, `owner`, `scope`, `constraints`, `exclusions` and `acceptance_criteria` remain preserved context; they are not yet translated into obligations, checked against work packages, or used as an acceptance-verification contract.
+The objective-context fields now participate in the planning record as typed,
+traceable review requirements. `run_cycle()` creates one `ContextRequirement`
+for each non-empty intent, in-scope item, affected path, assumption, constraint,
+exclusion and acceptance criterion. Each record retains its original source field,
+index, source reference, stable item ID and candidate classification. Exclusions
+are also carried into work-package anti-requirements so they remain visible during
+scope review.
 
-Therefore these fields must not be described as enforced planning constraints. RDO is advisory and does not execute work, but a proposed plan can currently fail to reflect all preserved context. A future increment should translate context into typed, traceable obligations and anti-requirements and carry acceptance criteria into an explicit verification record. Until that design is implemented and tested, keep the limitation visible rather than inferring enforcement from schema validation. RDO v1.4 is the current working specification (founder indicated on 24 November that they believed it had been approved); v1.3 remains historical. Schema v1 should change only through a specific, traceable design increment.
+This is **context preservation and review surfacing, not semantic satisfaction**.
+Every generated context requirement begins `unmapped` and review-required.
+Marking one mapped requires canonical obligation keys and separate traceable
+mapping evidence. The current increment does not automatically decide that a seed
+or expanded obligation fully satisfies a context requirement, nor does it infer
+that a constraint is enforced merely because it appears in a package.
+
+Each acceptance criterion also receives a separate
+`AcceptanceVerificationRecord`. Its initial state is `unknown`; planning,
+source-anchor matches and package generation do not pass it. A pending verification
+requires mapped obligation keys and a stated verification method. A passed or
+failed result requires traceable evidence, verifier attribution, confidence and a
+timezone-aware verification timestamp. A not-applicable result likewise requires
+a recorded rationale/evidence and verifier attribution. These records are
+caller/reviewer supplied; the current cycle does not execute tests or authenticate
+the verifier.
+
+Consequently, the RDO can now preserve and expose the context needed for review,
+but **it cannot yet claim that all context has been semantically mapped or that
+acceptance criteria have been verified**. Execution readiness remains blocked
+while context requirements are unmapped. Work-package handoff review remains a
+separate authority boundary. Schema v1 remains unchanged; these are additive
+cycle-record structures, not new input fields or an approval mechanism.
