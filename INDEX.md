@@ -844,6 +844,7 @@ PR #275's mind-map freshness update, PR #276's RDO generated-cycle exclusion and
 - G-89 is closed by PR #276 (RDO generated `.cycles` records excluded from source-evidence searches).
 - G-90: social silence is not yet modeled as a contextual social act; response latency and internal stillness mechanisms are not substitutes.
 - G-91: SocialPresence is described as an autonomous boot module, but current `run.py` explicitly disables it; protocol and consumer wiring are stale.
+- G-92: RDO objective intake stores scope, constraints, exclusions and acceptance criteria but does not pass them as enforced planning/verification inputs.
 
 The RDO capability boundary and version-precedence questions are recorded in the research report. It remains an external advisory tool, not part of NEX runtime; its current objective intake requires externally supplied seed obligations and reconciliation signatures.
 
