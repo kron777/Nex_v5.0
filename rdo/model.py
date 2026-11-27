@@ -248,9 +248,18 @@ class Relationship:
     # Optional operating-envelope evidence for this relationship/interface.
     # Kept trailing to preserve legacy positional Relationship construction.
     operating_envelope: Optional[Any] = None
+    # Per-metric q/tau margin evidence; never aggregated into a relationship verdict
+    # without calibrated criteria. Trailing to preserve all legacy positional fields.
+    performance_margins: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> dict:
-        return dataclasses.asdict(self)
+        data = dataclasses.asdict(self)
+        if isinstance(self.performance_margins, dict):
+            data["performance_margins"] = {
+                key: (value.to_dict() if isinstance(value, PerformanceMargin) else value)
+                for key, value in self.performance_margins.items()
+            }
+        return data
 
 
 @dataclasses.dataclass
