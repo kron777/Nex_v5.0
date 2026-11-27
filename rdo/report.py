@@ -60,7 +60,7 @@ def self_assess(rdo_dir: Optional[str] = None) -> dict:
                 reuses_watcher = True
     # Evidence records are data contracts, not reasoning engines. Keep their
     # footprint visible while excluding them from the core reasoning-module cap.
-    evidence_model_names = {"operating_envelope.py", "feedback_loop.py"}
+    evidence_model_names = {"operating_envelope.py", "feedback_loop.py", "failure_evidence.py"}
     evidence_models = {name: modules.pop(name) for name in list(modules)
                        if name in evidence_model_names}
     total_loc = sum(m["loc"] for m in modules.values()) + sum(

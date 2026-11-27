@@ -374,3 +374,20 @@ not proof that the named capability caused the change, nor a benefit/harm/suffic
 
 Both commands are read-only. Exit status is 0 for a complete analysis, 1 for a partial or
 invalid analysis, and 2 when a requested cycle cannot be loaded or the input is invalid.
+
+
+## Observed failure evidence
+
+Structural failure-propagation candidates from `failure-propagation` are not runtime
+observations. The separate `rdo.failure_evidence` data model can record a measured
+failure event against an exact `depends_on` edge, preserving independent Watcher
+Evidence records for the failed prerequisite and (when observed) affected consumer.
+It retains a timezone-aware observation window, typed operating-envelope evidence,
+origin, evidence class, source references and caller-attributed assessment provenance.
+
+Association defaults to UNKNOWN. Co-observation, temporal association and causal
+attribution are distinct reviewer-supplied states; the record validates required
+evidence but does not infer causality, propagation probability, severity, headroom
+or an OFT verdict. Records are appended to a CycleRecord's trailing
+`observed_failure_evidence` field and survive CycleStore reload; legacy cycles
+without the field remain loadable. See [OBSERVED_FAILURE_EVIDENCE.md](OBSERVED_FAILURE_EVIDENCE.md).

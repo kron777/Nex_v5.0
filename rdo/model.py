@@ -511,6 +511,8 @@ class CycleRecord:
     objective_context: Dict[str, Any] = dataclasses.field(default_factory=dict)
     # Explicit UNKNOWN-first mapping assessment; never infer satisfaction from planning.
     context_assessment: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    # Observed endpoint evidence; separate from structural failure-path candidates.
+    observed_failure_evidence: List[dict] = dataclasses.field(default_factory=list)
 
     def __post_init__(self) -> None:
         if self.kind not in CYCLE_KINDS:
