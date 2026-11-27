@@ -252,7 +252,7 @@ The canonical manual is `INDEX.md`; its plain-text mirror is `NEX_5.0_DEVELOPMEN
 - PR #276 merged as `baac692`; exact-head and post-merge main CI passed 2,634 tests, 7 skipped, 45 subtests. RDO source searches now exclude generated `.cycles`.
 - PR #277 merged as `14873c1`; exact-head CI passed 2,636 tests, 7 skipped, 45 subtests. Keepalive checkout path is portable; `MOLTBOOK_DRY_RUN=1` remains unchanged.
 - Current mind-map check: 30 nodes, 0 unverified, 14 dark, 2 blocked; no stale-source warnings. Two doctrine references and the past-due P13 marker remain.
-- New open findings: G-80 reanimation handoff durability; G-81 divergent fire counters; G-83 groove-alert replay; G-84 shutdown quiescence; G-85 SignalToProblem one-pen/cross-database boundary; G-86 SignalReaper allowlist drift; G-87 Moltbook dry-run/external-consent semantics; G-90 contextual social-silence capability gap; G-91 SocialPresence boot/protocol mismatch. Scanner coverage remains under G-73.
+- New open findings: G-80 reanimation handoff durability; G-81 divergent fire counters; G-83 groove-alert replay; G-84 shutdown quiescence/join and Writer lifecycle; G-85 SignalToProblem one-pen/cross-database boundary; G-86 SignalReaper allowlist drift; G-87 Moltbook dry-run/external-consent semantics; G-90 contextual social-silence capability gap; G-91 SocialPresence boot/protocol mismatch. Scanner coverage remains under G-73.
 - The global one-pen audit remains open. SignalToProblem is a boot-registered direct-writer path and its cross-database recovery contract needs explicit design before migration.
 - The RDO remains external/advisory; raw objective seeding and v1.3/v1.4 precedence remain open architecture/governance questions.
 
