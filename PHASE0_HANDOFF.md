@@ -2,7 +2,7 @@
 
 **Date:** 27 November 2026  
 **Repository:** https://github.com/kron777/Nex_v5.0  
-**Evidence snapshot:** `main` at `e4f439e6aef4383795ccc7e3e29b1d242ed0f98c`  
+**Evidence snapshot:** `main` at `f03a3d2e7b9c71801e44be73cf728c01cb791c9d`  
 **Gate 0:** **PENDING — founder review required**
 
 ## Read these together
@@ -71,7 +71,7 @@ The evidence snapshot and source-bounded report above remain pinned to their sta
 
 - No live host collection, runtime trace, database hash inventory, model digest or performance measurement was performed in this remote-source session. These remain **UNKNOWN**.
 - RDO Stage 2–7 modules, documents and tests are present in current main. The historical Claude Stage 2–7 branches are divergent and approximately 475 commits behind; they are not merge candidates. RDO Stage 7's own handoff/status documentation still requires a real objective-to-delivery demonstration, a verified disposable test-execution boundary, host-only runtime observation and separate human acceptance. The independent Watcher handoff verifier is source/path-only; it does not run tests or establish runtime state.
-- RDO v1.3/v1.4 precedence remains unresolved. The recovered v1.4 source metadata and founder recollection do not by themselves establish formal supersession; do not rewrite RDO specifications or stage documents on inference.
+- RDO v1.4 is the current working specification (founder indicated on 24 Nov that they believed it had been approved); v1.3 remains historical implementation lineage. Formal frozen supersession is not recorded in the consolidated NEX register; preserve history rather than retroactively rewriting it.
 
 
 
@@ -242,3 +242,33 @@ The canonical manual is `INDEX.md`; its plain-text mirror is `NEX_5.0_DEVELOPMEN
 ## Post-PR #274 merge — mind-map freshness evidence (27 November 2026)
 
 **Current main:** `e4f439e6aef4383795ccc7e3e29b1d242ed0f98c`. PR #274 merged after exact-head run `46037202834` passed 2,632 tests, 7 skipped and 45 subtests with baseline OK. The CI mind-map verifier reported 30 nodes, 0 unverified, 14 dark, 2 blocked and no stale-source warnings. Two missing doctrine references and the overdue P13 marker remain; see D-03/E-05 in the backlog. The P13 marker is not permission to rearm. The manual mirror was re-fetched and verified byte-identical to INDEX after merge. No runtime, host, database or feature-flag activity occurred.
+
+
+## Current-main system research continuation — 27 November 2026
+
+**Evidence snapshot:** `main` at `14873c10673760b8adbbf6fb0076226d1c97ffa4`. See `NEX_PHASE0_SYSTEM_RESEARCH_2026-11-27.md` and the updated verified defect backlog.
+
+- PR #275 merged as `49837fd`; exact-head run passed 2,632 tests, 7 skipped, 45 subtests.
+- PR #276 merged as `baac692`; exact-head and post-merge main CI passed 2,634 tests, 7 skipped, 45 subtests. RDO source searches now exclude generated `.cycles`.
+- PR #277 merged as `14873c1`; exact-head CI passed 2,636 tests, 7 skipped, 45 subtests. Keepalive checkout path is portable; `MOLTBOOK_DRY_RUN=1` remains unchanged.
+- Current mind-map check: 30 nodes, 0 unverified, 14 dark, 2 blocked; no stale-source warnings. Two doctrine references and the past-due P13 marker remain.
+- New open findings: G-80 reanimation handoff durability; G-81 divergent fire counters; G-83 groove-alert replay; G-84 shutdown quiescence; G-85 SignalToProblem primary one-pen/cross-database boundary (the auxiliary prose-stats bypass is closed by #279); G-86 SignalReaper allowlist drift; G-87 Moltbook dry-run/external-consent semantics; G-90 contextual social-silence capability gap; G-91 RDO objective context is stored but not enforced. Scanner coverage remains under G-73.
+- The global one-pen audit remains open. SignalToProblem is a boot-registered direct-writer path and its cross-database recovery contract needs explicit design before migration.
+- The RDO remains external/advisory; raw objective seeding, contextual-constraint enforcement and the v1.4 OFT/interface-profile gaps remain open implementation work. v1.4 is the current working basis; v1.3 remains historical.
+
+No live host, runtime, database, credential or external service was accessed. No cognitive policy, feature flag, MIND_MAP node, frozen S-01–S-25 register, Master Roadmap or Gate 0 decision changed. Gate 0 remains pending founder review; Phase 1 remains unauthorized.
+
+
+### Post-research-snapshot PR #279 update — 27 November 2026
+
+PR #279 merged as `8d2121d121931d37afcb1c3d23d27e7ccc9145d1`; exact-head CI run `46044361663` passed 2,638 tests, 7 skipped, 45 subtests, baseline OK. It moves the scheduled prose-statistics rebuild to the shared beliefs Writer/Reader path. This closes the auxiliary write bypass, not SignalToProblem's primary split-database transaction. G-85/G-61 remain open pending a defined idempotency/recovery contract. Post-merge main run `46045384807` also passed 2,638 tests, 7 skipped, 45 subtests, baseline OK.
+
+
+### Post-snapshot PR #280 update — 27 November 2026
+
+PR #280 merged as `f03a3d2e7b9c71801e44be73cf728c01cb791c9d`; exact-head CI run `46045754339` passed 2,640 tests, 7 skipped, 45 subtests, baseline OK. It fixes Writer-level shutdown/submission races by serializing admission, draining accepted work before one sentinel, rejecting late writes, and retaining a timed-out worker reference. This closes only the Writer subproblem in G-84. The application still lacks a global producer stop/join coordinator and G-84 remains open. Post-merge main CI is in progress.
+
+
+### RDO v1.4 implementation gap audit
+
+See `rdo/RDO_V1_4_IMPLEMENTATION_GAP_AUDIT_2026-11-27.md` for the current source-to-requirement matrix and next vertical-slice increment.
