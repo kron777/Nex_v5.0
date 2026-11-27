@@ -337,12 +337,10 @@ def assess_relationship(rel: Relationship, obligations: Dict[str, Obligation]) -
         if isinstance(ref, str) and ref.strip()
     ]
     for summary in margins["metrics"].values():
-        evidence.extend(
-            ref
-            for field in ("q_evidence", "tau_evidence")
-            for ref in summary.get(field, [])
-            if isinstance(ref, str) and ref.strip()
-        )
+        for field in ("q_evidence", "tau_evidence"):
+            refs = summary.get(field)
+            if _has_traceable_evidence(refs):
+                evidence.extend(refs)
     return TensionAssessment(
         "relationship", subj, TENSION_UNKNOWN, inference=True,
         evidence=evidence,
