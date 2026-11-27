@@ -10,7 +10,7 @@ Idempotent via UNIQUE(source_id, target_id, edge_type) in belief_edges.
 from __future__ import annotations
 import logging
 import re
-from substrate import connect, Row, IntegrityError
+from substrate import Reader, Writer
 import threading
 import time
 from pathlib import Path
@@ -44,14 +44,26 @@ def _should_skip(content: str | None) -> bool:
     return False
 
 
-def edge_builder_tick(db_path: Path = BELIEFS_DB) -> dict:
-    """One pass. Returns stats dict for logging."""
-    cx = connect(db_path, timeout=15)
-    cx.row_factory = Row
+def edge_builder_tick(
+    db_path: Path = BELIEFS_DB,
+    *,
+    beliefs_reader: Reader | None = None,
+    beliefs_writer: Writer | None = None,
+) -> dict:
+    """One pass through the canonical Reader/Writer pair.
+
+    The standalone db_path form remains available for tests/tools; in normal
+    Stage-2 operation the existing per-database Reader and Writer are injected.
+    All candidate reads use Reader, and all edge inserts are committed atomically
+    through the single beliefs Writer.
+    """
+    own_writer = beliefs_writer is None
+    reader = beliefs_reader or Reader(db_path)
+    writer = beliefs_writer or Writer(db_path, name="diversity.edge_builder")
     try:
         # Find beliefs with fewer than MIN_EDGES_PER_BELIEF outgoing edges.
         # Prefer newer beliefs (created_at DESC).
-        candidates = cx.execute("""
+        candidates = reader.read("""
             SELECT b.id, b.content
             FROM beliefs b
             LEFT JOIN (
@@ -65,74 +77,78 @@ def edge_builder_tick(db_path: Path = BELIEFS_DB) -> dict:
               AND length(b.content) >= ?
             ORDER BY b.created_at DESC
             LIMIT ?
-        """, (MIN_EDGES_PER_BELIEF, MIN_CONTENT_LEN, BELIEFS_PER_TICK)).fetchall()
+        """, (MIN_EDGES_PER_BELIEF, MIN_CONTENT_LEN, BELIEFS_PER_TICK))
 
         if not candidates:
             return {"considered": 0, "wrote": 0, "skipped": 0}
 
         # Build the comparison pool — recent beliefs above a content threshold.
-        pool = cx.execute("""
+        pool_rows = reader.read("""
             SELECT id, content
             FROM beliefs
             WHERE length(content) >= ?
               AND paused = 0
             ORDER BY created_at DESC
             LIMIT ?
-        """, (MIN_CONTENT_LEN, POOL_SIZE)).fetchall()
-        pool = [(r["id"], r["content"]) for r in pool if not _should_skip(r["content"])]
+        """, (MIN_CONTENT_LEN, POOL_SIZE))
+        pool = [(r["id"], r["content"]) for r in pool_rows
+                if not _should_skip(r["content"])]
         if not pool:
             return {"considered": len(candidates), "wrote": 0, "skipped": len(candidates)}
 
-        wrote = 0
+        statements: list[tuple[str, tuple]] = []
         skipped = 0
-        for c in candidates:
-            if _should_skip(c["content"]):
+        for candidate in candidates:
+            if _should_skip(candidate["content"]):
                 skipped += 1
                 continue
 
             try:
-                src_vec = embed_belief(c["id"], c["content"])
-            except Exception as e:
-                log.warning("embed failed for belief %s: %s", c["id"], e)
+                source_vector = embed_belief(candidate["id"], candidate["content"])
+            except Exception as exc:
+                log.warning("embed failed for belief %s: %s", candidate["id"], exc)
                 skipped += 1
                 continue
 
-            # Score every pool member; collect (target_id, sim) above threshold
+            # Score every pool member; collect (target_id, similarity) above threshold.
             scores: list[tuple[int, float]] = []
-            for pid, pcontent in pool:
-                if pid == c["id"]:
+            for pool_id, pool_content in pool:
+                if pool_id == candidate["id"]:
                     continue
                 try:
-                    pvec = embed_belief(pid, pcontent)
-                    sim = cosine(src_vec, pvec)
+                    pool_vector = embed_belief(pool_id, pool_content)
+                    similarity = cosine(source_vector, pool_vector)
                 except Exception:
                     continue
-                if sim >= SIM_THRESHOLD:
-                    scores.append((pid, sim))
+                if similarity >= SIM_THRESHOLD:
+                    scores.append((pool_id, similarity))
 
-            scores.sort(key=lambda x: x[1], reverse=True)
+            scores.sort(key=lambda item: item[1], reverse=True)
             top = scores[:TOP_K_PER_BELIEF]
             if not top:
                 continue
 
             now = time.time()
-            for target_id, sim in top:
-                try:
-                    cursor = cx.execute(
-                        "INSERT OR IGNORE INTO belief_edges "
-                        "(source_id, target_id, edge_type, weight, created_at) "
-                        "VALUES (?, ?, 'cross_domain', ?, ?)",
-                        (c["id"], target_id, float(sim), now)
-                    )
-                    if cursor.rowcount > 0:
-                        wrote += 1
-                except IntegrityError:
-                    pass
+            for target_id, similarity in top:
+                statements.append((
+                    "INSERT OR IGNORE INTO belief_edges "
+                    "(source_id, target_id, edge_type, weight, created_at) "
+                    "VALUES (?, ?, 'cross_domain', ?, ?)",
+                    (candidate["id"], target_id, float(similarity), now),
+                ))
 
-        cx.commit()
+        # One BEGIN IMMEDIATE / COMMIT through the canonical per-DB Writer.
+        # rowcount is captured per statement so ignored duplicates remain zero.
+        results = (
+            writer.write_many_with_counts(
+                statements, continue_on_integrity_error=True
+            ) if statements else []
+        )
+        wrote = sum(1 for _row_id, rowcount in results if rowcount > 0)
         return {"considered": len(candidates), "wrote": wrote, "skipped": skipped}
     finally:
-        cx.close()
+        if own_writer:
+            writer.close()
 
 
 def edge_builder_loop(state, stop: threading.Event) -> None:
@@ -141,7 +157,10 @@ def edge_builder_loop(state, stop: threading.Event) -> None:
              TICK_SECONDS, SIM_THRESHOLD, TOP_K_PER_BELIEF)
     while not stop.is_set():
         try:
-            stats = edge_builder_tick()
+            stats = edge_builder_tick(
+                beliefs_reader=state.readers["beliefs"],
+                beliefs_writer=state.writers["beliefs"],
+            )
             if stats["wrote"] > 0:
                 log.info(
                     "edge_builder: considered=%d wrote=%d skipped=%d",
