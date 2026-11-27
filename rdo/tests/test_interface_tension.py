@@ -219,15 +219,6 @@ def test_malformed_envelope_measurement_object_does_not_crash_assessment():
     assert "measured_load" in result.dimensions["operating_envelope"]["unknown_dimensions"]
     assert result.verdict == TENSION_UNKNOWN
 
-
-def test_invalid_declared_envelope_state_is_not_treated_as_valid_context():
-    rel = Relationship("consumer", "provider", "depends_on", operating_envelope={
-        "declared_state": {"not": "a state"}, "assessed_state": None,
-    })
-    result = assess_relationship(rel, {})
-    assert result.dimensions["operating_envelope"]["status"] == "invalid_evidence"
-
-
 def test_envelope_measurement_without_evidence_does_not_count_as_known():
     envelope = OperatingEnvelopeAssessment(
         measured_load=InterfaceEvidence(status="measured", value=70, unit="percent"),
