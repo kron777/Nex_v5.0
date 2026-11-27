@@ -614,10 +614,17 @@ class FountainCrystallizer:
                                 "(belief_id, content, voice, queued_at) VALUES (?, ?, ?, ?)",
                                 (belief_id, thought, cfg.voice, ts),
                             )
-                        except Exception:
+                        except Exception as exc:
                             if trace is not None:
                                 from influence_trace import discard_speech_queue_trace
                                 discard_speech_queue_trace(belief_id)
+                                trace.record(
+                                    "speech_queue", "enqueue_failed",
+                                    metadata={"belief_id": belief_id,
+                                              "error_type": type(exc).__name__},
+                                    parent_ids=[_speech_enqueue_intent_id]
+                                    if _speech_enqueue_intent_id else [],
+                                )
                             raise
                         if trace is not None:
                             _speech_queue_delta_id = trace.writer_delta(
