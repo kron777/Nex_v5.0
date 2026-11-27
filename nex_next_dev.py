@@ -141,13 +141,15 @@ def report(dag: dict) -> None:
             print(f"  {name}: built={info.get('members_built')}, "
                   f"gap={info.get('members_gap')}")
 
-    print("\n" + "-" * 66)
-    print("THE ONE GATE RIGHT NOW:")
-    # the binding constraint = the live_unproven node closest to the frontier
+    print("\\n" + "-" * 66)
+    print("UNPROVEN DEPENDENCY CAVEATS (not hard blockers under the current DAG rule):")
     if c["live_unproven"]:
-        gate = c["live_unproven"][0]
-        print(f"  Prove '{gate}' (its teeth) before advancing the layer above it.")
-        print(f"  Until then, building higher layers rests on an unproven floor.")
+        for gate in c["live_unproven"]:
+            print(f"  • {gate} — {nodes[gate].get('note', '')[:70]}")
+        print("  These prerequisites remain eligible for dependency progression;")
+        print("  the caveat is surfaced, not treated as a blocking status.")
+    else:
+        print("  (none)")
     print("-" * 66)
 
 
