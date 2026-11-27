@@ -1,6 +1,6 @@
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `9f5a9f0b476716b6a6fd0a39aa3cf3041a3a4465`  
+**Last verified against:** `main` at `3e7f0f35ccc58519f57ae4fd2e13b1f688f688a3`  
 **Evidence date:** 27 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -736,3 +736,69 @@ Claude's deliverable should be an evidence table with: claim, source SHA, source
 ### Next research–development–observation cycle
 
 After the comprehension check, continue with one bounded, authorized issue at a time: inspect → state the hypothesis → seek disconfirming evidence → implement only where authority permits → run focused tests and exact-head full baseline → rescan changed code and callers → record newly exposed dependencies and behavioural consequences → update this manual/backlog/handoff. Stop before any unresolved founder-policy or Gate 0 boundary. A prestigious result is a reproducible, understandable and governable system, not a large change count.
+
+
+## 40. Current-main revalidation: G-65 and G-76–G-79 (27 November 2026)
+
+**Authoritative source snapshot:** `main` at `3e7f0f35ccc58519f57ae4fd2e13b1f688f688a3` (post-PR #269, with PRs #270 and #271 already merged). This section supersedes §39 for the current status of the PR sequence below and for the G-65/G-76–G-79 findings. Sections 1–39 remain chronological records; do not reinterpret their former status statements as current.
+
+### Merge and exact-head CI ledger
+
+| Item | Verified repository state | Exact evidence |
+|---|---|---|
+| PR #269 — manual/evidence reconciliation | Merged as `3e7f0f35ccc58519f57ae4fd2e13b1f688f688a3` | Exact head `493f3e04889df62f33f7d23cf5c81e2f65a596d9`; run `46034624423`: **2,629 passed, 7 skipped, 45 subtests; baseline OK**. Documentation only. |
+| PR #270 — BeliefPromoter concurrency | Merged as `d2a5c107019d79276879f3ade6ebefd348686e36` | Run `46032636987`: **2,624 passed, 7 skipped, 45 subtests; baseline OK**. |
+| PR #271 — Warrant promotion-history decoding | Merged as `77d4cd89015ebf605c9e5ec6af994a28126f6ed5` | Exact head `c319ae788689c83e52d38f0e6e24cb6ae437805e`; run `46032708456`: **2,629 passed, 7 skipped, 45 subtests; baseline OK**. |
+| PR #272 — Expectations `_learn` compare-and-set | **Open, draft, not merged**; head `67fcf46a84bcfae5b5a309502680fffe8bb347b8`, with main `3e7f0f3` merged into its branch | Exact-head run `46035516300`: **2,632 passed, 7 skipped, 45 subtests; baseline OK**. The passing run validates this exact PR head, not current main. |
+
+The three merged changes are present on the stated main snapshot. PR #272 remains separate until reviewed and merged; do not describe its fix as already present on main. The merge sequence and tested trees were checked against their exact commit identities.
+
+### G-65 — Expectations is boot-reachable; prior “no boot invocation” claim superseded
+
+The earlier G-65 activation statement based on main `99ae476` said no boot invocation had been found. That conclusion is superseded by the current source chain:
+
+- `run.py:511–514` starts `SelfPredictionLoop` when `NEX5_SELF_PRED=1`.
+- `theory_x/stage_world/self_prediction.py:1149–1154` checks `reconciler_on()` inside `SelfPredictionLoop.tick()` and calls `expectations.reconcile()`.
+- `theory_x/stage_world/expectations.py:126–127` reads the `NEX5_RECONCILER` gate; `reconcile()` reaches `_learn()` when `learning_on()` is true.
+- The tracked `nex_keepalive.sh:218–219` launch command sets `NEX5_SELF_PRED=1`, `NEX5_RECONCILER=1` and `NEX5_EXPECT_LEARN=1`.
+
+Therefore the Expectations reconcile/learning path is **launcher-armed and boot-reachable in the tracked configuration**. This is source/configuration evidence, not host observation: whether the host currently uses that launcher, whether the process is running, and the effective inherited environment remain **UNKNOWN**. Do not repeat the older “dormant/no boot invocation” conclusion as current.
+
+### G-76 — Provenance erosion advances on reinforcement, not ordinary use (OPEN / founder decision)
+
+- **Sources on this snapshot:** `theory_x/stage3_world_model/erosion.py` (`THRESHOLDS`, `record_use()`, `record_reinforce()`, `_erosion_check()`, `erosion_pass()`); `theory_x/stage3_world_model/promotion.py:118–182`.
+- `record_use()` increments `use_count`, then calls `_erosion_check()`. The checker reads and compares `reinforce_count`, not `use_count`. Ordinary use therefore does not itself advance the erosion stage.
+- `record_reinforce()` increments `reinforce_count` and invokes the same checker. The reviewed caller inventory found its runtime call at `BeliefPromoter.corroborate()` after a corroboration promotion (`promotion.py:182`). The stage thresholds are 10 for `external`, 30 for `nex_absorbed`, and 80 for `nex_integrated`; `nex_core` has no further threshold.
+- The erosion module docstring says “through use and reinforcement”, which overstates the current mechanism. The verified implementation is reinforcement-count driven, with reinforcement currently tied to corroboration promotions. No historical maximum or live population estimate is asserted here.
+- **Disposition:** OPEN for founder clarification of intended semantics. Do not silently change the counter, thresholds, stage transitions or confidence bump. No runtime/database state was inspected or changed.
+
+### G-77 — BeliefPromoter stale-transition race (CLOSED by PR #270)
+
+- **Source:** `theory_x/stage3_world_model/promotion.py`; tests: `tests/test_promotion_atomicity.py`.
+- `corroborate()` now performs the read, threshold decision and tier/count write in one canonical beliefs-Writer transaction, preventing lost increments and duplicate threshold-crossing promotions. The decay path constrains its write to the snapshot tier, unlocked state and unchanged idle cutoff; decisive contradiction performs its read/decision/write transactionally.
+- **Validation:** PR #270 merged as `d2a5c107019d79276879f3ade6ebefd348686e36`; run `46032636987` passed **2,624 tests, 7 skipped, 45 subtests** with baseline OK.
+- **Scope:** atomicity and stale-write protection only; corroboration thresholds, promotion/demotion policy and cadence are unchanged.
+- **Disposition:** CLOSED on current main.
+
+### G-78 — Warrant survival ignored the stored promotion-history representation (CLOSED by PR #271)
+
+- **Source:** `theory_x/stage_warrant/warrant.py::_promotion_events()` and `_survival()`; tests: `tests/test_warrant_promotion_log_format.py`.
+- The producer appends `json.dumps(event)` as SQLite TEXT inside `json_insert`, so real `promotion_log` arrays contain JSON-encoded strings. The prior consumer expected object elements and could therefore fail to interpret actual promotion/decay/contradiction history. The fix decodes both string and object forms, skips malformed individual elements without discarding valid events, and orders decoded events by timestamp.
+- Tests cover object/stored-format parity, malformed elements and a row written by the real BeliefPromoter.
+- **Validation:** PR #271 merged as `77d4cd89015ebf605c9e5ec6af994a28126f6ed5`; exact-head run `46032708456` passed **2,629 tests, 7 skipped, 45 subtests** with baseline OK.
+- **Disposition:** CLOSED on current main.
+
+### G-79 — Expectations learning could overwrite a concurrent confidence change (FIX PROPOSED; exact-head CI PASS)
+
+- **Current-main source:** `theory_x/stage_world/expectations.py::_learn()`. It previously read confidence and later issued an unconditional absolute update. A competing writer between those operations could be overwritten, while the learning log recorded a stale `before` value; a belief locked after the read could also be changed.
+- **Proposed fix in open draft PR #272:** compare-and-set update constrained by belief ID, the confidence value read, and `COALESCE(locked, 0)=0`; retry/re-read/re-decide at most three times. Deleted or newly locked rows are left alone; persistent contention is bounded and not logged as an applied transition. Learning-log entries are emitted only for transitions that actually applied. The factor, clamps, cap policy and existing beliefs-before-conversations commit ordering are preserved; no cross-database atomicity is claimed.
+- **Tests:** three race regressions fail on unmodified main for the intended reasons; mutation checks show the confidence guard, lock guard and retry are each detected. The focused local suites passed 154 tests after the fix (the original implementation left the three new race tests failing).
+- **Exact-head CI:** PR #272 head `67fcf46a84bcfae5b5a309502680fffe8bb347b8`, run `46035516300`: **2,632 passed, 7 skipped, 45 subtests; baseline OK**. PR #272 remains open/draft and is not part of main yet.
+- **Practical activation qualification:** the `_learn()` path is boot-reachable under the tracked launcher (see corrected G-65). The competing writers are not all currently armed by that launcher: the learning-guard subtraction flags are absent, `revert_subtraction()` has no runtime caller, and erosion's confidence bump occurs only on a stage advance (see G-76). Thus this is preventive persistence/ledger hardening, not evidence of an observed live race. Host-effective state remains UNKNOWN.
+- **Disposition:** keep G-79 open until PR #272 is reviewed and merged. Do not enable any new flags or touch live state as part of this fix.
+
+### Current boundary and next decision
+
+- Gate 0 remains pending founder review; Phase 1 remains unauthorized. G-69 / PR #259 remains an explicit Gate 0 HOLD and must not be merged or deployed.
+- The frozen consolidated S-01–S-25 register and Master Roadmap are unchanged. This section records implementation/evidence facts; it does not decide the G-76 policy question or authorize runtime activation.
+- Next engineering step: review PR #272's exact-head patch/CI, then merge only if the source/diff review remains clean. Separately obtain a founder decision on whether provenance erosion is intentionally reinforcement-only or should include ordinary use. Keep host/runtime evidence UNKNOWN until collected through the authorized Phase 0 process.
