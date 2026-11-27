@@ -15,7 +15,7 @@ from .model import (ANTI_REQUIREMENT, CONDITIONAL, FUTURE, MISSING, NECESSARY,
                     OPTIONAL, OVERDEVELOPED, PARTIAL, RECON_UNKNOWN, REUSE_EXISTING, SIGNATURE_MATCHED,
                     SUFFICIENT, TENSION_UNKNOWN, UNDERDEVELOPED, Obligation,
                     InterfaceTensionProfile, Relationship, TensionAssessment,
-                    has_valid_reuse_review)
+                    has_valid_reuse_review, _has_traceable_evidence)
 
 
 # ---- node-level ----
@@ -109,6 +109,60 @@ def _interface_profile_evidence(rel: Relationship) -> dict:
     }
 
 
+def _operating_envelope_evidence(value) -> dict:
+    """Summarise declared/assessed envelope evidence without inferring a class."""
+    if value is None:
+        return {"status": "not_supplied", "declared_state": "unknown",
+                "assessed_state": None, "unknown_dimensions": [
+                    "measured_load", "measured_capacity", "headroom",
+                    "transition_evidence", "recovery_evidence", "assessment"],
+                "evidence": []}
+    if hasattr(value, "to_dict"):
+        value = value.to_dict()
+    if not isinstance(value, dict):
+        return {"status": "invalid_shape", "declared_state": "unknown",
+                "assessed_state": None, "unknown_dimensions": ["operating_envelope"],
+                "evidence": []}
+
+    declared = value.get("declared_state", "unknown")
+    assessed = value.get("assessed_state")
+    evidence = value.get("assessment_evidence", [])
+    provenance = value.get("provenance", [])
+    confidence = value.get("confidence")
+    valid_states = {"normal", "busy", "degraded", "stress", "recovery"}
+    assessed_valid = (assessed is None or assessed in valid_states)
+    verdict_evidence_valid = (
+        assessed is None or (
+            assessed_valid and _has_traceable_evidence(evidence)
+            and _has_traceable_evidence(provenance)
+            and isinstance(confidence, str) and bool(confidence.strip())
+        )
+    )
+    status = ("unknown" if assessed is None else
+              "evidence_recorded" if verdict_evidence_valid else "invalid_evidence")
+    unknown = []
+    for key in ("measured_load", "measured_capacity", "headroom"):
+        item = value.get(key)
+        if hasattr(item, "__dict__"):
+            item = dataclasses.asdict(item)
+        if not isinstance(item, dict) or item.get("value") is None:
+            unknown.append(key)
+    for key in ("transition_evidence", "recovery_evidence"):
+        if not _has_traceable_evidence(value.get(key)):
+            unknown.append(key)
+    if status != "evidence_recorded":
+        unknown.append("assessment")
+    return {
+        "status": status,
+        "declared_state": declared,
+        "assessed_state": assessed,
+        "unknown_dimensions": sorted(unknown),
+        "assessment_evidence": list(evidence) if isinstance(evidence, list) else [],
+        "provenance": list(provenance) if isinstance(provenance, list) else [],
+        "confidence": confidence,
+    }
+
+
 def assess_relationship(rel: Relationship, obligations: Dict[str, Obligation]) -> TensionAssessment:
     subj = f"{rel.src} -{rel.kind}-> {rel.dst}"
     if rel.kind == "influences" and rel.authority != "bounded":
@@ -129,6 +183,7 @@ def assess_relationship(rel: Relationship, obligations: Dict[str, Obligation]) -
                                          note="dependency target has not been semantically established")
 
     profile = _interface_profile_evidence(rel)
+    envelope = _operating_envelope_evidence(rel.operating_envelope)
     evidence = [
         ref
         for dimension in profile["dimensions"].values()
@@ -138,7 +193,7 @@ def assess_relationship(rel: Relationship, obligations: Dict[str, Obligation]) -
     return TensionAssessment(
         "relationship", subj, TENSION_UNKNOWN, inference=True,
         evidence=evidence,
-        dimensions=profile,
+        dimensions={**profile, "operating_envelope": envelope},
         note=(
             "interface profile is absent; relationship sufficiency cannot be established"
             if profile["profile_status"] == "not_supplied" else
