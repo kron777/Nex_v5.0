@@ -132,6 +132,22 @@ These are source-level conditions and test-coverage gaps recovered from older au
 - **Qualification:** this may be intended early graph saturation; no live graph coverage or lost classification was measured. The Stage-2 loop is registered through the dynamic factory; Stage-3 EdgeGenerator is separately started in `run.py`.
 - **Disposition:** graph-admission ordering/ownership question for the crosswalk. Do not change edge types, queue criteria or loop order without specification/approval.
 
+### G-58 — GoalManager's normal open state does not match CoherenceGate's active-goal query
+
+- **Sources:** `theory_x/stage8_goal_manager/goal_manager.py`; `theory_x/stage_gate/coherence_gate.py`; `gui/server.py`; `tests/test_coherence_gate.py`.
+- **Verified:** GoalManager.open() inserts `state='open'`; `list_open()` and `get_active()` select `state='open'`. The GUI goal API creates/lists goals through this manager. CoherenceGate._load_context() queries `goals WHERE state='active'`. Its test helper `_seed_goal()` defaults to `active`, so its fixture does not exercise goals created by GoalManager.
+- **Impact:** Goals created through the normal GoalManager path are not returned by the Gate's active-goal context query unless another writer changes their state to `active`. No such state transition was established in this focused source review.
+- **Disposition:** reconcile the state contract and add an integration test using GoalManager.open() plus CoherenceGate context assembly. Do not change `open`/ `active` semantics without the governing lifecycle spec.
+
+### G-59 — FocusLoop's stuck state is excluded by open-only consumers
+
+- **Sources:** `theory_x/sustained/focus_loop.py`; `theory_x/stage7_sustained/problem_memory.py`; `theory_x/stage_counterfactual/counterfactual_node.py`; `theory_x/stage_gate/coherence_gate.py`.
+- **Verified:** FocusLoop marks a problem `stuck` when it surfaces a chat ping (and can also mark it stuck while a global ping cooldown suppresses the message). ProblemMemory.list_open(), CounterfactualNode._process_one(), CoherenceGate context and TimeFetch's ProblemMemory-backed problem retrieval consume `state='open'`.
+- **Impact:** A stuck problem is no longer part of those normal open-problem candidate/context paths. This may be the intended human-escalation/hold behavior, but the transition and re-entry contract is not evident in the inspected ProblemMemory or GUI open/list routes.
+- **Test gap:** `tests/test_problem_memory.py` covers open/close/decay and matching but not stuck-state re-entry; `tests/test_counterfactual_node.py` does not cover stuck-problem routing.
+- **Disposition:** define whether stuck is a human handoff, terminal hold or resumable workflow state, and add tests for its intended re-entry path. Do not broaden queries to include stuck without policy review.
+
+
 ## F. Gate boundary
 
 This backlog is evidence input for Gate 0. It is not permission to enable Phase 1 experiments, change prompts, change confidence/belief revision, modify Coherence Gate policy, alter dark flags, start/restart services or touch live databases.
