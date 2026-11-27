@@ -3,7 +3,14 @@ from rdo.graph import compare_adjacent_relationship_impacts
 
 
 def _cycle(relationships, tension):
-    return {"relationships": relationships, "tension": tension}
+    nodes = sorted({endpoint for item in relationships if isinstance(item, dict)
+                    for endpoint in (item.get("src"), item.get("dst"))
+                    if isinstance(endpoint, str) and endpoint.strip()})
+    return {
+        "obligations": [{"key": key} for key in nodes],
+        "relationships": relationships,
+        "tension": tension,
+    }
 
 
 def _assessment(subject, verdict="unknown", dimensions=None, note=""):
@@ -115,6 +122,8 @@ def test_non_incident_relationships_are_excluded_and_missing_scope_stays_unknown
     )
     after = before
 
+    before["obligations"].append({"key": "store"})
+    after["obligations"].append({"key": "store"})
     report = compare_adjacent_relationship_impacts(before, after, ["store"])
     assert report["status"] == "no_adjacent_relationships"
     assert report["affected_relationships"] == []
@@ -183,3 +192,14 @@ def test_added_relationship_with_only_before_assessment_is_partial_orphan():
     assert item["relationship_status"] == "added"
     assert item["assessment_status"] == "orphaned_before"
     assert report["status"] == "partial"
+
+
+def test_unknown_changed_capability_is_not_misreported_as_isolated():
+    cycle = _cycle(
+        [{"src": "reader", "dst": "database", "kind": "depends_on"}],
+        [_assessment("reader -depends_on-> database")],
+    )
+    report = compare_adjacent_relationship_impacts(cycle, cycle, ["typo-capability"])
+    assert report["status"] == "partial"
+    assert report["unknown_capabilities"] == ["typo-capability"]
+    assert report["affected_relationships"] == []
