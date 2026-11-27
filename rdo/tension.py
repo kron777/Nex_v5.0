@@ -8,12 +8,14 @@ over-development is as important as filling gaps.
 """
 from __future__ import annotations
 
+import dataclasses
 from typing import Dict, List
 
 from .model import (ANTI_REQUIREMENT, CONDITIONAL, FUTURE, MISSING, NECESSARY,
                     OPTIONAL, OVERDEVELOPED, PARTIAL, RECON_UNKNOWN, REUSE_EXISTING, SIGNATURE_MATCHED,
                     SUFFICIENT, TENSION_UNKNOWN, UNDERDEVELOPED, Obligation,
-                    Relationship, TensionAssessment, has_valid_reuse_review)
+                    InterfaceTensionProfile, Relationship, TensionAssessment,
+                    has_valid_reuse_review)
 
 
 # ---- node-level ----
@@ -77,18 +79,25 @@ def _interface_profile_evidence(rel: Relationship) -> dict:
 
     dimensions = {}
     unknown = []
-    for name, item in profile.items():
+    metadata_fields = {"provider", "consumer", "purpose", "direction"}
+    expected_dimensions = [
+        field.name for field in dataclasses.fields(InterfaceTensionProfile)
+        if field.name not in metadata_fields
+    ]
+    for name in expected_dimensions:
+        item = profile.get(name)
         if not isinstance(item, dict) or "status" not in item:
-            continue
+            item = {}
         # A non-UNKNOWN label is not self-authenticating. Keep the raw evidence
         # fields visible, but require the later margin/threshold assessor before
-        # any affirmative sufficiency verdict can be made.
+        # any affirmative sufficiency verdict can be made. Omitted dimensions
+        # in older/partial persisted dictionaries remain explicitly UNKNOWN.
+        refs = item.get("evidence") or []
         dimensions[name] = {
             "status": item.get("status", "unknown"),
             "value": item.get("value"),
             "unit": item.get("unit"),
-            "evidence": list(item.get("evidence") or [])
-                if isinstance(item.get("evidence") or [], list) else [],
+            "evidence": list(refs) if isinstance(refs, list) else [],
             "confidence": item.get("confidence"),
         }
         if item.get("status") == "unknown" or not dimensions[name]["evidence"]:
