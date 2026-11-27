@@ -39,7 +39,7 @@
 1. Post-merge `main` CI for `66a9796` is verified green (2,491 passed, 7 skipped, 40 subtests; baseline OK).
 2. Scheduler overview documentation is corrected and merged in PR #153; its exact-head full suite is green.
 3. Continue the forward/backward source audit across the remaining `theory_x/` faculties; distinguish wired loops from downstream consumers and measured effects.
-4. Reconcile the map's 39 YAML node entries vs older “30” references, missing doctrine references, stale verification dates and overdue `p13_finitude` unblock marker without deleting entries or inventing evidence.
+4. Close the mind-map count discrepancy (30 nodes, 5 arms, 4 findings; the earlier 39 count aggregated sections), then continue the missing-doctrine-reference review, stale verification-date review and overdue `p13_finitude` unblock-marker review without deleting entries or inventing evidence.
 5. Obtain a fresh, authorised host-only collection for active checkout identity, service/process state, versions/model digest, performance and DB hashes. Do not copy private runtime data into Git.
 6. Present the Reality Report, Crosswalk and verified defect backlog for Gate 0 founder review before any Phase 1 behavioural work.
 
