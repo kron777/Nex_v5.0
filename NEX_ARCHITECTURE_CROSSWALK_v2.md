@@ -7,7 +7,7 @@
 ## 1. Inventory and authority boundary
 
 - `mind_map/MIND_MAP.yaml` is a descriptive index, not a runtime authority.
-- Current YAML inventory: 39 `nodes:` entries and 5 `arms:` entries. The bootstrap comment and older roadmap references still say 30 nodes. Preserve the discrepancy for owner reconciliation; do not remove/merge entries to force the old count.
+- Current YAML inventory: exactly 30 entries under `nodes:` (18 arm, 9 ring, 2 boundary, 1 straddle), 5 under `arms:`, and 4 under `findings:`. The earlier “39 nodes” count incorrectly aggregated 30 + 5 + 4 across those separate sections. The 30-node convention is correct; no map change is needed.
 - `sentience_dag.json` and `nex_next_dev.py` are a separate development/buildability graph. The executable satisfaction set is `built`, `live_unproven`, and `terminal`. The latter two are surfaced as caveats, not proof of operation.
 - `mind_map/mind_map.py` performs schema/source/freshness checks and a static AST guard. The guard enforces the descriptive-only constraint, rejects specified action-authority fields, and scans configured runtime source roots for direct imports/references to `MIND_MAP.yaml`. It does not constitute a proof against all dynamic/indirect/external authority paths.
 
