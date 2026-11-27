@@ -158,7 +158,6 @@ Next bounded sequence:
 5. Address local-improvement/global-regression only after inspecting the actual objective and evidence model; do not invent net-value weights, Pareto dominance rules or trade-off thresholds.
 6. Run the existing Stage-2 belief-development slice and persist/resume it against current main to prove backward compatibility.
 7. Only then consider system-level Pareto/net-value evaluation and marginal-value stopping, with grounded calibration and explicit separation from relationship evidence work.
-6. Then add system-level Pareto/net-value evaluation and marginal-value stopping; do not mix those into the interface evidence foundation.
 
 This increment remains external/advisory RDO code. It does not change NEX runtime, the frozen S-register, Master Roadmap, feature flags, live beliefs or protected experiments. It does not authorise the final v1.4 expansion stage to bypass existing safety and approval gates.
 
