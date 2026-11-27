@@ -75,7 +75,10 @@ class ConnectionLedger:
     def _copy_entry(entry: dict) -> dict:
         """Return a detached view so callers cannot mutate append-only history."""
         copied = dict(entry)
-        copied["evidence_refs"] = list(entry.get("evidence_refs") or [])
+        refs = entry.get("evidence_refs") or []
+        if isinstance(refs, str):
+            refs = [refs] if refs else []
+        copied["evidence_refs"] = list(refs) if isinstance(refs, list) else []
         return copied
 
     @property
@@ -108,7 +111,12 @@ class ConnectionLedger:
             raise LedgerError(f"unknown state {to_state!r}; one of {STATES}")
         if origin not in ("cloud", "host"):
             raise LedgerError(f"origin must be cloud|host, got {origin!r}")
-        refs = list(evidence_refs) if isinstance(evidence_refs, list) else (evidence_refs or [])
+        if evidence_refs is None:
+            refs = []
+        elif isinstance(evidence_refs, list):
+            refs = list(evidence_refs)
+        else:
+            raise LedgerError("evidence_refs must be a list of strings")
         if to_state in _TRACE_REQUIRED_STATES:
             if (not isinstance(refs, list) or not refs
                     or any(not isinstance(ref, str) or not ref.strip() for ref in refs)):
