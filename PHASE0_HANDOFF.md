@@ -27,10 +27,11 @@ These are post-snapshot observations, not retroactive changes to the `ae406fa8` 
 
 ## Post-snapshot current-main follow-up (27 November 2026, after #200)
 
-The evidence snapshot and source-bounded report above remain pinned to their stated commits. Current remote main is now `5d7f4e28eb6760d206eed455429c90e967a5bf10`.
+The evidence snapshot and source-bounded report above remain pinned to their stated commits. Current remote main is now `74cff71045d1f6006b3873138ec658a66acf34a8`.
 
 - #189 manual reconciliation, #191 Moltbook responder persistence, #196 listener/poster persistence, #199 INDEX/handoff reconciliation, and #200 the resumption/identity/Fountain momentum/recursion-attribution migrations are merged.
 - #200 exact-head CI run `45990854891` passed: **2,539 passed, 7 skipped, 40 subtests**, baseline OK. Mind-map verification: **30 nodes, 0 unverified, 14 dark, 2 blocked**.
+- Current main after the 27 November DAG, scan-coverage and one-pen integrations is `74cff71045d1f6006b3873138ec658a66acf34a8`. Mainline CI run `46009001664` passed: **2,584 passed, 7 skipped, 45 subtests**. The #200 run remains the historical snapshot, not the current-main baseline.
 - The two missing doctrine references (`VIRTUE_SLATE.md`, `mental_factors_inventory_alobha_spec.txt`) and overdue `p13_finitude` marker remain unresolved. They are not to be fabricated or date-advanced without source/owner evidence.
 - The bounded one-pen migrations listed above are now merged. This does not establish that every write-capable connection in every `theory_x/` faculty has been audited; the full producer/consumer and persistence audit remains open.
 
@@ -49,13 +50,26 @@ The evidence snapshot and source-bounded report above remain pinned to their sta
 
 
 
+
+## Follow-up source audit G-68 to G-72 (27 November 2026)
+
+The following are source-level findings checked against current main `74cff710`; none asserts live host activation or current database contents.
+
+- **G-68 — decryption ProbeRunner safety (OPEN):** `decryption/probe_runner.py` defaults to `dry_run=False`, can change NEX mode and insert synthetic beliefs, does not restore the previous mode, and clears its injected-ID cleanup list even if deletion fails. It is not imported by the normal `run.py` boot path inspected and was not invoked. No experiment was run.
+- **G-69 — SurpriseLoop event loss (OPEN / Gate 0 review required):** timestamp-only paging can skip timestamp ties and the old loop can checkpoint beyond failed writes. PR #239 prepares a monotonic event-ID cursor, legacy timestamp migration, retry-safe checkpointing, duplicate-content handling and a canonical `daemon_kv` schema/migration. Exact-head CI is pending. Because this can change which events reach the belief corpus, do not merge or deploy before founder Gate 0 approval.
+- **G-70 — speech trace stops at enqueue (OPEN):** the crystallizer records queue insertion, but the consumer has no dequeue/playback outcome trace hooks or cross-thread queue-link registry. No speech behaviour or trace schema was changed.
+- **G-71 — Warrant hidden-rowid cursor stability (OPEN):** source tables use composite primary keys, while the merged G-53 cursor uses hidden rowids that may change during `VACUUM`. PR #240 prepares stable declared-key cursors and a forced-rowid-renumbering regression test; exact-head CI is pending. No Warrant eligibility or lifecycle policy changes.
+- **G-72 — gated SelfPredictionLoop handle injection (CLOSED):** PR #236 routes commitments writes through canonical handles; PR #238 injects AppState Readers/Writers through self-prediction, owned-belief, commitments and Expectations paths. Exact-head runs #236 `46006462779` and #238 `46008022480` passed (2,573/2,584 passed respectively, 7 skipped and 45 subtests each). The `NEX5_SELF_PRED=1` start gate remains unchanged; no loop was started.
+
+The consolidated S-01–S-25 register, roadmap, phase gates and cognitive policy remain untouched. G-69 remains explicitly held for Gate 0 review; G-68 and G-70 remain design/safety questions; G-71 is a pagination-only proposal awaiting verification.
+
 ## Current status
 
 | Roadmap deliverable | Status |
 |---|---|
 | M0.1 — repository identity | Remote main SHA recorded; current host checkout identity/cleanliness not collected |
 | M0.1 — host/runtime/database/model measurements | **PARTIAL / UNKNOWN**; no current host collection or live DB hash inventory |
-| M0.2 — test baseline | Current main `5d7f4e28`: 2,539 passed, 7 skipped, 40 subtests, baseline OK (exact-head run `45990854891`) |
+| M0.2 — test baseline | Current main `74cff710`: 2,584 passed, 7 skipped, 45 subtests, baseline OK (exact-head run `46009001664`) |
 | M0.3/M0.4 — crosswalk and spec reconciliation | **PARTIAL**; source boot and Chat/Fountain paths are mapped, not every faculty's complete producer/consumer DAG |
 | Roadmap v3.0 M0.5 — causal trace | **IMPLEMENTED / MERGED**, default OFF, L3 fixture evidence |
 | M0.5 live L4 capture | **UNKNOWN**; no live runtime context enabled |
@@ -73,7 +87,7 @@ The evidence snapshot and source-bounded report above remain pinned to their sta
 
 ## Next Phase 0 actions
 
-1. Current-main CI for `5d7f4e28` is verified green (2,539 passed, 7 skipped, 40 subtests; baseline OK, run `45990854891`). The earlier `ae406fa8` result remains the historical evidence snapshot; do not conflate it with current main.
+1. Current-main CI for `74cff710` is verified green (2,584 passed, 7 skipped, 45 subtests; baseline OK, run `46009001664`). The earlier #200/`5d7f4e28` result remains historical evidence; do not conflate it with current main.
 2. Scheduler overview documentation is corrected and merged in PR #153; its exact-head full suite is green.
 3. Continue the forward/backward source audit across the remaining `theory_x/` faculties; distinguish wired loops from downstream consumers and measured effects.
 4. The mind-map count discrepancy is closed (30 nodes, 5 arms, 4 findings). The consolidated source re-verification PR #185 is merged; current verifier result is 30 nodes, 0 unverified, 14 dark, 2 blocked. The 18 path/date warnings were cleared by source-anchor corrections. Keep the two missing doctrine references and overdue `p13_finitude` marker explicit; do not fabricate documents or advance the marker without source review.
