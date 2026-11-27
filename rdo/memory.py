@@ -29,7 +29,7 @@ from watcher.evidence import utc_now
 from .model import (CycleRecord, EXECUTED_VERIFIED, IMPORTED_RETROSPECTIVE,
                     NATIVE_PLANNING, RECON_UNKNOWN, REUSE_EXISTING,
                     SIGNATURE_MATCHED, PARTIAL, MISSING, Pattern,
-                    has_valid_reuse_review)
+                    has_valid_reuse_review, _has_traceable_evidence)
 
 MIN_CYCLES_FOR_TREND = 3
 CONFIDENCE_CAP = 0.9
