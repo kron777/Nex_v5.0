@@ -76,8 +76,8 @@ nodes:
     probe: { thought_sample: 50, max_salience_observed: 0.191, threshold_to_count_clouded: 0.30 }
     falsifier: "Discernment should vary across turns. It reads under forced injection, never spontaneously."
     falsifier_status: fail
-    source: { kind: file, ref: "theory_x/stage_tom/amoha_detector.py:1-150" }
-    last_verified: 2026-11-15
+    source: { kind: file, ref: "theory_x/stage_tom/amoha_detector.py:75-159" }
+    last_verified: 2026-11-27
     notes: >
       The most instructive node in the map: it works and is never used. VIRTUE_SLATE.md (the
       draft's original ref) does not exist anywhere in this repo's history -- re-pinned to the
@@ -118,8 +118,8 @@ nodes:
     blocked: false
     falsifier: "Calibrated response should show uptake in unprompted turns. Never probed."
     falsifier_status: unrun
-    source: { kind: composite, refs: ["theory_x/stage_affect/compassion.py:1-21", "tests/test_compassion.py:52-57"] }
-    last_verified: 2026-11-15
+    source: { kind: composite, refs: ["theory_x/stage_affect/compassion.py:225-325", "tests/test_compassion.py:52-57"] }
+    last_verified: 2026-11-27
     notes: >
       Calibrated, uptake unprobed. Same family as amoha. VIRTUE_SLATE.md re-pinned to the real
       module (NEX5_COMPASSION, default OFF).
@@ -146,8 +146,8 @@ nodes:
     blocked: false
     falsifier: "Should flatten price variance under provocation while leaving it intact elsewhere."
     falsifier_status: pass
-    source: { kind: file, ref: "theory_x/stage_affect/upekkha.py:1-30" }
-    last_verified: 2026-11-09
+    source: { kind: file, ref: "theory_x/stage_affect/upekkha.py:35-121" }
+    last_verified: 2026-11-27
     notes: "Pali spelling in this repo is upekkhā (upekkha.py), not Sanskrit upekṣā -- same factor.
       VIRTUE_SLATE.md re-pinned to the real module (NEX5_EQUANIMITY, default OFF)."
 
@@ -164,8 +164,8 @@ nodes:
     blocked: false
     falsifier: "Should preserve deferred cost under immediate pressure."
     falsifier_status: pass
-    source: { kind: file, ref: "theory_x/stage_affect/apramada.py:1-20" }
-    last_verified: 2026-11-09
+    source: { kind: file, ref: "theory_x/stage_affect/apramada.py:55-131" }
+    last_verified: 2026-11-27
     notes: "VIRTUE_SLATE.md re-pinned to the real module (default OFF)."
 
   - id: alobha
@@ -182,8 +182,8 @@ nodes:
     blocked: false
     falsifier: "Should reduce repeat-selection of the same object across consecutive moments."
     falsifier_status: pass
-    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:697-738", "tests/test_alobha.py:52-58"] }
-    last_verified: 2026-11-15
+    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:727-785", "theory_x/stage6_fountain/generator.py:867-883", "tests/test_alobha.py:52-58"] }
+    last_verified: 2026-11-27
     notes: >
       Correction, 2026-11-09: this was filed as 'spec exists, unbuilt-open' -- it isn't. Both
       mental_factors_inventory_alobha_spec.txt (the cited spec doc) and VIRTUE_SLATE.md are absent
@@ -198,6 +198,8 @@ nodes:
       verified-correct-mechanism level; would need re-confirming against live selection data if the
       flag is ever armed.
 
+
+      2026-11-27 source re-verification: _alobha_context() and _alobha_penalty() remain in generator.py:727-785; the generator applies the penalty only behind NEX5_ALOBHA=1 at 867-883. The current keepalive launch line omits NEX5_ALOBHA. The 2026-11-15 /proc probe is historical; current process environment was not checked.
   - id: vedana
     label: "vedanā — feeling-tone"
     layer: arm
@@ -213,8 +215,8 @@ nodes:
     probe: { valence_delta_samples: 35, distinct_values: 12, min: 0.0219, max: 0.2237, source: "/tmp/nex5_affect_state.log" }
     falsifier: "A price that is constant is not a price. Valence should vary with content."
     falsifier_status: pass
-    source: { kind: composite, refs: ["theory_x/stage_affect/affect_state.py:331-360", "theory_x/stage6_fountain/generator.py:617-652"] }
-    last_verified: 2026-11-15
+    source: { kind: composite, refs: ["theory_x/stage_affect/affect_state.py:331-405", "theory_x/stage6_fountain/generator.py:611-652", "theory_x/stage6_fountain/generator.py:857-863", "nex_keepalive.sh:219-220"] }
+    last_verified: 2026-11-27
     notes: >
       Correction, 2026-11-09: 'no location yet pinned' was wrong -- the check regex just
       missed .venv-excluded hits. Real location: AffectState._compute_valence_delta() (confidence-
@@ -248,6 +250,8 @@ nodes:
       0.73/variance~0 claim is now definitively retracted by real data, not just unsupported by a
       missing citation.
 
+
+      2026-11-27 source re-verification: AffectState._compute_valence_delta() computes confidence-weighted polarity over high-tier belief content and blends the self-evaluation nudge; _valence_reach() reads affect_state and returns a bounded novelty multiplier. Keep the two layers distinct: valence computation is not the same as valence steering. The generator uses the multiplier only when NEX5_VALENCE_DRIVE=1; the keepalive line sets NEX5_MOOD=1 but omits NEX5_VALENCE_DRIVE. The 35 raw log samples and live observation remain historical 2026-11-15 evidence; current process state was not checked.
   - id: mana
     label: "māna — self-conceit"
     layer: arm
@@ -261,13 +265,13 @@ nodes:
     blocked: false
     falsifier: "Reads every turn. A faculty that fires unconditionally carries no information."
     falsifier_status: na
-    source: { kind: composite, refs: ["theory_x/stage_tom/mana_detector.py:1-25", "theory_x/stage_tom/self_binding.py:311-325", "theory_x/stage6_fountain/generator.py:3496-3509"] }
-    last_verified: 2026-11-15
+    source: { kind: composite, refs: ["theory_x/stage_tom/mana_detector.py:40-75", "theory_x/stage_tom/self_binding.py:278-344", "theory_x/stage6_fountain/generator.py:3986-3995", "nex_keepalive.sh:219-220"] }
+    last_verified: 2026-11-27
     notes: >
       CORRECTION, 2026-11-15 (falsifier-sweep round): "always-on read-only sidecar" was wrong.
       mana_detector.detect() has exactly one caller in the live path -- self_binding.py's
       _cluster_reads(), called only from afflictions_for_prompt() -- and BOTH generator.py's own
-      import guard (:3499, "if os.environ.get('NEX5_AFFLICTIONS') == '1':") and
+      import guard (:3986, "if os.environ.get('NEX5_AFFLICTIONS') == '1':") and
       afflictions_for_prompt()'s internal guard gate it behind NEX5_AFFLICTIONS. Confirmed absent
       from the live launcher (grep nex_keepalive.sh: no match) AND from the live process's actual
       environment (checked /proc/<pid>/environ directly, not just the launcher script: no
@@ -287,6 +291,8 @@ nodes:
       exists in nex_config.py; the hypothesis that it ran as an always-on sidecar regardless is the
       claim the 2026-11-15 round above tested directly and found false.)
 
+
+      2026-11-27 source re-verification: detect() remains in mana_detector.py:40-75; _cluster_reads() and afflictions_for_prompt() gate it in self_binding.py:298-344; generator.py:3986-3995 adds the outer NEX5_AFFLICTIONS gate. The current keepalive launch line omits NEX5_AFFLICTIONS. The 2026-11-15 /proc probe is historical; current process state was not checked.
   - id: vicikitsa
     label: "vicikitsā — doubt"
     layer: arm
@@ -343,8 +349,8 @@ nodes:
     falsifier: "A locked Tier-1 belief's confidence should never move via ordinary reconciliation, regardless of contrary evidence arriving elsewhere in the belief graph."
     falsifier_status: pass
     probe: { locked_beliefs_checked: 90, confidence_values: "static (0.95-0.99), consistent with never-touched" }
-    source: { kind: composite, refs: ["keystone.py:1-20", "theory_x/stage_world/expectations.py:520-545", "theory_x/stage_world/expectations.py:725-790"] }
-    last_verified: 2026-11-15
+    source: { kind: composite, refs: ["keystone.py:1-20", "keystone.py:61-101", "theory_x/stage_world/expectations.py:582-645", "theory_x/stage_world/expectations.py:850-875"] }
+    last_verified: 2026-11-27
     notes: >
       Dev round, 2026-11-15: the original falsifier ("declined as a detector, same as vicikitsā")
       is superseded -- this is not an absent/declined factor, a real mechanism was found.
@@ -371,6 +377,15 @@ nodes:
       mechanics depends on scope -- narrow and ceremony-gated here, which is the opposite of how
       dṛṣṭi usually manifests. Flagging the distinction rather than collapsing it either way.
 
+
+      2026-11-27 source re-verification: keystone.py's reseed() explicitly inserts Tier-1 rows
+      with locked=1 and only deletes them under force=True; expectations._learn() skips seeded
+      basis rows and any live belief whose locked field is true before updating confidence.
+      The canary reads authored confidence only where locked=0. The merged G-65 Writer transaction migration changes persistence routing only; it does not
+      alter this locked-row exclusion or the adjudication policy.
+      The 90-row confidence probe above is historical 2026-11-15 evidence and was not repeated
+      against live data in this source-only review.
+
   # ───────────────────────────── WRITES ─────────────────────────────
   - id: smrti
     label: "smṛti — retention"
@@ -388,8 +403,8 @@ nodes:
     falsifier: "Should carry an object forward without the object being re-presented."
     falsifier_status: pass
     probe: { tests: "tests/test_smrti_retained_candidate.py", new_tests: 4, regression_suite: "64 pre-existing crystallizer-touching tests, unchanged" }
-    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:2512-2534", "theory_x/stage6_fountain/crystallizer.py:290-298", "theory_x/stage6_fountain/crystallizer.py:495-510", "tests/test_smrti_retained_candidate.py:1-30"] }
-    last_verified: 2026-11-15
+    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:1878-1903", "theory_x/stage6_fountain/generator.py:2960-2975", "theory_x/stage6_fountain/crystallizer.py:290-298", "theory_x/stage6_fountain/crystallizer.py:629-637", "tests/test_smrti_retained_candidate.py:87-121"] }
+    last_verified: 2026-11-27
     notes: >
       The factor that gives Property 8 a home; the store itself is substrate — see p8_episodic.
       Check tightened 2026-11-09 to exclude .venv (the un-excluded grep was matching third-party
@@ -450,6 +465,8 @@ nodes:
       generate()/crystallize() path directly -- flagged to Jon as a different risk class before
       starting; proceeded on his explicit go-ahead.
 
+
+      2026-11-27 source re-verification: generate() captures retrieval_manifest at generator.py:1878-1903 and passes the retained own_sense candidate through the current crystallize call at generator.py:2960-2975. crystallize() accepts the optional parameter at crystallizer.py:290-298 and records it at 629-637; focused regression tests are at tests/test_smrti_retained_candidate.py:87-121. The 15-Nov line numbers in the historical narrative above are not current anchors; use these source refs.
   - id: virya
     label: "vīrya — joyous effort"
     layer: arm
@@ -560,8 +577,8 @@ nodes:
     falsifier: "Should re-open a past entry rather than leave it settled."
     falsifier_status: pass
     probe: { tests: "tests/test_reprice_tensions_on_new_evidence.py", new_tests: 6, corpus_exposure_check: "random-pair false-positive measured at 8.0% on 200 real live beliefs, production code path", regression_suite: "43 pre-existing held_tensions/harmonizer/semantic-conflict tests, unchanged" }
-    source: { kind: composite, refs: ["theory_x/stage3_world_model/harmonizer.py:173-187", "theory_x/stage3_world_model/harmonizer.py:583-685", "tests/test_reprice_tensions_on_new_evidence.py:1-30", "substrate/schema/dynamic.sql:151-159"] }
-    last_verified: 2026-11-15
+    source: { kind: composite, refs: ["theory_x/stage3_world_model/harmonizer.py:173-187", "theory_x/stage3_world_model/harmonizer.py:610-720", "tests/test_reprice_tensions_on_new_evidence.py:131-250", "substrate/schema/dynamic.sql:151-159"] }
+    last_verified: 2026-11-27
     notes: >
       Dev round, 2026-11-15: read harmonizer.py's actual resolution paths over held_tensions to
       scope the gap precisely rather than leave "the read function is missing" vague. Three paths
@@ -630,7 +647,11 @@ nodes:
       here, since it's pre-existing, already falsifier-passed code and changing it needs its own
       explicit decision, not a side effect of this round.
 
+      2026-11-27 source re-verification: the new-evidence repricing path remains in harmonizer.py:610-720, with template stripping at 173-187 and the regression suite at tests/test_reprice_tensions_on_new_evidence.py:131-250. The 15-Nov production-corpus measurements remain historical evidence; no new live corpus probe or runtime change was made.
+
   # ──────────────────────────── CONSUMERS ───────────────────────────
+
+
   - id: p6_unified_present
     label: "6 · A unified present (manaskāra)"
     layer: arm
@@ -639,21 +660,30 @@ nodes:
     factor: manaskara
     role_note: "Binds the priced entry into one moment rather than a bag of channels."
     build_difficulty: shipped
-    sketch: "Live, real, IS the r77 chat arbiter (global_workspace.py + gui/server.py budget assembly). Off-limits to touch while r77 runs."
+    sketch: "Fountain global_workspace.arbitrate remains wired behind NEX5_GLOBAL_WORKSPACE; the separate gui.server chat-budget selector is a different flag and was disarmed from the launch line on 2026-11-20 after the r77 Branch C tripwire. Runtime process state is unverified."
     evidence: static
     dark: false
     blocked: false
     falsifier: "Should fail to unify when channels disagree — a measurable incoherence."
     falsifier_status: unrun
-    source: { kind: composite, refs: ["theory_x/stage_tom/global_workspace.py:1-23", "gui/server.py:160-280"] }
-    last_verified: 2026-11-09
-    notes: "Correction, 2026-11-09: mechanism is located and is the live r77 chat arbiter --
-      global_workspace.arbitrate/select_within_budget (fire path, generator.py:3037) and the
-      13-kind _CHAT_BLOCK_SALIENCE budget assembly in gui/server.py (chat path, NEX5_CHAT_WORKSPACE,
-      armed live 2026-11-07, ledger 5775e31). SENTIENCE_PROGRAM.md:33 already names this; the
-      'mechanism not yet located' claim here was simply stale. Read-only citation -- this node does
-      not touch that code, which stays off-limits while r77 runs."
+    source: { kind: composite, refs: ["theory_x/stage_tom/global_workspace.py:245-310", "theory_x/stage6_fountain/generator.py:3864-3890", "gui/server.py:202-280", "nex_keepalive.sh:219-220"] }
+    last_verified: 2026-11-27
+    notes: >
+      Correction, 2026-11-09: mechanism is located. Fountain's global_workspace.arbitrate
+      is the single-winner framing path; the separate 13-kind _CHAT_BLOCK_SALIENCE budget
+      assembly in gui/server.py is a distinct chat path. SENTIENCE_PROGRAM.md:33 already
+      names the workspace mechanism; the earlier 'mechanism not yet located' claim was stale.
 
+      2026-11-27 source re-verification: distinguish the two workspace paths. Fountain's
+      generator invokes global_workspace.arbitrate behind NEX5_GLOBAL_WORKSPACE (default 1),
+      and nex_keepalive.sh still sets NEX5_GLOBAL_WORKSPACE=1. This is the source-wired path for
+      the single-winner framing line. Separately, gui.server._assemble_chat_blocks calls
+      select_within_budget only when NEX5_CHAT_WORKSPACE=1; commit 2803f38 removed that flag from
+      the keepalive launch line after the r77 Branch C tripwire. The launch configuration still
+      arms NEX5_GLOBAL_WORKSPACE, but the current runtime process state is UNKNOWN. Do not
+      describe the chat-budget selector as still armed or conflate it with Fountain arbitration.
+      The p13_finitude node tracks the separate shadow-budget/spend mechanism.
+      Read-only citation -- no source behavior is changed by this map entry.
   - id: vitarka
     label: "vitarka — applied thought"
     layer: arm
@@ -670,11 +700,11 @@ nodes:
     falsifier: "An object entering wide-mode focus should be explicitly recorded as taken hold of, distinguishable from objects that merely passed through retrieval unselected."
     falsifier_status: pass
     probe: { wide_mode_fires_logged: 2821, source: "nex5_soak.log [WIDE MODE] markers" }
-    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:3568-3580", "theory_x/stage6_fountain/generator.py:893-990"] }
-    last_verified: 2026-11-15
+    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:893-990", "theory_x/stage6_fountain/generator.py:4044-4068", "theory_x/stage6_fountain/generator.py:2719-2735"] }
+    last_verified: 2026-11-27
     notes: >
       Dev round, 2026-11-15: found via vicāra's paired search (see that node) -- the SET side of
-      the same mechanism vicāra reads. generator.py:3579 (self._last_focal_item = _kw.get("item"))
+      the same mechanism vicāra reads. generator.py:4068 (self._last_focal_item = _kw.get("item"))
       fires inside the "wide mode" branch (_select_wide_mode, NEX5_WIDE_MODES=1, confirmed armed
       live), explicitly recording which real item (a sensed article, headline, etc.) this fire is
       about to engage with. Confirmed actually firing, not just wired: grepped nex5_soak.log for its
@@ -687,6 +717,10 @@ nodes:
       its own in THIS moment; its payoff is entirely in the next moment, via vicāra's mechanism.
       Marked pass against the falsifier as reformulated (a real, distinguishable recording event
       exists) rather than the original vague "unbuilt-open," which undersold what's actually there.
+      2026-11-27 source re-verification: _WIDE_MODES_ON is still explicitly gated by
+      NEX5_WIDE_MODES (default OFF); the prompt branch sets _last_focal_item only after a
+      wide-mode prompt is successfully accepted. The 2,821-fire probe is historical 15-Nov
+      evidence; the live process/flag was not rechecked in this source-only pass.
 
   - id: vicara
     label: "vicāra — sustained thought"
@@ -704,12 +738,12 @@ nodes:
     falsifier: "An object recorded as this fire's focal item should still be readable and used as the thread in a subsequent fire, not reset to empty."
     falsifier_status: pass
     probe: { gate: "NEX5_ASSOC_RECALL=1, confirmed armed live", caller_condition: "own_n > 1" }
-    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:2896-2930", "theory_x/stage6_fountain/generator.py:3000-3014", "theory_x/stage6_fountain/generator.py:3579"] }
-    last_verified: 2026-11-15
+    source: { kind: composite, refs: ["theory_x/stage6_fountain/generator.py:3356-3445", "theory_x/stage6_fountain/generator.py:3460-3475", "theory_x/stage6_fountain/generator.py:4060-4072", "nex_keepalive.sh:219-220"] }
+    last_verified: 2026-11-27
     notes: >
       Dev round, 2026-11-15: THIS is the real home of self._last_focal_item -- the exact mechanism
       ruled OUT for smṛti's within-moment directive is the right fit here, read the other way
-      around. _associative_recall()'s own docstring (:2902) states it plainly: "the thread = the
+      around. _associative_recall()'s own docstring (:3356-3370) states it plainly: "the thread = the
       PRIOR fire's focal item" -- precisely "the same object is still held in the next moment, not
       dropped." Confirmed live: NEX5_ASSOC_RECALL=1 is armed on the running process, the call site
       (:3006) gates on it plus own_n > 1 (true on nearly every fire), and the source data it reads
@@ -725,6 +759,11 @@ nodes:
       Correction to the earlier smṛti citation: the "right neighborhood, wrong directive" verdict
       there stands -- this mechanism was never a candidate for within-moment retention. It is,
       however, now confirmed as the correct answer for THIS node, which the smṛti round didn't ask.
+      2026-11-27 source re-verification: _associative_recall() still reads the PRIOR
+      _last_focal_item; the caller still gates it behind NEX5_ASSOC_RECALL=1 and own_n > 1,
+      and the value is set only after a wide-mode prompt is accepted. The 2,821-item probe and
+      armed-process observation are historical 15-Nov evidence; current runtime state was not
+      checked. No cross-restart persistence is claimed by this node.
 
   # ────────────────────────────── SCOPE ─────────────────────────────
   # Intentionally empty. See meta.findings — this is a result, not a TODO.
@@ -745,8 +784,8 @@ nodes:
     blocked: false
     falsifier: "Should fail loudly if two writers claim the same subject."
     falsifier_status: fail
-    source: { kind: composite, refs: ["nex_keepalive.sh:14-39", "substrate/writer.py:1-16", "substrate/db.py:1-15"] }
-    last_verified: 2026-11-15
+    source: { kind: composite, refs: ["nex_keepalive.sh:14-39", "substrate/writer.py:1-16", "substrate/writer.py:57-155", "substrate/writer.py:170-258", "substrate/db.py:135-196"] }
+    last_verified: 2026-11-27
     notes: >
       Correction, 2026-11-09: 'anchor not pinned' was wrong -- NEX5_CONTINUITY_N is a real,
       registered config var; the original check's un-excluded .venv noise drowned the real hit.
@@ -776,21 +815,33 @@ nodes:
       which the keepalive work already demonstrated live, not "does a dual-writer event get loudly
       flagged").
 
+      2026-11-27 source re-verification: the cited keepalive lines 14-39 still contain the
+      single-instance flock and scoped-child supervision; the 2026-11-20 keepalive edit only
+      removed NEX5_CHAT_WORKSPACE from the later launch line and did not alter this lock.
+      substrate/writer.py and substrate/db.py still document the one-pen Writer and WAL/busy-
+      timeout design. No same-subject detector or fail-loudly mechanism was found in these
+      cited sources; the falsifier remains FAIL and the node's preventive-vs-detective distinction
+      remains unchanged.
+      2026-11-27 post-G65 re-verification: Writer.transaction() executes its callback on
+      the serialized Writer worker, wraps it in BEGIN IMMEDIATE/COMMIT, and rolls back on
+      callback failure. This extends the one-pen boundary without adding a second connection
+      or a same-subject detector. The preventive-vs-detective falsifier therefore remains FAIL.
+
   - id: p2_train
     label: "2 · Train of thought across restart"
     layer: ring
     property: "2"
     role_note: "The sequence survives the process, not just the session."
     build_difficulty: shipped
-    sketch: "Real, live, and confirmed working across 5 real boots. Most mature of this round's checks."
+    sketch: "Source-wired resumption mechanism; five-boot confirmation is historical (13–15 Nov 2026), not a current runtime check."
     evidence: static
     dark: false
     blocked: false
     falsifier: "Should resume a sequence after restart without re-deriving it."
     falsifier_status: pass
     probe: { boots_checked: 5, dates: "2026-11-13 to 2026-11-15", beliefs_promoted_per_boot: 5 }
-    source: { kind: file, ref: "theory_x/memory/resumption.py:1-21" }
-    last_verified: 2026-11-15
+    source: { kind: composite, refs: ["theory_x/memory/resumption.py:1-21", "theory_x/memory/resumption.py:57-186"] }
+    last_verified: 2026-11-27
     notes: >
       Correction, 2026-11-09: anchor is pinned -- Memory Layer B, resumption.py, promotes real
       prior beliefs' created_at on boot so the fountain's first post-restart tick sees them as
@@ -817,8 +868,8 @@ nodes:
     blocked: false
     falsifier: "Should be visible as a budget that can actually be spent."
     falsifier_status: unrun
-    source: { kind: composite, refs: ["theory_x/stage_tom/stakes_appraisal.py:1-20", "theory_x/stage6_fountain/readiness.py:104-140", "theory_x/stage_world/frozen_at_made.py:100-107"] }
-    last_verified: 2026-11-15
+    source: { kind: composite, refs: ["theory_x/stage_tom/stakes_appraisal.py:50-149", "theory_x/stage6_fountain/readiness.py:104-140", "theory_x/stage_world/frozen_at_made.py:100-107", "theory_x/stage_world/self_prediction.py:177-193", "theory_x/stage_world/self_prediction.py:234-313"] }
+    last_verified: 2026-11-27
     notes: >
       Correction, 2026-11-09: this is a real, named function (L4_stakes self-referent
       appraisal) with two live appraisals (appraise(), measured inert on the live instrument per
@@ -845,6 +896,14 @@ nodes:
       have not yet checked whether anything downstream actually reads/acts on the frozen
       groove_cost_at_made value later (the "actually spent" half of the claim) or whether it is
       written and never consumed.
+
+      2026-11-27 source re-verification: snapshot_stakes() in frozen_at_made.py calls
+      appraise() and appraise_groove(); frozen_values() stores the ratio and groove cost in
+      the row snapshot. The fire producer in self_prediction.py calls snapshot_stakes() before
+      INSERT; its fire resolver and scorecard query prediction/outcome fields and do not read
+      these frozen stakes columns. This confirms snapshot/write, not downstream use. No evidence
+      yet shows groove_cost_at_made is consumed by a later decision or score; the falsifier
+      therefore remains unrun. No live database was inspected in this source-only review.
 
   - id: p4_interoception
     label: "4 · Honest interoception"
@@ -888,7 +947,7 @@ nodes:
     falsifier: "A constant +0.73 is the signature of no aboutness at all."
     falsifier_status: pass
     source: { kind: inferred, from: vedana }
-    last_verified: 2026-11-15
+    last_verified: 2026-11-27
     notes: >
       Original verdict (fail) rested entirely on the now-retracted +0.73-constant claim.
       vedanā's own dev round, 2026-11-15, found 12 distinct real valence_delta values (0.0219 to
@@ -897,6 +956,10 @@ nodes:
       when that set moves. That is aboutness: the tone is about particular belief content, not a
       free-floating number. Flips to pass on the same evidence, inferred the same way the original
       fail was inferred from the opposite (fabricated) claim.
+
+      2026-11-27 source re-verification: this inferred property remains dependent on the
+      verified valence-content relationship, not on whether optional selection steering is armed.
+      The separate NEX5_VALENCE_DRIVE gate is not evidence against the aboutness claim.
 
   - id: p10_thickness
     label: "10 · Temporal thickness"
@@ -980,7 +1043,7 @@ nodes:
     falsifier: "Should produce a self-report that lowers its own standing at least once."
     falsifier_status: unrun
     source: { kind: inferred, from: hri_apatrapya }
-    last_verified: 2026-11-20
+    last_verified: 2026-11-27
     notes: "blocked, not unbuilt -- same underlying fact as hri_apatrapya (see that node: built,
       tested, dark -- real but never runs live -- blocked on the T6 ledger-pricing conflict and
       zero real rating data yet). Corrected 2026-11-20: this node's own absence-check (`grep
@@ -1010,6 +1073,7 @@ nodes:
       refs:
         - "theory_x/stage_finitude/budget_shadow.py:1-134"
         - "theory_x/stage_tom/global_workspace.py:144-166"
+        - "gui/server.py:202-280"
         - "gui/server.py:243"
         - "nex_keepalive.sh:191-220"
     last_verified: 2026-11-27
@@ -1156,8 +1220,8 @@ nodes:
     probe: { tests: "tests/test_apatrapya_channel.py", corpus: "29 fixture-based tests in an isolated temp env (independence/ablation, concordance/divergence, a deliberately-broken degenerate control, append-only retention, grep-based structural guards)", binding_fraction: null }
     falsifier: "Vetoed as gates. Would they work as reads — a report on one's own trace — instead of as output gates? ANSWERED, 2026-11-10: yes, as reads. See commit 7ad9942."
     falsifier_status: unrun
-    source: { kind: composite, claim: "a real, tested, flag-gated (NEX5_APATRAPYA_CHANNEL, default OFF) prototype now exists -- commit 7ad9942", refs: ["theory_x/stage_tom/apatrapya_channel.py:135", "theory_x/stage_tom/hri_apatrapya_prototype.py:90-176"] }
-    last_verified: 2026-11-10
+    source: { kind: composite, claim: "a real, tested, flag-gated (NEX5_APATRAPYA_CHANNEL, default OFF) prototype now exists -- commit 7ad9942", refs: ["theory_x/stage_tom/apatrapya_channel.py:135-203", "theory_x/stage_tom/hri_apatrapya_prototype.py:90-190", "tests/test_apatrapya_channel.py:326-350"] }
+    last_verified: 2026-11-27
     notes: "vetoed as gates, correctly. The open question is whether the veto was aimed at the gate
       or the factor. Correction, 2026-11-09: VIRTUE_SLATE.md (the draft's cited source) does not
       exist anywhere in this repo's git history, and no hri/apatrapya module exists either -- the
@@ -1184,7 +1248,14 @@ nodes:
       (2) zero real Jon ratings exist yet (MILESTONES in apatrapya_channel.py starts at '0'); the
       actual empirical question this prototype exists to answer -- GENUINE_PAIR vs NO_PAIR vs
       DEGENERATE -- cannot be answered until that changes. UNBLOCK: no fixed date set; gated on data,
-      not a deadline, per Jon/Beam's explicit 'don't move the milestones' instruction."
+      not a deadline, per Jon/Beam's explicit 'don't move the milestones' instruction.
+      2026-11-27 source re-verification: record_rating() remains the only rating-row writer;
+      hri_verdict(), apatrapya_verdict() and detect_tension() remain shadow reads, and
+      commit_tension() still raises NotImplementedError. The fixture suite explicitly labels
+      itself prototype-only and states that real-data T3/T9 cannot run at zero real ratings.
+      The test's rolled-back insert confirms the schema's NOT NULL belief_id_a/b constraint
+      blocks a non-belief pole; this is not permission to bypass the constraint. No live DB or
+      rating rows were inspected in this source-only pass."
 
   # ─────────────────────────── STRADDLE ─────────────────────────────
   - id: p8_episodic
@@ -1205,13 +1276,15 @@ nodes:
       kind: composite
       refs:
         - "theory_x/memory/episodic.py:1-36"
-        - "theory_x/memory/episodic.py:168-229"
-        - "tests/test_episodic.py:1-18"
-        - "tests/test_episodic_falsifier.py:1-30"
+        - "theory_x/memory/episodic.py:168-248"
+        - "tests/test_episodic.py:118-277"
+        - "tests/test_episodic_falsifier.py:42-54"
         - "substrate/schema/dynamic.sql:172-193"
         - "nex_config.py:84"
+        - "gui/server.py:3440-3454"
+        - "nex_keepalive.sh:219-220"
         - "SENTIENCE_PROGRAM.md:148-157"
-    last_verified: 2026-11-15
+    last_verified: 2026-11-27
     notes: >
       Built, tested, dark, now measured. SENTIENCE_PROGRAM.md:35 called this not-built and cited
       only resumption.py + snapshot_writer.py; :148-157 specifies Phase E and ARCHITECTURE.md:106,581
@@ -1224,8 +1297,15 @@ nodes:
       file without touching this one. Drift check is file-granularity, not line-granularity, so this
       kind of false positive is expected and worth re-verifying rather than assuming -- re-pinned
       last_verified having actually checked, not just to silence the warning.
-      gui/server.py:3090 exposes a read-only HUD endpoint, so the module docstring's
+      gui/server.py:3440-3454 exposes a read-only HUD endpoint, so the module docstring's
       "not wired into gui/server.py" is itself half-stale: read-visible, write-dark.
+
+      2026-11-27 source re-verification: nex_config.py still registers NEX5_EPISODIC at
+      line 84; record_episodes(), query_episodes() and reconstruct_episode() remain gated
+      by the flag. The current keepalive launch line omits NEX5_EPISODIC. The GUI endpoint
+      reads the episodes table directly and does not call the writer/recording path; it is
+      read-visible only. No current process environment or live-call state was inspected,
+      and the 2026-11-09 falsifier tests remain isolated fixture evidence.
 
       Falsifier run 2026-11-09, isolated test env (NEX5_DATA_DIR override, never the live DB/loop):
       tests/test_episodic_falsifier.py adds two checks against the real query_episodes()/
