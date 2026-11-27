@@ -357,6 +357,8 @@ def compare_adjacent_relationship_impacts(
             "affected_relationships": [],
             "invalid_relationship_records": 0,
             "invalid_assessment_records": 0,
+            "invalid_obligation_records": 0,
+            "unknown_capabilities": [],
         }
 
     changed = sorted({key for key in changed_capabilities
@@ -371,8 +373,30 @@ def compare_adjacent_relationship_impacts(
             "affected_relationships": [],
             "invalid_relationship_records": 0,
             "invalid_assessment_records": 0,
+            "invalid_obligation_records": 0,
+            "unknown_capabilities": [],
         }
     changed_set = set(changed)
+
+    def _obligation_keys(cycle):
+        keys = set()
+        invalid = 0
+        records = cycle.get("obligations")
+        if not isinstance(records, list):
+            return keys, 1
+        for record in records:
+            if (not isinstance(record, dict)
+                    or not isinstance(record.get("key"), str)
+                    or not record["key"].strip()
+                    or record["key"] != record["key"].strip()):
+                invalid += 1
+                continue
+            key = record["key"]
+            if key in keys:
+                invalid += 1
+                continue
+            keys.add(key)
+        return keys, invalid
 
     def _relationship_groups(cycle):
         groups = {}
@@ -420,6 +444,11 @@ def compare_adjacent_relationship_impacts(
             groups.setdefault(subject, []).append(record)
         return groups, invalid
 
+    before_nodes, invalid_before_obligations = _obligation_keys(before_cycle)
+    after_nodes, invalid_after_obligations = _obligation_keys(after_cycle)
+    known_capabilities = before_nodes | after_nodes
+    unknown_capabilities = [key for key in changed if key not in known_capabilities]
+    invalid_obligations = invalid_before_obligations + invalid_after_obligations
     before_relationships, invalid_before_relationships = _relationship_groups(before_cycle)
     after_relationships, invalid_after_relationships = _relationship_groups(after_cycle)
     before_assessments, invalid_before_assessments = _assessment_groups(before_cycle)
@@ -432,7 +461,8 @@ def compare_adjacent_relationship_impacts(
         if identity[0] in changed_set or identity[2] in changed_set
     )
     affected = []
-    partial = bool(invalid_capabilities or invalid_relationships or invalid_assessments)
+    partial = bool(invalid_capabilities or invalid_relationships or invalid_assessments
+                   or invalid_obligations or unknown_capabilities)
 
     for src, kind, dst in identities:
         identity = f"{src} -{kind}-> {dst}"
@@ -531,6 +561,8 @@ def compare_adjacent_relationship_impacts(
         "affected_relationships": affected,
         "invalid_relationship_records": invalid_relationships,
         "invalid_assessment_records": invalid_assessments,
+        "invalid_obligation_records": invalid_obligations,
+        "unknown_capabilities": unknown_capabilities,
         "note": (
             "Before/after differences for relationships incident to explicitly changed capabilities. "
             "These are correlated structural and assessment changes, not proof of causality, harm or benefit."
