@@ -636,6 +636,10 @@ def record_acceptance_verification(workdir: str, handoff_id: str, criterion_id: 
     criterion_id = _text(criterion_id, "criterion_id", 256)
     if not isinstance(note, str) or len(note) > 2000:
         raise HandoffError("note must be text of at most 2000 characters")
+    if mapped_obligation_keys is not None and not isinstance(mapped_obligation_keys, list):
+        raise HandoffError("mapped_obligation_keys must be a list")
+    if evidence_references is not None and not isinstance(evidence_references, list):
+        raise HandoffError("evidence_references must be a list")
     criteria = _context_assessment(manifest).get("acceptance_verification", [])
     matches = [item for item in criteria
                if isinstance(item, dict) and item.get("criterion_id") == criterion_id]
