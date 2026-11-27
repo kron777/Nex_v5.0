@@ -180,11 +180,22 @@ class PerformanceMargin:
     normalization: Optional[str] = None
     operating_envelope: str = "unknown"
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.metric, str) or not self.metric.strip():
+            raise ValueError("performance margin metric must be non-blank")
+        valid_envelopes = ("normal", "busy", "degraded", "stress", "recovery", "unknown")
+        if self.operating_envelope not in valid_envelopes:
+            raise ValueError(f"invalid performance margin operating envelope: {self.operating_envelope!r}")
+
     @staticmethod
     def _finite_number(value) -> bool:
         import math
-        return (isinstance(value, (int, float)) and not isinstance(value, bool)
-                and math.isfinite(value))
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            return False
+        try:
+            return math.isfinite(value)
+        except (OverflowError, TypeError, ValueError):
+            return False
 
     @property
     def margin(self) -> Optional[float]:
@@ -193,7 +204,8 @@ class PerformanceMargin:
                 or not isinstance(self.normalization, str)
                 or not self.normalization.strip()):
             return None
-        return float(self.q) - float(self.tau)
+        margin = float(self.q) - float(self.tau)
+        return margin if self._finite_number(margin) else None
 
     @property
     def margin_state(self) -> str:

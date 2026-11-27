@@ -82,3 +82,46 @@ def test_blank_confidence_and_normalization_do_not_complete_margin():
     margin.tau_confidence = " "
     assert margin.margin == pytest.approx(0.1)
     assert not margin.evidence_complete
+
+
+def test_performance_margin_requires_nonblank_metric_identity():
+    for metric in ("", " ", None, 7):
+        with pytest.raises(ValueError, match="metric must be non-blank"):
+            PerformanceMargin(metric=metric)
+
+
+def test_performance_margin_rejects_unknown_operating_envelope_labels():
+    for state in ("overloaded", "normal-ish", "", None, 7):
+        with pytest.raises(ValueError, match="invalid performance margin operating envelope"):
+            PerformanceMargin(metric="latency", operating_envelope=state)
+
+
+def test_performance_margin_accepts_all_declared_envelope_contexts():
+    for state in ("normal", "busy", "degraded", "stress", "recovery", "unknown"):
+        assert PerformanceMargin(metric="latency", operating_envelope=state).operating_envelope == state
+
+
+def test_extreme_integer_and_overflowing_difference_remain_unknown():
+    import sys
+
+    huge_integer = PerformanceMargin(
+        metric="quality",
+        q=10 ** 10000,
+        tau=0,
+        unit="quality",
+        normalization="higher_is_better",
+    )
+    assert huge_integer.margin is None
+    assert huge_integer.margin_state == "unknown"
+    assert not huge_integer.evidence_complete
+
+    overflowing_difference = PerformanceMargin(
+        metric="quality",
+        q=sys.float_info.max,
+        tau=-sys.float_info.max,
+        unit="quality",
+        normalization="higher_is_better",
+    )
+    assert overflowing_difference.margin is None
+    assert overflowing_difference.margin_state == "unknown"
+    assert not overflowing_difference.evidence_complete
