@@ -1,6 +1,6 @@
 # NEX 5.0 — INDEX / DEVELOPMENT MANUAL
 
-**Last verified against:** `main` at `edb869af154a33cd77df5ad9bdf010d3e6ab06a2`  
+**Last verified against:** `main` at `9f5a9f0b476716b6a6fd0a39aa3cf3041a3a4465`  
 **Evidence date:** 27 November 2026  
 **Purpose:** first-read guide for development, architecture review and operational investigation.
 
@@ -656,7 +656,7 @@ This is a verified producer/consumer mismatch, but **the intended lifecycle sema
 
 ### Claude first-read protocol
 
-For a fresh independent review, read in this order: this `INDEX.md`; `PHASE0_HANDOFF.md`; `NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-27.md`; `NEX_REPOSITORY_REALITY_REPORT.md`; `NEX_ARCHITECTURE_CROSSWALK_v2.md`; `ADR-001.md`; then the exact frozen specification/register and roadmap from their authoritative locations.
+For a fresh independent review, read in this order: this `INDEX.md` (especially the latest status and evidence protocol in §39); `PHASE0_HANDOFF.md` (especially its latest status block); `NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-27.md` (check each finding's source SHA); `ADR-001.md`; then the exact frozen specification/register and Master Roadmap v3.0 from their authoritative locations. `NEX_REPOSITORY_REALITY_REPORT.md` and `NEX_ARCHITECTURE_CROSSWALK_v2.md` are historical source snapshots at `ae406fa8fcb1abdf25cdf4ae1bd65333e1148ca8`, not current-main audits; use them as maps and independently revalidate every relevant claim against the current checkout before relying on them.
 
 Ask Claude to independently locate the original V2.1 proposal and approval record, identify the exact goal-lifecycle clauses, and return verbatim clause references plus the evidence establishing approval. If it cannot locate them, it must say so rather than infer the rule. Claude should then independently verify G-58 against current source and tests, distinguish confirmed implementation from intended semantics, and propose the smallest test-first reconciliation. No state semantics, policy, schema, live database or runtime change is authorized by this handoff.
 
@@ -670,3 +670,69 @@ The prior §37 snapshot recorded PR #264 as based on the current post-#263 mainl
 PR #264 was closed as superseded. **PR #266** replays the same source and regression-test changes on current main `edb869af154a33cd77df5ad9bdf010d3e6ab06a2`. It is draft, with exact-head CI pending. The source change remains bounded keyset pagination; the behavioural consequence remains that beliefs previously starved beyond the first 500 may now advance at the next scheduled erosion pass. The undo log is audit metadata, not automatic rollback. Keep #266 separate for exact-head verification and review; no live state was accessed or changed.
 
 This correction illustrates the manual's evidence rule: a passing workflow on a PR head does not establish that the PR is based on the latest mainline. Verify both the exact tested SHA and its merge base before calling a replay current-main validated.
+
+
+## 39. Claude comprehension, evidence freshness and current-main status ledger (27 November 2026)
+
+**Authoritative repository snapshot checked for this update:** `main` at `9f5a9f0b476716b6a6fd0a39aa3cf3041a3a4465`. This is the post-PR #267 mainline. This section supersedes any earlier statement in §§11–38 that describes a different SHA as "current", "latest", "open", "pending", "in progress" or "merged". Earlier sections are retained as chronological evidence records, not silently rewritten into a false continuous snapshot.
+
+### Read this manual correctly
+
+NEX has several different kinds of authority and evidence. Do not collapse them:
+
+1. **Founder-approved governance:** the Master Roadmap v3.0, frozen consolidated S-01–S-25 register and explicitly approved decisions control scope and gates. This manual cannot amend them.
+2. **Implementation fact:** current source at a named commit proves what code is present. It does not prove that the behaviour is intended, enabled on a host, or effective.
+3. **Test evidence:** a green test run proves only the exact tested commit and test scope shown by that run. It does not prove a different PR head, current main, deployment, live operation or user-visible effect.
+4. **PR state:** distinguish open/closed, merged/unmerged, draft/ready, base SHA, head SHA, merge base and exact-head CI. A PR description is a claim, not independent proof of its base or status.
+5. **Host/runtime evidence:** process state, service configuration, actual flags, database contents, model digest, devices and live traces remain UNKNOWN unless separately collected with authorization.
+6. **Hypothesis / recommendation:** label these explicitly. Never turn a source observation or test fixture into a policy decision.
+
+### Evidence freshness rule
+
+For every substantive claim Claude repeats or changes, record: source path and line/function anchor; exact source commit; test path and exact test result/run ID where applicable; whether evidence is static source, fixture test, CI, host observation or founder approval; known counter-evidence; and last verification date. When main advances, re-check the affected source paths and tests. If not rechecked, label the finding **historical snapshot — revalidation required**, not "current". Never update a date or SHA merely to make a document look fresh.
+
+### Current PR and Gate ledger (verified from GitHub metadata at this update)
+
+| Item | Verified status | Interpretation |
+|---|---|---|
+| PR #267 | Merged to main as `9f5a9f0b476716b6a6fd0a39aa3cf3041a3a4465` | Documentation/evidence correction only |
+| PR #268 | Open, draft; base `9f5a9f0b476716b6a6fd0a39aa3cf3041a3a4465`; head `8b8ffaff27e298ff96dd4a09452ac14067dc4916`; exact-head run `46024945847` in progress at last check | Current-main replay of provenance-erosion pagination; do not call validated or merge until exact-head full-suite completes and behaviour impact is reviewed |
+| PR #266 | Open, draft, based on superseded `edb869af154a33cd77df5ad9bdf010d3e6ab06a2` | Superseded by #268; do not treat its CI as validation of #268 |
+| PR #259 | Open, unmerged; base `e78773def4549f646257945e5886ec71a7837374`; head `9686fa6da7e835a149f31b516a5ff7a731c3a8b0`; diverged from current main (current main is 5 commits ahead, PR branch 2 commits ahead of the common base) | SurpriseLoop loss-safe delivery proposal is not a current-main replay. It remains Gate 0 HOLD and requires rebase/replay plus fresh exact-head CI after founder approval; do not merge/deploy |
+| PR #255 | Closed, unmerged | Older SurpriseLoop attempt; not current implementation evidence |
+| PR #261 | Merged | G-70 source/test continuity gap closed; M0.5 acceptance remains open |
+| PR #262 | Merged | WarrantPass docstring correction only; no WarrantPass activation |
+| PR #265 | Merged | Manual/Claude handoff reconciliation |
+| PR #267 | Merged | Corrected evidence snapshot and handoff |
+| G-58 | Open — intended goal lifecycle unresolved | Recover V2.1 original and approval before changing `open` / `active` semantics |
+| G-69 | Gate 0 HOLD | No SurpriseLoop behaviour-changing merge/deployment |
+| G-73/G-74/G-75 | Open | Keep as evidence/lifecycle questions until their specific dispositions are verified |
+| Gate 0 | Pending founder review | No Phase 1 authorization |
+| Phase 1 | Not authorized | No inference from CI or documentation merges |
+
+**PR #259 ancestry check:** comparing current main to its head yields a diverged graph, not a current-main PR. Its PR body says it replays after #256, but the actual GitHub base SHA remains the earlier #256 merge. Trust the graph metadata, not the prose. The implementation is not on main by virtue of the PR being open.
+
+**PR #268 CI status:** the disposable test image built successfully; the "Verify sandbox and run full baseline suite" step was still running. No final test count or pass/fail conclusion was available at this update. Re-query the exact head SHA and run ID before making a claim.
+
+### Snapshot status of companion evidence documents
+
+- `NEX_REPOSITORY_REALITY_REPORT.md` and `NEX_ARCHITECTURE_CROSSWALK_v2.md` were last audited at `ae406fa8fcb1abdf25cdf4ae1bd65333e1148ca8`. Current main is 44 commits ahead of that source snapshot. Their contents are now **historical orientation**, not a current-main reality certification or fully current architecture map. Revalidate affected source before using their claims. Do not change their source SHA metadata to current without actually repeating their audits.
+- The verified defect backlog's header snapshot is now current main for navigation, but individual findings have different evidence dates/SHAs. Each finding retains its own source evidence boundary; revalidate before claiming it is still current.
+- Sections 11–38 are preserved as a dated engineering history. Their old PR states, test counts and SHAs are not live status. Use this §39 ledger plus GitHub metadata for current state.
+
+### Instructions to Claude — perform a comprehension check before coding
+
+First, summarize the authority hierarchy and current status above in your own words. Then independently verify, without relying on this prose alone:
+
+1. Resolve the current `main` SHA and compare it with each PR base/head/merge commit.
+2. Re-query PR #268's exact-head workflow run; if still running, wait. If failed, inspect logs and repair on the same latest-main base. If passed, inspect the full patch, failure paths, query semantics and undo lineage; do not merge merely because CI is green.
+3. Verify PR #259's diverged ancestry and preserve the G-69 Gate 0 hold. Do not rebase it into a mergeable state or change behaviour without founder approval.
+4. Re-read GoalManager, CoherenceGate and their tests for G-58. Recover the exact Development Proposal V2.1 and its approval evidence from the founder's available sources; quote clause and page/section references. If unavailable, report **not located** and leave semantics unchanged.
+5. Revalidate any reality-report or crosswalk assertion used for a new engineering decision against current source and tests.
+6. Report discrepancies between this manual and independent findings before editing. Preserve the frozen S-01–S-25 register and roadmap.
+
+Claude's deliverable should be an evidence table with: claim, source SHA, source anchor, test/run, evidence class, confidence/limitation, contradiction check, and disposition. It should separately list founder decisions required. Do not claim that you have contacted the founder or another model; this repository handoff is an instruction, not a message sent to Claude.
+
+### Next research–development–observation cycle
+
+After the comprehension check, continue with one bounded, authorized issue at a time: inspect → state the hypothesis → seek disconfirming evidence → implement only where authority permits → run focused tests and exact-head full baseline → rescan changed code and callers → record newly exposed dependencies and behavioural consequences → update this manual/backlog/handoff. Stop before any unresolved founder-policy or Gate 0 boundary. A prestigious result is a reproducible, understandable and governable system, not a large change count.

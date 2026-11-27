@@ -1,10 +1,12 @@
 # NEX v5.0 — Architecture Crosswalk v2 (Mainline Evidence Snapshot)
 
-**Snapshot:** `main` at `ae406fa8fcb1abdf25cdf4ae1bd65333e1148ca8`  
+**Historical source snapshot:** `main` at `ae406fa8fcb1abdf25cdf4ae1bd65333e1148ca8`  
 **Evidence date:** 27 November 2026  
 **Boundary:** source-level map and controlled tests; not a live runtime audit.
 
 ## 1. Inventory and authority boundary
+
+> **Historical evidence warning (27 November 2026):** this crosswalk was collected at `ae406fa8fcb1abdf25cdf4ae1bd65333e1148ca8`. Current main has since advanced 44 commits to `9f5a9f0b476716b6a6fd0a39aa3cf3041a3a4465`. Treat all package counts, boot paths, producer/consumer claims and source anchors below as historical until rechecked against current main. This document is an orientation map, not a current architecture certification or complete faculty DAG. Do not refresh its SHA/date without repeating the crosswalk audit.
 
 - `mind_map/MIND_MAP.yaml` is a descriptive index, not a runtime authority.
 - Current YAML inventory: exactly 30 entries under `nodes:` (18 arm, 9 ring, 2 boundary, 1 straddle), 5 under `arms:`, and 4 under `findings:`. The earlier “39 nodes” count incorrectly aggregated 30 + 5 + 4 across those separate sections. The 30-node convention is correct; no map change is needed.
