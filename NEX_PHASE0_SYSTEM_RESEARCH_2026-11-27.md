@@ -125,11 +125,21 @@ This was an evidence-contamination risk, not automatic semantic acceptance: sema
 
 **Sources:** `theory_x/SOCIAL_PRESENCE_PROTOCOL.md`; `theory_x/stage_social/social_presence.py`; `theory_x/conversation_memory.py`; `theory_x/stage9_metacognition/metacognition.py`; `theory_x/stage6_fountain/generator.py`.
 
-The Social Presence Protocol measures response count and average response latency. ConversationMemory retains a bounded turn history. The two implemented “stillness” mechanisms are different: Fountain detects repeated retrieval overlap and eventually force-fires after a stillness streak; Metacognition writes a time-limited `stillness_log` entry after a groove-event threshold. These are internal generation/pacing signals, not a model of social silence. Fountain also contains natural-language self-reflection about silence, but the reviewed paths do not turn that into a structured social-silence state or classifier.
+The Social Presence Protocol and isolated module define response-count and average-response-latency metrics, but the module is disabled in current boot (see G-91). ConversationMemory retains a bounded turn history. The two implemented “stillness” mechanisms are different: Fountain detects repeated retrieval overlap and eventually force-fires after a stillness streak; Metacognition writes a time-limited `stillness_log` entry after a groove-event threshold. These are internal generation/pacing signals, not a model of social silence. Fountain also contains natural-language self-reflection about silence, but the reviewed paths do not turn that into a structured social-silence state or classifier.
 
 No reviewed current-main path distinguishes deliberate social silence from technical failure, or interprets silence in relation to duration, relationship, conversational dynamics, emotional circumstances and likely human interpretation. The system has adjacent context signals, but response latency alone is not an interpretation of silence.
 
 This is a capability gap against the founder's stated social-silence design principle, not a claim that a frozen S-01–S-25 requirement is violated. Do not equate retrieval stillness or groove suppression with social silence. A future design should distinguish listening, companionship, respect, familiarity, reflection, restraint, rejection, avoidance and abandonment, while also detecting technical failure and expected-response context.
+
+### G-91 — SocialPresence protocol claims autonomous boot, but current boot disables it (OPEN)
+
+**Sources:** `run.py`; `theory_x/SOCIAL_PRESENCE_PROTOCOL.md`; `theory_x/stage_social/social_presence.py`; `gui/server.py`; `theory_x/stage9_metacognition/metacognition.py`; `tests/test_social_presence.py`.
+
+The protocol says SocialPresence is registered in `run.py`, starts a daemon loop and snapshots every 300 seconds. Current `run.py` explicitly records its removal, sets `_social_presence = None`, and assigns `metacognition._sp = None`. The GUI's `current_summary()` injection and Metacognition's `_sp` consumers are conditional, so they are inactive under this boot path.
+
+The removal comment says the module had no GUI/chat consumers, but current main now contains guarded consumer call sites in `gui/server.py` and Metacognition. The comment's consumer rationale is therefore stale even though the module remains disabled. The isolated SocialPresence unit tests do not establish boot integration or live operation.
+
+**Disposition:** treat SocialPresence metrics and its autonomous loop as disabled on current main. Decide whether to restore it with meaningful consumers, or explicitly mark the protocol deferred/archived. Do not re-enable it merely to make the protocol text true; if restored, add boot-wiring, consumer and shutdown tests.
 
 ## 5. RDO capability and authority boundary
 
