@@ -267,7 +267,12 @@ def test_submit_runs_existing_pipeline_and_persists_intake_provenance(tmp_path, 
     assert all(item["status"] == "unmapped" and item["evidence"] == []
                for item in cycle["context_assessment"]["items"])
     assert cycle["work_packages"]
-    assert all(package["eligibility"] == "eligible"
+    # Context uncertainty blocks execution readiness but must not be
+    # misrepresented as a Stage-1 package blocker or erase genuine blockers.
+    assert all(package["eligibility"] in ("eligible", "blocked")
+               for package in cycle["work_packages"])
+    assert all(not any("objective context" in blocker.lower()
+                       for blocker in package["blockers"])
                for package in cycle["work_packages"])
     assert cycle["context_assessment"]["execution_readiness"] == "blocked"
     assert cycle["context_assessment"]["handoff_readiness"] == "reviewable"
