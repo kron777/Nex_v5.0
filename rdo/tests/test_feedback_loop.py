@@ -58,6 +58,8 @@ def test_feedback_stability_states_are_explicit_but_not_automatically_inferred()
         relationships=["A-influences-A"],
         stability_state="conditionally_stable",
         assessment_evidence=["review:stability-2"],
+        provenance=["reviewer:independent-assessment"],
+        confidence="reviewed",
     )
 
     assert loop.assessment_status == "evidence_recorded"
@@ -65,7 +67,7 @@ def test_feedback_stability_states_are_explicit_but_not_automatically_inferred()
 
 
 def test_stability_verdict_requires_assessment_evidence():
-    with pytest.raises(ValueError, match="requires assessment evidence"):
+    with pytest.raises(ValueError, match="traceable assessment evidence"):
         FeedbackLoopAssessment(
             loop_id="loop-3",
             members=["A"],
@@ -109,3 +111,23 @@ def test_operating_envelope_is_context_not_a_stability_verdict():
 
     assert loop.operating_envelope == "stress"
     assert loop.stability_state == UNKNOWN
+
+
+def test_non_unknown_stability_requires_confidence_and_provenance():
+    base = dict(loop_id="loop-evidence", members=["A"], relationships=["A->A"],
+                stability_state="stable", assessment_evidence=["review:stable"])
+    with pytest.raises(ValueError, match="confidence label"):
+        FeedbackLoopAssessment(**base, provenance=["reviewer:1"])
+    with pytest.raises(ValueError, match="provenance"):
+        FeedbackLoopAssessment(**base, confidence="reviewed")
+    with pytest.raises(ValueError, match="confidence label"):
+        FeedbackLoopAssessment(**base, confidence=" ", provenance=["reviewer:1"])
+    with pytest.raises(ValueError, match="provenance"):
+        FeedbackLoopAssessment(**base, confidence="reviewed", provenance=[])
+
+
+def test_unknown_stability_can_preserve_partial_or_missing_verdict_evidence():
+    loop = FeedbackLoopAssessment(loop_id="loop-unknown", members=["A"],
+        relationships=["A->A"], stability_state=UNKNOWN, assessment_evidence=[],
+        confidence=None, provenance=[])
+    assert loop.assessment_status == "unknown"
