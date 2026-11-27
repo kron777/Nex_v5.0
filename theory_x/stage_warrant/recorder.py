@@ -156,8 +156,16 @@ class WarrantRecorder:
         if not row:
             return default
         try:
-            value = tuple(json.loads(row["value"]))
-            return value if len(value) == len(default) else default
+            decoded = json.loads(row["value"])
+            if not isinstance(decoded, list) or len(decoded) != len(default):
+                return default
+            # JSON is untyped at the schema boundary. Reject values whose
+            # component types do not match the cursor contract; otherwise a
+            # text value in an integer key slot can strand the cursor.
+            if any(type(value) is not type(expected)
+                   for value, expected in zip(decoded, default)):
+                return default
+            return tuple(decoded)
         except Exception:
             return default
 
@@ -237,35 +245,42 @@ class WarrantRecorder:
             "SELECT id, belief_id_a, belief_id_b, ts FROM synergizer_log WHERE id > ? "
             "ORDER BY id LIMIT ?", (int(c), _USE_BATCH)),
             "id", ("belief_id_a", "belief_id_b"), "ts")
-        # These tables have declared composite primary keys. Hidden rowids can
-        # change during VACUUM, so use the declared keys as durable cursors.
-        # New keys replay the historical rows once; belief_use_day is idempotent.
-        last = self._tuple_cursor("use_lineage_pk", (0, 0, ""))
+        # Use event time first and declared primary-key columns as tie-breakers.
+        # A key-only cursor can miss late additions to an older child/arc (for
+        # example, an active arc receiving a new member after newer arcs exist).
+        # Hidden rowids are not durable across VACUUM, so they are never cursors.
+        # The new event cursor replays history once; belief_use_day is idempotent.
+        last = self._tuple_cursor("use_lineage_event", (0.0, 0, 0, ""))
         rows = self._br.read(
-            "SELECT child_id, parent_id, relationship, created_at "
-            "FROM belief_lineage WHERE (child_id, parent_id, relationship) > (?, ?, ?) "
-            "ORDER BY child_id, parent_id, relationship LIMIT ?",
+            "SELECT created_at, child_id, parent_id, relationship "
+            "FROM belief_lineage "
+            "WHERE (created_at, child_id, parent_id, relationship) > (?, ?, ?, ?) "
+            "ORDER BY created_at, child_id, parent_id, relationship LIMIT ?",
             (*last, _USE_BATCH),
         )
         for row in rows:
             pairs.add((int(row["parent_id"]), int(float(row["created_at"]) // _DAY)))
         if rows:
             row = rows[-1]
-            cur_new["use_lineage_pk"] = (
-                int(row["child_id"]), int(row["parent_id"]), str(row["relationship"])
+            cur_new["use_lineage_event"] = (
+                float(row["created_at"]), int(row["child_id"]),
+                int(row["parent_id"]), str(row["relationship"])
             )
 
-        last = self._tuple_cursor("use_arc_pk", (0, 0))
+        last = self._tuple_cursor("use_arc_event", (0.0, 0, 0))
         rows = self._br.read(
-            "SELECT arc_id, belief_id, joined_at FROM arc_members "
-            "WHERE (arc_id, belief_id) > (?, ?) ORDER BY arc_id, belief_id LIMIT ?",
+            "SELECT joined_at, arc_id, belief_id FROM arc_members "
+            "WHERE (joined_at, arc_id, belief_id) > (?, ?, ?) "
+            "ORDER BY joined_at, arc_id, belief_id LIMIT ?",
             (*last, _USE_BATCH),
         )
         for row in rows:
             pairs.add((int(row["belief_id"]), int(float(row["joined_at"]) // _DAY)))
         if rows:
             row = rows[-1]
-            cur_new["use_arc_pk"] = (int(row["arc_id"]), int(row["belief_id"]))
+            cur_new["use_arc_event"] = (
+                float(row["joined_at"]), int(row["arc_id"]), int(row["belief_id"])
+            )
 
         if pairs:
             write_batch(self._w, [(
