@@ -75,7 +75,7 @@ import os
 import time
 from typing import Optional
 
-from substrate import connect, Row, Writer
+from substrate import connect, Row, Writer, Writer
 from substrate.paths import DbPath
 
 log = logging.getLogger("theory_x.stage_world.expectations")
@@ -135,6 +135,16 @@ def commitment_valence_on() -> bool:
 def _db(name):
     return str({"conversations": CONVERSATIONS_DB, "dynamic": DYNAMIC_DB,
                 "beliefs": BELIEFS_DB}[name])
+
+
+def _ro(name: str):
+    return connect(f"file:{_db(name)}?mode=ro", uri=True, timeout=30)
+
+
+def _acquire_writer(name: str, supplied):
+    if supplied is not None:
+        return supplied, False
+    return Writer(_db(name), name=f"expectations_{name}"), True
 
 
 # ---------------------------------------------------------------- pure math --
@@ -218,46 +228,58 @@ def _horizon(table, r) -> float:
     return float(r["target_window_end"] if table == "predictions" else r["resolve_at"])
 
 
-def ingest(now: Optional[float] = None) -> int:
-    """Header every frozen producer row not yet in the ledger, state 'open'."""
-    cx = connect(_db("conversations"), timeout=30)
-    cx.row_factory = Row
-    n = 0
+def ingest(
+    now: Optional[float] = None, *, conversations_writer: Writer | None = None,
+) -> int:
+    """Header every frozen producer row not yet in the ledger, state 'open'.
+    All conversation-ledger reads/writes share one serialized Writer transaction;
+    producer databases other than conversations are opened read-only."""
+    writer, owned = _acquire_writer("conversations", conversations_writer)
     try:
-        for table, (dbname, subject, hkind) in PRODUCERS.items():
-            if subject in DEFERRED_SUBJECTS:   # declared, never produced (yet)
-                continue
-            last = cx.execute("SELECT COALESCE(MAX(producer_row_id), 0) FROM expectations "
-                              "WHERE producer = ?", (table,)).fetchone()[0]
-            src = cx if dbname == "conversations" else connect(_db(dbname), timeout=30)
-            src.row_factory = Row
-            try:
-                if not _has_table(src, table):
+        def _insert_headers(cx):
+            cx.row_factory = Row
+            n = 0
+            for table, (dbname, subject, hkind) in PRODUCERS.items():
+                if subject in DEFERRED_SUBJECTS:   # declared, never produced (yet)
                     continue
-                rows = src.execute(f"SELECT * FROM {table} WHERE id > ? AND frozen = 'at_made'"
-                                   + PRODUCER_FILTER.get(table, "") + " ORDER BY id",
-                                   (last,)).fetchall()
-            finally:
-                if src is not cx:
-                    src.close()
-            for r in rows:
-                basis = json.loads(r["basis_snapshot"]) if r["basis_snapshot"] else []
-                cx.execute(
-                    "INSERT INTO expectations (subject, producer, producer_row_id, made_at, "
-                    "claimed_state, confidence, confidence_basis, tolerance, tolerance_basis, "
-                    "salience_k, cost_band, basis_snapshot, ownership, basis_kind, "
-                    "producer_stream, horizon_at, horizon_kind) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    (subject, table, r["id"], r["made_at"], json.dumps(_claimed(table, r)),
-                     r["confidence"], r["confidence_basis"], r["tolerance"],
-                     r["tolerance_basis"], r["salience_k"], r["cost_band"],
-                     json.dumps(basis), ownership(basis), basis_kind(basis),
-                     _stream(table, r), _horizon(table, r), hkind))
-                n += 1
-        cx.commit()
+                last = cx.execute(
+                    "SELECT COALESCE(MAX(producer_row_id), 0) FROM expectations WHERE producer = ?",
+                    (table,),
+                ).fetchone()[0]
+                src = cx if dbname == "conversations" else _ro(dbname)
+                try:
+                    if not _has_table(src, table):
+                        continue
+                    rows = src.execute(
+                        f"SELECT * FROM {table} WHERE id > ? AND frozen = 'at_made'"
+                        + PRODUCER_FILTER.get(table, "") + " ORDER BY id",
+                        (last,),
+                    ).fetchall()
+                finally:
+                    if src is not cx:
+                        src.close()
+                for row in rows:
+                    basis = json.loads(row["basis_snapshot"]) if row["basis_snapshot"] else []
+                    cx.execute(
+                        "INSERT INTO expectations (subject, producer, producer_row_id, made_at, "
+                        "claimed_state, confidence, confidence_basis, tolerance, tolerance_basis, "
+                        "salience_k, cost_band, basis_snapshot, ownership, basis_kind, "
+                        "producer_stream, horizon_at, horizon_kind) "
+                        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (subject, table, row["id"], row["made_at"],
+                         json.dumps(_claimed(table, row)), row["confidence"],
+                         row["confidence_basis"], row["tolerance"], row["tolerance_basis"],
+                         row["salience_k"], row["cost_band"], json.dumps(basis),
+                         ownership(basis), basis_kind(basis), _stream(table, row),
+                         _horizon(table, row), hkind),
+                    )
+                    n += 1
+            return n
+
+        return writer.transaction(_insert_headers)
     finally:
-        cx.close()
-    return n
+        if owned:
+            writer.close()
 
 
 def _has_table(cx, name) -> bool:
