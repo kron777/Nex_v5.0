@@ -1,4 +1,5 @@
 -- Shared dynamic key/value checkpoint store used by bounded runtime workers.
+-- SurpriseLoop and the Moltbook poster share this table and its timestamp column.
 CREATE TABLE IF NOT EXISTS daemon_kv (
     key TEXT PRIMARY KEY,
     value TEXT,
