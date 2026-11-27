@@ -171,3 +171,39 @@ def test_real_stage_evidence_loop_persists_and_resumes(tmp_path):
     out = json.loads(r.stdout)
     assert out["mean"] == res["mean_prediction_accuracy"]
     assert out["split"] == res["provenance_split"]
+
+
+def test_regression_outcome_becomes_scoped_candidate_for_later_cycles(tmp_path):
+    from rdo.memory import PatternMemory, compare, derive_lessons
+    from rdo.orchestrator import run_cycle
+    from rdo.model import Obligation
+
+    outcome = _cycle("regression", 2, actual={
+        "missed": [], "unnecessary": [], "reuse_wrong": [],
+        "regressions": ["ci:run-123 regression in belief-decay path"],
+    })
+    lessons = derive_lessons(outcome, compare(outcome))
+    regression = next(item for item in lessons if item.key == "regression_risk")
+    assert regression.applicability == outcome.objective
+    assert "one regression" in regression.exceptions[0]
+
+    memory = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    memory.add(regression)
+    assert [item.key for item in memory.applicable("regression")] == ["regression_risk"]
+
+    next_cycle, _ = run_cycle(
+        "next-regression-review", "regression", [],
+        [Obligation("seed", "bounded seed", "test")], signatures={},
+        repo_dir=str(tmp_path), active_experiments=[], memory=memory, max_depth=0,
+    )
+    assert any("applied_patterns=['regression_risk']" in item
+               for item in next_cycle.uncertainties)
+
+
+def test_malformed_regression_outcome_does_not_create_learning_pattern():
+    from rdo.memory import compare, derive_lessons
+    cycle = _cycle("malformed-regression", 1, actual={
+        "missed": [], "unnecessary": [], "reuse_wrong": [], "regressions": [" "],
+    })
+    assert all(item.key != "regression_risk"
+               for item in derive_lessons(cycle, compare(cycle)))
