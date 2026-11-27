@@ -43,6 +43,8 @@ def test_failure_propagation_cli_reads_cycle_and_reports_candidates(tmp_path, ca
         tension=[],
     )
 
+    cycle_path = tmp_path / "cycle_failure-case.json"
+    before_bytes = cycle_path.read_bytes()
     status = main([
         "failure-propagation",
         "--cycle-id", "failure-case",
@@ -51,6 +53,7 @@ def test_failure_propagation_cli_reads_cycle_and_reports_candidates(tmp_path, ca
     ])
 
     output = json.loads(capsys.readouterr().out)
+    assert cycle_path.read_bytes() == before_bytes
     assert status == 0
     assert output["status"] == "candidate_only"
     assert [item["key"] for item in output["affected"]] == ["reader", "api"]
@@ -100,6 +103,8 @@ def test_impact_cli_compares_persisted_cycle_snapshots(tmp_path, capsys):
         tension=[_assessment(subject, dimensions={"latency": {"status": "measured"}})],
     )
 
+    before_bytes = (tmp_path / "cycle_before.json").read_bytes()
+    after_bytes = (tmp_path / "cycle_after.json").read_bytes()
     status = main([
         "impact",
         "--before-cycle-id", "before",
@@ -109,6 +114,8 @@ def test_impact_cli_compares_persisted_cycle_snapshots(tmp_path, capsys):
     ])
 
     output = json.loads(capsys.readouterr().out)
+    assert (tmp_path / "cycle_before.json").read_bytes() == before_bytes
+    assert (tmp_path / "cycle_after.json").read_bytes() == after_bytes
     assert status == 0
     assert output["status"] == "compared"
     item = output["affected_relationships"][0]
