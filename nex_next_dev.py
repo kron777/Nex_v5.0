@@ -141,7 +141,7 @@ def report(dag: dict) -> None:
             print(f"  {name}: built={info.get('members_built')}, "
                   f"gap={info.get('members_gap')}")
 
-    print("\\n" + "-" * 66)
+    print("\n" + "-" * 66)
     print("UNPROVEN DEPENDENCY CAVEATS (not hard blockers under the current DAG rule):")
     if c["live_unproven"]:
         for gate in c["live_unproven"]:
