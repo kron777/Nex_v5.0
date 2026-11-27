@@ -151,7 +151,7 @@ Therefore the current RDO is a structured, deterministic expansion/reconciliatio
 
 The RDO README describes 14 core modules / 3,775 non-comment LOC and a self-check result of “needs review” against its 1,800-LOC heuristic. The README also cautions that its Pareto/priority weights are scaffolding and uncalibrated. Treat work-package rankings as provisional.
 
-OFT is implemented in `rdo/tension.py` as a structured node/relationship/system assessment, with verdicts and evidence separated from inference. The v1.4 reconciliation note records that the founder supplied the original v1.4 text in a prior conversation, but the raw 47,172-byte source is not available in the current repository/Library for fresh comparison. The RDO stage documents use v1.3 §16; some pre-existing source docstrings cite v1.4. The v1.4 reconstruction is explicitly non-normative and incomplete. Version precedence remains unresolved; do not silently remap references, claim formal supersession or ask the founder to re-supply the text by default.
+OFT is partially implemented in `rdo/tension.py` as a structured node/relationship/system assessment, with verdicts and evidence separated from inference. The founder indicated on 24 November that they believed v1.4 had been approved; v1.4 is the current working specification, while v1.3 remains historical implementation lineage. The raw 47,172-byte v1.4 source is not mounted in the current repository/Library for fresh byte-level comparison, and formal frozen supersession is not recorded in the consolidated NEX register. Do not silently remap historical v1.3 references or ask the founder to re-supply the text by default.
 
 Stage 7's restricted execution path requires exact per-call test allowlists. The newer handoff manifest defaults to `execution_authority=none`; it is a source/evidence handoff, not permission to execute arbitrary commands or alter NEX runtime state. Human acceptance is caller-attributed, not identity-authenticated. Runtime evidence remains unknown.
 
@@ -167,7 +167,7 @@ PR #102 and PR #145 remain drafts targeting `claude/nex-continuity-wire`, not cu
 4. Define groove-alert acknowledgement/idempotency and distinct-source stillness evidence.
 5. Review Moltbook's external consent, dry-run labels and belief eligibility before any live external mode.
 6. Continue the faculty producer/consumer and one-pen census; keep G-73 eligibility and scan ownership open pending Gate 0.
-7. Extend the RDO objective-intake path so raw objectives can be transformed into traceable seed obligations without pretending that the current rule engine already does this autonomously. Resolve v1.3/v1.4 precedence separately.
+7. Extend the RDO objective-intake path so raw objectives can be transformed into traceable seed obligations without pretending that the current rule engine already does this autonomously. Use v1.4 as the current working basis; preserve v1.3 as historical.
 
 ## 8. Governance boundary
 
@@ -191,7 +191,7 @@ This is a capability/contract gap, not an execution defect: RDO remains advisory
 
 **Evidence:** `rdo_adapters/objective_intake.py::validate_objective()` validates these fields; `submit_objective()` (around lines 447–504) passes only the fields listed above to `run_cycle()`. `rdo/orchestrator.py::run_cycle()` has no scope/constraint/exclusion/acceptance-criteria inputs. Existing intake tests cover validation, revision integrity, replay and pipeline execution, but do not assert that those contextual fields constrain the generated plan.
 
-**Next step:** define a typed, traceable translation from context to obligations/anti-requirements and a separate acceptance-verification record. Keep free-text constraints visible as unresolved review obligations rather than claiming they are enforced. Do not silently change objective schema v1 or claim v1.4 precedence until the source-authority question is resolved.
+**Next step:** define a typed, traceable translation from context to obligations/anti-requirements and a separate acceptance-verification record. Keep free-text constraints visible as unresolved review obligations rather than claiming they are enforced. Treat v1.4 as the current working specification and v1.3 as historical. Do not change objective schema v1 without a specific, traceable design reason.
 
 
 ## 10. Post-snapshot implementation update — PR #280
