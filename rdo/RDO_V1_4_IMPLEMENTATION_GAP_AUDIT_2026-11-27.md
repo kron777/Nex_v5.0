@@ -115,7 +115,7 @@ The case labels below are concise summaries recovered from the v1.4 review conte
 | I | Local improvement causes global regression | No multi-objective local/global net-value comparison | **Missing** |
 | J | Neighbouring capability changes | No typed interface profile or adjacent-capability impact re-assessment | **Missing** |
 | K | Excessive recursion | max-depth, terminal kinds and frontier reasons; `test_max_depth_bounds_expansion` | **Covered** |
-| L | Negative development outcome | Predicted/actual comparison, disconfirmation and confidence reduction | **Partial** — negative evidence is representable; no explicit adversarial test proves the negative result reverses/restricts the next recommendation |
+| L | Negative development outcome | Predicted/actual comparison, disconfirmation and confidence reduction; PR #309 proposes an objective-scoped regression-risk lesson surfaced in later cycles (not merged at this snapshot) | **Partial** — a scoped candidate can be surfaced, but it does not yet mechanically reverse or restrict a recommendation |
 
 A test with a similar name is not counted as full coverage unless it exercises the specified adversarial condition and asserts the required outcome.
 
@@ -130,6 +130,8 @@ PR #287 merged objective-context propagation into `run_cycle()`, cycle persisten
 
 
 **Evidence-integrity update (27 November 2026):** PR #298 makes malformed persisted interface-profile shapes explicitly diagnosable. PRs #304–#306 strengthen evidence completeness for feedback verdicts, performance margins and assessed operating envelopes. These changes enforce traceability and UNKNOWN handling; they do not supply missing v1.4 thresholds or implement stability/headroom calculations. PR #310 (open at this snapshot) proposes connecting operating-envelope evidence to relationship-level assessment.
+
+**Additional evidence-integrity note (27 November 2026):** PR #298 makes malformed persisted interface-profile shapes explicitly diagnosable as `invalid_shape`. PRs #304–#306 strengthen feedback-verdict, performance-margin and operating-envelope evidence requirements. These are evidence-integrity improvements, not substitutes for calibrated thresholds. PR #310 (open at this snapshot) proposes relationship-level operating-envelope evidence integration.
 
 ## 6. Next implementation slice
 
