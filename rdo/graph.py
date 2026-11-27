@@ -356,6 +356,7 @@ def compare_adjacent_relationship_impacts(
             "invalid_capabilities": [],
             "affected_relationships": [],
             "invalid_relationship_records": 0,
+            "unresolved_relationship_references": 0,
             "invalid_assessment_records": 0,
             "invalid_obligation_records": 0,
             "unknown_capabilities": [],
@@ -466,14 +467,14 @@ def compare_adjacent_relationship_impacts(
     invalid_obligations = invalid_before_obligations + invalid_after_obligations
     invalid_relationship_references = sum(
         1
-        for groups in (before_relationships, after_relationships)
+        for groups, nodes in (
+            (before_relationships, before_nodes),
+            (after_relationships, after_nodes),
+        )
         for src, _kind, dst in groups
-        if src not in known_capabilities or dst not in known_capabilities
+        if src not in nodes or dst not in nodes
     )
-    invalid_relationships = (
-        invalid_before_relationships + invalid_after_relationships
-        + invalid_relationship_references
-    )
+    invalid_relationships = invalid_before_relationships + invalid_after_relationships
 
     identities = sorted(
         identity for identity in set(before_relationships) | set(after_relationships)
@@ -581,6 +582,7 @@ def compare_adjacent_relationship_impacts(
         "invalid_obligation_records": invalid_obligations,
         "affected_relationships": affected,
         "invalid_relationship_records": invalid_relationships,
+        "unresolved_relationship_references": invalid_relationship_references,
         "invalid_assessment_records": invalid_assessments,
         "note": (
             "Before/after differences for relationships incident to explicitly changed capabilities. "
