@@ -2131,7 +2131,10 @@ def create_app(state: AppState) -> Flask:
             try:
                 if os.environ.get("NEX5_COMPASSION") == "1" and bool(session.get("admin")):
                     from theory_x.stage_affect.compassion import stance_for
-                    _compassion_block = stance_for(prompt)
+                    _compassion_block = stance_for(
+                        prompt,
+                        conversations_writer=state.writers["conversations"],
+                    )
             except Exception as _comp_exc:
                 error_channel.record(
                     f"compassion skipped: {_comp_exc}", source="gui.server", exc=_comp_exc,
@@ -2239,7 +2242,12 @@ def create_app(state: AppState) -> Flask:
             try:
                 if os.environ.get("NEX5_AFFECT_CARRY") == "1" and bool(session.get("admin")):
                     from theory_x.stage_affect.affect_carry import stance_for as _ac_stance
-                    _affect_carry_block = _ac_stance(session_id or "", prompt)
+                    _affect_carry_block = _ac_stance(
+                        session_id or "",
+                        prompt,
+                        conversations_writer=state.writers["conversations"],
+                        conversations_reader=state.readers["conversations"],
+                    )
             except Exception as _ac_exc:
                 error_channel.record(
                     f"affect_carry skipped: {_ac_exc}", source="gui.server", exc=_ac_exc,
@@ -3237,19 +3245,19 @@ def create_app(state: AppState) -> Flask:
             return jsonify({"error": "invalid word"}), 400
         if tag is not None and tag not in ("key", "noise", "unsure"):
             return jsonify({"error": "tag must be key/noise/unsure or null"}), 400
-        dyn_db = _DYN_DB
+        writer = state.writers.get("dynamic")
+        if writer is None:
+            return jsonify({"error": "dynamic writer not available"}), 503
         try:
-            with closing(connect(dyn_db, timeout=10)) as cx:
-                if tag is None:
-                    cx.execute("DELETE FROM word_tags WHERE word=?", (word,))
-                else:
-                    cx.execute(
-                        "INSERT INTO word_tags (word, tag, tagged_at, note) VALUES (?, ?, ?, ?) "
-                        "ON CONFLICT(word) DO UPDATE SET tag=excluded.tag, "
-                        "tagged_at=excluded.tagged_at, note=excluded.note",
-                        (word, tag, time.time(), note),
-                    )
-                cx.commit()
+            if tag is None:
+                writer.write("DELETE FROM word_tags WHERE word=?", (word,))
+            else:
+                writer.write(
+                    "INSERT INTO word_tags (word, tag, tagged_at, note) VALUES (?, ?, ?, ?) "
+                    "ON CONFLICT(word) DO UPDATE SET tag=excluded.tag, "
+                    "tagged_at=excluded.tagged_at, note=excluded.note",
+                    (word, tag, time.time(), note),
+                )
             return jsonify({"ok": True, "word": word, "tag": tag})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -3281,24 +3289,28 @@ def create_app(state: AppState) -> Flask:
         tag = body.get("tag")
         if not fid or tag not in ("coin", "maybe", "non"):
             return jsonify({"error": "fountain_event_id and tag in (coin,maybe,non) required"}), 400
-        dyn_db = _DYN_DB
+        reader = state.readers.get("dynamic")
+        writer = state.writers.get("dynamic")
+        if reader is None or writer is None:
+            return jsonify({"error": "dynamic database handles not available"}), 503
         try:
-            with closing(connect(dyn_db, timeout=10)) as cx:
-                row = cx.execute(
-                    "SELECT thought, ts FROM fountain_events WHERE id=?", (fid,)
-                ).fetchone()
-                if not row:
-                    return jsonify({"error": "fountain_event_id not found"}), 404
-                thought, thought_ts = row
-                # Write tag onto fountain row (substrate-visible)
-                cx.execute("UPDATE fountain_events SET tag=? WHERE id=?", (tag, fid))
-                # Propagate tag to word_contexts for every word from this fire
-                # (so decoder analytics see the tag immediately, not after stale rewrite)
-                cx.execute("UPDATE word_contexts SET fountain_tag=? WHERE fountain_event_id=?", (tag, fid))
-                cx.commit()
+            row = reader.read_one(
+                "SELECT thought, ts FROM fountain_events WHERE id=?", (fid,)
+            )
+            if not row:
+                return jsonify({"error": "fountain_event_id not found"}), 404
+            thought, thought_ts = row["thought"], row["ts"]
+            # Keep the two substrate updates in one dynamic-DB transaction.
+            writer.write_many([
+                ("UPDATE fountain_events SET tag=? WHERE id=?", (tag, fid)),
+                (
+                    "UPDATE word_contexts SET fountain_tag=? WHERE fountain_event_id=?",
+                    (tag, fid),
+                ),
+            ])
             # Capture context snapshot (heavy, async-safe)
             try:
-                capture_and_persist(fid, tag)
+                capture_and_persist(fid, tag, dynamic_writer=writer)
             except Exception as e:
                 error_channel.record(f"context capture failed for fid={fid}: {e}",
                                      source="gui.server", exc=e)
@@ -3332,26 +3344,26 @@ def create_app(state: AppState) -> Flask:
         reason = (body.get("reason") or "").strip()
         if not fid:
             return jsonify({"error": "fountain_event_id required"}), 400
-        dyn_db = _DYN_DB
+        reader = state.readers.get("dynamic")
+        writer = state.writers.get("dynamic")
+        if reader is None or writer is None:
+            return jsonify({"error": "dynamic database handles not available"}), 503
         try:
-            with closing(connect(dyn_db, timeout=10)) as cx:
-                # Verify fire exists
-                row = cx.execute(
-                    "SELECT thought, ts FROM fountain_events WHERE id=?", (fid,)
-                ).fetchone()
-                if not row:
-                    return jsonify({"error": "fountain_event_id not found"}), 404
-                # Upsert: if already flagged, update the reason and ts
-                cx.execute(
-                    "INSERT INTO ghost_flags (fountain_event_id, ts, reason) "
-                    "VALUES (?, ?, ?) "
-                    "ON CONFLICT(fountain_event_id) DO UPDATE SET "
-                    "ts = excluded.ts, reason = excluded.reason",
-                    (fid, time.time(), reason or None),
-                )
-                cx.commit()
+            row = reader.read_one(
+                "SELECT thought, ts FROM fountain_events WHERE id=?", (fid,)
+            )
+            if not row:
+                return jsonify({"error": "fountain_event_id not found"}), 404
+            # Upsert through the canonical dynamic Writer.
+            writer.write(
+                "INSERT INTO ghost_flags (fountain_event_id, ts, reason) "
+                "VALUES (?, ?, ?) "
+                "ON CONFLICT(fountain_event_id) DO UPDATE SET "
+                "ts = excluded.ts, reason = excluded.reason",
+                (fid, time.time(), reason or None),
+            )
             return jsonify({"ok": True, "fountain_event_id": fid,
-                            "reason": reason, "thought": row[0]})
+                            "reason": reason, "thought": row["thought"]})
         except Exception as e:
             error_channel.record(f"ghost flag failed: {e}",
                                  source="gui.server", exc=e)
@@ -3365,11 +3377,11 @@ def create_app(state: AppState) -> Flask:
         fid = body.get("fountain_event_id")
         if not fid:
             return jsonify({"error": "fountain_event_id required"}), 400
-        dyn_db = _DYN_DB
+        writer = state.writers.get("dynamic")
+        if writer is None:
+            return jsonify({"error": "dynamic writer not available"}), 503
         try:
-            with closing(connect(dyn_db, timeout=10)) as cx:
-                cx.execute("DELETE FROM ghost_flags WHERE fountain_event_id=?", (fid,))
-                cx.commit()
+            writer.write("DELETE FROM ghost_flags WHERE fountain_event_id=?", (fid,))
             return jsonify({"ok": True, "fountain_event_id": fid})
         except Exception as e:
             error_channel.record(f"ghost unflag failed: {e}",
@@ -3625,16 +3637,19 @@ def create_app(state: AppState) -> Flask:
         time_window = body.get("time_window")  # e.g. "21:00-23:00" or null
         if not claim:
             return jsonify({"error": "claim required"}), 400
-        dyn_db = _DYN_DB
-        with closing(connect(dyn_db, timeout=10)) as cx:
-            cur = cx.execute(
+        writer = state.writers.get("dynamic")
+        if writer is None:
+            return jsonify({"error": "dynamic writer not available"}), 503
+        try:
+            hid = writer.write(
                 "INSERT INTO hypotheses (created_at, claim, keywords, time_window) "
                 "VALUES (?, ?, ?, ?)",
                 (time.time(), claim, keywords, time_window),
             )
-            hid = cur.lastrowid
-            cx.commit()
-        return jsonify({"ok": True, "id": hid})
+            return jsonify({"ok": True, "id": hid})
+        except Exception as e:
+            error_channel.record(f"hypothesis create failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
 
     @app.get("/api/hypothesis")
     def api_hypothesis_list():
@@ -3657,24 +3672,28 @@ def create_app(state: AppState) -> Flask:
         notes = body.get("notes")
         if status and status not in ("open", "confirmed", "refuted", "abandoned"):
             return jsonify({"error": "invalid status"}), 400
-        dyn_db = _DYN_DB
-        with closing(connect(dyn_db, timeout=10)) as cx:
-            sets, vals = [], []
-            if status:
-                sets.append("status=?")
-                vals.append(status)
-                if status != "open":
-                    sets.append("closed_at=?")
-                    vals.append(time.time())
-            if notes is not None:
-                sets.append("notes=?")
-                vals.append(notes)
-            if not sets:
-                return jsonify({"error": "nothing to update"}), 400
-            vals.append(hid)
-            cx.execute(f"UPDATE hypotheses SET {', '.join(sets)} WHERE id=?", vals)
-            cx.commit()
-        return jsonify({"ok": True})
+        writer = state.writers.get("dynamic")
+        if writer is None:
+            return jsonify({"error": "dynamic writer not available"}), 503
+        sets, vals = [], []
+        if status:
+            sets.append("status=?")
+            vals.append(status)
+            if status != "open":
+                sets.append("closed_at=?")
+                vals.append(time.time())
+        if notes is not None:
+            sets.append("notes=?")
+            vals.append(notes)
+        if not sets:
+            return jsonify({"error": "nothing to update"}), 400
+        vals.append(hid)
+        try:
+            writer.write(f"UPDATE hypotheses SET {', '.join(sets)} WHERE id=?", vals)
+            return jsonify({"ok": True})
+        except Exception as e:
+            error_channel.record(f"hypothesis update failed: {e}", source="gui.server", exc=e)
+            return jsonify({"error": str(e)}), 500
 
     def _hypothesis_autoscore(fid, thought, thought_ts, tag):
         """When a new tag lands, check open hypotheses and increment counts.
@@ -3685,38 +3704,45 @@ def create_app(state: AppState) -> Flask:
           - tag='maybe' = no count change
         """
         import datetime
-        dyn_db = _DYN_DB
-        with closing(connect(dyn_db, timeout=10)) as cx:
-            cx.row_factory = Row
-            hyps = cx.execute(
-                "SELECT id, keywords, time_window FROM hypotheses WHERE status='open'"
-            ).fetchall()
-            thought_lc = (thought or "").lower()
-            from nex_config import local_dt
-            hour = local_dt(thought_ts).hour
-            for h in hyps:
-                kws = [k.strip().lower() for k in (h["keywords"] or "").split(",") if k.strip()]
-                kw_match = (not kws) or any(k in thought_lc for k in kws)
-                tw = h["time_window"]
-                tw_match = True
-                if tw and "-" in tw:
-                    try:
-                        start_h, end_h = [int(x.split(":")[0]) for x in tw.split("-")]
-                        if start_h <= end_h:
-                            tw_match = start_h <= hour <= end_h
-                        else:
-                            tw_match = hour >= start_h or hour <= end_h
-                    except Exception:
-                        tw_match = True
-                if not (kw_match and tw_match):
-                    continue
-                if tag == "coin":
-                    cx.execute("UPDATE hypotheses SET supporting=supporting+1 WHERE id=?",
-                               (h["id"],))
-                elif tag == "non":
-                    cx.execute("UPDATE hypotheses SET contradicting=contradicting+1 WHERE id=?",
-                               (h["id"],))
-            cx.commit()
+        reader = state.readers.get("dynamic")
+        writer = state.writers.get("dynamic")
+        if reader is None or writer is None:
+            return
+        hyps = reader.read(
+            "SELECT id, keywords, time_window FROM hypotheses WHERE status='open'"
+        )
+        thought_lc = (thought or "").lower()
+        from nex_config import local_dt
+        hour = local_dt(thought_ts).hour
+        updates = []
+        for h in hyps:
+            kws = [k.strip().lower() for k in (h["keywords"] or "").split(",") if k.strip()]
+            kw_match = (not kws) or any(k in thought_lc for k in kws)
+            tw = h["time_window"]
+            tw_match = True
+            if tw and "-" in tw:
+                try:
+                    start_h, end_h = [int(x.split(":")[0]) for x in tw.split("-")]
+                    if start_h <= end_h:
+                        tw_match = start_h <= hour <= end_h
+                    else:
+                        tw_match = hour >= start_h or hour <= end_h
+                except Exception:
+                    tw_match = True
+            if not (kw_match and tw_match):
+                continue
+            if tag == "coin":
+                updates.append((
+                    "UPDATE hypotheses SET supporting=supporting+1 WHERE id=?",
+                    (h["id"],),
+                ))
+            elif tag == "non":
+                updates.append((
+                    "UPDATE hypotheses SET contradicting=contradicting+1 WHERE id=?",
+                    (h["id"],),
+                ))
+        if updates:
+            writer.write_many(updates)
 
     @app.get("/api/fountain/recent")
     def api_fountain_recent():
