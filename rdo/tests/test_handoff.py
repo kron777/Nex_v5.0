@@ -16,6 +16,8 @@ from rdo_adapters.handoff import (
     record_human_acceptance,
     record_scope_review,
     verify_with_watcher,
+    _digest,
+    _validate_manifest,
 )
 from rdo_adapters.objective_intake import submit_objective
 from rdo.memory import CycleStore
@@ -93,6 +95,13 @@ def test_real_intake_cycle_creates_immutable_handoff_manifest(tmp_path, monkeypa
     assert manifest["authority"]["handoff_status"] == "pending_human_review"
     assert manifest["authority"]["execution_authority"] == "none"
     assert manifest["authority"]["tests_execution_authorized"] is False
+    assert manifest["work_package"]["eligibility"] == "eligible"
+    assert manifest["work_package"]["execution_readiness"] == "blocked"
+    assert manifest["objective_context_assessment"]["status"] == "unmapped"
+    assert manifest["objective_context_assessment"]["execution_readiness"] == "blocked"
+    assert manifest["objective_context_assessment"]["handoff_readiness"] == "reviewable"
+    assert manifest["objective_context_assessment"]["items"][0]["kind"] == "intent"
+    assert manifest["objective_context_assessment"]["items"][0]["text"] == _objective()["intent"]
     assert manifest["scope"]["allowed_paths"] == ["docs/REQUIREMENTS.md"]
     assert manifest["scope"]["resolved_paths"] == {"docs/REQUIREMENTS.md": "docs/REQUIREMENTS.md"}
     assert manifest["objective"]["original_text"] == _objective()["original_text"]
@@ -104,6 +113,19 @@ def test_real_intake_cycle_creates_immutable_handoff_manifest(tmp_path, monkeypa
         "runtime_observed": "unknown_host_only",
         "human_acceptance": "not_recorded",
     }
+
+
+def test_legacy_v1_handoff_without_context_assessment_remains_readable(tmp_path, monkeypatch):
+    repo, workdir, result, package = _create_cycle(tmp_path, monkeypatch)
+    manifest = create_handoff(
+        workdir, str(repo), "handoff_fixture", 1, result["cycle"]["id"], package["key"]
+    )
+    legacy = dict(manifest)
+    legacy.pop("objective_context_assessment")
+    legacy.pop("manifest_sha256")
+    legacy["manifest_sha256"] = _digest(legacy)
+
+    assert _validate_manifest(legacy) == legacy
 
 
 def test_handoff_create_is_idempotent_and_detects_tampering(tmp_path, monkeypatch):
