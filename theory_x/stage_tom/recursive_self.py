@@ -56,11 +56,11 @@ import time
 sys.path.insert(0, ".")
 
 
-def _bound_state() -> dict:
+def _bound_state(dynamic_writer=None) -> dict:
     """Refresh + read NEX's bound self-state (Layer 2)."""
     try:
         from theory_x.stage_tom import self_binding as sb  # type: ignore
-        out = sb.bind()  # recompute fresh each cycle
+        out = sb.bind(dynamic_writer=dynamic_writer)  # recompute fresh each cycle
         return out.get("components", {})
     except Exception:
         return {}
@@ -117,10 +117,10 @@ _CHURNING = {"absorption"}  # locked-in churn — high activity, no movement
 _LOW = {"dullness"}
 
 
-def perturbation() -> dict:
+def perturbation(dynamic_writer=None) -> dict:
     """Convert the bound self-state into a gentle behavioural nudge. Returns the
     nudge components + whether any perturbation is warranted."""
-    c = _bound_state()
+    c = _bound_state(dynamic_writer=dynamic_writer)
     if not c:
         return {"perturb": False}
 
