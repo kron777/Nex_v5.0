@@ -60,7 +60,7 @@ _DDL = (
     " belief_id INTEGER PRIMARY KEY, days INTEGER NOT NULL, first_day INTEGER,"
     " last_day INTEGER, updated_at REAL)",
     "CREATE TABLE IF NOT EXISTS warrant_record_cursor ("
-    " name TEXT PRIMARY KEY, value REAL NOT NULL)",
+    " name TEXT PRIMARY KEY, value REAL NOT NULL, tie_id INTEGER NOT NULL DEFAULT 0)",
 )
 
 
@@ -113,17 +113,38 @@ class WarrantRecorder:
         if not self._ready:
             for ddl in _DDL:
                 self._w.write(ddl)
+            # Existing installations have the original (name, value) cursor.
+            # Add the stable row-id component without resetting their progress.
+            columns = {r["name"] for r in self._br.read(
+                "PRAGMA table_info(warrant_record_cursor)"
+            )}
+            if "tie_id" not in columns:
+                self._w.write(
+                    "ALTER TABLE warrant_record_cursor ADD COLUMN "
+                    "tie_id INTEGER NOT NULL DEFAULT 0"
+                )
             self._ready = True
 
     def _cursor(self, name: str, default: float = 0.0) -> float:
         r = self._br.read_one("SELECT value FROM warrant_record_cursor WHERE name=?", (name,))
         return float(r["value"]) if r else default
 
+    def _cursor_pair(self, name: str) -> tuple[float, int]:
+        r = self._br.read_one(
+            "SELECT value, tie_id FROM warrant_record_cursor WHERE name=?", (name,)
+        )
+        return (float(r["value"]), int(r["tie_id"] or 0)) if r else (0.0, 0)
+
     def _set_cursors(self, vals: dict) -> None:
-        write_batch(self._w, [(
-            "INSERT INTO warrant_record_cursor (name, value) VALUES (?, ?) "
-            "ON CONFLICT(name) DO UPDATE SET value=excluded.value", (k, v))
-            for k, v in vals.items()])
+        rows = []
+        for key, value in vals.items():
+            cursor_value, tie_id = value if isinstance(value, tuple) else (value, 0)
+            rows.append((
+                "INSERT INTO warrant_record_cursor (name, value, tie_id) VALUES (?, ?, ?) "
+                "ON CONFLICT(name) DO UPDATE SET value=excluded.value, tie_id=excluded.tie_id",
+                (key, cursor_value, tie_id),
+            ))
+        write_batch(self._w, rows)
 
     # ── 1. survival ─────────────────────────────────────────────────────────
     def survival_cycle(self, now: Optional[float] = None) -> int:
@@ -161,15 +182,18 @@ class WarrantRecorder:
         now = time.time() if now is None else now
         pairs, cur_new = set(), {}
 
-        def take(key, rows, id_key, bid_keys, ts_key):
+        def take(key, rows, id_key, bid_keys, ts_key, tie_key=None):
             last = None
             for r in rows:
                 for k in bid_keys:
                     if r[k] is not None:
                         pairs.add((int(r[k]), int(float(r[ts_key]) // _DAY)))
-                last = r[id_key]
+                last = r
             if last is not None:
-                cur_new[key] = float(last)
+                cur_new[key] = (
+                    (float(last[ts_key]), int(last[tie_key]))
+                    if tie_key else float(last[id_key])
+                )
 
         c = self._cursor("use_retrieval_id")
         take("use_retrieval_id", self._dr.read(
@@ -187,16 +211,18 @@ class WarrantRecorder:
             "SELECT id, belief_id_a, belief_id_b, ts FROM synergizer_log WHERE id > ? "
             "ORDER BY id LIMIT ?", (int(c), _USE_BATCH)),
             "id", ("belief_id_a", "belief_id_b"), "ts")
-        c = self._cursor("use_lineage_ts")
+        c, rowid = self._cursor_pair("use_lineage_ts")
         take("use_lineage_ts", self._br.read(
-            "SELECT created_at, parent_id FROM belief_lineage WHERE created_at > ? "
-            "ORDER BY created_at LIMIT ?", (c, _USE_BATCH)),
-            "created_at", ("parent_id",), "created_at")
-        c = self._cursor("use_arc_ts")
+            "SELECT rowid, created_at, parent_id FROM belief_lineage "
+            "WHERE created_at > ? OR (created_at = ? AND rowid > ?) "
+            "ORDER BY created_at, rowid LIMIT ?", (c, c, rowid, _USE_BATCH)),
+            "rowid", ("parent_id",), "created_at", tie_key="rowid")
+        c, rowid = self._cursor_pair("use_arc_ts")
         take("use_arc_ts", self._br.read(
-            "SELECT joined_at, belief_id FROM arc_members WHERE joined_at > ? "
-            "ORDER BY joined_at LIMIT ?", (c, _USE_BATCH)),
-            "joined_at", ("belief_id",), "joined_at")
+            "SELECT rowid, joined_at, belief_id FROM arc_members "
+            "WHERE joined_at > ? OR (joined_at = ? AND rowid > ?) "
+            "ORDER BY joined_at, rowid LIMIT ?", (c, c, rowid, _USE_BATCH)),
+            "rowid", ("belief_id",), "joined_at", tie_key="rowid")
 
         if pairs:
             write_batch(self._w, [(
