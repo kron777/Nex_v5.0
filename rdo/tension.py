@@ -57,6 +57,49 @@ def assess_node(ob: Obligation) -> TensionAssessment:
 
 # ---- relationship-level ----
 
+def _interface_profile_evidence(rel: Relationship) -> dict:
+    """Return a conservative summary without converting profile fields into scores."""
+    profile = rel.interface_profile
+    if profile is None:
+        return {
+            "profile_status": "not_supplied",
+            "unknown_dimensions": ["interface_profile"],
+            "dimensions": {},
+        }
+    if hasattr(profile, "to_dict"):
+        profile = profile.to_dict()
+    if not isinstance(profile, dict):
+        return {
+            "profile_status": "invalid_shape",
+            "unknown_dimensions": ["interface_profile"],
+            "dimensions": {},
+        }
+
+    dimensions = {}
+    unknown = []
+    for name, item in profile.items():
+        if not isinstance(item, dict) or "status" not in item:
+            continue
+        # A non-UNKNOWN label is not self-authenticating. Keep the raw evidence
+        # fields visible, but require the later margin/threshold assessor before
+        # any affirmative sufficiency verdict can be made.
+        dimensions[name] = {
+            "status": item.get("status", "unknown"),
+            "value": item.get("value"),
+            "unit": item.get("unit"),
+            "evidence": list(item.get("evidence") or [])
+                if isinstance(item.get("evidence") or [], list) else [],
+            "confidence": item.get("confidence"),
+        }
+        if item.get("status") == "unknown" or not dimensions[name]["evidence"]:
+            unknown.append(name)
+    return {
+        "profile_status": "supplied",
+        "unknown_dimensions": sorted(unknown),
+        "dimensions": dimensions,
+    }
+
+
 def assess_relationship(rel: Relationship, obligations: Dict[str, Obligation]) -> TensionAssessment:
     subj = f"{rel.src} -{rel.kind}-> {rel.dst}"
     if rel.kind == "influences" and rel.authority != "bounded":
@@ -75,8 +118,25 @@ def assess_relationship(rel: Relationship, obligations: Dict[str, Obligation]) -
                 return TensionAssessment("relationship", subj, TENSION_UNKNOWN, inference=True,
                                          evidence=[f"target {tgt.recon_status}"],
                                          note="dependency target has not been semantically established")
-    return TensionAssessment("relationship", subj, SUFFICIENT, inference=True,
-                             note="no relationship tension detected")
+
+    profile = _interface_profile_evidence(rel)
+    evidence = [
+        ref
+        for dimension in profile["dimensions"].values()
+        for ref in dimension["evidence"]
+        if isinstance(ref, str) and ref.strip()
+    ]
+    return TensionAssessment(
+        "relationship", subj, TENSION_UNKNOWN, inference=True,
+        evidence=evidence,
+        dimensions=profile,
+        note=(
+            "interface profile is absent; relationship sufficiency cannot be established"
+            if profile["profile_status"] == "not_supplied" else
+            "interface evidence is recorded, but calibrated thresholds, margins and "
+            "operating-envelope assessment are not yet implemented; retain UNKNOWN"
+        ),
+    )
 
 
 # ---- system-level ----
