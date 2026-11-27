@@ -131,3 +131,84 @@ def test_unknown_stability_can_preserve_partial_or_missing_verdict_evidence():
         relationships=["A->A"], stability_state=UNKNOWN, assessment_evidence=[],
         confidence=None, provenance=[])
     assert loop.assessment_status == "unknown"
+
+
+
+def test_cycle_detector_preserves_distinct_directed_cycles_with_same_members():
+    from rdo.model import Relationship
+    from rdo.tension import _find_cycles
+
+    edges = [
+        Relationship("A", "B", "influences"),
+        Relationship("B", "C", "influences"),
+        Relationship("C", "D", "influences"),
+        Relationship("D", "A", "influences"),
+        Relationship("A", "C", "influences"),
+        Relationship("C", "B", "influences"),
+        Relationship("B", "D", "influences"),
+    ]
+
+    cycles = _find_cycles(edges)
+
+    def canonical(path):
+        nodes = path[:-1]
+        return min(tuple(nodes[index:] + nodes[:index]) for index in range(len(nodes)))
+
+    cycle_set = {canonical(cycle) for cycle in cycles}
+    assert ("A", "B", "C", "D") in cycle_set
+    assert ("A", "C", "B", "D") in cycle_set
+
+    # Rotations of one directed loop deduplicate; different traversals do not.
+    four_member_cycles = {
+        canonical(cycle) for cycle in cycles
+        if len(cycle) == 5 and set(cycle[:-1]) == {"A", "B", "C", "D"}
+    }
+    assert len(four_member_cycles) == 2
+
+
+
+def test_system_assessment_retains_each_distinct_overlapping_feedback_loop():
+    from rdo.model import Obligation, Relationship
+    from rdo.tension import assess_system
+
+    keys = ("A", "B", "C", "D")
+    obligations = {key: Obligation(key, key, "component") for key in keys}
+    relationships = [
+        Relationship("A", "B", "influences"),
+        Relationship("B", "C", "influences"),
+        Relationship("C", "D", "influences"),
+        Relationship("D", "A", "influences"),
+        Relationship("A", "C", "influences"),
+        Relationship("C", "B", "influences"),
+        Relationship("B", "D", "influences"),
+    ]
+
+    assessment = next(
+        item for item in assess_system(obligations, relationships)
+        if item.subject == "feedback_cycles"
+    )
+    loops = assessment.dimensions["feedback_loop_assessments"]
+    four_member = [loop for loop in loops if len(loop["members"]) == 4]
+
+    assert len(four_member) == 2
+    assert len({tuple(loop["relationships"]) for loop in four_member}) == 2
+    assert all(loop["stability_state"] == "unknown" for loop in four_member)
+    assert assessment.verdict == "unknown"
+
+
+
+def test_cycle_detector_output_is_stable_when_relationship_order_changes():
+    from rdo.model import Relationship
+    from rdo.tension import _find_cycles
+
+    edges = [
+        Relationship("A", "B", "influences"),
+        Relationship("B", "C", "influences"),
+        Relationship("C", "D", "influences"),
+        Relationship("D", "A", "influences"),
+        Relationship("A", "C", "influences"),
+        Relationship("C", "B", "influences"),
+        Relationship("B", "D", "influences"),
+    ]
+
+    assert _find_cycles(edges) == _find_cycles(list(reversed(edges)))

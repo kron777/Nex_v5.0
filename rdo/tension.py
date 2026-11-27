@@ -367,22 +367,33 @@ def _find_cycles(edges: List[Relationship]) -> List[List[str]]:
     for e in edges:
         if e.kind in ("depends_on", "influences"):
             adj.setdefault(e.src, []).append(e.dst)
+    # Stable traversal and output independent of relationship insertion order.
+    adj = {source: sorted(set(targets)) for source, targets in adj.items()}
     cycles: List[List[str]] = []
     seen = set()
+
+    def _cycle_identity(path):
+        # A directed cycle is identical under rotation, but not under reversal.
+        # Using a frozenset collapses distinct loops that share the same members
+        # (for example A->B->C->D->A and A->C->B->D->A).
+        return min(
+            tuple(path[index:] + path[:index])
+            for index in range(len(path))
+        )
 
     def dfs(start, node, path, onstack):
         for nxt in adj.get(node, []):
             if nxt == start and path:
-                key = frozenset(path)
+                key = _cycle_identity(path)
                 if key not in seen:
                     seen.add(key)
-                    cycles.append(path + [start])
+                    cycles.append(list(key) + [key[0]])
             elif nxt not in onstack:
                 dfs(start, nxt, path + [nxt], onstack | {nxt})
 
-    for n in list(adj):
+    for n in sorted(adj):
         dfs(n, n, [n], {n})
-    return cycles
+    return sorted(cycles, key=lambda cycle: tuple(cycle))
 
 
 def _classify_cycle(cycle: List[str], relationships: List[Relationship]) -> str:
