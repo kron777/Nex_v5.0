@@ -364,7 +364,7 @@ The former “no boot invocation” conclusion from main `99ae476` is superseded
 ### G-79 — Expectations _learn compare-and-set (CLOSED by PR #272)
 
 - **Source:** `theory_x/stage_world/expectations.py::_learn()`; tests: `tests/test_expectations.py::TestLearningDoesNotOverwriteConcurrentChanges`.
-- On current main, the read-then-unconditional absolute confidence write could overwrite an intervening confidence change, modify a belief locked after the read, and record a stale before-value.
+- Before PR #272 (main `3e7f0f3`), the read-then-unconditional absolute confidence write could overwrite an intervening confidence change, modify a belief locked after the read, and record a stale before-value.
 - PR #272 implemented compare-and-set on ID + previously read confidence + unlocked state, with at most three read/re-decide retries. Only applied transitions are logged; unchanged factor/clamps/cap policy and beliefs-before-conversations ordering are preserved. No cross-database atomicity is claimed.
 - The three race tests fail on unmodified main and pass with the fix; mutation checks detect removal of the confidence guard, lock guard and retry. Focused local suites: 154 passed after the fix; original implementation left the three new tests failing.
 - Exact head `67fcf46a84bcfae5b5a309502680fffe8bb347b8`, run `46035516300`: 2,632 passed, 7 skipped, 45 subtests; baseline OK. PR #272 was squash-merged to main as `90ffd57c75b33eff161ea33e29388e0732f0290e`.
