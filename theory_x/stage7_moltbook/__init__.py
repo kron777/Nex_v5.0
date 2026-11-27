@@ -114,7 +114,12 @@ def _moltbook_listener_loop(state, stop: threading.Event) -> None:
                 continue
             from theory_x.stage7_moltbook.listener import DMListenLoop
             if _listener is None:
-                _listener = DMListenLoop(c)
+                _listener = DMListenLoop(
+                    c,
+                    dynamic_reader=state.readers["dynamic"],
+                    dynamic_writer=state.writers["dynamic"],
+                    sense_writer=state.writers["sense"],
+                )
                 try:
                     _listener._learn_self()
                 except Exception as e:
