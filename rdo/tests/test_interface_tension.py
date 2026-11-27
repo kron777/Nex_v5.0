@@ -485,3 +485,19 @@ def test_explicit_relationship_defect_retains_performance_margin_context():
     assert result.verdict == OVERDEVELOPED
     assert result.dimensions["performance_margins"]["status"] == "evidence_recorded"
     assert result.dimensions["performance_margins"]["metrics"]["authority-impact"]["margin"] == pytest.approx(0.4)
+
+
+def test_mutated_typed_performance_margin_fails_closed_on_reassessment():
+    from rdo.model import PerformanceMargin
+
+    margin = PerformanceMargin(metric="latency", q=0.8, tau=0.7,
+        unit="normalized", normalization="higher_is_better")
+    margin.operating_envelope = "overloaded"
+
+    result = assess_relationship(Relationship("consumer", "provider", "depends_on",
+        performance_margins={"latency": margin}), {})
+    summary = result.dimensions["performance_margins"]
+    assert summary["status"] == "invalid_evidence"
+    assert summary["metrics"] == {}
+    assert summary["invalid_metrics"] == ["latency"]
+    assert result.verdict == TENSION_UNKNOWN
