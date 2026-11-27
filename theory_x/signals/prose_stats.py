@@ -56,6 +56,13 @@ CREATE TABLE IF NOT EXISTS token_prose_stats (
 )
 """
 
+_UPSERT_SQL = (
+    "INSERT INTO token_prose_stats (token, prose_cap, prose_lower, updated_at) "
+    "VALUES (?,?,?,?) ON CONFLICT(token) DO UPDATE SET "
+    "prose_cap=excluded.prose_cap, prose_lower=excluded.prose_lower, "
+    "updated_at=excluded.updated_at"
+)
+
 
 def _is_title_case(text: str) -> bool:
     """True if >50% of words are capitalized -- i.e. a headline, not prose."""
@@ -100,22 +107,21 @@ def build(beliefs_writer, beliefs_reader, source: str = "precipitated_from_sense
 
     now = time.time()
     tokens = set(cap) | set(low)
-    written = 0
-    for tok in tokens:
+    payload = [
+        (tok, cap.get(tok, 0), low.get(tok, 0), now)
+        for tok in tokens
+    ]
+    if payload:
         try:
-            beliefs_writer.write(
-                "INSERT INTO token_prose_stats (token, prose_cap, prose_lower, updated_at) "
-                "VALUES (?,?,?,?) ON CONFLICT(token) DO UPDATE SET "
-                "prose_cap=excluded.prose_cap, prose_lower=excluded.prose_lower, "
-                "updated_at=excluded.updated_at",
-                (tok, cap.get(tok, 0), low.get(tok, 0), now),
+            beliefs_writer.transaction(
+                lambda cx: cx.executemany(_UPSERT_SQL, payload)
             )
-            written += 1
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("prose_stats write error: %s", exc)
+            return 0
 
-    logger.info("prose_stats rebuilt: %d tokens from %d beliefs", written, len(rows))
-    return written
+    logger.info("prose_stats rebuilt: %d tokens from %d beliefs", len(payload), len(rows))
+    return len(payload)
 
 
 def prose_cap_count(cx, token: str) -> int | None:
@@ -181,13 +187,7 @@ def build_direct(db_path) -> int:
             (t, cap.get(t, 0), low.get(t, 0), now)
             for t in (set(cap) | set(low))
         ]
-        cx.executemany(
-            "INSERT INTO token_prose_stats (token, prose_cap, prose_lower, updated_at) "
-            "VALUES (?,?,?,?) ON CONFLICT(token) DO UPDATE SET "
-            "prose_cap=excluded.prose_cap, prose_lower=excluded.prose_lower, "
-            "updated_at=excluded.updated_at",
-            payload,
-        )
+        cx.executemany(_UPSERT_SQL, payload)
         cx.commit()
         logger.info("prose_stats rebuilt: %d tokens from %d beliefs",
                     len(payload), len(rows))
