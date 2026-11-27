@@ -98,7 +98,8 @@ python -m rdo handoff-acceptance-verify \
   --status pending \
   --mapped-obligation <canonical-obligation-key> \
   --verification-method "describe the planned check" \
-  --verifier "reviewer attribution"
+  --verifier "reviewer attribution" \
+  --source-reference "reference to the verification review"
 ```
 
 For `passed` or `failed`, provide mapped obligation keys, a verification method,
