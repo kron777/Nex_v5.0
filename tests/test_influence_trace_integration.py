@@ -479,7 +479,7 @@ def test_voice_engine_trace_preserves_selected_reply_and_records_trigger(tmp_pat
         )
         candidates = [{
             "origin_id": 77,
-            "source": "fountain_insight",
+            "source": "belief",
             "content": "A private stored answer that must not appear in the trace.",
         }]
         engine._retrieve_candidates = lambda query: candidates
@@ -498,6 +498,8 @@ def test_voice_engine_trace_preserves_selected_reply_and_records_trigger(tmp_pat
         )
 
         assert observed == baseline
+        assert observed["origin_type"] == "belief"
+        assert observed["origin_id"] == 77
         assert observed["belief_id"] == 77
         records = _read_events(tmp_path / "voice-engine.jsonl")
         candidate_event = next(
