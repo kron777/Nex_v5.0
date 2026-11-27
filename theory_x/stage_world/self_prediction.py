@@ -42,7 +42,7 @@ import os
 import sys
 import time
 import random
-from substrate import connect, Row
+from substrate import connect, Row, Reader, Writer
 import argparse
 import logging
 import urllib.request
@@ -97,38 +97,39 @@ def _connect(db_path: str):
     return conn
 
 
-def ensure_schema(db_path: str) -> None:
-    conn = _connect(db_path)
+
+def _writer_transaction(writer: Writer | None, db_path: str, name: str, callback):
+    """Run work on the canonical Writer, owning a fallback only for standalone callers."""
+    owns_writer = writer is None
+    active_writer = writer or Writer(db_path, name=name)
     try:
+        return active_writer.transaction(callback)
+    finally:
+        if owns_writer:
+            active_writer.close()
+
+
+def ensure_schema(db_path: str, conversations_writer: Writer | None = None) -> None:
+    def _ensure(conn):
+        conn.row_factory = Row
         conn.execute(
             "CREATE TABLE IF NOT EXISTS self_predictions ("
             "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-            "made_at REAL NOT NULL, "
-            "source TEXT NOT NULL, "            # 'self' or 'random'
-            "predicted TEXT NOT NULL, "         # 'fire' or 'nofire'
-            "readiness REAL, "                  # NEX's self-read at predict time
-            "baseline_fires INTEGER NOT NULL, " # total_fires when predicted
-            "resolve_at REAL NOT NULL, "
-            "resolved_at REAL, "
-            "actual TEXT, "                     # 'fire' or 'nofire'
-            "outcome TEXT, "                    # 'correct' or 'wrong'
-            # build B phase 0, frozen at made_at (= frozen_at_made.FROZEN_COLUMNS)
+            "made_at REAL NOT NULL, source TEXT NOT NULL, predicted TEXT NOT NULL, "
+            "readiness REAL, baseline_fires INTEGER NOT NULL, resolve_at REAL NOT NULL, "
+            "resolved_at REAL, actual TEXT, outcome TEXT, "
             "confidence REAL, confidence_basis TEXT, tolerance REAL, tolerance_basis TEXT, "
             "stakes_at_made REAL, stakes_active_at_made INTEGER, groove_cost_at_made REAL, "
-            "basis_snapshot TEXT, cost_band INTEGER, salience_k REAL, "
-            "frozen TEXT)"
+            "basis_snapshot TEXT, cost_band INTEGER, salience_k REAL, frozen TEXT)"
         )
-        # 3(b): generalise to multiple prediction KINDS. Default 'fire' for the
-        # existing rows so the original scorecard is unchanged.
         cols = [r[1] for r in conn.execute("PRAGMA table_info(self_predictions)")]
         if "kind" not in cols:
             conn.execute(
                 "ALTER TABLE self_predictions ADD COLUMN kind TEXT NOT NULL DEFAULT 'fire'"
             )
         ensure_frozen_columns(conn, "self_predictions")
-        conn.commit()
-    finally:
-        conn.close()
+
+    _writer_transaction(conversations_writer, db_path, "self_prediction_schema", _ensure)
 
 
 def _read_status() -> Optional[dict]:
@@ -202,33 +203,19 @@ def make_self_prediction(db_path: Optional[str] = None, horizon: int = HORIZON) 
     }
 
 
-def _fired_between(t0: float, t1: float) -> bool:
-    """Did NEX actually produce a thought in (t0, t1]?
-
-    Reads the persistent fountain_events log. A real fire has a non-empty
-    thought; rows with stillness_reason='duplicate_retrieval' have empty
-    thoughts (4,965 of 26,299 cycles) and are NOT speech.
-
-    Restart-proof, unlike the in-memory total_fires counter.
-    """
+def _fired_between(t0: float, t1: float, dynamic_reader: Reader | None = None) -> bool:
+    """Did NEX actually produce a thought in (t0, t1]?"""
     try:
-        conn = connect(f"file:{DYNAMIC_DB}?mode=ro", uri=True, timeout=5.0)
-    except Exception as e:
-        logger.warning("self_pred: fire-log open failed (%s)", e)
-        return None
-    try:
-        row = conn.execute(
+        reader = dynamic_reader or Reader(DYNAMIC_DB)
+        row = reader.read_one(
             "SELECT COUNT(*) FROM fountain_events "
             "WHERE ts > ? AND ts <= ? AND thought IS NOT NULL AND thought != ''",
             (t0, t1),
-        ).fetchone()
+        )
         return (row[0] or 0) > 0
     except Exception as e:
         logger.warning("self_pred: fire-log query failed (%s)", e)
         return None
-    finally:
-        try: conn.close()
-        except Exception: pass
 
 
 def resolve_due(db_path: Optional[str] = None, now: Optional[float] = None) -> int:
