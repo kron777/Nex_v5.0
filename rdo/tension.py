@@ -9,6 +9,7 @@ over-development is as important as filling gaps.
 from __future__ import annotations
 
 import dataclasses
+import math
 from typing import Dict, List
 
 from .model import (ANTI_REQUIREMENT, CONDITIONAL, FUTURE, MISSING, NECESSARY,
@@ -60,6 +61,17 @@ def assess_node(ob: Obligation) -> TensionAssessment:
 
 # ---- relationship-level ----
 
+def _evidence_value_valid(value, unit=None) -> bool:
+    """Reject absent, non-finite or unitless numeric observations."""
+    if isinstance(value, bool):
+        return True
+    if isinstance(value, (int, float)):
+        return math.isfinite(value) and isinstance(unit, str) and bool(unit.strip())
+    if isinstance(value, str):
+        return bool(value.strip())
+    return False
+
+
 def _interface_profile_evidence(rel: Relationship) -> dict:
     """Return a conservative summary without converting profile fields into scores."""
     profile = rel.interface_profile
@@ -97,7 +109,7 @@ def _interface_profile_evidence(rel: Relationship) -> dict:
         confidence = item.get("confidence")
         evidence_complete = (
             item.get("status") != "unknown"
-            and item.get("value") is not None
+            and _evidence_value_valid(item.get("value"), item.get("unit"))
             and _has_traceable_evidence(refs)
             and isinstance(confidence, str) and bool(confidence.strip())
         )
@@ -162,7 +174,8 @@ def _operating_envelope_evidence(value) -> dict:
         if dataclasses.is_dataclass(item):
             item = dataclasses.asdict(item)
         complete = (
-            isinstance(item, dict) and item.get("value") is not None
+            isinstance(item, dict)
+            and _evidence_value_valid(item.get("value"), item.get("unit"))
             and _has_traceable_evidence(item.get("evidence"))
             and isinstance(item.get("confidence"), str)
             and bool(item.get("confidence").strip())
