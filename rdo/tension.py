@@ -118,8 +118,6 @@ def _interface_profile_evidence(rel: Relationship) -> dict:
     }
 
 
-
-
 def _operating_envelope_evidence(value) -> dict:
     """Summarise declared/assessed envelope evidence without inferring a class."""
     if value is None:
