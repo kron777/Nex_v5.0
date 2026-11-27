@@ -400,7 +400,7 @@ The Chat route calls `Metacognition.tick()`; its groove detector reads recent un
 
 ### G-84 — Shutdown does not quiesce all producers before Writer close (OPEN; legacy G-34)
 
-`AppState.close()` calls scheduler shutdown and closes Writers but does not call `stop_dynamic()` or coordinate all other workers. Scheduler stop signals are not joined. Writer close enqueues a sentinel and joins; submit has no closed-state guard. The keepalive supervisor has a 15-second SIGKILL deadline. This is a conditional data-loss/hang risk, not an observed incident. A central lifecycle coordinator and global deadline are required.
+`AppState.close()` calls scheduler shutdown and closes Writers but does not call `stop_dynamic()` or coordinate all other workers. Scheduler stop signals are not joined. Writer close enqueues a sentinel, joins for 10 seconds, then clears its thread reference even if the join timed out; a later `start()` could create a second worker while the original is still alive. `submit()` has no closed-state guard, so a late request can be queued after the sentinel and never resolve. The keepalive supervisor has a 15-second SIGKILL deadline. This is a conditional data-loss/hang/double-writer risk, not an observed incident. A central lifecycle coordinator and global deadline are required.
 
 ### G-85 — SignalToProblem primary direct writes and split commit (OPEN; legacy G-44, under G-61)
 
