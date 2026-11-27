@@ -357,3 +357,44 @@ The current-main follow-up audit has rechecked G-68 to G-72. G-68 (experimental 
 G-72 is closed by **PR #236** (commitments canonical Writer/Reader path) and **PR #238** (AppState handle injection through the gated SelfPredictionLoop, self-prediction, owned-belief, commitments and Expectations paths). Exact-head full-suite runs passed: #236 `46006462779` (2,573 passed, 7 skipped, 45 subtests) and #238 `46008022480` (2,584 passed, 7 skipped, 45 subtests).
 
 The `NEX5_SELF_PRED=1` gate and all other feature gates remain unchanged. No loop was started and no cognitive decision logic, cadence, thresholds, frozen specifications, roadmap or phase-gate state was changed. This closes the persistence-ownership integration finding only; it does not certify host activation or a complete repository-wide one-pen census.
+
+
+---
+
+## 20. Phase 0 continuation: G-68 to G-72 and shared daemon checkpoint schema (27 November 2026)
+
+This section records follow-up work after the previous manual update. It is a remote-repository/source-and-CI stocktake, not a live-host inspection. The current mainline at the time of this update is `36624b7106ebaec801f6d744e87cd37b73279021`.
+
+### Verified integration
+
+- **PR #241 — G-68 to G-72 evidence reconciliation: merged** to main as `36624b7106ebaec801f6d744e87cd37b73279021`. The exact-head PR test run passed before merge. The change updates the Phase 0 follow-up record and handoff; it does not itself close the underlying open findings or authorize behaviour changes.
+- The consolidated S-01–S-25 register, roadmap, phase gates and cognitive policy remain unchanged. Gate 0 remains pending founder review; Phase 1 is not authorized.
+
+### Shared dynamic daemon checkpoint schema
+
+A fresh-schema static-SQL compilation failure exposed a missing shared schema declaration for `dynamic.db:daemon_kv.updated_at`. The table is referenced by SurpriseLoop and the Moltbook poster. This is a persistence/schema completeness defect, distinct from the semantics of either worker.
+
+- **PR #243 — shared `daemon_kv` schema and migration: OPEN / CI RUNNING at this update.** Its current head is `b55fe9b731d7353b0b8bb58fac1840bb34536ad1`. It adds the canonical table declaration to `substrate/schema/dynamic.sql`, an additive migration in `substrate/init_db.py`, and fresh-database plus legacy-table preservation regression tests in `tests/test_daemon_kv_migration.py`.
+- The migration is additive: the intended legacy behaviour is to add `updated_at` without deleting or rewriting existing key/value checkpoints. The focused tests assert both the fresh schema and preservation of a pre-existing row.
+- Do not describe this change as merged, validated or deployed until the exact-head CI result is green and the PR is integrated.
+
+### Dependent PRs and test evidence
+
+- **PR #242 — gated WorldPredictionLoop persistence ownership: OPEN; exact-head CI failed** on the same fresh-schema compilation error: `daemon_kv.updated_at` is absent from its base snapshot. The run reported 2,587 passed, 7 skipped, 45 subtests, and one failure in `tests/test_schema_indexes.py::TestEveryStaticStatementCompilesOnFreshInit`. This is a shared schema prerequisite failure; it does not establish that the AppState handle-injection change itself is defective. Revalidate on current main after #243 is merged. The existing `NEX5_WORLD_PRED` gate and prediction behaviour must remain unchanged.
+- **PR #240 — Warrant declared composite-key cursor: OPEN; exact-head CI failed** on the same missing `daemon_kv.updated_at` fresh-schema error (2,583 passed, 7 skipped, 45 subtests, one failure). Its base is stale relative to current main. After #243 is integrated, rebase/replay the cursor-only change on current main and rerun the full suite. Do not broaden Warrant use-day eligibility or alter Warrant policy.
+- **PR #239 — SurpriseLoop monotonic event cursor: OPEN; exact-head CI passed.** It proposes tie-safe event paging, retry-safe checkpoint handling and related duplicate-content treatment. Despite green tests, it remains **held for founder Gate 0 review** because it changes which events may enter the belief corpus. Do not merge, deploy or activate it before that approval.
+- **PR #243 CI** is still running at the time of writing; the result must be checked before any merge decision. A green result on another PR or on a prior base does not substitute for #243's exact-head result.
+
+### Development and evidence interpretation
+
+The current work continues the research → bounded implementation → rescan → consequence analysis → documentation cycle. Persistence ownership fixes and schema completeness are kept separate from cognitive-policy changes. A green unit or full-suite result demonstrates only the tested repository state and paths; it does not prove that a feature flag is enabled, a worker is running, a host database has migrated, or a behavioural effect is beneficial.
+
+The shared Writer/Reader one-pen rule remains in force. The six SQLite databases remain separate transaction domains; no cross-database atomicity is implied. No live substrate database, host process, service, credential, external integration or feature flag was inspected or changed during this remote repository work.
+
+### Next bounded actions
+
+1. Complete exact-head CI review for #243; correct any migration/test defects before merging.
+2. Once #243 is merged, rebase/revalidate #242 and #240 against current main; preserve their narrow persistence/cursor scopes.
+3. Keep #239 held for explicit Gate 0 founder review despite its green CI.
+4. Continue the source-to-sink Phase 0 audit and update this manual in the same development cycle as findings and integrations accumulate.
+5. Keep unresolved defects, unknown host/runtime facts and approval gates explicit. Do not promote a Phase 0 stocktake into Phase 1 authorization.
