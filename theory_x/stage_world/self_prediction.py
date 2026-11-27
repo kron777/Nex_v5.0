@@ -577,13 +577,15 @@ def _distinctive_tokens(s: str) -> set:
     return set(re.findall(r"[a-z]{5,}", (s or "").lower()))
 
 
-def _insert_pred(db_path, kind, rows, resolve_at, signal=None, confidence=None):
-    """rows: list of (source, predicted). signal stored in the readiness column.
-    confidence: the 'self' row's stated P(predicted), or None if it states none."""
+def _insert_pred(
+    db_path, kind, rows, resolve_at, signal=None, confidence=None,
+    *, conversations_writer: Writer | None = None,
+):
+    """Insert a prediction batch atomically through the canonical Writer."""
     stakes = snapshot_stakes()
-    conn = _connect(db_path)
     now = time.time()
-    try:
+
+    def _insert(conn):
         for src, pred in rows:
             if src == "random":
                 frozen = frozen_values(COIN, "coin", 0.0, "exact_label", stakes, cost_band=_COST_BAND)
@@ -598,76 +600,83 @@ def _insert_pred(db_path, kind, rows, resolve_at, signal=None, confidence=None):
                 "VALUES (?,?,?,?,?,?,?, " + FROZEN_PLACEHOLDERS + ")",
                 (now, src, kind, pred, signal, 0, resolve_at, *frozen),
             )
-        conn.commit()
-    finally:
-        conn.close()
+
+    _writer_transaction(conversations_writer, db_path, "self_prediction_insert", _insert)
 
 
-def _authored_count(beliefs_db, t0, t1) -> Optional[int]:
+def _authored_count(beliefs_db, t0, t1, *, beliefs_reader: Reader | None = None) -> Optional[int]:
     try:
-        conn = connect(f"file:{beliefs_db}?mode=ro", uri=True, timeout=5.0)
-    except Exception:
-        return None
-    try:
+        reader = beliefs_reader or Reader(beliefs_db)
         ph = ",".join("?" * len(AUTHORED_SOURCES))
-        row = conn.execute(
+        row = reader.read_one(
             f"SELECT COUNT(*) FROM beliefs WHERE created_at > ? AND created_at <= ? "
             f"AND source IN ({ph})",
             (t0, t1, *AUTHORED_SOURCES),
-        ).fetchone()
+        )
         return row[0] or 0
     except Exception:
         return None
-    finally:
-        try: conn.close()
-        except Exception: pass
 
 
 def make_authored_prediction(db_path: Optional[str] = None,
                              beliefs_db: Optional[str] = None,
-                             horizon: int = _AUTHORED_HORIZON) -> dict:
+                             horizon: int = _AUTHORED_HORIZON, *,
+                             conversations_writer: Writer | None = None,
+                             beliefs_reader: Reader | None = None) -> dict:
     """Predict >=1 authored belief in the next `horizon`s from the PRIOR window
     (persistence); coin control."""
-    db_path = db_path or _db_path(); ensure_schema(db_path)
+    db_path = db_path or _db_path(); ensure_schema(db_path, conversations_writer)
     beliefs_db = beliefs_db or _beliefs_db()
     now = time.time()
-    prior = _authored_count(beliefs_db, now - horizon, now)
+    prior = _authored_count(beliefs_db, now - horizon, now, beliefs_reader=beliefs_reader)
     if prior is None:
         return {"error": "beliefs_unreadable"}
     self_pred = "yes" if prior >= 1 else "no"
     coin = random.choice(["yes", "no"])
     _insert_pred(db_path, "authored_30m",
-                 [("self", self_pred), ("random", coin)], now + horizon, signal=prior)
+                 [("self", self_pred), ("random", coin)], now + horizon, signal=prior,
+                 conversations_writer=conversations_writer)
     return {"kind": "authored_30m", "self": self_pred, "coin": coin, "prior_count": prior}
 
 
-def resolve_authored(db_path: Optional[str] = None,
-                     beliefs_db: Optional[str] = None,
-                     now: Optional[float] = None) -> int:
-    db_path = db_path or _db_path(); ensure_schema(db_path)
+def resolve_authored(
+    db_path: Optional[str] = None,
+    beliefs_db: Optional[str] = None,
+    now: Optional[float] = None,
+    *,
+    conversations_writer: Writer | None = None,
+    beliefs_reader: Reader | None = None,
+) -> int:
+    db_path = db_path or _db_path()
+    ensure_schema(db_path, conversations_writer)
     beliefs_db = beliefs_db or _beliefs_db()
     now = now if now is not None else time.time()
-    conn = _connect(db_path); resolved = 0
-    try:
+
+    def _resolve(conn):
+        conn.row_factory = Row
+        resolved = 0
         due = conn.execute(
             "SELECT id, predicted, made_at, resolve_at FROM self_predictions "
             "WHERE kind='authored_30m' AND resolved_at IS NULL AND resolve_at <= ?",
             (now,),
         ).fetchall()
-        for r in due:
-            c = _authored_count(beliefs_db, r["made_at"], r["resolve_at"])
-            if c is None:
+        for row in due:
+            count = _authored_count(
+                beliefs_db, row["made_at"], row["resolve_at"], beliefs_reader=beliefs_reader
+            )
+            if count is None:
                 continue
-            actual = "yes" if c >= 1 else "no"
+            actual = "yes" if count >= 1 else "no"
             conn.execute(
                 "UPDATE self_predictions SET resolved_at=?, actual=?, outcome=? WHERE id=?",
-                (now, actual, "correct" if actual == r["predicted"] else "wrong", r["id"]),
+                (now, actual, "correct" if actual == row["predicted"] else "wrong", row["id"]),
             )
             resolved += 1
-        conn.commit()
-    finally:
-        conn.close()
-    return resolved
+        return resolved
+
+    return _writer_transaction(
+        conversations_writer, db_path, "self_prediction_authored_resolve", _resolve
+    )
 
 
 def _identity_statements(dynamic_db):
