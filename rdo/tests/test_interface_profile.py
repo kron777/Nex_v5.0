@@ -127,11 +127,11 @@ def test_relationship_serializes_typed_performance_margins_with_computed_evidenc
     from rdo.model import PerformanceMargin
 
     margin = PerformanceMargin(
-        metric="latency",
-        q=18,
-        tau=20,
-        unit="ms",
-        normalization="lower_is_better",
+        metric="latency_utility",
+        q=0.6,
+        tau=0.7,
+        unit="normalized_quality",
+        normalization="higher_is_better",
         q_evidence=["benchmark:p95"],
         tau_evidence=["contract:latency-limit"],
         q_confidence="measured",
@@ -139,10 +139,10 @@ def test_relationship_serializes_typed_performance_margins_with_computed_evidenc
     )
     relationship = Relationship(
         "reader", "store", "depends_on",
-        performance_margins={"latency": margin},
+        performance_margins={"latency_utility": margin},
     )
 
     persisted = relationship.to_dict()["performance_margins"]["latency"]
-    assert persisted["margin"] == -2.0
+    assert persisted["margin"] == pytest.approx(-0.1)
     assert persisted["margin_state"] == "below_requirement"
     assert persisted["evidence_complete"] is True
