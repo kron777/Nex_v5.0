@@ -12,6 +12,18 @@
 - `NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-27.md` — verified discrepancies and unresolved evidence gaps.
 - `ADR-001.md` — M0.5 trace mechanism and rollback.
 
+
+## Post-snapshot current-main follow-up (27 November 2026)
+
+The source report above remains pinned to `ae406fa8`. Main has since advanced to `5a650d` through merged PRs #168, #174 and #175. A focused current-main read found:
+
+- PR #168 migrated `expectations.record_canaries()` to the shared conversations Writer; `daily_life.py` passes that Writer.
+- `daily_life.py` still calls `learning_guards.run()`, but the current keepalive launch line does not set `NEX5_LEARN_RATIO_SUBTRACT` or `NEX5_LEARN_ATTRIBUTION_SUBTRACT`. The direct `subtract()` path is therefore not armed by this launcher. `revert_subtraction()` remains a manual direct-write path.
+- `learning_guards.record_tick()` and `cap_blocks()`, and Expectations `ingest()`/`reconcile()`/`_learn()`, still contain direct-write paths. The current launcher sets `NEX5_RECONCILER=1` and `NEX5_EXPECT_LEARN=1`, but the audited `run.py` contains no Expectations/reconcile call; `daily_life.py` imports only `record_canaries` from that module. The flags are armed in the launcher, but no boot invocation was found in the audited entry path. This is not proof about any external scheduler or an already-running process.
+- G-64/G-65 remain source-level persistence-compliance defects, with G-65 a pre-activation blocker. Do not enable or wire the reconciler as part of Phase 0. Preserve the current cross-database failure boundary in any future Writer migration.
+
+These are post-snapshot observations, not retroactive changes to the `ae406fa8` report or the frozen specifications.
+
 ## Current status
 
 | Roadmap deliverable | Status |
