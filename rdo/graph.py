@@ -456,6 +456,40 @@ def compare_adjacent_relationship_impacts(
     invalid_relationships = invalid_before_relationships + invalid_after_relationships
     invalid_assessments = invalid_before_assessments + invalid_after_assessments
 
+    def _capability_keys(cycle, relationship_groups):
+        keys = {
+            endpoint
+            for src, _kind, dst in relationship_groups
+            for endpoint in (src, dst)
+        }
+        invalid = 0
+        obligations = cycle.get("obligations")
+        if isinstance(obligations, list):
+            for obligation in obligations:
+                if (not isinstance(obligation, dict)
+                        or not isinstance(obligation.get("key"), str)
+                        or not obligation["key"].strip()
+                        or obligation["key"] != obligation["key"].strip()):
+                    invalid += 1
+                    continue
+                keys.add(obligation["key"])
+        # Relationship endpoints can still establish that a capability is present
+        # when an older snapshot lacks an explicit obligation list. An isolated node
+        # can only be established from the obligation inventory.
+        return keys, invalid
+
+    before_capabilities, invalid_before_capabilities = _capability_keys(
+        before_cycle, before_relationships
+    )
+    after_capabilities, invalid_after_capabilities = _capability_keys(
+        after_cycle, after_relationships
+    )
+    unknown_capabilities = sorted(
+        key for key in changed
+        if key not in before_capabilities and key not in after_capabilities
+    )
+    invalid_obligations = invalid_before_capabilities + invalid_after_capabilities
+
     identities = sorted(
         identity for identity in set(before_relationships) | set(after_relationships)
         if identity[0] in changed_set or identity[2] in changed_set
@@ -558,6 +592,8 @@ def compare_adjacent_relationship_impacts(
         "status": status,
         "changed_capabilities": changed,
         "invalid_capabilities": invalid_capabilities,
+        "unknown_capabilities": unknown_capabilities,
+        "invalid_obligation_records": invalid_obligations,
         "affected_relationships": affected,
         "invalid_relationship_records": invalid_relationships,
         "invalid_assessment_records": invalid_assessments,
