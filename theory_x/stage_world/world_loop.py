@@ -49,6 +49,10 @@ class WorldPredictionLoop:
         asset: str = "bitcoin",
         interval_seconds: Optional[int] = None,
         horizon_seconds: Optional[int] = None,
+        *,
+        conversations_writer=None,
+        conversations_reader=None,
+        beliefs_reader=None,
     ) -> None:
         self.asset = os.environ.get("NEX5_WORLD_PRED_ASSET", asset)
         self._interval = int(
@@ -61,13 +65,19 @@ class WorldPredictionLoop:
             if horizon_seconds is not None
             else os.environ.get("NEX5_WORLD_PRED_HORIZON", "3600")
         )
+        self._conversations_writer = conversations_writer
+        self._conversations_reader = conversations_reader
+        self._beliefs_reader = beliefs_reader
         self._stop: Optional[threading.Event] = None
         self._thread: Optional[threading.Thread] = None
 
     def tick(self) -> None:
         # 1. resolve any matured claims — the verdict comes from reality
         try:
-            res = wp.resolve_due()
+            res = wp.resolve_due(
+                conversations_writer=self._conversations_writer,
+                conversations_reader=self._conversations_reader,
+            )
             if res.get("resolved"):
                 log.info(
                     "world_pred resolved=%d correct=%d",
@@ -78,7 +88,13 @@ class WorldPredictionLoop:
 
         # 2. fire a fresh voice prediction + random control
         try:
-            r = pg.make_voice_prediction(self.asset, self._horizon)
+            r = pg.make_voice_prediction(
+                self.asset,
+                self._horizon,
+                conversations_writer=self._conversations_writer,
+                conversations_reader=self._conversations_reader,
+                beliefs_reader=self._beliefs_reader,
+            )
             if "error" in r:
                 log.warning("world_pred make skipped: %s", r["error"])
             else:

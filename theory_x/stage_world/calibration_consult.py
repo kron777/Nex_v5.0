@@ -64,25 +64,35 @@ _CONSULT_TABLE_SQL = (
 )
 
 
-def _beliefs_reader():
+def _beliefs_reader(beliefs_reader=None):
+    if beliefs_reader is not None:
+        return beliefs_reader
     sys.path.insert(0, ".")
     from substrate.paths import db_paths  # type: ignore
     from substrate.reader import Reader  # type: ignore
     return Reader(db_paths()["beliefs"])
 
 
-def _live_numbers():
-    """Pull the current scorecard so the trust level reflects reality now,
-    not whatever was true when Step 1 last wrote the sentence."""
+def _live_numbers(conversations_reader=None, conversations_writer=None):
+    """Pull the current scorecard through the shared AppState handles when supplied."""
     sys.path.insert(0, ".")
     from theory_x.stage_world import prediction_generator as pg  # type: ignore
-    card = pg.scorecard_by_source()
+    card = pg.scorecard_by_source(
+        conversations_reader=conversations_reader,
+        conversations_writer=conversations_writer,
+    )
     voice = card.get("voice", {})
     random = card.get("random", {})
     return voice, random
 
 
-def consult_self_trust(domain: str = "market_direction") -> dict:
+def consult_self_trust(
+    domain: str = "market_direction",
+    *,
+    conversations_writer=None,
+    conversations_reader=None,
+    beliefs_reader=None,
+) -> dict:
     """Read NEX's tested self-belief and decide how much to trust the next
     market call. Pure + safe: any failure returns a conservative default."""
     default = {
@@ -95,7 +105,7 @@ def consult_self_trust(domain: str = "market_direction") -> dict:
 
     # 1) Is the Step-1 self-belief actually on the shelf?
     try:
-        reader = _beliefs_reader()
+        reader = _beliefs_reader(beliefs_reader)
         row = reader.read_one(
             "SELECT content FROM beliefs WHERE source = ? AND tier = 1 AND locked = 1",
             (SELF_BELIEF_SOURCE,),
@@ -108,7 +118,7 @@ def consult_self_trust(domain: str = "market_direction") -> dict:
 
     # 2) Read the live numbers so the verdict is current.
     try:
-        voice, random = _live_numbers()
+        voice, random = _live_numbers(conversations_reader, conversations_writer)
         n = int(voice.get("resolved", 0))
         # hit_rate is None until something resolves; n < 100 then decides.
         # (float(None) used to land in the except below, whose phrase claims
@@ -176,26 +186,34 @@ def consult_self_trust(domain: str = "market_direction") -> dict:
     verdict = {"level": level, "reason": reason, "n": n, "gap": gap, "phrase": phrase}
 
     # 4) Record the consult (best-effort; failure here must not break anything).
-    log_consult(domain, verdict)
+    log_consult(domain, verdict, conversations_writer=conversations_writer)
     return verdict
 
 
-def log_consult(domain: str, verdict: dict) -> None:
+def log_consult(domain: str, verdict: dict, *, conversations_writer=None) -> None:
     """Write one row recording that NEX consulted its record. Best-effort."""
+    owns_writer = conversations_writer is None
+    writer = conversations_writer
     try:
-        sys.path.insert(0, ".")
-        from substrate.paths import db_paths  # type: ignore
-        from substrate.writer import Writer  # type: ignore
-        w = Writer(db_paths()["conversations"])
-        w.write_many([
+        if writer is None:
+            sys.path.insert(0, ".")
+            from substrate.paths import db_paths  # type: ignore
+            from substrate.writer import Writer  # type: ignore
+            writer = Writer(db_paths()["conversations"], name="calibration_consult")
+        writer.write_many([
             (_CONSULT_TABLE_SQL, ()),
             ("INSERT INTO calibration_consults (consulted_at, domain, level, n) "
              "VALUES (?, ?, ?, ?)",
              (int(time.time()), domain, verdict["level"], verdict["n"])),
         ])
-        w.close()
     except Exception as e:
         logger.warning("calibration consult: log write failed (%s)", e)
+    finally:
+        if owns_writer and writer is not None:
+            try:
+                writer.close()
+            except Exception:
+                pass
 
 
 # Manual smoke test: `python3 -m theory_x.stage_world.calibration_consult`
