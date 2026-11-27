@@ -20,6 +20,7 @@ def test_legacy_relationship_shape_remains_valid_and_serialisable():
         "note": "",
         "interface_profile": None,
         "operating_envelope": None,
+        "performance_margins": None,
     }
 
 
@@ -111,3 +112,37 @@ def test_interface_evidence_accepts_documented_nonmeasurement_states():
     for status in ("measured", "implemented", "static", "inferred", "unknown"):
         evidence = InterfaceEvidence(status=status)
         assert evidence.status == status
+
+
+def test_legacy_relationship_positional_constructor_keeps_trailing_optional_margin_field():
+    profile = InterfaceTensionProfile()
+    relationship = Relationship("consumer", "provider", "depends_on",
+                                "none", True, "legacy note", profile, None)
+    assert relationship.interface_profile is profile
+    assert relationship.operating_envelope is None
+    assert relationship.performance_margins is None
+
+
+def test_relationship_serializes_typed_performance_margins_with_computed_evidence_state():
+    from rdo.model import PerformanceMargin
+
+    margin = PerformanceMargin(
+        metric="latency",
+        q=18,
+        tau=20,
+        unit="ms",
+        normalization="lower_is_better",
+        q_evidence=["benchmark:p95"],
+        tau_evidence=["contract:latency-limit"],
+        q_confidence="measured",
+        tau_confidence="approved_requirement",
+    )
+    relationship = Relationship(
+        "reader", "store", "depends_on",
+        performance_margins={"latency": margin},
+    )
+
+    persisted = relationship.to_dict()["performance_margins"]["latency"]
+    assert persisted["margin"] == -2.0
+    assert persisted["margin_state"] == "below_requirement"
+    assert persisted["evidence_complete"] is True
