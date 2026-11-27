@@ -471,3 +471,105 @@ def test_handoff_history_missing_store_does_not_create_directories(tmp_path):
     with pytest.raises(HandoffError):
         handoff_history(str(workdir), handoff_id)
     assert not workdir.exists()
+
+
+def test_context_mapping_is_append_only_digest_bound_and_uses_existing_obligations(tmp_path, monkeypatch):
+    from rdo_adapters.handoff import record_context_mapping
+
+    repo, workdir, result, package = _create_cycle(tmp_path, monkeypatch)
+    manifest = create_handoff(
+        workdir, str(repo), "handoff_fixture", 1, result["cycle"]["id"], package["key"]
+    )
+    item = manifest["objective_context_assessment"]["items"][0]
+    event = record_context_mapping(
+        workdir, manifest["handoff_id"], item["item_id"],
+        ["doc_change"], ["review:mapping-001"], "reviewer",
+        "source:context-review", note="The requested intent is represented by the document obligation.",
+    )
+
+    history = handoff_history(workdir, manifest["handoff_id"])
+    assert event["event_kind"] == "context_mapping"
+    assert event["manifest_sha256"] == manifest["manifest_sha256"]
+    assert event["mapping_record"]["status"] == "mapped"
+    assert event["mapping_record"]["review_required"] is False
+    assert history["latest_context_mappings"][item["item_id"]] == event
+
+    # The original persisted cycle and immutable handoff remain UNKNOWN/unmapped.
+    cycle = CycleStore(workdir).load(result["cycle"]["id"])
+    assert cycle.context_assessment["items"][0]["status"] == "unmapped"
+    assert load_handoff(workdir, manifest["handoff_id"])["objective_context_assessment"]["items"][0]["status"] == "unmapped"
+
+
+def test_context_mapping_rejects_unknown_items_obligations_and_missing_evidence(tmp_path, monkeypatch):
+    from rdo_adapters.handoff import record_context_mapping
+
+    repo, workdir, result, package = _create_cycle(tmp_path, monkeypatch)
+    manifest = create_handoff(
+        workdir, str(repo), "handoff_fixture", 1, result["cycle"]["id"], package["key"]
+    )
+    item = manifest["objective_context_assessment"]["items"][0]
+
+    with pytest.raises(HandoffError, match="exactly one item"):
+        record_context_mapping(workdir, manifest["handoff_id"], "unknown-item",
+                               ["doc_change"], ["review:1"], "reviewer", "source:1")
+    with pytest.raises(HandoffError, match="outside this handoff"):
+        record_context_mapping(workdir, manifest["handoff_id"], item["item_id"],
+                               ["invented"], ["review:1"], "reviewer", "source:1")
+    with pytest.raises(HandoffError, match="evidence_references"):
+        record_context_mapping(workdir, manifest["handoff_id"], item["item_id"],
+                               ["doc_change"], [], "reviewer", "source:1")
+
+
+def test_acceptance_criterion_verification_uses_typed_unknown_first_record(tmp_path, monkeypatch):
+    from rdo_adapters.handoff import record_acceptance_verification
+
+    repo, workdir, result, package = _create_cycle(tmp_path, monkeypatch)
+    manifest = create_handoff(
+        workdir, str(repo), "handoff_fixture", 1, result["cycle"]["id"], package["key"]
+    )
+    criterion = manifest["objective_context_assessment"]["acceptance_verification"][0]
+
+    pending = record_acceptance_verification(
+        workdir, manifest["handoff_id"], criterion["criterion_id"], "pending",
+        "reviewer", mapped_obligation_keys=["doc_change"],
+        verification_method="inspect proposed diff against criterion",
+    )
+    assert pending["verification_record"]["status"] == "pending"
+    assert pending["verification_record"]["review_required"] is True
+
+    passed = record_acceptance_verification(
+        workdir, manifest["handoff_id"], criterion["criterion_id"], "passed",
+        "reviewer", mapped_obligation_keys=["doc_change"],
+        verification_method="inspect proposed diff and compare against criterion",
+        evidence_references=["review:acceptance-001"],
+        confidence="reviewed", verified_at="2026-11-28T12:00:00Z",
+    )
+    history = handoff_history(workdir, manifest["handoff_id"])
+    assert passed["verification_record"]["status"] == "passed"
+    assert history["latest_acceptance_verifications"][criterion["criterion_id"]] == passed
+    assert history["latest_human_acceptance"] is None
+
+
+def test_acceptance_criterion_verification_rejects_missing_evidence_and_bad_time(tmp_path, monkeypatch):
+    from rdo_adapters.handoff import record_acceptance_verification
+
+    repo, workdir, result, package = _create_cycle(tmp_path, monkeypatch)
+    manifest = create_handoff(
+        workdir, str(repo), "handoff_fixture", 1, result["cycle"]["id"], package["key"]
+    )
+    criterion = manifest["objective_context_assessment"]["acceptance_verification"][0]
+
+    with pytest.raises(HandoffError, match="traceable evidence"):
+        record_acceptance_verification(
+            workdir, manifest["handoff_id"], criterion["criterion_id"], "passed",
+            "reviewer", mapped_obligation_keys=["doc_change"],
+            verification_method="manual review", confidence="reviewed",
+            verified_at="2026-11-28T12:00:00Z",
+        )
+    with pytest.raises(HandoffError, match="timezone"):
+        record_acceptance_verification(
+            workdir, manifest["handoff_id"], criterion["criterion_id"], "passed",
+            "reviewer", mapped_obligation_keys=["doc_change"],
+            verification_method="manual review", evidence_references=["review:1"],
+            confidence="reviewed", verified_at="2026-11-28T12:00:00",
+        )
