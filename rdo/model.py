@@ -154,6 +154,66 @@ class InterfaceTensionProfile:
 
 
 @dataclasses.dataclass
+class PerformanceMargin:
+    """Evidence-bearing q/tau margin input for one normalized quality metric.
+
+    q and tau must already be expressed in the same normalized unit and direction
+    (higher means better). This record computes only the arithmetic m=q-tau;
+    it does not choose thresholds, tolerances, confidence cut-offs, or verdicts.
+    Missing/invalid inputs keep m UNKNOWN. Exact zero is a boundary, not a pass.
+    """
+    metric: str
+    q: Optional[float] = None
+    tau: Optional[float] = None
+    unit: Optional[str] = None
+    q_evidence: List[str] = dataclasses.field(default_factory=list)
+    tau_evidence: List[str] = dataclasses.field(default_factory=list)
+    q_confidence: Optional[str] = None
+    tau_confidence: Optional[str] = None
+    normalization: Optional[str] = None
+    operating_envelope: str = "unknown"
+
+    @staticmethod
+    def _finite_number(value) -> bool:
+        import math
+        return (isinstance(value, (int, float)) and not isinstance(value, bool)
+                and math.isfinite(value))
+
+    @property
+    def margin(self) -> Optional[float]:
+        if (not self._finite_number(self.q) or not self._finite_number(self.tau)
+                or not isinstance(self.unit, str) or not self.unit.strip()
+                or not self.normalization):
+            return None
+        return float(self.q) - float(self.tau)
+
+    @property
+    def margin_state(self) -> str:
+        value = self.margin
+        if value is None:
+            return "unknown"
+        if value < 0:
+            return "below_requirement"
+        if value > 0:
+            return "above_requirement"
+        return "boundary"
+
+    @property
+    def evidence_complete(self) -> bool:
+        return (_has_traceable_evidence(self.q_evidence)
+                and _has_traceable_evidence(self.tau_evidence)
+                and self.q_confidence is not None
+                and self.tau_confidence is not None)
+
+    def to_dict(self) -> dict:
+        data = dataclasses.asdict(self)
+        data["margin"] = self.margin
+        data["margin_state"] = self.margin_state
+        data["evidence_complete"] = self.evidence_complete
+        return data
+
+
+@dataclasses.dataclass
 class Relationship:
     src: str
     dst: str
