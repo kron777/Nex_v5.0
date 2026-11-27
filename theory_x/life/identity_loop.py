@@ -83,11 +83,19 @@ def _ensure_identity_log(
 def _gather_metrics(
     now,
     *,
-    beliefs_reader: Reader,
-    dynamic_reader: Reader,
-    conversations_reader: Reader,
+    beliefs_reader: Reader | None = None,
+    dynamic_reader: Reader | None = None,
+    conversations_reader: Reader | None = None,
 ):
-    """Read substrate state through the shared read-only database handles."""
+    """Read substrate state through read-only handles.
+
+    The normal loop injects its shared Readers. Keep the standalone helper
+    callable for diagnostics and existing callers by creating read-only
+    handles when one is not supplied.
+    """
+    beliefs_reader = beliefs_reader or Reader(BELIEFS_DB)
+    dynamic_reader = dynamic_reader or Reader(DYNAMIC_DB)
+    conversations_reader = conversations_reader or Reader(CONVERSATIONS_DB)
     six_hours_ago = now - 6 * 3600
     metrics = {}
 
