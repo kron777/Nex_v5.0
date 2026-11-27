@@ -33,7 +33,7 @@
 
 - G-53 (timestamp-only Warrant cursor ties) and G-71 (hidden-rowid cursor stability) are **closed by PR #253**; this does not close Warrant eligibility or use-source questions.
 - G-69 (SurpriseLoop event loss) remains **Gate 0 held** pending explicit founder approval.
-- G-70 speech trace: queue state records `speaking/spoken/failed/suppressed`, but this is not a cross-thread causal trace continuation or independent acoustic confirmation.
+- G-70 speech trace: PR #261 proposes a bounded process-local correlation bridge and parent-linked consumer events; exact-head full-suite run `46018844996` is in progress after the disposable image build. It is draft/unmerged and does not establish acoustic confirmation or live L4 capture.
 - G-73 dormancy coverage/ownership is recorded in the current defect backlog. PR #102/#145 remain older-base work: scanner rotation, eligibility filters, ClockRunner persistence and the duplicate DiversityLoop/ClockRunner ownership question require current-main revalidation and policy review. The PR #102 final Fountain injection query also needs a retired-marker recheck.
 
 The consolidated S-01–S-25 register, roadmap, phase gates and cognitive policy remain untouched. Gate 0 remains pending; Phase 1 is not authorised. No live host activation, database contents, service state, acoustic output or behavioural benefit is claimed.
@@ -82,11 +82,11 @@ The following are source-level findings checked against current main `74cff710`;
 
 - **G-68 — decryption ProbeRunner safety (OPEN):** `decryption/probe_runner.py` defaults to `dry_run=False`, can change NEX mode and insert synthetic beliefs, does not restore the previous mode, and clears its injected-ID cleanup list even if deletion fails. It is not imported by the normal `run.py` boot path inspected and was not invoked. No experiment was run.
 - **G-69 — SurpriseLoop event loss (OPEN / Gate 0 review required):** timestamp-only paging can skip timestamp ties and the old loop can checkpoint beyond failed writes. PR #239 prepares a monotonic event-ID cursor, legacy timestamp migration, retry-safe checkpointing, duplicate-content handling and a canonical `daemon_kv` schema/migration. Exact-head CI is pending. Because this can change which events reach the belief corpus, do not merge or deploy before founder Gate 0 approval.
-- **G-70 — speech trace stops at enqueue (OPEN):** the crystallizer records queue insertion, but the consumer has no dequeue/playback outcome trace hooks or cross-thread queue-link registry. No speech behaviour or trace schema was changed.
-- **G-71 — Warrant hidden-rowid cursor stability (OPEN):** source tables use composite primary keys, while the merged G-53 cursor uses hidden rowids that may change during `VACUUM`. PR #240 prepares stable declared-key cursors and a forced-rowid-renumbering regression test; exact-head CI is pending. No Warrant eligibility or lifecycle policy changes.
+- **G-70 — speech trace continuity (OPEN / PR #261 proposed):** the current-main gap is cross-thread causal trace continuity. PR #261 adds bounded in-memory correlation and parent-linked consumer events; exact-head run `46018844996` is in progress. The PR is draft/unmerged and no live acoustic/L4 evidence is claimed.
+- **G-71 — Warrant hidden-rowid cursor stability (CLOSED by PR #253):** the versioned cursor uses event time and declared composite primary-key tie-breakers; exact-head run `46014884835` passed (2,590 passed, 7 skipped, 45 subtests). Warrant eligibility and policy remain separate open questions G-74/G-75. No Warrant eligibility or lifecycle policy changes.
 - **G-72 — gated SelfPredictionLoop handle injection (CLOSED):** PR #236 routes commitments writes through canonical handles; PR #238 injects AppState Readers/Writers through self-prediction, owned-belief, commitments and Expectations paths. Exact-head runs #236 `46006462779` and #238 `46008022480` passed (2,573/2,584 passed respectively, 7 skipped and 45 subtests each). The `NEX5_SELF_PRED=1` start gate remains unchanged; no loop was started.
 
-The consolidated S-01–S-25 register, roadmap, phase gates and cognitive policy remain untouched. G-69 remains explicitly held for Gate 0 review; G-68 and G-70 remain design/safety questions; G-71 is a pagination-only proposal awaiting verification.
+The consolidated S-01–S-25 register, roadmap, phase gates and cognitive policy remain untouched. G-69 remains explicitly held for Gate 0 review; G-68 remains an experimental safety question; G-70 has a bounded implementation proposed in draft PR #261 pending exact-head CI/review; G-71 cursor stability is closed by #253, with Warrant eligibility/lifecycle still open as G-74/G-75.
 
 ## Current status
 
@@ -151,3 +151,9 @@ The frozen S-01–S-25 register, roadmap, phase gates and cognitive policy remai
 ## TimeFetch/VoiceEngine eligibility crosscheck — 27 November 2026
 
 The current G-52 backlog entry now records that `tests/test_throw_net_time_fetch.py` exists and what it covers. The remaining gap extends beyond TimeFetch: `VoiceEngine._retrieve_candidates()` enriches belief candidates with tier/reinforce_count but does not recheck paused, locked or retired state, and `_score_candidate()` applies a tier penalty rather than a hard exclusion. Its minimum score can still be cleared by a strong candidate. `tests/test_voice_engine.py` compares T4 and T8 scores but does not assert exclusion. Treat this as an eligibility-contract question; do not change retrieval/scoring until the governing policy is confirmed.
+
+
+## G-70 implementation continuation — 27 November 2026
+
+PR #261 proposes bounded, default-OFF speech trace continuity across Fountain enqueue and the asynchronous consumer. It registers the correlation before the queue row becomes visible, expires links after one hour, bounds the registry to 512 entries, and emits parent-linked dequeue, synthesis, playback, suppression and failure/status events. Tests cover registry lifecycle and principal success/failure branches. The process-local bridge does not recover across restart; `spoken` is not acoustic confirmation. Exact-head full-suite run `46018844996` is in progress after successful disposable-image construction. PR remains draft/unmerged; no runtime or feature flag was changed.
+
