@@ -247,3 +247,15 @@ def test_non_object_nodes_container_is_rejected():
         match=r"DAG nodes must be an object mapping node IDs to node objects",
     ):
         nex_next_dev.classify([])
+
+
+def test_non_string_status_is_rejected():
+    import pytest
+
+    with pytest.raises(
+        ValueError,
+        match=r"candidate: status must be a string",
+    ):
+        nex_next_dev.classify({
+            "candidate": {"status": ["gap"], "prereqs": []}
+        })
