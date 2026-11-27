@@ -736,12 +736,14 @@ nodes:
       there stands -- this mechanism was never a candidate for within-moment retention. It is,
       however, now confirmed as the correct answer for THIS node, which the smṛti round didn't ask.
 
+      2026-11-27 source re-verification: _associative_recall() reads the prior fire's _last_focal_item and uses token overlap to retrieve relevant own-content beliefs; the caller requires NEX5_ASSOC_RECALL=1 and own_n>1. The preceding wide-mode path sets _last_focal_item, and the keepalive launch line sets NEX5_ASSOC_RECALL=1. The 2026-11-15 live probe remains historical; current process state was not checked.
+
   # ────────────────────────────── SCOPE ─────────────────────────────
   # Intentionally empty. See meta.findings — this is a result, not a TODO.
 
   # ──────────────────────────── SUBSTRATE ───────────────────────────
 
-      2026-11-27 source re-verification: _associative_recall() reads the prior fire's _last_focal_item and uses token overlap to retrieve relevant own-content beliefs; the caller requires NEX5_ASSOC_RECALL=1 and own_n>1. The preceding wide-mode path sets _last_focal_item, and the keepalive launch line sets NEX5_ASSOC_RECALL=1. The 2026-11-15 live probe remains historical; current process state was not checked.
+
   - id: p1_continuity
     label: "1 · Continuity of self"
     layer: ring
