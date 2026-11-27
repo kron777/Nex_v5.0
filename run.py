@@ -604,6 +604,8 @@ def main() -> None:
     world_bridge_selector = WorldBridgeSelector(
         sense_db_path=str(paths["sense"]),
         beliefs_db_path=str(paths["beliefs"]),
+        sense_reader=readers["sense"],
+        beliefs_writer=writers["beliefs"],
     )
     fountain = build_fountain(writers, readers, voice, dynamic_state=dynamic,
                               problem_memory=problem_memory, mode_state=mode_state,
