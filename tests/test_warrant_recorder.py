@@ -203,10 +203,44 @@ class TestRecorder(unittest.TestCase):
             )},
             {102, 103, 104, 105, 106},
         )
-        self.assertEqual(self.r._tuple_cursor("use_lineage_pk", (0, 0, "")),
-                         (104, 101, "test"))
-        self.assertEqual(self.r._tuple_cursor("use_arc_pk", (0, 0)),
-                         (1, 106))
+        self.assertEqual(self.r._tuple_cursor("use_lineage_event", (0.0, 0, 0, "")),
+                         (same_ts, 104, 101, "test"))
+        self.assertEqual(self.r._tuple_cursor("use_arc_event", (0.0, 0, 0)),
+                         (same_ts, 1, 106))
+
+        # Active arcs can receive members later, after newer arc IDs have
+        # already advanced the scan. Event-time-first ordering must still see
+        # a new row belonging to an older arc (and an older lineage child).
+        late_ts = same_ts + _DAY
+        with sqlite3.connect(self.bdb) as db:
+            db.execute(
+                "INSERT INTO belief_lineage "
+                "(child_id, parent_id, relationship, created_at) VALUES (2, 101, 'late', ?)",
+                (late_ts,),
+            )
+            db.execute(
+                "INSERT INTO arc_members (arc_id, belief_id, position, role, joined_at) "
+                "VALUES (1, 107, 0, 'return', ?)",
+                (late_ts,),
+            )
+        self.r.use_cycle(now=late_ts + 1)
+        late_day = int(late_ts // _DAY)
+        self.assertIn((101, late_day), set(self._q(
+            "SELECT belief_id, day FROM belief_use_day WHERE belief_id=101"
+        )))
+        self.assertIn((107, late_day), set(self._q(
+            "SELECT belief_id, day FROM belief_use_day WHERE belief_id=107"
+        )))
+
+        # A malformed typed cursor must fail closed to a replayable default,
+        # not silently strand the scan beyond all numeric keys.
+        self.r._w.write(
+            "INSERT INTO warrant_record_cursor_v2 (name, value) VALUES (?, ?) "
+            "ON CONFLICT(name) DO UPDATE SET value=excluded.value",
+            ("use_arc_event", '["not-a-time", 1, 107]'),
+        )
+        self.assertEqual(self.r._tuple_cursor("use_arc_event", (0.0, 0, 0)),
+                         (0.0, 0, 0))
     def test_legacy_timestamp_cursor_schema_migrates_without_reset(self):
         old_value = _T0 + 2 * _DAY
         self.r._w.write(
