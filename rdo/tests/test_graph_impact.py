@@ -230,3 +230,15 @@ def test_malformed_capability_inventory_keeps_impact_report_partial():
     report = compare_adjacent_relationship_impacts(cycle, cycle, ["valid"])
     assert report["status"] == "partial"
     assert report["invalid_obligation_records"] == 2
+
+
+def test_relationship_endpoint_missing_from_both_cycle_node_sets_is_partial():
+    cycle = {
+        "obligations": [{"key": "reader"}],
+        "relationships": [{"src": "reader", "dst": "store", "kind": "depends_on"}],
+        "tension": [_assessment("reader -depends_on-> store")],
+    }
+    report = compare_adjacent_relationship_impacts(cycle, cycle, ["store"])
+    assert report["status"] == "partial"
+    assert report["unknown_capabilities"] == ["store"]
+    assert report["invalid_relationship_records"] == 2
