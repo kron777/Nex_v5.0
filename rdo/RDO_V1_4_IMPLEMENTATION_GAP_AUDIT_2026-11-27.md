@@ -16,12 +16,12 @@ The RDO is not a blank design. It already contains a working deterministic recur
 
 The Stage-2 belief-decay example is a genuine end-to-end vertical slice from **structured seed obligations** through expansion, reconciliation, graph/tension analysis, prioritisation, work packages, persistence and fresh-process resume. It is not yet a complete v1.4 vertical slice because:
 - the input requires externally supplied seed obligations and reconciliation signatures; raw natural-language intent is not compiled into the initial obligation network by the RDO itself;
-- accepted context such as scope, constraints, exclusions and acceptance criteria is preserved in the intake ledger but not enforced by the planner;
+- accepted context is preserved; unmapped context blocks readiness and exclusions propagate to anti-requirements, but context is not yet comprehensively mapped into obligations or checked against a complete obligation/evidence network;
 - the relationship model carries typed UNKNOWN-first Interface Tension Profile and operating-envelope evidence into relationship assessment, but its dimensions are not yet assessed against calibrated requirements;
 - q/tau performance-margin evidence now validates arithmetic, identity and comparable envelope constraints, but capacity/headroom assessment, operating-envelope classification, feedback-loop stability, multi-objective trade-offs and marginal-value/hysteresis machinery remain incomplete;
 - the twelve adversarial cases are only partly represented in tests.
 
-**The next vertical-slice increment is evidence-backed feedback-loop stability and failure/adjacent-capability impact assessment.** The interface profile, operating-envelope evidence and q/tau margin records now exist; the next work must connect observations to calibrated assessment without inventing thresholds or verdicts. Extend the existing model, not replace the orchestrator or create a parallel RDO.
+**The next vertical-slice increment is closing evidence-to-assessment gaps in feedback stability, failure propagation and neighbouring-capability impact.** The interface profile, operating-envelope evidence and q/tau margin records now exist; the next work must connect observations to calibrated assessment without inventing thresholds or verdicts. Extend the existing model, not replace the orchestrator or create a parallel RDO.
 
 ## 2. Current implementation inventory
 
@@ -47,6 +47,17 @@ The Stage-2 belief-decay example is a genuine end-to-end vertical slice from **s
 
 | Test file | Test functions |
 |---|---:|
+| `rdo/tests/test_experiment_registry_entry_points.py` | 1 |
+| `rdo/tests/test_experiment_registry_fail_closed.py` | 7 |
+| `rdo/tests/test_feedback_loop.py` | 9 |
+| `rdo/tests/test_handoff.py` | 19 |
+| `rdo/tests/test_intake.py` | 14 |
+| `rdo/tests/test_interface_profile.py` | 7 |
+| `rdo/tests/test_interface_tension.py` | 25 |
+| `rdo/tests/test_objective_context_contract.py` | 2 |
+| `rdo/tests/test_operating_envelope.py` | 9 |
+| `rdo/tests/test_performance_margin.py` | 12 |
+| `rdo/tests/test_reconcile_path_boundary.py` | 2 |
 | `rdo/tests/test_stage2_extrapolator_mvp.py` | 24 |
 | `rdo/tests/test_rdo.py` | 62 |
 | `rdo/tests/test_stage3_graph_intelligence.py` | 14 |
@@ -54,6 +65,8 @@ The Stage-2 belief-decay example is a genuine end-to-end vertical slice from **s
 | `rdo/tests/test_stage5_pathway.py` | 6 |
 | `rdo/tests/test_stage6_learning_loop.py` | 18 |
 | `rdo/tests/test_stage7_execution_watcher.py` | 12 |
+
+**Total:** 18 test modules; 251 test functions at this repository snapshot.
 | `rdo/tests/test_intake.py` | 14 |
 | `rdo/tests/test_handoff.py` | 19 |
 | `rdo/tests/test_performance_margin.py` | 12 |
@@ -83,7 +96,7 @@ Current source comparison:
 | Node-level tension | `assess_node` primarily interprets classification and repository reconciliation state | Partial |
 | Relationship-level tension | Explicit unbounded-influence and unresolved-dependency findings remain; otherwise absent or uncalibrated interface evidence now yields UNKNOWN rather than inferred SUFFICIENT | Partial; fail-closed assessment improved |
 | System-level tension | `assess_system` detects cycles, in-degree concentration (threshold 3), and necessary-obligation readiness | Partial |
-| Interface Tension Profile | Typed UNKNOWN-first profile is now attached optionally to `Relationship`; it is structural only | Foundation implemented; assessment incomplete |
+| Interface Tension Profile | Typed UNKNOWN-first profile is attached optionally to `Relationship`; relationship assessment exposes dimension evidence and keeps absent/uncalibrated evidence UNKNOWN | Evidence capture and summary implemented; calibrated assessment incomplete |
 | Provider/consumer, purpose/direction, contract/schema | Typed profile fields exist and default to UNKNOWN | Foundation implemented |
 | Provenance/quality, timing/latency/frequency/freshness | Evidence containers exist for provenance, data quality, timing, latency, frequency and freshness | Foundation implemented; no source measurements |
 | Influence magnitude/boundaries, authority and coupling | Magnitude, authority-boundary and coupling evidence dimensions are represented | Foundation implemented; no calibrated bounds |
@@ -129,7 +142,7 @@ PR #287 merged objective-context propagation into `run_cycle()`, cycle persisten
 
 
 
-**Evidence-integrity update (27 November 2026):** PR #298 makes malformed persisted interface-profile shapes explicitly diagnosable. PRs #304–#306 strengthen evidence completeness for feedback verdicts, performance margins and assessed operating envelopes. These changes enforce traceability and UNKNOWN handling; they do not supply missing v1.4 thresholds or implement stability/headroom calculations. PR #310 merged the relationship-level operating-envelope evidence connection. PR #314 merged objective-scoped regression-risk learning: traceable regression evidence produces a low-confidence, exact-objective candidate that is surfaced in later matching cycles. It does not automatically reverse or restrict recommendations. PR #316 made malformed interface-profile serializers fail closed. PR #321 validates interface evidence status values. PR #323 strengthens performance-margin identity, envelope and overflow validation. PR #324 is a pending hardening proposal for exact-scope pattern collision and mutation integrity.
+**Evidence-integrity update (27 November 2026):** PR #298 makes malformed persisted interface-profile shapes explicitly diagnosable. PRs #304–#306 strengthen evidence completeness for feedback verdicts, performance margins and assessed operating envelopes. These changes enforce traceability and UNKNOWN handling; they do not supply missing v1.4 thresholds or implement stability/headroom calculations. PR #310 merged the relationship-level operating-envelope evidence connection. PR #314 merged objective-scoped regression-risk learning: traceable regression evidence produces a low-confidence, exact-objective candidate that is surfaced in later matching cycles. It does not automatically reverse or restrict recommendations. PR #316 made malformed interface-profile serializers fail closed. Merged PR #321 validates interface evidence status values. Merged PR #323 strengthens performance-margin identity, envelope and overflow validation. PR #324 is a pending hardening proposal for exact-scope pattern collision and mutation integrity.
 
 ## 6. Next implementation slice
 
@@ -139,12 +152,14 @@ Completed foundation:
 1. Added a typed, serialisable UNKNOWN-first interface profile to `Relationship`, preserving legacy positional construction.
 2. Represented provider/consumer, purpose/direction, contract/schema, provenance/quality, timing/latency/frequency/freshness, influence magnitude/authority/coupling, reversibility, error handling, fallback/recovery, observability, capacity/headroom, feedback sufficiency/stability, duplication and failure propagation.
 3. Relationship-level assessment now refuses to infer SUFFICIENT when the profile is absent or when evidence exists without calibrated thresholds/margins. Existing explicit findings for unbounded influence and unresolved necessary dependencies retain precedence.
+4. Merged PR #310 carries operating-envelope evidence into relationship assessment, retaining declared/assessed separation and UNKNOWN where evidence is incomplete.
+5. Merged PR #316 makes malformed custom interface-profile serializers fail closed as invalid shape.
 
 Next bounded sequence:
 1. Complete measured feedback-loop stability only when calibrated criteria, observation windows and evidence are grounded; preserve loop members and relationships, and never equate graph topology with instability or remove cycles automatically.
-2. Add evidence-backed failure-propagation assessment and adjacent-capability impact re-assessment using the existing typed interface relationships; retain UNKNOWN where propagation evidence or calibrated bounds are absent.
+2. Add evidence-backed failure-propagation assessment and differential adjacent-capability impact analysis: compare the existing full-cycle relationship reassessments, identify affected neighbours after a capability change, and explain before/after differences. Keep UNKNOWN where propagation evidence or calibrated bounds are absent.
 3. Add the insufficient-headroom and unstable-feedback adversarial cases with explicit evidence validation and UNKNOWN-first assertions.
-4. Add the neighbouring-capability-change case, verifying that affected relationships are reviewed without mutating unrelated components.
+4. Add the neighbouring-capability-change adversarial case, proving that a changed capability produces a traceable before/after impact report for affected relationships without automatically mutating unrelated components.
 5. Investigate local-improvement/global-regression with actual objective/evidence data before proposing any net-value weights or Pareto rules.
 6. Run the Stage-2 belief-development slice and fresh-process persistence/resume against current main.
 7. Consider Pareto/net-value and marginal-value stopping only after grounded calibration and explicit separation from relationship evidence.
