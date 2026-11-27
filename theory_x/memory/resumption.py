@@ -23,7 +23,7 @@ from __future__ import annotations
 import json
 import logging
 import shutil
-from substrate import connect
+from substrate import Writer
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -48,9 +48,14 @@ class ResumptionSeeder:
         beliefs_db_path: str,
         probes_db_path: str,
         snapshot_path: str,
+        *,
+        beliefs_writer: Writer | None = None,
+        probes_writer: Writer | None = None,
     ) -> None:
         self._beliefs_db = beliefs_db_path
         self._probes_db = probes_db_path
+        self._beliefs_writer = beliefs_writer
+        self._probes_writer = probes_writer
         self._snapshot_path = Path(snapshot_path)
         self._consumed_path = Path(str(snapshot_path) + ".consumed")
 
@@ -126,55 +131,61 @@ class ResumptionSeeder:
 
     def _promote_beliefs(self, belief_ids: List[int]) -> int:
         """
-        Update created_at = now-1 for these belief IDs.
-        Retrieval query orders by created_at + bounded boost bonus, so
-        setting created_at = now-1 makes the belief the most recent in
-        the pool and wins the recent-context slot first tick.
+        Update created_at = now-1 for these belief IDs through the shared Writer.
         """
         if not belief_ids:
             return 0
+        own_writer = self._beliefs_writer is None
+        writer = self._beliefs_writer or Writer(self._beliefs_db, name="resumption_beliefs")
         try:
             now = int(time.time())
             placeholders = ",".join("?" * len(belief_ids))
-            with connect(self._beliefs_db, timeout=5) as conn:
-                cursor = conn.execute(
-                    f"UPDATE beliefs SET created_at = ? WHERE id IN ({placeholders})",
-                    (now - 1, *belief_ids),
-                )
-                return cursor.rowcount
+            results = writer.write_many_with_counts([(
+                f"UPDATE beliefs SET created_at = ? WHERE id IN ({placeholders})",
+                (now - 1, *belief_ids),
+            )])
+            return results[0][1] if results else 0
         except Exception as e:
             logger.warning("Belief promotion failed: %s", e)
             return 0
+        finally:
+            if own_writer:
+                writer.close()
 
     def _reissue_probes(self, pending: List[Dict[str, Any]]) -> int:
         """
-        Mark pending probes as re-issued: bump asked_at to now
-        and append a traceability note.
+        Mark pending probes as re-issued through the shared Writer.
         """
         if not pending:
             return 0
-        reissued = 0
+        own_writer = self._probes_writer is None
+        writer = self._probes_writer or Writer(self._probes_db, name="resumption_probes")
         try:
             now = time.time()
-            with connect(self._probes_db, timeout=5) as conn:
-                for probe in pending:
-                    probe_id = probe.get("id")
-                    if probe_id is None:
-                        continue
-                    conn.execute(
-                        """
-                        UPDATE probes
-                        SET asked_at = ?,
-                            notes = COALESCE(notes, '') || ' [reissued_after_restart]'
-                        WHERE id = ?
-                        AND response_received_at IS NULL
-                        """,
-                        (now, probe_id),
-                    )
-                    reissued += 1
+            statements = []
+            for probe in pending:
+                probe_id = probe.get("id")
+                if probe_id is None:
+                    continue
+                statements.append((
+                    """
+                    UPDATE probes
+                    SET asked_at = ?,
+                        notes = COALESCE(notes, '') || ' [reissued_after_restart]'
+                    WHERE id = ?
+                    AND response_received_at IS NULL
+                    """,
+                    (now, probe_id),
+                ))
+            if statements:
+                writer.write_many(statements)
+            return len(statements)
         except Exception as e:
             logger.warning("Probe re-issue failed: %s", e)
-        return reissued
+            return 0
+        finally:
+            if own_writer:
+                writer.close()
 
     def _consume_snapshot(self) -> None:
         """Rename snapshot to .consumed so it won't re-apply on next boot."""
