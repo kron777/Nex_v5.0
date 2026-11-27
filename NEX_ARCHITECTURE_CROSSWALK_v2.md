@@ -145,6 +145,13 @@ coverage gaps, not verified live incidents:
   so a generic edge can pre-empt later typed relation classification. Whether
   this is intended early saturation is unresolved; no live graph loss was
   measured.
+- **Goal state contract:** GoalManager creates and lists `open` goals, while
+  CoherenceGate's context query selects only `active`; the Gate fixture seeds
+  `active` directly and therefore misses the normal GoalManager path.
+- **Problem stuck-state contract:** FocusLoop moves pinged/cooldown-suppressed
+  open problems to `stuck`, while ProblemMemory, CounterfactualNode and Gate
+  context select only `open`. Whether this is intentional human handoff or an
+  orphaned lifecycle state remains unresolved.
 
 For precise source references, conditions, test coverage and dispositions, see
 Section F of `NEX_PHASE0_VERIFIED_DEFECT_BACKLOG_2026-11-27.md`.
