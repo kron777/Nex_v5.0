@@ -123,11 +123,11 @@ PR #287 merged objective-context propagation into `run_cycle()`, cycle persisten
 
 **Implemented and test-verified:** context is preserved; scalar intent is handled as a single item; unknown context remains unmapped; execution readiness is blocked; exclusions are propagated; cycle resume retains context; handoff carries the assessment; and acceptance criteria explicitly expose `verification_status: unknown`, `mapped_obligations: []`, and `verification_evidence: []` (PR #296).
 
-**Remaining gap:** context items are not yet mapped automatically or through a structured evidence-resolution workflow into obligations and independent evidence. Acceptance criteria are preserved and surfaced, but are not yet a formal completion-verification contract. Owner/source are provenance fields, not enforced authority. This remains a planning/review capability gap, not evidence of an execution incident.
+**Remaining gap:** context items are not yet mapped automatically or through a structured evidence-resolution workflow into obligations and independent evidence. Acceptance criteria now have an explicit UNKNOWN-first completion-verification contract, but automatic obligation mapping and independent completion evidence are still absent. Owner/source are provenance fields, not enforced authority. This remains a planning/review capability gap, not evidence of an execution incident.
 
 
 
-**Subsequent implementation note (27 November 2026):** PR #298 also made malformed persisted interface-profile shapes explicitly diagnosable (`invalid_shape`) while preserving UNKNOWN. This improves evidence diagnosis only; it does not create thresholds or relationship sufficiency verdicts.
+**Subsequent implementation note (27 November 2026):** PR #298 also made malformed persisted interface-profile shapes explicitly diagnosable (`invalid_shape`) while preserving UNKNOWN. This improves evidence diagnosis only; it does not create thresholds or relationship sufficiency verdicts. PR #307 (open at this snapshot) proposes attaching operating-envelope evidence to relationships and exposing declared/assessed states plus evidence gaps in relationship assessment; it does not calculate headroom or promote the relationship verdict.
 
 ## 6. Next implementation slice
 
