@@ -76,7 +76,7 @@ Roadmap v3.0 M0.5 (technical causal trace) is distinct from V2.1 M0.5 (six doctr
 - Mind-map verification: completed with warnings only; no hard errors. Warnings include 2 missing doctrine references, stale verification dates and one past-due unblock marker.
 - The post-merge push run `45939220368` on `612022e81f749a99de665372704d7acc0645de67` was still pending/in progress at the time this backlog was drafted. Append its final result after completion.
 
-## F. Additional bounded producer/consumer findings verified on current main
+## E. Additional bounded producer/consumer findings verified on current main
 
 These are source-level conditions and test-coverage gaps recovered from older audit notes and re-checked against the current `main` snapshot. They are **not** findings about live rows, active processes or measured incidents.
 
@@ -132,6 +132,6 @@ These are source-level conditions and test-coverage gaps recovered from older au
 - **Qualification:** this may be intended early graph saturation; no live graph coverage or lost classification was measured. The Stage-2 loop is registered through the dynamic factory; Stage-3 EdgeGenerator is separately started in `run.py`.
 - **Disposition:** graph-admission ordering/ownership question for the crosswalk. Do not change edge types, queue criteria or loop order without specification/approval.
 
-## G. Gate boundary
+## F. Gate boundary
 
 This backlog is evidence input for Gate 0. It is not permission to enable Phase 1 experiments, change prompts, change confidence/belief revision, modify Coherence Gate policy, alter dark flags, start/restart services or touch live databases.
