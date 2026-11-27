@@ -143,7 +143,12 @@ def _moltbook_responder_loop(state, stop: threading.Event) -> None:
                 continue
             from theory_x.stage7_moltbook.responder import DMResponder
             if _responder is None:
-                _responder = DMResponder(c)
+                _responder = DMResponder(
+                    c,
+                    dynamic_reader=state.readers["dynamic"],
+                    dynamic_writer=state.writers["dynamic"],
+                    beliefs_reader=state.readers["beliefs"],
+                )
                 log.info("moltbook responder running")
             try:
                 _responder.tick()
