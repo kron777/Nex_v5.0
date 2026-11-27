@@ -171,3 +171,160 @@ def test_real_stage_evidence_loop_persists_and_resumes(tmp_path):
     out = json.loads(r.stdout)
     assert out["mean"] == res["mean_prediction_accuracy"]
     assert out["split"] == res["provenance_split"]
+
+
+
+def test_regression_outcome_becomes_scoped_candidate_for_later_cycles(tmp_path):
+    from rdo.memory import PatternMemory, compare, derive_lessons
+    from rdo.orchestrator import run_cycle
+    from rdo.model import Obligation
+
+    outcome = _cycle("regression", 2, actual={
+        "missed": [], "unnecessary": [], "reuse_wrong": [],
+        "regressions": ["ci:run-123 regression in belief-decay path"],
+    })
+    lessons = derive_lessons(outcome, compare(outcome))
+    regression = next(item for item in lessons if item.key == "regression_risk:regression")
+    assert regression.applicability == outcome.objective
+    assert "one regression" in regression.exceptions[0]
+
+    memory = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    memory.add(regression)
+    assert regression.confidence == 0.3 and regression.observed_count == 1
+    assert [item.key for item in memory.applicable("regression")] == ["regression_risk:regression"]
+    assert memory.applicable("another regression objective") == []
+    reopened = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    assert [item.key for item in reopened.applicable("regression")] == ["regression_risk:regression"]
+    assert reopened.applicable("another regression objective") == []
+
+    next_cycle, _ = run_cycle(
+        "next-regression-review", "regression", [],
+        [Obligation("seed", "bounded seed", "test")], signatures={},
+        repo_dir=str(tmp_path), active_experiments=[], memory=memory, max_depth=0,
+    )
+    assert any("applied_patterns=['regression_risk:regression']" in item
+               for item in next_cycle.uncertainties)
+
+
+def test_malformed_regression_outcome_does_not_create_learning_pattern():
+    from rdo.memory import compare, derive_lessons
+    cycle = _cycle("malformed-regression", 1, actual={
+        "missed": [], "unnecessary": [], "reuse_wrong": [], "regressions": [" "],
+    })
+    assert all(not item.key.startswith("regression_risk:")
+               for item in derive_lessons(cycle, compare(cycle)))
+
+
+def test_regression_lessons_from_different_objectives_do_not_collapse_scope():
+    from rdo.memory import compare, derive_lessons
+    first = _cycle("regression-a", 1, actual={
+        "missed": [], "unnecessary": [], "reuse_wrong": [], "regressions": ["ci:a"],
+    })
+    second = _cycle("regression-b", 1, actual={
+        "missed": [], "unnecessary": [], "reuse_wrong": [], "regressions": ["ci:b"],
+    })
+    a = next(item for item in derive_lessons(first, compare(first))
+             if item.key.startswith("regression_risk:"))
+    b = next(item for item in derive_lessons(second, compare(second))
+             if item.key.startswith("regression_risk:"))
+    assert a.key != b.key
+    assert a.applicability == first.objective
+    assert b.applicability == second.objective
+
+
+def test_regression_without_objective_scope_does_not_create_global_pattern():
+    from rdo.memory import compare, derive_lessons
+    cycle = _cycle("unscoped-regression", 1, actual={
+        "missed": [], "unnecessary": [], "reuse_wrong": [], "regressions": ["ci:regression"],
+    })
+    cycle.objective = " "
+    assert all(not item.key.startswith("regression_risk:")
+               for item in derive_lessons(cycle, compare(cycle)))
+
+
+def test_exact_scope_patterns_do_not_use_legacy_token_overlap(tmp_path):
+    from rdo.memory import PatternMemory
+    from rdo.model import Pattern
+    memory = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    memory.add(Pattern(key="exact", statement="scoped", provenance="cycle:1",
+        applicability="belief decay", exact_scope=True))
+    assert [p.key for p in memory.applicable("belief decay")] == ["exact"]
+    assert [p.key for p in memory.applicable("  belief decay  ")] == ["exact"]
+    assert memory.applicable("belief retrieval") == []
+    assert memory.applicable("other belief decay") == []
+
+
+def test_pattern_exact_scope_requires_boolean_value():
+    import pytest
+    from rdo.model import Pattern
+    with pytest.raises(ValueError, match="exact_scope must be a boolean"):
+        Pattern(key="bad", statement="bad", provenance="cycle:1", exact_scope="true")
+
+
+def test_exact_scope_pattern_requires_nonblank_applicability():
+    import pytest
+    from rdo.model import Pattern
+    with pytest.raises(ValueError, match="non-blank applicability"):
+        Pattern(key="unscoped", statement="bad", provenance="cycle:1", exact_scope=True)
+
+
+def test_exact_scope_matching_normalizes_internal_whitespace_and_case(tmp_path):
+    from rdo.memory import PatternMemory
+    from rdo.model import Pattern
+    memory = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    memory.add(Pattern(key="exact", statement="scoped", provenance="cycle:1",
+        applicability="Belief   Decay", exact_scope=True))
+    assert [p.key for p in memory.applicable(" belief decay ")] == ["exact"]
+
+
+def test_exact_scope_pattern_key_collision_fails_closed(tmp_path):
+    import pytest
+    from rdo.memory import PatternMemory
+    from rdo.model import Pattern
+    memory = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    memory.add(Pattern(key="regression_risk:shared", statement="first",
+        provenance="cycle:1", applicability="belief decay", exact_scope=True))
+    with pytest.raises(ValueError, match="conflicting exact scopes"):
+        memory.add(Pattern(key="regression_risk:shared", statement="other",
+            provenance="cycle:2", applicability="belief retrieval", exact_scope=True))
+    assert [p.key for p in memory.applicable("belief decay")] == ["regression_risk:shared"]
+    assert memory.applicable("belief retrieval") == []
+
+
+def test_exact_scope_pattern_cannot_collide_with_legacy_fuzzy_pattern(tmp_path):
+    import pytest
+    from rdo.memory import PatternMemory
+    from rdo.model import Pattern
+    memory = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    memory.add(Pattern(key="regression_risk:shared", statement="legacy",
+        provenance="cycle:1", applicability="belief", exact_scope=False))
+    with pytest.raises(ValueError, match="conflicting scope modes"):
+        memory.add(Pattern(key="regression_risk:shared", statement="exact",
+            provenance="cycle:2", applicability="belief decay", exact_scope=True))
+
+
+def test_persisted_exact_scope_key_collision_fails_closed(tmp_path):
+    import json
+    import pytest
+    from rdo.memory import PatternMemory
+    from rdo.model import Pattern
+    path = tmp_path / "patterns.jsonl"
+    first = Pattern(key="same", statement="first", provenance="cycle:1",
+        applicability="belief decay", exact_scope=True)
+    second = Pattern(key="same", statement="second", provenance="cycle:2",
+        applicability="belief retrieval", exact_scope=True)
+    path.write_text(json.dumps(first.to_dict()) + "\n" + json.dumps(second.to_dict()) + "\n")
+    with pytest.raises(ValueError, match="persisted pattern key collision"):
+        PatternMemory(str(path))
+
+
+def test_pattern_memory_add_revalidates_mutated_exact_scope_metadata(tmp_path):
+    import pytest
+    from rdo.memory import PatternMemory
+    from rdo.model import Pattern
+    memory = PatternMemory(str(tmp_path / "patterns.jsonl"))
+    pattern = Pattern(key="mutated", statement="scoped", provenance="cycle:1",
+        applicability="belief decay", exact_scope=True)
+    pattern.applicability = " "
+    with pytest.raises(ValueError, match="non-blank applicability"):
+        memory.add(pattern)
